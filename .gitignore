@@ -1,9 +1,17 @@
-/bin
-/build
-/out
-/fuzz-out
-/emscripten
-*.pyc
+# Project memory (local only)
+CLAUDE.md
+
+# TypeScript build output
+/dist
+/node_modules
+
+# Test coverage
+/coverage
+
+# Editor
 .idea/
 .vscode/
-/cmake-build-debug/
+
+# OS
+.DS_Store
+Thumbs.db
