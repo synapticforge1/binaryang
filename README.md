@@ -4,7 +4,7 @@ A native TypeScript port of [WebAssembly/wabt](https://github.com/WebAssembly/wa
 
 ## Overview
 
-wabt-ts provides the core wabt tooling as idiomatic TypeScript modules for use in Deno and Node environments, with no binary dependencies. It also adds `wasm2ts`, a new wasm-to-TypeScript ahead-of-time transpiler not present in the original wabt.
+wabt-ts provides the core wabt tooling as idiomatic TypeScript modules, distributed on [JSR](https://jsr.io). It requires no compiled binary and runs natively on Deno (primary) and Bun (secondary). It also adds `wasm2ts`, a new wasm-to-TypeScript ahead-of-time transpiler not present in the original wabt.
 
 ### Tools
 
@@ -24,20 +24,45 @@ wabt-ts provides the core wabt tooling as idiomatic TypeScript modules for use i
 import { wat2wasm, wasm2wat } from "jsr:@jrmarcum/wabt-ts";
 ```
 
-### As a library (Bun / Node)
+### As a library (Bun)
 
 ```sh
 bunx jsr add @jrmarcum/wabt-ts
 ```
 
-### Run tools remotely
+```typescript
+import { wat2wasm, wasm2wat } from "@jrmarcum/wabt-ts";
+```
+
+### Run tools remotely via Deno
 
 ```sh
 deno run -A jsr:@jrmarcum/wabt-ts/wat2wasm input.wat -o output.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm2wat input.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm-validate input.wasm
+deno run -A jsr:@jrmarcum/wabt-ts/wasm-objdump input.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm2ts input.wasm -o output.ts
 ```
+
+## Development
+
+**Requirements:** [Deno](https://deno.land/) v2+
+
+```sh
+# Type-check
+deno task check
+
+# Run tests
+deno task test
+
+# Lint / format
+deno lint
+deno fmt
+```
+
+Tests use `@std/testing/bdd` from JSR, which is compatible with both `deno test` and `bun test`.
+
+No build step is required — JSR publishes TypeScript source directly.
 
 ## Roadmap
 
@@ -45,22 +70,45 @@ deno run -A jsr:@jrmarcum/wabt-ts/wasm2ts input.wasm -o output.ts
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| **1** | Core infrastructure — types, opcodes, LEB128, literals, errors | ⬜ Pending |
-| **2** | IR layer — AST nodes, expression visitor, name resolution | ⬜ Pending |
-| **3** | Binary round-trip — binary reader + writer | ⬜ Pending |
-| **4** | WAT text format — lexer, parser, WAT pretty-printer | ⬜ Pending |
-| **5** | Validator — type checker and full wasm validator | ⬜ Pending |
-| **6** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | ⬜ Pending |
-| **7** | Interpreter — evaluate need vs. Deno/V8 native wasm JIT | ⬜ Deferred |
-| **8** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | ⬜ Pending |
-| **9** | wasmtk module compilation — progressively compile wasmtk modules to wasm | ⬜ Pending |
+| **1** | Core infrastructure — types, opcodes, LEB128, literals, errors | Pending |
+| **2** | IR layer — AST nodes, expression visitor, name resolution | Pending |
+| **3** | Binary round-trip — binary reader + writer | Pending |
+| **4** | WAT text format — lexer, parser, WAT pretty-printer | Pending |
+| **5** | Validator — type checker and full wasm validator | Pending |
+| **6** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
+| **7** | Interpreter — evaluate need vs. Deno/V8 native wasm JIT | Deferred |
+| **8** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | Pending |
+| **9** | wasmtk module compilation — progressively compile wasmtk modules to wasm | Pending |
 
 Phases 3 and 4 (`wat2wasm` / `wasm2wat`) are the highest priority as they are immediately required by [wasmtk](https://github.com/jrmarcum/wasmtk).
+
+## Repository Layout
+
+```text
+wabt-ts/
+├── upstream/          ← original wabt C++ source (reference only, not built)
+├── src/
+│   ├── core/          ← Phase 1: types, opcodes, LEB128, literals, errors
+│   ├── ir/            ← Phase 2: AST nodes, expression visitor, name resolution
+│   ├── reader/        ← Phase 3: binary reader
+│   ├── writer/        ← Phase 3 + 4: binary writer, WAT writer
+│   ├── parser/        ← Phase 4: lexer, token, WAT parser
+│   ├── validator/     ← Phase 5: type checker, validator
+│   ├── tools/         ← Phase 8: CLI entrypoints
+│   ├── interp/        ← Phase 7: interpreter (deferred)
+│   └── index.ts       ← public API surface
+├── tests/
+│   └── fixtures/      ← .wasm and .wat test vectors
+├── deno.json
+├── LICENSE            ← Apache 2.0
+├── NOTICE.md          ← Attribution to WebAssembly/wabt
+└── CLAUDE.md          ← Project context for AI-assisted development
+```
 
 ## Origin & License
 
 This is a derivative work of [WebAssembly/wabt](https://github.com/WebAssembly/wabt), licensed under the [Apache License 2.0](LICENSE).
 
-The original C++ source is preserved in [`upstream/`](upstream/) for reference and attribution. Each TypeScript source file that corresponds to a C++ original carries an attribution header identifying the source file.
+The original C++ source is preserved in [`upstream/`](upstream/) for reference and attribution. Each TypeScript source file that corresponds to a C++ original carries an attribution header identifying the source file and copyright.
 
 Copyright 2016 WebAssembly Community Group participants (original wabt)
