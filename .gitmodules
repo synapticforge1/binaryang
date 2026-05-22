@@ -19,3 +19,6 @@
 [submodule "upstream/third_party/simde"]
 	path = upstream/third_party/simde
 	url = https://github.com/simd-everywhere/simde
+[submodule "binaryen-ts"]
+	path = binaryen-ts
+	url = https://github.com/jrmarcum/binaryen-ts.git
