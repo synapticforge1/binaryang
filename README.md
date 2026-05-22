@@ -106,8 +106,17 @@ wabt-ts/
 
 ## Origin & License
 
-This is a derivative work of [WebAssembly/wabt](https://github.com/WebAssembly/wabt), licensed under the [Apache License 2.0](LICENSE).
+wabt-ts is dual-licensed:
 
-The original C++ source is preserved in [`upstream/`](upstream/) for reference and attribution. Each TypeScript source file that corresponds to a C++ original carries an attribution header identifying the source file and copyright.
+- **MIT License** ([LICENSE](LICENSE)) — applies to original contributions in this repository.
+  Copyright (c) 2026 J.R. Marcum.
+- **Apache License 2.0** ([LICENSE-APACHE](LICENSE-APACHE)) — applies to all code derived
+  from [WebAssembly/wabt](https://github.com/WebAssembly/wabt).
+  Copyright 2016 WebAssembly Community Group participants.
 
-Copyright 2016 WebAssembly Community Group participants (original wabt)
+The Apache 2.0 license is included to satisfy the redistribution requirements of the upstream
+work. See [NOTICE.md](NOTICE.md) for full attribution details.
+
+The original C++ source is preserved in [`upstream/`](upstream/) for reference. Each TypeScript
+source file ported from a C++ original carries an attribution header identifying the originating
+file and copyright.
