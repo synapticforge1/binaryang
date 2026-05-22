@@ -66,20 +66,20 @@ No build step is required — JSR publishes TypeScript source directly.
 
 ## Roadmap
 
-> This project is under active development. Phases 1–2 are complete.
+> This project is under active development. Phases 1–3 are complete.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | **1** | Core infrastructure — types, opcodes, LEB128, literals, errors | ✅ Complete |
 | **2** | IR layer — AST nodes, expression visitor, name resolution | ✅ Complete |
-| **3** | Binary round-trip — binary reader + writer | Pending |
+| **3** | Binary round-trip — binary reader + writer | ✅ Complete |
 | **4** | WAT text format — lexer, parser, WAT pretty-printer | Pending |
 | **5** | Validator — type checker and full wasm validator | Pending |
-| **6** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
-| **7** | Interpreter — evaluate need vs. Deno/V8 native wasm JIT | Dropped |
-| **8** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | Pending |
+| **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | Pending |
+| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | Blocked |
+| **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
-Phases 3 and 4 (`wat2wasm` / `wasm2wat`) are the highest priority as they are immediately required by [wasmtk](https://github.com/jrmarcum/wasmtk).
+Phase 4 (WAT text format) is the highest priority as it completes `wat2wasm` + `wasm2wat` for [wasmtk](https://github.com/jrmarcum/wasmtk).
 
 ## Repository Layout
 
@@ -93,8 +93,7 @@ wabt-ts/
 │   ├── writer/        ← Phase 3 + 4: binary writer, WAT writer
 │   ├── parser/        ← Phase 4: lexer, token, WAT parser
 │   ├── validator/     ← Phase 5: type checker, validator
-│   ├── tools/         ← Phase 8: CLI entrypoints
-│   ├── interp/        ← Phase 7: interpreter (deferred)
+│   ├── tools/         ← Phase 6: CLI entrypoints
 │   └── index.ts       ← public API surface
 ├── tests/
 │   └── fixtures/      ← .wasm and .wat test vectors

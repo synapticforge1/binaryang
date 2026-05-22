@@ -32,7 +32,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true,
-    "lib": ["ES2022", "deno.ns"]
+    "lib": ["ES2022", "deno.ns", "deno.window"]
   },
 
   "lint": {
