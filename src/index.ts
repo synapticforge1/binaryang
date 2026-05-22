@@ -46,3 +46,18 @@ export * from './writer/stream.ts';
 export * from './parser/lexer-source.ts';
 export * from './parser/wast-parser.ts';
 export * from './writer/wat-writer.ts';
+
+// Phase 5 — Validator
+export * from './validator/validator.ts';
+
+// Phase 6 — CLI tool library API
+export { wat2wasm } from './tools/wat2wasm.ts';
+export type { Wat2WasmOptions, Wat2WasmResult } from './tools/wat2wasm.ts';
+export { wasm2wat } from './tools/wasm2wat.ts';
+export type { Wasm2WatOptions, Wasm2WatResult } from './tools/wasm2wat.ts';
+export { wasmValidate } from './tools/wasm-validate.ts';
+export type { WasmValidateOptions, WasmValidateResult } from './tools/wasm-validate.ts';
+export { wasmObjdump } from './tools/wasm-objdump.ts';
+export type { WasmObjdumpOptions, WasmObjdumpResult } from './tools/wasm-objdump.ts';
+export { wasmStrip } from './tools/wasm-strip.ts';
+export type { WasmStripOptions, WasmStripResult } from './tools/wasm-strip.ts';

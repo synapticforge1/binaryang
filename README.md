@@ -44,9 +44,30 @@ deno run -A jsr:@jrmarcum/wabt-ts/wasm-objdump input.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm2ts input.wasm -o output.ts
 ```
 
-## Current API (Phases 1–4)
+## API (Phases 1–6)
 
-The core IR pipeline and WAT text format are already usable as a library. CLI tool wrappers (`wat2wasm`, `wasm2wat`, etc.) land in Phase 6.
+### High-level tool functions
+
+```typescript
+import { wat2wasm, wasm2wat, wasmValidate, wasmObjdump, wasmStrip } from "jsr:@jrmarcum/wabt-ts";
+
+// WAT text → wasm binary
+const { binary, errors, result } = wat2wasm(`(module)`, { filename: 'input.wat' });
+
+// wasm binary → WAT text
+const { text } = wasm2wat(binary);
+
+// validate
+const { errors: errs, result: ok } = wasmValidate(binary);
+
+// section dump
+const { text: dump } = wasmObjdump(binary, { details: true });
+
+// strip all custom sections (e.g. name section)
+const { binary: stripped } = wasmStrip(binary);
+```
+
+### Low-level pipeline (IR access)
 
 ```typescript
 import {
@@ -59,8 +80,11 @@ import {
   writeWatModule,    // (module: Module, opts?) → string
 
   // Binary reader/writer — binary ↔ IR
-  readBinaryIr,      // (bytes: Uint8Array) → { module: Module; errors: WabtError[] }
+  readBinaryIr,      // (bytes: Uint8Array, errors, opts?) → Module
   writeBinaryIr,     // (module: Module) → Uint8Array
+
+  // Validator
+  validateModule,    // (module: Module, errors: ErrorList, opts?) → Result
 
   // IR constructors
   makeModule, varIndex, varName, constI32, constI64, constF32, constF64,
@@ -85,16 +109,34 @@ const { module, errors } = parseWatModule(`
 ### Binary round-trip
 
 ```typescript
-import { readBinaryIr, writeBinaryIr, writeWatModule } from "jsr:@jrmarcum/wabt-ts";
+import { readBinaryIr, writeBinaryIr, writeWatModule, makeErrorList } from "jsr:@jrmarcum/wabt-ts";
 
 const bytes = await Deno.readFile("module.wasm");
-const { module } = readBinaryIr(bytes);
+const errors = makeErrorList();
+const module = readBinaryIr(bytes, errors);
 
 // IR → WAT text
 const wat = writeWatModule(module);
 
 // IR → binary (round-trip)
 const roundTripped = writeBinaryIr(module);
+```
+
+### Validate a module
+
+```typescript
+import { readBinaryIr, validateModule, makeErrorList, hasErrors, formatErrors } from "jsr:@jrmarcum/wabt-ts";
+
+const bytes = await Deno.readFile("module.wasm");
+const errors = makeErrorList();
+const module = readBinaryIr(bytes, errors);
+validateModule(module, errors);
+
+if (hasErrors(errors)) {
+  console.error(formatErrors(errors));
+} else {
+  console.log("module is valid");
+}
 ```
 
 ## Development
@@ -119,7 +161,7 @@ No build step is required — JSR publishes TypeScript source directly.
 
 ## Roadmap
 
-> This project is under active development. Phases 1–4 are complete.
+> This project is under active development. Phases 1–6 are complete.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -127,12 +169,12 @@ No build step is required — JSR publishes TypeScript source directly.
 | **2** | IR layer — AST nodes, expression visitor, name resolution | ✅ Complete |
 | **3** | Binary round-trip — binary reader + writer | ✅ Complete |
 | **4** | WAT text format — lexer, parser, WAT pretty-printer | ✅ Complete |
-| **5** | Validator — type checker and full wasm validator | Pending |
-| **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | Pending |
-| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | Blocked |
+| **5** | Validator — type checker and full wasm validator | ✅ Complete |
+| **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | ✅ Complete |
+| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🔒 Blocked |
 | **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
-Phase 5 (Validator) is next — it enables `wasm-validate` and strengthens `wat2wasm` correctness. Phase 6 (CLI wrappers) follows, completing `wat2wasm` + `wasm2wat` as runnable tools for [wasmtk](https://github.com/jrmarcum/wasmtk).
+Phase 7 (binaryen bridge) is blocked on the binaryen-ts Phase 2 instruction decoder milestone. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
 
 ## Repository Layout
 
