@@ -1,0 +1,32 @@
+name: Publish to JSR
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # required for OIDC-based provenance
+
+jobs:
+  publish:
+    name: Publish to JSR
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check
+        run: deno task check
+
+      - name: Run tests
+        run: deno task test
+
+      - name: Publish
+        run: deno publish --provenance
