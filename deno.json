@@ -49,7 +49,7 @@
     "singleQuote": true
   },
 
-  "exclude": ["upstream/", "binaryen-ts/", "dist/", "node_modules/"],
+  "exclude": ["upstream/", "binaryen-ts/", "wasmtk/", "dist/", "node_modules/"],
 
   "publish": {
     "include": [

@@ -4,3 +4,6 @@
 [submodule "upstream"]
 	path = upstream
 	url = https://github.com/WebAssembly/wabt.git
+[submodule "wasmtk"]
+	path = wasmtk
+	url = https://github.com/jrmarcum/wasmtk.git
