@@ -66,19 +66,18 @@ No build step is required — JSR publishes TypeScript source directly.
 
 ## Roadmap
 
-> This project is under active development. All phases are pending.
+> This project is under active development. Phases 1–2 are complete.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| **1** | Core infrastructure — types, opcodes, LEB128, literals, errors | Pending |
-| **2** | IR layer — AST nodes, expression visitor, name resolution | Pending |
+| **1** | Core infrastructure — types, opcodes, LEB128, literals, errors | ✅ Complete |
+| **2** | IR layer — AST nodes, expression visitor, name resolution | ✅ Complete |
 | **3** | Binary round-trip — binary reader + writer | Pending |
 | **4** | WAT text format — lexer, parser, WAT pretty-printer | Pending |
 | **5** | Validator — type checker and full wasm validator | Pending |
 | **6** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
-| **7** | Interpreter — evaluate need vs. Deno/V8 native wasm JIT | Deferred |
+| **7** | Interpreter — evaluate need vs. Deno/V8 native wasm JIT | Dropped |
 | **8** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | Pending |
-| **9** | wasmtk module compilation — progressively compile wasmtk modules to wasm | Pending |
 
 Phases 3 and 4 (`wat2wasm` / `wasm2wat`) are the highest priority as they are immediately required by [wasmtk](https://github.com/jrmarcum/wasmtk).
 
