@@ -44,6 +44,59 @@ deno run -A jsr:@jrmarcum/wabt-ts/wasm-objdump input.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm2ts input.wasm -o output.ts
 ```
 
+## Current API (Phases 1–4)
+
+The core IR pipeline and WAT text format are already usable as a library. CLI tool wrappers (`wat2wasm`, `wasm2wat`, etc.) land in Phase 6.
+
+```typescript
+import {
+  // WAT parser — text → IR
+  parseWatModule,    // (src: string) → { module: Module; errors: WabtError[] }
+  parseWastScript,   // (src: string) → { script: WastScript; errors: WabtError[] }
+  LexerSource,       // wrap a string or Uint8Array for the parser
+
+  // WAT writer — IR → text
+  writeWatModule,    // (module: Module, opts?) → string
+
+  // Binary reader/writer — binary ↔ IR
+  readBinaryIr,      // (bytes: Uint8Array) → { module: Module; errors: WabtError[] }
+  writeBinaryIr,     // (module: Module) → Uint8Array
+
+  // IR constructors
+  makeModule, varIndex, varName, constI32, constI64, constF32, constF64,
+} from "jsr:@jrmarcum/wabt-ts";
+```
+
+### Parse WAT text to IR
+
+```typescript
+import { parseWatModule } from "jsr:@jrmarcum/wabt-ts";
+
+const { module, errors } = parseWatModule(`
+  (module
+    (func $add (export "add") (param i32 i32) (result i32)
+      local.get 0
+      local.get 1
+      i32.add)
+  )
+`);
+```
+
+### Binary round-trip
+
+```typescript
+import { readBinaryIr, writeBinaryIr, writeWatModule } from "jsr:@jrmarcum/wabt-ts";
+
+const bytes = await Deno.readFile("module.wasm");
+const { module } = readBinaryIr(bytes);
+
+// IR → WAT text
+const wat = writeWatModule(module);
+
+// IR → binary (round-trip)
+const roundTripped = writeBinaryIr(module);
+```
+
 ## Development
 
 **Requirements:** [Deno](https://deno.land/) v2+
@@ -66,20 +119,20 @@ No build step is required — JSR publishes TypeScript source directly.
 
 ## Roadmap
 
-> This project is under active development. Phases 1–3 are complete.
+> This project is under active development. Phases 1–4 are complete.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | **1** | Core infrastructure — types, opcodes, LEB128, literals, errors | ✅ Complete |
 | **2** | IR layer — AST nodes, expression visitor, name resolution | ✅ Complete |
 | **3** | Binary round-trip — binary reader + writer | ✅ Complete |
-| **4** | WAT text format — lexer, parser, WAT pretty-printer | Pending |
+| **4** | WAT text format — lexer, parser, WAT pretty-printer | ✅ Complete |
 | **5** | Validator — type checker and full wasm validator | Pending |
 | **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | Pending |
 | **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | Blocked |
 | **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
-Phase 4 (WAT text format) is the highest priority as it completes `wat2wasm` + `wasm2wat` for [wasmtk](https://github.com/jrmarcum/wasmtk).
+Phase 5 (Validator) is next — it enables `wasm-validate` and strengthens `wat2wasm` correctness. Phase 6 (CLI wrappers) follows, completing `wat2wasm` + `wasm2wat` as runnable tools for [wasmtk](https://github.com/jrmarcum/wasmtk).
 
 ## Repository Layout
 

@@ -27,3 +27,22 @@ export * from './core/error.ts';
 export * from './core/leb128.ts';
 export * from './core/literal.ts';
 export * from './core/opcode.ts';
+
+// Phase 2 — IR layer
+export * from './ir/ir.ts';
+export * from './ir/ir-util.ts';
+export * from './ir/expr-visitor.ts';
+export * from './ir/generate-names.ts';
+export * from './ir/resolve-names.ts';
+export * from './ir/apply-names.ts';
+
+// Phase 3 — Binary round-trip
+export * from './reader/binary-reader.ts';
+export * from './reader/binary-reader-ir.ts';
+export * from './writer/binary-writer.ts';
+export * from './writer/stream.ts';
+
+// Phase 4 — WAT text format
+export * from './parser/lexer-source.ts';
+export * from './parser/wast-parser.ts';
+export * from './writer/wat-writer.ts';
