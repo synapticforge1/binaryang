@@ -99,23 +99,21 @@ wabt-ts/
 ├── tests/
 │   └── fixtures/      ← .wasm and .wat test vectors
 ├── deno.json
-├── LICENSE            ← Apache 2.0
-├── NOTICE.md          ← Attribution to WebAssembly/wabt
+├── LICENSE            ← dual-license notice (MIT OR Apache-2.0)
+├── LICENSE-MIT        ← MIT license text
+├── LICENSE-APACHE     ← Apache License 2.0 text (upstream compliance)
+├── NOTICE.md          ← attribution and license explanation
 └── CLAUDE.md          ← Project context for AI-assisted development
 ```
 
 ## Origin & License
 
-wabt-ts is dual-licensed:
+wabt-ts is dual-licensed under either:
 
-- **MIT License** ([LICENSE](LICENSE)) — applies to original contributions in this repository.
-  Copyright (c) 2026 J.R. Marcum.
-- **Apache License 2.0** ([LICENSE-APACHE](LICENSE-APACHE)) — applies to all code derived
-  from [WebAssembly/wabt](https://github.com/WebAssembly/wabt).
-  Copyright 2016 WebAssembly Community Group participants.
+- **[MIT License](LICENSE-MIT)** — copyright (c) 2026 Jon Marcum
+- **[Apache License 2.0](LICENSE-APACHE)** — required for code derived from [WebAssembly/wabt](https://github.com/WebAssembly/wabt)
 
-The Apache 2.0 license is included to satisfy the redistribution requirements of the upstream
-work. See [NOTICE.md](NOTICE.md) for full attribution details.
+at your option. See [NOTICE.md](NOTICE.md) for full attribution details.
 
 The original C++ source is preserved in [`upstream/`](upstream/) for reference. Each TypeScript
 source file ported from a C++ original carries an attribution header identifying the originating

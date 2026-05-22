@@ -2,21 +2,20 @@
 
 ## License
 
-wabt-ts is dual-licensed:
+wabt-ts is dual-licensed under either:
 
-- **MIT License** — applies to original contributions in this repository.
-  See [LICENSE](LICENSE) for the full text.
-- **Apache License 2.0** — applies to all code derived from
-  [WebAssembly/wabt](https://github.com/WebAssembly/wabt).
-  See [LICENSE-APACHE](LICENSE-APACHE) for the full text.
+- **MIT License** — see [LICENSE-MIT](LICENSE-MIT) for the full text.
+- **Apache License, Version 2.0** — see [LICENSE-APACHE](LICENSE-APACHE) for the full text.
+
+at your option.
 
 The Apache 2.0 license is included to satisfy the redistribution requirements of the
-upstream work. Downstream consumers may use this package under the MIT License provided
-they also comply with the Apache 2.0 attribution requirements for the derived portions.
+upstream WebAssembly/wabt project. Attribution notices for the derived portions are
+retained below and in each ported source file, as required by the upstream license.
 
 ## Attribution — WebAssembly/wabt
 
-wabt-ts is a derivative work of **WebAssembly/wabt** (https://github.com/WebAssembly/wabt).
+wabt-ts is a derivative work of [WebAssembly/wabt](https://github.com/WebAssembly/wabt).
 
 ```text
 Copyright 2016 WebAssembly Community Group participants
