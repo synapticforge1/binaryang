@@ -199,7 +199,7 @@ workstation, since that would publish without provenance.
 
 ## Roadmap
 
-> This project is under active development. Phases 1–6 are complete.
+> This project is under active development. Phases 1–6 are complete and Phase 7 (binaryen bridge) is well past MVP — ~35 expression kinds round-trip through the bridge to V8-validated wasm.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -214,7 +214,7 @@ workstation, since that would publish without provenance.
 | **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🟡 In progress (Tiers A+B+C partial; EH/GC deferred) |
 | **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
-Phase 7 (binaryen bridge) is now unblocked — binaryen-ts is at v1.0.9 with the full instruction-level constructor API stable. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
+Phase 7 (binaryen bridge) covers MVP + Tier A (control flow, locals, globals) + Tier B (calls, select, memory ops) + Tier C partial (ref types, SIMD basics — splat, lane extract, shuffle, lane-wise arithmetic). Deferred from Tier C: `ref.as_non_null` (no binaryen-ts factory yet), SIMD `replace_lane` + memory ops, exception handling, and the GC proposal — each currently throws "not yet supported" with the kind named. binaryen-ts is at v1.0.9. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
 
 ## Repository Layout
 
