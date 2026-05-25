@@ -34,6 +34,7 @@
 import { ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
 import { anyOpcodeName } from '../core/opcode.ts';
+import { CatchKind } from '../ir/ir.ts';
 import type {
   BinaryExpr,
   BlockExpr,
@@ -58,6 +59,8 @@ import type {
   IfExpr,
   Import as WabtImport,
   LoadExpr,
+  LoadSplatExpr,
+  LoadZeroExpr,
   LocalGetExpr,
   LocalSetExpr,
   LocalTeeExpr,
@@ -71,8 +74,14 @@ import type {
   ReturnExpr,
   SelectExpr,
   SimdLaneOpExpr,
+  SimdLoadLaneExpr,
   SimdShuffleOpExpr,
+  SimdStoreLaneExpr,
   StoreExpr,
+  Tag as WabtTag,
+  ThrowExpr,
+  ThrowRefExpr,
+  TryTableExpr,
   UnaryExpr,
   Var,
 } from '../ir/ir.ts';
@@ -107,19 +116,32 @@ import {
   makeReturn,
   makeSelect,
   makeSIMDExtract,
+  makeSIMDLoad,
+  makeSIMDLoadStoreLane,
   makeSIMDShuffle,
   makeStore,
   makeSwitch,
+  makeThrow,
+  makeThrowRef,
+  makeTryTable,
   makeUnary,
   makeUnreachable,
   makeV128Const,
   ModuleBuilder,
   None,
   SIMDExtractOp,
+  SIMDLoadOp,
+  SIMDLoadStoreLaneOp,
   UnaryOp,
   ValType,
 } from '@jrmarcum/binaryen-ts/ir';
-import type { Expression, Local, Type as BType, WasmModule } from '@jrmarcum/binaryen-ts/ir';
+import type {
+  CatchClause,
+  Expression,
+  Local,
+  Type as BType,
+  WasmModule,
+} from '@jrmarcum/binaryen-ts/ir';
 
 import { wabtTypeToValType } from './type-map.ts';
 
@@ -145,12 +167,15 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   let funcCursor = 0;
   let globalCursor = 0;
   let tableCursor = 0;
+  let tagCursor = 0;
   for (const imp of module.imports) {
     if (imp.kind === ExternalKind.Func) bridgeImport(b, imp, ctx.funcNames[funcCursor++]!);
     else if (imp.kind === ExternalKind.Global) {
       bridgeImport(b, imp, ctx.globalNames[globalCursor++]!);
     } else if (imp.kind === ExternalKind.Table) {
       bridgeImport(b, imp, ctx.tableNames[tableCursor++]!);
+    } else if (imp.kind === ExternalKind.Tag) {
+      bridgeImport(b, imp, ctx.tagNames[tagCursor++]!);
     } else bridgeImport(b, imp, '');
   }
 
@@ -172,6 +197,10 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
     bridgeTable(b, module.tables[i]!, ctx.tableNames[tableCursor + i]!);
   }
 
+  for (let i = 0; i < module.tags.length; i++) {
+    bridgeTag(b, module.tags[i]!, ctx.tagNames[tagCursor + i]!);
+  }
+
   for (let i = 0; i < module.funcs.length; i++) {
     bridgeFunc(b, module.funcs[i]!, ctx, ctx.funcNames[funcCursor + i]!);
   }
@@ -183,6 +212,10 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
 
 function bridgeTable(b: ModuleBuilder, t: WabtModule['tables'][number], name: string): void {
   b.addTable(name, wabtTypeToValType(t.elemType), t.limits.initial, t.limits.max ?? null);
+}
+
+function bridgeTag(b: ModuleBuilder, tag: WabtTag, name: string): void {
+  b.addTag(name, tag.sig.params.map(wabtTypeToValType));
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +233,8 @@ interface BridgeCtx {
   globalTypes: Type[];
   /** Table names indexed by the absolute table index (imports first). Used by `call_indirect`. */
   tableNames: string[];
+  /** Tag names indexed by the absolute tag index (imports first). Used by `throw` / `try_table`. */
+  tagNames: string[];
   /** Current function param types (set inside bridgeFunc). */
   currentParams: Type[];
   /** Current function local types, in slot order after params. */
@@ -221,6 +256,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
   const globalNames: string[] = [];
   const globalTypes: Type[] = [];
   const tableNames: string[] = [];
+  const tagNames: string[] = [];
   for (const imp of module.imports) {
     if (imp.kind === ExternalKind.Func) {
       funcNames.push(imp.func.name);
@@ -230,6 +266,8 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
       globalTypes.push(imp.global.type);
     } else if (imp.kind === ExternalKind.Table) {
       tableNames.push(imp.table.name);
+    } else if (imp.kind === ExternalKind.Tag) {
+      tagNames.push(imp.tag.name);
     }
   }
   for (const f of module.funcs) {
@@ -241,6 +279,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
     globalTypes.push(g.type);
   }
   for (const t of module.tables) tableNames.push(t.name);
+  for (const tag of module.tags) tagNames.push(tag.name);
 
   // binaryen-ts identifies items by string name across the whole module, so
   // any anonymous wabt item (empty `name` string) needs a synthetic one
@@ -250,6 +289,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
   synthesizeAnonymousNames(funcNames, '$F');
   synthesizeAnonymousNames(globalNames, '$G');
   synthesizeAnonymousNames(tableNames, '$T');
+  synthesizeAnonymousNames(tagNames, '$E');
 
   return {
     funcNames,
@@ -257,6 +297,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
     globalNames,
     globalTypes,
     tableNames,
+    tagNames,
     currentParams: [],
     currentLocals: [],
     labelStack: [],
@@ -372,7 +413,13 @@ function bridgeImport(b: ModuleBuilder, imp: WabtImport, internalName: string): 
       );
       return;
     case ExternalKind.Tag:
-      throw new Error('Bridge: tag imports not yet supported');
+      // binaryen-ts has no dedicated `addTagImport` factory in v1.0.9. Tag
+      // imports are uncommon outside wasic-style modules; surface a clear
+      // error rather than silently dropping them.
+      throw new Error(
+        'Bridge: tag imports not yet supported ' +
+          '(binaryen-ts v1.0.9 has no addTagImport factory)',
+      );
   }
 }
 
@@ -632,6 +679,21 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'load': {
       const ld = e as LoadExpr;
       requireDefaultMemory(ld.memidx, 'load');
+      // The WAT lexer maps every `v128.load*_splat` / `v128.load*_zero` /
+      // `v128.load*x*_s|u` / plain `v128.load` to TokenType.Load, so a
+      // parser-sourced module sends them all through here as LoadExpr.
+      // (The binary reader's IR path uses LoadSplatExpr / LoadZeroExpr —
+      // those have their own cases below.) Route SIMD-prefix opcodes to
+      // makeSIMDLoad; plain v128.load is a 16-byte makeLoad.
+      const simdOp = simdLoadOpForOpcode(ld.opcode);
+      if (simdOp !== null) {
+        return makeSIMDLoad(
+          simdOp,
+          bridgeExpr(ld.address, ctx),
+          bigintOffsetToNumber(ld.offset, 'load'),
+          alignBytesToExponent(ld.align, 8, 'load'),
+        );
+      }
       const info = loadInfo(ld.opcode);
       return makeLoad(
         info.bytes,
@@ -640,6 +702,51 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         alignBytesToExponent(ld.align, info.bytes, 'load'),
         bridgeExpr(ld.address, ctx),
         info.resultType,
+      );
+    }
+    case 'load_splat': {
+      // Binary-reader IR path; the WAT-parser path produces LoadExpr.
+      const ls = e as LoadSplatExpr;
+      requireDefaultMemory(ls.memidx, 'load_splat');
+      return makeSIMDLoad(
+        anyOpcodeName(ls.opcode) as SIMDLoadOp,
+        bridgeExpr(ls.address, ctx),
+        bigintOffsetToNumber(ls.offset, 'load_splat'),
+        alignBytesToExponent(ls.align, 8, 'load_splat'),
+      );
+    }
+    case 'load_zero': {
+      const lz = e as LoadZeroExpr;
+      requireDefaultMemory(lz.memidx, 'load_zero');
+      return makeSIMDLoad(
+        anyOpcodeName(lz.opcode) as SIMDLoadOp,
+        bridgeExpr(lz.address, ctx),
+        bigintOffsetToNumber(lz.offset, 'load_zero'),
+        alignBytesToExponent(lz.align, 8, 'load_zero'),
+      );
+    }
+    case 'simd_load_lane': {
+      const sll = e as SimdLoadLaneExpr;
+      requireDefaultMemory(sll.memidx, 'simd_load_lane');
+      return makeSIMDLoadStoreLane(
+        anyOpcodeName(sll.opcode) as SIMDLoadStoreLaneOp,
+        bridgeExpr(sll.address, ctx),
+        bridgeExpr(sll.vec, ctx),
+        bigintOffsetToNumber(sll.offset, 'simd_load_lane'),
+        alignBytesToExponent(sll.align, 8, 'simd_load_lane'),
+        sll.lane,
+      );
+    }
+    case 'simd_store_lane': {
+      const sls = e as SimdStoreLaneExpr;
+      requireDefaultMemory(sls.memidx, 'simd_store_lane');
+      return makeSIMDLoadStoreLane(
+        anyOpcodeName(sls.opcode) as SIMDLoadStoreLaneOp,
+        bridgeExpr(sls.address, ctx),
+        bridgeExpr(sls.vec, ctx),
+        bigintOffsetToNumber(sls.offset, 'simd_store_lane'),
+        alignBytesToExponent(sls.align, 8, 'simd_store_lane'),
+        sls.lane,
       );
     }
     case 'store': {
@@ -723,8 +830,53 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       );
     }
 
+    // --- Exception handling (Tier C) -------------------------------------
+    case 'throw': {
+      const th = e as ThrowExpr;
+      return makeThrow(
+        varName(th.tag, ctx.tagNames),
+        th.args.map((a) => bridgeExpr(a, ctx)),
+      );
+    }
+    case 'throw_ref': {
+      const tr = e as ThrowRefExpr;
+      return makeThrowRef(bridgeExpr(tr.exnref, ctx));
+    }
+    case 'try_table': {
+      const tt = e as TryTableExpr;
+      const name = nameForLabel(ctx, tt.label);
+      ctx.labelStack.push(name);
+      try {
+        const body = tt.body.length === 1
+          ? bridgeExpr(tt.body[0]!, ctx)
+          : makeBlock(tt.body.map((c) => bridgeExpr(c, ctx)));
+        const catches: CatchClause[] = tt.catches.map((c) => buildCatchClause(c, ctx));
+        return withDeclaredType(
+          makeTryTable(name, body, catches, bridgeBlockType(tt.blockType)),
+          bridgeBlockType(tt.blockType),
+        );
+      } finally {
+        ctx.labelStack.pop();
+      }
+    }
+
     default:
       throw new Error(`Bridge: expression kind not yet supported: ${e.kind}`);
+  }
+}
+
+/** Translate a wabt try_table catch into a binaryen-ts CatchClause. */
+function buildCatchClause(c: { kind: CatchKind; tag?: Var; target: Var }, ctx: BridgeCtx): CatchClause {
+  const dest = resolveLabel(ctx, c.target);
+  switch (c.kind) {
+    case CatchKind.Catch:
+      return { tag: varName(c.tag!, ctx.tagNames), dest, isRef: false };
+    case CatchKind.CatchRef:
+      return { tag: varName(c.tag!, ctx.tagNames), dest, isRef: true };
+    case CatchKind.CatchAll:
+      return { tag: null, dest, isRef: false };
+    case CatchKind.CatchAllRef:
+      return { tag: null, dest, isRef: true };
   }
 }
 
@@ -869,8 +1021,42 @@ function loadInfo(opcode: number): LoadInfo {
       return { bytes: 4, signed: true, resultType: ValType.I64 };
     case Opcode.I64Load32U:
       return { bytes: 4, signed: false, resultType: ValType.I64 };
+    // Plain `v128.load` (0xfd 0x00) is not handled here. binaryen-ts v1.0.9's
+    // encoder loadOpcode() has no ValType.V128 branch, so makeLoad(16, …, V128)
+    // silently emits i64.load. Reroute via a dedicated factory once binaryen-ts
+    // grows one (or extend the bridge to write the SIMD prefix directly).
     default:
       throw new Error(`Bridge: unsupported load opcode 0x${opcode.toString(16)}`);
+  }
+}
+
+/**
+ * Classify a 0xfd-prefixed SIMD load opcode against binaryen-ts's
+ * `SIMDLoadOp` enum. Returns `null` for any non-SIMD-load opcode
+ * (including plain `v128.load`, which is a regular 16-byte makeLoad).
+ *
+ * Routing matters because the WAT lexer maps every SIMD load to
+ * TokenType.Load — so a parser-sourced module sends splat/zero/extend
+ * opcodes through the `load` case as plain `LoadExpr`. Binaryen-ts uses
+ * a different factory (`makeSIMDLoad`) for those, so the bridge dispatches
+ * here on the opcode byte rather than the IR kind.
+ */
+function simdLoadOpForOpcode(opcode: number): SIMDLoadOp | null {
+  if ((opcode >> 8) !== 0xfd) return null;
+  switch (opcode & 0xff) {
+    case 0x01: return SIMDLoadOp.Load8x8SVec128;
+    case 0x02: return SIMDLoadOp.Load8x8UVec128;
+    case 0x03: return SIMDLoadOp.Load16x4SVec128;
+    case 0x04: return SIMDLoadOp.Load16x4UVec128;
+    case 0x05: return SIMDLoadOp.Load32x2SVec128;
+    case 0x06: return SIMDLoadOp.Load32x2UVec128;
+    case 0x07: return SIMDLoadOp.Load8SplatVec128;
+    case 0x08: return SIMDLoadOp.Load16SplatVec128;
+    case 0x09: return SIMDLoadOp.Load32SplatVec128;
+    case 0x0a: return SIMDLoadOp.Load64SplatVec128;
+    case 0x5c: return SIMDLoadOp.Load32ZeroVec128;
+    case 0x5d: return SIMDLoadOp.Load64ZeroVec128;
+    default: return null; // includes plain v128.load (0x00) → caller uses makeLoad
   }
 }
 
@@ -934,9 +1120,17 @@ function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
     case ExternalKind.Global:
       b.addExport(exp.name, varName(exp.var, ctx.globalNames), 'global');
       return;
+    case ExternalKind.Tag:
+      // binaryen-ts v1.0.9 WasmExport.kind is "function" | "global" |
+      // "table" | "memory" — no "tag" variant. Tag exports survive the
+      // wabt-ts WAT pipeline (wat2wasm) but cannot round-trip through the
+      // bridge until binaryen-ts widens its export kinds.
+      throw new Error(
+        'Bridge: tag exports not yet supported ' +
+          '(binaryen-ts v1.0.9 has no "tag" export kind)',
+      );
     case ExternalKind.Memory:
     case ExternalKind.Table:
-    case ExternalKind.Tag:
       throw new Error(`Bridge: export kind ${exp.kind} not yet supported`);
   }
 }
