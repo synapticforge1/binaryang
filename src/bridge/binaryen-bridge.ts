@@ -65,8 +65,13 @@ import type {
   MemoryGrowExpr,
   MemorySizeExpr,
   Module as WabtModule,
+  RefFuncExpr,
+  RefIsNullExpr,
+  RefNullExpr,
   ReturnExpr,
   SelectExpr,
+  SimdLaneOpExpr,
+  SimdShuffleOpExpr,
   StoreExpr,
   UnaryExpr,
   Var,
@@ -96,8 +101,13 @@ import {
   makeMemoryGrow,
   makeMemorySize,
   makeNop,
+  makeRefFunc,
+  makeRefIsNull,
+  makeRefNull,
   makeReturn,
   makeSelect,
+  makeSIMDExtract,
+  makeSIMDShuffle,
   makeStore,
   makeSwitch,
   makeUnary,
@@ -105,6 +115,7 @@ import {
   makeV128Const,
   ModuleBuilder,
   None,
+  SIMDExtractOp,
   UnaryOp,
   ValType,
 } from '@jrmarcum/binaryen-ts/ir';
@@ -654,9 +665,86 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeMemoryGrow(bridgeExpr(mg.delta, ctx));
     }
 
+    // --- Reference types (Tier C) ----------------------------------------
+    case 'ref.null': {
+      const rn = e as RefNullExpr;
+      return makeRefNull(refTypeVarToValType(rn.refType));
+    }
+    case 'ref.func': {
+      const rf = e as RefFuncExpr;
+      return makeRefFunc(varName(rf.func, ctx.funcNames), ValType.FuncRef);
+    }
+    case 'ref.is_null': {
+      const rin = e as RefIsNullExpr;
+      return makeRefIsNull(bridgeExpr(rin.value, ctx));
+    }
+    case 'ref.as_non_null':
+      // binaryen-ts v1.0.9 has no makeRefAsNonNull factory; emit a clear
+      // error rather than silently producing wrong output. Revisit when
+      // binaryen-ts gains the factory.
+      throw new Error('Bridge: ref.as_non_null not supported (binaryen-ts has no factory)');
+
+    // --- SIMD (Tier C) ---------------------------------------------------
+    //
+    // Note: `i*x*.splat` opcodes flow through the `unary` case above —
+    // wabt-ts classifies them as UnaryExpr, and the WAT-string opcode name
+    // happens to match binaryen-ts's `UnaryOp` enum value directly. Same
+    // for SIMD lane-wise arithmetic (`i8x16.add`, `f32x4.mul`, …) via the
+    // `binary` case.
+    case 'simd_lane_op': {
+      const slo = e as SimdLaneOpExpr;
+      const opName = anyOpcodeName(slo.opcode);
+      // Extract-lane variants go through makeSIMDExtract. Replace-lane
+      // needs two operands (vec + scalar) but wabt-ts's SimdLaneOpExpr
+      // only carries one (`operand`) — the parser drops the second.
+      // Throw with a clear message until the upstream IR + parser grow
+      // a second-operand slot.
+      if (opName.includes('extract_lane')) {
+        return makeSIMDExtract(
+          opName as SIMDExtractOp,
+          bridgeExpr(slo.operand, ctx),
+          slo.lane,
+        );
+      }
+      if (opName.includes('replace_lane')) {
+        throw new Error(
+          'Bridge: SIMD replace_lane not yet supported (wabt parser ' +
+          'drops the second operand into SimdLaneOpExpr)',
+        );
+      }
+      throw new Error(`Bridge: simd_lane_op opcode ${opName} not yet supported`);
+    }
+    case 'simd_shuffle': {
+      const ss = e as SimdShuffleOpExpr;
+      return makeSIMDShuffle(
+        bridgeExpr(ss.left, ctx),
+        bridgeExpr(ss.right, ctx),
+        ss.lanes,
+      );
+    }
+
     default:
       throw new Error(`Bridge: expression kind not yet supported: ${e.kind}`);
   }
+}
+
+/**
+ * Map a wabt-ts `refType: Var` (used by `ref.null`) to a binaryen-ts
+ * `ValType`. The WAT parser produces a name-var with `name = "funcref"` /
+ * `"externref"` / etc. Index-vars are unusual here but supported.
+ */
+function refTypeVarToValType(v: Var): ValType {
+  if (v.kind === 'name') {
+    switch (v.name) {
+      case 'funcref':   return ValType.FuncRef;
+      case 'externref': return ValType.ExternRef;
+      case 'func':      return ValType.FuncRef;     // `(ref.null func)`
+      case 'extern':    return ValType.ExternRef;   // `(ref.null extern)`
+    }
+    throw new Error(`Bridge: unsupported ref.null type "${v.name}"`);
+  }
+  // Index-form refType targets a user-defined type — GC proposal territory.
+  throw new Error('Bridge: ref.null with index-form type (GC) not yet supported');
 }
 
 // --- Small helpers used inside bridgeExpr ---
