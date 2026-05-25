@@ -19,7 +19,7 @@ import { Type } from '../core/types.ts';
 import { LexerSource } from './lexer-source.ts';
 import {
   TokenType, LiteralType,
-  isBareToken, isOpcodeToken, isTypeToken, isRefKindToken,
+  isRefKindToken,
 } from './token.ts';
 import type { Token, LiteralPayload } from './token.ts';
 

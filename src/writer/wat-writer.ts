@@ -31,6 +31,10 @@ import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { Result } from '../core/result.ts';
 
+// UTF-8 encoder reused for every writeQuotedString call. Stateless, so a
+// single module-level instance is safe and avoids reallocating per string.
+const TEXT_ENCODER = new TextEncoder();
+
 // ---------------------------------------------------------------------------
 // Public options & entry point
 // ---------------------------------------------------------------------------
@@ -113,12 +117,39 @@ class WatWriter extends ModuleContext {
   private readonly globalImports: Import[] = [];
   private readonly tagImports: Import[] = [];
 
+  // Name → absolute index map keyed by "kind:name". Built once and used by
+  // resolveVarIndex to avoid linearly scanning imports + defs for every
+  // name-based Var; the writer touches resolveVarIndex once per export plus
+  // once per inline-export check, so the previous O(imports+defs) scan grew
+  // quadratic on modules with many exports.
+  private readonly nameIndexMap = new Map<string, number>();
+
   constructor(module: Module, opts: WriteWatOptions) {
     super(module);
     this.opts = {
       inlineExport: opts.inlineExport ?? true,
       inlineImport: opts.inlineImport ?? false,
     };
+    this.buildNameIndexMap();
+  }
+
+  private buildNameIndexMap(): void {
+    const counts: Partial<Record<ExternalKind, number>> = {};
+    const bump = (kind: ExternalKind): number => {
+      const n = counts[kind] ?? 0;
+      counts[kind] = n + 1;
+      return n;
+    };
+    const record = (kind: ExternalKind, name: string): void => {
+      const idx = bump(kind);
+      if (name) this.nameIndexMap.set(`${kind}:${name}`, idx);
+    };
+    for (const imp of this.module.imports) record(imp.kind, importItemName(imp));
+    for (const f of this.module.funcs) record(ExternalKind.Func, f.name);
+    for (const g of this.module.globals) record(ExternalKind.Global, g.name);
+    for (const t of this.module.tables) record(ExternalKind.Table, t.name);
+    for (const m of this.module.memories) record(ExternalKind.Memory, m.name);
+    for (const tg of this.module.tags) record(ExternalKind.Tag, tg.name);
   }
 
   // -------------------------------------------------------------------------
@@ -219,8 +250,7 @@ class WatWriter extends ModuleContext {
   }
 
   private writeQuotedString(s: string, nc: NC): void {
-    const enc = new TextEncoder();
-    this.writeQuotedData(enc.encode(s));
+    this.writeQuotedData(TEXT_ENCODER.encode(s));
     this.nextChar = nc;
   }
 
@@ -248,24 +278,7 @@ class WatWriter extends ModuleContext {
   /** Resolves a Var to an absolute index for the given kind. */
   private resolveVarIndex(v: Var, kind: ExternalKind): number {
     if (v.kind === 'index') return v.value;
-    // Name-based lookup
-    let idx = 0;
-    for (const imp of this.module.imports) {
-      if (imp.kind === kind) {
-        if (importItemName(imp) === v.name) return idx;
-        idx++;
-      }
-    }
-    const defs =
-      kind === ExternalKind.Func ? this.module.funcs :
-      kind === ExternalKind.Global ? this.module.globals :
-      kind === ExternalKind.Table ? this.module.tables :
-      kind === ExternalKind.Memory ? this.module.memories :
-      kind === ExternalKind.Tag ? this.module.tags : [];
-    for (const [i, d] of defs.entries()) {
-      if ((d as { name: string }).name === v.name) return idx + i;
-    }
-    return 0;
+    return this.nameIndexMap.get(`${kind}:${v.name}`) ?? 0;
   }
 
   private writeMemoryVarUnlessZero(v: Var, nc: NC): void {
@@ -451,346 +464,345 @@ class WatWriter extends ModuleContext {
   // -------------------------------------------------------------------------
 
   private makeDelegate(): ExprVisitorDelegate {
-    const w = this;
     const opname = (op: number) => anyOpcodeName(op);
 
     return {
-      onNopExpr:        () => { w.putsNewline('nop'); return Result.Ok; },
-      onUnreachableExpr:() => { w.putsNewline('unreachable'); return Result.Ok; },
-      onDropExpr:       () => { w.putsNewline('drop'); return Result.Ok; },
-      onReturnExpr:     () => { w.putsNewline('return'); return Result.Ok; },
+      onNopExpr:        () => { this.putsNewline('nop'); return Result.Ok; },
+      onUnreachableExpr:() => { this.putsNewline('unreachable'); return Result.Ok; },
+      onDropExpr:       () => { this.putsNewline('drop'); return Result.Ok; },
+      onReturnExpr:     () => { this.putsNewline('return'); return Result.Ok; },
 
-      onConstExpr: (e) => { w.writeConst(e.value); return Result.Ok; },
+      onConstExpr: (e) => { this.writeConst(e.value); return Result.Ok; },
 
-      onLocalGetExpr: (e) => { w.putsSpace('local.get'); w.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onLocalSetExpr: (e) => { w.putsSpace('local.set'); w.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onLocalTeeExpr: (e) => { w.putsSpace('local.tee'); w.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onGlobalGetExpr:(e) => { w.putsSpace('global.get'); w.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onGlobalSetExpr:(e) => { w.putsSpace('global.set'); w.writeVar(e.var, NC.Newline); return Result.Ok; },
+      onLocalGetExpr: (e) => { this.putsSpace('local.get'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
+      onLocalSetExpr: (e) => { this.putsSpace('local.set'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
+      onLocalTeeExpr: (e) => { this.putsSpace('local.tee'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
+      onGlobalGetExpr:(e) => { this.putsSpace('global.get'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
+      onGlobalSetExpr:(e) => { this.putsSpace('global.set'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
 
-      onUnaryExpr:   (e) => { w.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onBinaryExpr:  (e) => { w.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onCompareExpr: (e) => { w.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onConvertExpr: (e) => { w.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onTernaryExpr: (e) => { w.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onQuaternaryExpr:(e)=> { w.putsNewline(opname(e.opcode)); return Result.Ok; },
+      onUnaryExpr:   (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
+      onBinaryExpr:  (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
+      onCompareExpr: (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
+      onConvertExpr: (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
+      onTernaryExpr: (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
+      onQuaternaryExpr:(e)=> { this.putsNewline(opname(e.opcode)); return Result.Ok; },
 
       onSelectExpr: (e) => {
-        w.putsSpace('select');
-        if (e.resultType.length > 0) w.writeTypes(e.resultType, 'result');
-        w.newline(false);
+        this.putsSpace('select');
+        if (e.resultType.length > 0) this.writeTypes(e.resultType, 'result');
+        this.newline(false);
         return Result.Ok;
       },
 
       onLoadExpr: (e) => {
         const na = naturalAlignForOpcode(e.opcode);
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
         return Result.Ok;
       },
       onStoreExpr: (e) => {
         const na = naturalAlignForOpcode(e.opcode);
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
         return Result.Ok;
       },
 
       onMemorySizeExpr: (e) => {
-        w.putsSpace('memory.size');
-        w.writeMemoryVarUnlessZero(e.memidx, NC.Newline);
-        w.newline(false);
+        this.putsSpace('memory.size');
+        this.writeMemoryVarUnlessZero(e.memidx, NC.Newline);
+        this.newline(false);
         return Result.Ok;
       },
       onMemoryGrowExpr: (e) => {
-        w.putsSpace('memory.grow');
-        w.writeMemoryVarUnlessZero(e.memidx, NC.Newline);
-        w.newline(false);
+        this.putsSpace('memory.grow');
+        this.writeMemoryVarUnlessZero(e.memidx, NC.Newline);
+        this.newline(false);
         return Result.Ok;
       },
       onMemoryCopyExpr: (e) => {
-        w.putsSpace('memory.copy');
-        w.writeTwoMemVarsUnlessBothZero(e.destMemidx, e.srcMemidx, NC.Space);
-        w.newline(false);
+        this.putsSpace('memory.copy');
+        this.writeTwoMemVarsUnlessBothZero(e.destMemidx, e.srcMemidx, NC.Space);
+        this.newline(false);
         return Result.Ok;
       },
       onMemoryFillExpr: (e) => {
-        w.putsSpace('memory.fill');
-        w.writeMemoryVarUnlessZero(e.memidx, NC.Space);
-        w.newline(false);
+        this.putsSpace('memory.fill');
+        this.writeMemoryVarUnlessZero(e.memidx, NC.Space);
+        this.newline(false);
         return Result.Ok;
       },
       onMemoryInitExpr: (e) => {
-        w.putsSpace('memory.init');
-        w.writeVar(e.segment, NC.Space);
-        w.writeMemoryVarUnlessZero(e.memidx, NC.Space);
-        w.newline(false);
+        this.putsSpace('memory.init');
+        this.writeVar(e.segment, NC.Space);
+        this.writeMemoryVarUnlessZero(e.memidx, NC.Space);
+        this.newline(false);
         return Result.Ok;
       },
       onDataDropExpr: (e) => {
-        w.putsSpace('data.drop');
-        w.writeVar(e.segment, NC.Newline);
+        this.putsSpace('data.drop');
+        this.writeVar(e.segment, NC.Newline);
         return Result.Ok;
       },
 
-      onCallExpr: (e) => { w.putsSpace('call'); w.writeVar(e.func, NC.Newline); return Result.Ok; },
+      onCallExpr: (e) => { this.putsSpace('call'); this.writeVar(e.func, NC.Newline); return Result.Ok; },
       onCallIndirectExpr: (e) => {
-        w.putsSpace('call_indirect');
-        w.writeVarUnlessZero(e.table, NC.Space);
-        w.openSpace('type');
-        w.writeVar(e.typeVar, NC.Newline);
-        w.closeNewline();
+        this.putsSpace('call_indirect');
+        this.writeVarUnlessZero(e.table, NC.Space);
+        this.openSpace('type');
+        this.writeVar(e.typeVar, NC.Newline);
+        this.closeNewline();
         return Result.Ok;
       },
-      onCallRefExpr: (e) => { w.putsSpace('call_ref'); w.writeVar(e.sigType, NC.Newline); return Result.Ok; },
-      onReturnCallExpr: (e) => { w.putsSpace('return_call'); w.writeVar(e.func, NC.Newline); return Result.Ok; },
+      onCallRefExpr: (e) => { this.putsSpace('call_ref'); this.writeVar(e.sigType, NC.Newline); return Result.Ok; },
+      onReturnCallExpr: (e) => { this.putsSpace('return_call'); this.writeVar(e.func, NC.Newline); return Result.Ok; },
       onReturnCallIndirectExpr: (e) => {
-        w.putsSpace('return_call_indirect');
-        w.openSpace('type');
-        w.writeVar(e.typeVar, NC.Space);
-        w.closeNewline();
+        this.putsSpace('return_call_indirect');
+        this.openSpace('type');
+        this.writeVar(e.typeVar, NC.Space);
+        this.closeNewline();
         return Result.Ok;
       },
-      onReturnCallRefExpr: (e) => { w.putsSpace('return_call_ref'); w.writeVar(e.sigType, NC.Newline); return Result.Ok; },
+      onReturnCallRefExpr: (e) => { this.putsSpace('return_call_ref'); this.writeVar(e.sigType, NC.Newline); return Result.Ok; },
 
       onRefNullExpr: (e) => {
-        w.putsSpace('ref.null');
+        this.putsSpace('ref.null');
         if (e.refType.kind === 'name') {
-          w.writeName(e.refType.name, NC.Newline);
+          this.writeName(e.refType.name, NC.Newline);
         } else {
           // index-based refType: look up type entry
-          const te = w.module.types[e.refType.value];
-          if (te) w.putsNewline(te.kind === 'func' ? 'func' : te.kind);
-          else w.writef(`${e.refType.value}`);
+          const te = this.module.types[e.refType.value];
+          if (te) this.putsNewline(te.kind === 'func' ? 'func' : te.kind);
+          else this.writef(`${e.refType.value}`);
         }
         return Result.Ok;
       },
-      onRefIsNullExpr:  () => { w.putsNewline('ref.is_null'); return Result.Ok; },
-      onRefFuncExpr:    (e) => { w.putsSpace('ref.func'); w.writeVar(e.func, NC.Newline); return Result.Ok; },
-      onRefAsNonNullExpr:()=> { w.putsNewline('ref.as_non_null'); return Result.Ok; },
+      onRefIsNullExpr:  () => { this.putsNewline('ref.is_null'); return Result.Ok; },
+      onRefFuncExpr:    (e) => { this.putsSpace('ref.func'); this.writeVar(e.func, NC.Newline); return Result.Ok; },
+      onRefAsNonNullExpr:()=> { this.putsNewline('ref.as_non_null'); return Result.Ok; },
 
-      onTableGetExpr:  (e) => { w.putsSpace('table.get'); w.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableSetExpr:  (e) => { w.putsSpace('table.set'); w.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableGrowExpr: (e) => { w.putsSpace('table.grow'); w.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableSizeExpr: (e) => { w.putsSpace('table.size'); w.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableFillExpr: (e) => { w.putsSpace('table.fill'); w.writeVar(e.table, NC.Newline); return Result.Ok; },
+      onTableGetExpr:  (e) => { this.putsSpace('table.get'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
+      onTableSetExpr:  (e) => { this.putsSpace('table.set'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
+      onTableGrowExpr: (e) => { this.putsSpace('table.grow'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
+      onTableSizeExpr: (e) => { this.putsSpace('table.size'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
+      onTableFillExpr: (e) => { this.putsSpace('table.fill'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
       onTableCopyExpr: (e) => {
-        w.putsSpace('table.copy');
+        this.putsSpace('table.copy');
         if (e.dst.kind !== 'index' || e.dst.value !== 0 || e.src.kind !== 'index' || e.src.value !== 0) {
-          w.writeVar(e.dst, NC.Space);
-          w.writeVar(e.src, NC.Space);
+          this.writeVar(e.dst, NC.Space);
+          this.writeVar(e.src, NC.Space);
         }
-        w.newline(false);
+        this.newline(false);
         return Result.Ok;
       },
       onTableInitExpr: (e) => {
-        w.putsSpace('table.init');
-        w.writeVarUnlessZero(e.table, NC.Space);
-        w.writeVar(e.segment, NC.Newline);
+        this.putsSpace('table.init');
+        this.writeVarUnlessZero(e.table, NC.Space);
+        this.writeVar(e.segment, NC.Newline);
         return Result.Ok;
       },
-      onElemDropExpr: (e) => { w.putsSpace('elem.drop'); w.writeVar(e.segment, NC.Newline); return Result.Ok; },
+      onElemDropExpr: (e) => { this.putsSpace('elem.drop'); this.writeVar(e.segment, NC.Newline); return Result.Ok; },
 
-      onThrowExpr:    (e) => { w.putsSpace('throw'); w.writeVar(e.tag, NC.Newline); return Result.Ok; },
-      onThrowRefExpr: () => { w.putsNewline('throw_ref'); return Result.Ok; },
-      onRethrowExpr:  (e) => { w.putsSpace('rethrow'); w.writeBrVar(e.depth, NC.Newline); return Result.Ok; },
+      onThrowExpr:    (e) => { this.putsSpace('throw'); this.writeVar(e.tag, NC.Newline); return Result.Ok; },
+      onThrowRefExpr: () => { this.putsNewline('throw_ref'); return Result.Ok; },
+      onRethrowExpr:  (e) => { this.putsSpace('rethrow'); this.writeBrVar(e.depth, NC.Newline); return Result.Ok; },
 
-      onBrExpr:       (e) => { w.putsSpace('br'); w.writeBrVar(e.target, NC.Newline); return Result.Ok; },
-      onBrIfExpr:     (e) => { w.putsSpace('br_if'); w.writeBrVar(e.target, NC.Newline); return Result.Ok; },
-      onBrOnNullExpr: (e) => { w.putsSpace('br_on_null'); w.writeBrVar(e.target, NC.Newline); return Result.Ok; },
-      onBrOnNonNullExpr:(e)=>{ w.putsSpace('br_on_non_null'); w.writeBrVar(e.target, NC.Newline); return Result.Ok; },
+      onBrExpr:       (e) => { this.putsSpace('br'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
+      onBrIfExpr:     (e) => { this.putsSpace('br_if'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
+      onBrOnNullExpr: (e) => { this.putsSpace('br_on_null'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
+      onBrOnNonNullExpr:(e)=>{ this.putsSpace('br_on_non_null'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
       onBrTableExpr:  (e) => {
-        w.putsSpace('br_table');
-        for (const t of e.targets) w.writeBrVar(t, NC.Space);
-        w.writeBrVar(e.defaultTarget, NC.Newline);
+        this.putsSpace('br_table');
+        for (const t of e.targets) this.writeBrVar(t, NC.Space);
+        this.writeBrVar(e.defaultTarget, NC.Newline);
         return Result.Ok;
       },
 
       // --- Block-like ---
       beginBlockExpr: (e) => {
-        w.putsSpace('block');
-        if (e.label) w.writeName(e.label, NC.Space);
-        w.writeBlockType(e.blockType);
-        if (!e.label) w.writef(` ;; label = @${w.labelStackSize}`);
-        w.newline(true);
-        w.beginBlock(e.label, LabelType.Block, e.blockType);
-        w.indent += 2;
+        this.putsSpace('block');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.newline(true);
+        this.beginBlock(e.label, LabelType.Block, e.blockType);
+        this.indent += 2;
         return Result.Ok;
       },
-      endBlockExpr: (e) => {
-        w.indent -= 2;
-        w.endBlock();
-        w.putsNewline('end');
+      endBlockExpr: (_e) => {
+        this.indent -= 2;
+        this.endBlock();
+        this.putsNewline('end');
         return Result.Ok;
       },
 
       beginLoopExpr: (e) => {
-        w.putsSpace('loop');
-        if (e.label) w.writeName(e.label, NC.Space);
-        w.writeBlockType(e.blockType);
-        if (!e.label) w.writef(` ;; label = @${w.labelStackSize}`);
-        w.newline(true);
-        w.beginBlock(e.label, LabelType.Loop, e.blockType);
-        w.indent += 2;
+        this.putsSpace('loop');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.newline(true);
+        this.beginBlock(e.label, LabelType.Loop, e.blockType);
+        this.indent += 2;
         return Result.Ok;
       },
       endLoopExpr: () => {
-        w.indent -= 2;
-        w.endBlock();
-        w.putsNewline('end');
+        this.indent -= 2;
+        this.endBlock();
+        this.putsNewline('end');
         return Result.Ok;
       },
 
       beginIfExpr: (e) => {
-        w.putsSpace('if');
-        if (e.label) w.writeName(e.label, NC.Space);
-        w.writeBlockType(e.blockType);
-        if (!e.label) w.writef(` ;; label = @${w.labelStackSize}`);
-        w.newline(true);
-        w.beginBlock(e.label, LabelType.If, e.blockType);
-        w.indent += 2;
+        this.putsSpace('if');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.newline(true);
+        this.beginBlock(e.label, LabelType.If, e.blockType);
+        this.indent += 2;
         return Result.Ok;
       },
       afterIfTrueExpr: (e) => {
         if (e.else_.length > 0) {
-          w.indent -= 2;
-          w.putsSpace('else');
-          w.indent += 2;
-          w.newline(true);
+          this.indent -= 2;
+          this.putsSpace('else');
+          this.indent += 2;
+          this.newline(true);
         }
         return Result.Ok;
       },
       endIfExpr: () => {
-        w.indent -= 2;
-        w.endBlock();
-        w.putsNewline('end');
+        this.indent -= 2;
+        this.endBlock();
+        this.putsNewline('end');
         return Result.Ok;
       },
 
       beginTryExpr: (e) => {
-        w.putsSpace('try');
-        if (e.label) w.writeName(e.label, NC.Space);
-        w.writeBlockType(e.blockType);
-        w.newline(true);
-        w.beginBlock(e.label, LabelType.Try, e.blockType);
-        w.indent += 2;
+        this.putsSpace('try');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        this.newline(true);
+        this.beginBlock(e.label, LabelType.Try, e.blockType);
+        this.indent += 2;
         return Result.Ok;
       },
-      onCatchExpr: (te, c) => {
-        w.writeCatch(c);
+      onCatchExpr: (_te, c) => {
+        this.writeCatch(c);
         return Result.Ok;
       },
       onDelegateExpr: (e) => {
         if (e.delegate !== undefined) {
-          w.indent -= 2;
-          w.putsSpace('delegate');
-          w.writeBrVar(e.delegate, NC.Newline);
+          this.indent -= 2;
+          this.putsSpace('delegate');
+          this.writeBrVar(e.delegate, NC.Newline);
         }
         return Result.Ok;
       },
       endTryExpr: () => {
-        w.indent -= 2;
-        w.endBlock();
-        w.putsNewline('end');
+        this.indent -= 2;
+        this.endBlock();
+        this.putsNewline('end');
         return Result.Ok;
       },
 
       beginTryTableExpr: (e) => {
-        w.putsSpace('try_table');
-        if (e.label) w.writeName(e.label, NC.Space);
-        w.writeBlockType(e.blockType);
-        if (!e.label) w.writef(` ;; label = @${w.labelStackSize}`);
-        w.newline(true);
-        w.indent += 2;
+        this.putsSpace('try_table');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.newline(true);
+        this.indent += 2;
         for (const tc of e.catches) {
-          w.writeTableCatch(tc);
+          this.writeTableCatch(tc);
         }
-        w.beginBlock(e.label, LabelType.TryTable, e.blockType);
+        this.beginBlock(e.label, LabelType.TryTable, e.blockType);
         return Result.Ok;
       },
       endTryTableExpr: () => {
-        w.indent -= 2;
-        w.endBlock();
-        w.putsNewline('end');
+        this.indent -= 2;
+        this.endBlock();
+        this.putsNewline('end');
         return Result.Ok;
       },
 
       // --- Atomic memory ops ---
       onAtomicLoadExpr: (e) => {
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
         return Result.Ok;
       },
       onAtomicStoreExpr: (e) => {
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
         return Result.Ok;
       },
       onAtomicRmwExpr: (e) => {
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
         return Result.Ok;
       },
       onAtomicRmwCmpxchgExpr: (e) => {
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
         return Result.Ok;
       },
       onAtomicWaitExpr: (e) => {
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
         return Result.Ok;
       },
       onAtomicNotifyExpr: (e) => {
-        w.writeMemarg('memory.atomic.notify', e.offset, e.align, 1, e.memidx);
+        this.writeMemarg('memory.atomic.notify', e.offset, e.align, 1, e.memidx);
         return Result.Ok;
       },
       onAtomicFenceExpr: () => {
-        w.putsNewline('atomic.fence');
+        this.putsNewline('atomic.fence');
         return Result.Ok;
       },
 
       // --- SIMD ---
       onSimdLaneOpExpr: (e) => {
-        w.putsSpace(opname(e.opcode));
-        w.writef(`${e.lane}`);
-        w.newline(false);
+        this.putsSpace(opname(e.opcode));
+        this.writef(`${e.lane}`);
+        this.newline(false);
         return Result.Ok;
       },
       onSimdShuffleOpExpr: (e) => {
-        w.putsSpace('i8x16.shuffle');
+        this.putsSpace('i8x16.shuffle');
         const lanes = [...e.lanes].map((b) => b.toString()).join(' ');
-        w.writef(lanes);
-        w.newline(false);
+        this.writef(lanes);
+        this.newline(false);
         return Result.Ok;
       },
       onSimdLoadLaneExpr: (e) => {
         const na = naturalAlignForOpcode(e.opcode);
-        w.putsSpace(opname(e.opcode));
-        w.writeMemoryVarUnlessZero(e.memidx, NC.Space);
-        if (e.offset !== 0n) w.writef(`offset=${e.offset}`);
-        if (e.align !== na) w.writef(`align=${e.align}`);
-        w.writef(`${e.lane}`);
-        w.newline(false);
+        this.putsSpace(opname(e.opcode));
+        this.writeMemoryVarUnlessZero(e.memidx, NC.Space);
+        if (e.offset !== 0n) this.writef(`offset=${e.offset}`);
+        if (e.align !== na) this.writef(`align=${e.align}`);
+        this.writef(`${e.lane}`);
+        this.newline(false);
         return Result.Ok;
       },
       onSimdStoreLaneExpr: (e) => {
         const na = naturalAlignForOpcode(e.opcode);
-        w.putsSpace(opname(e.opcode));
-        w.writeMemoryVarUnlessZero(e.memidx, NC.Space);
-        if (e.offset !== 0n) w.writef(`offset=${e.offset}`);
-        if (e.align !== na) w.writef(`align=${e.align}`);
-        w.writef(`${e.lane}`);
-        w.newline(false);
+        this.putsSpace(opname(e.opcode));
+        this.writeMemoryVarUnlessZero(e.memidx, NC.Space);
+        if (e.offset !== 0n) this.writef(`offset=${e.offset}`);
+        if (e.align !== na) this.writef(`align=${e.align}`);
+        this.writef(`${e.lane}`);
+        this.newline(false);
         return Result.Ok;
       },
       onLoadSplatExpr: (e) => {
         const na = naturalAlignForOpcode(e.opcode);
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
         return Result.Ok;
       },
       onLoadZeroExpr: (e) => {
         const na = naturalAlignForOpcode(e.opcode);
-        w.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
+        this.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
         return Result.Ok;
       },
 
       onCodeMetadataExpr: (e) => {
-        w.openSpace(`@metadata.code.${e.name}`);
-        w.writeQuotedData(e.data);
-        w.closeSpace();
+        this.openSpace(`@metadata.code.${e.name}`);
+        this.writeQuotedData(e.data);
+        this.closeSpace();
         return Result.Ok;
       },
     };
@@ -935,7 +947,7 @@ class WatWriter extends ModuleContext {
     this.newline(false);
     // Locals
     if (func.localDecls.length > 0) {
-      for (const [i, decl] of func.localDecls.entries()) {
+      for (const decl of func.localDecls) {
         for (let k = 0; k < decl.count; k++) {
           this.openSpace('local');
           // Only write the name for the first local in this group
@@ -956,7 +968,7 @@ class WatWriter extends ModuleContext {
     this.closeNewline();
   }
 
-  private writeTypeBindings(prefix: string, types: Type[], decls: LocalDecl[], _offset: number): void {
+  private writeTypeBindings(prefix: string, types: Type[], _decls: LocalDecl[], _offset: number): void {
     // For params, write grouped (param i32 i64) or individually ($name i32)
     if (types.length === 0) return;
     // For simplicity, write all params as one group per type

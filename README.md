@@ -1,5 +1,9 @@
 # wabt-ts
 
+[![JSR](https://jsr.io/badges/@jrmarcum/wabt-ts)](https://jsr.io/@jrmarcum/wabt-ts)
+[![JSR Score](https://jsr.io/badges/@jrmarcum/wabt-ts/score)](https://jsr.io/@jrmarcum/wabt-ts)
+[![CI](https://github.com/jrmarcum/wabt-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/jrmarcum/wabt-ts/actions/workflows/ci.yml)
+
 A native TypeScript port of [WebAssembly/wabt](https://github.com/WebAssembly/wabt) — the WebAssembly Binary Toolkit.
 
 ## Overview
@@ -14,7 +18,8 @@ wabt-ts provides the core wabt tooling as idiomatic TypeScript modules, distribu
 | `wasm2wat` | Translate WebAssembly binary (.wasm) to text format (.wat) |
 | `wasm-validate` | Validate a WebAssembly binary |
 | `wasm-objdump` | Inspect sections and structure of a WebAssembly binary |
-| `wasm2ts` | Transpile a WebAssembly binary to typed TypeScript (new) |
+| `wasm-strip` | Strip custom sections (e.g. `name`) from a WebAssembly binary |
+| `wasm2ts` | Transpile a WebAssembly binary to typed TypeScript (new — pending) |
 
 ## Usage
 
@@ -41,6 +46,7 @@ deno run -A jsr:@jrmarcum/wabt-ts/wat2wasm input.wat -o output.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm2wat input.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm-validate input.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm-objdump input.wasm
+deno run -A jsr:@jrmarcum/wabt-ts/wasm-strip input.wasm -o stripped.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm2ts input.wasm -o output.ts
 ```
 
@@ -153,11 +159,43 @@ deno task test
 # Lint / format
 deno lint
 deno fmt
+
+# Bundle of what CI runs (check + test)
+deno task ci
+
+# Dry-run the JSR publish manifest (no upload)
+deno task publish:dry
 ```
 
 Tests use `@std/testing/bdd` from JSR, which is compatible with both `deno test` and `bun test`.
 
 No build step is required — JSR publishes TypeScript source directly.
+
+## Publishing
+
+The package is published to [JSR](https://jsr.io/@jrmarcum/wabt-ts) with
+[OIDC provenance](https://docs.jsr.io/publishing-packages#publishing-from-github-actions)
+via GitHub Actions. The flow is **tag-driven** — never run `deno publish` from a
+workstation, since that would publish without provenance.
+
+1. Bump `version` in [deno.json](deno.json).
+2. Commit on `main`.
+3. Trigger the release by pushing a matching tag:
+
+   ```sh
+   deno task publish
+   ```
+
+   This runs [scripts/publish.ts](scripts/publish.ts), which refuses if the working
+   tree is dirty or the tag already exists, then creates and pushes the
+   `v<version>` tag.
+
+4. The [Publish workflow](.github/workflows/publish.yml) fires on the tag push,
+   verifies that the tag matches `deno.json`, type-checks, tests, then runs
+   `deno publish` inside the Actions runner. JSR detects the OIDC token and
+   stamps the release with provenance automatically. The workflow then runs
+   `gh release create --generate-notes` to create a matching
+   [GitHub Release](https://github.com/jrmarcum/wabt-ts/releases).
 
 ## Roadmap
 
@@ -171,6 +209,7 @@ No build step is required — JSR publishes TypeScript source directly.
 | **4** | WAT text format — lexer, parser, WAT pretty-printer | ✅ Complete |
 | **5** | Validator — type checker and full wasm validator | ✅ Complete |
 | **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | ✅ Complete |
+| **6.1** | Pre-publish housekeeping — JSR/CI hardening (tag-driven publish, GitHub Release auto-creation, `ci.yml`); lint cleanup (71→0); module-level codec singletons + `ModuleContext`/`WatWriter` index-map caches | ✅ Complete |
 | **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🔒 Blocked |
 | **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
@@ -190,8 +229,13 @@ wabt-ts/
 │   ├── validator/     ← Phase 5: type checker, validator
 │   ├── tools/         ← Phase 6: CLI entrypoints
 │   └── index.ts       ← public API surface
+├── scripts/
+│   └── publish.ts     ← developer-side task that pushes a release tag
 ├── tests/
 │   └── fixtures/      ← .wasm and .wat test vectors
+├── .github/workflows/
+│   ├── ci.yml         ← fmt-check / lint / type-check / test / publish dry-run
+│   └── publish.yml    ← JSR publish + GitHub Release on `v*` tag push
 ├── deno.json
 ├── LICENSE            ← dual-license notice (MIT OR Apache-2.0)
 ├── LICENSE-MIT        ← MIT license text

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
-import { describe, it } from 'jsr:@std/testing/bdd';
-import { expect } from 'jsr:@std/expect';
+import { describe, it } from '@std/testing/bdd';
+import { expect } from '@std/expect';
 import { WastLexer } from '../../src/parser/wast-lexer.ts';
 import { TokenType, LiteralType } from '../../src/parser/token.ts';
 import type { Token, LiteralToken, OpcodeToken, StringToken, TypeToken, RefKindToken } from '../../src/parser/token.ts';

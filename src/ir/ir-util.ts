@@ -59,8 +59,30 @@ export class ModuleContext {
   private currentFunc: Func | null = null;
   private labelStack: Label[] = [];
 
+  // Flat index → signature maps built once at construction. They replace the
+  // O(imports) linear scans previously done on every getFuncSig/getTagArity
+  // call, which mattered because getExprArity calls them for every expression
+  // during validator and writer walks. Imports come first (in declaration
+  // order, matching the index space), then defined funcs/tags.
+  private readonly funcSigsByIndex: FuncSignature[];
+  private readonly tagArityByIndex: number[];
+
   constructor(module: Module) {
     this.module = module;
+
+    const funcSigs: FuncSignature[] = [];
+    const tagArity: number[] = [];
+    for (const imp of module.imports) {
+      if (imp.kind === ExternalKind.Func) {
+        funcSigs.push(imp.func.sig);
+      } else if (imp.kind === ExternalKind.Tag) {
+        tagArity.push(imp.tag.sig.params.length);
+      }
+    }
+    for (const f of module.funcs) funcSigs.push(f.sig);
+    for (const t of module.tags) tagArity.push(t.sig.params.length);
+    this.funcSigsByIndex = funcSigs;
+    this.tagArityByIndex = tagArity;
   }
 
   get labelStackSize(): Index { return this.labelStack.length; }
@@ -207,19 +229,7 @@ export class ModuleContext {
 
   private getFuncSig(v: Var): FuncSignature {
     if (v.kind !== 'index') return { params: [], results: [] };
-    const idx = v.value;
-    if (idx < this.module.numFuncImports) {
-      let funcIdx = 0;
-      for (const imp of this.module.imports) {
-        if (imp.kind === ExternalKind.Func) {
-          if (funcIdx === idx) return imp.func.sig;
-          funcIdx++;
-        }
-      }
-      return { params: [], results: [] };
-    }
-    const func = this.module.funcs[idx - this.module.numFuncImports];
-    return func?.sig ?? { params: [], results: [] };
+    return this.funcSigsByIndex[v.value] ?? { params: [], results: [] };
   }
 
   private getTypeSig(v: Var): FuncSignature {
@@ -231,18 +241,7 @@ export class ModuleContext {
 
   private getTagArity(v: Var): number {
     if (v.kind !== 'index') return 0;
-    const idx = v.value;
-    if (idx < this.module.numTagImports) {
-      let tagIdx = 0;
-      for (const imp of this.module.imports) {
-        if (imp.kind === ExternalKind.Tag) {
-          if (tagIdx === idx) return imp.tag.sig.params.length;
-          tagIdx++;
-        }
-      }
-      return 0;
-    }
-    return this.module.tags[idx - this.module.numTagImports]?.sig.params.length ?? 0;
+    return this.tagArityByIndex[v.value] ?? 0;
   }
 
   private getBranchArity(v: Var): number {

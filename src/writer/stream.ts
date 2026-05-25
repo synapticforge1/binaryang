@@ -11,6 +11,10 @@ import {
   MAX_U32_LEB128_BYTES,
 } from '../core/leb128.ts';
 
+// UTF-8 encoder reused across all writeName calls. TextEncoder is stateless,
+// so a single module-level instance is safe and avoids reallocating per call.
+const TEXT_ENCODER = new TextEncoder();
+
 /**
  * Growable in-memory byte buffer for binary output.
  *
@@ -94,7 +98,7 @@ export class MemoryStream {
   }
 
   writeName(s: string): void {
-    const encoded = new TextEncoder().encode(s);
+    const encoded = TEXT_ENCODER.encode(s);
     this.writeU32Leb(encoded.length);
     this.writeBytes(encoded);
   }

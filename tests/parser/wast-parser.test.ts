@@ -7,7 +7,6 @@ import { assertEquals, assertExists, assert } from '@std/assert';
 import { Type } from '../../src/core/types.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
 import { parseWatModule, parseWastScript } from '../../src/parser/wast-parser.ts';
-import type { WastScript } from '../../src/parser/wast-parser.ts';
 import type { Func, Global, Memory, Table, DataSegment, ElemSegment, Import } from '../../src/ir/ir.ts';
 
 // ---------------------------------------------------------------------------

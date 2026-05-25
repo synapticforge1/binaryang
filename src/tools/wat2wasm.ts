@@ -6,7 +6,7 @@ import { parseWatModule } from '../parser/wast-parser.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { resolveNames } from '../ir/resolve-names.ts';
 import { Result } from '../core/result.ts';
-import { makeErrorList, hasErrors, formatErrors } from '../core/error.ts';
+import { hasErrors, formatErrors } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 
 // ---------------------------------------------------------------------------

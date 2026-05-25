@@ -10,8 +10,8 @@ import { Opcode } from '../../src/core/opcode.ts';
 import { unknownLocation } from '../../src/core/error.ts';
 import {
   varIndex, varName,
-  BLOCK_TYPE_VOID, blockTypeValue,
-  constI32, constI64, constF32, constF64,
+  BLOCK_TYPE_VOID,
+  constI32, constI64, constF32,
   makeModule,
 } from '../../src/ir/ir.ts';
 import type { Func, Global, Memory, Table, DataSegment, ElemSegment, Expr } from '../../src/ir/ir.ts';

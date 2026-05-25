@@ -1,32 +1,70 @@
+# JSR publish with OIDC provenance.
+#
+# Triggered when a git tag matching `v*` is pushed. The recommended way to push that tag is
+# `deno task publish` (see scripts/publish.ts), which guards against publishing from a
+# developer workstation — `deno publish` run locally would succeed but produce a release
+# with no provenance, breaking the provenance chain. The workflow itself calls
+# `deno publish` directly so JSR detects the GitHub Actions OIDC token and stamps the
+# release with provenance automatically.
+#
+# Required permissions:
+#   - id-token: write   → OIDC token for JSR provenance
+#   - contents: write   → checkout + create GitHub Release after publish
+#
+# JSR side: link the package (`@jrmarcum/wabt-ts`) to this GitHub repo in the JSR UI
+# under "Settings → GitHub Actions". No JSR token is needed when OIDC is configured.
+
 name: Publish to JSR
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
-
-permissions:
-  contents: read
-  id-token: write  # required for OIDC-based provenance
 
 jobs:
   publish:
-    name: Publish to JSR
+    name: Publish ${{ github.ref_name }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - uses: denoland/setup-deno@v2
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+      - name: Verify deno.json version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("deno.json")).version)')"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match deno.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Versions match: $TAG_VERSION"
 
       - name: Type-check
         run: deno task check
 
-      - name: Run tests
+      - name: Test
         run: deno task test
 
-      - name: Publish
-        run: deno publish --provenance
+      - name: Publish to JSR (with provenance)
+        run: deno publish
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "wabt-ts $GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag

@@ -6,10 +6,9 @@
 import { Result, combineResults } from '../core/result.ts';
 import { Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
-import { unknownLocation } from '../core/error.ts';
-import type { Location, ErrorList } from '../core/error.ts';
+import type { ErrorList } from '../core/error.ts';
 import type {
-  Module, Expr, BlockType, Var, Catch,
+  Module, Expr, Var, Catch,
   BlockExpr, LoopExpr, IfExpr, TryExpr, TryTableExpr,
   NopExpr, UnreachableExpr, ReturnExpr, DropExpr, SelectExpr,
   BrExpr, BrIfExpr, BrTableExpr, BrOnNullExpr, BrOnNonNullExpr,
@@ -54,10 +53,6 @@ export function validateModule(
 
 function varIdx(v: Var): number {
   return v.kind === 'index' ? v.value : 0;
-}
-
-function blockTypeLoc(e: { loc: Location }): Location {
-  return e.loc;
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +337,7 @@ class ModuleValidator implements ExprVisitorDelegate {
   onRethrowExpr(e: RethrowExpr): Result { return this.sv.onRethrow(e.loc, varIdx(e.depth)); }
 
   beginTryExpr(e: TryExpr): Result { return this.sv.onTry(e.loc, e.blockType); }
-  onCatchExpr(e: TryExpr, c: Catch, _i: number): Result {
+  onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
     const isCatchAll = c.tag === undefined;
     return this.sv.onCatch(c.loc, c.tag ? varIdx(c.tag) : 0, isCatchAll);
   }

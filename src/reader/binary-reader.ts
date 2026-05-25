@@ -10,15 +10,20 @@ import { Type } from '../core/types.ts';
 import { BinarySection, ExternalKind, WASM_MAGIC, WASM_VERSION } from '../core/binary.ts';
 import { Opcode, MiscOpcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
 import { decodeU32Leb128, decodeS32Leb128, decodeU64Leb128, decodeS64Leb128 } from '../core/leb128.ts';
+
+// UTF-8 decoder reused across every name read. TextDecoder is stateless when
+// called via .decode(); a single module-level instance avoids reallocating
+// per call in the hot path.
+const TEXT_DECODER = new TextDecoder();
 import {
-  type Module, type Func, type FuncSignature, type LocalDecl, type TypeEntry,
-  type Import, type Export, type Memory, type Table, type Global, type Tag,
-  type ElemSegment, type DataSegment, type Custom, type Limits, type Field,
+  type Module, type Func, type FuncSignature, type TypeEntry,
+  type Memory, type Table, type Global, type Tag,
+  type Limits, type Field,
   type Expr, type Var, type BlockType, type Catch, type TableCatch, type SectionMeta,
   type NopExpr, type UnreachableExpr, type ConstExpr, type LocalGetExpr,
   type GlobalGetExpr, type MemorySizeExpr, type TableSizeExpr, type RefNullExpr,
   type RefFuncExpr, type AtomicFenceExpr, type DataDropExpr, type ElemDropExpr,
-  type RethrowExpr, type CodeMetadataExpr,
+  type RethrowExpr,
   CatchKind,
   BLOCK_TYPE_VOID, blockTypeValue, blockTypeFuncType,
   varIndex,
@@ -149,8 +154,6 @@ function popN(stack: Expr[], n: number): Expr[] {
   return result;
 }
 
-function noLoc(): Location { return { filename: '', line: 0, column: 0, offset: 0 }; }
-
 // ---------------------------------------------------------------------------
 // BinaryReader class
 // ---------------------------------------------------------------------------
@@ -253,7 +256,7 @@ export class BinaryReader {
   private readName(): string {
     const len = this.readU32Leb();
     const bytes = this.readBytes(len);
-    return new TextDecoder().decode(bytes);
+    return TEXT_DECODER.decode(bytes);
   }
 
   // ---------------------------------------------------------------------------
@@ -535,7 +538,7 @@ export class BinaryReader {
     }
   }
 
-  private readDataCountSection(m: Module, _end: number): void {
+  private readDataCountSection(_m: Module, _end: number): void {
     this.readU32Leb(); // data count (used for validation, we don't store it)
   }
 
@@ -547,7 +550,7 @@ export class BinaryReader {
       const isPassive = (flags & 0x01) !== 0;
       const hasExplicitMemIdx = (flags & 0x02) !== 0;
 
-      let kind: 'active' | 'passive' = isPassive ? 'passive' : 'active';
+      const kind: 'active' | 'passive' = isPassive ? 'passive' : 'active';
       let memoryVar: Var = varIndex(0);
       let offset: Expr[] = [];
 
@@ -591,7 +594,6 @@ export class BinaryReader {
 
   private readNameSection(m: Module, data: Uint8Array): void {
     if (!this.opts.readDebugNames) return;
-    const decoder = new TextDecoder();
     let pos = 0;
 
     const readU32Leb = (): number => {
@@ -600,7 +602,7 @@ export class BinaryReader {
     const readName_ = (): string => {
       const len = readU32Leb();
       const bytes = data.slice(pos, pos + len); pos += len;
-      return decoder.decode(bytes);
+      return TEXT_DECODER.decode(bytes);
     };
 
     while (pos < data.length) {
@@ -705,7 +707,7 @@ export class BinaryReader {
           if (frame.tryBody === undefined) {
             frame.tryBody = body;
           } else {
-            const catchLoc = frame.currentCatchLoc ?? loc;
+            const _catchLoc = frame.currentCatchLoc ?? loc;
             // Finish the previous catch — it was catch_all if catches has a partial one
             // We handle this by always finishing into catches via onCatch
           }
@@ -1215,7 +1217,7 @@ export class BinaryReader {
   // Misc (0xfc) opcode decoder
   // ---------------------------------------------------------------------------
 
-  private decodeMiscOp(op: number, stack: Expr[], stmts: Expr[], m: Module, loc: Location): void {
+  private decodeMiscOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
     switch (op) {
       // Saturating truncation (unary, 1 pop 1 push)
       case MiscOpcode.I32TruncSatF32S: case MiscOpcode.I32TruncSatF32U:

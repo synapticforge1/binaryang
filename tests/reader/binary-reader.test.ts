@@ -11,7 +11,7 @@ import { unknownLocation, makeErrorList, hasErrors } from '../../src/core/error.
 
 import {
   makeModule, varIndex,
-  constI32, constI64, constF32, constF64,
+  constI32, constI64,
   BLOCK_TYPE_VOID, blockTypeValue,
 } from '../../src/ir/ir.ts';
 import type { Module } from '../../src/ir/ir.ts';
@@ -37,7 +37,7 @@ function encodeU32Leb(value: number): number[] {
   return out;
 }
 
-function encodeS32Leb(value: number): number[] {
+function _encodeS32Leb(value: number): number[] {
   const out: number[] = [];
   let more = true;
   while (more) {
@@ -70,14 +70,14 @@ function section(id: number, ...body: number[]): number[] {
 }
 
 /** Encode a name (u32 LEB length + UTF-8 bytes). */
-function name(s: string): number[] {
+function _name(s: string): number[] {
   const encoded = new TextEncoder().encode(s);
   const bytes: number[] = [];
   for (const b of encoded) bytes.push(b);
   return [...encodeU32Leb(bytes.length), ...bytes];
 }
 
-function noErrors(m: Module): void {
+function _noErrors(m: Module): void {
   // Just confirms the module was produced without errors (checked separately)
   assertExists(m);
 }

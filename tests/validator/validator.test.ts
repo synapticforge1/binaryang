@@ -4,7 +4,6 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { Result } from '../../src/core/result.ts';
 import { Type } from '../../src/core/types.ts';
 import { Opcode } from '../../src/core/opcode.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
@@ -14,12 +13,12 @@ import type { ErrorList } from '../../src/core/error.ts';
 import {
   makeModule,
   varIndex,
-  constI32, constI64, constF32, constF64,
+  constI32, constF32,
   BLOCK_TYPE_VOID, blockTypeValue,
 } from '../../src/ir/ir.ts';
 import type {
   Module, Func, Expr, ConstExpr, BinaryExpr, BlockExpr, LocalGetExpr,
-  LocalSetExpr, GlobalGetExpr, GlobalSetExpr, ReturnExpr,
+  LocalSetExpr, ReturnExpr,
 } from '../../src/ir/ir.ts';
 
 import { validateModule } from '../../src/validator/validator.ts';
@@ -34,7 +33,7 @@ function makeConst32(v: number): ConstExpr {
   return { kind: 'const', value: constI32(v), loc: LOC };
 }
 
-function makeAdd(left: Expr, right: Expr): BinaryExpr {
+function _makeAdd(left: Expr, right: Expr): BinaryExpr {
   return { kind: 'binary', opcode: Opcode.I32Add, left, right, loc: LOC };
 }
 
@@ -50,7 +49,7 @@ function makeLocalSet(idx: number, value: Expr): LocalSetExpr {
   return { kind: 'local.set', var: varIndex(idx), value, loc: LOC };
 }
 
-function makeReturn(value?: Expr): ReturnExpr {
+function _makeReturn(value?: Expr): ReturnExpr {
   return value ? { kind: 'return', value, loc: LOC } : { kind: 'return', loc: LOC };
 }
 

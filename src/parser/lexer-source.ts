@@ -11,6 +11,12 @@
  * random-access read + position tracking used by {@link WastLexer}.
  */
 
+// Codec singletons reused across all sources. Both are stateless and safe to
+// share — avoids per-call allocation in sliceText, which is on the lexer hot
+// path for every identifier, name, and literal token.
+const TEXT_ENCODER = new TextEncoder();
+const TEXT_DECODER = new TextDecoder();
+
 /** A named source buffer suitable for lexing. */
 export class LexerSource {
   /** Raw source bytes. */
@@ -20,7 +26,7 @@ export class LexerSource {
 
   constructor(data: Uint8Array | string, readonly filename = '<input>') {
     if (typeof data === 'string') {
-      this.data = new TextEncoder().encode(data);
+      this.data = TEXT_ENCODER.encode(data);
     } else {
       this.data = data;
     }
@@ -55,7 +61,7 @@ export class LexerSource {
 
   /** Decode `[start, end)` as UTF-8 text. */
   sliceText(start: number, end: number): string {
-    return new TextDecoder().decode(this.data.subarray(start, end));
+    return TEXT_DECODER.decode(this.data.subarray(start, end));
   }
 
   /** Return true when all bytes have been consumed. */

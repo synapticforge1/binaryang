@@ -17,9 +17,9 @@ import type { BlockType, Limits, SegmentKind } from '../ir/ir.ts';
 // Public options
 // ---------------------------------------------------------------------------
 
-export interface ValidateOptions {
-  // future: feature flags
-}
+// Placeholder for future feature flags. Switched from `interface` to a type
+// alias so the deno-lint `no-empty-interface` rule does not flag it.
+export type ValidateOptions = Record<string, never>;
 
 // ---------------------------------------------------------------------------
 // Internal state types
@@ -227,7 +227,7 @@ export class SharedValidator {
   // Type section
   // ---------------------------------------------------------------------------
 
-  onFuncType(loc: Location, params: Type[], results: Type[], typeIndex: Index): Result {
+  onFuncType(_loc: Location, params: Type[], results: Type[], typeIndex: Index): Result {
     this.funcTypesMap.set(this.numTypes, { params, results, typeIndex });
     this.numTypes++;
     return Result.Ok;
@@ -277,13 +277,13 @@ export class SharedValidator {
     return r;
   }
 
-  onGlobalImport(loc: Location, type: Type, mutable: boolean): Result {
+  onGlobalImport(_loc: Location, type: Type, mutable: boolean): Result {
     this.globals.push({ type, mutable });
     this.numImportedGlobals++;
     return Result.Ok;
   }
 
-  onGlobal(loc: Location, type: Type, mutable: boolean): Result {
+  onGlobal(_loc: Location, type: Type, mutable: boolean): Result {
     this.globals.push({ type, mutable });
     return Result.Ok;
   }
@@ -359,7 +359,7 @@ export class SharedValidator {
     return r;
   }
 
-  onElemSegmentElemType(loc: Location, elemType: Type): Result {
+  onElemSegmentElemType(_loc: Location, elemType: Type): Result {
     const elem = this.elems[this.elems.length - 1];
     if (elem) elem.element = elemType;
     return Result.Ok;
@@ -415,7 +415,7 @@ export class SharedValidator {
     return this.tc.endFunction();
   }
 
-  onLocalDecl(loc: Location, count: number, type: Type): Result {
+  onLocalDecl(_loc: Location, count: number, type: Type): Result {
     const cur = this.locals.length === 0 ? 0 : (this.locals[this.locals.length - 1]?.end ?? 0);
     this.locals.push({ type, end: cur + count });
     return Result.Ok;
@@ -453,7 +453,7 @@ export class SharedValidator {
     return this.tc.onIf(params, results);
   }
 
-  onElse(loc: Location): Result {
+  onElse(_loc: Location): Result {
     return this.tc.onElse();
   }
 
@@ -973,7 +973,7 @@ export class SharedValidator {
     return this.tc.onBlock(params, results);
   }
 
-  endTryTable(loc: Location, blockType: BlockType): Result {
+  endTryTable(loc: Location, _blockType: BlockType): Result {
     this.currentLoc = loc;
     return Result.Ok;
   }
@@ -987,7 +987,7 @@ export class SharedValidator {
     return this.tc.onSimdLaneOp(opcode, lane);
   }
 
-  onSimdLoadLane(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint, lane: number): Result {
+  onSimdLoadLane(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint, _lane: number): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -997,7 +997,7 @@ export class SharedValidator {
     return r;
   }
 
-  onSimdStoreLane(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint, lane: number): Result {
+  onSimdStoreLane(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint, _lane: number): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;

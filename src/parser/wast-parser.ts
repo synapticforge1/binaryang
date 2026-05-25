@@ -13,18 +13,18 @@
 
 import type { Location, WabtError } from '../core/error.ts';
 import { ErrorLevel } from '../core/error.ts';
-import { Result, combineResults } from '../core/result.ts';
-import { Opcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
+import { Result } from '../core/result.ts';
+import { Opcode } from '../core/opcode.ts';
 import { Type } from '../core/types.ts';
 import {
   varIndex, varName, BLOCK_TYPE_VOID, blockTypeValue,
-  makeModule, sigEquals,
+  makeModule,
   ExternalKind,
   type Var, type BlockType, type Const, type FuncSignature, type LocalDecl,
   type TypeEntry, type Func, type Global, type Memory, type Table, type Tag,
-  type ElemSegment, type DataSegment, type Import, type Export, type Module,
+  type Import, type Module,
   type Expr, type Limits,
-  constI32, constI64, constF32, constF64, constV128,
+  constI32, constI64, constF32, constF64,
   type ConstExpr, type NopExpr, type UnreachableExpr, type ReturnExpr,
   type DropExpr, type SelectExpr, type BlockExpr, type LoopExpr, type IfExpr,
   type BrExpr, type BrIfExpr, type BrTableExpr,
@@ -55,7 +55,6 @@ import {
   type Token, type LiteralToken, type OpcodeToken, type StringToken,
   type TypeToken, type RefKindToken,
 } from './token.ts';
-import { LiteralType as CoreLiteralType } from '../core/literal.ts';
 
 // ---------------------------------------------------------------------------
 // WAST Script types
@@ -569,7 +568,7 @@ export class WastParser {
 
   /** Parse limits: `N` or `N M` optionally followed by `shared`. */
   parseLimits(): Limits | null {
-    const is64 = this.match(TokenType.I64X2); // actually this is wrong, check index type
+    const _is64 = this.match(TokenType.I64X2); // actually this is wrong, check index type
     const initTok = this.peekToken();
     if (this.peek() !== TokenType.Nat && this.peek() !== TokenType.Int) {
       this.error(this.loc(), 'expected limit initial value');
@@ -580,7 +579,6 @@ export class WastParser {
     if (initN === null) { this.error(initTok.loc, 'invalid limit'); return null; }
     const initial = Number(initN);
     let max: number | undefined;
-    const isShared = false;
     if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
       const maxText = (this.consume() as LiteralToken).literal.text;
       const maxN = parseNatText(maxText);
@@ -745,7 +743,7 @@ export class WastParser {
       this.drop();
       const name = this.parseBindVarOpt();
       const typeVar = this.parseTypeUseOpt();
-      const { sig, bindings } = this.parseFuncSignature();
+      const { sig } = this.parseFuncSignature();
       const func: Func = { name, loc, typeVar: typeVar ?? varIndex(0), sig, localDecls: [], body: [], tailcall: false };
       imp = { kind: ExternalKind.Func, module: moduleName, field: fieldName, func };
       module.imports.push(imp);
@@ -839,7 +837,7 @@ export class WastParser {
     // Inline import?
     const inlineImp = this.parseInlineImport();
     const typeVar = this.parseTypeUseOpt();
-    const { sig, bindings } = this.parseFuncSignature();
+    const { sig } = this.parseFuncSignature();
 
     if (inlineImp !== null) {
       // This is an imported function declared as (func (import ...) ...)
@@ -1065,13 +1063,11 @@ export class WastParser {
       offset = ctx.stmts;
       kind = 'active';
     } else if (this.matchLpar(TokenType.Offset)) {
-      const ctx = newCtx();
       this.parseInstrListInto(offset);
       this.expect(TokenType.Rpar);
       kind = 'active';
     } else if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Const) {
       // bare inline offset expr like (i32.const 0)
-      const ctx = newCtx();
       this.parseInstrListInto(offset);
       if (offset.length > 0) kind = 'active';
     }
@@ -1112,7 +1108,6 @@ export class WastParser {
       const v = this.parseVar();
       if (v !== null) tableVar = v;
       // Now expect offset expression
-      const ctx = newCtx();
       if (this.matchLpar(TokenType.Offset)) {
         this.parseInstrListInto(offset);
         this.expect(TokenType.Rpar);
@@ -1790,7 +1785,6 @@ export class WastParser {
     const loc = this.loc();
     // Map from opcode to type
     const type = constOpcodeType(opcode);
-    const tok = this.peekToken();
 
     if (type === Type.I32) {
       const n = this.parseNatOrInt();
@@ -1877,7 +1871,7 @@ export class WastParser {
   // Memory index parsing
   // -------------------------------------------------------------------------
 
-  private parseMemidxOpt(loc: Location): Var {
+  private parseMemidxOpt(_loc: Location): Var {
     if (this.matchLpar(TokenType.Memory)) {
       const v = this.parseVar() ?? varIndex(0);
       this.expect(TokenType.Rpar);
