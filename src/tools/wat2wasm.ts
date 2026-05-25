@@ -5,6 +5,7 @@ import { LexerSource } from '../parser/lexer-source.ts';
 import { parseWatModule } from '../parser/wast-parser.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { resolveNames } from '../ir/resolve-names.ts';
+import { synthesizeTypes } from '../ir/synthesize-types.ts';
 import { Result } from '../core/result.ts';
 import { formatErrors, hasErrors } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
@@ -42,6 +43,13 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
   if (hasErrors(errors)) {
     return { binary: new Uint8Array(0), errors, result: Result.Error };
   }
+
+  // Ensure module.types contains an entry for every inline-declared function
+  // signature; otherwise the function section emits dangling type-index
+  // references and the resulting binary fails to decode. The WAT parser
+  // stores inline sigs on Func / Tag / Func-import / Tag-import nodes but
+  // does not back-fill the type section; this pass closes the gap.
+  synthesizeTypes(module);
 
   const binary = writeBinaryIr(module);
   return { binary, errors, result: Result.Ok };

@@ -603,12 +603,20 @@ function popN(ctx: ExprCtx, n: number, fallback: Location): Expr[] {
   return result;
 }
 
-/** Flush remaining stack items as sequential statements (for end-of-block). */
+/**
+ * Flush remaining stack items as sequential statements (for end-of-block).
+ *
+ * Preserves order: stack `[a, b, c]` (a pushed first, c on top) flushes to
+ * `stmts` as `[a, b, c]`. An earlier version popped from the stack one at a
+ * time, which reversed the order — invisible for the most common case
+ * (single value on top of the stack at end-of-block) but produced wrong
+ * operand bindings in folded expressions like
+ * `(i32.sub (local.get $a) (local.get $b))`, where left/right got swapped.
+ * Fixed 2026-05-25 — reported by wasmtk's wabt-ts 1.0.4 migration.
+ */
 function flushStack(ctx: ExprCtx): void {
-  while (ctx.stack.length > 0) {
-    const e = ctx.stack.pop()!;
-    ctx.stmts.push(e);
-  }
+  for (const e of ctx.stack) ctx.stmts.push(e);
+  ctx.stack.length = 0;
 }
 
 // ---------------------------------------------------------------------------

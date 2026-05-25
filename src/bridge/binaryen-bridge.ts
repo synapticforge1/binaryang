@@ -102,6 +102,7 @@ import {
   makeSwitch,
   makeUnary,
   makeUnreachable,
+  makeV128Const,
   ModuleBuilder,
   None,
   UnaryOp,
@@ -823,6 +824,9 @@ function bridgeConst(c: Const): Expression {
       new DataView(buf).setBigUint64(0, c.bits, true);
       return makeF64Const(new Float64Array(buf)[0]!);
     }
+    case Type.V128:
+      // wabt-ts stores v128 as 16 raw bytes; binaryen-ts wants the same.
+      return makeV128Const(c.bytes);
     default:
       throw new Error(
         `Bridge: const type not yet supported: 0x${(c as { type: number }).type.toString(16)}`,
