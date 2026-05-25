@@ -1,11 +1,17 @@
 # JSR publish with OIDC provenance.
 #
-# Triggered when a git tag matching `v*` is pushed. The recommended way to push that tag is
-# `deno task publish` (see scripts/publish.ts), which guards against publishing from a
-# developer workstation — `deno publish` run locally would succeed but produce a release
-# with no provenance, breaking the provenance chain. The workflow itself calls
-# `deno publish` directly so JSR detects the GitHub Actions OIDC token and stamps the
-# release with provenance automatically.
+# Triggered when a git tag matching `v*` is pushed (e.g. `git tag v1.0.0 && git push --tags`),
+# or dispatched on a tag ref by `.github/workflows/auto-tag.yml` after it detects a `deno.json`
+# version bump on `main`.
+#
+# The publish step calls `deno publish` DIRECTLY — not `deno task publish`. The task wraps
+# `scripts/publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`. That
+# indirection breaks JSR provenance: JSR's OIDC detection runs in the workflow's primary
+# process and does not propagate cleanly into the subprocess invocation, so the published
+# version gets the "No provenance" flag. Sibling `binaryen-ts` learned this the hard way
+# (see its v1.0.6/v1.0.7 releases). The publish.ts script remains in place for local users —
+# running `deno task publish` from a dev machine still produces the correct commit + tag +
+# push flow; CI just doesn't go through it.
 #
 # Required permissions:
 #   - id-token: write   → OIDC token for JSR provenance

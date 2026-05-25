@@ -12,3 +12,11 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Submodule working trees. These are tracked via .gitmodules (gitlinks), so
+# git itself ignores this section for staging purposes — listing them here
+# just nudges editors and search tools (ripgrep, deno fmt/lint, IDE indexers)
+# to skip them when scanning the workspace.
+/upstream/
+/binaryen-ts/
+/wasmtk/
