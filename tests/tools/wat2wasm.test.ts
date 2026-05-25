@@ -119,4 +119,45 @@ describe('wat2wasm — end-to-end regression', () => {
         (call $log (local.get 0)))
       (export "main" (func $main)))`);
   });
+
+  it('resolves call $name nested inside drop / select (wasmtk 1.0.5 repro)', () => {
+    // Bug: resolveExpr's default `return e` didn't recurse into children,
+    // so the call inside (drop ...) / (select ...) kept its name var,
+    // and the binary writer fell back to "index 0" — referencing the
+    // first import instead of the named defined func. wasmtk hit this in
+    // core_simple.wat's (select (call $__malloc ...) ...).
+    const bin = compileAndValidate(`(module
+      (import "env" "imp0" (func $imp0 (param i32)))
+      (import "env" "imp1" (func $imp1 (param i32 i32 i32 i32) (result i32)))
+      (func $malloc (param $size i32) (result i32) (local.get $size))
+      (func $realloc (param $ptr i32) (param $size i32) (result i32)
+        (select
+          (call $malloc (local.get $size))
+          (local.get $ptr)
+          (i32.eqz (local.get $ptr)))))`);
+    // $malloc is absolute index 2 (after $imp0=0, $imp1=1). The call inside
+    // the select must emit "10 02", not "10 00".
+    const hex = Array.from(bin)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ');
+    assert(
+      hex.includes('10 02'),
+      `expected 'call 2' (= $malloc) inside select; binary: ${hex}`,
+    );
+  });
+
+  it('resolves call $name nested inside drop', () => {
+    const bin = compileAndValidate(`(module
+      (import "env" "imp0" (func $imp0 (param i32)))
+      (func $defined (result i32) (i32.const 5))
+      (func $caller (drop (call $defined))))`);
+    const hex = Array.from(bin)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ');
+    // $defined is absolute index 1 (after the import).
+    assert(
+      hex.includes('10 01'),
+      `expected 'call 1' inside drop; binary: ${hex}`,
+    );
+  });
 });

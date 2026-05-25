@@ -328,6 +328,150 @@ class ResolveContext {
           size,
         }];
       }
+      // --- Expression kinds with sub-expressions but no Var fields ---
+      //
+      // These previously fell through to `default: return e` unchanged,
+      // which left every nested expression's name-vars unresolved. wasmtk
+      // hit this with `(drop (call $f))` / `(select (call $f) ...)`: the
+      // inner `call $f` kept its name var, the binary writer fell back to
+      // index 0, and the produced binary called the wrong function.
+      // Surfaced 2026-05-25.
+      case 'drop': {
+        const [r, val] = this.resolveExpr(e.value);
+        return [r, { ...e, value: val }];
+      }
+      case 'select': {
+        const [r1, val1] = this.resolveExpr(e.val1);
+        const [r2, val2] = this.resolveExpr(e.val2);
+        const [r3, cond] = this.resolveExpr(e.cond);
+        return [combine(r1, combine(r2, r3)), { ...e, val1, val2, cond }];
+      }
+      case 'return': {
+        if (e.value === undefined) return [Result.Ok, e];
+        const [r, val] = this.resolveExpr(e.value);
+        return [r, { ...e, value: val }];
+      }
+      case 'unary':
+      case 'convert': {
+        const [r, operand] = this.resolveExpr(e.operand);
+        return [r, { ...e, operand }];
+      }
+      case 'binary':
+      case 'compare': {
+        const [rL, left] = this.resolveExpr(e.left);
+        const [rR, right] = this.resolveExpr(e.right);
+        return [combine(rL, rR), { ...e, left, right }];
+      }
+      case 'ternary': {
+        const [rA, a] = this.resolveExpr(e.a);
+        const [rB, b] = this.resolveExpr(e.b);
+        const [rC, c] = this.resolveExpr(e.c);
+        return [combine(rA, combine(rB, rC)), { ...e, a, b, c }];
+      }
+      case 'quaternary': {
+        const [rA, a] = this.resolveExpr(e.a);
+        const [rB, b] = this.resolveExpr(e.b);
+        const [rC, c] = this.resolveExpr(e.c);
+        const [rD, d] = this.resolveExpr(e.d);
+        return [combine(rA, combine(rB, combine(rC, rD))), { ...e, a, b, c, d }];
+      }
+      case 'load':
+      case 'atomic_load':
+      case 'load_splat':
+      case 'load_zero': {
+        const [r, address] = this.resolveExpr(e.address);
+        return [r, { ...e, address }];
+      }
+      case 'store':
+      case 'atomic_store':
+      case 'atomic_rmw': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rV, value] = this.resolveExpr(e.value);
+        return [combine(rA, rV), { ...e, address, value }];
+      }
+      case 'atomic_rmw_cmpxchg': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rE, expected] = this.resolveExpr(e.expected);
+        const [rR, replacement] = this.resolveExpr(e.replacement);
+        return [combine(rA, combine(rE, rR)), { ...e, address, expected, replacement }];
+      }
+      case 'atomic_wait': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rE, expected] = this.resolveExpr(e.expected);
+        const [rT, timeout] = this.resolveExpr(e.timeout);
+        return [combine(rA, combine(rE, rT)), { ...e, address, expected, timeout }];
+      }
+      case 'atomic_notify': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rC, count] = this.resolveExpr(e.count);
+        return [combine(rA, rC), { ...e, address, count }];
+      }
+      case 'memory.grow': {
+        const [r, delta] = this.resolveExpr(e.delta);
+        return [r, { ...e, delta }];
+      }
+      case 'memory.copy': {
+        const [rD, dest] = this.resolveExpr(e.dest);
+        const [rS, src] = this.resolveExpr(e.src);
+        const [rZ, size] = this.resolveExpr(e.size);
+        return [combine(rD, combine(rS, rZ)), { ...e, dest, src, size }];
+      }
+      case 'memory.fill': {
+        const [rD, dest] = this.resolveExpr(e.dest);
+        const [rV, value] = this.resolveExpr(e.value);
+        const [rZ, size] = this.resolveExpr(e.size);
+        return [combine(rD, combine(rV, rZ)), { ...e, dest, value, size }];
+      }
+      case 'table.get':
+      case 'table.size':
+        return [Result.Ok, { ...e, table: this.resolveTableVar(e.table, loc) }];
+      case 'table.set': {
+        const [rI, index] = this.resolveExpr(e.index);
+        const [rV, value] = this.resolveExpr(e.value);
+        return [combine(rI, rV), { ...e, table: this.resolveTableVar(e.table, loc), index, value }];
+      }
+      case 'table.grow': {
+        const [rI, initValue] = this.resolveExpr(e.initValue);
+        const [rD, delta] = this.resolveExpr(e.delta);
+        return [combine(rI, rD), { ...e, table: this.resolveTableVar(e.table, loc), initValue, delta }];
+      }
+      case 'table.fill': {
+        const [rS, start] = this.resolveExpr(e.start);
+        const [rV, value] = this.resolveExpr(e.value);
+        const [rN, size] = this.resolveExpr(e.size);
+        return [combine(rS, combine(rV, rN)), { ...e, table: this.resolveTableVar(e.table, loc), start, value, size }];
+      }
+      case 'ref.is_null':
+      case 'ref.as_non_null': {
+        const [r, value] = this.resolveExpr(e.value);
+        return [r, { ...e, value }];
+      }
+      case 'throw_ref': {
+        const [r, exnref] = this.resolveExpr(e.exnref);
+        return [r, { ...e, exnref }];
+      }
+      case 'br_on_null':
+      case 'br_on_non_null': {
+        const [r, value] = this.resolveExpr(e.value);
+        return [r, { ...e, target: this.resolveLabelVar(e.target, loc), value }];
+      }
+      case 'simd_lane_op': {
+        const [r, operand] = this.resolveExpr(e.operand);
+        return [r, { ...e, operand }];
+      }
+      case 'simd_shuffle': {
+        const [rL, left] = this.resolveExpr(e.left);
+        const [rR, right] = this.resolveExpr(e.right);
+        return [combine(rL, rR), { ...e, left, right }];
+      }
+      case 'simd_load_lane':
+      case 'simd_store_lane': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rV, vec] = this.resolveExpr(e.vec);
+        return [combine(rA, rV), { ...e, address, vec }];
+      }
+      // Truly leaf expressions or kinds the bridge / writer don't need to
+      // recurse into. Returning `e` unchanged is safe.
       default:
         return [Result.Ok, e];
     }
