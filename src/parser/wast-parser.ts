@@ -1624,6 +1624,14 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Tag) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
+    const tagIdx = module.numTagImports + module.tags.length;
+
+    while (this.matchLpar(TokenType.Export)) {
+      const expName = this.parseQuotedText() ?? '';
+      this.expect(TokenType.Rpar);
+      module.exports.push({ name: expName, kind: ExternalKind.Tag, var: varIndex(tagIdx) });
+    }
+
     const inlineImp = this.parseInlineImport();
     const { sig } = this.parseFuncSignature();
     const tag: Tag = { name, loc, sig };

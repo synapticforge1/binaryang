@@ -320,6 +320,48 @@ describe('parseWatModule — exports', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+describe('parseWatModule — tags', () => {
+  it('parses a tag with parameters', () => {
+    const m = parseModule('(module (tag $exn (param i32 i32)))');
+    assertEquals(m.tags.length, 1);
+    assertEquals(m.tags[0]?.name, '$exn');
+    assertEquals(m.tags[0]?.sig.params, [Type.I32, Type.I32]);
+  });
+
+  it('parses an inline export on a tag (wasmtk repro)', () => {
+    // wasic emits this shape for any exception tag export; previously
+    // failed with "expected ), got (" because parseTagModuleField had
+    // no inline-export loop.
+    const m = parseModule('(module (tag $exn (export "exn") (param i32 i32)))');
+    assertEquals(m.tags.length, 1);
+    assertEquals(m.tags[0]?.name, '$exn');
+    assertEquals(m.exports.length, 1);
+    assertEquals(m.exports[0]?.name, 'exn');
+    assertEquals(m.exports[0]?.kind, ExternalKind.Tag);
+  });
+
+  it('parses multiple inline exports on a tag', () => {
+    const m = parseModule('(module (tag $e (export "a") (export "b") (param i32)))');
+    assertEquals(m.exports.length, 2);
+    assertEquals(m.exports[0]?.name, 'a');
+    assertEquals(m.exports[1]?.name, 'b');
+    assertEquals(m.exports[0]?.kind, ExternalKind.Tag);
+    assertEquals(m.exports[1]?.kind, ExternalKind.Tag);
+  });
+
+  it('parses a tag import', () => {
+    const m = parseModule('(module (tag $t (import "env" "t") (param i32)))');
+    assertEquals(m.imports.length, 1);
+    assertEquals(m.imports[0]?.kind, ExternalKind.Tag);
+    assertEquals(m.numTagImports, 1);
+    assertEquals(m.tags.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
 
