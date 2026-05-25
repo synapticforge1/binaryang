@@ -328,7 +328,9 @@ function rewriteExprVars(e: Expr, ctx: ApplyContext): Expr {
         else_: e.else_.map((c) => rewriteExprVars(c, ctx)),
       };
     case 'return':
-      return e.value !== undefined ? { ...e, value: rewriteExprVars(e.value, ctx) } : e;
+      return e.values.length === 0
+        ? e
+        : { ...e, values: e.values.map((v) => rewriteExprVars(v, ctx)) };
     case 'drop':
       return { ...e, value: rewriteExprVars(e.value, ctx) };
     case 'select':

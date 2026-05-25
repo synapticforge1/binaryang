@@ -197,4 +197,64 @@ describe('wat2wasm — end-to-end regression', () => {
     assertEquals(inst.ten!(), 10);
     assertEquals(inst.minus!(), -2.5);
   });
+
+  // Bug #12 (wasmtk repro 2026-05-25): multi-value `return` dropped all but
+  // the first value because ReturnExpr stored a single `value?: Expr` and the
+  // parser captured only operands[0]. Reproduces via both folded and unfolded
+  // explicit-return forms; the implicit-return form (stack at function end,
+  // no `return` keyword) worked because it bypasses ReturnExpr entirely.
+  it('multi-value explicit return (folded form) preserves all values', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "two_vals") (result i32 i32)
+        (return (i32.const 10) (i32.const 20))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
+    assertEquals(inst.two_vals!(), [10, 20]);
+  });
+
+  it('multi-value explicit return (unfolded form) preserves all values', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "two_vals") (result i32 i32)
+        i32.const 10
+        i32.const 20
+        return))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
+    assertEquals(inst.two_vals!(), [10, 20]);
+  });
+
+  it('multi-value return with mixed types (i32 + i64)', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "pair") (result i32 i64)
+        (return (i32.const 42) (i64.const 99))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
+    assertEquals(inst.pair!(), [42, 99n]);
+  });
+
+  it('single-value explicit return still works (regression guard)', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "one") (result i32) (return (i32.const 7))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
+    assertEquals(inst.one!(), 7);
+  });
+
+  it('void return still works (regression guard)', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "noop") (return)))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => void>;
+    inst.noop!();
+  });
 });

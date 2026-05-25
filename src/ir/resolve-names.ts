@@ -347,9 +347,15 @@ class ResolveContext {
         return [combine(r1, combine(r2, r3)), { ...e, val1, val2, cond }];
       }
       case 'return': {
-        if (e.value === undefined) return [Result.Ok, e];
-        const [r, val] = this.resolveExpr(e.value);
-        return [r, { ...e, value: val }];
+        if (e.values.length === 0) return [Result.Ok, e];
+        let result: Result = Result.Ok;
+        const values: Expr[] = [];
+        for (const v of e.values) {
+          const [r, resolved] = this.resolveExpr(v);
+          result = combine(result, r);
+          values.push(resolved);
+        }
+        return [result, { ...e, values }];
       }
       case 'unary':
       case 'convert': {

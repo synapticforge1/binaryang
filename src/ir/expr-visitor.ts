@@ -271,10 +271,10 @@ export class ExprVisitor {
       case 'code_metadata':
         return this.d.onCodeMetadataExpr?.(e) ?? Result.Ok;
 
-      // --- Single child then callback ---
+      // --- N children then callback ---
       case 'return': {
-        if (e.value !== undefined) {
-          const r = this.dispatch(e.value);
+        for (const v of e.values) {
+          const r = this.dispatch(v);
           if (r === Result.Error) return r;
         }
         return this.d.onReturnExpr?.(e) ?? Result.Ok;

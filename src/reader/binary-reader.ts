@@ -1009,9 +1009,8 @@ export class BinaryReader {
           break;
         }
         case Opcode.Return: {
-          const value = funcResultCount > 0 ? stack.pop() : undefined;
-          const retExpr: Expr = value ? { kind: 'return', value, loc } : { kind: 'return', loc };
-          stmts.push(retExpr);
+          const values = funcResultCount > 0 ? popN(stack, funcResultCount) : [];
+          stmts.push({ kind: 'return', values, loc });
           break;
         }
 

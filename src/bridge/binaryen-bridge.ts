@@ -557,7 +557,15 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'return': {
       const r = e as ReturnExpr;
-      return makeReturn(r.value ? bridgeExpr(r.value, ctx) : null);
+      if (r.values.length === 0) return makeReturn(null);
+      if (r.values.length === 1) return makeReturn(bridgeExpr(r.values[0]!, ctx));
+      // Multi-value return needs binaryen's tuple.make wrapper, which
+      // binaryen-ts exposes as an ExpressionKind but has no factory in
+      // v1.0.9. Wire this up once binaryen-ts grows makeTupleMake.
+      throw new Error(
+        `Bridge: multi-value return (${r.values.length} values) not yet supported ` +
+          `(needs binaryen-ts makeTupleMake)`,
+      );
     }
 
     // --- Block-like -------------------------------------------------------

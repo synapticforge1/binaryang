@@ -2005,7 +2005,12 @@ export class WastParser {
         } as SelectExpr;
       }
       case TokenType.Return:
-        return { kind: 'return', value: operands[0], loc } as ReturnExpr;
+        // `return` is variable-arity (instrInputCount = -1), so `operands`
+        // is the entire stack at this point. For a multi-value function
+        // (`(func (result i32 i32) ...)`) all stack values become return
+        // values; capturing only operands[0] silently dropped the rest and
+        // produced binaries that V8 rejected as missing operands.
+        return { kind: 'return', values: operands, loc } as ReturnExpr;
       case TokenType.Br: {
         const v = this.parseVar();
         if (v === null) return null;

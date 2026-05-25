@@ -139,7 +139,15 @@ export interface UnreachableExpr {
 }
 export interface ReturnExpr {
   readonly kind: 'return';
-  readonly value?: Expr;
+  /**
+   * Operand expressions whose post-order evaluation pushes the return
+   * values onto the operand stack before the `return` opcode fires.
+   * Length must equal the enclosing function's result arity at runtime.
+   * Single-value returns store one entry; void returns store none;
+   * multi-value returns (`(func (result i32 i32) ...)`) store the full
+   * tuple.
+   */
+  readonly values: Expr[];
   readonly loc: Location;
 }
 export interface DropExpr {

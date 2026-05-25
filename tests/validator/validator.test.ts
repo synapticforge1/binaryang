@@ -59,7 +59,7 @@ function makeLocalSet(idx: number, value: Expr): LocalSetExpr {
 }
 
 function _makeReturn(value?: Expr): ReturnExpr {
-  return value ? { kind: 'return', value, loc: LOC } : { kind: 'return', loc: LOC };
+  return { kind: 'return', values: value ? [value] : [], loc: LOC };
 }
 
 function makeFunc(
