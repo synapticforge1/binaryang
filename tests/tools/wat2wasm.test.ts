@@ -160,4 +160,41 @@ describe('wat2wasm — end-to-end regression', () => {
       `expected 'call 1' inside drop; binary: ${hex}`,
     );
   });
+
+  // Bug #11 (wasmtk repro 2026-05-25): f64 integer literals were stored as
+  // raw bit patterns, so `f64.const 1` encoded as 0x0000000000000001 — the
+  // smallest positive subnormal (5e-324). Every f64 program silently broke
+  // because comparisons against 1, 10, 100, ... became comparisons against
+  // tiny subnormals. The f32 path had the same bug.
+  it('f64.const integer literals are float values, not raw bit patterns', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "one")     (result f64) (f64.const 1))
+      (func (export "ten")     (result f64) (f64.const 10))
+      (func (export "hundred") (result f64) (f64.const 100))
+      (func (export "billion") (result f64) (f64.const 1000000000))
+      (func (export "neg")     (result f64) (f64.const -3.14)))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
+    assertEquals(inst.one!(), 1);
+    assertEquals(inst.ten!(), 10);
+    assertEquals(inst.hundred!(), 100);
+    assertEquals(inst.billion!(), 1_000_000_000);
+    assertEquals(inst.neg!(), -3.14);
+  });
+
+  it('f32.const integer literals are float values, not raw bit patterns', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "one")    (result f32) (f32.const 1))
+      (func (export "ten")    (result f32) (f32.const 10))
+      (func (export "minus")  (result f32) (f32.const -2.5)))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
+    assertEquals(inst.one!(), 1);
+    assertEquals(inst.ten!(), 10);
+    assertEquals(inst.minus!(), -2.5);
+  });
 });

@@ -2524,7 +2524,7 @@ export class WastParser {
       return constI64(BigInt.asIntN(64, n));
     }
     if (type === Type.F32) {
-      const bits = this.parseFloatBits(32);
+      const bits = this.parseF32Bits();
       if (bits === null) {
         this.error(loc, 'expected f32 constant');
         return null;
@@ -2532,12 +2532,12 @@ export class WastParser {
       return constF32(bits);
     }
     if (type === Type.F64) {
-      const bits = this.parseFloatBits(64);
+      const bits = this.parseF64Bits();
       if (bits === null) {
         this.error(loc, 'expected f64 constant');
         return null;
       }
-      return constF64(BigInt(bits));
+      return constF64(bits);
     }
     this.error(loc, 'unknown const type');
     return null;
@@ -2550,25 +2550,46 @@ export class WastParser {
     return parseNatText(tok.literal.text);
   }
 
-  private parseFloatBits(width: 32 | 64): number | null {
+  private parseF32Bits(): number | null {
     const tt = this.peek();
     if (tt === TokenType.Float) {
       const tok = this.consume() as LiteralToken;
-      return parseFloatLiteralBits(tok.literal, width);
+      return parseF32LiteralBits(tok.literal);
     }
     if (tt === TokenType.Nat || tt === TokenType.Int) {
+      // `f32.const 1` means float 1.0, not bit pattern 0x00000001 (which
+      // would be the smallest positive subnormal). Convert the integer
+      // value through IEEE 754 rounding to get the right bits.
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) return null;
-      return Number(n);
+      return f32ValueToBits(Number(n));
     }
-    if (tt === TokenType.NanArithmetic) {
+    if (tt === TokenType.NanArithmetic || tt === TokenType.NanCanonical) {
       this.drop();
-      return width === 32 ? 0x7fc00000 : 0x7ff8000000000000;
+      return 0x7fc00000;
     }
-    if (tt === TokenType.NanCanonical) {
+    return null;
+  }
+
+  private parseF64Bits(): bigint | null {
+    const tt = this.peek();
+    if (tt === TokenType.Float) {
+      const tok = this.consume() as LiteralToken;
+      return parseF64LiteralBits(tok.literal);
+    }
+    if (tt === TokenType.Nat || tt === TokenType.Int) {
+      // See parseF32Bits — integer literals are decimal float values, not
+      // raw bit patterns. Without this conversion `f64.const 1` encoded as
+      // bit pattern 0x0000000000000001 = 5e-324 (smallest subnormal).
+      const tok = this.consume() as LiteralToken;
+      const n = parseNatText(tok.literal.text);
+      if (n === null) return null;
+      return f64ValueToBits(Number(n));
+    }
+    if (tt === TokenType.NanArithmetic || tt === TokenType.NanCanonical) {
       this.drop();
-      return width === 32 ? 0x7fc00000 : 0x7ff8000000000000;
+      return 0x7ff8000000000000n;
     }
     return null;
   }
@@ -2987,45 +3008,80 @@ function typeToName(t: Type): string {
 }
 
 /** Parse a float literal (LiteralToken) to its bit pattern. */
-function parseFloatLiteralBits(
-  lit: { literalType: LiteralType; text: string },
-  width: 32 | 64,
-): number | null {
+// ---------------------------------------------------------------------------
+// IEEE 754 helpers
+// ---------------------------------------------------------------------------
+//
+// `parseFloatBits` and friends used to share a single `number | null` return
+// type. That was wrong for f64 in two ways:
+//   - Bit-pattern values above 2^53 (any negative or large-mantissa f64 like
+//     -3.14) couldn't round-trip through a JS Number, so they came back with
+//     ~3e-12 drift from the lo/hi reassembly.
+//   - Integer-literal NaN payload constants like `0x7ff0000000000000` are
+//     already imprecise as JS Number literals.
+// f32 stays on `number` (32 bits fit safely), f64 returns `bigint`.
+
+const F32_BUF = new ArrayBuffer(4);
+const F32_VIEW = new DataView(F32_BUF);
+const F64_BUF = new ArrayBuffer(8);
+const F64_VIEW = new DataView(F64_BUF);
+
+function f32ValueToBits(v: number): number {
+  F32_VIEW.setFloat32(0, v, true);
+  return F32_VIEW.getUint32(0, true);
+}
+
+function f64ValueToBits(v: number): bigint {
+  F64_VIEW.setFloat64(0, v, true);
+  return F64_VIEW.getBigUint64(0, true);
+}
+
+function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): number | null {
   const { literalType, text } = lit;
   if (literalType === LiteralType.Infinity) {
-    const neg = text.startsWith('-');
-    if (width === 32) return neg ? 0xff800000 : 0x7f800000;
-    return neg ? 0xfff0000000000000 : 0x7ff0000000000000;
+    return text.startsWith('-') ? 0xff800000 : 0x7f800000;
   }
   if (literalType === LiteralType.Nan) {
     if (text.includes(':')) {
-      // nan:0xHHH — payload
       const payloadStr = text.split(':')[1] ?? '0x0';
       const payload = Number(BigInt(payloadStr));
-      if (width === 32) return 0x7f800000 | (payload & 0x3fffff);
-      return 0x7ff0000000000000 | (payload & 0x000fffffffffffff);
+      const sign = text.startsWith('-') ? 0x80000000 : 0;
+      return sign | 0x7f800000 | (payload & 0x3fffff);
     }
-    // canonical nan
-    if (width === 32) return 0x7fc00000;
-    return 0x7ff8000000000000;
+    return text.startsWith('-') ? 0xffc00000 : 0x7fc00000;
   }
   if (literalType === LiteralType.Float || literalType === LiteralType.Hexfloat) {
-    const v = parseFloat(text.replace(/_/g, ''));
-    if (width === 32) {
-      const buf = new ArrayBuffer(4);
-      new DataView(buf).setFloat32(0, v, true);
-      return new DataView(buf).getUint32(0, true);
-    }
-    const buf = new ArrayBuffer(8);
-    new DataView(buf).setFloat64(0, v, true);
-    const lo = new DataView(buf).getUint32(0, true);
-    const hi = new DataView(buf).getUint32(4, true);
-    return (hi * 0x100000000 + lo);
+    return f32ValueToBits(parseFloat(text.replace(/_/g, '')));
   }
-  // integer literal used as float bits
+  // Integer literal used in float position (e.g., `f32.const 1`) — decimal
+  // float value, NOT raw bit pattern. The "raw bits" interpretation came
+  // from a misread of the wabt-ts intermediate type; the spec says these
+  // are floating-point literals.
   const n = parseNatText(text);
   if (n === null) return null;
-  return Number(n);
+  return f32ValueToBits(Number(n));
+}
+
+function parseF64LiteralBits(lit: { literalType: LiteralType; text: string }): bigint | null {
+  const { literalType, text } = lit;
+  if (literalType === LiteralType.Infinity) {
+    return text.startsWith('-') ? 0xfff0000000000000n : 0x7ff0000000000000n;
+  }
+  if (literalType === LiteralType.Nan) {
+    if (text.includes(':')) {
+      const payloadStr = text.split(':')[1] ?? '0x0';
+      const payload = BigInt(payloadStr) & 0x000fffffffffffffn;
+      const sign = text.startsWith('-') ? 0x8000000000000000n : 0n;
+      return sign | 0x7ff0000000000000n | payload;
+    }
+    return text.startsWith('-') ? 0xfff8000000000000n : 0x7ff8000000000000n;
+  }
+  if (literalType === LiteralType.Float || literalType === LiteralType.Hexfloat) {
+    return f64ValueToBits(parseFloat(text.replace(/_/g, '')));
+  }
+  const n = parseNatText(text);
+  if (n === null) return null;
+  return f64ValueToBits(Number(n));
 }
 
 // ---------------------------------------------------------------------------
