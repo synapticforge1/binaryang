@@ -1,7 +1,7 @@
 {
   "name": "@jrmarcum/wabt-ts",
-  "version": "1.0.2",
-  "license": "MIT OR Apache-2.0",
+  "version": "1.0.3",
+  "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
     "./wat2wasm": "./src/tools/wat2wasm.ts",
