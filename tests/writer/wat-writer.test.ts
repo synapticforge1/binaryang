@@ -9,12 +9,23 @@ import { ExternalKind } from '../../src/core/binary.ts';
 import { Opcode } from '../../src/core/opcode.ts';
 import { unknownLocation } from '../../src/core/error.ts';
 import {
-  varIndex, varName,
   BLOCK_TYPE_VOID,
-  constI32, constI64, constF32,
+  constF32,
+  constI32,
+  constI64,
   makeModule,
+  varIndex,
+  varName,
 } from '../../src/ir/ir.ts';
-import type { Func, Global, Memory, Table, DataSegment, ElemSegment, Expr } from '../../src/ir/ir.ts';
+import type {
+  DataSegment,
+  ElemSegment,
+  Expr,
+  Func,
+  Global,
+  Memory,
+  Table,
+} from '../../src/ir/ir.ts';
 import { writeWatModule } from '../../src/writer/wat-writer.ts';
 
 const LOC = unknownLocation();
@@ -513,7 +524,7 @@ describe('writeWatModule — memory instructions', () => {
       kind: 'load',
       opcode: Opcode.I32Load,
       offset: 0n,
-      align: 4,  // natural align for i32.load
+      align: 4, // natural align for i32.load
       memidx: varIndex(0),
       address: addr,
       loc: LOC,
@@ -533,7 +544,7 @@ describe('writeWatModule — memory instructions', () => {
       kind: 'load',
       opcode: Opcode.I32Load,
       offset: 0n,
-      align: 1,  // non-natural for i32.load (natural is 4)
+      align: 1, // non-natural for i32.load (natural is 4)
       memidx: varIndex(0),
       address: addr,
       loc: LOC,

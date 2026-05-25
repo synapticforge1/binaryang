@@ -4,10 +4,10 @@
 // Licensed under the Apache License, Version 2.0
 
 import {
-  encodeU32Leb128,
-  encodeU64Leb128,
   encodeS32Leb128,
   encodeS64Leb128,
+  encodeU32Leb128,
+  encodeU64Leb128,
   MAX_U32_LEB128_BYTES,
 } from '../core/leb128.ts';
 
@@ -29,7 +29,9 @@ export class MemoryStream {
     this._buf = new Uint8Array(initialCapacity);
   }
 
-  get offset(): number { return this._pos; }
+  get offset(): number {
+    return this._pos;
+  }
 
   private grow(needed: number): void {
     const required = this._pos + needed;

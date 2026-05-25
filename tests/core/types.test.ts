@@ -1,12 +1,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 import {
-  isConcreteType,
-  isNumericType,
-  isReferenceType,
   INVALID_ADDRESS,
   INVALID_INDEX,
   INVALID_OFFSET,
+  isConcreteType,
+  isNumericType,
+  isReferenceType,
   Type,
   typeName,
 } from '../../src/core/types.ts';

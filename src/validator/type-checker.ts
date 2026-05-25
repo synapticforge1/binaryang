@@ -3,10 +3,10 @@
 // Copyright 2017 WebAssembly Community Group participants
 // Licensed under the Apache License, Version 2.0
 
-import { Result, combineResults } from '../core/result.ts';
+import { combineResults, Result } from '../core/result.ts';
 import { Type, typeName } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
-import { Opcode, MiscOpcode } from '../core/opcode.ts';
+import { MiscOpcode, Opcode } from '../core/opcode.ts';
 import { LabelType } from '../ir/ir-util.ts';
 
 // ---------------------------------------------------------------------------
@@ -47,170 +47,322 @@ function oi(r1: Type, p1: Type, p2: Type, p3: Type, nat: number): OpcodeTypeInfo
 function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   switch (opcode) {
     // --- Loads ---
-    case Opcode.I32Load:    return oi(_I32, _I32, _V, _V, 4);
-    case Opcode.I64Load:    return oi(_I64, _I32, _V, _V, 8);
-    case Opcode.F32Load:    return oi(_F32, _I32, _V, _V, 4);
-    case Opcode.F64Load:    return oi(_F64, _I32, _V, _V, 8);
-    case Opcode.I32Load8S:  return oi(_I32, _I32, _V, _V, 1);
-    case Opcode.I32Load8U:  return oi(_I32, _I32, _V, _V, 1);
-    case Opcode.I32Load16S: return oi(_I32, _I32, _V, _V, 2);
-    case Opcode.I32Load16U: return oi(_I32, _I32, _V, _V, 2);
-    case Opcode.I64Load8S:  return oi(_I64, _I32, _V, _V, 1);
-    case Opcode.I64Load8U:  return oi(_I64, _I32, _V, _V, 1);
-    case Opcode.I64Load16S: return oi(_I64, _I32, _V, _V, 2);
-    case Opcode.I64Load16U: return oi(_I64, _I32, _V, _V, 2);
-    case Opcode.I64Load32S: return oi(_I64, _I32, _V, _V, 4);
-    case Opcode.I64Load32U: return oi(_I64, _I32, _V, _V, 4);
+    case Opcode.I32Load:
+      return oi(_I32, _I32, _V, _V, 4);
+    case Opcode.I64Load:
+      return oi(_I64, _I32, _V, _V, 8);
+    case Opcode.F32Load:
+      return oi(_F32, _I32, _V, _V, 4);
+    case Opcode.F64Load:
+      return oi(_F64, _I32, _V, _V, 8);
+    case Opcode.I32Load8S:
+      return oi(_I32, _I32, _V, _V, 1);
+    case Opcode.I32Load8U:
+      return oi(_I32, _I32, _V, _V, 1);
+    case Opcode.I32Load16S:
+      return oi(_I32, _I32, _V, _V, 2);
+    case Opcode.I32Load16U:
+      return oi(_I32, _I32, _V, _V, 2);
+    case Opcode.I64Load8S:
+      return oi(_I64, _I32, _V, _V, 1);
+    case Opcode.I64Load8U:
+      return oi(_I64, _I32, _V, _V, 1);
+    case Opcode.I64Load16S:
+      return oi(_I64, _I32, _V, _V, 2);
+    case Opcode.I64Load16U:
+      return oi(_I64, _I32, _V, _V, 2);
+    case Opcode.I64Load32S:
+      return oi(_I64, _I32, _V, _V, 4);
+    case Opcode.I64Load32U:
+      return oi(_I64, _I32, _V, _V, 4);
     // --- Stores ---
-    case Opcode.I32Store:   return oi(_V, _I32, _I32, _V, 4);
-    case Opcode.I64Store:   return oi(_V, _I32, _I64, _V, 8);
-    case Opcode.F32Store:   return oi(_V, _I32, _F32, _V, 4);
-    case Opcode.F64Store:   return oi(_V, _I32, _F64, _V, 8);
-    case Opcode.I32Store8:  return oi(_V, _I32, _I32, _V, 1);
-    case Opcode.I32Store16: return oi(_V, _I32, _I32, _V, 2);
-    case Opcode.I64Store8:  return oi(_V, _I32, _I64, _V, 1);
-    case Opcode.I64Store16: return oi(_V, _I32, _I64, _V, 2);
-    case Opcode.I64Store32: return oi(_V, _I32, _I64, _V, 4);
+    case Opcode.I32Store:
+      return oi(_V, _I32, _I32, _V, 4);
+    case Opcode.I64Store:
+      return oi(_V, _I32, _I64, _V, 8);
+    case Opcode.F32Store:
+      return oi(_V, _I32, _F32, _V, 4);
+    case Opcode.F64Store:
+      return oi(_V, _I32, _F64, _V, 8);
+    case Opcode.I32Store8:
+      return oi(_V, _I32, _I32, _V, 1);
+    case Opcode.I32Store16:
+      return oi(_V, _I32, _I32, _V, 2);
+    case Opcode.I64Store8:
+      return oi(_V, _I32, _I64, _V, 1);
+    case Opcode.I64Store16:
+      return oi(_V, _I32, _I64, _V, 2);
+    case Opcode.I64Store32:
+      return oi(_V, _I32, _I64, _V, 4);
     // --- i32 comparisons ---
-    case Opcode.I32Eqz:  return oi(_I32, _I32, _V, _V, 0);
-    case Opcode.I32Eq:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Ne:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32LtS:  return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32LtU:  return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32GtS:  return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32GtU:  return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32LeS:  return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32LeU:  return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32GeS:  return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32GeU:  return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Eqz:
+      return oi(_I32, _I32, _V, _V, 0);
+    case Opcode.I32Eq:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Ne:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32LtS:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32LtU:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32GtS:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32GtU:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32LeS:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32LeU:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32GeS:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32GeU:
+      return oi(_I32, _I32, _I32, _V, 0);
     // --- i64 comparisons ---
-    case Opcode.I64Eqz:  return oi(_I32, _I64, _V, _V, 0);
-    case Opcode.I64Eq:   return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64Ne:   return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64LtS:  return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64LtU:  return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64GtS:  return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64GtU:  return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64LeS:  return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64LeU:  return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64GeS:  return oi(_I32, _I64, _I64, _V, 0);
-    case Opcode.I64GeU:  return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64Eqz:
+      return oi(_I32, _I64, _V, _V, 0);
+    case Opcode.I64Eq:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64Ne:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64LtS:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64LtU:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64GtS:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64GtU:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64LeS:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64LeU:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64GeS:
+      return oi(_I32, _I64, _I64, _V, 0);
+    case Opcode.I64GeU:
+      return oi(_I32, _I64, _I64, _V, 0);
     // --- f32 comparisons ---
-    case Opcode.F32Eq:   return oi(_I32, _F32, _F32, _V, 0);
-    case Opcode.F32Ne:   return oi(_I32, _F32, _F32, _V, 0);
-    case Opcode.F32Lt:   return oi(_I32, _F32, _F32, _V, 0);
-    case Opcode.F32Gt:   return oi(_I32, _F32, _F32, _V, 0);
-    case Opcode.F32Le:   return oi(_I32, _F32, _F32, _V, 0);
-    case Opcode.F32Ge:   return oi(_I32, _F32, _F32, _V, 0);
+    case Opcode.F32Eq:
+      return oi(_I32, _F32, _F32, _V, 0);
+    case Opcode.F32Ne:
+      return oi(_I32, _F32, _F32, _V, 0);
+    case Opcode.F32Lt:
+      return oi(_I32, _F32, _F32, _V, 0);
+    case Opcode.F32Gt:
+      return oi(_I32, _F32, _F32, _V, 0);
+    case Opcode.F32Le:
+      return oi(_I32, _F32, _F32, _V, 0);
+    case Opcode.F32Ge:
+      return oi(_I32, _F32, _F32, _V, 0);
     // --- f64 comparisons ---
-    case Opcode.F64Eq:   return oi(_I32, _F64, _F64, _V, 0);
-    case Opcode.F64Ne:   return oi(_I32, _F64, _F64, _V, 0);
-    case Opcode.F64Lt:   return oi(_I32, _F64, _F64, _V, 0);
-    case Opcode.F64Gt:   return oi(_I32, _F64, _F64, _V, 0);
-    case Opcode.F64Le:   return oi(_I32, _F64, _F64, _V, 0);
-    case Opcode.F64Ge:   return oi(_I32, _F64, _F64, _V, 0);
+    case Opcode.F64Eq:
+      return oi(_I32, _F64, _F64, _V, 0);
+    case Opcode.F64Ne:
+      return oi(_I32, _F64, _F64, _V, 0);
+    case Opcode.F64Lt:
+      return oi(_I32, _F64, _F64, _V, 0);
+    case Opcode.F64Gt:
+      return oi(_I32, _F64, _F64, _V, 0);
+    case Opcode.F64Le:
+      return oi(_I32, _F64, _F64, _V, 0);
+    case Opcode.F64Ge:
+      return oi(_I32, _F64, _F64, _V, 0);
     // --- i32 arithmetic ---
-    case Opcode.I32Clz:    return oi(_I32, _I32, _V, _V, 0);
-    case Opcode.I32Ctz:    return oi(_I32, _I32, _V, _V, 0);
-    case Opcode.I32Popcnt: return oi(_I32, _I32, _V, _V, 0);
-    case Opcode.I32Add:    return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Sub:    return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Mul:    return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32DivS:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32DivU:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32RemS:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32RemU:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32And:    return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Or:     return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Xor:    return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Shl:    return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32ShrS:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32ShrU:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Rotl:   return oi(_I32, _I32, _I32, _V, 0);
-    case Opcode.I32Rotr:   return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Clz:
+      return oi(_I32, _I32, _V, _V, 0);
+    case Opcode.I32Ctz:
+      return oi(_I32, _I32, _V, _V, 0);
+    case Opcode.I32Popcnt:
+      return oi(_I32, _I32, _V, _V, 0);
+    case Opcode.I32Add:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Sub:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Mul:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32DivS:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32DivU:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32RemS:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32RemU:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32And:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Or:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Xor:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Shl:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32ShrS:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32ShrU:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Rotl:
+      return oi(_I32, _I32, _I32, _V, 0);
+    case Opcode.I32Rotr:
+      return oi(_I32, _I32, _I32, _V, 0);
     // --- i64 arithmetic ---
-    case Opcode.I64Clz:    return oi(_I64, _I64, _V, _V, 0);
-    case Opcode.I64Ctz:    return oi(_I64, _I64, _V, _V, 0);
-    case Opcode.I64Popcnt: return oi(_I64, _I64, _V, _V, 0);
-    case Opcode.I64Add:    return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64Sub:    return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64Mul:    return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64DivS:   return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64DivU:   return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64RemS:   return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64RemU:   return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64And:    return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64Or:     return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64Xor:    return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64Shl:    return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64ShrS:   return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64ShrU:   return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64Rotl:   return oi(_I64, _I64, _I64, _V, 0);
-    case Opcode.I64Rotr:   return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Clz:
+      return oi(_I64, _I64, _V, _V, 0);
+    case Opcode.I64Ctz:
+      return oi(_I64, _I64, _V, _V, 0);
+    case Opcode.I64Popcnt:
+      return oi(_I64, _I64, _V, _V, 0);
+    case Opcode.I64Add:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Sub:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Mul:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64DivS:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64DivU:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64RemS:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64RemU:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64And:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Or:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Xor:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Shl:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64ShrS:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64ShrU:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Rotl:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case Opcode.I64Rotr:
+      return oi(_I64, _I64, _I64, _V, 0);
     // --- f32 arithmetic ---
-    case Opcode.F32Abs:      return oi(_F32, _F32, _V, _V, 0);
-    case Opcode.F32Neg:      return oi(_F32, _F32, _V, _V, 0);
-    case Opcode.F32Ceil:     return oi(_F32, _F32, _V, _V, 0);
-    case Opcode.F32Floor:    return oi(_F32, _F32, _V, _V, 0);
-    case Opcode.F32Trunc:    return oi(_F32, _F32, _V, _V, 0);
-    case Opcode.F32Nearest:  return oi(_F32, _F32, _V, _V, 0);
-    case Opcode.F32Sqrt:     return oi(_F32, _F32, _V, _V, 0);
-    case Opcode.F32Add:      return oi(_F32, _F32, _F32, _V, 0);
-    case Opcode.F32Sub:      return oi(_F32, _F32, _F32, _V, 0);
-    case Opcode.F32Mul:      return oi(_F32, _F32, _F32, _V, 0);
-    case Opcode.F32Div:      return oi(_F32, _F32, _F32, _V, 0);
-    case Opcode.F32Min:      return oi(_F32, _F32, _F32, _V, 0);
-    case Opcode.F32Max:      return oi(_F32, _F32, _F32, _V, 0);
-    case Opcode.F32Copysign: return oi(_F32, _F32, _F32, _V, 0);
+    case Opcode.F32Abs:
+      return oi(_F32, _F32, _V, _V, 0);
+    case Opcode.F32Neg:
+      return oi(_F32, _F32, _V, _V, 0);
+    case Opcode.F32Ceil:
+      return oi(_F32, _F32, _V, _V, 0);
+    case Opcode.F32Floor:
+      return oi(_F32, _F32, _V, _V, 0);
+    case Opcode.F32Trunc:
+      return oi(_F32, _F32, _V, _V, 0);
+    case Opcode.F32Nearest:
+      return oi(_F32, _F32, _V, _V, 0);
+    case Opcode.F32Sqrt:
+      return oi(_F32, _F32, _V, _V, 0);
+    case Opcode.F32Add:
+      return oi(_F32, _F32, _F32, _V, 0);
+    case Opcode.F32Sub:
+      return oi(_F32, _F32, _F32, _V, 0);
+    case Opcode.F32Mul:
+      return oi(_F32, _F32, _F32, _V, 0);
+    case Opcode.F32Div:
+      return oi(_F32, _F32, _F32, _V, 0);
+    case Opcode.F32Min:
+      return oi(_F32, _F32, _F32, _V, 0);
+    case Opcode.F32Max:
+      return oi(_F32, _F32, _F32, _V, 0);
+    case Opcode.F32Copysign:
+      return oi(_F32, _F32, _F32, _V, 0);
     // --- f64 arithmetic ---
-    case Opcode.F64Abs:      return oi(_F64, _F64, _V, _V, 0);
-    case Opcode.F64Neg:      return oi(_F64, _F64, _V, _V, 0);
-    case Opcode.F64Ceil:     return oi(_F64, _F64, _V, _V, 0);
-    case Opcode.F64Floor:    return oi(_F64, _F64, _V, _V, 0);
-    case Opcode.F64Trunc:    return oi(_F64, _F64, _V, _V, 0);
-    case Opcode.F64Nearest:  return oi(_F64, _F64, _V, _V, 0);
-    case Opcode.F64Sqrt:     return oi(_F64, _F64, _V, _V, 0);
-    case Opcode.F64Add:      return oi(_F64, _F64, _F64, _V, 0);
-    case Opcode.F64Sub:      return oi(_F64, _F64, _F64, _V, 0);
-    case Opcode.F64Mul:      return oi(_F64, _F64, _F64, _V, 0);
-    case Opcode.F64Div:      return oi(_F64, _F64, _F64, _V, 0);
-    case Opcode.F64Min:      return oi(_F64, _F64, _F64, _V, 0);
-    case Opcode.F64Max:      return oi(_F64, _F64, _F64, _V, 0);
-    case Opcode.F64Copysign: return oi(_F64, _F64, _F64, _V, 0);
+    case Opcode.F64Abs:
+      return oi(_F64, _F64, _V, _V, 0);
+    case Opcode.F64Neg:
+      return oi(_F64, _F64, _V, _V, 0);
+    case Opcode.F64Ceil:
+      return oi(_F64, _F64, _V, _V, 0);
+    case Opcode.F64Floor:
+      return oi(_F64, _F64, _V, _V, 0);
+    case Opcode.F64Trunc:
+      return oi(_F64, _F64, _V, _V, 0);
+    case Opcode.F64Nearest:
+      return oi(_F64, _F64, _V, _V, 0);
+    case Opcode.F64Sqrt:
+      return oi(_F64, _F64, _V, _V, 0);
+    case Opcode.F64Add:
+      return oi(_F64, _F64, _F64, _V, 0);
+    case Opcode.F64Sub:
+      return oi(_F64, _F64, _F64, _V, 0);
+    case Opcode.F64Mul:
+      return oi(_F64, _F64, _F64, _V, 0);
+    case Opcode.F64Div:
+      return oi(_F64, _F64, _F64, _V, 0);
+    case Opcode.F64Min:
+      return oi(_F64, _F64, _F64, _V, 0);
+    case Opcode.F64Max:
+      return oi(_F64, _F64, _F64, _V, 0);
+    case Opcode.F64Copysign:
+      return oi(_F64, _F64, _F64, _V, 0);
     // --- conversions ---
-    case Opcode.I32WrapI64:        return oi(_I32, _I64, _V, _V, 0);
-    case Opcode.I32TruncF32S:      return oi(_I32, _F32, _V, _V, 0);
-    case Opcode.I32TruncF32U:      return oi(_I32, _F32, _V, _V, 0);
-    case Opcode.I32TruncF64S:      return oi(_I32, _F64, _V, _V, 0);
-    case Opcode.I32TruncF64U:      return oi(_I32, _F64, _V, _V, 0);
-    case Opcode.I64ExtendI32S:     return oi(_I64, _I32, _V, _V, 0);
-    case Opcode.I64ExtendI32U:     return oi(_I64, _I32, _V, _V, 0);
-    case Opcode.I64TruncF32S:      return oi(_I64, _F32, _V, _V, 0);
-    case Opcode.I64TruncF32U:      return oi(_I64, _F32, _V, _V, 0);
-    case Opcode.I64TruncF64S:      return oi(_I64, _F64, _V, _V, 0);
-    case Opcode.I64TruncF64U:      return oi(_I64, _F64, _V, _V, 0);
-    case Opcode.F32ConvertI32S:    return oi(_F32, _I32, _V, _V, 0);
-    case Opcode.F32ConvertI32U:    return oi(_F32, _I32, _V, _V, 0);
-    case Opcode.F32ConvertI64S:    return oi(_F32, _I64, _V, _V, 0);
-    case Opcode.F32ConvertI64U:    return oi(_F32, _I64, _V, _V, 0);
-    case Opcode.F32DemoteF64:      return oi(_F32, _F64, _V, _V, 0);
-    case Opcode.F64ConvertI32S:    return oi(_F64, _I32, _V, _V, 0);
-    case Opcode.F64ConvertI32U:    return oi(_F64, _I32, _V, _V, 0);
-    case Opcode.F64ConvertI64S:    return oi(_F64, _I64, _V, _V, 0);
-    case Opcode.F64ConvertI64U:    return oi(_F64, _I64, _V, _V, 0);
-    case Opcode.F64PromoteF32:     return oi(_F64, _F32, _V, _V, 0);
-    case Opcode.I32ReinterpretF32: return oi(_I32, _F32, _V, _V, 0);
-    case Opcode.I64ReinterpretF64: return oi(_I64, _F64, _V, _V, 0);
-    case Opcode.F32ReinterpretI32: return oi(_F32, _I32, _V, _V, 0);
-    case Opcode.F64ReinterpretI64: return oi(_F64, _I64, _V, _V, 0);
+    case Opcode.I32WrapI64:
+      return oi(_I32, _I64, _V, _V, 0);
+    case Opcode.I32TruncF32S:
+      return oi(_I32, _F32, _V, _V, 0);
+    case Opcode.I32TruncF32U:
+      return oi(_I32, _F32, _V, _V, 0);
+    case Opcode.I32TruncF64S:
+      return oi(_I32, _F64, _V, _V, 0);
+    case Opcode.I32TruncF64U:
+      return oi(_I32, _F64, _V, _V, 0);
+    case Opcode.I64ExtendI32S:
+      return oi(_I64, _I32, _V, _V, 0);
+    case Opcode.I64ExtendI32U:
+      return oi(_I64, _I32, _V, _V, 0);
+    case Opcode.I64TruncF32S:
+      return oi(_I64, _F32, _V, _V, 0);
+    case Opcode.I64TruncF32U:
+      return oi(_I64, _F32, _V, _V, 0);
+    case Opcode.I64TruncF64S:
+      return oi(_I64, _F64, _V, _V, 0);
+    case Opcode.I64TruncF64U:
+      return oi(_I64, _F64, _V, _V, 0);
+    case Opcode.F32ConvertI32S:
+      return oi(_F32, _I32, _V, _V, 0);
+    case Opcode.F32ConvertI32U:
+      return oi(_F32, _I32, _V, _V, 0);
+    case Opcode.F32ConvertI64S:
+      return oi(_F32, _I64, _V, _V, 0);
+    case Opcode.F32ConvertI64U:
+      return oi(_F32, _I64, _V, _V, 0);
+    case Opcode.F32DemoteF64:
+      return oi(_F32, _F64, _V, _V, 0);
+    case Opcode.F64ConvertI32S:
+      return oi(_F64, _I32, _V, _V, 0);
+    case Opcode.F64ConvertI32U:
+      return oi(_F64, _I32, _V, _V, 0);
+    case Opcode.F64ConvertI64S:
+      return oi(_F64, _I64, _V, _V, 0);
+    case Opcode.F64ConvertI64U:
+      return oi(_F64, _I64, _V, _V, 0);
+    case Opcode.F64PromoteF32:
+      return oi(_F64, _F32, _V, _V, 0);
+    case Opcode.I32ReinterpretF32:
+      return oi(_I32, _F32, _V, _V, 0);
+    case Opcode.I64ReinterpretF64:
+      return oi(_I64, _F64, _V, _V, 0);
+    case Opcode.F32ReinterpretI32:
+      return oi(_F32, _I32, _V, _V, 0);
+    case Opcode.F64ReinterpretI64:
+      return oi(_F64, _I64, _V, _V, 0);
     // --- sign-extension ---
-    case Opcode.I32Extend8S:  return oi(_I32, _I32, _V, _V, 0);
-    case Opcode.I32Extend16S: return oi(_I32, _I32, _V, _V, 0);
-    case Opcode.I64Extend8S:  return oi(_I64, _I64, _V, _V, 0);
-    case Opcode.I64Extend16S: return oi(_I64, _I64, _V, _V, 0);
-    case Opcode.I64Extend32S: return oi(_I64, _I64, _V, _V, 0);
+    case Opcode.I32Extend8S:
+      return oi(_I32, _I32, _V, _V, 0);
+    case Opcode.I32Extend16S:
+      return oi(_I32, _I32, _V, _V, 0);
+    case Opcode.I64Extend8S:
+      return oi(_I64, _I64, _V, _V, 0);
+    case Opcode.I64Extend16S:
+      return oi(_I64, _I64, _V, _V, 0);
+    case Opcode.I64Extend32S:
+      return oi(_I64, _I64, _V, _V, 0);
     // Default: SIMD / unknown — V128 binary pattern
-    default: return oi(_V128, _V128, _V128, _V, 0);
+    default:
+      return oi(_V128, _V128, _V128, _V, 0);
   }
 }
 
@@ -222,15 +374,24 @@ export function getOpcodeNaturalAlign(opcode: number): number {
 // For MiscOpcode sat-trunc (passed via ConvertExpr.opcode when opcode < 8)
 export function getMiscOpcodeTypeInfo(misc: number): OpcodeTypeInfo {
   switch (misc) {
-    case MiscOpcode.I32TruncSatF32S: return oi(_I32, _F32, _V, _V, 0);
-    case MiscOpcode.I32TruncSatF32U: return oi(_I32, _F32, _V, _V, 0);
-    case MiscOpcode.I32TruncSatF64S: return oi(_I32, _F64, _V, _V, 0);
-    case MiscOpcode.I32TruncSatF64U: return oi(_I32, _F64, _V, _V, 0);
-    case MiscOpcode.I64TruncSatF32S: return oi(_I64, _F32, _V, _V, 0);
-    case MiscOpcode.I64TruncSatF32U: return oi(_I64, _F32, _V, _V, 0);
-    case MiscOpcode.I64TruncSatF64S: return oi(_I64, _F64, _V, _V, 0);
-    case MiscOpcode.I64TruncSatF64U: return oi(_I64, _F64, _V, _V, 0);
-    default: return oi(_V128, _V128, _V128, _V, 0);
+    case MiscOpcode.I32TruncSatF32S:
+      return oi(_I32, _F32, _V, _V, 0);
+    case MiscOpcode.I32TruncSatF32U:
+      return oi(_I32, _F32, _V, _V, 0);
+    case MiscOpcode.I32TruncSatF64S:
+      return oi(_I32, _F64, _V, _V, 0);
+    case MiscOpcode.I32TruncSatF64U:
+      return oi(_I32, _F64, _V, _V, 0);
+    case MiscOpcode.I64TruncSatF32S:
+      return oi(_I64, _F32, _V, _V, 0);
+    case MiscOpcode.I64TruncSatF32U:
+      return oi(_I64, _F32, _V, _V, 0);
+    case MiscOpcode.I64TruncSatF64S:
+      return oi(_I64, _F64, _V, _V, 0);
+    case MiscOpcode.I64TruncSatF64U:
+      return oi(_I64, _F64, _V, _V, 0);
+    default:
+      return oi(_V128, _V128, _V128, _V, 0);
   }
 }
 
@@ -281,7 +442,9 @@ export class TypeChecker {
     this.errorCallback = cb;
   }
 
-  typeStackSize(): number { return this.typeStack.length; }
+  typeStackSize(): number {
+    return this.typeStack.length;
+  }
 
   isUnreachable(): boolean {
     const label = this.topLabel();
@@ -378,10 +541,14 @@ export class TypeChecker {
   checkType(actual: Type, expected: Type): Result {
     if (expected === Type.Any || actual === Type.Any) return Result.Ok;
     if (actual === expected) return Result.Ok;
-    if (expected === Type.FuncRef &&
-        (actual === Type.Ref || actual === Type.RefNull)) return Result.Ok;
-    if (expected === Type.ExternRef &&
-        (actual === Type.Ref || actual === Type.RefNull)) return Result.Ok;
+    if (
+      expected === Type.FuncRef &&
+      (actual === Type.Ref || actual === Type.RefNull)
+    ) return Result.Ok;
+    if (
+      expected === Type.ExternRef &&
+      (actual === Type.Ref || actual === Type.RefNull)
+    ) return Result.Ok;
     return Result.Error;
   }
 
@@ -390,7 +557,7 @@ export class TypeChecker {
     const r = this.checkType(actual, expected);
     if (r === Result.Error) {
       this.printError(
-        `type mismatch in ${desc}, expected [${typeName(expected)}] but got [${typeName(actual)}]`
+        `type mismatch in ${desc}, expected [${typeName(expected)}] but got [${typeName(actual)}]`,
       );
     }
     return combineResults(r, this.dropTypes(1));
@@ -403,7 +570,9 @@ export class TypeChecker {
     r = combineResults(r, this.checkType(a2, exp2));
     if (r === Result.Error) {
       this.printError(
-        `type mismatch in ${desc}, expected [${typeName(exp1)}, ${typeName(exp2)}] but got [${typeName(a1)}, ${typeName(a2)}]`
+        `type mismatch in ${desc}, expected [${typeName(exp1)}, ${typeName(exp2)}] but got [${
+          typeName(a1)
+        }, ${typeName(a2)}]`,
       );
     }
     return combineResults(r, this.dropTypes(2));
@@ -418,7 +587,9 @@ export class TypeChecker {
     r = combineResults(r, this.checkType(a3, exp3));
     if (r === Result.Error) {
       this.printError(
-        `type mismatch in ${desc}, expected [${typeName(exp1)}, ${typeName(exp2)}, ${typeName(exp3)}] but got [${typeName(a1)}, ${typeName(a2)}, ${typeName(a3)}]`
+        `type mismatch in ${desc}, expected [${typeName(exp1)}, ${typeName(exp2)}, ${
+          typeName(exp3)
+        }] but got [${typeName(a1)}, ${typeName(a2)}, ${typeName(a3)}]`,
       );
     }
     return combineResults(r, this.dropTypes(3));
@@ -536,10 +707,18 @@ export class TypeChecker {
     return Result.Ok;
   }
 
-  onBinary(opcode: number): Result { return this.checkOpcode2(opcode); }
-  onUnary(opcode: number): Result { return this.checkOpcode1(opcode); }
-  onCompare(opcode: number): Result { return this.checkOpcode2(opcode); }
-  onConvert(opcode: number): Result { return this.checkOpcode1(opcode); }
+  onBinary(opcode: number): Result {
+    return this.checkOpcode2(opcode);
+  }
+  onUnary(opcode: number): Result {
+    return this.checkOpcode1(opcode);
+  }
+  onCompare(opcode: number): Result {
+    return this.checkOpcode2(opcode);
+  }
+  onConvert(opcode: number): Result {
+    return this.checkOpcode1(opcode);
+  }
 
   onTernary(_opcode: number): Result {
     const r = this.popAndCheck3Types(_V128, _V128, _V128, `ternary`);
@@ -577,7 +756,9 @@ export class TypeChecker {
     return r;
   }
 
-  onAtomicFence(): Result { return Result.Ok; }
+  onAtomicFence(): Result {
+    return Result.Ok;
+  }
 
   onAtomicLoad(opcode: number, is64Memory: boolean): Result {
     return this.checkOpcode1(opcode, is64Memory);
@@ -852,7 +1033,9 @@ export class TypeChecker {
     return this.popAndCheck3Types(t, _I32, _I32, 'memory.init');
   }
 
-  onDataDrop(): Result { return Result.Ok; }
+  onDataDrop(): Result {
+    return Result.Ok;
+  }
 
   onTableGet(elemType: Type): Result {
     const r = this.popAndCheck1Type(_I32, 'table.get');
@@ -890,7 +1073,9 @@ export class TypeChecker {
     return this.popAndCheck3Types(t, _I32, _I32, 'table.init');
   }
 
-  onElemDrop(): Result { return Result.Ok; }
+  onElemDrop(): Result {
+    return Result.Ok;
+  }
 
   onThrow(sig: Type[]): Result {
     const r = this.popAndCheckSignature(sig, 'throw');

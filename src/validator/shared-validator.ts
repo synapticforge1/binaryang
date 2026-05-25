@@ -3,13 +3,13 @@
 // Copyright 2020 WebAssembly Community Group participants
 // Licensed under the Apache License, Version 2.0
 
-import { Result, combineResults } from '../core/result.ts';
+import { combineResults, Result } from '../core/result.ts';
 import { Type } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { addError, unknownLocation } from '../core/error.ts';
-import type { Location, ErrorList } from '../core/error.ts';
-import { TypeChecker, getOpcodeNaturalAlign } from './type-checker.ts';
+import type { ErrorList, Location } from '../core/error.ts';
+import { getOpcodeNaturalAlign, TypeChecker } from './type-checker.ts';
 import type { FuncType } from './type-checker.ts';
 import type { BlockType, Limits, SegmentKind } from '../ir/ir.ts';
 
@@ -25,12 +25,29 @@ export type ValidateOptions = Record<string, never>;
 // Internal state types
 // ---------------------------------------------------------------------------
 
-interface SVTableType  { element: Type; limits: Limits; }
-interface SVMemoryType { limits: Limits; }
-interface SVGlobalType { type: Type; mutable: boolean; }
-interface SVTagType    { params: Type[]; }
-interface SVElemType   { element: Type; isActive: boolean; tableType: Type; }
-interface SVLocalDecl  { type: Type; end: number; }
+interface SVTableType {
+  element: Type;
+  limits: Limits;
+}
+interface SVMemoryType {
+  limits: Limits;
+}
+interface SVGlobalType {
+  type: Type;
+  mutable: boolean;
+}
+interface SVTagType {
+  params: Type[];
+}
+interface SVElemType {
+  element: Type;
+  isActive: boolean;
+  tableType: Type;
+}
+interface SVLocalDecl {
+  type: Type;
+  end: number;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,15 +69,15 @@ export class SharedValidator {
 
   // Type section registry (index → FuncType for func entries only)
   private funcTypesMap: Map<number, FuncType> = new Map();
-  private numTypes = 0;   // total type entries (func + struct + array)
+  private numTypes = 0; // total type entries (func + struct + array)
 
   // Module-level registries (imports + defined in declaration order)
-  private funcs: FuncType[]     = [];
+  private funcs: FuncType[] = [];
   private tables: SVTableType[] = [];
   private memories: SVMemoryType[] = [];
   private globals: SVGlobalType[] = [];
-  private tags: SVTagType[]     = [];
-  private elems: SVElemType[]   = [];
+  private tags: SVTagType[] = [];
+  private elems: SVElemType[] = [];
 
   private numImportedGlobals = 0;
   private starts = 0;
@@ -73,7 +90,7 @@ export class SharedValidator {
   private exportNames: Set<string> = new Set();
 
   // ref.func declaration tracking
-  private declaredFuncs: Set<number>  = new Set();
+  private declaredFuncs: Set<number> = new Set();
   private checkDeclaredFuncs: number[] = [];
 
   constructor(errors: ErrorList, _options?: ValidateOptions) {
@@ -193,7 +210,10 @@ export class SharedValidator {
       return this.printError(loc, `alignment (${align}) must be a power of 2`);
     }
     if (align > naturalAlign) {
-      return this.printError(loc, `alignment must not be larger than natural alignment (${naturalAlign})`);
+      return this.printError(
+        loc,
+        `alignment must not be larger than natural alignment (${naturalAlign})`,
+      );
     }
     return Result.Ok;
   }
@@ -213,7 +233,7 @@ export class SharedValidator {
   // ---------------------------------------------------------------------------
 
   private resolveBlockType(bt: BlockType, loc: Location): { params: Type[]; results: Type[] } {
-    if (bt.kind === 'void')  return { params: [], results: [] };
+    if (bt.kind === 'void') return { params: [], results: [] };
     if (bt.kind === 'value') return { params: [], results: [bt.type] };
     const ft = this.funcTypesMap.get(bt.typeIdx);
     if (!ft) {
@@ -547,10 +567,16 @@ export class SharedValidator {
     let r = this.tc.onGlobalGet(gt.type);
     if (this.inInitExpr) {
       if (globalIdx >= this.numImportedGlobals) {
-        r = combineResults(r, this.printError(loc, 'initializer expression can only reference an imported global'));
+        r = combineResults(
+          r,
+          this.printError(loc, 'initializer expression can only reference an imported global'),
+        );
       }
       if (gt.mutable) {
-        r = combineResults(r, this.printError(loc, 'initializer expression cannot reference a mutable global'));
+        r = combineResults(
+          r,
+          this.printError(loc, 'initializer expression cannot reference a mutable global'),
+        );
       }
     }
     return r;
@@ -636,7 +662,13 @@ export class SharedValidator {
     return r;
   }
 
-  onLoadSplat(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onLoadSplat(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -646,7 +678,13 @@ export class SharedValidator {
     return r;
   }
 
-  onLoadZero(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onLoadZero(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -675,7 +713,10 @@ export class SharedValidator {
     const dmt = this.checkMemoryIndex(dstMemIdx, loc);
     const smt = this.checkMemoryIndex(srcMemIdx, loc);
     let r = (dmt && smt) ? Result.Ok : Result.Error;
-    r = combineResults(r, this.tc.onMemoryCopy(dmt?.limits.is64 ?? false, smt?.limits.is64 ?? false));
+    r = combineResults(
+      r,
+      this.tc.onMemoryCopy(dmt?.limits.is64 ?? false, smt?.limits.is64 ?? false),
+    );
     return r;
   }
 
@@ -709,12 +750,21 @@ export class SharedValidator {
   onAtomicFence(loc: Location, consistencyModel: number): Result {
     this.currentLoc = loc;
     if (consistencyModel !== 0) {
-      this.printError(loc, `unexpected atomic.fence consistency model (expected 0): ${consistencyModel}`);
+      this.printError(
+        loc,
+        `unexpected atomic.fence consistency model (expected 0): ${consistencyModel}`,
+      );
     }
     return this.tc.onAtomicFence();
   }
 
-  onAtomicLoad(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onAtomicLoad(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -724,7 +774,13 @@ export class SharedValidator {
     return r;
   }
 
-  onAtomicStore(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onAtomicStore(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -734,7 +790,13 @@ export class SharedValidator {
     return r;
   }
 
-  onAtomicRmw(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onAtomicRmw(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -744,7 +806,13 @@ export class SharedValidator {
     return r;
   }
 
-  onAtomicRmwCmpxchg(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onAtomicRmwCmpxchg(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -754,7 +822,13 @@ export class SharedValidator {
     return r;
   }
 
-  onAtomicWait(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onAtomicWait(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -764,7 +838,13 @@ export class SharedValidator {
     return r;
   }
 
-  onAtomicNotify(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onAtomicNotify(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -791,7 +871,10 @@ export class SharedValidator {
     const tt = this.checkTableIndex(tableIdx, loc);
     let r = (ft && tt) ? Result.Ok : Result.Error;
     if (tt && tt.element !== Type.FuncRef) {
-      r = combineResults(r, this.printError(loc, 'type mismatch: call_indirect must reference table of funcref type'));
+      r = combineResults(
+        r,
+        this.printError(loc, 'type mismatch: call_indirect must reference table of funcref type'),
+      );
     }
     if (ft) {
       r = combineResults(r, this.tc.onCallIndirect(ft.params, ft.results, false));
@@ -987,7 +1070,14 @@ export class SharedValidator {
     return this.tc.onSimdLaneOp(opcode, lane);
   }
 
-  onSimdLoadLane(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint, _lane: number): Result {
+  onSimdLoadLane(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+    _lane: number,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -997,7 +1087,14 @@ export class SharedValidator {
     return r;
   }
 
-  onSimdStoreLane(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint, _lane: number): Result {
+  onSimdStoreLane(
+    loc: Location,
+    opcode: number,
+    memIdx: number,
+    align: number,
+    _offset: bigint,
+    _lane: number,
+  ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
@@ -1020,10 +1117,13 @@ export class SharedValidator {
     let r: Result = Result.Ok;
     for (const funcIdx of this.checkDeclaredFuncs) {
       if (!this.declaredFuncs.has(funcIdx)) {
-        r = combineResults(r, this.printError(
-          unknownLocation(),
-          `function ${funcIdx} is not declared in any elem sections`,
-        ));
+        r = combineResults(
+          r,
+          this.printError(
+            unknownLocation(),
+            `function ${funcIdx} is not declared in any elem sections`,
+          ),
+        );
       }
     }
     return r;
@@ -1036,14 +1136,26 @@ export class SharedValidator {
   private checkLimits(loc: Location, limits: Limits, absoluteMax: number, desc: string): Result {
     let r: Result = Result.Ok;
     if (limits.initial > absoluteMax) {
-      r = combineResults(r, this.printError(loc, `initial ${desc} (${limits.initial}) must be <= (${absoluteMax})`));
+      r = combineResults(
+        r,
+        this.printError(loc, `initial ${desc} (${limits.initial}) must be <= (${absoluteMax})`),
+      );
     }
     if (limits.max !== undefined) {
       if (limits.max > absoluteMax) {
-        r = combineResults(r, this.printError(loc, `max ${desc} (${limits.max}) must be <= (${absoluteMax})`));
+        r = combineResults(
+          r,
+          this.printError(loc, `max ${desc} (${limits.max}) must be <= (${absoluteMax})`),
+        );
       }
       if (limits.max < limits.initial) {
-        r = combineResults(r, this.printError(loc, `max ${desc} (${limits.max}) must be >= initial ${desc} (${limits.initial})`));
+        r = combineResults(
+          r,
+          this.printError(
+            loc,
+            `max ${desc} (${limits.max}) must be >= initial ${desc} (${limits.initial})`,
+          ),
+        );
       }
     }
     return r;
@@ -1054,14 +1166,23 @@ export class SharedValidator {
     const max = limits.max !== undefined ? BigInt(limits.max) : undefined;
     let r: Result = Result.Ok;
     if (init > absoluteMax) {
-      r = combineResults(r, this.printError(loc, `initial ${desc} (${init}) must be <= (${absoluteMax})`));
+      r = combineResults(
+        r,
+        this.printError(loc, `initial ${desc} (${init}) must be <= (${absoluteMax})`),
+      );
     }
     if (max !== undefined) {
       if (max > absoluteMax) {
-        r = combineResults(r, this.printError(loc, `max ${desc} (${max}) must be <= (${absoluteMax})`));
+        r = combineResults(
+          r,
+          this.printError(loc, `max ${desc} (${max}) must be <= (${absoluteMax})`),
+        );
       }
       if (max < init) {
-        r = combineResults(r, this.printError(loc, `max ${desc} (${max}) must be >= initial ${desc} (${init})`));
+        r = combineResults(
+          r,
+          this.printError(loc, `max ${desc} (${max}) must be >= initial ${desc} (${init})`),
+        );
       }
     }
     return r;

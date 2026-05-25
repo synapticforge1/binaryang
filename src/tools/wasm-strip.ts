@@ -5,7 +5,7 @@ import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { Result } from '../core/result.ts';
-import { makeErrorList, hasErrors, formatErrors } from '../core/error.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 
 // ---------------------------------------------------------------------------

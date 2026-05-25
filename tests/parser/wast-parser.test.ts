@@ -2,12 +2,20 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 import { describe, it } from '@std/testing/bdd';
-import { assertEquals, assertExists, assert } from '@std/assert';
+import { assert, assertEquals, assertExists } from '@std/assert';
 
 import { Type } from '../../src/core/types.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
-import { parseWatModule, parseWastScript } from '../../src/parser/wast-parser.ts';
-import type { Func, Global, Memory, Table, DataSegment, ElemSegment, Import } from '../../src/ir/ir.ts';
+import { parseWastScript, parseWatModule } from '../../src/parser/wast-parser.ts';
+import type {
+  DataSegment,
+  ElemSegment,
+  Func,
+  Global,
+  Import,
+  Memory,
+  Table,
+} from '../../src/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,7 +172,9 @@ describe('parseWatModule — functions', () => {
   });
 
   it('parses a named function', () => {
-    const m = parseModule('(module (func $add (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))');
+    const m = parseModule(
+      '(module (func $add (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))',
+    );
     assertEquals(m.funcs.length, 1);
     const f = m.funcs[0] as Func;
     assertExists(f);
@@ -438,10 +448,12 @@ describe('parseWatModule — instructions (linear)', () => {
   });
 
   it('parses i32.load with offset= in linear form', () => {
-    const m = parseModule('(module (memory 1) (func (param i32) (result i32) local.get 0 i32.load offset=4))');
+    const m = parseModule(
+      '(module (memory 1) (func (param i32) (result i32) local.get 0 i32.load offset=4))',
+    );
     const body = m.funcs[0]?.body ?? [];
     assert(body.length > 0);
-    const load = body.find(e => e.kind === 'load');
+    const load = body.find((e) => e.kind === 'load');
     assertExists(load);
     if (load?.kind === 'load') {
       assertEquals(load.offset, 4n);
@@ -459,7 +471,7 @@ describe('parseWatModule — instructions (linear)', () => {
     const m = parseModule('(module (func (param i32) local.get 0 if nop else nop end))');
     const body = m.funcs[0]?.body ?? [];
     // after stack flush: local.get goes to stmts, if is separate
-    const ifNode = body.find(e => e.kind === 'if');
+    const ifNode = body.find((e) => e.kind === 'if');
     assertExists(ifNode);
   });
 });
@@ -562,14 +574,15 @@ describe('parseWatModule — error handling', () => {
 
 describe('parseWastScript', () => {
   it('parses an assert_return command', () => {
-    const src = `(module (func (export "add") (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))
+    const src =
+      `(module (func (export "add") (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))
 (assert_return (invoke "add" (i32.const 1) (i32.const 2)) (i32.const 3))`;
     const result = parseWastScript(src);
     assertExists(result);
     assertExists(result.script);
     assertEquals(result.errors.length, 0);
     const cmds = result.script.commands;
-    const assertRet = cmds.find(c => c.kind === 'assert_return');
+    const assertRet = cmds.find((c) => c.kind === 'assert_return');
     assertExists(assertRet);
   });
 
@@ -579,7 +592,7 @@ describe('parseWastScript', () => {
     const result = parseWastScript(src);
     assertExists(result);
     const cmds = result.script.commands;
-    const invoke = cmds.find(c => c.kind === 'action');
+    const invoke = cmds.find((c) => c.kind === 'action');
     assertExists(invoke);
   });
 
@@ -589,7 +602,7 @@ describe('parseWastScript', () => {
     const result = parseWastScript(src);
     assertExists(result);
     const cmds = result.script.commands;
-    const trap = cmds.find(c => c.kind === 'assert_trap');
+    const trap = cmds.find((c) => c.kind === 'assert_trap');
     assertExists(trap);
   });
 
@@ -598,7 +611,7 @@ describe('parseWastScript', () => {
     const result = parseWastScript(src);
     assertExists(result);
     const cmds = result.script.commands;
-    const invalid = cmds.find(c => c.kind === 'assert_invalid');
+    const invalid = cmds.find((c) => c.kind === 'assert_invalid');
     assertExists(invalid);
   });
 

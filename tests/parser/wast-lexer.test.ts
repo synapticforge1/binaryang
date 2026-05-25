@@ -4,10 +4,17 @@
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
 import { WastLexer } from '../../src/parser/wast-lexer.ts';
-import { TokenType, LiteralType } from '../../src/parser/token.ts';
-import type { Token, LiteralToken, OpcodeToken, StringToken, TypeToken, RefKindToken } from '../../src/parser/token.ts';
+import { LiteralType, TokenType } from '../../src/parser/token.ts';
+import type {
+  LiteralToken,
+  OpcodeToken,
+  RefKindToken,
+  StringToken,
+  Token,
+  TypeToken,
+} from '../../src/parser/token.ts';
 import { Type } from '../../src/core/types.ts';
-import { PREFIX_SIMD, PREFIX_THREADS, PREFIX_MISC } from '../../src/core/opcode.ts';
+import { PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../../src/core/opcode.ts';
 import { Opcode } from '../../src/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
@@ -48,7 +55,13 @@ describe('WastLexer — structural', () => {
 
   it('tokenizes nested parens', () => {
     const types = lexTypes('(())');
-    expect(types).toEqual([TokenType.Lpar, TokenType.Lpar, TokenType.Rpar, TokenType.Rpar, TokenType.Eof]);
+    expect(types).toEqual([
+      TokenType.Lpar,
+      TokenType.Lpar,
+      TokenType.Rpar,
+      TokenType.Rpar,
+      TokenType.Eof,
+    ]);
   });
 
   it('location tracks line and column', () => {
@@ -108,32 +121,32 @@ describe('WastLexer — whitespace and comments', () => {
 
 describe('WastLexer — bare keywords', () => {
   const BARE_CASES: Array<[string, TokenType]> = [
-    ['module',            TokenType.Module],
-    ['function',          TokenType.Function],
-    ['param',             TokenType.Param],
-    ['result',            TokenType.Result],
-    ['local',             TokenType.Local],
-    ['global',            TokenType.Global],
-    ['memory',            TokenType.Memory],
-    ['table',             TokenType.Table],
-    ['import',            TokenType.Import],
-    ['export',            TokenType.Export],
-    ['type',              TokenType.Type],
-    ['start',             TokenType.Start],
-    ['data',              TokenType.Data],
-    ['elem',              TokenType.Elem],
-    ['mut',               TokenType.Mut],
-    ['ref',               TokenType.Ref],
-    ['null',              TokenType.Null],
-    ['nop',               TokenType.Nop],
-    ['drop',              TokenType.Drop],
-    ['return',            TokenType.Return],
-    ['assert_return',     TokenType.AssertReturn],
-    ['assert_trap',       TokenType.AssertTrap],
-    ['assert_invalid',    TokenType.AssertInvalid],
-    ['assert_malformed',  TokenType.AssertMalformed],
-    ['invoke',            TokenType.Invoke],
-    ['register',          TokenType.Register],
+    ['module', TokenType.Module],
+    ['function', TokenType.Function],
+    ['param', TokenType.Param],
+    ['result', TokenType.Result],
+    ['local', TokenType.Local],
+    ['global', TokenType.Global],
+    ['memory', TokenType.Memory],
+    ['table', TokenType.Table],
+    ['import', TokenType.Import],
+    ['export', TokenType.Export],
+    ['type', TokenType.Type],
+    ['start', TokenType.Start],
+    ['data', TokenType.Data],
+    ['elem', TokenType.Elem],
+    ['mut', TokenType.Mut],
+    ['ref', TokenType.Ref],
+    ['null', TokenType.Null],
+    ['nop', TokenType.Nop],
+    ['drop', TokenType.Drop],
+    ['return', TokenType.Return],
+    ['assert_return', TokenType.AssertReturn],
+    ['assert_trap', TokenType.AssertTrap],
+    ['assert_invalid', TokenType.AssertInvalid],
+    ['assert_malformed', TokenType.AssertMalformed],
+    ['invoke', TokenType.Invoke],
+    ['register', TokenType.Register],
   ];
 
   for (const [kw, expected] of BARE_CASES) {

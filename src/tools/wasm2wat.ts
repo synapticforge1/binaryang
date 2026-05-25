@@ -6,7 +6,7 @@ import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { writeWatModule } from '../writer/wat-writer.ts';
 import { generateNames } from '../ir/generate-names.ts';
 import { Result } from '../core/result.ts';
-import { makeErrorList, hasErrors, formatErrors } from '../core/error.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 
 // ---------------------------------------------------------------------------

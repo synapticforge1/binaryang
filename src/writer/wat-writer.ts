@@ -18,15 +18,34 @@
  */
 
 import type {
-  Module, Func, Expr, Global, Table, Memory, Tag, Import, Export,
-  TypeEntry, Field, Limits, ElemSegment, DataSegment, Custom, Const,
-  FuncSignature, LocalDecl, Var, BlockType, Catch, TableCatch,
+  BlockType,
+  Catch,
+  Const,
+  Custom,
+  DataSegment,
+  ElemSegment,
+  Export,
+  Expr,
+  Field,
+  Func,
+  FuncSignature,
+  Global,
+  Import,
+  Limits,
+  LocalDecl,
+  Memory,
+  Module,
+  Table,
+  TableCatch,
+  Tag,
+  TypeEntry,
+  Var,
 } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName } from '../core/opcode.ts';
-import { ModuleContext, LabelType } from '../ir/ir-util.ts';
+import { LabelType, ModuleContext } from '../ir/ir-util.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { Result } from '../core/result.ts';
@@ -61,10 +80,10 @@ export function writeWatModule(module: Module, options: WriteWatOptions = {}): s
 // Bytes that must be escaped as \XX in WAT string literals.
 const IS_CHAR_ESCAPED: Uint8Array = (() => {
   const t = new Uint8Array(256);
-  for (let i = 0; i < 32; i++) t[i] = 1;     // control chars
+  for (let i = 0; i < 32; i++) t[i] = 1; // control chars
   t[0x22] = 1; // "
   t[0x5c] = 1; // backslash
-  for (let i = 0x7f; i < 256; i++) t[i] = 1;  // non-ASCII
+  for (let i = 0x7f; i < 256; i++) t[i] = 1; // non-ASCII
   return t;
 })();
 
@@ -72,7 +91,8 @@ const IS_CHAR_ESCAPED: Uint8Array = (() => {
 // Matches s_valid_name_chars in wat-writer.cc.
 const VALID_NAME_CHARS: Uint8Array = (() => {
   const t = new Uint8Array(256);
-  const allow = '!#$%&\'*+-./:<=>?@\\^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const allow =
+    "!#$%&'*+-./:<=>?@\\^_`|~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   for (const c of allow) t[c.charCodeAt(0)] = 1;
   return t;
 })();
@@ -81,7 +101,12 @@ const VALID_NAME_CHARS: Uint8Array = (() => {
 // Next-char state (controls spacing between tokens)
 // ---------------------------------------------------------------------------
 
-const enum NC { None, Space, Newline, ForceNewline }
+const enum NC {
+  None,
+  Space,
+  Newline,
+  ForceNewline,
+}
 
 // ---------------------------------------------------------------------------
 // WatWriter
@@ -174,8 +199,12 @@ class WatWriter extends ModuleContext {
     this.nextChar = nc;
   }
 
-  private putsSpace(s: string): void { this.puts(s, NC.Space); }
-  private putsNewline(s: string): void { this.puts(s, NC.Newline); }
+  private putsSpace(s: string): void {
+    this.puts(s, NC.Space);
+  }
+  private putsNewline(s: string): void {
+    this.puts(s, NC.Newline);
+  }
 
   private writef(s: string): void {
     this.flushNextChar();
@@ -194,8 +223,12 @@ class WatWriter extends ModuleContext {
     this.indent += 2;
   }
 
-  private openSpace(name: string): void { this.open(name, NC.Space); }
-  private openNewline(name: string): void { this.open(name, NC.Newline); }
+  private openSpace(name: string): void {
+    this.open(name, NC.Space);
+  }
+  private openNewline(name: string): void {
+    this.open(name, NC.Newline);
+  }
 
   private close(nc: NC): void {
     if (this.nextChar !== NC.ForceNewline) this.nextChar = NC.None;
@@ -203,8 +236,12 @@ class WatWriter extends ModuleContext {
     this.puts(')', nc);
   }
 
-  private closeNewline(): void { this.close(NC.Newline); }
-  private closeSpace(): void { this.close(NC.Space); }
+  private closeNewline(): void {
+    this.close(NC.Newline);
+  }
+  private closeSpace(): void {
+    this.close(NC.Space);
+  }
 
   // -------------------------------------------------------------------------
   // Name / identifier emit
@@ -346,10 +383,13 @@ class WatWriter extends ModuleContext {
   }
 
   private writeRefKind(t: Type, nc: NC): void {
-    const name =
-      t === Type.Func ? 'func' :
-      t === Type.ExternRef ? 'extern' :
-      t === Type.ExnRef ? 'exn' : typeName(t);
+    const name = t === Type.Func
+      ? 'func'
+      : t === Type.ExternRef
+      ? 'extern'
+      : t === Type.ExnRef
+      ? 'exn'
+      : typeName(t);
     this.puts(name, nc);
   }
 
@@ -397,9 +437,9 @@ class WatWriter extends ModuleContext {
         const dv = new DataView(c.bytes.buffer, c.bytes.byteOffset, 16);
         this.writef(
           `i32x4 0x${dv.getUint32(0, true).toString(16).padStart(8, '0')} ` +
-          `0x${dv.getUint32(4, true).toString(16).padStart(8, '0')} ` +
-          `0x${dv.getUint32(8, true).toString(16).padStart(8, '0')} ` +
-          `0x${dv.getUint32(12, true).toString(16).padStart(8, '0')}`,
+            `0x${dv.getUint32(4, true).toString(16).padStart(8, '0')} ` +
+            `0x${dv.getUint32(8, true).toString(16).padStart(8, '0')} ` +
+            `0x${dv.getUint32(12, true).toString(16).padStart(8, '0')}`,
         );
         this.newline(false);
         break;
@@ -419,7 +459,13 @@ class WatWriter extends ModuleContext {
   // Memory arg emit helpers
   // -------------------------------------------------------------------------
 
-  private writeMemarg(opName: string, offset: bigint, align: number, naturalAlign: number, memidx: Var): void {
+  private writeMemarg(
+    opName: string,
+    offset: bigint,
+    align: number,
+    naturalAlign: number,
+    memidx: Var,
+  ): void {
     this.putsSpace(opName);
     this.writeMemoryVarUnlessZero(memidx, NC.Space);
     if (offset !== 0n) this.writef(`offset=${offset}`);
@@ -467,25 +513,78 @@ class WatWriter extends ModuleContext {
     const opname = (op: number) => anyOpcodeName(op);
 
     return {
-      onNopExpr:        () => { this.putsNewline('nop'); return Result.Ok; },
-      onUnreachableExpr:() => { this.putsNewline('unreachable'); return Result.Ok; },
-      onDropExpr:       () => { this.putsNewline('drop'); return Result.Ok; },
-      onReturnExpr:     () => { this.putsNewline('return'); return Result.Ok; },
+      onNopExpr: () => {
+        this.putsNewline('nop');
+        return Result.Ok;
+      },
+      onUnreachableExpr: () => {
+        this.putsNewline('unreachable');
+        return Result.Ok;
+      },
+      onDropExpr: () => {
+        this.putsNewline('drop');
+        return Result.Ok;
+      },
+      onReturnExpr: () => {
+        this.putsNewline('return');
+        return Result.Ok;
+      },
 
-      onConstExpr: (e) => { this.writeConst(e.value); return Result.Ok; },
+      onConstExpr: (e) => {
+        this.writeConst(e.value);
+        return Result.Ok;
+      },
 
-      onLocalGetExpr: (e) => { this.putsSpace('local.get'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onLocalSetExpr: (e) => { this.putsSpace('local.set'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onLocalTeeExpr: (e) => { this.putsSpace('local.tee'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onGlobalGetExpr:(e) => { this.putsSpace('global.get'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
-      onGlobalSetExpr:(e) => { this.putsSpace('global.set'); this.writeVar(e.var, NC.Newline); return Result.Ok; },
+      onLocalGetExpr: (e) => {
+        this.putsSpace('local.get');
+        this.writeVar(e.var, NC.Newline);
+        return Result.Ok;
+      },
+      onLocalSetExpr: (e) => {
+        this.putsSpace('local.set');
+        this.writeVar(e.var, NC.Newline);
+        return Result.Ok;
+      },
+      onLocalTeeExpr: (e) => {
+        this.putsSpace('local.tee');
+        this.writeVar(e.var, NC.Newline);
+        return Result.Ok;
+      },
+      onGlobalGetExpr: (e) => {
+        this.putsSpace('global.get');
+        this.writeVar(e.var, NC.Newline);
+        return Result.Ok;
+      },
+      onGlobalSetExpr: (e) => {
+        this.putsSpace('global.set');
+        this.writeVar(e.var, NC.Newline);
+        return Result.Ok;
+      },
 
-      onUnaryExpr:   (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onBinaryExpr:  (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onCompareExpr: (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onConvertExpr: (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onTernaryExpr: (e) => { this.putsNewline(opname(e.opcode)); return Result.Ok; },
-      onQuaternaryExpr:(e)=> { this.putsNewline(opname(e.opcode)); return Result.Ok; },
+      onUnaryExpr: (e) => {
+        this.putsNewline(opname(e.opcode));
+        return Result.Ok;
+      },
+      onBinaryExpr: (e) => {
+        this.putsNewline(opname(e.opcode));
+        return Result.Ok;
+      },
+      onCompareExpr: (e) => {
+        this.putsNewline(opname(e.opcode));
+        return Result.Ok;
+      },
+      onConvertExpr: (e) => {
+        this.putsNewline(opname(e.opcode));
+        return Result.Ok;
+      },
+      onTernaryExpr: (e) => {
+        this.putsNewline(opname(e.opcode));
+        return Result.Ok;
+      },
+      onQuaternaryExpr: (e) => {
+        this.putsNewline(opname(e.opcode));
+        return Result.Ok;
+      },
 
       onSelectExpr: (e) => {
         this.putsSpace('select');
@@ -542,7 +641,11 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
 
-      onCallExpr: (e) => { this.putsSpace('call'); this.writeVar(e.func, NC.Newline); return Result.Ok; },
+      onCallExpr: (e) => {
+        this.putsSpace('call');
+        this.writeVar(e.func, NC.Newline);
+        return Result.Ok;
+      },
       onCallIndirectExpr: (e) => {
         this.putsSpace('call_indirect');
         this.writeVarUnlessZero(e.table, NC.Space);
@@ -551,8 +654,16 @@ class WatWriter extends ModuleContext {
         this.closeNewline();
         return Result.Ok;
       },
-      onCallRefExpr: (e) => { this.putsSpace('call_ref'); this.writeVar(e.sigType, NC.Newline); return Result.Ok; },
-      onReturnCallExpr: (e) => { this.putsSpace('return_call'); this.writeVar(e.func, NC.Newline); return Result.Ok; },
+      onCallRefExpr: (e) => {
+        this.putsSpace('call_ref');
+        this.writeVar(e.sigType, NC.Newline);
+        return Result.Ok;
+      },
+      onReturnCallExpr: (e) => {
+        this.putsSpace('return_call');
+        this.writeVar(e.func, NC.Newline);
+        return Result.Ok;
+      },
       onReturnCallIndirectExpr: (e) => {
         this.putsSpace('return_call_indirect');
         this.openSpace('type');
@@ -560,7 +671,11 @@ class WatWriter extends ModuleContext {
         this.closeNewline();
         return Result.Ok;
       },
-      onReturnCallRefExpr: (e) => { this.putsSpace('return_call_ref'); this.writeVar(e.sigType, NC.Newline); return Result.Ok; },
+      onReturnCallRefExpr: (e) => {
+        this.putsSpace('return_call_ref');
+        this.writeVar(e.sigType, NC.Newline);
+        return Result.Ok;
+      },
 
       onRefNullExpr: (e) => {
         this.putsSpace('ref.null');
@@ -574,18 +689,50 @@ class WatWriter extends ModuleContext {
         }
         return Result.Ok;
       },
-      onRefIsNullExpr:  () => { this.putsNewline('ref.is_null'); return Result.Ok; },
-      onRefFuncExpr:    (e) => { this.putsSpace('ref.func'); this.writeVar(e.func, NC.Newline); return Result.Ok; },
-      onRefAsNonNullExpr:()=> { this.putsNewline('ref.as_non_null'); return Result.Ok; },
+      onRefIsNullExpr: () => {
+        this.putsNewline('ref.is_null');
+        return Result.Ok;
+      },
+      onRefFuncExpr: (e) => {
+        this.putsSpace('ref.func');
+        this.writeVar(e.func, NC.Newline);
+        return Result.Ok;
+      },
+      onRefAsNonNullExpr: () => {
+        this.putsNewline('ref.as_non_null');
+        return Result.Ok;
+      },
 
-      onTableGetExpr:  (e) => { this.putsSpace('table.get'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableSetExpr:  (e) => { this.putsSpace('table.set'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableGrowExpr: (e) => { this.putsSpace('table.grow'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableSizeExpr: (e) => { this.putsSpace('table.size'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
-      onTableFillExpr: (e) => { this.putsSpace('table.fill'); this.writeVar(e.table, NC.Newline); return Result.Ok; },
+      onTableGetExpr: (e) => {
+        this.putsSpace('table.get');
+        this.writeVar(e.table, NC.Newline);
+        return Result.Ok;
+      },
+      onTableSetExpr: (e) => {
+        this.putsSpace('table.set');
+        this.writeVar(e.table, NC.Newline);
+        return Result.Ok;
+      },
+      onTableGrowExpr: (e) => {
+        this.putsSpace('table.grow');
+        this.writeVar(e.table, NC.Newline);
+        return Result.Ok;
+      },
+      onTableSizeExpr: (e) => {
+        this.putsSpace('table.size');
+        this.writeVar(e.table, NC.Newline);
+        return Result.Ok;
+      },
+      onTableFillExpr: (e) => {
+        this.putsSpace('table.fill');
+        this.writeVar(e.table, NC.Newline);
+        return Result.Ok;
+      },
       onTableCopyExpr: (e) => {
         this.putsSpace('table.copy');
-        if (e.dst.kind !== 'index' || e.dst.value !== 0 || e.src.kind !== 'index' || e.src.value !== 0) {
+        if (
+          e.dst.kind !== 'index' || e.dst.value !== 0 || e.src.kind !== 'index' || e.src.value !== 0
+        ) {
           this.writeVar(e.dst, NC.Space);
           this.writeVar(e.src, NC.Space);
         }
@@ -598,17 +745,48 @@ class WatWriter extends ModuleContext {
         this.writeVar(e.segment, NC.Newline);
         return Result.Ok;
       },
-      onElemDropExpr: (e) => { this.putsSpace('elem.drop'); this.writeVar(e.segment, NC.Newline); return Result.Ok; },
+      onElemDropExpr: (e) => {
+        this.putsSpace('elem.drop');
+        this.writeVar(e.segment, NC.Newline);
+        return Result.Ok;
+      },
 
-      onThrowExpr:    (e) => { this.putsSpace('throw'); this.writeVar(e.tag, NC.Newline); return Result.Ok; },
-      onThrowRefExpr: () => { this.putsNewline('throw_ref'); return Result.Ok; },
-      onRethrowExpr:  (e) => { this.putsSpace('rethrow'); this.writeBrVar(e.depth, NC.Newline); return Result.Ok; },
+      onThrowExpr: (e) => {
+        this.putsSpace('throw');
+        this.writeVar(e.tag, NC.Newline);
+        return Result.Ok;
+      },
+      onThrowRefExpr: () => {
+        this.putsNewline('throw_ref');
+        return Result.Ok;
+      },
+      onRethrowExpr: (e) => {
+        this.putsSpace('rethrow');
+        this.writeBrVar(e.depth, NC.Newline);
+        return Result.Ok;
+      },
 
-      onBrExpr:       (e) => { this.putsSpace('br'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
-      onBrIfExpr:     (e) => { this.putsSpace('br_if'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
-      onBrOnNullExpr: (e) => { this.putsSpace('br_on_null'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
-      onBrOnNonNullExpr:(e)=>{ this.putsSpace('br_on_non_null'); this.writeBrVar(e.target, NC.Newline); return Result.Ok; },
-      onBrTableExpr:  (e) => {
+      onBrExpr: (e) => {
+        this.putsSpace('br');
+        this.writeBrVar(e.target, NC.Newline);
+        return Result.Ok;
+      },
+      onBrIfExpr: (e) => {
+        this.putsSpace('br_if');
+        this.writeBrVar(e.target, NC.Newline);
+        return Result.Ok;
+      },
+      onBrOnNullExpr: (e) => {
+        this.putsSpace('br_on_null');
+        this.writeBrVar(e.target, NC.Newline);
+        return Result.Ok;
+      },
+      onBrOnNonNullExpr: (e) => {
+        this.putsSpace('br_on_non_null');
+        this.writeBrVar(e.target, NC.Newline);
+        return Result.Ok;
+      },
+      onBrTableExpr: (e) => {
         this.putsSpace('br_table');
         for (const t of e.targets) this.writeBrVar(t, NC.Space);
         this.writeBrVar(e.defaultTarget, NC.Newline);
@@ -824,10 +1002,18 @@ class WatWriter extends ModuleContext {
   private writeTableCatch(tc: TableCatch): void {
     this.puts('(', NC.None);
     switch (tc.kind) {
-      case 'catch':       this.putsSpace('catch'); break;
-      case 'catch_ref':   this.putsSpace('catch_ref'); break;
-      case 'catch_all':   this.putsSpace('catch_all'); break;
-      case 'catch_all_ref': this.putsSpace('catch_all_ref'); break;
+      case 'catch':
+        this.putsSpace('catch');
+        break;
+      case 'catch_ref':
+        this.putsSpace('catch_ref');
+        break;
+      case 'catch_all':
+        this.putsSpace('catch_all');
+        break;
+      case 'catch_all_ref':
+        this.putsSpace('catch_all_ref');
+        break;
     }
     if (tc.tag !== undefined) this.writeVar(tc.tag, NC.Space);
     this.writeBrVar(tc.target, NC.None);
@@ -968,7 +1154,12 @@ class WatWriter extends ModuleContext {
     this.closeNewline();
   }
 
-  private writeTypeBindings(prefix: string, types: Type[], _decls: LocalDecl[], _offset: number): void {
+  private writeTypeBindings(
+    prefix: string,
+    types: Type[],
+    _decls: LocalDecl[],
+    _offset: number,
+  ): void {
     // For params, write grouped (param i32 i64) or individually ($name i32)
     if (types.length === 0) return;
     // For simplicity, write all params as one group per type
@@ -1039,11 +1230,15 @@ class WatWriter extends ModuleContext {
     if (this.isInlineExport(exp)) return;
     this.openSpace('export');
     this.writeQuotedString(exp.name, NC.Space);
-    const kindStr =
-      exp.kind === ExternalKind.Func ? 'func' :
-      exp.kind === ExternalKind.Global ? 'global' :
-      exp.kind === ExternalKind.Table ? 'table' :
-      exp.kind === ExternalKind.Memory ? 'memory' : 'tag';
+    const kindStr = exp.kind === ExternalKind.Func
+      ? 'func'
+      : exp.kind === ExternalKind.Global
+      ? 'global'
+      : exp.kind === ExternalKind.Table
+      ? 'table'
+      : exp.kind === ExternalKind.Memory
+      ? 'memory'
+      : 'tag';
     this.openSpace(kindStr);
     this.writeVar(exp.var, NC.Space);
     this.closeSpace();
@@ -1068,8 +1263,7 @@ class WatWriter extends ModuleContext {
     }
 
     // Element type and values
-    const useFuncShorthand =
-      seg.elemType === Type.FuncRef &&
+    const useFuncShorthand = seg.elemType === Type.FuncRef &&
       seg.elemExprs.every((ee) => ee.length === 1 && ee[0]?.kind === 'ref.func');
 
     if (useFuncShorthand) {
@@ -1212,11 +1406,16 @@ class WatWriter extends ModuleContext {
 
 function importItemName(imp: Import): string {
   switch (imp.kind) {
-    case ExternalKind.Func:   return imp.func.name;
-    case ExternalKind.Table:  return imp.table.name;
-    case ExternalKind.Memory: return imp.memory.name;
-    case ExternalKind.Global: return imp.global.name;
-    case ExternalKind.Tag:    return imp.tag.name;
+    case ExternalKind.Func:
+      return imp.func.name;
+    case ExternalKind.Table:
+      return imp.table.name;
+    case ExternalKind.Memory:
+      return imp.memory.name;
+    case ExternalKind.Global:
+      return imp.global.name;
+    case ExternalKind.Tag:
+      return imp.tag.name;
   }
 }
 
@@ -1227,30 +1426,35 @@ function importItemName(imp: Import): string {
 function naturalAlignForOpcode(op: number): number {
   switch (op) {
     // align 1
-    case 0x2c: case 0x2d: // i32.load8_s, i32.load8_u
-    case 0x30: case 0x31: // i64.load8_s, i64.load8_u
-    case 0x3a:            // i32.store8
-    case 0x3c:            // i64.store8
+    case 0x2c:
+    case 0x2d: // i32.load8_s, i32.load8_u
+    case 0x30:
+    case 0x31: // i64.load8_s, i64.load8_u
+    case 0x3a: // i32.store8
+    case 0x3c: // i64.store8
       return 1;
     // align 2
-    case 0x2e: case 0x2f: // i32.load16_s, i32.load16_u
-    case 0x32: case 0x33: // i64.load16_s, i64.load16_u
-    case 0x3b:            // i32.store16
-    case 0x3d:            // i64.store16
+    case 0x2e:
+    case 0x2f: // i32.load16_s, i32.load16_u
+    case 0x32:
+    case 0x33: // i64.load16_s, i64.load16_u
+    case 0x3b: // i32.store16
+    case 0x3d: // i64.store16
       return 2;
     // align 4
-    case 0x28:            // i32.load
-    case 0x2a:            // f32.load
-    case 0x34: case 0x35: // i64.load32_s, i64.load32_u
-    case 0x36:            // i32.store
-    case 0x38:            // f32.store
-    case 0x3e:            // i64.store32
+    case 0x28: // i32.load
+    case 0x2a: // f32.load
+    case 0x34:
+    case 0x35: // i64.load32_s, i64.load32_u
+    case 0x36: // i32.store
+    case 0x38: // f32.store
+    case 0x3e: // i64.store32
       return 4;
     // align 8
-    case 0x29:            // i64.load
-    case 0x2b:            // f64.load
-    case 0x37:            // i64.store
-    case 0x39:            // f64.store
+    case 0x29: // i64.load
+    case 0x2b: // f64.load
+    case 0x37: // i64.store
+    case 0x39: // f64.store
       return 8;
     default:
       return 1;

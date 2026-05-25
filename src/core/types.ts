@@ -113,22 +113,39 @@ export function isConcreteType(t: Type): boolean {
 /** Returns a human-readable name for {@link t}, matching the WAT text format. */
 export function typeName(t: Type): string {
   switch (t) {
-    case Type.I32: return 'i32';
-    case Type.I64: return 'i64';
-    case Type.F32: return 'f32';
-    case Type.F64: return 'f64';
-    case Type.V128: return 'v128';
-    case Type.I8: return 'i8';
-    case Type.I16: return 'i16';
-    case Type.ExnRef: return 'exnref';
-    case Type.FuncRef: return 'funcref';
-    case Type.ExternRef: return 'externref';
-    case Type.Ref: return 'ref';
-    case Type.RefNull: return 'ref null';
-    case Type.Func: return 'func';
-    case Type.Struct: return 'struct';
-    case Type.Array: return 'array';
-    case Type.Void: return 'void';
-    case Type.Any: return 'any';
+    case Type.I32:
+      return 'i32';
+    case Type.I64:
+      return 'i64';
+    case Type.F32:
+      return 'f32';
+    case Type.F64:
+      return 'f64';
+    case Type.V128:
+      return 'v128';
+    case Type.I8:
+      return 'i8';
+    case Type.I16:
+      return 'i16';
+    case Type.ExnRef:
+      return 'exnref';
+    case Type.FuncRef:
+      return 'funcref';
+    case Type.ExternRef:
+      return 'externref';
+    case Type.Ref:
+      return 'ref';
+    case Type.RefNull:
+      return 'ref null';
+    case Type.Func:
+      return 'func';
+    case Type.Struct:
+      return 'struct';
+    case Type.Array:
+      return 'array';
+    case Type.Void:
+      return 'void';
+    case Type.Any:
+      return 'any';
   }
 }

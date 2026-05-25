@@ -13,8 +13,17 @@ import { Type } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type {
-  Module, Func, Expr, BlockType, FuncSignature,
-  BlockExpr, LoopExpr, IfExpr, TryExpr, TryTableExpr, Var,
+  BlockExpr,
+  BlockType,
+  Expr,
+  Func,
+  FuncSignature,
+  IfExpr,
+  LoopExpr,
+  Module,
+  TryExpr,
+  TryTableExpr,
+  Var,
 } from './ir.ts';
 import { varIndex } from './ir.ts';
 
@@ -23,13 +32,13 @@ import { varIndex } from './ir.ts';
 // ---------------------------------------------------------------------------
 
 export enum LabelType {
-  Func     = 'func',
-  Block    = 'block',
-  Loop     = 'loop',
-  If       = 'if',
-  Else     = 'else',
-  Try      = 'try',
-  Catch    = 'catch',
+  Func = 'func',
+  Block = 'block',
+  Loop = 'loop',
+  If = 'if',
+  Else = 'else',
+  Try = 'try',
+  Catch = 'catch',
   TryTable = 'try_table',
 }
 
@@ -85,7 +94,9 @@ export class ModuleContext {
     this.tagArityByIndex = tagArity;
   }
 
-  get labelStackSize(): Index { return this.labelStack.length; }
+  get labelStackSize(): Index {
+    return this.labelStack.length;
+  }
 
   // --- Label stack ---
 
@@ -93,7 +104,12 @@ export class ModuleContext {
     this.currentFunc = func;
     this.labelStack = [];
     const { params, results } = func.sig;
-    this.labelStack.push({ name: '', labelType: LabelType.Func, paramTypes: params, resultTypes: results });
+    this.labelStack.push({
+      name: '',
+      labelType: LabelType.Func,
+      paramTypes: params,
+      resultTypes: results,
+    });
   }
 
   endFunc(): void {
@@ -128,82 +144,162 @@ export class ModuleContext {
   /** Number of values consumed and produced by expr (nargs, nreturns). */
   getExprArity(expr: Expr): { nargs: number; nreturns: number; unreachable: boolean } {
     switch (expr.kind) {
-      case 'nop':            return { nargs: 0, nreturns: 0, unreachable: false };
-      case 'unreachable':    return { nargs: 0, nreturns: 0, unreachable: true };
-      case 'const':          return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'local.get':      return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'global.get':     return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'memory.size':    return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'table.size':     return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'ref.null':       return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'ref.func':       return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'atomic_fence':   return { nargs: 0, nreturns: 0, unreachable: false };
-      case 'data.drop':      return { nargs: 0, nreturns: 0, unreachable: false };
-      case 'elem.drop':      return { nargs: 0, nreturns: 0, unreachable: false };
-      case 'code_metadata':  return { nargs: 0, nreturns: 0, unreachable: false };
-      case 'drop':           return { nargs: 1, nreturns: 0, unreachable: false };
-      case 'local.set':      return { nargs: 1, nreturns: 0, unreachable: false };
-      case 'global.set':     return { nargs: 1, nreturns: 0, unreachable: false };
-      case 'table.set':      return { nargs: 2, nreturns: 0, unreachable: false };
-      case 'memory.grow':    return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'local.tee':      return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'unary':          return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'convert':        return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'ref.is_null':    return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'ref.as_non_null': return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'table.get':      return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'table.grow':     return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'binary':         return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'compare':        return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'load':           return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'store':          return { nargs: 2, nreturns: 0, unreachable: false };
-      case 'atomic_load':    return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'atomic_store':   return { nargs: 2, nreturns: 0, unreachable: false };
-      case 'atomic_rmw':     return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'atomic_rmw_cmpxchg': return { nargs: 3, nreturns: 1, unreachable: false };
-      case 'atomic_wait':    return { nargs: 3, nreturns: 1, unreachable: false };
-      case 'atomic_notify':  return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'load_splat':     return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'load_zero':      return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'simd_lane_op':   return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'simd_shuffle':   return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'simd_load_lane': return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'simd_store_lane': return { nargs: 2, nreturns: 0, unreachable: false };
-      case 'memory.copy':  return { nargs: 3, nreturns: 0, unreachable: false };
-      case 'memory.fill':  return { nargs: 3, nreturns: 0, unreachable: false };
-      case 'memory.init':  return { nargs: 3, nreturns: 0, unreachable: false };
-      case 'table.copy':  return { nargs: 3, nreturns: 0, unreachable: false };
-      case 'table.init':  return { nargs: 3, nreturns: 0, unreachable: false };
-      case 'table.fill':  return { nargs: 3, nreturns: 0, unreachable: false };
-      case 'select':  return { nargs: 3, nreturns: 1, unreachable: false };
-      case 'ternary':    return { nargs: 3, nreturns: 1, unreachable: false };
-      case 'quaternary': return { nargs: 4, nreturns: 1, unreachable: false };
+      case 'nop':
+        return { nargs: 0, nreturns: 0, unreachable: false };
+      case 'unreachable':
+        return { nargs: 0, nreturns: 0, unreachable: true };
+      case 'const':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'local.get':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'global.get':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'memory.size':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'table.size':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'ref.null':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'ref.func':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'atomic_fence':
+        return { nargs: 0, nreturns: 0, unreachable: false };
+      case 'data.drop':
+        return { nargs: 0, nreturns: 0, unreachable: false };
+      case 'elem.drop':
+        return { nargs: 0, nreturns: 0, unreachable: false };
+      case 'code_metadata':
+        return { nargs: 0, nreturns: 0, unreachable: false };
+      case 'drop':
+        return { nargs: 1, nreturns: 0, unreachable: false };
+      case 'local.set':
+        return { nargs: 1, nreturns: 0, unreachable: false };
+      case 'global.set':
+        return { nargs: 1, nreturns: 0, unreachable: false };
+      case 'table.set':
+        return { nargs: 2, nreturns: 0, unreachable: false };
+      case 'memory.grow':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'local.tee':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'unary':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'convert':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'ref.is_null':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'ref.as_non_null':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'table.get':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'table.grow':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'binary':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'compare':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'load':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'store':
+        return { nargs: 2, nreturns: 0, unreachable: false };
+      case 'atomic_load':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'atomic_store':
+        return { nargs: 2, nreturns: 0, unreachable: false };
+      case 'atomic_rmw':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'atomic_rmw_cmpxchg':
+        return { nargs: 3, nreturns: 1, unreachable: false };
+      case 'atomic_wait':
+        return { nargs: 3, nreturns: 1, unreachable: false };
+      case 'atomic_notify':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'load_splat':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'load_zero':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'simd_lane_op':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'simd_shuffle':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'simd_load_lane':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'simd_store_lane':
+        return { nargs: 2, nreturns: 0, unreachable: false };
+      case 'memory.copy':
+        return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'memory.fill':
+        return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'memory.init':
+        return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'table.copy':
+        return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'table.init':
+        return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'table.fill':
+        return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'select':
+        return { nargs: 3, nreturns: 1, unreachable: false };
+      case 'ternary':
+        return { nargs: 3, nreturns: 1, unreachable: false };
+      case 'quaternary':
+        return { nargs: 4, nreturns: 1, unreachable: false };
       case 'call': {
         const sig = this.getFuncSig(expr.func);
         return { nargs: sig.params.length, nreturns: sig.results.length, unreachable: false };
       }
       case 'call_indirect':
       case 'return_call_indirect':
-        return { nargs: expr.sig.params.length + 1, nreturns: expr.sig.results.length, unreachable: expr.kind === 'return_call_indirect' };
+        return {
+          nargs: expr.sig.params.length + 1,
+          nreturns: expr.sig.results.length,
+          unreachable: expr.kind === 'return_call_indirect',
+        };
       case 'call_ref':
       case 'return_call_ref': {
         const sig = this.getTypeSig(expr.sigType);
-        return { nargs: sig.params.length + 1, nreturns: sig.results.length, unreachable: expr.kind === 'return_call_ref' };
+        return {
+          nargs: sig.params.length + 1,
+          nreturns: sig.results.length,
+          unreachable: expr.kind === 'return_call_ref',
+        };
       }
-      case 'return_call': return { nargs: this.getFuncSig(expr.func).params.length, nreturns: 0, unreachable: true };
-      case 'return': return { nargs: this.currentFunc?.sig.results.length ?? 0, nreturns: 0, unreachable: true };
-      case 'br':       return { nargs: this.getBranchArity(expr.target), nreturns: 0, unreachable: true };
-      case 'br_if':    return { nargs: this.getBranchArity(expr.target) + 1, nreturns: this.getBranchArity(expr.target), unreachable: false };
-      case 'br_table': return { nargs: this.getBranchArity(expr.defaultTarget) + 1, nreturns: 0, unreachable: true };
-      case 'br_on_null':     return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'br_on_non_null': return { nargs: 1, nreturns: 0, unreachable: false };
-      case 'block': case 'loop': case 'if': case 'try': case 'try_table': {
+      case 'return_call':
+        return { nargs: this.getFuncSig(expr.func).params.length, nreturns: 0, unreachable: true };
+      case 'return':
+        return { nargs: this.currentFunc?.sig.results.length ?? 0, nreturns: 0, unreachable: true };
+      case 'br':
+        return { nargs: this.getBranchArity(expr.target), nreturns: 0, unreachable: true };
+      case 'br_if':
+        return {
+          nargs: this.getBranchArity(expr.target) + 1,
+          nreturns: this.getBranchArity(expr.target),
+          unreachable: false,
+        };
+      case 'br_table':
+        return {
+          nargs: this.getBranchArity(expr.defaultTarget) + 1,
+          nreturns: 0,
+          unreachable: true,
+        };
+      case 'br_on_null':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'br_on_non_null':
+        return { nargs: 1, nreturns: 0, unreachable: false };
+      case 'block':
+      case 'loop':
+      case 'if':
+      case 'try':
+      case 'try_table': {
         const bt = (expr as BlockExpr | LoopExpr | IfExpr | TryExpr | TryTableExpr).blockType;
         return { nargs: 0, nreturns: this.blockTypeResultCount(bt), unreachable: false };
       }
-      case 'throw':     return { nargs: this.getTagArity(expr.tag), nreturns: 0, unreachable: true };
-      case 'throw_ref': return { nargs: 1, nreturns: 0, unreachable: true };
-      case 'rethrow':   return { nargs: 0, nreturns: 0, unreachable: true };
+      case 'throw':
+        return { nargs: this.getTagArity(expr.tag), nreturns: 0, unreachable: true };
+      case 'throw_ref':
+        return { nargs: 1, nreturns: 0, unreachable: true };
+      case 'rethrow':
+        return { nargs: 0, nreturns: 0, unreachable: true };
       default: {
         const _exhaust: never = expr;
         return { nargs: 0, nreturns: 0, unreachable: false };
@@ -247,9 +343,7 @@ export class ModuleContext {
   private getBranchArity(v: Var): number {
     const label = this.getLabel(v);
     if (!label) return 0;
-    return label.labelType === LabelType.Loop
-      ? label.paramTypes.length
-      : label.resultTypes.length;
+    return label.labelType === LabelType.Loop ? label.paramTypes.length : label.resultTypes.length;
   }
 }
 

@@ -33,10 +33,14 @@ export class LexerSource {
   }
 
   /** Total byte length of the source. */
-  get size(): number { return this.data.length; }
+  get size(): number {
+    return this.data.length;
+  }
 
   /** Current read position. */
-  get offset(): number { return this._offset; }
+  get offset(): number {
+    return this._offset;
+  }
 
   /** Peek at the byte at `offset` without moving the position. Returns -1 at EOF. */
   peek(offset = this._offset): number {
@@ -65,5 +69,7 @@ export class LexerSource {
   }
 
   /** Return true when all bytes have been consumed. */
-  get isEof(): boolean { return this._offset >= this.data.length; }
+  get isEof(): boolean {
+    return this._offset >= this.data.length;
+  }
 }

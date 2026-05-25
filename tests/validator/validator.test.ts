@@ -7,18 +7,27 @@ import { assertEquals } from '@std/assert';
 import { Type } from '../../src/core/types.ts';
 import { Opcode } from '../../src/core/opcode.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
-import { unknownLocation, makeErrorList, hasErrors } from '../../src/core/error.ts';
+import { hasErrors, makeErrorList, unknownLocation } from '../../src/core/error.ts';
 import type { ErrorList } from '../../src/core/error.ts';
 
 import {
+  BLOCK_TYPE_VOID,
+  blockTypeValue,
+  constF32,
+  constI32,
   makeModule,
   varIndex,
-  constI32, constF32,
-  BLOCK_TYPE_VOID, blockTypeValue,
 } from '../../src/ir/ir.ts';
 import type {
-  Module, Func, Expr, ConstExpr, BinaryExpr, BlockExpr, LocalGetExpr,
-  LocalSetExpr, ReturnExpr,
+  BinaryExpr,
+  BlockExpr,
+  ConstExpr,
+  Expr,
+  Func,
+  LocalGetExpr,
+  LocalSetExpr,
+  Module,
+  ReturnExpr,
 } from '../../src/ir/ir.ts';
 
 import { validateModule } from '../../src/validator/validator.ts';
@@ -54,7 +63,9 @@ function _makeReturn(value?: Expr): ReturnExpr {
 }
 
 function makeFunc(
-  params: Type[], results: Type[], body: Expr[],
+  params: Type[],
+  results: Type[],
+  body: Expr[],
   locals: { type: Type; count: number }[] = [],
 ): Func {
   return {
@@ -70,7 +81,9 @@ function makeFunc(
 
 /** Builds a minimal module with one func type and one defined function. */
 function singleFuncModule(
-  params: Type[], results: Type[], body: Expr[],
+  params: Type[],
+  results: Type[],
+  body: Expr[],
   locals: { type: Type; count: number }[] = [],
 ): Module {
   const m = makeModule();
@@ -85,8 +98,12 @@ function validate(m: Module): ErrorList {
   return errors;
 }
 
-function isValid(m: Module): boolean { return !hasErrors(validate(m)); }
-function isInvalid(m: Module): boolean { return hasErrors(validate(m)); }
+function isValid(m: Module): boolean {
+  return !hasErrors(validate(m));
+}
+function isInvalid(m: Module): boolean {
+  return hasErrors(validate(m));
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -142,7 +159,10 @@ describe('validateModule', () => {
         makeLocalSet(0, makeConst32(5)),
         makeLocalGet(0),
       ];
-      assertEquals(isValid(singleFuncModule([], [Type.I32], body, [{ type: Type.I32, count: 1 }])), true);
+      assertEquals(
+        isValid(singleFuncModule([], [Type.I32], body, [{ type: Type.I32, count: 1 }])),
+        true,
+      );
     });
   });
 
@@ -151,7 +171,10 @@ describe('validateModule', () => {
       const m = makeModule();
       m.types.push({ kind: 'func', name: '', sig: { params: [], results: [Type.I32] }, loc: LOC });
       m.globals.push({
-        name: '', loc: LOC, type: Type.I32, mutable: false,
+        name: '',
+        loc: LOC,
+        type: Type.I32,
+        mutable: false,
         init: [makeConst32(0)],
       });
       m.funcs.push(makeFunc([], [Type.I32], [
@@ -164,7 +187,10 @@ describe('validateModule', () => {
       const m = makeModule();
       m.types.push({ kind: 'func', name: '', sig: { params: [], results: [] }, loc: LOC });
       m.globals.push({
-        name: '', loc: LOC, type: Type.I32, mutable: false,
+        name: '',
+        loc: LOC,
+        type: Type.I32,
+        mutable: false,
         init: [makeConst32(0)],
       });
       m.funcs.push(makeFunc([], [], [
@@ -219,16 +245,22 @@ describe('validateModule', () => {
     it('accepts a block returning i32', () => {
       const blockBody: Expr[] = [makeConst32(42)];
       const block: BlockExpr = {
-        kind: 'block', label: '', blockType: blockTypeValue(Type.I32),
-        body: blockBody, loc: LOC,
+        kind: 'block',
+        label: '',
+        blockType: blockTypeValue(Type.I32),
+        body: blockBody,
+        loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [block])), true);
     });
 
     it('accepts unreachable inside block', () => {
       const block: BlockExpr = {
-        kind: 'block', label: '', blockType: BLOCK_TYPE_VOID,
-        body: [{ kind: 'unreachable', loc: LOC }], loc: LOC,
+        kind: 'block',
+        label: '',
+        blockType: BLOCK_TYPE_VOID,
+        body: [{ kind: 'unreachable', loc: LOC }],
+        loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [], [block])), true);
     });
@@ -252,8 +284,11 @@ describe('validateModule', () => {
       // block (result i32) br 0 ... end
       const inner: Expr = { kind: 'br', target: varIndex(0), value: makeConst32(5), loc: LOC };
       const block: BlockExpr = {
-        kind: 'block', label: '', blockType: blockTypeValue(Type.I32),
-        body: [inner], loc: LOC,
+        kind: 'block',
+        label: '',
+        blockType: blockTypeValue(Type.I32),
+        body: [inner],
+        loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [block])), true);
     });
@@ -266,16 +301,26 @@ describe('validateModule', () => {
       m.types.push({ kind: 'func', name: '', sig: { params: [], results: [Type.I32] }, loc: LOC });
       m.types.push({ kind: 'func', name: '', sig: { params: [], results: [] }, loc: LOC });
       m.funcs.push({
-        name: '', loc: LOC, typeVar: varIndex(0),
+        name: '',
+        loc: LOC,
+        typeVar: varIndex(0),
         sig: { params: [], results: [Type.I32] },
-        localDecls: [], body: [makeConst32(1)], tailcall: false,
+        localDecls: [],
+        body: [makeConst32(1)],
+        tailcall: false,
       });
       m.funcs.push({
-        name: '', loc: LOC, typeVar: varIndex(1),
+        name: '',
+        loc: LOC,
+        typeVar: varIndex(1),
         sig: { params: [], results: [] },
         localDecls: [],
         body: [
-          { kind: 'drop', value: { kind: 'call', func: varIndex(0), args: [], loc: LOC }, loc: LOC },
+          {
+            kind: 'drop',
+            value: { kind: 'call', func: varIndex(0), args: [], loc: LOC },
+            loc: LOC,
+          },
         ],
         tailcall: false,
       });
@@ -285,7 +330,11 @@ describe('validateModule', () => {
     it('rejects call with invalid function index', () => {
       // call 999 — no such function
       const body: Expr[] = [
-        { kind: 'drop', value: { kind: 'call', func: varIndex(999), args: [], loc: LOC }, loc: LOC },
+        {
+          kind: 'drop',
+          value: { kind: 'call', func: varIndex(999), args: [], loc: LOC },
+          loc: LOC,
+        },
       ];
       assertEquals(isInvalid(singleFuncModule([], [], body)), true);
     });
@@ -295,9 +344,13 @@ describe('validateModule', () => {
     it('rejects binary op with wrong operand type', () => {
       // i32.const 1.0 (f32) + i32.const 1 → type mismatch for i32.add
       const body: Expr[] = [
-        { kind: 'binary', opcode: Opcode.I32Add,
+        {
+          kind: 'binary',
+          opcode: Opcode.I32Add,
           left: { kind: 'const', value: constF32(0x3f800000), loc: LOC },
-          right: makeConst32(1), loc: LOC },
+          right: makeConst32(1),
+          loc: LOC,
+        },
       ];
       assertEquals(isInvalid(singleFuncModule([], [Type.I32], body)), true);
     });

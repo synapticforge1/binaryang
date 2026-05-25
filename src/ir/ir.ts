@@ -19,7 +19,7 @@
 import type { Location } from '../core/error.ts';
 import { Type } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
-import { ExternalKind, BinarySection } from '../core/binary.ts';
+import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { Opcode } from '../core/opcode.ts';
 
 // Re-export so consumers can import everything from this module.
@@ -36,8 +36,12 @@ export type Var =
   | { readonly kind: 'index'; readonly value: Index }
   | { readonly kind: 'name'; readonly name: string };
 
-export function varIndex(value: Index): Var { return { kind: 'index', value }; }
-export function varName(name: string): Var { return { kind: 'name', name }; }
+export function varIndex(value: Index): Var {
+  return { kind: 'index', value };
+}
+export function varName(name: string): Var {
+  return { kind: 'name', name };
+}
 
 export function isVarIndex(v: Var): v is { kind: 'index'; value: Index } {
   return v.kind === 'index';
@@ -56,8 +60,12 @@ export type BlockType =
   | { readonly kind: 'func_type'; readonly typeIdx: Index };
 
 export const BLOCK_TYPE_VOID: BlockType = { kind: 'void' };
-export function blockTypeValue(type: Type): BlockType { return { kind: 'value', type }; }
-export function blockTypeFuncType(typeIdx: Index): BlockType { return { kind: 'func_type', typeIdx }; }
+export function blockTypeValue(type: Type): BlockType {
+  return { kind: 'value', type };
+}
+export function blockTypeFuncType(typeIdx: Index): BlockType {
+  return { kind: 'func_type', typeIdx };
+}
 
 // ---------------------------------------------------------------------------
 // Const — a constant value (leaf node, no children)
@@ -66,15 +74,25 @@ export function blockTypeFuncType(typeIdx: Index): BlockType { return { kind: 'f
 export type Const =
   | { readonly type: Type.I32; readonly value: number }
   | { readonly type: Type.I64; readonly value: bigint }
-  | { readonly type: Type.F32; readonly bits: number }   // raw IEEE 754 bit pattern
-  | { readonly type: Type.F64; readonly bits: bigint }   // raw IEEE 754 bit pattern
-  | { readonly type: Type.V128; readonly bytes: Uint8Array };  // 16 raw bytes
+  | { readonly type: Type.F32; readonly bits: number } // raw IEEE 754 bit pattern
+  | { readonly type: Type.F64; readonly bits: bigint } // raw IEEE 754 bit pattern
+  | { readonly type: Type.V128; readonly bytes: Uint8Array }; // 16 raw bytes
 
-export function constI32(value: number): Const { return { type: Type.I32, value }; }
-export function constI64(value: bigint): Const { return { type: Type.I64, value }; }
-export function constF32(bits: number): Const { return { type: Type.F32, bits }; }
-export function constF64(bits: bigint): Const { return { type: Type.F64, bits }; }
-export function constV128(bytes: Uint8Array): Const { return { type: Type.V128, bytes }; }
+export function constI32(value: number): Const {
+  return { type: Type.I32, value };
+}
+export function constI64(value: bigint): Const {
+  return { type: Type.I64, value };
+}
+export function constF32(bits: number): Const {
+  return { type: Type.F32, bits };
+}
+export function constF64(bits: bigint): Const {
+  return { type: Type.F64, bits };
+}
+export function constV128(bytes: Uint8Array): Const {
+  return { type: Type.V128, bytes };
+}
 
 // ---------------------------------------------------------------------------
 // Catch clauses — exception handling
@@ -90,8 +108,8 @@ export enum CatchKind {
 /** A catch clause in a try/catch block (legacy exception handling). */
 export interface Catch {
   loc: Location;
-  tag?: Var;         // undefined → catch_all / catch_all_ref
-  isRef: boolean;    // catch_ref vs catch (or catch_all_ref vs catch_all)
+  tag?: Var; // undefined → catch_all / catch_all_ref
+  isRef: boolean; // catch_ref vs catch (or catch_all_ref vs catch_all)
   body: Expr[];
 }
 
@@ -99,8 +117,8 @@ export interface Catch {
 export interface TableCatch {
   loc: Location;
   kind: CatchKind;
-  tag?: Var;         // undefined for CatchAll / CatchAllRef
-  target: Var;       // branch target label
+  tag?: Var; // undefined for CatchAll / CatchAllRef
+  target: Var; // branch target label
 }
 
 // ---------------------------------------------------------------------------
@@ -111,11 +129,32 @@ export interface TableCatch {
 // ---------------------------------------------------------------------------
 
 // --- Control ---
-export interface NopExpr       { readonly kind: 'nop';       readonly loc: Location }
-export interface UnreachableExpr { readonly kind: 'unreachable'; readonly loc: Location }
-export interface ReturnExpr    { readonly kind: 'return';    readonly value?: Expr; readonly loc: Location }
-export interface DropExpr      { readonly kind: 'drop';      readonly value: Expr;  readonly loc: Location }
-export interface SelectExpr    { readonly kind: 'select';    readonly val1: Expr; readonly val2: Expr; readonly cond: Expr; readonly resultType: Type[]; readonly loc: Location }
+export interface NopExpr {
+  readonly kind: 'nop';
+  readonly loc: Location;
+}
+export interface UnreachableExpr {
+  readonly kind: 'unreachable';
+  readonly loc: Location;
+}
+export interface ReturnExpr {
+  readonly kind: 'return';
+  readonly value?: Expr;
+  readonly loc: Location;
+}
+export interface DropExpr {
+  readonly kind: 'drop';
+  readonly value: Expr;
+  readonly loc: Location;
+}
+export interface SelectExpr {
+  readonly kind: 'select';
+  readonly val1: Expr;
+  readonly val2: Expr;
+  readonly cond: Expr;
+  readonly resultType: Type[];
+  readonly loc: Location;
+}
 
 // --- Blocks ---
 export interface BlockExpr {
@@ -143,31 +182,122 @@ export interface IfExpr {
 }
 
 // --- Branches ---
-export interface BrExpr      { readonly kind: 'br';       readonly target: Var; readonly value?: Expr; readonly loc: Location }
-export interface BrIfExpr    { readonly kind: 'br_if';    readonly target: Var; readonly cond: Expr; readonly value?: Expr; readonly loc: Location }
-export interface BrTableExpr { readonly kind: 'br_table'; readonly targets: Var[]; readonly defaultTarget: Var; readonly value: Expr; readonly loc: Location }
-export interface BrOnNullExpr    { readonly kind: 'br_on_null';     readonly target: Var; readonly value: Expr; readonly loc: Location }
-export interface BrOnNonNullExpr { readonly kind: 'br_on_non_null'; readonly target: Var; readonly value: Expr; readonly loc: Location }
+export interface BrExpr {
+  readonly kind: 'br';
+  readonly target: Var;
+  readonly value?: Expr;
+  readonly loc: Location;
+}
+export interface BrIfExpr {
+  readonly kind: 'br_if';
+  readonly target: Var;
+  readonly cond: Expr;
+  readonly value?: Expr;
+  readonly loc: Location;
+}
+export interface BrTableExpr {
+  readonly kind: 'br_table';
+  readonly targets: Var[];
+  readonly defaultTarget: Var;
+  readonly value: Expr;
+  readonly loc: Location;
+}
+export interface BrOnNullExpr {
+  readonly kind: 'br_on_null';
+  readonly target: Var;
+  readonly value: Expr;
+  readonly loc: Location;
+}
+export interface BrOnNonNullExpr {
+  readonly kind: 'br_on_non_null';
+  readonly target: Var;
+  readonly value: Expr;
+  readonly loc: Location;
+}
 
 // --- Constants ---
-export interface ConstExpr { readonly kind: 'const'; readonly value: Const; readonly loc: Location }
+export interface ConstExpr {
+  readonly kind: 'const';
+  readonly value: Const;
+  readonly loc: Location;
+}
 
 // --- Locals ---
-export interface LocalGetExpr { readonly kind: 'local.get'; readonly var: Var; readonly loc: Location }
-export interface LocalSetExpr { readonly kind: 'local.set'; readonly var: Var; readonly value: Expr; readonly loc: Location }
-export interface LocalTeeExpr { readonly kind: 'local.tee'; readonly var: Var; readonly value: Expr; readonly loc: Location }
+export interface LocalGetExpr {
+  readonly kind: 'local.get';
+  readonly var: Var;
+  readonly loc: Location;
+}
+export interface LocalSetExpr {
+  readonly kind: 'local.set';
+  readonly var: Var;
+  readonly value: Expr;
+  readonly loc: Location;
+}
+export interface LocalTeeExpr {
+  readonly kind: 'local.tee';
+  readonly var: Var;
+  readonly value: Expr;
+  readonly loc: Location;
+}
 
 // --- Globals ---
-export interface GlobalGetExpr { readonly kind: 'global.get'; readonly var: Var; readonly loc: Location }
-export interface GlobalSetExpr { readonly kind: 'global.set'; readonly var: Var; readonly value: Expr; readonly loc: Location }
+export interface GlobalGetExpr {
+  readonly kind: 'global.get';
+  readonly var: Var;
+  readonly loc: Location;
+}
+export interface GlobalSetExpr {
+  readonly kind: 'global.set';
+  readonly var: Var;
+  readonly value: Expr;
+  readonly loc: Location;
+}
 
 // --- Numeric: unary, binary, compare, convert ---
-export interface UnaryExpr   { readonly kind: 'unary';   readonly opcode: Opcode; readonly operand: Expr; readonly loc: Location }
-export interface BinaryExpr  { readonly kind: 'binary';  readonly opcode: Opcode; readonly left: Expr; readonly right: Expr; readonly loc: Location }
-export interface CompareExpr { readonly kind: 'compare'; readonly opcode: Opcode; readonly left: Expr; readonly right: Expr; readonly loc: Location }
-export interface ConvertExpr { readonly kind: 'convert'; readonly opcode: Opcode; readonly operand: Expr; readonly loc: Location }
-export interface TernaryExpr    { readonly kind: 'ternary';    readonly opcode: Opcode; readonly a: Expr; readonly b: Expr; readonly c: Expr; readonly loc: Location }
-export interface QuaternaryExpr { readonly kind: 'quaternary'; readonly opcode: Opcode; readonly a: Expr; readonly b: Expr; readonly c: Expr; readonly d: Expr; readonly loc: Location }
+export interface UnaryExpr {
+  readonly kind: 'unary';
+  readonly opcode: Opcode;
+  readonly operand: Expr;
+  readonly loc: Location;
+}
+export interface BinaryExpr {
+  readonly kind: 'binary';
+  readonly opcode: Opcode;
+  readonly left: Expr;
+  readonly right: Expr;
+  readonly loc: Location;
+}
+export interface CompareExpr {
+  readonly kind: 'compare';
+  readonly opcode: Opcode;
+  readonly left: Expr;
+  readonly right: Expr;
+  readonly loc: Location;
+}
+export interface ConvertExpr {
+  readonly kind: 'convert';
+  readonly opcode: Opcode;
+  readonly operand: Expr;
+  readonly loc: Location;
+}
+export interface TernaryExpr {
+  readonly kind: 'ternary';
+  readonly opcode: Opcode;
+  readonly a: Expr;
+  readonly b: Expr;
+  readonly c: Expr;
+  readonly loc: Location;
+}
+export interface QuaternaryExpr {
+  readonly kind: 'quaternary';
+  readonly opcode: Opcode;
+  readonly a: Expr;
+  readonly b: Expr;
+  readonly c: Expr;
+  readonly d: Expr;
+  readonly loc: Location;
+}
 
 // --- Memory load/store ---
 export interface LoadExpr {
@@ -191,12 +321,48 @@ export interface StoreExpr {
 }
 
 // --- Memory misc ---
-export interface MemorySizeExpr { readonly kind: 'memory.size'; readonly memidx: Var; readonly loc: Location }
-export interface MemoryGrowExpr { readonly kind: 'memory.grow'; readonly memidx: Var; readonly delta: Expr; readonly loc: Location }
-export interface MemoryCopyExpr { readonly kind: 'memory.copy'; readonly destMemidx: Var; readonly srcMemidx: Var; readonly dest: Expr; readonly src: Expr; readonly size: Expr; readonly loc: Location }
-export interface MemoryFillExpr { readonly kind: 'memory.fill'; readonly memidx: Var; readonly dest: Expr; readonly value: Expr; readonly size: Expr; readonly loc: Location }
-export interface MemoryInitExpr { readonly kind: 'memory.init'; readonly segment: Var; readonly memidx: Var; readonly dest: Expr; readonly src: Expr; readonly size: Expr; readonly loc: Location }
-export interface DataDropExpr   { readonly kind: 'data.drop'; readonly segment: Var; readonly loc: Location }
+export interface MemorySizeExpr {
+  readonly kind: 'memory.size';
+  readonly memidx: Var;
+  readonly loc: Location;
+}
+export interface MemoryGrowExpr {
+  readonly kind: 'memory.grow';
+  readonly memidx: Var;
+  readonly delta: Expr;
+  readonly loc: Location;
+}
+export interface MemoryCopyExpr {
+  readonly kind: 'memory.copy';
+  readonly destMemidx: Var;
+  readonly srcMemidx: Var;
+  readonly dest: Expr;
+  readonly src: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+export interface MemoryFillExpr {
+  readonly kind: 'memory.fill';
+  readonly memidx: Var;
+  readonly dest: Expr;
+  readonly value: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+export interface MemoryInitExpr {
+  readonly kind: 'memory.init';
+  readonly segment: Var;
+  readonly memidx: Var;
+  readonly dest: Expr;
+  readonly src: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+export interface DataDropExpr {
+  readonly kind: 'data.drop';
+  readonly segment: Var;
+  readonly loc: Location;
+}
 
 // --- Calls ---
 export interface CallExpr {
@@ -245,25 +411,102 @@ export interface ReturnCallRefExpr {
 }
 
 // --- Ref types ---
-export interface RefNullExpr    { readonly kind: 'ref.null';         readonly refType: Var; readonly loc: Location }
-export interface RefIsNullExpr  { readonly kind: 'ref.is_null';      readonly value: Expr; readonly loc: Location }
-export interface RefFuncExpr    { readonly kind: 'ref.func';         readonly func: Var; readonly loc: Location }
-export interface RefAsNonNullExpr { readonly kind: 'ref.as_non_null'; readonly value: Expr; readonly loc: Location }
+export interface RefNullExpr {
+  readonly kind: 'ref.null';
+  readonly refType: Var;
+  readonly loc: Location;
+}
+export interface RefIsNullExpr {
+  readonly kind: 'ref.is_null';
+  readonly value: Expr;
+  readonly loc: Location;
+}
+export interface RefFuncExpr {
+  readonly kind: 'ref.func';
+  readonly func: Var;
+  readonly loc: Location;
+}
+export interface RefAsNonNullExpr {
+  readonly kind: 'ref.as_non_null';
+  readonly value: Expr;
+  readonly loc: Location;
+}
 
 // --- Tables ---
-export interface TableGetExpr  { readonly kind: 'table.get';  readonly table: Var; readonly index: Expr; readonly loc: Location }
-export interface TableSetExpr  { readonly kind: 'table.set';  readonly table: Var; readonly index: Expr; readonly value: Expr; readonly loc: Location }
-export interface TableGrowExpr { readonly kind: 'table.grow'; readonly table: Var; readonly initValue: Expr; readonly delta: Expr; readonly loc: Location }
-export interface TableSizeExpr { readonly kind: 'table.size'; readonly table: Var; readonly loc: Location }
-export interface TableFillExpr { readonly kind: 'table.fill'; readonly table: Var; readonly start: Expr; readonly value: Expr; readonly size: Expr; readonly loc: Location }
-export interface TableCopyExpr { readonly kind: 'table.copy'; readonly dst: Var; readonly src: Var; readonly dest: Expr; readonly srcOffset: Expr; readonly size: Expr; readonly loc: Location }
-export interface TableInitExpr { readonly kind: 'table.init'; readonly segment: Var; readonly table: Var; readonly dest: Expr; readonly src: Expr; readonly size: Expr; readonly loc: Location }
-export interface ElemDropExpr  { readonly kind: 'elem.drop'; readonly segment: Var; readonly loc: Location }
+export interface TableGetExpr {
+  readonly kind: 'table.get';
+  readonly table: Var;
+  readonly index: Expr;
+  readonly loc: Location;
+}
+export interface TableSetExpr {
+  readonly kind: 'table.set';
+  readonly table: Var;
+  readonly index: Expr;
+  readonly value: Expr;
+  readonly loc: Location;
+}
+export interface TableGrowExpr {
+  readonly kind: 'table.grow';
+  readonly table: Var;
+  readonly initValue: Expr;
+  readonly delta: Expr;
+  readonly loc: Location;
+}
+export interface TableSizeExpr {
+  readonly kind: 'table.size';
+  readonly table: Var;
+  readonly loc: Location;
+}
+export interface TableFillExpr {
+  readonly kind: 'table.fill';
+  readonly table: Var;
+  readonly start: Expr;
+  readonly value: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+export interface TableCopyExpr {
+  readonly kind: 'table.copy';
+  readonly dst: Var;
+  readonly src: Var;
+  readonly dest: Expr;
+  readonly srcOffset: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+export interface TableInitExpr {
+  readonly kind: 'table.init';
+  readonly segment: Var;
+  readonly table: Var;
+  readonly dest: Expr;
+  readonly src: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+export interface ElemDropExpr {
+  readonly kind: 'elem.drop';
+  readonly segment: Var;
+  readonly loc: Location;
+}
 
 // --- Exceptions ---
-export interface ThrowExpr    { readonly kind: 'throw';     readonly tag: Var; readonly args: Expr[]; readonly loc: Location }
-export interface ThrowRefExpr { readonly kind: 'throw_ref'; readonly exnref: Expr; readonly loc: Location }
-export interface RethrowExpr  { readonly kind: 'rethrow';   readonly depth: Var; readonly loc: Location }
+export interface ThrowExpr {
+  readonly kind: 'throw';
+  readonly tag: Var;
+  readonly args: Expr[];
+  readonly loc: Location;
+}
+export interface ThrowRefExpr {
+  readonly kind: 'throw_ref';
+  readonly exnref: Expr;
+  readonly loc: Location;
+}
+export interface RethrowExpr {
+  readonly kind: 'rethrow';
+  readonly depth: Var;
+  readonly loc: Location;
+}
 
 export interface TryExpr {
   readonly kind: 'try';
@@ -294,7 +537,7 @@ export interface SimdLaneOpExpr {
 export interface SimdShuffleOpExpr {
   readonly kind: 'simd_shuffle';
   readonly opcode: Opcode;
-  readonly lanes: Uint8Array;  // 16 lane indices
+  readonly lanes: Uint8Array; // 16 lane indices
   readonly left: Expr;
   readonly right: Expr;
   readonly loc: Location;
@@ -420,23 +663,75 @@ export interface CodeMetadataExpr {
 // ---------------------------------------------------------------------------
 
 export type Expr =
-  | NopExpr | UnreachableExpr | ReturnExpr | DropExpr | SelectExpr
-  | BlockExpr | LoopExpr | IfExpr
-  | BrExpr | BrIfExpr | BrTableExpr | BrOnNullExpr | BrOnNonNullExpr
+  | NopExpr
+  | UnreachableExpr
+  | ReturnExpr
+  | DropExpr
+  | SelectExpr
+  | BlockExpr
+  | LoopExpr
+  | IfExpr
+  | BrExpr
+  | BrIfExpr
+  | BrTableExpr
+  | BrOnNullExpr
+  | BrOnNonNullExpr
   | ConstExpr
-  | LocalGetExpr | LocalSetExpr | LocalTeeExpr
-  | GlobalGetExpr | GlobalSetExpr
-  | UnaryExpr | BinaryExpr | CompareExpr | ConvertExpr
-  | TernaryExpr | QuaternaryExpr
-  | LoadExpr | StoreExpr
-  | MemorySizeExpr | MemoryGrowExpr | MemoryCopyExpr | MemoryFillExpr | MemoryInitExpr | DataDropExpr
-  | CallExpr | CallIndirectExpr | CallRefExpr
-  | ReturnCallExpr | ReturnCallIndirectExpr | ReturnCallRefExpr
-  | RefNullExpr | RefIsNullExpr | RefFuncExpr | RefAsNonNullExpr
-  | TableGetExpr | TableSetExpr | TableGrowExpr | TableSizeExpr | TableFillExpr | TableCopyExpr | TableInitExpr | ElemDropExpr
-  | ThrowExpr | ThrowRefExpr | RethrowExpr | TryExpr | TryTableExpr
-  | SimdLaneOpExpr | SimdShuffleOpExpr | SimdLoadLaneExpr | SimdStoreLaneExpr | LoadSplatExpr | LoadZeroExpr
-  | AtomicLoadExpr | AtomicStoreExpr | AtomicRmwExpr | AtomicRmwCmpxchgExpr | AtomicWaitExpr | AtomicNotifyExpr | AtomicFenceExpr
+  | LocalGetExpr
+  | LocalSetExpr
+  | LocalTeeExpr
+  | GlobalGetExpr
+  | GlobalSetExpr
+  | UnaryExpr
+  | BinaryExpr
+  | CompareExpr
+  | ConvertExpr
+  | TernaryExpr
+  | QuaternaryExpr
+  | LoadExpr
+  | StoreExpr
+  | MemorySizeExpr
+  | MemoryGrowExpr
+  | MemoryCopyExpr
+  | MemoryFillExpr
+  | MemoryInitExpr
+  | DataDropExpr
+  | CallExpr
+  | CallIndirectExpr
+  | CallRefExpr
+  | ReturnCallExpr
+  | ReturnCallIndirectExpr
+  | ReturnCallRefExpr
+  | RefNullExpr
+  | RefIsNullExpr
+  | RefFuncExpr
+  | RefAsNonNullExpr
+  | TableGetExpr
+  | TableSetExpr
+  | TableGrowExpr
+  | TableSizeExpr
+  | TableFillExpr
+  | TableCopyExpr
+  | TableInitExpr
+  | ElemDropExpr
+  | ThrowExpr
+  | ThrowRefExpr
+  | RethrowExpr
+  | TryExpr
+  | TryTableExpr
+  | SimdLaneOpExpr
+  | SimdShuffleOpExpr
+  | SimdLoadLaneExpr
+  | SimdStoreLaneExpr
+  | LoadSplatExpr
+  | LoadZeroExpr
+  | AtomicLoadExpr
+  | AtomicStoreExpr
+  | AtomicRmwExpr
+  | AtomicRmwCmpxchgExpr
+  | AtomicWaitExpr
+  | AtomicNotifyExpr
+  | AtomicFenceExpr
   | CodeMetadataExpr;
 
 export type ExprKind = Expr['kind'];
@@ -468,9 +763,9 @@ export interface LocalDecl {
 
 /** A type section entry — function, struct, or array type. */
 export type TypeEntry =
-  | { kind: 'func';   name: string; sig: FuncSignature; loc: Location; tailcallTarget?: boolean }
+  | { kind: 'func'; name: string; sig: FuncSignature; loc: Location; tailcallTarget?: boolean }
   | { kind: 'struct'; name: string; fields: Field[]; loc: Location }
-  | { kind: 'array';  name: string; field: Field; loc: Location };
+  | { kind: 'array'; name: string; field: Field; loc: Location };
 
 /** A field in a GC struct or array type. */
 export interface Field {
@@ -485,7 +780,7 @@ export interface Limits {
   max?: number;
   isShared: boolean;
   is64: boolean;
-  pageSize?: number;  // custom-page-sizes proposal (default 65536)
+  pageSize?: number; // custom-page-sizes proposal (default 65536)
 }
 
 /** A function defined (or imported) in the module. */
@@ -508,7 +803,7 @@ export interface Global {
   loc: Location;
   type: Type;
   mutable: boolean;
-  init: Expr[];  // initializer expression (constant expr)
+  init: Expr[]; // initializer expression (constant expr)
 }
 
 /** A table. */
@@ -517,7 +812,7 @@ export interface Table {
   loc: Location;
   elemType: Type;
   limits: Limits;
-  init: Expr[];  // initializer expression (for table with init value)
+  init: Expr[]; // initializer expression (for table with init value)
 }
 
 /** A linear memory. */
@@ -541,10 +836,10 @@ export interface ElemSegment {
   name: string;
   loc: Location;
   kind: SegmentKind;
-  tableVar: Var;      // only for active
-  offset: Expr[];     // only for active (constant expr)
+  tableVar: Var; // only for active
+  offset: Expr[]; // only for active (constant expr)
   elemType: Type;
-  elemExprs: Expr[][];  // each element is a constant expression
+  elemExprs: Expr[][]; // each element is a constant expression
 }
 
 /** A data segment (active or passive). */
@@ -552,18 +847,18 @@ export interface DataSegment {
   name: string;
   loc: Location;
   kind: SegmentKind;
-  memoryVar: Var;   // only for active
-  offset: Expr[];   // only for active (constant expr)
+  memoryVar: Var; // only for active
+  offset: Expr[]; // only for active (constant expr)
   data: Uint8Array;
 }
 
 /** An import entry. */
 export type Import =
-  | { kind: ExternalKind.Func;   module: string; field: string; func: Func }
-  | { kind: ExternalKind.Table;  module: string; field: string; table: Table }
+  | { kind: ExternalKind.Func; module: string; field: string; func: Func }
+  | { kind: ExternalKind.Table; module: string; field: string; table: Table }
   | { kind: ExternalKind.Memory; module: string; field: string; memory: Memory }
   | { kind: ExternalKind.Global; module: string; field: string; global: Global }
-  | { kind: ExternalKind.Tag;    module: string; field: string; tag: Tag };
+  | { kind: ExternalKind.Tag; module: string; field: string; tag: Tag };
 
 /** An export entry. */
 export interface Export {
@@ -677,8 +972,18 @@ export function makeModule(): Module {
 }
 
 /** Total number of functions in index space (imports + defined). */
-export function totalFuncs(m: Module): number { return m.numFuncImports + m.funcs.length; }
-export function totalTables(m: Module): number { return m.numTableImports + m.tables.length; }
-export function totalMemories(m: Module): number { return m.numMemoryImports + m.memories.length; }
-export function totalGlobals(m: Module): number { return m.numGlobalImports + m.globals.length; }
-export function totalTags(m: Module): number { return m.numTagImports + m.tags.length; }
+export function totalFuncs(m: Module): number {
+  return m.numFuncImports + m.funcs.length;
+}
+export function totalTables(m: Module): number {
+  return m.numTableImports + m.tables.length;
+}
+export function totalMemories(m: Module): number {
+  return m.numMemoryImports + m.memories.length;
+}
+export function totalGlobals(m: Module): number {
+  return m.numGlobalImports + m.globals.length;
+}
+export function totalTags(m: Module): number {
+  return m.numTagImports + m.tags.length;
+}

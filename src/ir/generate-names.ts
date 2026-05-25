@@ -18,14 +18,14 @@
 
 import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
-import type { Module, Func, Expr } from './ir.ts';
+import type { Expr, Func, Module } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // NameOpts
 // ---------------------------------------------------------------------------
 
 export enum NameOpts {
-  None       = 0,
+  None = 0,
   AlphaNames = 1 << 0,
 }
 

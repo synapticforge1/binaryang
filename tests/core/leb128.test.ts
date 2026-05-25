@@ -32,8 +32,7 @@ describe('encodeU32Leb128', () => {
     [0xffffffff, [0xff, 0xff, 0xff, 0xff, 0x0f]],
   ];
   for (const [value, expected] of cases) {
-    it(`encodes ${value}`, () =>
-      assertEquals(Array.from(encodeU32Leb128(value)), expected));
+    it(`encodes ${value}`, () => assertEquals(Array.from(encodeU32Leb128(value)), expected));
   }
 });
 
@@ -57,11 +56,15 @@ describe('decodeU32Leb128', () => {
   }
 
   it('throws on overflow', () => {
-    assertThrows(() => { decodeU32Leb128(new Uint8Array([0xff, 0xff, 0xff, 0xff, 0x1f])); });
+    assertThrows(() => {
+      decodeU32Leb128(new Uint8Array([0xff, 0xff, 0xff, 0xff, 0x1f]));
+    });
   });
 
   it('throws on truncated sequence', () => {
-    assertThrows(() => { decodeU32Leb128(new Uint8Array([0x80])); });
+    assertThrows(() => {
+      decodeU32Leb128(new Uint8Array([0x80]));
+    });
   });
 });
 
@@ -84,8 +87,7 @@ describe('encodeU64Leb128 / decodeU64Leb128', () => {
     [0xffffffffffffffffn, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01]],
   ];
   for (const [value, expected] of cases) {
-    it(`encodes ${value}n`, () =>
-      assertEquals(Array.from(encodeU64Leb128(value)), expected));
+    it(`encodes ${value}n`, () => assertEquals(Array.from(encodeU64Leb128(value)), expected));
   }
 
   it('round-trips large u64', () => {
@@ -110,8 +112,7 @@ describe('encodeS32Leb128 / decodeS32Leb128', () => {
     [-2147483648, [0x80, 0x80, 0x80, 0x80, 0x78]],
   ];
   for (const [value, encoded] of cases) {
-    it(`encodes ${value}`, () =>
-      assertEquals(Array.from(encodeS32Leb128(value)), encoded));
+    it(`encodes ${value}`, () => assertEquals(Array.from(encodeS32Leb128(value)), encoded));
     it(`round-trips ${value}`, () => {
       const [decoded] = decodeS32Leb128(encodeS32Leb128(value));
       assertEquals(decoded, value);

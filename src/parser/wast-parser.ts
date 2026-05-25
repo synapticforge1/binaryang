@@ -17,43 +17,108 @@ import { Result } from '../core/result.ts';
 import { Opcode } from '../core/opcode.ts';
 import { Type } from '../core/types.ts';
 import {
-  varIndex, varName, BLOCK_TYPE_VOID, blockTypeValue,
-  makeModule,
-  ExternalKind,
-  type Var, type BlockType, type Const, type FuncSignature, type LocalDecl,
-  type TypeEntry, type Func, type Global, type Memory, type Table, type Tag,
-  type Import, type Module,
-  type Expr, type Limits,
-  constI32, constI64, constF32, constF64,
-  type ConstExpr, type NopExpr, type UnreachableExpr, type ReturnExpr,
-  type DropExpr, type SelectExpr, type BlockExpr, type LoopExpr, type IfExpr,
-  type BrExpr, type BrIfExpr, type BrTableExpr,
-  type BrOnNullExpr, type BrOnNonNullExpr,
-  type LocalGetExpr, type LocalSetExpr, type LocalTeeExpr,
-  type GlobalGetExpr, type GlobalSetExpr,
-  type UnaryExpr, type BinaryExpr, type CompareExpr, type ConvertExpr,
-  type TernaryExpr, type QuaternaryExpr,
-  type LoadExpr, type StoreExpr,
-  type MemorySizeExpr, type MemoryGrowExpr, type MemoryCopyExpr,
-  type MemoryFillExpr, type MemoryInitExpr, type DataDropExpr,
-  type CallExpr, type CallIndirectExpr, type CallRefExpr,
-  type ReturnCallExpr, type ReturnCallIndirectExpr, type ReturnCallRefExpr,
-  type RefNullExpr, type RefIsNullExpr, type RefFuncExpr, type RefAsNonNullExpr,
-  type TableGetExpr, type TableSetExpr, type TableGrowExpr, type TableSizeExpr,
-  type TableFillExpr, type TableCopyExpr, type TableInitExpr, type ElemDropExpr,
-  type ThrowExpr, type ThrowRefExpr, type RethrowExpr,
-  type AtomicLoadExpr, type AtomicStoreExpr, type AtomicRmwExpr,
-  type AtomicRmwCmpxchgExpr, type AtomicWaitExpr, type AtomicNotifyExpr,
   type AtomicFenceExpr,
-  type SimdLaneOpExpr, type SimdShuffleOpExpr, type SimdLoadLaneExpr,
+  type AtomicLoadExpr,
+  type AtomicNotifyExpr,
+  type AtomicRmwCmpxchgExpr,
+  type AtomicRmwExpr,
+  type AtomicStoreExpr,
+  type AtomicWaitExpr,
+  type BinaryExpr,
+  BLOCK_TYPE_VOID,
+  type BlockExpr,
+  type BlockType,
+  blockTypeValue,
+  type BrExpr,
+  type BrIfExpr,
+  type BrOnNonNullExpr,
+  type BrOnNullExpr,
+  type BrTableExpr,
+  type CallExpr,
+  type CallIndirectExpr,
+  type CallRefExpr,
+  type CompareExpr,
+  type Const,
+  type ConstExpr,
+  constF32,
+  constF64,
+  constI32,
+  constI64,
+  type ConvertExpr,
+  type DataDropExpr,
+  type DropExpr,
+  type ElemDropExpr,
+  type Expr,
+  ExternalKind,
+  type Func,
+  type FuncSignature,
+  type Global,
+  type GlobalGetExpr,
+  type GlobalSetExpr,
+  type IfExpr,
+  type Import,
+  type Limits,
+  type LoadExpr,
+  type LocalDecl,
+  type LocalGetExpr,
+  type LocalSetExpr,
+  type LocalTeeExpr,
+  type LoopExpr,
+  makeModule,
+  type Memory,
+  type MemoryCopyExpr,
+  type MemoryFillExpr,
+  type MemoryGrowExpr,
+  type MemoryInitExpr,
+  type MemorySizeExpr,
+  type Module,
+  type NopExpr,
+  type QuaternaryExpr,
+  type RefAsNonNullExpr,
+  type RefFuncExpr,
+  type RefIsNullExpr,
+  type RefNullExpr,
+  type RethrowExpr,
+  type ReturnCallExpr,
+  type ReturnCallIndirectExpr,
+  type ReturnCallRefExpr,
+  type ReturnExpr,
+  type SelectExpr,
+  type SimdLaneOpExpr,
+  type SimdLoadLaneExpr,
+  type SimdShuffleOpExpr,
   type SimdStoreLaneExpr,
+  type StoreExpr,
+  type Table,
+  type TableCopyExpr,
+  type TableFillExpr,
+  type TableGetExpr,
+  type TableGrowExpr,
+  type TableInitExpr,
+  type TableSetExpr,
+  type TableSizeExpr,
+  type Tag,
+  type TernaryExpr,
+  type ThrowExpr,
+  type ThrowRefExpr,
+  type TypeEntry,
+  type UnaryExpr,
+  type UnreachableExpr,
+  type Var,
+  varIndex,
+  varName,
 } from '../ir/ir.ts';
 import { LexerSource } from './lexer-source.ts';
 import { WastLexer } from './wast-lexer.ts';
 import {
-  TokenType, LiteralType,
-  type Token, type LiteralToken, type OpcodeToken, type StringToken,
-  type TypeToken, type RefKindToken,
+  type LiteralToken,
+  LiteralType,
+  type OpcodeToken,
+  type RefKindToken,
+  type StringToken,
+  type Token,
+  TokenType,
+  type TypeToken,
 } from './token.ts';
 
 // ---------------------------------------------------------------------------
@@ -62,8 +127,19 @@ import {
 
 /** A single invoke or get action in a WAST script. */
 export type WastAction =
-  | { readonly kind: 'invoke'; readonly name: string | null; readonly field: string; readonly args: Const[]; readonly loc: Location }
-  | { readonly kind: 'get'; readonly name: string | null; readonly field: string; readonly loc: Location };
+  | {
+    readonly kind: 'invoke';
+    readonly name: string | null;
+    readonly field: string;
+    readonly args: Const[];
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'get';
+    readonly name: string | null;
+    readonly field: string;
+    readonly loc: Location;
+  };
 
 /** An expected return value in assert_return — may include nan patterns. */
 export type ExpectedConst =
@@ -76,22 +152,72 @@ export type ExpectedConst =
 
 /** A module in a WAST script — text, binary, or quoted. */
 export type WastScriptModule =
-  | { readonly kind: 'text'; readonly name: string | null; readonly module: Module; readonly loc: Location }
-  | { readonly kind: 'binary'; readonly name: string | null; readonly data: Uint8Array; readonly loc: Location }
-  | { readonly kind: 'quote'; readonly name: string | null; readonly source: string; readonly loc: Location };
+  | {
+    readonly kind: 'text';
+    readonly name: string | null;
+    readonly module: Module;
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'binary';
+    readonly name: string | null;
+    readonly data: Uint8Array;
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'quote';
+    readonly name: string | null;
+    readonly source: string;
+    readonly loc: Location;
+  };
 
 /** A command in a WAST script. */
 export type WastCommand =
   | { readonly kind: 'module'; readonly scriptModule: WastScriptModule }
   | { readonly kind: 'action'; readonly action: WastAction }
-  | { readonly kind: 'assert_return'; readonly action: WastAction; readonly expected: ExpectedConst[]; readonly loc: Location }
-  | { readonly kind: 'assert_trap'; readonly action: WastAction; readonly text: string; readonly loc: Location }
+  | {
+    readonly kind: 'assert_return';
+    readonly action: WastAction;
+    readonly expected: ExpectedConst[];
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'assert_trap';
+    readonly action: WastAction;
+    readonly text: string;
+    readonly loc: Location;
+  }
   | { readonly kind: 'assert_exception'; readonly action: WastAction; readonly loc: Location }
-  | { readonly kind: 'assert_exhaustion'; readonly action: WastAction; readonly text: string; readonly loc: Location }
-  | { readonly kind: 'assert_invalid'; readonly scriptModule: WastScriptModule; readonly text: string; readonly loc: Location }
-  | { readonly kind: 'assert_malformed'; readonly scriptModule: WastScriptModule; readonly text: string; readonly loc: Location }
-  | { readonly kind: 'assert_unlinkable'; readonly scriptModule: WastScriptModule; readonly text: string; readonly loc: Location }
-  | { readonly kind: 'register'; readonly name: string; readonly as: string | null; readonly loc: Location };
+  | {
+    readonly kind: 'assert_exhaustion';
+    readonly action: WastAction;
+    readonly text: string;
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'assert_invalid';
+    readonly scriptModule: WastScriptModule;
+    readonly text: string;
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'assert_malformed';
+    readonly scriptModule: WastScriptModule;
+    readonly text: string;
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'assert_unlinkable';
+    readonly scriptModule: WastScriptModule;
+    readonly text: string;
+    readonly loc: Location;
+  }
+  | {
+    readonly kind: 'register';
+    readonly name: string;
+    readonly as: string | null;
+    readonly loc: Location;
+  };
 
 /** A parsed WAST script. */
 export interface WastScript {
@@ -105,28 +231,68 @@ export interface WastScript {
 
 function isPlainInstr(tt: TokenType): boolean {
   switch (tt) {
-    case TokenType.Unreachable: case TokenType.Nop: case TokenType.Drop:
-    case TokenType.Select: case TokenType.Br: case TokenType.BrIf:
-    case TokenType.BrOnNonNull: case TokenType.BrOnNull: case TokenType.BrTable:
-    case TokenType.Return: case TokenType.ReturnCall: case TokenType.ReturnCallIndirect:
-    case TokenType.ReturnCallRef: case TokenType.Call: case TokenType.CallIndirect:
-    case TokenType.CallRef: case TokenType.LocalGet: case TokenType.LocalSet:
-    case TokenType.LocalTee: case TokenType.GlobalGet: case TokenType.GlobalSet:
-    case TokenType.Load: case TokenType.Store: case TokenType.Const:
-    case TokenType.Unary: case TokenType.Binary: case TokenType.Quaternary:
-    case TokenType.Compare: case TokenType.Convert:
-    case TokenType.MemoryCopy: case TokenType.DataDrop: case TokenType.MemoryFill:
-    case TokenType.MemoryGrow: case TokenType.MemoryInit: case TokenType.MemorySize:
-    case TokenType.TableCopy: case TokenType.ElemDrop: case TokenType.TableInit:
-    case TokenType.TableGet: case TokenType.TableSet: case TokenType.TableGrow:
-    case TokenType.TableSize: case TokenType.TableFill:
-    case TokenType.Throw: case TokenType.ThrowRef: case TokenType.Rethrow:
-    case TokenType.RefAsNonNull: case TokenType.RefFunc: case TokenType.RefNull:
-    case TokenType.RefIsNull: case TokenType.AtomicLoad: case TokenType.AtomicStore:
-    case TokenType.AtomicRmw: case TokenType.AtomicRmwCmpxchg: case TokenType.AtomicNotify:
-    case TokenType.AtomicFence: case TokenType.AtomicWait:
-    case TokenType.Ternary: case TokenType.SimdLaneOp: case TokenType.SimdLoadLane:
-    case TokenType.SimdStoreLane: case TokenType.SimdShuffleOp:
+    case TokenType.Unreachable:
+    case TokenType.Nop:
+    case TokenType.Drop:
+    case TokenType.Select:
+    case TokenType.Br:
+    case TokenType.BrIf:
+    case TokenType.BrOnNonNull:
+    case TokenType.BrOnNull:
+    case TokenType.BrTable:
+    case TokenType.Return:
+    case TokenType.ReturnCall:
+    case TokenType.ReturnCallIndirect:
+    case TokenType.ReturnCallRef:
+    case TokenType.Call:
+    case TokenType.CallIndirect:
+    case TokenType.CallRef:
+    case TokenType.LocalGet:
+    case TokenType.LocalSet:
+    case TokenType.LocalTee:
+    case TokenType.GlobalGet:
+    case TokenType.GlobalSet:
+    case TokenType.Load:
+    case TokenType.Store:
+    case TokenType.Const:
+    case TokenType.Unary:
+    case TokenType.Binary:
+    case TokenType.Quaternary:
+    case TokenType.Compare:
+    case TokenType.Convert:
+    case TokenType.MemoryCopy:
+    case TokenType.DataDrop:
+    case TokenType.MemoryFill:
+    case TokenType.MemoryGrow:
+    case TokenType.MemoryInit:
+    case TokenType.MemorySize:
+    case TokenType.TableCopy:
+    case TokenType.ElemDrop:
+    case TokenType.TableInit:
+    case TokenType.TableGet:
+    case TokenType.TableSet:
+    case TokenType.TableGrow:
+    case TokenType.TableSize:
+    case TokenType.TableFill:
+    case TokenType.Throw:
+    case TokenType.ThrowRef:
+    case TokenType.Rethrow:
+    case TokenType.RefAsNonNull:
+    case TokenType.RefFunc:
+    case TokenType.RefNull:
+    case TokenType.RefIsNull:
+    case TokenType.AtomicLoad:
+    case TokenType.AtomicStore:
+    case TokenType.AtomicRmw:
+    case TokenType.AtomicRmwCmpxchg:
+    case TokenType.AtomicNotify:
+    case TokenType.AtomicFence:
+    case TokenType.AtomicWait:
+    case TokenType.Ternary:
+    case TokenType.SimdLaneOp:
+    case TokenType.SimdLoadLane:
+    case TokenType.SimdStoreLane:
+    case TokenType.SimdShuffleOp:
       return true;
     default:
       return false;
@@ -135,8 +301,11 @@ function isPlainInstr(tt: TokenType): boolean {
 
 function isBlockInstr(tt: TokenType): boolean {
   switch (tt) {
-    case TokenType.Block: case TokenType.Loop: case TokenType.If:
-    case TokenType.Try: case TokenType.TryTable:
+    case TokenType.Block:
+    case TokenType.Loop:
+    case TokenType.If:
+    case TokenType.Try:
+    case TokenType.TryTable:
       return true;
     default:
       return false;
@@ -152,10 +321,18 @@ function isInstr(tt: TokenType, next: TokenType): boolean {
 function isModuleField(tt0: TokenType, tt1: TokenType): boolean {
   if (tt0 !== TokenType.Lpar) return false;
   switch (tt1) {
-    case TokenType.Func: case TokenType.Function: case TokenType.Type: case TokenType.Import:
-    case TokenType.Export: case TokenType.Global: case TokenType.Memory:
-    case TokenType.Table: case TokenType.Start: case TokenType.Data:
-    case TokenType.Elem: case TokenType.Tag:
+    case TokenType.Func:
+    case TokenType.Function:
+    case TokenType.Type:
+    case TokenType.Import:
+    case TokenType.Export:
+    case TokenType.Global:
+    case TokenType.Memory:
+    case TokenType.Table:
+    case TokenType.Start:
+    case TokenType.Data:
+    case TokenType.Elem:
+    case TokenType.Tag:
       return true;
     default:
       return false;
@@ -165,10 +342,16 @@ function isModuleField(tt0: TokenType, tt1: TokenType): boolean {
 function isCommand(tt0: TokenType, tt1: TokenType): boolean {
   if (tt0 !== TokenType.Lpar) return false;
   switch (tt1) {
-    case TokenType.Module: case TokenType.Register: case TokenType.Invoke:
-    case TokenType.Get: case TokenType.AssertReturn: case TokenType.AssertTrap:
-    case TokenType.AssertException: case TokenType.AssertExhaustion:
-    case TokenType.AssertInvalid: case TokenType.AssertMalformed:
+    case TokenType.Module:
+    case TokenType.Register:
+    case TokenType.Invoke:
+    case TokenType.Get:
+    case TokenType.AssertReturn:
+    case TokenType.AssertTrap:
+    case TokenType.AssertException:
+    case TokenType.AssertExhaustion:
+    case TokenType.AssertInvalid:
+    case TokenType.AssertMalformed:
     case TokenType.AssertUnlinkable:
       return true;
     default:
@@ -193,12 +376,30 @@ function decodeStringToken(text: string): Uint8Array {
       i++;
       const e = text.charCodeAt(i);
       switch (e) {
-        case 0x74: bytes.push(0x09); i++; break; // \t
-        case 0x6e: bytes.push(0x0a); i++; break; // \n
-        case 0x72: bytes.push(0x0d); i++; break; // \r
-        case 0x22: bytes.push(0x22); i++; break; // \"
-        case 0x27: bytes.push(0x27); i++; break; // \'
-        case 0x5c: bytes.push(0x5c); i++; break; // \\
+        case 0x74:
+          bytes.push(0x09);
+          i++;
+          break; // \t
+        case 0x6e:
+          bytes.push(0x0a);
+          i++;
+          break; // \n
+        case 0x72:
+          bytes.push(0x0d);
+          i++;
+          break; // \r
+        case 0x22:
+          bytes.push(0x22);
+          i++;
+          break; // \"
+        case 0x27:
+          bytes.push(0x27);
+          i++;
+          break; // \'
+        case 0x5c:
+          bytes.push(0x5c);
+          i++;
+          break; // \\
         case 0x75: { // \u{XXXX}
           i += 2; // skip 'u{'
           let scalar = 0;
@@ -209,9 +410,19 @@ function decodeStringToken(text: string): Uint8Array {
           i++; // skip '}'
           // encode scalar as UTF-8
           if (scalar < 0x80) bytes.push(scalar);
-          else if (scalar < 0x800) { bytes.push(0xc0 | (scalar >> 6)); bytes.push(0x80 | (scalar & 0x3f)); }
-          else if (scalar < 0x10000) { bytes.push(0xe0 | (scalar >> 12)); bytes.push(0x80 | ((scalar >> 6) & 0x3f)); bytes.push(0x80 | (scalar & 0x3f)); }
-          else { bytes.push(0xf0 | (scalar >> 18)); bytes.push(0x80 | ((scalar >> 12) & 0x3f)); bytes.push(0x80 | ((scalar >> 6) & 0x3f)); bytes.push(0x80 | (scalar & 0x3f)); }
+          else if (scalar < 0x800) {
+            bytes.push(0xc0 | (scalar >> 6));
+            bytes.push(0x80 | (scalar & 0x3f));
+          } else if (scalar < 0x10000) {
+            bytes.push(0xe0 | (scalar >> 12));
+            bytes.push(0x80 | ((scalar >> 6) & 0x3f));
+            bytes.push(0x80 | (scalar & 0x3f));
+          } else {
+            bytes.push(0xf0 | (scalar >> 18));
+            bytes.push(0x80 | ((scalar >> 12) & 0x3f));
+            bytes.push(0x80 | ((scalar >> 6) & 0x3f));
+            bytes.push(0x80 | (scalar & 0x3f));
+          }
           break;
         }
         default: { // hex escape
@@ -254,36 +465,77 @@ function parseNatText(text: string): bigint | null {
 /** How many operands a plain instruction pops from the stack (-1 = variable). */
 function instrInputCount(tt: TokenType): number {
   switch (tt) {
-    case TokenType.Unreachable: case TokenType.Nop: case TokenType.AtomicFence:
-    case TokenType.Const: case TokenType.LocalGet: case TokenType.GlobalGet:
-    case TokenType.RefNull: case TokenType.RefFunc: case TokenType.MemorySize:
+    case TokenType.Unreachable:
+    case TokenType.Nop:
+    case TokenType.AtomicFence:
+    case TokenType.Const:
+    case TokenType.LocalGet:
+    case TokenType.GlobalGet:
+    case TokenType.RefNull:
+    case TokenType.RefFunc:
+    case TokenType.MemorySize:
     case TokenType.TableSize:
       return 0;
-    case TokenType.Drop: case TokenType.LocalSet: case TokenType.LocalTee:
-    case TokenType.GlobalSet: case TokenType.Unary: case TokenType.Convert:
-    case TokenType.RefIsNull: case TokenType.RefAsNonNull: case TokenType.MemoryGrow:
-    case TokenType.TableGet: case TokenType.DataDrop: case TokenType.ElemDrop:
+    case TokenType.Drop:
+    case TokenType.LocalSet:
+    case TokenType.LocalTee:
+    case TokenType.GlobalSet:
+    case TokenType.Unary:
+    case TokenType.Convert:
+    case TokenType.RefIsNull:
+    case TokenType.RefAsNonNull:
+    case TokenType.MemoryGrow:
+    case TokenType.TableGet:
+    case TokenType.DataDrop:
+    case TokenType.ElemDrop:
     case TokenType.ThrowRef:
       return 1;
-    case TokenType.Binary: case TokenType.Compare: case TokenType.Load:
-    case TokenType.AtomicLoad: case TokenType.BrIf: case TokenType.BrOnNull:
-    case TokenType.BrOnNonNull: case TokenType.TableSet: case TokenType.TableGrow:
-    case TokenType.Store: case TokenType.AtomicNotify:
+    case TokenType.Load:
+    case TokenType.AtomicLoad:
+      // load/atomic_load: single operand (the address). Earlier this group
+      // was listed at arity 2 alongside binary/compare/store, which silently
+      // dropped the address on the floor as a Nop when the load appeared
+      // in linear (non-folded) WAT. Caught by the Phase 7 bridge tests
+      // 2026-05-25.
+      return 1;
+    case TokenType.Binary:
+    case TokenType.Compare:
+    case TokenType.BrIf:
+    case TokenType.BrOnNull:
+    case TokenType.BrOnNonNull:
+    case TokenType.TableSet:
+    case TokenType.TableGrow:
+    case TokenType.Store:
+    case TokenType.AtomicNotify:
       return 2;
-    case TokenType.Select: case TokenType.MemoryFill: case TokenType.TableFill:
-    case TokenType.AtomicStore: case TokenType.AtomicWait: case TokenType.AtomicRmw:
+    case TokenType.Select:
+    case TokenType.MemoryFill:
+    case TokenType.TableFill:
+    case TokenType.AtomicStore:
+    case TokenType.AtomicWait:
+    case TokenType.AtomicRmw:
       return 3;
-    case TokenType.AtomicRmwCmpxchg: case TokenType.SimdStoreLane:
+    case TokenType.AtomicRmwCmpxchg:
+    case TokenType.SimdStoreLane:
       return 4; // approx
-    case TokenType.MemoryCopy: case TokenType.TableCopy: case TokenType.MemoryInit:
+    case TokenType.MemoryCopy:
+    case TokenType.TableCopy:
+    case TokenType.MemoryInit:
     case TokenType.TableInit:
       return 3;
-    case TokenType.Ternary: case TokenType.SimdShuffleOp:
+    case TokenType.Ternary:
+    case TokenType.SimdShuffleOp:
       return 3;
     // variable arity
-    case TokenType.Return: case TokenType.Br: case TokenType.BrTable:
-    case TokenType.Call: case TokenType.CallIndirect: case TokenType.CallRef:
-    case TokenType.ReturnCall: case TokenType.ReturnCallIndirect: case TokenType.ReturnCallRef:
+    case TokenType.Return:
+    case TokenType.Br:
+    case TokenType.BrTable:
+    case TokenType.Call:
+    case TokenType.CallIndirect:
+    case TokenType.CallRef:
+    case TokenType.ReturnCall:
+    case TokenType.ReturnCallIndirect:
+    case TokenType.ReturnCallRef:
     case TokenType.Throw:
       return -1;
     default:
@@ -294,15 +546,33 @@ function instrInputCount(tt: TokenType): number {
 /** Whether a plain instruction pushes a value onto the stack. */
 function instrProducesValue(tt: TokenType): boolean {
   switch (tt) {
-    case TokenType.Const: case TokenType.LocalGet: case TokenType.GlobalGet:
-    case TokenType.RefNull: case TokenType.RefFunc: case TokenType.MemorySize:
-    case TokenType.TableSize: case TokenType.Unary: case TokenType.Convert:
-    case TokenType.Binary: case TokenType.Compare: case TokenType.Load:
-    case TokenType.AtomicLoad: case TokenType.RefIsNull: case TokenType.RefAsNonNull:
-    case TokenType.LocalTee: case TokenType.MemoryGrow: case TokenType.TableGet:
-    case TokenType.TableGrow: case TokenType.Select: case TokenType.AtomicNotify:
-    case TokenType.AtomicWait: case TokenType.AtomicRmw: case TokenType.AtomicRmwCmpxchg:
-    case TokenType.SimdLaneOp: case TokenType.SimdShuffleOp: case TokenType.Ternary:
+    case TokenType.Const:
+    case TokenType.LocalGet:
+    case TokenType.GlobalGet:
+    case TokenType.RefNull:
+    case TokenType.RefFunc:
+    case TokenType.MemorySize:
+    case TokenType.TableSize:
+    case TokenType.Unary:
+    case TokenType.Convert:
+    case TokenType.Binary:
+    case TokenType.Compare:
+    case TokenType.Load:
+    case TokenType.AtomicLoad:
+    case TokenType.RefIsNull:
+    case TokenType.RefAsNonNull:
+    case TokenType.LocalTee:
+    case TokenType.MemoryGrow:
+    case TokenType.TableGet:
+    case TokenType.TableGrow:
+    case TokenType.Select:
+    case TokenType.AtomicNotify:
+    case TokenType.AtomicWait:
+    case TokenType.AtomicRmw:
+    case TokenType.AtomicRmwCmpxchg:
+    case TokenType.SimdLaneOp:
+    case TokenType.SimdShuffleOp:
+    case TokenType.Ternary:
     case TokenType.Quaternary:
       return true;
     default:
@@ -319,7 +589,9 @@ interface ExprCtx {
   stmts: Expr[];
 }
 
-function newCtx(): ExprCtx { return { stack: [], stmts: [] }; }
+function newCtx(): ExprCtx {
+  return { stack: [], stmts: [] };
+}
 
 /** Pop `n` operands from stack (right-to-left order: last-in first-out). */
 function popN(ctx: ExprCtx, n: number, fallback: Location): Expr[] {
@@ -348,6 +620,17 @@ export class WastParser {
   private pos = 0;
   readonly errors: WabtError[] = [];
 
+  /**
+   * Lexically scoped local-name → slot-index map for the function currently
+   * being parsed. Params occupy slots `0..numParams-1`, locals continue from
+   * `numParams`. Populated by `parseFuncModuleField` before parsing the
+   * function body, and read by `buildPlainExpr` when it sees a name-based
+   * `local.get` / `local.set` / `local.tee` so it can produce an index-var
+   * directly (instead of leaving a name-var that the bridge / writer can't
+   * resolve without a separate pass).
+   */
+  private localScope: Map<string, number> | null = null;
+
   constructor(tokens: readonly Token[]) {
     this.tokens = tokens;
   }
@@ -364,27 +647,39 @@ export class WastParser {
     const t = this.tokens[this.pos + n];
     if (t !== undefined) return t;
     const last = this.tokens[this.tokens.length - 1];
-    return last ?? { tokenType: TokenType.Eof, loc: { filename: '', line: 1, column: 1, offset: 0 } };
+    return last ??
+      { tokenType: TokenType.Eof, loc: { filename: '', line: 1, column: 1, offset: 0 } };
   }
 
-  private loc(): Location { return this.peekToken().loc; }
+  private loc(): Location {
+    return this.peekToken().loc;
+  }
 
   private consume(): Token {
     const t = this.tokens[this.pos];
-    if (t !== undefined) { this.pos++; return t; }
+    if (t !== undefined) {
+      this.pos++;
+      return t;
+    }
     return this.peekToken();
   }
 
-  private drop(): void { if (this.pos < this.tokens.length) this.pos++; }
+  private drop(): void {
+    if (this.pos < this.tokens.length) this.pos++;
+  }
 
   private match(tt: TokenType): boolean {
-    if (this.peek() === tt) { this.pos++; return true; }
+    if (this.peek() === tt) {
+      this.pos++;
+      return true;
+    }
     return false;
   }
 
   private matchLpar(tt: TokenType): boolean {
     if (this.peek() === TokenType.Lpar && this.peek(1) === tt) {
-      this.pos += 2; return true;
+      this.pos += 2;
+      return true;
     }
     return false;
   }
@@ -442,6 +737,19 @@ export class WastParser {
   // Utility parsers
   // -------------------------------------------------------------------------
 
+  /**
+   * Convert a name-based local var into an index-based one using the
+   * current function's local scope (params + named locals). If the name is
+   * not in scope or the var is already an index, returns the input
+   * unchanged — the validator will surface the unresolved reference.
+   */
+  private resolveLocal(v: Var): Var {
+    if (v.kind === 'index') return v;
+    const idx = this.localScope?.get(v.name);
+    if (idx === undefined) return v;
+    return varIndex(idx);
+  }
+
   parseVar(): Var | null {
     const tt = this.peek();
     if (tt === TokenType.Var) {
@@ -451,7 +759,10 @@ export class WastParser {
     if (tt === TokenType.Nat || tt === TokenType.Int) {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
-      if (n === null) { this.error(tok.loc, `invalid index: ${tok.literal.text}`); return null; }
+      if (n === null) {
+        this.error(tok.loc, `invalid index: ${tok.literal.text}`);
+        return null;
+      }
       return varIndex(Number(n));
     }
     this.error(this.loc(), 'expected var (name or index)');
@@ -488,7 +799,10 @@ export class WastParser {
       if (this.peek() === TokenType.Var) {
         const name = (this.consume() as StringToken).text;
         const t = this.parseValueType();
-        if (t === null) { this.expect(TokenType.Rpar); return Result.Error; }
+        if (t === null) {
+          this.expect(TokenType.Rpar);
+          return Result.Error;
+        }
         bindings.set(name, paramTypes.length);
         paramTypes.push(t);
       } else {
@@ -555,9 +869,18 @@ export class WastParser {
     this.drop();
     const isNull = this.match(TokenType.Null);
     const tt = this.peek();
-    if (tt === TokenType.Func) { this.drop(); return isNull ? Type.FuncRef : Type.FuncRef; }
-    if (tt === TokenType.Extern) { this.drop(); return isNull ? Type.ExternRef : Type.ExternRef; }
-    if (tt === TokenType.Exn) { this.drop(); return Type.ExnRef; }
+    if (tt === TokenType.Func) {
+      this.drop();
+      return isNull ? Type.FuncRef : Type.FuncRef;
+    }
+    if (tt === TokenType.Extern) {
+      this.drop();
+      return isNull ? Type.ExternRef : Type.ExternRef;
+    }
+    if (tt === TokenType.Exn) {
+      this.drop();
+      return Type.ExnRef;
+    }
     if (tt === TokenType.ValueType) {
       const tok = this.consume() as TypeToken;
       return tok.valueType;
@@ -576,7 +899,10 @@ export class WastParser {
     }
     const initText = (this.consume() as LiteralToken).literal.text;
     const initN = parseNatText(initText);
-    if (initN === null) { this.error(initTok.loc, 'invalid limit'); return null; }
+    if (initN === null) {
+      this.error(initTok.loc, 'invalid limit');
+      return null;
+    }
     const initial = Number(initN);
     let max: number | undefined;
     if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
@@ -693,17 +1019,29 @@ export class WastParser {
   private parseModuleField(module: Module): Result {
     const tt1 = this.peek(1);
     switch (tt1) {
-      case TokenType.Type:   return this.parseTypeModuleField(module);
-      case TokenType.Import: return this.parseImportModuleField(module);
-      case TokenType.Export: return this.parseExportModuleField(module);
-      case TokenType.Func: case TokenType.Function: return this.parseFuncModuleField(module);
-      case TokenType.Global: return this.parseGlobalModuleField(module);
-      case TokenType.Memory: return this.parseMemoryModuleField(module);
-      case TokenType.Table:  return this.parseTableModuleField(module);
-      case TokenType.Start:  return this.parseStartModuleField(module);
-      case TokenType.Data:   return this.parseDataModuleField(module);
-      case TokenType.Elem:   return this.parseElemModuleField(module);
-      case TokenType.Tag:    return this.parseTagModuleField(module);
+      case TokenType.Type:
+        return this.parseTypeModuleField(module);
+      case TokenType.Import:
+        return this.parseImportModuleField(module);
+      case TokenType.Export:
+        return this.parseExportModuleField(module);
+      case TokenType.Func:
+      case TokenType.Function:
+        return this.parseFuncModuleField(module);
+      case TokenType.Global:
+        return this.parseGlobalModuleField(module);
+      case TokenType.Memory:
+        return this.parseMemoryModuleField(module);
+      case TokenType.Table:
+        return this.parseTableModuleField(module);
+      case TokenType.Start:
+        return this.parseStartModuleField(module);
+      case TokenType.Data:
+        return this.parseDataModuleField(module);
+      case TokenType.Elem:
+        return this.parseElemModuleField(module);
+      case TokenType.Tag:
+        return this.parseTagModuleField(module);
       default:
         this.error(this.loc(), 'unknown module field');
         return Result.Error;
@@ -744,7 +1082,15 @@ export class WastParser {
       const name = this.parseBindVarOpt();
       const typeVar = this.parseTypeUseOpt();
       const { sig } = this.parseFuncSignature();
-      const func: Func = { name, loc, typeVar: typeVar ?? varIndex(0), sig, localDecls: [], body: [], tailcall: false };
+      const func: Func = {
+        name,
+        loc,
+        typeVar: typeVar ?? varIndex(0),
+        sig,
+        localDecls: [],
+        body: [],
+        tailcall: false,
+      };
       imp = { kind: ExternalKind.Func, module: moduleName, field: fieldName, func };
       module.imports.push(imp);
       module.numFuncImports++;
@@ -799,11 +1145,22 @@ export class WastParser {
     const tt = this.peek();
     let kind: ExternalKind;
     switch (tt) {
-      case TokenType.Func: case TokenType.Function: kind = ExternalKind.Func; break;
-      case TokenType.Table: kind = ExternalKind.Table; break;
-      case TokenType.Memory: kind = ExternalKind.Memory; break;
-      case TokenType.Global: kind = ExternalKind.Global; break;
-      case TokenType.Tag: kind = ExternalKind.Tag; break;
+      case TokenType.Func:
+      case TokenType.Function:
+        kind = ExternalKind.Func;
+        break;
+      case TokenType.Table:
+        kind = ExternalKind.Table;
+        break;
+      case TokenType.Memory:
+        kind = ExternalKind.Memory;
+        break;
+      case TokenType.Global:
+        kind = ExternalKind.Global;
+        break;
+      case TokenType.Tag:
+        kind = ExternalKind.Tag;
+        break;
       default:
         this.error(this.loc(), 'expected export kind');
         return Result.Error;
@@ -837,11 +1194,19 @@ export class WastParser {
     // Inline import?
     const inlineImp = this.parseInlineImport();
     const typeVar = this.parseTypeUseOpt();
-    const { sig } = this.parseFuncSignature();
+    const { sig, bindings } = this.parseFuncSignature();
 
     if (inlineImp !== null) {
       // This is an imported function declared as (func (import ...) ...)
-      const func: Func = { name, loc, typeVar: typeVar ?? varIndex(0), sig, localDecls: [], body: [], tailcall: false };
+      const func: Func = {
+        name,
+        loc,
+        typeVar: typeVar ?? varIndex(0),
+        sig,
+        localDecls: [],
+        body: [],
+        tailcall: false,
+      };
       const imp: Import = {
         kind: ExternalKind.Func,
         module: inlineImp.moduleName,
@@ -852,26 +1217,54 @@ export class WastParser {
       module.numFuncImports++;
     } else {
       const localDecls: LocalDecl[] = [];
+
+      // Build the function-local scope (params first, then locals) so that
+      // `local.get $name` / `local.set $name` / `local.tee $name` inside the
+      // body resolve to slot indices at parse time. Without this the IR
+      // carries unresolved name-vars that downstream consumers (bridge,
+      // binary writer) can't disambiguate from globally-scoped names.
+      const scope = new Map<string, number>(bindings);
+      let slot = sig.params.length;
+
       // Parse locals
       while (this.matchLpar(TokenType.Local)) {
         if (this.peek() === TokenType.Var) {
-          this.drop(); // skip named local identifier
+          const nameTok = this.consume() as StringToken;
           const t = this.parseValueType();
-          if (t !== null) localDecls.push({ type: t, count: 1 });
+          if (t !== null) {
+            // `nameTok.text` includes the leading `$` to match the param
+            // binding convention from `parseParams`.
+            scope.set(nameTok.text, slot);
+            slot++;
+            localDecls.push({ type: t, count: 1 });
+          }
         } else {
           while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
             const t = this.parseValueType();
-            if (t !== null) localDecls.push({ type: t, count: 1 });
-            else break;
+            if (t !== null) {
+              slot++;
+              localDecls.push({ type: t, count: 1 });
+            } else break;
           }
         }
         this.expect(TokenType.Rpar);
       }
 
+      const savedScope = this.localScope;
+      this.localScope = scope;
       const body: Expr[] = [];
       this.parseInstrListInto(body);
+      this.localScope = savedScope;
 
-      const func: Func = { name, loc, typeVar: typeVar ?? varIndex(0), sig, localDecls, body, tailcall: false };
+      const func: Func = {
+        name,
+        loc,
+        typeVar: typeVar ?? varIndex(0),
+        sig,
+        localDecls,
+        body,
+        tailcall: false,
+      };
       module.funcs.push(func);
     }
 
@@ -907,7 +1300,12 @@ export class WastParser {
 
     if (inlineImp !== null) {
       const global: Global = { name, loc, type, mutable: isMut, init: [] };
-      const imp: Import = { kind: ExternalKind.Global, module: inlineImp.moduleName, field: inlineImp.fieldName, global };
+      const imp: Import = {
+        kind: ExternalKind.Global,
+        module: inlineImp.moduleName,
+        field: inlineImp.fieldName,
+        global,
+      };
       module.imports.push(imp);
       module.numGlobalImports++;
     } else {
@@ -939,12 +1337,18 @@ export class WastParser {
     if (inlineImp !== null) {
       const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
       const memory: Memory = { name, loc, limits };
-      const imp: Import = { kind: ExternalKind.Memory, module: inlineImp.moduleName, field: inlineImp.fieldName, memory };
+      const imp: Import = {
+        kind: ExternalKind.Memory,
+        module: inlineImp.moduleName,
+        field: inlineImp.fieldName,
+        memory,
+      };
       module.imports.push(imp);
       module.numMemoryImports++;
     } else if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Data) {
       // Inline data segment
-      this.drop(); this.drop();
+      this.drop();
+      this.drop();
       const data = this.parseTextList();
       this.expect(TokenType.Rpar);
       const pages = Math.ceil(data.length / 65536);
@@ -953,7 +1357,14 @@ export class WastParser {
       module.memories.push(memory);
       // Add data segment at offset 0
       const offsetExpr: Expr = { kind: 'const', value: constI32(0), loc } as ConstExpr;
-      module.dataSegments.push({ name: '', kind: 'active', memoryVar: varIndex(memIdx), offset: [offsetExpr], data, loc });
+      module.dataSegments.push({
+        name: '',
+        kind: 'active',
+        memoryVar: varIndex(memIdx),
+        offset: [offsetExpr],
+        data,
+        loc,
+      });
     } else {
       const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
       const memory: Memory = { name, loc, limits };
@@ -983,12 +1394,18 @@ export class WastParser {
       const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
       const elemType = this.parseValueType() ?? Type.FuncRef;
       const table: Table = { name, loc, elemType, limits, init: [] };
-      const imp: Import = { kind: ExternalKind.Table, module: inlineImp.moduleName, field: inlineImp.fieldName, table };
+      const imp: Import = {
+        kind: ExternalKind.Table,
+        module: inlineImp.moduleName,
+        field: inlineImp.fieldName,
+        table,
+      };
       module.imports.push(imp);
       module.numTableImports++;
     } else {
       const tt = this.peek();
-      const isElemRef = tt === TokenType.ValueType || tt === TokenType.Func || tt === TokenType.Extern || tt === TokenType.Ref;
+      const isElemRef = tt === TokenType.ValueType || tt === TokenType.Func ||
+        tt === TokenType.Extern || tt === TokenType.Ref;
       if (isElemRef) {
         // `(table elemtype (elem ...))` — inline elem
         const elemType = this.parseValueType() ?? Type.FuncRef;
@@ -1001,12 +1418,25 @@ export class WastParser {
             }
           }
           this.expect(TokenType.Rpar);
-          const limits: Limits = { initial: refs.length, max: refs.length, isShared: false, is64: false };
+          const limits: Limits = {
+            initial: refs.length,
+            max: refs.length,
+            isShared: false,
+            is64: false,
+          };
           const table: Table = { name, loc, elemType, limits, init: [] };
           module.tables.push(table);
           // Add elem segment
           const offsetExpr: Expr = { kind: 'const', value: constI32(0), loc } as ConstExpr;
-          module.elemSegments.push({ name: '', kind: 'active', tableVar: varIndex(tableIdx), offset: [offsetExpr], elemType, elemExprs: refs.map(r => [r]), loc });
+          module.elemSegments.push({
+            name: '',
+            kind: 'active',
+            tableVar: varIndex(tableIdx),
+            offset: [offsetExpr],
+            elemType,
+            elemExprs: refs.map((r) => [r]),
+            loc,
+          });
         } else {
           const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
           const table: Table = { name, loc, elemType, limits, init: [] };
@@ -1078,7 +1508,14 @@ export class WastParser {
     if (kind === 'active') {
       module.dataSegments.push({ name, kind, memoryVar: memVar, offset, data, loc });
     } else {
-      module.dataSegments.push({ name, kind: 'passive', memoryVar: varIndex(0), offset: [], data, loc });
+      module.dataSegments.push({
+        name,
+        kind: 'passive',
+        memoryVar: varIndex(0),
+        offset: [],
+        data,
+        loc,
+      });
     }
     return Result.Ok;
   }
@@ -1120,7 +1557,10 @@ export class WastParser {
     }
 
     // Parse optional elem type or funcref
-    if (this.match(TokenType.Func) || (this.peek() === TokenType.Func && this.peek() === TokenType.Function)) {
+    if (
+      this.match(TokenType.Func) ||
+      (this.peek() === TokenType.Func && this.peek() === TokenType.Function)
+    ) {
       elemType = Type.FuncRef;
       while (this.peekMatchVar()) {
         const v = this.parseVar();
@@ -1148,9 +1588,25 @@ export class WastParser {
     if (kind === 'active') {
       module.elemSegments.push({ name, kind, tableVar, offset, elemType, elemExprs: inits, loc });
     } else if (kind === 'declared') {
-      module.elemSegments.push({ name, kind, tableVar: varIndex(0), offset: [], elemType, elemExprs: inits, loc });
+      module.elemSegments.push({
+        name,
+        kind,
+        tableVar: varIndex(0),
+        offset: [],
+        elemType,
+        elemExprs: inits,
+        loc,
+      });
     } else {
-      module.elemSegments.push({ name, kind: 'passive', tableVar: varIndex(0), offset: [], elemType, elemExprs: inits, loc });
+      module.elemSegments.push({
+        name,
+        kind: 'passive',
+        tableVar: varIndex(0),
+        offset: [],
+        elemType,
+        elemExprs: inits,
+        loc,
+      });
     }
     return Result.Ok;
   }
@@ -1165,7 +1621,12 @@ export class WastParser {
     const tag: Tag = { name, loc, sig };
 
     if (inlineImp !== null) {
-      const imp: Import = { kind: ExternalKind.Tag, module: inlineImp.moduleName, field: inlineImp.fieldName, tag };
+      const imp: Import = {
+        kind: ExternalKind.Tag,
+        module: inlineImp.moduleName,
+        field: inlineImp.fieldName,
+        tag,
+      };
       module.imports.push(imp);
       module.numTagImports++;
     } else {
@@ -1223,19 +1684,55 @@ export class WastParser {
       return this.parseFoldedBlockInstr(ctx);
     }
 
-    // Folded plain instruction
+    // Folded plain instruction.
+    //
+    // WAT fold form is `( opcode immediate-args folded-sub-expr* )`. The
+    // immediates (Var refs, align/offset, type uses) come BEFORE any
+    // operand sub-expressions in the token stream — but the
+    // `buildPlainExpr` helper consumes them inline while constructing the
+    // expression. To respect the input order:
+    //
+    //   1. Consume the opcode token.
+    //   2. Dry-run `buildPlainExpr` with empty operands so it advances the
+    //      lexer past the immediates. Errors emitted during this throwaway
+    //      pass are suppressed; the real pass re-emits them.
+    //   3. Parse sub-expressions (each starts with `(`) into innerCtx.
+    //   4. Rewind to the immediate position, re-invoke `buildPlainExpr`
+    //      with the real operands, then forward past the sub-expressions
+    //      we already consumed.
+    //
+    // Previously the parser ran the sub-expression loop FIRST, gated on
+    // `peekIsInstr`. That returned false for immediate tokens (Var, Nat,
+    // etc.), so the loop exited before any operands were collected, and
+    // a folded operand sub-expr like `(global.get $g)` showed up as an
+    // unexpected `(` after the buildPlainExpr call.
     const tok = this.consume();
     const tt2 = tok.tokenType;
-    const innerCtx = newCtx();
+    const immStartPos = this.pos;
 
-    // Parse sub-expressions (operands)
-    while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof && this.peekIsInstr()) {
+    // 2. Dry-run to skip over immediates. Suppress errors so a malformed
+    //    immediate is only reported once (during the real pass below).
+    const savedErrorCount = this.errors.length;
+    this.buildPlainExpr(tok, loc, []);
+    this.errors.length = savedErrorCount;
+
+    // 3. Sub-expression loop. Only `(`-prefixed folded sub-expressions are
+    //    valid here per WAT grammar; immediates have already been consumed.
+    const innerCtx = newCtx();
+    while (
+      this.peek() === TokenType.Lpar &&
+      (isPlainInstr(this.peek(1)) || isBlockInstr(this.peek(1)))
+    ) {
       this.parseOneInstr(innerCtx);
     }
-    // collect sub-expression results into their stack
     flushStack(innerCtx);
+    const subExprEndPos = this.pos;
 
+    // 4. Rewind and re-invoke buildPlainExpr with the real operands.
+    this.pos = immStartPos;
     const expr = this.buildPlainExpr(tok, loc, innerCtx.stmts);
+    this.pos = subExprEndPos;
+
     if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
 
     if (expr !== null) {
@@ -1267,7 +1764,8 @@ export class WastParser {
       const node: BlockExpr | LoopExpr = tt === TokenType.Block
         ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
         : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
-      if (hasValue) ctx.stack.push(node); else ctx.stmts.push(node);
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
       return Result.Ok;
     }
 
@@ -1277,7 +1775,10 @@ export class WastParser {
 
       // Optional condition in folded form: if it's a paren-expr, it's the cond
       let cond: Expr | undefined;
-      if (this.peek() === TokenType.Lpar && this.peek(1) !== TokenType.Then && this.peek(1) !== TokenType.Else) {
+      if (
+        this.peek() === TokenType.Lpar && this.peek(1) !== TokenType.Then &&
+        this.peek(1) !== TokenType.Else
+      ) {
         if (isPlainInstr(this.peek(1)) || isBlockInstr(this.peek(1))) {
           const condCtx = newCtx();
           this.parseFoldedInstr(condCtx);
@@ -1310,7 +1811,8 @@ export class WastParser {
       const condExpr: Expr = cond ?? ({ kind: 'nop', loc } as NopExpr);
       const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr, then_, else_, loc };
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node); else ctx.stmts.push(node);
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
       return Result.Ok;
     }
 
@@ -1324,7 +1826,8 @@ export class WastParser {
       this.expect(TokenType.Rpar);
       const node: BlockExpr = { kind: 'block', label, blockType, body: bodyCtx.stmts, loc };
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node); else ctx.stmts.push(node);
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
       return Result.Ok;
     }
 
@@ -1354,7 +1857,8 @@ export class WastParser {
         ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
         : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node); else ctx.stmts.push(node);
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
       return Result.Ok;
     }
 
@@ -1387,7 +1891,8 @@ export class WastParser {
       const condExpr2: Expr = cond ?? ({ kind: 'nop', loc } as NopExpr);
       const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr2, then_, else_, loc };
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node); else ctx.stmts.push(node);
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
       return Result.Ok;
     }
 
@@ -1402,14 +1907,18 @@ export class WastParser {
       while (this.peek() !== TokenType.Eof) {
         const cur = this.peek();
         if (isBlockInstr(cur)) depth++;
-        else if (cur === TokenType.End) { depth--; if (depth === 0) break; }
+        else if (cur === TokenType.End) {
+          depth--;
+          if (depth === 0) break;
+        }
         this.drop();
       }
       this.expect(TokenType.End);
       flushStack(bodyCtx);
       const node: BlockExpr = { kind: 'block', label, blockType, body: bodyCtx.stmts, loc };
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node); else ctx.stmts.push(node);
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
       return Result.Ok;
     }
 
@@ -1455,9 +1964,12 @@ export class WastParser {
     const op3 = (): Expr => operands[3] ?? ({ kind: 'nop', loc } as NopExpr);
 
     switch (tt) {
-      case TokenType.Unreachable: return { kind: 'unreachable', loc } as UnreachableExpr;
-      case TokenType.Nop: return { kind: 'nop', loc } as NopExpr;
-      case TokenType.Drop: return { kind: 'drop', value: op0(), loc } as DropExpr;
+      case TokenType.Unreachable:
+        return { kind: 'unreachable', loc } as UnreachableExpr;
+      case TokenType.Nop:
+        return { kind: 'nop', loc } as NopExpr;
+      case TokenType.Drop:
+        return { kind: 'drop', value: op0(), loc } as DropExpr;
       case TokenType.Select: {
         const resultType: Type[] = [];
         if (this.matchLpar(TokenType.Result)) {
@@ -1467,9 +1979,17 @@ export class WastParser {
           }
           this.expect(TokenType.Rpar);
         }
-        return { kind: 'select', val1: op0(), val2: op1(), cond: op2(), resultType, loc } as SelectExpr;
+        return {
+          kind: 'select',
+          val1: op0(),
+          val2: op1(),
+          cond: op2(),
+          resultType,
+          loc,
+        } as SelectExpr;
       }
-      case TokenType.Return: return { kind: 'return', value: operands[0], loc } as ReturnExpr;
+      case TokenType.Return:
+        return { kind: 'return', value: operands[0], loc } as ReturnExpr;
       case TokenType.Br: {
         const v = this.parseVar();
         if (v === null) return null;
@@ -1510,7 +2030,15 @@ export class WastParser {
         const { sig } = this.parseFuncSignature();
         const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
         const args = operands.slice(0, -1);
-        return { kind: 'call_indirect', table: tableVar, sig, typeVar: typeVar ?? varIndex(0), args, callee, loc } as CallIndirectExpr;
+        return {
+          kind: 'call_indirect',
+          table: tableVar,
+          sig,
+          typeVar: typeVar ?? varIndex(0),
+          args,
+          callee,
+          loc,
+        } as CallIndirectExpr;
       }
       case TokenType.CallRef: {
         const v = this.parseVar();
@@ -1530,7 +2058,15 @@ export class WastParser {
         const { sig } = this.parseFuncSignature();
         const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
         const args = operands.slice(0, -1);
-        return { kind: 'return_call_indirect', sig, typeVar: typeVar ?? varIndex(0), table: tableVar, args, callee, loc } as ReturnCallIndirectExpr;
+        return {
+          kind: 'return_call_indirect',
+          sig,
+          typeVar: typeVar ?? varIndex(0),
+          table: tableVar,
+          args,
+          callee,
+          loc,
+        } as ReturnCallIndirectExpr;
       }
       case TokenType.ReturnCallRef: {
         const v = this.parseVar();
@@ -1542,17 +2078,17 @@ export class WastParser {
       case TokenType.LocalGet: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'local.get', var: v, loc } as LocalGetExpr;
+        return { kind: 'local.get', var: this.resolveLocal(v), loc } as LocalGetExpr;
       }
       case TokenType.LocalSet: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'local.set', var: v, value: op0(), loc } as LocalSetExpr;
+        return { kind: 'local.set', var: this.resolveLocal(v), value: op0(), loc } as LocalSetExpr;
       }
       case TokenType.LocalTee: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'local.tee', var: v, value: op0(), loc } as LocalTeeExpr;
+        return { kind: 'local.tee', var: this.resolveLocal(v), value: op0(), loc } as LocalTeeExpr;
       }
       case TokenType.GlobalGet: {
         const v = this.parseVar();
@@ -1576,14 +2112,31 @@ export class WastParser {
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'load', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), loc } as LoadExpr;
+        return {
+          kind: 'load',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          loc,
+        } as LoadExpr;
       }
       case TokenType.Store: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'store', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), value: op1(), loc } as StoreExpr;
+        return {
+          kind: 'store',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          value: op1(),
+          loc,
+        } as StoreExpr;
       }
 
       case TokenType.MemorySize: {
@@ -1597,16 +2150,39 @@ export class WastParser {
       case TokenType.MemoryCopy: {
         const destMemidx = this.parseMemidxOpt(loc);
         const srcMemidx = this.parseMemidxOpt(loc);
-        return { kind: 'memory.copy', destMemidx, srcMemidx, dest: op0(), src: op1(), size: op2(), loc } as MemoryCopyExpr;
+        return {
+          kind: 'memory.copy',
+          destMemidx,
+          srcMemidx,
+          dest: op0(),
+          src: op1(),
+          size: op2(),
+          loc,
+        } as MemoryCopyExpr;
       }
       case TokenType.MemoryFill: {
         const memidx = this.parseMemidxOpt(loc);
-        return { kind: 'memory.fill', memidx, dest: op0(), value: op1(), size: op2(), loc } as MemoryFillExpr;
+        return {
+          kind: 'memory.fill',
+          memidx,
+          dest: op0(),
+          value: op1(),
+          size: op2(),
+          loc,
+        } as MemoryFillExpr;
       }
       case TokenType.MemoryInit: {
         const segment = this.parseVar() ?? varIndex(0);
         const memidx = this.parseMemidxOpt(loc);
-        return { kind: 'memory.init', segment, memidx, dest: op0(), src: op1(), size: op2(), loc } as MemoryInitExpr;
+        return {
+          kind: 'memory.init',
+          segment,
+          memidx,
+          dest: op0(),
+          src: op1(),
+          size: op2(),
+          loc,
+        } as MemoryInitExpr;
       }
       case TokenType.DataDrop: {
         const v = this.parseVar() ?? varIndex(0);
@@ -1623,7 +2199,13 @@ export class WastParser {
       }
       case TokenType.TableGrow: {
         const v = this.parseVar() ?? varIndex(0);
-        return { kind: 'table.grow', table: v, initValue: op0(), delta: op1(), loc } as TableGrowExpr;
+        return {
+          kind: 'table.grow',
+          table: v,
+          initValue: op0(),
+          delta: op1(),
+          loc,
+        } as TableGrowExpr;
       }
       case TokenType.TableSize: {
         const v = this.parseVar() ?? varIndex(0);
@@ -1631,17 +2213,40 @@ export class WastParser {
       }
       case TokenType.TableFill: {
         const v = this.parseVar() ?? varIndex(0);
-        return { kind: 'table.fill', table: v, start: op0(), value: op1(), size: op2(), loc } as TableFillExpr;
+        return {
+          kind: 'table.fill',
+          table: v,
+          start: op0(),
+          value: op1(),
+          size: op2(),
+          loc,
+        } as TableFillExpr;
       }
       case TokenType.TableCopy: {
         const dst = this.parseVar() ?? varIndex(0);
         const src = this.parseVar() ?? varIndex(0);
-        return { kind: 'table.copy', dst, src, dest: op0(), srcOffset: op1(), size: op2(), loc } as TableCopyExpr;
+        return {
+          kind: 'table.copy',
+          dst,
+          src,
+          dest: op0(),
+          srcOffset: op1(),
+          size: op2(),
+          loc,
+        } as TableCopyExpr;
       }
       case TokenType.TableInit: {
         const segment = this.parseVar() ?? varIndex(0);
         const table = this.parseVar() ?? varIndex(0);
-        return { kind: 'table.init', segment, table, dest: op0(), src: op1(), size: op2(), loc } as TableInitExpr;
+        return {
+          kind: 'table.init',
+          segment,
+          table,
+          dest: op0(),
+          src: op1(),
+          size: op2(),
+          loc,
+        } as TableInitExpr;
       }
       case TokenType.ElemDrop: {
         const v = this.parseVar() ?? varIndex(0);
@@ -1652,18 +2257,21 @@ export class WastParser {
         const t = this.parseValueType() ?? Type.FuncRef;
         return { kind: 'ref.null', refType: varName(typeToName(t)), loc } as RefNullExpr;
       }
-      case TokenType.RefIsNull: return { kind: 'ref.is_null', value: op0(), loc } as RefIsNullExpr;
+      case TokenType.RefIsNull:
+        return { kind: 'ref.is_null', value: op0(), loc } as RefIsNullExpr;
       case TokenType.RefFunc: {
         const v = this.parseVar() ?? varIndex(0);
         return { kind: 'ref.func', func: v, loc } as RefFuncExpr;
       }
-      case TokenType.RefAsNonNull: return { kind: 'ref.as_non_null', value: op0(), loc } as RefAsNonNullExpr;
+      case TokenType.RefAsNonNull:
+        return { kind: 'ref.as_non_null', value: op0(), loc } as RefAsNonNullExpr;
 
       case TokenType.Throw: {
         const v = this.parseVar() ?? varIndex(0);
         return { kind: 'throw', tag: v, args: operands, loc } as ThrowExpr;
       }
-      case TokenType.ThrowRef: return { kind: 'throw_ref', exnref: op0(), loc } as ThrowRefExpr;
+      case TokenType.ThrowRef:
+        return { kind: 'throw_ref', exnref: op0(), loc } as ThrowRefExpr;
       case TokenType.Rethrow: {
         const v = this.parseVar() ?? varIndex(0);
         return { kind: 'rethrow', depth: v, loc } as RethrowExpr;
@@ -1691,57 +2299,127 @@ export class WastParser {
       }
       case TokenType.Quaternary: {
         const op = (tok as OpcodeToken).opcode;
-        return { kind: 'quaternary', opcode: op, a: op0(), b: op1(), c: op2(), d: op3(), loc } as QuaternaryExpr;
+        return {
+          kind: 'quaternary',
+          opcode: op,
+          a: op0(),
+          b: op1(),
+          c: op2(),
+          d: op3(),
+          loc,
+        } as QuaternaryExpr;
       }
 
-      case TokenType.AtomicFence: return { kind: 'atomic_fence', consistencyModel: 0, loc } as AtomicFenceExpr;
+      case TokenType.AtomicFence:
+        return { kind: 'atomic_fence', consistencyModel: 0, loc } as AtomicFenceExpr;
       case TokenType.AtomicLoad: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'atomic_load', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), loc } as AtomicLoadExpr;
+        return {
+          kind: 'atomic_load',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          loc,
+        } as AtomicLoadExpr;
       }
       case TokenType.AtomicStore: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'atomic_store', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), value: op1(), loc } as AtomicStoreExpr;
+        return {
+          kind: 'atomic_store',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          value: op1(),
+          loc,
+        } as AtomicStoreExpr;
       }
       case TokenType.AtomicRmw: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'atomic_rmw', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), value: op1(), loc } as AtomicRmwExpr;
+        return {
+          kind: 'atomic_rmw',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          value: op1(),
+          loc,
+        } as AtomicRmwExpr;
       }
       case TokenType.AtomicRmwCmpxchg: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'atomic_rmw_cmpxchg', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), expected: op1(), replacement: op2(), loc } as AtomicRmwCmpxchgExpr;
+        return {
+          kind: 'atomic_rmw_cmpxchg',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          expected: op1(),
+          replacement: op2(),
+          loc,
+        } as AtomicRmwCmpxchgExpr;
       }
       case TokenType.AtomicNotify: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'atomic_notify', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), count: op1(), loc } as AtomicNotifyExpr;
+        return {
+          kind: 'atomic_notify',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          count: op1(),
+          loc,
+        } as AtomicNotifyExpr;
       }
       case TokenType.AtomicWait: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
-        return { kind: 'atomic_wait', opcode: op as unknown as Opcode, memidx, offset, align, address: op0(), expected: op1(), timeout: op2(), loc } as AtomicWaitExpr;
+        return {
+          kind: 'atomic_wait',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          address: op0(),
+          expected: op1(),
+          timeout: op2(),
+          loc,
+        } as AtomicWaitExpr;
       }
 
       case TokenType.SimdLaneOp: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const lane = this.parseSimdLane();
-        return { kind: 'simd_lane_op', opcode: op as unknown as Opcode, lane, operand: op0(), loc } as SimdLaneOpExpr;
+        return {
+          kind: 'simd_lane_op',
+          opcode: op as unknown as Opcode,
+          lane,
+          operand: op0(),
+          loc,
+        } as SimdLaneOpExpr;
       }
       case TokenType.SimdShuffleOp: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
@@ -1752,7 +2430,14 @@ export class WastParser {
             laneArr[i] = Number(parseNatText(t) ?? 0n);
           }
         }
-        return { kind: 'simd_shuffle', opcode: op as unknown as Opcode, lanes: laneArr, left: op0(), right: op1(), loc } as SimdShuffleOpExpr;
+        return {
+          kind: 'simd_shuffle',
+          opcode: op as unknown as Opcode,
+          lanes: laneArr,
+          left: op0(),
+          right: op1(),
+          loc,
+        } as SimdShuffleOpExpr;
       }
       case TokenType.SimdLoadLane: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
@@ -1760,7 +2445,17 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         const lane = this.parseSimdLane();
-        return { kind: 'simd_load_lane', opcode: op as unknown as Opcode, memidx, offset, align, lane, address: op0(), vec: op1(), loc } as SimdLoadLaneExpr;
+        return {
+          kind: 'simd_load_lane',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          lane,
+          address: op0(),
+          vec: op1(),
+          loc,
+        } as SimdLoadLaneExpr;
       }
       case TokenType.SimdStoreLane: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
@@ -1768,7 +2463,17 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         const lane = this.parseSimdLane();
-        return { kind: 'simd_store_lane', opcode: op as unknown as Opcode, memidx, offset, align, lane, address: op0(), vec: op1(), loc } as SimdStoreLaneExpr;
+        return {
+          kind: 'simd_store_lane',
+          opcode: op as unknown as Opcode,
+          memidx,
+          offset,
+          align,
+          lane,
+          address: op0(),
+          vec: op1(),
+          loc,
+        } as SimdStoreLaneExpr;
       }
 
       default:
@@ -1788,22 +2493,34 @@ export class WastParser {
 
     if (type === Type.I32) {
       const n = this.parseNatOrInt();
-      if (n === null) { this.error(loc, 'expected i32 constant'); return null; }
+      if (n === null) {
+        this.error(loc, 'expected i32 constant');
+        return null;
+      }
       return constI32(Number(BigInt.asIntN(32, n)));
     }
     if (type === Type.I64) {
       const n = this.parseNatOrInt();
-      if (n === null) { this.error(loc, 'expected i64 constant'); return null; }
+      if (n === null) {
+        this.error(loc, 'expected i64 constant');
+        return null;
+      }
       return constI64(BigInt.asIntN(64, n));
     }
     if (type === Type.F32) {
       const bits = this.parseFloatBits(32);
-      if (bits === null) { this.error(loc, 'expected f32 constant'); return null; }
+      if (bits === null) {
+        this.error(loc, 'expected f32 constant');
+        return null;
+      }
       return constF32(bits);
     }
     if (type === Type.F64) {
       const bits = this.parseFloatBits(64);
-      if (bits === null) { this.error(loc, 'expected f64 constant'); return null; }
+      if (bits === null) {
+        this.error(loc, 'expected f64 constant');
+        return null;
+      }
       return constF64(BigInt(bits));
     }
     this.error(loc, 'unknown const type');
@@ -1850,7 +2567,8 @@ export class WastParser {
       const types: Type[] = [];
       while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
         const t = this.parseValueType();
-        if (t !== null) types.push(t); else break;
+        if (t !== null) types.push(t);
+        else break;
       }
       this.expect(TokenType.Rpar);
       if (types.length === 1) return blockTypeValue(types[0]!);
@@ -1901,7 +2619,10 @@ export class WastParser {
     if (this.peekIsModuleField()) {
       const module = makeModule();
       this.parseModuleFieldList(module);
-      commands.push({ kind: 'module', scriptModule: { kind: 'text', name: null, module, loc: this.peekToken().loc } });
+      commands.push({
+        kind: 'module',
+        scriptModule: { kind: 'text', name: null, module, loc: this.peekToken().loc },
+      });
     } else {
       while (isCommand(this.peek(), this.peek(1))) {
         const cmd = this.parseCommand();
@@ -1924,21 +2645,27 @@ export class WastParser {
         return { kind: 'module', scriptModule: sm };
       }
       case TokenType.Register: {
-        this.drop(); this.drop(); // '(' 'register'
+        this.drop();
+        this.drop(); // '(' 'register'
         const name = this.parseQuotedText() ?? '';
         const as_ = this.peek() === TokenType.Var ? (this.consume() as StringToken).text : null;
         this.expect(TokenType.Rpar);
         return { kind: 'register', name, as: as_, loc };
       }
-      case TokenType.Invoke: case TokenType.Get: {
+      case TokenType.Invoke:
+      case TokenType.Get: {
         const action = this.parseAction();
         if (action === null) return null;
         return { kind: 'action', action };
       }
       case TokenType.AssertReturn: {
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         const action = this.parseAction();
-        if (action === null) { this.expect(TokenType.Rpar); return null; }
+        if (action === null) {
+          this.expect(TokenType.Rpar);
+          return null;
+        }
         const expected: ExpectedConst[] = [];
         while (this.peek() === TokenType.Lpar) {
           const e = this.parseExpectedConst();
@@ -1949,11 +2676,18 @@ export class WastParser {
         return { kind: 'assert_return', action, expected, loc };
       }
       case TokenType.AssertTrap: {
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         // could be action or module
-        if (this.peek() === TokenType.Lpar && (this.peek(1) === TokenType.Invoke || this.peek(1) === TokenType.Get)) {
+        if (
+          this.peek() === TokenType.Lpar &&
+          (this.peek(1) === TokenType.Invoke || this.peek(1) === TokenType.Get)
+        ) {
           const action = this.parseAction();
-          if (action === null) { this.expect(TokenType.Rpar); return null; }
+          if (action === null) {
+            this.expect(TokenType.Rpar);
+            return null;
+          }
           const text = this.parseQuotedText() ?? '';
           this.expect(TokenType.Rpar);
           return { kind: 'assert_trap', action, text, loc };
@@ -1965,22 +2699,28 @@ export class WastParser {
         return { kind: 'assert_invalid', scriptModule: sm, text, loc };
       }
       case TokenType.AssertException: {
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         const action = this.parseAction();
         this.expect(TokenType.Rpar);
         if (action === null) return null;
         return { kind: 'assert_exception', action, loc };
       }
       case TokenType.AssertExhaustion: {
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         const action = this.parseAction();
-        if (action === null) { this.expect(TokenType.Rpar); return null; }
+        if (action === null) {
+          this.expect(TokenType.Rpar);
+          return null;
+        }
         const text = this.parseQuotedText() ?? '';
         this.expect(TokenType.Rpar);
         return { kind: 'assert_exhaustion', action, text, loc };
       }
       case TokenType.AssertInvalid: {
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         const sm = this.parseScriptModule();
         const text = this.parseQuotedText() ?? '';
         this.expect(TokenType.Rpar);
@@ -1988,7 +2728,8 @@ export class WastParser {
         return { kind: 'assert_invalid', scriptModule: sm, text, loc };
       }
       case TokenType.AssertMalformed: {
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         const sm = this.parseScriptModule();
         const text = this.parseQuotedText() ?? '';
         this.expect(TokenType.Rpar);
@@ -1996,7 +2737,8 @@ export class WastParser {
         return { kind: 'assert_malformed', scriptModule: sm, text, loc };
       }
       case TokenType.AssertUnlinkable: {
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         const sm = this.parseScriptModule();
         const text = this.parseQuotedText() ?? '';
         this.expect(TokenType.Rpar);
@@ -2011,7 +2753,8 @@ export class WastParser {
           return { kind: 'module', scriptModule: { kind: 'text', name: null, module, loc } };
         }
         this.error(loc, `unexpected command: ${tokenName(tt1)}`);
-        this.drop(); this.drop();
+        this.drop();
+        this.drop();
         return null;
     }
   }
@@ -2143,41 +2886,70 @@ export class WastParser {
 
 function tokenName(tt: TokenType): string {
   switch (tt) {
-    case TokenType.Lpar: return '(';
-    case TokenType.Rpar: return ')';
-    case TokenType.Eof: return 'EOF';
-    case TokenType.Module: return 'module';
-    case TokenType.Function: return 'func';
-    case TokenType.Type: return 'type';
-    case TokenType.Import: return 'import';
-    case TokenType.Export: return 'export';
-    case TokenType.Global: return 'global';
-    case TokenType.Memory: return 'memory';
-    case TokenType.Table: return 'table';
-    case TokenType.Start: return 'start';
-    case TokenType.Data: return 'data';
-    case TokenType.Elem: return 'elem';
-    case TokenType.Const: return 'CONST';
-    case TokenType.Param: return 'param';
-    case TokenType.Result: return 'result';
-    case TokenType.Local: return 'local';
-    case TokenType.End: return 'end';
-    case TokenType.Else: return 'else';
-    case TokenType.Then: return 'then';
-    case TokenType.Invoke: return 'invoke';
-    case TokenType.Register: return 'register';
-    case TokenType.AssertReturn: return 'assert_return';
-    default: return `<token:${tt}>`;
+    case TokenType.Lpar:
+      return '(';
+    case TokenType.Rpar:
+      return ')';
+    case TokenType.Eof:
+      return 'EOF';
+    case TokenType.Module:
+      return 'module';
+    case TokenType.Function:
+      return 'func';
+    case TokenType.Type:
+      return 'type';
+    case TokenType.Import:
+      return 'import';
+    case TokenType.Export:
+      return 'export';
+    case TokenType.Global:
+      return 'global';
+    case TokenType.Memory:
+      return 'memory';
+    case TokenType.Table:
+      return 'table';
+    case TokenType.Start:
+      return 'start';
+    case TokenType.Data:
+      return 'data';
+    case TokenType.Elem:
+      return 'elem';
+    case TokenType.Const:
+      return 'CONST';
+    case TokenType.Param:
+      return 'param';
+    case TokenType.Result:
+      return 'result';
+    case TokenType.Local:
+      return 'local';
+    case TokenType.End:
+      return 'end';
+    case TokenType.Else:
+      return 'else';
+    case TokenType.Then:
+      return 'then';
+    case TokenType.Invoke:
+      return 'invoke';
+    case TokenType.Register:
+      return 'register';
+    case TokenType.AssertReturn:
+      return 'assert_return';
+    default:
+      return `<token:${tt}>`;
   }
 }
 
 /** Map a const opcode to its value type. */
 function constOpcodeType(opcode: number): Type {
   switch (opcode) {
-    case Opcode.I32Const: return Type.I32;
-    case Opcode.I64Const: return Type.I64;
-    case Opcode.F32Const: return Type.F32;
-    case Opcode.F64Const: return Type.F64;
+    case Opcode.I32Const:
+      return Type.I32;
+    case Opcode.I64Const:
+      return Type.I64;
+    case Opcode.F32Const:
+      return Type.F32;
+    case Opcode.F64Const:
+      return Type.F64;
     default:
       // V128 const uses SIMD prefix
       return Type.V128;
@@ -2187,15 +2959,22 @@ function constOpcodeType(opcode: number): Type {
 /** Map a Type to its WAT keyword string. */
 function typeToName(t: Type): string {
   switch (t) {
-    case Type.FuncRef: return 'funcref';
-    case Type.ExternRef: return 'externref';
-    case Type.ExnRef: return 'exnref';
-    default: return 'funcref';
+    case Type.FuncRef:
+      return 'funcref';
+    case Type.ExternRef:
+      return 'externref';
+    case Type.ExnRef:
+      return 'exnref';
+    default:
+      return 'funcref';
   }
 }
 
 /** Parse a float literal (LiteralToken) to its bit pattern. */
-function parseFloatLiteralBits(lit: { literalType: LiteralType; text: string }, width: 32 | 64): number | null {
+function parseFloatLiteralBits(
+  lit: { literalType: LiteralType; text: string },
+  width: 32 | 64,
+): number | null {
   const { literalType, text } = lit;
   if (literalType === LiteralType.Infinity) {
     const neg = text.startsWith('-');

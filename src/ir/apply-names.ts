@@ -17,8 +17,8 @@
 
 import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
-import type { Module, Func, Expr, Var } from './ir.ts';
-import { varName, varIndex } from './ir.ts';
+import type { Expr, Func, Module, Var } from './ir.ts';
+import { varIndex, varName } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Name maps — populated by the name-section reader
@@ -31,15 +31,15 @@ export type NameMap = Map<number, string>;
 export interface ModuleNames {
   moduleName?: string;
   funcNames: NameMap;
-  localNames: Map<number, NameMap>;  // funcIdx → (localIdx → name)
-  labelNames: Map<number, NameMap>;  // funcIdx → (labelIdx → name)
+  localNames: Map<number, NameMap>; // funcIdx → (localIdx → name)
+  labelNames: Map<number, NameMap>; // funcIdx → (labelIdx → name)
   typeNames: NameMap;
   tableNames: NameMap;
   memoryNames: NameMap;
   globalNames: NameMap;
   elemSegmentNames: NameMap;
   dataSegmentNames: NameMap;
-  fieldNames: Map<number, NameMap>;  // typeIdx → (fieldIdx → name)
+  fieldNames: Map<number, NameMap>; // typeIdx → (fieldIdx → name)
   tagNames: NameMap;
 }
 
@@ -224,56 +224,120 @@ function rewriteExprVars(e: Expr, ctx: ApplyContext): Expr {
     case 'global.get':
       return { ...e, var: rewriteVar(e.var, names.globalNames) };
     case 'global.set':
-      return { ...e, var: rewriteVar(e.var, names.globalNames), value: rewriteExprVars(e.value, ctx) };
+      return {
+        ...e,
+        var: rewriteVar(e.var, names.globalNames),
+        value: rewriteExprVars(e.value, ctx),
+      };
     case 'call':
-      return { ...e, func: rewriteVar(e.func, names.funcNames), args: e.args.map(a => rewriteExprVars(a, ctx)) };
+      return {
+        ...e,
+        func: rewriteVar(e.func, names.funcNames),
+        args: e.args.map((a) => rewriteExprVars(a, ctx)),
+      };
     case 'return_call':
-      return { ...e, func: rewriteVar(e.func, names.funcNames), args: e.args.map(a => rewriteExprVars(a, ctx)) };
+      return {
+        ...e,
+        func: rewriteVar(e.func, names.funcNames),
+        args: e.args.map((a) => rewriteExprVars(a, ctx)),
+      };
     case 'call_indirect':
     case 'return_call_indirect':
-      return { ...e, table: rewriteVar(e.table, names.tableNames), args: e.args.map(a => rewriteExprVars(a, ctx)), callee: rewriteExprVars(e.callee, ctx) };
+      return {
+        ...e,
+        table: rewriteVar(e.table, names.tableNames),
+        args: e.args.map((a) => rewriteExprVars(a, ctx)),
+        callee: rewriteExprVars(e.callee, ctx),
+      };
     case 'ref.func':
       return { ...e, func: rewriteVar(e.func, names.funcNames) };
     case 'memory.size':
       return { ...e, memidx: rewriteVar(e.memidx, names.memoryNames) };
     case 'memory.grow':
-      return { ...e, memidx: rewriteVar(e.memidx, names.memoryNames), delta: rewriteExprVars(e.delta, ctx) };
+      return {
+        ...e,
+        memidx: rewriteVar(e.memidx, names.memoryNames),
+        delta: rewriteExprVars(e.delta, ctx),
+      };
     case 'load':
     case 'atomic_load':
     case 'load_splat':
     case 'load_zero':
-      return { ...e, memidx: rewriteVar(e.memidx, names.memoryNames), address: rewriteExprVars(e.address, ctx) };
+      return {
+        ...e,
+        memidx: rewriteVar(e.memidx, names.memoryNames),
+        address: rewriteExprVars(e.address, ctx),
+      };
     case 'store':
     case 'atomic_store':
     case 'atomic_rmw':
-      return { ...e, memidx: rewriteVar(e.memidx, names.memoryNames), address: rewriteExprVars(e.address, ctx), value: rewriteExprVars(e.value, ctx) };
+      return {
+        ...e,
+        memidx: rewriteVar(e.memidx, names.memoryNames),
+        address: rewriteExprVars(e.address, ctx),
+        value: rewriteExprVars(e.value, ctx),
+      };
     case 'throw':
-      return { ...e, tag: rewriteVar(e.tag, names.tagNames), args: e.args.map(a => rewriteExprVars(a, ctx)) };
+      return {
+        ...e,
+        tag: rewriteVar(e.tag, names.tagNames),
+        args: e.args.map((a) => rewriteExprVars(a, ctx)),
+      };
     case 'data.drop':
       return { ...e, segment: rewriteVar(e.segment, names.dataSegmentNames) };
     case 'elem.drop':
       return { ...e, segment: rewriteVar(e.segment, names.elemSegmentNames) };
     case 'table.get':
-      return { ...e, table: rewriteVar(e.table, names.tableNames), index: rewriteExprVars(e.index, ctx) };
+      return {
+        ...e,
+        table: rewriteVar(e.table, names.tableNames),
+        index: rewriteExprVars(e.index, ctx),
+      };
     case 'table.set':
-      return { ...e, table: rewriteVar(e.table, names.tableNames), index: rewriteExprVars(e.index, ctx), value: rewriteExprVars(e.value, ctx) };
+      return {
+        ...e,
+        table: rewriteVar(e.table, names.tableNames),
+        index: rewriteExprVars(e.index, ctx),
+        value: rewriteExprVars(e.value, ctx),
+      };
     case 'table.size':
       return { ...e, table: rewriteVar(e.table, names.tableNames) };
     case 'table.grow':
-      return { ...e, table: rewriteVar(e.table, names.tableNames), initValue: rewriteExprVars(e.initValue, ctx), delta: rewriteExprVars(e.delta, ctx) };
+      return {
+        ...e,
+        table: rewriteVar(e.table, names.tableNames),
+        initValue: rewriteExprVars(e.initValue, ctx),
+        delta: rewriteExprVars(e.delta, ctx),
+      };
     case 'table.fill':
-      return { ...e, table: rewriteVar(e.table, names.tableNames), start: rewriteExprVars(e.start, ctx), value: rewriteExprVars(e.value, ctx), size: rewriteExprVars(e.size, ctx) };
+      return {
+        ...e,
+        table: rewriteVar(e.table, names.tableNames),
+        start: rewriteExprVars(e.start, ctx),
+        value: rewriteExprVars(e.value, ctx),
+        size: rewriteExprVars(e.size, ctx),
+      };
     case 'block':
     case 'loop':
-      return { ...e, body: e.body.map(c => rewriteExprVars(c, ctx)) };
+      return { ...e, body: e.body.map((c) => rewriteExprVars(c, ctx)) };
     case 'if':
-      return { ...e, cond: rewriteExprVars(e.cond, ctx), then_: e.then_.map(c => rewriteExprVars(c, ctx)), else_: e.else_.map(c => rewriteExprVars(c, ctx)) };
+      return {
+        ...e,
+        cond: rewriteExprVars(e.cond, ctx),
+        then_: e.then_.map((c) => rewriteExprVars(c, ctx)),
+        else_: e.else_.map((c) => rewriteExprVars(c, ctx)),
+      };
     case 'return':
       return e.value !== undefined ? { ...e, value: rewriteExprVars(e.value, ctx) } : e;
     case 'drop':
       return { ...e, value: rewriteExprVars(e.value, ctx) };
     case 'select':
-      return { ...e, val1: rewriteExprVars(e.val1, ctx), val2: rewriteExprVars(e.val2, ctx), cond: rewriteExprVars(e.cond, ctx) };
+      return {
+        ...e,
+        val1: rewriteExprVars(e.val1, ctx),
+        val2: rewriteExprVars(e.val2, ctx),
+        cond: rewriteExprVars(e.cond, ctx),
+      };
     case 'unary':
       return { ...e, operand: rewriteExprVars(e.operand, ctx) };
     case 'binary':

@@ -4,35 +4,95 @@
 // Licensed under the Apache License, Version 2.0
 
 import type {
-  Module, Func, BlockType, Var, Catch,
-  NopExpr, UnreachableExpr, ReturnExpr, DropExpr, SelectExpr,
-  BlockExpr, LoopExpr, IfExpr, TryExpr, TryTableExpr,
-  BrExpr, BrIfExpr, BrTableExpr, BrOnNullExpr, BrOnNonNullExpr,
-  ConstExpr, LocalGetExpr, LocalSetExpr, LocalTeeExpr,
-  GlobalGetExpr, GlobalSetExpr,
-  UnaryExpr, BinaryExpr, CompareExpr, ConvertExpr, TernaryExpr, QuaternaryExpr,
-  LoadExpr, StoreExpr,
-  MemorySizeExpr, MemoryGrowExpr, MemoryCopyExpr, MemoryFillExpr, MemoryInitExpr, DataDropExpr,
-  CallExpr, CallIndirectExpr, CallRefExpr,
-  ReturnCallExpr, ReturnCallIndirectExpr, ReturnCallRefExpr,
-  RefNullExpr, RefIsNullExpr, RefFuncExpr, RefAsNonNullExpr,
-  TableGetExpr, TableSetExpr, TableGrowExpr, TableSizeExpr, TableFillExpr,
-  TableCopyExpr, TableInitExpr, ElemDropExpr,
-  ThrowExpr, ThrowRefExpr, RethrowExpr,
-  SimdLaneOpExpr, SimdShuffleOpExpr, SimdLoadLaneExpr, SimdStoreLaneExpr,
-  LoadSplatExpr, LoadZeroExpr,
-  AtomicLoadExpr, AtomicStoreExpr, AtomicRmwExpr, AtomicRmwCmpxchgExpr,
-  AtomicWaitExpr, AtomicNotifyExpr, AtomicFenceExpr,
+  AtomicFenceExpr,
+  AtomicLoadExpr,
+  AtomicNotifyExpr,
+  AtomicRmwCmpxchgExpr,
+  AtomicRmwExpr,
+  AtomicStoreExpr,
+  AtomicWaitExpr,
+  BinaryExpr,
+  BlockExpr,
+  BlockType,
+  BrExpr,
+  BrIfExpr,
+  BrOnNonNullExpr,
+  BrOnNullExpr,
+  BrTableExpr,
+  CallExpr,
+  CallIndirectExpr,
+  CallRefExpr,
+  Catch,
   CodeMetadataExpr,
+  CompareExpr,
+  ConstExpr,
+  ConvertExpr,
+  DataDropExpr,
+  DropExpr,
+  ElemDropExpr,
+  Func,
+  GlobalGetExpr,
+  GlobalSetExpr,
+  IfExpr,
+  LoadExpr,
+  LoadSplatExpr,
+  LoadZeroExpr,
+  LocalGetExpr,
+  LocalSetExpr,
+  LocalTeeExpr,
+  LoopExpr,
+  MemoryCopyExpr,
+  MemoryFillExpr,
+  MemoryGrowExpr,
+  MemoryInitExpr,
+  MemorySizeExpr,
+  Module,
+  NopExpr,
+  QuaternaryExpr,
+  RefAsNonNullExpr,
+  RefFuncExpr,
+  RefIsNullExpr,
+  RefNullExpr,
+  RethrowExpr,
+  ReturnCallExpr,
+  ReturnCallIndirectExpr,
+  ReturnCallRefExpr,
+  ReturnExpr,
+  SelectExpr,
+  SimdLaneOpExpr,
+  SimdLoadLaneExpr,
+  SimdShuffleOpExpr,
+  SimdStoreLaneExpr,
+  StoreExpr,
+  TableCopyExpr,
+  TableFillExpr,
+  TableGetExpr,
+  TableGrowExpr,
+  TableInitExpr,
+  TableSetExpr,
+  TableSizeExpr,
+  TernaryExpr,
+  ThrowExpr,
+  ThrowRefExpr,
+  TryExpr,
+  TryTableExpr,
+  UnaryExpr,
+  UnreachableExpr,
+  Var,
 } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
 import { Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import { Opcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
 import {
-  BinarySection, ExternalKind, WASM_MAGIC, WASM_VERSION,
-  LIMITS_HAS_MAX_FLAG, LIMITS_IS_SHARED_FLAG, LIMITS_IS_64_FLAG,
+  BinarySection,
+  ExternalKind,
   LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG,
+  LIMITS_HAS_MAX_FLAG,
+  LIMITS_IS_64_FLAG,
+  LIMITS_IS_SHARED_FLAG,
+  WASM_MAGIC,
+  WASM_VERSION,
 } from '../core/binary.ts';
 import { MemoryStream } from './stream.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
@@ -69,7 +129,7 @@ function writeOpcode(s: MemoryStream, op: number): void {
 function writeMemArg(s: MemoryStream, align: number, offset: bigint, memidx: Var): void {
   const idx = memidx.kind === 'index' ? memidx.value : 0;
   if (idx !== 0) {
-    s.writeU32Leb(align | 0x40);  // bit 6 set = explicit memidx follows
+    s.writeU32Leb(align | 0x40); // bit 6 set = explicit memidx follows
     s.writeU32Leb(idx);
   } else {
     s.writeU32Leb(align);
@@ -85,7 +145,9 @@ function writeLimits(
   if (lim.max !== undefined) flags |= LIMITS_HAS_MAX_FLAG;
   if (lim.isShared) flags |= LIMITS_IS_SHARED_FLAG;
   if (lim.is64) flags |= LIMITS_IS_64_FLAG;
-  if (lim.pageSize !== undefined && lim.pageSize !== 65536) flags |= LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG;
+  if (lim.pageSize !== undefined && lim.pageSize !== 65536) {
+    flags |= LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG;
+  }
   s.writeU32Leb(flags);
   s.writeU32Leb(lim.initial);
   if (lim.max !== undefined) s.writeU32Leb(lim.max);
@@ -96,10 +158,14 @@ function writeLimits(
 
 function catchKindByte(k: CatchKind): number {
   switch (k) {
-    case CatchKind.Catch:       return 0x00;
-    case CatchKind.CatchRef:    return 0x01;
-    case CatchKind.CatchAll:    return 0x02;
-    case CatchKind.CatchAllRef: return 0x03;
+    case CatchKind.Catch:
+      return 0x00;
+    case CatchKind.CatchRef:
+      return 0x01;
+    case CatchKind.CatchAll:
+      return 0x02;
+    case CatchKind.CatchAllRef:
+      return 0x03;
   }
 }
 
@@ -111,16 +177,20 @@ class BodyWriter implements ExprVisitorDelegate {
   constructor(private readonly s: MemoryStream) {}
 
   onNopExpr(_e: NopExpr): Result {
-    this.s.writeU8(Opcode.Nop); return Result.Ok;
+    this.s.writeU8(Opcode.Nop);
+    return Result.Ok;
   }
   onUnreachableExpr(_e: UnreachableExpr): Result {
-    this.s.writeU8(Opcode.Unreachable); return Result.Ok;
+    this.s.writeU8(Opcode.Unreachable);
+    return Result.Ok;
   }
   onReturnExpr(_e: ReturnExpr): Result {
-    this.s.writeU8(Opcode.Return); return Result.Ok;
+    this.s.writeU8(Opcode.Return);
+    return Result.Ok;
   }
   onDropExpr(_e: DropExpr): Result {
-    this.s.writeU8(Opcode.Drop); return Result.Ok;
+    this.s.writeU8(Opcode.Drop);
+    return Result.Ok;
   }
   onSelectExpr(e: SelectExpr): Result {
     if (e.resultType.length === 0) {
@@ -140,7 +210,8 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endBlockExpr(_e: BlockExpr): Result {
-    this.s.writeU8(Opcode.End); return Result.Ok;
+    this.s.writeU8(Opcode.End);
+    return Result.Ok;
   }
   beginLoopExpr(e: LoopExpr): Result {
     this.s.writeU8(Opcode.Loop);
@@ -148,7 +219,8 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endLoopExpr(_e: LoopExpr): Result {
-    this.s.writeU8(Opcode.End); return Result.Ok;
+    this.s.writeU8(Opcode.End);
+    return Result.Ok;
   }
   beginIfExpr(e: IfExpr): Result {
     this.s.writeU8(Opcode.If);
@@ -160,7 +232,8 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endIfExpr(_e: IfExpr): Result {
-    this.s.writeU8(Opcode.End); return Result.Ok;
+    this.s.writeU8(Opcode.End);
+    return Result.Ok;
   }
 
   // --- try/catch (legacy exception handling) ---
@@ -171,10 +244,10 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
     if (c.tag !== undefined) {
-      this.s.writeU8(c.isRef ? 0x08 : Opcode.Catch);  // catch_ref = 0x08, catch = 0x07
+      this.s.writeU8(c.isRef ? 0x08 : Opcode.Catch); // catch_ref = 0x08, catch = 0x07
       writeVar(this.s, c.tag);
     } else {
-      this.s.writeU8(c.isRef ? 0x18 : Opcode.CatchAll);  // catch_all_ref = 0x18, catch_all = 0x19
+      this.s.writeU8(c.isRef ? 0x18 : Opcode.CatchAll); // catch_all_ref = 0x18, catch_all = 0x19
     }
     return Result.Ok;
   }
@@ -184,7 +257,8 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endTryExpr(_e: TryExpr): Result {
-    this.s.writeU8(Opcode.End); return Result.Ok;
+    this.s.writeU8(Opcode.End);
+    return Result.Ok;
   }
 
   // --- try_table (new exception handling) ---
@@ -200,15 +274,20 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endTryTableExpr(_e: TryTableExpr): Result {
-    this.s.writeU8(Opcode.End); return Result.Ok;
+    this.s.writeU8(Opcode.End);
+    return Result.Ok;
   }
 
   // --- Branches ---
   onBrExpr(e: BrExpr): Result {
-    this.s.writeU8(Opcode.Br); writeVar(this.s, e.target); return Result.Ok;
+    this.s.writeU8(Opcode.Br);
+    writeVar(this.s, e.target);
+    return Result.Ok;
   }
   onBrIfExpr(e: BrIfExpr): Result {
-    this.s.writeU8(Opcode.BrIf); writeVar(this.s, e.target); return Result.Ok;
+    this.s.writeU8(Opcode.BrIf);
+    writeVar(this.s, e.target);
+    return Result.Ok;
   }
   onBrTableExpr(e: BrTableExpr): Result {
     this.s.writeU8(Opcode.BrTable);
@@ -218,64 +297,90 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   onBrOnNullExpr(e: BrOnNullExpr): Result {
-    this.s.writeU8(Opcode.BrOnNull); writeVar(this.s, e.target); return Result.Ok;
+    this.s.writeU8(Opcode.BrOnNull);
+    writeVar(this.s, e.target);
+    return Result.Ok;
   }
   onBrOnNonNullExpr(e: BrOnNonNullExpr): Result {
-    this.s.writeU8(Opcode.BrOnNonNull); writeVar(this.s, e.target); return Result.Ok;
+    this.s.writeU8(Opcode.BrOnNonNull);
+    writeVar(this.s, e.target);
+    return Result.Ok;
   }
 
   // --- Constants ---
   onConstExpr(e: ConstExpr): Result {
     const v = e.value;
     if (v.type === Type.I32) {
-      this.s.writeU8(Opcode.I32Const); this.s.writeS32Leb(v.value);
+      this.s.writeU8(Opcode.I32Const);
+      this.s.writeS32Leb(v.value);
     } else if (v.type === Type.I64) {
-      this.s.writeU8(Opcode.I64Const); this.s.writeS64Leb(v.value);
+      this.s.writeU8(Opcode.I64Const);
+      this.s.writeS64Leb(v.value);
     } else if (v.type === Type.F32) {
-      this.s.writeU8(Opcode.F32Const); this.s.writeF32Bits(v.bits);
+      this.s.writeU8(Opcode.F32Const);
+      this.s.writeF32Bits(v.bits);
     } else if (v.type === Type.F64) {
-      this.s.writeU8(Opcode.F64Const); this.s.writeF64Bits(v.bits);
+      this.s.writeU8(Opcode.F64Const);
+      this.s.writeF64Bits(v.bits);
     } else if (v.type === Type.V128) {
-      this.s.writeU8(PREFIX_SIMD); this.s.writeU32Leb(0x0c); this.s.writeV128(v.bytes);
+      this.s.writeU8(PREFIX_SIMD);
+      this.s.writeU32Leb(0x0c);
+      this.s.writeV128(v.bytes);
     }
     return Result.Ok;
   }
 
   // --- Locals & globals ---
   onLocalGetExpr(e: LocalGetExpr): Result {
-    this.s.writeU8(Opcode.LocalGet); writeVar(this.s, e.var); return Result.Ok;
+    this.s.writeU8(Opcode.LocalGet);
+    writeVar(this.s, e.var);
+    return Result.Ok;
   }
   onLocalSetExpr(e: LocalSetExpr): Result {
-    this.s.writeU8(Opcode.LocalSet); writeVar(this.s, e.var); return Result.Ok;
+    this.s.writeU8(Opcode.LocalSet);
+    writeVar(this.s, e.var);
+    return Result.Ok;
   }
   onLocalTeeExpr(e: LocalTeeExpr): Result {
-    this.s.writeU8(Opcode.LocalTee); writeVar(this.s, e.var); return Result.Ok;
+    this.s.writeU8(Opcode.LocalTee);
+    writeVar(this.s, e.var);
+    return Result.Ok;
   }
   onGlobalGetExpr(e: GlobalGetExpr): Result {
-    this.s.writeU8(Opcode.GlobalGet); writeVar(this.s, e.var); return Result.Ok;
+    this.s.writeU8(Opcode.GlobalGet);
+    writeVar(this.s, e.var);
+    return Result.Ok;
   }
   onGlobalSetExpr(e: GlobalSetExpr): Result {
-    this.s.writeU8(Opcode.GlobalSet); writeVar(this.s, e.var); return Result.Ok;
+    this.s.writeU8(Opcode.GlobalSet);
+    writeVar(this.s, e.var);
+    return Result.Ok;
   }
 
   // --- Arithmetic (opcode already encodes prefix for extended groups) ---
   onUnaryExpr(e: UnaryExpr): Result {
-    writeOpcode(this.s, e.opcode as number); return Result.Ok;
+    writeOpcode(this.s, e.opcode as number);
+    return Result.Ok;
   }
   onBinaryExpr(e: BinaryExpr): Result {
-    writeOpcode(this.s, e.opcode as number); return Result.Ok;
+    writeOpcode(this.s, e.opcode as number);
+    return Result.Ok;
   }
   onCompareExpr(e: CompareExpr): Result {
-    writeOpcode(this.s, e.opcode as number); return Result.Ok;
+    writeOpcode(this.s, e.opcode as number);
+    return Result.Ok;
   }
   onConvertExpr(e: ConvertExpr): Result {
-    writeOpcode(this.s, e.opcode as number); return Result.Ok;
+    writeOpcode(this.s, e.opcode as number);
+    return Result.Ok;
   }
   onTernaryExpr(e: TernaryExpr): Result {
-    writeOpcode(this.s, e.opcode as number); return Result.Ok;
+    writeOpcode(this.s, e.opcode as number);
+    return Result.Ok;
   }
   onQuaternaryExpr(e: QuaternaryExpr): Result {
-    writeOpcode(this.s, e.opcode as number); return Result.Ok;
+    writeOpcode(this.s, e.opcode as number);
+    return Result.Ok;
   }
 
   // --- Loads & stores ---
@@ -292,111 +397,160 @@ class BodyWriter implements ExprVisitorDelegate {
 
   // --- Memory misc ---
   onMemorySizeExpr(e: MemorySizeExpr): Result {
-    this.s.writeU8(Opcode.MemorySize); writeVar(this.s, e.memidx); return Result.Ok;
+    this.s.writeU8(Opcode.MemorySize);
+    writeVar(this.s, e.memidx);
+    return Result.Ok;
   }
   onMemoryGrowExpr(e: MemoryGrowExpr): Result {
-    this.s.writeU8(Opcode.MemoryGrow); writeVar(this.s, e.memidx); return Result.Ok;
+    this.s.writeU8(Opcode.MemoryGrow);
+    writeVar(this.s, e.memidx);
+    return Result.Ok;
   }
   onMemoryCopyExpr(e: MemoryCopyExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x0a);  // memory.copy
-    writeVar(this.s, e.destMemidx); writeVar(this.s, e.srcMemidx);
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x0a); // memory.copy
+    writeVar(this.s, e.destMemidx);
+    writeVar(this.s, e.srcMemidx);
     return Result.Ok;
   }
   onMemoryFillExpr(e: MemoryFillExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x0b);  // memory.fill
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x0b); // memory.fill
     writeVar(this.s, e.memidx);
     return Result.Ok;
   }
   onMemoryInitExpr(e: MemoryInitExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x08);  // memory.init
-    writeVar(this.s, e.segment); writeVar(this.s, e.memidx);
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x08); // memory.init
+    writeVar(this.s, e.segment);
+    writeVar(this.s, e.memidx);
     return Result.Ok;
   }
   onDataDropExpr(e: DataDropExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x09);  // data.drop
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x09); // data.drop
     writeVar(this.s, e.segment);
     return Result.Ok;
   }
 
   // --- Calls ---
   onCallExpr(e: CallExpr): Result {
-    this.s.writeU8(Opcode.Call); writeVar(this.s, e.func); return Result.Ok;
+    this.s.writeU8(Opcode.Call);
+    writeVar(this.s, e.func);
+    return Result.Ok;
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
     this.s.writeU8(Opcode.CallIndirect);
-    writeVar(this.s, e.typeVar); writeVar(this.s, e.table);
+    writeVar(this.s, e.typeVar);
+    writeVar(this.s, e.table);
     return Result.Ok;
   }
   onCallRefExpr(e: CallRefExpr): Result {
-    this.s.writeU8(Opcode.CallRef); writeVar(this.s, e.sigType); return Result.Ok;
+    this.s.writeU8(Opcode.CallRef);
+    writeVar(this.s, e.sigType);
+    return Result.Ok;
   }
   onReturnCallExpr(e: ReturnCallExpr): Result {
-    this.s.writeU8(Opcode.ReturnCall); writeVar(this.s, e.func); return Result.Ok;
+    this.s.writeU8(Opcode.ReturnCall);
+    writeVar(this.s, e.func);
+    return Result.Ok;
   }
   onReturnCallIndirectExpr(e: ReturnCallIndirectExpr): Result {
     this.s.writeU8(Opcode.ReturnCallIndirect);
-    writeVar(this.s, e.typeVar); writeVar(this.s, e.table);
+    writeVar(this.s, e.typeVar);
+    writeVar(this.s, e.table);
     return Result.Ok;
   }
   onReturnCallRefExpr(e: ReturnCallRefExpr): Result {
-    this.s.writeU8(Opcode.ReturnCallRef); writeVar(this.s, e.sigType); return Result.Ok;
+    this.s.writeU8(Opcode.ReturnCallRef);
+    writeVar(this.s, e.sigType);
+    return Result.Ok;
   }
 
   // --- Ref types ---
   onRefNullExpr(e: RefNullExpr): Result {
-    this.s.writeU8(Opcode.RefNull); writeVar(this.s, e.refType); return Result.Ok;
+    this.s.writeU8(Opcode.RefNull);
+    writeVar(this.s, e.refType);
+    return Result.Ok;
   }
   onRefIsNullExpr(_e: RefIsNullExpr): Result {
-    this.s.writeU8(Opcode.RefIsNull); return Result.Ok;
+    this.s.writeU8(Opcode.RefIsNull);
+    return Result.Ok;
   }
   onRefFuncExpr(e: RefFuncExpr): Result {
-    this.s.writeU8(Opcode.RefFunc); writeVar(this.s, e.func); return Result.Ok;
+    this.s.writeU8(Opcode.RefFunc);
+    writeVar(this.s, e.func);
+    return Result.Ok;
   }
   onRefAsNonNullExpr(_e: RefAsNonNullExpr): Result {
-    this.s.writeU8(Opcode.RefAsNonNull); return Result.Ok;
+    this.s.writeU8(Opcode.RefAsNonNull);
+    return Result.Ok;
   }
 
   // --- Tables ---
   onTableGetExpr(e: TableGetExpr): Result {
-    this.s.writeU8(Opcode.TableGet); writeVar(this.s, e.table); return Result.Ok;
+    this.s.writeU8(Opcode.TableGet);
+    writeVar(this.s, e.table);
+    return Result.Ok;
   }
   onTableSetExpr(e: TableSetExpr): Result {
-    this.s.writeU8(Opcode.TableSet); writeVar(this.s, e.table); return Result.Ok;
+    this.s.writeU8(Opcode.TableSet);
+    writeVar(this.s, e.table);
+    return Result.Ok;
   }
   onTableGrowExpr(e: TableGrowExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x0f);  // table.grow
-    writeVar(this.s, e.table); return Result.Ok;
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x0f); // table.grow
+    writeVar(this.s, e.table);
+    return Result.Ok;
   }
   onTableSizeExpr(e: TableSizeExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x10);  // table.size
-    writeVar(this.s, e.table); return Result.Ok;
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x10); // table.size
+    writeVar(this.s, e.table);
+    return Result.Ok;
   }
   onTableFillExpr(e: TableFillExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x11);  // table.fill
-    writeVar(this.s, e.table); return Result.Ok;
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x11); // table.fill
+    writeVar(this.s, e.table);
+    return Result.Ok;
   }
   onTableCopyExpr(e: TableCopyExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x0e);  // table.copy
-    writeVar(this.s, e.dst); writeVar(this.s, e.src); return Result.Ok;
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x0e); // table.copy
+    writeVar(this.s, e.dst);
+    writeVar(this.s, e.src);
+    return Result.Ok;
   }
   onTableInitExpr(e: TableInitExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x0c);  // table.init
-    writeVar(this.s, e.segment); writeVar(this.s, e.table); return Result.Ok;
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x0c); // table.init
+    writeVar(this.s, e.segment);
+    writeVar(this.s, e.table);
+    return Result.Ok;
   }
   onElemDropExpr(e: ElemDropExpr): Result {
-    this.s.writeU8(PREFIX_MISC); this.s.writeU32Leb(0x0d);  // elem.drop
-    writeVar(this.s, e.segment); return Result.Ok;
+    this.s.writeU8(PREFIX_MISC);
+    this.s.writeU32Leb(0x0d); // elem.drop
+    writeVar(this.s, e.segment);
+    return Result.Ok;
   }
 
   // --- Exceptions ---
   onThrowExpr(e: ThrowExpr): Result {
-    this.s.writeU8(Opcode.Throw); writeVar(this.s, e.tag); return Result.Ok;
+    this.s.writeU8(Opcode.Throw);
+    writeVar(this.s, e.tag);
+    return Result.Ok;
   }
   onThrowRefExpr(_e: ThrowRefExpr): Result {
-    this.s.writeU8(Opcode.ThrowRef); return Result.Ok;
+    this.s.writeU8(Opcode.ThrowRef);
+    return Result.Ok;
   }
   onRethrowExpr(e: RethrowExpr): Result {
-    this.s.writeU8(Opcode.Rethrow); writeVar(this.s, e.depth); return Result.Ok;
+    this.s.writeU8(Opcode.Rethrow);
+    writeVar(this.s, e.depth);
+    return Result.Ok;
   }
 
   // --- SIMD ---
@@ -460,18 +614,22 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   onAtomicNotifyExpr(e: AtomicNotifyExpr): Result {
-    this.s.writeU8(PREFIX_THREADS); this.s.writeU32Leb(0x00);  // memory.atomic.notify
+    this.s.writeU8(PREFIX_THREADS);
+    this.s.writeU32Leb(0x00); // memory.atomic.notify
     writeMemArg(this.s, e.align, e.offset, e.memidx);
     return Result.Ok;
   }
   onAtomicFenceExpr(e: AtomicFenceExpr): Result {
-    this.s.writeU8(PREFIX_THREADS); this.s.writeU32Leb(0x03);  // atomic.fence
+    this.s.writeU8(PREFIX_THREADS);
+    this.s.writeU32Leb(0x03); // atomic.fence
     this.s.writeU8(e.consistencyModel);
     return Result.Ok;
   }
 
   // --- Metadata (skip — no binary representation) ---
-  onCodeMetadataExpr(_e: CodeMetadataExpr): Result { return Result.Ok; }
+  onCodeMetadataExpr(_e: CodeMetadataExpr): Result {
+    return Result.Ok;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -546,10 +704,13 @@ class BinaryWriter {
             s.writeU8(imp.global.mutable ? 1 : 0);
             break;
           case ExternalKind.Tag:
-            s.writeU8(0x00);  // attribute = exception (only valid value)
-            writeVar(s, imp.tag.sig.params.length > 0
-              ? { kind: 'index', value: 0 }  // TODO: look up type index from sig
-              : { kind: 'index', value: 0 });
+            s.writeU8(0x00); // attribute = exception (only valid value)
+            writeVar(
+              s,
+              imp.tag.sig.params.length > 0
+                ? { kind: 'index', value: 0 } // TODO: look up type index from sig
+                : { kind: 'index', value: 0 },
+            );
             break;
         }
       }
@@ -608,10 +769,11 @@ class BinaryWriter {
     s.writeSection(BinarySection.Tag, () => {
       s.writeU32Leb(m.tags.length);
       for (const tag of m.tags) {
-        s.writeU8(0x00);  // attribute = exception
+        s.writeU8(0x00); // attribute = exception
         // Find the type index that matches this tag's sig
         const idx = m.types.findIndex(
-          t => t.kind === 'func' &&
+          (t) =>
+            t.kind === 'func' &&
             t.sig.params.length === tag.sig.params.length &&
             t.sig.params.every((p, i) => p === tag.sig.params[i]) &&
             t.sig.results.length === 0,
@@ -680,13 +842,13 @@ class BinaryWriter {
         const tableIdx = seg.tableVar.kind === 'index' ? seg.tableVar.value : 0;
         let flags: number;
         if (seg.kind === 'active' && tableIdx === 0) {
-          flags = 4;  // active, table 0, expr-based
+          flags = 4; // active, table 0, expr-based
         } else if (seg.kind === 'active') {
-          flags = 6;  // active, explicit table, expr-based
+          flags = 6; // active, explicit table, expr-based
         } else if (seg.kind === 'passive') {
           flags = 5;
         } else {
-          flags = 7;  // declared
+          flags = 7; // declared
         }
         s.writeU32Leb(flags);
         if (flags === 6) {
@@ -696,7 +858,7 @@ class BinaryWriter {
           this.writeInitExpr(seg.offset);
         }
         if (flags !== 4) {
-          s.writeU8(seg.elemType as number);  // reftype
+          s.writeU8(seg.elemType as number); // reftype
         }
         s.writeU32Leb(seg.elemExprs.length);
         for (const elemExpr of seg.elemExprs) {
@@ -764,16 +926,16 @@ class BinaryWriter {
       for (const seg of m.dataSegments) {
         const memIdx = seg.memoryVar.kind === 'index' ? seg.memoryVar.value : 0;
         if (seg.kind === 'active' && memIdx === 0) {
-          s.writeU32Leb(0);  // flags = 0: active, memory 0
+          s.writeU32Leb(0); // flags = 0: active, memory 0
           this.writeInitExpr(seg.offset);
         } else if (seg.kind === 'passive') {
-          s.writeU32Leb(1);  // flags = 1: passive
+          s.writeU32Leb(1); // flags = 1: passive
         } else if (seg.kind === 'active') {
-          s.writeU32Leb(2);  // flags = 2: active, explicit memory
+          s.writeU32Leb(2); // flags = 2: active, explicit memory
           writeVar(s, seg.memoryVar);
           this.writeInitExpr(seg.offset);
         } else {
-          s.writeU32Leb(1);  // declared → encode as passive fallback
+          s.writeU32Leb(1); // declared → encode as passive fallback
         }
         s.writeU32Leb(seg.data.length);
         s.writeBytes(seg.data);

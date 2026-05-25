@@ -72,18 +72,16 @@ function floatToF64Bits(v: number): bigint {
 // ---------------------------------------------------------------------------
 
 // Matches: [+-]?0[xX][hex]*[.[hex]*]?[pP][+-]?[dec]+
-const HEX_FLOAT_RE =
-  /^([+-]?)0[xX]([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?[pP]([+-]?[0-9]+)$/;
+const HEX_FLOAT_RE = /^([+-]?)0[xX]([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?[pP]([+-]?[0-9]+)$/;
 
 function parseHexFloat(s: string): number | null {
   const m = HEX_FLOAT_RE.exec(s);
   if (!m) return null;
   const [, sign, intPart, fracPart, expStr] = m;
   const intVal = intPart && intPart.length > 0 ? parseInt(intPart, 16) : 0;
-  const fracVal =
-    fracPart && fracPart.length > 0
-      ? parseInt(fracPart, 16) / Math.pow(16, fracPart.length)
-      : 0;
+  const fracVal = fracPart && fracPart.length > 0
+    ? parseInt(fracPart, 16) / Math.pow(16, fracPart.length)
+    : 0;
   const result = (intVal + fracVal) * Math.pow(2, parseInt(expStr!));
   return sign === '-' ? -result : result;
 }

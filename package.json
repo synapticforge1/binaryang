@@ -1,7 +1,7 @@
 {
   "name": "wabt-ts",
   "description": "Native TypeScript port of WebAssembly/wabt — see deno.json for primary config",
-  "license": "MIT OR Apache-2.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "test": "bun test",

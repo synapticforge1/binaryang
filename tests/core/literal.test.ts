@@ -130,13 +130,13 @@ describe('parseF32Literal', () => {
     const [r, bits] = parseF32Literal('nan');
     assertEquals(r, Result.Ok);
     // quiet NaN bit must be set
-    assertEquals((bits & 0x7fc00000), 0x7fc00000);
+    assertEquals(bits & 0x7fc00000, 0x7fc00000);
   });
   it('parses -nan', () => {
     const [r, bits] = parseF32Literal('-nan');
     assertEquals(r, Result.Ok);
-    assertEquals((bits >>> 31), 1); // negative
-    assertEquals((bits & 0x7fc00000), 0x7fc00000);
+    assertEquals(bits >>> 31, 1); // negative
+    assertEquals(bits & 0x7fc00000, 0x7fc00000);
   });
   it('parses nan:0x200000', () => {
     const [r, bits] = parseF32Literal('nan:0x200000');
@@ -184,7 +184,7 @@ describe('parseF64Literal', () => {
   it('parses nan (canonical)', () => {
     const [r, bits] = parseF64Literal('nan');
     assertEquals(r, Result.Ok);
-    assertEquals((bits & 0x7ff8000000000000n), 0x7ff8000000000000n);
+    assertEquals(bits & 0x7ff8000000000000n, 0x7ff8000000000000n);
   });
   it('parses hex float 0x1.8p+1 = 3.0', () => {
     const [r, bits] = parseF64Literal('0x1.8p+1');

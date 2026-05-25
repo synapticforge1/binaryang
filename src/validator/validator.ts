@@ -3,29 +3,85 @@
 // Copyright 2016 WebAssembly Community Group participants
 // Licensed under the Apache License, Version 2.0
 
-import { Result, combineResults } from '../core/result.ts';
+import { combineResults, Result } from '../core/result.ts';
 import { Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type {
-  Module, Expr, Var, Catch,
-  BlockExpr, LoopExpr, IfExpr, TryExpr, TryTableExpr,
-  NopExpr, UnreachableExpr, ReturnExpr, DropExpr, SelectExpr,
-  BrExpr, BrIfExpr, BrTableExpr, BrOnNullExpr, BrOnNonNullExpr,
-  ConstExpr,
-  LocalGetExpr, LocalSetExpr, LocalTeeExpr,
-  GlobalGetExpr, GlobalSetExpr,
-  UnaryExpr, BinaryExpr, CompareExpr, ConvertExpr, TernaryExpr, QuaternaryExpr,
-  LoadExpr, StoreExpr,
-  MemorySizeExpr, MemoryGrowExpr, MemoryCopyExpr, MemoryFillExpr, MemoryInitExpr, DataDropExpr,
-  CallExpr, CallIndirectExpr, CallRefExpr,
-  ReturnCallExpr, ReturnCallIndirectExpr, ReturnCallRefExpr,
-  RefNullExpr, RefIsNullExpr, RefFuncExpr, RefAsNonNullExpr,
-  TableGetExpr, TableSetExpr, TableGrowExpr, TableSizeExpr, TableFillExpr, TableCopyExpr, TableInitExpr, ElemDropExpr,
-  ThrowExpr, ThrowRefExpr, RethrowExpr,
-  SimdLaneOpExpr, SimdShuffleOpExpr, SimdLoadLaneExpr, SimdStoreLaneExpr, LoadSplatExpr, LoadZeroExpr,
-  AtomicLoadExpr, AtomicStoreExpr, AtomicRmwExpr, AtomicRmwCmpxchgExpr, AtomicWaitExpr, AtomicNotifyExpr, AtomicFenceExpr,
+  AtomicFenceExpr,
+  AtomicLoadExpr,
+  AtomicNotifyExpr,
+  AtomicRmwCmpxchgExpr,
+  AtomicRmwExpr,
+  AtomicStoreExpr,
+  AtomicWaitExpr,
+  BinaryExpr,
+  BlockExpr,
+  BrExpr,
+  BrIfExpr,
+  BrOnNonNullExpr,
+  BrOnNullExpr,
+  BrTableExpr,
+  CallExpr,
+  CallIndirectExpr,
+  CallRefExpr,
+  Catch,
   CodeMetadataExpr,
+  CompareExpr,
+  ConstExpr,
+  ConvertExpr,
+  DataDropExpr,
+  DropExpr,
+  ElemDropExpr,
+  Expr,
+  GlobalGetExpr,
+  GlobalSetExpr,
+  IfExpr,
+  LoadExpr,
+  LoadSplatExpr,
+  LoadZeroExpr,
+  LocalGetExpr,
+  LocalSetExpr,
+  LocalTeeExpr,
+  LoopExpr,
+  MemoryCopyExpr,
+  MemoryFillExpr,
+  MemoryGrowExpr,
+  MemoryInitExpr,
+  MemorySizeExpr,
+  Module,
+  NopExpr,
+  QuaternaryExpr,
+  RefAsNonNullExpr,
+  RefFuncExpr,
+  RefIsNullExpr,
+  RefNullExpr,
+  RethrowExpr,
+  ReturnCallExpr,
+  ReturnCallIndirectExpr,
+  ReturnCallRefExpr,
+  ReturnExpr,
+  SelectExpr,
+  SimdLaneOpExpr,
+  SimdLoadLaneExpr,
+  SimdShuffleOpExpr,
+  SimdStoreLaneExpr,
+  StoreExpr,
+  TableCopyExpr,
+  TableFillExpr,
+  TableGetExpr,
+  TableGrowExpr,
+  TableInitExpr,
+  TableSetExpr,
+  TableSizeExpr,
+  TernaryExpr,
+  ThrowExpr,
+  ThrowRefExpr,
+  TryExpr,
+  TryTableExpr,
+  UnaryExpr,
+  UnreachableExpr,
+  Var,
 } from '../ir/ir.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
@@ -108,8 +164,16 @@ class ModuleValidator implements ExprVisitorDelegate {
           this.acc(this.sv.onGlobalImport(imp.global.loc, imp.global.type, imp.global.mutable));
           break;
         case ExternalKind.Tag:
-          this.acc(this.sv.onTag(imp.tag.loc, varIdx(imp.tag.sig.params.length > 0
-            ? { kind: 'index', value: 0 } : { kind: 'index', value: 0 })));
+          this.acc(
+            this.sv.onTag(
+              imp.tag.loc,
+              varIdx(
+                imp.tag.sig.params.length > 0
+                  ? { kind: 'index', value: 0 }
+                  : { kind: 'index', value: 0 },
+              ),
+            ),
+          );
           break;
       }
     }
@@ -215,11 +279,13 @@ class ModuleValidator implements ExprVisitorDelegate {
 
   private resolveTagSig(params: Type[], results: Type[]): number {
     for (const [i, te] of this.module.types.entries()) {
-      if (te.kind === 'func' &&
-          te.sig.params.length === params.length &&
-          te.sig.results.length === results.length &&
-          te.sig.params.every((t, j) => t === params[j]) &&
-          te.sig.results.every((t, j) => t === results[j])) {
+      if (
+        te.kind === 'func' &&
+        te.sig.params.length === params.length &&
+        te.sig.results.length === results.length &&
+        te.sig.params.every((t, j) => t === params[j]) &&
+        te.sig.results.every((t, j) => t === results[j])
+      ) {
         return i;
       }
     }
@@ -230,30 +296,58 @@ class ModuleValidator implements ExprVisitorDelegate {
   // ExprVisitorDelegate — one method per expression kind
   // -------------------------------------------------------------------------
 
-  onNopExpr(e: NopExpr): Result { return this.sv.onNop(e.loc); }
-  onUnreachableExpr(e: UnreachableExpr): Result { return this.sv.onUnreachable(e.loc); }
+  onNopExpr(e: NopExpr): Result {
+    return this.sv.onNop(e.loc);
+  }
+  onUnreachableExpr(e: UnreachableExpr): Result {
+    return this.sv.onUnreachable(e.loc);
+  }
 
-  onReturnExpr(e: ReturnExpr): Result { return this.sv.onReturn(e.loc); }
-  onDropExpr(e: DropExpr): Result { return this.sv.onDrop(e.loc); }
+  onReturnExpr(e: ReturnExpr): Result {
+    return this.sv.onReturn(e.loc);
+  }
+  onDropExpr(e: DropExpr): Result {
+    return this.sv.onDrop(e.loc);
+  }
 
   onSelectExpr(e: SelectExpr): Result {
     return this.sv.onSelect(e.loc, e.resultType);
   }
 
-  beginBlockExpr(e: BlockExpr): Result { return this.sv.onBlock(e.loc, e.blockType); }
-  endBlockExpr(e: BlockExpr): Result { return this.sv.onEnd(e.loc); }
-  beginLoopExpr(e: LoopExpr): Result { return this.sv.onLoop(e.loc, e.blockType); }
-  endLoopExpr(e: LoopExpr): Result { return this.sv.onEnd(e.loc); }
-  beginIfExpr(e: IfExpr): Result { return this.sv.onIf(e.loc, e.blockType); }
+  beginBlockExpr(e: BlockExpr): Result {
+    return this.sv.onBlock(e.loc, e.blockType);
+  }
+  endBlockExpr(e: BlockExpr): Result {
+    return this.sv.onEnd(e.loc);
+  }
+  beginLoopExpr(e: LoopExpr): Result {
+    return this.sv.onLoop(e.loc, e.blockType);
+  }
+  endLoopExpr(e: LoopExpr): Result {
+    return this.sv.onEnd(e.loc);
+  }
+  beginIfExpr(e: IfExpr): Result {
+    return this.sv.onIf(e.loc, e.blockType);
+  }
   afterIfTrueExpr(e: IfExpr): Result {
     return e.else_.length > 0 ? this.sv.onElse(e.loc) : Result.Ok;
   }
-  endIfExpr(e: IfExpr): Result { return this.sv.onEnd(e.loc); }
+  endIfExpr(e: IfExpr): Result {
+    return this.sv.onEnd(e.loc);
+  }
 
-  onBrExpr(e: BrExpr): Result { return this.sv.onBr(e.loc, varIdx(e.target)); }
-  onBrIfExpr(e: BrIfExpr): Result { return this.sv.onBrIf(e.loc, varIdx(e.target)); }
-  onBrOnNullExpr(e: BrOnNullExpr): Result { return this.sv.onBrOnNull(e.loc, varIdx(e.target)); }
-  onBrOnNonNullExpr(e: BrOnNonNullExpr): Result { return this.sv.onBrOnNonNull(e.loc, varIdx(e.target)); }
+  onBrExpr(e: BrExpr): Result {
+    return this.sv.onBr(e.loc, varIdx(e.target));
+  }
+  onBrIfExpr(e: BrIfExpr): Result {
+    return this.sv.onBrIf(e.loc, varIdx(e.target));
+  }
+  onBrOnNullExpr(e: BrOnNullExpr): Result {
+    return this.sv.onBrOnNull(e.loc, varIdx(e.target));
+  }
+  onBrOnNonNullExpr(e: BrOnNonNullExpr): Result {
+    return this.sv.onBrOnNonNull(e.loc, varIdx(e.target));
+  }
 
   onBrTableExpr(e: BrTableExpr): Result {
     let r = this.sv.beginBrTable(e.loc);
@@ -269,18 +363,40 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onConst(e.loc, e.value.type);
   }
 
-  onLocalGetExpr(e: LocalGetExpr): Result { return this.sv.onLocalGet(e.loc, varIdx(e.var)); }
-  onLocalSetExpr(e: LocalSetExpr): Result { return this.sv.onLocalSet(e.loc, varIdx(e.var)); }
-  onLocalTeeExpr(e: LocalTeeExpr): Result { return this.sv.onLocalTee(e.loc, varIdx(e.var)); }
-  onGlobalGetExpr(e: GlobalGetExpr): Result { return this.sv.onGlobalGet(e.loc, varIdx(e.var)); }
-  onGlobalSetExpr(e: GlobalSetExpr): Result { return this.sv.onGlobalSet(e.loc, varIdx(e.var)); }
+  onLocalGetExpr(e: LocalGetExpr): Result {
+    return this.sv.onLocalGet(e.loc, varIdx(e.var));
+  }
+  onLocalSetExpr(e: LocalSetExpr): Result {
+    return this.sv.onLocalSet(e.loc, varIdx(e.var));
+  }
+  onLocalTeeExpr(e: LocalTeeExpr): Result {
+    return this.sv.onLocalTee(e.loc, varIdx(e.var));
+  }
+  onGlobalGetExpr(e: GlobalGetExpr): Result {
+    return this.sv.onGlobalGet(e.loc, varIdx(e.var));
+  }
+  onGlobalSetExpr(e: GlobalSetExpr): Result {
+    return this.sv.onGlobalSet(e.loc, varIdx(e.var));
+  }
 
-  onUnaryExpr(e: UnaryExpr): Result { return this.sv.onUnary(e.loc, e.opcode); }
-  onBinaryExpr(e: BinaryExpr): Result { return this.sv.onBinary(e.loc, e.opcode); }
-  onCompareExpr(e: CompareExpr): Result { return this.sv.onCompare(e.loc, e.opcode); }
-  onConvertExpr(e: ConvertExpr): Result { return this.sv.onConvert(e.loc, e.opcode); }
-  onTernaryExpr(e: TernaryExpr): Result { return this.sv.onTernary(e.loc, e.opcode); }
-  onQuaternaryExpr(e: QuaternaryExpr): Result { return this.sv.onQuaternary(e.loc, e.opcode); }
+  onUnaryExpr(e: UnaryExpr): Result {
+    return this.sv.onUnary(e.loc, e.opcode);
+  }
+  onBinaryExpr(e: BinaryExpr): Result {
+    return this.sv.onBinary(e.loc, e.opcode);
+  }
+  onCompareExpr(e: CompareExpr): Result {
+    return this.sv.onCompare(e.loc, e.opcode);
+  }
+  onConvertExpr(e: ConvertExpr): Result {
+    return this.sv.onConvert(e.loc, e.opcode);
+  }
+  onTernaryExpr(e: TernaryExpr): Result {
+    return this.sv.onTernary(e.loc, e.opcode);
+  }
+  onQuaternaryExpr(e: QuaternaryExpr): Result {
+    return this.sv.onQuaternary(e.loc, e.opcode);
+  }
 
   onLoadExpr(e: LoadExpr): Result {
     return this.sv.onLoad(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
@@ -289,54 +405,96 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onStore(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
 
-  onMemorySizeExpr(e: MemorySizeExpr): Result { return this.sv.onMemorySize(e.loc, varIdx(e.memidx)); }
-  onMemoryGrowExpr(e: MemoryGrowExpr): Result { return this.sv.onMemoryGrow(e.loc, varIdx(e.memidx)); }
+  onMemorySizeExpr(e: MemorySizeExpr): Result {
+    return this.sv.onMemorySize(e.loc, varIdx(e.memidx));
+  }
+  onMemoryGrowExpr(e: MemoryGrowExpr): Result {
+    return this.sv.onMemoryGrow(e.loc, varIdx(e.memidx));
+  }
   onMemoryCopyExpr(e: MemoryCopyExpr): Result {
     return this.sv.onMemoryCopy(e.loc, varIdx(e.destMemidx), varIdx(e.srcMemidx));
   }
-  onMemoryFillExpr(e: MemoryFillExpr): Result { return this.sv.onMemoryFill(e.loc, varIdx(e.memidx)); }
+  onMemoryFillExpr(e: MemoryFillExpr): Result {
+    return this.sv.onMemoryFill(e.loc, varIdx(e.memidx));
+  }
   onMemoryInitExpr(e: MemoryInitExpr): Result {
     return this.sv.onMemoryInit(e.loc, varIdx(e.segment), varIdx(e.memidx));
   }
-  onDataDropExpr(e: DataDropExpr): Result { return this.sv.onDataDrop(e.loc, varIdx(e.segment)); }
+  onDataDropExpr(e: DataDropExpr): Result {
+    return this.sv.onDataDrop(e.loc, varIdx(e.segment));
+  }
 
-  onCallExpr(e: CallExpr): Result { return this.sv.onCall(e.loc, varIdx(e.func)); }
+  onCallExpr(e: CallExpr): Result {
+    return this.sv.onCall(e.loc, varIdx(e.func));
+  }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
     return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
   }
-  onCallRefExpr(e: CallRefExpr): Result { return this.sv.onCallRef(e.loc, varIdx(e.sigType)); }
-  onReturnCallExpr(e: ReturnCallExpr): Result { return this.sv.onReturnCall(e.loc, varIdx(e.func)); }
+  onCallRefExpr(e: CallRefExpr): Result {
+    return this.sv.onCallRef(e.loc, varIdx(e.sigType));
+  }
+  onReturnCallExpr(e: ReturnCallExpr): Result {
+    return this.sv.onReturnCall(e.loc, varIdx(e.func));
+  }
   onReturnCallIndirectExpr(e: ReturnCallIndirectExpr): Result {
     return this.sv.onReturnCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
   }
-  onReturnCallRefExpr(e: ReturnCallRefExpr): Result { return this.sv.onReturnCallRef(e.loc, varIdx(e.sigType)); }
+  onReturnCallRefExpr(e: ReturnCallRefExpr): Result {
+    return this.sv.onReturnCallRef(e.loc, varIdx(e.sigType));
+  }
 
   onRefNullExpr(e: RefNullExpr): Result {
     const refType = e.refType.kind === 'index' ? e.refType.value as Type : Type.FuncRef;
     return this.sv.onRefNull(e.loc, refType);
   }
-  onRefIsNullExpr(e: RefIsNullExpr): Result { return this.sv.onRefIsNull(e.loc); }
-  onRefFuncExpr(e: RefFuncExpr): Result { return this.sv.onRefFunc(e.loc, varIdx(e.func)); }
-  onRefAsNonNullExpr(e: RefAsNonNullExpr): Result { return this.sv.onRefAsNonNull(e.loc); }
+  onRefIsNullExpr(e: RefIsNullExpr): Result {
+    return this.sv.onRefIsNull(e.loc);
+  }
+  onRefFuncExpr(e: RefFuncExpr): Result {
+    return this.sv.onRefFunc(e.loc, varIdx(e.func));
+  }
+  onRefAsNonNullExpr(e: RefAsNonNullExpr): Result {
+    return this.sv.onRefAsNonNull(e.loc);
+  }
 
-  onTableGetExpr(e: TableGetExpr): Result { return this.sv.onTableGet(e.loc, varIdx(e.table)); }
-  onTableSetExpr(e: TableSetExpr): Result { return this.sv.onTableSet(e.loc, varIdx(e.table)); }
-  onTableGrowExpr(e: TableGrowExpr): Result { return this.sv.onTableGrow(e.loc, varIdx(e.table)); }
-  onTableSizeExpr(e: TableSizeExpr): Result { return this.sv.onTableSize(e.loc, varIdx(e.table)); }
-  onTableFillExpr(e: TableFillExpr): Result { return this.sv.onTableFill(e.loc, varIdx(e.table)); }
+  onTableGetExpr(e: TableGetExpr): Result {
+    return this.sv.onTableGet(e.loc, varIdx(e.table));
+  }
+  onTableSetExpr(e: TableSetExpr): Result {
+    return this.sv.onTableSet(e.loc, varIdx(e.table));
+  }
+  onTableGrowExpr(e: TableGrowExpr): Result {
+    return this.sv.onTableGrow(e.loc, varIdx(e.table));
+  }
+  onTableSizeExpr(e: TableSizeExpr): Result {
+    return this.sv.onTableSize(e.loc, varIdx(e.table));
+  }
+  onTableFillExpr(e: TableFillExpr): Result {
+    return this.sv.onTableFill(e.loc, varIdx(e.table));
+  }
   onTableCopyExpr(e: TableCopyExpr): Result {
     return this.sv.onTableCopy(e.loc, varIdx(e.dst), varIdx(e.src));
   }
   onTableInitExpr(e: TableInitExpr): Result {
     return this.sv.onTableInit(e.loc, varIdx(e.segment), varIdx(e.table));
   }
-  onElemDropExpr(e: ElemDropExpr): Result { return this.sv.onElemDrop(e.loc, varIdx(e.segment)); }
+  onElemDropExpr(e: ElemDropExpr): Result {
+    return this.sv.onElemDrop(e.loc, varIdx(e.segment));
+  }
 
-  onThrowExpr(e: ThrowExpr): Result { return this.sv.onThrow(e.loc, varIdx(e.tag)); }
-  onThrowRefExpr(e: ThrowRefExpr): Result { return this.sv.onThrowRef(e.loc); }
-  onRethrowExpr(e: RethrowExpr): Result { return this.sv.onRethrow(e.loc, varIdx(e.depth)); }
+  onThrowExpr(e: ThrowExpr): Result {
+    return this.sv.onThrow(e.loc, varIdx(e.tag));
+  }
+  onThrowRefExpr(e: ThrowRefExpr): Result {
+    return this.sv.onThrowRef(e.loc);
+  }
+  onRethrowExpr(e: RethrowExpr): Result {
+    return this.sv.onRethrow(e.loc, varIdx(e.depth));
+  }
 
-  beginTryExpr(e: TryExpr): Result { return this.sv.onTry(e.loc, e.blockType); }
+  beginTryExpr(e: TryExpr): Result {
+    return this.sv.onTry(e.loc, e.blockType);
+  }
   onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
     const isCatchAll = c.tag === undefined;
     return this.sv.onCatch(c.loc, c.tag ? varIdx(c.tag) : 0, isCatchAll);
@@ -344,12 +502,16 @@ class ModuleValidator implements ExprVisitorDelegate {
   onDelegateExpr(e: TryExpr): Result {
     return this.sv.onDelegate(e.loc, e.delegate ? varIdx(e.delegate) : 0);
   }
-  endTryExpr(e: TryExpr): Result { return this.sv.onEnd(e.loc); }
+  endTryExpr(e: TryExpr): Result {
+    return this.sv.onEnd(e.loc);
+  }
 
   beginTryTableExpr(e: TryTableExpr): Result {
     return this.sv.beginTryTable(e.loc, e.blockType);
   }
-  endTryTableExpr(e: TryTableExpr): Result { return this.sv.onEnd(e.loc); }
+  endTryTableExpr(e: TryTableExpr): Result {
+    return this.sv.onEnd(e.loc);
+  }
 
   onSimdLaneOpExpr(e: SimdLaneOpExpr): Result {
     return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
@@ -394,5 +556,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onAtomicFence(e.loc, e.consistencyModel);
   }
 
-  onCodeMetadataExpr(_e: CodeMetadataExpr): Result { return Result.Ok; }
+  onCodeMetadataExpr(_e: CodeMetadataExpr): Result {
+    return Result.Ok;
+  }
 }

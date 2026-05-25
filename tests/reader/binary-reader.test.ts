@@ -7,12 +7,15 @@ import { assertEquals, assertExists } from '@std/assert';
 import { Type } from '../../src/core/types.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
 import { Opcode } from '../../src/core/opcode.ts';
-import { unknownLocation, makeErrorList, hasErrors } from '../../src/core/error.ts';
+import { formatErrors, hasErrors, makeErrorList, unknownLocation } from '../../src/core/error.ts';
 
 import {
-  makeModule, varIndex,
-  constI32, constI64,
-  BLOCK_TYPE_VOID, blockTypeValue,
+  BLOCK_TYPE_VOID,
+  blockTypeValue,
+  constI32,
+  constI64,
+  makeModule,
+  varIndex,
 } from '../../src/ir/ir.ts';
 import type { Module } from '../../src/ir/ir.ts';
 
@@ -105,11 +108,14 @@ describe('readBinaryIr', () => {
   it('decodes a type section with one func type', () => {
     // type section: [0x01], count=1, func-type 0x60, params=[i32,i32], results=[i32]
     const typeSection = section(
-      1,  // BinarySection.Type
-      ...encodeU32Leb(1),  // count
-      0x60,                // func type marker
-      ...encodeU32Leb(2), 0x7f, 0x7f,  // params: i32, i32
-      ...encodeU32Leb(1), 0x7f,         // results: i32
+      1, // BinarySection.Type
+      ...encodeU32Leb(1), // count
+      0x60, // func type marker
+      ...encodeU32Leb(2),
+      0x7f,
+      0x7f, // params: i32, i32
+      ...encodeU32Leb(1),
+      0x7f, // results: i32
     );
     const errors = makeErrorList();
     const m = readBinaryIr(wasmModule(typeSection), errors);
@@ -186,12 +192,14 @@ describe('readBinaryIr', () => {
   it('round-trips i32/i64/f32/f64 constants', () => {
     const m = makeModule();
     m.types.push({
-      kind: 'func', name: '',
+      kind: 'func',
+      name: '',
       sig: { params: [], results: [Type.I32] },
       loc: LOC,
     });
     m.funcs.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I32] },
       localDecls: [],
@@ -217,12 +225,14 @@ describe('readBinaryIr', () => {
   it('round-trips i64 constant', () => {
     const m = makeModule();
     m.types.push({
-      kind: 'func', name: '',
+      kind: 'func',
+      name: '',
       sig: { params: [], results: [Type.I64] },
       loc: LOC,
     });
     m.funcs.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I64] },
       localDecls: [],
@@ -301,7 +311,8 @@ describe('readBinaryIr', () => {
   it('round-trips a function import', () => {
     const m = makeModule();
     m.types.push({
-      kind: 'func', name: '',
+      kind: 'func',
+      name: '',
       sig: { params: [Type.I32], results: [Type.I32] },
       loc: LOC,
     });
@@ -310,7 +321,8 @@ describe('readBinaryIr', () => {
       module: 'env',
       field: 'log',
       func: {
-        name: 'log', loc: LOC,
+        name: 'log',
+        loc: LOC,
         typeVar: varIndex(0),
         sig: { params: [Type.I32], results: [Type.I32] },
         localDecls: [],
@@ -332,6 +344,67 @@ describe('readBinaryIr', () => {
     assertEquals(imp.field, 'log');
   });
 
+  it('round-trips a function import alongside a defined function', () => {
+    // Regression test: this combination was unexercised before Phase 7 and
+    // hit a `funcBase + i` off-by-one in `readCodeSection` (treated `m.funcs`
+    // as if it were indexed by absolute func index instead of just defined
+    // funcs).
+    const m = makeModule();
+    m.types.push({
+      kind: 'func',
+      name: '',
+      sig: { params: [Type.I32], results: [] },
+      loc: LOC,
+    });
+    m.types.push({
+      kind: 'func',
+      name: '',
+      sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
+      loc: LOC,
+    });
+    m.imports.push({
+      kind: ExternalKind.Func,
+      module: 'env',
+      field: 'log',
+      func: {
+        name: 'log',
+        loc: LOC,
+        typeVar: varIndex(0),
+        sig: { params: [Type.I32], results: [] },
+        localDecls: [],
+        body: [],
+        tailcall: false,
+      },
+    });
+    m.numFuncImports = 1;
+    m.funcs.push({
+      name: 'add',
+      loc: LOC,
+      typeVar: varIndex(1),
+      sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
+      localDecls: [],
+      body: [
+        {
+          kind: 'binary',
+          opcode: Opcode.I32Add,
+          loc: LOC,
+          left: { kind: 'local.get', var: varIndex(0), loc: LOC },
+          right: { kind: 'local.get', var: varIndex(1), loc: LOC },
+        },
+      ],
+      tailcall: false,
+    });
+
+    const binary = writeBinaryIr(m);
+    const errors = makeErrorList();
+    const m2 = readBinaryIr(binary, errors);
+    assertEquals(hasErrors(errors), false, formatErrors(errors));
+
+    assertEquals(m2.imports.length, 1);
+    assertEquals(m2.funcs.length, 1);
+    assertEquals(m2.funcs[0]!.body.length, 1, 'add function body decoded');
+  });
+
   // -------------------------------------------------------------------------
   // Block structures
   // -------------------------------------------------------------------------
@@ -339,12 +412,14 @@ describe('readBinaryIr', () => {
   it('round-trips a block expression', () => {
     const m = makeModule();
     m.types.push({
-      kind: 'func', name: '',
+      kind: 'func',
+      name: '',
       sig: { params: [], results: [] },
       loc: LOC,
     });
     m.funcs.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
       localDecls: [],
@@ -377,12 +452,14 @@ describe('readBinaryIr', () => {
   it('round-trips an if/else expression', () => {
     const m = makeModule();
     m.types.push({
-      kind: 'func', name: '',
+      kind: 'func',
+      name: '',
       sig: { params: [Type.I32], results: [Type.I32] },
       loc: LOC,
     });
     m.funcs.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [Type.I32], results: [Type.I32] },
       localDecls: [],
@@ -424,7 +501,8 @@ describe('readBinaryIr', () => {
   it('round-trips a passive data segment', () => {
     const m = makeModule();
     m.dataSegments.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       kind: 'passive',
       memoryVar: varIndex(0),
       offset: [],
@@ -445,15 +523,17 @@ describe('readBinaryIr', () => {
   it('round-trips an active data segment', () => {
     const m = makeModule();
     m.memories.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       limits: { initial: 1, isShared: false, is64: false },
     });
     m.dataSegments.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       kind: 'active',
       memoryVar: varIndex(0),
       offset: [{ kind: 'const', value: constI32(0), loc: LOC }],
-      data: new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]),  // "Hello"
+      data: new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]), // "Hello"
     });
 
     const binary = writeBinaryIr(m);
@@ -475,12 +555,14 @@ describe('readBinaryIr', () => {
   it('round-trips a function with local variables', () => {
     const m = makeModule();
     m.types.push({
-      kind: 'func', name: '',
+      kind: 'func',
+      name: '',
       sig: { params: [Type.I32], results: [Type.I32] },
       loc: LOC,
     });
     m.funcs.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [Type.I32], results: [Type.I32] },
       localDecls: [
@@ -511,12 +593,14 @@ describe('readBinaryIr', () => {
   it('records section metadata after decode', () => {
     const m = makeModule();
     m.types.push({
-      kind: 'func', name: '',
+      kind: 'func',
+      name: '',
       sig: { params: [], results: [] },
       loc: LOC,
     });
     m.funcs.push({
-      name: '', loc: LOC,
+      name: '',
+      loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
       localDecls: [],

@@ -5,30 +5,62 @@
 // Licensed under the Apache License, Version 2.0
 
 import type { Location } from '../core/error.ts';
-import { type ErrorList, addError } from '../core/error.ts';
+import { addError, type ErrorList } from '../core/error.ts';
 import { Type } from '../core/types.ts';
 import { BinarySection, ExternalKind, WASM_MAGIC, WASM_VERSION } from '../core/binary.ts';
-import { Opcode, MiscOpcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
-import { decodeU32Leb128, decodeS32Leb128, decodeU64Leb128, decodeS64Leb128 } from '../core/leb128.ts';
+import { MiscOpcode, Opcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
+import {
+  decodeS32Leb128,
+  decodeS64Leb128,
+  decodeU32Leb128,
+  decodeU64Leb128,
+} from '../core/leb128.ts';
 
 // UTF-8 decoder reused across every name read. TextDecoder is stateless when
 // called via .decode(); a single module-level instance avoids reallocating
 // per call in the hot path.
 const TEXT_DECODER = new TextDecoder();
 import {
-  type Module, type Func, type FuncSignature, type TypeEntry,
-  type Memory, type Table, type Global, type Tag,
-  type Limits, type Field,
-  type Expr, type Var, type BlockType, type Catch, type TableCatch, type SectionMeta,
-  type NopExpr, type UnreachableExpr, type ConstExpr, type LocalGetExpr,
-  type GlobalGetExpr, type MemorySizeExpr, type TableSizeExpr, type RefNullExpr,
-  type RefFuncExpr, type AtomicFenceExpr, type DataDropExpr, type ElemDropExpr,
-  type RethrowExpr,
+  type AtomicFenceExpr,
+  BLOCK_TYPE_VOID,
+  type BlockType,
+  blockTypeFuncType,
+  blockTypeValue,
+  type Catch,
   CatchKind,
-  BLOCK_TYPE_VOID, blockTypeValue, blockTypeFuncType,
-  varIndex,
-  constI32, constI64, constF32, constF64, constV128,
+  type ConstExpr,
+  constF32,
+  constF64,
+  constI32,
+  constI64,
+  constV128,
+  type DataDropExpr,
+  type ElemDropExpr,
+  type Expr,
+  type Field,
+  type Func,
+  type FuncSignature,
+  type Global,
+  type GlobalGetExpr,
+  type Limits,
+  type LocalGetExpr,
   makeModule,
+  type Memory,
+  type MemorySizeExpr,
+  type Module,
+  type NopExpr,
+  type RefFuncExpr,
+  type RefNullExpr,
+  type RethrowExpr,
+  type SectionMeta,
+  type Table,
+  type TableCatch,
+  type TableSizeExpr,
+  type Tag,
+  type TypeEntry,
+  type UnreachableExpr,
+  type Var,
+  varIndex,
 } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -46,7 +78,7 @@ export interface ReadBinaryOptions {
 // ---------------------------------------------------------------------------
 
 type FrameKind =
-  | 'root'       // function body or init expression
+  | 'root' // function body or init expression
   | 'block'
   | 'loop'
   | 'if_then'
@@ -58,8 +90,8 @@ class Frame {
   kind: FrameKind;
   blockType: BlockType;
   label: string;
-  stack: Expr[];   // pending value operands
-  stmts: Expr[];   // completed statement-level expressions
+  stack: Expr[]; // pending value operands
+  stmts: Expr[]; // completed statement-level expressions
   loc: Location;
 
   // if / if_else
@@ -149,7 +181,10 @@ function getTagSig(m: Module, tagIdx: number): FuncSignature {
 function popN(stack: Expr[], n: number): Expr[] {
   const result: Expr[] = [];
   for (let i = 0; i < n; i++) {
-    result.unshift(stack.pop() ?? ({ kind: 'nop', loc: { filename: '', line: 0, column: 0, offset: 0 } } as NopExpr));
+    result.unshift(
+      stack.pop() ??
+        ({ kind: 'nop', loc: { filename: '', line: 0, column: 0, offset: 0 } } as NopExpr),
+    );
   }
   return result;
 }
@@ -182,14 +217,19 @@ export class BinaryReader {
     this.hadError = true;
   }
 
-  private ok(): boolean { return !this.hadError || !this.opts.stopOnFirstError; }
+  private ok(): boolean {
+    return !this.hadError || !this.opts.stopOnFirstError;
+  }
 
   // ---------------------------------------------------------------------------
   // Low-level readers
   // ---------------------------------------------------------------------------
 
   private readU8(): number {
-    if (this.pos >= this.data.length) { this.err('unexpected end of binary'); return 0; }
+    if (this.pos >= this.data.length) {
+      this.err('unexpected end of binary');
+      return 0;
+    }
     return this.data[this.pos++]!;
   }
 
@@ -199,11 +239,14 @@ export class BinaryReader {
   }
 
   private readU32Le(): number {
-    if (this.pos + 4 > this.data.length) { this.err('unexpected end of binary'); return 0; }
+    if (this.pos + 4 > this.data.length) {
+      this.err('unexpected end of binary');
+      return 0;
+    }
     const v = (this.data[this.pos]! |
-               (this.data[this.pos + 1]! << 8) |
-               (this.data[this.pos + 2]! << 16) |
-               (this.data[this.pos + 3]! << 24)) >>> 0;
+      (this.data[this.pos + 1]! << 8) |
+      (this.data[this.pos + 2]! << 16) |
+      (this.data[this.pos + 3]! << 24)) >>> 0;
     this.pos += 4;
     return v;
   }
@@ -238,7 +281,10 @@ export class BinaryReader {
   }
 
   private readF64Bits(): bigint {
-    if (this.pos + 8 > this.data.length) { this.err('unexpected end of binary'); return 0n; }
+    if (this.pos + 8 > this.data.length) {
+      this.err('unexpected end of binary');
+      return 0n;
+    }
     let v = 0n;
     for (let i = 0; i < 8; i++) {
       v |= BigInt(this.data[this.pos++]!) << BigInt(i * 8);
@@ -247,7 +293,10 @@ export class BinaryReader {
   }
 
   private readBytes(n: number): Uint8Array {
-    if (this.pos + n > this.data.length) { this.err('unexpected end of binary'); return new Uint8Array(0); }
+    if (this.pos + n > this.data.length) {
+      this.err('unexpected end of binary');
+      return new Uint8Array(0);
+    }
     const bytes = this.data.slice(this.pos, this.pos + n);
     this.pos += n;
     return bytes;
@@ -363,7 +412,15 @@ export class BinaryReader {
         case ExternalKind.Func: {
           const sigIdx = this.readU32Leb();
           const sig = getTypeSig(m, sigIdx);
-          const func: Func = { name: '', loc, typeVar: varIndex(sigIdx), sig, localDecls: [], body: [], tailcall: false };
+          const func: Func = {
+            name: '',
+            loc,
+            typeVar: varIndex(sigIdx),
+            sig,
+            localDecls: [],
+            body: [],
+            tailcall: false,
+          };
           m.imports.push({ kind: ExternalKind.Func, module: module_, field, func });
           m.numFuncImports++;
           break;
@@ -413,7 +470,15 @@ export class BinaryReader {
       const loc = this.loc();
       const sigIdx = this.readU32Leb();
       const sig = getTypeSig(m, sigIdx);
-      m.funcs.push({ name: '', loc, typeVar: varIndex(sigIdx), sig, localDecls: [], body: [], tailcall: false });
+      m.funcs.push({
+        name: '',
+        loc,
+        typeVar: varIndex(sigIdx),
+        sig,
+        localDecls: [],
+        body: [],
+        tailcall: false,
+      });
     }
   }
 
@@ -421,20 +486,24 @@ export class BinaryReader {
     const count = this.readU32Leb();
     for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
       const loc = this.loc();
-      const elemType = this.readRefType();
-      // Check for table-with-init (elem type followed by 0x00 or 0x01 flag byte then limits then init expr)
-      const maybeFlagOrLimits = this.peekU8();
-      let init: Expr[] = [];
-      if (maybeFlagOrLimits === 0x00 || maybeFlagOrLimits === 0x01) {
-        const hasInit = this.readU8() !== 0;
+      // The table-with-init form (reference-types proposal) is signalled by
+      // a leading 0x40 byte BEFORE the reftype: `0x40 0x00 reftype limits
+      // init_expr`. The simple form is just `reftype limits`. An earlier
+      // version of this decoder peeked a flag AFTER the reftype, which
+      // confused the limits-flag byte for a "hasInit" indicator and
+      // misaligned every subsequent section read. Bug found by the Phase 7
+      // bridge dry-run 2026-05-25.
+      if (this.peekU8() === 0x40) {
+        this.readU8(); // 0x40 tag
+        this.readU8(); // reserved 0x00
+        const elemType = this.readRefType();
         const limits = this.readLimits();
-        if (hasInit) {
-          init = this.readInitExpr(m);
-        }
+        const init = this.readInitExpr(m);
         m.tables.push({ name: '', loc, elemType, limits, init });
       } else {
+        const elemType = this.readRefType();
         const limits = this.readLimits();
-        m.tables.push({ name: '', loc, elemType, limits, init });
+        m.tables.push({ name: '', loc, elemType, limits, init: [] });
       }
     }
   }
@@ -568,14 +637,22 @@ export class BinaryReader {
 
   private readCodeSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    const funcBase = m.numFuncImports;
 
     for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
       const bodySize = this.readU32Leb();
       const bodyEnd = this.pos + bodySize;
 
-      const func = m.funcs[funcBase + i];
-      if (!func) { this.err(`code section function index out of range: ${i}`); this.pos = bodyEnd; continue; }
+      // The code section has one entry per DEFINED function (imports excluded),
+      // so it lines up 1:1 with m.funcs. A previous version added
+      // m.numFuncImports to the index, which fired only when a module had
+      // both imports and defined funcs — unexercised by tests until the
+      // Phase 7 dry-run bridged a wabt IR through binaryen-ts.
+      const func = m.funcs[i];
+      if (!func) {
+        this.err(`code section function index out of range: ${i}`);
+        this.pos = bodyEnd;
+        continue;
+      }
 
       func.loc = this.loc();
 
@@ -597,11 +674,14 @@ export class BinaryReader {
     let pos = 0;
 
     const readU32Leb = (): number => {
-      const [v, n] = decodeU32Leb128(data, pos); pos += n; return v;
+      const [v, n] = decodeU32Leb128(data, pos);
+      pos += n;
+      return v;
     };
     const readName_ = (): string => {
       const len = readU32Leb();
-      const bytes = data.slice(pos, pos + len); pos += len;
+      const bytes = data.slice(pos, pos + len);
+      pos += len;
       return TEXT_DECODER.decode(bytes);
     };
 
@@ -685,7 +765,10 @@ export class BinaryReader {
           break;
         }
         case Opcode.Else: {
-          if (frame.kind !== 'if_then') { this.err('else outside if'); break; }
+          if (frame.kind !== 'if_then') {
+            this.err('else outside if');
+            break;
+          }
           const thenBody = frame.flush();
           frame.kind = 'if_else';
           frame.then_ = thenBody;
@@ -702,7 +785,10 @@ export class BinaryReader {
         case Opcode.Catch: {
           const tagIdx = this.readU32Leb();
           m.featuresUsed.exceptions = true;
-          if (frame.kind !== 'try') { this.err('catch outside try'); break; }
+          if (frame.kind !== 'try') {
+            this.err('catch outside try');
+            break;
+          }
           const body = frame.flush();
           if (frame.tryBody === undefined) {
             frame.tryBody = body;
@@ -722,7 +808,10 @@ export class BinaryReader {
         }
         case Opcode.CatchAll: {
           m.featuresUsed.exceptions = true;
-          if (frame.kind !== 'try') { this.err('catch_all outside try'); break; }
+          if (frame.kind !== 'try') {
+            this.err('catch_all outside try');
+            break;
+          }
           const body = frame.flush();
           if (frame.tryBody === undefined) frame.tryBody = body;
           else if (frame.catches && frame.catches.length > 0) {
@@ -736,11 +825,22 @@ export class BinaryReader {
         case Opcode.Delegate: {
           m.featuresUsed.exceptions = true;
           const depth = this.readU32Leb();
-          if (frame.kind !== 'try') { this.err('delegate outside try'); break; }
+          if (frame.kind !== 'try') {
+            this.err('delegate outside try');
+            break;
+          }
           const tryBody = frame.flush();
           labelStack.pop();
           const parent = labelStack[labelStack.length - 1]!;
-          const tryExpr: Expr = { kind: 'try', label: frame.label, blockType: frame.blockType, body: tryBody, catches: [], delegate: varIndex(depth), loc: frame.loc };
+          const tryExpr: Expr = {
+            kind: 'try',
+            label: frame.label,
+            blockType: frame.blockType,
+            body: tryBody,
+            catches: [],
+            delegate: varIndex(depth),
+            loc: frame.loc,
+          };
           const rCount = blockResultCount(frame.blockType, m);
           if (rCount > 0) parent.stack.push(tryExpr);
           else parent.stmts.push(tryExpr);
@@ -756,11 +856,22 @@ export class BinaryReader {
             let kind: CatchKind;
             let tag: Var | undefined;
             switch (catchKind) {
-              case 0x00: kind = CatchKind.Catch; tag = varIndex(this.readU32Leb()); break;
-              case 0x01: kind = CatchKind.CatchRef; tag = varIndex(this.readU32Leb()); break;
-              case 0x02: kind = CatchKind.CatchAll; break;
-              case 0x03: kind = CatchKind.CatchAllRef; break;
-              default: kind = CatchKind.Catch;
+              case 0x00:
+                kind = CatchKind.Catch;
+                tag = varIndex(this.readU32Leb());
+                break;
+              case 0x01:
+                kind = CatchKind.CatchRef;
+                tag = varIndex(this.readU32Leb());
+                break;
+              case 0x02:
+                kind = CatchKind.CatchAll;
+                break;
+              case 0x03:
+                kind = CatchKind.CatchAllRef;
+                break;
+              default:
+                kind = CatchKind.Catch;
             }
             const target = varIndex(this.readU32Leb());
             const tc: TableCatch = tag ? { loc, kind, tag, target } : { loc, kind, target };
@@ -785,16 +896,44 @@ export class BinaryReader {
 
           switch (frame.kind) {
             case 'block':
-              node = { kind: 'block', label: frame.label, blockType: frame.blockType, body: endBody, loc: frame.loc };
+              node = {
+                kind: 'block',
+                label: frame.label,
+                blockType: frame.blockType,
+                body: endBody,
+                loc: frame.loc,
+              };
               break;
             case 'loop':
-              node = { kind: 'loop', label: frame.label, blockType: frame.blockType, body: endBody, loc: frame.loc };
+              node = {
+                kind: 'loop',
+                label: frame.label,
+                blockType: frame.blockType,
+                body: endBody,
+                loc: frame.loc,
+              };
               break;
             case 'if_then':
-              node = { kind: 'if', label: frame.label, blockType: frame.blockType, cond: frame.cond ?? ({ kind: 'nop', loc } as NopExpr), then_: endBody, else_: [], loc: frame.loc };
+              node = {
+                kind: 'if',
+                label: frame.label,
+                blockType: frame.blockType,
+                cond: frame.cond ?? ({ kind: 'nop', loc } as NopExpr),
+                then_: endBody,
+                else_: [],
+                loc: frame.loc,
+              };
               break;
             case 'if_else': {
-              node = { kind: 'if', label: frame.label, blockType: frame.blockType, cond: frame.cond ?? ({ kind: 'nop', loc } as NopExpr), then_: frame.then_ ?? [], else_: endBody, loc: frame.loc };
+              node = {
+                kind: 'if',
+                label: frame.label,
+                blockType: frame.blockType,
+                cond: frame.cond ?? ({ kind: 'nop', loc } as NopExpr),
+                then_: frame.then_ ?? [],
+                else_: endBody,
+                loc: frame.loc,
+              };
               break;
             }
             case 'try': {
@@ -808,11 +947,25 @@ export class BinaryReader {
                   last.body = endBody;
                 }
               }
-              node = { kind: 'try', label: frame.label, blockType: frame.blockType, body: tryBody, catches, loc: frame.loc };
+              node = {
+                kind: 'try',
+                label: frame.label,
+                blockType: frame.blockType,
+                body: tryBody,
+                catches,
+                loc: frame.loc,
+              };
               break;
             }
             case 'try_table':
-              node = { kind: 'try_table', label: frame.label, blockType: frame.blockType, body: endBody, catches: frame.tableCatches ?? [], loc: frame.loc };
+              node = {
+                kind: 'try_table',
+                label: frame.label,
+                blockType: frame.blockType,
+                body: endBody,
+                catches: frame.tableCatches ?? [],
+                loc: frame.loc,
+              };
               break;
           }
 
@@ -879,8 +1032,18 @@ export class BinaryReader {
           const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const args = popN(stack, sig.params.length);
           const entry = m.types[typeIdx];
-          const sigType: { params: Type[]; results: Type[] } = entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
-          const ciExpr: Expr = { kind: 'call_indirect', sig: sigType, typeVar: varIndex(typeIdx), table: varIndex(tableIdx), args, callee, loc };
+          const sigType: { params: Type[]; results: Type[] } = entry && entry.kind === 'func'
+            ? entry.sig
+            : { params: [], results: [] };
+          const ciExpr: Expr = {
+            kind: 'call_indirect',
+            sig: sigType,
+            typeVar: varIndex(typeIdx),
+            table: varIndex(tableIdx),
+            args,
+            callee,
+            loc,
+          };
           if (sig.results.length > 0) stack.push(ciExpr);
           else stmts.push(ciExpr);
           break;
@@ -911,8 +1074,18 @@ export class BinaryReader {
           const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const args = popN(stack, sig.params.length);
           const entry = m.types[typeIdx];
-          const sigType: { params: Type[]; results: Type[] } = entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
-          stmts.push({ kind: 'return_call_indirect', sig: sigType, typeVar: varIndex(typeIdx), table: varIndex(tableIdx), args, callee, loc });
+          const sigType: { params: Type[]; results: Type[] } = entry && entry.kind === 'func'
+            ? entry.sig
+            : { params: [], results: [] };
+          stmts.push({
+            kind: 'return_call_indirect',
+            sig: sigType,
+            typeVar: varIndex(typeIdx),
+            table: varIndex(tableIdx),
+            args,
+            callee,
+            loc,
+          });
           break;
         }
         case Opcode.ReturnCallRef: {
@@ -997,22 +1170,55 @@ export class BinaryReader {
         }
 
         // --- Memory load/store ---
-        case Opcode.I32Load: case Opcode.I64Load: case Opcode.F32Load: case Opcode.F64Load:
-        case Opcode.I32Load8S: case Opcode.I32Load8U: case Opcode.I32Load16S: case Opcode.I32Load16U:
-        case Opcode.I64Load8S: case Opcode.I64Load8U: case Opcode.I64Load16S: case Opcode.I64Load16U:
-        case Opcode.I64Load32S: case Opcode.I64Load32U: {
+        case Opcode.I32Load:
+        case Opcode.I64Load:
+        case Opcode.F32Load:
+        case Opcode.F64Load:
+        case Opcode.I32Load8S:
+        case Opcode.I32Load8U:
+        case Opcode.I32Load16S:
+        case Opcode.I32Load16U:
+        case Opcode.I64Load8S:
+        case Opcode.I64Load8U:
+        case Opcode.I64Load16S:
+        case Opcode.I64Load16U:
+        case Opcode.I64Load32S:
+        case Opcode.I64Load32U: {
           const { align, offset: memOffset, memidx } = this.readMemArg();
           const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stack.push({ kind: 'load', opcode: op as Opcode, align, offset: memOffset, memidx, address, loc });
+          stack.push({
+            kind: 'load',
+            opcode: op as Opcode,
+            align,
+            offset: memOffset,
+            memidx,
+            address,
+            loc,
+          });
           break;
         }
-        case Opcode.I32Store: case Opcode.I64Store: case Opcode.F32Store: case Opcode.F64Store:
-        case Opcode.I32Store8: case Opcode.I32Store16:
-        case Opcode.I64Store8: case Opcode.I64Store16: case Opcode.I64Store32: {
+        case Opcode.I32Store:
+        case Opcode.I64Store:
+        case Opcode.F32Store:
+        case Opcode.F64Store:
+        case Opcode.I32Store8:
+        case Opcode.I32Store16:
+        case Opcode.I64Store8:
+        case Opcode.I64Store16:
+        case Opcode.I64Store32: {
           const { align, offset: memOffset, memidx } = this.readMemArg();
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'store', opcode: op as Opcode, align, offset: memOffset, memidx, address, value, loc });
+          stmts.push({
+            kind: 'store',
+            opcode: op as Opcode,
+            align,
+            offset: memOffset,
+            memidx,
+            address,
+            value,
+            loc,
+          });
           break;
         }
         case Opcode.MemorySize: {
@@ -1050,14 +1256,38 @@ export class BinaryReader {
         }
 
         // --- Numeric: comparisons (2 pops, 1 push) ---
-        case Opcode.I32Eq: case Opcode.I32Ne: case Opcode.I32LtS: case Opcode.I32LtU:
-        case Opcode.I32GtS: case Opcode.I32GtU: case Opcode.I32LeS: case Opcode.I32LeU:
-        case Opcode.I32GeS: case Opcode.I32GeU:
-        case Opcode.I64Eq: case Opcode.I64Ne: case Opcode.I64LtS: case Opcode.I64LtU:
-        case Opcode.I64GtS: case Opcode.I64GtU: case Opcode.I64LeS: case Opcode.I64LeU:
-        case Opcode.I64GeS: case Opcode.I64GeU:
-        case Opcode.F32Eq: case Opcode.F32Ne: case Opcode.F32Lt: case Opcode.F32Gt: case Opcode.F32Le: case Opcode.F32Ge:
-        case Opcode.F64Eq: case Opcode.F64Ne: case Opcode.F64Lt: case Opcode.F64Gt: case Opcode.F64Le: case Opcode.F64Ge: {
+        case Opcode.I32Eq:
+        case Opcode.I32Ne:
+        case Opcode.I32LtS:
+        case Opcode.I32LtU:
+        case Opcode.I32GtS:
+        case Opcode.I32GtU:
+        case Opcode.I32LeS:
+        case Opcode.I32LeU:
+        case Opcode.I32GeS:
+        case Opcode.I32GeU:
+        case Opcode.I64Eq:
+        case Opcode.I64Ne:
+        case Opcode.I64LtS:
+        case Opcode.I64LtU:
+        case Opcode.I64GtS:
+        case Opcode.I64GtU:
+        case Opcode.I64LeS:
+        case Opcode.I64LeU:
+        case Opcode.I64GeS:
+        case Opcode.I64GeU:
+        case Opcode.F32Eq:
+        case Opcode.F32Ne:
+        case Opcode.F32Lt:
+        case Opcode.F32Gt:
+        case Opcode.F32Le:
+        case Opcode.F32Ge:
+        case Opcode.F64Eq:
+        case Opcode.F64Ne:
+        case Opcode.F64Lt:
+        case Opcode.F64Gt:
+        case Opcode.F64Le:
+        case Opcode.F64Ge: {
           const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           stack.push({ kind: 'compare', opcode: op as Opcode, left, right, loc });
@@ -1065,35 +1295,83 @@ export class BinaryReader {
         }
 
         // --- Numeric: unary (1 pop, 1 push) ---
-        case Opcode.I32Eqz: case Opcode.I64Eqz:
-        case Opcode.I32Clz: case Opcode.I32Ctz: case Opcode.I32Popcnt:
-        case Opcode.I64Clz: case Opcode.I64Ctz: case Opcode.I64Popcnt:
-        case Opcode.F32Abs: case Opcode.F32Neg: case Opcode.F32Ceil: case Opcode.F32Floor:
-        case Opcode.F32Trunc: case Opcode.F32Nearest: case Opcode.F32Sqrt:
-        case Opcode.F64Abs: case Opcode.F64Neg: case Opcode.F64Ceil: case Opcode.F64Floor:
-        case Opcode.F64Trunc: case Opcode.F64Nearest: case Opcode.F64Sqrt:
-        case Opcode.I32Extend8S: case Opcode.I32Extend16S:
-        case Opcode.I64Extend8S: case Opcode.I64Extend16S: case Opcode.I64Extend32S: {
+        case Opcode.I32Eqz:
+        case Opcode.I64Eqz:
+        case Opcode.I32Clz:
+        case Opcode.I32Ctz:
+        case Opcode.I32Popcnt:
+        case Opcode.I64Clz:
+        case Opcode.I64Ctz:
+        case Opcode.I64Popcnt:
+        case Opcode.F32Abs:
+        case Opcode.F32Neg:
+        case Opcode.F32Ceil:
+        case Opcode.F32Floor:
+        case Opcode.F32Trunc:
+        case Opcode.F32Nearest:
+        case Opcode.F32Sqrt:
+        case Opcode.F64Abs:
+        case Opcode.F64Neg:
+        case Opcode.F64Ceil:
+        case Opcode.F64Floor:
+        case Opcode.F64Trunc:
+        case Opcode.F64Nearest:
+        case Opcode.F64Sqrt:
+        case Opcode.I32Extend8S:
+        case Opcode.I32Extend16S:
+        case Opcode.I64Extend8S:
+        case Opcode.I64Extend16S:
+        case Opcode.I64Extend32S: {
           const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           stack.push({ kind: 'unary', opcode: op as Opcode, operand, loc });
           break;
         }
 
         // --- Numeric: binary (2 pops, 1 push) ---
-        case Opcode.I32Add: case Opcode.I32Sub: case Opcode.I32Mul:
-        case Opcode.I32DivS: case Opcode.I32DivU: case Opcode.I32RemS: case Opcode.I32RemU:
-        case Opcode.I32And: case Opcode.I32Or: case Opcode.I32Xor:
-        case Opcode.I32Shl: case Opcode.I32ShrS: case Opcode.I32ShrU:
-        case Opcode.I32Rotl: case Opcode.I32Rotr:
-        case Opcode.I64Add: case Opcode.I64Sub: case Opcode.I64Mul:
-        case Opcode.I64DivS: case Opcode.I64DivU: case Opcode.I64RemS: case Opcode.I64RemU:
-        case Opcode.I64And: case Opcode.I64Or: case Opcode.I64Xor:
-        case Opcode.I64Shl: case Opcode.I64ShrS: case Opcode.I64ShrU:
-        case Opcode.I64Rotl: case Opcode.I64Rotr:
-        case Opcode.F32Add: case Opcode.F32Sub: case Opcode.F32Mul: case Opcode.F32Div:
-        case Opcode.F32Min: case Opcode.F32Max: case Opcode.F32Copysign:
-        case Opcode.F64Add: case Opcode.F64Sub: case Opcode.F64Mul: case Opcode.F64Div:
-        case Opcode.F64Min: case Opcode.F64Max: case Opcode.F64Copysign: {
+        case Opcode.I32Add:
+        case Opcode.I32Sub:
+        case Opcode.I32Mul:
+        case Opcode.I32DivS:
+        case Opcode.I32DivU:
+        case Opcode.I32RemS:
+        case Opcode.I32RemU:
+        case Opcode.I32And:
+        case Opcode.I32Or:
+        case Opcode.I32Xor:
+        case Opcode.I32Shl:
+        case Opcode.I32ShrS:
+        case Opcode.I32ShrU:
+        case Opcode.I32Rotl:
+        case Opcode.I32Rotr:
+        case Opcode.I64Add:
+        case Opcode.I64Sub:
+        case Opcode.I64Mul:
+        case Opcode.I64DivS:
+        case Opcode.I64DivU:
+        case Opcode.I64RemS:
+        case Opcode.I64RemU:
+        case Opcode.I64And:
+        case Opcode.I64Or:
+        case Opcode.I64Xor:
+        case Opcode.I64Shl:
+        case Opcode.I64ShrS:
+        case Opcode.I64ShrU:
+        case Opcode.I64Rotl:
+        case Opcode.I64Rotr:
+        case Opcode.F32Add:
+        case Opcode.F32Sub:
+        case Opcode.F32Mul:
+        case Opcode.F32Div:
+        case Opcode.F32Min:
+        case Opcode.F32Max:
+        case Opcode.F32Copysign:
+        case Opcode.F64Add:
+        case Opcode.F64Sub:
+        case Opcode.F64Mul:
+        case Opcode.F64Div:
+        case Opcode.F64Min:
+        case Opcode.F64Max:
+        case Opcode.F64Copysign: {
           const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           stack.push({ kind: 'binary', opcode: op as Opcode, left, right, loc });
@@ -1101,19 +1379,31 @@ export class BinaryReader {
         }
 
         // --- Conversions (1 pop, 1 push) ---
-        case Opcode.I32WrapI64: case Opcode.I32TruncF32S: case Opcode.I32TruncF32U:
-        case Opcode.I32TruncF64S: case Opcode.I32TruncF64U:
-        case Opcode.I64ExtendI32S: case Opcode.I64ExtendI32U:
-        case Opcode.I64TruncF32S: case Opcode.I64TruncF32U:
-        case Opcode.I64TruncF64S: case Opcode.I64TruncF64U:
-        case Opcode.F32ConvertI32S: case Opcode.F32ConvertI32U:
-        case Opcode.F32ConvertI64S: case Opcode.F32ConvertI64U:
+        case Opcode.I32WrapI64:
+        case Opcode.I32TruncF32S:
+        case Opcode.I32TruncF32U:
+        case Opcode.I32TruncF64S:
+        case Opcode.I32TruncF64U:
+        case Opcode.I64ExtendI32S:
+        case Opcode.I64ExtendI32U:
+        case Opcode.I64TruncF32S:
+        case Opcode.I64TruncF32U:
+        case Opcode.I64TruncF64S:
+        case Opcode.I64TruncF64U:
+        case Opcode.F32ConvertI32S:
+        case Opcode.F32ConvertI32U:
+        case Opcode.F32ConvertI64S:
+        case Opcode.F32ConvertI64U:
         case Opcode.F32DemoteF64:
-        case Opcode.F64ConvertI32S: case Opcode.F64ConvertI32U:
-        case Opcode.F64ConvertI64S: case Opcode.F64ConvertI64U:
+        case Opcode.F64ConvertI32S:
+        case Opcode.F64ConvertI32U:
+        case Opcode.F64ConvertI64S:
+        case Opcode.F64ConvertI64U:
         case Opcode.F64PromoteF32:
-        case Opcode.I32ReinterpretF32: case Opcode.I64ReinterpretF64:
-        case Opcode.F32ReinterpretI32: case Opcode.F64ReinterpretI64: {
+        case Opcode.I32ReinterpretF32:
+        case Opcode.I64ReinterpretF64:
+        case Opcode.F32ReinterpretI32:
+        case Opcode.F64ReinterpretI64: {
           const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           stack.push({ kind: 'convert', opcode: op as Opcode, operand, loc });
           break;
@@ -1122,7 +1412,9 @@ export class BinaryReader {
         // --- Ref types ---
         case Opcode.RefNull: {
           const refType = this.readValType();
-          stack.push({ kind: 'ref.null', refType: varIndex(refType as number), loc } as RefNullExpr);
+          stack.push(
+            { kind: 'ref.null', refType: varIndex(refType as number), loc } as RefNullExpr,
+          );
           break;
         }
         case Opcode.RefIsNull: {
@@ -1220,10 +1512,14 @@ export class BinaryReader {
   private decodeMiscOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
     switch (op) {
       // Saturating truncation (unary, 1 pop 1 push)
-      case MiscOpcode.I32TruncSatF32S: case MiscOpcode.I32TruncSatF32U:
-      case MiscOpcode.I32TruncSatF64S: case MiscOpcode.I32TruncSatF64U:
-      case MiscOpcode.I64TruncSatF32S: case MiscOpcode.I64TruncSatF32U:
-      case MiscOpcode.I64TruncSatF64S: case MiscOpcode.I64TruncSatF64U: {
+      case MiscOpcode.I32TruncSatF32S:
+      case MiscOpcode.I32TruncSatF32U:
+      case MiscOpcode.I32TruncSatF64S:
+      case MiscOpcode.I32TruncSatF64U:
+      case MiscOpcode.I64TruncSatF32S:
+      case MiscOpcode.I64TruncSatF32U:
+      case MiscOpcode.I64TruncSatF64S:
+      case MiscOpcode.I64TruncSatF64U: {
         const opcode = (PREFIX_MISC << 8) | op;
         const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         stack.push({ kind: 'convert', opcode: opcode as Opcode, operand, loc });
@@ -1235,7 +1531,15 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({ kind: 'memory.init', segment: varIndex(segIdx), memidx: varIndex(memIdx), dest, src, size, loc });
+        stmts.push({
+          kind: 'memory.init',
+          segment: varIndex(segIdx),
+          memidx: varIndex(memIdx),
+          dest,
+          src,
+          size,
+          loc,
+        });
         break;
       }
       case MiscOpcode.DataDrop: {
@@ -1249,7 +1553,15 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({ kind: 'memory.copy', destMemidx: varIndex(destMemIdx), srcMemidx: varIndex(srcMemIdx), dest, src, size, loc });
+        stmts.push({
+          kind: 'memory.copy',
+          destMemidx: varIndex(destMemIdx),
+          srcMemidx: varIndex(srcMemIdx),
+          dest,
+          src,
+          size,
+          loc,
+        });
         break;
       }
       case MiscOpcode.MemoryFill: {
@@ -1266,7 +1578,15 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({ kind: 'table.init', segment: varIndex(segIdx), table: varIndex(tableIdx), dest, src, size, loc });
+        stmts.push({
+          kind: 'table.init',
+          segment: varIndex(segIdx),
+          table: varIndex(tableIdx),
+          dest,
+          src,
+          size,
+          loc,
+        });
         break;
       }
       case MiscOpcode.ElemDrop: {
@@ -1280,7 +1600,15 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const srcOffset = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({ kind: 'table.copy', dst: varIndex(dstIdx), src: varIndex(srcIdx), dest, srcOffset, size, loc });
+        stmts.push({
+          kind: 'table.copy',
+          dst: varIndex(dstIdx),
+          src: varIndex(srcIdx),
+          dest,
+          srcOffset,
+          size,
+          loc,
+        });
         break;
       }
       case MiscOpcode.TableGrow: {
@@ -1327,7 +1655,15 @@ export class BinaryReader {
     if (op === 0x0b) {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'load_zero', opcode: opcode as Opcode, align, offset, memidx, address, loc });
+      stack.push({
+        kind: 'load_zero',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        loc,
+      });
       return;
     }
 
@@ -1370,7 +1706,8 @@ export class BinaryReader {
       // Actually pattern: extract_lane_s/u/extract_lane/replace_lane alternating
       // 0x15 i8x16.extract_lane_s (extract), 0x16 i8x16.extract_lane_u (extract),
       // 0x17 i8x16.replace_lane (replace), etc.
-      const isReplace = (op === 0x17 || op === 0x1a || op === 0x1c || op === 0x1e || op === 0x20 || op === 0x22);
+      const isReplace = op === 0x17 || op === 0x1a || op === 0x1c || op === 0x1e || op === 0x20 ||
+        op === 0x22;
       if (isReplace) {
         const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
@@ -1394,7 +1731,17 @@ export class BinaryReader {
       const lane = this.readU8();
       const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'simd_load_lane', opcode: opcode as Opcode, align, offset, memidx, lane, address, vec, loc });
+      stack.push({
+        kind: 'simd_load_lane',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        lane,
+        address,
+        vec,
+        loc,
+      });
       return;
     }
 
@@ -1402,7 +1749,15 @@ export class BinaryReader {
     if (op === 0x5c || op === 0x5d) {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'load_zero', opcode: opcode as Opcode, align, offset, memidx, address, loc });
+      stack.push({
+        kind: 'load_zero',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        loc,
+      });
       return;
     }
 
@@ -1412,7 +1767,17 @@ export class BinaryReader {
       const lane = this.readU8();
       const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stmts.push({ kind: 'simd_store_lane', opcode: opcode as Opcode, align, offset, memidx, lane, address, vec, loc });
+      stmts.push({
+        kind: 'simd_store_lane',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        lane,
+        address,
+        vec,
+        loc,
+      });
       return;
     }
 
@@ -1440,7 +1805,13 @@ export class BinaryReader {
   // Atomics (0xfe) opcode decoder
   // ---------------------------------------------------------------------------
 
-  private decodeAtomicOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
+  private decodeAtomicOp(
+    op: number,
+    stack: Expr[],
+    stmts: Expr[],
+    _m: Module,
+    loc: Location,
+  ): void {
     const opcode = (PREFIX_THREADS << 8) | op;
 
     if (op === 0x03) {
@@ -1465,7 +1836,17 @@ export class BinaryReader {
       const timeout = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const expected = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'atomic_wait', opcode: opcode as Opcode, align, offset, memidx, address, expected, timeout, loc });
+      stack.push({
+        kind: 'atomic_wait',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        expected,
+        timeout,
+        loc,
+      });
       return;
     }
 
@@ -1473,7 +1854,15 @@ export class BinaryReader {
     if (op >= 0x10 && op <= 0x16) {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'atomic_load', opcode: opcode as Opcode, align, offset, memidx, address, loc });
+      stack.push({
+        kind: 'atomic_load',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        loc,
+      });
       return;
     }
 
@@ -1482,7 +1871,16 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stmts.push({ kind: 'atomic_store', opcode: opcode as Opcode, align, offset, memidx, address, value, loc });
+      stmts.push({
+        kind: 'atomic_store',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        value,
+        loc,
+      });
       return;
     }
 
@@ -1491,7 +1889,16 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'atomic_rmw', opcode: opcode as Opcode, align, offset, memidx, address, value, loc });
+      stack.push({
+        kind: 'atomic_rmw',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        value,
+        loc,
+      });
       return;
     }
 
@@ -1501,7 +1908,17 @@ export class BinaryReader {
       const replacement = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const expected = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'atomic_rmw_cmpxchg', opcode: opcode as Opcode, align, offset, memidx, address, expected, replacement, loc });
+      stack.push({
+        kind: 'atomic_rmw_cmpxchg',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        expected,
+        replacement,
+        loc,
+      });
       return;
     }
 
@@ -1519,8 +1936,14 @@ export class BinaryReader {
     // Magic + version
     const magic = this.readU32Le();
     const version = this.readU32Le();
-    if (magic !== WASM_MAGIC) { this.err(`bad magic: 0x${magic.toString(16)}`); return m; }
-    if (version !== WASM_VERSION) { this.err(`bad version: ${version}`); return m; }
+    if (magic !== WASM_MAGIC) {
+      this.err(`bad magic: 0x${magic.toString(16)}`);
+      return m;
+    }
+    if (version !== WASM_VERSION) {
+      this.err(`bad version: ${version}`);
+      return m;
+    }
 
     // Section loop
     while (this.pos < this.data.length && this.ok()) {
@@ -1531,7 +1954,12 @@ export class BinaryReader {
       const sectionBodyStart = this.pos;
 
       // Track section metadata
-      const meta: SectionMeta = { section: sectionId, offset: sectionBodyStart, size: sectionSize, count: 0 };
+      const meta: SectionMeta = {
+        section: sectionId,
+        offset: sectionBodyStart,
+        size: sectionSize,
+        count: 0,
+      };
 
       switch (sectionId) {
         case BinarySection.Custom: {
@@ -1547,19 +1975,45 @@ export class BinaryReader {
           this.pos = sectionEnd;
           break;
         }
-        case BinarySection.Type:      this.readTypeSection(m, sectionEnd); break;
-        case BinarySection.Import:    this.readImportSection(m, sectionEnd); break;
-        case BinarySection.Function:  this.readFunctionSection(m, sectionEnd); break;
-        case BinarySection.Table:     this.readTableSection(m, sectionEnd); break;
-        case BinarySection.Memory:    this.readMemorySection(m, sectionEnd); break;
-        case BinarySection.Global:    this.readGlobalSection(m, sectionEnd); break;
-        case BinarySection.Export:    this.readExportSection(m, sectionEnd); break;
-        case BinarySection.Start:     this.readStartSection(m, sectionEnd); break;
-        case BinarySection.Elem:      this.readElemSection(m, sectionEnd); break;
-        case BinarySection.Code:      this.readCodeSection(m, sectionEnd); break;
-        case BinarySection.Data:      this.readDataSection(m, sectionEnd); break;
-        case BinarySection.DataCount: this.readDataCountSection(m, sectionEnd); break;
-        case BinarySection.Tag:       this.readTagSection(m, sectionEnd); break;
+        case BinarySection.Type:
+          this.readTypeSection(m, sectionEnd);
+          break;
+        case BinarySection.Import:
+          this.readImportSection(m, sectionEnd);
+          break;
+        case BinarySection.Function:
+          this.readFunctionSection(m, sectionEnd);
+          break;
+        case BinarySection.Table:
+          this.readTableSection(m, sectionEnd);
+          break;
+        case BinarySection.Memory:
+          this.readMemorySection(m, sectionEnd);
+          break;
+        case BinarySection.Global:
+          this.readGlobalSection(m, sectionEnd);
+          break;
+        case BinarySection.Export:
+          this.readExportSection(m, sectionEnd);
+          break;
+        case BinarySection.Start:
+          this.readStartSection(m, sectionEnd);
+          break;
+        case BinarySection.Elem:
+          this.readElemSection(m, sectionEnd);
+          break;
+        case BinarySection.Code:
+          this.readCodeSection(m, sectionEnd);
+          break;
+        case BinarySection.Data:
+          this.readDataSection(m, sectionEnd);
+          break;
+        case BinarySection.DataCount:
+          this.readDataCountSection(m, sectionEnd);
+          break;
+        case BinarySection.Tag:
+          this.readTagSection(m, sectionEnd);
+          break;
         default:
           this.pos = sectionEnd;
           break;

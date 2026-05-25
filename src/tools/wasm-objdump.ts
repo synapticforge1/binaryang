@@ -3,7 +3,7 @@
 
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { Result } from '../core/result.ts';
-import { makeErrorList, hasErrors, formatErrors } from '../core/error.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type { Module, SectionMeta } from '../ir/ir.ts';
@@ -64,7 +64,9 @@ export function wasmObjdump(
         ? ''
         : ` count: ${count}`;
       lines.push(
-        `  ${name.padStart(12)} start=0x${hex8(start)} end=0x${hex8(end)} (size=0x${hex8(meta.size)})${countStr}`,
+        `  ${name.padStart(12)} start=0x${hex8(start)} end=0x${hex8(end)} (size=0x${
+          hex8(meta.size)
+        })${countStr}`,
       );
     }
     lines.push('');
@@ -104,16 +106,26 @@ function appendDetails(lines: string[], m: Module): void {
     for (const imp of m.imports) {
       switch (imp.kind) {
         case ExternalKind.Func:
-          lines.push(` - func[${fi++}] sig=? <${imp.module}.${imp.field}> <- ${imp.module}.${imp.field}`);
+          lines.push(
+            ` - func[${fi++}] sig=? <${imp.module}.${imp.field}> <- ${imp.module}.${imp.field}`,
+          );
           break;
         case ExternalKind.Table:
-          lines.push(` - table[${ti++}] type=${typeName(imp.table.elemType)} <- ${imp.module}.${imp.field}`);
+          lines.push(
+            ` - table[${ti++}] type=${typeName(imp.table.elemType)} <- ${imp.module}.${imp.field}`,
+          );
           break;
         case ExternalKind.Memory:
-          lines.push(` - memory[${mi++}] pages: initial=${imp.memory.limits.initial} <- ${imp.module}.${imp.field}`);
+          lines.push(
+            ` - memory[${mi++}] pages: initial=${imp.memory.limits.initial} <- ${imp.module}.${imp.field}`,
+          );
           break;
         case ExternalKind.Global:
-          lines.push(` - global[${gi++}] ${typeName(imp.global.type)}${imp.global.mutable ? ' mutable' : ''} <- ${imp.module}.${imp.field}`);
+          lines.push(
+            ` - global[${gi++}] ${typeName(imp.global.type)}${
+              imp.global.mutable ? ' mutable' : ''
+            } <- ${imp.module}.${imp.field}`,
+          );
           break;
         case ExternalKind.Tag:
           lines.push(` - tag <- ${imp.module}.${imp.field}`);
@@ -158,7 +170,9 @@ function sectionLabel(meta: SectionMeta, m: Module): string {
   if (meta.section === BinarySection.Custom) {
     // Match by byte offset — custom sections that were parsed (e.g. name
     // section with readDebugNames:true) won't be in m.customs; fall back.
-    const custom = m.customs.find((c) => c.loc.offset >= meta.offset && c.loc.offset < meta.offset + meta.size);
+    const custom = m.customs.find((c) =>
+      c.loc.offset >= meta.offset && c.loc.offset < meta.offset + meta.size
+    );
     return custom ? `"${custom.name}"` : 'custom';
   }
   return binarySectionName(meta.section);
@@ -166,41 +180,66 @@ function sectionLabel(meta: SectionMeta, m: Module): string {
 
 function sectionCount(meta: SectionMeta, m: Module): number {
   switch (meta.section) {
-    case BinarySection.Type:     return m.types.length;
-    case BinarySection.Import:   return m.imports.length;
-    case BinarySection.Function: return m.funcs.length;
-    case BinarySection.Table:    return m.tables.length;
-    case BinarySection.Memory:   return m.memories.length;
-    case BinarySection.Global:   return m.globals.length;
-    case BinarySection.Export:   return m.exports.length;
-    case BinarySection.Elem:     return m.elemSegments.length;
-    case BinarySection.Code:     return m.funcs.length;
-    case BinarySection.Data:     return m.dataSegments.length;
-    case BinarySection.Tag:      return m.tags.length;
-    default:                     return 0;
+    case BinarySection.Type:
+      return m.types.length;
+    case BinarySection.Import:
+      return m.imports.length;
+    case BinarySection.Function:
+      return m.funcs.length;
+    case BinarySection.Table:
+      return m.tables.length;
+    case BinarySection.Memory:
+      return m.memories.length;
+    case BinarySection.Global:
+      return m.globals.length;
+    case BinarySection.Export:
+      return m.exports.length;
+    case BinarySection.Elem:
+      return m.elemSegments.length;
+    case BinarySection.Code:
+      return m.funcs.length;
+    case BinarySection.Data:
+      return m.dataSegments.length;
+    case BinarySection.Tag:
+      return m.tags.length;
+    default:
+      return 0;
   }
 }
 
 function typeName(t: number): string {
   switch (t) {
-    case 0x7f: return 'i32';
-    case 0x7e: return 'i64';
-    case 0x7d: return 'f32';
-    case 0x7c: return 'f64';
-    case 0x7b: return 'v128';
-    case 0x70: return 'funcref';
-    case 0x6f: return 'externref';
-    default:   return `0x${t.toString(16)}`;
+    case 0x7f:
+      return 'i32';
+    case 0x7e:
+      return 'i64';
+    case 0x7d:
+      return 'f32';
+    case 0x7c:
+      return 'f64';
+    case 0x7b:
+      return 'v128';
+    case 0x70:
+      return 'funcref';
+    case 0x6f:
+      return 'externref';
+    default:
+      return `0x${t.toString(16)}`;
   }
 }
 
 function extKindName(kind: ExternalKind): string {
   switch (kind) {
-    case ExternalKind.Func:   return 'func';
-    case ExternalKind.Table:  return 'table';
-    case ExternalKind.Memory: return 'memory';
-    case ExternalKind.Global: return 'global';
-    case ExternalKind.Tag:    return 'tag';
+    case ExternalKind.Func:
+      return 'func';
+    case ExternalKind.Table:
+      return 'table';
+    case ExternalKind.Memory:
+      return 'memory';
+    case ExternalKind.Global:
+      return 'global';
+    case ExternalKind.Tag:
+      return 'tag';
   }
 }
 

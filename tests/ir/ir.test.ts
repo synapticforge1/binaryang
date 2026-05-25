@@ -5,16 +5,26 @@ import { Type } from '../../src/core/types.ts';
 import { Result } from '../../src/core/result.ts';
 import { Opcode } from '../../src/core/opcode.ts';
 import { unknownLocation } from '../../src/core/error.ts';
-import { makeErrorList, hasErrors } from '../../src/core/error.ts';
+import { hasErrors, makeErrorList } from '../../src/core/error.ts';
 
 import {
-  varIndex, varName, isVarIndex, isVarName,
-  BLOCK_TYPE_VOID, blockTypeValue, blockTypeFuncType,
-  constI32, constI64, constF32, constF64,
-  makeModule, totalFuncs, totalGlobals,
+  BLOCK_TYPE_VOID,
+  blockTypeFuncType,
+  blockTypeValue,
+  constF32,
+  constF64,
+  constI32,
+  constI64,
+  isVarIndex,
+  isVarName,
+  makeModule,
   sigEquals,
+  totalFuncs,
+  totalGlobals,
+  varIndex,
+  varName,
 } from '../../src/ir/ir.ts';
-import type { Expr, Func, ConstExpr, BinaryExpr } from '../../src/ir/ir.ts';
+import type { BinaryExpr, ConstExpr, Expr, Func } from '../../src/ir/ir.ts';
 
 import { ExprVisitor, NopDelegate } from '../../src/ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../../src/ir/expr-visitor.ts';
@@ -126,10 +136,29 @@ describe('Const', () => {
 // ---------------------------------------------------------------------------
 
 describe('sigEquals', () => {
-  it('equal sigs', () => assertEquals(sigEquals({ params: [Type.I32], results: [Type.I64] }, { params: [Type.I32], results: [Type.I64] }), true));
-  it('different params', () => assertEquals(sigEquals({ params: [Type.I32], results: [] }, { params: [Type.I64], results: [] }), false));
-  it('different param count', () => assertEquals(sigEquals({ params: [Type.I32, Type.I32], results: [] }, { params: [Type.I32], results: [] }), false));
-  it('different results', () => assertEquals(sigEquals({ params: [], results: [Type.F32] }, { params: [], results: [Type.F64] }), false));
+  it('equal sigs', () =>
+    assertEquals(
+      sigEquals({ params: [Type.I32], results: [Type.I64] }, {
+        params: [Type.I32],
+        results: [Type.I64],
+      }),
+      true,
+    ));
+  it('different params', () =>
+    assertEquals(
+      sigEquals({ params: [Type.I32], results: [] }, { params: [Type.I64], results: [] }),
+      false,
+    ));
+  it('different param count', () =>
+    assertEquals(
+      sigEquals({ params: [Type.I32, Type.I32], results: [] }, { params: [Type.I32], results: [] }),
+      false,
+    ));
+  it('different results', () =>
+    assertEquals(
+      sigEquals({ params: [], results: [Type.F32] }, { params: [], results: [Type.F64] }),
+      false,
+    ));
 });
 
 // ---------------------------------------------------------------------------
@@ -171,7 +200,10 @@ describe('ExprVisitor', () => {
   it('visits const leaf', () => {
     const visited: string[] = [];
     const delegate: ExprVisitorDelegate = {
-      onConstExpr(_e) { visited.push('const'); return Result.Ok; },
+      onConstExpr(_e) {
+        visited.push('const');
+        return Result.Ok;
+      },
     };
     const v = new ExprVisitor(delegate);
     v.visitExpr(makeConst(1));
@@ -186,7 +218,10 @@ describe('ExprVisitor', () => {
         visited.push(`const:${val}`);
         return Result.Ok;
       },
-      onBinaryExpr(_e) { visited.push('binary'); return Result.Ok; },
+      onBinaryExpr(_e) {
+        visited.push('binary');
+        return Result.Ok;
+      },
     };
     const v = new ExprVisitor(delegate);
     v.visitExpr(makeAdd(makeConst(1), makeConst(2)));
@@ -196,9 +231,18 @@ describe('ExprVisitor', () => {
   it('visits block body between Begin/End', () => {
     const visited: string[] = [];
     const delegate: ExprVisitorDelegate = {
-      beginBlockExpr(_e) { visited.push('begin_block'); return Result.Ok; },
-      onConstExpr(_e) { visited.push('const'); return Result.Ok; },
-      endBlockExpr(_e) { visited.push('end_block'); return Result.Ok; },
+      beginBlockExpr(_e) {
+        visited.push('begin_block');
+        return Result.Ok;
+      },
+      onConstExpr(_e) {
+        visited.push('const');
+        return Result.Ok;
+      },
+      endBlockExpr(_e) {
+        visited.push('end_block');
+        return Result.Ok;
+      },
     };
     const block: Expr = {
       kind: 'block',
@@ -220,9 +264,18 @@ describe('ExprVisitor', () => {
         visited.push(`const:${val}`);
         return Result.Ok;
       },
-      beginIfExpr(_e) { visited.push('beginIf'); return Result.Ok; },
-      afterIfTrueExpr(_e) { visited.push('afterIfTrue'); return Result.Ok; },
-      endIfExpr(_e) { visited.push('endIf'); return Result.Ok; },
+      beginIfExpr(_e) {
+        visited.push('beginIf');
+        return Result.Ok;
+      },
+      afterIfTrueExpr(_e) {
+        visited.push('afterIfTrue');
+        return Result.Ok;
+      },
+      endIfExpr(_e) {
+        visited.push('endIf');
+        return Result.Ok;
+      },
     };
     const ifExpr: Expr = {
       kind: 'if',
@@ -241,7 +294,10 @@ describe('ExprVisitor', () => {
   it('abort: delegate returning Error stops traversal', () => {
     let count = 0;
     const delegate: ExprVisitorDelegate = {
-      onConstExpr(_e) { count++; return Result.Error; },
+      onConstExpr(_e) {
+        count++;
+        return Result.Error;
+      },
     };
     const v = new ExprVisitor(delegate);
     const r = v.visitExprList([makeConst(1), makeConst(2), makeConst(3)]);
@@ -252,7 +308,10 @@ describe('ExprVisitor', () => {
   it('visitFunc visits function body', () => {
     const visited: string[] = [];
     const delegate: ExprVisitorDelegate = {
-      onConstExpr(_e) { visited.push('const'); return Result.Ok; },
+      onConstExpr(_e) {
+        visited.push('const');
+        return Result.Ok;
+      },
     };
     const func = makeFuncBody([makeConst(5), makeConst(6)]);
     const v = new ExprVisitor(delegate);

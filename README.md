@@ -210,10 +210,11 @@ workstation, since that would publish without provenance.
 | **5** | Validator — type checker and full wasm validator | ✅ Complete |
 | **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | ✅ Complete |
 | **6.1** | Pre-publish housekeeping — JSR/CI hardening (tag-driven publish, GitHub Release auto-creation, `ci.yml`); lint cleanup (71→0); module-level codec singletons + `ModuleContext`/`WatWriter` index-map caches | ✅ Complete |
-| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🔒 Blocked |
+| **6.2** | Release-flow alignment with binaryen-ts — `deno task bump`, atomic publish, `auto-tag.yml` safety net, license fix (JSR rejects compound SPDX); first successful JSR publish | ✅ Complete |
+| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🟡 In progress (Tiers A+B) |
 | **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
-Phase 7 (binaryen bridge) is blocked on the binaryen-ts Phase 2 instruction decoder milestone. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
+Phase 7 (binaryen bridge) is now unblocked — binaryen-ts is at v1.0.9 with the full instruction-level constructor API stable. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
 
 ## Repository Layout
 

@@ -1,6 +1,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
-import { MiscOpcode, Opcode, opcodeName, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../../src/core/opcode.ts';
+import {
+  MiscOpcode,
+  Opcode,
+  opcodeName,
+  PREFIX_MISC,
+  PREFIX_SIMD,
+  PREFIX_THREADS,
+} from '../../src/core/opcode.ts';
 
 describe('Opcode prefix constants', () => {
   it('PREFIX_MISC = 0xfc', () => assertEquals(PREFIX_MISC, 0xfc));

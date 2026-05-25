@@ -19,7 +19,7 @@ import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
-import type { Module, Func, Expr, Var } from './ir.ts';
+import type { Expr, Func, Module, Var } from './ir.ts';
 import { varIndex } from './ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -243,7 +243,11 @@ class ResolveContext {
         return [r, { ...e, target: this.resolveLabelVar(e.target, loc), cond }];
       }
       case 'br_table':
-        return [Result.Ok, { ...e, targets: e.targets.map(t => this.resolveLabelVar(t, loc)), defaultTarget: this.resolveLabelVar(e.defaultTarget, loc) }];
+        return [Result.Ok, {
+          ...e,
+          targets: e.targets.map((t) => this.resolveLabelVar(t, loc)),
+          defaultTarget: this.resolveLabelVar(e.defaultTarget, loc),
+        }];
       case 'block':
       case 'loop': {
         this.labelStack.push(e.label);
@@ -286,7 +290,13 @@ class ResolveContext {
         const [rD, dest] = this.resolveExpr(e.dest);
         const [rS, src] = this.resolveExpr(e.src);
         const [rZ, size] = this.resolveExpr(e.size);
-        return [combine(rD, combine(rS, rZ)), { ...e, segment: this.resolveDataSegVar(e.segment, loc), dest, src, size }];
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          segment: this.resolveDataSegVar(e.segment, loc),
+          dest,
+          src,
+          size,
+        }];
       }
       case 'data.drop':
         return [Result.Ok, { ...e, segment: this.resolveDataSegVar(e.segment, loc) }];
@@ -296,13 +306,27 @@ class ResolveContext {
         const [rD, dest] = this.resolveExpr(e.dest);
         const [rS, src] = this.resolveExpr(e.src);
         const [rZ, size] = this.resolveExpr(e.size);
-        return [combine(rD, combine(rS, rZ)), { ...e, segment: this.resolveElemSegVar(e.segment, loc), table: this.resolveTableVar(e.table, loc), dest, src, size }];
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          segment: this.resolveElemSegVar(e.segment, loc),
+          table: this.resolveTableVar(e.table, loc),
+          dest,
+          src,
+          size,
+        }];
       }
       case 'table.copy': {
         const [rD, dest] = this.resolveExpr(e.dest);
         const [rS, srcOffset] = this.resolveExpr(e.srcOffset);
         const [rZ, size] = this.resolveExpr(e.size);
-        return [combine(rD, combine(rS, rZ)), { ...e, dst: this.resolveTableVar(e.dst, loc), src: this.resolveTableVar(e.src, loc), dest, srcOffset, size }];
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          dst: this.resolveTableVar(e.dst, loc),
+          src: this.resolveTableVar(e.src, loc),
+          dest,
+          srcOffset,
+          size,
+        }];
       }
       default:
         return [Result.Ok, e];
@@ -368,11 +392,16 @@ class ResolveContext {
 
   private resolveByKind(v: Var, kind: ExternalKind): Var {
     switch (kind) {
-      case ExternalKind.Func:   return this.resolveFuncVar(v);
-      case ExternalKind.Global: return this.resolveGlobalVar(v);
-      case ExternalKind.Table:  return this.resolveTableVar(v);
-      case ExternalKind.Memory: return this.resolveVar(v, this.memScope, 'memory', unknownLocation());
-      case ExternalKind.Tag:    return this.resolveTagVar(v);
+      case ExternalKind.Func:
+        return this.resolveFuncVar(v);
+      case ExternalKind.Global:
+        return this.resolveGlobalVar(v);
+      case ExternalKind.Table:
+        return this.resolveTableVar(v);
+      case ExternalKind.Memory:
+        return this.resolveVar(v, this.memScope, 'memory', unknownLocation());
+      case ExternalKind.Tag:
+        return this.resolveTagVar(v);
     }
   }
 }

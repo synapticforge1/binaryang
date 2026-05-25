@@ -69,20 +69,34 @@ export const NUM_BINARY_SECTIONS = 14;
 /** Returns the name of a {@link BinarySection} as a string. */
 export function binarySectionName(s: BinarySection): string {
   switch (s) {
-    case BinarySection.Custom: return 'custom';
-    case BinarySection.Type: return 'type';
-    case BinarySection.Import: return 'import';
-    case BinarySection.Function: return 'function';
-    case BinarySection.Table: return 'table';
-    case BinarySection.Memory: return 'memory';
-    case BinarySection.Global: return 'global';
-    case BinarySection.Export: return 'export';
-    case BinarySection.Start: return 'start';
-    case BinarySection.Elem: return 'elem';
-    case BinarySection.Code: return 'code';
-    case BinarySection.Data: return 'data';
-    case BinarySection.DataCount: return 'data count';
-    case BinarySection.Tag: return 'tag';
+    case BinarySection.Custom:
+      return 'custom';
+    case BinarySection.Type:
+      return 'type';
+    case BinarySection.Import:
+      return 'import';
+    case BinarySection.Function:
+      return 'function';
+    case BinarySection.Table:
+      return 'table';
+    case BinarySection.Memory:
+      return 'memory';
+    case BinarySection.Global:
+      return 'global';
+    case BinarySection.Export:
+      return 'export';
+    case BinarySection.Start:
+      return 'start';
+    case BinarySection.Elem:
+      return 'elem';
+    case BinarySection.Code:
+      return 'code';
+    case BinarySection.Data:
+      return 'data';
+    case BinarySection.DataCount:
+      return 'data count';
+    case BinarySection.Tag:
+      return 'tag';
   }
 }
 
