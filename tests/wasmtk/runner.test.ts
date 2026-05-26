@@ -39,18 +39,6 @@ async function listWatFiles(): Promise<string[]> {
 
 const files = await listWatFiles();
 
-/**
- * True when every error in the list is a name-resolution failure for an
- * external symbol. Those indicate the WAT is a pre-link unit (e.g.
- * wasmtk's Math library calling `$mathlib_exp` etc. before linking) —
- * not a wabt-ts bug. We surface them in the test output as a skip rather
- * than a hard failure.
- */
-function isOnlyUnresolvedExternals(errs: { message: string }[]): boolean {
-  if (errs.length === 0) return false;
-  return errs.every((e) => /^undefined (func|global|table|memory|tag) "/.test(e.message));
-}
-
 describe(`wasmtk WAT corpus (${files.length} files)`, () => {
   for (const file of files) {
     it(file, async () => {
@@ -58,20 +46,16 @@ describe(`wasmtk WAT corpus (${files.length} files)`, () => {
       const src = await Deno.readTextFile(path);
       const result = wat2wasm(src);
       // wat2wasm returns Result.Ok on a clean compile + validate. Errors
-      // are accumulated in the result.errors list (parse, resolveNames,
-      // synthesizeTypes, write, validate — all share one list).
-      if (result.result === Result.Ok && !hasErrors(result.errors)) return;
-      if (isOnlyUnresolvedExternals(result.errors)) {
-        // Pre-link file — symbols would be provided by another module at
-        // link time. Not a wabt-ts bug. Reported as a pass with a console
-        // note so the file isn't silently swept under the rug.
-        console.log(`  (skip: ${file} — pre-link file with unresolved externals)`);
-        return;
+      // are accumulated in result.errors (parse, resolveNames,
+      // synthesizeTypes, write, validate — all share one list). Every
+      // file in the corpus is a self-contained module; pre-link units
+      // that reference unimported externals were removed at curation time.
+      if (result.result !== Result.Ok || hasErrors(result.errors)) {
+        assert(
+          false,
+          `${file} failed to compile:\n${formatErrors(result.errors)}`,
+        );
       }
-      assert(
-        false,
-        `${file} failed to compile:\n${formatErrors(result.errors)}`,
-      );
     });
   }
 });
