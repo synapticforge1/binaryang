@@ -539,7 +539,16 @@ export interface SimdLaneOpExpr {
   readonly kind: 'simd_lane_op';
   readonly opcode: Opcode;
   readonly lane: number;
+  /** Vector operand. For `*.extract_lane` this is the only operand. */
   readonly operand: Expr;
+  /**
+   * Scalar replacement value. Set for `*.replace_lane` opcodes (the i8x16 /
+   * i16x8 / i32x4 / i64x2 / f32x4 / f64x2 replace_lane family); undefined
+   * for `*.extract_lane`. Previously this slot didn't exist and the parser
+   * silently dropped the scalar half of every replace_lane, producing
+   * binaries V8 rejected as missing operands.
+   */
+  readonly value?: Expr;
   readonly loc: Location;
 }
 export interface SimdShuffleOpExpr {

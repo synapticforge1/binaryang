@@ -67,7 +67,11 @@ class ResolveContext {
   private elemSegScope = new NameScope();
   private dataSegScope = new NameScope();
 
-  private localScope = new NameScope();
+  // Note: no per-function `localScope` field — see resolveLocalVar.
+  // wabt-ts's IR has no slot for param/local names, so resolveNames can't
+  // do anything useful with name-vars in local refs. The WAT parser
+  // resolves these at parse time; the binary reader produces only
+  // index-vars.
   private labelStack: string[] = [];
 
   constructor(module: Module, errors: ErrorList) {
@@ -183,7 +187,6 @@ class ResolveContext {
   }
 
   private resolveFunc(func: Func): Result {
-    this.localScope = new NameScope();
     this.labelStack = [];
     return this.resolveExprList(func.body);
   }
@@ -519,8 +522,26 @@ class ResolveContext {
   private resolveTagVar(v: Var, loc: Location = unknownLocation()): Var {
     return this.resolveVar(v, this.tagScope, 'tag', loc);
   }
+  /**
+   * Resolves a `local.get` / `local.set` / `local.tee` var. Index-vars pass
+   * through unchanged. Name-vars produce a directive error: the IR has no
+   * slot for param/local names (FuncSignature.params is Type[], LocalDecl is
+   * { type, count }), so there's nowhere for resolveNames to look the name up.
+   * The WAT parser resolves these at parse time; the binary reader produces
+   * only index-vars. A name-var reaching here means hand-constructed IR
+   * referencing names that aren't recoverable.
+   */
   private resolveLocalVar(v: Var, loc: Location = unknownLocation()): Var {
-    return this.resolveVar(v, this.localScope, 'local', loc);
+    if (v.kind === 'index') return v;
+    addError(
+      this.errors,
+      loc,
+      `local "$${v.name}" cannot be resolved at IR level — wabt-ts's IR has ` +
+        `no slot for param/local names. Use the WAT parser (which resolves at ` +
+        `parse time) or pass index-vars instead.`,
+    );
+    this.hadError = true;
+    return v;
   }
   private resolveElemSegVar(v: Var, loc: Location = unknownLocation()): Var {
     return this.resolveVar(v, this.elemSegScope, 'elem segment', loc);

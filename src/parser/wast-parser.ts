@@ -98,13 +98,16 @@ import {
   type TableSetExpr,
   type TableSizeExpr,
   type Tag,
+  type TableCatch,
   type TernaryExpr,
   type ThrowExpr,
   type ThrowRefExpr,
+  type TryTableExpr,
   type TypeEntry,
   type UnaryExpr,
   type UnreachableExpr,
   type Var,
+  CatchKind,
   varIndex,
   varName,
 } from '../ir/ir.ts';
@@ -463,6 +466,12 @@ function parseNatText(text: string): bigint | null {
 // ---------------------------------------------------------------------------
 
 /** How many operands a plain instruction pops from the stack (-1 = variable). */
+/** Whether a token is one of the four `try_table` catch-clause keywords. */
+function isCatchKeyword(tt: TokenType): boolean {
+  return tt === TokenType.Catch || tt === TokenType.CatchRef ||
+    tt === TokenType.CatchAll || tt === TokenType.CatchAllRef;
+}
+
 function instrInputCount(tt: TokenType): number {
   switch (tt) {
     case TokenType.Unreachable:
@@ -540,6 +549,39 @@ function instrInputCount(tt: TokenType): number {
       return -1;
     default:
       return 0;
+  }
+}
+
+/**
+ * Like {@link instrInputCount}, but for tokens whose stack arity depends on
+ * the specific opcode (not just the token type). SIMD lane ops are the
+ * only such case so far: `*.extract_lane` takes 1 operand (the vec),
+ * `*.replace_lane` takes 2 (vec + scalar). Falls back to the token-type
+ * lookup otherwise.
+ */
+function instrInputCountForTok(tok: Token): number {
+  if (tok.tokenType === TokenType.SimdLaneOp) {
+    const op = (tok as OpcodeToken).opcode as unknown as number;
+    return isReplaceLaneOpcode(op) ? 2 : 1;
+  }
+  return instrInputCount(tok.tokenType);
+}
+
+/**
+ * The six SIMD `*.replace_lane` opcodes (i8x16 / i16x8 / i32x4 / i64x2 /
+ * f32x4 / f64x2). All others under TokenType.SimdLaneOp are extract_lane.
+ */
+function isReplaceLaneOpcode(op: number): boolean {
+  switch (op) {
+    case 0xfd17: // i8x16.replace_lane
+    case 0xfd1a: // i16x8.replace_lane
+    case 0xfd1c: // i32x4.replace_lane
+    case 0xfd1e: // i64x2.replace_lane
+    case 0xfd20: // f32x4.replace_lane
+    case 0xfd22: // f64x2.replace_lane
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -1832,8 +1874,48 @@ export class WastParser {
       return Result.Ok;
     }
 
-    // Try / TryTable — simplified
-    if (tt === TokenType.Try || tt === TokenType.TryTable) {
+    // TryTable — full support including (catch / catch_ref / catch_all /
+    // catch_all_ref) clauses. Folded form:
+    //   (try_table $lbl (result T)
+    //     (catch $tag $target)
+    //     (catch_ref $tag $target)
+    //     (catch_all $target)
+    //     (catch_all_ref $target)
+    //     body-instrs...)
+    // The catch clauses are syntactic immediates that appear before the
+    // body; they get parsed into TableCatch[] and stashed on the
+    // TryTableExpr. Body-instrs run inside the protected region.
+    if (tt === TokenType.TryTable) {
+      const label = this.parseBindVarOpt();
+      const blockType = this.parseBlockType();
+      const catches: TableCatch[] = [];
+      while (this.peek() === TokenType.Lpar && isCatchKeyword(this.peek(1))) {
+        const c = this.parseTryTableCatch();
+        if (c !== null) catches.push(c);
+      }
+      const bodyCtx = newCtx();
+      this.parseInstrList(bodyCtx);
+      flushStack(bodyCtx);
+      this.expect(TokenType.Rpar);
+      const node: TryTableExpr = {
+        kind: 'try_table',
+        label,
+        blockType,
+        body: bodyCtx.stmts,
+        catches,
+        loc,
+      };
+      const hasValue = blockType.kind !== 'void';
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
+      return Result.Ok;
+    }
+
+    // Try (legacy EH proposal) — still a stub. Modules using the new
+    // try_table form take the branch above; only old-style `(try ...)`
+    // modules fall through here. Coerce to a plain block; the catch
+    // clauses are silently dropped (matches pre-Phase 7 behavior).
+    if (tt === TokenType.Try) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
       const bodyCtx = newCtx();
@@ -1849,6 +1931,60 @@ export class WastParser {
 
     this.error(loc, 'unexpected block instr');
     return Result.Error;
+  }
+
+  /**
+   * Parse one `(catch ...)` / `(catch_ref ...)` / `(catch_all ...)` /
+   * `(catch_all_ref ...)` clause inside a `try_table`. Caller must have
+   * already verified that the lookahead is `( catch_kw ...`.
+   *
+   *   catch / catch_ref : (catch $tag $target)
+   *   catch_all / catch_all_ref : (catch_all $target)
+   *
+   * Per the EH proposal, `_ref` variants pass an exnref to the target
+   * label; non-ref variants pass only the tag's parameter values.
+   */
+  private parseTryTableCatch(): TableCatch | null {
+    const catchLoc = this.loc();
+    if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
+    const kindTok = this.peek();
+    let kind: CatchKind;
+    switch (kindTok) {
+      case TokenType.Catch:
+        kind = CatchKind.Catch;
+        break;
+      case TokenType.CatchRef:
+        kind = CatchKind.CatchRef;
+        break;
+      case TokenType.CatchAll:
+        kind = CatchKind.CatchAll;
+        break;
+      case TokenType.CatchAllRef:
+        kind = CatchKind.CatchAllRef;
+        break;
+      default:
+        this.error(catchLoc, 'expected catch / catch_ref / catch_all / catch_all_ref');
+        return null;
+    }
+    this.drop(); // consume the catch keyword
+    let tag: Var | undefined;
+    if (kind === CatchKind.Catch || kind === CatchKind.CatchRef) {
+      const tv = this.parseVar();
+      if (tv === null) {
+        this.error(catchLoc, 'expected tag reference after catch / catch_ref');
+        return null;
+      }
+      tag = tv;
+    }
+    const target = this.parseVar();
+    if (target === null) {
+      this.error(catchLoc, 'expected target label reference in catch clause');
+      return null;
+    }
+    this.expect(TokenType.Rpar);
+    return tag === undefined
+      ? { kind, target, loc: catchLoc }
+      : { kind, tag, target, loc: catchLoc };
   }
 
   // -------------------------------------------------------------------------
@@ -1946,7 +2082,7 @@ export class WastParser {
     const loc = this.loc();
     const tok = this.consume();
     const tt = tok.tokenType;
-    const nInputs = instrInputCount(tt);
+    const nInputs = instrInputCountForTok(tok);
 
     let operands: Expr[];
     if (nInputs === -1) {
@@ -2434,13 +2570,24 @@ export class WastParser {
       case TokenType.SimdLaneOp: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const lane = this.parseSimdLane();
-        return {
-          kind: 'simd_lane_op',
-          opcode: op as unknown as Opcode,
-          lane,
-          operand: op0(),
-          loc,
-        } as SimdLaneOpExpr;
+        const isReplace = isReplaceLaneOpcode(op);
+        const node: SimdLaneOpExpr = isReplace
+          ? {
+            kind: 'simd_lane_op',
+            opcode: op as unknown as Opcode,
+            lane,
+            operand: op0(),
+            value: op1(),
+            loc,
+          }
+          : {
+            kind: 'simd_lane_op',
+            opcode: op as unknown as Opcode,
+            lane,
+            operand: op0(),
+            loc,
+          };
+        return node;
       }
       case TokenType.SimdShuffleOp: {
         const op = (tok as OpcodeToken).opcode as unknown as number;

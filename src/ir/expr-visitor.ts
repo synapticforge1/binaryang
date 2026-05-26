@@ -350,8 +350,14 @@ export class ExprVisitor {
         return this.d.onLoadZeroExpr?.(e) ?? Result.Ok;
       }
       case 'simd_lane_op': {
-        const r = this.dispatch(e.operand);
-        if (r === Result.Error) return r;
+        const r1 = this.dispatch(e.operand);
+        if (r1 === Result.Error) return r1;
+        // replace_lane carries a second operand (the scalar replacement);
+        // extract_lane variants leave `value` undefined.
+        if (e.value !== undefined) {
+          const r2 = this.dispatch(e.value);
+          if (r2 === Result.Error) return r2;
+        }
         return this.d.onSimdLaneOpExpr?.(e) ?? Result.Ok;
       }
       case 'throw_ref': {

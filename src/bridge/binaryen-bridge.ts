@@ -116,6 +116,7 @@ import {
   makeReturn,
   makeSelect,
   makeSIMDExtract,
+  makeSIMDReplace,
   makeSIMDLoad,
   makeSIMDLoadStoreLane,
   makeSIMDShuffle,
@@ -130,6 +131,7 @@ import {
   ModuleBuilder,
   None,
   SIMDExtractOp,
+  SIMDReplaceOp,
   SIMDLoadOp,
   SIMDLoadStoreLaneOp,
   UnaryOp,
@@ -809,11 +811,6 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'simd_lane_op': {
       const slo = e as SimdLaneOpExpr;
       const opName = anyOpcodeName(slo.opcode);
-      // Extract-lane variants go through makeSIMDExtract. Replace-lane
-      // needs two operands (vec + scalar) but wabt-ts's SimdLaneOpExpr
-      // only carries one (`operand`) — the parser drops the second.
-      // Throw with a clear message until the upstream IR + parser grow
-      // a second-operand slot.
       if (opName.includes('extract_lane')) {
         return makeSIMDExtract(
           opName as SIMDExtractOp,
@@ -822,9 +819,17 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         );
       }
       if (opName.includes('replace_lane')) {
-        throw new Error(
-          'Bridge: SIMD replace_lane not yet supported (wabt parser ' +
-          'drops the second operand into SimdLaneOpExpr)',
+        // SimdLaneOpExpr.value is populated for replace_lane (parser now
+        // captures the scalar half); fall back to nop only as a defensive
+        // guard for hand-constructed IR.
+        const replacement = slo.value !== undefined
+          ? bridgeExpr(slo.value, ctx)
+          : bridgeExpr({ kind: 'nop', loc: slo.loc }, ctx);
+        return makeSIMDReplace(
+          opName as SIMDReplaceOp,
+          bridgeExpr(slo.operand, ctx),
+          slo.lane,
+          replacement,
         );
       }
       throw new Error(`Bridge: simd_lane_op opcode ${opName} not yet supported`);

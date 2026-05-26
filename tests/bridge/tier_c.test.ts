@@ -8,7 +8,6 @@
  *
  * Out of scope for this tier:
  *   - `ref.as_non_null` (binaryen-ts v1.0.9 has no makeRefAsNonNull factory)
- *   - SIMD `replace_lane` (wabt-ts parser drops the second operand)
  *   - GC instructions (struct.*, array.*, ref.eq, ref.i31)
  *   - Tag imports / tag exports (no binaryen-ts factory in v1.0.9)
  */
@@ -134,6 +133,31 @@ describe('Phase 7 Tier C: SIMD', () => {
       (export "reverse" (func $reverse)))`);
   });
 
+  // Bug: previously the WAT parser dropped the scalar operand for every
+  // `*.replace_lane`, so any module using it failed to compile. Fixed by
+  // adding a per-opcode arity dispatch (instrInputCountForTok) and an
+  // optional `value` slot on SimdLaneOpExpr.
+  it('i32x4.replace_lane (replace_lane carries vec + scalar)', async () => {
+    await bridgeAndCompile(`(module
+      (func $set_lane (param v128 i32) (result v128)
+        (i32x4.replace_lane 2 (local.get 0) (local.get 1)))
+      (export "set_lane" (func $set_lane)))`);
+  });
+
+  it('i8x16.replace_lane (smallest lane type)', async () => {
+    await bridgeAndCompile(`(module
+      (func $set_byte (param v128 i32) (result v128)
+        (i8x16.replace_lane 7 (local.get 0) (local.get 1)))
+      (export "set_byte" (func $set_byte)))`);
+  });
+
+  it('f64x2.replace_lane (largest lane type, f64 scalar)', async () => {
+    await bridgeAndCompile(`(module
+      (func $set_lane (param v128 f64) (result v128)
+        (f64x2.replace_lane 1 (local.get 0) (local.get 1)))
+      (export "set_lane" (func $set_lane)))`);
+  });
+
   // v128.const literal form `(v128.const i32x4 0x... 0x... 0x... 0x...)`
   // is not yet supported by the wabt-ts WAT parser — separate parser-side
   // work. The bridge's bridgeConst v128 case will pick it up automatically
@@ -204,16 +228,8 @@ describe('Phase 7 Tier C: SIMD memory ops', () => {
 
 describe('Phase 7 Tier C: exception handling', () => {
   // The bridge handles defined tags + throw / throw_ref / try_table
-  // expressions. What we can exercise here is gated by what survives the
-  // wabt-ts WAT parser:
-  //
-  // - `(tag ...)` defs and `throw $tag operands...` round-trip cleanly.
-  // - `try_table` falls back to a plain BlockExpr because the parser
-  //   doesn't yet consume `(catch ...)` clauses (`expected ), got (`).
-  //   Until that's fixed, exnref-producing patterns and try_table
-  //   coverage can't be tested via the WAT pipeline — the bridge cases
-  //   are still there for binary-reader IR input and for the moment
-  //   when the parser lands.
+  // expressions, and as of the latest parser work the WAT path supports
+  // the full set including `(catch ...)` clauses inside try_table.
   //
   // Tag imports and tag exports remain blocked by gaps in binaryen-ts
   // v1.0.9's surface (no addTagImport; no "tag" in WasmExport.kind).
@@ -238,4 +254,41 @@ describe('Phase 7 Tier C: exception handling', () => {
       (func $boom (throw $err (i32.const 1) (i64.const 2)))
       (export "boom" (func $boom)))`);
   });
+
+  it('try_table catch routes to a labeled outer block', async () => {
+    // tag $err has (param i32), so catch routes one i32 to $out.
+    // $out's result is i32, matching what catch delivers. The body
+    // throws (unreachable), so try_table's declared (result i32)
+    // fallthru is satisfied polymorphically.
+    await bridgeAndCompile(`(module
+      (tag $err (param i32))
+      (func $f (result i32)
+        (block $out (result i32)
+          (try_table (result i32) (catch $err $out)
+            (throw $err (i32.const 99)))))
+      (export "f" (func $f)))`);
+  });
+
+  it('try_table catch_all routes to a labeled outer block (void)', async () => {
+    // tag $err has no params; catch_all delivers no operands to $out.
+    // Both $out and the try_table are void.
+    await bridgeAndCompile(`(module
+      (tag $err)
+      (func $f
+        (block $out
+          (try_table (catch_all $out)
+            (throw $err))))
+      (export "f" (func $f)))`);
+  });
+
+  // Multi-catch (catch + catch_all on one try_table) and catch_ref /
+  // throw_ref end-to-end are parsed and bridged correctly (the IR dump
+  // shows the right TableCatch[] entries and the binary encodes the
+  // expected catch-opcode bytes with spec-correct depths), but V8's
+  // multi-catch validator rejects the produced binaries with "target
+  // block expects 1" — likely either a binaryen-ts encoder quirk in the
+  // catch-block-type computation or a stricter V8 check than the spec
+  // requires. The parser change here (item 1) is shipped; revisit the
+  // multi-catch and exnref-producing cases when the V8 / binaryen-ts
+  // delta is understood.
 });

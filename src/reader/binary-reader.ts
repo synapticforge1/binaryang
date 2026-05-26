@@ -1697,26 +1697,26 @@ export class BinaryReader {
       return;
     }
 
-    // extract_lane ops (0x15-0x22 extract): unary + lane immediate
-    // replace_lane ops: binary + lane immediate
+    // Lane ops (0x15-0x22): extract_lane (vec → scalar) or
+    // replace_lane (vec, scalar → vec). The replace family is the six
+    // opcodes at the odd-ish positions in the run; extract is everything
+    // else in the range.
     if (op >= 0x15 && op <= 0x22) {
       const lane = this.readU8();
-      // even indices: extract (1 pop, push), odd: replace (2 pops, push)
-      // Actually pattern: extract_lane_s/u/extract_lane/replace_lane alternating
-      // 0x15 i8x16.extract_lane_s (extract), 0x16 i8x16.extract_lane_u (extract),
-      // 0x17 i8x16.replace_lane (replace), etc.
-      const isReplace = op === 0x17 || op === 0x1a || op === 0x1c || op === 0x1e || op === 0x20 ||
-        op === 0x22;
+      const isReplace = op === 0x17 || op === 0x1a || op === 0x1c || op === 0x1e ||
+        op === 0x20 || op === 0x22;
       if (isReplace) {
+        // Stack order: vec was pushed first, then scalar — pop scalar first.
         const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        // Use TernaryExpr for replace_lane? No, use SimdLaneOp with vec as operand
-        // Actually let's use a binary approach: the vec is the primary, value is secondary
-        // For simplicity, model replace_lane as ternary (a=vec, b=value, using opcode+lane)
-        stack.push({ kind: 'simd_lane_op', opcode: opcode as Opcode, lane, operand: vec, loc });
-        // NOTE: value is lost here — this is a simplification. For round-trip we need better handling.
-        // TODO: proper replace_lane needs a dedicated IR node or different modeling
-        void value; // suppress unused warning
+        stack.push({
+          kind: 'simd_lane_op',
+          opcode: opcode as Opcode,
+          lane,
+          operand: vec,
+          value,
+          loc,
+        });
       } else {
         const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         stack.push({ kind: 'simd_lane_op', opcode: opcode as Opcode, lane, operand, loc });
