@@ -23,14 +23,14 @@
  */
 
 import { describe, it } from '@std/testing/bdd';
-import { assertEquals, assert } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 
 import { LexerSource } from '../../src/parser/lexer-source.ts';
 import { parseWatModule } from '../../src/parser/wast-parser.ts';
 import { resolveNames } from '../../src/ir/resolve-names.ts';
 import { readBinaryIr } from '../../src/reader/binary-reader.ts';
 import { validateModule } from '../../src/validator/validator.ts';
-import { hasErrors, formatErrors, makeErrorList } from '../../src/core/error.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
 import { Result } from '../../src/core/result.ts';
 import { bridgeToBinaryen } from '../../src/bridge/binaryen-bridge.ts';
 import { encodeWasm } from '@jrmarcum/binaryen-ts/encoder';

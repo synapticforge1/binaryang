@@ -20,7 +20,7 @@ import { parseWatModule } from '../../src/parser/wast-parser.ts';
 import { resolveNames } from '../../src/ir/resolve-names.ts';
 import { readBinaryIr } from '../../src/reader/binary-reader.ts';
 import { validateModule } from '../../src/validator/validator.ts';
-import { makeErrorList, hasErrors, formatErrors } from '../../src/core/error.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
 import { Result } from '../../src/core/result.ts';
 
 import { bridgeToBinaryen } from '../../src/bridge/binaryen-bridge.ts';

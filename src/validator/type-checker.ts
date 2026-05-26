@@ -360,10 +360,112 @@ function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
       return oi(_I64, _I64, _V, _V, 0);
     case Opcode.I64Extend32S:
       return oi(_I64, _I64, _V, _V, 0);
-    // Default: SIMD / unknown — V128 binary pattern
-    default:
-      return oi(_V128, _V128, _V128, _V, 0);
   }
+  // --- SIMD (0xfd-prefix) ---
+  // Many SIMD opcodes are v128-binary (`(v128, v128) → v128`), which is the
+  // default fallthrough below — leaving them implicit keeps this table
+  // manageable. Only opcodes whose signature differs are listed here:
+  //   splats: (T_lane) → v128
+  //   any_true / all_true / bitmask: (v128) → i32
+  //   shifts: (v128, i32) → v128
+  //   v128 unary (abs / neg / popcnt / sqrt / ceil / floor / trunc / nearest):
+  //     (v128) → v128
+  switch (opcode) {
+    // splats
+    case (0xfd << 8) | 0x0f: // i8x16.splat
+    case (0xfd << 8) | 0x10: // i16x8.splat
+    case (0xfd << 8) | 0x11: // i32x4.splat
+      return oi(_V128, _I32, _V, _V, 0);
+    case (0xfd << 8) | 0x12: // i64x2.splat
+      return oi(_V128, _I64, _V, _V, 0);
+    case (0xfd << 8) | 0x13: // f32x4.splat
+      return oi(_V128, _F32, _V, _V, 0);
+    case (0xfd << 8) | 0x14: // f64x2.splat
+      return oi(_V128, _F64, _V, _V, 0);
+    // any_true (v128 → i32)
+    case (0xfd << 8) | 0x53: // v128.any_true
+    // all_true (v128 → i32)
+    case (0xfd << 8) | 0x63: // i8x16.all_true
+    case (0xfd << 8) | 0x83: // i16x8.all_true
+    case (0xfd << 8) | 0xa3: // i32x4.all_true
+    case (0xfd << 8) | 0xc3: // i64x2.all_true
+    // bitmask (v128 → i32)
+    case (0xfd << 8) | 0x64: // i8x16.bitmask
+    case (0xfd << 8) | 0x84: // i16x8.bitmask
+    case (0xfd << 8) | 0xa4: // i32x4.bitmask
+    case (0xfd << 8) | 0xc4: // i64x2.bitmask
+      return oi(_I32, _V128, _V, _V, 0);
+    // shifts (v128, i32 → v128)
+    case (0xfd << 8) | 0x6b: // i8x16.shl
+    case (0xfd << 8) | 0x6c: // i8x16.shr_s
+    case (0xfd << 8) | 0x6d: // i8x16.shr_u
+    case (0xfd << 8) | 0x8b: // i16x8.shl
+    case (0xfd << 8) | 0x8c: // i16x8.shr_s
+    case (0xfd << 8) | 0x8d: // i16x8.shr_u
+    case (0xfd << 8) | 0xab: // i32x4.shl
+    case (0xfd << 8) | 0xac: // i32x4.shr_s
+    case (0xfd << 8) | 0xad: // i32x4.shr_u
+    case (0xfd << 8) | 0xcb: // i64x2.shl
+    case (0xfd << 8) | 0xcc: // i64x2.shr_s
+    case (0xfd << 8) | 0xcd: // i64x2.shr_u
+      return oi(_V128, _V128, _I32, _V, 0);
+    // v128 → v128 unary
+    case (0xfd << 8) | 0x4d: // v128.not
+    case (0xfd << 8) | 0x60: // i8x16.abs
+    case (0xfd << 8) | 0x61: // i8x16.neg
+    case (0xfd << 8) | 0x62: // i8x16.popcnt
+    case (0xfd << 8) | 0x67: // f32x4.ceil
+    case (0xfd << 8) | 0x68: // f32x4.floor
+    case (0xfd << 8) | 0x69: // f32x4.trunc
+    case (0xfd << 8) | 0x6a: // f32x4.nearest
+    case (0xfd << 8) | 0x74: // f64x2.ceil
+    case (0xfd << 8) | 0x75: // f64x2.floor
+    case (0xfd << 8) | 0x7a: // f64x2.trunc
+    case (0xfd << 8) | 0x7c: // i16x8.extadd_pairwise_i8x16_s
+    case (0xfd << 8) | 0x7d: // i16x8.extadd_pairwise_i8x16_u
+    case (0xfd << 8) | 0x7e: // i32x4.extadd_pairwise_i16x8_s
+    case (0xfd << 8) | 0x7f: // i32x4.extadd_pairwise_i16x8_u
+    case (0xfd << 8) | 0x80: // i16x8.abs
+    case (0xfd << 8) | 0x81: // i16x8.neg
+    case (0xfd << 8) | 0x87: // i16x8.extend_low_i8x16_s
+    case (0xfd << 8) | 0x88: // i16x8.extend_high_i8x16_s
+    case (0xfd << 8) | 0x89: // i16x8.extend_low_i8x16_u
+    case (0xfd << 8) | 0x8a: // i16x8.extend_high_i8x16_u
+    case (0xfd << 8) | 0x94: // f64x2.nearest
+    case (0xfd << 8) | 0xa0: // i32x4.abs
+    case (0xfd << 8) | 0xa1: // i32x4.neg
+    case (0xfd << 8) | 0xa7: // i32x4.extend_low_i16x8_s
+    case (0xfd << 8) | 0xa8: // i32x4.extend_high_i16x8_s
+    case (0xfd << 8) | 0xa9: // i32x4.extend_low_i16x8_u
+    case (0xfd << 8) | 0xaa: // i32x4.extend_high_i16x8_u
+    case (0xfd << 8) | 0xc0: // i64x2.abs
+    case (0xfd << 8) | 0xc1: // i64x2.neg
+    case (0xfd << 8) | 0xc7: // i64x2.extend_low_i32x4_s
+    case (0xfd << 8) | 0xc8: // i64x2.extend_high_i32x4_s
+    case (0xfd << 8) | 0xc9: // i64x2.extend_low_i32x4_u
+    case (0xfd << 8) | 0xca: // i64x2.extend_high_i32x4_u
+    case (0xfd << 8) | 0xe0: // f32x4.abs
+    case (0xfd << 8) | 0xe1: // f32x4.neg
+    case (0xfd << 8) | 0xe3: // f32x4.sqrt
+    case (0xfd << 8) | 0xec: // f64x2.abs
+    case (0xfd << 8) | 0xed: // f64x2.neg
+    case (0xfd << 8) | 0xef: // f64x2.sqrt
+    case (0xfd << 8) | 0x5e: // f32x4.demote_f64x2_zero
+    case (0xfd << 8) | 0x5f: // f64x2.promote_low_f32x4
+    case (0xfd << 8) | 0xf8: // i32x4.trunc_sat_f32x4_s
+    case (0xfd << 8) | 0xf9: // i32x4.trunc_sat_f32x4_u
+    case (0xfd << 8) | 0xfa: // f32x4.convert_i32x4_s
+    case (0xfd << 8) | 0xfb: // f32x4.convert_i32x4_u
+    case (0xfd << 8) | 0xfc: // i32x4.trunc_sat_f64x2_s_zero
+    case (0xfd << 8) | 0xfd: // i32x4.trunc_sat_f64x2_u_zero
+    case (0xfd << 8) | 0xfe: // f64x2.convert_low_i32x4_s
+    case (0xfd << 8) | 0xff: // f64x2.convert_low_i32x4_u
+      return oi(_V128, _V128, _V, _V, 0);
+  }
+  // Default: SIMD lane-wise binary or unknown — (v128, v128) → v128.
+  // Correct for the bulk of SIMD ops (add / sub / mul / div / min / max /
+  // eq / ne / lt / gt / le / ge / and / or / xor / andnot / etc.).
+  return oi(_V128, _V128, _V128, _V, 0);
 }
 
 /** Returns the natural byte alignment for a load/store opcode (0 = N/A). */

@@ -22,12 +22,12 @@
  */
 
 import { describe, it } from '@std/testing/bdd';
-import { assertEquals, assert } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../src/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../src/reader/binary-reader.ts';
 import { validateModule } from '../../src/validator/validator.ts';
-import { makeErrorList, hasErrors, formatErrors } from '../../src/core/error.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
 import { Result } from '../../src/core/result.ts';
 
 function compileAndValidate(wat: string): Uint8Array {
@@ -295,7 +295,9 @@ describe('wat2wasm — end-to-end regression', () => {
       assertEquals(
         bin[i + 1]!,
         want,
-        `${name} (opcode 0x${op.toString(16)}) at byte ${i}: expected align byte = ${want}, got ${bin[i + 1]}`,
+        `${name} (opcode 0x${op.toString(16)}) at byte ${i}: expected align byte = ${want}, got ${
+          bin[i + 1]
+        }`,
       );
     }
   });

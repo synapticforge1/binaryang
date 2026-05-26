@@ -442,13 +442,24 @@ class ResolveContext {
       case 'table.grow': {
         const [rI, initValue] = this.resolveExpr(e.initValue);
         const [rD, delta] = this.resolveExpr(e.delta);
-        return [combine(rI, rD), { ...e, table: this.resolveTableVar(e.table, loc), initValue, delta }];
+        return [combine(rI, rD), {
+          ...e,
+          table: this.resolveTableVar(e.table, loc),
+          initValue,
+          delta,
+        }];
       }
       case 'table.fill': {
         const [rS, start] = this.resolveExpr(e.start);
         const [rV, value] = this.resolveExpr(e.value);
         const [rN, size] = this.resolveExpr(e.size);
-        return [combine(rS, combine(rV, rN)), { ...e, table: this.resolveTableVar(e.table, loc), start, value, size }];
+        return [combine(rS, combine(rV, rN)), {
+          ...e,
+          table: this.resolveTableVar(e.table, loc),
+          start,
+          value,
+          size,
+        }];
       }
       case 'ref.is_null':
       case 'ref.as_non_null': {

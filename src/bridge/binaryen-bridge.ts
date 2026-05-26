@@ -116,9 +116,9 @@ import {
   makeReturn,
   makeSelect,
   makeSIMDExtract,
-  makeSIMDReplace,
   makeSIMDLoad,
   makeSIMDLoadStoreLane,
+  makeSIMDReplace,
   makeSIMDShuffle,
   makeStore,
   makeSwitch,
@@ -131,9 +131,9 @@ import {
   ModuleBuilder,
   None,
   SIMDExtractOp,
-  SIMDReplaceOp,
   SIMDLoadOp,
   SIMDLoadStoreLaneOp,
+  SIMDReplaceOp,
   UnaryOp,
   ValType,
 } from '@jrmarcum/binaryen-ts/ir';
@@ -879,7 +879,10 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
 }
 
 /** Translate a wabt try_table catch into a binaryen-ts CatchClause. */
-function buildCatchClause(c: { kind: CatchKind; tag?: Var; target: Var }, ctx: BridgeCtx): CatchClause {
+function buildCatchClause(
+  c: { kind: CatchKind; tag?: Var; target: Var },
+  ctx: BridgeCtx,
+): CatchClause {
   const dest = resolveLabel(ctx, c.target);
   switch (c.kind) {
     case CatchKind.Catch:
@@ -901,10 +904,14 @@ function buildCatchClause(c: { kind: CatchKind; tag?: Var; target: Var }, ctx: B
 function refTypeVarToValType(v: Var): ValType {
   if (v.kind === 'name') {
     switch (v.name) {
-      case 'funcref':   return ValType.FuncRef;
-      case 'externref': return ValType.ExternRef;
-      case 'func':      return ValType.FuncRef;     // `(ref.null func)`
-      case 'extern':    return ValType.ExternRef;   // `(ref.null extern)`
+      case 'funcref':
+        return ValType.FuncRef;
+      case 'externref':
+        return ValType.ExternRef;
+      case 'func':
+        return ValType.FuncRef; // `(ref.null func)`
+      case 'extern':
+        return ValType.ExternRef; // `(ref.null extern)`
     }
     throw new Error(`Bridge: unsupported ref.null type "${v.name}"`);
   }
@@ -1059,19 +1066,32 @@ function loadInfo(opcode: number): LoadInfo {
 function simdLoadOpForOpcode(opcode: number): SIMDLoadOp | null {
   if ((opcode >> 8) !== 0xfd) return null;
   switch (opcode & 0xff) {
-    case 0x01: return SIMDLoadOp.Load8x8SVec128;
-    case 0x02: return SIMDLoadOp.Load8x8UVec128;
-    case 0x03: return SIMDLoadOp.Load16x4SVec128;
-    case 0x04: return SIMDLoadOp.Load16x4UVec128;
-    case 0x05: return SIMDLoadOp.Load32x2SVec128;
-    case 0x06: return SIMDLoadOp.Load32x2UVec128;
-    case 0x07: return SIMDLoadOp.Load8SplatVec128;
-    case 0x08: return SIMDLoadOp.Load16SplatVec128;
-    case 0x09: return SIMDLoadOp.Load32SplatVec128;
-    case 0x0a: return SIMDLoadOp.Load64SplatVec128;
-    case 0x5c: return SIMDLoadOp.Load32ZeroVec128;
-    case 0x5d: return SIMDLoadOp.Load64ZeroVec128;
-    default: return null; // includes plain v128.load (0x00) → caller uses makeLoad
+    case 0x01:
+      return SIMDLoadOp.Load8x8SVec128;
+    case 0x02:
+      return SIMDLoadOp.Load8x8UVec128;
+    case 0x03:
+      return SIMDLoadOp.Load16x4SVec128;
+    case 0x04:
+      return SIMDLoadOp.Load16x4UVec128;
+    case 0x05:
+      return SIMDLoadOp.Load32x2SVec128;
+    case 0x06:
+      return SIMDLoadOp.Load32x2UVec128;
+    case 0x07:
+      return SIMDLoadOp.Load8SplatVec128;
+    case 0x08:
+      return SIMDLoadOp.Load16SplatVec128;
+    case 0x09:
+      return SIMDLoadOp.Load32SplatVec128;
+    case 0x0a:
+      return SIMDLoadOp.Load64SplatVec128;
+    case 0x5c:
+      return SIMDLoadOp.Load32ZeroVec128;
+    case 0x5d:
+      return SIMDLoadOp.Load64ZeroVec128;
+    default:
+      return null; // includes plain v128.load (0x00) → caller uses makeLoad
   }
 }
 
