@@ -199,7 +199,7 @@ workstation, since that would publish without provenance.
 
 ## Roadmap
 
-> This project is under active development. Phases 1–6 are complete and Phase 7 (binaryen bridge) is well past MVP — ~35 expression kinds round-trip through the bridge to V8-validated wasm.
+> This project is under active development. Phases 1–6 are complete and Phase 7 (binaryen bridge) covers ~45 expression kinds — every common compute / control-flow / memory / SIMD / reference-types / exception-handling case round-trips through the bridge to V8-validated wasm.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -211,10 +211,12 @@ workstation, since that would publish without provenance.
 | **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | ✅ Complete |
 | **6.1** | Pre-publish housekeeping — JSR/CI hardening (tag-driven publish, GitHub Release auto-creation, `ci.yml`); lint cleanup (71→0); module-level codec singletons + `ModuleContext`/`WatWriter` index-map caches | ✅ Complete |
 | **6.2** | Release-flow alignment with binaryen-ts — `deno task bump`, atomic publish, `auto-tag.yml` safety net, license fix (JSR rejects compound SPDX); first successful JSR publish | ✅ Complete |
-| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🟡 In progress (Tiers A+B+C partial; EH/GC deferred) |
+| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🟡 In progress (Tiers A+B+C complete except for binaryen-ts-gated gaps and GC) |
 | **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
-Phase 7 (binaryen bridge) covers MVP + Tier A (control flow, locals, globals) + Tier B (calls, select, memory ops) + Tier C partial (ref types, SIMD basics — splat, lane extract, shuffle, lane-wise arithmetic). Deferred from Tier C: `ref.as_non_null` (no binaryen-ts factory yet), SIMD `replace_lane` + memory ops, exception handling, and the GC proposal — each currently throws "not yet supported" with the kind named. binaryen-ts is at v1.0.9. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
+Phase 7 (binaryen bridge) covers MVP + Tier A (control flow, locals, globals) + Tier B (calls, select, memory ops) + Tier C (reference types, SIMD lane ops + arithmetic + memory ops, exception handling: tag defs + throw/throw_ref/try_table cases). Bridge-side deferrals are now all upstream gaps: `ref.as_non_null` (no `makeRefAsNonNull` factory), plain `v128.load` (encoder's `loadOpcode` has no V128 branch), tag imports + tag exports (no `addTagImport`; `WasmExport.kind` lacks `"tag"`). The GC proposal (`struct.*`, `array.*`, `ref.eq`, `ref.i31`) needs wabt-ts IR work first. binaryen-ts is at v1.0.9. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
+
+**wasmtk-driven hardening (v1.0.7 → v1.1.1).** The wasmtk integration test suite has surfaced a stream of latent wabt-ts bugs that previous tests didn't exercise. Pattern: a new module shape parses wrong, gets fixed at root cause in `src/`, regression test added under `tests/`. Recent landings include f64/f32 constant integer literals (were being encoded as raw bit patterns producing subnormals; v1.1.0), multi-value `return` (was dropping all but the first operand; v1.1.1), `memarg.align` defaulting to byte 0 instead of opcode-natural (broke binaryen's optimizer and caused runtime corruption; v1.1.1), and ~95-entry SIMD opcode-name table drift fixed by regenerating from upstream wabt `opcode.def` (v1.1.1). The decisions log in [TASKS.md](TASKS.md) tracks each bug with reproduction and regression coverage.
 
 ## Repository Layout
 
