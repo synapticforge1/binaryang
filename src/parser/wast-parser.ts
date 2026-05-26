@@ -625,6 +625,25 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.SimdShuffleOp:
     case TokenType.Ternary:
     case TokenType.Quaternary:
+    // Calls produce a value (1+ results in WASM 2.0; 0 results for void
+    // funcs). The parser can't know the callee's signature at this point,
+    // so the conservative "push to stack" path is correct in both cases:
+    //   - If the call has a result and it's nested inside another expr,
+    //     it's available as an operand.
+    //   - If the call is at statement position (no consumer), flushStack
+    //     at the containing scope moves it to stmts unchanged.
+    //   - If the call is void, the stack just gets a non-pop, then
+    //     flushStack moves it to stmts. The binary encodes it as a plain
+    //     `call` opcode; runtime stack state is governed by the actual sig.
+    // Previously these fell through to `default: return false`, which
+    // pushed every nested call to stmts directly. flushStack then
+    // appended whatever was on stack AFTER stmts, scrambling operand
+    // order whenever a call appeared next to another sub-expr — e.g.
+    // `(i32.store (i32.const 100) (call $f))` parsed with address +
+    // value swapped, writing the store value to the wrong address.
+    case TokenType.Call:
+    case TokenType.CallIndirect:
+    case TokenType.CallRef:
       return true;
     default:
       return false;

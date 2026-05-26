@@ -258,6 +258,53 @@ describe('wat2wasm — end-to-end regression', () => {
     inst.noop!();
   });
 
+  // Bug #20 (wasmtk repro 2026-05-25, v1.1.3 still affected):
+  // `(i32.store (i32.const 100) (call $f))` parsed with operands
+  // swapped — address became the call result, value became 100. Memory
+  // write went to the wrong address. Caused 1_StaticGlobalInitialization,
+  // 1_recursion, 1_WasiStringBufferIntegrity failures in wasmtk's
+  // Phase 1 suite. Root cause: TokenType.Call wasn't in
+  // instrProducesValue, so nested calls were pushed to ctx.stmts
+  // instead of ctx.stack. flushStack then appended stack AFTER stmts,
+  // reversing operand order whenever a call appeared next to another
+  // sub-expr.
+  it('(i32.store (i32.const 100) (call $f)) puts address first, value second', async () => {
+    const bin = compileAndValidate(`(module
+      (memory (export "memory") 1)
+      (func $f (result i32) (i32.const 42))
+      (func (export "go") (i32.store (i32.const 100) (call $f))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = await WebAssembly.instantiate(mod);
+    const mem = new Uint32Array((inst.exports.memory as WebAssembly.Memory).buffer);
+    (inst.exports.go as () => void)();
+    // The store wrote 42 to address 100 — read it back as mem[25] (i32
+    // index 25 = byte offset 100). If operand order were swapped, the
+    // store would have written 100 to address 42 and mem[25] would be 0.
+    assertEquals(mem[25], 42, 'mem[25] (byte 100) should be 42');
+    assertEquals(mem[10], 0, 'mem[10] (byte 40) should NOT be 100');
+  });
+
+  it('(i32.add (call $f) (i32.const 1)) keeps left=call, right=const', () => {
+    const bin = compileAndValidate(`(module
+      (func $f (result i32) (i32.const 10))
+      (func (export "g") (result i32)
+        (i32.add (call $f) (i32.const 1))))`);
+    // call is opcode 0x10, i32.const is 0x41, i32.add is 0x6a.
+    // Correct order: call $f; i32.const 1; i32.add → bytes contain
+    // `10 00 41 01 6a` somewhere in the function body. If operand order
+    // were swapped, the call would still emit first (it's the only call
+    // in the body), but `i32.add` would consume operands in the wrong
+    // order; the regression-guarding shape is that `10 00 41 01 6a`
+    // appears intact.
+    const hex = Array.from(bin).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+    assert(
+      hex.includes('10 00 41 01 6a'),
+      `expected 'call 0; i32.const 1; i32.add' sequence; binary: ${hex}`,
+    );
+  });
+
   // Bug #13 (wasmtk repro 2026-05-25): every memory op without an explicit
   // `align=N` keyword was being encoded with memarg.align = 0 (1-byte
   // alignment). The binary writer treated the parser's "0 = unspecified"
