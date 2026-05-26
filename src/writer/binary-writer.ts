@@ -83,7 +83,13 @@ import type {
 import { CatchKind } from '../ir/ir.ts';
 import { Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
-import { Opcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
+import {
+  naturalAlignForOpcode,
+  Opcode,
+  PREFIX_MISC,
+  PREFIX_SIMD,
+  PREFIX_THREADS,
+} from '../core/opcode.ts';
 import {
   BinarySection,
   ExternalKind,
@@ -126,13 +132,45 @@ function writeOpcode(s: MemoryStream, op: number): void {
   }
 }
 
-function writeMemArg(s: MemoryStream, align: number, offset: bigint, memidx: Var): void {
+/**
+ * Combined opcode value (prefix << 8 | subop, or the bare core opcode) for
+ * the load/store-family IR node passed in. All such nodes carry an `opcode`
+ * field except `AtomicNotifyExpr`, where the opcode is implicit because
+ * `memory.atomic.notify` is a single fixed instruction with no encoding
+ * variants. Centralizing the lookup keeps the writeMemArg call sites
+ * uniform.
+ */
+function opcodeOf(e: unknown): number {
+  const op = (e as { opcode?: number }).opcode;
+  return op ?? ((PREFIX_THREADS << 8) | 0x00);
+}
+
+function writeMemArg(
+  s: MemoryStream,
+  alignBytes: number,
+  offset: bigint,
+  memidx: Var,
+  opcode: number,
+): void {
+  // wabt-ts IR stores align in BYTES (e.g. 4 for i32) with 0 meaning
+  // "no explicit `align=N` keyword in WAT — use the opcode's natural
+  // alignment". The binary spec encodes align as a log2 exponent, so
+  // 4 bytes → exponent 2. Previously this function wrote the raw byte
+  // value, which produced binaries where:
+  //   - default-aligned ops emitted align=0 (1-byte alignment); accepted
+  //     by V8 but defeated binaryen's optimizer because the field signals
+  //     a tighter alignment constraint than the user intended.
+  //   - explicit-aligned ops (rare) emitted byte value 4 = 2^4 = 16-byte
+  //     alignment, which V8 rejects as larger than natural.
+  // Fix: resolve natural when align=0, then log2-encode.
+  const bytes = alignBytes === 0 ? naturalAlignForOpcode(opcode) : alignBytes;
+  const alignLog2 = Math.log2(bytes);
   const idx = memidx.kind === 'index' ? memidx.value : 0;
   if (idx !== 0) {
-    s.writeU32Leb(align | 0x40); // bit 6 set = explicit memidx follows
+    s.writeU32Leb(alignLog2 | 0x40); // bit 6 set = explicit memidx follows
     s.writeU32Leb(idx);
   } else {
-    s.writeU32Leb(align);
+    s.writeU32Leb(alignLog2);
   }
   s.writeU64Leb(offset);
 }
@@ -386,12 +424,12 @@ class BodyWriter implements ExprVisitorDelegate {
   // --- Loads & stores ---
   onLoadExpr(e: LoadExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onStoreExpr(e: StoreExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
 
@@ -566,57 +604,57 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onSimdLoadLaneExpr(e: SimdLoadLaneExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     this.s.writeU8(e.lane);
     return Result.Ok;
   }
   onSimdStoreLaneExpr(e: SimdStoreLaneExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     this.s.writeU8(e.lane);
     return Result.Ok;
   }
   onLoadSplatExpr(e: LoadSplatExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onLoadZeroExpr(e: LoadZeroExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
 
   // --- Atomics ---
   onAtomicLoadExpr(e: AtomicLoadExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onAtomicStoreExpr(e: AtomicStoreExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onAtomicRmwExpr(e: AtomicRmwExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onAtomicRmwCmpxchgExpr(e: AtomicRmwCmpxchgExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onAtomicWaitExpr(e: AtomicWaitExpr): Result {
     writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onAtomicNotifyExpr(e: AtomicNotifyExpr): Result {
     this.s.writeU8(PREFIX_THREADS);
     this.s.writeU32Leb(0x00); // memory.atomic.notify
-    writeMemArg(this.s, e.align, e.offset, e.memidx);
+    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;
   }
   onAtomicFenceExpr(e: AtomicFenceExpr): Result {

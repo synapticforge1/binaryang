@@ -504,17 +504,44 @@ const OPCODE_NAMES: ReadonlyMap<Opcode, string> = new Map<Opcode, string>([
 // ---------------------------------------------------------------------------
 
 const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, string>([
-  // --- 0xfc: saturating truncation ---
-  [(PREFIX_MISC << 8) | 0, 'i32.trunc_sat_f32_s'],
-  [(PREFIX_MISC << 8) | 1, 'i32.trunc_sat_f32_u'],
-  [(PREFIX_MISC << 8) | 2, 'i32.trunc_sat_f64_s'],
-  [(PREFIX_MISC << 8) | 3, 'i32.trunc_sat_f64_u'],
-  [(PREFIX_MISC << 8) | 4, 'i64.trunc_sat_f32_s'],
-  [(PREFIX_MISC << 8) | 5, 'i64.trunc_sat_f32_u'],
-  [(PREFIX_MISC << 8) | 6, 'i64.trunc_sat_f64_s'],
-  [(PREFIX_MISC << 8) | 7, 'i64.trunc_sat_f64_u'],
+  // --- 0xfc: misc (saturating truncation + bulk-memory + reference-types + i128) ---
+  [(PREFIX_MISC << 8) | 0x00, 'i32.trunc_sat_f32_s'],
+  [(PREFIX_MISC << 8) | 0x01, 'i32.trunc_sat_f32_u'],
+  [(PREFIX_MISC << 8) | 0x02, 'i32.trunc_sat_f64_s'],
+  [(PREFIX_MISC << 8) | 0x03, 'i32.trunc_sat_f64_u'],
+  [(PREFIX_MISC << 8) | 0x04, 'i64.trunc_sat_f32_s'],
+  [(PREFIX_MISC << 8) | 0x05, 'i64.trunc_sat_f32_u'],
+  [(PREFIX_MISC << 8) | 0x06, 'i64.trunc_sat_f64_s'],
+  [(PREFIX_MISC << 8) | 0x07, 'i64.trunc_sat_f64_u'],
+  [(PREFIX_MISC << 8) | 0x08, 'memory.init'],
+  [(PREFIX_MISC << 8) | 0x09, 'data.drop'],
+  [(PREFIX_MISC << 8) | 0x0a, 'memory.copy'],
+  [(PREFIX_MISC << 8) | 0x0b, 'memory.fill'],
+  [(PREFIX_MISC << 8) | 0x0c, 'table.init'],
+  [(PREFIX_MISC << 8) | 0x0d, 'elem.drop'],
+  [(PREFIX_MISC << 8) | 0x0e, 'table.copy'],
+  [(PREFIX_MISC << 8) | 0x0f, 'table.grow'],
+  [(PREFIX_MISC << 8) | 0x10, 'table.size'],
+  [(PREFIX_MISC << 8) | 0x11, 'table.fill'],
+  [(PREFIX_MISC << 8) | 0x13, 'i64.add128'],
+  [(PREFIX_MISC << 8) | 0x14, 'i64.sub128'],
+  [(PREFIX_MISC << 8) | 0x15, 'i64.mul_wide_s'],
+  [(PREFIX_MISC << 8) | 0x16, 'i64.mul_wide_u'],
 
-  // --- 0xfd: SIMD / v128 instructions ---
+  // --- 0xfd: SIMD / v128 instructions (regenerated from upstream wabt
+  // opcode.def via scripts/gen_simd_opcode_table.ts; cross-checked against
+  // https://github.com/WebAssembly/simd/blob/main/proposals/simd/BinarySIMD.md).
+  // Previous hand-written entries had drifted: ~95 opcodes were either at
+  // wrong byte positions (e.g. i64x2 compares listed at 0x41-0x46 instead of
+  // 0xd6-0xdb), missing entirely (extmul, extend_low/high families), or
+  // colliding via duplicate keys (relaxed-SIMD ops written as `| 0x100+` end
+  // up OR'd into the same 16-bit key as low SIMD opcodes). Run the audit
+  // script (scripts/audit_opcodes.ts) to detect future drift.
+  //
+  // SIMD sub-opcodes >= 0x100 (the relaxed-SIMD set: i8x16.relaxed_swizzle
+  // and friends) are LEB128-encoded in the binary and don't fit in this
+  // (prefix << 8) | byte key scheme. They're omitted here; add a separate
+  // table if a consumer needs them by name.
   [(PREFIX_SIMD << 8) | 0x00, 'v128.load'],
   [(PREFIX_SIMD << 8) | 0x01, 'v128.load8x8_s'],
   [(PREFIX_SIMD << 8) | 0x02, 'v128.load8x8_u'],
@@ -580,37 +607,23 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_SIMD << 8) | 0x3e, 'i32x4.le_u'],
   [(PREFIX_SIMD << 8) | 0x3f, 'i32x4.ge_s'],
   [(PREFIX_SIMD << 8) | 0x40, 'i32x4.ge_u'],
-  [(PREFIX_SIMD << 8) | 0x41, 'i64x2.eq'],
-  [(PREFIX_SIMD << 8) | 0x42, 'i64x2.ne'],
-  [(PREFIX_SIMD << 8) | 0x43, 'i64x2.lt_s'],
-  [(PREFIX_SIMD << 8) | 0x44, 'i64x2.gt_s'],
-  [(PREFIX_SIMD << 8) | 0x45, 'i64x2.le_s'],
-  [(PREFIX_SIMD << 8) | 0x46, 'i64x2.ge_s'],
-  [(PREFIX_SIMD << 8) | 0x47, 'f32x4.eq'],
-  [(PREFIX_SIMD << 8) | 0x48, 'f32x4.ne'],
-  [(PREFIX_SIMD << 8) | 0x49, 'f32x4.lt'],
-  [(PREFIX_SIMD << 8) | 0x4a, 'f32x4.gt'],
-  [(PREFIX_SIMD << 8) | 0x4b, 'f32x4.le'],
-  [(PREFIX_SIMD << 8) | 0x4c, 'f32x4.ge'],
-  [(PREFIX_SIMD << 8) | 0x4d, 'f64x2.eq'],
-  [(PREFIX_SIMD << 8) | 0x4e, 'f64x2.ne'],
-  [(PREFIX_SIMD << 8) | 0x4f, 'f64x2.lt'],
-  [(PREFIX_SIMD << 8) | 0x50, 'f64x2.gt'],
-  [(PREFIX_SIMD << 8) | 0x51, 'f64x2.le'],
-  [(PREFIX_SIMD << 8) | 0x52, 'f64x2.ge'],
-  [(PREFIX_SIMD << 8) | 0x53, 'v128.not'],
-  [(PREFIX_SIMD << 8) | 0x54, 'v128.and'],
-  [(PREFIX_SIMD << 8) | 0x55, 'v128.andnot'],
-  [(PREFIX_SIMD << 8) | 0x56, 'v128.or'],
-  [(PREFIX_SIMD << 8) | 0x57, 'v128.xor'],
-  // SIMD spec opcodes (https://github.com/WebAssembly/simd/blob/main/proposals/simd/BinarySIMD.md):
-  // 0x52: v128.bitselect, 0x53: v128.any_true, 0x54-0x57: load*_lane,
-  // 0x58-0x5b: store*_lane, 0x5c-0x5d: load*_zero. The lexer already uses
-  // these spec-correct values; an earlier version of this table had
-  // bitselect/any_true at 0x58/0x59 and store*_lane shifted to 0x5e-0x61,
-  // which collided with i8x16.abs/neg below and made anyOpcodeName(0xfd58)
-  // return "v128.bitselect" instead of "v128.store8_lane" — breaking any
-  // bridge / writer that round-trips through the name lookup.
+  [(PREFIX_SIMD << 8) | 0x41, 'f32x4.eq'],
+  [(PREFIX_SIMD << 8) | 0x42, 'f32x4.ne'],
+  [(PREFIX_SIMD << 8) | 0x43, 'f32x4.lt'],
+  [(PREFIX_SIMD << 8) | 0x44, 'f32x4.gt'],
+  [(PREFIX_SIMD << 8) | 0x45, 'f32x4.le'],
+  [(PREFIX_SIMD << 8) | 0x46, 'f32x4.ge'],
+  [(PREFIX_SIMD << 8) | 0x47, 'f64x2.eq'],
+  [(PREFIX_SIMD << 8) | 0x48, 'f64x2.ne'],
+  [(PREFIX_SIMD << 8) | 0x49, 'f64x2.lt'],
+  [(PREFIX_SIMD << 8) | 0x4a, 'f64x2.gt'],
+  [(PREFIX_SIMD << 8) | 0x4b, 'f64x2.le'],
+  [(PREFIX_SIMD << 8) | 0x4c, 'f64x2.ge'],
+  [(PREFIX_SIMD << 8) | 0x4d, 'v128.not'],
+  [(PREFIX_SIMD << 8) | 0x4e, 'v128.and'],
+  [(PREFIX_SIMD << 8) | 0x4f, 'v128.andnot'],
+  [(PREFIX_SIMD << 8) | 0x50, 'v128.or'],
+  [(PREFIX_SIMD << 8) | 0x51, 'v128.xor'],
   [(PREFIX_SIMD << 8) | 0x52, 'v128.bitselect'],
   [(PREFIX_SIMD << 8) | 0x53, 'v128.any_true'],
   [(PREFIX_SIMD << 8) | 0x54, 'v128.load8_lane'],
@@ -623,6 +636,8 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_SIMD << 8) | 0x5b, 'v128.store64_lane'],
   [(PREFIX_SIMD << 8) | 0x5c, 'v128.load32_zero'],
   [(PREFIX_SIMD << 8) | 0x5d, 'v128.load64_zero'],
+  [(PREFIX_SIMD << 8) | 0x5e, 'f32x4.demote_f64x2_zero'],
+  [(PREFIX_SIMD << 8) | 0x5f, 'f64x2.promote_low_f32x4'],
   [(PREFIX_SIMD << 8) | 0x60, 'i8x16.abs'],
   [(PREFIX_SIMD << 8) | 0x61, 'i8x16.neg'],
   [(PREFIX_SIMD << 8) | 0x62, 'i8x16.popcnt'],
@@ -630,6 +645,10 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_SIMD << 8) | 0x64, 'i8x16.bitmask'],
   [(PREFIX_SIMD << 8) | 0x65, 'i8x16.narrow_i16x8_s'],
   [(PREFIX_SIMD << 8) | 0x66, 'i8x16.narrow_i16x8_u'],
+  [(PREFIX_SIMD << 8) | 0x67, 'f32x4.ceil'],
+  [(PREFIX_SIMD << 8) | 0x68, 'f32x4.floor'],
+  [(PREFIX_SIMD << 8) | 0x69, 'f32x4.trunc'],
+  [(PREFIX_SIMD << 8) | 0x6a, 'f32x4.nearest'],
   [(PREFIX_SIMD << 8) | 0x6b, 'i8x16.shl'],
   [(PREFIX_SIMD << 8) | 0x6c, 'i8x16.shr_s'],
   [(PREFIX_SIMD << 8) | 0x6d, 'i8x16.shr_u'],
@@ -639,10 +658,13 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_SIMD << 8) | 0x71, 'i8x16.sub'],
   [(PREFIX_SIMD << 8) | 0x72, 'i8x16.sub_sat_s'],
   [(PREFIX_SIMD << 8) | 0x73, 'i8x16.sub_sat_u'],
+  [(PREFIX_SIMD << 8) | 0x74, 'f64x2.ceil'],
+  [(PREFIX_SIMD << 8) | 0x75, 'f64x2.floor'],
   [(PREFIX_SIMD << 8) | 0x76, 'i8x16.min_s'],
   [(PREFIX_SIMD << 8) | 0x77, 'i8x16.min_u'],
   [(PREFIX_SIMD << 8) | 0x78, 'i8x16.max_s'],
   [(PREFIX_SIMD << 8) | 0x79, 'i8x16.max_u'],
+  [(PREFIX_SIMD << 8) | 0x7a, 'f64x2.trunc'],
   [(PREFIX_SIMD << 8) | 0x7b, 'i8x16.avgr_u'],
   [(PREFIX_SIMD << 8) | 0x7c, 'i16x8.extadd_pairwise_i8x16_s'],
   [(PREFIX_SIMD << 8) | 0x7d, 'i16x8.extadd_pairwise_i8x16_u'],
@@ -668,6 +690,7 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_SIMD << 8) | 0x91, 'i16x8.sub'],
   [(PREFIX_SIMD << 8) | 0x92, 'i16x8.sub_sat_s'],
   [(PREFIX_SIMD << 8) | 0x93, 'i16x8.sub_sat_u'],
+  [(PREFIX_SIMD << 8) | 0x94, 'f64x2.nearest'],
   [(PREFIX_SIMD << 8) | 0x95, 'i16x8.mul'],
   [(PREFIX_SIMD << 8) | 0x96, 'i16x8.min_s'],
   [(PREFIX_SIMD << 8) | 0x97, 'i16x8.min_u'],
@@ -725,46 +748,36 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_SIMD << 8) | 0xdd, 'i64x2.extmul_high_i32x4_s'],
   [(PREFIX_SIMD << 8) | 0xde, 'i64x2.extmul_low_i32x4_u'],
   [(PREFIX_SIMD << 8) | 0xdf, 'i64x2.extmul_high_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0xe0, 'f32x4.ceil'],
-  [(PREFIX_SIMD << 8) | 0xe1, 'f32x4.floor'],
-  [(PREFIX_SIMD << 8) | 0xe2, 'f32x4.trunc'],
-  [(PREFIX_SIMD << 8) | 0xe3, 'f32x4.nearest'],
-  [(PREFIX_SIMD << 8) | 0xe4, 'f64x2.ceil'],
-  [(PREFIX_SIMD << 8) | 0xe5, 'f64x2.floor'],
-  [(PREFIX_SIMD << 8) | 0xe6, 'f64x2.trunc'],
-  [(PREFIX_SIMD << 8) | 0xe7, 'f64x2.nearest'],
-  [(PREFIX_SIMD << 8) | 0xe8, 'f32x4.abs'],
-  [(PREFIX_SIMD << 8) | 0xe9, 'f32x4.neg'],
-  [(PREFIX_SIMD << 8) | 0xeb, 'f32x4.sqrt'],
-  [(PREFIX_SIMD << 8) | 0xec, 'f32x4.add'],
-  [(PREFIX_SIMD << 8) | 0xed, 'f32x4.sub'],
-  [(PREFIX_SIMD << 8) | 0xee, 'f32x4.mul'],
-  [(PREFIX_SIMD << 8) | 0xef, 'f32x4.div'],
-  [(PREFIX_SIMD << 8) | 0xf0, 'f32x4.min'],
-  [(PREFIX_SIMD << 8) | 0xf1, 'f32x4.max'],
-  [(PREFIX_SIMD << 8) | 0xf2, 'f32x4.pmin'],
-  [(PREFIX_SIMD << 8) | 0xf3, 'f32x4.pmax'],
-  [(PREFIX_SIMD << 8) | 0xf4, 'f64x2.abs'],
-  [(PREFIX_SIMD << 8) | 0xf5, 'f64x2.neg'],
-  [(PREFIX_SIMD << 8) | 0xf7, 'f64x2.sqrt'],
-  [(PREFIX_SIMD << 8) | 0xf8, 'f64x2.add'],
-  [(PREFIX_SIMD << 8) | 0xf9, 'f64x2.sub'],
-  [(PREFIX_SIMD << 8) | 0xfa, 'f64x2.mul'],
-  [(PREFIX_SIMD << 8) | 0xfb, 'f64x2.div'],
-  [(PREFIX_SIMD << 8) | 0xfc, 'f64x2.min'],
-  [(PREFIX_SIMD << 8) | 0xfd, 'f64x2.max'],
-  [(PREFIX_SIMD << 8) | 0xfe, 'f64x2.pmin'],
-  [(PREFIX_SIMD << 8) | 0xff, 'f64x2.pmax'],
-  [(PREFIX_SIMD << 8) | 0x100, 'i32x4.trunc_sat_f32x4_s'],
-  [(PREFIX_SIMD << 8) | 0x101, 'i32x4.trunc_sat_f32x4_u'],
-  [(PREFIX_SIMD << 8) | 0x102, 'f32x4.convert_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0x103, 'f32x4.convert_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0x104, 'i32x4.trunc_sat_f64x2_s_zero'],
-  [(PREFIX_SIMD << 8) | 0x105, 'i32x4.trunc_sat_f64x2_u_zero'],
-  [(PREFIX_SIMD << 8) | 0x106, 'f64x2.convert_low_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0x107, 'f64x2.convert_low_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0x108, 'f32x4.demote_f64x2_zero'],
-  [(PREFIX_SIMD << 8) | 0x109, 'f64x2.promote_low_f32x4'],
+  [(PREFIX_SIMD << 8) | 0xe0, 'f32x4.abs'],
+  [(PREFIX_SIMD << 8) | 0xe1, 'f32x4.neg'],
+  [(PREFIX_SIMD << 8) | 0xe3, 'f32x4.sqrt'],
+  [(PREFIX_SIMD << 8) | 0xe4, 'f32x4.add'],
+  [(PREFIX_SIMD << 8) | 0xe5, 'f32x4.sub'],
+  [(PREFIX_SIMD << 8) | 0xe6, 'f32x4.mul'],
+  [(PREFIX_SIMD << 8) | 0xe7, 'f32x4.div'],
+  [(PREFIX_SIMD << 8) | 0xe8, 'f32x4.min'],
+  [(PREFIX_SIMD << 8) | 0xe9, 'f32x4.max'],
+  [(PREFIX_SIMD << 8) | 0xea, 'f32x4.pmin'],
+  [(PREFIX_SIMD << 8) | 0xeb, 'f32x4.pmax'],
+  [(PREFIX_SIMD << 8) | 0xec, 'f64x2.abs'],
+  [(PREFIX_SIMD << 8) | 0xed, 'f64x2.neg'],
+  [(PREFIX_SIMD << 8) | 0xef, 'f64x2.sqrt'],
+  [(PREFIX_SIMD << 8) | 0xf0, 'f64x2.add'],
+  [(PREFIX_SIMD << 8) | 0xf1, 'f64x2.sub'],
+  [(PREFIX_SIMD << 8) | 0xf2, 'f64x2.mul'],
+  [(PREFIX_SIMD << 8) | 0xf3, 'f64x2.div'],
+  [(PREFIX_SIMD << 8) | 0xf4, 'f64x2.min'],
+  [(PREFIX_SIMD << 8) | 0xf5, 'f64x2.max'],
+  [(PREFIX_SIMD << 8) | 0xf6, 'f64x2.pmin'],
+  [(PREFIX_SIMD << 8) | 0xf7, 'f64x2.pmax'],
+  [(PREFIX_SIMD << 8) | 0xf8, 'i32x4.trunc_sat_f32x4_s'],
+  [(PREFIX_SIMD << 8) | 0xf9, 'i32x4.trunc_sat_f32x4_u'],
+  [(PREFIX_SIMD << 8) | 0xfa, 'f32x4.convert_i32x4_s'],
+  [(PREFIX_SIMD << 8) | 0xfb, 'f32x4.convert_i32x4_u'],
+  [(PREFIX_SIMD << 8) | 0xfc, 'i32x4.trunc_sat_f64x2_s_zero'],
+  [(PREFIX_SIMD << 8) | 0xfd, 'i32x4.trunc_sat_f64x2_u_zero'],
+  [(PREFIX_SIMD << 8) | 0xfe, 'f64x2.convert_low_i32x4_s'],
+  [(PREFIX_SIMD << 8) | 0xff, 'f64x2.convert_low_i32x4_u'],
 
   // --- 0xfe: atomics ---
   [(PREFIX_THREADS << 8) | 0x00, 'memory.atomic.notify'],
@@ -853,4 +866,162 @@ export function anyOpcodeName(op: number): string {
     return OPCODE_NAMES.get(op as Opcode) ?? `<opcode:0x${op.toString(16)}>`;
   }
   return EXTENDED_OPCODE_NAMES.get(op) ?? `<opcode:0x${op.toString(16)}>`;
+}
+
+/**
+ * The natural alignment in bytes for a memory-touching opcode. Used by the
+ * binary writer to emit a spec-correct `memarg.align` when the IR carries
+ * `align = 0` (the parser's sentinel for "no explicit `align=N` keyword").
+ *
+ * Returns the data width of the access — i32.store → 4, i64.load → 8,
+ * v128.load → 16, i32.atomic.load → 4, etc. Atomics MUST use the natural
+ * alignment per the threads proposal; non-atomic ops accept any align ≤
+ * natural but binaryen's optimizer reads the field and treats a too-small
+ * alignment as a hard constraint, generating worse code or refusing some
+ * rewrites.
+ *
+ * Returns 1 for opcodes that aren't memory ops at all — callers shouldn't
+ * pass those in (the binary writer only calls this for load/store-family
+ * expressions), so the fallback is just defensive.
+ */
+export function naturalAlignForOpcode(op: number): number {
+  switch (op) {
+    // --- Core loads/stores (one-byte opcodes) ---
+    // 1-byte access
+    case 0x2c: // i32.load8_s
+    case 0x2d: // i32.load8_u
+    case 0x30: // i64.load8_s
+    case 0x31: // i64.load8_u
+    case 0x3a: // i32.store8
+    case 0x3c: // i64.store8
+      return 1;
+    // 2-byte access
+    case 0x2e: // i32.load16_s
+    case 0x2f: // i32.load16_u
+    case 0x32: // i64.load16_s
+    case 0x33: // i64.load16_u
+    case 0x3b: // i32.store16
+    case 0x3d: // i64.store16
+      return 2;
+    // 4-byte access
+    case 0x28: // i32.load
+    case 0x2a: // f32.load
+    case 0x34: // i64.load32_s
+    case 0x35: // i64.load32_u
+    case 0x36: // i32.store
+    case 0x38: // f32.store
+    case 0x3e: // i64.store32
+      return 4;
+    // 8-byte access
+    case 0x29: // i64.load
+    case 0x2b: // f64.load
+    case 0x37: // i64.store
+    case 0x39: // f64.store
+      return 8;
+  }
+  // --- Extended opcodes (prefix << 8 | subop) ---
+  switch (op) {
+    // SIMD memory (0xfd-prefix)
+    case (PREFIX_SIMD << 8) | 0x00: // v128.load
+    case (PREFIX_SIMD << 8) | 0x0b: // v128.store
+      return 16;
+    case (PREFIX_SIMD << 8) | 0x01: // v128.load8x8_s
+    case (PREFIX_SIMD << 8) | 0x02: // v128.load8x8_u
+    case (PREFIX_SIMD << 8) | 0x03: // v128.load16x4_s
+    case (PREFIX_SIMD << 8) | 0x04: // v128.load16x4_u
+    case (PREFIX_SIMD << 8) | 0x05: // v128.load32x2_s
+    case (PREFIX_SIMD << 8) | 0x06: // v128.load32x2_u
+    case (PREFIX_SIMD << 8) | 0x0a: // v128.load64_splat
+    case (PREFIX_SIMD << 8) | 0x5d: // v128.load64_zero
+    case (PREFIX_SIMD << 8) | 0x57: // v128.load64_lane
+    case (PREFIX_SIMD << 8) | 0x5b: // v128.store64_lane
+      return 8;
+    case (PREFIX_SIMD << 8) | 0x09: // v128.load32_splat
+    case (PREFIX_SIMD << 8) | 0x5c: // v128.load32_zero
+    case (PREFIX_SIMD << 8) | 0x56: // v128.load32_lane
+    case (PREFIX_SIMD << 8) | 0x5a: // v128.store32_lane
+      return 4;
+    case (PREFIX_SIMD << 8) | 0x08: // v128.load16_splat
+    case (PREFIX_SIMD << 8) | 0x55: // v128.load16_lane
+    case (PREFIX_SIMD << 8) | 0x59: // v128.store16_lane
+      return 2;
+    case (PREFIX_SIMD << 8) | 0x07: // v128.load8_splat
+    case (PREFIX_SIMD << 8) | 0x54: // v128.load8_lane
+    case (PREFIX_SIMD << 8) | 0x58: // v128.store8_lane
+      return 1;
+
+    // Atomics (0xfe-prefix). The threads proposal requires natural alignment
+    // for all atomic memory ops — any other value is a validation error.
+    case (PREFIX_THREADS << 8) | 0x00: // memory.atomic.notify
+    case (PREFIX_THREADS << 8) | 0x01: // memory.atomic.wait32
+    case (PREFIX_THREADS << 8) | 0x10: // i32.atomic.load
+    case (PREFIX_THREADS << 8) | 0x16: // i64.atomic.load32_u
+    case (PREFIX_THREADS << 8) | 0x17: // i32.atomic.store
+    case (PREFIX_THREADS << 8) | 0x1d: // i64.atomic.store32
+    case (PREFIX_THREADS << 8) | 0x1e: // i32.atomic.rmw.add
+    case (PREFIX_THREADS << 8) | 0x24: // i64.atomic.rmw32.add_u
+    case (PREFIX_THREADS << 8) | 0x25: // i32.atomic.rmw.sub
+    case (PREFIX_THREADS << 8) | 0x2b: // i64.atomic.rmw32.sub_u
+    case (PREFIX_THREADS << 8) | 0x2c: // i32.atomic.rmw.and
+    case (PREFIX_THREADS << 8) | 0x32: // i64.atomic.rmw32.and_u
+    case (PREFIX_THREADS << 8) | 0x33: // i32.atomic.rmw.or
+    case (PREFIX_THREADS << 8) | 0x39: // i64.atomic.rmw32.or_u
+    case (PREFIX_THREADS << 8) | 0x3a: // i32.atomic.rmw.xor
+    case (PREFIX_THREADS << 8) | 0x40: // i64.atomic.rmw32.xor_u
+    case (PREFIX_THREADS << 8) | 0x41: // i32.atomic.rmw.xchg
+    case (PREFIX_THREADS << 8) | 0x47: // i64.atomic.rmw32.xchg_u
+    case (PREFIX_THREADS << 8) | 0x48: // i32.atomic.rmw.cmpxchg
+    case (PREFIX_THREADS << 8) | 0x4e: // i64.atomic.rmw32.cmpxchg_u
+      return 4;
+    case (PREFIX_THREADS << 8) | 0x02: // memory.atomic.wait64
+    case (PREFIX_THREADS << 8) | 0x11: // i64.atomic.load
+    case (PREFIX_THREADS << 8) | 0x18: // i64.atomic.store
+    case (PREFIX_THREADS << 8) | 0x1f: // i64.atomic.rmw.add
+    case (PREFIX_THREADS << 8) | 0x26: // i64.atomic.rmw.sub
+    case (PREFIX_THREADS << 8) | 0x2d: // i64.atomic.rmw.and
+    case (PREFIX_THREADS << 8) | 0x34: // i64.atomic.rmw.or
+    case (PREFIX_THREADS << 8) | 0x3b: // i64.atomic.rmw.xor
+    case (PREFIX_THREADS << 8) | 0x42: // i64.atomic.rmw.xchg
+    case (PREFIX_THREADS << 8) | 0x49: // i64.atomic.rmw.cmpxchg
+      return 8;
+    case (PREFIX_THREADS << 8) | 0x13: // i32.atomic.load16_u
+    case (PREFIX_THREADS << 8) | 0x15: // i64.atomic.load16_u
+    case (PREFIX_THREADS << 8) | 0x1a: // i32.atomic.store16
+    case (PREFIX_THREADS << 8) | 0x1c: // i64.atomic.store16
+    case (PREFIX_THREADS << 8) | 0x21: // i32.atomic.rmw16.add_u
+    case (PREFIX_THREADS << 8) | 0x23: // i64.atomic.rmw16.add_u
+    case (PREFIX_THREADS << 8) | 0x28: // i32.atomic.rmw16.sub_u
+    case (PREFIX_THREADS << 8) | 0x2a: // i64.atomic.rmw16.sub_u
+    case (PREFIX_THREADS << 8) | 0x2f: // i32.atomic.rmw16.and_u
+    case (PREFIX_THREADS << 8) | 0x31: // i64.atomic.rmw16.and_u
+    case (PREFIX_THREADS << 8) | 0x36: // i32.atomic.rmw16.or_u
+    case (PREFIX_THREADS << 8) | 0x38: // i64.atomic.rmw16.or_u
+    case (PREFIX_THREADS << 8) | 0x3d: // i32.atomic.rmw16.xor_u
+    case (PREFIX_THREADS << 8) | 0x3f: // i64.atomic.rmw16.xor_u
+    case (PREFIX_THREADS << 8) | 0x44: // i32.atomic.rmw16.xchg_u
+    case (PREFIX_THREADS << 8) | 0x46: // i64.atomic.rmw16.xchg_u
+    case (PREFIX_THREADS << 8) | 0x4b: // i32.atomic.rmw16.cmpxchg_u
+    case (PREFIX_THREADS << 8) | 0x4d: // i64.atomic.rmw16.cmpxchg_u
+      return 2;
+    case (PREFIX_THREADS << 8) | 0x12: // i32.atomic.load8_u
+    case (PREFIX_THREADS << 8) | 0x14: // i64.atomic.load8_u
+    case (PREFIX_THREADS << 8) | 0x19: // i32.atomic.store8
+    case (PREFIX_THREADS << 8) | 0x1b: // i64.atomic.store8
+    case (PREFIX_THREADS << 8) | 0x20: // i32.atomic.rmw8.add_u
+    case (PREFIX_THREADS << 8) | 0x22: // i64.atomic.rmw8.add_u
+    case (PREFIX_THREADS << 8) | 0x27: // i32.atomic.rmw8.sub_u
+    case (PREFIX_THREADS << 8) | 0x29: // i64.atomic.rmw8.sub_u
+    case (PREFIX_THREADS << 8) | 0x2e: // i32.atomic.rmw8.and_u
+    case (PREFIX_THREADS << 8) | 0x30: // i64.atomic.rmw8.and_u
+    case (PREFIX_THREADS << 8) | 0x35: // i32.atomic.rmw8.or_u
+    case (PREFIX_THREADS << 8) | 0x37: // i64.atomic.rmw8.or_u
+    case (PREFIX_THREADS << 8) | 0x3c: // i32.atomic.rmw8.xor_u
+    case (PREFIX_THREADS << 8) | 0x3e: // i64.atomic.rmw8.xor_u
+    case (PREFIX_THREADS << 8) | 0x43: // i32.atomic.rmw8.xchg_u
+    case (PREFIX_THREADS << 8) | 0x45: // i64.atomic.rmw8.xchg_u
+    case (PREFIX_THREADS << 8) | 0x4a: // i32.atomic.rmw8.cmpxchg_u
+    case (PREFIX_THREADS << 8) | 0x4c: // i64.atomic.rmw8.cmpxchg_u
+      return 1;
+  }
+  return 1; // unknown opcode — defensive default
 }

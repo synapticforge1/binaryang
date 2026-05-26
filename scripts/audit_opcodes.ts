@@ -19,11 +19,14 @@ const PREFIX_LABELS: Record<number, string> = { 0xfc: "MISC", 0xfd: "SIMD", 0xfe
 function parseUpstream(src: string): Map<number, string> {
   const out = new Map<number, string>();
   // WABT_OPCODE(... prefix, code, EnumName, "wat.name", ...)
-  // We want the prefix-byte + sub-byte + the quoted name.
+  // We want the prefix-byte + sub-byte + the quoted name. Sub-opcodes >= 0x100
+  // (relaxed-SIMD) are LEB128-encoded and don't fit the (prefix << 8) | byte
+  // scheme used by wabt-ts's EXTENDED_OPCODE_NAMES; skip them.
   const rx = /WABT_OPCODE\([^)]*?,\s*(0xf[cde]),\s*(0x[0-9a-f]+),\s*\w+,\s*"([^"]+)"/g;
   for (const m of src.matchAll(rx)) {
     const prefix = Number(m[1]);
     const code = Number(m[2]);
+    if (code >= 0x100) continue;
     const combined = (prefix << 8) | code;
     out.set(combined, m[3]!);
   }
@@ -32,9 +35,11 @@ function parseUpstream(src: string): Map<number, string> {
 
 function parseWabtTs(src: string): Map<number, string> {
   const out = new Map<number, string>();
-  // [(PREFIX_SIMD << 8) | 0xNN, 'name'],
-  const rx = /\[\(PREFIX_(SIMD|MISC|ATOMIC)\s*<<\s*8\)\s*\|\s*(0x[0-9a-f]+),\s*'([^']+)'\]/gi;
-  const prefixMap = { SIMD: 0xfd, MISC: 0xfc, ATOMIC: 0xfe } as const;
+  // Numeric literal in the second slot — accepts both `0xNN` (hex) and `NN`
+  // (decimal, used by the MISC section). PREFIX_THREADS is wabt-ts's name
+  // for the 0xfe atomics block — kept distinct from PREFIX_MISC/PREFIX_SIMD.
+  const rx = /\[\(PREFIX_(SIMD|MISC|THREADS)\s*<<\s*8\)\s*\|\s*(0x[0-9a-f]+|\d+),\s*'([^']+)'\]/gi;
+  const prefixMap = { SIMD: 0xfd, MISC: 0xfc, THREADS: 0xfe } as const;
   for (const m of src.matchAll(rx)) {
     const prefix = prefixMap[m[1]!.toUpperCase() as keyof typeof prefixMap];
     const code = Number(m[2]);

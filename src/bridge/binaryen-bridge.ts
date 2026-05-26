@@ -33,7 +33,7 @@
 
 import { ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
-import { anyOpcodeName } from '../core/opcode.ts';
+import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
 import { CatchKind } from '../ir/ir.ts';
 import type {
   BinaryExpr,
@@ -699,7 +699,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           simdOp,
           bridgeExpr(ld.address, ctx),
           bigintOffsetToNumber(ld.offset, 'load'),
-          alignBytesToExponent(ld.align, 8, 'load'),
+          alignBytesToExponent(ld.align, naturalAlignForOpcode(ld.opcode), 'load'),
         );
       }
       const info = loadInfo(ld.opcode);
@@ -720,7 +720,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         anyOpcodeName(ls.opcode) as SIMDLoadOp,
         bridgeExpr(ls.address, ctx),
         bigintOffsetToNumber(ls.offset, 'load_splat'),
-        alignBytesToExponent(ls.align, 8, 'load_splat'),
+        alignBytesToExponent(ls.align, naturalAlignForOpcode(ls.opcode), 'load_splat'),
       );
     }
     case 'load_zero': {
@@ -730,7 +730,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         anyOpcodeName(lz.opcode) as SIMDLoadOp,
         bridgeExpr(lz.address, ctx),
         bigintOffsetToNumber(lz.offset, 'load_zero'),
-        alignBytesToExponent(lz.align, 8, 'load_zero'),
+        alignBytesToExponent(lz.align, naturalAlignForOpcode(lz.opcode), 'load_zero'),
       );
     }
     case 'simd_load_lane': {
@@ -741,7 +741,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bridgeExpr(sll.address, ctx),
         bridgeExpr(sll.vec, ctx),
         bigintOffsetToNumber(sll.offset, 'simd_load_lane'),
-        alignBytesToExponent(sll.align, 8, 'simd_load_lane'),
+        alignBytesToExponent(sll.align, naturalAlignForOpcode(sll.opcode), 'simd_load_lane'),
         sll.lane,
       );
     }
@@ -753,7 +753,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bridgeExpr(sls.address, ctx),
         bridgeExpr(sls.vec, ctx),
         bigintOffsetToNumber(sls.offset, 'simd_store_lane'),
-        alignBytesToExponent(sls.align, 8, 'simd_store_lane'),
+        alignBytesToExponent(sls.align, naturalAlignForOpcode(sls.opcode), 'simd_store_lane'),
         sls.lane,
       );
     }
@@ -970,22 +970,24 @@ function bigintOffsetToNumber(off: bigint, opLabel: string): number {
  * Convert wabt-ts's byte-valued alignment into the wasm `memarg.align`
  * exponent that binaryen-ts's encoder writes to the binary. wabt-ts's WAT
  * parser stores the literal byte count (`align=4` → `4`) and uses `0` for
- * "no explicit align" — which the wasm spec interprets as exponent 0 (i.e.
- * 1-byte alignment). We preserve that "min alignment when unset" behavior,
- * but log2-encode any explicit byte value so the encoded binary matches
- * the WAT-declared alignment.
+ * "no explicit align" — which the spec interprets as the opcode's natural
+ * alignment, NOT exponent 0. Treating 0 as exponent 0 silently produced
+ * binaries with 1-byte alignment on every default-aligned memory op,
+ * which defeated binaryen's optimizer (it reads the field and treats it
+ * as a hard constraint). Use the caller-supplied natural byte count when
+ * align is unspecified.
  */
 function alignBytesToExponent(
   wabtAlign: number,
-  _naturalBytes: 1 | 2 | 4 | 8 | 16,
+  naturalBytes: number,
   opLabel: string,
 ): number {
-  if (wabtAlign === 0) return 0; // wabt convention: unset → exponent 0
+  const bytes = wabtAlign === 0 ? naturalBytes : wabtAlign;
   // Must be a power of two; the wasm spec requires this.
-  if (wabtAlign <= 0 || (wabtAlign & (wabtAlign - 1)) !== 0) {
-    throw new Error(`Bridge: ${opLabel} align ${wabtAlign} is not a positive power of two`);
+  if (bytes <= 0 || (bytes & (bytes - 1)) !== 0) {
+    throw new Error(`Bridge: ${opLabel} align ${bytes} is not a positive power of two`);
   }
-  return Math.log2(wabtAlign);
+  return Math.log2(bytes);
 }
 
 interface LoadInfo {

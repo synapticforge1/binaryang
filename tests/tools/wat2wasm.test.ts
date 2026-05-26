@@ -257,4 +257,65 @@ describe('wat2wasm — end-to-end regression', () => {
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => void>;
     inst.noop!();
   });
+
+  // Bug #13 (wasmtk repro 2026-05-25): every memory op without an explicit
+  // `align=N` keyword was being encoded with memarg.align = 0 (1-byte
+  // alignment). The binary writer treated the parser's "0 = unspecified"
+  // sentinel as if it were the LEB exponent. V8 accepted the binary, but
+  // binaryen's optimizer reads the alignment field as a hard constraint
+  // and refuses some rewrites, causing runtime corruption / OOB after
+  // optimization (1_StaticGlobalInitialization, 1_recursion, etc.).
+  it('memory ops default to natural alignment when align= is omitted', () => {
+    const bin = compileAndValidate(`(module
+      (memory 1)
+      (func (export "f") (param $a i32) (param $b i64) (param $c f32) (param $d f64)
+        (i32.store   (i32.const 0)  (local.get $a))
+        (i64.store   (i32.const 8)  (local.get $b))
+        (f32.store   (i32.const 16) (local.get $c))
+        (f64.store   (i32.const 24) (local.get $d))
+        (i32.store16 (i32.const 32) (local.get $a))
+        (i32.store8  (i32.const 34) (local.get $a))))`);
+    // memarg.align is LEB-encoded as a log2 exponent immediately after the
+    // store opcode. For default alignment we expect: i32.store=2 (4-byte),
+    // i64.store=3 (8-byte), f32.store=2, f64.store=3, i32.store16=1,
+    // i32.store8=0.
+    const expected: Record<number, [string, number]> = {
+      0x36: ['i32.store', 2],
+      0x37: ['i64.store', 3],
+      0x38: ['f32.store', 2],
+      0x39: ['f64.store', 3],
+      0x3b: ['i32.store16', 1],
+      0x3a: ['i32.store8', 0],
+    };
+    for (let i = 0; i < bin.length; i++) {
+      const op = bin[i]!;
+      const entry = expected[op];
+      if (entry === undefined) continue;
+      const [name, want] = entry;
+      assertEquals(
+        bin[i + 1]!,
+        want,
+        `${name} (opcode 0x${op.toString(16)}) at byte ${i}: expected align byte = ${want}, got ${bin[i + 1]}`,
+      );
+    }
+  });
+
+  it('explicit align=N keyword still log2-encodes correctly', () => {
+    const bin = compileAndValidate(`(module
+      (memory 1)
+      (func (export "f") (param $a i32)
+        (i32.store align=1 (i32.const 0) (local.get $a))
+        (i32.store align=2 (i32.const 4) (local.get $a))
+        (i32.store align=4 (i32.const 8) (local.get $a))))`);
+    // Find three i32.store opcodes (0x36) and check their align bytes
+    // are 0, 1, 2 respectively (i.e. log2 of the declared byte counts).
+    const indices: number[] = [];
+    for (let i = 0; i < bin.length; i++) {
+      if (bin[i] === 0x36) indices.push(i);
+    }
+    assertEquals(indices.length, 3, 'expected three i32.store opcodes');
+    assertEquals(bin[indices[0]! + 1]!, 0, 'align=1 → exponent 0');
+    assertEquals(bin[indices[1]! + 1]!, 1, 'align=2 → exponent 1');
+    assertEquals(bin[indices[2]! + 1]!, 2, 'align=4 → exponent 2');
+  });
 });
