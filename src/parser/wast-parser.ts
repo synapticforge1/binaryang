@@ -472,6 +472,15 @@ function isCatchKeyword(tt: TokenType): boolean {
     tt === TokenType.CatchAll || tt === TokenType.CatchAllRef;
 }
 
+/**
+ * Whether a token starts a sub-block of the legacy `(try ...)` syntax:
+ * `do`, `catch`, `catch_all`, or `delegate`.
+ */
+function isTryLegacySubBlock(tt: TokenType): boolean {
+  return tt === TokenType.Do || tt === TokenType.Catch ||
+    tt === TokenType.CatchAll || tt === TokenType.Delegate;
+}
+
 function instrInputCount(tt: TokenType): number {
   switch (tt) {
     case TokenType.Unreachable:
@@ -1604,6 +1613,21 @@ export class WastParser {
       kind = 'active';
     } else if (this.match(TokenType.Declare)) {
       kind = 'declared';
+    } else if (
+      this.peek() === TokenType.Lpar &&
+      this.peek(1) !== TokenType.Item
+    ) {
+      // Bare offset expression: `(elem (i32.const 0) $f1 $f2)`.
+      // The `(...)` after elem (when it's not `(table ...)`, `(offset ...)`,
+      // or `(item ...)`) is a const expression giving the offset for an
+      // active segment on table 0. wasmtk's wasic emits this shape
+      // pervasively; previously the parser fell through all branches and
+      // failed at "expected ), got (" inside the elem.
+      const ctx = newCtx();
+      this.parseOffsetExpr(ctx);
+      flushStack(ctx);
+      offset = ctx.stmts;
+      kind = 'active';
     }
 
     // Parse optional elem type or funcref
@@ -1918,8 +1942,32 @@ export class WastParser {
     if (tt === TokenType.Try) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      // Legacy try syntax: `(try $label (result T)? (do body) (catch
+      // $tag handler)* (catch_all handler)? (delegate $target)?)`.
+      // Consume each sub-block and merge their instructions into the
+      // body — we don't track handler dispatch (the legacy form is
+      // superseded by try_table), but advancing the lexer so the rest
+      // of the module parses is what unblocks wasmtk's 15_* tests.
       const bodyCtx = newCtx();
-      this.parseInstrList(bodyCtx);
+      while (this.peek() === TokenType.Lpar && isTryLegacySubBlock(this.peek(1))) {
+        this.drop(); // consume '('
+        const sub = this.consume(); // consume do/catch/catch_all/delegate keyword
+        if (sub.tokenType === TokenType.Catch) {
+          // `(catch $tag handler-instrs...)` — drop the tag var, parse handler
+          this.parseVar();
+        } else if (sub.tokenType === TokenType.Delegate) {
+          // `(delegate $target)` — drop the target var; no body
+          this.parseVar();
+          this.expect(TokenType.Rpar);
+          continue;
+        }
+        this.parseInstrList(bodyCtx);
+        this.expect(TokenType.Rpar);
+      }
+      // Fall through: if there were no sub-blocks, treat the rest as the body.
+      if (bodyCtx.stmts.length === 0 && bodyCtx.stack.length === 0) {
+        this.parseInstrList(bodyCtx);
+      }
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
       const node: BlockExpr = { kind: 'block', label, blockType, body: bodyCtx.stmts, loc };

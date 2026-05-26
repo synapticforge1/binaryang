@@ -514,7 +514,7 @@ class ResolveContext {
     if (v.kind === 'index') return v;
     const idx = scope.resolve(v.name);
     if (idx === undefined) {
-      addError(this.errors, loc, `undefined ${kind} "$${v.name}"`);
+      addError(this.errors, loc, `undefined ${kind} "${v.name}"`);
       this.hadError = true;
       return v;
     }
@@ -547,7 +547,7 @@ class ResolveContext {
     addError(
       this.errors,
       loc,
-      `local "$${v.name}" cannot be resolved at IR level — wabt-ts's IR has ` +
+      `local "${v.name}" cannot be resolved at IR level — wabt-ts's IR has ` +
         `no slot for param/local names. Use the WAT parser (which resolves at ` +
         `parse time) or pass index-vars instead.`,
     );
@@ -565,7 +565,7 @@ class ResolveContext {
     if (v.kind === 'index') return v;
     const depth = this.labelStack.lastIndexOf(v.name);
     if (depth === -1) {
-      addError(this.errors, loc, `undefined label "$${v.name}"`);
+      addError(this.errors, loc, `undefined label "${v.name}"`);
       this.hadError = true;
       return v;
     }
