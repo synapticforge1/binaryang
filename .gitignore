@@ -20,3 +20,9 @@ Thumbs.db
 /upstream/
 /binaryen-ts/
 /wasmtk/
+
+# Private working notes — kept local, not published. These hold internal
+# project context (CLAUDE.md) and the bug / phase log (TASKS.md) that we
+# don't intend to ship publicly.
+/CLAUDE.md
+/TASKS.md

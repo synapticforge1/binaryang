@@ -216,7 +216,7 @@ workstation, since that would publish without provenance.
 
 Phase 7 (binaryen bridge) covers MVP + Tier A (control flow, locals, globals) + Tier B (calls, select, memory ops) + Tier C (reference types, SIMD lane ops + arithmetic + memory ops, exception handling: tag defs + throw/throw_ref/try_table cases). Bridge-side deferrals are now all upstream gaps: `ref.as_non_null` (no `makeRefAsNonNull` factory), plain `v128.load` (encoder's `loadOpcode` has no V128 branch), tag imports + tag exports (no `addTagImport`; `WasmExport.kind` lacks `"tag"`). The GC proposal (`struct.*`, `array.*`, `ref.eq`, `ref.i31`) needs wabt-ts IR work first. binaryen-ts is at v1.0.9. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
 
-**wasmtk-driven hardening (v1.0.7 → v1.1.1).** The wasmtk integration test suite has surfaced a stream of latent wabt-ts bugs that previous tests didn't exercise. Pattern: a new module shape parses wrong, gets fixed at root cause in `src/`, regression test added under `tests/`. Recent landings include f64/f32 constant integer literals (were being encoded as raw bit patterns producing subnormals; v1.1.0), multi-value `return` (was dropping all but the first operand; v1.1.1), `memarg.align` defaulting to byte 0 instead of opcode-natural (broke binaryen's optimizer and caused runtime corruption; v1.1.1), and ~95-entry SIMD opcode-name table drift fixed by regenerating from upstream wabt `opcode.def` (v1.1.1). The decisions log in [TASKS.md](TASKS.md) tracks each bug with reproduction and regression coverage.
+**wasmtk-driven hardening (v1.0.7 → v1.1.1).** The wasmtk integration test suite has surfaced a stream of latent wabt-ts bugs that previous tests didn't exercise. Pattern: a new module shape parses wrong, gets fixed at root cause in `src/`, regression test added under `tests/`. Recent landings include f64/f32 constant integer literals (were being encoded as raw bit patterns producing subnormals; v1.1.0), multi-value `return` (was dropping all but the first operand; v1.1.1), `memarg.align` defaulting to byte 0 instead of opcode-natural (broke binaryen's optimizer and caused runtime corruption; v1.1.1), and ~95-entry SIMD opcode-name table drift fixed by regenerating from upstream wabt `opcode.def` (v1.1.1). Each fix is accompanied by a regression test under [tests/](tests/) and a commit message on the [GitHub history](https://github.com/jrmarcum/wabt-ts/commits/main) that explains the root cause.
 
 ## Repository Layout
 
@@ -243,8 +243,7 @@ wabt-ts/
 ├── LICENSE            ← dual-license notice (MIT OR Apache-2.0)
 ├── LICENSE-MIT        ← MIT license text
 ├── LICENSE-APACHE     ← Apache License 2.0 text (upstream compliance)
-├── NOTICE.md          ← attribution and license explanation
-└── CLAUDE.md          ← Project context for AI-assisted development
+└── NOTICE.md          ← attribution and license explanation
 ```
 
 ## Origin & License
