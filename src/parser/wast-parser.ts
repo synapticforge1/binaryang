@@ -525,6 +525,11 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.TableGrow:
     case TokenType.Store:
     case TokenType.AtomicNotify:
+    case TokenType.SimdLoadLane:
+    case TokenType.SimdStoreLane:
+    case TokenType.SimdShuffleOp:
+      // simd_shuffle: 2 v128 operands (left, right).
+      // simd_load_lane / simd_store_lane: address + vec.
       return 2;
     case TokenType.Select:
     case TokenType.MemoryFill:
@@ -534,15 +539,13 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.AtomicRmw:
       return 3;
     case TokenType.AtomicRmwCmpxchg:
-    case TokenType.SimdStoreLane:
-      return 4; // approx
+      return 4;
     case TokenType.MemoryCopy:
     case TokenType.TableCopy:
     case TokenType.MemoryInit:
     case TokenType.TableInit:
       return 3;
     case TokenType.Ternary:
-    case TokenType.SimdShuffleOp:
       return 3;
     // variable arity
     case TokenType.Return:
@@ -1829,9 +1832,34 @@ export class WastParser {
     flushStack(innerCtx);
     const subExprEndPos = this.pos;
 
+    // Bug D fix: when the folded form supplies fewer children than the
+    // opcode needs, fill the deficit from the surrounding stack. This
+    // makes `(i32.const 5) (local.set $x)` work the same way as the
+    // linear form `i32.const 5 / local.set $x` — the local.set pops
+    // from the stack instead of getting a Nop placeholder.
+    // Stack-supplied operands come first (oldest, lower in stack);
+    // child operands come last (innermost, closer to the instr).
+    // For variable-arity opcodes (call, return, etc.): if children are
+    // supplied, use them; otherwise drain the surrounding stack.
+    const nInputs = instrInputCountForTok(tok);
+    let operands: Expr[];
+    if (nInputs === -1) {
+      if (innerCtx.stmts.length > 0) {
+        operands = innerCtx.stmts;
+      } else {
+        operands = [...ctx.stack];
+        ctx.stack.length = 0;
+      }
+    } else if (innerCtx.stmts.length >= nInputs) {
+      operands = innerCtx.stmts;
+    } else {
+      const deficit = nInputs - innerCtx.stmts.length;
+      operands = [...popN(ctx, deficit, loc), ...innerCtx.stmts];
+    }
+
     // 4. Rewind and re-invoke buildPlainExpr with the real operands.
     this.pos = immStartPos;
-    const expr = this.buildPlainExpr(tok, loc, innerCtx.stmts);
+    const expr = this.buildPlainExpr(tok, loc, operands);
     this.pos = subExprEndPos;
 
     if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;

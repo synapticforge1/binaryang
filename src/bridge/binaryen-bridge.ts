@@ -20,9 +20,8 @@
  *   throws — extend `bridgeExpr` as needed; the throw points to the missing
  *   case.
  *
- * **Out of scope (will throw):** tags, element segments, data segments,
- * exports of memory / table / tag, multi-memory, GC / EH / SIMD instructions,
- * start function, custom sections.
+ * **Out of scope (will throw):** element segments, exports of tag,
+ * multi-memory, GC instructions, start function, custom sections.
  *
  * Direct recursion is the natural shape here: binaryen-ts constructors are
  * bottom-up (leaves passed into composite constructors), and wabt-ts's IR is
@@ -169,6 +168,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   let funcCursor = 0;
   let globalCursor = 0;
   let tableCursor = 0;
+  let memoryCursor = 0;
   let tagCursor = 0;
   for (const imp of module.imports) {
     if (imp.kind === ExternalKind.Func) bridgeImport(b, imp, ctx.funcNames[funcCursor++]!);
@@ -176,14 +176,17 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
       bridgeImport(b, imp, ctx.globalNames[globalCursor++]!);
     } else if (imp.kind === ExternalKind.Table) {
       bridgeImport(b, imp, ctx.tableNames[tableCursor++]!);
+    } else if (imp.kind === ExternalKind.Memory) {
+      bridgeImport(b, imp, ctx.memoryNames[memoryCursor++]!);
     } else if (imp.kind === ExternalKind.Tag) {
       bridgeImport(b, imp, ctx.tagNames[tagCursor++]!);
     } else bridgeImport(b, imp, '');
   }
 
-  for (const m of module.memories) {
+  for (let i = 0; i < module.memories.length; i++) {
+    const m = module.memories[i]!;
     b.addMemory(
-      m.name,
+      ctx.memoryNames[memoryCursor + i]!,
       m.limits.initial,
       m.limits.max ?? null,
       m.limits.isShared,
@@ -206,6 +209,8 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   for (let i = 0; i < module.funcs.length; i++) {
     bridgeFunc(b, module.funcs[i]!, ctx, ctx.funcNames[funcCursor + i]!);
   }
+
+  for (const seg of module.dataSegments) bridgeDataSegment(b, seg, ctx);
 
   for (const exp of module.exports) bridgeExport(b, exp, ctx);
 
@@ -235,6 +240,8 @@ interface BridgeCtx {
   globalTypes: Type[];
   /** Table names indexed by the absolute table index (imports first). Used by `call_indirect`. */
   tableNames: string[];
+  /** Memory names indexed by the absolute memory index (imports first). Used by memory exports + data segments. */
+  memoryNames: string[];
   /** Tag names indexed by the absolute tag index (imports first). Used by `throw` / `try_table`. */
   tagNames: string[];
   /** Current function param types (set inside bridgeFunc). */
@@ -258,6 +265,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
   const globalNames: string[] = [];
   const globalTypes: Type[] = [];
   const tableNames: string[] = [];
+  const memoryNames: string[] = [];
   const tagNames: string[] = [];
   for (const imp of module.imports) {
     if (imp.kind === ExternalKind.Func) {
@@ -268,6 +276,8 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
       globalTypes.push(imp.global.type);
     } else if (imp.kind === ExternalKind.Table) {
       tableNames.push(imp.table.name);
+    } else if (imp.kind === ExternalKind.Memory) {
+      memoryNames.push(imp.memory.name);
     } else if (imp.kind === ExternalKind.Tag) {
       tagNames.push(imp.tag.name);
     }
@@ -281,6 +291,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
     globalTypes.push(g.type);
   }
   for (const t of module.tables) tableNames.push(t.name);
+  for (const m of module.memories) memoryNames.push(m.name);
   for (const tag of module.tags) tagNames.push(tag.name);
 
   // binaryen-ts identifies items by string name across the whole module, so
@@ -291,6 +302,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
   synthesizeAnonymousNames(funcNames, '$F');
   synthesizeAnonymousNames(globalNames, '$G');
   synthesizeAnonymousNames(tableNames, '$T');
+  synthesizeAnonymousNames(memoryNames, '$M');
   synthesizeAnonymousNames(tagNames, '$E');
 
   return {
@@ -299,6 +311,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
     globalNames,
     globalTypes,
     tableNames,
+    memoryNames,
     tagNames,
     currentParams: [],
     currentLocals: [],
@@ -391,11 +404,8 @@ function bridgeImport(b: ModuleBuilder, imp: WabtImport, internalName: string): 
       );
       return;
     case ExternalKind.Memory:
-      // wabt currently has no module.memories shadowing for imports, so we
-      // pass through the raw name (empty if anonymous). binaryen-ts accepts
-      // that for memory because there can only be one memory (under MVP).
       b.addMemoryImport(
-        imp.memory.name,
+        internalName,
         imp.module,
         imp.field,
         imp.memory.limits.initial,
@@ -1155,6 +1165,12 @@ function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
     case ExternalKind.Global:
       b.addExport(exp.name, varName(exp.var, ctx.globalNames), 'global');
       return;
+    case ExternalKind.Memory:
+      b.addExport(exp.name, varName(exp.var, ctx.memoryNames), 'memory');
+      return;
+    case ExternalKind.Table:
+      b.addExport(exp.name, varName(exp.var, ctx.tableNames), 'table');
+      return;
     case ExternalKind.Tag:
       // binaryen-ts v1.0.9 WasmExport.kind is "function" | "global" |
       // "table" | "memory" — no "tag" variant. Tag exports survive the
@@ -1164,8 +1180,40 @@ function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
         'Bridge: tag exports not yet supported ' +
           '(binaryen-ts v1.0.9 has no "tag" export kind)',
       );
-    case ExternalKind.Memory:
-    case ExternalKind.Table:
-      throw new Error(`Bridge: export kind ${exp.kind} not yet supported`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Data segments
+// ---------------------------------------------------------------------------
+
+function bridgeDataSegment(
+  b: ModuleBuilder,
+  seg: WabtModule['dataSegments'][number],
+  ctx: BridgeCtx,
+): void {
+  if (seg.kind === 'passive') {
+    b.addPassiveDataSegment(seg.name, seg.data);
+    return;
+  }
+  if (seg.kind === 'declared') {
+    // The 'declared' segment kind exists in wabt's IR for symmetry with
+    // element segments but is meaningless for data — no data section
+    // entry, no offset, no initialization. Skip silently.
+    return;
+  }
+  // Active segment: must have a single-expression constant offset.
+  if (seg.offset.length !== 1) {
+    throw new Error(
+      `Bridge: data segment ${seg.name} has ${seg.offset.length} offset exprs; expected 1`,
+    );
+  }
+  // wabt's IR allows a per-segment memoryVar; binaryen-ts's addDataSegment
+  // is single-memory under MVP. Verify the target is memory 0.
+  if (seg.memoryVar.kind === 'index' && seg.memoryVar.value !== 0) {
+    throw new Error(
+      `Bridge: data segment ${seg.name} targets non-zero memory ${seg.memoryVar.value} (multi-memory not yet supported)`,
+    );
+  }
+  b.addDataSegment(seg.name, bridgeExpr(seg.offset[0]!, ctx), seg.data);
 }
