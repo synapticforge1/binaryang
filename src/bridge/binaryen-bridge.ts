@@ -65,9 +65,12 @@ import type {
   LocalTeeExpr,
   LoopExpr,
   MemoryGrowExpr,
+  I31GetExpr,
   MemorySizeExpr,
   Module as WabtModule,
+  RefEqExpr,
   RefFuncExpr,
+  RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
   ReturnExpr,
@@ -109,7 +112,10 @@ import {
   makeMemoryGrow,
   makeMemorySize,
   makeNop,
+  makeI31Get,
+  makeRefEq,
   makeRefFunc,
+  makeRefI31,
   makeRefIsNull,
   makeRefNull,
   makeReturn,
@@ -810,6 +816,22 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // error rather than silently producing wrong output. Revisit when
       // binaryen-ts gains the factory.
       throw new Error('Bridge: ref.as_non_null not supported (binaryen-ts has no factory)');
+
+    // --- GC Tier 1: i31 + ref.eq ----------------------------------------
+    case 'ref.eq': {
+      const re = e as RefEqExpr;
+      return makeRefEq(bridgeExpr(re.left, ctx), bridgeExpr(re.right, ctx));
+    }
+    case 'ref.i31': {
+      const ri = e as RefI31Expr;
+      // binaryen-ts's makeRefI31 takes a `resultType` argument; i31ref is
+      // the only valid result type for ref.i31.
+      return makeRefI31(bridgeExpr(ri.value, ctx), ValType.I31Ref);
+    }
+    case 'i31.get': {
+      const ig = e as I31GetExpr;
+      return makeI31Get(bridgeExpr(ig.i31, ctx), ig.signed);
+    }
 
     // --- SIMD (Tier C) ---------------------------------------------------
     //

@@ -49,8 +49,11 @@ import type {
   Module,
   NopExpr,
   QuaternaryExpr,
+  I31GetExpr,
   RefAsNonNullExpr,
+  RefEqExpr,
   RefFuncExpr,
+  RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
   RethrowExpr,
@@ -84,8 +87,10 @@ import { CatchKind } from '../ir/ir.ts';
 import { Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
+  GcOpcode,
   naturalAlignForOpcode,
   Opcode,
+  PREFIX_GC,
   PREFIX_MISC,
   PREFIX_SIMD,
   PREFIX_THREADS,
@@ -522,6 +527,21 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onRefAsNonNullExpr(_e: RefAsNonNullExpr): Result {
     this.s.writeU8(Opcode.RefAsNonNull);
+    return Result.Ok;
+  }
+  onRefEqExpr(_e: RefEqExpr): Result {
+    // ref.eq is a single-byte opcode (0xd3), not 0xfb-prefixed.
+    this.s.writeU8(Opcode.RefEq);
+    return Result.Ok;
+  }
+  onRefI31Expr(_e: RefI31Expr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.RefI31);
+    return Result.Ok;
+  }
+  onI31GetExpr(e: I31GetExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(e.signed ? GcOpcode.I31GetS : GcOpcode.I31GetU);
     return Result.Ok;
   }
 

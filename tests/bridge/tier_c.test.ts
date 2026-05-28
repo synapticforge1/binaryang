@@ -158,10 +158,12 @@ describe('Phase 7 Tier C: SIMD', () => {
       (export "set_lane" (func $set_lane)))`);
   });
 
-  // v128.const literal form `(v128.const i32x4 0x... 0x... 0x... 0x...)`
-  // is not yet supported by the wabt-ts WAT parser — separate parser-side
-  // work. The bridge's bridgeConst v128 case will pick it up automatically
-  // once the parser produces v128 ConstExpr nodes.
+  it('v128.const literal flows through the bridge', () => {
+    bridgeAndValidate(`(module
+      (func $f (result v128)
+        (v128.const i32x4 1 2 3 4))
+      (export "f" (func $f)))`);
+  });
 });
 
 describe('Phase 7 Tier C: SIMD memory ops', () => {

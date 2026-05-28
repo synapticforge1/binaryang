@@ -1107,6 +1107,30 @@ export class TypeChecker {
     return r;
   }
 
+  // GC: ref.eq pops two eqref-compatible refs, pushes i32.
+  // We don't enforce the eqref-compatible check here (no subtype machinery);
+  // the validator's job is to pop 2 ref-shaped things and push i32.
+  onRefEq(): Result {
+    const r = this.dropTypes(2);
+    this.pushType(_I32);
+    return r;
+  }
+
+  // GC: ref.i31 pops i32, pushes i31ref.
+  onRefI31(): Result {
+    const r = this.dropTypes(1);
+    this.pushType(Type.I31Ref);
+    return r;
+  }
+
+  // GC: i31.get_s / i31.get_u pop i31ref, push i32. Signedness is encoded
+  // in the opcode; either way the validator effect is the same.
+  onI31Get(): Result {
+    const r = this.dropTypes(1);
+    this.pushType(_I32);
+    return r;
+  }
+
   onMemorySize(is64: boolean): Result {
     this.pushType(is64 ? _I64 : _I32);
     return Result.Ok;

@@ -15,7 +15,7 @@
  * Errors are accumulated in an {@link ErrorList} rather than thrown.
  */
 
-import { Result } from '../core/result.ts';
+import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
@@ -462,9 +462,19 @@ class ResolveContext {
         }];
       }
       case 'ref.is_null':
-      case 'ref.as_non_null': {
+      case 'ref.as_non_null':
+      case 'ref.i31': {
         const [r, value] = this.resolveExpr(e.value);
         return [r, { ...e, value }];
+      }
+      case 'i31.get': {
+        const [r, i31] = this.resolveExpr(e.i31);
+        return [r, { ...e, i31 }];
+      }
+      case 'ref.eq': {
+        const [rl, left] = this.resolveExpr(e.left);
+        const [rr, right] = this.resolveExpr(e.right);
+        return [combineResults(rl, rr), { ...e, left, right }];
       }
       case 'throw_ref': {
         const [r, exnref] = this.resolveExpr(e.exnref);

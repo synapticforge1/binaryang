@@ -947,6 +947,21 @@ export class SharedValidator {
     return this.tc.onRefAsNonNull();
   }
 
+  onRefEq(loc: Location): Result {
+    this.currentLoc = loc;
+    return this.tc.onRefEq();
+  }
+
+  onRefI31(loc: Location): Result {
+    this.currentLoc = loc;
+    return this.tc.onRefI31();
+  }
+
+  onI31Get(loc: Location): Result {
+    this.currentLoc = loc;
+    return this.tc.onI31Get();
+  }
+
   // ---------------------------------------------------------------------------
   // Instruction handlers — tables
   // ---------------------------------------------------------------------------

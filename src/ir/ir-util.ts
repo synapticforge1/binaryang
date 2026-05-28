@@ -300,6 +300,12 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 0, unreachable: true };
       case 'rethrow':
         return { nargs: 0, nreturns: 0, unreachable: true };
+      case 'ref.eq':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'ref.i31':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'i31.get':
+        return { nargs: 1, nreturns: 1, unreachable: false };
       default: {
         const _exhaust: never = expr;
         return { nargs: 0, nreturns: 0, unreachable: false };

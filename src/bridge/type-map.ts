@@ -30,6 +30,25 @@ export function wabtTypeToValType(t: Type): ValType {
       return ValType.FuncRef;
     case Type.ExternRef:
       return ValType.ExternRef;
+    case Type.ExnRef:
+      return ValType.ExnRef;
+    // GC abstract heap types
+    case Type.AnyRef:
+      return ValType.AnyRef;
+    case Type.EqRef:
+      return ValType.EqRef;
+    case Type.I31Ref:
+      return ValType.I31Ref;
+    case Type.StructRef:
+      return ValType.StructRef;
+    case Type.ArrayRef:
+      return ValType.ArrayRef;
+    case Type.NullRef:
+      return ValType.NullRef;
+    case Type.NullFuncRef:
+      return ValType.NullFuncRef;
+    case Type.NullExternRef:
+      return ValType.NullExternRef;
     default:
       throw new Error(`Unknown wabt Type code: 0x${t.toString(16)}`);
   }

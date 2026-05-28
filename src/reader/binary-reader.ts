@@ -8,7 +8,15 @@ import type { Location } from '../core/error.ts';
 import { addError, type ErrorList } from '../core/error.ts';
 import { Type } from '../core/types.ts';
 import { BinarySection, ExternalKind, WASM_MAGIC, WASM_VERSION } from '../core/binary.ts';
-import { MiscOpcode, Opcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
+import {
+  GcOpcode,
+  MiscOpcode,
+  Opcode,
+  PREFIX_GC,
+  PREFIX_MISC,
+  PREFIX_SIMD,
+  PREFIX_THREADS,
+} from '../core/opcode.ts';
 import {
   decodeS32Leb128,
   decodeS64Leb128,
@@ -49,7 +57,10 @@ import {
   type MemorySizeExpr,
   type Module,
   type NopExpr,
+  type I31GetExpr,
+  type RefEqExpr,
   type RefFuncExpr,
+  type RefI31Expr,
   type RefNullExpr,
   type RethrowExpr,
   type SectionMeta,
@@ -1429,7 +1440,7 @@ export class BinaryReader {
         case Opcode.RefEq: {
           const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stack.push({ kind: 'compare', opcode: Opcode.RefEq, left, right, loc });
+          stack.push({ kind: 'ref.eq', left, right, loc } as RefEqExpr);
           break;
         }
         case Opcode.RefAsNonNull: {
@@ -1492,6 +1503,13 @@ export class BinaryReader {
           m.featuresUsed.threads = true;
           const atomicOp = this.readU32Leb();
           this.decodeAtomicOp(atomicOp, stack, stmts, m, loc);
+          break;
+        }
+
+        // --- Prefix: GC (0xfb) ---
+        case PREFIX_GC: {
+          const gcOp = this.readU32Leb();
+          this.decodeGcOp(gcOp, stack, stmts, m, loc);
           break;
         }
 
@@ -2026,6 +2044,36 @@ export class BinaryReader {
     }
 
     return m;
+  }
+
+  // ---------------------------------------------------------------------------
+  // GC (0xfb) opcode decoder
+  // ---------------------------------------------------------------------------
+
+  private decodeGcOp(op: number, stack: Expr[], _stmts: Expr[], m: Module, loc: Location): void {
+    m.featuresUsed.gc = true;
+    const nop = (): NopExpr => ({ kind: 'nop', loc });
+    switch (op) {
+      case GcOpcode.RefI31: {
+        const value = stack.pop() ?? nop();
+        stack.push({ kind: 'ref.i31', value, loc } as RefI31Expr);
+        return;
+      }
+      case GcOpcode.I31GetS:
+      case GcOpcode.I31GetU: {
+        const i31 = stack.pop() ?? nop();
+        stack.push({
+          kind: 'i31.get',
+          i31,
+          signed: op === GcOpcode.I31GetS,
+          loc,
+        } as I31GetExpr);
+        return;
+      }
+      default:
+        this.err(`unknown GC opcode: 0xfb 0x${op.toString(16)}`);
+        return;
+    }
   }
 }
 

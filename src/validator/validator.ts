@@ -52,8 +52,11 @@ import type {
   Module,
   NopExpr,
   QuaternaryExpr,
+  I31GetExpr,
   RefAsNonNullExpr,
+  RefEqExpr,
   RefFuncExpr,
+  RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
   RethrowExpr,
@@ -455,6 +458,15 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onRefAsNonNullExpr(e: RefAsNonNullExpr): Result {
     return this.sv.onRefAsNonNull(e.loc);
+  }
+  onRefEqExpr(e: RefEqExpr): Result {
+    return this.sv.onRefEq(e.loc);
+  }
+  onRefI31Expr(e: RefI31Expr): Result {
+    return this.sv.onRefI31(e.loc);
+  }
+  onI31GetExpr(e: I31GetExpr): Result {
+    return this.sv.onI31Get(e.loc);
   }
 
   onTableGetExpr(e: TableGetExpr): Result {

@@ -14,7 +14,7 @@
 import type { Location, WabtError } from '../core/error.ts';
 import { ErrorLevel } from '../core/error.ts';
 import { Result } from '../core/result.ts';
-import { Opcode } from '../core/opcode.ts';
+import { GcOpcode, Opcode } from '../core/opcode.ts';
 import { Type } from '../core/types.ts';
 import {
   type AtomicFenceExpr,
@@ -45,6 +45,7 @@ import {
   constF64,
   constI32,
   constI64,
+  constV128,
   type ConvertExpr,
   type DataDropExpr,
   type DropExpr,
@@ -75,8 +76,11 @@ import {
   type Module,
   type NopExpr,
   type QuaternaryExpr,
+  type I31GetExpr,
   type RefAsNonNullExpr,
+  type RefEqExpr,
   type RefFuncExpr,
+  type RefI31Expr,
   type RefIsNullExpr,
   type RefNullExpr,
   type RethrowExpr,
@@ -284,6 +288,9 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.RefFunc:
     case TokenType.RefNull:
     case TokenType.RefIsNull:
+    case TokenType.RefEq:
+    case TokenType.RefI31:
+    case TokenType.I31Get:
     case TokenType.AtomicLoad:
     case TokenType.AtomicStore:
     case TokenType.AtomicRmw:
@@ -502,6 +509,8 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.Convert:
     case TokenType.RefIsNull:
     case TokenType.RefAsNonNull:
+    case TokenType.RefI31:
+    case TokenType.I31Get:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
     case TokenType.DataDrop:
@@ -528,8 +537,10 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.SimdLoadLane:
     case TokenType.SimdStoreLane:
     case TokenType.SimdShuffleOp:
+    case TokenType.RefEq:
       // simd_shuffle: 2 v128 operands (left, right).
       // simd_load_lane / simd_store_lane: address + vec.
+      // ref.eq: left + right (both eqref).
       return 2;
     case TokenType.Select:
     case TokenType.MemoryFill:
@@ -615,6 +626,9 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.AtomicLoad:
     case TokenType.RefIsNull:
     case TokenType.RefAsNonNull:
+    case TokenType.RefEq:
+    case TokenType.RefI31:
+    case TokenType.I31Get:
     case TokenType.LocalTee:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
@@ -2531,6 +2545,18 @@ export class WastParser {
       }
       case TokenType.RefAsNonNull:
         return { kind: 'ref.as_non_null', value: op0(), loc } as RefAsNonNullExpr;
+      case TokenType.RefEq:
+        return { kind: 'ref.eq', left: op0(), right: op1(), loc } as RefEqExpr;
+      case TokenType.RefI31:
+        return { kind: 'ref.i31', value: op0(), loc } as RefI31Expr;
+      case TokenType.I31Get: {
+        // The lexer routes both `i31.get_s` (opcode 0x1d) and `i31.get_u`
+        // (0x1e) to TokenType.I31Get, so the opcode immediate determines
+        // the signedness.
+        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const signed = (op & 0xff) === GcOpcode.I31GetS;
+        return { kind: 'i31.get', i31: op0(), signed, loc } as I31GetExpr;
+      }
 
       case TokenType.Throw: {
         const v = this.parseVar() ?? varIndex(0);
@@ -2800,8 +2826,116 @@ export class WastParser {
       }
       return constF64(bits);
     }
+    if (type === Type.V128) {
+      const bytes = this.parseV128Literal();
+      if (bytes === null) return null;
+      return constV128(bytes);
+    }
     this.error(loc, 'unknown const type');
     return null;
+  }
+
+  /**
+   * Parse the lane-typed literal that follows a `v128.const` opcode.
+   *
+   * WAT grammar:
+   *   v128.const i8x16  N N N N N N N N N N N N N N N N
+   *   v128.const i16x8  N N N N N N N N
+   *   v128.const i32x4  N N N N
+   *   v128.const i64x2  N N
+   *   v128.const f32x4  F F F F
+   *   v128.const f64x2  F F
+   *
+   * Each lane is written in source order; the 16 result bytes are
+   * laid out little-endian per the wasm spec (lane 0 = bytes[0..]).
+   * Returns null on any malformed lane.
+   */
+  private parseV128Literal(): Uint8Array | null {
+    const loc = this.loc();
+    const bytes = new Uint8Array(16);
+    const dv = new DataView(bytes.buffer);
+    const tt = this.peek();
+
+    switch (tt) {
+      case TokenType.I8X16: {
+        this.drop();
+        for (let i = 0; i < 16; i++) {
+          const n = this.parseNatOrInt();
+          if (n === null) {
+            this.error(loc, `expected i8 lane ${i} for v128.const`);
+            return null;
+          }
+          bytes[i] = Number(BigInt.asIntN(8, n)) & 0xff;
+        }
+        return bytes;
+      }
+      case TokenType.I16X8: {
+        this.drop();
+        for (let i = 0; i < 8; i++) {
+          const n = this.parseNatOrInt();
+          if (n === null) {
+            this.error(loc, `expected i16 lane ${i} for v128.const`);
+            return null;
+          }
+          dv.setInt16(i * 2, Number(BigInt.asIntN(16, n)), true);
+        }
+        return bytes;
+      }
+      case TokenType.I32X4: {
+        this.drop();
+        for (let i = 0; i < 4; i++) {
+          const n = this.parseNatOrInt();
+          if (n === null) {
+            this.error(loc, `expected i32 lane ${i} for v128.const`);
+            return null;
+          }
+          dv.setInt32(i * 4, Number(BigInt.asIntN(32, n)), true);
+        }
+        return bytes;
+      }
+      case TokenType.I64X2: {
+        this.drop();
+        for (let i = 0; i < 2; i++) {
+          const n = this.parseNatOrInt();
+          if (n === null) {
+            this.error(loc, `expected i64 lane ${i} for v128.const`);
+            return null;
+          }
+          dv.setBigInt64(i * 8, BigInt.asIntN(64, n), true);
+        }
+        return bytes;
+      }
+      case TokenType.F32X4: {
+        this.drop();
+        for (let i = 0; i < 4; i++) {
+          const bits = this.parseF32Bits();
+          if (bits === null) {
+            this.error(loc, `expected f32 lane ${i} for v128.const`);
+            return null;
+          }
+          dv.setUint32(i * 4, bits, true);
+        }
+        return bytes;
+      }
+      case TokenType.F64X2: {
+        this.drop();
+        for (let i = 0; i < 2; i++) {
+          const bits = this.parseF64Bits();
+          if (bits === null) {
+            this.error(loc, `expected f64 lane ${i} for v128.const`);
+            return null;
+          }
+          dv.setBigUint64(i * 8, bits, true);
+        }
+        return bytes;
+      }
+      default:
+        this.error(
+          loc,
+          'expected v128 lane interpretation (i8x16 / i16x8 / i32x4 / i64x2 / f32x4 / f64x2)',
+        );
+        return null;
+    }
   }
 
   private parseNatOrInt(): bigint | null {

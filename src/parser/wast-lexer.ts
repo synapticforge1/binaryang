@@ -14,7 +14,15 @@
 
 import type { Location, WabtError } from '../core/error.ts';
 import { ErrorLevel } from '../core/error.ts';
-import { MiscOpcode, Opcode, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../core/opcode.ts';
+import {
+  GcOpcode,
+  MiscOpcode,
+  Opcode,
+  PREFIX_GC,
+  PREFIX_MISC,
+  PREFIX_SIMD,
+  PREFIX_THREADS,
+} from '../core/opcode.ts';
 import { Type } from '../core/types.ts';
 import { LexerSource } from './lexer-source.ts';
 import { isRefKindToken, LiteralType, TokenType } from './token.ts';
@@ -28,6 +36,7 @@ import type { LiteralPayload, Token } from './token.ts';
 const S = (n: number) => (PREFIX_SIMD << 8) | n;
 const A = (n: number) => (PREFIX_THREADS << 8) | n;
 const M = (n: number) => (PREFIX_MISC << 8) | n;
+const G = (n: number) => (PREFIX_GC << 8) | n;
 
 interface KwBare {
   readonly tt: TokenType;
@@ -116,6 +125,16 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['externref', vt(TokenType.ValueType, Type.ExternRef)],
   ['exn', vt(TokenType.Exn, Type.ExnRef)],
   ['exnref', vt(TokenType.ValueType, Type.ExnRef)],
+  // GC abstract heap types (treated as full value types for `(local … X)` and
+  // `(global … X)` slots, parallel to funcref/externref/exnref).
+  ['anyref', vt(TokenType.ValueType, Type.AnyRef)],
+  ['eqref', vt(TokenType.ValueType, Type.EqRef)],
+  ['i31ref', vt(TokenType.ValueType, Type.I31Ref)],
+  ['structref', vt(TokenType.ValueType, Type.StructRef)],
+  ['arrayref', vt(TokenType.ValueType, Type.ArrayRef)],
+  ['nullref', vt(TokenType.ValueType, Type.NullRef)],
+  ['nullfuncref', vt(TokenType.ValueType, Type.NullFuncRef)],
+  ['nullexternref', vt(TokenType.ValueType, Type.NullExternRef)],
   // --- value types ---
   ['i32', vt(TokenType.ValueType, Type.I32)],
   ['i64', vt(TokenType.ValueType, Type.I64)],
@@ -160,10 +179,14 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['memory.size', op(TokenType.MemorySize, Opcode.MemorySize)],
   ['nop', op(TokenType.Nop, Opcode.Nop)],
   ['ref.as_non_null', op(TokenType.RefAsNonNull, Opcode.RefAsNonNull)],
+  ['ref.eq', op(TokenType.RefEq, Opcode.RefEq)],
   ['ref.extern', bare(TokenType.RefExtern)],
   ['ref.func', op(TokenType.RefFunc, Opcode.RefFunc)],
+  ['ref.i31', op(TokenType.RefI31, G(GcOpcode.RefI31))],
   ['ref.is_null', op(TokenType.RefIsNull, Opcode.RefIsNull)],
   ['ref.null', op(TokenType.RefNull, Opcode.RefNull)],
+  ['i31.get_s', op(TokenType.I31Get, G(GcOpcode.I31GetS))],
+  ['i31.get_u', op(TokenType.I31Get, G(GcOpcode.I31GetU))],
   ['rethrow', op(TokenType.Rethrow, Opcode.Rethrow)],
   ['return', op(TokenType.Return, Opcode.Return)],
   ['return_call', op(TokenType.ReturnCall, Opcode.ReturnCall)],

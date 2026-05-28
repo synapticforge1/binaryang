@@ -27,6 +27,9 @@ export const PREFIX_SIMD = 0xfd;
 /** Prefix for threading/atomics opcodes (0xfe group). */
 export const PREFIX_THREADS = 0xfe;
 
+/** Prefix for GC opcodes (0xfb group — struct.*, array.*, ref.i31, i31.get_*, ref.test/cast). */
+export const PREFIX_GC = 0xfb;
+
 // ---------------------------------------------------------------------------
 // Core opcodes (single-byte, 0x00–0xbf)
 //
@@ -280,6 +283,42 @@ export enum MiscOpcode {
   TableGrow = 15,
   TableSize = 16,
   TableFill = 17,
+}
+
+// ---------------------------------------------------------------------------
+// GC opcodes (PREFIX_GC = 0xfb group)
+// ---------------------------------------------------------------------------
+
+/**
+ * Opcodes in the `0xfb` prefix group (GC proposal: struct/array/i31/ref.test).
+ * Each value is the LEB128 immediate following the `0xfb` prefix byte.
+ */
+export enum GcOpcode {
+  StructNew = 0x00,
+  StructNewDefault = 0x01,
+  StructGet = 0x02,
+  StructGetS = 0x03,
+  StructGetU = 0x04,
+  StructSet = 0x05,
+  ArrayNew = 0x06,
+  ArrayNewDefault = 0x07,
+  ArrayNewFixed = 0x08,
+  ArrayNewData = 0x09,
+  ArrayNewElem = 0x0a,
+  ArrayGet = 0x0b,
+  ArrayGetS = 0x0c,
+  ArrayGetU = 0x0d,
+  ArraySet = 0x0e,
+  ArrayLen = 0x0f,
+  RefTest = 0x14,
+  RefTestNullable = 0x15,
+  RefCast = 0x16,
+  RefCastNullable = 0x17,
+  BrOnCast = 0x18,
+  BrOnCastFail = 0x19,
+  RefI31 = 0x1c,
+  I31GetS = 0x1d,
+  I31GetU = 0x1e,
 }
 
 // ---------------------------------------------------------------------------
@@ -847,6 +886,33 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_THREADS << 8) | 0x4c, 'i64.atomic.rmw8.cmpxchg_u'],
   [(PREFIX_THREADS << 8) | 0x4d, 'i64.atomic.rmw16.cmpxchg_u'],
   [(PREFIX_THREADS << 8) | 0x4e, 'i64.atomic.rmw32.cmpxchg_u'],
+
+  // GC proposal (PREFIX_GC = 0xfb)
+  [(PREFIX_GC << 8) | GcOpcode.StructNew, 'struct.new'],
+  [(PREFIX_GC << 8) | GcOpcode.StructNewDefault, 'struct.new_default'],
+  [(PREFIX_GC << 8) | GcOpcode.StructGet, 'struct.get'],
+  [(PREFIX_GC << 8) | GcOpcode.StructGetS, 'struct.get_s'],
+  [(PREFIX_GC << 8) | GcOpcode.StructGetU, 'struct.get_u'],
+  [(PREFIX_GC << 8) | GcOpcode.StructSet, 'struct.set'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayNew, 'array.new'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayNewDefault, 'array.new_default'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayNewFixed, 'array.new_fixed'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayNewData, 'array.new_data'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayNewElem, 'array.new_elem'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayGet, 'array.get'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayGetS, 'array.get_s'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayGetU, 'array.get_u'],
+  [(PREFIX_GC << 8) | GcOpcode.ArraySet, 'array.set'],
+  [(PREFIX_GC << 8) | GcOpcode.ArrayLen, 'array.len'],
+  [(PREFIX_GC << 8) | GcOpcode.RefTest, 'ref.test'],
+  [(PREFIX_GC << 8) | GcOpcode.RefTestNullable, 'ref.test null'],
+  [(PREFIX_GC << 8) | GcOpcode.RefCast, 'ref.cast'],
+  [(PREFIX_GC << 8) | GcOpcode.RefCastNullable, 'ref.cast null'],
+  [(PREFIX_GC << 8) | GcOpcode.BrOnCast, 'br_on_cast'],
+  [(PREFIX_GC << 8) | GcOpcode.BrOnCastFail, 'br_on_cast_fail'],
+  [(PREFIX_GC << 8) | GcOpcode.RefI31, 'ref.i31'],
+  [(PREFIX_GC << 8) | GcOpcode.I31GetS, 'i31.get_s'],
+  [(PREFIX_GC << 8) | GcOpcode.I31GetU, 'i31.get_u'],
 ]);
 
 /**

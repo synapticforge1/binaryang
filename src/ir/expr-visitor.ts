@@ -65,8 +65,11 @@ import type {
   MemorySizeExpr,
   NopExpr,
   QuaternaryExpr,
+  I31GetExpr,
   RefAsNonNullExpr,
+  RefEqExpr,
   RefFuncExpr,
+  RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
   RethrowExpr,
@@ -163,6 +166,9 @@ export interface ExprVisitorDelegate {
   onRefIsNullExpr?(e: RefIsNullExpr): Result;
   onRefFuncExpr?(e: RefFuncExpr): Result;
   onRefAsNonNullExpr?(e: RefAsNonNullExpr): Result;
+  onRefEqExpr?(e: RefEqExpr): Result;
+  onRefI31Expr?(e: RefI31Expr): Result;
+  onI31GetExpr?(e: I31GetExpr): Result;
 
   onTableGetExpr?(e: TableGetExpr): Result;
   onTableSetExpr?(e: TableSetExpr): Result;
@@ -318,6 +324,23 @@ export class ExprVisitor {
         const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onRefAsNonNullExpr?.(e) ?? Result.Ok;
+      }
+      case 'ref.eq': {
+        let r = this.dispatch(e.left);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.right);
+        if (r === Result.Error) return r;
+        return this.d.onRefEqExpr?.(e) ?? Result.Ok;
+      }
+      case 'ref.i31': {
+        const r = this.dispatch(e.value);
+        if (r === Result.Error) return r;
+        return this.d.onRefI31Expr?.(e) ?? Result.Ok;
+      }
+      case 'i31.get': {
+        const r = this.dispatch(e.i31);
+        if (r === Result.Error) return r;
+        return this.d.onI31GetExpr?.(e) ?? Result.Ok;
       }
       case 'memory.grow': {
         const r = this.dispatch(e.delta);

@@ -65,6 +65,22 @@ export enum Type {
   FuncRef = 0x70,
   /** Nullable external reference (`externref`). */
   ExternRef = 0x6f,
+  /** Top of the GC reference hierarchy (`anyref`). */
+  AnyRef = 0x6e,
+  /** GC reference type with equality (`eqref`). */
+  EqRef = 0x6d,
+  /** Unboxed 31-bit integer reference (`i31ref`). */
+  I31Ref = 0x6c,
+  /** Generic struct reference (`structref`). */
+  StructRef = 0x6b,
+  /** Generic array reference (`arrayref`). */
+  ArrayRef = 0x6a,
+  /** Bottom of the GC hierarchy (`nullref`); only `ref.null none` inhabits it. */
+  NullRef = 0x71,
+  /** Bottom of the func hierarchy (`nullfuncref`). */
+  NullFuncRef = 0x73,
+  /** Bottom of the extern hierarchy (`nullexternref`). */
+  NullExternRef = 0x72,
   /** Non-nullable typed reference (GC proposal). */
   Ref = 0x64,
   /** Nullable typed reference (GC proposal). */
@@ -100,6 +116,14 @@ export function isReferenceType(t: Type): boolean {
     t === Type.FuncRef ||
     t === Type.ExternRef ||
     t === Type.ExnRef ||
+    t === Type.AnyRef ||
+    t === Type.EqRef ||
+    t === Type.I31Ref ||
+    t === Type.StructRef ||
+    t === Type.ArrayRef ||
+    t === Type.NullRef ||
+    t === Type.NullFuncRef ||
+    t === Type.NullExternRef ||
     t === Type.Ref ||
     t === Type.RefNull
   );
@@ -133,6 +157,22 @@ export function typeName(t: Type): string {
       return 'funcref';
     case Type.ExternRef:
       return 'externref';
+    case Type.AnyRef:
+      return 'anyref';
+    case Type.EqRef:
+      return 'eqref';
+    case Type.I31Ref:
+      return 'i31ref';
+    case Type.StructRef:
+      return 'structref';
+    case Type.ArrayRef:
+      return 'arrayref';
+    case Type.NullRef:
+      return 'nullref';
+    case Type.NullFuncRef:
+      return 'nullfuncref';
+    case Type.NullExternRef:
+      return 'nullexternref';
     case Type.Ref:
       return 'ref';
     case Type.RefNull:

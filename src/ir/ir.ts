@@ -440,6 +440,29 @@ export interface RefAsNonNullExpr {
   readonly loc: Location;
 }
 
+// --- GC reference ops (GC proposal) ---
+/** `ref.eq` — compares two `eqref`-compatible references for identity. */
+export interface RefEqExpr {
+  readonly kind: 'ref.eq';
+  readonly left: Expr;
+  readonly right: Expr;
+  readonly loc: Location;
+}
+/** `ref.i31` — boxes an i32 value into an `i31ref`. */
+export interface RefI31Expr {
+  readonly kind: 'ref.i31';
+  readonly value: Expr;
+  readonly loc: Location;
+}
+/** `i31.get_s` / `i31.get_u` — unboxes an `i31ref` to i32 (sign- or zero-extended). */
+export interface I31GetExpr {
+  readonly kind: 'i31.get';
+  readonly i31: Expr;
+  /** True for `i31.get_s` (sign-extended), false for `i31.get_u` (zero-extended). */
+  readonly signed: boolean;
+  readonly loc: Location;
+}
+
 // --- Tables ---
 export interface TableGetExpr {
   readonly kind: 'table.get';
@@ -723,6 +746,9 @@ export type Expr =
   | RefIsNullExpr
   | RefFuncExpr
   | RefAsNonNullExpr
+  | RefEqExpr
+  | RefI31Expr
+  | I31GetExpr
   | TableGetExpr
   | TableSetExpr
   | TableGrowExpr
@@ -958,6 +984,7 @@ export interface Module {
     exceptions: boolean;
     threads: boolean;
     tailcall: boolean;
+    gc: boolean;
   };
 }
 
@@ -984,7 +1011,7 @@ export function makeModule(): Module {
     numGlobalImports: 0,
     numTagImports: 0,
     sectionMeta: [],
-    featuresUsed: { simd: false, exceptions: false, threads: false, tailcall: false },
+    featuresUsed: { simd: false, exceptions: false, threads: false, tailcall: false, gc: false },
   };
 }
 

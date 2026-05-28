@@ -702,6 +702,18 @@ class WatWriter extends ModuleContext {
         this.putsNewline('ref.as_non_null');
         return Result.Ok;
       },
+      onRefEqExpr: () => {
+        this.putsNewline('ref.eq');
+        return Result.Ok;
+      },
+      onRefI31Expr: () => {
+        this.putsNewline('ref.i31');
+        return Result.Ok;
+      },
+      onI31GetExpr: (e) => {
+        this.putsNewline(e.signed ? 'i31.get_s' : 'i31.get_u');
+        return Result.Ok;
+      },
 
       onTableGetExpr: (e) => {
         this.putsSpace('table.get');
