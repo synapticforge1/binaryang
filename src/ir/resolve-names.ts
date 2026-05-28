@@ -482,6 +482,26 @@ class ResolveContext {
         const [rr, right] = this.resolveExpr(e.right);
         return [combineResults(rl, rr), { ...e, left, right }];
       }
+      case 'struct.new': {
+        const [r, operands] = this.resolveExprArray(e.operands);
+        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), operands }];
+      }
+      case 'struct.new_default':
+        return [Result.Ok, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc) }];
+      case 'struct.get': {
+        const [r, ref] = this.resolveExpr(e.ref);
+        const tv = this.resolveTypeVar(e.typeVar, loc);
+        return [r, { ...e, typeVar: tv, fieldVar: this.resolveFieldVar(tv, e.fieldVar, loc), ref }];
+      }
+      case 'struct.set': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [rv, value] = this.resolveExpr(e.value);
+        const tv = this.resolveTypeVar(e.typeVar, loc);
+        return [
+          combineResults(rr, rv),
+          { ...e, typeVar: tv, fieldVar: this.resolveFieldVar(tv, e.fieldVar, loc), ref, value },
+        ];
+      }
       case 'throw_ref': {
         const [r, exnref] = this.resolveExpr(e.exnref);
         return [r, { ...e, exnref }];
@@ -551,6 +571,32 @@ class ResolveContext {
   }
   private resolveTypeVar(v: Var, loc: Location = unknownLocation()): Var {
     return this.resolveVar(v, this.typeScope, 'type', loc);
+  }
+  /**
+   * Resolve a `$fieldName` within a struct type. The field's index space is
+   * scoped to the containing struct (unlike funcs / globals / etc. which are
+   * module-global). Caller must pass the already-resolved type var so we can
+   * look the struct up.
+   */
+  private resolveFieldVar(typeVar: Var, fieldVar: Var, loc: Location): Var {
+    if (fieldVar.kind === 'index') return fieldVar;
+    if (typeVar.kind !== 'index') {
+      addError(this.errors, loc, `cannot resolve field "${fieldVar.name}" on unresolved type`);
+      this.hadError = true;
+      return fieldVar;
+    }
+    const typeEntry = this.module.types[typeVar.value];
+    if (typeEntry === undefined || typeEntry.kind !== 'struct') {
+      addError(this.errors, loc, `field "${fieldVar.name}" references non-struct type ${typeVar.value}`);
+      this.hadError = true;
+      return fieldVar;
+    }
+    for (let i = 0; i < typeEntry.fields.length; i++) {
+      if (typeEntry.fields[i]!.name === fieldVar.name) return varIndex(i);
+    }
+    addError(this.errors, loc, `undefined field "${fieldVar.name}" on struct type ${typeVar.value}`);
+    this.hadError = true;
+    return fieldVar;
   }
   /**
    * Resolves a `local.get` / `local.set` / `local.tee` var. Index-vars pass

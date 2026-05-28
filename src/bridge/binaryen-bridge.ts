@@ -80,6 +80,10 @@ import type {
   SimdShuffleOpExpr,
   SimdStoreLaneExpr,
   StoreExpr,
+  StructGetExpr,
+  StructNewDefaultExpr,
+  StructNewExpr,
+  StructSetExpr,
   Tag as WabtTag,
   ThrowExpr,
   ThrowRefExpr,
@@ -126,6 +130,10 @@ import {
   makeSIMDReplace,
   makeSIMDShuffle,
   makeStore,
+  makeStructGet,
+  makeStructNew,
+  makeStructNewDefault,
+  makeStructSet,
   makeSwitch,
   makeThrow,
   makeThrowRef,
@@ -167,6 +175,33 @@ import { wabtTypeToValType } from './type-map.ts';
 export function bridgeToBinaryen(module: WabtModule): WasmModule {
   const b = new ModuleBuilder();
   const ctx = makeRootCtx(module);
+
+  // GC: register every struct/array type with binaryen-ts up-front. The
+  // returned heap-type indices may not match wabt's type-section indices
+  // (binaryen-ts indices skip `func` entries; wabt's include them). Record
+  // the mapping in ctx so struct/array instructions can resolve it.
+  for (let i = 0; i < module.types.length; i++) {
+    const t = module.types[i]!;
+    if (t.kind === 'struct') {
+      const heapIdx = b.addHeapType({
+        kind: 'struct',
+        fields: t.fields.map((f) => ({
+          type: wabtFieldTypeToValType(f.type),
+          mutable: f.mutable,
+        })),
+      });
+      ctx.heapTypeIdx[i] = heapIdx;
+    } else if (t.kind === 'array') {
+      const heapIdx = b.addHeapType({
+        kind: 'array',
+        element: {
+          type: wabtFieldTypeToValType(t.field.type),
+          mutable: t.field.mutable,
+        },
+      });
+      ctx.heapTypeIdx[i] = heapIdx;
+    }
+  }
 
   // Imports: walk module.imports in order, using the canonical names from
   // ctx (which already substituted synthetic names for any anonymous items).
@@ -250,6 +285,15 @@ interface BridgeCtx {
   memoryNames: string[];
   /** Tag names indexed by the absolute tag index (imports first). Used by `throw` / `try_table`. */
   tagNames: string[];
+  /**
+   * Map from wabt type-section index → binaryen-ts heap-type index.
+   * Populated by `bridgeToBinaryen` from `module.types`. Indices for `func`
+   * type entries are left unset; only struct/array entries register heap
+   * types with binaryen-ts.
+   */
+  heapTypeIdx: Record<number, number>;
+  /** Direct reference to the original `module.types` for field-type lookups. */
+  types: WabtModule['types'];
   /** Current function param types (set inside bridgeFunc). */
   currentParams: Type[];
   /** Current function local types, in slot order after params. */
@@ -319,6 +363,8 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
     tableNames,
     memoryNames,
     tagNames,
+    heapTypeIdx: {},
+    types: module.types,
     currentParams: [],
     currentLocals: [],
     labelStack: [],
@@ -383,6 +429,67 @@ function varName(v: Var, names: ReadonlyArray<string>): string {
     throw new Error(`Bridge: no name for index ${v.value}; binaryen-ts needs string names`);
   }
   return n;
+}
+
+/**
+ * Unwrap an index-kind {@link Var} to its numeric value. Name-kind vars
+ * indicate a `resolveNames` step was skipped before bridging; throw rather
+ * than silently emit index 0 (the historical writeVar fallback that hid
+ * Bug G for so long).
+ */
+function varIdx(v: Var): number {
+  if (v.kind === 'name') {
+    throw new Error(`Bridge: var "${v.name}" not resolved — run resolveNames before bridgeToBinaryen`);
+  }
+  return v.value;
+}
+
+/**
+ * Resolve a wabt type-section index to a binaryen-ts heap-type index.
+ * The two index spaces diverge — wabt includes `func` entries, binaryen-ts
+ * only assigns heap-type indices to struct/array. The mapping is populated
+ * up-front by {@link bridgeToBinaryen} from `module.types`.
+ */
+function resolveHeapTypeIdx(typeVar: Var, ctx: BridgeCtx): number {
+  const wabtIdx = varIdx(typeVar);
+  const heapIdx = ctx.heapTypeIdx[wabtIdx];
+  if (heapIdx === undefined) {
+    throw new Error(
+      `Bridge: type index ${wabtIdx} is not a heap type (must be struct or array)`,
+    );
+  }
+  return heapIdx;
+}
+
+/**
+ * Look up the binaryen-ts ValType to return from `struct.get $type $field`.
+ * Packed i8/i16 fields stack-promote to i32; everything else passes through.
+ */
+function lookupStructFieldType(typeVar: Var, fieldVar: Var, ctx: BridgeCtx): ValType {
+  const wabtIdx = varIdx(typeVar);
+  const fieldIdx = varIdx(fieldVar);
+  const entry = ctx.types[wabtIdx];
+  if (entry === undefined || entry.kind !== 'struct') {
+    throw new Error(`Bridge: type ${wabtIdx} is not a struct`);
+  }
+  const field = entry.fields[fieldIdx];
+  if (field === undefined) {
+    throw new Error(`Bridge: field ${fieldIdx} out of range for struct type ${wabtIdx}`);
+  }
+  // Packed types promote to i32 on the stack.
+  if (field.type === Type.I8 || field.type === Type.I16) return ValType.I32;
+  return wabtTypeToValType(field.type);
+}
+
+/**
+ * Map a struct/array field type to a binaryen-ts StorageType for use in
+ * `addHeapType`. Packed i8/i16 are encoded as their own storage variants;
+ * other types map to their ValType counterparts.
+ */
+function wabtFieldTypeToValType(t: Type): ValType | 'i8' | 'i16' {
+  if (t === Type.I8) return 'i8';
+  if (t === Type.I16) return 'i16';
+  return wabtTypeToValType(t);
 }
 
 // ---------------------------------------------------------------------------
@@ -831,6 +938,44 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'i31.get': {
       const ig = e as I31GetExpr;
       return makeI31Get(bridgeExpr(ig.i31, ctx), ig.signed);
+    }
+
+    // --- GC Tier 2: struct -------------------------------------------------
+    case 'struct.new': {
+      const sn = e as StructNewExpr;
+      const heapIdx = resolveHeapTypeIdx(sn.typeVar, ctx);
+      return makeStructNew(
+        heapIdx,
+        sn.operands.map((o) => bridgeExpr(o, ctx)),
+        { heap: heapIdx, nullable: false },
+      );
+    }
+    case 'struct.new_default': {
+      const snd = e as StructNewDefaultExpr;
+      const heapIdx = resolveHeapTypeIdx(snd.typeVar, ctx);
+      return makeStructNewDefault(heapIdx, { heap: heapIdx, nullable: false });
+    }
+    case 'struct.get': {
+      const sg = e as StructGetExpr;
+      const heapIdx = resolveHeapTypeIdx(sg.typeVar, ctx);
+      const fieldType = lookupStructFieldType(sg.typeVar, sg.fieldVar, ctx);
+      return makeStructGet(
+        heapIdx,
+        varIdx(sg.fieldVar),
+        bridgeExpr(sg.ref, ctx),
+        fieldType,
+        sg.signed === true,
+      );
+    }
+    case 'struct.set': {
+      const ss = e as StructSetExpr;
+      const heapIdx = resolveHeapTypeIdx(ss.typeVar, ctx);
+      return makeStructSet(
+        heapIdx,
+        varIdx(ss.fieldVar),
+        bridgeExpr(ss.ref, ctx),
+        bridgeExpr(ss.value, ctx),
+      );
     }
 
     // --- SIMD (Tier C) ---------------------------------------------------

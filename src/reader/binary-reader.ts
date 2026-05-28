@@ -62,6 +62,10 @@ import {
   type RefFuncExpr,
   type RefI31Expr,
   type RefNullExpr,
+  type StructGetExpr,
+  type StructNewDefaultExpr,
+  type StructNewExpr,
+  type StructSetExpr,
   type RethrowExpr,
   type SectionMeta,
   type Table,
@@ -2050,7 +2054,7 @@ export class BinaryReader {
   // GC (0xfb) opcode decoder
   // ---------------------------------------------------------------------------
 
-  private decodeGcOp(op: number, stack: Expr[], _stmts: Expr[], m: Module, loc: Location): void {
+  private decodeGcOp(op: number, stack: Expr[], stmts: Expr[], m: Module, loc: Location): void {
     m.featuresUsed.gc = true;
     const nop = (): NopExpr => ({ kind: 'nop', loc });
     switch (op) {
@@ -2068,6 +2072,65 @@ export class BinaryReader {
           signed: op === GcOpcode.I31GetS,
           loc,
         } as I31GetExpr);
+        return;
+      }
+      case GcOpcode.StructNew: {
+        const typeIdx = this.readU32Leb();
+        const t = m.types[typeIdx];
+        const fieldCount = t && t.kind === 'struct' ? t.fields.length : 0;
+        const operands = popN(stack, fieldCount);
+        stack.push({
+          kind: 'struct.new',
+          typeVar: varIndex(typeIdx),
+          operands,
+          loc,
+        } as StructNewExpr);
+        return;
+      }
+      case GcOpcode.StructNewDefault: {
+        const typeIdx = this.readU32Leb();
+        stack.push({
+          kind: 'struct.new_default',
+          typeVar: varIndex(typeIdx),
+          loc,
+        } as StructNewDefaultExpr);
+        return;
+      }
+      case GcOpcode.StructGet:
+      case GcOpcode.StructGetS:
+      case GcOpcode.StructGetU: {
+        const typeIdx = this.readU32Leb();
+        const fieldIdx = this.readU32Leb();
+        const ref = stack.pop() ?? nop();
+        const signed = op === GcOpcode.StructGetS
+          ? true
+          : op === GcOpcode.StructGetU
+          ? false
+          : undefined;
+        const node: StructGetExpr = {
+          kind: 'struct.get',
+          typeVar: varIndex(typeIdx),
+          fieldVar: varIndex(fieldIdx),
+          ref,
+          loc,
+        };
+        if (signed !== undefined) (node as { signed?: boolean }).signed = signed;
+        stack.push(node);
+        return;
+      }
+      case GcOpcode.StructSet: {
+        const typeIdx = this.readU32Leb();
+        const fieldIdx = this.readU32Leb();
+        const value = stack.pop() ?? nop();
+        const ref = stack.pop() ?? nop();
+        stmts.push({
+          kind: 'struct.set',
+          typeVar: varIndex(typeIdx),
+          fieldVar: varIndex(fieldIdx),
+          ref,
+          value,
+          loc,
+        } as StructSetExpr);
         return;
       }
       default:

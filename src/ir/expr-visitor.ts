@@ -71,6 +71,10 @@ import type {
   RefFuncExpr,
   RefI31Expr,
   RefIsNullExpr,
+  StructGetExpr,
+  StructNewDefaultExpr,
+  StructNewExpr,
+  StructSetExpr,
   RefNullExpr,
   RethrowExpr,
   ReturnCallExpr,
@@ -169,6 +173,10 @@ export interface ExprVisitorDelegate {
   onRefEqExpr?(e: RefEqExpr): Result;
   onRefI31Expr?(e: RefI31Expr): Result;
   onI31GetExpr?(e: I31GetExpr): Result;
+  onStructNewExpr?(e: StructNewExpr): Result;
+  onStructNewDefaultExpr?(e: StructNewDefaultExpr): Result;
+  onStructGetExpr?(e: StructGetExpr): Result;
+  onStructSetExpr?(e: StructSetExpr): Result;
 
   onTableGetExpr?(e: TableGetExpr): Result;
   onTableSetExpr?(e: TableSetExpr): Result;
@@ -341,6 +349,27 @@ export class ExprVisitor {
         const r = this.dispatch(e.i31);
         if (r === Result.Error) return r;
         return this.d.onI31GetExpr?.(e) ?? Result.Ok;
+      }
+      case 'struct.new': {
+        for (const op of e.operands) {
+          const r = this.dispatch(op);
+          if (r === Result.Error) return r;
+        }
+        return this.d.onStructNewExpr?.(e) ?? Result.Ok;
+      }
+      case 'struct.new_default':
+        return this.d.onStructNewDefaultExpr?.(e) ?? Result.Ok;
+      case 'struct.get': {
+        const r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        return this.d.onStructGetExpr?.(e) ?? Result.Ok;
+      }
+      case 'struct.set': {
+        let r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.value);
+        if (r === Result.Error) return r;
+        return this.d.onStructSetExpr?.(e) ?? Result.Ok;
       }
       case 'memory.grow': {
         const r = this.dispatch(e.delta);

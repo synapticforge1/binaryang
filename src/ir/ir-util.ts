@@ -306,6 +306,16 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'i31.get':
         return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'struct.new':
+        // Field-count comes from the type def; we use the operand array
+        // as the parser/reader already paired it with the struct's fields.
+        return { nargs: expr.operands.length, nreturns: 1, unreachable: false };
+      case 'struct.new_default':
+        return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'struct.get':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'struct.set':
+        return { nargs: 2, nreturns: 0, unreachable: false };
       default: {
         const _exhaust: never = expr;
         return { nargs: 0, nreturns: 0, unreachable: false };

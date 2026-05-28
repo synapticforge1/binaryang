@@ -463,6 +463,46 @@ export interface I31GetExpr {
   readonly loc: Location;
 }
 
+// --- GC struct ops ---
+/** `struct.new $type` — pops one value per field, pushes (ref $type). */
+export interface StructNewExpr {
+  readonly kind: 'struct.new';
+  readonly typeVar: Var;
+  readonly operands: Expr[];
+  readonly loc: Location;
+}
+/** `struct.new_default $type` — pushes a (ref $type) with default field values. */
+export interface StructNewDefaultExpr {
+  readonly kind: 'struct.new_default';
+  readonly typeVar: Var;
+  readonly loc: Location;
+}
+/**
+ * `struct.get $type $field` (and signed/unsigned variants for packed fields).
+ * Pops a `(ref null $type)`, pushes the field's value.
+ */
+export interface StructGetExpr {
+  readonly kind: 'struct.get';
+  readonly typeVar: Var;
+  readonly fieldVar: Var;
+  readonly ref: Expr;
+  /**
+   * Signedness extension for i8/i16 packed fields. `undefined` for `struct.get`
+   * (unpacked field); `true` for `struct.get_s`; `false` for `struct.get_u`.
+   */
+  readonly signed?: boolean;
+  readonly loc: Location;
+}
+/** `struct.set $type $field` — pops ref + value, no result. */
+export interface StructSetExpr {
+  readonly kind: 'struct.set';
+  readonly typeVar: Var;
+  readonly fieldVar: Var;
+  readonly ref: Expr;
+  readonly value: Expr;
+  readonly loc: Location;
+}
+
 // --- Tables ---
 export interface TableGetExpr {
   readonly kind: 'table.get';
@@ -749,6 +789,10 @@ export type Expr =
   | RefEqExpr
   | RefI31Expr
   | I31GetExpr
+  | StructNewExpr
+  | StructNewDefaultExpr
+  | StructGetExpr
+  | StructSetExpr
   | TableGetExpr
   | TableSetExpr
   | TableGrowExpr

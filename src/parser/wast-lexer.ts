@@ -141,6 +141,11 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['f32', vt(TokenType.ValueType, Type.F32)],
   ['f64', vt(TokenType.ValueType, Type.F64)],
   ['v128', vt(TokenType.ValueType, Type.V128)],
+  // GC packed types — valid only as struct/array field types; the lexer tags
+  // them as ValueType so parseFieldType / parseValueType accept them. The
+  // validator + binary writer route packed fields through their own paths.
+  ['i8', vt(TokenType.ValueType, Type.I8)],
+  ['i16', vt(TokenType.ValueType, Type.I16)],
   ['struct', vt(TokenType.Struct, Type.Struct)],
   // --- opcode tokens: control flow ---
   ['atomic.fence', op(TokenType.AtomicFence, A(0x03))],
@@ -187,6 +192,12 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['ref.null', op(TokenType.RefNull, Opcode.RefNull)],
   ['i31.get_s', op(TokenType.I31Get, G(GcOpcode.I31GetS))],
   ['i31.get_u', op(TokenType.I31Get, G(GcOpcode.I31GetU))],
+  ['struct.new', op(TokenType.StructNew, G(GcOpcode.StructNew))],
+  ['struct.new_default', op(TokenType.StructNewDefault, G(GcOpcode.StructNewDefault))],
+  ['struct.get', op(TokenType.StructGet, G(GcOpcode.StructGet))],
+  ['struct.get_s', op(TokenType.StructGet, G(GcOpcode.StructGetS))],
+  ['struct.get_u', op(TokenType.StructGet, G(GcOpcode.StructGetU))],
+  ['struct.set', op(TokenType.StructSet, G(GcOpcode.StructSet))],
   ['rethrow', op(TokenType.Rethrow, Opcode.Rethrow)],
   ['return', op(TokenType.Return, Opcode.Return)],
   ['return_call', op(TokenType.ReturnCall, Opcode.ReturnCall)],

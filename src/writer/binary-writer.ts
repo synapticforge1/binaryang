@@ -54,6 +54,10 @@ import type {
   RefEqExpr,
   RefFuncExpr,
   RefI31Expr,
+  StructGetExpr,
+  StructNewDefaultExpr,
+  StructNewExpr,
+  StructSetExpr,
   RefIsNullExpr,
   RefNullExpr,
   RethrowExpr,
@@ -544,6 +548,37 @@ class BodyWriter implements ExprVisitorDelegate {
     this.s.writeU32Leb(e.signed ? GcOpcode.I31GetS : GcOpcode.I31GetU);
     return Result.Ok;
   }
+  onStructNewExpr(e: StructNewExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.StructNew);
+    writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onStructNewDefaultExpr(e: StructNewDefaultExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.StructNewDefault);
+    writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onStructGetExpr(e: StructGetExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    const sub = e.signed === true
+      ? GcOpcode.StructGetS
+      : e.signed === false
+      ? GcOpcode.StructGetU
+      : GcOpcode.StructGet;
+    this.s.writeU32Leb(sub);
+    writeVar(this.s, e.typeVar);
+    writeVar(this.s, e.fieldVar);
+    return Result.Ok;
+  }
+  onStructSetExpr(e: StructSetExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.StructSet);
+    writeVar(this.s, e.typeVar);
+    writeVar(this.s, e.fieldVar);
+    return Result.Ok;
+  }
 
   // --- Tables ---
   onTableGetExpr(e: TableGetExpr): Result {
@@ -727,8 +762,20 @@ class BinaryWriter {
           for (const p of t.sig.params) s.writeU8(p as number);
           s.writeU32Leb(t.sig.results.length);
           for (const r of t.sig.results) s.writeU8(r as number);
+        } else if (t.kind === 'struct') {
+          // GC struct: 0x5f, then fieldCount, then per-field (valtype, mut).
+          s.writeU8(Type.Struct as number); // 0x5f
+          s.writeU32Leb(t.fields.length);
+          for (const f of t.fields) {
+            s.writeU8(f.type as number);
+            s.writeU8(f.mutable ? 1 : 0);
+          }
+        } else if (t.kind === 'array') {
+          // GC array: 0x5e, then (valtype, mut) for the single element type.
+          s.writeU8(Type.Array as number); // 0x5e
+          s.writeU8(t.field.type as number);
+          s.writeU8(t.field.mutable ? 1 : 0);
         }
-        // struct/array GC types omitted for now (Phase 3 focus)
       }
     });
   }

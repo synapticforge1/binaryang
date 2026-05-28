@@ -58,6 +58,10 @@ import type {
   RefFuncExpr,
   RefI31Expr,
   RefIsNullExpr,
+  StructGetExpr,
+  StructNewDefaultExpr,
+  StructNewExpr,
+  StructSetExpr,
   RefNullExpr,
   RethrowExpr,
   ReturnCallExpr,
@@ -141,7 +145,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       if (te.kind === 'func') {
         this.acc(this.sv.onFuncType(te.loc, te.sig.params, te.sig.results, i));
       } else if (te.kind === 'struct') {
-        this.acc(this.sv.onStructType(te.loc));
+        this.acc(this.sv.onStructType(te.loc, te.fields));
       } else {
         this.acc(this.sv.onArrayType(te.loc));
       }
@@ -467,6 +471,18 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onI31GetExpr(e: I31GetExpr): Result {
     return this.sv.onI31Get(e.loc);
+  }
+  onStructNewExpr(e: StructNewExpr): Result {
+    return this.sv.onStructNew(e.loc, varIdx(e.typeVar));
+  }
+  onStructNewDefaultExpr(e: StructNewDefaultExpr): Result {
+    return this.sv.onStructNewDefault(e.loc, varIdx(e.typeVar));
+  }
+  onStructGetExpr(e: StructGetExpr): Result {
+    return this.sv.onStructGet(e.loc, varIdx(e.typeVar), varIdx(e.fieldVar), e.signed);
+  }
+  onStructSetExpr(e: StructSetExpr): Result {
+    return this.sv.onStructSet(e.loc, varIdx(e.typeVar), varIdx(e.fieldVar));
   }
 
   onTableGetExpr(e: TableGetExpr): Result {

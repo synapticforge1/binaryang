@@ -714,6 +714,30 @@ class WatWriter extends ModuleContext {
         this.putsNewline(e.signed ? 'i31.get_s' : 'i31.get_u');
         return Result.Ok;
       },
+      onStructNewExpr: (e) => {
+        this.putsSpace('struct.new');
+        this.writeVar(e.typeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onStructNewDefaultExpr: (e) => {
+        this.putsSpace('struct.new_default');
+        this.writeVar(e.typeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onStructGetExpr: (e) => {
+        this.putsSpace(
+          e.signed === true ? 'struct.get_s' : e.signed === false ? 'struct.get_u' : 'struct.get',
+        );
+        this.writeVar(e.typeVar, NC.Space);
+        this.writeVar(e.fieldVar, NC.Newline);
+        return Result.Ok;
+      },
+      onStructSetExpr: (e) => {
+        this.putsSpace('struct.set');
+        this.writeVar(e.typeVar, NC.Space);
+        this.writeVar(e.fieldVar, NC.Newline);
+        return Result.Ok;
+      },
 
       onTableGetExpr: (e) => {
         this.putsSpace('table.get');

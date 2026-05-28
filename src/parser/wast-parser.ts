@@ -83,6 +83,10 @@ import {
   type RefI31Expr,
   type RefIsNullExpr,
   type RefNullExpr,
+  type StructGetExpr,
+  type StructNewDefaultExpr,
+  type StructNewExpr,
+  type StructSetExpr,
   type RethrowExpr,
   type ReturnCallExpr,
   type ReturnCallIndirectExpr,
@@ -108,6 +112,7 @@ import {
   type ThrowExpr,
   type ThrowRefExpr,
   type TryTableExpr,
+  type Field,
   type TypeEntry,
   type UnaryExpr,
   type UnreachableExpr,
@@ -291,6 +296,10 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.RefEq:
     case TokenType.RefI31:
     case TokenType.I31Get:
+    case TokenType.StructNew:
+    case TokenType.StructNewDefault:
+    case TokenType.StructGet:
+    case TokenType.StructSet:
     case TokenType.AtomicLoad:
     case TokenType.AtomicStore:
     case TokenType.AtomicRmw:
@@ -511,6 +520,7 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.RefAsNonNull:
     case TokenType.RefI31:
     case TokenType.I31Get:
+    case TokenType.StructGet:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
     case TokenType.DataDrop:
@@ -538,9 +548,11 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.SimdStoreLane:
     case TokenType.SimdShuffleOp:
     case TokenType.RefEq:
+    case TokenType.StructSet:
       // simd_shuffle: 2 v128 operands (left, right).
       // simd_load_lane / simd_store_lane: address + vec.
       // ref.eq: left + right (both eqref).
+      // struct.set: ref + value.
       return 2;
     case TokenType.Select:
     case TokenType.MemoryFill:
@@ -565,6 +577,7 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.Call:
     case TokenType.CallIndirect:
     case TokenType.CallRef:
+    case TokenType.StructNew:
     case TokenType.ReturnCall:
     case TokenType.ReturnCallIndirect:
     case TokenType.ReturnCallRef:
@@ -629,6 +642,9 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.RefEq:
     case TokenType.RefI31:
     case TokenType.I31Get:
+    case TokenType.StructNew:
+    case TokenType.StructNewDefault:
+    case TokenType.StructGet:
     case TokenType.LocalTee:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
@@ -954,6 +970,42 @@ export class WastParser {
     if (tt === TokenType.Ref) {
       return this.parseRefType();
     }
+    // GC typed-reference parenthesized form: `(ref $T)` or `(ref null $T)`.
+    // Wabt-ts's flat `Type[]` IR can't faithfully carry the heap-type index
+    // for typed refs — the binary writer currently emits the abstract
+    // supertype byte (structref / arrayref / anyref) instead. The parser
+    // accepts the syntax so module definitions that mention typed refs in
+    // param / result / local slots round-trip through the parser; full
+    // typed-ref IR support is a deferred refactor (FuncSignature.params
+    // → ValueType[] with concrete heap-type metadata).
+    if (tt === TokenType.Lpar && this.peek(1) === TokenType.Ref) {
+      this.drop(); // (
+      this.drop(); // ref
+      this.match(TokenType.Null); // optional `null` keyword — currently ignored
+      // The next token is either a refkind keyword (func/extern/etc.) — already
+      // a complete Type — or a Var pointing at a user-defined heap type.
+      let result: Type;
+      const inner = this.peek();
+      if (inner === TokenType.Var) {
+        // Concrete typed ref `(ref $T)` — drop the var and use StructRef as
+        // the coarse placeholder. Future typed-ref IR will carry $T's index.
+        this.drop();
+        result = Type.StructRef;
+      } else if (inner === TokenType.ValueType || inner === TokenType.Func || inner === TokenType.Extern) {
+        // `(ref any)` / `(ref i31)` / `(ref func)` / `(ref extern)` / etc.
+        const inner2 = this.parseValueType();
+        result = inner2 ?? Type.AnyRef;
+      } else if (inner === TokenType.Nat) {
+        // `(ref 0)` — numeric heap-type index, drop and coarse to StructRef.
+        this.drop();
+        result = Type.StructRef;
+      } else {
+        this.error(this.loc(), `unexpected token in (ref ...): ${tokenName(inner)}`);
+        return null;
+      }
+      this.expect(TokenType.Rpar);
+      return result;
+    }
     this.error(this.loc(), `expected value type, got ${tokenName(tt)}`);
     return null;
   }
@@ -1149,16 +1201,94 @@ export class WastParser {
     if (this.expect(TokenType.Type) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
-    if (!this.match(TokenType.Func)) {
-      this.error(this.loc(), 'expected func in type');
+
+    const kindTok = this.peek();
+    let entry: TypeEntry;
+    if (kindTok === TokenType.Func) {
+      this.drop();
+      const { sig } = this.parseFuncSignature();
+      entry = { kind: 'func', name, sig, loc };
+    } else if (kindTok === TokenType.Struct) {
+      this.drop();
+      const fields = this.parseStructFields();
+      entry = { kind: 'struct', name, fields, loc };
+    } else if (kindTok === TokenType.Array) {
+      this.drop();
+      const field = this.parseArrayField();
+      entry = { kind: 'array', name, field, loc };
+    } else {
+      this.error(this.loc(), 'expected func, struct, or array in type');
       return Result.Error;
     }
-    const { sig } = this.parseFuncSignature();
-    const entry: TypeEntry = { kind: 'func', name, sig, loc };
     this.expect(TokenType.Rpar);
     this.expect(TokenType.Rpar);
     module.types.push(entry);
     return Result.Ok;
+  }
+
+  /**
+   * Parse the body of a struct type:
+   *   (field $name mut? value-type)        — named single field
+   *   (field        mut? value-type)       — anonymous single field
+   *   (field        type1 type2 type3)     — multi-field shorthand (all anonymous, immutable)
+   *
+   * Multiple `(field ...)` groups concatenate into one field list, in source
+   * order. Field indices count fields, not field groups.
+   */
+  private parseStructFields(): Field[] {
+    const fields: Field[] = [];
+    while (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Field) {
+      this.drop(); // (
+      this.drop(); // field
+      // Optional bind-var only applies when followed by a SINGLE field; if
+      // multiple types follow with no name, they're anonymous.
+      const name = this.parseBindVarOpt();
+      if (name !== '') {
+        const { mutable, type } = this.parseFieldType();
+        fields.push({ name, type, mutable });
+      } else {
+        // Either anonymous single field with optional `(mut ...)` wrapper,
+        // OR multi-field shorthand (all immutable, no name).
+        while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
+          const { mutable, type } = this.parseFieldType();
+          fields.push({ name: '', type, mutable });
+        }
+      }
+      this.expect(TokenType.Rpar);
+    }
+    return fields;
+  }
+
+  /**
+   * Parse the body of an array type:
+   *   (field mut? value-type)
+   *   (mut? value-type)
+   */
+  private parseArrayField(): Field {
+    if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Field) {
+      this.drop(); // (
+      this.drop(); // field
+      const { mutable, type } = this.parseFieldType();
+      this.expect(TokenType.Rpar);
+      return { name: '', type, mutable };
+    }
+    const { mutable, type } = this.parseFieldType();
+    return { name: '', type, mutable };
+  }
+
+  /**
+   * Parse `mut? value-type`. The `mut` form is `(mut value-type)`; the bare
+   * form is just a value-type.
+   */
+  private parseFieldType(): { mutable: boolean; type: Type } {
+    if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Mut) {
+      this.drop(); // (
+      this.drop(); // mut
+      const t = this.parseValueType() ?? Type.I32;
+      this.expect(TokenType.Rpar);
+      return { mutable: true, type: t };
+    }
+    return { mutable: false, type: this.parseValueType() ?? Type.I32 };
   }
 
   private parseImportModuleField(module: Module): Result {
@@ -2556,6 +2686,42 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const signed = (op & 0xff) === GcOpcode.I31GetS;
         return { kind: 'i31.get', i31: op0(), signed, loc } as I31GetExpr;
+      }
+      case TokenType.StructNew: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        return { kind: 'struct.new', typeVar, operands, loc } as StructNewExpr;
+      }
+      case TokenType.StructNewDefault: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        return { kind: 'struct.new_default', typeVar, loc } as StructNewDefaultExpr;
+      }
+      case TokenType.StructGet: {
+        // Three lexer entries (struct.get / get_s / get_u) all route here;
+        // the opcode immediate distinguishes signedness for packed-field reads.
+        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const byte = op & 0xff;
+        const signed = byte === GcOpcode.StructGetS
+          ? true
+          : byte === GcOpcode.StructGetU
+          ? false
+          : undefined;
+        const typeVar = this.parseVar() ?? varIndex(0);
+        const fieldVar = this.parseVar() ?? varIndex(0);
+        const node: StructGetExpr = { kind: 'struct.get', typeVar, fieldVar, ref: op0(), loc };
+        if (signed !== undefined) (node as { signed?: boolean }).signed = signed;
+        return node;
+      }
+      case TokenType.StructSet: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        const fieldVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'struct.set',
+          typeVar,
+          fieldVar,
+          ref: op0(),
+          value: op1(),
+          loc,
+        } as StructSetExpr;
       }
 
       case TokenType.Throw: {

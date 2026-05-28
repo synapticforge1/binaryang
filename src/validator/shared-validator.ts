@@ -11,7 +11,7 @@ import { addError, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import { getOpcodeNaturalAlign, TypeChecker } from './type-checker.ts';
 import type { FuncType } from './type-checker.ts';
-import type { BlockType, Limits, SegmentKind } from '../ir/ir.ts';
+import type { BlockType, Field, Limits, SegmentKind } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public options
@@ -53,6 +53,17 @@ interface SVLocalDecl {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Promote a struct/array packed field type (i8/i16) to its stack representation (i32).
+ * Other types pass through unchanged. The wasm GC spec stores packed fields in
+ * compact memory but operates on i32 values on the stack — struct.new takes
+ * i32 args for packed fields; struct.get_s/get_u return i32.
+ */
+function packedToStackType(t: Type): Type {
+  if (t === Type.I8 || t === Type.I16) return Type.I32;
+  return t;
+}
+
 function isPowerOfTwo(x: number): boolean {
   return x > 0 && (x & (x - 1)) === 0;
 }
@@ -69,6 +80,8 @@ export class SharedValidator {
 
   // Type section registry (index → FuncType for func entries only)
   private funcTypesMap: Map<number, FuncType> = new Map();
+  // Struct type entries keyed by absolute type index — used by struct.* validators
+  private structTypesMap: Map<number, Field[]> = new Map();
   private numTypes = 0; // total type entries (func + struct + array)
 
   // Module-level registries (imports + defined in declaration order)
@@ -253,7 +266,8 @@ export class SharedValidator {
     return Result.Ok;
   }
 
-  onStructType(_loc: Location): Result {
+  onStructType(_loc: Location, fields: Field[] = []): Result {
+    this.structTypesMap.set(this.numTypes, fields);
     this.numTypes++;
     return Result.Ok;
   }
@@ -960,6 +974,61 @@ export class SharedValidator {
   onI31Get(loc: Location): Result {
     this.currentLoc = loc;
     return this.tc.onI31Get();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Instruction handlers — GC struct
+  // ---------------------------------------------------------------------------
+
+  /** Look up a struct type entry by index; returns null + records an error if missing or wrong kind. */
+  private checkStructTypeIndex(typeIdx: number, loc: Location): { fields: Field[] } | null {
+    const fields = this.structTypesMap.get(typeIdx);
+    if (fields === undefined) {
+      this.printError(loc, `type index ${typeIdx} is not a struct (out of range or wrong kind)`);
+      return null;
+    }
+    return { fields };
+  }
+
+  onStructNew(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const st = this.checkStructTypeIndex(typeIdx, loc);
+    if (!st) return Result.Error;
+    // struct.new pops one value per field (in field order), pushes (ref $type).
+    // Packed fields (i8/i16) are written as i32 on the stack.
+    const stackParams = st.fields.map((f) => packedToStackType(f.type));
+    return this.tc.onCall(stackParams, [Type.Ref]);
+  }
+
+  onStructNewDefault(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const st = this.checkStructTypeIndex(typeIdx, loc);
+    if (!st) return Result.Error;
+    return this.tc.onCall([], [Type.Ref]);
+  }
+
+  onStructGet(loc: Location, typeIdx: number, fieldIdx: number, _signed?: boolean): Result {
+    this.currentLoc = loc;
+    const st = this.checkStructTypeIndex(typeIdx, loc);
+    if (!st) return Result.Error;
+    const field = st.fields[fieldIdx];
+    if (field === undefined) {
+      this.printError(loc, `field index ${fieldIdx} out of range for struct type ${typeIdx}`);
+      return Result.Error;
+    }
+    return this.tc.onCall([Type.Ref], [packedToStackType(field.type)]);
+  }
+
+  onStructSet(loc: Location, typeIdx: number, fieldIdx: number): Result {
+    this.currentLoc = loc;
+    const st = this.checkStructTypeIndex(typeIdx, loc);
+    if (!st) return Result.Error;
+    const field = st.fields[fieldIdx];
+    if (field === undefined) {
+      this.printError(loc, `field index ${fieldIdx} out of range for struct type ${typeIdx}`);
+      return Result.Error;
+    }
+    return this.tc.onCall([Type.Ref, packedToStackType(field.type)], []);
   }
 
   // ---------------------------------------------------------------------------
