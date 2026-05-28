@@ -1833,10 +1833,21 @@ export class WastParser {
     const subExprEndPos = this.pos;
 
     // Bug D fix: when the folded form supplies fewer children than the
-    // opcode needs, fill the deficit from the surrounding stack. This
-    // makes `(i32.const 5) (local.set $x)` work the same way as the
-    // linear form `i32.const 5 / local.set $x` — the local.set pops
-    // from the stack instead of getting a Nop placeholder.
+    // opcode needs, fill the deficit from the surrounding stack — but
+    // ONLY as many as are actually available. This makes
+    // `(i32.const 5) (local.set $x)` work the same way as the linear
+    // form `i32.const 5 / local.set $x` (the local.set pops from
+    // stack instead of getting a Nop placeholder), while leaving ops
+    // with optional operands alone when the user uses the single-child
+    // form (Bug F).
+    //
+    // Without the `available` clamp, an op like `br_if` with `nInputs=2`
+    // (cond + optional value) and one inline child would silently
+    // route the supplied operand into `value` and pad `cond` with Nop —
+    // and since `resolveNames` doesn't recurse into `BrIf.value`, any
+    // name-vars inside (e.g. `global.get $i`) would never be resolved
+    // and the binary writer would emit `global.get 0`.
+    //
     // Stack-supplied operands come first (oldest, lower in stack);
     // child operands come last (innermost, closer to the instr).
     // For variable-arity opcodes (call, return, etc.): if children are
@@ -1854,7 +1865,10 @@ export class WastParser {
       operands = innerCtx.stmts;
     } else {
       const deficit = nInputs - innerCtx.stmts.length;
-      operands = [...popN(ctx, deficit, loc), ...innerCtx.stmts];
+      const available = Math.min(deficit, ctx.stack.length);
+      operands = available > 0
+        ? [...popN(ctx, available, loc), ...innerCtx.stmts]
+        : innerCtx.stmts;
     }
 
     // 4. Rewind and re-invoke buildPlainExpr with the real operands.

@@ -73,6 +73,36 @@ describe('Bug D: empty-folded ops consume preceding stack values', () => {
     assertEquals(inst.f(), 42);
   });
 
+  it('Bug F: (br_if N (f64.eq (global.get $i) ...)) resolves $i correctly', async () => {
+    // Bug F: br_if with single folded cond and a non-first global inside.
+    // The fold has 1 child; br_if's instrInputCount=2 (cond + optional
+    // value). The Bug D fix must NOT pad with a nop from the empty
+    // outer stack, or the CompareExpr would land in br_if's `value`
+    // slot — and resolveNames doesn't recurse into `value`, so the
+    // global.get name would never resolve to its actual index.
+    const wat = `(module
+      (global $a (mut i32) (i32.const 0))
+      (global $b (mut i32) (i32.const 0))
+      (global $c (mut i32) (i32.const 0))
+      (global $i f64 (f64.const 2))
+      (func (export "f") (result i32)
+        (block (br_if 0 (f64.eq (global.get $i) (f64.const 1))))
+        (i32.const 42)))`;
+    const r = wat2wasm(wat);
+    if (r.result !== Result.Ok) console.log('parse errors:\n' + formatErrors(r.errors));
+    assertEquals(r.result, Result.Ok);
+    // The byte for global.get's index immediately follows opcode 0x23.
+    // Should be 0x03 ($i), not 0x00 ($a).
+    const idx = r.binary.indexOf(0x23);
+    assertEquals(r.binary[idx + 1], 0x03, 'global.get should resolve to $i (index 3), not $a (index 0)');
+    const buf = new ArrayBuffer(r.binary.byteLength);
+    new Uint8Array(buf).set(r.binary);
+    const inst = (await WebAssembly.instantiate(buf)).instance.exports as {
+      f: () => number;
+    };
+    assertEquals(inst.f(), 42);
+  });
+
   it('(i32.store) with no child pops addr + value from stack', async () => {
     const wat = `(module
       (memory (export "mem") 1)
