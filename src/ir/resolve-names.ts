@@ -235,7 +235,13 @@ class ResolveContext {
       case 'return_call_indirect': {
         const [rA, args] = this.resolveExprArray(e.args);
         const [rC, callee] = this.resolveExpr(e.callee);
-        return [combine(rA, rC), { ...e, table: this.resolveTableVar(e.table, loc), args, callee }];
+        return [combine(rA, rC), {
+          ...e,
+          table: this.resolveTableVar(e.table, loc),
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          args,
+          callee,
+        }];
       }
       case 'ref.func':
         return [Result.Ok, { ...e, func: this.resolveFuncVar(e.func, loc) }];
@@ -542,6 +548,9 @@ class ResolveContext {
   }
   private resolveTagVar(v: Var, loc: Location = unknownLocation()): Var {
     return this.resolveVar(v, this.tagScope, 'tag', loc);
+  }
+  private resolveTypeVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.typeScope, 'type', loc);
   }
   /**
    * Resolves a `local.get` / `local.set` / `local.tee` var. Index-vars pass
