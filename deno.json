@@ -1,6 +1,6 @@
 {
   "name": "@jrmarcum/wabt-ts",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
@@ -9,7 +9,8 @@
     "./wasm-validate": "./src/tools/wasm-validate.ts",
     "./wasm-objdump": "./src/tools/wasm-objdump.ts",
     "./wasm-strip": "./src/tools/wasm-strip.ts",
-    "./wasm2ts": "./src/tools/wasm2ts.ts"
+    "./wasm2ts": "./src/tools/wasm2ts.ts",
+    "./compat": "./src/api/wabt-compat.ts"
   },
 
   "tasks": {
