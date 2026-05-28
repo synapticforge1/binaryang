@@ -782,6 +782,22 @@ class WatWriter extends ModuleContext {
         this.putsNewline('array.len');
         return Result.Ok;
       },
+      onRefTestExpr: (e) => {
+        this.putsSpace('ref.test');
+        this.openSpace('ref');
+        if (e.nullable) this.putsSpace('null');
+        this.writeVar(e.heapType, NC.None);
+        this.closeNewline();
+        return Result.Ok;
+      },
+      onRefCastExpr: (e) => {
+        this.putsSpace('ref.cast');
+        this.openSpace('ref');
+        if (e.nullable) this.putsSpace('null');
+        this.writeVar(e.heapType, NC.None);
+        this.closeNewline();
+        return Result.Ok;
+      },
 
       onTableGetExpr: (e) => {
         this.putsSpace('table.get');

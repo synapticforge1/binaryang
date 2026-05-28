@@ -135,6 +135,17 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['nullref', vt(TokenType.ValueType, Type.NullRef)],
   ['nullfuncref', vt(TokenType.ValueType, Type.NullFuncRef)],
   ['nullexternref', vt(TokenType.ValueType, Type.NullExternRef)],
+  // Bare abstract heap-type keywords, used inside `(ref any)` / `(ref i31)`
+  // etc. Tagged as ValueType for convenient consumption by parseRefImmediate's
+  // existing ValueType branch (which maps them back to the bare keyword via
+  // abstractHeapTypeNameForValType). The WAT spec also permits these in
+  // value-type slots as shorthand for `(ref null X)`.
+  ['any', vt(TokenType.ValueType, Type.AnyRef)],
+  ['eq', vt(TokenType.ValueType, Type.EqRef)],
+  ['i31', vt(TokenType.ValueType, Type.I31Ref)],
+  ['none', vt(TokenType.ValueType, Type.NullRef)],
+  ['nofunc', vt(TokenType.ValueType, Type.NullFuncRef)],
+  ['noextern', vt(TokenType.ValueType, Type.NullExternRef)],
   // --- value types ---
   ['i32', vt(TokenType.ValueType, Type.I32)],
   ['i64', vt(TokenType.ValueType, Type.I64)],
@@ -208,6 +219,11 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['array.get_u', op(TokenType.ArrayGet, G(GcOpcode.ArrayGetU))],
   ['array.set', op(TokenType.ArraySet, G(GcOpcode.ArraySet))],
   ['array.len', op(TokenType.ArrayLen, G(GcOpcode.ArrayLen))],
+  // ref.test / ref.cast — the opcode token holds the base (non-null) form;
+  // the parser inspects the immediate (with or without `null`) to pick
+  // between the nullable and non-nullable encoding.
+  ['ref.test', op(TokenType.RefTest, G(GcOpcode.RefTest))],
+  ['ref.cast', op(TokenType.RefCast, G(GcOpcode.RefCast))],
   ['rethrow', op(TokenType.Rethrow, Opcode.Rethrow)],
   ['return', op(TokenType.Return, Opcode.Return)],
   ['return_call', op(TokenType.ReturnCall, Opcode.ReturnCall)],

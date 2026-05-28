@@ -566,6 +566,14 @@ class ResolveContext {
         const [r, ref] = this.resolveExpr(e.ref);
         return [r, { ...e, ref }];
       }
+      case 'ref.test':
+      case 'ref.cast': {
+        // The heapType var either names a user-defined heap type (resolve via
+        // typeScope) or names an abstract heap type keyword ("any" / "i31" /
+        // etc.) — leave abstract keywords as-is.
+        const [r, ref] = this.resolveExpr(e.ref);
+        return [r, { ...e, heapType: this.resolveHeapTypeVar(e.heapType, loc), ref }];
+      }
       case 'throw_ref': {
         const [r, exnref] = this.resolveExpr(e.exnref);
         return [r, { ...e, exnref }];
@@ -635,6 +643,30 @@ class ResolveContext {
   }
   private resolveTypeVar(v: Var, loc: Location = unknownLocation()): Var {
     return this.resolveVar(v, this.typeScope, 'type', loc);
+  }
+  /**
+   * Resolve a heap-type var as used by `ref.test` / `ref.cast`. The var can
+   * be either an abstract-heap-type keyword (`"any"` / `"eq"` / `"i31"` / etc.)
+   * or a user-defined type name (`"$T"`). Abstract keywords pass through
+   * unchanged; everything else is looked up in the typeScope.
+   */
+  private resolveHeapTypeVar(v: Var, loc: Location = unknownLocation()): Var {
+    if (v.kind === 'index') return v;
+    switch (v.name) {
+      case 'any':
+      case 'eq':
+      case 'i31':
+      case 'struct':
+      case 'array':
+      case 'func':
+      case 'extern':
+      case 'none':
+      case 'nofunc':
+      case 'noextern':
+        return v;
+      default:
+        return this.resolveTypeVar(v, loc);
+    }
   }
   /**
    * Resolve a `$fieldName` within a struct type. The field's index space is

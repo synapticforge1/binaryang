@@ -87,6 +87,8 @@ import type {
   ArrayNewExpr,
   ArrayNewFixedExpr,
   ArraySetExpr,
+  RefCastExpr,
+  RefTestExpr,
   StoreExpr,
   StructGetExpr,
   StructNewDefaultExpr,
@@ -137,6 +139,7 @@ import {
   makeSIMDLoadStoreLane,
   makeSIMDReplace,
   makeSIMDShuffle,
+  AbstractHeapType,
   makeArrayGet,
   makeArrayLen,
   makeArrayNew,
@@ -145,6 +148,8 @@ import {
   makeArrayNewElem,
   makeArrayNewFixed,
   makeArraySet,
+  makeRefCast,
+  makeRefTest,
   makeStore,
   makeStructGet,
   makeStructNew,
@@ -169,6 +174,7 @@ import {
 import type {
   CatchClause,
   Expression,
+  HeapType,
   Local,
   Type as BType,
   WasmModule,
@@ -520,6 +526,50 @@ function lookupArrayElementType(typeVar: Var, ctx: BridgeCtx): ValType {
   }
   if (entry.field.type === Type.I8 || entry.field.type === Type.I16) return ValType.I32;
   return wabtTypeToValType(entry.field.type);
+}
+
+/**
+ * Map a wabt heap-type {@link Var} (as produced by `ref.test` / `ref.cast`'s
+ * `parseRefImmediate`) to a binaryen-ts {@link HeapType}. Abstract-heap-type
+ * keywords (`'any'` / `'i31'` / `'struct'` / `'func'` / …) map to the
+ * corresponding {@link AbstractHeapType} enum value. Index-form vars are
+ * resolved through {@link BridgeCtx.heapTypeIdx} (the same mapping used for
+ * struct/array operations) to the binaryen-ts heap-type index. User-defined
+ * type names that weren't resolved by `resolveNames` throw (matching
+ * `varIdx`'s fail-loud policy from Bug G).
+ */
+function heapTypeForBridge(v: Var, ctx: BridgeCtx): HeapType {
+  if (v.kind === 'name') {
+    switch (v.name) {
+      case 'any':
+        return AbstractHeapType.Any;
+      case 'eq':
+        return AbstractHeapType.Eq;
+      case 'i31':
+        return AbstractHeapType.I31;
+      case 'struct':
+        return AbstractHeapType.Struct;
+      case 'array':
+        return AbstractHeapType.Array;
+      case 'func':
+        return AbstractHeapType.Func;
+      case 'extern':
+        return AbstractHeapType.Ext;
+      case 'none':
+        return AbstractHeapType.None;
+      case 'nofunc':
+        return AbstractHeapType.NoFunc;
+      case 'noextern':
+        return AbstractHeapType.NoExt;
+      default:
+        throw new Error(
+          `Bridge: heap-type var "${v.name}" not resolved — run resolveNames first`,
+        );
+    }
+  }
+  // Index form — user-defined heap type; map through the up-front
+  // addHeapType registration in BridgeCtx.heapTypeIdx.
+  return resolveHeapTypeIdx(v, ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -1083,6 +1133,22 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'array.len': {
       const al = e as ArrayLenExpr;
       return makeArrayLen(bridgeExpr(al.ref, ctx));
+    }
+
+    // --- GC Tier 4: ref.test / ref.cast -----------------------------------
+    case 'ref.test': {
+      const rt = e as RefTestExpr;
+      return makeRefTest(bridgeExpr(rt.ref, ctx), heapTypeForBridge(rt.heapType, ctx), rt.nullable);
+    }
+    case 'ref.cast': {
+      const rc = e as RefCastExpr;
+      const heap = heapTypeForBridge(rc.heapType, ctx);
+      return makeRefCast(
+        bridgeExpr(rc.ref, ctx),
+        heap,
+        rc.nullable,
+        { heap, nullable: rc.nullable },
+      );
     }
 
     // --- SIMD (Tier C) ---------------------------------------------------

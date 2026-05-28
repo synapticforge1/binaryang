@@ -66,6 +66,8 @@ import type {
   ArrayNewExpr,
   ArrayNewFixedExpr,
   ArraySetExpr,
+  RefCastExpr,
+  RefTestExpr,
   StructGetExpr,
   StructNewDefaultExpr,
   StructNewExpr,
@@ -515,6 +517,12 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onArrayLenExpr(e: ArrayLenExpr): Result {
     return this.sv.onArrayLen(e.loc);
+  }
+  onRefTestExpr(e: RefTestExpr): Result {
+    return this.sv.onRefTest(e.loc);
+  }
+  onRefCastExpr(e: RefCastExpr): Result {
+    return this.sv.onRefCast(e.loc);
   }
 
   onTableGetExpr(e: TableGetExpr): Result {

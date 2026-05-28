@@ -70,6 +70,8 @@ import {
   type ArrayNewExpr,
   type ArrayNewFixedExpr,
   type ArraySetExpr,
+  type RefCastExpr,
+  type RefTestExpr,
   type StructGetExpr,
   type StructNewDefaultExpr,
   type StructNewExpr,
@@ -84,6 +86,7 @@ import {
   type UnreachableExpr,
   type Var,
   varIndex,
+  varName,
 } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -338,6 +341,40 @@ export class BinaryReader {
   private readValType(): Type {
     const b = this.readU8();
     return b as Type;
+  }
+
+  /**
+   * Read a GC-proposal heap type immediate (signed LEB128). Negative values
+   * are single-byte encodings of abstract heap types (matching the wabt-ts
+   * `Type.AnyRef` / `EqRef` / … enum entries); non-negative values are
+   * indices into the type section. Returns a `Var` in the same shape the
+   * WAT parser produces.
+   */
+  private readHeapTypeVar(): Var {
+    const b = this.peekU8();
+    if ((b & 0x80) === 0) {
+      // Single-byte form: either an abstract heap type (high bit set in the
+      // signed sense, so unsigned byte ≥ 0x40) or a tiny non-negative index.
+      this.pos++;
+      if (b >= 0x40) {
+        const name = abstractHeapTypeNameForByte(b);
+        if (name !== null) return varName(name);
+        return varName(`<heaptype:0x${b.toString(16)}>`);
+      }
+      return varIndex(b);
+    }
+    // Multi-byte LEB. May be a large positive index or a negative abstract
+    // heap type that didn't fit in one byte (none of the GC spec entries
+    // require this, but the decoder must round-trip what writers emit).
+    const [v, n] = decodeS32Leb128(this.data, this.pos);
+    this.pos += n;
+    if (v < 0) {
+      const code = (-v) & 0x7f;
+      const name = abstractHeapTypeNameForByte(code);
+      if (name !== null) return varName(name);
+      return varName(`<heaptype:0x${code.toString(16)}>`);
+    }
+    return varIndex(v);
   }
 
   private readBlockType(): BlockType {
@@ -2250,10 +2287,68 @@ export class BinaryReader {
         stack.push({ kind: 'array.len', ref, loc } as ArrayLenExpr);
         return;
       }
+      case GcOpcode.RefTest:
+      case GcOpcode.RefTestNullable: {
+        const heapType = this.readHeapTypeVar();
+        const ref = stack.pop() ?? nop();
+        stack.push({
+          kind: 'ref.test',
+          heapType,
+          nullable: op === GcOpcode.RefTestNullable,
+          ref,
+          loc,
+        } as RefTestExpr);
+        return;
+      }
+      case GcOpcode.RefCast:
+      case GcOpcode.RefCastNullable: {
+        const heapType = this.readHeapTypeVar();
+        const ref = stack.pop() ?? nop();
+        stack.push({
+          kind: 'ref.cast',
+          heapType,
+          nullable: op === GcOpcode.RefCastNullable,
+          ref,
+          loc,
+        } as RefCastExpr);
+        return;
+      }
       default:
         this.err(`unknown GC opcode: 0xfb 0x${op.toString(16)}`);
         return;
     }
+  }
+}
+
+/**
+ * Map a single-byte abstract-heap-type code (as encoded by the GC proposal)
+ * to the bare keyword name used in `(ref [null] NAME)` syntax. Returns null
+ * for codes that aren't recognized abstract heap types.
+ */
+function abstractHeapTypeNameForByte(b: number): string | null {
+  switch (b) {
+    case Type.AnyRef:
+      return 'any';
+    case Type.EqRef:
+      return 'eq';
+    case Type.I31Ref:
+      return 'i31';
+    case Type.StructRef:
+      return 'struct';
+    case Type.ArrayRef:
+      return 'array';
+    case Type.FuncRef:
+      return 'func';
+    case Type.ExternRef:
+      return 'extern';
+    case Type.NullRef:
+      return 'none';
+    case Type.NullFuncRef:
+      return 'nofunc';
+    case Type.NullExternRef:
+      return 'noextern';
+    default:
+      return null;
   }
 }
 

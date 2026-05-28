@@ -62,6 +62,8 @@ import type {
   ArrayNewExpr,
   ArrayNewFixedExpr,
   ArraySetExpr,
+  RefCastExpr,
+  RefTestExpr,
   StructGetExpr,
   StructNewDefaultExpr,
   StructNewExpr,
@@ -127,6 +129,62 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 
 function writeVar(s: MemoryStream, v: Var): void {
   s.writeU32Leb(v.kind === 'index' ? v.value : 0);
+}
+
+/**
+ * Write a GC-proposal heap-type immediate. Index-form vars encode as a
+ * positive signed-LEB128 type index; name-form vars matching an
+ * abstract-heap-type keyword encode as a single negative byte (already
+ * stored in {@link Type} enum entries — `Type.AnyRef` is 0x6e, etc.).
+ * Name-form vars referencing a user-defined type indicate `resolveNames`
+ * was skipped; throws for symmetry with {@link writeVar}'s name fallback
+ * that quietly emitted 0 (Bug G).
+ */
+function writeHeapType(s: MemoryStream, v: Var): void {
+  if (v.kind === 'index') {
+    // Positive type index — encode as unsigned LEB, which is identical to
+    // the signed-LEB encoding for small non-negative values.
+    s.writeU32Leb(v.value);
+    return;
+  }
+  const byte = abstractHeapTypeByteForName(v.name);
+  if (byte !== null) {
+    s.writeU8(byte);
+    return;
+  }
+  throw new Error(`writeHeapType: var "${v.name}" not resolved — run resolveNames first`);
+}
+
+/**
+ * Map an abstract-heap-type keyword name (`"any"` / `"i31"` / `"struct"` /
+ * `"func"` / etc.) to the single-byte binary encoding. Returns null for
+ * unrecognized names.
+ */
+function abstractHeapTypeByteForName(name: string): number | null {
+  switch (name) {
+    case 'any':
+      return Type.AnyRef;
+    case 'eq':
+      return Type.EqRef;
+    case 'i31':
+      return Type.I31Ref;
+    case 'struct':
+      return Type.StructRef;
+    case 'array':
+      return Type.ArrayRef;
+    case 'func':
+      return Type.FuncRef;
+    case 'extern':
+      return Type.ExternRef;
+    case 'none':
+      return Type.NullRef;
+    case 'nofunc':
+      return Type.NullFuncRef;
+    case 'noextern':
+      return Type.NullExternRef;
+    default:
+      return null;
+  }
 }
 
 function writeBlockType(s: MemoryStream, bt: BlockType): void {
@@ -640,6 +698,18 @@ class BodyWriter implements ExprVisitorDelegate {
   onArrayLenExpr(_e: ArrayLenExpr): Result {
     this.s.writeU8(PREFIX_GC);
     this.s.writeU32Leb(GcOpcode.ArrayLen);
+    return Result.Ok;
+  }
+  onRefTestExpr(e: RefTestExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(e.nullable ? GcOpcode.RefTestNullable : GcOpcode.RefTest);
+    writeHeapType(this.s, e.heapType);
+    return Result.Ok;
+  }
+  onRefCastExpr(e: RefCastExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(e.nullable ? GcOpcode.RefCastNullable : GcOpcode.RefCast);
+    writeHeapType(this.s, e.heapType);
     return Result.Ok;
   }
 

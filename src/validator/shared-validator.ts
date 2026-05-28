@@ -1111,6 +1111,24 @@ export class SharedValidator {
   }
 
   // ---------------------------------------------------------------------------
+  // Instruction handlers — GC ref.test / ref.cast
+  // ---------------------------------------------------------------------------
+
+  // The cast target's precise type doesn't make it into wabt-ts's flat
+  // `Type[]` operand model yet (typed-ref IR is the deferred refactor), so
+  // these handlers simply pop a ref and push i32 / ref. V8 enforces the
+  // precise GC subtyping at runtime; wabt-ts's validator only sees the
+  // coarse shape.
+  onRefTest(loc: Location): Result {
+    this.currentLoc = loc;
+    return this.tc.onCall([Type.Ref], [Type.I32]);
+  }
+  onRefCast(loc: Location): Result {
+    this.currentLoc = loc;
+    return this.tc.onCall([Type.Ref], [Type.Ref]);
+  }
+
+  // ---------------------------------------------------------------------------
   // Instruction handlers — tables
   // ---------------------------------------------------------------------------
 

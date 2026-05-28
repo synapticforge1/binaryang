@@ -579,6 +579,36 @@ export interface ArrayLenExpr {
   readonly loc: Location;
 }
 
+// --- GC ref.test / ref.cast ---
+/**
+ * `ref.test (ref [null] H) val` — pops a ref, pushes i32 (1 if the ref's
+ * runtime type matches the heap type H respecting nullability, else 0).
+ *
+ * `heapType` is a {@link Var} for parity with `ref.null`: name-form holds
+ * the abstract-heap-type keyword (`"any"` / `"eq"` / `"i31"` / `"struct"` /
+ * `"array"` / `"func"` / `"extern"` / `"none"` / `"nofunc"` / `"noextern"`)
+ * or `"$T"` for a concrete user-defined heap type. `nullable` matches the
+ * `null` keyword in the WAT immediate.
+ */
+export interface RefTestExpr {
+  readonly kind: 'ref.test';
+  readonly heapType: Var;
+  readonly nullable: boolean;
+  readonly ref: Expr;
+  readonly loc: Location;
+}
+/**
+ * `ref.cast (ref [null] H) val` — pops a ref, pushes a ref of type H
+ * (traps if the runtime type doesn't match).
+ */
+export interface RefCastExpr {
+  readonly kind: 'ref.cast';
+  readonly heapType: Var;
+  readonly nullable: boolean;
+  readonly ref: Expr;
+  readonly loc: Location;
+}
+
 // --- Tables ---
 export interface TableGetExpr {
   readonly kind: 'table.get';
@@ -877,6 +907,8 @@ export type Expr =
   | ArrayGetExpr
   | ArraySetExpr
   | ArrayLenExpr
+  | RefTestExpr
+  | RefCastExpr
   | TableGetExpr
   | TableSetExpr
   | TableGrowExpr

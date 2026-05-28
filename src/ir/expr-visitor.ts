@@ -79,6 +79,8 @@ import type {
   ArrayNewExpr,
   ArrayNewFixedExpr,
   ArraySetExpr,
+  RefCastExpr,
+  RefTestExpr,
   StructGetExpr,
   StructNewDefaultExpr,
   StructNewExpr,
@@ -193,6 +195,8 @@ export interface ExprVisitorDelegate {
   onArrayGetExpr?(e: ArrayGetExpr): Result;
   onArraySetExpr?(e: ArraySetExpr): Result;
   onArrayLenExpr?(e: ArrayLenExpr): Result;
+  onRefTestExpr?(e: RefTestExpr): Result;
+  onRefCastExpr?(e: RefCastExpr): Result;
 
   onTableGetExpr?(e: TableGetExpr): Result;
   onTableSetExpr?(e: TableSetExpr): Result;
@@ -440,6 +444,16 @@ export class ExprVisitor {
         const r = this.dispatch(e.ref);
         if (r === Result.Error) return r;
         return this.d.onArrayLenExpr?.(e) ?? Result.Ok;
+      }
+      case 'ref.test': {
+        const r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        return this.d.onRefTestExpr?.(e) ?? Result.Ok;
+      }
+      case 'ref.cast': {
+        const r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        return this.d.onRefCastExpr?.(e) ?? Result.Ok;
       }
       case 'memory.grow': {
         const r = this.dispatch(e.delta);

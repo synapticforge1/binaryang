@@ -331,6 +331,9 @@ export class ModuleContext {
         return { nargs: 3, nreturns: 0, unreachable: false };
       case 'array.len':
         return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'ref.test':
+      case 'ref.cast':
+        return { nargs: 1, nreturns: 1, unreachable: false };
       default: {
         const _exhaust: never = expr;
         return { nargs: 0, nreturns: 0, unreachable: false };

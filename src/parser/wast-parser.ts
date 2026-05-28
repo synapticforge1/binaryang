@@ -91,6 +91,8 @@ import {
   type ArrayNewExpr,
   type ArrayNewFixedExpr,
   type ArraySetExpr,
+  type RefCastExpr,
+  type RefTestExpr,
   type StructGetExpr,
   type StructNewDefaultExpr,
   type StructNewExpr,
@@ -316,6 +318,8 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.ArrayGet:
     case TokenType.ArraySet:
     case TokenType.ArrayLen:
+    case TokenType.RefTest:
+    case TokenType.RefCast:
     case TokenType.AtomicLoad:
     case TokenType.AtomicStore:
     case TokenType.AtomicRmw:
@@ -539,6 +543,8 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.StructGet:
     case TokenType.ArrayNewDefault:
     case TokenType.ArrayLen:
+    case TokenType.RefTest:
+    case TokenType.RefCast:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
     case TokenType.DataDrop:
@@ -679,6 +685,8 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.ArrayNewElem:
     case TokenType.ArrayGet:
     case TokenType.ArrayLen:
+    case TokenType.RefTest:
+    case TokenType.RefCast:
     case TokenType.LocalTee:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
@@ -1068,6 +1076,74 @@ export class WastParser {
     }
     this.error(this.loc(), 'expected ref kind');
     return null;
+  }
+
+  /**
+   * Parse the heap-type immediate that follows `ref.test` / `ref.cast`. The
+   * syntax is `(ref [null] H)` where H is either an abstract-heap-type
+   * keyword (`any` / `eq` / `i31` / `struct` / `array` / `func` / `extern`
+   * / `none` / `nofunc` / `noextern`) or a user-defined type ref
+   * (`$T` or a numeric index).
+   *
+   * Returns `{ heapType, nullable }` — the heap type is encoded as a
+   * {@link Var} (name-form for keywords + user names; index-form for
+   * numeric indices). Returns null on parse error.
+   */
+  private parseRefImmediate(): { heapType: Var; nullable: boolean } | null {
+    const loc = this.loc();
+    if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
+    if (this.peek() !== TokenType.Ref) {
+      this.error(loc, 'expected (ref ...) for heap-type immediate');
+      return null;
+    }
+    this.drop(); // 'ref'
+    const nullable = this.match(TokenType.Null);
+
+    const tt = this.peek();
+    let heapType: Var;
+    if (tt === TokenType.Var) {
+      // `(ref $T)` or `(ref null $T)` — user-defined type.
+      const tok = this.consume() as StringToken;
+      heapType = varName(tok.text);
+    } else if (tt === TokenType.Nat) {
+      // `(ref 3)` — numeric type index.
+      const tok = this.consume() as LiteralToken;
+      const n = parseNatText(tok.literal.text);
+      heapType = varIndex(Number(n ?? 0n));
+    } else if (tt === TokenType.Func) {
+      // `(ref func)` — abstract heap type for funcref.
+      this.drop();
+      heapType = varName('func');
+    } else if (tt === TokenType.Extern) {
+      this.drop();
+      heapType = varName('extern');
+    } else if (tt === TokenType.Exn) {
+      this.drop();
+      heapType = varName('exn');
+    } else if (tt === TokenType.Struct) {
+      // `(ref struct)` — bare `struct` keyword has its own token type.
+      this.drop();
+      heapType = varName('struct');
+    } else if (tt === TokenType.Array) {
+      // `(ref array)` — same, bare `array` keyword.
+      this.drop();
+      heapType = varName('array');
+    } else if (tt === TokenType.ValueType) {
+      // `(ref anyref)` / `(ref i31ref)` etc. — strip the `ref` suffix to get
+      // the abstract heap-type name binaryen-ts expects.
+      const tok = this.consume() as TypeToken;
+      const name = abstractHeapTypeNameForValType(tok.valueType);
+      if (name === null) {
+        this.error(loc, `unsupported heap type for ref.test/ref.cast: 0x${tok.valueType.toString(16)}`);
+        return null;
+      }
+      heapType = varName(name);
+    } else {
+      this.error(loc, `expected heap type after (ref [null] ...), got ${tokenName(tt)}`);
+      return null;
+    }
+    if (this.expect(TokenType.Rpar) !== Result.Ok) return null;
+    return { heapType, nullable };
   }
 
   /** Parse limits: `N` or `N M` optionally followed by `shared`. */
@@ -2853,6 +2929,29 @@ export class WastParser {
       case TokenType.ArrayLen:
         return { kind: 'array.len', ref: op0(), loc } as ArrayLenExpr;
 
+      case TokenType.RefTest: {
+        const imm = this.parseRefImmediate();
+        if (imm === null) return null;
+        return {
+          kind: 'ref.test',
+          heapType: imm.heapType,
+          nullable: imm.nullable,
+          ref: op0(),
+          loc,
+        } as RefTestExpr;
+      }
+      case TokenType.RefCast: {
+        const imm = this.parseRefImmediate();
+        if (imm === null) return null;
+        return {
+          kind: 'ref.cast',
+          heapType: imm.heapType,
+          nullable: imm.nullable,
+          ref: op0(),
+          loc,
+        } as RefCastExpr;
+      }
+
       case TokenType.Throw: {
         const v = this.parseVar() ?? varIndex(0);
         return { kind: 'throw', tag: v, args: operands, loc } as ThrowExpr;
@@ -3694,6 +3793,39 @@ function typeToName(t: Type): string {
       return 'exnref';
     default:
       return 'funcref';
+  }
+}
+
+/**
+ * Map an abstract-reftype `ValueType` (`anyref` / `i31ref` / etc., as the
+ * lexer hands back) to the bare abstract-heap-type name used inside
+ * `ref.test (ref [null] HEAP) val` and `ref.cast`. Returns null when the
+ * value type isn't a GC abstract reftype.
+ */
+function abstractHeapTypeNameForValType(t: Type): string | null {
+  switch (t) {
+    case Type.AnyRef:
+      return 'any';
+    case Type.EqRef:
+      return 'eq';
+    case Type.I31Ref:
+      return 'i31';
+    case Type.StructRef:
+      return 'struct';
+    case Type.ArrayRef:
+      return 'array';
+    case Type.FuncRef:
+      return 'func';
+    case Type.ExternRef:
+      return 'extern';
+    case Type.NullRef:
+      return 'none';
+    case Type.NullFuncRef:
+      return 'nofunc';
+    case Type.NullExternRef:
+      return 'noextern';
+    default:
+      return null;
   }
 }
 
