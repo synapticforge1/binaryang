@@ -58,6 +58,14 @@ import type {
   RefFuncExpr,
   RefI31Expr,
   RefIsNullExpr,
+  ArrayGetExpr,
+  ArrayLenExpr,
+  ArrayNewDataExpr,
+  ArrayNewDefaultExpr,
+  ArrayNewElemExpr,
+  ArrayNewExpr,
+  ArrayNewFixedExpr,
+  ArraySetExpr,
   StructGetExpr,
   StructNewDefaultExpr,
   StructNewExpr,
@@ -147,7 +155,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       } else if (te.kind === 'struct') {
         this.acc(this.sv.onStructType(te.loc, te.fields));
       } else {
-        this.acc(this.sv.onArrayType(te.loc));
+        this.acc(this.sv.onArrayType(te.loc, te.field));
       }
     }
 
@@ -483,6 +491,30 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onStructSetExpr(e: StructSetExpr): Result {
     return this.sv.onStructSet(e.loc, varIdx(e.typeVar), varIdx(e.fieldVar));
+  }
+  onArrayNewExpr(e: ArrayNewExpr): Result {
+    return this.sv.onArrayNew(e.loc, varIdx(e.typeVar));
+  }
+  onArrayNewDefaultExpr(e: ArrayNewDefaultExpr): Result {
+    return this.sv.onArrayNewDefault(e.loc, varIdx(e.typeVar));
+  }
+  onArrayNewFixedExpr(e: ArrayNewFixedExpr): Result {
+    return this.sv.onArrayNewFixed(e.loc, varIdx(e.typeVar), e.operands.length);
+  }
+  onArrayNewDataExpr(e: ArrayNewDataExpr): Result {
+    return this.sv.onArrayNewData(e.loc, varIdx(e.typeVar), varIdx(e.dataVar));
+  }
+  onArrayNewElemExpr(e: ArrayNewElemExpr): Result {
+    return this.sv.onArrayNewElem(e.loc, varIdx(e.typeVar), varIdx(e.elemVar));
+  }
+  onArrayGetExpr(e: ArrayGetExpr): Result {
+    return this.sv.onArrayGet(e.loc, varIdx(e.typeVar));
+  }
+  onArraySetExpr(e: ArraySetExpr): Result {
+    return this.sv.onArraySet(e.loc, varIdx(e.typeVar));
+  }
+  onArrayLenExpr(e: ArrayLenExpr): Result {
+    return this.sv.onArrayLen(e.loc);
   }
 
   onTableGetExpr(e: TableGetExpr): Result {

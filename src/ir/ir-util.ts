@@ -316,6 +316,21 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'struct.set':
         return { nargs: 2, nreturns: 0, unreachable: false };
+      case 'array.new':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'array.new_default':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'array.new_fixed':
+        return { nargs: expr.operands.length, nreturns: 1, unreachable: false };
+      case 'array.new_data':
+      case 'array.new_elem':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'array.get':
+        return { nargs: 2, nreturns: 1, unreachable: false };
+      case 'array.set':
+        return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'array.len':
+        return { nargs: 1, nreturns: 1, unreachable: false };
       default: {
         const _exhaust: never = expr;
         return { nargs: 0, nreturns: 0, unreachable: false };

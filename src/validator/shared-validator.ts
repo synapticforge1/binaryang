@@ -82,6 +82,8 @@ export class SharedValidator {
   private funcTypesMap: Map<number, FuncType> = new Map();
   // Struct type entries keyed by absolute type index — used by struct.* validators
   private structTypesMap: Map<number, Field[]> = new Map();
+  // Array type entries keyed by absolute type index — used by array.* validators
+  private arrayTypesMap: Map<number, Field> = new Map();
   private numTypes = 0; // total type entries (func + struct + array)
 
   // Module-level registries (imports + defined in declaration order)
@@ -272,7 +274,8 @@ export class SharedValidator {
     return Result.Ok;
   }
 
-  onArrayType(_loc: Location): Result {
+  onArrayType(_loc: Location, element?: Field): Result {
+    if (element) this.arrayTypesMap.set(this.numTypes, element);
     this.numTypes++;
     return Result.Ok;
   }
@@ -1029,6 +1032,82 @@ export class SharedValidator {
       return Result.Error;
     }
     return this.tc.onCall([Type.Ref, packedToStackType(field.type)], []);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Instruction handlers — GC array
+  // ---------------------------------------------------------------------------
+
+  /** Look up an array type entry by index; null + records an error if wrong kind. */
+  private checkArrayTypeIndex(typeIdx: number, loc: Location): { element: Field } | null {
+    const element = this.arrayTypesMap.get(typeIdx);
+    if (element === undefined) {
+      this.printError(loc, `type index ${typeIdx} is not an array (out of range or wrong kind)`);
+      return null;
+    }
+    return { element };
+  }
+
+  onArrayNew(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    // array.new pops [init, length(i32)], pushes (ref $T).
+    return this.tc.onCall([packedToStackType(at.element.type), Type.I32], [Type.Ref]);
+  }
+
+  onArrayNewDefault(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    return this.tc.onCall([Type.I32], [Type.Ref]);
+  }
+
+  onArrayNewFixed(loc: Location, typeIdx: number, count: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    const elem = packedToStackType(at.element.type);
+    const params: Type[] = [];
+    for (let i = 0; i < count; i++) params.push(elem);
+    return this.tc.onCall(params, [Type.Ref]);
+  }
+
+  onArrayNewData(loc: Location, typeIdx: number, dataIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    const dataCheck = this.checkDataSegmentIndex(dataIdx, loc);
+    if (dataCheck !== Result.Ok) return dataCheck;
+    return this.tc.onCall([Type.I32, Type.I32], [Type.Ref]);
+  }
+
+  onArrayNewElem(loc: Location, typeIdx: number, elemIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    const elemCheck = this.checkElemSegmentIndex(elemIdx, loc);
+    if (!elemCheck) return Result.Error;
+    return this.tc.onCall([Type.I32, Type.I32], [Type.Ref]);
+  }
+
+  onArrayGet(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    return this.tc.onCall([Type.Ref, Type.I32], [packedToStackType(at.element.type)]);
+  }
+
+  onArraySet(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    return this.tc.onCall([Type.Ref, Type.I32, packedToStackType(at.element.type)], []);
+  }
+
+  onArrayLen(loc: Location): Result {
+    this.currentLoc = loc;
+    return this.tc.onCall([Type.Ref], [Type.I32]);
   }
 
   // ---------------------------------------------------------------------------

@@ -83,6 +83,14 @@ import {
   type RefI31Expr,
   type RefIsNullExpr,
   type RefNullExpr,
+  type ArrayGetExpr,
+  type ArrayLenExpr,
+  type ArrayNewDataExpr,
+  type ArrayNewDefaultExpr,
+  type ArrayNewElemExpr,
+  type ArrayNewExpr,
+  type ArrayNewFixedExpr,
+  type ArraySetExpr,
   type StructGetExpr,
   type StructNewDefaultExpr,
   type StructNewExpr,
@@ -300,6 +308,14 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.StructNewDefault:
     case TokenType.StructGet:
     case TokenType.StructSet:
+    case TokenType.ArrayNew:
+    case TokenType.ArrayNewDefault:
+    case TokenType.ArrayNewFixed:
+    case TokenType.ArrayNewData:
+    case TokenType.ArrayNewElem:
+    case TokenType.ArrayGet:
+    case TokenType.ArraySet:
+    case TokenType.ArrayLen:
     case TokenType.AtomicLoad:
     case TokenType.AtomicStore:
     case TokenType.AtomicRmw:
@@ -521,6 +537,8 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.RefI31:
     case TokenType.I31Get:
     case TokenType.StructGet:
+    case TokenType.ArrayNewDefault:
+    case TokenType.ArrayLen:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
     case TokenType.DataDrop:
@@ -549,10 +567,17 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.SimdShuffleOp:
     case TokenType.RefEq:
     case TokenType.StructSet:
+    case TokenType.ArrayNew:
+    case TokenType.ArrayNewData:
+    case TokenType.ArrayNewElem:
+    case TokenType.ArrayGet:
       // simd_shuffle: 2 v128 operands (left, right).
       // simd_load_lane / simd_store_lane: address + vec.
       // ref.eq: left + right (both eqref).
       // struct.set: ref + value.
+      // array.new: init + length.
+      // array.new_data / array.new_elem: offset + length.
+      // array.get: ref + index.
       return 2;
     case TokenType.Select:
     case TokenType.MemoryFill:
@@ -560,6 +585,7 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.AtomicStore:
     case TokenType.AtomicWait:
     case TokenType.AtomicRmw:
+    case TokenType.ArraySet:
       return 3;
     case TokenType.AtomicRmwCmpxchg:
       return 4;
@@ -578,6 +604,7 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.CallIndirect:
     case TokenType.CallRef:
     case TokenType.StructNew:
+    case TokenType.ArrayNewFixed:
     case TokenType.ReturnCall:
     case TokenType.ReturnCallIndirect:
     case TokenType.ReturnCallRef:
@@ -645,6 +672,13 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.StructNew:
     case TokenType.StructNewDefault:
     case TokenType.StructGet:
+    case TokenType.ArrayNew:
+    case TokenType.ArrayNewDefault:
+    case TokenType.ArrayNewFixed:
+    case TokenType.ArrayNewData:
+    case TokenType.ArrayNewElem:
+    case TokenType.ArrayGet:
+    case TokenType.ArrayLen:
     case TokenType.LocalTee:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
@@ -2723,6 +2757,101 @@ export class WastParser {
           loc,
         } as StructSetExpr;
       }
+      case TokenType.ArrayNew: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        // Spec stack order: init pushed first, then length; popN returns
+        // [oldest, newest] = [init, length]. So op0() is init, op1() is length.
+        return {
+          kind: 'array.new',
+          typeVar,
+          init: op0(),
+          length: op1(),
+          loc,
+        } as ArrayNewExpr;
+      }
+      case TokenType.ArrayNewDefault: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'array.new_default',
+          typeVar,
+          length: op0(),
+          loc,
+        } as ArrayNewDefaultExpr;
+      }
+      case TokenType.ArrayNewFixed: {
+        // `array.new_fixed $T N elem1 ... elemN` — N is an explicit immediate
+        // count, then N inline element expressions. The wabt-ts parser stores
+        // the elements in `operands`; the count is recoverable from the array
+        // length, so we don't keep N as a separate field.
+        const typeVar = this.parseVar() ?? varIndex(0);
+        // Consume the count immediate (validation will check it matches
+        // operands.length).
+        this.parseNatOrInt();
+        return {
+          kind: 'array.new_fixed',
+          typeVar,
+          operands,
+          loc,
+        } as ArrayNewFixedExpr;
+      }
+      case TokenType.ArrayNewData: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        const dataVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'array.new_data',
+          typeVar,
+          dataVar,
+          offset: op0(),
+          length: op1(),
+          loc,
+        } as ArrayNewDataExpr;
+      }
+      case TokenType.ArrayNewElem: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        const elemVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'array.new_elem',
+          typeVar,
+          elemVar,
+          offset: op0(),
+          length: op1(),
+          loc,
+        } as ArrayNewElemExpr;
+      }
+      case TokenType.ArrayGet: {
+        // Three lexer entries (array.get / get_s / get_u) all route here;
+        // opcode immediate distinguishes signedness for packed elements.
+        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const byte = op & 0xff;
+        const signed = byte === GcOpcode.ArrayGetS
+          ? true
+          : byte === GcOpcode.ArrayGetU
+          ? false
+          : undefined;
+        const typeVar = this.parseVar() ?? varIndex(0);
+        const node: ArrayGetExpr = {
+          kind: 'array.get',
+          typeVar,
+          ref: op0(),
+          index: op1(),
+          loc,
+        };
+        if (signed !== undefined) (node as { signed?: boolean }).signed = signed;
+        return node;
+      }
+      case TokenType.ArraySet: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'array.set',
+          typeVar,
+          ref: op0(),
+          index: op1(),
+          value: op2(),
+          loc,
+        } as ArraySetExpr;
+      }
+      case TokenType.ArrayLen:
+        return { kind: 'array.len', ref: op0(), loc } as ArrayLenExpr;
 
       case TokenType.Throw: {
         const v = this.parseVar() ?? varIndex(0);

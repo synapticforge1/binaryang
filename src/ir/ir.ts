@@ -503,6 +503,82 @@ export interface StructSetExpr {
   readonly loc: Location;
 }
 
+// --- GC array ops ---
+/** `array.new $T` — pops init value + length (i32), pushes (ref $T). */
+export interface ArrayNewExpr {
+  readonly kind: 'array.new';
+  readonly typeVar: Var;
+  readonly init: Expr;
+  readonly length: Expr;
+  readonly loc: Location;
+}
+/** `array.new_default $T` — pops length (i32), pushes (ref $T) zero-filled. */
+export interface ArrayNewDefaultExpr {
+  readonly kind: 'array.new_default';
+  readonly typeVar: Var;
+  readonly length: Expr;
+  readonly loc: Location;
+}
+/** `array.new_fixed $T N` — pops N element values, pushes (ref $T). */
+export interface ArrayNewFixedExpr {
+  readonly kind: 'array.new_fixed';
+  readonly typeVar: Var;
+  readonly operands: Expr[];
+  readonly loc: Location;
+}
+/**
+ * `array.new_data $T $data` — pops offset (i32) + length (i32), pushes (ref $T)
+ * initialized from the named data segment.
+ */
+export interface ArrayNewDataExpr {
+  readonly kind: 'array.new_data';
+  readonly typeVar: Var;
+  readonly dataVar: Var;
+  readonly offset: Expr;
+  readonly length: Expr;
+  readonly loc: Location;
+}
+/**
+ * `array.new_elem $T $elem` — pops offset (i32) + length (i32), pushes (ref $T)
+ * initialized from the named element segment.
+ */
+export interface ArrayNewElemExpr {
+  readonly kind: 'array.new_elem';
+  readonly typeVar: Var;
+  readonly elemVar: Var;
+  readonly offset: Expr;
+  readonly length: Expr;
+  readonly loc: Location;
+}
+/**
+ * `array.get $T` (and signed/unsigned variants for packed element types).
+ * Pops (ref $T) + i32 index, pushes element value.
+ */
+export interface ArrayGetExpr {
+  readonly kind: 'array.get';
+  readonly typeVar: Var;
+  readonly ref: Expr;
+  readonly index: Expr;
+  /** Signedness for i8/i16 packed element types. Undefined for unpacked. */
+  readonly signed?: boolean;
+  readonly loc: Location;
+}
+/** `array.set $T` — pops (ref $T) + i32 index + element value, no result. */
+export interface ArraySetExpr {
+  readonly kind: 'array.set';
+  readonly typeVar: Var;
+  readonly ref: Expr;
+  readonly index: Expr;
+  readonly value: Expr;
+  readonly loc: Location;
+}
+/** `array.len` — pops (ref array), pushes i32 length. No type immediate. */
+export interface ArrayLenExpr {
+  readonly kind: 'array.len';
+  readonly ref: Expr;
+  readonly loc: Location;
+}
+
 // --- Tables ---
 export interface TableGetExpr {
   readonly kind: 'table.get';
@@ -793,6 +869,14 @@ export type Expr =
   | StructNewDefaultExpr
   | StructGetExpr
   | StructSetExpr
+  | ArrayNewExpr
+  | ArrayNewDefaultExpr
+  | ArrayNewFixedExpr
+  | ArrayNewDataExpr
+  | ArrayNewElemExpr
+  | ArrayGetExpr
+  | ArraySetExpr
+  | ArrayLenExpr
   | TableGetExpr
   | TableSetExpr
   | TableGrowExpr

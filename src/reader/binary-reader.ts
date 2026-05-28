@@ -62,6 +62,14 @@ import {
   type RefFuncExpr,
   type RefI31Expr,
   type RefNullExpr,
+  type ArrayGetExpr,
+  type ArrayLenExpr,
+  type ArrayNewDataExpr,
+  type ArrayNewDefaultExpr,
+  type ArrayNewElemExpr,
+  type ArrayNewExpr,
+  type ArrayNewFixedExpr,
+  type ArraySetExpr,
   type StructGetExpr,
   type StructNewDefaultExpr,
   type StructNewExpr,
@@ -2131,6 +2139,115 @@ export class BinaryReader {
           value,
           loc,
         } as StructSetExpr);
+        return;
+      }
+      case GcOpcode.ArrayNew: {
+        const typeIdx = this.readU32Leb();
+        const length = stack.pop() ?? nop();
+        const init = stack.pop() ?? nop();
+        stack.push({
+          kind: 'array.new',
+          typeVar: varIndex(typeIdx),
+          init,
+          length,
+          loc,
+        } as ArrayNewExpr);
+        return;
+      }
+      case GcOpcode.ArrayNewDefault: {
+        const typeIdx = this.readU32Leb();
+        const length = stack.pop() ?? nop();
+        stack.push({
+          kind: 'array.new_default',
+          typeVar: varIndex(typeIdx),
+          length,
+          loc,
+        } as ArrayNewDefaultExpr);
+        return;
+      }
+      case GcOpcode.ArrayNewFixed: {
+        const typeIdx = this.readU32Leb();
+        const n = this.readU32Leb();
+        const operands = popN(stack, n);
+        stack.push({
+          kind: 'array.new_fixed',
+          typeVar: varIndex(typeIdx),
+          operands,
+          loc,
+        } as ArrayNewFixedExpr);
+        return;
+      }
+      case GcOpcode.ArrayNewData: {
+        const typeIdx = this.readU32Leb();
+        const dataIdx = this.readU32Leb();
+        const length = stack.pop() ?? nop();
+        const offset = stack.pop() ?? nop();
+        stack.push({
+          kind: 'array.new_data',
+          typeVar: varIndex(typeIdx),
+          dataVar: varIndex(dataIdx),
+          offset,
+          length,
+          loc,
+        } as ArrayNewDataExpr);
+        return;
+      }
+      case GcOpcode.ArrayNewElem: {
+        const typeIdx = this.readU32Leb();
+        const elemIdx = this.readU32Leb();
+        const length = stack.pop() ?? nop();
+        const offset = stack.pop() ?? nop();
+        stack.push({
+          kind: 'array.new_elem',
+          typeVar: varIndex(typeIdx),
+          elemVar: varIndex(elemIdx),
+          offset,
+          length,
+          loc,
+        } as ArrayNewElemExpr);
+        return;
+      }
+      case GcOpcode.ArrayGet:
+      case GcOpcode.ArrayGetS:
+      case GcOpcode.ArrayGetU: {
+        const typeIdx = this.readU32Leb();
+        const index = stack.pop() ?? nop();
+        const ref = stack.pop() ?? nop();
+        const signed = op === GcOpcode.ArrayGetS
+          ? true
+          : op === GcOpcode.ArrayGetU
+          ? false
+          : undefined;
+        const node: ArrayGetExpr = {
+          kind: 'array.get',
+          typeVar: varIndex(typeIdx),
+          ref,
+          index,
+          loc,
+        };
+        if (signed !== undefined) (node as { signed?: boolean }).signed = signed;
+        stack.push(node);
+        return;
+      }
+      case GcOpcode.ArraySet: {
+        const typeIdx = this.readU32Leb();
+        const value = stack.pop() ?? nop();
+        const index = stack.pop() ?? nop();
+        const ref = stack.pop() ?? nop();
+        stmts.push({
+          kind: 'array.set',
+          typeVar: varIndex(typeIdx),
+          ref,
+          index,
+          value,
+          loc,
+        } as ArraySetExpr);
+        return;
+      }
+      case GcOpcode.ArrayLen: {
+        // array.len has no type immediate — it works on any array ref.
+        const ref = stack.pop() ?? nop();
+        stack.push({ kind: 'array.len', ref, loc } as ArrayLenExpr);
         return;
       }
       default:

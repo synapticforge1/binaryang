@@ -502,6 +502,70 @@ class ResolveContext {
           { ...e, typeVar: tv, fieldVar: this.resolveFieldVar(tv, e.fieldVar, loc), ref, value },
         ];
       }
+      case 'array.new': {
+        const [ri, init] = this.resolveExpr(e.init);
+        const [rl, length] = this.resolveExpr(e.length);
+        return [
+          combineResults(ri, rl),
+          { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), init, length },
+        ];
+      }
+      case 'array.new_default': {
+        const [r, length] = this.resolveExpr(e.length);
+        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), length }];
+      }
+      case 'array.new_fixed': {
+        const [r, operands] = this.resolveExprArray(e.operands);
+        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), operands }];
+      }
+      case 'array.new_data': {
+        const [ro, offset] = this.resolveExpr(e.offset);
+        const [rl, length] = this.resolveExpr(e.length);
+        return [combineResults(ro, rl), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          dataVar: this.resolveDataSegVar(e.dataVar, loc),
+          offset,
+          length,
+        }];
+      }
+      case 'array.new_elem': {
+        const [ro, offset] = this.resolveExpr(e.offset);
+        const [rl, length] = this.resolveExpr(e.length);
+        return [combineResults(ro, rl), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          elemVar: this.resolveElemSegVar(e.elemVar, loc),
+          offset,
+          length,
+        }];
+      }
+      case 'array.get': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [ri, index] = this.resolveExpr(e.index);
+        return [combineResults(rr, ri), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          ref,
+          index,
+        }];
+      }
+      case 'array.set': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [ri, index] = this.resolveExpr(e.index);
+        const [rv, value] = this.resolveExpr(e.value);
+        return [combineResults(rr, combineResults(ri, rv)), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          ref,
+          index,
+          value,
+        }];
+      }
+      case 'array.len': {
+        const [r, ref] = this.resolveExpr(e.ref);
+        return [r, { ...e, ref }];
+      }
       case 'throw_ref': {
         const [r, exnref] = this.resolveExpr(e.exnref);
         return [r, { ...e, exnref }];

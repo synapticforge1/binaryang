@@ -71,6 +71,14 @@ import type {
   RefFuncExpr,
   RefI31Expr,
   RefIsNullExpr,
+  ArrayGetExpr,
+  ArrayLenExpr,
+  ArrayNewDataExpr,
+  ArrayNewDefaultExpr,
+  ArrayNewElemExpr,
+  ArrayNewExpr,
+  ArrayNewFixedExpr,
+  ArraySetExpr,
   StructGetExpr,
   StructNewDefaultExpr,
   StructNewExpr,
@@ -177,6 +185,14 @@ export interface ExprVisitorDelegate {
   onStructNewDefaultExpr?(e: StructNewDefaultExpr): Result;
   onStructGetExpr?(e: StructGetExpr): Result;
   onStructSetExpr?(e: StructSetExpr): Result;
+  onArrayNewExpr?(e: ArrayNewExpr): Result;
+  onArrayNewDefaultExpr?(e: ArrayNewDefaultExpr): Result;
+  onArrayNewFixedExpr?(e: ArrayNewFixedExpr): Result;
+  onArrayNewDataExpr?(e: ArrayNewDataExpr): Result;
+  onArrayNewElemExpr?(e: ArrayNewElemExpr): Result;
+  onArrayGetExpr?(e: ArrayGetExpr): Result;
+  onArraySetExpr?(e: ArraySetExpr): Result;
+  onArrayLenExpr?(e: ArrayLenExpr): Result;
 
   onTableGetExpr?(e: TableGetExpr): Result;
   onTableSetExpr?(e: TableSetExpr): Result;
@@ -370,6 +386,60 @@ export class ExprVisitor {
         r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onStructSetExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.new': {
+        let r = this.dispatch(e.init);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.length);
+        if (r === Result.Error) return r;
+        return this.d.onArrayNewExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.new_default': {
+        const r = this.dispatch(e.length);
+        if (r === Result.Error) return r;
+        return this.d.onArrayNewDefaultExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.new_fixed': {
+        for (const op of e.operands) {
+          const r = this.dispatch(op);
+          if (r === Result.Error) return r;
+        }
+        return this.d.onArrayNewFixedExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.new_data': {
+        let r = this.dispatch(e.offset);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.length);
+        if (r === Result.Error) return r;
+        return this.d.onArrayNewDataExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.new_elem': {
+        let r = this.dispatch(e.offset);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.length);
+        if (r === Result.Error) return r;
+        return this.d.onArrayNewElemExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.get': {
+        let r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.index);
+        if (r === Result.Error) return r;
+        return this.d.onArrayGetExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.set': {
+        let r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.index);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.value);
+        if (r === Result.Error) return r;
+        return this.d.onArraySetExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.len': {
+        const r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        return this.d.onArrayLenExpr?.(e) ?? Result.Ok;
       }
       case 'memory.grow': {
         const r = this.dispatch(e.delta);

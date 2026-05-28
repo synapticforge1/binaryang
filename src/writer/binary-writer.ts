@@ -54,6 +54,14 @@ import type {
   RefEqExpr,
   RefFuncExpr,
   RefI31Expr,
+  ArrayGetExpr,
+  ArrayLenExpr,
+  ArrayNewDataExpr,
+  ArrayNewDefaultExpr,
+  ArrayNewElemExpr,
+  ArrayNewExpr,
+  ArrayNewFixedExpr,
+  ArraySetExpr,
   StructGetExpr,
   StructNewDefaultExpr,
   StructNewExpr,
@@ -577,6 +585,61 @@ class BodyWriter implements ExprVisitorDelegate {
     this.s.writeU32Leb(GcOpcode.StructSet);
     writeVar(this.s, e.typeVar);
     writeVar(this.s, e.fieldVar);
+    return Result.Ok;
+  }
+  onArrayNewExpr(e: ArrayNewExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayNew);
+    writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onArrayNewDefaultExpr(e: ArrayNewDefaultExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayNewDefault);
+    writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onArrayNewFixedExpr(e: ArrayNewFixedExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayNewFixed);
+    writeVar(this.s, e.typeVar);
+    this.s.writeU32Leb(e.operands.length);
+    return Result.Ok;
+  }
+  onArrayNewDataExpr(e: ArrayNewDataExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayNewData);
+    writeVar(this.s, e.typeVar);
+    writeVar(this.s, e.dataVar);
+    return Result.Ok;
+  }
+  onArrayNewElemExpr(e: ArrayNewElemExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayNewElem);
+    writeVar(this.s, e.typeVar);
+    writeVar(this.s, e.elemVar);
+    return Result.Ok;
+  }
+  onArrayGetExpr(e: ArrayGetExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    const sub = e.signed === true
+      ? GcOpcode.ArrayGetS
+      : e.signed === false
+      ? GcOpcode.ArrayGetU
+      : GcOpcode.ArrayGet;
+    this.s.writeU32Leb(sub);
+    writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onArraySetExpr(e: ArraySetExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArraySet);
+    writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onArrayLenExpr(_e: ArrayLenExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayLen);
     return Result.Ok;
   }
 

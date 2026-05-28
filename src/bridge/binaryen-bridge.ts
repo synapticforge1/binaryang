@@ -79,6 +79,14 @@ import type {
   SimdLoadLaneExpr,
   SimdShuffleOpExpr,
   SimdStoreLaneExpr,
+  ArrayGetExpr,
+  ArrayLenExpr,
+  ArrayNewDataExpr,
+  ArrayNewDefaultExpr,
+  ArrayNewElemExpr,
+  ArrayNewExpr,
+  ArrayNewFixedExpr,
+  ArraySetExpr,
   StoreExpr,
   StructGetExpr,
   StructNewDefaultExpr,
@@ -129,6 +137,14 @@ import {
   makeSIMDLoadStoreLane,
   makeSIMDReplace,
   makeSIMDShuffle,
+  makeArrayGet,
+  makeArrayLen,
+  makeArrayNew,
+  makeArrayNewData,
+  makeArrayNewDefault,
+  makeArrayNewElem,
+  makeArrayNewFixed,
+  makeArraySet,
   makeStore,
   makeStructGet,
   makeStructNew,
@@ -490,6 +506,20 @@ function wabtFieldTypeToValType(t: Type): ValType | 'i8' | 'i16' {
   if (t === Type.I8) return 'i8';
   if (t === Type.I16) return 'i16';
   return wabtTypeToValType(t);
+}
+
+/**
+ * Look up the binaryen-ts ValType to return from `array.get $type`. Packed
+ * i8/i16 element types stack-promote to i32; everything else passes through.
+ */
+function lookupArrayElementType(typeVar: Var, ctx: BridgeCtx): ValType {
+  const wabtIdx = varIdx(typeVar);
+  const entry = ctx.types[wabtIdx];
+  if (entry === undefined || entry.kind !== 'array') {
+    throw new Error(`Bridge: type ${wabtIdx} is not an array`);
+  }
+  if (entry.field.type === Type.I8 || entry.field.type === Type.I16) return ValType.I32;
+  return wabtTypeToValType(entry.field.type);
 }
 
 // ---------------------------------------------------------------------------
@@ -976,6 +1006,83 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bridgeExpr(ss.ref, ctx),
         bridgeExpr(ss.value, ctx),
       );
+    }
+
+    // --- GC Tier 3: array.* ------------------------------------------------
+    case 'array.new': {
+      const an = e as ArrayNewExpr;
+      const heapIdx = resolveHeapTypeIdx(an.typeVar, ctx);
+      return makeArrayNew(
+        heapIdx,
+        bridgeExpr(an.init, ctx),
+        bridgeExpr(an.length, ctx),
+        { heap: heapIdx, nullable: false },
+      );
+    }
+    case 'array.new_default': {
+      const and_ = e as ArrayNewDefaultExpr;
+      const heapIdx = resolveHeapTypeIdx(and_.typeVar, ctx);
+      return makeArrayNewDefault(heapIdx, bridgeExpr(and_.length, ctx), {
+        heap: heapIdx,
+        nullable: false,
+      });
+    }
+    case 'array.new_fixed': {
+      const anf = e as ArrayNewFixedExpr;
+      const heapIdx = resolveHeapTypeIdx(anf.typeVar, ctx);
+      return makeArrayNewFixed(
+        heapIdx,
+        anf.operands.map((o) => bridgeExpr(o, ctx)),
+        { heap: heapIdx, nullable: false },
+      );
+    }
+    case 'array.new_data': {
+      const and2 = e as ArrayNewDataExpr;
+      const heapIdx = resolveHeapTypeIdx(and2.typeVar, ctx);
+      return makeArrayNewData(
+        heapIdx,
+        varIdx(and2.dataVar),
+        bridgeExpr(and2.offset, ctx),
+        bridgeExpr(and2.length, ctx),
+        { heap: heapIdx, nullable: false },
+      );
+    }
+    case 'array.new_elem': {
+      const ane = e as ArrayNewElemExpr;
+      const heapIdx = resolveHeapTypeIdx(ane.typeVar, ctx);
+      return makeArrayNewElem(
+        heapIdx,
+        varIdx(ane.elemVar),
+        bridgeExpr(ane.offset, ctx),
+        bridgeExpr(ane.length, ctx),
+        { heap: heapIdx, nullable: false },
+      );
+    }
+    case 'array.get': {
+      const ag = e as ArrayGetExpr;
+      const heapIdx = resolveHeapTypeIdx(ag.typeVar, ctx);
+      const elementType = lookupArrayElementType(ag.typeVar, ctx);
+      return makeArrayGet(
+        heapIdx,
+        bridgeExpr(ag.ref, ctx),
+        bridgeExpr(ag.index, ctx),
+        elementType,
+        ag.signed === true,
+      );
+    }
+    case 'array.set': {
+      const as = e as ArraySetExpr;
+      const heapIdx = resolveHeapTypeIdx(as.typeVar, ctx);
+      return makeArraySet(
+        heapIdx,
+        bridgeExpr(as.ref, ctx),
+        bridgeExpr(as.index, ctx),
+        bridgeExpr(as.value, ctx),
+      );
+    }
+    case 'array.len': {
+      const al = e as ArrayLenExpr;
+      return makeArrayLen(bridgeExpr(al.ref, ctx));
     }
 
     // --- SIMD (Tier C) ---------------------------------------------------

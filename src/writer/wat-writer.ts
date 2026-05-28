@@ -738,6 +738,50 @@ class WatWriter extends ModuleContext {
         this.writeVar(e.fieldVar, NC.Newline);
         return Result.Ok;
       },
+      onArrayNewExpr: (e) => {
+        this.putsSpace('array.new');
+        this.writeVar(e.typeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArrayNewDefaultExpr: (e) => {
+        this.putsSpace('array.new_default');
+        this.writeVar(e.typeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArrayNewFixedExpr: (e) => {
+        this.putsSpace('array.new_fixed');
+        this.writeVar(e.typeVar, NC.Space);
+        this.puts(String(e.operands.length), NC.Newline);
+        return Result.Ok;
+      },
+      onArrayNewDataExpr: (e) => {
+        this.putsSpace('array.new_data');
+        this.writeVar(e.typeVar, NC.Space);
+        this.writeVar(e.dataVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArrayNewElemExpr: (e) => {
+        this.putsSpace('array.new_elem');
+        this.writeVar(e.typeVar, NC.Space);
+        this.writeVar(e.elemVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArrayGetExpr: (e) => {
+        this.putsSpace(
+          e.signed === true ? 'array.get_s' : e.signed === false ? 'array.get_u' : 'array.get',
+        );
+        this.writeVar(e.typeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArraySetExpr: (e) => {
+        this.putsSpace('array.set');
+        this.writeVar(e.typeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArrayLenExpr: () => {
+        this.putsNewline('array.len');
+        return Result.Ok;
+      },
 
       onTableGetExpr: (e) => {
         this.putsSpace('table.get');
