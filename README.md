@@ -50,6 +50,35 @@ deno run -A jsr:@jrmarcum/wabt-ts/wasm-strip input.wasm -o stripped.wasm
 deno run -A jsr:@jrmarcum/wabt-ts/wasm2ts input.wasm -o output.ts
 ```
 
+### Drop-in `npm:wabt` replacement via `/compat`
+
+If you have code written against [`npm:wabt`](https://www.npmjs.com/package/wabt) (libwabt.js), `wabt-ts/compat` provides the same async-factory API. Add an import-map entry:
+
+```json
+{
+  "imports": {
+    "wabt": "jsr:@jrmarcum/wabt-ts@^1.2.1/compat"
+  }
+}
+```
+
+…and your existing `import wabt from "wabt"` code compiles unchanged:
+
+```typescript
+import wabt from "wabt";
+
+const w = await wabt();
+const m = w.parseWat("input.wat", source, { enable_all: true, exceptions: true });
+const { buffer } = m.toBinary({});
+m.destroy();
+
+const m2 = w.readWasm(buffer, { readDebugNames: true });
+const wat = m2.toText({ foldExprs: false, inlineExport: false });
+m2.destroy();
+```
+
+Error semantics match upstream: `parseWat` and `readWasm` throw on failure with the formatted error list as the message. `destroy()` is idempotent. See [src/api/wabt-compat.ts](src/api/wabt-compat.ts) for the full surface.
+
 ## API (Phases 1–6)
 
 ### High-level tool functions
@@ -211,14 +240,16 @@ workstation, since that would publish without provenance.
 | **6** | CLI tool wrappers — Deno-compatible entrypoints, remote `deno run` support | ✅ Complete |
 | **6.1** | Pre-publish housekeeping — JSR/CI hardening (tag-driven publish, GitHub Release auto-creation, `ci.yml`); lint cleanup (71→0); module-level codec singletons + `ModuleContext`/`WatWriter` index-map caches | ✅ Complete |
 | **6.2** | Release-flow alignment with binaryen-ts — `deno task bump`, atomic publish, `auto-tag.yml` safety net, license fix (JSR rejects compound SPDX); first successful JSR publish | ✅ Complete |
-| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🟡 In progress (Tiers A+B+C+D complete except for binaryen-ts-gated gaps and GC) |
+| **7** | binaryen bridge — post-order IR walk calling binaryen-ts constructor API | 🟡 In progress (Tiers A+B+C+D + GC Tier 1 complete; GC Tiers 2–4 in flight) |
 | **8** | `wasm2ts` — new wasm-to-TypeScript AOT transpiler | Pending |
 
-Phase 7 (binaryen bridge) covers MVP + Tier A (control flow, locals, globals) + Tier B (calls, select, memory ops) + Tier C (reference types, SIMD lane ops + arithmetic + memory ops, exception handling: tag defs + throw/throw_ref/try_table cases) + Tier D (memory + table exports, active + passive data segments) — full module-level surface except element segments + start function. Bridge-side deferrals are all upstream binaryen-ts gaps: `ref.as_non_null` (no `makeRefAsNonNull` factory), plain `v128.load` (encoder's `loadOpcode` has no V128 branch), tag imports + tag exports (no `addTagImport`; `WasmExport.kind` lacks `"tag"`), element segments (no `addElement`), start function (no `setStart`), multi-value `return` (no `makeTupleMake`). The GC proposal (`struct.*`, `array.*`, `ref.eq`, `ref.i31`) needs wabt-ts IR work first. binaryen-ts is at v1.0.9. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
+Phase 7 (binaryen bridge) covers MVP + Tier A (control flow, locals, globals) + Tier B (calls, select, memory ops) + Tier C (reference types, SIMD lane ops + arithmetic + memory ops, exception handling: tag defs + throw/throw_ref/try_table cases) + Tier D (memory + table exports, active + passive data segments) + GC Tier 1 (`ref.eq` / `ref.i31` / `i31.get_s` / `i31.get_u` plus 8 abstract heap types: `anyref` / `eqref` / `i31ref` / `structref` / `arrayref` / `nullref` / `nullfuncref` / `nullexternref`) — full module-level surface except element segments + start function. Bridge-side deferrals are all upstream binaryen-ts gaps: `ref.as_non_null` (no `makeRefAsNonNull` factory), plain `v128.load` (encoder's `loadOpcode` has no V128 branch), tag imports + tag exports (no `addTagImport`; `WasmExport.kind` lacks `"tag"`), element segments (no `addElement`), start function (no `setStart`), multi-value `return` (no `makeTupleMake`). The remaining GC tiers (`struct.*` / `array.*` / `ref.test` / `ref.cast` / `br_on_cast`) are in flight on a local branch — heap-type IR is already in place. binaryen-ts is at v1.0.9. Phase 8 (`wasm2ts`) is deferred pending wasmtk QA/QC.
 
-**wasmtk-driven hardening (v1.0.7 → v1.1.8).** The wasmtk integration test suite has surfaced a stream of latent wabt-ts bugs that previous tests didn't exercise. Pattern: a new module shape parses wrong, gets fixed at root cause in `src/`, regression test added under `tests/`. Recent landings include f64/f32 constant integer literals (were being encoded as raw bit patterns producing subnormals; v1.1.0), multi-value `return` (was dropping all but the first operand; v1.1.1), `memarg.align` defaulting to byte 0 instead of opcode-natural (broke binaryen's optimizer and caused runtime corruption; v1.1.1), ~95-entry SIMD opcode-name table drift fixed by regenerating from upstream wabt `opcode.def` (v1.1.1), SIMD `replace_lane` second-operand + try_table `(catch ...)` + bare-offset elem segments + legacy `(try (do ...))` syntax (v1.1.3), nested `(call ...)` operand-order fix in folded form (v1.1.4), Phase 7 Tier D bridge expansion (memory + table exports, active + passive data segments) plus Bug D — empty-folded ops like `(local.set $x)` / `(drop)` / `(global.set $g)` / `(return)` / `(i32.store)` now consume operands from the surrounding stack instead of getting `Nop` placeholders, unblocking wasic's multi-value receive idiom (v1.1.6), and Bug F — `br_if` with a folded f64 condition wrapping `global.get $name` no longer mis-resolves non-first globals to index 0 (the Bug D stack-pad is now clamped to what's actually available, so optional operands like `br_if`'s `value` slot stay untouched; v1.1.7). The full 272-file wasmtk WAT corpus is wired into the test suite at [tests/wasmtk/](tests/wasmtk/), so future regressions land as named-file failures in CI. Each fix is accompanied by a regression test under [tests/](tests/) and a commit message on the [GitHub history](https://github.com/jrmarcum/wabt-ts/commits/main) that explains the root cause.
+**wasmtk-driven hardening (v1.0.7 → v1.2.1).** The wasmtk integration test suite has surfaced a stream of latent wabt-ts bugs that previous tests didn't exercise. Pattern: a new module shape parses wrong, gets fixed at root cause in `src/`, regression test added under `tests/`. Recent landings include f64/f32 constant integer literals (were being encoded as raw bit patterns producing subnormals; v1.1.0), multi-value `return` (was dropping all but the first operand; v1.1.1), `memarg.align` defaulting to byte 0 instead of opcode-natural (broke binaryen's optimizer and caused runtime corruption; v1.1.1), ~95-entry SIMD opcode-name table drift fixed by regenerating from upstream wabt `opcode.def` (v1.1.1), SIMD `replace_lane` second-operand + try_table `(catch ...)` + bare-offset elem segments + legacy `(try (do ...))` syntax (v1.1.3), nested `(call ...)` operand-order fix in folded form (v1.1.4), Phase 7 Tier D bridge expansion (memory + table exports, active + passive data segments) plus Bug D — empty-folded ops like `(local.set $x)` / `(drop)` / `(global.set $g)` / `(return)` / `(i32.store)` now consume operands from the surrounding stack instead of getting `Nop` placeholders, unblocking wasic's multi-value receive idiom (v1.1.6), Bug F — `br_if` with a folded f64 condition wrapping `global.get $name` no longer mis-resolves non-first globals to index 0 (the Bug D stack-pad is now clamped to what's actually available, so optional operands like `br_if`'s `value` slot stay untouched; v1.1.7), parser support for `v128.const i8x16/i16x8/i32x4/i64x2/f32x4/f64x2 …` literal forms plus Phase 7 GC Tier 1 — `ref.eq` / `ref.i31` / `i31.get_s` / `i31.get_u` + the 8 abstract heap types (`anyref`, `eqref`, `i31ref`, `structref`, `arrayref`, `nullref`, `nullfuncref`, `nullexternref`) parse, encode, and round-trip through the bridge (v1.1.9), and Bug G — `call_indirect (type $name)` no longer mis-resolves named types to index 0 (`resolveNames` was resolving the `table` var but skipping `typeVar`; critical for wasic's higher-order array methods which compile to named-type `call_indirect` everywhere; v1.2.0). The full 272-file wasmtk WAT corpus is wired into the test suite at [tests/wasmtk/](tests/wasmtk/), so future regressions land as named-file failures in CI. Each fix is accompanied by a regression test under [tests/](tests/) and a commit message on the [GitHub history](https://github.com/jrmarcum/wabt-ts/commits/main) that explains the root cause.
 
-**Integration milestone (2026-05-28):** wasmtk's Phase 1 test suite now passes 38/38 against `@jrmarcum/wabt-ts@1.1.8`.
+**Integration milestone (2026-05-28):** wasmtk's Phase 1 test suite now passes 38/38 against `@jrmarcum/wabt-ts@1.1.8`. Subsequent releases (v1.1.9, v1.2.0, v1.2.1) continue the hardening loop and add the `/compat` migration path.
+
+**Migration milestone — `/compat` (v1.2.1):** wabt-ts now exposes `jsr:@jrmarcum/wabt-ts/compat`, a thin facade over the wabt-ts pipeline that mirrors `npm:wabt`'s (libwabt.js) async-factory API. Once consumers add an import-map entry — `"wabt": "jsr:@jrmarcum/wabt-ts@^1.2.1/compat"` — existing `import wabt from "wabt"` source compiles unchanged. See the Usage section below.
 
 ## Repository Layout
 
