@@ -70,7 +70,13 @@ describe('GC Tier 2: type-section struct encoding', () => {
     // The binaryen-ts encoder may prefix with sub-typing bytes; search for
     // the struct payload directly.
     const found = findBytes(wasm, [0x5f, 0x02, 0x7f, 0x00, 0x7f, 0x00]);
-    assertEquals(found >= 0, true, `expected struct encoding in binary, got:\n${[...wasm].map((b) => b.toString(16).padStart(2, '0')).join(' ')}`);
+    assertEquals(
+      found >= 0,
+      true,
+      `expected struct encoding in binary, got:\n${
+        [...wasm].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+      }`,
+    );
   });
 
   it('encodes a mutable field with mut=0x01', () => {
@@ -92,7 +98,9 @@ describe('GC Tier 2: type-section struct encoding', () => {
     assertEquals(
       found >= 0,
       true,
-      `expected packed-field struct encoding, got:\n${[...wasm].map((b) => b.toString(16).padStart(2, '0')).join(' ')}`,
+      `expected packed-field struct encoding, got:\n${
+        [...wasm].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+      }`,
     );
   });
 
@@ -180,8 +188,11 @@ describe('GC Tier 2: field-name resolution', () => {
       (func $f (param (ref $T)) (result i32)
         (struct.get $T $b (local.get 0))))`);
     // type=0, field=1 → 0xfb 0x02 0x00 0x01.
-    assertEquals(findBytes(wasm, [0xfb, 0x02, 0x00, 0x01]) >= 0, true,
-      'struct.get $T $b should encode field index 1');
+    assertEquals(
+      findBytes(wasm, [0xfb, 0x02, 0x00, 0x01]) >= 0,
+      true,
+      'struct.get $T $b should encode field index 1',
+    );
   });
 
   it('$c resolves to field index 2', () => {

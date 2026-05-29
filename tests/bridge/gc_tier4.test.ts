@@ -56,8 +56,13 @@ describe('GC Tier 4: ref.test opcode encoding', () => {
       (func $f (param anyref) (result i32)
         (ref.test (ref any) (local.get 0))))`);
     // ref.test (non-null) = 0xfb 0x14, heap type = abstract 'any' = 0x6e.
-    assertEquals(findBytes(wasm, [0xfb, 0x14, 0x6e]) >= 0, true,
-      `expected ref.test (ref any) bytes; binary:\n${[...wasm].map((b) => b.toString(16).padStart(2, '0')).join(' ')}`);
+    assertEquals(
+      findBytes(wasm, [0xfb, 0x14, 0x6e]) >= 0,
+      true,
+      `expected ref.test (ref any) bytes; binary:\n${
+        [...wasm].map((b) => b.toString(16).padStart(2, '0')).join(' ')
+      }`,
+    );
   });
 
   it('ref.test on (ref null any) emits 0xfb 0x15 (nullable variant)', () => {

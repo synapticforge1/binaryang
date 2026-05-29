@@ -94,7 +94,11 @@ describe('Bug D: empty-folded ops consume preceding stack values', () => {
     // The byte for global.get's index immediately follows opcode 0x23.
     // Should be 0x03 ($i), not 0x00 ($a).
     const idx = r.binary.indexOf(0x23);
-    assertEquals(r.binary[idx + 1], 0x03, 'global.get should resolve to $i (index 3), not $a (index 0)');
+    assertEquals(
+      r.binary[idx + 1],
+      0x03,
+      'global.get should resolve to $i (index 3), not $a (index 0)',
+    );
     const buf = new ArrayBuffer(r.binary.byteLength);
     new Uint8Array(buf).set(r.binary);
     const inst = (await WebAssembly.instantiate(buf)).instance.exports as {

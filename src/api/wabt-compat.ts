@@ -58,7 +58,6 @@
  */
 
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
-import { Result } from '../core/result.ts';
 import { LexerSource } from '../parser/lexer-source.ts';
 import { parseWatModule } from '../parser/wast-parser.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';

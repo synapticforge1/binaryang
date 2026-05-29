@@ -17,6 +17,14 @@ import { Result } from '../core/result.ts';
 import { GcOpcode, Opcode } from '../core/opcode.ts';
 import { Type } from '../core/types.ts';
 import {
+  type ArrayGetExpr,
+  type ArrayLenExpr,
+  type ArrayNewDataExpr,
+  type ArrayNewDefaultExpr,
+  type ArrayNewElemExpr,
+  type ArrayNewExpr,
+  type ArrayNewFixedExpr,
+  type ArraySetExpr,
   type AtomicFenceExpr,
   type AtomicLoadExpr,
   type AtomicNotifyExpr,
@@ -52,11 +60,13 @@ import {
   type ElemDropExpr,
   type Expr,
   ExternalKind,
+  type Field,
   type Func,
   type FuncSignature,
   type Global,
   type GlobalGetExpr,
   type GlobalSetExpr,
+  type I31GetExpr,
   type IfExpr,
   type Import,
   type Limits,
@@ -76,27 +86,14 @@ import {
   type Module,
   type NopExpr,
   type QuaternaryExpr,
-  type I31GetExpr,
   type RefAsNonNullExpr,
+  type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
   type RefI31Expr,
   type RefIsNullExpr,
   type RefNullExpr,
-  type ArrayGetExpr,
-  type ArrayLenExpr,
-  type ArrayNewDataExpr,
-  type ArrayNewDefaultExpr,
-  type ArrayNewElemExpr,
-  type ArrayNewExpr,
-  type ArrayNewFixedExpr,
-  type ArraySetExpr,
-  type RefCastExpr,
   type RefTestExpr,
-  type StructGetExpr,
-  type StructNewDefaultExpr,
-  type StructNewExpr,
-  type StructSetExpr,
   type RethrowExpr,
   type ReturnCallExpr,
   type ReturnCallIndirectExpr,
@@ -108,6 +105,10 @@ import {
   type SimdShuffleOpExpr,
   type SimdStoreLaneExpr,
   type StoreExpr,
+  type StructGetExpr,
+  type StructNewDefaultExpr,
+  type StructNewExpr,
+  type StructSetExpr,
   type Table,
   type TableCatch,
   type TableCopyExpr,
@@ -122,7 +123,6 @@ import {
   type ThrowExpr,
   type ThrowRefExpr,
   type TryTableExpr,
-  type Field,
   type TypeEntry,
   type UnaryExpr,
   type UnreachableExpr,
@@ -1043,7 +1043,9 @@ export class WastParser {
         // the coarse placeholder. Future typed-ref IR will carry $T's index.
         this.drop();
         result = Type.StructRef;
-      } else if (inner === TokenType.ValueType || inner === TokenType.Func || inner === TokenType.Extern) {
+      } else if (
+        inner === TokenType.ValueType || inner === TokenType.Func || inner === TokenType.Extern
+      ) {
         // `(ref any)` / `(ref i31)` / `(ref func)` / `(ref extern)` / etc.
         const inner2 = this.parseValueType();
         result = inner2 ?? Type.AnyRef;
@@ -1144,7 +1146,10 @@ export class WastParser {
       const tok = this.consume() as TypeToken;
       const name = abstractHeapTypeNameForValType(tok.valueType);
       if (name === null) {
-        this.error(loc, `unsupported heap type for ref.test/ref.cast: 0x${tok.valueType.toString(16)}`);
+        this.error(
+          loc,
+          `unsupported heap type for ref.test/ref.cast: 0x${tok.valueType.toString(16)}`,
+        );
         return null;
       }
       heapType = varName(name);
@@ -2130,9 +2135,7 @@ export class WastParser {
     } else {
       const deficit = nInputs - innerCtx.stmts.length;
       const available = Math.min(deficit, ctx.stack.length);
-      operands = available > 0
-        ? [...popN(ctx, available, loc), ...innerCtx.stmts]
-        : innerCtx.stmts;
+      operands = available > 0 ? [...popN(ctx, available, loc), ...innerCtx.stmts] : innerCtx.stmts;
     }
 
     // 4. Rewind and re-invoke buildPlainExpr with the real operands.

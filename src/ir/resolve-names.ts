@@ -690,14 +690,22 @@ class ResolveContext {
     }
     const typeEntry = this.module.types[typeVar.value];
     if (typeEntry === undefined || typeEntry.kind !== 'struct') {
-      addError(this.errors, loc, `field "${fieldVar.name}" references non-struct type ${typeVar.value}`);
+      addError(
+        this.errors,
+        loc,
+        `field "${fieldVar.name}" references non-struct type ${typeVar.value}`,
+      );
       this.hadError = true;
       return fieldVar;
     }
     for (let i = 0; i < typeEntry.fields.length; i++) {
       if (typeEntry.fields[i]!.name === fieldVar.name) return varIndex(i);
     }
-    addError(this.errors, loc, `undefined field "${fieldVar.name}" on struct type ${typeVar.value}`);
+    addError(
+      this.errors,
+      loc,
+      `undefined field "${fieldVar.name}" on struct type ${typeVar.value}`,
+    );
     this.hadError = true;
     return fieldVar;
   }
