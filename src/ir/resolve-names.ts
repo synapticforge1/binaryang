@@ -44,6 +44,13 @@ class NameScope {
 // resolveNames — entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Walk a {@link Module} and rewrite every name-form {@link Var}
+ * (`{ kind: 'name', name: '$foo' }`) to its index-form (`{ kind: 'index',
+ * value: N }`). The binary writer always expects index-form vars; name-form
+ * vars left behind silently encode as index 0 (Bug G regression history).
+ * Errors for unresolved names accumulate in `errors` rather than throwing.
+ */
 export function resolveNames(module: Module, errors: ErrorList = makeErrorList()): Result {
   const ctx = new ResolveContext(module, errors);
   return ctx.resolveModule();

@@ -1,6 +1,33 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
+/**
+ * @module
+ * `wasm-objdump` — inspect the section layout and item counts of a `.wasm`
+ * binary, similar to upstream wabt's `wasm-objdump`.
+ *
+ * Library entry point ({@link wasmObjdump}) returns `{ text, errors, result }`
+ * with a human-readable section dump. Section counts are derived from the
+ * decoded `module.*` arrays rather than `SectionMeta.count` (the reader
+ * does not currently populate the meta-count field).
+ *
+ * CLI form (via `import.meta.main`):
+ *
+ * ```sh
+ * deno run -A jsr:@jrmarcum/wabt-ts/wasm-objdump input.wasm
+ * ```
+ *
+ * Library usage:
+ *
+ * ```ts
+ * import { wasmObjdump } from "jsr:@jrmarcum/wabt-ts/wasm-objdump";
+ *
+ * const bytes = await Deno.readFile("module.wasm");
+ * const { text } = wasmObjdump(bytes, { details: true });
+ * console.log(text);
+ * ```
+ */
+
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { Result } from '../core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
@@ -12,18 +39,23 @@ import type { Module, SectionMeta } from '../ir/ir.ts';
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Options for {@link wasmObjdump}. */
 export interface WasmObjdumpOptions {
-  /** Source filename shown in headers. Default: '<input>'. */
+  /** Source filename shown in headers. Default: `'<input>'`. */
   filename?: string;
-  /** Show section headers table. Default: true. */
+  /** Show section headers table. Default: `true`. */
   headers?: boolean;
-  /** Show section detail (imports, exports, functions, …). Default: false. */
+  /** Show section detail (imports, exports, functions, …). Default: `false`. */
   details?: boolean;
 }
 
+/** Return value from {@link wasmObjdump}. */
 export interface WasmObjdumpResult {
+  /** The rendered text dump. */
   text: string;
+  /** Accumulated decode errors. */
   errors: ErrorList;
+  /** `Result.Ok` on success; `Result.Error` if the binary fails to decode. */
   result: Result;
 }
 

@@ -1,6 +1,37 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
+/**
+ * @module
+ * `wat2wasm` — compile WebAssembly text format (WAT) to a binary `.wasm` module.
+ *
+ * Library entry point ({@link wat2wasm}) returns `{ binary, errors, result }`.
+ * On parse or encode error the binary is empty and `result === Result.Error`;
+ * errors are accumulated in the `errors` array rather than thrown so callers
+ * can pretty-print or aggregate them.
+ *
+ * Also runs as a CLI when imported with `import.meta.main`:
+ *
+ * ```sh
+ * deno run -A jsr:@jrmarcum/wabt-ts/wat2wasm input.wat -o output.wasm
+ * ```
+ *
+ * Library usage:
+ *
+ * ```ts
+ * import { wat2wasm } from "jsr:@jrmarcum/wabt-ts/wat2wasm";
+ * import { Result, formatErrors } from "jsr:@jrmarcum/wabt-ts";
+ *
+ * const r = wat2wasm("(module (func (export \"f\") (result i32) (i32.const 42)))");
+ * if (r.result !== Result.Ok) throw new Error(formatErrors(r.errors));
+ * await WebAssembly.instantiate(r.binary);
+ * ```
+ *
+ * Pipeline: `parseWatModule` → `resolveNames` → `synthesizeTypes` →
+ * `writeBinaryIr`. The `synthesizeTypes` pass back-fills the type section
+ * for inline `(param …) (result …)` signatures on funcs / tags / func-imports.
+ */
+
 import { LexerSource } from '../parser/lexer-source.ts';
 import { parseWatModule } from '../parser/wast-parser.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
@@ -14,14 +45,19 @@ import type { ErrorList } from '../core/error.ts';
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Options for {@link wat2wasm}. */
 export interface Wat2WasmOptions {
-  /** Source filename shown in error messages. Default: '<input>'. */
+  /** Source filename shown in error messages. Default: `'<input>'`. */
   filename?: string;
 }
 
+/** Return value from {@link wat2wasm}. */
 export interface Wat2WasmResult {
+  /** The encoded wasm binary. Empty `Uint8Array(0)` on error. */
   binary: Uint8Array;
+  /** Accumulated parse / resolve / encode errors. */
   errors: ErrorList;
+  /** `Result.Ok` on success; `Result.Error` if `errors` is non-empty. */
   result: Result;
 }
 

@@ -21,6 +21,17 @@ wabt-ts provides the core wabt tooling as idiomatic TypeScript modules, distribu
 | `wasm-strip` | Strip custom sections (e.g. `name`) from a WebAssembly binary |
 | `wasm2ts` | Transpile a WebAssembly binary to typed TypeScript (new — pending) |
 
+## Runtime compatibility
+
+| Runtime | Library API | CLI entry points |
+| --- | --- | --- |
+| **Deno** | ✅ | ✅ |
+| **Bun** | ✅ | — (use the library API) |
+| **Node** (18+) | ✅ | — |
+| **Browser** | ✅ | — |
+
+The library functions (`wat2wasm`, `wasm2wat`, `wasmValidate`, `wasmObjdump`, `wasmStrip`, `parseWatModule`, `readBinaryIr`, `writeBinaryIr`, `writeWatModule`, `validateModule`, the IR types, the `/compat` facade, etc.) use only standard Web platform APIs — `TextEncoder` / `TextDecoder`, `DataView`, typed arrays, `Map` / `Set`, `WebAssembly` — and work unmodified in every modern runtime. The CLI shims (`if (import.meta.main)` blocks inside each `src/tools/*.ts` entry point) use `Deno.args` / `Deno.readFile` etc. and are exercised by `deno run -A jsr:@jrmarcum/wabt-ts/wat2wasm input.wat …`; other runtimes import the library function directly.
+
 ## Usage
 
 ### As a library (Deno)

@@ -1,6 +1,35 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
+/**
+ * @module
+ * `wasm-strip` — remove custom sections (the `name` section, debug info,
+ * etc.) from a `.wasm` binary to shrink production builds.
+ *
+ * Library entry point ({@link wasmStrip}) returns `{ binary, errors, result }`.
+ * By default it strips ALL custom sections; pass `opts.sections` to restrict
+ * to specific section names.
+ *
+ * CLI form (via `import.meta.main`):
+ *
+ * ```sh
+ * deno run -A jsr:@jrmarcum/wabt-ts/wasm-strip input.wasm -o stripped.wasm
+ * ```
+ *
+ * Library usage:
+ *
+ * ```ts
+ * import { wasmStrip } from "jsr:@jrmarcum/wabt-ts/wasm-strip";
+ *
+ * const original = await Deno.readFile("module.wasm");
+ * const { binary } = wasmStrip(original);
+ * await Deno.writeFile("stripped.wasm", binary);
+ * ```
+ *
+ * Pipeline: `readBinaryIr` with `readDebugNames: false` (so the name section
+ * stays in `module.customs`) → clear `module.customs` → `writeBinaryIr`.
+ */
+
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
@@ -12,19 +41,24 @@ import type { ErrorList } from '../core/error.ts';
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Options for {@link wasmStrip}. */
 export interface WasmStripOptions {
-  /** Source filename shown in error messages. Default: '<input>'. */
+  /** Source filename shown in error messages. Default: `'<input>'`. */
   filename?: string;
   /**
    * Names of custom sections to strip. If omitted, all custom sections
-   * (including the name section) are removed.
+   * (including the `name` section) are removed.
    */
   sections?: string[];
 }
 
+/** Return value from {@link wasmStrip}. */
 export interface WasmStripResult {
+  /** The stripped wasm binary. Empty on decode error. */
   binary: Uint8Array;
+  /** Accumulated decode errors. */
   errors: ErrorList;
+  /** `Result.Ok` on success; `Result.Error` if decode fails. */
   result: Result;
 }
 

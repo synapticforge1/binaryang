@@ -1,6 +1,36 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
+/**
+ * @module
+ * `wasm2wat` — decode a `.wasm` binary and render it as WebAssembly text format.
+ *
+ * Library entry point ({@link wasm2wat}) returns `{ text, errors, result }`.
+ * On decode error the text is empty and `result === Result.Error`; the
+ * decoder accumulates errors rather than throwing.
+ *
+ * CLI form (via `import.meta.main`):
+ *
+ * ```sh
+ * deno run -A jsr:@jrmarcum/wabt-ts/wasm2wat input.wasm > output.wat
+ * ```
+ *
+ * Library usage:
+ *
+ * ```ts
+ * import { wasm2wat } from "jsr:@jrmarcum/wabt-ts/wasm2wat";
+ *
+ * const bytes = await Deno.readFile("module.wasm");
+ * const { text } = wasm2wat(bytes, { readDebugNames: true });
+ * console.log(text);
+ * ```
+ *
+ * Pipeline: `readBinaryIr` (with `readDebugNames: true` by default) →
+ * `generateNames` (fills synthetic `$f0` / `$g0` / … for unnamed entities) →
+ * `writeWatModule`. The `inlineExport` option controls whether exports are
+ * rendered inline inside their defining item (default `true`).
+ */
+
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { writeWatModule } from '../writer/wat-writer.ts';
@@ -13,18 +43,23 @@ import type { ErrorList } from '../core/error.ts';
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Options for {@link wasm2wat}. */
 export interface Wasm2WatOptions {
-  /** Source filename shown in error messages. Default: '<input>'. */
+  /** Source filename shown in error messages. Default: `'<input>'`. */
   filename?: string;
-  /** Parse the name section and apply symbolic names. Default: true. */
+  /** Parse the name section and apply symbolic names. Default: `true`. */
   readDebugNames?: boolean;
-  /** Emit inline exports. Default: true (passed to wat-writer). */
+  /** Emit inline exports. Default: `true` (passed to wat-writer). */
   inlineExport?: boolean;
 }
 
+/** Return value from {@link wasm2wat}. */
 export interface Wasm2WatResult {
+  /** The rendered WAT text. Empty string on error. */
   text: string;
+  /** Accumulated decode errors. */
   errors: ErrorList;
+  /** `Result.Ok` on success; `Result.Error` if `errors` is non-empty. */
   result: Result;
 }
 

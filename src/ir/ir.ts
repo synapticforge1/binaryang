@@ -36,16 +36,20 @@ export type Var =
   | { readonly kind: 'index'; readonly value: Index }
   | { readonly kind: 'name'; readonly name: string };
 
+/** Construct an index-form {@link Var} (`0`, `1`, …) used after `resolveNames`. */
 export function varIndex(value: Index): Var {
   return { kind: 'index', value };
 }
+/** Construct a name-form {@link Var} (`$foo`, `$bar`) as emitted by the WAT parser. */
 export function varName(name: string): Var {
   return { kind: 'name', name };
 }
 
+/** Type guard for index-form {@link Var}. */
 export function isVarIndex(v: Var): v is { kind: 'index'; value: Index } {
   return v.kind === 'index';
 }
+/** Type guard for name-form {@link Var}. */
 export function isVarName(v: Var): v is { kind: 'name'; name: string } {
   return v.kind === 'name';
 }
@@ -54,15 +58,23 @@ export function isVarName(v: Var): v is { kind: 'name'; name: string } {
 // Block type — the signature of a block/loop/if/try
 // ---------------------------------------------------------------------------
 
+/**
+ * Block-type immediate for `block` / `loop` / `if` / `try` / `try_table`.
+ * Either void, a single value type, or an index into the type section for
+ * multi-value signatures (multi-value proposal).
+ */
 export type BlockType =
   | { readonly kind: 'void' }
   | { readonly kind: 'value'; readonly type: Type }
   | { readonly kind: 'func_type'; readonly typeIdx: Index };
 
+/** Pre-built singleton for the void block type. */
 export const BLOCK_TYPE_VOID: BlockType = { kind: 'void' };
+/** Construct a single-value {@link BlockType}. */
 export function blockTypeValue(type: Type): BlockType {
   return { kind: 'value', type };
 }
+/** Construct a multi-value {@link BlockType} referencing a type-section func entry. */
 export function blockTypeFuncType(typeIdx: Index): BlockType {
   return { kind: 'func_type', typeIdx };
 }
@@ -71,6 +83,11 @@ export function blockTypeFuncType(typeIdx: Index): BlockType {
 // Const — a constant value (leaf node, no children)
 // ---------------------------------------------------------------------------
 
+/**
+ * The immediate payload of a `*.const` instruction. f32 / f64 store the
+ * raw IEEE 754 bit pattern (not the float value) so NaN payloads survive
+ * round-trips; v128 stores the literal 16 lane bytes.
+ */
 export type Const =
   | { readonly type: Type.I32; readonly value: number }
   | { readonly type: Type.I64; readonly value: bigint }
@@ -78,18 +95,23 @@ export type Const =
   | { readonly type: Type.F64; readonly bits: bigint } // raw IEEE 754 bit pattern
   | { readonly type: Type.V128; readonly bytes: Uint8Array }; // 16 raw bytes
 
+/** Construct an i32 {@link Const}. */
 export function constI32(value: number): Const {
   return { type: Type.I32, value };
 }
+/** Construct an i64 {@link Const}. */
 export function constI64(value: bigint): Const {
   return { type: Type.I64, value };
 }
+/** Construct an f32 {@link Const} from its raw IEEE 754 bit pattern. */
 export function constF32(bits: number): Const {
   return { type: Type.F32, bits };
 }
+/** Construct an f64 {@link Const} from its raw IEEE 754 bit pattern. */
 export function constF64(bits: bigint): Const {
   return { type: Type.F64, bits };
 }
+/** Construct a v128 {@link Const} from its 16 lane bytes. */
 export function constV128(bytes: Uint8Array): Const {
   return { type: Type.V128, bytes };
 }
@@ -98,10 +120,15 @@ export function constV128(bytes: Uint8Array): Const {
 // Catch clauses — exception handling
 // ---------------------------------------------------------------------------
 
+/** The four `(catch …)` clause shapes in `try_table` (EH proposal). */
 export enum CatchKind {
+  /** `(catch $tag $label)` — branches to `$label` with the unpacked args. */
   Catch = 'catch',
+  /** `(catch_ref $tag $label)` — branches with args + the exception ref. */
   CatchRef = 'catch_ref',
+  /** `(catch_all $label)` — matches any tag, no args. */
   CatchAll = 'catch_all',
+  /** `(catch_all_ref $label)` — matches any tag, branches with the exception ref. */
   CatchAllRef = 'catch_all_ref',
 }
 
@@ -129,14 +156,17 @@ export interface TableCatch {
 // ---------------------------------------------------------------------------
 
 // --- Control ---
+/** `nop` (0x01) — single-byte no-op. */
 export interface NopExpr {
   readonly kind: 'nop';
   readonly loc: Location;
 }
+/** `unreachable` (0x00) — traps unconditionally. Type-stack becomes polymorphic. */
 export interface UnreachableExpr {
   readonly kind: 'unreachable';
   readonly loc: Location;
 }
+/** `return` — returns the function's result values from the type stack (multi-value capable). */
 export interface ReturnExpr {
   readonly kind: 'return';
   /**
@@ -150,11 +180,13 @@ export interface ReturnExpr {
   readonly values: Expr[];
   readonly loc: Location;
 }
+/** `drop` (0x1a) — discards the top stack value. */
 export interface DropExpr {
   readonly kind: 'drop';
   readonly value: Expr;
   readonly loc: Location;
 }
+/** `select` (0x1b / 0x1c) — picks `val1` or `val2` based on a non-zero `cond`. */
 export interface SelectExpr {
   readonly kind: 'select';
   readonly val1: Expr;
@@ -165,6 +197,7 @@ export interface SelectExpr {
 }
 
 // --- Blocks ---
+/** `block` (0x02) — a labeled scope; `br $label` exits forward. */
 export interface BlockExpr {
   readonly kind: 'block';
   readonly label: string;
@@ -172,6 +205,7 @@ export interface BlockExpr {
   readonly body: Expr[];
   readonly loc: Location;
 }
+/** `loop` (0x03) — a labeled scope; `br $label` jumps to the LOOP HEADER, not its exit. */
 export interface LoopExpr {
   readonly kind: 'loop';
   readonly label: string;
@@ -179,6 +213,7 @@ export interface LoopExpr {
   readonly body: Expr[];
   readonly loc: Location;
 }
+/** `if` / `else` / `end` (0x04 / 0x05) — conditional execution based on a non-zero `cond`. */
 export interface IfExpr {
   readonly kind: 'if';
   readonly label: string;
@@ -190,12 +225,14 @@ export interface IfExpr {
 }
 
 // --- Branches ---
+/** `br $label` (0x0c) — unconditional branch to the label-stack `target`. */
 export interface BrExpr {
   readonly kind: 'br';
   readonly target: Var;
   readonly value?: Expr;
   readonly loc: Location;
 }
+/** `br_if $label` (0x0d) — branches when `cond` is non-zero. */
 export interface BrIfExpr {
   readonly kind: 'br_if';
   readonly target: Var;
@@ -203,6 +240,7 @@ export interface BrIfExpr {
   readonly value?: Expr;
   readonly loc: Location;
 }
+/** `br_table` (0x0e) — table-switch branch. The i32 value indexes `targets` (out-of-range → `defaultTarget`). */
 export interface BrTableExpr {
   readonly kind: 'br_table';
   readonly targets: Var[];
@@ -210,12 +248,14 @@ export interface BrTableExpr {
   readonly value: Expr;
   readonly loc: Location;
 }
+/** `br_on_null $label` (0xd5) — branches if the top ref is null (typed-refs proposal). */
 export interface BrOnNullExpr {
   readonly kind: 'br_on_null';
   readonly target: Var;
   readonly value: Expr;
   readonly loc: Location;
 }
+/** `br_on_non_null $label` (0xd6) — branches if the top ref is non-null. */
 export interface BrOnNonNullExpr {
   readonly kind: 'br_on_non_null';
   readonly target: Var;
@@ -224,6 +264,7 @@ export interface BrOnNonNullExpr {
 }
 
 // --- Constants ---
+/** `*.const` (0x41 / 0x42 / 0x43 / 0x44 / 0xfd 0x0c) — pushes a literal value. */
 export interface ConstExpr {
   readonly kind: 'const';
   readonly value: Const;
@@ -231,17 +272,20 @@ export interface ConstExpr {
 }
 
 // --- Locals ---
+/** `local.get $var` (0x20) — pushes the value of a local. */
 export interface LocalGetExpr {
   readonly kind: 'local.get';
   readonly var: Var;
   readonly loc: Location;
 }
+/** `local.set $var` (0x21) — pops the top stack value and writes it to a local. */
 export interface LocalSetExpr {
   readonly kind: 'local.set';
   readonly var: Var;
   readonly value: Expr;
   readonly loc: Location;
 }
+/** `local.tee $var` (0x22) — like local.set but leaves the value on the stack. */
 export interface LocalTeeExpr {
   readonly kind: 'local.tee';
   readonly var: Var;
@@ -250,11 +294,13 @@ export interface LocalTeeExpr {
 }
 
 // --- Globals ---
+/** `global.get $var` (0x23) — pushes the value of a global. */
 export interface GlobalGetExpr {
   readonly kind: 'global.get';
   readonly var: Var;
   readonly loc: Location;
 }
+/** `global.set $var` (0x24) — pops the top stack value and writes it to a (mutable) global. */
 export interface GlobalSetExpr {
   readonly kind: 'global.set';
   readonly var: Var;
@@ -263,12 +309,14 @@ export interface GlobalSetExpr {
 }
 
 // --- Numeric: unary, binary, compare, convert ---
+/** Single-operand numeric op (`i32.eqz`, `f32.abs`, etc.). `opcode` identifies the specific op. */
 export interface UnaryExpr {
   readonly kind: 'unary';
   readonly opcode: Opcode;
   readonly operand: Expr;
   readonly loc: Location;
 }
+/** Two-operand numeric op (`i32.add`, `f64.mul`, etc.). `opcode` identifies the specific op. */
 export interface BinaryExpr {
   readonly kind: 'binary';
   readonly opcode: Opcode;
@@ -276,6 +324,7 @@ export interface BinaryExpr {
   readonly right: Expr;
   readonly loc: Location;
 }
+/** Two-operand comparison (`i32.eq`, `f64.lt`, etc.); pushes i32 (0 / 1). */
 export interface CompareExpr {
   readonly kind: 'compare';
   readonly opcode: Opcode;
@@ -283,12 +332,14 @@ export interface CompareExpr {
   readonly right: Expr;
   readonly loc: Location;
 }
+/** Numeric type conversion (`i32.wrap_i64`, `f32.convert_i32_s`, etc.). */
 export interface ConvertExpr {
   readonly kind: 'convert';
   readonly opcode: Opcode;
   readonly operand: Expr;
   readonly loc: Location;
 }
+/** Three-operand numeric op (rare; placeholder for relaxed-SIMD ternary instructions). */
 export interface TernaryExpr {
   readonly kind: 'ternary';
   readonly opcode: Opcode;
@@ -297,6 +348,7 @@ export interface TernaryExpr {
   readonly c: Expr;
   readonly loc: Location;
 }
+/** Four-operand numeric op (rare; placeholder for relaxed-SIMD quaternary instructions). */
 export interface QuaternaryExpr {
   readonly kind: 'quaternary';
   readonly opcode: Opcode;
@@ -308,6 +360,7 @@ export interface QuaternaryExpr {
 }
 
 // --- Memory load/store ---
+/** Linear-memory load (`i32.load`, `f64.load8_s`, etc.). `align = 0` means "use opcode-natural". */
 export interface LoadExpr {
   readonly kind: 'load';
   readonly opcode: Opcode;
@@ -317,6 +370,7 @@ export interface LoadExpr {
   readonly address: Expr;
   readonly loc: Location;
 }
+/** Linear-memory store (`i32.store`, `f32.store`, etc.). `align = 0` means "use opcode-natural". */
 export interface StoreExpr {
   readonly kind: 'store';
   readonly opcode: Opcode;
@@ -329,17 +383,20 @@ export interface StoreExpr {
 }
 
 // --- Memory misc ---
+/** `memory.size` (0x3f) — pushes the current memory size in pages. */
 export interface MemorySizeExpr {
   readonly kind: 'memory.size';
   readonly memidx: Var;
   readonly loc: Location;
 }
+/** `memory.grow` (0x40) — grows memory by `delta` pages, returns the old size (or -1 on failure). */
 export interface MemoryGrowExpr {
   readonly kind: 'memory.grow';
   readonly memidx: Var;
   readonly delta: Expr;
   readonly loc: Location;
 }
+/** `memory.copy` (0xfc 0x0a) — copies `size` bytes from `src` to `dest` within memory. */
 export interface MemoryCopyExpr {
   readonly kind: 'memory.copy';
   readonly destMemidx: Var;
@@ -349,6 +406,7 @@ export interface MemoryCopyExpr {
   readonly size: Expr;
   readonly loc: Location;
 }
+/** `memory.fill` (0xfc 0x0b) — fills `size` bytes starting at `dest` with `value`. */
 export interface MemoryFillExpr {
   readonly kind: 'memory.fill';
   readonly memidx: Var;
@@ -357,6 +415,7 @@ export interface MemoryFillExpr {
   readonly size: Expr;
   readonly loc: Location;
 }
+/** `memory.init $seg` (0xfc 0x08) — copies bytes from a passive data segment into memory. */
 export interface MemoryInitExpr {
   readonly kind: 'memory.init';
   readonly segment: Var;
@@ -366,6 +425,7 @@ export interface MemoryInitExpr {
   readonly size: Expr;
   readonly loc: Location;
 }
+/** `data.drop $seg` (0xfc 0x09) — declares a passive data segment as no longer needed. */
 export interface DataDropExpr {
   readonly kind: 'data.drop';
   readonly segment: Var;
@@ -373,12 +433,14 @@ export interface DataDropExpr {
 }
 
 // --- Calls ---
+/** `call $func` (0x10) — direct call to a function (index space includes imports + defined). */
 export interface CallExpr {
   readonly kind: 'call';
   readonly func: Var;
   readonly args: Expr[];
   readonly loc: Location;
 }
+/** `call_indirect (type $T) [$table]` (0x11) — indirect call through a function table. */
 export interface CallIndirectExpr {
   readonly kind: 'call_indirect';
   readonly sig: FuncSignature;
@@ -388,6 +450,7 @@ export interface CallIndirectExpr {
   readonly callee: Expr;
   readonly loc: Location;
 }
+/** `call_ref $type` (0x14) — typed-function-references proposal: calls a `(ref $T)` value. */
 export interface CallRefExpr {
   readonly kind: 'call_ref';
   readonly sigType: Var;
@@ -395,12 +458,14 @@ export interface CallRefExpr {
   readonly callee: Expr;
   readonly loc: Location;
 }
+/** `return_call $func` (0x12) — tail-call proposal: like `call` but replaces the current frame. */
 export interface ReturnCallExpr {
   readonly kind: 'return_call';
   readonly func: Var;
   readonly args: Expr[];
   readonly loc: Location;
 }
+/** `return_call_indirect` (0x13) — tail-call proposal: like `call_indirect` but tail-position. */
 export interface ReturnCallIndirectExpr {
   readonly kind: 'return_call_indirect';
   readonly sig: FuncSignature;
@@ -410,6 +475,7 @@ export interface ReturnCallIndirectExpr {
   readonly callee: Expr;
   readonly loc: Location;
 }
+/** `return_call_ref $type` (0x15) — tail-call proposal: like `call_ref` but tail-position. */
 export interface ReturnCallRefExpr {
   readonly kind: 'return_call_ref';
   readonly sigType: Var;
@@ -419,21 +485,25 @@ export interface ReturnCallRefExpr {
 }
 
 // --- Ref types ---
+/** `ref.null funcref|externref|…` (0xd0) — pushes a null ref of the given type. */
 export interface RefNullExpr {
   readonly kind: 'ref.null';
   readonly refType: Var;
   readonly loc: Location;
 }
+/** `ref.is_null` (0xd1) — pops a ref, pushes i32 (1 = null, 0 otherwise). */
 export interface RefIsNullExpr {
   readonly kind: 'ref.is_null';
   readonly value: Expr;
   readonly loc: Location;
 }
+/** `ref.func $f` (0xd2) — pushes a funcref to the named function (must be declared in elem or export). */
 export interface RefFuncExpr {
   readonly kind: 'ref.func';
   readonly func: Var;
   readonly loc: Location;
 }
+/** `ref.as_non_null` (0xd4) — converts nullable ref to non-null (traps on null). */
 export interface RefAsNonNullExpr {
   readonly kind: 'ref.as_non_null';
   readonly value: Expr;
@@ -610,12 +680,14 @@ export interface RefCastExpr {
 }
 
 // --- Tables ---
+/** `table.get $table` (0x25) — reads the element at the given index. */
 export interface TableGetExpr {
   readonly kind: 'table.get';
   readonly table: Var;
   readonly index: Expr;
   readonly loc: Location;
 }
+/** `table.set $table` (0x26) — writes an element at the given index. */
 export interface TableSetExpr {
   readonly kind: 'table.set';
   readonly table: Var;
@@ -623,6 +695,7 @@ export interface TableSetExpr {
   readonly value: Expr;
   readonly loc: Location;
 }
+/** `table.grow $table` (0xfc 0x0f) — grows the table by `delta`, init with `initValue`. */
 export interface TableGrowExpr {
   readonly kind: 'table.grow';
   readonly table: Var;
@@ -630,11 +703,13 @@ export interface TableGrowExpr {
   readonly delta: Expr;
   readonly loc: Location;
 }
+/** `table.size $table` (0xfc 0x10) — pushes the current table size. */
 export interface TableSizeExpr {
   readonly kind: 'table.size';
   readonly table: Var;
   readonly loc: Location;
 }
+/** `table.fill $table` (0xfc 0x11) — fills a range of the table with `value`. */
 export interface TableFillExpr {
   readonly kind: 'table.fill';
   readonly table: Var;
@@ -643,6 +718,7 @@ export interface TableFillExpr {
   readonly size: Expr;
   readonly loc: Location;
 }
+/** `table.copy $dst $src` (0xfc 0x0e) — copies `size` elements between tables. */
 export interface TableCopyExpr {
   readonly kind: 'table.copy';
   readonly dst: Var;
@@ -652,6 +728,7 @@ export interface TableCopyExpr {
   readonly size: Expr;
   readonly loc: Location;
 }
+/** `table.init $seg $table` (0xfc 0x0c) — copies elements from a passive elem segment. */
 export interface TableInitExpr {
   readonly kind: 'table.init';
   readonly segment: Var;
@@ -661,6 +738,7 @@ export interface TableInitExpr {
   readonly size: Expr;
   readonly loc: Location;
 }
+/** `elem.drop $seg` (0xfc 0x0d) — declares a passive element segment as no longer needed. */
 export interface ElemDropExpr {
   readonly kind: 'elem.drop';
   readonly segment: Var;
@@ -668,23 +746,27 @@ export interface ElemDropExpr {
 }
 
 // --- Exceptions ---
+/** `throw $tag` (0x08) — throws an exception with the named tag, popping the tag's args. */
 export interface ThrowExpr {
   readonly kind: 'throw';
   readonly tag: Var;
   readonly args: Expr[];
   readonly loc: Location;
 }
+/** `throw_ref` (0x0a) — re-throws an existing exception reference (EH proposal). */
 export interface ThrowRefExpr {
   readonly kind: 'throw_ref';
   readonly exnref: Expr;
   readonly loc: Location;
 }
+/** `rethrow $depth` (0x09) — legacy EH: re-throws the exception caught by the labeled outer catch. */
 export interface RethrowExpr {
   readonly kind: 'rethrow';
   readonly depth: Var;
   readonly loc: Location;
 }
 
+/** `try ... (catch ...)* (delegate ...)?` (0x06) — legacy EH; superseded by `try_table`. */
 export interface TryExpr {
   readonly kind: 'try';
   readonly label: string;
@@ -694,6 +776,7 @@ export interface TryExpr {
   readonly delegate?: Var;
   readonly loc: Location;
 }
+/** `try_table ... (catch ...)*` (0x1f) — current EH proposal; catches branch to labels. */
 export interface TryTableExpr {
   readonly kind: 'try_table';
   readonly label: string;
@@ -704,6 +787,7 @@ export interface TryTableExpr {
 }
 
 // --- SIMD ---
+/** SIMD `*.extract_lane $L` / `*.replace_lane $L` — per-lane access on v128. */
 export interface SimdLaneOpExpr {
   readonly kind: 'simd_lane_op';
   readonly opcode: Opcode;
@@ -720,6 +804,7 @@ export interface SimdLaneOpExpr {
   readonly value?: Expr;
   readonly loc: Location;
 }
+/** SIMD `i8x16.shuffle` — permutes 32 bytes from two v128 operands via 16 lane indices. */
 export interface SimdShuffleOpExpr {
   readonly kind: 'simd_shuffle';
   readonly opcode: Opcode;
@@ -728,6 +813,7 @@ export interface SimdShuffleOpExpr {
   readonly right: Expr;
   readonly loc: Location;
 }
+/** SIMD `v128.load*_lane` — loads one lane of a v128 from memory, leaving others unchanged. */
 export interface SimdLoadLaneExpr {
   readonly kind: 'simd_load_lane';
   readonly opcode: Opcode;
@@ -739,6 +825,7 @@ export interface SimdLoadLaneExpr {
   readonly vec: Expr;
   readonly loc: Location;
 }
+/** SIMD `v128.store*_lane` — stores one lane of a v128 to memory. */
 export interface SimdStoreLaneExpr {
   readonly kind: 'simd_store_lane';
   readonly opcode: Opcode;
@@ -750,6 +837,7 @@ export interface SimdStoreLaneExpr {
   readonly vec: Expr;
   readonly loc: Location;
 }
+/** SIMD `v128.load*_splat` — loads a scalar and broadcasts it to every lane. */
 export interface LoadSplatExpr {
   readonly kind: 'load_splat';
   readonly opcode: Opcode;
@@ -759,6 +847,7 @@ export interface LoadSplatExpr {
   readonly address: Expr;
   readonly loc: Location;
 }
+/** SIMD `v128.load*_zero` — loads a scalar into the first lane, zeros the rest. */
 export interface LoadZeroExpr {
   readonly kind: 'load_zero';
   readonly opcode: Opcode;
@@ -770,6 +859,7 @@ export interface LoadZeroExpr {
 }
 
 // --- Atomics ---
+/** Atomic load (`i32.atomic.load`, etc.) — sequentially-consistent read from shared memory. */
 export interface AtomicLoadExpr {
   readonly kind: 'atomic_load';
   readonly opcode: Opcode;
@@ -779,6 +869,7 @@ export interface AtomicLoadExpr {
   readonly address: Expr;
   readonly loc: Location;
 }
+/** Atomic store — sequentially-consistent write to shared memory. */
 export interface AtomicStoreExpr {
   readonly kind: 'atomic_store';
   readonly opcode: Opcode;
@@ -789,6 +880,7 @@ export interface AtomicStoreExpr {
   readonly value: Expr;
   readonly loc: Location;
 }
+/** Atomic read-modify-write (`i32.atomic.rmw.add`, etc.) — pops value, returns the prior memory contents. */
 export interface AtomicRmwExpr {
   readonly kind: 'atomic_rmw';
   readonly opcode: Opcode;
@@ -799,6 +891,7 @@ export interface AtomicRmwExpr {
   readonly value: Expr;
   readonly loc: Location;
 }
+/** Atomic compare-exchange — writes `replacement` iff memory matches `expected`; returns the old value. */
 export interface AtomicRmwCmpxchgExpr {
   readonly kind: 'atomic_rmw_cmpxchg';
   readonly opcode: Opcode;
@@ -810,6 +903,7 @@ export interface AtomicRmwCmpxchgExpr {
   readonly replacement: Expr;
   readonly loc: Location;
 }
+/** `memory.atomic.wait{32,64}` — blocks until memory at `address` changes or timeout expires. */
 export interface AtomicWaitExpr {
   readonly kind: 'atomic_wait';
   readonly opcode: Opcode;
@@ -821,6 +915,7 @@ export interface AtomicWaitExpr {
   readonly timeout: Expr;
   readonly loc: Location;
 }
+/** `memory.atomic.notify` — wakes up to `count` waiters blocked on `address`. */
 export interface AtomicNotifyExpr {
   readonly kind: 'atomic_notify';
   readonly align: number;
@@ -830,6 +925,7 @@ export interface AtomicNotifyExpr {
   readonly count: Expr;
   readonly loc: Location;
 }
+/** `atomic.fence` (0xfe 0x03) — memory fence; `consistencyModel` is always 0 currently. */
 export interface AtomicFenceExpr {
   readonly kind: 'atomic_fence';
   readonly consistencyModel: number;
@@ -837,6 +933,7 @@ export interface AtomicFenceExpr {
 }
 
 // --- Misc ---
+/** Code-metadata pseudo-expression — captures debug info attached to an instruction position. */
 export interface CodeMetadataExpr {
   readonly kind: 'code_metadata';
   readonly name: string;
@@ -848,6 +945,12 @@ export interface CodeMetadataExpr {
 // Expr — the complete union type
 // ---------------------------------------------------------------------------
 
+/**
+ * The full discriminated union of WebAssembly instruction IR nodes. Each
+ * variant carries its operands as typed children (tree shape) so a
+ * post-order walk emits the correct binary stack-machine sequence.
+ * Use the `kind` field to discriminate.
+ */
 export type Expr =
   | NopExpr
   | UnreachableExpr
@@ -937,6 +1040,7 @@ export type Expr =
   | AtomicFenceExpr
   | CodeMetadataExpr;
 
+/** Helper alias for the discriminant string of {@link Expr} (e.g. `'block'`, `'i32.const'`). */
 export type ExprKind = Expr['kind'];
 
 // ---------------------------------------------------------------------------
@@ -949,6 +1053,7 @@ export interface FuncSignature {
   results: Type[];
 }
 
+/** Structural equality for two {@link FuncSignature} values (params + results). */
 export function sigEquals(a: FuncSignature, b: FuncSignature): boolean {
   return (
     a.params.length === b.params.length &&
@@ -1035,6 +1140,12 @@ export interface Tag {
 /** An element segment (active or passive). */
 export type SegmentKind = 'active' | 'passive' | 'declared';
 
+/**
+ * An element segment in the elem section. Active segments initialize a
+ * portion of a table at instantiation; passive segments wait for an explicit
+ * `table.init`; declared segments only declare ref.func references for
+ * subsequent `ref.func` instructions.
+ */
 export interface ElemSegment {
   name: string;
   loc: Location;
@@ -1179,15 +1290,19 @@ export function makeModule(): Module {
 export function totalFuncs(m: Module): number {
   return m.numFuncImports + m.funcs.length;
 }
+/** Total number of tables in index space (imports + defined). */
 export function totalTables(m: Module): number {
   return m.numTableImports + m.tables.length;
 }
+/** Total number of memories in index space (imports + defined). */
 export function totalMemories(m: Module): number {
   return m.numMemoryImports + m.memories.length;
 }
+/** Total number of globals in index space (imports + defined). */
 export function totalGlobals(m: Module): number {
   return m.numGlobalImports + m.globals.length;
 }
+/** Total number of tags in index space (imports + defined). */
 export function totalTags(m: Module): number {
   return m.numTagImports + m.tags.length;
 }

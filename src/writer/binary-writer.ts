@@ -1230,11 +1230,16 @@ class BinaryWriter {
 // Public entry point
 // ---------------------------------------------------------------------------
 
+/** Options for {@link writeBinaryIr}. */
 export interface WriteBinaryOptions {
-  /** Write debug names (name custom section). Default: false. */
+  /** Write debug names (name custom section). Default: `false`. */
   writeDebugNames?: boolean;
 }
 
+/**
+ * Encode a {@link Module} IR as a wasm binary. Returns the bytes; the
+ * encoder doesn't accumulate errors (any IR shape it can't encode throws).
+ */
 export function writeBinaryIr(m: Module, _opts: WriteBinaryOptions = {}): Uint8Array {
   return new BinaryWriter(m).write();
 }

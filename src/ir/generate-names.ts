@@ -24,8 +24,11 @@ import type { Expr, Func, Module } from './ir.ts';
 // NameOpts
 // ---------------------------------------------------------------------------
 
+/** Bit flags for {@link generateNames}. */
 export enum NameOpts {
+  /** Default: synthesize numeric names like `$f0` / `$g0`. */
   None = 0,
+  /** Use bijective base-26 names (`a`, `b`, …, `z`, `aa`, `ab`, …) instead of numeric. */
   AlphaNames = 1 << 0,
 }
 
@@ -33,6 +36,11 @@ export enum NameOpts {
 // generateNames — entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Walk a {@link Module} and fill every unnamed entity (func, global, table,
+ * memory, tag, local, type, segment) with a synthetic name like `$f0`,
+ * `$g0`, `$l0`, … so the WAT writer can emit human-readable text.
+ */
 export function generateNames(module: Module, opts: NameOpts = NameOpts.None): Result {
   const namer = new NameGenerator(module, opts);
   namer.run();
@@ -43,6 +51,11 @@ export function generateNames(module: Module, opts: NameOpts = NameOpts.None): R
 // indexToAlphaName — bijective base-26 (matches C++ IndexToAlphaName)
 // ---------------------------------------------------------------------------
 
+/**
+ * Encode a non-negative integer as a bijective base-26 string (`0 → a`,
+ * `25 → z`, `26 → aa`, `27 → ab`, …). Matches upstream wabt's
+ * `IndexToAlphaName`.
+ */
 export function indexToAlphaName(index: number): string {
   let s = '';
   do {

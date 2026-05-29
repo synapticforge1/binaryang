@@ -31,14 +31,23 @@ import { varIndex } from './ir.ts';
 // LabelType — what kind of control structure created this label
 // ---------------------------------------------------------------------------
 
+/** What kind of control-flow construct introduced a {@link Label}. */
 export enum LabelType {
+  /** The implicit function-body label (depth N from inside the body). */
   Func = 'func',
+  /** A `block` introduces a forward label; `br $label` exits the block. */
   Block = 'block',
+  /** A `loop` introduces a backward label; `br $label` jumps to the loop header. */
   Loop = 'loop',
+  /** An `if` introduces a forward label like `block`. */
   If = 'if',
+  /** The `else` arm of an `if`. */
   Else = 'else',
+  /** A legacy `try` block (EH proposal v1). */
   Try = 'try',
+  /** A `catch` clause inside a legacy `try`. */
   Catch = 'catch',
+  /** A `try_table` block (EH proposal current). */
   TryTable = 'try_table',
 }
 
@@ -46,6 +55,7 @@ export enum LabelType {
 // Label — an entry on the label stack
 // ---------------------------------------------------------------------------
 
+/** One entry on the label stack maintained by {@link ModuleContext}. */
 export interface Label {
   name: string;
   labelType: LabelType;
@@ -62,6 +72,11 @@ interface BlockArity {
 // ModuleContext — provides arity queries and a label stack
 // ---------------------------------------------------------------------------
 
+/**
+ * Per-module helper that tracks the current function + label stack and
+ * answers per-expression arity queries. Built once per IR walk; reused
+ * across validator, binary writer, and bridge.
+ */
 export class ModuleContext {
   readonly module: Module;
 
@@ -385,10 +400,12 @@ export class ModuleContext {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Pass-through helper — returns the kind string for an Expr discriminant. */
 export function exprKindName(kind: Expr['kind']): string {
   return kind;
 }
 
+/** Construct a label-target {@link Var} from a depth-based index. */
 export function labelVar(depth: Index): Var {
   return varIndex(depth);
 }

@@ -43,6 +43,7 @@ export interface ModuleNames {
   tagNames: NameMap;
 }
 
+/** Construct an empty {@link ModuleNames} with all name maps initialized. */
 export function makeModuleNames(): ModuleNames {
   return {
     funcNames: new Map(),

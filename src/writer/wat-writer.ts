@@ -58,10 +58,11 @@ const TEXT_ENCODER = new TextEncoder();
 // Public options & entry point
 // ---------------------------------------------------------------------------
 
+/** Options for {@link writeWatModule}. */
 export interface WriteWatOptions {
-  /** Emit `(export "name")` inline inside func/global/table/memory declarations. Default: true. */
+  /** Emit `(export "name")` inline inside func/global/table/memory declarations. Default: `true`. */
   inlineExport?: boolean;
-  /** Emit `(import "m" "f")` inline inside declarations instead of standalone. Default: false. */
+  /** Emit `(import "m" "f")` inline inside declarations instead of standalone. Default: `false`. */
   inlineImport?: boolean;
 }
 

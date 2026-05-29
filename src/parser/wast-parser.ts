@@ -768,6 +768,16 @@ function flushStack(ctx: ExprCtx): void {
 // WastParser
 // ---------------------------------------------------------------------------
 
+/**
+ * Recursive-descent parser for WebAssembly text format (WAT) and the spec
+ * test format (WAST). Construct with a tokenized source; call
+ * `parseModule()` for a single module or `parseScript()` for a WAST script
+ * of `assert_*` directives. Errors accumulate in the public `errors` array.
+ *
+ * Prefer the {@link parseWatModule} / {@link parseWastScript} helpers in
+ * most cases; instantiate `WastParser` directly only if you need to peek
+ * at parser state mid-parse.
+ */
 export class WastParser {
   private tokens: readonly Token[];
   private pos = 0;
@@ -3910,13 +3920,19 @@ function parseF64LiteralBits(lit: { literalType: LiteralType; text: string }): b
 // Top-level exported parse functions
 // ---------------------------------------------------------------------------
 
+/** Return value from {@link parseWatModule}. */
 export interface ParseWatResult {
+  /** The parsed module IR. May be a partial IR if `errors` is non-empty. */
   readonly module: Module;
+  /** Parse errors. Empty array on success. */
   readonly errors: WabtError[];
 }
 
+/** Return value from {@link parseWastScript}. */
 export interface ParseWastResult {
+  /** The parsed script (module + spec-test commands). */
   readonly script: WastScript;
+  /** Parse errors. Empty array on success. */
   readonly errors: WabtError[];
 }
 

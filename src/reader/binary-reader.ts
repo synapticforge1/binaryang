@@ -93,9 +93,17 @@ import {
 // Options
 // ---------------------------------------------------------------------------
 
+/** Options for {@link readBinaryIr}. */
 export interface ReadBinaryOptions {
+  /** Source filename used in error messages. Default: `'<input>'`. */
   filename?: string;
+  /**
+   * If true (default), the `name` custom section is parsed and the names
+   * land on `func.name`, `global.name`, etc. If false, the section stays
+   * in `module.customs` unparsed (used by `wasm-strip`).
+   */
   readDebugNames?: boolean;
+  /** If true, the reader aborts on the first error rather than continuing. */
   stopOnFirstError?: boolean;
 }
 
@@ -219,6 +227,17 @@ function popN(stack: Expr[], n: number): Expr[] {
 // BinaryReader class
 // ---------------------------------------------------------------------------
 
+/**
+ * Single-class wasm binary decoder. Reads a `.wasm` byte buffer and
+ * produces a {@link Module} IR by inlining every section decoder and
+ * maintaining a per-frame operand stack during function-body decoding
+ * (the stack-to-tree conversion that turns linear bytecode into the
+ * IR's nested {@link Expr} shape).
+ *
+ * Prefer the higher-level {@link readBinaryIr} entry point in most
+ * cases; instantiate `BinaryReader` directly only if you need fine-
+ * grained control over partial section reads.
+ */
 export class BinaryReader {
   private data: Uint8Array;
   private pos = 0;
@@ -2356,6 +2375,10 @@ function abstractHeapTypeNameForByte(b: number): string | null {
 // Public entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Decode a wasm binary into a {@link Module} IR. Errors accumulate in
+ * the caller-supplied {@link ErrorList} rather than throwing.
+ */
 export function readBinaryIr(
   data: Uint8Array,
   errors: ErrorList,

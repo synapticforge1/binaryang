@@ -1,6 +1,36 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
+/**
+ * @module
+ * `wasm-validate` — validate a `.wasm` binary against the WebAssembly spec.
+ *
+ * Library entry point ({@link wasmValidate}) returns `{ errors, result }`.
+ * Decode errors and validation errors land in the same `ErrorList` so a
+ * single pass produces every diagnostic; `result` is the combined
+ * `Result.Ok` / `Result.Error`.
+ *
+ * CLI form (via `import.meta.main`):
+ *
+ * ```sh
+ * deno run -A jsr:@jrmarcum/wabt-ts/wasm-validate input.wasm
+ * ```
+ *
+ * Library usage:
+ *
+ * ```ts
+ * import { wasmValidate } from "jsr:@jrmarcum/wabt-ts/wasm-validate";
+ * import { Result, formatErrors } from "jsr:@jrmarcum/wabt-ts";
+ *
+ * const bytes = await Deno.readFile("module.wasm");
+ * const r = wasmValidate(bytes);
+ * if (r.result !== Result.Ok) console.error(formatErrors(r.errors));
+ * ```
+ *
+ * Pipeline: `readBinaryIr` → `validateModule`. Both share the same
+ * `ErrorList` so callers see decode + validation errors together.
+ */
+
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { validateModule } from '../validator/validator.ts';
@@ -12,13 +42,17 @@ import type { ErrorList } from '../core/error.ts';
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Options for {@link wasmValidate}. */
 export interface WasmValidateOptions {
-  /** Source filename shown in error messages. Default: '<input>'. */
+  /** Source filename shown in error messages. Default: `'<input>'`. */
   filename?: string;
 }
 
+/** Return value from {@link wasmValidate}. */
 export interface WasmValidateResult {
+  /** Accumulated decode + validation errors. */
   errors: ErrorList;
+  /** `Result.Ok` if the binary decodes and validates; `Result.Error` otherwise. */
   result: Result;
 }
 

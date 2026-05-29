@@ -246,6 +246,15 @@ export class NopDelegate implements ExprVisitorDelegate {}
 // ExprVisitor
 // ---------------------------------------------------------------------------
 
+/**
+ * Post-order walker for {@link Expr} trees. Constructed with an
+ * {@link ExprVisitorDelegate}; calling `visitFunc` / `visitExprList`
+ * dispatches `onXyzExpr` callbacks on the delegate in stack-machine
+ * (post-order) sequence — operands before composite nodes.
+ *
+ * Used by the binary writer, WAT writer, validator, name resolver, and
+ * any consumer that needs a callback per instruction.
+ */
 export class ExprVisitor {
   private readonly d: ExprVisitorDelegate;
 
