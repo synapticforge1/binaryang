@@ -1084,6 +1084,10 @@ class WatWriter extends ModuleContext {
   }
 
   private writeCatch(c: Catch): void {
+    // Emits only the `catch $tag` / `catch_all` clause header. The handler
+    // body is walked by the ExprVisitor's `try` case (visitExprList(c.body)
+    // runs right after onCatchExpr), so writing it here too would duplicate
+    // every handler instruction.
     this.indent -= 2;
     if (c.tag !== undefined) {
       this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
@@ -1093,7 +1097,6 @@ class WatWriter extends ModuleContext {
     }
     this.indent += 2;
     this.newline(true);
-    this.writeExprList(c.body);
   }
 
   private writeTableCatch(tc: TableCatch): void {

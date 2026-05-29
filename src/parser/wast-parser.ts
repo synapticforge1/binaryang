@@ -45,6 +45,7 @@ import {
   type CallExpr,
   type CallIndirectExpr,
   type CallRefExpr,
+  type Catch,
   CatchKind,
   type CompareExpr,
   type Const,
@@ -122,6 +123,7 @@ import {
   type TernaryExpr,
   type ThrowExpr,
   type ThrowRefExpr,
+  type TryExpr,
   type TryTableExpr,
   type TypeEntry,
   type UnaryExpr,
@@ -2263,42 +2265,66 @@ export class WastParser {
       return Result.Ok;
     }
 
-    // Try (legacy EH proposal) — still a stub. Modules using the new
-    // try_table form take the branch above; only old-style `(try ...)`
-    // modules fall through here. Coerce to a plain block; the catch
-    // clauses are silently dropped (matches pre-Phase 7 behavior).
+    // Try (legacy EH proposal). Folded syntax:
+    //   (try $label (result T)?
+    //     (do body...)
+    //     (catch $tag handler...)*
+    //     (catch_all handler...)?
+    //     (delegate $target)?)
+    // The legacy proposal is superseded by `try_table`, but wasic still
+    // emits this shape for every TypeScript try/catch/throw. We build a
+    // real TryExpr (body + catch handlers + optional delegate) so the
+    // binary writer emits the try/catch/catch_all/delegate/end opcode
+    // edges. The handler dispatch is what the WASM runtime needs: each
+    // `(catch $tag ...)` edge pushes the tag's params onto the operand
+    // stack at entry, so the handler's leading `local.set`s consume them.
+    // Earlier code coerced this to a plain block, dropping the dispatch
+    // edges and producing binaries V8 rejected ("not enough arguments on
+    // the stack for local.set").
     if (tt === TokenType.Try) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
-      // Legacy try syntax: `(try $label (result T)? (do body) (catch
-      // $tag handler)* (catch_all handler)? (delegate $target)?)`.
-      // Consume each sub-block and merge their instructions into the
-      // body — we don't track handler dispatch (the legacy form is
-      // superseded by try_table), but advancing the lexer so the rest
-      // of the module parses is what unblocks wasmtk's 15_* tests.
       const bodyCtx = newCtx();
+      const catches: Catch[] = [];
+      let delegate: Var | undefined;
       while (this.peek() === TokenType.Lpar && isTryLegacySubBlock(this.peek(1))) {
+        const subLoc = this.loc();
         this.drop(); // consume '('
-        const sub = this.consume(); // consume do/catch/catch_all/delegate keyword
-        if (sub.tokenType === TokenType.Catch) {
-          // `(catch $tag handler-instrs...)` — drop the tag var, parse handler
-          this.parseVar();
-        } else if (sub.tokenType === TokenType.Delegate) {
-          // `(delegate $target)` — drop the target var; no body
-          this.parseVar();
+        const sub = this.consume(); // do / catch / catch_all / delegate
+        if (sub.tokenType === TokenType.Do) {
+          this.parseInstrList(bodyCtx);
+        } else if (sub.tokenType === TokenType.Catch) {
+          // `(catch $tag handler...)` — tag-typed handler.
+          const tag = this.parseVar() ?? varIndex(0);
+          const handler: Expr[] = [];
+          this.parseInstrListInto(handler);
+          catches.push({ loc: subLoc, tag, isRef: false, body: handler });
+        } else if (sub.tokenType === TokenType.CatchAll) {
+          // `(catch_all handler...)` — matches any tag, no params.
+          const handler: Expr[] = [];
+          this.parseInstrListInto(handler);
+          catches.push({ loc: subLoc, isRef: false, body: handler });
+        } else {
+          // `(delegate $target)` — re-raise to an outer try; no body.
+          delegate = this.parseVar() ?? varIndex(0);
           this.expect(TokenType.Rpar);
           continue;
         }
-        this.parseInstrList(bodyCtx);
         this.expect(TokenType.Rpar);
       }
-      // Fall through: if there were no sub-blocks, treat the rest as the body.
-      if (bodyCtx.stmts.length === 0 && bodyCtx.stack.length === 0) {
+      // Bare-body form without a `(do ...)` wrapper: remaining instrs are
+      // the protected body.
+      if (
+        bodyCtx.stmts.length === 0 && bodyCtx.stack.length === 0 &&
+        catches.length === 0 && delegate === undefined
+      ) {
         this.parseInstrList(bodyCtx);
       }
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
-      const node: BlockExpr = { kind: 'block', label, blockType, body: bodyCtx.stmts, loc };
+      const node: TryExpr = delegate === undefined
+        ? { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, loc }
+        : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else ctx.stmts.push(node);
@@ -2424,8 +2450,57 @@ export class WastParser {
       return Result.Ok;
     }
 
-    // Try / TryTable  simplified
-    if (tt === TokenType.Try || tt === TokenType.TryTable) {
+    // Try (legacy EH proposal), linear form:
+    //   try $label (result T)?
+    //     body...
+    //   catch $tag handler... | catch_all handler... | delegate $target
+    //   end
+    // Builds a real TryExpr so the binary writer emits the catch/catch_all/
+    // delegate/end opcode edges. See the folded-form branch above for why
+    // the dispatch edges matter (the catch edge pushes the tag's params
+    // onto the stack for the handler's leading local.sets to consume).
+    if (tt === TokenType.Try) {
+      const label = this.parseBindVarOpt();
+      const blockType = this.parseBlockType();
+      const bodyCtx = newCtx();
+      this.parseInstrList(bodyCtx);
+      flushStack(bodyCtx);
+      const catches: Catch[] = [];
+      let delegate: Var | undefined;
+      while (this.peek() === TokenType.Catch || this.peek() === TokenType.CatchAll) {
+        const cLoc = this.loc();
+        const isCatch = this.peek() === TokenType.Catch;
+        this.drop(); // consume catch / catch_all keyword
+        const handler: Expr[] = [];
+        if (isCatch) {
+          const tag = this.parseVar() ?? varIndex(0);
+          this.parseInstrListInto(handler);
+          catches.push({ loc: cLoc, tag, isRef: false, body: handler });
+        } else {
+          this.parseInstrListInto(handler);
+          catches.push({ loc: cLoc, isRef: false, body: handler });
+        }
+      }
+      if (this.peek() === TokenType.Delegate) {
+        this.drop();
+        delegate = this.parseVar() ?? varIndex(0);
+      } else {
+        this.expect(TokenType.End);
+        if (this.peek() === TokenType.Var) this.drop(); // optional trailing label
+      }
+      const node: TryExpr = delegate === undefined
+        ? { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, loc }
+        : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
+      const hasValue = blockType.kind !== 'void';
+      if (hasValue) ctx.stack.push(node);
+      else ctx.stmts.push(node);
+      return Result.Ok;
+    }
+
+    // TryTable, linear form — simplified: parse the protected body and
+    // skip the catch-clause immediates to the matching `end`. (Folded
+    // try_table at the top of this method has full catch support.)
+    if (tt === TokenType.TryTable) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
       const bodyCtx = newCtx();

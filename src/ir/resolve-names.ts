@@ -287,9 +287,26 @@ class ResolveContext {
         for (const c of e.catches) {
           const [rC, catchBody] = this.resolveExprArray(c.body);
           result = combine(result, rC);
-          newCatches.push({ ...c, body: catchBody });
+          // Resolve the catch's tag reference ($name → tag index); the
+          // binary writer / validator read c.tag as an index. catch_all
+          // clauses carry no tag.
+          newCatches.push(
+            c.tag === undefined
+              ? { ...c, body: catchBody }
+              : { ...c, tag: this.resolveTagVar(c.tag, loc), body: catchBody },
+          );
         }
         this.labelStack.pop();
+        // `delegate $target` references an outer label scope (the try's own
+        // label is not in scope for it), so resolve it after the pop.
+        if (e.delegate !== undefined) {
+          return [result, {
+            ...e,
+            body,
+            catches: newCatches,
+            delegate: this.resolveLabelVar(e.delegate, loc),
+          }];
+        }
         return [result, { ...e, body, catches: newCatches }];
       }
       case 'try_table': {
@@ -585,6 +602,11 @@ class ResolveContext {
         const [r, exnref] = this.resolveExpr(e.exnref);
         return [r, { ...e, exnref }];
       }
+      case 'rethrow':
+        // Legacy EH: `rethrow $label` / `rethrow N` targets an enclosing
+        // try's catch. The depth is a label reference, so resolve it the
+        // same way as a `br` target (numeric depths pass through unchanged).
+        return [Result.Ok, { ...e, depth: this.resolveLabelVar(e.depth, loc) }];
       case 'br_on_null':
       case 'br_on_non_null': {
         const [r, value] = this.resolveExpr(e.value);
