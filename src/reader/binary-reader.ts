@@ -17,12 +17,7 @@ import {
   PREFIX_SIMD,
   PREFIX_THREADS,
 } from '../core/opcode.ts';
-import {
-  decodeS32Leb128,
-  decodeS64Leb128,
-  decodeU32Leb128,
-  decodeU64Leb128,
-} from '../core/leb128.ts';
+import { decodeS32Leb128, decodeS64Leb128, decodeU32Leb128 } from '../core/leb128.ts';
 
 // UTF-8 decoder reused across every name read. TextDecoder is stateless when
 // called via .decode(); a single module-level instance avoids reallocating
@@ -304,12 +299,6 @@ export class BinaryReader {
 
   private readS32Leb(): number {
     const [v, n] = decodeS32Leb128(this.data, this.pos);
-    this.pos += n;
-    return v;
-  }
-
-  private readU64Leb(): bigint {
-    const [v, n] = decodeU64Leb128(this.data, this.pos);
     this.pos += n;
     return v;
   }

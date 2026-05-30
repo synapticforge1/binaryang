@@ -227,9 +227,6 @@ class WatWriter extends ModuleContext {
   private openSpace(name: string): void {
     this.open(name, NC.Space);
   }
-  private openNewline(name: string): void {
-    this.open(name, NC.Newline);
-  }
 
   private close(nc: NC): void {
     if (this.nextChar !== NC.ForceNewline) this.nextChar = NC.None;
@@ -381,17 +378,6 @@ class WatWriter extends ModuleContext {
       this.writef(`${bt.typeIdx}`);
       this.closeSpace();
     }
-  }
-
-  private writeRefKind(t: Type, nc: NC): void {
-    const name = t === Type.Func
-      ? 'func'
-      : t === Type.ExternRef
-      ? 'extern'
-      : t === Type.ExnRef
-      ? 'exn'
-      : typeName(t);
-    this.puts(name, nc);
   }
 
   // -------------------------------------------------------------------------

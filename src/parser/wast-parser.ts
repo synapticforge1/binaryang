@@ -766,6 +766,34 @@ function flushStack(ctx: ExprCtx): void {
   ctx.stack.length = 0;
 }
 
+/**
+ * Commit `expr` as a statement, first draining any values still on the
+ * operand stack into `stmts` so source order is preserved.
+ *
+ * A value-producing instruction at statement position (most importantly a
+ * void `call`, which the parser can't distinguish from a value-returning
+ * call without the callee's signature) gets pushed onto `ctx.stack` rather
+ * than `ctx.stmts`. If it is never consumed as an operand, it lingers on the
+ * stack until the enclosing block's end-of-body `flushStack` — which appends
+ * it AFTER every genuine statement, scrambling order. Concretely,
+ * `(call $f) (local.set $x …) (return …)` would emit the call last, turning
+ * a side-effecting call into dead code after the `return`.
+ *
+ * The deficit-fill in `parseFoldedInstr` / `parseLinearPlainInstr` already
+ * pops whatever operands the current instruction consumes BEFORE this point,
+ * so any leftover stack values are genuinely in statement position and
+ * sequenced before `expr`. Flushing them here keeps that order.
+ *
+ * Fixed 2026-05-30 — reported via wasmtk's shared-heap stdlib track: a folded
+ * `sideEffectingCall(); … return X;` pattern silently sank the call past the
+ * return. Regression tests in tests/parser/stmt_order.test.ts.
+ */
+function pushStmt(ctx: ExprCtx, expr: Expr): void {
+  for (const e of ctx.stack) ctx.stmts.push(e);
+  ctx.stack.length = 0;
+  ctx.stmts.push(expr);
+}
+
 // ---------------------------------------------------------------------------
 // WastParser
 // ---------------------------------------------------------------------------
@@ -852,12 +880,6 @@ export class WastParser {
   private expect(tt: TokenType): Result {
     if (this.match(tt)) return Result.Ok;
     this.error(this.loc(), `expected ${tokenName(tt)}, got ${tokenName(this.peek())}`);
-    return Result.Error;
-  }
-
-  private expectLpar(tt: TokenType): Result {
-    if (this.matchLpar(tt)) return Result.Ok;
-    this.error(this.loc(), `expected '(' ${tokenName(tt)}`);
     return Result.Error;
   }
 
@@ -1244,15 +1266,6 @@ export class WastParser {
     const fieldName = this.parseQuotedText() ?? '';
     this.expect(TokenType.Rpar);
     return { moduleName, fieldName };
-  }
-
-  /** Parse zero or more inline exports `(export "name")`. */
-  private parseInlineExports(kind: ExternalKind, module: Module, itemIdx: number): void {
-    while (this.matchLpar(TokenType.Export)) {
-      const name = this.parseQuotedText() ?? '';
-      this.expect(TokenType.Rpar);
-      module.exports.push({ name, kind, var: varIndex(itemIdx) });
-    }
   }
 
   /** Parse an `(offset expr)` expression or bare expr for offset field of data/elem. */
@@ -2151,7 +2164,7 @@ export class WastParser {
       if (instrProducesValue(tt2)) {
         ctx.stack.push(expr);
       } else {
-        ctx.stmts.push(expr);
+        pushStmt(ctx, expr);
       }
     }
     return Result.Ok;
@@ -2177,7 +2190,7 @@ export class WastParser {
         ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
         : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2224,7 +2237,7 @@ export class WastParser {
       const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr, then_, else_, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2261,7 +2274,7 @@ export class WastParser {
       };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2327,7 +2340,7 @@ export class WastParser {
         : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2412,7 +2425,7 @@ export class WastParser {
         : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2446,7 +2459,7 @@ export class WastParser {
       const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr2, then_, else_, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2493,7 +2506,7 @@ export class WastParser {
         : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2521,7 +2534,7 @@ export class WastParser {
       const node: BlockExpr = { kind: 'block', label, blockType, body: bodyCtx.stmts, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
-      else ctx.stmts.push(node);
+      else pushStmt(ctx, node);
       return Result.Ok;
     }
 
@@ -2550,7 +2563,7 @@ export class WastParser {
     if (instrProducesValue(tt)) {
       ctx.stack.push(expr);
     } else {
-      ctx.stmts.push(expr);
+      pushStmt(ctx, expr);
     }
     return Result.Ok;
   }
