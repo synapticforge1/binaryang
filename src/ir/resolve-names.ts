@@ -252,11 +252,24 @@ class ResolveContext {
       }
       case 'ref.func':
         return [Result.Ok, { ...e, func: this.resolveFuncVar(e.func, loc) }];
-      case 'br':
-        return [Result.Ok, { ...e, target: this.resolveLabelVar(e.target, loc) }];
+      case 'br': {
+        // `br`'s optional carried value can be a full sub-expression (e.g. the
+        // flat-form `br $l (call $f …)` or an operand routed here by the
+        // linear parser's br value slot). It must be name-resolved too, or any
+        // func/global/local name inside it is left unresolved and the writer
+        // emits index 0.
+        const target = this.resolveLabelVar(e.target, loc);
+        if (e.value === undefined) return [Result.Ok, { ...e, target }];
+        return [Result.Ok, { ...e, target, value: this.resolveExpr(e.value)[1] }];
+      }
       case 'br_if': {
         const [r, cond] = this.resolveExpr(e.cond);
-        return [r, { ...e, target: this.resolveLabelVar(e.target, loc), cond }];
+        const target = this.resolveLabelVar(e.target, loc);
+        // Resolve the optional carried value as well — the flat-form parser can
+        // route a real sub-expression (e.g. an `if` containing `call $f`) into
+        // `br_if.value`; leaving it unresolved made the writer emit `call 0`.
+        if (e.value === undefined) return [r, { ...e, target, cond }];
+        return [r, { ...e, target, cond, value: this.resolveExpr(e.value)[1] }];
       }
       case 'br_table':
         return [Result.Ok, {
