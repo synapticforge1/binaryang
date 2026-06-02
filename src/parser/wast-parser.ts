@@ -3959,6 +3959,23 @@ function f64ValueToBits(v: number): bigint {
   return F64_VIEW.getBigUint64(0, true);
 }
 
+// JavaScript's parseFloat() does NOT understand WAT hex-float notation
+// (`0x1.921fb54442d18p+2`): it parses the leading "0", stops at "x", and returns 0.
+// This explicitly reconstructs the double from the sign / integer-hex / fraction-hex /
+// binary-exponent parts. For normal numbers the (1 + mantissa/2^k) * 2^exp form is exact.
+const HEX_FLOAT_PARSE_RE = /^([+-]?)0[xX]([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?[pP]([+-]?[0-9]+)$/;
+function parseHexFloatValue(s: string): number {
+  const m = HEX_FLOAT_PARSE_RE.exec(s);
+  if (!m) return NaN;
+  const [, sign, intPart, fracPart, expStr] = m;
+  const intVal = intPart && intPart.length > 0 ? parseInt(intPart, 16) : 0;
+  const fracVal = fracPart && fracPart.length > 0
+    ? parseInt(fracPart, 16) / Math.pow(16, fracPart.length)
+    : 0;
+  const result = (intVal + fracVal) * Math.pow(2, parseInt(expStr!, 10));
+  return sign === '-' ? -result : result;
+}
+
 function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): number | null {
   const { literalType, text } = lit;
   if (literalType === LiteralType.Infinity) {
@@ -3973,7 +3990,10 @@ function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): n
     }
     return text.startsWith('-') ? 0xffc00000 : 0x7fc00000;
   }
-  if (literalType === LiteralType.Float || literalType === LiteralType.Hexfloat) {
+  if (literalType === LiteralType.Hexfloat) {
+    return f32ValueToBits(Math.fround(parseHexFloatValue(text.replace(/_/g, ''))));
+  }
+  if (literalType === LiteralType.Float) {
     return f32ValueToBits(parseFloat(text.replace(/_/g, '')));
   }
   // Integer literal used in float position (e.g., `f32.const 1`) — decimal
@@ -3999,7 +4019,10 @@ function parseF64LiteralBits(lit: { literalType: LiteralType; text: string }): b
     }
     return text.startsWith('-') ? 0xfff8000000000000n : 0x7ff8000000000000n;
   }
-  if (literalType === LiteralType.Float || literalType === LiteralType.Hexfloat) {
+  if (literalType === LiteralType.Hexfloat) {
+    return f64ValueToBits(parseHexFloatValue(text.replace(/_/g, '')));
+  }
+  if (literalType === LiteralType.Float) {
     return f64ValueToBits(parseFloat(text.replace(/_/g, '')));
   }
   const n = parseNatText(text);

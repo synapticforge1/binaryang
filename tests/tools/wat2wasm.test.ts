@@ -51,6 +51,62 @@ function compileAndValidate(wat: string): Uint8Array {
   return binary;
 }
 
+describe('wat2wasm — hex-float literals (wasmtk mathlib repro)', () => {
+  // Bug: parseF32/F64LiteralBits handled LiteralType.Hexfloat with JS parseFloat(),
+  // which cannot parse WAT hex-float notation (`0x1.921fb54442d18p+2`) — it reads the
+  // leading "0", stops at "x", and returns 0. Every hex-float const (all of mathlib's
+  // polynomial coefficients, π, e, etc.) was silently encoded as 0, so merged mathlib
+  // functions returned garbage. The fix routes Hexfloat through an explicit reconstructor.
+  function instValues(wat: string, names: string[]): number[] {
+    const bin = compileAndValidate(wat);
+    const mod = new WebAssembly.Module(bin as unknown as BufferSource);
+    const inst = new WebAssembly.Instance(mod, {});
+    const exp = inst.exports as Record<string, () => number>;
+    return names.map((n) => exp[n]!());
+  }
+
+  it('parses f64 hex-float literals to their exact values', () => {
+    const vals = instValues(
+      `(module
+      (func (export "pi2")  (result f64) (f64.const 0x1.921fb54442d18p+2))
+      (func (export "one")  (result f64) (f64.const 0x1.0p+0))
+      (func (export "ln2hi")(result f64) (f64.const 0x1.62e42fefa39efp+9))
+      (func (export "neg")  (result f64) (f64.const -0x1.5555555555549p-3))
+      (func (export "zero") (result f64) (f64.const 0x0p+0)))`,
+      ['pi2', 'one', 'ln2hi', 'neg', 'zero'],
+    );
+    assertEquals(vals[0], 6.283185307179586);
+    assertEquals(vals[1], 1);
+    assertEquals(vals[2], 709.782712893384);
+    assertEquals(vals[3], -0.16666666666666632);
+    assertEquals(vals[4], 0);
+  });
+
+  it('parses f32 hex-float literals to their exact values', () => {
+    const vals = instValues(
+      `(module
+      (func (export "a") (result f32) (f32.const 0x1.5p+2))
+      (func (export "b") (result f32) (f32.const 0x1.0p+0)))`,
+      ['a', 'b'],
+    );
+    assertEquals(vals[0], 5.25);
+    assertEquals(vals[1], 1);
+  });
+
+  it('decimal floats still parse correctly (no regression)', () => {
+    const vals = instValues(
+      `(module
+      (func (export "a") (result f64) (f64.const 1.5))
+      (func (export "b") (result f64) (f64.const 3.14159))
+      (func (export "c") (result f64) (f64.const -2.5)))`,
+      ['a', 'b', 'c'],
+    );
+    assertEquals(vals[0], 1.5);
+    assertEquals(vals[1], 3.14159);
+    assertEquals(vals[2], -2.5);
+  });
+});
+
 describe('wat2wasm — end-to-end regression', () => {
   it('synthesizes a type section for inline-declared signatures (wasmtk 1.0.4 repro)', () => {
     // Bug: parser stored typeVar=index(0) but module.types was empty, so the
