@@ -232,6 +232,79 @@ function popN(stack: Expr[], n: number): Expr[] {
  * cases; instantiate `BinaryReader` directly only if you need fine-
  * grained control over partial section reads.
  */
+
+/**
+ * SIMD arith/convert sub-opcodes (the `0xfd` group) that pop ONE operand.
+ * Everything else in the arith/convert space is binary (pop 2); the lone
+ * non-relaxed ternary is `v128.bitselect` (0x52), handled separately. Derived
+ * from the canonical names in `core/opcode.ts`. Used by `decodeSimdOp` — the
+ * earlier code assumed every op in this space was binary, so it mis-popped a
+ * second operand for every unary op (abs/neg/sqrt/ceil/floor/trunc/nearest/
+ * popcnt/all_true/bitmask/extend/extadd_pairwise/trunc_sat/convert/not/
+ * any_true/demote/promote), corrupting the operand-stack reconstruction.
+ */
+const SIMD_UNARY_OPS: ReadonlySet<number> = new Set([
+  0x4d,
+  0x53, // v128.not, v128.any_true
+  0x5e,
+  0x5f, // f32x4.demote_f64x2_zero, f64x2.promote_low_f32x4
+  0x60,
+  0x61,
+  0x62,
+  0x63,
+  0x64, // i8x16 abs/neg/popcnt/all_true/bitmask
+  0x67,
+  0x68,
+  0x69,
+  0x6a, // f32x4 ceil/floor/trunc/nearest
+  0x74,
+  0x75,
+  0x7a, // f64x2 ceil/floor/trunc
+  0x7c,
+  0x7d,
+  0x7e,
+  0x7f, // extadd_pairwise (i16x8 x2, i32x4 x2)
+  0x80,
+  0x81,
+  0x83,
+  0x84, // i16x8 abs/neg/all_true/bitmask
+  0x87,
+  0x88,
+  0x89,
+  0x8a, // i16x8 extend_low/high s/u
+  0x94, // f64x2.nearest
+  0xa0,
+  0xa1,
+  0xa3,
+  0xa4, // i32x4 abs/neg/all_true/bitmask
+  0xa7,
+  0xa8,
+  0xa9,
+  0xaa, // i32x4 extend_low/high s/u
+  0xc0,
+  0xc1,
+  0xc3,
+  0xc4, // i64x2 abs/neg/all_true/bitmask
+  0xc7,
+  0xc8,
+  0xc9,
+  0xca, // i64x2 extend_low/high s/u
+  0xe0,
+  0xe1,
+  0xe3, // f32x4 abs/neg/sqrt
+  0xec,
+  0xed,
+  0xef, // f64x2 abs/neg/sqrt
+  0xf8,
+  0xf9,
+  0xfa,
+  0xfb, // i32x4.trunc_sat_f32x4_s/u, f32x4.convert_i32x4_s/u
+  0xfc,
+  0xfd,
+  0xfe,
+  0xff, // i32x4.trunc_sat_f64x2_*_zero, f64x2.convert_low_*
+]);
+
 export class BinaryReader {
   private data: Uint8Array;
   private pos = 0;
@@ -940,8 +1013,16 @@ export class BinaryReader {
                 kind = CatchKind.CatchAllRef;
                 break;
               default:
-                kind = CatchKind.Catch;
+                // Unknown catch-kind byte. The 0x00/0x01 cases read a tag
+                // varint and 0x02/0x03 don't; silently defaulting to Catch
+                // (without reading the tag) would desync the byte stream for
+                // everything after. Fail loud; the outer `this.ok()` guard then
+                // halts decoding (the partial IR is discarded by readBinaryIr).
+                this.err(`unknown try_table catch kind: 0x${catchKind.toString(16)}`);
+                kind = CatchKind.Catch; // sentinel to satisfy definite-assignment
+                break;
             }
+            if (!this.ok()) break; // stop on a malformed catch clause
             const target = varIndex(this.readU32Leb());
             const tc: TableCatch = tag ? { loc, kind, tag, target } : { loc, kind, target };
             tableCatches.push(tc);
@@ -1822,8 +1903,10 @@ export class BinaryReader {
       return;
     }
 
-    // load*_lane (0x54-0x5b): memarg + lane, 2 pops (address, vec), 1 push
-    if (op >= 0x54 && op <= 0x5b) {
+    // load*_lane (0x54-0x57): memarg + lane, 2 pops (address, vec), 1 push.
+    // NOTE: 0x58-0x5b are STORE*_lane (handled below), not load — the earlier
+    // 0x54-0x5b range swallowed the stores and decoded them as loads.
+    if (op >= 0x54 && op <= 0x57) {
       const { align, offset, memidx } = this.readMemArg();
       const lane = this.readU8();
       const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
@@ -1858,8 +1941,8 @@ export class BinaryReader {
       return;
     }
 
-    // store*_lane (0x5e-0x61): memarg + lane, 2 pops (address, vec), void
-    if (op >= 0x5e && op <= 0x61) {
+    // store*_lane (0x58-0x5b): memarg + lane, 2 pops (address, vec), void.
+    if (op >= 0x58 && op <= 0x5b) {
       const { align, offset, memidx } = this.readMemArg();
       const lane = this.readU8();
       const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
@@ -1878,24 +1961,32 @@ export class BinaryReader {
       return;
     }
 
-    // load_splat (0x07-0x0a): memarg, 1 pop (address), 1 push — already handled above
-    // (0x62-0x7b): binary SIMD ops (no immediates)
-    if (op >= 0x62 && op <= 0x7b) {
-      const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });
+    // Remaining SIMD arith / convert / compare / bitwise ops (no immediates).
+    // These reach here as the 0x23-0x53 and 0x5e-0xff ranges; arity is NOT
+    // uniformly binary, so dispatch by the actual operand count.
+    if (op === 0x52) {
+      // v128.bitselect: 3 pops (a, b, mask), 1 push.
+      const c = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const b = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const a = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      stack.push({ kind: 'ternary', opcode: opcode as Opcode, a, b, c, loc });
       return;
     }
-
-    // General: assume binary for 2-operand, unary for 1-operand SIMD ops
-    // Most remaining ops in the SIMD space are binary or unary with no immediates.
-    // For unary (0x7c-0xff range and others), use unary form as a fallback.
-    {
-      // Try binary first, fallback based on known ranges
-      const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });
+    if (SIMD_UNARY_OPS.has(op)) {
+      // 1 pop, 1 push (abs/neg/sqrt/ceil/.../convert/not/any_true/...).
+      const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      stack.push({ kind: 'unary', opcode: opcode as Opcode, operand, loc });
+      return;
     }
+    // Default: binary (2 pops, 1 push) — add/sub/mul/div/min/max/pmin/pmax,
+    // all compares, and/or/xor/andnot, narrow, shifts (vec + i32 count),
+    // q15mulr, avgr, extmul, dot. (Relaxed-SIMD ops 0x100+ also land here as
+    // binary; the genuinely-ternary relaxed madd/laneselect are not yet
+    // distinguishable because the `(prefix<<8)|sub` opcode encoding collides
+    // for sub-opcodes >= 0x100 — see opcode.ts. Tracked as a known limitation.)
+    const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+    const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+    stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });
   }
 
   // ---------------------------------------------------------------------------

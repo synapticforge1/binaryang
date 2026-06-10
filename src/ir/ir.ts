@@ -1071,7 +1071,7 @@ export interface LocalDecl {
 
 /** A type section entry — function, struct, or array type. */
 export type TypeEntry =
-  | { kind: 'func'; name: string; sig: FuncSignature; loc: Location; tailcallTarget?: boolean }
+  | { kind: 'func'; name: string; sig: FuncSignature; loc: Location }
   | { kind: 'struct'; name: string; fields: Field[]; loc: Location }
   | { kind: 'array'; name: string; field: Field; loc: Location };
 

@@ -136,13 +136,6 @@ class WatWriter extends ModuleContext {
   // Inline export map: "kind:index" → Export[]
   private readonly exportMap = new Map<string, Export[]>();
 
-  // Inline import arrays by kind (populated only when inlineImport=true)
-  private readonly funcImports: Import[] = [];
-  private readonly tableImports: Import[] = [];
-  private readonly memoryImports: Import[] = [];
-  private readonly globalImports: Import[] = [];
-  private readonly tagImports: Import[] = [];
-
   // Name → absolute index map keyed by "kind:name". Built once and used by
   // resolveVarIndex to avoid linearly scanning imports + defs for every
   // name-based Var; the writer touches resolveVarIndex once per export plus

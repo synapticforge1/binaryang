@@ -127,8 +127,21 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Write a func/global/table/type/tag/etc. index immediate. Index-form vars
+ * encode as their unsigned LEB value; a name-form var means `resolveNames`
+ * was skipped (or missed this immediate), so throw rather than silently emit
+ * index 0 — the root of the Bug-G family (a name-var quietly encoded as 0
+ * produces valid-but-wrong wasm that targets the wrong entity). Mirrors
+ * {@link writeHeapType}'s fail-loud policy.
+ */
 function writeVar(s: MemoryStream, v: Var): void {
-  s.writeU32Leb(v.kind === 'index' ? v.value : 0);
+  if (v.kind !== 'index') {
+    throw new Error(
+      `binary writer: unresolved name-var "${v.name}" — run resolveNames before encoding`,
+    );
+  }
+  s.writeU32Leb(v.value);
 }
 
 /**

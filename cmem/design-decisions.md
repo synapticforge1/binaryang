@@ -190,6 +190,45 @@ All fixed with regression tests in `tests/audit/silent_corruption_fixes.test.ts`
   (`resolveModule` walks `table.init`) and emitted (the binary writer writes the `0x40 0x00 reftype
   limits init_expr` shape).** The reader already decoded the form; the writer silently dropped it.
 
+### Round 2 (second sweep) — more of the same class
+
+Regression tests in `tests/audit/silent_corruption_fixes_round2.test.ts`.
+
+- **`writeVar` is FAIL-LOUD on a name-form var** (`src/writer/binary-writer.ts`) — it throws instead
+  of emitting index 0. This is the *root* of the Bug-G family; the sibling `writeHeapType` was
+  already fail-loud and its comment referenced `writeVar`'s silent fallback, which had never been
+  fixed. Consequence: every `resolveNames` gap now surfaces as a hard throw at encode time instead of
+  silently-wrong wasm — so resolveNames completeness is load-bearing (the 272-file wasmtk corpus
+  passes, proving real modules fully resolve). NOTE: `writeMemArg` keeps its own inline `:0` for
+  `memidx` (not via `writeVar`), so a *named* non-zero memory in a load/store memarg is still a
+  latent silent-0 — exotic multi-memory only; harden if it ever surfaces.
+- **`resolveNames` walks `simd_lane_op.value`** (the replace_lane scalar) and resolves
+  `elemSegment.tableVar` / `dataSegment.memoryVar` in `resolveModule`. Globals/funcs/tables are NOT
+  resolved at parse time (only locals are), so a `(global.get $g)` inside a replace_lane value, or a
+  `(elem (table $t1) …)` / `(data (memory $m1) …)` on a named non-zero table/memory, previously
+  leaked a name-var to the writer.
+- **SIMD reader operand arity is per-opcode, not "assume binary" (`decodeSimdOp`).** Module-level
+  `SIMD_UNARY_OPS` set drives 1-pop decoding; `v128.bitselect` (0x52) is the lone non-relaxed
+  ternary (3 pops); everything else is binary. The old code popped 2 for every arith/convert op,
+  corrupting the stack for all unary SIMD (abs/neg/sqrt/ceil/floor/trunc/nearest/popcnt/all_true/
+  bitmask/extend/extadd_pairwise/trunc_sat/convert/not/any_true/demote/promote). **Also the lane
+  load/store ranges were wrong:** load_lane is `0x54-0x57`, store_lane is `0x58-0x5b` (the old code
+  used `0x54-0x5b` for load — swallowing the stores — and `0x5e-0x61` for store, which are actually
+  the unary demote/promote/abs/neg). Known remaining limitation: genuinely-ternary *relaxed*-SIMD
+  ops (`0x105-0x10c`, `0x113`) still decode as binary because the `(prefix<<8)|sub` opcode encoding
+  collides for `sub >= 0x100` (flagged in `opcode.ts`).
+- **`parseLimits` detects the `i64`/`i32` index type** for the memory64 proposal (`(memory i64 N)`).
+  The old code matched `TokenType.I64X2` (a SIMD shape token that can never appear there) and always
+  returned `is64: false`, so memory64 from text silently lost its 64-bit flag. (Table64 from text —
+  where the index type precedes the reftype — is a separate, still-open narrow gap.)
+- **The binary reader fails loud on an unknown `try_table` catch-kind byte** instead of defaulting to
+  `Catch` without reading the tag varint (which desynced the byte stream). The outer `this.ok()`
+  guard halts decoding once the error is recorded.
+- **Dead code removed:** `WastParser.ok()` (unused), `TypeEntry`'s `tailcallTarget?` field (never set
+  or read), and `WatWriter`'s five unused `*Imports: Import[]` fields (the inline-import path is a
+  no-op). `Func.tailcall` and `Module.featuresUsed` are inert/write-only but kept (documented
+  placeholders / plausibly-public IR surface).
+
 ## Documentation invariant (JSR score)
 
 - **Every entrypoint needs an `@module` JSDoc header; every exported symbol needs a JSDoc comment

@@ -111,6 +111,9 @@ class ResolveContext {
     }
 
     for (const seg of this.module.elemSegments) {
+      // The active-segment table reference can be a named, non-zero table
+      // (`(elem (table $t) …)`); resolve it or the writer emits index 0.
+      seg.tableVar = this.resolveTableVar(seg.tableVar);
       result = combine(result, this.resolveExprList(seg.offset));
       for (const elemExpr of seg.elemExprs) {
         result = combine(result, this.resolveExprList(elemExpr));
@@ -118,6 +121,8 @@ class ResolveContext {
     }
 
     for (const seg of this.module.dataSegments) {
+      // Likewise the active-segment memory reference (`(data (memory $m) …)`).
+      seg.memoryVar = this.resolveByKind(seg.memoryVar, ExternalKind.Memory);
       result = combine(result, this.resolveExprList(seg.offset));
     }
 
@@ -649,7 +654,13 @@ class ResolveContext {
       }
       case 'simd_lane_op': {
         const [r, operand] = this.resolveExpr(e.operand);
-        return [r, { ...e, operand }];
+        // `value` is the replace_lane scalar (undefined for extract_lane). It
+        // can be a name-bearing sub-expr (e.g. `(global.get $g)`), so it must
+        // be resolved too — globals are NOT resolved at parse time (only
+        // locals are), so skipping it left `$g` as a name-var → index 0.
+        if (e.value === undefined) return [r, { ...e, operand }];
+        const [rv, value] = this.resolveExpr(e.value);
+        return [combine(r, rv), { ...e, operand, value }];
       }
       case 'simd_shuffle': {
         const [rL, left] = this.resolveExpr(e.left);

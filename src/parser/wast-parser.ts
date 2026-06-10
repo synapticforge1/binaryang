@@ -904,10 +904,6 @@ export class WastParser {
     this.errors.push({ loc, message: msg, level: ErrorLevel.Error });
   }
 
-  private ok(): boolean {
-    return !this.errors.some((e) => e.level === ErrorLevel.Error);
-  }
-
   // -------------------------------------------------------------------------
   // Synchronize (error recovery)
   // -------------------------------------------------------------------------
@@ -1185,9 +1181,22 @@ export class WastParser {
     return { heapType, nullable };
   }
 
-  /** Parse limits: `N` or `N M` optionally followed by `shared`. */
+  /** Parse limits: optional `i32`/`i64` index type, then `N` or `N M`, optionally `shared`. */
   parseLimits(): Limits | null {
-    const _is64 = this.match(TokenType.I64X2); // actually this is wrong, check index type
+    // Optional index type for the memory64 proposal: `(memory i64 N M)`.
+    // Default i32. The earlier code matched TokenType.I64X2 — a SIMD shape
+    // token that can never appear here — and always returned is64: false, so
+    // `(memory i64 …)` silently lost its 64-bit flag.
+    let is64 = false;
+    if (this.peek() === TokenType.ValueType) {
+      const vt = (this.peekToken() as TypeToken).valueType;
+      if (vt === Type.I64) {
+        this.consume();
+        is64 = true;
+      } else if (vt === Type.I32) {
+        this.consume();
+      }
+    }
     const initTok = this.peekToken();
     if (this.peek() !== TokenType.Nat && this.peek() !== TokenType.Int) {
       this.error(this.loc(), 'expected limit initial value');
@@ -1208,8 +1217,8 @@ export class WastParser {
     }
     const shared = this.match(TokenType.Shared);
     return max !== undefined
-      ? { initial, max, isShared: shared, is64: false }
-      : { initial, isShared: shared, is64: false };
+      ? { initial, max, isShared: shared, is64 }
+      : { initial, isShared: shared, is64 };
   }
 
   /** Parse a quoted string token and return its text content (without quotes). */
