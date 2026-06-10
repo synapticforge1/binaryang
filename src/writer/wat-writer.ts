@@ -44,7 +44,7 @@ import type {
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
-import { anyOpcodeName } from '../core/opcode.ts';
+import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
@@ -1502,47 +1502,5 @@ function importItemName(imp: Import): string {
       return imp.global.name;
     case ExternalKind.Tag:
       return imp.tag.name;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Natural alignment for load/store opcodes (bytes, not log2)
-// ---------------------------------------------------------------------------
-
-function naturalAlignForOpcode(op: number): number {
-  switch (op) {
-    // align 1
-    case 0x2c:
-    case 0x2d: // i32.load8_s, i32.load8_u
-    case 0x30:
-    case 0x31: // i64.load8_s, i64.load8_u
-    case 0x3a: // i32.store8
-    case 0x3c: // i64.store8
-      return 1;
-    // align 2
-    case 0x2e:
-    case 0x2f: // i32.load16_s, i32.load16_u
-    case 0x32:
-    case 0x33: // i64.load16_s, i64.load16_u
-    case 0x3b: // i32.store16
-    case 0x3d: // i64.store16
-      return 2;
-    // align 4
-    case 0x28: // i32.load
-    case 0x2a: // f32.load
-    case 0x34:
-    case 0x35: // i64.load32_s, i64.load32_u
-    case 0x36: // i32.store
-    case 0x38: // f32.store
-    case 0x3e: // i64.store32
-      return 4;
-    // align 8
-    case 0x29: // i64.load
-    case 0x2b: // f64.load
-    case 0x37: // i64.store
-    case 0x39: // f64.store
-      return 8;
-    default:
-      return 1;
   }
 }

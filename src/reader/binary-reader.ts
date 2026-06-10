@@ -130,7 +130,6 @@ class Frame {
   // try
   catches: Catch[] | undefined = undefined;
   tryBody: Expr[] | undefined = undefined;
-  currentCatchLoc: Location | undefined = undefined;
 
   // try_table
   tableCatches: TableCatch[] | undefined = undefined;
@@ -518,6 +517,11 @@ export class BinaryReader {
           break;
         }
         case ExternalKind.Tag: {
+          this.readU8(); // attribute byte (always 0 = exception) — must be
+          // consumed before the type index, exactly like readTagSection. The
+          // earlier code read the type index starting at the attribute byte,
+          // so every imported tag resolved to type 0 and the following bytes
+          // were misaligned for any subsequent import.
           const sigIdx = this.readU32Leb();
           const sig = getTypeSig(m, sigIdx);
           const tag: Tag = { name: '', loc, sig };
@@ -860,17 +864,15 @@ export class BinaryReader {
           const body = frame.flush();
           if (frame.tryBody === undefined) {
             frame.tryBody = body;
-          } else {
-            const _catchLoc = frame.currentCatchLoc ?? loc;
-            // Finish the previous catch — it was catch_all if catches has a partial one
-            // We handle this by always finishing into catches via onCatch
+          } else if (frame.catches && frame.catches.length > 0) {
+            // `body` holds the PREVIOUS catch handler's instructions. Assign it
+            // to that catch before opening the new one — otherwise every catch
+            // except the last is left with an empty body (the End finalizer
+            // only fills the final catch). Mirrors the catch_all case below.
+            frame.catches[frame.catches.length - 1]!.body = body;
           }
-          frame.currentCatchLoc = loc;
           if (frame.catches) {
-            if (frame.tryBody !== undefined) {
-              // We already have the try body; this is a new catch
-              frame.catches.push({ loc, tag: varIndex(tagIdx), isRef: false, body: [] });
-            }
+            frame.catches.push({ loc, tag: varIndex(tagIdx), isRef: false, body: [] });
           }
           break;
         }
@@ -886,7 +888,6 @@ export class BinaryReader {
             const prev = frame.catches[frame.catches.length - 1]!;
             prev.body = body;
           }
-          frame.currentCatchLoc = loc;
           if (frame.catches) frame.catches.push({ loc, isRef: false, body: [] });
           break;
         }
@@ -1717,25 +1718,47 @@ export class BinaryReader {
   private decodeSimdOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
     const opcode = (PREFIX_SIMD << 8) | op;
 
-    // v128.load variants (0x00-0x0b): memarg, 1 pop (address), 1 push (v128)
-    if (op >= 0x00 && op <= 0x0a) {
+    // v128.load + extending loads (0x00-0x06): memarg, 1 pop (address),
+    // 1 push (v128).
+    if (op >= 0x00 && op <= 0x06) {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       stack.push({ kind: 'load', opcode: opcode as Opcode, align, offset, memidx, address, loc });
       return;
     }
 
-    // v128.load64_zero treated as LoadZeroExpr
-    if (op === 0x0b) {
+    // v128.loadN_splat (0x07-0x0a): memarg, 1 pop (address), 1 push (v128).
+    // These must decode to `load_splat`, not plain `load` — the writer /
+    // validator / bridge switch on the IR kind, not the opcode.
+    if (op >= 0x07 && op <= 0x0a) {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       stack.push({
-        kind: 'load_zero',
+        kind: 'load_splat',
         opcode: opcode as Opcode,
         align,
         offset,
         memidx,
         address,
+        loc,
+      });
+      return;
+    }
+
+    // v128.store (0x0b): memarg, 2 pops (address, value), void. NOT a
+    // load_zero (the zero-extending loads are 0x5c / 0x5d, handled below).
+    if (op === 0x0b) {
+      const { align, offset, memidx } = this.readMemArg();
+      const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      stmts.push({
+        kind: 'store',
+        opcode: opcode as Opcode,
+        align,
+        offset,
+        memidx,
+        address,
+        value,
         loc,
       });
       return;

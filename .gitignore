@@ -21,8 +21,8 @@ Thumbs.db
 /binaryen-ts/
 /wasmtk/
 
-# Private working notes — kept local, not published. These hold internal
-# project context (CLAUDE.md) and the bug / phase log (TASKS.md) that we
-# don't intend to ship publicly.
+# Private working notes — kept local, not published. CLAUDE.md holds internal
+# project context that we don't intend to ship publicly. (The phase/decision
+# log formerly at /TASKS.md was moved into cmem/tasks.md — committed, portable
+# project memory — on 2026-06-09.)
 /CLAUDE.md
-/TASKS.md

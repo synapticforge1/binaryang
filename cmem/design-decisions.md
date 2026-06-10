@@ -145,6 +145,51 @@ refactor.
   spec-correct (3-way); the bridge routes via binaryen-ts so its output is 2-way. Bridge tests assert
   what the bridge emits, not what wabt-ts standalone would.
 
+## 2026-06-09 silent-corruption audit (Critical + High fixes)
+
+A six-subsystem audit found a cluster of silent-wrong-output bugs (the fail-loud footgun class).
+All fixed with regression tests in `tests/audit/silent_corruption_fixes.test.ts`. The invariants:
+
+- **The WAT lexer's SIMD opcode values must equal the canonical `opcode.ts` table.** A whole block
+  of f32x4/f64x2 float opcodes had drifted (e.g. `f32x4.div` emitted `0xeb` instead of `0xe7`;
+  `f32x4.ceil` `0xe7` instead of `0x67`), and `f64x2.pmin/pmax` collided with
+  `f64x2.convert_low_i32x4_s/u`. `opcode.ts` is the source of truth; lex values were realigned to it.
+  (Cross-check helper: parse both files and compare — the relaxed-SIMD ops 0x100–0x113 are absent
+  from `opcode.ts`'s name table, a cosmetic objdump gap, not an encoding bug.)
+- **Tag type indices are resolved from the signature, never hardcoded to 0** — both the binary
+  writer (`tagTypeIndex`, fail-loud if no matching `(func (param …))` type) and the validator
+  (`resolveTagSig`, for imported tags too). **The binary reader's tag-IMPORT decode must consume the
+  attribute byte (0x00) before the type index** (surfaced by the fix's round-trip test) — it read
+  the index starting at the attribute, so every imported tag resolved to type 0 and following bytes
+  misaligned. The defined-tag section reader already did this correctly.
+- **SIMD memory opcodes decode by exact range:** `0x00-0x06` = loads, `0x07-0x0a` = `load_splat`
+  (NOT plain `load`), `0x0b` = `v128.store` (2 pops, void — NOT `load_zero`; the zero-extending
+  loads are `0x5c`/`0x5d`). Consumers switch on the IR kind, so the kind must be right.
+  (Still-open follow-up: the reader's `0x62-0x7b` + general SIMD fallback assumes *binary* arity and
+  mis-decodes the many unary SIMD ops — popcnt/all_true/bitmask/ceil/floor/trunc/nearest/abs/neg/
+  sqrt/extend/convert/trunc_sat. Needs a per-opcode SIMD arity table; flagged High.)
+- **`resolveNames` resolves `call_ref` / `return_call_ref` `sigType`** (and walks their args+callee).
+  Same Bug-G class as `call_indirect.typeVar` — any name-bearing immediate left unresolved is
+  emitted as index 0.
+- **`trunc_sat` (`i*.trunc_sat_f*`, misc-prefixed `0xfc0X`) is type-validated via
+  `getMiscOpcodeTypeInfo`.** `getOpcodeTypeInfo` now routes `(opcode >>> 8) === PREFIX_MISC` to it;
+  previously these fell through to the SIMD `(v128,v128)→v128` default, so wrong-typed operands
+  validated clean.
+- **Legacy multi-`catch` decode assigns each catch's flushed body before opening the next** (mirrors
+  `catch_all` / the `End` finalizer). The old code discarded every catch body except the last.
+- **SIMD lane ops validate per-opcode:** `extract_lane` pops v128 / pushes the lane scalar type;
+  `replace_lane` pops [v128, scalar] / pushes v128; the lane immediate is range-checked against the
+  shape's lane count. `getExprArity` for `simd_lane_op` is 2 when `value` is set (replace), else 1.
+- **The WAT writer uses the central `naturalAlignForOpcode` from `core/opcode.ts`** — never a local
+  copy. The deleted local duplicate covered only core load/stores (`default: 1`), so SIMD memargs
+  printed a spurious/wrong `align=`. (Same duplicate-table regression class as the perf invariants.)
+- **`applyNames` does not rewrite `local.get`'s var** (locals aren't in the function-name space; the
+  per-function `localNames` map isn't populated). The old code routed it through `funcNames`, so a
+  local index colliding with a named func index was renamed to that function.
+- **Table initializer expressions (`(table … init …)` / the binary `0x40` form) are resolved
+  (`resolveModule` walks `table.init`) and emitted (the binary writer writes the `0x40 0x00 reftype
+  limits init_expr` shape).** The reader already decoded the form; the writer silently dropped it.
+
 ## Documentation invariant (JSR score)
 
 - **Every entrypoint needs an `@module` JSDoc header; every exported symbol needs a JSDoc comment

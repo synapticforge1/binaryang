@@ -94,6 +94,13 @@ class ResolveContext {
       result = combine(result, this.resolveExprList(g.init));
     }
 
+    // Table initializer expressions (reference-types `(table … (init …))` /
+    // the binary 0x40 form) carry name-bearing refs (e.g. `ref.func $f`) that
+    // must be resolved, or the writer emits index 0 for them.
+    for (const t of this.module.tables) {
+      result = combine(result, this.resolveExprList(t.init));
+    }
+
     for (const imp of this.module.imports) {
       if (imp.kind === ExternalKind.Func) {
         result = combine(result, this.resolveFunc(imp.func));
@@ -246,6 +253,21 @@ class ResolveContext {
           ...e,
           table: this.resolveTableVar(e.table, loc),
           typeVar: this.resolveTypeVar(e.typeVar, loc),
+          args,
+          callee,
+        }];
+      }
+      case 'call_ref':
+      case 'return_call_ref': {
+        // `sigType` is the function-type immediate (`(call_ref $T …)`); it must
+        // be resolved like `call_indirect`'s `typeVar`, or a named type that
+        // isn't index 0 is left unresolved and the binary writer emits index 0.
+        // The args + callee subtrees must be walked too.
+        const [rA, args] = this.resolveExprArray(e.args);
+        const [rC, callee] = this.resolveExpr(e.callee);
+        return [combine(rA, rC), {
+          ...e,
+          sigType: this.resolveTypeVar(e.sigType, loc),
           args,
           callee,
         }];

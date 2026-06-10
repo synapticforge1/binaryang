@@ -47,6 +47,7 @@ This is the durable contract for this repo. Any agent reading this file is expec
 | [testing.md](testing.md) | How to run `deno task check` / `test`; the wasmtk WAT corpus runner (`tests/wasmtk/`); the wasmtk-driven hardening loop; regression-test placement conventions |
 | [licensing.md](licensing.md) | MIT-primary with Apache-2.0 alternative; file layout (`LICENSE` / `LICENSE-MIT` / `LICENSE-APACHE` / `NOTICE.md`); per-file ported-vs-original headers; the no-compound-SPDX rule |
 | [publishing.md](publishing.md) | JSR package `@jrmarcum/wabt-ts`; tag-driven publish flow (never `deno publish` locally — OIDC provenance); the bump task + sub-version-capped-at-9 rule; CI workflows |
+| [tasks.md](tasks.md) | **Granular** implementation status, per-file checklists, and the running phase/bug/decision log (relocated from the repo-root `TASKS.md` on 2026-06-09). `phases.md` is the distilled summary; this is the detail. |
 
 ## Related files outside cmem
 
@@ -54,4 +55,6 @@ This is the durable contract for this repo. Any agent reading this file is expec
 - `CLAUDE.md` — legacy exhaustive memory archive (repo root, gitignored, machine-local; auto-loaded
   by Claude Code). The line-by-line historical record; superseded by `cmem/` as the curated source
   of truth.
-- `TASKS.md` — granular implementation status, file checklists, decision log (gitignored).
+
+(The granular task/decision log formerly at the repo-root `TASKS.md` now lives inside this folder
+as [tasks.md](tasks.md), so all project memory is in one committed, portable place.)

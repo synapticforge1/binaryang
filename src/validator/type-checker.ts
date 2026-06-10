@@ -6,7 +6,7 @@
 import { combineResults, Result } from '../core/result.ts';
 import { Type, typeName } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
-import { MiscOpcode, Opcode } from '../core/opcode.ts';
+import { MiscOpcode, Opcode, PREFIX_MISC } from '../core/opcode.ts';
 import { LabelType } from '../ir/ir-util.ts';
 
 // ---------------------------------------------------------------------------
@@ -45,6 +45,13 @@ function oi(r1: Type, p1: Type, p2: Type, p3: Type, nat: number): OpcodeTypeInfo
 }
 
 function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
+  // Misc-prefixed (0xfc) opcodes reach here via ConvertExpr (the saturating
+  // truncations `i*.trunc_sat_f*`). They are NOT SIMD and must use the misc
+  // table; otherwise they fall through to the SIMD default below and get
+  // type-checked as `(v128,v128)→v128`, so wrong-typed operands validate clean.
+  if ((opcode >>> 8) === PREFIX_MISC) {
+    return getMiscOpcodeTypeInfo(opcode & 0xff);
+  }
   switch (opcode) {
     // --- Loads ---
     case Opcode.I32Load:
@@ -1257,9 +1264,53 @@ export class TypeChecker {
     return this.setUnreachable();
   }
 
-  onSimdLaneOp(_opcode: number, _lane: number): Result {
-    const r = this.dropTypes(1);
-    this.pushType(_V128);
+  onSimdLaneOp(opcode: number, lane: number): Result {
+    // SIMD lane sub-opcodes (0x15-0x22). `extract_lane` pops a v128 and pushes
+    // the lane's scalar type; `replace_lane` pops [v128, scalar] and pushes a
+    // v128. The earlier stub did a blanket `drop 1 / push v128`, which (a)
+    // dropped only one operand for replace_lane (its scalar was never checked),
+    // (b) gave extract_lane the wrong result type, and (c) never range-checked
+    // the lane immediate. `laneCount` is the number of lanes for the shape.
+    // (laneType, laneCount) per shape; the replace family is the odd opcodes.
+    const sub = opcode & 0xff;
+    const isReplace = sub === 0x17 || sub === 0x1a || sub === 0x1c ||
+      sub === 0x1e || sub === 0x20 || sub === 0x22;
+    let laneType: Type;
+    let laneCount: number;
+    if (sub >= 0x15 && sub <= 0x17) { // i8x16
+      laneType = _I32;
+      laneCount = 16;
+    } else if (sub >= 0x18 && sub <= 0x1a) { // i16x8
+      laneType = _I32;
+      laneCount = 8;
+    } else if (sub === 0x1b || sub === 0x1c) { // i32x4
+      laneType = _I32;
+      laneCount = 4;
+    } else if (sub === 0x1d || sub === 0x1e) { // i64x2
+      laneType = _I64;
+      laneCount = 2;
+    } else if (sub === 0x1f || sub === 0x20) { // f32x4
+      laneType = _F32;
+      laneCount = 4;
+    } else if (sub === 0x21 || sub === 0x22) { // f64x2
+      laneType = _F64;
+      laneCount = 2;
+    } else {
+      this.printError(`invalid SIMD lane opcode 0x${sub.toString(16)}`);
+      return Result.Error;
+    }
+    let r: Result = Result.Ok;
+    if (lane < 0 || lane >= laneCount) {
+      this.printError(`SIMD lane index ${lane} out of range (0..${laneCount - 1})`);
+      r = Result.Error;
+    }
+    if (isReplace) {
+      r = combineResults(r, this.popAndCheck2Types(_V128, laneType, 'replace_lane'));
+      this.pushType(_V128);
+    } else {
+      r = combineResults(r, this.popAndCheck1Type(_V128, 'extract_lane'));
+      this.pushType(laneType);
+    }
     return r;
   }
 

@@ -943,12 +943,7 @@ class BinaryWriter {
             break;
           case ExternalKind.Tag:
             s.writeU8(0x00); // attribute = exception (only valid value)
-            writeVar(
-              s,
-              imp.tag.sig.params.length > 0
-                ? { kind: 'index', value: 0 } // TODO: look up type index from sig
-                : { kind: 'index', value: 0 },
-            );
+            s.writeU32Leb(this.tagTypeIndex(imp.tag.sig.params));
             break;
         }
       }
@@ -978,8 +973,20 @@ class BinaryWriter {
     s.writeSection(BinarySection.Table, () => {
       s.writeU32Leb(m.tables.length);
       for (const t of m.tables) {
-        s.writeU8(t.elemType as number);
-        writeLimits(s, t.limits);
+        if (t.init.length > 0) {
+          // table-with-initializer form (reference-types proposal):
+          // 0x40 0x00 reftype limits init_expr. The binary reader decodes
+          // this shape (readTableSection); emitting only `reftype limits`
+          // here silently dropped the initializer and desynced the round-trip.
+          s.writeU8(0x40);
+          s.writeU8(0x00);
+          s.writeU8(t.elemType as number);
+          writeLimits(s, t.limits);
+          this.writeInitExpr(t.init);
+        } else {
+          s.writeU8(t.elemType as number);
+          writeLimits(s, t.limits);
+        }
       }
     });
   }
@@ -1008,17 +1015,40 @@ class BinaryWriter {
       s.writeU32Leb(m.tags.length);
       for (const tag of m.tags) {
         s.writeU8(0x00); // attribute = exception
-        // Find the type index that matches this tag's sig
-        const idx = m.types.findIndex(
-          (t) =>
-            t.kind === 'func' &&
-            t.sig.params.length === tag.sig.params.length &&
-            t.sig.params.every((p, i) => p === tag.sig.params[i]) &&
-            t.sig.results.length === 0,
-        );
-        s.writeU32Leb(idx >= 0 ? idx : 0);
+        s.writeU32Leb(this.tagTypeIndex(tag.sig.params));
       }
     });
+  }
+
+  /**
+   * Resolve the type-section index whose `(func (param …) (result))` signature
+   * matches a tag's signature. Tags always have zero results in the exception
+   * model, so a tag's type is the func type with the same params and no
+   * results.
+   *
+   * Throws (fail-loud) when no matching type exists rather than silently
+   * emitting index 0 — an unresolved tag type index corrupts the binary
+   * (a decoder reads the wrong/short signature). The `synthesizeTypes` pass
+   * (run by `wat2wasm`/`compat`) and binary-read modules both guarantee a
+   * matching entry; a module reaching the writer without one is malformed.
+   */
+  private tagTypeIndex(params: readonly Type[]): number {
+    const idx = this.m.types.findIndex(
+      (t) =>
+        t.kind === 'func' &&
+        t.sig.params.length === params.length &&
+        t.sig.params.every((p, i) => p === params[i]) &&
+        t.sig.results.length === 0,
+    );
+    if (idx < 0) {
+      throw new Error(
+        `binary writer: no (type (func (param ${
+          params.map((p) => (p as number).toString(16)).join(' ')
+        }))) in the type section matches the tag signature; ` +
+          `cannot encode tag type index (run synthesizeTypes first)`,
+      );
+    }
+    return idx;
   }
 
   // ---------------------------------------------------------------------------

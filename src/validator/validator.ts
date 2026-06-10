@@ -181,14 +181,13 @@ class ModuleValidator implements ExprVisitorDelegate {
           this.acc(this.sv.onGlobalImport(imp.global.loc, imp.global.type, imp.global.mutable));
           break;
         case ExternalKind.Tag:
+          // A tag's type is the func type with the same params and no results.
+          // Resolve it the same way as a defined tag rather than assuming
+          // index 0 (which silently mis-typed any non-first tag signature).
           this.acc(
             this.sv.onTag(
               imp.tag.loc,
-              varIdx(
-                imp.tag.sig.params.length > 0
-                  ? { kind: 'index', value: 0 }
-                  : { kind: 'index', value: 0 },
-              ),
+              this.resolveTagSig(imp.tag.sig.params, imp.tag.sig.results),
             ),
           );
           break;

@@ -234,7 +234,9 @@ export class ModuleContext {
       case 'load_zero':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'simd_lane_op':
-        return { nargs: 1, nreturns: 1, unreachable: false };
+        // extract_lane pops 1 (the vec); replace_lane pops 2 (vec + scalar).
+        // `value` is present iff this is a replace_lane.
+        return { nargs: expr.value !== undefined ? 2 : 1, nreturns: 1, unreachable: false };
       case 'simd_shuffle':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd_load_lane':

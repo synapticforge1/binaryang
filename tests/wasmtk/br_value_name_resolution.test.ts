@@ -71,7 +71,12 @@ describe('regression: resolveNames recurses into br_if.value', () => {
 
     // Module must validate AND execute with the right semantics.
     const mod = await WebAssembly.instantiate(binary as BufferSource, {
-      wasi: { proc_exit() {}, fd_write() { return 0; } },
+      wasi: {
+        proc_exit() {},
+        fd_write() {
+          return 0;
+        },
+      },
     });
     const exports = mod.instance.exports as Record<string, unknown>;
     const mem = new Uint8Array((exports.memory as WebAssembly.Memory).buffer);

@@ -217,7 +217,13 @@ function rewriteExprVars(e: Expr, ctx: ApplyContext): Expr {
   const { names } = ctx;
   switch (e.kind) {
     case 'local.get':
-      return { ...e, var: rewriteVar(e.var, names.funcNames) };
+      // Locals are NOT in the function-name space. The previous code rewrote
+      // the local index through `funcNames`, so a local index that collided
+      // with a named function index was silently renamed to that function.
+      // Local names would require a per-function local-name map (not currently
+      // populated by the name-section reader), so leave the index as-is —
+      // consistent with local.set / local.tee, which don't rewrite their var.
+      return e;
     case 'local.set':
       return { ...e, value: rewriteExprVars(e.value, ctx) };
     case 'local.tee':
