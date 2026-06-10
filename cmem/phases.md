@@ -1,6 +1,10 @@
 # Phase delivery plan & per-phase gotchas
 
-## Status (current: v1.3.0 on JSR; binaryen-ts pinned v1.0.9)
+## Status (deno.json at v1.3.2; binaryen-ts pinned v1.0.9)
+
+> The 2026-06-09 silent-corruption audit (~18 root-cause fixes across parser/reader/writer/
+> validator/ir) is **unreleased in the working tree** on top of v1.3.2 — see
+> [design-decisions.md](design-decisions.md) and [tasks.md](tasks.md).
 
 | Phase | Scope | Status | Notes |
 | --- | --- | --- | --- |

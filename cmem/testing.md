@@ -13,8 +13,10 @@ Tests use `@std/testing/bdd` (`jsr:@std/testing`) so the same files run under `d
 `bun test`. Import via the `@std/testing` entry in `deno.json`'s import map.
 
 Test tree mirrors `src/`: `tests/core/`, `tests/reader/`, `tests/writer/`, `tests/parser/`,
-`tests/validator/`, `tests/bridge/`, `tests/tools/`, `tests/api/`, plus `tests/fixtures/` (`.wasm` /
-`.wat` vectors) and `tests/wasmtk/` (real-world corpus, below).
+`tests/validator/`, `tests/bridge/`, `tests/tools/`, `tests/api/`, `tests/audit/` (the
+silent-corruption audit regressions), plus `tests/fixtures/` (`.wasm` / `.wat` vectors) and
+`tests/wasmtk/` (real-world corpus, below). Full suite is **146 tests / 1044 steps** as of
+2026-06-09.
 
 ## The wasmtk WAT corpus
 
@@ -50,6 +52,13 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   coverage (GC tiers verify binary encoding, not V8 round-trip — typed-ref IR is loose).
 - `tests/api/wabt_compat.test.ts` — 12 steps incl. the exact wasmtk call patterns from
   `src/utils.ts` and `src/wasmbundle.ts`.
+- `tests/audit/silent_corruption_fixes.test.ts` — the 2026-06-09 audit round-1 Critical+High fixes
+  (SIMD float lexer opcodes, tag-import type index, v128.store/load_splat decode, call_ref sigType,
+  trunc_sat validation, multi-catch body, SIMD lane validation/arity, natural-align, apply-names
+  local.get, Table.init).
+- `tests/audit/silent_corruption_fixes_round2.test.ts` — the round-2 fixes (SIMD reader operand
+  arity + lane ranges, `writeVar` fail-loud, resolveNames `simd_lane_op.value`/segment-var gaps,
+  `parseLimits` memory64 index type, `try_table` unknown-catch-kind fail-loud).
 
 When fixing a footgun/silently-wrong bug, add the regression alongside the invariant note in
 [design-decisions.md](design-decisions.md). Fail-loud (throw) over silent-wrong output is the

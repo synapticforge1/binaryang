@@ -158,6 +158,47 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-06-09 — Silent-corruption audit (two rounds, unreleased)
+
+A two-pass fail-loud audit (6 + 4 parallel review agents) of the whole `src/` tree for workarounds,
+silent-wrong-output bugs, fallthroughs, and dead code. ~18 root-cause fixes landed in the working
+tree (deno.json is at v1.3.2; these fixes are not yet committed/bumped/published). Full invariant list with rationale is
+in [design-decisions.md](design-decisions.md) (sections "2026-06-09 silent-corruption audit" +
+"Round 2"); regressions in `tests/audit/silent_corruption_fixes*.test.ts`. Suite 131 → **146 tests
+/ 1044 steps**, all green; lint + fmt clean; the 272-file wasmtk corpus still passes (it now flows
+through the fail-loud `writeVar`).
+
+**Round 1 — Critical+High:** SIMD float opcode values in the lexer realigned to `opcode.ts` (div/
+ceil/min/pmin/… were shifted; f64x2 pmin/pmax collided with the convert ops); tag type index
+resolved from signature instead of hardcoded 0 (writer + validator) **and** the binary reader's
+tag-import decode now consumes the attribute byte before the type index (bonus bug a round-trip test
+surfaced — every imported tag had resolved to type 0); v128.store/loadN_splat decode split
+(0x0b was decoded as load_zero, dropping an operand); `resolveNames` resolves `call_ref`/
+`return_call_ref` `sigType`; `trunc_sat` routed through `getMiscOpcodeTypeInfo` (was validated as
+v128); multi-`catch` body assignment; SIMD lane-op validation + `replace_lane` arity; deleted the
+duplicate `naturalAlignForOpcode` in the WAT writer; `applyNames` no longer rewrites `local.get`
+through `funcNames`; `Table.init` resolved + emitted (0x40 form).
+
+**Round 2 (completeness sweep) — more of the same class:** `decodeSimdOp` operand arity is now
+per-opcode (`SIMD_UNARY_OPS` set + `v128.bitselect`→ternary; everything else binary) — the old code
+popped 2 for every arith op, corrupting all unary SIMD; **the lane load/store ranges were also
+wrong** (load_lane `0x54-0x57`, store_lane `0x58-0x5b`; the old code used `0x54-0x5b` for load and
+`0x5e-0x61`, which are unary demote/promote/abs/neg, for store). `writeVar` is now FAIL-LOUD on a
+name-var (the root of the Bug-G family). `resolveNames` closed three more leaks: `simd_lane_op.value`
+(replace_lane scalar), `elemSegment.tableVar`, `dataSegment.memoryVar`. `parseLimits` detects the
+`i64`/`i32` index type (memory64 from text was always `is64:false` — it matched the nonsense
+`i64x2` SIMD token). `try_table` fails loud on an unknown catch-kind byte instead of desyncing.
+Dead code removed: `WastParser.ok()`, `TypeEntry.tailcallTarget?`, five unused `WatWriter`
+`*Imports` fields.
+
+**Known-open / deliberately deferred:** relaxed-SIMD ternary decode (blocked by the `(prefix<<8)|sub`
+opcode-encoding collision for sub ≥ 0x100); table64-from-text (index type precedes the reftype);
+`writeMemArg`'s inline `:0` for a named multi-memory memidx; and the round-1 Medium/Low items not yet
+swept (`parseNatText` multi-underscore, `assert_trap (module)` mislabel, `wabt-compat`
+`write_debug_names` ignored, `wasm-objdump -h` no-op).
+
+---
+
 ## Phase Status Overview
 
 | Phase | Scope | Status |
