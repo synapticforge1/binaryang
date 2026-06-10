@@ -115,7 +115,10 @@ export function decodeU64Leb128(
     result |= BigInt(byte & 0x7f) << shift;
     shift += 7n;
     if ((byte & 0x80) === 0) {
-      if (shift > 70n) throw new RangeError('LEB128 u64 overflow');
+      // 10th byte (shift === 70): only bit 0 (→ value bit 63) is valid; bits
+      // 1-6 land at positions 64-69 and would be silently truncated by
+      // asUintN(64) — reject instead of accepting an over-long encoding.
+      if (shift === 70n && (byte & 0x7e) !== 0) throw new RangeError('LEB128 u64 overflow');
       return [BigInt.asUintN(64, result), i - offset];
     }
     if (shift >= 70n) throw new RangeError('LEB128 u64 overflow');
@@ -188,6 +191,13 @@ export function decodeS32Leb128(bytes: Uint8Array, offset = 0): [value: number, 
     result |= (byte & 0x7f) << shift;
     shift += 7;
     if ((byte & 0x80) === 0) {
+      // 5th byte (shift === 35): bits 4-6 land at value positions 32-34 and
+      // must be a sign-extension of bit 31 (byte bit 3). Valid 5th bytes have
+      // bits 3-6 all-0 (non-negative) or all-1 (negative); anything else is an
+      // out-of-range encoding that `result | 0` would silently truncate.
+      if (shift === 35 && (byte & 0x78) !== 0 && (byte & 0x78) !== 0x78) {
+        throw new RangeError('LEB128 s32 overflow');
+      }
       if (shift < 32 && (byte & 0x40) !== 0) {
         result |= ~0 << shift; // sign-extend
       }
@@ -218,6 +228,13 @@ export function decodeS64Leb128(
     result |= BigInt(byte & 0x7f) << shift;
     shift += 7n;
     if ((byte & 0x80) === 0) {
+      // 10th byte (shift === 70): bit 0 is value bit 63 (sign); bits 1-6 land
+      // at positions 64-69 and must sign-extend it. Valid 10th bytes are 0x00
+      // (non-negative) or 0x7f (negative); anything else is an over-range
+      // encoding that `asIntN(64)` would silently truncate.
+      if (shift === 70n && (byte & 0x7f) !== 0 && (byte & 0x7f) !== 0x7f) {
+        throw new RangeError('LEB128 s64 overflow');
+      }
       if (shift < 64n && (byte & 0x40) !== 0) {
         result |= ~0n << shift; // sign-extend
       }

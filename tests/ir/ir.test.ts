@@ -331,13 +331,13 @@ describe('ExprVisitor', () => {
 // ---------------------------------------------------------------------------
 
 describe('generateNames', () => {
-  it('generates numeric names by default', () => {
+  it('generates numeric names by default (with leading $)', () => {
     const m = makeModule();
     m.funcs.push(makeFuncBody([]));
     m.funcs.push(makeFuncBody([]));
     generateNames(m);
-    assertEquals(m.funcs[0]?.name, 'f0');
-    assertEquals(m.funcs[1]?.name, 'f1');
+    assertEquals(m.funcs[0]?.name, '$f0');
+    assertEquals(m.funcs[1]?.name, '$f1');
   });
 
   it('leaves pre-existing names unchanged', () => {
@@ -353,7 +353,7 @@ describe('generateNames', () => {
     const m = makeModule();
     m.globals.push({ name: '', loc: LOC, type: Type.I32, mutable: false, init: [] });
     generateNames(m);
-    assertEquals(m.globals[0]?.name, 'g0');
+    assertEquals(m.globals[0]?.name, '$g0');
   });
 
   it('alpha names: indexToAlphaName base cases', () => {
@@ -363,11 +363,11 @@ describe('generateNames', () => {
     assertEquals(indexToAlphaName(27), 'ba');
   });
 
-  it('AlphaNames option uses alpha scheme', () => {
+  it('AlphaNames option uses alpha scheme (with $ + namespace prefix)', () => {
     const m = makeModule();
     m.funcs.push(makeFuncBody([]));
     generateNames(m, NameOpts.AlphaNames);
-    assertEquals(m.funcs[0]?.name, 'a');
+    assertEquals(m.funcs[0]?.name, '$fa');
   });
 });
 

@@ -574,7 +574,16 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   beginTryTableExpr(e: TryTableExpr): Result {
-    return this.sv.beginTryTable(e.loc, e.blockType);
+    let r = this.sv.beginTryTable(e.loc, e.blockType);
+    // Bounds-check each catch clause's tag immediate (was previously never
+    // validated — an out-of-range tag in a try_table catch validated clean).
+    for (const c of e.catches) {
+      r = combineResults(
+        r,
+        this.sv.onTryTableCatch(e.loc, c.kind, c.tag !== undefined ? varIdx(c.tag) : undefined),
+      );
+    }
+    return r;
   }
   endTryTableExpr(e: TryTableExpr): Result {
     return this.sv.onEnd(e.loc);

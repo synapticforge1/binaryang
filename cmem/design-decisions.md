@@ -229,6 +229,131 @@ Regression tests in `tests/audit/silent_corruption_fixes_round2.test.ts`.
   no-op). `Func.tailcall` and `Module.featuresUsed` are inert/write-only but kept (documented
   placeholders / plausibly-public IR surface).
 
+### Round 3 (third sweep) — core encoding + remaining backlog
+
+Regressions in `tests/audit/silent_corruption_fixes_round3.test.ts`.
+
+- **LEB128 decoders reject out-of-range encodings** (`src/core/leb128.ts`). `decodeU32Leb128` already
+  validated its 5th byte, but `decodeU64Leb128` / `decodeS32Leb128` / `decodeS64Leb128` silently
+  truncated an over-range terminating byte via `asUintN`/`asIntN`/`| 0`. They now throw: u64 rejects a
+  10th byte with bits 1-6 set; s32/s64 require the terminating byte to be a proper sign-extension
+  (bits all-0 or all-1).
+- **`parseNatText` strips ALL digit separators** (`text.replace(/_/g, '')`). The old
+  `replace('_', '')` removed only the first underscore, so any literal with ≥2 separators
+  (`1_000_000`) threw → `null` → callers silently defaulted to index/value **0**. The remaining
+  `?? 0` / `?? 0n` index-default sites (`parseRefImmediate` type index, `i8x16.shuffle` lanes,
+  `parseSimdLane`) now emit a parse error on a malformed literal instead of defaulting to 0.
+- **Canonical quiet NaN prints as bare `nan`** (`printF32Literal` / `printF64Literal`). The f32
+  `payload === 0 ? '200000'` fallback re-parsed to a DIFFERENT NaN (`0x7fc00000` → `0x7fe00000`)
+  because the parser re-adds the quiet bit; bare `nan` round-trips. (f64 happened to round-trip by
+  coincidence; made consistent.)
+- **Binary-writer segment encoding hardened.** New `varIndexValue(v, label)` helper (fail-loud sibling
+  of `writeVar`) replaces the inline `kind === 'index' ? value : 0` fallbacks for elem `tableVar` /
+  data `memoryVar` — an unresolved name-var there silently retargeted the segment to table/memory 0.
+  Active table-0 elem segments use flags 4 (which carries **no** reftype byte) only when the element
+  type is funcref; a non-funcref (e.g. externref) segment now uses flags 6 so the reftype survives. A
+  `declared`-kind **data** segment (meaningless — declared is elem-only) now throws instead of being
+  silently re-encoded as passive.
+- **WAT writer atomic memargs use `naturalAlignForOpcode(e.opcode)`**, not a hardcoded `1` — so an
+  atomic op at its natural alignment no longer prints a spurious `align=` (and notify uses the
+  central table via its fixed opcode). Restores the central-natural-align invariant for atomics.
+- **`onTag` propagates `Result.Error`** when a tag signature has results (was adding the error to the
+  list but returning `Result.Ok`). **Bridge `replace_lane`** throws on a missing scalar `value`
+  instead of fabricating a `nop`. **`parseRefType`** drops the dead `isNull ? Type.FuncRef :
+  Type.FuncRef` ternaries (the flat `Type` enum can't carry nullability — documented typed-ref-loose
+  limitation; the ternaries implied otherwise).
+- **`applyNames` partial-recursion gap documented + `call_indirect.typeVar` rewritten.** The
+  expression-var rewriter's `default` doesn't descend into every composite node, so a name-bearing
+  var under an unhandled node stays index-form. This is **fidelity-only** (output stays valid as
+  numeric indices) and `applyNames` is not wired into any tool pipeline (`wasm2wat` uses
+  `generateNames`); the docstring no longer overstates coverage, and the `typeVar` immediate (mirror
+  of the resolveNames Bug-G fix) is now rewritten. Folding `applyNames` onto `ExprVisitor` to walk
+  every child is the tracked follow-up.
+
+**Verified clean this round:** `expr-visitor` walks every child of every variant; the bridge has no
+silent-wrong case (all gaps are fail-loud throws); tool pipelines (wat2wasm/wasm2wat/validate/strip)
+are correctly ordered; no new dead code beyond what round 2 removed. **Still-open / deferred:**
+`assert_trap (module …)` mislabeled `assert_invalid` (wast-script only; needs a command-type change);
+`wasm-objdump -h` no-op; `wabt-compat` `write_debug_names` ignored (documented); the `applyNames`
+ExprVisitor rewrite; `parseHexFloat` full-mantissa precision (lexer-level; const path uses the
+dedicated `parseF64Bits`).
+
+### Round 4 (fourth sweep) — validator soundness + lexer fail-loud
+
+Targeted the less-reviewed lexer internals and deeper validator logic. Regressions in
+`tests/audit/silent_corruption_fixes_round4.test.ts`.
+
+- **`return_call` / `return_call_indirect` / `return_call_ref` result-type soundness**
+  (`type-checker.ts popAndCheckReturnCall`). A tail call returns the callee's results directly to the
+  caller's caller, so the callee result types must match the ENCLOSING FUNCTION's result types — a
+  type-vector comparison against `getFuncLabel().resultTypes`, NOT a `checkSignature` peek of the
+  operand stack (which holds only the already-popped params). The old peek let a tail call to a
+  wrong-result-type function validate clean.
+- **`return_call_ref` pops the function reference** (new `TypeChecker.onReturnCallRef`, mirroring
+  `onCallRef`). The old path routed through `onReturnCall`, leaving the ref operand on the stack —
+  an off-by-one for every `return_call_ref`.
+- **`try_table` catch tag immediates are bounds-checked** (`onTryTableCatch` + the validator's
+  `beginTryTableExpr` now walks `e.catches`). An out-of-range tag in a catch clause previously
+  validated clean. (Remaining gap: the catch branch-target *type* reconciliation against the labeled
+  block type — the flat operand model doesn't carry the tag's params into the target check.)
+- **`onAtomicFence` propagates `Result.Error`** for a non-zero consistency model (same fix family as
+  `onTag` — error was recorded but the node returned Ok).
+- **Lexer fail-loud:** an unterminated string at EOF now records an error (was a silent bare EOF);
+  a bare `$` with no idchars errors as an empty identifier (was a `Var` with text `"$"`); `\u{}` with
+  no hex digits errors (was silently U+0000).
+- **Dead code removed:** `TypeChecker.typeStackSize()` / `isUnreachable()` and
+  `SharedValidator.endTryTable()` (the try_table label closes via `onEnd`). These had been flagged in
+  round 1 but not actually removed until now.
+
+**Verified clean this round:** token classification (value-type vs refkind payloads), number/escape
+lexing aside from the gaps above, `matchStr` rewind, comment nesting, sign+inf/nan paths; validator
+error-propagation (all other `printError` sites fold into the Result), begin/end label pairing, no
+silent-accept switch defaults. **Still-open / minor:** lexer accepts trailing/consecutive
+underscores (value still correct) and has a dead `isDigit && !readNum()` guard in `getNumberToken`;
+`LexerSource.slice`/`size`/`isEof`/`peek(offset)` are unused but public API; plus the carry-over
+deferred items (`assert_trap (module)` mislabel, `wasm-objdump -h`, `wabt-compat write_debug_names`,
+the `applyNames` ExprVisitor rewrite, `try_table` catch branch-type reconciliation).
+
+### Round 5 (fifth sweep) — generateNames produced invalid WAT
+
+Targeted the least-reviewed files. One HIGH-severity bug + two related issues, all in
+`src/ir/generate-names.ts`. Regression in `tests/audit/silent_corruption_fixes_round5.test.ts`.
+
+- **Synthetic names MUST carry the leading `$`.** `make()` returned `${prefix}${index}` (`f0`, `g0`,
+  `t0`, `B0`) with no `$`. The binary reader and WAT parser store names WITH the `$`, and the WAT
+  writer emits them verbatim ("s must begin with '$'"), so `wasm2wat` of any nameless module (the
+  common case) emitted `(func f0 …)` — **invalid WAT that does not round-trip** through `wat2wasm`
+  (`expected (, got <token>`). Four prior passes missed it because no test round-tripped
+  `wasm2wat → wat2wasm`; round 5 added that guard. Fixed: `make()` prepends `$`.
+- **Alpha-name mode dropped the per-namespace prefix** — `indexToAlphaName(index)` alone made func 0,
+  global 0, type 0 all `a`. Now `$` + prefix + alpha (`$fa`), so namespaces don't collapse.
+- **No disambiguation against user names.** A module that names func 1 `$f0` (legal) while func 0 is
+  unnamed would give two `$f0` funcs (duplicate binding / invalid WAT). `run()` now seeds a
+  per-namespace `used` set from existing names and `uniqueName()` appends `_1`, `_2`, … until unique.
+
+The existing `generateNames` unit tests in `tests/ir/ir.test.ts` had **codified the buggy bare
+names** (`f0`/`g0`/`a`); updated to the correct `$f0`/`$g0`/`$fa`. The new round-5 test asserts the
+`wasm2wat` disassembly of a nameless module re-compiles cleanly (the permanent guard for this whole
+class) plus the collision-disambiguation case.
+
+**Verified clean this round:** `core/binary.ts` (section IDs / external kinds / magic constants),
+`core/feature.ts` (defaults), the `binary-reader-ir`/`-nop` shims, `apply-names` on the wrong-map
+axis (every rewritten var uses the correct map), the GC decode paths (`decodeGcOp` struct/array/i31/
+ref.test/ref.cast opcodes + pop orders) and the bridge GC type-lookup helpers.
+
+### Round 6 (sixth sweep) — structural round-trip coverage, no new bugs
+
+Rather than more static review (diminishing returns after five passes), this pass added the
+property-test coverage that surfaces the round-5 class structurally: a `wat2wasm → wasm2wat →
+wat2wasm` round-trip over all 272 wasmtk corpus modules (`tests/wasmtk/roundtrip.test.ts`) plus a
+hand battery of feature-heavy modules (SIMD unary/binary/lane/store/splat/convert, trunc_sat,
+atomics, multi-value, legacy try, memory64, tag import, v128 const). **All round-trip clean** — no
+new bugs. This is strong evidence the `wasm2wat` output path is sound after the round-5 fix.
+
+Lone known parser-completeness gap noted (NOT a silent-corruption bug — input is rejected, not
+mis-compiled): the `(elem (offset) <reftype> (ref.null …))` elem-with-explicit-reftype item syntax
+isn't parsed. Tracked with the other deferred parser-feature gaps.
+
 ## Documentation invariant (JSR score)
 
 - **Every entrypoint needs an `@module` JSDoc header; every exported symbol needs a JSDoc comment

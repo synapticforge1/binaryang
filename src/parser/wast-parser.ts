@@ -490,10 +490,12 @@ function decodeStringText(raw: string): string {
 /** Parse a NAT/INT token text to a 64-bit unsigned integer (as bigint). Returns null on failure. */
 function parseNatText(text: string): bigint | null {
   try {
-    if (text.startsWith('0x') || text.startsWith('-0x') || text.startsWith('+0x')) {
-      return BigInt(text.replace('_', ''));
-    }
-    return BigInt(text.replace('_', ''));
+    // Strip ALL digit-group separators (`1_000_000`, `0xFF_FF`). `BigInt`
+    // already understands the `0x`/`+`/`-` prefixes, so one branch suffices.
+    // The earlier `replace('_', '')` removed only the FIRST underscore, so any
+    // literal with two or more separators threw → null → callers silently
+    // defaulted to index/value 0.
+    return BigInt(text.replace(/_/g, ''));
   } catch {
     return null;
   }
@@ -1088,15 +1090,19 @@ export class WastParser {
   private parseRefType(): Type | null {
     // consume 'ref'
     this.drop();
-    const isNull = this.match(TokenType.Null);
+    // The flat `Type` enum can't carry nullability, so `(ref func)` and
+    // `(ref null func)` coarsen to the same code (the typed-ref-IR-loose
+    // limitation). Consume the optional `null` keyword either way — the old
+    // `isNull ? Type.FuncRef : Type.FuncRef` ternaries implied it was honored.
+    this.match(TokenType.Null);
     const tt = this.peek();
     if (tt === TokenType.Func) {
       this.drop();
-      return isNull ? Type.FuncRef : Type.FuncRef;
+      return Type.FuncRef;
     }
     if (tt === TokenType.Extern) {
       this.drop();
-      return isNull ? Type.ExternRef : Type.ExternRef;
+      return Type.ExternRef;
     }
     if (tt === TokenType.Exn) {
       this.drop();
@@ -1141,7 +1147,11 @@ export class WastParser {
       // `(ref 3)` — numeric type index.
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
-      heapType = varIndex(Number(n ?? 0n));
+      if (n === null) {
+        this.error(tok.loc, 'invalid type index in (ref ...)');
+        return null;
+      }
+      heapType = varIndex(Number(n));
     } else if (tt === TokenType.Func) {
       // `(ref func)` — abstract heap type for funcref.
       this.drop();
@@ -3233,8 +3243,13 @@ export class WastParser {
         const laneArr = new Uint8Array(16);
         for (let i = 0; i < 16; i++) {
           if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
-            const t = (this.consume() as LiteralToken).literal.text;
-            laneArr[i] = Number(parseNatText(t) ?? 0n);
+            const laneTok = this.consume() as LiteralToken;
+            const n = parseNatText(laneTok.literal.text);
+            if (n === null) {
+              this.error(laneTok.loc, 'invalid i8x16.shuffle lane index');
+            } else {
+              laneArr[i] = Number(n);
+            }
           }
         }
         return {
@@ -3538,7 +3553,11 @@ export class WastParser {
     if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
-      return n !== null ? Number(n) : 0;
+      if (n === null) {
+        this.error(tok.loc, 'invalid SIMD lane index');
+        return 0;
+      }
+      return Number(n);
     }
     return 0;
   }

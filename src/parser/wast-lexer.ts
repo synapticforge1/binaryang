@@ -991,7 +991,14 @@ export class WastLexer {
         case 0x24: { // '$'
           this.read();
           if (this.peek() === 0x22) return this.getStringToken(TokenType.Var);
-          return this.getIdChars();
+          const tok = this.getIdChars();
+          // A bare `$` with no following idchars is not a valid identifier
+          // (id ::= '$' idchar+); the old code returned a Var with text "$".
+          if (tok.tokenType === TokenType.Var && (tok as { text?: string }).text === '$') {
+            this.error('empty identifier');
+            return this.bareToken(TokenType.Invalid);
+          }
+          return tok;
         }
 
         case 0x61: // 'a' — maybe "align="
@@ -1076,7 +1083,14 @@ export class WastLexer {
     this.read(); // consume opening '"'
     outer: while (true) {
       const c = this.read();
-      if (c === EOF) return this.bareToken(TokenType.Eof);
+      if (c === EOF) {
+        // Unterminated string literal. The old code returned a bare EOF with no
+        // diagnostic, so `(data "abc` was silently accepted and only
+        // mis-diagnosed later by the parser. Record the error here.
+        this.tokenStart = savedStart;
+        this.error('unterminated string');
+        return this.bareToken(TokenType.Eof);
+      }
       if (c === 0x0a) {
         this.tokenStart = this.cursor - 1;
         this.error('newline in string');
@@ -1139,14 +1153,23 @@ export class WastLexer {
               break;
             }
             let scalar = 0;
+            let digits = 0;
             while (isHexDigit(this.peek())) {
               const digit = parseInt(String.fromCharCode(this.read()), 16);
               scalar = (scalar << 4) | digit;
+              digits++;
               if (scalar >= 0x110000) {
                 this.error('bad escape');
                 hasError = true;
                 break outer;
               }
+            }
+            if (digits === 0) {
+              // `\u{}` with no hex digits is malformed (was silently accepted
+              // as U+0000).
+              this.error('bad escape');
+              hasError = true;
+              break;
             }
             if (!this.matchChar(0x7d)) {
               this.error('bad escape');

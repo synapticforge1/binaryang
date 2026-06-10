@@ -551,15 +551,6 @@ export class TypeChecker {
     this.errorCallback = cb;
   }
 
-  typeStackSize(): number {
-    return this.typeStack.length;
-  }
-
-  isUnreachable(): boolean {
-    const label = this.topLabel();
-    return label === null ? true : label.unreachable;
-  }
-
   // ---------------------------------------------------------------------------
   // Label management
   // ---------------------------------------------------------------------------
@@ -729,7 +720,26 @@ export class TypeChecker {
   }
 
   private popAndCheckReturnCall(resultTypes: Type[], desc: string): Result {
-    const r = this.checkSignature(resultTypes, desc);
+    // A tail call returns the callee's results directly to the caller's caller,
+    // so the callee's result types must match the ENCLOSING FUNCTION's result
+    // types — a type-vector comparison, NOT a peek of the operand stack (which
+    // here holds only the leftover values below the already-popped params). The
+    // old `checkSignature(resultTypes)` peeked stack residue, so a tail call to
+    // a function whose results don't match the caller validated clean.
+    const funcLabel = this.getFuncLabel();
+    const funcResults = funcLabel ? funcLabel.resultTypes : [];
+    let r: Result = Result.Ok;
+    if (resultTypes.length !== funcResults.length) {
+      r = Result.Error;
+    } else {
+      for (let i = 0; i < resultTypes.length; i++) {
+        r = combineResults(
+          r,
+          this.checkType(resultTypes[i] ?? Type.Any, funcResults[i] ?? Type.Any),
+        );
+      }
+    }
+    if (r === Result.Error) this.printError(`type mismatch in ${desc}`);
     return combineResults(r, this.setUnreachable());
   }
 
@@ -1038,6 +1048,16 @@ export class TypeChecker {
     let r = this.popAndCheck1Type(addrType, 'return_call_indirect');
     r = combineResults(r, this.popAndCheckSignature(paramTypes, 'return_call_indirect'));
     r = combineResults(r, this.popAndCheckReturnCall(resultTypes, 'return_call_indirect'));
+    return r;
+  }
+
+  onReturnCallRef(refType: Type, paramTypes: Type[], resultTypes: Type[]): Result {
+    // Like return_call but also pops the function reference operand first
+    // (mirrors onCallRef). The old path routed through onReturnCall, leaving
+    // the ref on the stack — an off-by-one for every return_call_ref.
+    let r = this.popAndCheck1Type(refType, 'return_call_ref');
+    r = combineResults(r, this.popAndCheckSignature(paramTypes, 'return_call_ref'));
+    r = combineResults(r, this.popAndCheckReturnCall(resultTypes, 'return_call_ref'));
     return r;
   }
 

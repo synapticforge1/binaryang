@@ -1171,17 +1171,18 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         );
       }
       if (opName.includes('replace_lane')) {
-        // SimdLaneOpExpr.value is populated for replace_lane (parser now
-        // captures the scalar half); fall back to nop only as a defensive
-        // guard for hand-constructed IR.
-        const replacement = slo.value !== undefined
-          ? bridgeExpr(slo.value, ctx)
-          : bridgeExpr({ kind: 'nop', loc: slo.loc }, ctx);
+        // SimdLaneOpExpr.value is the scalar half of a replace_lane and the
+        // parser/reader always populate it. A missing value is malformed IR —
+        // fail loud rather than fabricating a `nop` (which would emit a
+        // replace_lane with a wrong/garbage operand).
+        if (slo.value === undefined) {
+          throw new Error(`Bridge: ${opName} missing scalar replacement operand`);
+        }
         return makeSIMDReplace(
           opName as SIMDReplaceOp,
           bridgeExpr(slo.operand, ctx),
           slo.lane,
-          replacement,
+          bridgeExpr(slo.value, ctx),
         );
       }
       throw new Error(`Bridge: simd_lane_op opcode ${opName} not yet supported`);

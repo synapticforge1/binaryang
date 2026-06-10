@@ -136,12 +136,22 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
  * {@link writeHeapType}'s fail-loud policy.
  */
 function writeVar(s: MemoryStream, v: Var): void {
+  s.writeU32Leb(varIndexValue(v, 'var'));
+}
+
+/**
+ * Return a var's numeric index, throwing on a name-form var (same fail-loud
+ * policy as {@link writeVar}). Use where the index value is needed directly
+ * (e.g. to choose a segment's flag encoding) rather than just streamed — those
+ * call sites used to fall back to `0`, silently retargeting the segment.
+ */
+function varIndexValue(v: Var, label: string): number {
   if (v.kind !== 'index') {
     throw new Error(
-      `binary writer: unresolved name-var "${v.name}" — run resolveNames before encoding`,
+      `binary writer: unresolved name-var "${v.name}" for ${label} — run resolveNames before encoding`,
     );
   }
-  s.writeU32Leb(v.value);
+  return v.value;
 }
 
 /**
@@ -1120,12 +1130,16 @@ class BinaryWriter {
     s.writeSection(BinarySection.Elem, () => {
       s.writeU32Leb(m.elemSegments.length);
       for (const seg of m.elemSegments) {
-        const tableIdx = seg.tableVar.kind === 'index' ? seg.tableVar.value : 0;
+        const tableIdx = varIndexValue(seg.tableVar, 'elem segment table');
         let flags: number;
-        if (seg.kind === 'active' && tableIdx === 0) {
-          flags = 4; // active, table 0, expr-based
+        // flags 4 (active, table 0, expr-based) carries NO reftype byte —
+        // funcref is implied. Only use it when the element type is funcref;
+        // a non-funcref table-0 segment must use flags 6, which writes the
+        // reftype, or its element type is silently lost.
+        if (seg.kind === 'active' && tableIdx === 0 && seg.elemType === Type.FuncRef) {
+          flags = 4;
         } else if (seg.kind === 'active') {
-          flags = 6; // active, explicit table, expr-based
+          flags = 6; // active, explicit table, expr-based (writes reftype)
         } else if (seg.kind === 'passive') {
           flags = 5;
         } else {
@@ -1205,7 +1219,7 @@ class BinaryWriter {
     s.writeSection(BinarySection.Data, () => {
       s.writeU32Leb(m.dataSegments.length);
       for (const seg of m.dataSegments) {
-        const memIdx = seg.memoryVar.kind === 'index' ? seg.memoryVar.value : 0;
+        const memIdx = varIndexValue(seg.memoryVar, 'data segment memory');
         if (seg.kind === 'active' && memIdx === 0) {
           s.writeU32Leb(0); // flags = 0: active, memory 0
           this.writeInitExpr(seg.offset);
@@ -1216,7 +1230,9 @@ class BinaryWriter {
           writeVar(s, seg.memoryVar);
           this.writeInitExpr(seg.offset);
         } else {
-          s.writeU32Leb(1); // declared → encode as passive fallback
+          // 'declared' is an elem-segment-only kind; it is meaningless for
+          // data. Fail loud rather than silently re-encoding it as passive.
+          throw new Error(`binary writer: invalid data segment kind "${seg.kind}"`);
         }
         s.writeU32Leb(seg.data.length);
         s.writeBytes(seg.data);

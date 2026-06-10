@@ -12,6 +12,7 @@ import type { ErrorList, Location } from '../core/error.ts';
 import { getOpcodeNaturalAlign, TypeChecker } from './type-checker.ts';
 import type { FuncType } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind } from '../ir/ir.ts';
+import { CatchKind } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public options
@@ -331,10 +332,13 @@ export class SharedValidator {
       this.tags.push({ params: [] });
       return Result.Error;
     }
-    if (ft.results.length > 0) {
-      this.printError(loc, 'Tag signature must have 0 results.');
-    }
     this.tags.push({ params: ft.params });
+    if (ft.results.length > 0) {
+      // `printError` returns Result.Error; propagate it instead of dropping it
+      // and returning Ok (the error reached the ErrorList, but the Result chain
+      // wrongly reported success for this node).
+      return this.printError(loc, 'Tag signature must have 0 results.');
+    }
     return Result.Ok;
   }
 
@@ -766,13 +770,16 @@ export class SharedValidator {
 
   onAtomicFence(loc: Location, consistencyModel: number): Result {
     this.currentLoc = loc;
+    let r: Result = Result.Ok;
     if (consistencyModel !== 0) {
-      this.printError(
+      // Propagate the error into the Result (same fix as onTag) rather than
+      // recording it but returning Ok.
+      r = this.printError(
         loc,
         `unexpected atomic.fence consistency model (expected 0): ${consistencyModel}`,
       );
     }
-    return this.tc.onAtomicFence();
+    return combineResults(r, this.tc.onAtomicFence());
   }
 
   onAtomicLoad(
@@ -928,7 +935,7 @@ export class SharedValidator {
     this.currentLoc = loc;
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
     if (!ft) return Result.Error;
-    return this.tc.onReturnCall(ft.params, ft.results);
+    return this.tc.onReturnCallRef(Type.FuncRef, ft.params, ft.results);
   }
 
   // ---------------------------------------------------------------------------
@@ -1237,8 +1244,23 @@ export class SharedValidator {
     return this.tc.onBlock(params, results);
   }
 
-  endTryTable(loc: Location, _blockType: BlockType): Result {
+  // The try_table label is closed via onEnd (the validator's endTryTableExpr
+  // calls onEnd directly); there is no separate endTryTable handler.
+
+  /**
+   * Bounds-check one `try_table` catch clause's tag immediate. The catch's
+   * branch-target label is a numeric depth already validated structurally by
+   * the binary reader / parser; the precise branch-type reconciliation against
+   * the labeled block type is a known remaining gap (the flat operand model
+   * doesn't carry the tag's param types into the target check).
+   */
+  onTryTableCatch(loc: Location, kind: CatchKind, tag: number | undefined): Result {
     this.currentLoc = loc;
+    if (
+      (kind === CatchKind.Catch || kind === CatchKind.CatchRef) && tag !== undefined
+    ) {
+      return this.checkTagIndex(tag, loc) ? Result.Ok : Result.Error;
+    }
     return Result.Ok;
   }
 

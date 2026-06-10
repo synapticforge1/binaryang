@@ -29,6 +29,10 @@ directory** — the runner picks it up automatically.
   `$mathlib_*` files originally there were removed).
 - This corpus has surfaced bugs the hand-crafted tests missed: bare-offset elem segments, legacy
   `(try (do …))` syntax, SIMD opcode-name table drift, and more.
+- **`tests/wasmtk/roundtrip.test.ts`** runs the *reverse* direction over the same corpus:
+  `wat2wasm → wasm2wat → wat2wasm`, asserting the disassembly RE-COMPILES. This is the structural
+  guard for the invalid-`wasm2wat`-output class (the round-5 missing-`$` bug). The plain runner only
+  checks the forward direction; this closes the loop. All 272 round-trip clean as of 2026-06-09.
 
 ## The wasmtk-driven hardening loop (this IS the design)
 

@@ -9,10 +9,18 @@
  * references in the IR.
  *
  * After the binary reader builds an index-based IR and the name-section
- * reader populates names on Func/Local/Global/etc, `applyNames` walks every
- * Var in the IR and replaces `{ kind: 'index' }` refs with `{ kind: 'name' }`
- * refs where a name is available.  This enables WAT pretty-printing to emit
- * `$foo` identifiers instead of bare indices.
+ * reader populates names on Func/Local/Global/etc, `applyNames` replaces
+ * `{ kind: 'index' }` refs with `{ kind: 'name' }` refs where a name is
+ * available, so WAT pretty-printing can emit `$foo` identifiers.
+ *
+ * NOTE: the expression-level rewriter (`rewriteExprVars`) currently handles
+ * only the common name-bearing nodes (call/global/etc.) and its `default`
+ * does not recurse into every composite node, so a name-bearing var nested
+ * under an unhandled node stays index-form. This is a fidelity gap only
+ * (output stays valid — unconverted refs print as numeric indices), and
+ * `applyNames` is not wired into any tool pipeline (`wasm2wat` uses
+ * `generateNames`). Folding it onto `ExprVisitor` (as upstream does) to walk
+ * every child is a tracked follow-up.
  */
 
 import { Result } from '../core/result.ts';
@@ -253,6 +261,9 @@ function rewriteExprVars(e: Expr, ctx: ApplyContext): Expr {
       return {
         ...e,
         table: rewriteVar(e.table, names.tableNames),
+        // typeVar is name-bearing too (mirror of the resolveNames Bug-G fix);
+        // without this a named type prints as a numeric index in wasm2wat.
+        typeVar: rewriteVar(e.typeVar, names.typeNames),
         args: e.args.map((a) => rewriteExprVars(a, ctx)),
         callee: rewriteExprVars(e.callee, ctx),
       };

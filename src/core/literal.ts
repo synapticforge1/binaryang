@@ -313,9 +313,12 @@ export function printF32Literal(bits: number): string {
 
   if (rawExp === 0xff) {
     if (mantissa === 0) return sign + 'inf';
-    // NaN — always show payload (strip quiet bit for display)
+    // NaN. The payload excludes the quiet bit (the parser always ORs it back
+    // in). A zero residual payload is the canonical quiet NaN → bare `nan`;
+    // the old `nan:0x200000` fallback re-parsed to a DIFFERENT NaN
+    // (0x7fc00000 → 0x7fe00000) because the parser re-adds the quiet bit.
     const payload = mantissa & 0x3fffff; // payload without quiet bit
-    return sign + 'nan:0x' + (payload === 0 ? '200000' : payload.toString(16));
+    return sign + (payload === 0 ? 'nan' : 'nan:0x' + payload.toString(16));
   }
 
   if (rawExp === 0 && mantissa === 0) return sign + '0x0p+0';
@@ -347,9 +350,9 @@ export function printF64Literal(bits: bigint): string {
   if (rawExp === 0x7ff) {
     if (mantissa === 0n) return sign + 'inf';
     const payload = mantissa & 0x0007ffffffffffffn;
-    return (
-      sign + 'nan:0x' + (payload === 0n ? '8000000000000' : payload.toString(16))
-    );
+    // Zero residual payload → canonical quiet NaN → bare `nan` (consistent with
+    // the f32 path; the parser re-adds the quiet bit for `nan:0x…` forms).
+    return sign + (payload === 0n ? 'nan' : 'nan:0x' + payload.toString(16));
   }
 
   if (rawExp === 0 && mantissa === 0n) return sign + '0x0p+0';

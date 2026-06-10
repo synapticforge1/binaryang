@@ -44,7 +44,7 @@ import type {
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
-import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
+import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
@@ -980,27 +980,63 @@ class WatWriter extends ModuleContext {
 
       // --- Atomic memory ops ---
       onAtomicLoadExpr: (e) => {
-        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(
+          opname(e.opcode),
+          e.offset,
+          e.align,
+          naturalAlignForOpcode(e.opcode),
+          e.memidx,
+        );
         return Result.Ok;
       },
       onAtomicStoreExpr: (e) => {
-        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(
+          opname(e.opcode),
+          e.offset,
+          e.align,
+          naturalAlignForOpcode(e.opcode),
+          e.memidx,
+        );
         return Result.Ok;
       },
       onAtomicRmwExpr: (e) => {
-        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(
+          opname(e.opcode),
+          e.offset,
+          e.align,
+          naturalAlignForOpcode(e.opcode),
+          e.memidx,
+        );
         return Result.Ok;
       },
       onAtomicRmwCmpxchgExpr: (e) => {
-        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(
+          opname(e.opcode),
+          e.offset,
+          e.align,
+          naturalAlignForOpcode(e.opcode),
+          e.memidx,
+        );
         return Result.Ok;
       },
       onAtomicWaitExpr: (e) => {
-        this.writeMemarg(opname(e.opcode), e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(
+          opname(e.opcode),
+          e.offset,
+          e.align,
+          naturalAlignForOpcode(e.opcode),
+          e.memidx,
+        );
         return Result.Ok;
       },
       onAtomicNotifyExpr: (e) => {
-        this.writeMemarg('memory.atomic.notify', e.offset, e.align, 1, e.memidx);
+        this.writeMemarg(
+          'memory.atomic.notify',
+          e.offset,
+          e.align,
+          naturalAlignForOpcode((PREFIX_THREADS << 8) | 0x00),
+          e.memidx,
+        );
         return Result.Ok;
       },
       onAtomicFenceExpr: () => {
