@@ -606,10 +606,20 @@ function instrInputCount(tt: TokenType): number {
       return 3;
     case TokenType.Ternary:
       return 3;
+    case TokenType.BrTable:
+      // `br_table` consumes exactly ONE stack operand: the i32 index (top of
+      // stack). Any branch value carried to the target sits BELOW the index
+      // and is emitted as a preceding statement, not folded into the
+      // br_table node (which has a single `value` slot = the index). The
+      // earlier "variable arity" classification drained the WHOLE surrounding
+      // stack and then kept only operands[0] (the bottom), so a br_table whose
+      // target carries a value emitted the branch value in place of the index
+      // and dropped the index — V8 rejected the result. Matches the binary
+      // reader, which pops one operand (the index) for br_table.
+      return 1;
     // variable arity
     case TokenType.Return:
     case TokenType.Br:
-    case TokenType.BrTable:
     case TokenType.Call:
     case TokenType.CallIndirect:
     case TokenType.CallRef:
@@ -2638,7 +2648,25 @@ export class WastParser {
       case TokenType.BrIf: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'br_if', target: v, cond: op0(), value: operands[1], loc } as BrIfExpr;
+        // Stack order for `br_if` is `[value?] [cond]` — the i32 condition is
+        // the TOP operand and the optional branch value (present only when the
+        // target label carries a result) sits below it. The earlier code read
+        // `cond` from the bottom (operands[0]) and `value` from the top
+        // (operands[1]), swapping them: the encoder emitted `value; cond`
+        // built from the wrong exprs, so `(br_if $l (local.get 0) (i32.const 1))`
+        // branched with the condition instead of the value (and, with code
+        // after the branch, produced a stack V8 rejected). `cond` is always
+        // the last operand; `value` the one before it, when there is one.
+        // In the linear form `operands` is padded to nInputs=2 with a leading
+        // Nop when no value is on the stack, so a Nop in the value slot means
+        // "no carried value" (a Nop can never be a real branch value).
+        const cond = operands[operands.length - 1] ??
+          ({ kind: 'nop', loc } as NopExpr);
+        const value = operands.length >= 2 ? operands[operands.length - 2] : undefined;
+        if (value === undefined || value.kind === 'nop') {
+          return { kind: 'br_if', target: v, cond, loc } as BrIfExpr;
+        }
+        return { kind: 'br_if', target: v, cond, value, loc } as BrIfExpr;
       }
       case TokenType.BrOnNull: {
         const v = this.parseVar();
@@ -3989,19 +4017,82 @@ function f64ValueToBits(v: number): bigint {
 
 // JavaScript's parseFloat() does NOT understand WAT hex-float notation
 // (`0x1.921fb54442d18p+2`): it parses the leading "0", stops at "x", and returns 0.
-// This explicitly reconstructs the double from the sign / integer-hex / fraction-hex /
-// binary-exponent parts. For normal numbers the (1 + mantissa/2^k) * 2^exp form is exact.
 const HEX_FLOAT_PARSE_RE = /^([+-]?)0[xX]([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?[pP]([+-]?[0-9]+)$/;
-function parseHexFloatValue(s: string): number {
+
+// Parse a WAT hex-float string directly to the IEEE-754 bit pattern of the
+// target format (`mantBits` fraction bits, `expBits` exponent bits), rounding
+// to nearest with ties to even.
+//
+// The earlier implementation reconstructed a JS `number` via
+// `(int + frac) * 2^exp` and then let `Math.fround` / the f64 store round it.
+// A JS double keeps only 52 fraction bits, so any mantissa bit past bit 52 of
+// the literal was silently dropped BEFORE the format rounding ran. A value
+// sitting just above an f32/f64 rounding midpoint (`0x1.00000100000000001p-50`)
+// therefore collapsed onto the midpoint and then rounded the wrong way (to
+// even, i.e. down) instead of up. This reconstructs the exact significand with
+// BigInt and carries a sticky bit over every discarded low bit, so the final
+// round-to-nearest-even sees the true value.
+function hexFloatToBits(s: string, mantBits: number, expBits: number): bigint | null {
   const m = HEX_FLOAT_PARSE_RE.exec(s);
-  if (!m) return NaN;
+  if (!m) return null;
   const [, sign, intPart, fracPart, expStr] = m;
-  const intVal = intPart && intPart.length > 0 ? parseInt(intPart, 16) : 0;
-  const fracVal = fracPart && fracPart.length > 0
-    ? parseInt(fracPart, 16) / Math.pow(16, fracPart.length)
-    : 0;
-  const result = (intVal + fracVal) * Math.pow(2, parseInt(expStr!, 10));
-  return sign === '-' ? -result : result;
+
+  const signShift = BigInt(mantBits + expBits);
+  const signBit = (sign === '-' ? 1n : 0n) << signShift;
+  const bias = (1n << BigInt(expBits - 1)) - 1n;
+  const allOnesExp = (1n << BigInt(expBits)) - 1n;
+  const mantMask = (1n << BigInt(mantBits)) - 1n;
+
+  // Concatenate integer and fraction hex digits into one exact big integer.
+  // `mant` is that integer; its least-significant bit has binary weight
+  // 2^(exp - 4*fracLen).
+  const fracLen = fracPart?.length ?? 0;
+  const hexDigits = (intPart ?? '') + (fracPart ?? '');
+  const mant = hexDigits.length > 0 ? BigInt('0x' + hexDigits) : 0n;
+  const lowExp = parseInt(expStr!, 10) - 4 * fracLen;
+
+  if (mant === 0n) return signBit; // signed zero
+
+  // Unbiased exponent of the leading (most-significant set) bit.
+  const msb = mant.toString(2).length - 1;
+  let biased = BigInt(msb + lowExp) + bias;
+
+  // Round `mant` (msb+1 significant bits) down to the target width, choosing
+  // the drop count so the result has (mantBits+1) significant bits for a
+  // normal number, or fewer for a subnormal.
+  const subnormal = biased <= 0n;
+  const dropBits = subnormal ? (1 - Number(bias) - mantBits) - lowExp : msb - mantBits;
+
+  let keep: bigint;
+  if (dropBits > 0) {
+    const d = BigInt(dropBits);
+    keep = mant >> d;
+    const roundBit = (mant >> (d - 1n)) & 1n;
+    const sticky = (mant & ((1n << (d - 1n)) - 1n)) !== 0n;
+    // Round half to even: round up on a set round bit only when the discarded
+    // remainder is nonzero (past the halfway point) or the kept LSB is odd.
+    if (roundBit === 1n && (sticky || (keep & 1n) === 1n)) keep += 1n;
+  } else {
+    keep = mant << BigInt(-dropBits);
+  }
+
+  if (subnormal) {
+    // `keep` counts subnormal ULPs. A round-up that reaches 2^mantBits carries
+    // cleanly into the exponent field, yielding the smallest normal — so the
+    // raw low bits ARE the exp+fraction encoding.
+    return signBit | keep;
+  }
+
+  // Rounding a normal can overflow the significand to (mantBits+2) bits
+  // (1.11…1 → 10.0…0); renormalize by bumping the exponent.
+  if (keep > (mantMask | (1n << BigInt(mantBits)))) {
+    keep >>= 1n;
+    biased += 1n;
+  }
+
+  if (biased >= allOnesExp) return signBit | (allOnesExp << BigInt(mantBits)); // overflow → inf
+
+  return signBit | (biased << BigInt(mantBits)) | (keep & mantMask);
 }
 
 function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): number | null {
@@ -4019,7 +4110,8 @@ function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): n
     return text.startsWith('-') ? 0xffc00000 : 0x7fc00000;
   }
   if (literalType === LiteralType.Hexfloat) {
-    return f32ValueToBits(Math.fround(parseHexFloatValue(text.replace(/_/g, ''))));
+    const bits = hexFloatToBits(text.replace(/_/g, ''), 23, 8);
+    return bits === null ? null : Number(bits);
   }
   if (literalType === LiteralType.Float) {
     return f32ValueToBits(parseFloat(text.replace(/_/g, '')));
@@ -4048,7 +4140,7 @@ function parseF64LiteralBits(lit: { literalType: LiteralType; text: string }): b
     return text.startsWith('-') ? 0xfff8000000000000n : 0x7ff8000000000000n;
   }
   if (literalType === LiteralType.Hexfloat) {
-    return f64ValueToBits(parseHexFloatValue(text.replace(/_/g, '')));
+    return hexFloatToBits(text.replace(/_/g, ''), 52, 11);
   }
   if (literalType === LiteralType.Float) {
     return f64ValueToBits(parseFloat(text.replace(/_/g, '')));
