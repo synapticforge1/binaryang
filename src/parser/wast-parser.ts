@@ -4095,6 +4095,96 @@ function hexFloatToBits(s: string, mantBits: number, expBits: number): bigint | 
   return signBit | (biased << BigInt(mantBits)) | (keep & mantMask);
 }
 
+const DEC_FLOAT_PARSE_RE = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/;
+
+// Compare the positive rational `num/den` against `2^e` (e may be negative)
+// without ever shifting a BigInt by a negative amount. Returns -1 / 0 / 1.
+function cmpRationalPow2(num: bigint, den: bigint, e: number): number {
+  let a = num;
+  let b = den;
+  if (e >= 0) b = den << BigInt(e);
+  else a = num << BigInt(-e);
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+// round(num/den * 2^s) with ties to even, for a positive rational and any
+// integer shift `s`.
+function roundScaledRational(num: bigint, den: bigint, s: number): bigint {
+  let n = num;
+  let d = den;
+  if (s >= 0) n = num << BigInt(s);
+  else d = den << BigInt(-s);
+  let q = n / d;
+  const twiceR = (n % d) * 2n;
+  if (twiceR > d) q += 1n;
+  else if (twiceR === d && (q & 1n) === 1n) q += 1n; // tie → even
+  return q;
+}
+
+// Parse a DECIMAL float string directly to the IEEE-754 bit pattern of the
+// target format, rounding to nearest with ties to even in a SINGLE step.
+//
+// `f32ValueToBits(parseFloat(text))` double-rounds: `parseFloat` first rounds
+// the decimal to an f64, then the store rounds that f64 to f32. Inputs crafted
+// to sit at an f32 midpoint (e.g. `8.8817847263968443574e-16`) round the wrong
+// way under double rounding — the intermediate f64 lands exactly on an f32
+// midpoint and ties-to-even sends it to a different neighbor than a correct
+// single rounding of the original decimal would. (f64 is unaffected: JS
+// `parseFloat` is a correctly-rounded decimal→f64, and storing that exact f64
+// adds no second rounding — so only the f32 path needs this.) This evaluates
+// the decimal as an exact BigInt rational `num/den` and rounds it once.
+function decimalToBits(s: string, mantBits: number, expBits: number): bigint | null {
+  const m = DEC_FLOAT_PARSE_RE.exec(s);
+  if (!m) return null;
+  const [, sign, intDigits, fracDigits, expStr] = m;
+
+  const signBit = (sign === '-' ? 1n : 0n) << BigInt(mantBits + expBits);
+  const bias = (1n << BigInt(expBits - 1)) - 1n;
+  const allOnesExp = (1n << BigInt(expBits)) - 1n;
+  const mantMask = (1n << BigInt(mantBits)) - 1n;
+
+  const digits = (intDigits ?? '') + (fracDigits ?? '');
+  if (digits.length === 0) return null; // not a number (e.g. bare exponent)
+  const d = BigInt(digits);
+  if (d === 0n) return signBit; // signed zero
+
+  // value = d * 10^powTen  =  num / den (positive).
+  const powTen = (expStr ? parseInt(expStr, 10) : 0) - (fracDigits?.length ?? 0);
+  let num = d;
+  let den = 1n;
+  if (powTen >= 0) num *= 10n ** BigInt(powTen);
+  else den = 10n ** BigInt(-powTen);
+
+  // e = floor(log2(value)). Seed from the bit-length difference (within 1 of
+  // the answer) then correct with exact comparisons.
+  let e = num.toString(2).length - den.toString(2).length;
+  while (cmpRationalPow2(num, den, e) < 0) e -= 1;
+  while (cmpRationalPow2(num, den, e + 1) >= 0) e += 1;
+
+  let biased = BigInt(e) + bias;
+
+  if (biased <= 0n) {
+    // Subnormal: round at the fixed subnormal grid (LSB weight
+    // 2^(1 - bias - mantBits)). A round-up to 2^mantBits carries cleanly into
+    // the exponent field, yielding the smallest normal.
+    const q = roundScaledRational(num, den, mantBits + Number(bias) - 1);
+    return signBit | q;
+  }
+
+  if (biased >= allOnesExp) return signBit | (allOnesExp << BigInt(mantBits)); // overflow → inf
+
+  // Normal: keep (mantBits+1) significant bits. Rounding can carry the
+  // significand to 2^(mantBits+1); renormalize by bumping the exponent.
+  let q = roundScaledRational(num, den, mantBits - e);
+  if (q > (mantMask | (1n << BigInt(mantBits)))) {
+    q >>= 1n;
+    biased += 1n;
+  }
+  if (biased >= allOnesExp) return signBit | (allOnesExp << BigInt(mantBits)); // rounded up → inf
+
+  return signBit | (biased << BigInt(mantBits)) | (q & mantMask);
+}
+
 function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): number | null {
   const { literalType, text } = lit;
   if (literalType === LiteralType.Infinity) {
@@ -4114,7 +4204,12 @@ function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): n
     return bits === null ? null : Number(bits);
   }
   if (literalType === LiteralType.Float) {
-    return f32ValueToBits(parseFloat(text.replace(/_/g, '')));
+    // Exact single-rounding decimal→f32 (see decimalToBits). Fall back to the
+    // double-rounding path only if the literal doesn't match the decimal
+    // grammar, which shouldn't happen for a lexer-classified Float.
+    const clean = text.replace(/_/g, '');
+    const bits = decimalToBits(clean, 23, 8);
+    return bits === null ? f32ValueToBits(parseFloat(clean)) : Number(bits);
   }
   // Integer literal used in float position (e.g., `f32.const 1`) — decimal
   // float value, NOT raw bit pattern. The "raw bits" interpretation came
