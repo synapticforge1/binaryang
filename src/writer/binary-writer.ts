@@ -98,7 +98,7 @@ import type {
   Var,
 } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
-import { Type } from '../core/types.ts';
+import { heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
   GcOpcode,
@@ -165,9 +165,11 @@ function varIndexValue(v: Var, label: string): number {
  */
 function writeHeapType(s: MemoryStream, v: Var): void {
   if (v.kind === 'index') {
-    // Positive type index — encode as unsigned LEB, which is identical to
-    // the signed-LEB encoding for small non-negative values.
-    s.writeU32Leb(v.value);
+    // Positive type index. The field is a signed LEB128: an unsigned write is
+    // identical only while the index stays below 64 — at 64 the unsigned form
+    // is the single byte 0x40, which a decoder reads back as an abstract heap
+    // type (the sign bit is set), not as index 64.
+    s.writeS32Leb(v.value);
     return;
   }
   const byte = abstractHeapTypeByteForName(v.name);
@@ -181,33 +183,11 @@ function writeHeapType(s: MemoryStream, v: Var): void {
 /**
  * Map an abstract-heap-type keyword name (`"any"` / `"i31"` / `"struct"` /
  * `"func"` / etc.) to the single-byte binary encoding. Returns null for
- * unrecognized names.
+ * unrecognized names. Thin alias over the canonical table in `core/types.ts`
+ * — the `Type` enum values ARE the heap-type byte encodings.
  */
 function abstractHeapTypeByteForName(name: string): number | null {
-  switch (name) {
-    case 'any':
-      return Type.AnyRef;
-    case 'eq':
-      return Type.EqRef;
-    case 'i31':
-      return Type.I31Ref;
-    case 'struct':
-      return Type.StructRef;
-    case 'array':
-      return Type.ArrayRef;
-    case 'func':
-      return Type.FuncRef;
-    case 'extern':
-      return Type.ExternRef;
-    case 'none':
-      return Type.NullRef;
-    case 'nofunc':
-      return Type.NullFuncRef;
-    case 'noextern':
-      return Type.NullExternRef;
-    default:
-      return null;
-  }
+  return heapTypeNameToType(name);
 }
 
 function writeBlockType(s: MemoryStream, bt: BlockType): void {
@@ -606,7 +586,10 @@ class BodyWriter implements ExprVisitorDelegate {
   // --- Ref types ---
   onRefNullExpr(e: RefNullExpr): Result {
     this.s.writeU8(Opcode.RefNull);
-    writeVar(this.s, e.refType);
+    // The immediate is a heap type (signed LEB / single negative byte), not a
+    // plain index — writeVar would emit an unsigned index and reject the
+    // abstract-keyword name-vars the parser produces.
+    writeHeapType(this.s, e.refType);
     return Result.Ok;
   }
   onRefIsNullExpr(_e: RefIsNullExpr): Result {

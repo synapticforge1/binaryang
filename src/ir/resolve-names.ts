@@ -21,6 +21,7 @@ import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import type { Expr, Func, Module, Var } from './ir.ts';
 import { varIndex } from './ir.ts';
+import { heapTypeNameToType } from '../core/types.ts';
 
 // ---------------------------------------------------------------------------
 // Name binding map
@@ -630,6 +631,13 @@ class ResolveContext {
         const [r, ref] = this.resolveExpr(e.ref);
         return [r, { ...e, ref }];
       }
+      case 'ref.null':
+        // `ref.null H` carries a HEAP type, not an item reference: abstract
+        // keywords pass through for the writer to encode as a single negative
+        // byte, `$T` resolves against the type scope. Before this case existed
+        // the parser's name-var survived into the binary writer, which
+        // rejected every `ref.null` as an unresolved name-var.
+        return [Result.Ok, { ...e, refType: this.resolveHeapTypeVar(e.refType, loc) }];
       case 'ref.test':
       case 'ref.cast': {
         // The heapType var either names a user-defined heap type (resolve via
@@ -727,21 +735,10 @@ class ResolveContext {
    */
   private resolveHeapTypeVar(v: Var, loc: Location = unknownLocation()): Var {
     if (v.kind === 'index') return v;
-    switch (v.name) {
-      case 'any':
-      case 'eq':
-      case 'i31':
-      case 'struct':
-      case 'array':
-      case 'func':
-      case 'extern':
-      case 'none':
-      case 'nofunc':
-      case 'noextern':
-        return v;
-      default:
-        return this.resolveTypeVar(v, loc);
-    }
+    // Abstract heap-type keywords are not names in any index space — pass
+    // them through untouched. Anything else is a user-defined `$T`.
+    if (heapTypeNameToType(v.name) !== null) return v;
+    return this.resolveTypeVar(v, loc);
   }
   /**
    * Resolve a `$fieldName` within a struct type. The field's index space is

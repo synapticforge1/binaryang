@@ -6,7 +6,7 @@
 
 import type { Location } from '../core/error.ts';
 import { addError, type ErrorList } from '../core/error.ts';
-import { Type } from '../core/types.ts';
+import { Type, typeToHeapTypeName } from '../core/types.ts';
 import { BinarySection, ExternalKind, WASM_MAGIC, WASM_VERSION } from '../core/binary.ts';
 import {
   GcOpcode,
@@ -1560,9 +1560,13 @@ export class BinaryReader {
 
         // --- Ref types ---
         case Opcode.RefNull: {
-          const refType = this.readValType();
+          // Heap-type immediate, decoded the same way as ref.test / ref.cast:
+          // abstract codes come back as keyword name-vars, user-defined types
+          // as index-vars. The earlier readValType() + varIndex() stashed the
+          // raw byte (e.g. 0x70) in an INDEX var — round-tripping only by
+          // accident, and printing as `ref.null 112` in wasm2wat output.
           stack.push(
-            { kind: 'ref.null', refType: varIndex(refType as number), loc } as RefNullExpr,
+            { kind: 'ref.null', refType: this.readHeapTypeVar(), loc } as RefNullExpr,
           );
           break;
         }
@@ -2444,34 +2448,12 @@ export class BinaryReader {
 
 /**
  * Map a single-byte abstract-heap-type code (as encoded by the GC proposal)
- * to the bare keyword name used in `(ref [null] NAME)` syntax. Returns null
- * for codes that aren't recognized abstract heap types.
+ * to its bare WAT keyword. Returns null for codes that aren't abstract heap
+ * types. Thin alias over the canonical table in `core/types.ts` — the `Type`
+ * enum values ARE the heap-type byte encodings.
  */
 function abstractHeapTypeNameForByte(b: number): string | null {
-  switch (b) {
-    case Type.AnyRef:
-      return 'any';
-    case Type.EqRef:
-      return 'eq';
-    case Type.I31Ref:
-      return 'i31';
-    case Type.StructRef:
-      return 'struct';
-    case Type.ArrayRef:
-      return 'array';
-    case Type.FuncRef:
-      return 'func';
-    case Type.ExternRef:
-      return 'extern';
-    case Type.NullRef:
-      return 'none';
-    case Type.NullFuncRef:
-      return 'nofunc';
-    case Type.NullExternRef:
-      return 'noextern';
-    default:
-      return null;
-  }
+  return typeToHeapTypeName(b as Type);
 }
 
 // ---------------------------------------------------------------------------

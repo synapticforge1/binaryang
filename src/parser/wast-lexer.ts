@@ -135,6 +135,7 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['nullref', vt(TokenType.ValueType, Type.NullRef)],
   ['nullfuncref', vt(TokenType.ValueType, Type.NullFuncRef)],
   ['nullexternref', vt(TokenType.ValueType, Type.NullExternRef)],
+  ['nullexnref', vt(TokenType.ValueType, Type.NullExnRef)],
   // Bare abstract heap-type keywords, used inside `(ref any)` / `(ref i31)`
   // etc. Tagged as ValueType for convenient consumption by parseRefImmediate's
   // existing ValueType branch (which maps them back to the bare keyword via
@@ -146,6 +147,7 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['none', vt(TokenType.ValueType, Type.NullRef)],
   ['nofunc', vt(TokenType.ValueType, Type.NullFuncRef)],
   ['noextern', vt(TokenType.ValueType, Type.NullExternRef)],
+  ['noexn', vt(TokenType.ValueType, Type.NullExnRef)],
   // --- value types ---
   ['i32', vt(TokenType.ValueType, Type.I32)],
   ['i64', vt(TokenType.ValueType, Type.I64)],
@@ -197,6 +199,14 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['ref.as_non_null', op(TokenType.RefAsNonNull, Opcode.RefAsNonNull)],
   ['ref.eq', op(TokenType.RefEq, Opcode.RefEq)],
   ['ref.extern', bare(TokenType.RefExtern)],
+  ['ref.host', bare(TokenType.RefHost)],
+  // `ref.any` / `ref.struct` / `ref.array` are not instructions — they exist
+  // only as bare `assert_return` result patterns ("any reference whose heap
+  // type is a subtype of H"). `ref.eq` / `ref.i31` / `ref.func` double as
+  // instructions and keep their existing opcode tokens.
+  ['ref.any', bare(TokenType.RefAny)],
+  ['ref.struct', bare(TokenType.RefStructKw)],
+  ['ref.array', bare(TokenType.RefArrayKw)],
   ['ref.func', op(TokenType.RefFunc, Opcode.RefFunc)],
   ['ref.i31', op(TokenType.RefI31, G(GcOpcode.RefI31))],
   ['ref.is_null', op(TokenType.RefIsNull, Opcode.RefIsNull)],

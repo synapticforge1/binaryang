@@ -31,7 +31,7 @@
  */
 
 import { ExternalKind } from '../core/binary.ts';
-import { Type } from '../core/types.ts';
+import { heapTypeNameToType, Type } from '../core/types.ts';
 import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
 import { CatchKind } from '../ir/ir.ts';
 import type {
@@ -1251,25 +1251,24 @@ function buildCatchClause(
 
 /**
  * Map a wabt-ts `refType: Var` (used by `ref.null`) to a binaryen-ts
- * `ValType`. The WAT parser produces a name-var with `name = "funcref"` /
- * `"externref"` / etc. Index-vars are unusual here but supported.
+ * `ValType`. The WAT parser and binary reader both produce a name-var holding
+ * a bare abstract heap-type keyword (`"func"` / `"extern"` / `"any"` / …);
+ * index-vars name a user-defined heap type, which the flat `ValType` surface
+ * can't express.
  */
 function refTypeVarToValType(v: Var): ValType {
   if (v.kind === 'name') {
-    switch (v.name) {
-      case 'funcref':
-        return ValType.FuncRef;
-      case 'externref':
-        return ValType.ExternRef;
-      case 'func':
-        return ValType.FuncRef; // `(ref.null func)`
-      case 'extern':
-        return ValType.ExternRef; // `(ref.null extern)`
+    const t = heapTypeNameToType(v.name);
+    if (t === null) {
+      throw new Error(
+        `Bridge: ref.null with unresolved heap type "${v.name}" — run resolveNames first`,
+      );
     }
-    throw new Error(`Bridge: unsupported ref.null type "${v.name}"`);
+    return wabtTypeToValType(t);
   }
-  // Index-form refType targets a user-defined type — GC proposal territory.
-  throw new Error('Bridge: ref.null with index-form type (GC) not yet supported');
+  // Index-form refType targets a user-defined type — needs the typed-ref IR
+  // refactor before it can carry a concrete heap type through binaryen-ts.
+  throw new Error('Bridge: ref.null with a user-defined heap type is not yet supported');
 }
 
 // --- Small helpers used inside bridgeExpr ---

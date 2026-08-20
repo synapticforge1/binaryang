@@ -49,6 +49,8 @@ export function wabtTypeToValType(t: Type): ValType {
       return ValType.NullFuncRef;
     case Type.NullExternRef:
       return ValType.NullExternRef;
+    case Type.NullExnRef:
+      return ValType.NullExnRef;
     default:
       throw new Error(`Unknown wabt Type code: 0x${t.toString(16)}`);
   }

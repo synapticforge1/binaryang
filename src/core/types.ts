@@ -81,6 +81,15 @@ export enum Type {
   NullFuncRef = 0x73,
   /** Bottom of the extern hierarchy (`nullexternref`). */
   NullExternRef = 0x72,
+  /**
+   * Bottom of the exn hierarchy (`nullexnref`; heap type `noexn`).
+   *
+   * Note the encoding is -0x0c (0x74) — adjacent to `nofunc` (-0x0d), NOT
+   * below `exn` (-0x17 / 0x69) as the hierarchy might suggest. Verified
+   * against V8: 0x68 is rejected, 0x74 is accepted and is a subtype of
+   * `exnref` and nothing else.
+   */
+  NullExnRef = 0x74,
   /** Non-nullable typed reference (GC proposal). */
   Ref = 0x64,
   /** Nullable typed reference (GC proposal). */
@@ -124,6 +133,7 @@ export function isReferenceType(t: Type): boolean {
     t === Type.NullRef ||
     t === Type.NullFuncRef ||
     t === Type.NullExternRef ||
+    t === Type.NullExnRef ||
     t === Type.Ref ||
     t === Type.RefNull
   );
@@ -173,6 +183,8 @@ export function typeName(t: Type): string {
       return 'nullfuncref';
     case Type.NullExternRef:
       return 'nullexternref';
+    case Type.NullExnRef:
+      return 'nullexnref';
     case Type.Ref:
       return 'ref';
     case Type.RefNull:
@@ -188,4 +200,62 @@ export function typeName(t: Type): string {
     case Type.Any:
       return 'any';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Abstract heap types (GC / reference-types proposals)
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical abstract-heap-type table: WAT keyword ⇄ {@link Type} entry.
+ *
+ * A heap type's WAT keyword (`func`) and the corresponding nullable reference
+ * *value* type (`funcref`) share one byte in the binary format, so a single
+ * table serves both directions. The `Type` enum values ARE the single-byte
+ * binary encodings, so `heapTypeNameToType('any')` doubles as the encoder.
+ *
+ * This is the one place the mapping lives — the WAT parser, WAT writer, binary
+ * reader, binary writer, validator, and binaryen bridge all route through it.
+ * Do not copy the switch into a call site; extend this table instead.
+ */
+const ABSTRACT_HEAP_TYPES: ReadonlyArray<readonly [string, Type]> = [
+  ['func', Type.FuncRef],
+  ['extern', Type.ExternRef],
+  ['exn', Type.ExnRef],
+  ['any', Type.AnyRef],
+  ['eq', Type.EqRef],
+  ['i31', Type.I31Ref],
+  ['struct', Type.StructRef],
+  ['array', Type.ArrayRef],
+  ['none', Type.NullRef],
+  ['nofunc', Type.NullFuncRef],
+  ['noextern', Type.NullExternRef],
+  ['noexn', Type.NullExnRef],
+];
+
+const HEAP_TYPE_BY_NAME: ReadonlyMap<string, Type> = new Map(ABSTRACT_HEAP_TYPES);
+const HEAP_NAME_BY_TYPE: ReadonlyMap<Type, string> = new Map(
+  ABSTRACT_HEAP_TYPES.map(([name, t]) => [t, name]),
+);
+
+/**
+ * Map an abstract-heap-type keyword (`"func"`, `"extern"`, `"exn"`, `"any"`,
+ * `"eq"`, `"i31"`, `"struct"`, `"array"`, `"none"`, `"nofunc"`, `"noextern"`)
+ * to its {@link Type} entry, whose enum value is also its single-byte binary
+ * encoding. Returns `null` for anything else — notably a `$name` reference to
+ * a user-defined heap type, which resolves to a type index instead.
+ */
+export function heapTypeNameToType(name: string): Type | null {
+  return HEAP_TYPE_BY_NAME.get(name) ?? null;
+}
+
+/**
+ * Inverse of {@link heapTypeNameToType}: map a reference {@link Type} (or the
+ * raw byte read from a binary heap-type immediate) to its bare WAT
+ * heap-type keyword. Because `funcref` and the `func` heap type share a byte,
+ * this also normalizes the `…ref` value-type spellings (`Type.FuncRef` →
+ * `"func"`). Returns `null` for non-reference types.
+ */
+export function typeToHeapTypeName(t: Type): string | null {
+  return HEAP_NAME_BY_TYPE.get(t) ?? null;
 }

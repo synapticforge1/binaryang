@@ -15,7 +15,7 @@ import type { Location, WabtError } from '../core/error.ts';
 import { ErrorLevel } from '../core/error.ts';
 import { Result } from '../core/result.ts';
 import { GcOpcode, Opcode } from '../core/opcode.ts';
-import { Type } from '../core/types.ts';
+import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
 import {
   type ArrayGetExpr,
   type ArrayLenExpr,
@@ -155,7 +155,7 @@ export type WastAction =
     readonly kind: 'invoke';
     readonly name: string | null;
     readonly field: string;
-    readonly args: Const[];
+    readonly args: WastArg[];
     readonly loc: Location;
   }
   | {
@@ -170,9 +170,93 @@ export type ExpectedConst =
   | { readonly kind: 'value'; readonly value: Const }
   | { readonly kind: 'nan:canonical'; readonly valType: Type }
   | { readonly kind: 'nan:arithmetic'; readonly valType: Type }
-  | { readonly kind: 'ref.null'; readonly refType: Type }
+  | {
+    readonly kind: 'ref.null';
+    /**
+     * The expected null's heap type, as the matching nullable reference
+     * {@link Type} (`ref.null extern` → `Type.ExternRef`).
+     *
+     * **Omitted for the bare `(ref.null)` result form**, which the wast
+     * grammar defines as "a null of ANY heap type" — a runner must accept
+     * any null there rather than compare against a specific type. A
+     * user-defined `$T` heap type has no flat `Type` entry and coarsens to
+     * `Type.StructRef` (the loose typed-ref IR).
+     */
+    readonly refType?: Type;
+  }
   | { readonly kind: 'ref.func' }
-  | { readonly kind: 'ref.extern'; readonly value: number };
+  | { readonly kind: 'ref.any' }
+  | { readonly kind: 'ref.eq' }
+  | { readonly kind: 'ref.i31' }
+  | { readonly kind: 'ref.struct' }
+  | { readonly kind: 'ref.array' }
+  | {
+    readonly kind: 'ref.extern';
+    /**
+     * The host reference's numeric value, from `(ref.extern 1)`.
+     *
+     * **Omitted for the bare `(ref.extern)` form**, which matches ANY
+     * external reference regardless of value — same convention as
+     * {@link ExpectedConst}'s `ref.null` refType.
+     */
+    readonly value?: number;
+  }
+  | {
+    readonly kind: 'ref.host';
+    /**
+     * The host reference's numeric value, from `(ref.host 1)` — the
+     * internalized (any-side) counterpart of `(ref.extern N)`. Omitted for
+     * the bare `(ref.host)` form.
+     */
+    readonly value?: number;
+  };
+
+/**
+ * An argument to an `invoke` action.
+ *
+ * The same shapes as {@link ExpectedConst} minus the patterns that only make
+ * sense as *results* — the nan patterns and the bare abstract-reference
+ * matchers. Derived from `ExpectedConst` so the two can't drift.
+ */
+export type WastArg = Extract<
+  ExpectedConst,
+  { kind: 'value' | 'ref.null' | 'ref.extern' | 'ref.host' | 'ref.func' }
+>;
+
+/**
+ * The heap type a bare reference-pattern result matches — `(ref.func)` →
+ * `Type.FuncRef`, `(ref.array)` → `Type.ArrayRef`, and so on.
+ *
+ * These patterns all mean the same thing ("a reference whose heap type is a
+ * subtype of H"), so a script runner can handle them uniformly instead of
+ * switching on six near-identical `kind`s. Returns null for the non-reference
+ * variants (`value` / the nan patterns) and for `ref.null`, whose match is on
+ * nullness rather than on a heap type — read its `refType` instead.
+ */
+export function expectedRefHeapType(c: ExpectedConst): Type | null {
+  switch (c.kind) {
+    case 'ref.func':
+      return Type.FuncRef;
+    case 'ref.extern':
+      return Type.ExternRef;
+    case 'ref.host':
+      // `ref.host` is the internalized side of an external reference, so it
+      // lives in the `any` hierarchy rather than the `extern` one.
+      return Type.AnyRef;
+    case 'ref.any':
+      return Type.AnyRef;
+    case 'ref.eq':
+      return Type.EqRef;
+    case 'ref.i31':
+      return Type.I31Ref;
+    case 'ref.struct':
+      return Type.StructRef;
+    case 'ref.array':
+      return Type.ArrayRef;
+    default:
+      return null;
+  }
+}
 
 /** A module in a WAST script — text, binary, or quoted. */
 export type WastScriptModule =
@@ -1147,58 +1231,78 @@ export class WastParser {
     this.drop(); // 'ref'
     const nullable = this.match(TokenType.Null);
 
-    const tt = this.peek();
-    let heapType: Var;
-    if (tt === TokenType.Var) {
-      // `(ref $T)` or `(ref null $T)` — user-defined type.
-      const tok = this.consume() as StringToken;
-      heapType = varName(tok.text);
-    } else if (tt === TokenType.Nat) {
-      // `(ref 3)` — numeric type index.
-      const tok = this.consume() as LiteralToken;
-      const n = parseNatText(tok.literal.text);
-      if (n === null) {
-        this.error(tok.loc, 'invalid type index in (ref ...)');
-        return null;
-      }
-      heapType = varIndex(Number(n));
-    } else if (tt === TokenType.Func) {
-      // `(ref func)` — abstract heap type for funcref.
-      this.drop();
-      heapType = varName('func');
-    } else if (tt === TokenType.Extern) {
-      this.drop();
-      heapType = varName('extern');
-    } else if (tt === TokenType.Exn) {
-      this.drop();
-      heapType = varName('exn');
-    } else if (tt === TokenType.Struct) {
-      // `(ref struct)` — bare `struct` keyword has its own token type.
-      this.drop();
-      heapType = varName('struct');
-    } else if (tt === TokenType.Array) {
-      // `(ref array)` — same, bare `array` keyword.
-      this.drop();
-      heapType = varName('array');
-    } else if (tt === TokenType.ValueType) {
-      // `(ref anyref)` / `(ref i31ref)` etc. — strip the `ref` suffix to get
-      // the abstract heap-type name binaryen-ts expects.
-      const tok = this.consume() as TypeToken;
-      const name = abstractHeapTypeNameForValType(tok.valueType);
-      if (name === null) {
-        this.error(
-          loc,
-          `unsupported heap type for ref.test/ref.cast: 0x${tok.valueType.toString(16)}`,
-        );
-        return null;
-      }
-      heapType = varName(name);
-    } else {
-      this.error(loc, `expected heap type after (ref [null] ...), got ${tokenName(tt)}`);
-      return null;
-    }
+    const heapType = this.parseHeapTypeVar();
+    if (heapType === null) return null;
     if (this.expect(TokenType.Rpar) !== Result.Ok) return null;
     return { heapType, nullable };
+  }
+
+  /**
+   * Parse a bare heap type — the immediate of `ref.null H` and the body of the
+   * `(ref [null] H)` form consumed by {@link parseRefImmediate}.
+   *
+   * Accepts every abstract-heap-type keyword (`func` / `extern` / `exn` /
+   * `any` / `eq` / `i31` / `struct` / `array` / `none` / `nofunc` /
+   * `noextern`), the legacy `…ref` spellings the lexer classifies as
+   * ValueType (`funcref` normalizes to `func`), a `$T` reference to a
+   * user-defined type, or a numeric type index. Abstract keywords come back
+   * as name-vars and are passed through by `resolveNames`; `$T` name-vars are
+   * resolved there against the type scope.
+   *
+   * `struct` / `array` / `exn` / `func` / `extern` each have their own token
+   * type (they double as composite-type and refkind keywords), which is why
+   * this can't go through `parseValueType`.
+   */
+  private parseHeapTypeVar(): Var | null {
+    const loc = this.loc();
+    const tt = this.peek();
+    switch (tt) {
+      case TokenType.Var: {
+        // `$T` — user-defined heap type; resolveNames maps it to an index.
+        const tok = this.consume() as StringToken;
+        return varName(tok.text);
+      }
+      case TokenType.Nat: {
+        const tok = this.consume() as LiteralToken;
+        const n = parseNatText(tok.literal.text);
+        if (n === null) {
+          this.error(tok.loc, `invalid heap type index: ${tok.literal.text}`);
+          return null;
+        }
+        return varIndex(Number(n));
+      }
+      // Bare keywords with dedicated token types — they double as
+      // composite-type / refkind keywords, so they never reach ValueType.
+      case TokenType.Func:
+        this.drop();
+        return varName('func');
+      case TokenType.Extern:
+        this.drop();
+        return varName('extern');
+      case TokenType.Exn:
+        this.drop();
+        return varName('exn');
+      case TokenType.Struct:
+        this.drop();
+        return varName('struct');
+      case TokenType.Array:
+        this.drop();
+        return varName('array');
+      case TokenType.ValueType: {
+        // `funcref` / `anyref` / `i31ref` / … — strip to the bare heap-type
+        // keyword. Rejects numeric value types (`ref.null i32`).
+        const tok = this.consume() as TypeToken;
+        const name = typeToHeapTypeName(tok.valueType);
+        if (name === null) {
+          this.error(loc, `not a heap type: ${typeName(tok.valueType)}`);
+          return null;
+        }
+        return varName(name);
+      }
+      default:
+        this.error(loc, `expected heap type, got ${tokenName(tt)}`);
+        return null;
+    }
   }
 
   /** Parse limits: optional `i32`/`i64` index type, then `N` or `N M`, optionally `shared`. */
@@ -1977,11 +2081,27 @@ export class WastParser {
       }
     } else if (this.peek() === TokenType.ValueType || this.peek() === TokenType.Ref) {
       elemType = this.parseValueType() ?? Type.FuncRef;
-      // Parse elem expressions
-      while (this.matchLpar(TokenType.Item)) {
+      // `elemlist ::= reftype elemexpr*`, and `elemexpr` has two spellings:
+      // the explicit `(item instr*)` form, and the abbreviation where a
+      // single folded instruction IS the element expression —
+      // `(elem (i32.const 0) funcref (ref.null func) (ref.func $f))`.
+      // Only the `(item …)` form used to be accepted, so the abbreviation
+      // failed with "expected ), got (" for every instruction (not just
+      // `ref.null` — `ref.func` failed identically).
+      while (this.peek() === TokenType.Lpar) {
         const itemExprs: Expr[] = [];
-        this.parseInstrListInto(itemExprs);
-        this.expect(TokenType.Rpar);
+        if (this.matchLpar(TokenType.Item)) {
+          this.parseInstrListInto(itemExprs);
+          this.expect(TokenType.Rpar);
+        } else {
+          const ctx = newCtx();
+          // parseOneInstr consumes nothing when the `(` doesn't open an
+          // instruction, so bail out rather than spin — the trailing
+          // expect(Rpar) below reports the real error.
+          if (this.parseOneInstr(ctx) !== Result.Ok) break;
+          flushStack(ctx);
+          itemExprs.push(...ctx.stmts);
+        }
         inits.push(itemExprs);
       }
     } else {
@@ -2922,8 +3042,15 @@ export class WastParser {
       }
 
       case TokenType.RefNull: {
-        const t = this.parseValueType() ?? Type.FuncRef;
-        return { kind: 'ref.null', refType: varName(typeToName(t)), loc } as RefNullExpr;
+        // `refType` is a HEAP type, not a value type: abstract keywords stay
+        // as name-vars (the binary writer encodes them as the single negative
+        // byte), `$T` resolves to a type index in resolveNames. The earlier
+        // code funnelled it through parseValueType + a typeToName() that
+        // collapsed everything except funcref/externref/exnref to "funcref",
+        // and nothing ever resolved the resulting name-var — so every
+        // `ref.null` failed to encode.
+        const ht = this.parseHeapTypeVar();
+        return { kind: 'ref.null', refType: ht ?? varName('func'), loc } as RefNullExpr;
       }
       case TokenType.RefIsNull:
         return { kind: 'ref.is_null', value: op0(), loc } as RefIsNullExpr;
@@ -3775,7 +3902,7 @@ export class WastParser {
       this.drop();
       const name = this.peek() === TokenType.Var ? (this.consume() as StringToken).text : null;
       const field = this.parseQuotedText() ?? '';
-      const args: Const[] = [];
+      const args: WastArg[] = [];
       while (this.peek() === TokenType.Lpar) {
         const c = this.parseConstExprArg();
         if (c !== null) args.push(c);
@@ -3797,20 +3924,101 @@ export class WastParser {
     return null;
   }
 
-  /** Parse a const expr like `(i32.const 42)` for action args. */
-  private parseConstExprArg(): Const | null {
+  /**
+   * Parse one `invoke` action argument: `(i32.const 42)`, `(ref.null extern)`,
+   * `(ref.extern 0)`, `(ref.host 2)`, or `(ref.func)`.
+   *
+   * Only the `(X.const N)` form used to be accepted — every reference-valued
+   * argument was rejected with "expected const instr", which skipped whole
+   * testsuite files (`(invoke "init" (ref.extern 0))` and friends).
+   */
+  private parseConstExprArg(): WastArg | null {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
-    if (this.peek() !== TokenType.Const) {
-      this.error(this.loc(), 'expected const instr');
-      // skip to rpar
-      while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) this.drop();
+
+    if (this.peek() === TokenType.Const) {
+      const tok = this.consume() as OpcodeToken;
+      const c = this.parseConst(tok.opcode as unknown as number);
       this.expect(TokenType.Rpar);
-      return null;
+      return c === null ? null : { kind: 'value', value: c };
     }
-    const tok = this.consume() as OpcodeToken;
-    const c = this.parseConst(tok.opcode as unknown as number);
+
+    const ref = this.parseRefValue();
+    if (ref !== null) return ref;
+
+    this.error(this.loc(), 'expected a const or reference value');
+    // Skip to the closing rpar so the enclosing action can keep parsing.
+    while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) this.drop();
     this.expect(TokenType.Rpar);
-    return c;
+    return null;
+  }
+
+  /**
+   * Parse the reference forms shared by `invoke` arguments and
+   * `assert_return` results: `(ref.null [H])`, `(ref.extern [N])`,
+   * `(ref.host [N])`, `(ref.func)`.
+   *
+   * Assumes the opening `(` is already consumed, and consumes the closing
+   * `)`. Returns null WITHOUT consuming anything when the current token
+   * isn't one of these, so callers can fall through to other forms.
+   */
+  private parseRefValue(): WastArg | null {
+    const tt = this.peek();
+
+    if (tt === TokenType.RefNull) {
+      this.drop();
+      // `(ref.null)` — bare form, "a null of any heap type". Valid wast
+      // grammar (the sibling `(ref.func)` bare form was already accepted);
+      // it used to hard-error with "expected heap type, got )". Reported by
+      // OMITTING refType, so a runner can't silently compare against a type
+      // the script never specified.
+      if (this.peek() === TokenType.Rpar) {
+        this.drop();
+        return { kind: 'ref.null' };
+      }
+      // `(ref.null H)` — same heap-type grammar as the instruction form. This
+      // shape stores a plain Type, so map the keyword back through the
+      // canonical table (a user-defined `$T` has no Type entry — coarsen to
+      // structref, matching the loose typed-ref IR).
+      const ht = this.parseHeapTypeVar();
+      const t = ht !== null && ht.kind === 'name'
+        ? heapTypeNameToType(ht.name) ?? Type.StructRef
+        : Type.StructRef;
+      this.expect(TokenType.Rpar);
+      return { kind: 'ref.null', refType: t };
+    }
+
+    if (tt === TokenType.RefFunc) {
+      this.drop();
+      this.expect(TokenType.Rpar);
+      return { kind: 'ref.func' };
+    }
+
+    // `(ref.extern N)` / `(ref.host N)` name a specific host reference; the
+    // bare forms match any. `'ref.extern'` was declared in the ExpectedConst
+    // union all along but never parsed, and `ref.host` had no token at all.
+    if (tt === TokenType.RefExtern || tt === TokenType.RefHost) {
+      const kind = tt === TokenType.RefExtern ? 'ref.extern' as const : 'ref.host' as const;
+      this.drop();
+      if (this.peek() === TokenType.Rpar) {
+        this.drop();
+        return { kind };
+      }
+      const next = this.peek();
+      if (next !== TokenType.Nat && next !== TokenType.Int) {
+        this.error(this.loc(), `expected a host reference index, got ${tokenName(next)}`);
+        return null;
+      }
+      const tok = this.consume() as LiteralToken;
+      const n = parseNatText(tok.literal.text);
+      if (n === null) {
+        this.error(tok.loc, `invalid host reference index: ${tok.literal.text}`);
+        return null;
+      }
+      this.expect(TokenType.Rpar);
+      return { kind, value: Number(n) };
+    }
+
+    return null;
   }
 
   /** Parse an expected-return value like `(i32.const 42)` or `(f32.const nan:canonical)`. */
@@ -3844,18 +4052,20 @@ export class WastParser {
       return { kind: 'value', value: c };
     }
 
-    if (this.peek() === TokenType.RefNull) {
+    // Bare abstract-reference patterns — `(ref.any)`, `(ref.eq)`,
+    // `(ref.i31)`, `(ref.struct)`, `(ref.array)`: "a reference whose heap
+    // type is a subtype of H". Result-position only; each used to hard-error,
+    // which skipped whole GC testsuite files.
+    const bareRefKind = BARE_REF_RESULT_KINDS.get(this.peek());
+    if (bareRefKind !== undefined) {
       this.drop();
-      const t = this.parseValueType() ?? Type.FuncRef;
       this.expect(TokenType.Rpar);
-      return { kind: 'ref.null', refType: t };
+      return { kind: bareRefKind } as ExpectedConst;
     }
 
-    if (this.peek() === TokenType.RefFunc) {
-      this.drop();
-      this.expect(TokenType.Rpar);
-      return { kind: 'ref.func' };
-    }
+    // Forms an invoke argument can take too.
+    const ref = this.parseRefValue();
+    if (ref !== null) return ref;
 
     // Not an expected value — restore position
     this.pos = savedPos;
@@ -3939,52 +4149,22 @@ function constOpcodeType(opcode: number): Type {
   }
 }
 
-/** Map a Type to its WAT keyword string. */
-function typeToName(t: Type): string {
-  switch (t) {
-    case Type.FuncRef:
-      return 'funcref';
-    case Type.ExternRef:
-      return 'externref';
-    case Type.ExnRef:
-      return 'exnref';
-    default:
-      return 'funcref';
-  }
-}
-
 /**
- * Map an abstract-reftype `ValueType` (`anyref` / `i31ref` / etc., as the
- * lexer hands back) to the bare abstract-heap-type name used inside
- * `ref.test (ref [null] HEAP) val` and `ref.cast`. Returns null when the
- * value type isn't a GC abstract reftype.
+ * Bare abstract-reference result patterns → their {@link ExpectedConst} kind.
+ *
+ * Result-position only. `ref.eq` / `ref.i31` reuse their instruction token
+ * types (those keywords double as instructions); `ref.any` / `ref.struct` /
+ * `ref.array` have result-only tokens since no instruction shares the name.
+ * `ref.func` / `ref.null` / `ref.extern` / `ref.host` are legal as invoke
+ * arguments too, so they live in `parseRefValue` instead.
  */
-function abstractHeapTypeNameForValType(t: Type): string | null {
-  switch (t) {
-    case Type.AnyRef:
-      return 'any';
-    case Type.EqRef:
-      return 'eq';
-    case Type.I31Ref:
-      return 'i31';
-    case Type.StructRef:
-      return 'struct';
-    case Type.ArrayRef:
-      return 'array';
-    case Type.FuncRef:
-      return 'func';
-    case Type.ExternRef:
-      return 'extern';
-    case Type.NullRef:
-      return 'none';
-    case Type.NullFuncRef:
-      return 'nofunc';
-    case Type.NullExternRef:
-      return 'noextern';
-    default:
-      return null;
-  }
-}
+const BARE_REF_RESULT_KINDS: ReadonlyMap<TokenType, ExpectedConst['kind']> = new Map([
+  [TokenType.RefAny, 'ref.any' as const],
+  [TokenType.RefEq, 'ref.eq' as const],
+  [TokenType.RefI31, 'ref.i31' as const],
+  [TokenType.RefStructKw, 'ref.struct' as const],
+  [TokenType.RefArrayKw, 'ref.array' as const],
+]);
 
 /** Parse a float literal (LiteralToken) to its bit pattern. */
 // ---------------------------------------------------------------------------

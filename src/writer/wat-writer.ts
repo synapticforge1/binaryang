@@ -660,12 +660,15 @@ class WatWriter extends ModuleContext {
       onRefNullExpr: (e) => {
         this.putsSpace('ref.null');
         if (e.refType.kind === 'name') {
-          this.writeName(e.refType.name, NC.Newline);
+          // Either an abstract heap-type keyword (`func` / `any` / …) or a
+          // user-defined `$T`; both are written verbatim. writeName is for
+          // `$`-prefixed identifiers only, so it mangled bare keywords.
+          this.putsNewline(e.refType.name);
         } else {
-          // index-based refType: look up type entry
-          const te = this.module.types[e.refType.value];
-          if (te) this.putsNewline(te.kind === 'func' ? 'func' : te.kind);
-          else this.writef(`${e.refType.value}`);
+          // A resolved type index. `ref.null 3` is valid WAT; the earlier code
+          // printed the type entry's KIND (`func` / `struct`) instead, which
+          // silently retargeted the null to the abstract supertype.
+          this.putsNewline(`${e.refType.value}`);
         }
         return Result.Ok;
       },

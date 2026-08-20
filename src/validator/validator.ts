@@ -4,7 +4,7 @@
 // Licensed under the Apache License, Version 2.0
 
 import { combineResults, Result } from '../core/result.ts';
-import { Type } from '../core/types.ts';
+import { heapTypeNameToType, Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type {
@@ -460,8 +460,35 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onRefNullExpr(e: RefNullExpr): Result {
-    const refType = e.refType.kind === 'index' ? e.refType.value as Type : Type.FuncRef;
-    return this.sv.onRefNull(e.loc, refType);
+    // `refType` is a heap type. Abstract keywords map straight onto the
+    // matching nullable ref value type (they share a byte). A user-defined
+    // type index coarsens to the abstract supertype of its type entry — the
+    // loose typed-ref IR documented in CLAUDE.md. The earlier code read a
+    // name-var as plain funcref, so `ref.null extern` type-checked as funcref.
+    return this.sv.onRefNull(e.loc, this.refNullType(e.refType));
+  }
+
+  /** Resolve a `ref.null` heap-type var to the value type it pushes. */
+  private refNullType(v: Var): Type {
+    if (v.kind === 'name') {
+      const t = heapTypeNameToType(v.name);
+      if (t !== null) return t;
+      // Unresolved `$T` — resolveNames wasn't run. Fall back to the top of
+      // the GC hierarchy rather than silently claiming funcref.
+      return Type.AnyRef;
+    }
+    const te = this.module.types[v.value];
+    if (te === undefined) return Type.AnyRef;
+    switch (te.kind) {
+      case 'func':
+        return Type.FuncRef;
+      case 'struct':
+        return Type.StructRef;
+      case 'array':
+        return Type.ArrayRef;
+      default:
+        return Type.AnyRef;
+    }
   }
   onRefIsNullExpr(e: RefIsNullExpr): Result {
     return this.sv.onRefIsNull(e.loc);

@@ -158,6 +158,86 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-20 — WAST spec-testsuite parse gap: scope of the remaining 137 files
+
+**Status: SCOPED, NOT FIXED.** The working tree is at **120/257 clean** (up from
+107 after the v1.3.6 ref-value work). This section scopes the remaining 137.
+
+### Corpus and method
+
+`wasmtk/tests/module/wasm_wast/testsuite-main/` — the real 257-file WebAssembly
+spec testsuite. Method: parse every file, cluster the first error, then confirm
+each cluster's root cause with a MINIMAL REPRO through the parser rather than
+inferring it from the error text. This mattered — four hypotheses read off the
+error messages were wrong:
+
+- underscores in numeric literals work fine (they are NOT the cause of the
+  "expected i32 constant" cluster)
+- `(module quote "…")` works; only the MULTI-string form fails
+- relaxed SIMD instructions parse fine; those files fail on `(either …)`
+- `noexn` is 0x74, not the 0x68 the hierarchy suggests (already fixed)
+
+A file is counted against a feature when it CONTAINS that syntax, so "solo
+blocker" = the file's only detected blocker. **The projections below are
+calibrated**: spiking the single highest-value fix (`neg-hex-int`) moved
+failures 137 → 121, exactly the 16 files predicted.
+
+### Confirmed root causes
+
+| Feature | Root cause (repro-confirmed) | Files w/ | Solo |
+| --- | --- | --- | --- |
+| `multi-mem-imm` | optional memory index immediate on load/store, `memory.*`, `data.drop`, SIMD lane ops | 39 | 33 |
+| `table-opt-index` | `table.get/set/size/grow/fill/copy/init` require a table var; it is OPTIONAL (folded *and* linear) | 31 | 8 |
+| `neg-hex-int` | `parseNatText` calls `BigInt("-0x…")`, which THROWS — JS rejects sign+radix. Its comment claims the opposite | 22 | 16 |
+| `quote-multi-text` | `(module quote "a" "b")` — multi-string form; `parseTextList` already exists and is wired for `binary` but not `quote` | 21 | 7 |
+| `table-index-type` | `(table $t i64 …)` — index type on tables (`parseLimits` does it for memory only) | 13 | 1 |
+| `gc-sub-rec` | `(type (sub …))` / `(rec …)` — GC subtyping + recursive type groups | 12 | 5 |
+| `hexfloat-trail-dot` | `0x1.` — hex float, trailing dot, no fraction digits, no exponent | 11 | 6 |
+| `data-bare-offset` | `(data (global.get 0) "a")` — bare offset expr; exact parallel of the elem fix already shipped | 10 | 2 |
+| `ref-abstract-type` | `(ref struct)` / `(ref array)` in type position — `parseValueType`'s `(ref …)` branch rejects the dedicated-token keywords | 9 | 1 |
+| `block-param` | `(block (param i32) (result i32) …)` — multi-value block signatures | 7 | 2 |
+| `either-result` | `(either r1 r2)` alternative assert results (upstream has `ParseEither`) | 6 | 6 |
+| `module-definition` | `(module definition …)` / `(module instance …)` — multi-module linking | 5 | 0 |
+| `array-bulk` | `array.copy` / `fill` / `init_data` / `init_elem` | 4 | 2 |
+| `elem-typed-reftype` | `(elem … (ref $t) …)` / `(ref 1)` elem types | 4 | 1 |
+| `nan-payload-uscore` | `nan:0x7f_ffff` — payload parser skips underscore stripping AND **throws a raw SyntaxError** out of the parser | 4 | 0 |
+| `memory-index-type` | `(memory i64 (data …))` | 4 | 1 |
+| `annotations` | `(@name …)` custom annotations | 1 | 0 |
+| `table-inline-elem` | `(table $t funcref (elem (ref.func $f)))` | 1 | 0 |
+| *(select.wast)* | `select (result i32) (result)` — EMPTY `(result)` annotation | 1 | 0 |
+
+91 of the 137 files have a single blocker; 46 need a combination.
+
+### Recommended tranches (cumulative, calibrated projection)
+
+| Tranche | Contents | +files | Running total |
+| --- | --- | --- | --- |
+| **T1 literals** | `neg-hex-int`, `hexfloat-trail-dot`, `nan-payload-uscore` | +25 | **145/257** |
+| **T2 small grammar** | `table-opt-index`, `quote-multi-text`, `either-result`, `data-bare-offset`, `array-bulk`, `ref-abstract-type` | +34 | **179/257** |
+| **T3 multi-memory** | memory-index immediate across IR + parser + reader/writer + validator + WAT writer + bridge | +37 | **216/257** |
+| **T4 i64 index types** | `table-index-type`, `memory-index-type` | +14 | **230/257** |
+| **T5 GC sub/rec** | `(sub …)` / `(rec …)` + type-section encoding + validator subtyping | +9 | **239/257** |
+| **T6 structural** | `block-param`, `elem-typed-reftype`, `table-inline-elem`, `module-definition`, `annotations` | +17 | **256/257** |
+
+Ordering rationale: T1 and T2 are contained fixes (literal parsing and single
+grammar productions) returning 59 files for far less work than T3. T3 is the
+biggest single win but is a genuine cross-cutting feature — the memory index
+has to reach the IR and every consumer, so it should not be started until the
+cheap tranches are banked. T5 and T6 are proposal-scale features.
+
+### Two robustness bugs worth fixing regardless of tranche
+
+1. **The parser THROWS on malformed input.** `nan:0x7f_ffff` escapes as a raw
+   `SyntaxError` from `BigInt()` (const.wast, simd_splat.wast). A parser must
+   report an error, never crash the caller. Same underlying call as
+   `neg-hex-int`, so T1 fixes both — but audit `parseNatText`'s other callers
+   for the same pattern.
+2. **`tokenName()` renders unnamed tokens as `<token:163>`.** Every diagnostic
+   in this survey had to be post-processed through the `TokenType` enum to be
+   readable. Fill in the name map (or fall back to `TokenType[n]`).
+
+---
+
 ## 2026-06-09 — Silent-corruption audit (two rounds, unreleased)
 
 A two-pass fail-loud audit (6 + 4 parallel review agents) of the whole `src/` tree for workarounds,
