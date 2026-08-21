@@ -704,6 +704,11 @@ function nonNullable(t: ValueType): ValueType {
 
 interface TCLabel {
   labelType: LabelType;
+  /**
+   * Locals first initialised INSIDE this frame. Rolled back at `end`: a
+   * `local.set` in a block does not survive the block.
+   */
+  initAdded: number[];
   paramTypes: ValueType[];
   resultTypes: ValueType[];
   typeStackLimit: number;
@@ -757,9 +762,46 @@ export class TypeChecker {
     return this.getLabel(0);
   }
 
+  /**
+   * Which locals are known initialised right now.
+   *
+   * A local whose type is DEFAULTABLE starts initialised; a
+   * `(local (ref $t))` does not, and reading one before a `local.set` is
+   * invalid. The rule for control flow is stricter than it looks: an
+   * initialisation inside a frame is rolled back at `end`, so
+   * `(block (local.set $x …)) (local.get $x)` is INVALID even though the set
+   * plainly executed — and so is an `if` that sets the local in BOTH arms.
+   * local_init.wast asserts exactly those two, which is what settles the
+   * design: no branch joins, no intersection, just frame-scoped rollback.
+   */
+  private initialized = new Set<number>();
+
+  /** Seed the initialised set: params, then defaultable locals. */
+  setInitialLocals(initialized: Iterable<number>): void {
+    this.initialized = new Set(initialized);
+  }
+
+  markLocalInit(idx: number): void {
+    if (this.initialized.has(idx)) return;
+    this.initialized.add(idx);
+    const label = this.topLabel();
+    if (label) label.initAdded.push(idx);
+  }
+
+  isLocalInit(idx: number): boolean {
+    return this.initialized.has(idx);
+  }
+
+  /** Undo every initialisation recorded in the top frame. */
+  private rollbackInit(label: TCLabel): void {
+    for (const idx of label.initAdded) this.initialized.delete(idx);
+    label.initAdded.length = 0;
+  }
+
   private pushLabel(labelType: LabelType, paramTypes: ValueType[], resultTypes: ValueType[]): void {
     this.labelStack.push({
       labelType,
+      initAdded: [],
       paramTypes: [...paramTypes],
       resultTypes: [...resultTypes],
       typeStackLimit: this.typeStack.length,
@@ -1162,6 +1204,8 @@ export class TypeChecker {
   onElse(): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
+    // The else arm must not see what the then arm initialised.
+    this.rollbackInit(label);
     let r = Result.Ok;
     if (label.labelType !== LabelType.If) {
       this.printError('else outside of if block');
@@ -1180,6 +1224,7 @@ export class TypeChecker {
   onEnd(): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
+    this.rollbackInit(label);
     let r = this.popAndCheckSignature(label.resultTypes, 'end');
     r = combineResults(r, this.checkTypeStackEnd('end'));
     this.resetTypeStackToLabel(label);

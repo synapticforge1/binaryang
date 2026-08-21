@@ -66,6 +66,7 @@ reference these ids.
 | T9.7 | Declared subtyping, ref.eq, select, defaultability, type scope | done — assert_invalid 2579 → 2629/2737 |
 | T11 | The pipeline rewrote an INVALID module into a valid one | done — assert_invalid 2629 → 2632/2737 |
 | T9.8 | One-armed `if` arity; try_table catch-clause label types | done — assert_invalid 2632 → 2641/2737 |
+| T9.9 | Immediate-vs-immediate rules, and local-init tracking | done — assert_invalid 2641 → 2658/2737 |
 
 ### Open — parse side: NONE
 
@@ -184,7 +185,34 @@ errors caught, zero false rejections.
 | ~~T9.6~~ | **DONE.** Of the 205, **74 are also accepted by V8** — those spec tests predate proposals that legalised what they assert against — leaving 131 genuinely ours. Six categories closed: SIMD-memory ALIGNMENT (the validator kept its own partial natural-align table with no SIMD entries, so the check silently did nothing — `core/opcode.ts` already owns the canonical one and CLAUDE.md says not to duplicate it); LANE INDICES for `i8x16.shuffle` and `load*_lane` / `store*_lane`; IMMUTABILITY of struct fields and array elements; UNKNOWN type indices in value types; FINAL supertypes (an absent `(sub …)` is implicitly final); and CONSTANT EXPRESSIONS (only the const family, ref forms, `global.get`, extended-const arithmetic and GC allocations). **2532 → 2579 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/structural_checks.test.ts`. | — |
 | ~~T9.7~~ | **DONE.** Declared `(sub …)` relationships are now checked STRUCTURALLY, not just for finality — kind match, struct fields kept in order and appendable, mutable fields exact / immutable narrowable, func params contravariant and results covariant (**+17**, the whole category). Plus: `ref.eq` operands must be eq-hierarchy (`anyref` is a SUPERTYPE of `eqref`, so it does not qualify); a bare `select` is numeric/vector-only AND both operands must be the same type; a non-defaultable table element type needs an initializer; `array.copy`'s source element must be assignable to the destination's; and a type's scope bound is "everything before it plus the rest of its own rec group", not the section size — which closed the cross-group forward reference T9.6 had left as a documented failing case. **2579 → 2629 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/subtype_decl.test.ts`. | — |
 | ~~T9.8~~ | **DONE.** A one-armed `if` falls through producing what it was given, so its block type's params and results must match — the missing `else` is not modelled in the type checker, so this is checked from the IR. And a `try_table` CATCH CLAUSE hands its target operands determined by the catch KIND (`catch` → the tag's params, `catch_ref` → params plus a NON-NULL `(ref exn)`, `catch_all` → nothing, `catch_all_ref` → `(ref exn)`); only the tag immediate was bounds-checked. **2632 → 2641 / 2737**. Two mistakes while adding the catch check, both caught by the agreement metric rather than by reasoning: depths were read AFTER `beginTryTable` pushed the try_table's own label (the same off-by-one T7.6 fixed in the parser — 6 valid modules rejected), and `catch_ref` was modelled as the nullable `exnref` (1 more). Regression test `tests/validator/control_arity.test.ts`. | — |
-| **T9.9** | The 23 still ours. **`uninitialized local` (4) is a FEATURE, not a missing check**: a non-defaultable local must be `local.set` before any read, and getting it right needs the function-references init-tracking algorithm — an init set per control frame, intersected at an `if` join, restored at a block end when the body is unreachable. A conservative approximation would reject valid code, which is the one thing this campaign has not done. The other 19 are type-mismatch singles spread across `br_on_cast*` (6), `array_init_elem` (2), `elem` (2), `table-sub` (2), and one each in `call_indirect`, `call_ref`, `return_call_indirect`, plus `array type is not numeric or vector`, `unknown global` and a cross-group `unknown type`. | — |
+| ~~T9.9~~ | **DONE.** Five rules relating two IMMEDIATES, or an immediate to a declaration, none visible to the operand stack: `br_on_cast`'s rt2 must be a SUBTYPE of rt1; `table.copy` / `table.init` element compatibility; `array.*_data` needs a numeric element and `array.*_elem` a reference one; a global's initializer may only name globals declared BEFORE it (a self-reference is an unknown global). Plus local-init tracking — see the correction below. **2641 → 2658 / 2737**, agreement unmoved at 2120/2120. Tests `tests/validator/gc_operand_rules.test.ts` and `tests/validator/local_init.test.ts`. | — |
+| **T9.10** | The 6 still ours: 5 type mismatches (`array_init_elem` 1, `call_indirect` 1, `call_ref` 1, +2) and one cross-group `unknown type` in `ref.wast#11`. Everything else in the 79 missed is a module V8 accepts too. | — |
+
+### Correction: local-init was mis-scoped, and reading the spec test settled it
+
+T9.8 deferred `uninitialized local` with the reasoning *"it needs the
+function-references init-tracking algorithm — an init set per control frame,
+intersected at an `if` join — and a conservative approximation would reject
+valid code, which is the one thing this campaign hasn't done."*
+
+That was wrong on the central point. `local_init.wast`'s own `assert_invalid`
+cases decide it:
+
+```wat
+(if … (then (local.set $x …)) (else (local.set $x …)))
+(drop (local.get $x))          ;; INVALID
+```
+
+If the rule intersected at a join, setting the local in **both** arms would
+leave it initialised. It does not. The real rule is plain **frame-scoped
+rollback**: an initialisation inside a control frame is undone at `end`, an
+`else` arm does not see what `then` initialised, and there are no joins at all.
+
+So it was neither large nor an approximation — no risk of false rejections, and
+agreement held at 2120/2120 on the first run. **The lesson is the reusable
+part**: the deferral came from reasoning about the algorithm from memory rather
+than reading what the spec test actually asserts. The evidence was already in
+the repo and took minutes to check.
 
 ### T11 — the pipeline rewrote an INVALID module into a valid one (DONE)
 

@@ -375,10 +375,13 @@ class ModuleValidator implements ExprVisitorDelegate {
       this.acc(this.sv.onMemory(mem.loc, mem.limits));
     }
 
-    // Globals
+    // Globals. `onGlobal` registers it first, so the in-scope count for its
+    // OWN initializer is one less than the total — a global cannot name
+    // itself.
+    let globalIdx = m.numGlobalImports;
     for (const global of m.globals) {
       this.acc(this.sv.onGlobal(global.loc, global.type, global.mutable));
-      this.acc(this.sv.beginInitExpr(global.loc, global.type));
+      this.acc(this.sv.beginGlobalInitExpr(global.loc, global.type, globalIdx++));
       this.visitConstExpr(global.init, global.loc);
       this.acc(this.sv.endInitExpr());
     }
@@ -833,7 +836,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onArrayCopy(e.loc, varIdx(e.destTypeVar), varIdx(e.srcTypeVar));
   }
   onArrayInitSegmentExpr(e: ArrayInitSegmentExpr): Result {
-    return this.sv.onArrayInitSegment(e.loc, varIdx(e.typeVar));
+    return this.sv.onArrayInitSegment(e.loc, varIdx(e.typeVar), e.kind === 'array.init_elem');
   }
   onArrayLenExpr(e: ArrayLenExpr): Result {
     return this.sv.onArrayLen(e.loc);

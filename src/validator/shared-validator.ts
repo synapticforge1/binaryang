@@ -93,6 +93,13 @@ export class SharedValidator {
   private errors: ErrorList;
   private currentLoc: Location = unknownLocation();
   inInitExpr = false;
+  /**
+   * While validating a GLOBAL's initializer: how many globals are in scope.
+   * A global's own index is not, which is what makes a self-reference an
+   * unknown global rather than a cycle. Undefined for every other kind of
+   * constant expression, where no such limit applies.
+   */
+  private initExprGlobalLimit: number | undefined = undefined;
 
   // Type section registry (index → FuncType for func entries only)
   private funcTypesMap: Map<number, FuncType> = new Map();
@@ -585,6 +592,12 @@ export class SharedValidator {
   // Init expressions
   // ---------------------------------------------------------------------------
 
+  /** Like {@link beginInitExpr}, but for a global's own initializer. */
+  beginGlobalInitExpr(loc: Location, type: ValueType, globalIdx: number): Result {
+    this.initExprGlobalLimit = globalIdx;
+    return this.beginInitExpr(loc, type);
+  }
+
   beginInitExpr(loc: Location, typeIn: ValueType): Result {
     const type = typeIn;
     this.currentLoc = loc;
@@ -594,6 +607,7 @@ export class SharedValidator {
 
   endInitExpr(): Result {
     this.inInitExpr = false;
+    this.initExprGlobalLimit = undefined;
     return this.tc.endInitExpr();
   }
 
@@ -611,8 +625,13 @@ export class SharedValidator {
         end++;
         this.locals.push({ type: p, end });
       }
-      return this.tc.beginFunction(ft.params, ft.results);
+      const r = this.tc.beginFunction(ft.params, ft.results);
+      // Params are always initialised. Locals are seeded in `onLocalDecl`,
+      // which runs after this.
+      this.tc.setInitialLocals(ft.params.map((_, i) => i));
+      return r;
     }
+    this.tc.setInitialLocals([]);
     return this.tc.beginFunction([], []);
   }
 
@@ -623,6 +642,11 @@ export class SharedValidator {
 
   onLocalDecl(_loc: Location, count: number, typeIn: ValueType): Result {
     const type = typeIn;
+    // A defaultable local starts initialised; a non-defaultable one does not.
+    if (SharedValidator.isDefaultable(type)) {
+      const base = this.locals.length === 0 ? 0 : (this.locals[this.locals.length - 1]?.end ?? 0);
+      for (let i = 0; i < count; i++) this.tc.markLocalInit(base + i);
+    }
     const cur = this.locals.length === 0 ? 0 : (this.locals[this.locals.length - 1]?.end ?? 0);
     this.locals.push({ type, end: cur + count });
     return Result.Ok;
@@ -737,6 +761,19 @@ export class SharedValidator {
     to: ValueType,
   ): Result {
     this.currentLoc = loc;
+    // rt2 must be a SUBTYPE of rt1 — the instruction narrows a reference, it
+    // cannot widen one. Nothing checked the relationship between the two
+    // immediates, so `br_on_cast … (ref any) (ref null $s)` validated even
+    // though a nullable ref is not a subtype of a non-nullable one.
+    let r: Result = Result.Ok;
+    if (!this.isSubtype(to, from)) {
+      r = this.printError(
+        loc,
+        `type mismatch in br_on_cast: ${valueTypeName(to)} is not a subtype of ${
+          valueTypeName(from)
+        }`,
+      );
+    }
     // br_on_cast branches with rt2 and falls through with `rt1 \ rt2`; the
     // `_fail` spelling is the other way round.
     //
@@ -747,11 +784,14 @@ export class SharedValidator {
     const diff: ValueType = isRefValueType(from)
       ? { ...from, nullable: from.nullable && !(isRefValueType(to) ? to.nullable : true) }
       : from;
-    return this.tc.onBrOnCast(
-      depth,
-      onFail ? 'br_on_cast_fail' : 'br_on_cast',
-      onFail ? diff : to,
-      onFail ? to : diff,
+    return combineResults(
+      r,
+      this.tc.onBrOnCast(
+        depth,
+        onFail ? 'br_on_cast_fail' : 'br_on_cast',
+        onFail ? diff : to,
+        onFail ? to : diff,
+      ),
     );
   }
 
@@ -782,6 +822,9 @@ export class SharedValidator {
     this.currentLoc = loc;
     const type = this.checkLocalIndex(localIdx, loc);
     if (type === null) return Result.Error;
+    if (!this.tc.isLocalInit(localIdx)) {
+      return this.printError(loc, `uninitialized local ${localIdx}`);
+    }
     return this.tc.onLocalGet(type);
   }
 
@@ -789,6 +832,7 @@ export class SharedValidator {
     this.currentLoc = loc;
     const type = this.checkLocalIndex(localIdx, loc);
     if (type === null) return Result.Error;
+    this.tc.markLocalInit(localIdx);
     return this.tc.onLocalSet(type);
   }
 
@@ -796,6 +840,7 @@ export class SharedValidator {
     this.currentLoc = loc;
     const type = this.checkLocalIndex(localIdx, loc);
     if (type === null) return Result.Error;
+    this.tc.markLocalInit(localIdx);
     return this.tc.onLocalTee(type);
   }
 
@@ -814,6 +859,13 @@ export class SharedValidator {
           r,
           this.printError(loc, 'initializer expression can only reference an imported global'),
         );
+      } else if (this.initExprGlobalLimit !== undefined && globalIdx >= this.initExprGlobalLimit) {
+        // Even relaxed, a global may only reference globals declared BEFORE
+        // it. `(global $g i32 (global.get 0))` names ITSELF: index 0 is not
+        // in scope until its own initializer finishes. Only the
+        // imported-global rule was checked, so the relaxed path let it
+        // through.
+        r = combineResults(r, this.printError(loc, `unknown global ${globalIdx}`));
       }
       if (gt.mutable) {
         r = combineResults(
@@ -1396,13 +1448,37 @@ export class SharedValidator {
     return this.tc.onCall(params, [this.refTo(typeIdx)]);
   }
 
+  /**
+   * `array.new_data` / `array.init_data` copy raw BYTES, so the element has to
+   * be numeric or vector; `array.new_elem` / `array.init_elem` copy element
+   * expressions, so it has to be a reference. Neither was checked, so
+   * `array.init_data` on an array of `funcref` — and `array.init_elem` on an
+   * array of `i8` — validated clean.
+   */
+  private checkArrayElemKind(
+    loc: Location,
+    element: ValueType,
+    wantReference: boolean,
+    what: string,
+  ): Result {
+    const isRef = isRefValueType(element) || isReferenceType(element);
+    if (isRef === wantReference) return Result.Ok;
+    return this.printError(
+      loc,
+      wantReference
+        ? `${what} can only be used with reference-type arrays`
+        : `array type is not numeric or vector: ${what} needs a numeric element`,
+    );
+  }
+
   onArrayNewData(loc: Location, typeIdx: number, dataIdx: number): Result {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     const dataCheck = this.checkDataSegmentIndex(dataIdx, loc);
     if (dataCheck !== Result.Ok) return dataCheck;
-    return this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]);
+    const kindCheck = this.checkArrayElemKind(loc, at.element.type, false, 'array.new_data');
+    return combineResults(kindCheck, this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]));
   }
 
   onArrayNewElem(loc: Location, typeIdx: number, elemIdx: number): Result {
@@ -1411,7 +1487,8 @@ export class SharedValidator {
     if (!at) return Result.Error;
     const elemCheck = this.checkElemSegmentIndex(elemIdx, loc);
     if (!elemCheck) return Result.Error;
-    return this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]);
+    const kindCheck = this.checkArrayElemKind(loc, at.element.type, true, 'array.new_elem');
+    return combineResults(kindCheck, this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]));
   }
 
   onArrayGet(loc: Location, typeIdx: number): Result {
@@ -1483,14 +1560,23 @@ export class SharedValidator {
     );
   }
 
-  onArrayInitSegment(loc: Location, typeIdx: number): Result {
+  onArrayInitSegment(loc: Location, typeIdx: number, isElem: boolean): Result {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     // [ref, destOffset, srcOffset, size] -> []
+    const kindCheck = this.checkArrayElemKind(
+      loc,
+      at.element.type,
+      isElem,
+      isElem ? 'array.init_elem' : 'array.init_data',
+    );
     return combineResults(
-      this.checkMutable(loc, at.element.mutable, `element of array type ${typeIdx}`),
-      this.tc.onCall([this.refNullTo(typeIdx), Type.I32, Type.I32, Type.I32], []),
+      kindCheck,
+      combineResults(
+        this.checkMutable(loc, at.element.mutable, `element of array type ${typeIdx}`),
+        this.tc.onCall([this.refNullTo(typeIdx), Type.I32, Type.I32, Type.I32], []),
+      ),
     );
   }
 
@@ -1562,7 +1648,21 @@ export class SharedValidator {
     const dtt = this.checkTableIndex(dstIdx, loc);
     const stt = this.checkTableIndex(srcIdx, loc);
     if (!dtt || !stt) return Result.Error;
-    return this.tc.onTableCopy(dtt.limits.is64 ?? false, stt.limits.is64 ?? false);
+    // The SOURCE element must be assignable to the destination's. The operand
+    // stack only carries indices and a count, so it cannot see this.
+    let r: Result = Result.Ok;
+    if (!this.isSubtype(stt.element, dtt.element)) {
+      r = this.printError(
+        loc,
+        `type mismatch in table.copy: ${valueTypeName(stt.element)} is not a subtype of ${
+          valueTypeName(dtt.element)
+        }`,
+      );
+    }
+    return combineResults(
+      r,
+      this.tc.onTableCopy(dtt.limits.is64 ?? false, stt.limits.is64 ?? false),
+    );
   }
 
   onTableInit(loc: Location, segIdx: number, tableIdx: number): Result {
@@ -1570,6 +1670,18 @@ export class SharedValidator {
     const tt = this.checkTableIndex(tableIdx, loc);
     const et = this.checkElemSegmentIndex(segIdx, loc);
     let r = (tt && et) ? Result.Ok : Result.Error;
+    // Same as table.copy: the segment's element type must fit the table's.
+    if (tt && et && !this.isSubtype(et.element, tt.element)) {
+      r = combineResults(
+        r,
+        this.printError(
+          loc,
+          `type mismatch in table.init: ${valueTypeName(et.element)} is not a subtype of ${
+            valueTypeName(tt.element)
+          }`,
+        ),
+      );
+    }
     r = combineResults(r, this.tc.onTableInit(tt?.limits.is64 ?? false));
     return r;
   }
