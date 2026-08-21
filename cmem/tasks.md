@@ -125,6 +125,17 @@ producers. Re-run the harness before starting any of them.
 This is now **the only campaign metric with open work.** parse-clean,
 V8-validity and validator agreement are all exhausted.
 
+**No binaryen-ts involvement, so T10 has no upstream dependency.** The
+round-trip path is wabt-ts end to end — `wasm2wat` is our `readBinaryIr` →
+`generateNames` → our `writeWatModule`, and `wat2wasm` is our `parseWatModule`
+→ `resolveNames` → `synthesizeTypes` → our `writeBinaryIr`. binaryen-ts is
+imported in exactly two files, both under `src/bridge/`, which this path never
+touches. That matches agreed decision #2 (*binaryen-ts encoder = canonical for
+optimized wasm; wabt-ts encoder = format tools and round-trip fidelity only*) —
+round-trip fidelity is explicitly ours. T10.1 lives in `wat-writer.ts` and
+T10.5 in `binary-reader.ts`; neither is blocked on the upstream findings or on
+re-verifying the stale submodule pin.
+
 Classified by evidence (differing binary SECTION + V8 rejection message +
 sampled diffs), not by guessing. Some of these may fall out of the remaining
 T7 work; re-measure before starting any of them.
