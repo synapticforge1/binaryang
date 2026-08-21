@@ -72,6 +72,19 @@ everything remaining is on the encode side (T7.x), measured against V8.
 | **T7.9** | `return_call_indirect` tail-call type mismatch | 2 |
 | **T7.10** | Singles — `br_on_non_null` subtype, `br_on_null` branch arity, `i32.eqz` operand type, elem segment subtype, elem const-expr arity, duplicate export name, memory ordering | 7 |
 
+### A third metric — round-trip fidelity
+
+The campaign's two metrics (parse-clean, V8-validity) both measure the ENCODE
+path. T9.1 was invisible to both: a reordered module is still perfectly valid
+wasm. The decode path needs its own number — for each testsuite module we can
+encode, `binary -> wasm2wat -> wat2wasm` and compare bytes.
+
+**Current: 1954/2105 byte-identical, 138 differ, 13 fail to round-trip, 70
+files affected.** The 138 are a separate landscape from the T7 list; the one
+identified so far is that the reader cannot model a multi-value block result
+as N operand-stack values, so the next instruction decodes with Nop operands
+(inert at runtime, but extra `nop`s in the re-encode).
+
 ### Open — T9: found during the campaign, invisible to both metrics
 
 Neither the parse metric nor the V8-validity metric exercises these, so they
@@ -80,7 +93,7 @@ testsuite file.
 
 | id | Scope | Found |
 | --- | --- | --- |
-| **T9.1** | The binary READER has no `pushStmt` equivalent. `endFrame` splices leftover operand-stack values in AFTER every statement (`[...stmts, ...stack]`), so any decoded expression that produces a value nobody consumes is re-emitted at the END of its block — past the statements that followed it in the original. This is the same defect the parser fixed in v1.3.0, on the other side of the round-trip. T5.3 dodged it by committing `br_on_cast` as a statement (matching `br_on_null`), which is right for that instruction but is not the general fix. | T5.3 |
+| ~~T9.1~~ | **DONE.** The binary READER had no `pushStmt` equivalent. `endFrame` splices leftover operand-stack values in AFTER every statement (`[...stmts, ...stack]`), so any decoded expression that produces a value nobody consumes is re-emitted at the END of its block — past the statements that followed it in the original. This is the same defect the parser fixed in v1.3.0, on the other side of the round-trip. Confirmed to change program semantics, silently: `(block (result i32) (global.get $g) (global.set $g (i32.const 9)))` returns 1, and 9 after a `wasm2wat` round-trip. Fixed by a module-level `pushStmt(stack, stmts, expr)` that drains pending values first, wired into all 42 statement-commit sites. Round-trip fidelity over the testsuite: 1942 -> 1954 of 2105 modules byte-identical, 76 -> 70 files affected, zero regressions. Regression test `tests/reader/stmt_order.test.ts`. | T5.3 |
 | **T9.2** | Our own validator rejects valid GC reference flow. `ref.test` / `ref.cast` report the coarse `Type.Ref`, and `checkType` only lets `Ref` / `RefNull` satisfy `FuncRef` / `ExternRef` — so a `ref.cast` feeding a block whose result is any other reference type fails with "type mismatch". Confirmed pre-existing and independent of `br_on_cast`: a baseline module using only `ref.cast` fails identically while V8 accepts it. `wat2wasm` does not run the validator, so this only affects `wasm-validate`. The real fix is the same `ValueType` lattice the T7.4 refactor introduced — the validator was left on flat `Type`. | T5.3 |
 
 ### Why the numbering changed shape

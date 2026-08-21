@@ -153,6 +153,44 @@ class Frame {
   }
 }
 
+/**
+ * Commit `expr` as a statement, flushing any pending operand values first.
+ *
+ * The decoder keeps two per-frame lists: `stack` holds values a following
+ * instruction might still consume, `stmts` holds committed statements. At
+ * `end`, {@link Frame.flush} concatenates them as `[...stmts, ...stack]` —
+ * so a value that nobody ends up consuming is emitted AFTER every statement
+ * that followed it in the original code.
+ *
+ * That reordering is silent and it changes what the module means. The case
+ * that exposed it:
+ *
+ *   (block (result i32) (global.get $g) (global.set $g (i32.const 9)))
+ *
+ * `global.get` goes on the stack, `global.set` is a statement, and the block
+ * came back out of `wasm2wat` as `global.set; global.get` — reading the NEW
+ * value of the global instead of the old one. No error, just a different
+ * program.
+ *
+ * A pending value is NOT necessarily dead — `global.get; i32.const 10;
+ * i32.const 9; global.set; i32.add` consumes both pending values after the
+ * statement. Draining commits them anyway, and the later `i32.add` then gets
+ * `Nop` operands. That is an inaccurate TREE but a correct BINARY: emitting
+ * the drained values in order leaves them on the runtime operand stack, and
+ * the Nop operands encode to nothing that disturbs it, so `i32.add` still
+ * finds its arguments. (Same mechanism the legacy-EH handler bodies rely on,
+ * v1.2.9.) Ordering, by contrast, is not recoverable once lost — which is
+ * why draining is the right trade.
+ *
+ * This mirrors the parser's `pushStmt`, which exists for the identical reason
+ * on the other side of the round-trip (v1.3.0).
+ */
+function pushStmt(stack: Expr[], stmts: Expr[], expr: Expr): void {
+  for (const pending of stack) stmts.push(pending);
+  stack.length = 0;
+  stmts.push(expr);
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -945,11 +983,11 @@ export class BinaryReader {
       switch (op) {
         // --- Control ---
         case Opcode.Unreachable: {
-          stmts.push({ kind: 'unreachable', loc } as UnreachableExpr);
+          pushStmt(stack, stmts, { kind: 'unreachable', loc } as UnreachableExpr);
           break;
         }
         case Opcode.Nop: {
-          stmts.push({ kind: 'nop', loc } as NopExpr);
+          pushStmt(stack, stmts, { kind: 'nop', loc } as NopExpr);
           break;
         }
         case Opcode.Block: {
@@ -1046,7 +1084,7 @@ export class BinaryReader {
           };
           const rCount = blockResultCount(frame.blockType, m);
           if (rCount > 0) parent.stack.push(tryExpr);
-          else parent.stmts.push(tryExpr);
+          else pushStmt(parent.stack, parent.stmts, tryExpr);
           break;
         }
         case Opcode.TryTable: {
@@ -1183,7 +1221,7 @@ export class BinaryReader {
           if (node !== undefined) {
             const rCount = frame.kind === 'loop' ? 0 : blockResultCount(frame.blockType, m);
             if (rCount > 0) parent.stack.push(node);
-            else parent.stmts.push(node);
+            else pushStmt(parent.stack, parent.stmts, node);
           }
           break;
         }
@@ -1200,7 +1238,7 @@ export class BinaryReader {
             if (v === undefined) break;
             values.unshift(v);
           }
-          stmts.push({ kind: 'br', target: varIndex(depth), values, loc });
+          pushStmt(stack, stmts, { kind: 'br', target: varIndex(depth), values, loc });
           break;
         }
         case Opcode.BrIf: {
@@ -1213,7 +1251,13 @@ export class BinaryReader {
             if (v === undefined) break;
             values.unshift(v);
           }
-          stmts.push({ kind: 'br_if', target: varIndex(depth), cond: cond_, values, loc });
+          pushStmt(stack, stmts, {
+            kind: 'br_if',
+            target: varIndex(depth),
+            cond: cond_,
+            values,
+            loc,
+          });
           break;
         }
         case Opcode.BrTable: {
@@ -1225,12 +1269,19 @@ export class BinaryReader {
           // Values carried to the target sit below the index. Leave them as
           // preceding statements (the linear shape) rather than pulling them
           // into the node, matching how the binary stream orders them.
-          stmts.push({ kind: 'br_table', targets, defaultTarget, value, values: [], loc });
+          pushStmt(stack, stmts, {
+            kind: 'br_table',
+            targets,
+            defaultTarget,
+            value,
+            values: [],
+            loc,
+          });
           break;
         }
         case Opcode.Return: {
           const values = funcResultCount > 0 ? popN(stack, funcResultCount) : [];
-          stmts.push({ kind: 'return', values, loc });
+          pushStmt(stack, stmts, { kind: 'return', values, loc });
           break;
         }
 
@@ -1241,7 +1292,7 @@ export class BinaryReader {
           const args = popN(stack, sig.params.length);
           const callExpr: Expr = { kind: 'call', func: varIndex(funcIdx), args, loc };
           if (sig.results.length > 0) stack.push(callExpr);
-          else stmts.push(callExpr);
+          else pushStmt(stack, stmts, callExpr);
           break;
         }
         case Opcode.CallIndirect: {
@@ -1263,7 +1314,7 @@ export class BinaryReader {
             loc,
           };
           if (sig.results.length > 0) stack.push(ciExpr);
-          else stmts.push(ciExpr);
+          else pushStmt(stack, stmts, ciExpr);
           break;
         }
         case Opcode.CallRef: {
@@ -1273,7 +1324,7 @@ export class BinaryReader {
           const args = popN(stack, sig.params.length);
           const crExpr: Expr = { kind: 'call_ref', sigType: varIndex(typeIdx), args, callee, loc };
           if (sig.results.length > 0) stack.push(crExpr);
-          else stmts.push(crExpr);
+          else pushStmt(stack, stmts, crExpr);
           break;
         }
         case Opcode.ReturnCall: {
@@ -1281,7 +1332,7 @@ export class BinaryReader {
           const funcIdx = this.readU32Leb();
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
-          stmts.push({ kind: 'return_call', func: varIndex(funcIdx), args, loc });
+          pushStmt(stack, stmts, { kind: 'return_call', func: varIndex(funcIdx), args, loc });
           break;
         }
         case Opcode.ReturnCallIndirect: {
@@ -1294,7 +1345,7 @@ export class BinaryReader {
           const entry = m.types[typeIdx];
           const sigType: { params: ValueType[]; results: ValueType[] } =
             entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
-          stmts.push({
+          pushStmt(stack, stmts, {
             kind: 'return_call_indirect',
             sig: sigType,
             typeVar: varIndex(typeIdx),
@@ -1311,14 +1362,20 @@ export class BinaryReader {
           const sig = getTypeSig(m, typeIdx);
           const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const args = popN(stack, sig.params.length);
-          stmts.push({ kind: 'return_call_ref', sigType: varIndex(typeIdx), args, callee, loc });
+          pushStmt(stack, stmts, {
+            kind: 'return_call_ref',
+            sigType: varIndex(typeIdx),
+            args,
+            callee,
+            loc,
+          });
           break;
         }
 
         // --- Drop / Select ---
         case Opcode.Drop: {
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'drop', value, loc });
+          pushStmt(stack, stmts, { kind: 'drop', value, loc });
           break;
         }
         case Opcode.Select: {
@@ -1348,7 +1405,7 @@ export class BinaryReader {
         case Opcode.LocalSet: {
           const idx = this.readU32Leb();
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'local.set', var: varIndex(idx), value, loc });
+          pushStmt(stack, stmts, { kind: 'local.set', var: varIndex(idx), value, loc });
           break;
         }
         case Opcode.LocalTee: {
@@ -1367,7 +1424,7 @@ export class BinaryReader {
         case Opcode.GlobalSet: {
           const idx = this.readU32Leb();
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'global.set', var: varIndex(idx), value, loc });
+          pushStmt(stack, stmts, { kind: 'global.set', var: varIndex(idx), value, loc });
           break;
         }
 
@@ -1382,7 +1439,7 @@ export class BinaryReader {
           const idx = this.readU32Leb();
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const index = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'table.set', table: varIndex(idx), index, value, loc });
+          pushStmt(stack, stmts, { kind: 'table.set', table: varIndex(idx), index, value, loc });
           break;
         }
 
@@ -1426,7 +1483,7 @@ export class BinaryReader {
           const { align, offset: memOffset, memidx } = this.readMemArg();
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({
+          pushStmt(stack, stmts, {
             kind: 'store',
             opcode: op as Opcode,
             align,
@@ -1662,13 +1719,13 @@ export class BinaryReader {
         case Opcode.BrOnNull: {
           const depth = this.readU32Leb();
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'br_on_null', target: varIndex(depth), value, loc });
+          pushStmt(stack, stmts, { kind: 'br_on_null', target: varIndex(depth), value, loc });
           break;
         }
         case Opcode.BrOnNonNull: {
           const depth = this.readU32Leb();
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'br_on_non_null', target: varIndex(depth), value, loc });
+          pushStmt(stack, stmts, { kind: 'br_on_non_null', target: varIndex(depth), value, loc });
           break;
         }
 
@@ -1678,19 +1735,19 @@ export class BinaryReader {
           const tagIdx = this.readU32Leb();
           const sig = getTagSig(m, tagIdx);
           const args = popN(stack, sig.params.length);
-          stmts.push({ kind: 'throw', tag: varIndex(tagIdx), args, loc });
+          pushStmt(stack, stmts, { kind: 'throw', tag: varIndex(tagIdx), args, loc });
           break;
         }
         case Opcode.ThrowRef: {
           m.featuresUsed.exceptions = true;
           const exnref = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'throw_ref', exnref, loc });
+          pushStmt(stack, stmts, { kind: 'throw_ref', exnref, loc });
           break;
         }
         case Opcode.Rethrow: {
           m.featuresUsed.exceptions = true;
           const depth = this.readU32Leb();
-          stmts.push({ kind: 'rethrow', depth: varIndex(depth), loc } as RethrowExpr);
+          pushStmt(stack, stmts, { kind: 'rethrow', depth: varIndex(depth), loc } as RethrowExpr);
           break;
         }
 
@@ -1759,7 +1816,7 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: 'memory.init',
           segment: varIndex(segIdx),
           memidx: varIndex(memIdx),
@@ -1772,7 +1829,11 @@ export class BinaryReader {
       }
       case MiscOpcode.DataDrop: {
         const segIdx = this.readU32Leb();
-        stmts.push({ kind: 'data.drop', segment: varIndex(segIdx), loc } as DataDropExpr);
+        pushStmt(
+          stack,
+          stmts,
+          { kind: 'data.drop', segment: varIndex(segIdx), loc } as DataDropExpr,
+        );
         break;
       }
       case MiscOpcode.MemoryCopy: {
@@ -1781,7 +1842,7 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: 'memory.copy',
           destMemidx: varIndex(destMemIdx),
           srcMemidx: varIndex(srcMemIdx),
@@ -1797,7 +1858,14 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({ kind: 'memory.fill', memidx: varIndex(memIdx), dest, value, size, loc });
+        pushStmt(stack, stmts, {
+          kind: 'memory.fill',
+          memidx: varIndex(memIdx),
+          dest,
+          value,
+          size,
+          loc,
+        });
         break;
       }
       case MiscOpcode.TableInit: {
@@ -1806,7 +1874,7 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: 'table.init',
           segment: varIndex(segIdx),
           table: varIndex(tableIdx),
@@ -1819,7 +1887,11 @@ export class BinaryReader {
       }
       case MiscOpcode.ElemDrop: {
         const segIdx = this.readU32Leb();
-        stmts.push({ kind: 'elem.drop', segment: varIndex(segIdx), loc } as ElemDropExpr);
+        pushStmt(
+          stack,
+          stmts,
+          { kind: 'elem.drop', segment: varIndex(segIdx), loc } as ElemDropExpr,
+        );
         break;
       }
       case MiscOpcode.TableCopy: {
@@ -1828,7 +1900,7 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const srcOffset = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: 'table.copy',
           dst: varIndex(dstIdx),
           src: varIndex(srcIdx),
@@ -1856,7 +1928,14 @@ export class BinaryReader {
         const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         const start = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        stmts.push({ kind: 'table.fill', table: varIndex(tableIdx), start, value, size, loc });
+        pushStmt(stack, stmts, {
+          kind: 'table.fill',
+          table: varIndex(tableIdx),
+          start,
+          value,
+          size,
+          loc,
+        });
         break;
       }
       default:
@@ -1904,7 +1983,7 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stmts.push({
+      pushStmt(stack, stmts, {
         kind: 'store',
         opcode: opcode as Opcode,
         align,
@@ -2019,7 +2098,7 @@ export class BinaryReader {
       const lane = this.readU8();
       const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stmts.push({
+      pushStmt(stack, stmts, {
         kind: 'simd_store_lane',
         opcode: opcode as Opcode,
         align,
@@ -2081,7 +2160,7 @@ export class BinaryReader {
     if (op === 0x03) {
       // atomic.fence: consistency_model byte
       const consistencyModel = this.readU8();
-      stmts.push({ kind: 'atomic_fence', consistencyModel, loc } as AtomicFenceExpr);
+      pushStmt(stack, stmts, { kind: 'atomic_fence', consistencyModel, loc } as AtomicFenceExpr);
       return;
     }
 
@@ -2135,7 +2214,7 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      stmts.push({
+      pushStmt(stack, stmts, {
         kind: 'atomic_store',
         opcode: opcode as Opcode,
         align,
@@ -2376,7 +2455,7 @@ export class BinaryReader {
         const fieldIdx = this.readU32Leb();
         const value = stack.pop() ?? nop();
         const ref = stack.pop() ?? nop();
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: 'struct.set',
           typeVar: varIndex(typeIdx),
           fieldVar: varIndex(fieldIdx),
@@ -2480,9 +2559,15 @@ export class BinaryReader {
         const value = stack.pop() ?? nop();
         const offset = stack.pop() ?? nop();
         const ref = stack.pop() ?? nop();
-        stmts.push(
-          { kind: 'array.fill', typeVar: varIndex(typeIdx), ref, offset, value, size, loc },
-        );
+        pushStmt(stack, stmts, {
+          kind: 'array.fill',
+          typeVar: varIndex(typeIdx),
+          ref,
+          offset,
+          value,
+          size,
+          loc,
+        });
         return;
       }
       case GcOpcode.ArrayCopy: {
@@ -2493,7 +2578,7 @@ export class BinaryReader {
         const srcRef = stack.pop() ?? nop();
         const destOffset = stack.pop() ?? nop();
         const destRef = stack.pop() ?? nop();
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: 'array.copy',
           destTypeVar: varIndex(destTypeIdx),
           srcTypeVar: varIndex(srcTypeIdx),
@@ -2514,7 +2599,7 @@ export class BinaryReader {
         const srcOffset = stack.pop() ?? nop();
         const destOffset = stack.pop() ?? nop();
         const ref = stack.pop() ?? nop();
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: op === GcOpcode.ArrayInitData ? 'array.init_data' : 'array.init_elem',
           typeVar: varIndex(typeIdx),
           segment: varIndex(segIdx),
@@ -2531,7 +2616,7 @@ export class BinaryReader {
         const value = stack.pop() ?? nop();
         const index = stack.pop() ?? nop();
         const ref = stack.pop() ?? nop();
-        stmts.push({
+        pushStmt(stack, stmts, {
           kind: 'array.set',
           typeVar: varIndex(typeIdx),
           ref,
@@ -2567,14 +2652,12 @@ export class BinaryReader {
         const fromHeap = this.readHeapTypeVar();
         const toHeap = this.readHeapTypeVar();
         const value = stack.pop() ?? nop();
-        // A STATEMENT, like br_on_null / br_on_non_null above. br_on_cast does
-        // leave its ref on the stack when it falls through, but that value is
-        // usually consumed by the enclosing block's own end rather than by a
-        // following instruction — and `endFrame` splices leftover stack values
-        // AFTER every statement, so pushing it onto `stack` sank it past the
-        // rest of the block body and scrambled source order (the same hazard
-        // the parser's `pushStmt` exists to avoid, v1.3.0).
-        stmts.push({
+        // Onto the operand STACK, not straight to stmts: br_on_cast falls
+        // through with its ref still there, and a following instruction in
+        // the same block may consume it. Ordering is safe because `pushStmt`
+        // drains pending values ahead of the next statement (T9.1) — before
+        // that, a stack push here sank the branch past the rest of the block.
+        stack.push({
           kind: 'br_on_cast',
           onFail: op === GcOpcode.BrOnCastFail,
           target: varIndex(depth),
