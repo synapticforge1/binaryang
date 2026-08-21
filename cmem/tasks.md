@@ -163,6 +163,32 @@ Note the standing "no name-var survives resolveNames" guard did NOT catch (2):
 it walks the spec testsuite plus one hand-built module, and no testsuite module
 writes `select (result (ref $t))`. A guard is only as wide as its corpus.
 
+### Cross-engine check of the 73 (2026-08-21)
+
+The 73 `assert_invalid` modules wabt-ts still accepts are all ones **V8**
+accepts too. Re-checked against **Wasmtime 47.0.3**, which is now the project's
+accept/reject authority (see `CLAUDE.md`, "Oracle rule"):
+
+| engine | accepted | rejected |
+| --- | --- | --- |
+| V8 (harness oracle) | 73 | 0 |
+| **Wasmtime 47.0.3 (authority)** | **73** | **0** |
+| Wasmer 7.2.1 | 52 | 21 — all FEATURE GATES |
+
+Wasmer's 21 are `multiple memories` (14), `memory64 must be enabled` (4) and
+`rec group usage requires the gc proposal` (3): `wasmer validate` has those
+proposals off by default. Not a disagreement about validity.
+
+**Conclusion: no engine disagreement, so there is nothing here to fix.** These
+spec tests predate proposals that legalised what they assert against. Matching
+them would mean diverging from the authority.
+
+Two harness traps recorded in `best-practices.md` §1: enable proposals
+explicitly (`-W all-proposals=y` fails on stock Windows Wasmtime — it pulls in
+unsupported `stack-switching`), and give every module its own `-o` path (reusing
+one made three I/O collisions score as REJECT until a known-invalid module was
+run through to check the harness).
+
 ### A fourth metric — validator agreement
 
 `wat2wasm` does not run the validator, so nothing in the campaign exercised it

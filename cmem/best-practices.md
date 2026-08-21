@@ -34,6 +34,16 @@ target resolves in the **enclosing** scope (depth 0 for the immediately enclosin
 the try_table's own label pushed as the spec's `C, label [t*] ⊢ catch*` rule reads. Both times the
 plausible reading was wrong and one probe settled it. — `design-decisions.md`
 
+**WASMTIME IS THE ORACLE OF RECORD; V8 is the convenient one.** Where two engines disagree about
+validity, Wasmtime decides — it comes from the people who write the spec and its reference tooling.
+V8 stays in the fast harnesses because it is in-process and needs no temp files, but a conclusion
+that rests on a disagreement is re-checked against Wasmtime before it is acted on or reported.
+Wasmer is a third data point, not an authority. Two traps when running any of them: **enable the
+proposals explicitly** (a default-off feature is not a spec opinion — `wasmer validate` "rejected"
+21 modules purely on feature gates, and `-W all-proposals=y` fails on a stock Windows Wasmtime
+because it pulls in unsupported `stack-switching`), and **give every module its own output path**
+(reusing one `-o` scored three I/O collisions as REJECT). — `CLAUDE.md`, "Oracle rule"
+
 🔁 **Validate the harness against a known-good case before trusting an aggregate.** The first
 V8-validity harness reported **1937 of 1937 modules failing**; the second reported 1667 rejected.
 Both were harness bugs — a missing `synthesizeTypes` pass leaves an empty type section, so every
