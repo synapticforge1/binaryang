@@ -10,6 +10,76 @@
 This file tracks implementation status, open questions, and architectural decisions.
 All project context authoritative source: `CLAUDE.md`.
 
+## PENDING ACTION — report binaryen-ts findings upstream when the tranches close
+
+**When the T-series repair tranches are done, write up the binaryen-ts gaps
+found along the way and file them with the binaryen-ts team.** They are
+blocking real bridge coverage on this side, and at least one is a spec
+deviation that would silently produce wrong output for anyone else using the
+encoder.
+
+### First: the pin in our docs is stale — re-verify before filing
+
+CLAUDE.md says the submodule is pinned at `6c6f81f66` (v1.0.9). The working
+checkout is **v1.3.5** (`b78e5b476`), and several gaps listed there have
+already been fixed upstream. Anything filed from the old list would be noise.
+The list below was re-verified against the v1.3.5 checkout on 2026-08-21;
+re-verify again at filing time.
+
+### Already fixed upstream — do NOT file, and correct our notes
+
+| Our note said | Actual state in v1.3.5 |
+| --- | --- |
+| no `addElement` factory | **present** (`ir/module.ts`) |
+| `loadOpcode()` has no V128 branch, silently emits `i64.load` | **fixed** — now throws `WasmEncodeError`; the fix comment documents exactly this silent-truncation bug |
+| `WasmExport.kind` has no `"tag"` | **present** (`ir/module.ts`) |
+
+### Still open — worth filing
+
+**1. `struct.get_u` / `array.get_u` collapse on the wire (spec deviation, silent).**
+`wasm-encoder.ts` selects the opcode with `e.signed ? 0x03 : 0x02`, so the
+unsigned form 0x04 is never emitted and `struct.get_u` is indistinguishable
+from the non-packed `struct.get`. Same shape for `array.get_u` (0x0d vs 0x0b).
+Functionally invisible under V8 (it recovers signedness from the packed field
+type) but any cross-validation against another encoder diverges. This is the
+one that produces *wrong bytes silently* — highest value to report.
+
+**2. No `makeTupleMake`.** `ExpressionKind.TupleMake` exists in the enum but
+has no constructor. Blocks multi-value `return` AND — new since our
+multi-value branch work — multi-value `br` / `br_if`. Our bridge throws
+"needs makeTupleMake" rather than passing only the first value.
+
+**3. No GC array bulk constructors.** `makeArrayFill`, `makeArrayCopy`, and
+(by inspection) the `array.init_data` / `array.init_elem` equivalents are
+absent, so the four instructions we implemented in tranche 2 have no bridge
+path at all.
+
+**4. No `makeRefAsNonNull`.** `ref.as_non_null` still unbridgeable.
+
+**5. No `setStart`.** Start functions cannot be bridged.
+
+**6. No `addTagImport`.** Tag imports cannot be bridged (tag *exports* now
+work, see the fixed table above).
+
+**7. `ValType` cannot express a concrete typed reference.** It is a flat
+string enum, so `(ref $T)` / `(ref null $T)` have no representation. After our
+typed-ref IR refactor wabt-ts carries these precisely and the bridge is now
+the only lossy step — it coarsens through `coarsenValueType`. Not a bug on
+their side so much as a design limit, but worth raising since it is the last
+thing preventing a faithful round-trip through the bridge.
+
+### Framing for the report
+
+Several of these were found by measuring **V8 validity** of encoder output
+across the 257-file WebAssembly spec testsuite rather than by unit tests —
+that method is worth mentioning to them, since it is what surfaced the
+silent-wrong-bytes class in our own encoder too (packed-type wire bytes,
+NaN payload mask, multi-value truncation).
+
+---
+
+
+
 **Current published version:** `@jrmarcum/wabt-ts@1.3.1` on JSR.
 Versioning follows the sub-version-capped-at-9 rule (1.0.9 → 1.1.0 →
 … → 1.2.4 → 1.2.5 → 1.2.6 → 1.2.7 → 1.2.8 → 1.2.9 → 1.3.0; major uncapped). Latest meaningful
