@@ -1207,11 +1207,56 @@ export function valueTypeName(vt: ValueType): string {
   return `(ref ${vt.nullable ? 'null ' : ''}${h})`;
 }
 
+/** Shared shape for every {@link TypeEntry} variant. */
+export interface TypeEntryBase {
+  name: string;
+  loc: Location;
+  /**
+   * An explicit `(sub final? $super*)` declaration.
+   *
+   * ABSENT means the bare comptype shorthand, which the spec defines as
+   * `sub final` with no supertypes — so absent is NOT the same as
+   * `{ final: false, supertypes: [] }`, and the writer emits a different
+   * encoding for each.
+   */
+  sub?: { final: boolean; supertypes: Var[] };
+  /**
+   * Set on the FIRST entry of an explicit `(rec …)` group: how many
+   * consecutive entries the group spans. Absent means a singleton group.
+   *
+   * The type INDEX space counts entries, but the type SECTION is a vector of
+   * rec groups — so a 2-entry group occupies one vector slot and two indices.
+   */
+  recGroupSize?: number;
+}
+
 /** A type section entry — function, struct, or array type. */
 export type TypeEntry =
-  | { kind: 'func'; name: string; sig: FuncSignature; loc: Location }
-  | { kind: 'struct'; name: string; fields: Field[]; loc: Location }
-  | { kind: 'array'; name: string; field: Field; loc: Location };
+  | ({ kind: 'func'; sig: FuncSignature } & TypeEntryBase)
+  | ({ kind: 'struct'; fields: Field[] } & TypeEntryBase)
+  | ({ kind: 'array'; field: Field } & TypeEntryBase);
+
+/**
+ * Walk `types` as the SECTION sees it: a sequence of rec groups. Each yielded
+ * entry is `[startIndex, count, explicit]`, where `explicit` distinguishes a
+ * written `(rec …)` from an implicit singleton — the two encode differently.
+ */
+export function recGroups(
+  types: readonly TypeEntry[],
+): Array<{ start: number; count: number; explicit: boolean }> {
+  const out: Array<{ start: number; count: number; explicit: boolean }> = [];
+  for (let i = 0; i < types.length;) {
+    const size = types[i]!.recGroupSize;
+    if (size !== undefined && size >= 0) {
+      out.push({ start: i, count: size, explicit: true });
+      i += Math.max(size, 1);
+    } else {
+      out.push({ start: i, count: 1, explicit: false });
+      i += 1;
+    }
+  }
+  return out;
+}
 
 /** A field in a GC struct or array type. */
 export interface Field {

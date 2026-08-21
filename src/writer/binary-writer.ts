@@ -101,7 +101,8 @@ import type {
   ValueType,
   Var,
 } from '../ir/ir.ts';
-import { isRefValueType } from '../ir/ir.ts';
+import { isRefValueType, recGroups } from '../ir/ir.ts';
+import type { TypeEntry } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
@@ -211,6 +212,49 @@ function writeValueType(s: MemoryStream, vt: ValueType): void {
     return;
   }
   s.writeU8(vt as number);
+}
+
+/**
+ * Write one subtype: the `(sub final? $super*)` wrapper when present, then the
+ * comptype.
+ *
+ * A bare comptype is the spec's shorthand for `sub final` with NO supertypes,
+ * so an absent `sub` field must emit no wrapper at all — emitting
+ * `0x4f` with an empty supertype list would be a different (longer, but
+ * equivalent) encoding, and emitting `0x50` would wrongly mark it non-final.
+ */
+function writeSubType(s: MemoryStream, t: TypeEntry): void {
+  if (t.sub !== undefined) {
+    s.writeU8(t.sub.final ? 0x4f : 0x50);
+    s.writeU32Leb(t.sub.supertypes.length);
+    for (const sup of t.sub.supertypes) writeVar(s, sup);
+  }
+  writeCompType(s, t);
+}
+
+/** Write the composite part of a type entry: func (0x60), struct (0x5f), or array (0x5e). */
+function writeCompType(s: MemoryStream, t: TypeEntry): void {
+  if (t.kind === 'func') {
+    s.writeU8(0x60);
+    s.writeU32Leb(t.sig.params.length);
+    for (const p of t.sig.params) writeValueType(s, p);
+    s.writeU32Leb(t.sig.results.length);
+    for (const r of t.sig.results) writeValueType(s, r);
+    return;
+  }
+  if (t.kind === 'struct') {
+    s.writeU8(Type.Struct as number); // 0x5f
+    s.writeU32Leb(t.fields.length);
+    for (const f of t.fields) {
+      writeValueType(s, f.type);
+      s.writeU8(f.mutable ? 1 : 0);
+    }
+    return;
+  }
+  // GC array: 0x5e, then (valtype, mut) for the single element type.
+  s.writeU8(Type.Array as number); // 0x5e
+  writeValueType(s, t.field.type);
+  s.writeU8(t.field.mutable ? 1 : 0);
 }
 
 function writeBlockType(s: MemoryStream, bt: BlockType): void {
@@ -939,28 +983,18 @@ class BinaryWriter {
     const { m, s } = this;
     if (m.types.length === 0) return;
     s.writeSection(BinarySection.Type, () => {
-      s.writeU32Leb(m.types.length);
-      for (const t of m.types) {
-        if (t.kind === 'func') {
-          s.writeU8(0x60);
-          s.writeU32Leb(t.sig.params.length);
-          for (const p of t.sig.params) writeValueType(s, p);
-          s.writeU32Leb(t.sig.results.length);
-          for (const r of t.sig.results) writeValueType(s, r);
-        } else if (t.kind === 'struct') {
-          // GC struct: 0x5f, then fieldCount, then per-field (valtype, mut).
-          s.writeU8(Type.Struct as number); // 0x5f
-          s.writeU32Leb(t.fields.length);
-          for (const f of t.fields) {
-            writeValueType(s, f.type);
-            s.writeU8(f.mutable ? 1 : 0);
-          }
-        } else if (t.kind === 'array') {
-          // GC array: 0x5e, then (valtype, mut) for the single element type.
-          s.writeU8(Type.Array as number); // 0x5e
-          writeValueType(s, t.field.type);
-          s.writeU8(t.field.mutable ? 1 : 0);
+      // The section is a vector of REC GROUPS, not of types: an explicit
+      // `(rec …)` spanning N types occupies ONE vector slot while consuming N
+      // type indices. Writing m.types.length was right only while every type
+      // was its own singleton group.
+      const groups = recGroups(m.types);
+      s.writeU32Leb(groups.length);
+      for (const g of groups) {
+        if (g.explicit) {
+          s.writeU8(0x4e); // rectype
+          s.writeU32Leb(g.count);
         }
+        for (let i = g.start; i < g.start + g.count; i++) writeSubType(s, m.types[i]!);
       }
     });
   }

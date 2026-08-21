@@ -160,6 +160,9 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['i8', vt(TokenType.ValueType, Type.I8)],
   ['i16', vt(TokenType.ValueType, Type.I16)],
   ['struct', vt(TokenType.Struct, Type.Struct)],
+  ['rec', bare(TokenType.Rec)],
+  ['sub', bare(TokenType.Sub)],
+  ['final', bare(TokenType.Final)],
   // --- opcode tokens: control flow ---
   ['atomic.fence', op(TokenType.AtomicFence, A(0x03))],
   ['block', op(TokenType.Block, Opcode.Block)],

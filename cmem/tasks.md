@@ -10,6 +10,70 @@
 This file tracks implementation status, open questions, and architectural decisions.
 All project context authoritative source: `CLAUDE.md`.
 
+## Tranche ledger — numbering, including items found after the original scope
+
+The original T1–T6 scope was derived by clustering **parse** failures. Anything
+that parses and then misencodes was invisible to it (see the blind-spot entry
+below), so a second family — T7 — was opened for semantic correctness, and
+several parse-side items surfaced that no original tranche covered. Those get
+`T5.n` / `T6.n` where they belong to an existing feature area, and `T8.n`
+where they are genuinely new.
+
+**Numbering rule:** a decimal extends an existing tranche's feature area; a new
+integer opens a new area. Never renumber a closed item — the commit messages
+reference these ids.
+
+### Closed
+
+| id | Scope | Result |
+| --- | --- | --- |
+| T1 | Numeric literals (negative hex, hex-float exponent, NaN payload separators) | done — +25 files |
+| T2 | Small grammar gaps + GC array bulk ops | done — +34 files |
+| T3 | Multi-memory | done — +35 files |
+| T4 | table64 / memory64 index types + table definition shapes | done — +16 files |
+| T6.1 | Block params / multi-value block results | done (absorbed during T7) |
+| T6.2 | Elem segment typed-ref element types | done (absorbed during T4) |
+| T6.3 | Table inline-elem forms | done (absorbed during T4) |
+| T7.1 | Parser robustness — never throw, never hang, readable diagnostics | done |
+| T7.2 | Packed-type wire bytes; `br_table` / `try_table` name resolution | done |
+| T7.3 | Quoted identifiers, UTF-8 strings, type-use signatures, block types | done — +3 parse, +5 encode |
+| T7.4 | Typed-ref IR refactor (`ValueType`) | done — encode +13 |
+| T7.5 | Multi-value branches (`br` / `br_if` / `br_table`) | done — encode +14 |
+| T7.6 | `try_table` catch target depth | done — encode +2 |
+
+### Open — parse side (24 files)
+
+| id | Scope | Files |
+| --- | --- | --- |
+| **T5** | GC `(rec …)` recursive type groups and `(sub …)` subtyping | ~9 |
+| **T5.1** | `any.convert_extern` / `extern.convert_any` — GC ⇄ extern conversions | ~4 |
+| **T5.2** | `(ref.cast i31ref …)` — bare `…ref` spelling where `(ref H)` is expected | 1 |
+| **T6.4** | `(module definition …)` / `(module instance …)` — multi-module linking | 5 |
+| **T6.5** | `(@annotation …)` custom annotations | 1 |
+| **T8.1** | `(block (type $sig) (result …))` — block type-use combined with an inline signature | ~2 |
+| **T8.2** | `select (result i32) (result)` — empty result annotation | 1 |
+
+### Open — encode side (21 modules / ~14 files), all under T7
+
+| id | Scope | Files |
+| --- | --- | --- |
+| **T7.7** | Relaxed SIMD encoding — `reached end while decoding`, `i8x16.splat` operand type | 6 |
+| **T7.8** | Stack-arity residue — `expected N elements for fallthru` | 3 |
+| **T7.9** | `return_call_indirect` tail-call type mismatch | 2 |
+| **T7.10** | Singles — `br_on_non_null` subtype, `br_on_null` branch arity, `i32.eqz` operand type, elem segment subtype, elem const-expr arity, duplicate export name, memory ordering | 7 |
+
+### Why the numbering changed shape
+
+T5.1 / T5.2 sit under T5 because they are GC-proposal surface, the same area.
+T6.4 / T6.5 were in the original T6 list and just had no id. T8 is new: block
+type-use and the `select` annotation are core-spec syntax, not part of any
+proposal area the original scope named — they were missed because the files
+carrying them failed earlier for other reasons, so their first error never
+mentioned them.
+
+
+---
+
 ## LIVING LOG — binaryen-ts findings, to file upstream when the tranches close
 
 **This is a running record, not a snapshot.** Every time work on this side
