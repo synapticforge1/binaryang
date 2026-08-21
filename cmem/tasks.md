@@ -158,6 +158,68 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — T7 batch 2 (V8-valid 182 → 187, parse-clean 230 → 233)
+
+Answering "is the 1 remaining write-failure covered by a tranche?" — **no**,
+and chasing it found two silent-corruption bugs that no tranche covered either.
+Tranches were derived from parse failures; none of this is visible there.
+
+1. **Quoted identifiers were a different name from their bare spelling.**
+   `id ::= '$' idchar+ | '$' '"' string '"'` — the quoted form is an alternate
+   spelling of the SAME identifier, escapes resolved, so `$"fh"` denotes
+   exactly `$fh`. The lexer returned the raw source slice including the
+   quotes, so the two never matched. New `varTokenText` normalizes at every
+   identifier read site (`parseVar`, `parseBindVarOpt`, params, locals, heap
+   type vars).
+
+2. **Raw non-ASCII characters in WAT strings were truncated to one byte.**
+   `decodeStringToken` did `bytes.push(ch)` with a UTF-16 code unit, so `é`
+   (U+00E9) emitted `e9` instead of UTF-8 `c3 a9`, and U+F61A emitted `1a`
+   instead of `ef 98 9a`. WAT strings are BYTE strings and the source is
+   UTF-8, so a raw character contributes its UTF-8 encoding. This corrupted
+   data segments and import/export names — and produced a VALID module with
+   the wrong bytes in it, the worst failure mode of the lot. Escaped
+   spellings (`\ef\98\9a`, `\u{f61a}`) were always correct, which is why an
+   isolated round-trip test would have passed: the test has to compare the
+   spellings against EACH OTHER, not against themselves.
+
+3. **`(func $f (type $t) …)` with no inline signature got an EMPTY one.**
+   The whole signature comes from `$t`. Without it the emitted type was
+   `() -> ()` while the body pushed a value → "expected 0 elements on the
+   stack". It must be resolved BEFORE the body parses, because local slot
+   numbering starts at `sig.params.length`; a forward-referenced type still
+   falls back to `synthesizeTypes`. This was the bulk of the stack cluster:
+   20 → 13 files.
+
+4. **Multi-value block results were truncated to the first type, and block
+   params were not parsed at all.** The old code admitted it:
+   `// multi-value: use func_type index (simplified: use first type)`.
+   Anything beyond the single-result shorthand needs a function type index in
+   the blocktype slot. `parseBlockType` now parses `(type $t)?  (param …)*
+   (result …)*` and interns a function type via a new `currentModule`
+   reference (same per-function lifecycle as `localScope`). This also closed
+   the T6 `block-param` item — parse-clean 230 → 233 (block, if, loop, fac).
+
+Metric now: **parse-clean 233/257, fully V8-valid 187, 1944 modules → 1886 ok
+/ 58 rejected / 0 failed.** Write-failures are gone.
+
+Regression: `tests/parser/signatures_and_strings.test.ts`. The UTF-8 tests
+compare the three spellings of one character against each other; the type-use
+test executes a function whose local sits after two adopted params; the
+block-type tests execute multi-value and param'd blocks in V8.
+
+### Remaining, by V8 rejection reason
+
+| Cluster | Files | Notes |
+| --- | --- | --- |
+| `expected N elements on the stack` | 13 | Residue after the type-use fix; needs its own diagnosis. |
+| typed-ref coarsening | ~12 | The IR refactor scoped in the previous entry. Unchanged. |
+| relaxed SIMD encoding | 4 | `reached end while decoding` — immediates likely wrong. |
+| `not enough arguments on the stack` | 3 | local_set / simd_store / store. |
+| misc singles | ~5 | duplicate export name, invalid local index, memory ordering. |
+
+---
+
 ## 2026-08-21 — The parse metric has a blind spot; new T7 scope
 
 ### The measurement problem

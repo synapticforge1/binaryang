@@ -104,6 +104,7 @@ import {
   type ReturnCallRefExpr,
   type ReturnExpr,
   type SelectExpr,
+  sigEquals,
   type SimdLaneOpExpr,
   type SimdLoadLaneExpr,
   type SimdShuffleOpExpr,
@@ -575,9 +576,21 @@ function decodeStringToken(text: string): Uint8Array {
           bytes.push((hi << 4) | lo);
         }
       }
-    } else {
+    } else if (ch < 0x80) {
       bytes.push(ch);
       i++;
+    } else {
+      // A raw non-ASCII character. WAT strings are BYTE strings, and the
+      // source is UTF-8, so the character contributes its UTF-8 encoding.
+      // `bytes.push(ch)` pushed the UTF-16 code unit as a single byte, which
+      // silently truncated every non-ASCII character: `é` (U+00E9) emitted
+      // `e9` instead of `c3 a9`, and U+F61A emitted `1a` instead of
+      // `ef 98 9a`. That corrupted data segments and import/export names.
+      // Consume a whole code point so surrogate pairs survive.
+      const cp = text.codePointAt(i)!;
+      const width = cp > 0xffff ? 2 : 1;
+      for (const b of TEXT_ENCODER.encode(String.fromCodePoint(cp))) bytes.push(b);
+      i += width;
     }
   }
   return new Uint8Array(bytes);
@@ -960,6 +973,14 @@ export class WastParser {
    */
   private localScope: Map<string, number> | null = null;
 
+  /**
+   * The module currently being parsed, set for the duration of a function
+   * body (same lifecycle as {@link localScope}). `parseBlockType` needs it to
+   * register the synthesized function type that a multi-value block or a
+   * block with params requires.
+   */
+  private currentModule: Module | null = null;
+
   constructor(tokens: readonly Token[]) {
     this.tokens = tokens;
   }
@@ -1090,11 +1111,26 @@ export class WastParser {
     return varIndex(idx);
   }
 
+  /**
+   * The identifier text of a Var token, normalizing the QUOTED spelling.
+   *
+   * `id ::= '$' idchar+ | '$' '"' string '"'` — the quoted form is an
+   * alternate spelling of the SAME identifier, with escapes resolved, so
+   * `$"fh"` denotes exactly `$fh`. The lexer hands back the raw source slice
+   * including the quotes, so the two compared unequal and every quoted
+   * reference reported "undefined func".
+   */
+  private varTokenText(tok: StringToken): string {
+    const t = tok.text;
+    if (!t.startsWith('$"')) return t;
+    return '$' + decodeStringText(t.slice(1));
+  }
+
   parseVar(): Var | null {
     const tt = this.peek();
     if (tt === TokenType.Var) {
       const tok = this.consume() as StringToken;
-      return varName(tok.text);
+      return varName(this.varTokenText(tok));
     }
     if (tt === TokenType.Nat || tt === TokenType.Int) {
       const tok = this.consume() as LiteralToken;
@@ -1118,12 +1154,25 @@ export class WastParser {
 
   parseBindVarOpt(): string {
     if (this.peek() === TokenType.Var) {
-      return (this.consume() as StringToken).text;
+      return this.varTokenText(this.consume() as StringToken);
     }
     return '';
   }
 
   /** Parse an optional `(type $name)` type annotation. Returns the var or null. */
+  /**
+   * The signature of an already-declared function type, by name or index.
+   * Returns null for a forward reference (not yet in `module.types`), which
+   * `synthesizeTypes` reconciles later.
+   */
+  private lookupFuncTypeEntry(module: Module, v: Var): FuncSignature | null {
+    let entry;
+    if (v.kind === 'index') entry = module.types[v.value];
+    else entry = module.types.find((t) => t.name === v.name);
+    if (entry === undefined || entry.kind !== 'func') return null;
+    return entry.sig;
+  }
+
   private parseTypeUseOpt(): Var | null {
     if (this.matchLpar(TokenType.Type)) {
       const v = this.parseVar();
@@ -1137,7 +1186,7 @@ export class WastParser {
   private parseParams(paramTypes: Type[], bindings: Map<string, number>): Result {
     while (this.matchLpar(TokenType.Param)) {
       if (this.peek() === TokenType.Var) {
-        const name = (this.consume() as StringToken).text;
+        const name = this.varTokenText(this.consume() as StringToken);
         const t = this.parseValueType();
         if (t === null) {
           this.expect(TokenType.Rpar);
@@ -1312,7 +1361,7 @@ export class WastParser {
       case TokenType.Var: {
         // `$T` — user-defined heap type; resolveNames maps it to an index.
         const tok = this.consume() as StringToken;
-        return varName(tok.text);
+        return varName(this.varTokenText(tok));
       }
       case TokenType.Nat: {
         const tok = this.consume() as LiteralToken;
@@ -1749,6 +1798,20 @@ export class WastParser {
     const inlineImp = this.parseInlineImport();
     const typeVar = this.parseTypeUseOpt();
     const { sig, bindings } = this.parseFuncSignature();
+    // `(func $f (type $t) …)` with NO inline params/results takes its whole
+    // signature from $t. Without this the func carried an empty signature: the
+    // emitted type was `() -> ()` while the body pushed a value, and V8
+    // rejected the module with "expected 0 elements on the stack". It also
+    // matters BEFORE the body is parsed, because local slot numbering starts
+    // at sig.params.length. Only the already-declared case can be resolved
+    // here; a forward reference still falls back to synthesizeTypes.
+    if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
+      const entry = this.lookupFuncTypeEntry(module, typeVar);
+      if (entry !== null) {
+        sig.params.push(...entry.params);
+        sig.results.push(...entry.results);
+      }
+    }
 
     if (inlineImp !== null) {
       // This is an imported function declared as (func (import ...) ...)
@@ -1784,11 +1847,12 @@ export class WastParser {
       while (this.matchLpar(TokenType.Local)) {
         if (this.peek() === TokenType.Var) {
           const nameTok = this.consume() as StringToken;
+          const localName = this.varTokenText(nameTok);
           const t = this.parseValueType();
           if (t !== null) {
             // `nameTok.text` includes the leading `$` to match the param
             // binding convention from `parseParams`.
-            scope.set(nameTok.text, slot);
+            scope.set(localName, slot);
             slot++;
             localDecls.push({ type: t, count: 1 });
           }
@@ -1805,10 +1869,13 @@ export class WastParser {
       }
 
       const savedScope = this.localScope;
+      const savedModule = this.currentModule;
       this.localScope = scope;
+      this.currentModule = module;
       const body: Expr[] = [];
       this.parseInstrListInto(body);
       this.localScope = savedScope;
+      this.currentModule = savedModule;
 
       const func: Func = {
         name,
@@ -3870,28 +3937,71 @@ export class WastParser {
   // Block type parsing
   // -------------------------------------------------------------------------
 
+  /**
+   * Parse a block signature: `(type $t)? (param …)* (result …)*`.
+   *
+   * The single-result shorthand encodes as one value-type byte; ANY other
+   * shape — multiple results, or any params — needs a function type index in
+   * the blocktype slot. The old code had neither: params were not parsed at
+   * all, and multiple results were silently truncated to the first
+   * ("simplified: use first type"), so `(block (result i32 i32) …)` emitted a
+   * single-result block and V8 rejected the function with "expected 1
+   * elements on the stack for fallthru, found 2".
+   */
   private parseBlockType(): BlockType {
-    // Optional `(type $id)` followed by optional `(result ...)`
-    if (this.matchLpar(TokenType.Result)) {
-      const types: Type[] = [];
-      while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
-        const t = this.parseValueType();
-        if (t !== null) types.push(t);
-        else break;
-      }
-      this.expect(TokenType.Rpar);
-      if (types.length === 1) return blockTypeValue(types[0]!);
-      if (types.length === 0) return BLOCK_TYPE_VOID;
-      // multi-value: use func_type index (simplified: use first type)
-      return blockTypeValue(types[0]!);
-    }
-    // Also allow `(type N)` for explicit func type index
+    // Explicit `(type $t)` wins outright.
     if (this.matchLpar(TokenType.Type)) {
       const v = this.parseVar();
       this.expect(TokenType.Rpar);
       if (v !== null && v.kind === 'index') return { kind: 'func_type', typeIdx: v.value };
+      if (v !== null && this.currentModule !== null) {
+        const idx = this.currentModule.types.findIndex((t) => t.name === v.name);
+        if (idx >= 0) return { kind: 'func_type', typeIdx: idx };
+      }
+      return BLOCK_TYPE_VOID;
     }
-    return BLOCK_TYPE_VOID;
+
+    const params: Type[] = [];
+    while (this.matchLpar(TokenType.Param)) {
+      while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
+        const before = this.pos;
+        const t = this.parseValueType();
+        if (t !== null) params.push(t);
+        if (this.noProgress(before, 'block param list')) break;
+      }
+      this.expect(TokenType.Rpar);
+    }
+
+    const results: Type[] = [];
+    while (this.matchLpar(TokenType.Result)) {
+      while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
+        const before = this.pos;
+        const t = this.parseValueType();
+        if (t !== null) results.push(t);
+        if (this.noProgress(before, 'block result list')) break;
+      }
+      this.expect(TokenType.Rpar);
+    }
+
+    if (params.length === 0) {
+      if (results.length === 0) return BLOCK_TYPE_VOID;
+      if (results.length === 1) return blockTypeValue(results[0]!);
+    }
+    return { kind: 'func_type', typeIdx: this.internFuncType({ params, results }) };
+  }
+
+  /**
+   * Find or append a function type matching `sig` and return its index.
+   * Appending keeps every already-declared type at its existing index, and
+   * `synthesizeTypes` reconciles whatever it adds afterwards.
+   */
+  private internFuncType(sig: FuncSignature): number {
+    const m = this.currentModule;
+    if (m === null) return 0;
+    const existing = m.types.findIndex((t) => t.kind === 'func' && sigEquals(t.sig, sig));
+    if (existing >= 0) return existing;
+    m.types.push({ kind: 'func', name: '', sig, loc: this.loc() });
+    return m.types.length - 1;
   }
 
   // -------------------------------------------------------------------------
@@ -4442,6 +4552,7 @@ const BARE_REF_RESULT_KINDS: ReadonlyMap<TokenType, ExpectedConst['kind']> = new
 // wat-writer.ts / binary-reader.ts / lexer-source.ts: TextDecoder is stateless
 // under .decode(), so one shared instance avoids reallocating per call.
 const TEXT_DECODER = new TextDecoder();
+const TEXT_ENCODER = new TextEncoder();
 
 const F32_BUF = new ArrayBuffer(4);
 const F32_VIEW = new DataView(F32_BUF);
