@@ -19,7 +19,7 @@ import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
-import type { Expr, Func, FuncSignature, Module, ValueType, Var } from './ir.ts';
+import type { Expr, Func, FuncSignature, Module, PendingType, ValueType, Var } from './ir.ts';
 import { isRefValueType, varIndex } from './ir.ts';
 import { heapTypeNameToType } from '../core/types.ts';
 
@@ -244,12 +244,14 @@ class ResolveContext {
         // hid it — but resolveNames' own invariant is that no name-var
         // survives, and a caller that skips synthesizeTypes would emit 0.
         imp.func.typeVar = this.resolveTypeVar(imp.func.typeVar, imp.func.loc);
+        this.resolvePendingType(imp.func, imp.func.loc);
       } else if (imp.kind === ExternalKind.Global) imp.global.type = vt(imp.global.type);
       else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
       else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
     }
     for (const f of this.module.funcs) {
       sig(f.sig);
+      this.resolvePendingType(f, f.loc);
       for (const d of f.localDecls) d.type = vt(d.type);
     }
     for (const t of this.module.tags) sig(t.sig);
@@ -311,6 +313,9 @@ class ResolveContext {
           ...e,
           table: this.resolveTableVar(e.table, loc),
           typeVar: this.resolveTypeVar(e.typeVar, loc),
+          ...(e.pendingType !== undefined && e.pendingType !== 'inline'
+            ? { pendingType: this.resolveTypeVar(e.pendingType, loc) }
+            : {}),
           args,
           callee,
         }];
@@ -906,6 +911,20 @@ class ResolveContext {
   private resolveTypeVar(v: Var, loc: Location = unknownLocation()): Var {
     return this.resolveVar(v, this.typeScope, 'type', loc);
   }
+  /**
+   * Resolve the name-var inside a {@link PendingType}, if it holds one.
+   *
+   * `pendingType` is settled by `synthesizeTypes`, which runs after this
+   * pass — but resolveNames' own invariant is that NO name-var survives it,
+   * and the standing guard in `tests/ir/encode_correctness.test.ts` enforces
+   * that across the whole spec testsuite. Leaving it unresolved here would
+   * also mean a caller that skips synthesizeTypes silently gets index 0.
+   */
+  private resolvePendingType(item: { pendingType?: PendingType; loc: Location }, loc: Location) {
+    if (item.pendingType === undefined || item.pendingType === 'inline') return;
+    item.pendingType = this.resolveTypeVar(item.pendingType, loc);
+  }
+
   /**
    * Resolve a heap-type var as used by `ref.test` / `ref.cast`. The var can
    * be either an abstract-heap-type keyword (`"any"` / `"eq"` / `"i31"` / etc.)

@@ -311,7 +311,8 @@ export interface BrOnCastExpr {
   /**
    * `br_on_cast_fail` when true. Note the branch carries the OPPOSITE type
    * from the fallthrough in each case: `br_on_cast` branches with `rt2` and
-   * falls through with `rt1t2`, `br_on_cast_fail` the other way round.
+   * falls through with `rt1
+t2`, `br_on_cast_fail` the other way round.
    */
   readonly onFail: boolean;
   readonly target: Var;
@@ -505,6 +506,8 @@ export interface CallIndirectExpr {
   readonly kind: 'call_indirect';
   readonly sig: FuncSignature;
   readonly typeVar: Var;
+  /** Unsettled type-use; see {@link PendingType}. */
+  readonly pendingType?: PendingType;
   readonly table: Var;
   readonly args: Expr[];
   readonly callee: Expr;
@@ -530,6 +533,8 @@ export interface ReturnCallIndirectExpr {
   readonly kind: 'return_call_indirect';
   readonly sig: FuncSignature;
   readonly typeVar: Var;
+  /** Unsettled type-use; see {@link PendingType}. */
+  readonly pendingType?: PendingType;
   readonly table: Var;
   readonly args: Expr[];
   readonly callee: Expr;
@@ -1322,11 +1327,37 @@ export interface Limits {
 }
 
 /** A function defined (or imported) in the module. */
+/**
+ * A type-use the parser could not settle, left for `synthesizeTypes`.
+ *
+ * The WAT grammar lets a function / `call_indirect` name its signature either
+ * with a `(type N)` type-use or with an inline `(param …) (result …)`, and
+ * `typeVar` cannot record which: it is required and defaults to index 0 when
+ * the source annotated nothing, so index 0 is ambiguous between "no
+ * annotation" and "the source really wrote `(type 0)`".
+ *
+ * - a {@link Var} — `(type N)` was written with NO inline signature, so the
+ *   signature is adopted wholesale from the referenced type, but `N` was not
+ *   resolvable at parse time. Either a forward reference, or an index into
+ *   the IMPLICIT part of the type space, which only exists once
+ *   `synthesizeTypes` has appended the inline signatures.
+ * - `'inline'` — no `(type …)` was written at all, so the inline signature
+ *   DEFINES a type and has to be interned. Deferred rather than interned at
+ *   parse time so that explicit `(type …)` fields keep the low indices: the
+ *   spec appends implicit types after all explicit ones, and the testsuite
+ *   depends on it (`func.wast` writes `(type 1)` for an implicit entry).
+ *
+ * Omitted, never `undefined`, when the parser already settled it.
+ */
+export type PendingType = Var | 'inline';
+
 export interface Func {
   name: string;
   loc: Location;
   /** Type-section reference (index or name). Filled during decode. */
   typeVar: Var;
+  /** Unsettled type-use; see {@link PendingType}. */
+  pendingType?: PendingType;
   sig: FuncSignature;
   /** Local variable declarations (not including params). */
   localDecls: LocalDecl[];

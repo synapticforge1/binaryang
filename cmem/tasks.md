@@ -52,6 +52,8 @@ reference these ids.
 | T8.5 | Folded `if` condition spanning several instructions | done (new) |
 | T6.5 | `(@annotation …)` custom annotations | done — parse +1, encode +1 |
 | T5.3 | `br_on_cast` / `br_on_cast_fail` — never implemented | done — parse +2 (257/257), encode +2 |
+| T9.1 | Binary reader had no `pushStmt` — silent reordering | done — round-trip INVALID 60 → 27 |
+| T7.8 | Type-uses that resolve against an incomplete type index space | done — encode +6 |
 
 ### Open — parse side: NONE
 
@@ -64,13 +66,18 @@ everything remaining is on the encode side (T7.x), measured against V8.
 | ~~T5.3~~ | ~~`br_on_cast` / `br_on_cast_fail`~~ | closed |
 | ~~T8.3~~ | ~~multi-instruction constant expressions in the WAT writer~~ | closed |
 
-### Open — encode side (21 modules / ~14 files), all under T7
+### Open — encode side (9 modules / 8 files)
+
+Down from 21. `fully V8-valid` is 251/257.
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T7.8** | Stack-arity residue — `expected N elements for fallthru` | 3 |
-| **T7.9** | `return_call_indirect` tail-call type mismatch | 2 |
-| **T7.10** | Singles — `br_on_non_null` subtype, `br_on_null` branch arity, `i32.eqz` operand type, elem segment subtype, elem const-expr arity, duplicate export name, memory ordering | 7 |
+| **T7.11** | Non-nullable table element types — `elem.wast#2/#35/#37` ("Element segment of type funcref is not a subtype of referenced table 0 (of type `(ref func)`)"), `elem.wast#39` ("expected 1 elements for constant expression"), `array.wast#5` ("out of bounds table index 0"). Same area as T10.3, likely the same fix. | 2 |
+| **T7.12** | `br_on_null` / `br_on_non_null` carrying a value — `br_on_null.wast#2` ("expected 1 elements on the stack for branch"), `br_on_non_null.wast#2` (operand typed i32 where a ref was wanted). | 2 |
+| **T7.13** | `names.wast#2` — duplicate empty export name for functions 0 and 15. | 1 |
+| **T7.14** | `type-subtyping.wast#16` — constant expression typed `(ref 3)` where `(ref null 1)` was expected. | 1 |
+| ~~T7.9~~ | ~~`return_call_indirect` tail-call type mismatch~~ | closed by T7.8 |
+| ~~T7.10~~ | ~~Singles~~ | re-scoped into T7.11–T7.14 |
 
 ### A third metric — round-trip fidelity
 

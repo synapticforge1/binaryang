@@ -92,6 +92,7 @@ import {
   type MemorySizeExpr,
   type Module,
   type NopExpr,
+  type PendingType,
   type QuaternaryExpr,
   type RefAsNonNullExpr,
   type RefCastExpr,
@@ -1227,6 +1228,34 @@ export class WastParser {
     return entry.sig;
   }
 
+  /**
+   * Fold a `(type …)` type-use into an otherwise-empty inline signature.
+   *
+   * `(func $f (type $t) …)` with NO inline params/results takes its whole
+   * signature from `$t`. Without this the item carried an empty signature:
+   * the emitted type was `() -> ()` while the body pushed a value, and V8
+   * rejected the module with "expected 0 elements on the stack". It also
+   * matters BEFORE the body is parsed, because local slot numbering starts at
+   * `sig.params.length`.
+   *
+   * Only an already-declared type can be resolved here. Returns the
+   * {@link PendingType} to record when it cannot be — a forward reference, or
+   * an index into the implicit part of the type space that `synthesizeTypes`
+   * has not built yet — and null when nothing is left to settle.
+   */
+  private settleTypeUse(
+    module: Module,
+    typeVar: Var | null,
+    sig: FuncSignature,
+  ): PendingType | null {
+    if (typeVar === null || sig.params.length > 0 || sig.results.length > 0) return null;
+    const entry = this.lookupFuncTypeEntry(module, typeVar);
+    if (entry === null) return typeVar;
+    sig.params.push(...entry.params);
+    sig.results.push(...entry.results);
+    return null;
+  }
+
   private parseTypeUseOpt(): Var | null {
     if (this.matchLpar(TokenType.Type)) {
       const v = this.parseVar();
@@ -1795,10 +1824,12 @@ export class WastParser {
       const name = this.parseBindVarOpt();
       const typeVar = this.parseTypeUseOpt();
       const { sig } = this.parseFuncSignature();
+      const pendingType = this.settleTypeUse(module, typeVar, sig);
       const func: Func = {
         name,
         loc,
         typeVar: typeVar ?? varIndex(0),
+        ...(pendingType !== null ? { pendingType } : {}),
         sig,
         localDecls: [],
         body: [],
@@ -1915,13 +1946,7 @@ export class WastParser {
     // matters BEFORE the body is parsed, because local slot numbering starts
     // at sig.params.length. Only the already-declared case can be resolved
     // here; a forward reference still falls back to synthesizeTypes.
-    if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
-      const entry = this.lookupFuncTypeEntry(module, typeVar);
-      if (entry !== null) {
-        sig.params.push(...entry.params);
-        sig.results.push(...entry.results);
-      }
-    }
+    const pendingType = this.settleTypeUse(module, typeVar, sig);
 
     if (inlineImp !== null) {
       // This is an imported function declared as (func (import ...) ...)
@@ -1929,6 +1954,7 @@ export class WastParser {
         name,
         loc,
         typeVar: typeVar ?? varIndex(0),
+        ...(pendingType !== null ? { pendingType } : {}),
         sig,
         localDecls: [],
         body: [],
@@ -1991,6 +2017,7 @@ export class WastParser {
         name,
         loc,
         typeVar: typeVar ?? varIndex(0),
+        ...(pendingType !== null ? { pendingType } : {}),
         sig,
         localDecls,
         body,
@@ -3180,8 +3207,15 @@ export class WastParser {
         const { sig } = this.parseFuncSignature();
         const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
         const args = operands.slice(0, -1);
+        // `call_indirect (param i32)` names its signature inline instead of
+        // with a `(type …)`. That inline signature DEFINES a type entry, but
+        // it cannot be interned here without pushing explicit `(type …)`
+        // fields off the low indices — so it is deferred to synthesizeTypes.
+        // Before this, `typeVar` silently stayed at index 0 and the call was
+        // encoded against whatever type happened to be first.
         return {
           kind: 'call_indirect',
+          ...(typeVar === null ? { pendingType: 'inline' as const } : {}),
           table: tableVar,
           sig,
           typeVar: typeVar ?? varIndex(0),
@@ -3208,8 +3242,15 @@ export class WastParser {
         const { sig } = this.parseFuncSignature();
         const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
         const args = operands.slice(0, -1);
+        // `call_indirect (param i32)` names its signature inline instead of
+        // with a `(type …)`. That inline signature DEFINES a type entry, but
+        // it cannot be interned here without pushing explicit `(type …)`
+        // fields off the low indices — so it is deferred to synthesizeTypes.
+        // Before this, `typeVar` silently stayed at index 0 and the call was
+        // encoded against whatever type happened to be first.
         return {
           kind: 'return_call_indirect',
+          ...(typeVar === null ? { pendingType: 'inline' as const } : {}),
           sig,
           typeVar: typeVar ?? varIndex(0),
           table: tableVar,
