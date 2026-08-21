@@ -798,12 +798,29 @@ export class TypeChecker {
     return this.typeStack[this.typeStack.length - depth - 1] ?? Type.Any;
   }
 
-  private dropTypes(count: number): Result {
+  /** How many operands the current frame actually holds. */
+  private available(): number {
+    const label = this.topLabel();
+    return label ? this.typeStack.length - label.typeStackLimit : 0;
+  }
+
+  private dropTypes(count: number, quiet = false): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
     if (label.typeStackLimit + count > this.typeStack.length) {
+      const have = this.typeStack.length - label.typeStackLimit;
       this.resetTypeStackToLabel(label);
-      return label.unreachable ? Result.Ok : Result.Error;
+      if (label.unreachable) return Result.Ok;
+      if (quiet) return Result.Error;
+      // REPORT it. This returned Result.Error and said nothing, so every
+      // stack underflow — `(func (result i32))` with an empty body,
+      // `(i32.add (i32.const 1))` with one operand — came back as
+      // `result: Error, errors: []`. `wasm-validate` exited non-zero with
+      // no message, and any caller testing `hasErrors(errors)` instead of
+      // `result` concluded the module was fine. That included this
+      // project's own T9.2 and T9.5 survey harnesses.
+      this.printError(`type mismatch: expected ${count} elements on the stack but got ${have}`);
+      return Result.Error;
     }
     this.typeStack.length -= count;
     return Result.Ok;
@@ -894,6 +911,19 @@ export class TypeChecker {
   }
 
   private checkSignature(sig: ValueType[], desc: string): Result {
+    // ARITY first. `peekType` answers `Type.Any` for anything below the
+    // frame's base, and `Type.Any` satisfies everything — so a signature
+    // check against a stack that is simply too short passed silently. That is
+    // how `(block (result i32) (br 0))` validated: `br` only PEEKS, so the
+    // underflow report in `dropTypes` never ran. Unreachable code is exempt:
+    // there the missing operands really are polymorphic.
+    const label = this.topLabel();
+    if (label && !label.unreachable && this.available() < sig.length) {
+      this.printError(
+        `type mismatch in ${desc}, expected ${sig.length} elements on the stack but got ${this.available()}`,
+      );
+      return Result.Error;
+    }
     let r = Result.Ok;
     for (let i = 0; i < sig.length; i++) {
       const expected = sig[i] ?? Type.Any;
@@ -908,7 +938,9 @@ export class TypeChecker {
 
   private popAndCheckSignature(sig: ValueType[], desc: string): Result {
     const r = this.checkSignature(sig, desc);
-    return combineResults(r, this.dropTypes(sig.length));
+    // Quiet on the drop when the check already reported — otherwise one
+    // underflow produces two messages saying the same thing.
+    return combineResults(r, this.dropTypes(sig.length, r === Result.Error));
   }
 
   private popAndCheckCall(paramTypes: ValueType[], resultTypes: ValueType[], desc: string): Result {

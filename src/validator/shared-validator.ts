@@ -379,7 +379,11 @@ export class SharedValidator {
     if (this.memories.length > 0 && !this.features.multiMemory) {
       r = combineResults(r, this.printError(loc, 'only one memory block allowed'));
     }
-    const absMax = limits.is64 ? 0xFFFFFFFFFFFFFFFFn : 0xFFFFFFFFn;
+    // The page LIMIT, not the representable range: a 32-bit memory tops out
+    // at 65536 pages (4 GiB) and memory64 at 2^48. Using the full integer
+    // range here accepted `(memory 65537)`, which the spec and every engine
+    // reject.
+    const absMax = limits.is64 ? (1n << 48n) : 65536n;
     r = combineResults(r, this.checkLimits64(loc, limits, absMax, 'pages'));
     if (limits.isShared && !limits.max) {
       r = combineResults(r, this.printError(loc, 'shared memories must have max sizes'));
@@ -772,22 +776,43 @@ export class SharedValidator {
   // Instruction handlers — memory
   // ---------------------------------------------------------------------------
 
-  onLoad(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  /**
+   * A memarg `offset=N` must fit the memory's INDEX TYPE — u32 for a 32-bit
+   * memory, u64 for memory64.
+   *
+   * This went unchecked because the reader used to read the field as u32 and
+   * threw on anything larger; once T9.2 widened it to u64 so memory64 could
+   * work, an out-of-range 32-bit offset decoded cleanly and validated.
+   */
+  private checkMemArgOffset(loc: Location, offset: bigint, is64: boolean): Result {
+    const max = is64 ? (1n << 64n) - 1n : 0xFFFFFFFFn;
+    if (offset > max) {
+      return this.printError(
+        loc,
+        `offset out of range: ${offset} exceeds the memory index type`,
+      );
+    }
+    return Result.Ok;
+  }
+
+  onLoad(loc: Location, opcode: number, memIdx: number, align: number, offset: bigint): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
     const natAlign = getOpcodeNaturalAlign(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
+    r = combineResults(r, this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false));
     r = combineResults(r, this.tc.onLoad(opcode, mt?.limits.is64 ?? false));
     return r;
   }
 
-  onStore(loc: Location, opcode: number, memIdx: number, align: number, _offset: bigint): Result {
+  onStore(loc: Location, opcode: number, memIdx: number, align: number, offset: bigint): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
     const natAlign = getOpcodeNaturalAlign(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
+    r = combineResults(r, this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false));
     r = combineResults(r, this.tc.onStore(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -797,7 +822,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -813,7 +838,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -896,7 +921,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -912,7 +937,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -928,7 +953,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -944,7 +969,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -960,7 +985,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -976,7 +1001,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
@@ -1450,7 +1475,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
     _lane: number,
   ): Result {
     this.currentLoc = loc;
@@ -1467,7 +1492,7 @@ export class SharedValidator {
     opcode: number,
     memIdx: number,
     align: number,
-    _offset: bigint,
+    offset: bigint,
     _lane: number,
   ): Result {
     this.currentLoc = loc;

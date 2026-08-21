@@ -61,6 +61,7 @@ reference these ids.
 | T9.2 | Our validator rejecting modules V8 accepts | done — agreement 1702 → 2120/2120 |
 | T9.3 | Validator on `ValueType`; real reference subtyping | done — assert_invalid caught 1806 → 1834 |
 | T9.4 | The 10 valid modules T9.3's lattice rejected | done — agreement back to 2120/2120 |
+| T9.5 | Modules the spec says are invalid that we validated clean | done — assert_invalid 2395 → 2532/2737 |
 
 ### Open — parse side: NONE
 
@@ -154,6 +155,13 @@ nothing about what a permissive validator waves through. Adding the
 | modules V8 accepts that we accept | 2120 / 2120 | 2110 / 2120 |
 | `assert_invalid` modules we reject | 1806 / 2737 | **1834 / 2737** |
 
+**CORRECTION (T9.5).** Both `assert_invalid` figures above are wrong. The
+harness asked `hasErrors(result.errors)`, but the validator signals failure
+through `result`, and `dropTypes` returned `Result.Error` without recording a
+message — so every stack underflow read as "accepted". Measured on `result`
+the same two points are **2395** and **2423**: the absolute numbers were off by
+~590, the **+28 delta was exactly right**. Measure the field the code sets.
+
 **T9.4 then closed the 10** — without widening the lattice, which is the thing
 T9.3 existed to stop doing. Every one of them turned out to be a SECOND bug the
 coarse lattice had been hiding: `array.new_elem` still reporting the bare
@@ -168,7 +176,8 @@ errors caught, zero false rejections.
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T9.5** | **903 of 2737 `assert_invalid` modules still validate clean** — the validator misses a third of the spec's invalid cases. Nothing in the campaign measured this direction until T9.3, and it is by far the largest remaining validator gap. Needs its own survey, the same way T9.2 was surveyed. | many |
+| ~~T9.5~~ | **DONE.** The "903" was a measurement artefact (see the correction above); the real figure was 314. Fixing the silent report alone accounted for the difference. Three real gaps then fell out: `checkSignature` peeked without an ARITY check (`peekType` answers the `Type.Any` wildcard below the frame base, and `br` only peeks — so `(block (result i32) (br 0))` validated) **+102**; a 32-bit memory's page limit is 65536, not 2^32-1; and a memarg `offset` must fit the memory's index type, newly reachable because T9.2 widened the reader to u64. **2395 → 2532 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/rejects_invalid.test.ts`. | — |
+| **T9.6** | The 205 `assert_invalid` modules still accepted, by the reason the spec gives: type mismatch 56, out-of-bounds memory access 35, unknown type 24, sub type 21, out-of-bounds table access 16, constant expression required 12, memory size 10, alignment larger than natural 8, plus a tail. **74 of the 205 are also accepted by V8**, so at most ~131 are genuinely ours — several spec tests predate proposals that legalised what they assert against. Mostly module-level structural checks that simply do not exist yet, not type-checker bugs. | — |
 
 ### Open — T9: found during the campaign, invisible to both metrics
 
