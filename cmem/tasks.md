@@ -46,14 +46,17 @@ reference these ids.
 | T7.7 | Relaxed SIMD aliased onto low SIMD opcodes (opcode packing too narrow) | done — encode +7 |
 | T6.4 | `(module definition …)` / `(module instance …)` | done — parse +5, encode +5 |
 | T5.2 | Abbreviated heap-type immediate (`ref.cast i31ref`) | done — parse +3, encode +3 |
+| T8.1 | Block type-use + inline signature | done |
+| T8.2 | `select` with several result groups | done |
+| T8.4 | Tag declared with a type-use | done (new) |
+| T8.5 | Folded `if` condition spanning several instructions | done (new) |
 
 ### Open — parse side (24 files)
 
 | id | Scope | Files |
 | --- | --- | --- |
 | **T6.5** | `(@annotation …)` custom annotations | 1 |
-| **T8.1** | `(block (type $sig) (result …))` — block type-use combined with an inline signature | ~2 |
-| **T8.2** | `select (result i32) (result)` — empty result annotation | 1 |
+| **T5.3** | `br_on_cast` / `br_on_cast_fail` — never implemented (opcodes exist, no IR) | 2 |
 | ~~T8.3~~ | ~~multi-instruction constant expressions in the WAT writer~~ | closed |
 
 ### Open — encode side (21 modules / ~14 files), all under T7
@@ -226,6 +229,8 @@ gaps are narrowing.
 - *T6.4 + T5.2 (parse 241 → 249, V8-valid 229 → 237): **no new binaryen-ts
   finding.** `module definition` / `instance` are script-level constructs the
   bridge never sees.*
+- *T8.1/8.2/8.4/8.5 (parse 249 → 254, V8-valid 237 → 242): **no new
+  binaryen-ts finding** — all four were parser abbreviation forms.*
 - *T7 remaining clusters (stack residue, tail-call types, singles): in
   progress.*
 

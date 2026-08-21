@@ -2437,7 +2437,19 @@ export class WastParser {
     }
 
     const inlineImp = this.parseInlineImport();
+    // A tag may name its signature with `(type $t)` instead of spelling it
+    // inline: `(tag (export "e") (type $t))`. Adopt the referenced type's
+    // signature, exactly as a function's type-use does; a forward reference
+    // is left to synthesizeTypes.
+    const typeVar = this.parseTypeUseOpt();
     const { sig } = this.parseFuncSignature();
+    if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
+      const entry = this.lookupFuncTypeEntry(module, typeVar);
+      if (entry !== null) {
+        sig.params.push(...entry.params);
+        sig.results.push(...entry.results);
+      }
+    }
     const tag: Tag = { name, loc, sig };
 
     if (inlineImp !== null) {
@@ -2631,17 +2643,24 @@ export class WastParser {
       const blockType = this.parseBlockType();
 
       // Optional condition in folded form: if it's a paren-expr, it's the cond
+      // The condition can span SEVERAL folded instructions, each consuming the
+      // previous one's result: `(if (i32.const 1) (i32.eqz) (then …))`. Only
+      // one was parsed, so the rest hit "expected ), got (". Keep folding
+      // until `(then` / `(else`; the last value left is the condition.
       let cond: Expr | undefined;
-      if (
+      const condCtx = newCtx();
+      while (
         this.peek() === TokenType.Lpar && this.peek(1) !== TokenType.Then &&
-        this.peek(1) !== TokenType.Else
+        this.peek(1) !== TokenType.Else &&
+        (isPlainInstr(this.peek(1)) || isBlockInstr(this.peek(1)))
       ) {
-        if (isPlainInstr(this.peek(1)) || isBlockInstr(this.peek(1))) {
-          const condCtx = newCtx();
-          this.parseFoldedInstr(condCtx);
-          flushStack(condCtx);
-          cond = condCtx.stmts[0] ?? condCtx.stack[0];
-        }
+        const before = this.pos;
+        this.parseFoldedInstr(condCtx);
+        if (this.pos === before) break; // nothing consumed — do not spin
+      }
+      if (condCtx.stmts.length > 0 || condCtx.stack.length > 0) {
+        flushStack(condCtx);
+        cond = condCtx.stmts[condCtx.stmts.length - 1] ?? condCtx.stack[0];
       }
       if (cond === undefined && ctx.stack.length > 0) {
         cond = ctx.stack.pop();
@@ -3020,8 +3039,10 @@ export class WastParser {
       case TokenType.Drop:
         return { kind: 'drop', value: op0(), loc } as DropExpr;
       case TokenType.Select: {
+        // `select (result i32) (result)` — several result GROUPS, any of them
+        // empty. Matching only one group left the rest unconsumed.
         const resultType: ValueType[] = [];
-        if (this.matchLpar(TokenType.Result)) {
+        while (this.matchLpar(TokenType.Result)) {
           while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
             const before = this.pos;
             const t = this.parseValueType();
@@ -4059,11 +4080,38 @@ export class WastParser {
    * single-result block and V8 rejected the function with "expected 1
    * elements on the stack for fallthru, found 2".
    */
+  /**
+   * Consume an inline `(param …)* (result …)*` that follows an explicit
+   * `(type $t)` in a block signature. The type index is authoritative, so the
+   * inline restatement carries no extra information — but it must still be
+   * consumed or the caller trips over it.
+   */
+  private skipInlineBlockSig(): void {
+    while (this.peek() === TokenType.Lpar) {
+      const next = this.peek(1);
+      if (next !== TokenType.Param && next !== TokenType.Result) return;
+      this.drop();
+      this.drop();
+      while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
+        const before = this.pos;
+        this.parseValueType();
+        if (this.noProgress(before, 'inline block signature')) break;
+      }
+      this.expect(TokenType.Rpar);
+    }
+  }
+
   private parseBlockType(): BlockType {
-    // Explicit `(type $t)` wins outright.
+    // Explicit `(type $t)`. The grammar is `(type $t)? (param …)* (result …)*`
+    // and BOTH may appear — `(block (type $sig) (result i32) …)` is legal, the
+    // inline signature restating what `$sig` already says. Returning here
+    // left the `(result …)` unconsumed and the block failed with
+    // "expected ), got (". The type index wins; the inline part is consumed
+    // and discarded.
     if (this.matchLpar(TokenType.Type)) {
       const v = this.parseVar();
       this.expect(TokenType.Rpar);
+      this.skipInlineBlockSig();
       if (v !== null && v.kind === 'index') return { kind: 'func_type', typeIdx: v.value };
       if (v !== null && this.currentModule !== null) {
         const idx = this.currentModule.types.findIndex((t) => t.name === v.name);
