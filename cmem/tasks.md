@@ -144,8 +144,11 @@ severity, root cause, and the tranche that surfaced it. If a tranche completes
 without hitting one, note that too — an empty pass is evidence the remaining
 gaps are narrowing.
 
-- *T7 remaining clusters (stack residue, relaxed SIMD, legacy EH, splat,
-  singles): in progress — no new findings yet.*
+- *Legacy EH / `try_table` catch depth (V8-valid 214 → 216): **no new
+  binaryen-ts finding**. The bug was ours — catch targets were resolved with
+  the try_table's own label pushed, one too deep.*
+- *T7 remaining clusters (stack residue, relaxed SIMD, splat, singles): in
+  progress.*
 
 ---
 

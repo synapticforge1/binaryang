@@ -402,17 +402,22 @@ class ResolveContext {
         return [result, { ...e, body, catches: newCatches }];
       }
       case 'try_table': {
-        this.labelStack.push(e.label);
-        // The catch clauses' tag and branch target were never resolved, so a
-        // `try_table (catch $e $l)` emitted tag 0 and label 0 — silently
-        // dispatching to the wrong tag and branching to the wrong block.
-        // Per the spec the catch clauses are checked in the context EXTENDED
-        // with the try_table's own label, so resolve them inside the push.
+        // The catch clauses' tag and branch target were never resolved at all,
+        // so a `try_table (catch $e $l)` emitted tag 0 and label 0 — silently
+        // dispatching the wrong tag to the wrong block.
+        //
+        // Resolve the targets in the ENCLOSING scope, with the try_table's own
+        // label NOT yet pushed: `(block $h (try_table (catch $e $h) …))`
+        // encodes `$h` as depth 0. Verified against V8 by emitting depths
+        // 0/1/2 for that exact shape — only 0 is accepted. (An earlier pass
+        // here pushed first, which reads naturally from the spec's
+        // "C, label [t*] ⊢ catch*" rule but is off by one in the encoding.)
         const catches = e.catches.map((c) => ({
           ...c,
           ...(c.tag === undefined ? {} : { tag: this.resolveTagVar(c.tag, loc) }),
           target: this.resolveLabelVar(c.target, loc),
         }));
+        this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
         return [r, { ...e, catches, body }];

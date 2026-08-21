@@ -122,8 +122,7 @@ describe('br_table resolves its index expression', () => {
 
 describe('try_table resolves its catch clauses', () => {
   it('dispatches the named tag to the named block', async () => {
-    // $e2 is tag index 1 and $outer is not the innermost label, so emitting
-    // tag 0 / label 0 would either mis-dispatch or fail to compile.
+    // $e2 is tag index 1, so emitting tag 0 would dispatch the wrong tag.
     const binary = compile(`(module
       (tag $e1 (param i32))
       (tag $e2 (param i32))
@@ -141,6 +140,47 @@ describe('try_table resolves its catch clauses', () => {
     const f = instance.exports.f as (n: number) => number;
     assertEquals(f(0), 5, 'no throw path');
     assertEquals(f(1), 99, 'thrown $e2 caught and routed to $outer');
+  });
+
+  it('routes a caught exception past an intervening block', async () => {
+    // NOTE: this case does NOT by itself pin the depth convention -- it was
+    // checked against both conventions and passes under either, because the
+    // candidate targets are type-compatible. The test below is the one that
+    // actually discriminates; this one covers the nesting behaviour.
+    const binary = compile(`(module
+      (tag $e (param i32))
+      (func (export "f") (param i32) (result i32)
+        (block $outer (result i32)
+          (i32.add
+            (block $inner (result i32)
+              (try_table (result i32) (catch $e $outer)
+                (if (local.get 0) (then (throw $e (i32.const 5))))
+                (i32.const 1)))
+            (i32.const 100)))))`);
+    assert(v8Accepts(binary));
+    const buf = new ArrayBuffer(binary.byteLength);
+    new Uint8Array(buf).set(binary);
+    const { instance } = await WebAssembly.instantiate(buf);
+    const f = instance.exports.f as (n: number) => number;
+    assertEquals(f(1), 5, 'caught at $outer; 105 would mean it hit $inner');
+    assertEquals(f(0), 101, 'no throw: 1 + 100');
+  });
+
+  it('a catch targeting the immediately enclosing block encodes depth 0', () => {
+    // THE discriminating case, and the spec-testsuite shape that exposed the
+    // off-by-one. Catch targets resolve in the ENCLOSING scope, with the
+    // try_table's own label NOT pushed. Verified against V8 by emitting
+    // depths 0/1/2 for this shape: only 0 is accepted. Confirmed to fail if
+    // the resolution order is reverted.
+    assert(v8Accepts(compile(`(module
+      (tag $e0)
+      (func (export "f") (param i32) (result i32)
+        (block $h
+          (try_table (result i32) (catch $e0 $h)
+            (if (i32.eqz (local.get 0)) (then (throw $e0)) (else))
+            (i32.const 42))
+          (return))
+        (i32.const 23)))`)));
   });
 });
 
