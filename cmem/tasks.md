@@ -163,6 +163,45 @@ Note the standing "no name-var survives resolveNames" guard did NOT catch (2):
 it walks the spec testsuite plus one hand-built module, and no testsuite module
 writes `select (result (ref $t))`. A guard is only as wide as its corpus.
 
+### WASI Preview 1 — the goal, and what measuring against it found
+
+**Standing goal (recorded in `CLAUDE.md`): transpiled output must be WASI
+Preview 1 capable until Preview 2 is the BROWSER standard, then migrate — and
+the same for p3 and beyond.** Target the preview that is deployable today, keep
+the next in view, switch on the browser rather than on the publication date.
+
+The wasmtk corpus is the right yardstick for it: **270 of its 272 files import
+`wasi_snapshot_preview1`**. Running them through the toolchain (2026-08-21):
+
+| stage | result |
+| --- | --- |
+| encode | **270 / 270** |
+| our validator | 263 / 270 |
+| round-trip byte-identical | **1 / 270** |
+
+Two findings, both more useful than anything the spec testsuite was saying:
+
+1. **7 corpus modules are genuinely INVALID wasm — a wasic bug, not ours.**
+   All fail the same way (a function falls through without producing its
+   declared result), and **V8, Wasmtime and Wasmer all reject them.** They are
+   now listed in `KNOWN_INVALID` in `tests/wasmtk/runner.test.ts`, asserted to
+   *stay* invalid so the list shrinks when wasic is fixed.
+
+2. **The corpus gate never validated.** Its comment said "wat2wasm returns
+   Result.Ok on a clean compile + validate" — `wat2wasm` is parse →
+   resolveNames → synthesizeTypes → writeBinaryIr, with no `validateModule` in
+   it at all. So the gate asserted something it never checked, for the life of
+   the corpus, which is exactly how those 7 went unnoticed until T9.5's
+   stack-arity check made the validator good enough to see them. The gate now
+   really validates, with every proposal enabled.
+
+**Round-trip on this corpus is 1/270, against 1961/2120 on the spec
+testsuite.** Real WASI-targeting modules are a far harsher probe than the
+testsuite — many differ at IDENTICAL size, which points at T10.1 (export order)
+rather than the nop-padding groups. Under the WASI goal a toolchain in a build
+pipeline must not silently alter a module, so **T10 should be re-prioritised
+against this corpus, not the testsuite.**
+
 ### Cross-engine check of the 73 (2026-08-21)
 
 The 73 `assert_invalid` modules wabt-ts still accepts are all ones **V8**
