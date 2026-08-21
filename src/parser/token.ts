@@ -461,5 +461,10 @@ const TOKEN_NAMES: ReadonlyMap<TokenType, string> = new Map([
 ]);
 
 export function tokenTypeName(t: TokenType): string {
+  // TOKEN_NAMES covers every TokenType member, so the fallback is unreachable
+  // in practice — it exists only so a newly-added member degrades to an
+  // ordinal instead of `undefined`. `TokenType` is a `const enum`, so there is
+  // no runtime reverse mapping to fall back to; a new member must be added to
+  // the map above.
   return TOKEN_NAMES.get(t) ?? `<unknown:${t}>`;
 }

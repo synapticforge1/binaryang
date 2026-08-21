@@ -158,6 +158,73 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — Parser robustness + Tranche 1 (spec testsuite 120 → 145/257)
+
+### Robustness: the parser must report, never crash
+
+Mutation-fuzzing the spec testsuite (3598 truncated / bracket-stripped /
+quote-stripped variants) found that malformed input could **hang the process
+and exhaust memory**, which is worse than the throw originally scoped.
+
+1. **Infinite loops on non-consuming sub-parsers.** `parseValueType` reports an
+   error and returns null WITHOUT consuming the offending token. Two loops had
+   no progress check, so they appended a list entry plus an error forever:
+   the struct-field shorthand loop (`(module (type $s (struct (field i1` →
+   OOM) and `select (result …)` (no `break` at all). New private helper
+   `noProgress(before, what)` compares `this.pos` and reports the offending
+   token; both loops now break on it. **`parseFieldType` cannot return null**
+   (it defaults to i32), so only a positional check catches that one — an
+   `else break` would not have.
+2. **`nan:0x7f_ffff` escaped as a raw `SyntaxError`** from `BigInt()`. The
+   NaN-payload branch neither stripped the `_` separators its sibling
+   hexfloat/float branches already strip, nor guarded the call. New
+   `parseNanPayload()` validates the `0x…` spelling and returns null.
+3. **Top-level backstop.** `runParse()` wraps lex+parse for both
+   `parseWatModule` and `parseWastScript`; an escaping exception becomes a
+   loud `internal parser error: …` entry plus the partial result, so a caller
+   feeding untrusted text never needs try/catch. It reports rather than
+   swallows — an exception there is a wabt-ts bug.
+4. **Diagnostics named their tokens as ordinals.** `<token:163>` came from the
+   parser's LOCAL `tokenName` switch falling through; `TOKEN_NAMES` in
+   token.ts already covers all 168 members, so the default now delegates to
+   `tokenTypeName`. (`TokenType` is a `const enum` — there is no runtime
+   reverse mapping, so a new member must be added to that map.)
+
+**Silent-corruption bug found in passing:** the f32 NaN payload mask was
+`0x3fffff` (22 bits) instead of `0x7fffff` (23). `f32.const nan:0x400000` —
+payload = exactly the quiet bit — masked to zero and emitted `0x7f800000`,
+which is **infinity, not a NaN**. `literal.ts`'s `F32_MANTISSA_MASK` already
+had it right. Verified against V8.
+
+Regression: `tests/parser/robustness.test.ts` (NaN payload separators +
+malformed-payload reporting + the 23-bit mask + a V8 NaN check, the three
+former hangs, deeply unbalanced input, and a sweep asserting no testsuite
+diagnostic renders a raw ordinal).
+
+### Tranche 1 — numeric literals (+25 files, exactly as projected)
+
+1. **Negative hex integers.** `parseNatText` called `BigInt('-0x7fffffff')`,
+   which THROWS: JS accepts a sign only on decimal and a radix prefix only
+   unsigned. The old comment claimed the opposite. Now the sign is split off
+   any radix-prefixed literal and re-applied. Affected i32/i64 consts, v128
+   integer lanes, and invoke arguments.
+2. **Hex floats required a `p` exponent.** The grammar makes it optional
+   (`hexfloat ::= '0x' hexnum '.'? hexfrac? (('p'|'P') sign? num)?`), so
+   `0x1.5` and the `0x0123456789ABCDEF.` form the SIMD files use throughout
+   were rejected. Regex relaxed, absent exponent = 2^0, plus a guard so the
+   looser pattern does not accept `0x.`.
+3. NaN-payload separators — done in the robustness pass above.
+
+Measured 120 → **145/257**, zero regressions; the +25 matches the scope's
+projection exactly, and `const.wast` / `simd_splat.wast` (the two former
+crashes) are now clean. Regression: `tests/parser/numeric_literals.test.ts`
+(V8-executed values, not just parse success).
+
+**Remaining: 112 files. Next tranche is T2 (small grammar), projected +34 →
+179/257.** The tranche table below is unchanged apart from T1 being done.
+
+---
+
 ## 2026-08-20 — WAST spec-testsuite parse gap: scope of the remaining 137 files
 
 **Status: SCOPED, NOT FIXED.** The working tree is at **120/257 clean** (up from

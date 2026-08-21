@@ -12,7 +12,7 @@
  */
 
 import type { Location, WabtError } from '../core/error.ts';
-import { ErrorLevel } from '../core/error.ts';
+import { addError, ErrorLevel, unknownLocation } from '../core/error.ts';
 import { Result } from '../core/result.ts';
 import { GcOpcode, Opcode } from '../core/opcode.ts';
 import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
@@ -142,6 +142,7 @@ import {
   type StringToken,
   type Token,
   TokenType,
+  tokenTypeName,
   type TypeToken,
 } from './token.ts';
 
@@ -571,15 +572,33 @@ function decodeStringText(raw: string): string {
   return new TextDecoder().decode(decodeStringToken(raw));
 }
 
-/** Parse a NAT/INT token text to a 64-bit unsigned integer (as bigint). Returns null on failure. */
+/**
+ * Parse a NAT/INT token text to an integer (as bigint). Returns null on
+ * failure.
+ *
+ * Handles the two things `BigInt()` alone does not:
+ *
+ * - **Digit-group separators** (`1_000_000`, `0xFF_FF`) are stripped. An
+ *   earlier `replace('_', '')` removed only the FIRST underscore, so any
+ *   literal with two or more separators threw → null → callers silently
+ *   defaulted to index/value 0.
+ * - **A sign combined with a radix prefix.** `BigInt('-0x10')` THROWS —
+ *   JS accepts a sign only on decimal, and a radix prefix only unsigned.
+ *   The old comment here claimed the opposite ("BigInt already understands
+ *   the 0x/+/- prefixes"), so every negative hex/octal/binary literal became
+ *   null: `(i32.const -0x7fffffff)` reported "expected i32 constant", which
+ *   alone accounted for 16 spec-testsuite files.
+ */
 function parseNatText(text: string): bigint | null {
+  const t = text.replace(/_/g, '');
+  // Split a leading sign off any radix-prefixed literal and re-apply it.
+  const signed = /^([+-])(0[xXoObB][0-9a-fA-F]+)$/.exec(t);
   try {
-    // Strip ALL digit-group separators (`1_000_000`, `0xFF_FF`). `BigInt`
-    // already understands the `0x`/`+`/`-` prefixes, so one branch suffices.
-    // The earlier `replace('_', '')` removed only the FIRST underscore, so any
-    // literal with two or more separators threw → null → callers silently
-    // defaulted to index/value 0.
-    return BigInt(text.replace(/_/g, ''));
+    if (signed) {
+      const magnitude = BigInt(signed[2]!);
+      return signed[1] === '-' ? -magnitude : magnitude;
+    }
+    return BigInt(t);
   } catch {
     return null;
   }
@@ -963,6 +982,27 @@ export class WastParser {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Guard a parse loop against making no progress.
+   *
+   * Several loops here are shaped `while (peek() !== Rpar && peek() !== Eof)`
+   * with a body that delegates to a sub-parser. When that sub-parser reports
+   * an error and returns WITHOUT consuming the offending token — which
+   * `parseValueType` does — the loop spins forever, appending an error (and
+   * often a list entry) every iteration until the process runs out of memory.
+   * Real inputs hit this: `(module (type $s (struct (field i1` hung and then
+   * OOM'd, found by mutation-fuzzing the spec testsuite.
+   *
+   * Call with the `this.pos` captured at the top of the iteration. Returns
+   * true when nothing was consumed, having reported the offending token; the
+   * caller must then `break`.
+   */
+  private noProgress(before: number, what: string): boolean {
+    if (this.pos > before) return false;
+    this.error(this.loc(), `unexpected ${tokenName(this.peek())} in ${what}`);
+    return true;
   }
 
   private matchLpar(tt: TokenType): boolean {
@@ -1523,7 +1563,11 @@ export class WastParser {
         // Either anonymous single field with optional `(mut ...)` wrapper,
         // OR multi-field shorthand (all immutable, no name).
         while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
+          const before = this.pos;
           const { mutable, type } = this.parseFieldType();
+          // parseFieldType defaults to i32 rather than returning null, so a
+          // bad token yields a field WITHOUT advancing — check position.
+          if (this.noProgress(before, 'struct field list')) break;
           fields.push({ name: '', type, mutable });
         }
       }
@@ -2739,8 +2783,10 @@ export class WastParser {
         const resultType: Type[] = [];
         if (this.matchLpar(TokenType.Result)) {
           while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
+            const before = this.pos;
             const t = this.parseValueType();
             if (t !== null) resultType.push(t);
+            if (this.noProgress(before, 'select result list')) break;
           }
           this.expect(TokenType.Rpar);
         }
@@ -4128,7 +4174,9 @@ function tokenName(tt: TokenType): string {
     case TokenType.AssertReturn:
       return 'assert_return';
     default:
-      return `<token:${tt}>`;
+      // Everything not spelled out above goes through the shared name map,
+      // which now falls back to the enum member name.
+      return tokenTypeName(tt);
   }
 }
 
@@ -4197,7 +4245,13 @@ function f64ValueToBits(v: number): bigint {
 
 // JavaScript's parseFloat() does NOT understand WAT hex-float notation
 // (`0x1.921fb54442d18p+2`): it parses the leading "0", stops at "x", and returns 0.
-const HEX_FLOAT_PARSE_RE = /^([+-]?)0[xX]([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?[pP]([+-]?[0-9]+)$/;
+// The `p` exponent is OPTIONAL in the WAT grammar:
+//   hexfloat ::= '0x' hexnum '.'? hexfrac? (('p'|'P') sign? num)?
+// Requiring it rejected every exponent-less hex float — `0x1.5` and the
+// `0x0123456789ABCDEF.` form (trailing dot, no fraction digits) that the SIMD
+// testsuite files use throughout.
+const HEX_FLOAT_PARSE_RE =
+  /^([+-]?)0[xX]([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?(?:[pP]([+-]?[0-9]+))?$/;
 
 // Parse a WAT hex-float string directly to the IEEE-754 bit pattern of the
 // target format (`mantBits` fraction bits, `expBits` exponent bits), rounding
@@ -4228,8 +4282,11 @@ function hexFloatToBits(s: string, mantBits: number, expBits: number): bigint | 
   // 2^(exp - 4*fracLen).
   const fracLen = fracPart?.length ?? 0;
   const hexDigits = (intPart ?? '') + (fracPart ?? '');
+  // With the exponent optional the pattern would otherwise match `0x.`.
+  if (hexDigits.length === 0) return null;
   const mant = hexDigits.length > 0 ? BigInt('0x' + hexDigits) : 0n;
-  const lowExp = parseInt(expStr!, 10) - 4 * fracLen;
+  // An absent `p` exponent means 2^0.
+  const lowExp = (expStr === undefined ? 0 : parseInt(expStr, 10)) - 4 * fracLen;
 
   if (mant === 0n) return signBit; // signed zero
 
@@ -4365,6 +4422,28 @@ function decimalToBits(s: string, mantBits: number, expBits: number): bigint | n
   return signBit | (biased << BigInt(mantBits)) | (q & mantMask);
 }
 
+/**
+ * Read the payload of an explicit NaN literal (`nan:0x7f_ffff`).
+ *
+ * Returns null when the payload is absent or malformed. The earlier code
+ * called `BigInt(text.split(':')[1])` bare: it neither stripped the `_` digit
+ * separators the surrounding hexfloat / float branches already strip, nor
+ * guarded the call — so `nan:0x7f_ffff` escaped the parser as a raw
+ * `SyntaxError` instead of being reported as a parse error (const.wast,
+ * simd_splat.wast). A parser must never throw on malformed input.
+ */
+function parseNanPayload(text: string): bigint | null {
+  const payloadStr = (text.split(':')[1] ?? '').replace(/_/g, '');
+  // Only the `0x…` spelling is legal here, and BigInt would happily accept
+  // other forms (decimal, `0b…`) that the grammar does not.
+  if (!/^0[xX][0-9a-fA-F]+$/.test(payloadStr)) return null;
+  try {
+    return BigInt(payloadStr);
+  } catch {
+    return null;
+  }
+}
+
 function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): number | null {
   const { literalType, text } = lit;
   if (literalType === LiteralType.Infinity) {
@@ -4372,10 +4451,15 @@ function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): n
   }
   if (literalType === LiteralType.Nan) {
     if (text.includes(':')) {
-      const payloadStr = text.split(':')[1] ?? '0x0';
-      const payload = Number(BigInt(payloadStr));
+      const payload = parseNanPayload(text);
+      if (payload === null) return null;
       const sign = text.startsWith('-') ? 0x80000000 : 0;
-      return sign | 0x7f800000 | (payload & 0x3fffff);
+      // f32 is 1 sign + 8 exponent + 23 mantissa, so the NaN payload field is
+      // 23 bits. The mask used to be 0x3fffff (22), silently dropping the top
+      // payload bit: `nan:0x400000` — payload = just the quiet bit — masked to
+      // zero and emitted 0x7f800000, which is INFINITY, not a NaN at all.
+      // `literal.ts`'s F32_MANTISSA_MASK already had this right.
+      return sign | 0x7f800000 | (Number(payload) & 0x7fffff);
     }
     return text.startsWith('-') ? 0xffc00000 : 0x7fc00000;
   }
@@ -4407,10 +4491,10 @@ function parseF64LiteralBits(lit: { literalType: LiteralType; text: string }): b
   }
   if (literalType === LiteralType.Nan) {
     if (text.includes(':')) {
-      const payloadStr = text.split(':')[1] ?? '0x0';
-      const payload = BigInt(payloadStr) & 0x000fffffffffffffn;
+      const raw = parseNanPayload(text);
+      if (raw === null) return null;
       const sign = text.startsWith('-') ? 0x8000000000000000n : 0n;
-      return sign | 0x7ff0000000000000n | payload;
+      return sign | 0x7ff0000000000000n | (raw & 0x000fffffffffffffn);
     }
     return text.startsWith('-') ? 0xfff8000000000000n : 0x7ff8000000000000n;
   }
@@ -4445,22 +4529,51 @@ export interface ParseWastResult {
   readonly errors: WabtError[];
 }
 
+/**
+ * Run a lex+parse pass, converting any escaping exception into a parse error.
+ *
+ * Malformed input must always come back as an `errors` entry, never as a
+ * thrown exception — a caller feeding the parser untrusted text should not
+ * have to wrap it in try/catch. `nan:0x7f_ffff` used to escape as a raw
+ * `SyntaxError` from `BigInt()`; that specific hole is fixed at the source
+ * (see {@link parseNanPayload}), and this is the backstop for the next one.
+ *
+ * The backstop reports rather than swallows: an exception here is a wabt-ts
+ * bug, so it surfaces as a loud "internal parser error" carrying the original
+ * message, and the partial result built so far is returned alongside it.
+ */
+function runParse<T>(
+  src: LexerSource | string,
+  build: (parser: WastParser) => T,
+  empty: () => T,
+): { value: T; errors: WabtError[] } {
+  const lexer = new WastLexer(src);
+  let parser: WastParser | null = null;
+  try {
+    const tokens = lexer.tokenize();
+    parser = new WastParser(tokens);
+    const value = build(parser);
+    return { value, errors: [...lexer.errors, ...parser.errors] };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    const errors: WabtError[] = [...lexer.errors, ...(parser?.errors ?? [])];
+    addError(errors, unknownLocation(), `internal parser error: ${message}`);
+    return { value: empty(), errors };
+  }
+}
+
 /** Parse a WAT text file into a Module IR. */
 export function parseWatModule(src: LexerSource | string): ParseWatResult {
-  const lexer = new WastLexer(src);
-  const tokens = lexer.tokenize();
-  const parser = new WastParser(tokens);
-  const module = parser.parseModule();
-  const errors = [...lexer.errors, ...parser.errors];
+  const { value: module, errors } = runParse(src, (p) => p.parseModule(), makeModule);
   return { module, errors };
 }
 
 /** Parse a WAST script file into a WastScript. */
 export function parseWastScript(src: LexerSource | string): ParseWastResult {
-  const lexer = new WastLexer(src);
-  const tokens = lexer.tokenize();
-  const parser = new WastParser(tokens);
-  const script = parser.parseScript();
-  const errors = [...lexer.errors, ...parser.errors];
+  const { value: script, errors } = runParse(
+    src,
+    (p) => p.parseScript(),
+    () => ({ filename: '', commands: [] }),
+  );
   return { script, errors };
 }
