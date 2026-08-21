@@ -761,6 +761,23 @@ class WatWriter extends ModuleContext {
         this.writeVar(e.typeVar, NC.Newline);
         return Result.Ok;
       },
+      onArrayFillExpr: (e) => {
+        this.putsSpace('array.fill');
+        this.writeVar(e.typeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArrayCopyExpr: (e) => {
+        this.putsSpace('array.copy');
+        this.writeVar(e.destTypeVar, NC.Space);
+        this.writeVar(e.srcTypeVar, NC.Newline);
+        return Result.Ok;
+      },
+      onArrayInitSegmentExpr: (e) => {
+        this.putsSpace(e.kind);
+        this.writeVar(e.typeVar, NC.Space);
+        this.writeVar(e.segment, NC.Newline);
+        return Result.Ok;
+      },
       onArrayLenExpr: () => {
         this.putsNewline('array.len');
         return Result.Ok;

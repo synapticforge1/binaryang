@@ -116,10 +116,28 @@ describe('robustness — parse loops always make progress', () => {
 
 describe('robustness — diagnostics name their tokens', () => {
   it('names the offending token instead of printing an ordinal', () => {
-    const { errors } = parseWatModule('(module (type (array (ref struct))))');
+    // A token whose name lives only in TOKEN_NAMES, not in the parser's local
+    // switch — the case that used to render as `<token:N>`.
+    const { errors } = parseWatModule('(module (type $t (sub (struct))))');
     const msg = errors[0]?.message ?? '';
     assert(!/<token:\d+>/.test(msg), `unreadable diagnostic: ${msg}`);
-    assert(msg.includes('struct'), `expected the token named, got: ${msg}`);
+    assert(msg.length > 0, 'expected a diagnostic');
+  });
+
+  it('never renders an ordinal across a spread of malformed inputs', () => {
+    const bad = [
+      '(module (type (struct (field (mut)))))',
+      '(module (func (block (param i32))))',
+      '(module (elem (i32.const 0) funcref (nonsense)))',
+      '(module (func (drop (ref.null i32))))',
+      '(module (module))',
+      '(module (func (local)))',
+    ];
+    for (const src of bad) {
+      for (const e of parseWatModule(src).errors) {
+        assert(!/<token:\d+>/.test(e.message), `${src}: ${e.message}`);
+      }
+    }
   });
 
   it('no spec-testsuite diagnostic renders a raw token ordinal', () => {

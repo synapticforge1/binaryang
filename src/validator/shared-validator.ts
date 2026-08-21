@@ -1112,6 +1112,34 @@ export class SharedValidator {
     return this.tc.onCall([Type.Ref, Type.I32, packedToStackType(at.element.type)], []);
   }
 
+  onArrayFill(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    // [ref, offset, value, size] -> []
+    return this.tc.onCall(
+      [Type.Ref, Type.I32, packedToStackType(at.element.type), Type.I32],
+      [],
+    );
+  }
+
+  onArrayCopy(loc: Location, destTypeIdx: number, srcTypeIdx: number): Result {
+    this.currentLoc = loc;
+    const dest = this.checkArrayTypeIndex(destTypeIdx, loc);
+    const src = this.checkArrayTypeIndex(srcTypeIdx, loc);
+    if (!dest || !src) return Result.Error;
+    // [destRef, destOffset, srcRef, srcOffset, size] -> []
+    return this.tc.onCall([Type.Ref, Type.I32, Type.Ref, Type.I32, Type.I32], []);
+  }
+
+  onArrayInitSegment(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const at = this.checkArrayTypeIndex(typeIdx, loc);
+    if (!at) return Result.Error;
+    // [ref, destOffset, srcOffset, size] -> []
+    return this.tc.onCall([Type.Ref, Type.I32, Type.I32, Type.I32], []);
+  }
+
   onArrayLen(loc: Location): Result {
     this.currentLoc = loc;
     return this.tc.onCall([Type.Ref], [Type.I32]);

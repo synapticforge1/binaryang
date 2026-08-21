@@ -627,6 +627,60 @@ class ResolveContext {
           value,
         }];
       }
+      case 'array.fill': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [ro, offset] = this.resolveExpr(e.offset);
+        const [rv, value] = this.resolveExpr(e.value);
+        const [rs, size] = this.resolveExpr(e.size);
+        return [
+          combineResults(combineResults(rr, ro), combineResults(rv, rs)),
+          { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), ref, offset, value, size },
+        ];
+      }
+      case 'array.copy': {
+        const [r1, destRef] = this.resolveExpr(e.destRef);
+        const [r2, destOffset] = this.resolveExpr(e.destOffset);
+        const [r3, srcRef] = this.resolveExpr(e.srcRef);
+        const [r4, srcOffset] = this.resolveExpr(e.srcOffset);
+        const [r5, size] = this.resolveExpr(e.size);
+        return [
+          combineResults(combineResults(combineResults(r1, r2), combineResults(r3, r4)), r5),
+          {
+            ...e,
+            destTypeVar: this.resolveTypeVar(e.destTypeVar, loc),
+            srcTypeVar: this.resolveTypeVar(e.srcTypeVar, loc),
+            destRef,
+            destOffset,
+            srcRef,
+            srcOffset,
+            size,
+          },
+        ];
+      }
+      case 'array.init_data':
+      case 'array.init_elem': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [rd, destOffset] = this.resolveExpr(e.destOffset);
+        const [rs, srcOffset] = this.resolveExpr(e.srcOffset);
+        const [rz, size] = this.resolveExpr(e.size);
+        // The segment var lives in the data or elem index space depending on
+        // which instruction this is.
+        const segment = e.kind === 'array.init_data'
+          ? this.resolveDataSegVar(e.segment, loc)
+          : this.resolveElemSegVar(e.segment, loc);
+        return [
+          combineResults(combineResults(rr, rd), combineResults(rs, rz)),
+          {
+            ...e,
+            typeVar: this.resolveTypeVar(e.typeVar, loc),
+            segment,
+            ref,
+            destOffset,
+            srcOffset,
+            size,
+          },
+        ];
+      }
       case 'array.len': {
         const [r, ref] = this.resolveExpr(e.ref);
         return [r, { ...e, ref }];

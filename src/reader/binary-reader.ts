@@ -2392,6 +2392,58 @@ export class BinaryReader {
         stack.push(node);
         return;
       }
+      case GcOpcode.ArrayFill: {
+        const typeIdx = this.readU32Leb();
+        const size = stack.pop() ?? nop();
+        const value = stack.pop() ?? nop();
+        const offset = stack.pop() ?? nop();
+        const ref = stack.pop() ?? nop();
+        stmts.push(
+          { kind: 'array.fill', typeVar: varIndex(typeIdx), ref, offset, value, size, loc },
+        );
+        return;
+      }
+      case GcOpcode.ArrayCopy: {
+        const destTypeIdx = this.readU32Leb();
+        const srcTypeIdx = this.readU32Leb();
+        const size = stack.pop() ?? nop();
+        const srcOffset = stack.pop() ?? nop();
+        const srcRef = stack.pop() ?? nop();
+        const destOffset = stack.pop() ?? nop();
+        const destRef = stack.pop() ?? nop();
+        stmts.push({
+          kind: 'array.copy',
+          destTypeVar: varIndex(destTypeIdx),
+          srcTypeVar: varIndex(srcTypeIdx),
+          destRef,
+          destOffset,
+          srcRef,
+          srcOffset,
+          size,
+          loc,
+        });
+        return;
+      }
+      case GcOpcode.ArrayInitData:
+      case GcOpcode.ArrayInitElem: {
+        const typeIdx = this.readU32Leb();
+        const segIdx = this.readU32Leb();
+        const size = stack.pop() ?? nop();
+        const srcOffset = stack.pop() ?? nop();
+        const destOffset = stack.pop() ?? nop();
+        const ref = stack.pop() ?? nop();
+        stmts.push({
+          kind: op === GcOpcode.ArrayInitData ? 'array.init_data' : 'array.init_elem',
+          typeVar: varIndex(typeIdx),
+          segment: varIndex(segIdx),
+          ref,
+          destOffset,
+          srcOffset,
+          size,
+          loc,
+        });
+        return;
+      }
       case GcOpcode.ArraySet: {
         const typeIdx = this.readU32Leb();
         const value = stack.pop() ?? nop();

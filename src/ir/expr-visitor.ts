@@ -21,7 +21,10 @@
 
 import { Result } from '../core/result.ts';
 import type {
+  ArrayCopyExpr,
+  ArrayFillExpr,
   ArrayGetExpr,
+  ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
   ArrayNewDefaultExpr,
@@ -194,6 +197,9 @@ export interface ExprVisitorDelegate {
   onArrayNewElemExpr?(e: ArrayNewElemExpr): Result;
   onArrayGetExpr?(e: ArrayGetExpr): Result;
   onArraySetExpr?(e: ArraySetExpr): Result;
+  onArrayFillExpr?(e: ArrayFillExpr): Result;
+  onArrayCopyExpr?(e: ArrayCopyExpr): Result;
+  onArrayInitSegmentExpr?(e: ArrayInitSegmentExpr): Result;
   onArrayLenExpr?(e: ArrayLenExpr): Result;
   onRefTestExpr?(e: RefTestExpr): Result;
   onRefCastExpr?(e: RefCastExpr): Result;
@@ -448,6 +454,25 @@ export class ExprVisitor {
         r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onArraySetExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.fill': {
+        for (const sub of [e.ref, e.offset, e.value, e.size]) {
+          if (this.dispatch(sub) === Result.Error) return Result.Error;
+        }
+        return this.d.onArrayFillExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.copy': {
+        for (const sub of [e.destRef, e.destOffset, e.srcRef, e.srcOffset, e.size]) {
+          if (this.dispatch(sub) === Result.Error) return Result.Error;
+        }
+        return this.d.onArrayCopyExpr?.(e) ?? Result.Ok;
+      }
+      case 'array.init_data':
+      case 'array.init_elem': {
+        for (const sub of [e.ref, e.destOffset, e.srcOffset, e.size]) {
+          if (this.dispatch(sub) === Result.Error) return Result.Error;
+        }
+        return this.d.onArrayInitSegmentExpr?.(e) ?? Result.Ok;
       }
       case 'array.len': {
         const r = this.dispatch(e.ref);

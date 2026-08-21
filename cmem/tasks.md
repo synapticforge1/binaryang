@@ -158,6 +158,64 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — Tranche 2: small grammar gaps (spec testsuite 145 → 179/257)
+
+Six grammar gaps plus one missing instruction family. Measured 145 → **179/257
+clean, zero regressions** — exactly the +34 the scope projected.
+
+1. **Every `table.*` table index is OPTIONAL** (defaults to table 0).
+   `table.get/set/size/grow/fill/copy/init` called `parseVar()`
+   unconditionally, which REPORTS an error when the next token isn't a var —
+   so bare `table.size` and `(table.fill (i32.const 0) …)` failed even though
+   the `?? varIndex(0)` fallback produced the right index. Now `parseVarOpt`.
+2. **`table.init` transposed its indices.** The text form is
+   `table.init $tableidx $elemidx`, and the ONE-var form names the ELEM
+   segment — so the two must SWAP when a second var appears (upstream wabt
+   documents exactly this). wabt-ts read segment-then-table with no swap, so
+   every two-var `table.init` targeted the wrong table AND the wrong segment.
+   Silent corruption, not a parse error. Regression test executes both forms
+   in V8 against two tables and two elem segments.
+3. **`(module quote "a" "b")` concatenates** its text pieces, exactly as
+   `(module binary …)` already did via `parseTextList`. The quote branch read
+   a single string and choked on the second.
+4. **`(either r1 r2)`** alternative results. The `Either` token and upstream's
+   `ParseEither` both existed; nothing here ever consumed it, so every
+   relaxed-SIMD file failed outright. New `ExpectedConst` variant carrying
+   `alternatives`.
+5. **`(data (global.get $g) "…")`** — the bare-offset branch required
+   `(X.const …)` specifically. Any `(` still present at that point is the
+   offset (`(memory …)` / `(offset …)` are handled above and data chunks are
+   Text), so the condition is now just `Lpar`. Same shape as the elem
+   bare-offset fix.
+6. **`(ref struct)` / `(ref array)` / `(ref exn)` in type position.** Those
+   keywords have dedicated token types, so `parseValueType`'s `(ref …)` branch
+   rejected them. Now routed through `parseHeapTypeVar` — the same canonical
+   entry `ref.null` and `ref.test` use.
+
+**Four GC array bulk instructions implemented from scratch** — `array.fill`
+(0xfb 0x10), `array.copy` (0x11), `array.init_data` (0x12), `array.init_elem`
+(0x13). None existed at any layer. Wired through opcode enum + name map,
+TokenType, lexer, IR (`ArrayFillExpr` / `ArrayCopyExpr` /
+`ArrayInitSegmentExpr`), expr-visitor, ir-util arity, parser (incl.
+`instrInputCount` — fill/init take 4 operands, copy takes 5, and a new
+`op4()` helper), resolve-names (`array.copy` resolves BOTH type vars;
+`init_data` / `init_elem` resolve their segment against the data vs elem
+scope respectively), binary writer, binary reader, validator
+(`checkArrayTypeIndex` + `onCall` signatures), and the WAT writer.
+`array.copy`'s two type immediates are DESTINATION FIRST in both text and
+binary.
+
+V8 execution is not reachable for typed-ref GC code through this path —
+`(ref $T)` coarsens to structref in the flat IR — so the tests verify binary
+encoding (opcode bytes + resolved immediates) and wasm2wat round-trip,
+matching the convention already set by the GC tier tests.
+
+Regression: `tests/parser/t2_grammar.test.ts`.
+
+**Remaining: 78 files. Next is T3 (multi-memory), projected +37 → 216/257.**
+
+---
+
 ## 2026-08-21 — Parser robustness + Tranche 1 (spec testsuite 120 → 145/257)
 
 ### Robustness: the parser must report, never crash

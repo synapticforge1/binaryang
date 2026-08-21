@@ -229,6 +229,10 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['array.get_u', op(TokenType.ArrayGet, G(GcOpcode.ArrayGetU))],
   ['array.set', op(TokenType.ArraySet, G(GcOpcode.ArraySet))],
   ['array.len', op(TokenType.ArrayLen, G(GcOpcode.ArrayLen))],
+  ['array.fill', op(TokenType.ArrayFill, G(GcOpcode.ArrayFill))],
+  ['array.copy', op(TokenType.ArrayCopy, G(GcOpcode.ArrayCopy))],
+  ['array.init_data', op(TokenType.ArrayInitData, G(GcOpcode.ArrayInitData))],
+  ['array.init_elem', op(TokenType.ArrayInitElem, G(GcOpcode.ArrayInitElem))],
   // ref.test / ref.cast — the opcode token holds the base (non-null) form;
   // the parser inspects the immediate (with or without `null`) to pick
   // between the nullable and non-nullable encoding.

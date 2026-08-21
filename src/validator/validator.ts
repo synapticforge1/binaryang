@@ -8,7 +8,10 @@ import { heapTypeNameToType, Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type {
+  ArrayCopyExpr,
+  ArrayFillExpr,
   ArrayGetExpr,
+  ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
   ArrayNewDefaultExpr,
@@ -540,6 +543,15 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onArraySetExpr(e: ArraySetExpr): Result {
     return this.sv.onArraySet(e.loc, varIdx(e.typeVar));
+  }
+  onArrayFillExpr(e: ArrayFillExpr): Result {
+    return this.sv.onArrayFill(e.loc, varIdx(e.typeVar));
+  }
+  onArrayCopyExpr(e: ArrayCopyExpr): Result {
+    return this.sv.onArrayCopy(e.loc, varIdx(e.destTypeVar), varIdx(e.srcTypeVar));
+  }
+  onArrayInitSegmentExpr(e: ArrayInitSegmentExpr): Result {
+    return this.sv.onArrayInitSegment(e.loc, varIdx(e.typeVar));
   }
   onArrayLenExpr(e: ArrayLenExpr): Result {
     return this.sv.onArrayLen(e.loc);

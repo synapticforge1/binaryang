@@ -346,6 +346,10 @@ export class ModuleContext {
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'array.set':
         return { nargs: 3, nreturns: 0, unreachable: false };
+      case 'array.fill':
+      case 'array.copy':
+      case 'array.init_data':
+      case 'array.init_elem':
       case 'array.len':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'ref.test':

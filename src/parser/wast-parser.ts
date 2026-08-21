@@ -17,7 +17,10 @@ import { Result } from '../core/result.ts';
 import { GcOpcode, Opcode } from '../core/opcode.ts';
 import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
 import {
+  type ArrayCopyExpr,
+  type ArrayFillExpr,
   type ArrayGetExpr,
+  type ArrayInitSegmentExpr,
   type ArrayLenExpr,
   type ArrayNewDataExpr,
   type ArrayNewDefaultExpr,
@@ -191,6 +194,15 @@ export type ExpectedConst =
   | { readonly kind: 'ref.i31' }
   | { readonly kind: 'ref.struct' }
   | { readonly kind: 'ref.array' }
+  | {
+    readonly kind: 'either';
+    /**
+     * Alternative expected results — the actual value matches when it matches
+     * ANY alternative. Used by the relaxed-SIMD tests, whose operations are
+     * permitted more than one correct answer.
+     */
+    readonly alternatives: ExpectedConst[];
+  }
   | {
     readonly kind: 'ref.extern';
     /**
@@ -405,6 +417,10 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.ArrayGet:
     case TokenType.ArraySet:
     case TokenType.ArrayLen:
+    case TokenType.ArrayFill:
+    case TokenType.ArrayCopy:
+    case TokenType.ArrayInitData:
+    case TokenType.ArrayInitElem:
     case TokenType.RefTest:
     case TokenType.RefCast:
     case TokenType.AtomicLoad:
@@ -701,7 +717,12 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.ArraySet:
       return 3;
     case TokenType.AtomicRmwCmpxchg:
+    case TokenType.ArrayFill:
+    case TokenType.ArrayInitData:
+    case TokenType.ArrayInitElem:
       return 4;
+    case TokenType.ArrayCopy:
+      return 5;
     case TokenType.MemoryCopy:
     case TokenType.TableCopy:
     case TokenType.MemoryInit:
@@ -1192,27 +1213,18 @@ export class WastParser {
       this.match(TokenType.Null); // optional `null` keyword — currently ignored
       // The next token is either a refkind keyword (func/extern/etc.) — already
       // a complete Type — or a Var pointing at a user-defined heap type.
-      let result: Type;
-      const inner = this.peek();
-      if (inner === TokenType.Var) {
-        // Concrete typed ref `(ref $T)` — drop the var and use StructRef as
-        // the coarse placeholder. Future typed-ref IR will carry $T's index.
-        this.drop();
-        result = Type.StructRef;
-      } else if (
-        inner === TokenType.ValueType || inner === TokenType.Func || inner === TokenType.Extern
-      ) {
-        // `(ref any)` / `(ref i31)` / `(ref func)` / `(ref extern)` / etc.
-        const inner2 = this.parseValueType();
-        result = inner2 ?? Type.AnyRef;
-      } else if (inner === TokenType.Nat) {
-        // `(ref 0)` — numeric heap-type index, drop and coarse to StructRef.
-        this.drop();
-        result = Type.StructRef;
-      } else {
-        this.error(this.loc(), `unexpected token in (ref ...): ${tokenName(inner)}`);
-        return null;
-      }
+      // Route through the canonical heap-type parse so every spelling is
+      // accepted: the abstract keywords with dedicated token types
+      // (`struct` / `array` / `exn`) used to fall through to the error below,
+      // so `(type (array (ref struct)))` failed outright.
+      const ht = this.parseHeapTypeVar();
+      if (ht === null) return null;
+      // A name-var naming an abstract heap type maps straight to its Type; a
+      // user-defined `$T` or a numeric index has no flat Type entry and
+      // coarsens to StructRef (the loose typed-ref IR — see CLAUDE.md).
+      const result: Type = ht.kind === 'name'
+        ? heapTypeNameToType(ht.name) ?? Type.StructRef
+        : Type.StructRef;
       this.expect(TokenType.Rpar);
       return result;
     }
@@ -2038,8 +2050,14 @@ export class WastParser {
       this.parseInstrListInto(offset);
       this.expect(TokenType.Rpar);
       kind = 'active';
-    } else if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Const) {
-      // bare inline offset expr like (i32.const 0)
+    } else if (this.peek() === TokenType.Lpar) {
+      // Bare inline offset expression. Any `(` still here is the offset —
+      // `(memory …)` and `(offset …)` were handled above, and everything
+      // after the offset is a Text chunk. The condition used to require
+      // `(X.const …)` specifically, so `(data (global.get 0) "a")` — an
+      // imported-global base, which the linking tests use throughout — fell
+      // through and then failed on the data string. Same shape as the elem
+      // bare-offset branch.
       this.parseInstrListInto(offset);
       if (offset.length > 0) kind = 'active';
     }
@@ -2771,6 +2789,7 @@ export class WastParser {
     const op1 = (): Expr => operands[1] ?? ({ kind: 'nop', loc } as NopExpr);
     const op2 = (): Expr => operands[2] ?? ({ kind: 'nop', loc } as NopExpr);
     const op3 = (): Expr => operands[3] ?? ({ kind: 'nop', loc } as NopExpr);
+    const op4 = (): Expr => operands[4] ?? ({ kind: 'nop', loc } as NopExpr);
 
     switch (tt) {
       case TokenType.Unreachable:
@@ -3023,16 +3042,22 @@ export class WastParser {
         return { kind: 'data.drop', segment: v, loc } as DataDropExpr;
       }
 
+      // Every `table.*` table index is OPTIONAL and defaults to table 0.
+      // These used to call parseVar() unconditionally, which REPORTS an error
+      // when the next token isn't a var — so the bare spellings the testsuite
+      // uses throughout (`table.size`, `(table.fill (i32.const 0) …)`) all
+      // failed even though the `?? varIndex(0)` fallback produced the right
+      // index.
       case TokenType.TableGet: {
-        const v = this.parseVar() ?? varIndex(0);
+        const v = this.parseVarOpt(varIndex(0));
         return { kind: 'table.get', table: v, index: op0(), loc } as TableGetExpr;
       }
       case TokenType.TableSet: {
-        const v = this.parseVar() ?? varIndex(0);
+        const v = this.parseVarOpt(varIndex(0));
         return { kind: 'table.set', table: v, index: op0(), value: op1(), loc } as TableSetExpr;
       }
       case TokenType.TableGrow: {
-        const v = this.parseVar() ?? varIndex(0);
+        const v = this.parseVarOpt(varIndex(0));
         return {
           kind: 'table.grow',
           table: v,
@@ -3042,11 +3067,11 @@ export class WastParser {
         } as TableGrowExpr;
       }
       case TokenType.TableSize: {
-        const v = this.parseVar() ?? varIndex(0);
+        const v = this.parseVarOpt(varIndex(0));
         return { kind: 'table.size', table: v, loc } as TableSizeExpr;
       }
       case TokenType.TableFill: {
-        const v = this.parseVar() ?? varIndex(0);
+        const v = this.parseVarOpt(varIndex(0));
         return {
           kind: 'table.fill',
           table: v,
@@ -3057,8 +3082,8 @@ export class WastParser {
         } as TableFillExpr;
       }
       case TokenType.TableCopy: {
-        const dst = this.parseVar() ?? varIndex(0);
-        const src = this.parseVar() ?? varIndex(0);
+        const dst = this.parseVarOpt(varIndex(0));
+        const src = this.parseVarOpt(varIndex(0));
         return {
           kind: 'table.copy',
           dst,
@@ -3070,8 +3095,18 @@ export class WastParser {
         } as TableCopyExpr;
       }
       case TokenType.TableInit: {
-        const segment = this.parseVar() ?? varIndex(0);
-        const table = this.parseVar() ?? varIndex(0);
+        // Two spellings, and the one-var form names the ELEM segment:
+        //   table.init $elemidx
+        //   table.init $tableidx $elemidx
+        // So parse segment-first and SWAP when a second var appears. The
+        // earlier code read segment then table with no swap, silently
+        // transposing the two indices for every two-var `table.init`.
+        let segment = this.parseVarOpt(varIndex(0));
+        let table = varIndex(0);
+        if (this.peekMatchVar()) {
+          table = this.parseVarOpt(varIndex(0));
+          [segment, table] = [table, segment];
+        }
         return {
           kind: 'table.init',
           segment,
@@ -3249,6 +3284,49 @@ export class WastParser {
       }
       case TokenType.ArrayLen:
         return { kind: 'array.len', ref: op0(), loc } as ArrayLenExpr;
+      case TokenType.ArrayFill: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'array.fill',
+          typeVar,
+          ref: op0(),
+          offset: op1(),
+          value: op2(),
+          size: op3(),
+          loc,
+        } as ArrayFillExpr;
+      }
+      case TokenType.ArrayCopy: {
+        // Two type immediates, DESTINATION first: `array.copy $dst $src`.
+        const destTypeVar = this.parseVar() ?? varIndex(0);
+        const srcTypeVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'array.copy',
+          destTypeVar,
+          srcTypeVar,
+          destRef: op0(),
+          destOffset: op1(),
+          srcRef: op2(),
+          srcOffset: op3(),
+          size: op4(),
+          loc,
+        } as ArrayCopyExpr;
+      }
+      case TokenType.ArrayInitData:
+      case TokenType.ArrayInitElem: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        const segment = this.parseVar() ?? varIndex(0);
+        return {
+          kind: tt === TokenType.ArrayInitData ? 'array.init_data' : 'array.init_elem',
+          typeVar,
+          segment,
+          ref: op0(),
+          destOffset: op1(),
+          srcOffset: op2(),
+          size: op3(),
+          loc,
+        } as ArrayInitSegmentExpr;
+      }
 
       case TokenType.RefTest: {
         const imm = this.parseRefImmediate();
@@ -3927,7 +4005,12 @@ export class WastParser {
       return { kind: 'binary', name, data, loc };
     }
     if (this.match(TokenType.Quote)) {
-      const source = this.parseQuotedText() ?? '';
+      // `(module quote "a" "b")` — the text pieces CONCATENATE, exactly as
+      // they do for `(module binary …)` right above. This used to read a
+      // single string and then choke on the second with "expected ), got
+      // Text"; the testsuite splits quoted modules across one string per
+      // line throughout.
+      const source = TEXT_DECODER.decode(this.parseTextList());
       this.expect(TokenType.Rpar);
       return { kind: 'quote', name, source, loc };
     }
@@ -4098,6 +4181,21 @@ export class WastParser {
       return { kind: 'value', value: c };
     }
 
+    if (this.peek() === TokenType.Either) {
+      // `(either r1 r2 …)` — the result matches if ANY alternative matches.
+      // The `either` token existed and upstream has ParseEither, but nothing
+      // here ever consumed it, so every relaxed-SIMD file failed outright.
+      this.drop();
+      const alternatives: ExpectedConst[] = [];
+      while (this.peek() === TokenType.Lpar) {
+        const alt = this.parseExpectedConst();
+        if (alt === null) break;
+        alternatives.push(alt);
+      }
+      this.expect(TokenType.Rpar);
+      return { kind: 'either', alternatives };
+    }
+
     // Bare abstract-reference patterns — `(ref.any)`, `(ref.eq)`,
     // `(ref.i31)`, `(ref.struct)`, `(ref.array)`: "a reference whose heap
     // type is a subtype of H". Result-position only; each used to hard-error,
@@ -4227,6 +4325,11 @@ const BARE_REF_RESULT_KINDS: ReadonlyMap<TokenType, ExpectedConst['kind']> = new
 //   - Integer-literal NaN payload constants like `0x7ff0000000000000` are
 //     already imprecise as JS Number literals.
 // f32 stays on `number` (32 bits fit safely), f64 returns `bigint`.
+
+// Module-level codec singleton, matching the convention in stream.ts /
+// wat-writer.ts / binary-reader.ts / lexer-source.ts: TextDecoder is stateless
+// under .decode(), so one shared instance avoids reallocating per call.
+const TEXT_DECODER = new TextDecoder();
 
 const F32_BUF = new ArrayBuffer(4);
 const F32_VIEW = new DataView(F32_BUF);

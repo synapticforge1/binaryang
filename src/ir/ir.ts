@@ -642,6 +642,50 @@ export interface ArraySetExpr {
   readonly value: Expr;
   readonly loc: Location;
 }
+/**
+ * `array.fill $t` (0xfb 0x10) — pops (ref null $t), i32 offset, field value,
+ * i32 size; fills the range with the value.
+ */
+export interface ArrayFillExpr {
+  readonly kind: 'array.fill';
+  readonly typeVar: Var;
+  readonly ref: Expr;
+  readonly offset: Expr;
+  readonly value: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+/**
+ * `array.copy $dst $src` (0xfb 0x11) — pops dest ref, dest offset, src ref,
+ * src offset, size. Carries TWO type immediates, destination first.
+ */
+export interface ArrayCopyExpr {
+  readonly kind: 'array.copy';
+  readonly destTypeVar: Var;
+  readonly srcTypeVar: Var;
+  readonly destRef: Expr;
+  readonly destOffset: Expr;
+  readonly srcRef: Expr;
+  readonly srcOffset: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+/**
+ * `array.init_data $t $d` (0xfb 0x12) / `array.init_elem $t $e` (0xfb 0x13) —
+ * pops (ref null $t), i32 dest offset, i32 source offset, i32 size, and
+ * copies from the named data/elem segment. `segmentKind` selects which
+ * index space `segment` refers to.
+ */
+export interface ArrayInitSegmentExpr {
+  readonly kind: 'array.init_data' | 'array.init_elem';
+  readonly typeVar: Var;
+  readonly segment: Var;
+  readonly ref: Expr;
+  readonly destOffset: Expr;
+  readonly srcOffset: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
 /** `array.len` — pops (ref array), pushes i32 length. No type immediate. */
 export interface ArrayLenExpr {
   readonly kind: 'array.len';
@@ -1010,6 +1054,9 @@ export type Expr =
   | ArrayGetExpr
   | ArraySetExpr
   | ArrayLenExpr
+  | ArrayFillExpr
+  | ArrayCopyExpr
+  | ArrayInitSegmentExpr
   | RefTestExpr
   | RefCastExpr
   | TableGetExpr

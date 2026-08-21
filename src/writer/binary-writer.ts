@@ -4,7 +4,10 @@
 // Licensed under the Apache License, Version 2.0
 
 import type {
+  ArrayCopyExpr,
+  ArrayFillExpr,
   ArrayGetExpr,
+  ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
   ArrayNewDefaultExpr,
@@ -699,6 +702,29 @@ class BodyWriter implements ExprVisitorDelegate {
     this.s.writeU8(PREFIX_GC);
     this.s.writeU32Leb(GcOpcode.ArraySet);
     writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onArrayFillExpr(e: ArrayFillExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayFill);
+    writeVar(this.s, e.typeVar);
+    return Result.Ok;
+  }
+  onArrayCopyExpr(e: ArrayCopyExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.ArrayCopy);
+    // Destination type index first, then source — same order as the text form.
+    writeVar(this.s, e.destTypeVar);
+    writeVar(this.s, e.srcTypeVar);
+    return Result.Ok;
+  }
+  onArrayInitSegmentExpr(e: ArrayInitSegmentExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(
+      e.kind === 'array.init_data' ? GcOpcode.ArrayInitData : GcOpcode.ArrayInitElem,
+    );
+    writeVar(this.s, e.typeVar);
+    writeVar(this.s, e.segment);
     return Result.Ok;
   }
   onArrayLenExpr(_e: ArrayLenExpr): Result {
