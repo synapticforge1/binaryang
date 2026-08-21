@@ -36,13 +36,31 @@ re-verify again at filing time.
 
 ### Still open — worth filing
 
-**1. `struct.get_u` / `array.get_u` collapse on the wire (spec deviation, silent).**
+**1. `struct.get_u` / `array.get_u` cannot be encoded at all — and the bytes
+produced instead are REJECTED by V8.**
 `wasm-encoder.ts` selects the opcode with `e.signed ? 0x03 : 0x02`, so the
-unsigned form 0x04 is never emitted and `struct.get_u` is indistinguishable
-from the non-packed `struct.get`. Same shape for `array.get_u` (0x0d vs 0x0b).
-Functionally invisible under V8 (it recovers signedness from the packed field
-type) but any cross-validation against another encoder diverges. This is the
-one that produces *wrong bytes silently* — highest value to report.
+unsigned form 0x04 is never emitted. Same shape for `array.get_u` (0x0d vs
+`array.get` 0x0b). The root cause is in the IR, not just the encoder:
+`StructGetExpr.signed` is a `boolean`, so it has only two states and cannot
+distinguish the THREE spec opcodes — `struct.get` 0x02 (non-packed),
+`get_s` 0x03 (packed, sign-extend), `get_u` 0x04 (packed, zero-extend). A fix
+needs a three-state field (or to derive packedness from the field type), not
+just an encoder tweak.
+
+**Severity — measured, 2026-08-21, not inherited.** An earlier note in
+CLAUDE.md called this "functionally invisible under V8, which recovers
+signedness from the packed field type". **That is wrong.** Probing V8 directly
+with a `(struct (field (mut i8)))` read three ways:
+
+| sub-opcode | V8 | result |
+| --- | --- | --- |
+| `0x04` `get_u` (spec-correct) | accepts | `200` (zero-extended) |
+| `0x02` `get` — what binaryen-ts emits | **REJECTS** | "struct.get: Field … is packed" |
+| `0x03` `get_s` | accepts | `-56` (sign-extended) |
+
+So this is not a cosmetic wire divergence: any consumer reading a PACKED field
+unsigned through binaryen-ts gets a module V8 refuses to compile. That raises
+it from "worth reporting" to "blocking for packed GC fields".
 
 **2. No `makeTupleMake`.** `ExpressionKind.TupleMake` exists in the enum but
 has no constructor. Blocks multi-value `return` AND — new since our
