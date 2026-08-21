@@ -158,6 +158,61 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — Tranche 3: multi-memory (spec testsuite 179 → 214/257)
+
+Smaller than scoped: the IR ALREADY carried `memidx: Var` on every memory op,
+and the binary writer already knew the multi-memory memarg encoding (bit 6 of
+the align field signals a memory index follows). Three things were missing,
+and accepting the new syntax exposed a fourth.
+
+1. **`parseMemidxOpt` accepted only `(memory $m)`**, not the BARE var the spec
+   grammar uses on instructions — `i32.load $mem offset=0`,
+   `memory.size $mem`. Every bare memory index failed with "expected ), got
+   Var"; 33 files on its own. Now falls through to `parseVarOpt`.
+2. **`resolveNames` never walked `memidx` on ANY memory instruction** — the
+   Bug G class again. A NAMED memory reached the binary writer as an
+   unresolved name-var and hit its fail-loud guard. New `resolveMemoryVar`
+   wired into load / store / atomic_* / memory.size / grow / fill / copy /
+   init / simd_load_lane / simd_store_lane. **`memory.size` needed its own
+   case** — it is a leaf with no sub-expressions, so it fell through the
+   "nothing to resolve" default while still carrying a memidx.
+3. **`memory.init` transposed its indices**, exactly like `table.init`: the
+   one-var form names the DATA segment and the two-var form is
+   `memory.init $memidx $dataidx`, so they swap when a second var appears.
+4. **SIMD lane ambiguity, introduced by accepting bare memory indices.**
+   `v128.load8_lane memarg laneidx` ends with a MANDATORY lane index, so a
+   lone integer is the LANE, not a memory. Upstream disambiguates by
+   lookahead — a bare Nat is a memory index only when followed by `offset=`,
+   `align=`, or a second Nat — and `parseSimdLaneMemidxOpt` now does the same.
+   **The existing Tier C bridge tests caught this**, which is exactly what
+   they are for; `(v128.load8_lane 3 …)` had started reading lane 3 as
+   memory 3.
+
+**Latent WAT-writer bug surfaced by the round-trip test:** `onMemoryInitExpr`
+emitted the BINARY operand order (dataidx then memidx) rather than the TEXT
+order (memory first). Any non-zero memory therefore re-parsed transposed and
+V8 rejected it with "invalid data segment index". Invisible until multi-memory
+`memory.init` could be written at all.
+
+Measured 179 → **214/257 clean, zero regressions** (projection said 216; the
+two-file gap is files the scope counted under multi-memory that carry a second
+blocker — the "files containing" vs "solo blocker" split predicted this).
+
+Regression: `tests/parser/multi_memory.test.ts` — V8-executed proofs that
+named memories are distinct (store 1234/9999 into two memories and read back),
+per-memory `memory.size`, cross-memory `memory.copy`, `memory.fill`, both
+`memory.init` forms, name resolution (including the unknown-name error),
+round-trip with an explicit `memory.init 1 0` operand-order assertion, and all
+five SIMD lane disambiguation shapes.
+
+**Remaining: 43 files.** Next is T4 (table64 / memory64 index types, projected
++14). Also newly catalogued while diagnosing: `any.convert_extern` /
+`extern.convert_any` (GC conversions, 3 files) and table definitions with an
+inline init expression / typed-ref elem type (`(table $t 10 funcref
+(ref.null func))`, `(table $t 3 3 (ref i31) …)`).
+
+---
+
 ## 2026-08-21 — Tranche 2: small grammar gaps (spec testsuite 145 → 179/257)
 
 Six grammar gaps plus one missing instruction family. Measured 145 → **179/257

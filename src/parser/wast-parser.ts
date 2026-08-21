@@ -3025,8 +3025,25 @@ export class WastParser {
         } as MemoryFillExpr;
       }
       case TokenType.MemoryInit: {
-        const segment = this.parseVar() ?? varIndex(0);
-        const memidx = this.parseMemidxOpt(loc);
+        // Two spellings, and the one-var form names the DATA segment:
+        //   memory.init $dataidx
+        //   memory.init $memidx $dataidx
+        // Parse segment-first and SWAP when a second var appears — the same
+        // shape as table.init. The parenthesized `(memory $m) $data` form
+        // puts the memory first and needs no swap.
+        let segment: Var;
+        let memidx: Var;
+        if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Memory) {
+          memidx = this.parseMemidxOpt(loc);
+          segment = this.parseVar() ?? varIndex(0);
+        } else {
+          segment = this.parseVarOpt(varIndex(0));
+          memidx = varIndex(0);
+          if (this.peekMatchVar()) {
+            memidx = this.parseVarOpt(varIndex(0));
+            [segment, memidx] = [memidx, segment];
+          }
+        }
         return {
           kind: 'memory.init',
           segment,
@@ -3542,7 +3559,7 @@ export class WastParser {
       }
       case TokenType.SimdLoadLane: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
-        const memidx = this.parseMemidxOpt(loc);
+        const memidx = this.parseSimdLaneMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         const lane = this.parseSimdLane();
@@ -3560,7 +3577,7 @@ export class WastParser {
       }
       case TokenType.SimdStoreLane: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
-        const memidx = this.parseMemidxOpt(loc);
+        const memidx = this.parseSimdLaneMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         const lane = this.parseSimdLane();
@@ -3819,13 +3836,46 @@ export class WastParser {
   // Memory index parsing
   // -------------------------------------------------------------------------
 
+  /**
+   * Parse an optional memory index immediate, defaulting to memory 0.
+   *
+   * Two spellings: the parenthesized `(memory $m)` form, and the BARE var the
+   * spec grammar actually uses on instructions — `i32.load $mem offset=0`,
+   * `memory.size $mem`. Only the parenthesized form was accepted, so every
+   * bare memory index failed with "expected ), got Var"; that alone accounted
+   * for 33 spec-testsuite files.
+   */
   private parseMemidxOpt(_loc: Location): Var {
     if (this.matchLpar(TokenType.Memory)) {
       const v = this.parseVar() ?? varIndex(0);
       this.expect(TokenType.Rpar);
       return v;
     }
-    return varIndex(0);
+    return this.parseVarOpt(varIndex(0));
+  }
+
+  /**
+   * Parse the optional memory index of a SIMD lane load/store.
+   *
+   * `v128.load8_lane memarg laneidx` — the lane index is MANDATORY and comes
+   * last, so a single bare integer is the LANE, not a memory index. Upstream
+   * wabt disambiguates by lookahead and so do we: a bare Nat is only a memory
+   * index when followed by `offset=`, `align=`, or a second Nat. Without this
+   * the plain `(v128.load8_lane 3 …)` form silently reads lane 3 as memory 3.
+   */
+  private parseSimdLaneMemidxOpt(loc: Location): Var {
+    if (this.peek() === TokenType.Nat) {
+      const next = this.peek(1);
+      if (
+        next !== TokenType.OffsetEqNat && next !== TokenType.AlignEqNat &&
+        next !== TokenType.Nat
+      ) {
+        return varIndex(0); // the lone integer is the lane index
+      }
+    }
+    // `(memory $m)` and a bare `$name` are unambiguous — lane indices are
+    // always numeric.
+    return this.parseMemidxOpt(loc);
   }
 
   private parseSimdLane(): number {

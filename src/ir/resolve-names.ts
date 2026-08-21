@@ -367,6 +367,7 @@ class ResolveContext {
         return [combine(rD, combine(rS, rZ)), {
           ...e,
           segment: this.resolveDataSegVar(e.segment, loc),
+          memidx: this.resolveMemoryVar(e.memidx, loc),
           dest,
           src,
           size,
@@ -460,14 +461,19 @@ class ResolveContext {
       case 'load_splat':
       case 'load_zero': {
         const [r, address] = this.resolveExpr(e.address);
-        return [r, { ...e, address }];
+        return [r, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc), address }];
       }
       case 'store':
       case 'atomic_store':
       case 'atomic_rmw': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rV, value] = this.resolveExpr(e.value);
-        return [combine(rA, rV), { ...e, address, value }];
+        return [combine(rA, rV), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          value,
+        }];
       }
       case 'atomic_rmw_cmpxchg': {
         const [rA, address] = this.resolveExpr(e.address);
@@ -484,23 +490,45 @@ class ResolveContext {
       case 'atomic_notify': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rC, count] = this.resolveExpr(e.count);
-        return [combine(rA, rC), { ...e, address, count }];
+        return [combine(rA, rC), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          count,
+        }];
       }
+      case 'memory.size':
+        // A leaf (no sub-expressions), so it used to fall through to the
+        // "nothing to resolve" default — but it still carries a memidx.
+        return [Result.Ok, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc) }];
       case 'memory.grow': {
         const [r, delta] = this.resolveExpr(e.delta);
-        return [r, { ...e, delta }];
+        return [r, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc), delta }];
       }
       case 'memory.copy': {
         const [rD, dest] = this.resolveExpr(e.dest);
         const [rS, src] = this.resolveExpr(e.src);
         const [rZ, size] = this.resolveExpr(e.size);
-        return [combine(rD, combine(rS, rZ)), { ...e, dest, src, size }];
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          destMemidx: this.resolveMemoryVar(e.destMemidx, loc),
+          srcMemidx: this.resolveMemoryVar(e.srcMemidx, loc),
+          dest,
+          src,
+          size,
+        }];
       }
       case 'memory.fill': {
         const [rD, dest] = this.resolveExpr(e.dest);
         const [rV, value] = this.resolveExpr(e.value);
         const [rZ, size] = this.resolveExpr(e.size);
-        return [combine(rD, combine(rV, rZ)), { ...e, dest, value, size }];
+        return [combine(rD, combine(rV, rZ)), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          dest,
+          value,
+          size,
+        }];
       }
       case 'table.get':
       case 'table.size':
@@ -733,7 +761,12 @@ class ResolveContext {
       case 'simd_store_lane': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rV, vec] = this.resolveExpr(e.vec);
-        return [combine(rA, rV), { ...e, address, vec }];
+        return [combine(rA, rV), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          vec,
+        }];
       }
       // Truly leaf expressions or kinds the bridge / writer don't need to
       // recurse into. Returning `e` unchanged is safe.
@@ -849,6 +882,19 @@ class ResolveContext {
     this.hadError = true;
     return v;
   }
+  /**
+   * Resolve a memory index immediate (`i32.load $mem`, `memory.size $mem`, …).
+   *
+   * Every memory-op IR node has carried a `memidx: Var` all along, but nothing
+   * ever resolved it — so a NAMED memory on any instruction reached the binary
+   * writer as a name-var and hit its fail-loud guard. Same Bug G class as
+   * `call_indirect`'s typeVar: an immediate that names something must be
+   * walked here, or the writer either throws or silently emits index 0.
+   */
+  private resolveMemoryVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.memScope, 'memory', loc);
+  }
+
   private resolveElemSegVar(v: Var, loc: Location = unknownLocation()): Var {
     return this.resolveVar(v, this.elemSegScope, 'elem segment', loc);
   }

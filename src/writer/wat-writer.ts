@@ -610,8 +610,15 @@ class WatWriter extends ModuleContext {
       },
       onMemoryInitExpr: (e) => {
         this.putsSpace('memory.init');
+        // TEXT order is `memory.init $memidx $dataidx` — memory FIRST — which
+        // is the reverse of the binary encoding (dataidx then memidx). This
+        // wrote the binary order, so a wasm2wat round-trip of any non-zero
+        // memory re-parsed with the two indices transposed and V8 rejected it
+        // ("invalid data segment index"). A zero memory index is omitted,
+        // leaving the one-var form, which already means "data segment".
+        const memIdx = e.memidx.kind === 'index' ? e.memidx.value : -1;
+        if (memIdx !== 0) this.writeVar(e.memidx, NC.Space);
         this.writeVar(e.segment, NC.Space);
-        this.writeMemoryVarUnlessZero(e.memidx, NC.Space);
         this.newline(false);
         return Result.Ok;
       },
