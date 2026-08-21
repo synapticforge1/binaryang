@@ -196,11 +196,32 @@ Two findings, both more useful than anything the spec testsuite was saying:
    really validates, with every proposal enabled.
 
 **Round-trip on this corpus is 1/270, against 1961/2120 on the spec
-testsuite.** Real WASI-targeting modules are a far harsher probe than the
-testsuite — many differ at IDENTICAL size, which points at T10.1 (export order)
-rather than the nop-padding groups. Under the WASI goal a toolchain in a build
-pipeline must not silently alter a module, so **T10 should be re-prioritised
-against this corpus, not the testsuite.**
+testsuite.** Real WASI-targeting modules are a far harsher probe.
+
+**Classified (2026-08-21): every one of the 269 differences is already in T10
+scope — and only TWO of the seven groups appear at all.**
+
+| group | spec testsuite | WASI corpus |
+| --- | --- | --- |
+| **T10.1** export order | 69 / 159 (43%) | **269 / 269 (100%)** |
+| **T10.5** inert nop padding | 48 / 159 (30%) | 220 / 269 (82%) |
+| T10.2 / .3 / .4 / .6 / .7 | 42 / 159 | **0** |
+
+No new causes; nothing needs re-scoping. The seven modules the classifier calls
+"INVALID after round-trip" are the same seven wasic already emits invalid —
+they go in invalid and come out invalid, not a round-trip regression.
+
+**But the PRIORITY inverts.** T10 was ranked by severity on the testsuite:
+T10.6 and T10.3 first because they produce invalid wasm, T10.1 last as "valid,
+wrong order". Against the WASI goal that ordering is wrong — T10.2, .3, .4, .6
+and .7 do not occur in real WASI-targeting modules at all, while **T10.1 occurs
+in 100% of them**. Fixing T10.1 alone would take the corpus from 1/270 to ~49;
+T10.1 + T10.5 together to ~263/270 (everything except the seven wasic-invalid
+ones).
+
+Both orderings are correct for their own yardstick. **Which one to use depends
+on the goal**, and the standing goal is WASI capability — so T10.1 first, then
+T10.5.
 
 ### Cross-engine check of the 73 (2026-08-21)
 
