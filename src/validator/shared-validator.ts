@@ -15,7 +15,7 @@ import { TypeChecker } from './type-checker.ts';
 import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, ValueType } from '../ir/ir.ts';
-import { CatchKind, isRefValueType, varIndex } from '../ir/ir.ts';
+import { CatchKind, isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public options
@@ -552,10 +552,21 @@ export class SharedValidator {
     return r;
   }
 
-  onElemSegmentElemType(_loc: Location, elemTypeIn: ValueType): Result {
-    const elemType = elemTypeIn;
+  onElemSegmentElemType(loc: Location, elemType: ValueType): Result {
     const elem = this.elems[this.elems.length - 1];
-    if (elem) elem.element = elemType;
+    if (!elem) return Result.Ok;
+    elem.element = elemType;
+    // An ACTIVE segment's element type must fit the table it initialises.
+    // Nothing compared them, so a nullable `funcref` segment against a
+    // `(ref func)` table validated — the case elem.wast asserts invalid.
+    if (elem.isActive && !this.isSubtype(elemType, elem.tableType)) {
+      return this.printError(
+        loc,
+        `type mismatch: element segment of type ${
+          valueTypeName(elemType)
+        } does not fit a table of type ${valueTypeName(elem.tableType)}`,
+      );
+    }
     return Result.Ok;
   }
 

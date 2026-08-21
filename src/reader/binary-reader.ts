@@ -830,12 +830,23 @@ export class BinaryReader {
         offset = this.readInitExpr(m);
       }
 
-      let elemType: ValueType = Type.FuncRef;
+      // The IMPLIED element type differs by form, and conflating them lost the
+      // distinction the spec draws between `(elem … $f)` and
+      // `(elem … funcref (ref.func $f))`:
+      //
+      //   funcidx (flags 0-3)  ->  NON-NULLABLE `(ref func)`; every entry is a
+      //                            function index, so none can be null
+      //   exprs   (flags 4)    ->  `funcref`, the nullable abstract type
+      //
+      // Only flags 0 and 4 leave it implicit; the rest spell it out.
+      let elemType: ValueType = usesExprs
+        ? Type.FuncRef
+        : { kind: 'ref', heapType: { kind: 'name', name: 'func' }, nullable: false };
       if (isPassive || hasExplicitIndex) {
         if (usesExprs) {
           elemType = this.readValType();
         } else {
-          this.readU8(); // skip element kind byte (0x00 = funcref)
+          this.readU8(); // element kind byte (0x00 = func)
         }
       }
 

@@ -537,6 +537,23 @@ function isCommand(tt0: TokenType, tt1: TokenType): boolean {
 // ---------------------------------------------------------------------------
 
 /** Decode WAT string token text (including surrounding quotes) into a byte array. */
+/**
+ * The element type of a FUNCIDX elemlist — `(elem … func $a $b)` and the bare
+ * `(elem (offset …) $a $b)` abbreviation.
+ *
+ * It is the NON-NULLABLE `(ref func)`, not `funcref`: every entry is a
+ * function index, so no entry can be null. Recording `funcref` here conflated
+ * the funcidx form with an explicitly-written `funcref` elemlist, and the two
+ * are not interchangeable — elem.wast has `(elem (i32.const 0) $g)` against a
+ * `(ref func)` table as VALID and `(elem (i32.const 0) funcref (ref.func 0))`
+ * against the same table as INVALID, and they differ only in this.
+ */
+const FUNCIDX_ELEM_TYPE: ValueType = {
+  kind: 'ref',
+  heapType: { kind: 'name', name: 'func' },
+  nullable: false,
+};
+
 function decodeStringToken(text: string): Uint8Array {
   // strip surrounding quotes
   if (text.startsWith('"')) text = text.slice(1);
@@ -2351,7 +2368,7 @@ export class WastParser {
 
     let tableVar: Var = varIndex(0);
     let offset: Expr[] = [];
-    let elemType: ValueType = Type.FuncRef;
+    let elemType: ValueType = FUNCIDX_ELEM_TYPE;
     const inits: Expr[][] = [];
     let kind: 'active' | 'passive' | 'declared' = 'passive';
 
@@ -2408,7 +2425,7 @@ export class WastParser {
       this.match(TokenType.Func) ||
       (this.peek() === TokenType.Func && this.peek() === TokenType.Function)
     ) {
-      elemType = Type.FuncRef;
+      elemType = FUNCIDX_ELEM_TYPE;
       while (this.peekMatchVar()) {
         const v = this.parseVar();
         if (v !== null) inits.push([{ kind: 'ref.func', func: v, loc } as RefFuncExpr]);

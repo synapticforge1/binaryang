@@ -176,9 +176,9 @@ function varIndexValue(v: Var, label: string): number {
  * for `(ref [null] func)` — the funcidx element-segment form always yields
  * non-null function references, which are a subtype of all three.
  */
-function isFuncElemType(t: ValueType): boolean {
-  if (t === Type.FuncRef) return true;
-  return isRefValueType(t) && t.heapType.kind === 'name' && t.heapType.name === 'func';
+function isNonNullFuncRef(t: ValueType): boolean {
+  return isRefValueType(t) && !t.nullable && t.heapType.kind === 'name' &&
+    t.heapType.name === 'func';
 }
 
 function writeHeapType(s: MemoryStream, v: Var): void {
@@ -1238,7 +1238,12 @@ class BinaryWriter {
         // `(table 10 (ref func) …)` module fail with "Element segment of type
         // funcref is not a subtype of referenced table 0". Verified against V8
         // for all five candidate encodings; see tests/writer/elem_form.test.ts.
-        const useFuncIdx = isFuncElemType(seg.elemType) &&
+        // Only when the declared type IS the funcidx form's own type. An
+        // explicitly-written `funcref` elemlist is NULLABLE and must keep the
+        // expression form, or the encoding silently widens — and a module the
+        // spec calls invalid (a `funcref` segment against a `(ref func)`
+        // table) comes back out looking valid.
+        const useFuncIdx = isNonNullFuncRef(seg.elemType) &&
           seg.elemExprs.every((xs) => xs.length === 1 && xs[0]!.kind === 'ref.func');
 
         let flags: number;

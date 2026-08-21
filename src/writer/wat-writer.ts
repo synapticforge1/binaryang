@@ -1513,7 +1513,13 @@ class WatWriter extends ModuleContext {
     }
 
     // Element type and values
-    const useFuncShorthand = seg.elemType === Type.FuncRef &&
+    // The `func $a $b` shorthand IS the funcidx elemlist, whose element type
+    // is the non-nullable `(ref func)`. Gating it on the NULLABLE `funcref`
+    // was backwards: it printed a `funcref` segment in a spelling that means
+    // `(ref func)`, so the declared nullability was lost in the text and the
+    // re-encode came back a different segment.
+    const useFuncShorthand = isRefValueType(seg.elemType) && !seg.elemType.nullable &&
+      seg.elemType.heapType.kind === 'name' && seg.elemType.heapType.name === 'func' &&
       seg.elemExprs.every((ee) => ee.length === 1 && ee[0]?.kind === 'ref.func');
 
     if (useFuncShorthand) {

@@ -84,11 +84,16 @@ describe('T7.11 — element segments target a non-nullable table', () => {
     assertEquals(v8Reject(`(module ${NONNULL_TABLE} (elem (i32.const 3) $g))`), null);
   });
 
-  it('so is one that names funcref explicitly', () => {
-    assertEquals(
-      v8Reject(`(module ${NONNULL_TABLE} (elem (i32.const 3) funcref (ref.func $g)))`),
-      null,
-    );
+  it('but naming funcref EXPLICITLY is invalid, and must stay invalid', () => {
+    // This case asserted the opposite when T7.11 landed, and was wrong.
+    // elem.wast has exactly this shape under assert_invalid "type mismatch":
+    // `funcref` is NULLABLE and is not a subtype of `(ref func)`. T7.11
+    // preferred the funcidx encoding for every all-`ref.func` segment, which
+    // silently widened this module into a valid one — the encoder repairing
+    // its input. The funcidx form is now used only when the declared type IS
+    // the non-nullable `(ref func)` that form actually carries.
+    const msg = v8Reject(`(module ${NONNULL_TABLE} (elem (i32.const 3) funcref (ref.func $g)))`);
+    assert(msg !== null && /not a subtype/.test(msg), `expected a subtype error, got: ${msg}`);
   });
 
   it('and one on an explicitly-numbered table', () => {
