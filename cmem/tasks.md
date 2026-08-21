@@ -77,13 +77,39 @@ everything remaining is on the encode side (T7.x), measured against V8.
 The campaign's two metrics (parse-clean, V8-validity) both measure the ENCODE
 path. T9.1 was invisible to both: a reordered module is still perfectly valid
 wasm. The decode path needs its own number — for each testsuite module we can
-encode, `binary -> wasm2wat -> wat2wasm` and compare bytes.
+encode, `binary -> wasm2wat -> wat2wasm`, then compare bytes AND re-validate.
 
-**Current: 1954/2105 byte-identical, 138 differ, 13 fail to round-trip, 70
-files affected.** The 138 are a separate landscape from the T7 list; the one
-identified so far is that the reader cannot model a multi-value block result
-as N operand-stack values, so the next instruction decodes with Nop operands
-(inert at runtime, but extra `nop`s in the re-encode).
+|  | before T9.1 | after T9.1 |
+| --- | --- | --- |
+| byte-identical | 1942 / 2105 | **1954 / 2105** |
+| V8-INVALID after round-trip | 60 | **27** |
+| files affected | 76 | **70** |
+
+**The byte-identity number badly understated T9.1.** The metric that matters
+is the second row: 33 modules went from producing INVALID wasm to producing
+valid wasm, zero regressions (set-diffed by module, not counted). Always
+re-validate a round-trip, don't just diff it — "the bytes moved" and "the
+output is broken" are different findings and the first hides the second.
+
+### T10 — the 150 remaining round-trip differences, by cause
+
+Classified by evidence (differing binary SECTION + V8 rejection message +
+sampled diffs), not by guessing. Some of these may fall out of the remaining
+T7 work; re-measure before starting any of them.
+
+| id | Cause | Modules / files | Severity |
+| --- | --- | --- | --- |
+| **T10.1** | **Export ORDER is not preserved.** The WAT writer attaches exports inline to the item they name, so re-parsing rebuilds the export section grouped per item instead of in the original order — `a, b, ac, …` comes back as `a, za, b, zb, …`. Still valid, but export order is observable (`WebAssembly.Module.exports()`). Fix: emit standalone `(export "n" (func $f))` fields in original order, or carry the order. | 69 / 21 | valid, wrong order |
+| **T10.2** | **The WAT writer emits an inline `(export …)` on IMPORTED items**, e.g. `(import "M" "f" (func $f0 (export "Mf.call") (result i32)))`. That abbreviation is only legal on definitions, so **our own parser rejects our own output** — this is the whole "reparse FAILS" group (`expected ), got (` on funcs, `expected value type, got (` on globals, `expected limit initial value` on memories/tables). Same root as T10.1; one fix likely closes both. | 11 / 6 | UNPARSEABLE |
+| **T10.3** | **A non-nullable table element type loses its initializer.** `wasm2wat` prints `(table $T0 1 (ref func))` and drops `Table.init`. The binary form `0x40 0x00 <reftype> <limits> <init>` is REQUIRED when the element type is non-nullable — there is no default value — so the re-encode emits the plain form and V8 rejects it. A further 4 modules / 2 files differ in the table section without becoming invalid. | 6 / 3 (+4 / 2) | INVALID |
+| **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
+| **T10.5** | **Inert Nop-operand artifacts.** The reader cannot attribute every value to an operand slot — a multi-value block result is one value on its stack, not N — so the consumer decodes with `Nop` operands and the re-encode carries extra `nop`s. Harmless at runtime (see the T9.1 note on why), but the encoding grows and never converges. | 39 / 33 | valid, larger |
+| **T10.6** | **Nop operands that are NOT inert.** The same substitution applied to an instruction that genuinely needs its operand on the stack: V8 says "not enough arguments on the stack for br_on_null (need 1, got 0)", "expected 1 elements on the stack for fallthru", "array.new_fixed[0] expected type f32, found local.get of type i32". Produces INVALID wasm. Highest severity of what remains. Files: array, br_on_cast, br_on_cast_fail, br_on_non_null, br_on_null, throw_ref, +1. | 9 / 7 | INVALID |
+| **T10.7** | Two hard failures. `align64.wast#25` throws `RangeError: LEB128 u32 overflow`. `try_table.wast#4` throws `binary writer: no (type (func (param [object Object]))) in the type section` — a `ValueType` object stringified into a type-lookup key, i.e. one site the T7.4 typed-ref refactor did not reach. | 2 / 2 | THROWS |
+
+Recommended order when the time comes: T10.6 and T10.3 first (both produce
+invalid wasm), then T10.2 (our output is unparseable by us), then T10.7,
+T10.4, T10.1, and T10.5 last.
 
 ### Open — T9: found during the campaign, invisible to both metrics
 
