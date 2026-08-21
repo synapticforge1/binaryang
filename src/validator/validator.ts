@@ -31,6 +31,7 @@ import type {
   BlockExpr,
   BrExpr,
   BrIfExpr,
+  BrOnCastExpr,
   BrOnNonNullExpr,
   BrOnNullExpr,
   BrTableExpr,
@@ -365,6 +366,9 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onBrOnNullExpr(e: BrOnNullExpr): Result {
     return this.sv.onBrOnNull(e.loc, varIdx(e.target));
+  }
+  onBrOnCastExpr(e: BrOnCastExpr): Result {
+    return this.sv.onBrOnCast(e.loc, varIdx(e.target), e.onFail);
   }
   onBrOnNonNullExpr(e: BrOnNonNullExpr): Result {
     return this.sv.onBrOnNonNull(e.loc, varIdx(e.target));

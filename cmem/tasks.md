@@ -51,13 +51,17 @@ reference these ids.
 | T8.4 | Tag declared with a type-use | done (new) |
 | T8.5 | Folded `if` condition spanning several instructions | done (new) |
 | T6.5 | `(@annotation …)` custom annotations | done — parse +1, encode +1 |
+| T5.3 | `br_on_cast` / `br_on_cast_fail` — never implemented | done — parse +2 (257/257), encode +2 |
 
-### Open — parse side (2 files)
+### Open — parse side: NONE
+
+All 257 spec-testsuite files now parse clean. The parse metric is exhausted;
+everything remaining is on the encode side (T7.x), measured against V8.
 
 | id | Scope | Files |
 | --- | --- | --- |
 | ~~T6.5~~ | ~~`(@annotation …)` custom annotations~~ | closed |
-| **T5.3** | `br_on_cast` / `br_on_cast_fail` — never implemented (opcodes exist, no IR) | 2 |
+| ~~T5.3~~ | ~~`br_on_cast` / `br_on_cast_fail`~~ | closed |
 | ~~T8.3~~ | ~~multi-instruction constant expressions in the WAT writer~~ | closed |
 
 ### Open — encode side (21 modules / ~14 files), all under T7
@@ -67,6 +71,17 @@ reference these ids.
 | **T7.8** | Stack-arity residue — `expected N elements for fallthru` | 3 |
 | **T7.9** | `return_call_indirect` tail-call type mismatch | 2 |
 | **T7.10** | Singles — `br_on_non_null` subtype, `br_on_null` branch arity, `i32.eqz` operand type, elem segment subtype, elem const-expr arity, duplicate export name, memory ordering | 7 |
+
+### Open — T9: found during the campaign, invisible to both metrics
+
+Neither the parse metric nor the V8-validity metric exercises these, so they
+survived the whole campaign unnoticed. Both are real; neither blocks a
+testsuite file.
+
+| id | Scope | Found |
+| --- | --- | --- |
+| **T9.1** | The binary READER has no `pushStmt` equivalent. `endFrame` splices leftover operand-stack values in AFTER every statement (`[...stmts, ...stack]`), so any decoded expression that produces a value nobody consumes is re-emitted at the END of its block — past the statements that followed it in the original. This is the same defect the parser fixed in v1.3.0, on the other side of the round-trip. T5.3 dodged it by committing `br_on_cast` as a statement (matching `br_on_null`), which is right for that instruction but is not the general fix. | T5.3 |
+| **T9.2** | Our own validator rejects valid GC reference flow. `ref.test` / `ref.cast` report the coarse `Type.Ref`, and `checkType` only lets `Ref` / `RefNull` satisfy `FuncRef` / `ExternRef` — so a `ref.cast` feeding a block whose result is any other reference type fails with "type mismatch". Confirmed pre-existing and independent of `br_on_cast`: a baseline module using only `ref.cast` fails identically while V8 accepts it. `wat2wasm` does not run the validator, so this only affects `wasm-validate`. The real fix is the same `ValueType` lattice the T7.4 refactor introduced — the validator was left on flat `Type`. | T5.3 |
 
 ### Why the numbering changed shape
 
@@ -235,6 +250,9 @@ gaps are narrowing.
 - *T6.5 (annotations, parse 254 → 255, V8-valid 242 → 243): **no new
   binaryen-ts finding.** Annotations are skipped in the lexer and never reach
   the IR, so the bridge cannot see them.*
+- *T5.3 (br_on_cast, parse 255 → 257, V8-valid 243 → 245): **no new
+  binaryen-ts finding**, but note the bridge has no `br_on_cast` case — same
+  GC gap already filed as UP-3, now with two more instructions behind it.*
 - *T7 remaining clusters (stack residue, tail-call types, singles): in
   progress.*
 

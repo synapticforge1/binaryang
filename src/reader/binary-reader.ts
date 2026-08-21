@@ -37,6 +37,7 @@ import {
   type BlockType,
   blockTypeFuncType,
   blockTypeValue,
+  type BrOnCastExpr,
   type Catch,
   CatchKind,
   type ConstExpr,
@@ -2557,6 +2558,31 @@ export class BinaryReader {
           ref,
           loc,
         } as RefTestExpr);
+        return;
+      }
+      case GcOpcode.BrOnCast:
+      case GcOpcode.BrOnCastFail: {
+        const flags = this.readU8();
+        const depth = this.readU32Leb();
+        const fromHeap = this.readHeapTypeVar();
+        const toHeap = this.readHeapTypeVar();
+        const value = stack.pop() ?? nop();
+        // A STATEMENT, like br_on_null / br_on_non_null above. br_on_cast does
+        // leave its ref on the stack when it falls through, but that value is
+        // usually consumed by the enclosing block's own end rather than by a
+        // following instruction — and `endFrame` splices leftover stack values
+        // AFTER every statement, so pushing it onto `stack` sank it past the
+        // rest of the block body and scrambled source order (the same hazard
+        // the parser's `pushStmt` exists to avoid, v1.3.0).
+        stmts.push({
+          kind: 'br_on_cast',
+          onFail: op === GcOpcode.BrOnCastFail,
+          target: varIndex(depth),
+          from: { heapType: fromHeap, nullable: (flags & 1) !== 0 },
+          to: { heapType: toHeap, nullable: (flags & 2) !== 0 },
+          value,
+          loc,
+        } as BrOnCastExpr);
         return;
       }
       case GcOpcode.RefCast:

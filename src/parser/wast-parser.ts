@@ -42,6 +42,7 @@ import {
   blockTypeValue,
   type BrExpr,
   type BrIfExpr,
+  type BrOnCastExpr,
   type BrOnNonNullExpr,
   type BrOnNullExpr,
   type BrTableExpr,
@@ -382,6 +383,8 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.Select:
     case TokenType.Br:
     case TokenType.BrIf:
+    case TokenType.BrOnCast:
+    case TokenType.BrOnCastFail:
     case TokenType.BrOnNonNull:
     case TokenType.BrOnNull:
     case TokenType.BrTable:
@@ -714,6 +717,10 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.DataDrop:
     case TokenType.ElemDrop:
     case TokenType.ThrowRef:
+    case TokenType.BrOnCast:
+    case TokenType.BrOnCastFail:
+      // br_on_cast's two reference types are IMMEDIATES, not operands — only
+      // the ref being tested comes off the stack.
       return 1;
     case TokenType.Load:
     case TokenType.AtomicLoad:
@@ -906,6 +913,17 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.Call:
     case TokenType.CallIndirect:
     case TokenType.CallRef:
+      return true;
+    // br_on_cast falls through with the ref still on the stack (narrowed one
+    // way or the other depending on which spelling). Treating it as
+    // value-producing lets a following instruction consume it as an operand,
+    // which is exactly how the testsuite writes it:
+    //   (block $l (result (ref i31))
+    //     (br_on_cast $l anyref (ref i31) (table.get …))
+    //     (return (i32.const -1)))
+    //   (i31.get_u)          ;; <- consumes the fallthrough ref
+    case TokenType.BrOnCast:
+    case TokenType.BrOnCastFail:
       return true;
     default:
       return false;
@@ -3107,6 +3125,28 @@ export class WastParser {
         const v = this.parseVar();
         if (v === null) return null;
         return { kind: 'br_on_non_null', target: v, value: op0(), loc } as BrOnNonNullExpr;
+      }
+      case TokenType.BrOnCast:
+      case TokenType.BrOnCastFail: {
+        // `br_on_cast $l rt1 rt2` — a label followed by TWO reference types,
+        // parsed with the same helper ref.cast / ref.test use, so both the
+        // parenthesized `(ref null $T)` and the abbreviated `anyref` spelling
+        // work here too.
+        const v = this.parseVar();
+        if (v === null) return null;
+        const from = this.parseRefImmediate();
+        if (from === null) return null;
+        const to = this.parseRefImmediate();
+        if (to === null) return null;
+        return {
+          kind: 'br_on_cast',
+          onFail: tt === TokenType.BrOnCastFail,
+          target: v,
+          from,
+          to,
+          value: op0(),
+          loc,
+        } as BrOnCastExpr;
       }
       case TokenType.BrTable: {
         const targets: Var[] = [];

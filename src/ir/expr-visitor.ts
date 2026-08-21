@@ -43,6 +43,7 @@ import type {
   BlockExpr,
   BrExpr,
   BrIfExpr,
+  BrOnCastExpr,
   BrOnNonNullExpr,
   BrOnNullExpr,
   BrTableExpr,
@@ -147,6 +148,7 @@ export interface ExprVisitorDelegate {
   onBrIfExpr?(e: BrIfExpr): Result;
   onBrTableExpr?(e: BrTableExpr): Result;
   onBrOnNullExpr?(e: BrOnNullExpr): Result;
+  onBrOnCastExpr?(e: BrOnCastExpr): Result;
   onBrOnNonNullExpr?(e: BrOnNonNullExpr): Result;
 
   onConstExpr?(e: ConstExpr): Result;
@@ -660,6 +662,11 @@ export class ExprVisitor {
         const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onBrOnNonNullExpr?.(e) ?? Result.Ok;
+      }
+      case 'br_on_cast': {
+        const r = this.dispatch(e.value);
+        if (r === Result.Error) return r;
+        return this.d.onBrOnCastExpr?.(e) ?? Result.Ok;
       }
 
       // --- Three children ---

@@ -821,6 +821,19 @@ class ResolveContext {
         const [r, value] = this.resolveExpr(e.value);
         return [r, { ...e, target: this.resolveLabelVar(e.target, loc), value }];
       }
+      case 'br_on_cast': {
+        // Three name-bearing immediates, not one: the label AND both heap
+        // types. A heap type that is an abstract keyword stays a name-var;
+        // a `$T` resolves against the type scope.
+        const [r, value] = this.resolveExpr(e.value);
+        return [r, {
+          ...e,
+          target: this.resolveLabelVar(e.target, loc),
+          from: { ...e.from, heapType: this.resolveHeapTypeVar(e.from.heapType, loc) },
+          to: { ...e.to, heapType: this.resolveHeapTypeVar(e.to.heapType, loc) },
+          value,
+        }];
+      }
       case 'simd_lane_op': {
         const [r, operand] = this.resolveExpr(e.operand);
         // `value` is the replace_lane scalar (undefined for extract_lane). It

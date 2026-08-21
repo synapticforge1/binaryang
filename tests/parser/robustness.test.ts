@@ -148,6 +148,15 @@ describe('robustness — diagnostics name their tokens', () => {
   it('no spec-testsuite diagnostic renders a raw token ordinal', () => {
     // The survey's whole error corpus, checked in one pass. `wasmtk/` is a
     // gitignored sibling checkout, so skip when it isn't present.
+    //
+    // The corpus is now MUTATED rather than taken as-is. This test used to
+    // parse the testsuite verbatim and inspect whatever diagnostics fell
+    // out — but the repair campaign took the testsuite to 257/257 parsing
+    // clean, so there were no diagnostics left and the `checked > 0` guard
+    // fired. Truncating each file at several offsets guarantees material
+    // regardless of how much of the grammar we support, and it still draws
+    // on real-world token variety rather than a handful of hand-written
+    // strings (the previous test above covers those).
     const dir = 'wasmtk/tests/module/wasm_wast/testsuite-main';
     let entries: Deno.DirEntry[];
     try {
@@ -158,10 +167,13 @@ describe('robustness — diagnostics name their tokens', () => {
     let checked = 0;
     for (const e of entries) {
       if (!e.name.endsWith('.wast')) continue;
-      const { errors } = parseWastScript(Deno.readTextFileSync(`${dir}/${e.name}`));
-      for (const err of errors) {
-        assert(!/<token:\d+>/.test(err.message), `${e.name}: ${err.message}`);
-        checked++;
+      const src = Deno.readTextFileSync(`${dir}/${e.name}`);
+      for (const frac of [0.17, 0.41, 0.73, 0.95]) {
+        const cut = src.slice(0, Math.floor(src.length * frac));
+        for (const err of parseWastScript(cut).errors) {
+          assert(!/<token:\d+>/.test(err.message), `${e.name}@${frac}: ${err.message}`);
+          checked++;
+        }
       }
     }
     assert(checked > 0, 'expected to have checked some diagnostics');

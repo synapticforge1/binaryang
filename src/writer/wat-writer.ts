@@ -942,6 +942,20 @@ class WatWriter extends ModuleContext {
         this.writeBrVar(e.target, NC.Newline);
         return Result.Ok;
       },
+      onBrOnCastExpr: (e) => {
+        this.putsSpace(e.onFail ? 'br_on_cast_fail' : 'br_on_cast');
+        this.writeBrVar(e.target, NC.Space);
+        // Always the explicit `(ref [null] H)` spelling for both types —
+        // the abbreviated `anyref` form only covers the nullable case.
+        for (const [i, rt] of [e.from, e.to].entries()) {
+          this.openSpace('ref');
+          if (rt.nullable) this.putsSpace('null');
+          this.writeVar(rt.heapType, NC.None);
+          if (i === 0) this.closeSpace();
+          else this.closeNewline();
+        }
+        return Result.Ok;
+      },
       onBrTableExpr: (e) => {
         this.putsSpace('br_table');
         for (const t of e.targets) this.writeBrVar(t, NC.Space);

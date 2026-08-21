@@ -27,6 +27,7 @@ import type {
   BlockType,
   BrExpr,
   BrIfExpr,
+  BrOnCastExpr,
   BrOnNonNullExpr,
   BrOnNullExpr,
   BrTableExpr,
@@ -819,6 +820,17 @@ class BodyWriter implements ExprVisitorDelegate {
     this.s.writeU8(PREFIX_GC);
     this.s.writeU32Leb(e.nullable ? GcOpcode.RefCastNullable : GcOpcode.RefCast);
     writeHeapType(this.s, e.heapType);
+    return Result.Ok;
+  }
+  onBrOnCastExpr(e: BrOnCastExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(e.onFail ? GcOpcode.BrOnCastFail : GcOpcode.BrOnCast);
+    // Nullability of BOTH reference types travels in one flags byte rather
+    // than in the heap types themselves: bit 0 = rt1 nullable, bit 1 = rt2.
+    this.s.writeU8((e.from.nullable ? 1 : 0) | (e.to.nullable ? 2 : 0));
+    writeVar(this.s, e.target);
+    writeHeapType(this.s, e.from.heapType);
+    writeHeapType(this.s, e.to.heapType);
     return Result.Ok;
   }
 

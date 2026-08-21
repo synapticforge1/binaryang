@@ -170,6 +170,8 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['block', op(TokenType.Block, Opcode.Block)],
   ['br', op(TokenType.Br, Opcode.Br)],
   ['br_if', op(TokenType.BrIf, Opcode.BrIf)],
+  ['br_on_cast', op(TokenType.BrOnCast, G(GcOpcode.BrOnCast))],
+  ['br_on_cast_fail', op(TokenType.BrOnCastFail, G(GcOpcode.BrOnCastFail))],
   ['br_on_non_null', op(TokenType.BrOnNonNull, Opcode.BrOnNonNull)],
   ['br_on_null', op(TokenType.BrOnNull, Opcode.BrOnNull)],
   ['br_table', op(TokenType.BrTable, Opcode.BrTable)],

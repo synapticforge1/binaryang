@@ -1020,6 +1020,41 @@ export class TypeChecker {
     return r;
   }
 
+  /**
+   * `br_on_cast` / `br_on_cast_fail`. Input is `[t* rt1]`, the branch target
+   * takes `[t* rt2]`, and the fallthrough keeps `[t* rt1\rt2]` (the two
+   * reference types trade places for the `_fail` spelling).
+   *
+   * Like `ref.test` / `ref.cast`, this is checked at the COARSE `Type.Ref`
+   * shape — wabt-ts's flat type lattice cannot express GC subtyping, so
+   * every reference type is interchangeable here and V8 does the precise
+   * check. The stack ARITY is still enforced exactly, which is what catches
+   * the mistakes this validator can catch.
+   */
+  onBrOnCast(depth: number, name: string): Result {
+    const actual = this.peekType(0); // rt1, already coarsened
+    let r = this.dropTypes(1);
+    const label = this.getLabel(depth);
+    if (!label) return combineResults(r, Result.Error);
+    const want = brTypes(label);
+    if (want.length === 0) {
+      this.printError(`type mismatch in ${name}, target carries no reference`);
+      return combineResults(r, Result.Error);
+    }
+    // Stand in for rt2 on the branch edge with exactly what the label
+    // declares. Checking it against itself proves nothing — but the
+    // reference type is not checkable in this lattice either way, and the
+    // `t*` BELOW it are checked for real, which is the part that catches
+    // mistakes.
+    this.pushType(want[want.length - 1]!);
+    r = combineResults(r, this.popAndCheckSignature(want, name));
+    // Fallthrough keeps `[t* rt1\rt2]` — the same shape, coarsely, with the
+    // operand's own type on top rather than the branch edge's.
+    this.pushTypes(want.slice(0, -1));
+    this.pushType(actual === Type.Any ? want[want.length - 1]! : actual);
+    return r;
+  }
+
   onCall(paramTypes: Type[], resultTypes: Type[]): Result {
     return this.popAndCheckCall(paramTypes, resultTypes, 'call');
   }

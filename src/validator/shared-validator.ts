@@ -552,6 +552,11 @@ export class SharedValidator {
     return this.tc.onBrOnNonNull(depth);
   }
 
+  onBrOnCast(loc: Location, depth: number, onFail: boolean): Result {
+    this.currentLoc = loc;
+    return this.tc.onBrOnCast(depth, onFail ? 'br_on_cast_fail' : 'br_on_cast');
+  }
+
   onReturn(loc: Location): Result {
     this.currentLoc = loc;
     return this.tc.onReturn();

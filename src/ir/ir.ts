@@ -287,6 +287,41 @@ export interface BrOnNonNullExpr {
   readonly value: Expr;
   readonly loc: Location;
 }
+/**
+ * `br_on_cast $label rt1 rt2` (0xfb 0x18) and `br_on_cast_fail` (0xfb 0x19).
+ *
+ * Pops a ref of type `rt1` and branches to `$label` when its runtime type
+ * does (`br_on_cast`) or does not (`br_on_cast_fail`) match `rt2`; otherwise
+ * the ref stays on the stack and execution falls through. Which of the two
+ * paths carries the ref differs — see the `onFail` note below.
+ *
+ * The two spellings share one IR node because their immediates are
+ * identical: a label plus two reference types, encoded on the wire as a
+ * single flags byte (bit 0 = `rt1` nullable, bit 1 = `rt2` nullable), the
+ * label index, and the two heap types. Splitting them into two kinds would
+ * duplicate that immediate handling across six layers for no gain.
+ *
+ * `from` / `to` are `rt1` / `rt2`. Their `heapType` vars follow the same
+ * convention as {@link RefCastExpr}: an abstract-heap-type keyword stays a
+ * name-var through `resolveNames`, a `$T` name-var resolves against the type
+ * scope.
+ */
+export interface BrOnCastExpr {
+  readonly kind: 'br_on_cast';
+  /**
+   * `br_on_cast_fail` when true. Note the branch carries the OPPOSITE type
+   * from the fallthrough in each case: `br_on_cast` branches with `rt2` and
+   * falls through with `rt1t2`, `br_on_cast_fail` the other way round.
+   */
+  readonly onFail: boolean;
+  readonly target: Var;
+  /** `rt1` — the type the operand is expected to have. */
+  readonly from: { readonly heapType: Var; readonly nullable: boolean };
+  /** `rt2` — the type being tested for. */
+  readonly to: { readonly heapType: Var; readonly nullable: boolean };
+  readonly value: Expr;
+  readonly loc: Location;
+}
 
 // --- Constants ---
 /** `*.const` (0x41 / 0x42 / 0x43 / 0x44 / 0xfd 0x0c) — pushes a literal value. */
@@ -1043,6 +1078,7 @@ export type Expr =
   | BrIfExpr
   | BrTableExpr
   | BrOnNullExpr
+  | BrOnCastExpr
   | BrOnNonNullExpr
   | ConstExpr
   | LocalGetExpr

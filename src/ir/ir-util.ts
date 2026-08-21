@@ -304,6 +304,8 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'br_on_non_null':
         return { nargs: 1, nreturns: 0, unreachable: false };
+      case 'br_on_cast':
+        return { nargs: 1, nreturns: 1, unreachable: false };
       case 'block':
       case 'loop':
       case 'if':
