@@ -299,12 +299,20 @@ class ResolveContext {
         if (e.value === undefined) return [r, { ...e, target, cond }];
         return [r, { ...e, target, cond, value: this.resolveExpr(e.value)[1] }];
       }
-      case 'br_table':
-        return [Result.Ok, {
+      case 'br_table': {
+        // `value` is the i32 index operand and can be any sub-expression
+        // (e.g. `(call $f)`). The visitor walks it, so the writer reaches it,
+        // but this case never recursed — leaving names inside it unresolved
+        // and the writer emitting index 0 or throwing. Same class as the
+        // br_if.value fix (Bug F).
+        const [r, value] = this.resolveExpr(e.value);
+        return [r, {
           ...e,
           targets: e.targets.map((t) => this.resolveLabelVar(t, loc)),
           defaultTarget: this.resolveLabelVar(e.defaultTarget, loc),
+          value,
         }];
+      }
       case 'block':
       case 'loop': {
         this.labelStack.push(e.label);
@@ -352,9 +360,19 @@ class ResolveContext {
       }
       case 'try_table': {
         this.labelStack.push(e.label);
+        // The catch clauses' tag and branch target were never resolved, so a
+        // `try_table (catch $e $l)` emitted tag 0 and label 0 — silently
+        // dispatching to the wrong tag and branching to the wrong block.
+        // Per the spec the catch clauses are checked in the context EXTENDED
+        // with the try_table's own label, so resolve them inside the push.
+        const catches = e.catches.map((c) => ({
+          ...c,
+          ...(c.tag === undefined ? {} : { tag: this.resolveTagVar(c.tag, loc) }),
+          target: this.resolveLabelVar(c.target, loc),
+        }));
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
-        return [r, { ...e, body }];
+        return [r, { ...e, catches, body }];
       }
       case 'throw': {
         const [r, args] = this.resolveExprArray(e.args);

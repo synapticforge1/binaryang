@@ -158,6 +158,91 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — The parse metric has a blind spot; new T7 scope
+
+### The measurement problem
+
+Every tranche so far was scoped and measured by **parse-clean count**. That
+metric cannot see a module that parses perfectly and then encodes to bytes V8
+rejects — exactly the failure mode of the two latent bugs CLAUDE.md had
+documented as unfixed. Neither was in ANY tranche, because tranches were
+derived from parse failures.
+
+Stronger metric, now to be used alongside parse-clean: **parse → resolveNames
+→ synthesizeTypes → writeBinaryIr → `WebAssembly.validate`**, per text module.
+`synthesizeTypes` is required — omitting it yields an empty type section and
+"no signature at index 0". Two harness attempts produced nonsense aggregates
+before that was spotted; validate any such harness against a known-good file
+before trusting its numbers.
+
+At the T4 cut: **230/257 files parse clean, but only 180 had every module
+V8-validate.** 1937 text modules → 1863 ok / 67 rejected / 7 write-failed.
+
+### Fixed in this pass
+
+1. **`Type.I8` / `I16` had the wrong wire bytes** (0x7a / 0x79 → **0x78 /
+   0x77**). The old values continued the numeric value-type sequence
+   (v128 = 0x7b); the GC proposal does not continue it there. wabt-ts's own
+   binary writer emitted packed struct/array fields V8 rejects outright
+   ("invalid value type 0x7a") — invisible through the bridge because
+   binaryen-ts re-encodes its own way, and invisible to the parse metric.
+   CLAUDE.md flagged this at v1.2.3 with "separate fix needed". Every call
+   site used the symbol rather than the raw value, so the change was safe.
+2. **`br_table` never resolved its index expression.** The case resolved the
+   label targets but never recursed into `e.value`. The visitor DOES walk it,
+   so the writer reached names the resolver never touched. Bug F class.
+3. **`try_table` never resolved its catch clauses** — body only. A
+   `try_table (catch $e $l)` emitted tag 0 and label 0, silently dispatching
+   the wrong tag to the wrong block. Per the spec the catch clauses are
+   checked in the context extended with the try_table's own label, so they
+   resolve inside the label push.
+
+Now 182 files fully V8-valid; write-failures 7 → 1.
+
+**Standing guard added** (`tests/ir/encode_correctness.test.ts`): after
+`resolveNames`, NO name-var may survive anywhere in the IR — asserted over a
+hand-built module exercising every index space AND over the whole spec
+testsuite. This closes the Bug G / Bug F class permanently rather than one
+instance at a time. `ref.null.refType` is the one deliberate exception
+(abstract heap keywords are not names in any index space).
+
+### T7 — semantic correctness. Remaining clusters, by V8 rejection reason
+
+| Cluster | Mods / files | Notes |
+| --- | --- | --- |
+| `expected N elements on the stack` | 31 / 20 | Largest. Folded-form arity or stack-shape bug; needs its own diagnosis pass. |
+| **typed-ref coarsening** | ~21 / ~12 | `expected structref, got (ref $t)`, `call_ref expected (ref null …)`, `local.set expected structref`, `array.new expected structref`, `br_on_non_null expected subtype`. The limitation below. |
+| relaxed SIMD encoding | 6 / 6 | `reached end while decoding`, `i8x16.splat expected i32` — opcodes mis-encoded or missing immediates. |
+| `not enough arguments on the stack` | 3 / 3 | local_set / simd_store / store. |
+| misc singles | ~5 / 5 | duplicate export name, invalid local index, elem const-expr arity. |
+
+### The typed-ref refactor, scoped
+
+`FuncSignature { params: Type[]; results: Type[] }` cannot carry a heap-type
+index alongside a `Ref` / `RefNull` type code, so the parser stores
+`Type.StructRef` as a placeholder for `(ref $T)` / `(ref null $T)` and the
+writer emits structref bytes. Any module with a typed ref in a signature,
+local, global, or element type parses and encodes but is then rejected.
+
+Target shape (as CLAUDE.md sketched):
+
+```ts
+type ValueType = Type | { kind: 'ref'; heapType: Var; nullable: boolean };
+interface FuncSignature { params: ValueType[]; results: ValueType[] }
+```
+
+**Sizing: 80 `.params` / `.results` call sites and 54 `Type[]` annotations
+across validator (22), ir (17), writer (13), reader (13), bridge (11), tools
+(2), parser (2).** The validator is the deep end — its type-checker compares
+types by identity throughout and would need subtype-aware comparison.
+
+Recommended sequencing: take the cheaper T7 clusters first (the stack-arity
+cluster is 20 files and is probably a contained parser bug), then the
+typed-ref refactor as a dedicated piece of work with the V8-validity metric as
+its acceptance test. It is not a tranche-sized change.
+
+---
+
 ## 2026-08-21 — Tranche 4: table64 / memory64 index types (214 → 230/257)
 
 Measured 214 → **230/257 clean, zero regressions** — exactly the +14 projected,

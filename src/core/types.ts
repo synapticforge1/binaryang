@@ -53,10 +53,19 @@ export enum Type {
   V128 = 0x7b,
 
   // Packed types — used in GC struct/array fields and lane operations
-  /** 8-bit packed integer (GC / SIMD lane). */
-  I8 = 0x7a,
-  /** 16-bit packed integer (GC / SIMD lane). */
-  I16 = 0x79,
+  /**
+   * 8-bit packed integer (GC struct/array field storage type).
+   *
+   * The spec wire encoding is -0x08, i.e. 0x78 read as an unsigned byte.
+   * These were originally 0x7a / 0x79, chosen by continuing the numeric
+   * value-type sequence (v128 = 0x7b) — but the GC proposal does NOT continue
+   * it there. The wrong bytes made wabt-ts's own binary writer emit packed
+   * fields V8 rejects outright with "invalid value type 0x7a"; it was
+   * invisible through the bridge because binaryen-ts re-encodes its own way.
+   */
+  I8 = 0x78,
+  /** 16-bit packed integer (GC struct/array field storage type). Spec: -0x09. */
+  I16 = 0x77,
 
   // Reference types
   /** Exception reference (exception-handling proposal). */
