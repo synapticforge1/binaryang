@@ -506,7 +506,15 @@ class ResolveContext {
         const [r1, val1] = this.resolveExpr(e.val1);
         const [r2, val2] = this.resolveExpr(e.val2);
         const [r3, cond] = this.resolveExpr(e.cond);
-        return [combine(r1, combine(r2, r3)), { ...e, val1, val2, cond }];
+        // The `(result …)` annotation carries VALUE types, and a
+        // `(ref $t)` among them holds a name-var like any other.
+        // `resolveModuleValueTypes` only walks declarations, so this one was
+        // missed — invisible until the writer stopped casting the annotation
+        // to a byte and its fail-loud guard fired.
+        const resultType = e.resultType.map((t) =>
+          isRefValueType(t) ? { ...t, heapType: this.resolveHeapTypeVar(t.heapType) } : t
+        );
+        return [combine(r1, combine(r2, r3)), { ...e, val1, val2, cond, resultType }];
       }
       case 'return': {
         if (e.values.length === 0) return [Result.Ok, e];

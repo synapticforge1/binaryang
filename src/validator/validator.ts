@@ -836,7 +836,12 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onArrayCopy(e.loc, varIdx(e.destTypeVar), varIdx(e.srcTypeVar));
   }
   onArrayInitSegmentExpr(e: ArrayInitSegmentExpr): Result {
-    return this.sv.onArrayInitSegment(e.loc, varIdx(e.typeVar), e.kind === 'array.init_elem');
+    return this.sv.onArrayInitSegment(
+      e.loc,
+      varIdx(e.typeVar),
+      e.kind === 'array.init_elem',
+      varIdx(e.segment),
+    );
   }
   onArrayLenExpr(e: ArrayLenExpr): Result {
     return this.sv.onArrayLen(e.loc);

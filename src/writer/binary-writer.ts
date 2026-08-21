@@ -398,7 +398,12 @@ class BodyWriter implements ExprVisitorDelegate {
     } else {
       this.s.writeU8(Opcode.SelectT);
       this.s.writeU32Leb(e.resultType.length);
-      for (const t of e.resultType) this.s.writeU8(t as number);
+      // `writeValueType`, not a raw `writeU8(t as number)` — a cast the T7.4
+      // ValueType refactor left behind. A `(ref $t)` annotation is an OBJECT,
+      // so the cast wrote 0x00 and `select (result (ref $t))` came back out
+      // as an invalid value type. Same class as the type-key stringification
+      // in T10.7.
+      for (const t of e.resultType) writeValueType(this.s, t);
     }
     return Result.Ok;
   }

@@ -137,17 +137,18 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['nullexternref', vt(TokenType.ValueType, Type.NullExternRef)],
   ['nullexnref', vt(TokenType.ValueType, Type.NullExnRef)],
   // Bare abstract heap-type keywords, used inside `(ref any)` / `(ref i31)`
-  // etc. Tagged as ValueType for convenient consumption by parseRefImmediate's
-  // existing ValueType branch (which maps them back to the bare keyword via
-  // abstractHeapTypeNameForValType). The WAT spec also permits these in
-  // value-type slots as shorthand for `(ref null X)`.
-  ['any', vt(TokenType.ValueType, Type.AnyRef)],
-  ['eq', vt(TokenType.ValueType, Type.EqRef)],
-  ['i31', vt(TokenType.ValueType, Type.I31Ref)],
-  ['none', vt(TokenType.ValueType, Type.NullRef)],
-  ['nofunc', vt(TokenType.ValueType, Type.NullFuncRef)],
-  ['noextern', vt(TokenType.ValueType, Type.NullExternRef)],
-  ['noexn', vt(TokenType.ValueType, Type.NullExnRef)],
+  // etc. These are HEAP types, not value types: legal inside
+  // `(ref [null] H)`, `ref.null H` and the cast immediates, and nowhere a
+  // value type is wanted — the value type is the `…ref` spelling. They used
+  // to be tagged ValueType "as shorthand for (ref null X)", which the spec
+  // does not say, and it let `(result any)` / `(param any)` parse.
+  ['any', vt(TokenType.HeapType, Type.AnyRef)],
+  ['eq', vt(TokenType.HeapType, Type.EqRef)],
+  ['i31', vt(TokenType.HeapType, Type.I31Ref)],
+  ['none', vt(TokenType.HeapType, Type.NullRef)],
+  ['nofunc', vt(TokenType.HeapType, Type.NullFuncRef)],
+  ['noextern', vt(TokenType.HeapType, Type.NullExternRef)],
+  ['noexn', vt(TokenType.HeapType, Type.NullExnRef)],
   // --- value types ---
   ['i32', vt(TokenType.ValueType, Type.I32)],
   ['i64', vt(TokenType.ValueType, Type.I64)],

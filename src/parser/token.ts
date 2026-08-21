@@ -91,6 +91,7 @@ export const enum TokenType {
   Block,
   Br,
   BrIf,
+  HeapType,
   BrOnCast,
   BrOnCastFail,
   BrOnNonNull,
@@ -291,6 +292,21 @@ export interface TypeToken extends TokenBase {
   readonly valueType: Type;
 }
 
+/**
+ * A bare abstract HEAP-type keyword: `any` / `eq` / `i31` / `none` / `nofunc`
+ * / `noextern` / `noexn`.
+ *
+ * Deliberately NOT a {@link TypeToken}. These are heap types, legal only
+ * inside `(ref [null] H)`, `ref.null H` and the cast immediates — the value
+ * type is the `…ref` spelling. Lexing them as ValueType made
+ * `(result any)` / `(param any)` / `(global any …)` parse, all of which the
+ * spec rejects (ref.wast asserts `select (result any)` invalid).
+ */
+export interface HeapTypeToken extends TokenBase {
+  readonly tokenType: TokenType.HeapType;
+  readonly valueType: Type;
+}
+
 export interface RefKindToken extends TokenBase {
   readonly tokenType: TokenType; // refkind range
   readonly refType: Type;
@@ -376,6 +392,7 @@ const TOKEN_NAMES: ReadonlyMap<TokenType, string> = new Map([
   [TokenType.Block, 'block'],
   [TokenType.Br, 'br'],
   [TokenType.BrIf, 'br_if'],
+  [TokenType.HeapType, 'heaptype'],
   [TokenType.BrOnCast, 'br_on_cast'],
   [TokenType.BrOnCastFail, 'br_on_cast_fail'],
   [TokenType.BrOnNonNull, 'br_on_non_null'],

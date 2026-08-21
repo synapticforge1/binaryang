@@ -805,13 +805,20 @@ export class SharedValidator {
     return this.tc.onDrop();
   }
 
-  onSelect(loc: Location, resultTypesIn: ValueType[]): Result {
-    const resultTypes = resultTypesIn;
+  onSelect(loc: Location, resultTypes: ValueType[]): Result {
     this.currentLoc = loc;
     if (resultTypes.length > 1) {
       return this.printError(loc, `invalid arity in select instruction: ${resultTypes.length}.`);
     }
-    return this.tc.onSelect(resultTypes);
+    // The annotation carries value types written INSIDE an instruction, and
+    // the module-level index walk only covers DECLARATIONS — so an
+    // out-of-range heap index here went unreported.
+    // `(select (result (ref 1)))` in a one-type module is exactly that.
+    let r: Result = Result.Ok;
+    for (const t of resultTypes) {
+      r = combineResults(r, this.checkValueType(loc, t, 'select result'));
+    }
+    return combineResults(r, this.tc.onSelect(resultTypes));
   }
 
   // ---------------------------------------------------------------------------
@@ -1224,6 +1231,18 @@ export class SharedValidator {
     return this.tc.onCall(ft.params, ft.results);
   }
 
+  /**
+   * Does this element type hold FUNCTION references? True for `funcref`,
+   * `nullfuncref`, `(ref [null] func)` and `(ref [null] $t)` where `$t` is a
+   * func type — and false for every other hierarchy.
+   */
+  private isFuncTable(t: ValueType): boolean {
+    if (!isRefValueType(t)) return t === Type.FuncRef || t === Type.NullFuncRef;
+    const h = t.heapType;
+    if (h.kind === 'name') return h.name === 'func' || h.name === 'nofunc';
+    return this.funcTypesMap.has(h.value);
+  }
+
   onCallIndirect(loc: Location, sigIdx: number, tableIdx: number): Result {
     this.currentLoc = loc;
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
@@ -1233,10 +1252,9 @@ export class SharedValidator {
     // func type is one, and it coarsens to StructRef here, so an exact
     // FuncRef comparison rejected it. Reference-ness is all this lattice can
     // check; see TypeChecker.checkType.
-    // A `(ref $T)` element type is a reference too, so ask isRefValueType
-    // first — before T9.3 it could not be one, because coarsening had already
-    // flattened it to an abstract Type.
-    if (tt && !isRefValueType(tt.element) && !isReferenceType(tt.element)) {
+    // The table must hold FUNCTION references specifically. Accepting any
+    // reference let `(table 10 externref)` back a `call_indirect`.
+    if (tt && !this.isFuncTable(tt.element)) {
       r = combineResults(
         r,
         this.printError(loc, 'type mismatch: call_indirect must reference table of funcref type'),
@@ -1256,7 +1274,10 @@ export class SharedValidator {
     this.currentLoc = loc;
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
     if (!ft) return Result.Error;
-    return this.tc.onCallRef(Type.FuncRef, ft.params, ft.results);
+    // The callee is `(ref null $t)` for the NAMED type, not any funcref.
+    // Expecting `funcref` let a plain `funcref` operand through, so
+    // `(func (param funcref) (local.get 0) (call_ref $t))` validated.
+    return this.tc.onCallRef(this.refNullTo(sigIdx), ft.params, ft.results);
   }
 
   onReturnCall(loc: Location, funcIdx: number): Result {
@@ -1271,8 +1292,22 @@ export class SharedValidator {
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
     const tt = this.checkTableIndex(tableIdx, loc);
     let r = (ft && tt) ? Result.Ok : Result.Error;
+    // Same table-kind rule as call_indirect — it was only applied there.
+    if (tt && !this.isFuncTable(tt.element)) {
+      r = combineResults(
+        r,
+        this.printError(
+          loc,
+          'type mismatch: return_call_indirect must reference table of funcref type',
+        ),
+      );
+    }
     if (ft) {
-      r = combineResults(r, this.tc.onReturnCallIndirect(ft.params, ft.results, false));
+      // And a 64-bit table is indexed by i64, which was hard-coded false.
+      r = combineResults(
+        r,
+        this.tc.onReturnCallIndirect(ft.params, ft.results, tt?.limits.is64 ?? false),
+      );
     }
     return r;
   }
@@ -1281,7 +1316,10 @@ export class SharedValidator {
     this.currentLoc = loc;
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
     if (!ft) return Result.Error;
-    return this.tc.onReturnCallRef(Type.FuncRef, ft.params, ft.results);
+    // The callee is `(ref null $t)` for the NAMED type, not any funcref.
+    // Expecting `funcref` let a plain `funcref` operand through, so
+    // `(func (param funcref) (local.get 0) (call_ref $t))` validated.
+    return this.tc.onReturnCallRef(this.refNullTo(sigIdx), ft.params, ft.results);
   }
 
   // ---------------------------------------------------------------------------
@@ -1455,6 +1493,22 @@ export class SharedValidator {
    * `array.init_data` on an array of `funcref` — and `array.init_elem` on an
    * array of `i8` — validated clean.
    */
+  /** The elem segment's element type must fit the array's. */
+  private checkSegmentFitsArray(
+    loc: Location,
+    segElem: ValueType,
+    arrayElem: ValueType,
+    what: string,
+  ): Result {
+    if (this.isSubtype(segElem, arrayElem)) return Result.Ok;
+    return this.printError(
+      loc,
+      `type mismatch in ${what}: segment type ${valueTypeName(segElem)} is not a subtype of ${
+        valueTypeName(arrayElem)
+      }`,
+    );
+  }
+
   private checkArrayElemKind(
     loc: Location,
     element: ValueType,
@@ -1487,7 +1541,10 @@ export class SharedValidator {
     if (!at) return Result.Error;
     const elemCheck = this.checkElemSegmentIndex(elemIdx, loc);
     if (!elemCheck) return Result.Error;
-    const kindCheck = this.checkArrayElemKind(loc, at.element.type, true, 'array.new_elem');
+    const kindCheck = combineResults(
+      this.checkArrayElemKind(loc, at.element.type, true, 'array.new_elem'),
+      this.checkSegmentFitsArray(loc, elemCheck.element, at.element.type, 'array.new_elem'),
+    );
     return combineResults(kindCheck, this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]));
   }
 
@@ -1560,17 +1617,31 @@ export class SharedValidator {
     );
   }
 
-  onArrayInitSegment(loc: Location, typeIdx: number, isElem: boolean): Result {
+  onArrayInitSegment(
+    loc: Location,
+    typeIdx: number,
+    isElem: boolean,
+    segment?: number,
+  ): Result {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     // [ref, destOffset, srcOffset, size] -> []
-    const kindCheck = this.checkArrayElemKind(
+    let kindCheck = this.checkArrayElemKind(
       loc,
       at.element.type,
       isElem,
       isElem ? 'array.init_elem' : 'array.init_data',
     );
+    if (isElem && segment !== undefined) {
+      const seg = this.checkElemSegmentIndex(segment, loc);
+      if (seg) {
+        kindCheck = combineResults(
+          kindCheck,
+          this.checkSegmentFitsArray(loc, seg.element, at.element.type, 'array.init_elem'),
+        );
+      }
+    }
     return combineResults(
       kindCheck,
       combineResults(

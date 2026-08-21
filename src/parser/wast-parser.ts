@@ -1482,6 +1482,17 @@ export class WastParser {
         }
         return varIndex(Number(n));
       }
+      // The bare abstract heap keywords, which have their own token type so
+      // they cannot slip into a value-type slot.
+      case TokenType.HeapType: {
+        const tok = this.consume() as TypeToken;
+        const name = typeToHeapTypeName(tok.valueType);
+        if (name === null) {
+          this.error(tok.loc, 'unknown heap type');
+          return null;
+        }
+        return varName(name);
+      }
       // Bare keywords with dedicated token types — they double as
       // composite-type / refkind keywords, so they never reach ValueType.
       case TokenType.Func:

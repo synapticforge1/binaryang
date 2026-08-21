@@ -67,6 +67,7 @@ reference these ids.
 | T11 | The pipeline rewrote an INVALID module into a valid one | done — assert_invalid 2629 → 2632/2737 |
 | T9.8 | One-armed `if` arity; try_table catch-clause label types | done — assert_invalid 2632 → 2641/2737 |
 | T9.9 | Immediate-vs-immediate rules, and local-init tracking | done — assert_invalid 2641 → 2658/2737 |
+| T9.10 | The last invalid modules V8 rejects that we did not | done — **ours: 0 remaining** |
 
 ### Open — parse side: NONE
 
@@ -136,6 +137,26 @@ Recommended order when the time comes: T10.6 and T10.3 first (both produce
 invalid wasm), then T10.2 (our output is unparseable by us), then T10.7,
 T10.4, T10.1, and T10.5 last.
 
+### Two encoder bugs the last validator item uncovered
+
+Chasing the final `assert_invalid` case turned up defects that had nothing to
+do with validation:
+
+1. **`select`'s result annotation was mis-encoded.** The binary writer wrote it
+   with `this.s.writeU8(t as number)` — a cast the T7.4 `ValueType` refactor
+   left behind. A `(ref $t)` annotation is an OBJECT, so the cast wrote `0x00`
+   and EVERY typed-ref `select (result …)` produced an invalid value type.
+   Same class as the type-key stringification in T10.7.
+2. **`resolveNames` never resolved that annotation's heap-type var.**
+   `resolveModuleValueTypes` walks declarations only. This was invisible while
+   the writer was casting the annotation to a byte; fixing (1) made the
+   writer's fail-loud guard fire immediately, which is exactly what that guard
+   is for.
+
+Note the standing "no name-var survives resolveNames" guard did NOT catch (2):
+it walks the spec testsuite plus one hand-built module, and no testsuite module
+writes `select (result (ref $t))`. A guard is only as wide as its corpus.
+
 ### A fourth metric — validator agreement
 
 `wat2wasm` does not run the validator, so nothing in the campaign exercised it
@@ -186,7 +207,7 @@ errors caught, zero false rejections.
 | ~~T9.7~~ | **DONE.** Declared `(sub …)` relationships are now checked STRUCTURALLY, not just for finality — kind match, struct fields kept in order and appendable, mutable fields exact / immutable narrowable, func params contravariant and results covariant (**+17**, the whole category). Plus: `ref.eq` operands must be eq-hierarchy (`anyref` is a SUPERTYPE of `eqref`, so it does not qualify); a bare `select` is numeric/vector-only AND both operands must be the same type; a non-defaultable table element type needs an initializer; `array.copy`'s source element must be assignable to the destination's; and a type's scope bound is "everything before it plus the rest of its own rec group", not the section size — which closed the cross-group forward reference T9.6 had left as a documented failing case. **2579 → 2629 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/subtype_decl.test.ts`. | — |
 | ~~T9.8~~ | **DONE.** A one-armed `if` falls through producing what it was given, so its block type's params and results must match — the missing `else` is not modelled in the type checker, so this is checked from the IR. And a `try_table` CATCH CLAUSE hands its target operands determined by the catch KIND (`catch` → the tag's params, `catch_ref` → params plus a NON-NULL `(ref exn)`, `catch_all` → nothing, `catch_all_ref` → `(ref exn)`); only the tag immediate was bounds-checked. **2632 → 2641 / 2737**. Two mistakes while adding the catch check, both caught by the agreement metric rather than by reasoning: depths were read AFTER `beginTryTable` pushed the try_table's own label (the same off-by-one T7.6 fixed in the parser — 6 valid modules rejected), and `catch_ref` was modelled as the nullable `exnref` (1 more). Regression test `tests/validator/control_arity.test.ts`. | — |
 | ~~T9.9~~ | **DONE.** Five rules relating two IMMEDIATES, or an immediate to a declaration, none visible to the operand stack: `br_on_cast`'s rt2 must be a SUBTYPE of rt1; `table.copy` / `table.init` element compatibility; `array.*_data` needs a numeric element and `array.*_elem` a reference one; a global's initializer may only name globals declared BEFORE it (a self-reference is an unknown global). Plus local-init tracking — see the correction below. **2641 → 2658 / 2737**, agreement unmoved at 2120/2120. Tests `tests/validator/gc_operand_rules.test.ts` and `tests/validator/local_init.test.ts`. | — |
-| **T9.10** | The 6 still ours: 5 type mismatches (`array_init_elem` 1, `call_indirect` 1, `call_ref` 1, +2) and one cross-group `unknown type` in `ref.wast#11`. Everything else in the 79 missed is a module V8 accepts too. | — |
+| ~~T9.10~~ | **DONE — the validator now rejects every invalid module V8 rejects.** `call_ref` / `return_call_ref` expected any `funcref` rather than `(ref null $t)` for the NAMED type; `call_indirect` / `return_call_indirect` accepted a table of ANY reference type instead of a function table (and `return_call_indirect` still hard-coded an i32 index, missed when call_indirect got table64 in T9.2); `array.*_elem` never compared the segment's element type to the array's; and a bare abstract heap keyword was lexed as a VALUE type. **2658 → 2664 / 2737, and all 73 still accepted are modules V8 accepts too.** Tests `tests/validator/call_and_heaptype.test.ts`. | — |
 
 ### Correction: local-init was mis-scoped, and reading the spec test settled it
 
