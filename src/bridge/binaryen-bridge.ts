@@ -833,7 +833,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'br': {
       const br = e as BrExpr;
       const target = resolveLabel(ctx, br.target);
-      return makeBreak(target, null, br.value ? bridgeExpr(br.value, ctx) : null);
+      return makeBreak(target, null, bridgeBranchValue(br.values, ctx, 'br'));
     }
     case 'br_if': {
       const brIf = e as BrIfExpr;
@@ -841,7 +841,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeBreak(
         target,
         bridgeExpr(brIf.cond, ctx),
-        brIf.value ? bridgeExpr(brIf.value, ctx) : null,
+        bridgeBranchValue(brIf.values, ctx, 'br_if'),
       );
     }
     case 'br_table': {
@@ -1271,6 +1271,26 @@ function refTypeVarToValType(v: Var): ValType {
   // Index-form refType targets a user-defined type — needs the typed-ref IR
   // refactor before it can carry a concrete heap type through binaryen-ts.
   throw new Error('Bridge: ref.null with a user-defined heap type is not yet supported');
+}
+
+/**
+ * The single value a binaryen-ts `makeBreak` can carry.
+ *
+ * binaryen-ts has no `makeTupleMake` factory in v1.0.9, so a branch carrying
+ * SEVERAL values (a multi-value target label) has no representation here.
+ * Fail loudly rather than silently emitting only the first — that silent drop
+ * is the bug this IR change fixed.
+ */
+function bridgeBranchValue(
+  values: Expr[],
+  ctx: BridgeCtx,
+  label: string,
+): ReturnType<typeof bridgeExpr> | null {
+  if (values.length === 0) return null;
+  if (values.length === 1) return bridgeExpr(values[0]!, ctx);
+  throw new Error(
+    `Bridge: multi-value ${label} (${values.length} values) needs makeTupleMake, absent in binaryen-ts v1.0.9`,
+  );
 }
 
 // --- Small helpers used inside bridgeExpr ---

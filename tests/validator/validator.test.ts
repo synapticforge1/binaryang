@@ -282,7 +282,7 @@ describe('validateModule', () => {
   describe('br / br_if', () => {
     it('accepts br targeting outer block', () => {
       // block (result i32) br 0 ... end
-      const inner: Expr = { kind: 'br', target: varIndex(0), value: makeConst32(5), loc: LOC };
+      const inner: Expr = { kind: 'br', target: varIndex(0), values: [makeConst32(5)], loc: LOC };
       const block: BlockExpr = {
         kind: 'block',
         label: '',

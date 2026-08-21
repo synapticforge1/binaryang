@@ -229,15 +229,28 @@ export interface IfExpr {
 export interface BrExpr {
   readonly kind: 'br';
   readonly target: Var;
-  readonly value?: Expr;
+  /**
+   * Operands pushed before the branch, in stack order. A branch to a label
+   * with N results carries N values; the earlier single `value?: Expr` slot
+   * silently dropped all but the first, so
+   * `(func (result i32 f64) (br 0 (i32.const 79) (f64.const 8)))` emitted one
+   * operand and V8 rejected it. Same shape as {@link ReturnExpr.values}.
+   */
+  readonly values: Expr[];
   readonly loc: Location;
 }
 /** `br_if $label` (0x0d) — branches when `cond` is non-zero. */
 export interface BrIfExpr {
   readonly kind: 'br_if';
   readonly target: Var;
+  /**
+   * The i32 condition. NOTE the operand order: cond is the TOP operand and
+   * the carried values sit BELOW it, which is why it is read from the END of
+   * the operand list (see the parser).
+   */
   readonly cond: Expr;
-  readonly value?: Expr;
+  /** Values carried to the target label, in stack order. See {@link BrExpr.values}. */
+  readonly values: Expr[];
   readonly loc: Location;
 }
 /** `br_table` (0x0e) — table-switch branch. The i32 value indexes `targets` (out-of-range → `defaultTarget`). */
@@ -245,7 +258,19 @@ export interface BrTableExpr {
   readonly kind: 'br_table';
   readonly targets: Var[];
   readonly defaultTarget: Var;
+  /**
+   * The i32 index selecting a target. It is the TOP operand — the values
+   * carried to the target sit below it, exactly as with {@link BrIfExpr.cond}.
+   */
   readonly value: Expr;
+  /**
+   * Values carried to the selected label, in stack order. In the LINEAR form
+   * these are preceding statements, but the folded form
+   * `(br_table $a $b (i32.const 7) (local.get 0))` supplies them inline, where
+   * they used to be misread — the first child landed in the index slot and the
+   * real index was dropped.
+   */
+  readonly values: Expr[];
   readonly loc: Location;
 }
 /** `br_on_null $label` (0xd5) — branches if the top ref is null (typed-refs proposal). */

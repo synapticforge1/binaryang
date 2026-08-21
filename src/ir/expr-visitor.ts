@@ -617,15 +617,16 @@ export class ExprVisitor {
 
       // --- Branches with optional values ---
       case 'br': {
-        if (e.value !== undefined) {
-          const r = this.dispatch(e.value);
+        // Values are pushed in stack order before the branch opcode.
+        for (const v of e.values) {
+          const r = this.dispatch(v);
           if (r === Result.Error) return r;
         }
         return this.d.onBrExpr?.(e) ?? Result.Ok;
       }
       case 'br_if': {
-        if (e.value !== undefined) {
-          const r = this.dispatch(e.value);
+        for (const v of e.values) {
+          const r = this.dispatch(v);
           if (r === Result.Error) return r;
         }
         const rc = this.dispatch(e.cond);
@@ -633,6 +634,11 @@ export class ExprVisitor {
         return this.d.onBrIfExpr?.(e) ?? Result.Ok;
       }
       case 'br_table': {
+        // Carried values are pushed first, then the index.
+        for (const v of e.values) {
+          const rv = this.dispatch(v);
+          if (rv === Result.Error) return rv;
+        }
         const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onBrTableExpr?.(e) ?? Result.Ok;

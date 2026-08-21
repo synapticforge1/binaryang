@@ -158,6 +158,66 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — Multi-value branches (V8-valid 200 → 214)
+
+The largest remaining T7 cluster, `expected N elements on the stack`, was two
+separate defects in the branch IR.
+
+1. **`br` and `br_if` truncated their carried values to the first.**
+   `BrExpr.value?: Expr` / `BrIfExpr.value?: Expr` held ONE operand, so a
+   branch to a label with N results emitted a single value and V8 rejected the
+   function. Exactly the defect `ReturnExpr.values: Expr[]` had already fixed
+   for `return`; both are now `values: Expr[]` in stack order. Failing shape
+   straight out of func.wast:
+   `(func (result i32 f64) (br 0 (i32.const 79) (f64.const 8)))`.
+
+2. **`br_table` took the WRONG operand as its index.** The index is the TOP
+   operand and carried values sit below it, but the node used `op0()` — so the
+   FOLDED form `(br_table $a $b (i32.const 7) (local.get 0))` put the carried
+   value in the index slot and dropped the real index. The LINEAR form
+   happened to work, which is why the v1.3.4 br_table test passed and this
+   stayed hidden. Now the last operand is the index and the rest go to a new
+   `values` array.
+
+The v1.3.4 operand-order invariants had to survive this change and do:
+`br_if`'s cond is still read from the END of the operand list, and a padded
+Nop still collapses to "no carried value" (a Nop produces nothing, so it can
+never be a real branch value). `tests/parser/branch_value.test.ts` passes
+untouched.
+
+Reader: `br` / `br_if` now pop `brTargetResultCount` values and restore stack
+order instead of popping one. `br_table` keeps carried values as preceding
+statements, matching how the binary stream orders them.
+
+Bridge: binaryen-ts has no `makeTupleMake` in v1.0.9, so a branch carrying
+several values has no representation there. New `bridgeBranchValue` throws a
+clear "needs makeTupleMake" rather than silently passing only the first —
+which is the bug this change fixed.
+
+Measured **fully V8-valid 200 → 214**; modules ok 1904 → 1919, rejected
+40 → 25. The stack-arity cluster went from 14 files to 4.
+
+Regression: `tests/parser/multi_value_branch.test.ts` — every case executes in
+V8 and checks the actual returned tuple, plus the folded/linear br_table split
+and the v1.3.4 invariants.
+
+**Two probe mistakes worth remembering.** Both of my first `br_if` test cases
+were invalid WAT, not parser bugs: `br_if` leaves its values on the stack when
+NOT taken, so nothing may follow it inside a block whose result those values
+are. Check the WAT before blaming the parser.
+
+### Remaining (25 modules / ~18 files)
+
+| Cluster | Files |
+| --- | --- |
+| `expected N elements on the stack` (residue) | 4 |
+| relaxed SIMD `reached end while decoding` | 4 |
+| legacy EH `catch kind generates …` | 3 |
+| `i8x16.splat expected i32` | 2 |
+| misc singles | 5 |
+
+---
+
 ## 2026-08-21 — Typed-ref IR refactor DONE (V8-valid 187 → 200)
 
 The deferred refactor CLAUDE.md had carried since v1.2.3. `(ref $T)` /

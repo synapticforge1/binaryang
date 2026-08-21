@@ -328,8 +328,8 @@ class ResolveContext {
         // func/global/local name inside it is left unresolved and the writer
         // emits index 0.
         const target = this.resolveLabelVar(e.target, loc);
-        if (e.value === undefined) return [Result.Ok, { ...e, target }];
-        return [Result.Ok, { ...e, target, value: this.resolveExpr(e.value)[1] }];
+        const [rv, values] = this.resolveExprArray(e.values);
+        return [rv, { ...e, target, values }];
       }
       case 'br_if': {
         const [r, cond] = this.resolveExpr(e.cond);
@@ -337,8 +337,8 @@ class ResolveContext {
         // Resolve the optional carried value as well — the flat-form parser can
         // route a real sub-expression (e.g. an `if` containing `call $f`) into
         // `br_if.value`; leaving it unresolved made the writer emit `call 0`.
-        if (e.value === undefined) return [r, { ...e, target, cond }];
-        return [r, { ...e, target, cond, value: this.resolveExpr(e.value)[1] }];
+        const [rv, values] = this.resolveExprArray(e.values);
+        return [combine(r, rv), { ...e, target, cond, values }];
       }
       case 'br_table': {
         // `value` is the i32 index operand and can be any sub-expression
@@ -347,11 +347,13 @@ class ResolveContext {
         // and the writer emitting index 0 or throwing. Same class as the
         // br_if.value fix (Bug F).
         const [r, value] = this.resolveExpr(e.value);
-        return [r, {
+        const [rv, values] = this.resolveExprArray(e.values);
+        return [combine(r, rv), {
           ...e,
           targets: e.targets.map((t) => this.resolveLabelVar(t, loc)),
           defaultTarget: this.resolveLabelVar(e.defaultTarget, loc),
           value,
+          values,
         }];
       }
       case 'block':

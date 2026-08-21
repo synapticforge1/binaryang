@@ -2952,7 +2952,10 @@ export class WastParser {
       case TokenType.Br: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'br', target: v, value: operands[0], loc } as BrExpr;
+        // `br` is variable-arity: every operand is a carried value, in stack
+        // order. Keeping only operands[0] dropped the rest for a multi-value
+        // target — the same defect ReturnExpr.values fixed.
+        return { kind: 'br', target: v, values: operands, loc } as BrExpr;
       }
       case TokenType.BrIf: {
         const v = this.parseVar();
@@ -2971,11 +2974,11 @@ export class WastParser {
         // "no carried value" (a Nop can never be a real branch value).
         const cond = operands[operands.length - 1] ??
           ({ kind: 'nop', loc } as NopExpr);
-        const value = operands.length >= 2 ? operands[operands.length - 2] : undefined;
-        if (value === undefined || value.kind === 'nop') {
-          return { kind: 'br_if', target: v, cond, loc } as BrIfExpr;
-        }
-        return { kind: 'br_if', target: v, cond, value, loc } as BrIfExpr;
+        // Everything below cond is a carried value, in stack order — a
+        // multi-value target takes several. A padded Nop can never be a real
+        // branch value (it produces nothing), so it drops out.
+        const values = operands.slice(0, -1).filter((e) => e.kind !== 'nop');
+        return { kind: 'br_if', target: v, cond, values, loc } as BrIfExpr;
       }
       case TokenType.BrOnNull: {
         const v = this.parseVar();
@@ -2994,7 +2997,19 @@ export class WastParser {
           if (v !== null) targets.push(v);
         }
         const defaultTarget = targets.pop() ?? varIndex(0);
-        return { kind: 'br_table', targets, defaultTarget, value: op0(), loc } as BrTableExpr;
+        // The INDEX is the top operand; anything below it is carried to the
+        // target. Taking op0() as the index put a carried value there and
+        // dropped the real index whenever the folded form supplied both.
+        const idx = operands.length > 0 ? operands[operands.length - 1]! : op0();
+        const carried = operands.slice(0, -1).filter((x) => x.kind !== 'nop');
+        return {
+          kind: 'br_table',
+          targets,
+          defaultTarget,
+          value: idx,
+          values: carried,
+          loc,
+        } as BrTableExpr;
       }
       case TokenType.Call: {
         const v = this.parseVar();

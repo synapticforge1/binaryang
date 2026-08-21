@@ -1143,22 +1143,28 @@ export class BinaryReader {
         case Opcode.Br: {
           const depth = this.readU32Leb();
           const rCount = brTargetResultCount(labelStack, depth, m);
-          const value = rCount > 0 ? stack.pop() : undefined;
-          const brExpr: Expr = value
-            ? { kind: 'br', target: varIndex(depth), value, loc }
-            : { kind: 'br', target: varIndex(depth), loc };
-          stmts.push(brExpr);
+          // The target may carry SEVERAL results; pop them all and restore
+          // stack order. Popping one dropped the rest for a multi-value label.
+          const values: Expr[] = [];
+          for (let i = 0; i < rCount; i++) {
+            const v = stack.pop();
+            if (v === undefined) break;
+            values.unshift(v);
+          }
+          stmts.push({ kind: 'br', target: varIndex(depth), values, loc });
           break;
         }
         case Opcode.BrIf: {
           const depth = this.readU32Leb();
           const rCount = brTargetResultCount(labelStack, depth, m);
           const cond_ = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const value = rCount > 0 ? stack.pop() : undefined;
-          const brIfExpr: Expr = value
-            ? { kind: 'br_if', target: varIndex(depth), cond: cond_, value, loc }
-            : { kind: 'br_if', target: varIndex(depth), cond: cond_, loc };
-          stmts.push(brIfExpr);
+          const values: Expr[] = [];
+          for (let i = 0; i < rCount; i++) {
+            const v = stack.pop();
+            if (v === undefined) break;
+            values.unshift(v);
+          }
+          stmts.push({ kind: 'br_if', target: varIndex(depth), cond: cond_, values, loc });
           break;
         }
         case Opcode.BrTable: {
@@ -1167,7 +1173,10 @@ export class BinaryReader {
           for (let i = 0; i < numTargets; i++) targets.push(varIndex(this.readU32Leb()));
           const defaultTarget = varIndex(this.readU32Leb());
           const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          stmts.push({ kind: 'br_table', targets, defaultTarget, value, loc });
+          // Values carried to the target sit below the index. Leave them as
+          // preceding statements (the linear shape) rather than pulling them
+          // into the node, matching how the binary stream orders them.
+          stmts.push({ kind: 'br_table', targets, defaultTarget, value, values: [], loc });
           break;
         }
         case Opcode.Return: {
