@@ -43,6 +43,7 @@ import type {
 } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
+import { isRefValueType, type ValueType } from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
@@ -343,11 +344,23 @@ class WatWriter extends ModuleContext {
     }
   }
 
-  private writeType(t: Type, nc: NC): void {
+  private writeType(t: ValueType, nc: NC): void {
+    if (isRefValueType(t)) {
+      // `(ref $T)` / `(ref null $T)`. Printing typeName() on a concrete typed
+      // ref used to be impossible — the IR coarsened them away before they
+      // ever reached here.
+      this.puts('(', NC.None);
+      this.puts('ref', NC.Space);
+      if (t.nullable) this.puts('null', NC.Space);
+      if (t.heapType.kind === 'index') this.puts(`${t.heapType.value}`, NC.None);
+      else this.puts(t.heapType.name, NC.None);
+      this.puts(')', nc);
+      return;
+    }
     this.puts(typeName(t), nc);
   }
 
-  private writeTypes(types: Type[], label: string | null): void {
+  private writeTypes(types: ValueType[], label: string | null): void {
     if (types.length === 0) return;
     if (label !== null) this.openSpace(label);
     for (const t of types) this.writeType(t, NC.Space);
@@ -1298,7 +1311,7 @@ class WatWriter extends ModuleContext {
 
   private writeTypeBindings(
     prefix: string,
-    types: Type[],
+    types: ValueType[],
     _decls: LocalDecl[],
     _offset: number,
   ): void {

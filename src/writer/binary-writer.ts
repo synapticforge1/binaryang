@@ -98,8 +98,10 @@ import type {
   TryTableExpr,
   UnaryExpr,
   UnreachableExpr,
+  ValueType,
   Var,
 } from '../ir/ir.ts';
+import { isRefValueType } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
@@ -191,6 +193,24 @@ function writeHeapType(s: MemoryStream, v: Var): void {
  */
 function abstractHeapTypeByteForName(name: string): number | null {
   return heapTypeNameToType(name);
+}
+
+/**
+ * Write a value type.
+ *
+ * An abstract {@link Type} is a single byte — its enum value IS the encoding.
+ * A CONCRETE typed reference is two parts: the `0x64` / `0x63` marker for
+ * `(ref H)` / `(ref null H)` followed by the heap type. Every site used to do
+ * `writeU8(t as number)`, which silenced the type system and would have
+ * written garbage once typed refs became representable.
+ */
+function writeValueType(s: MemoryStream, vt: ValueType): void {
+  if (isRefValueType(vt)) {
+    s.writeU8(vt.nullable ? Type.RefNull : Type.Ref);
+    writeHeapType(s, vt.heapType);
+    return;
+  }
+  s.writeU8(vt as number);
 }
 
 function writeBlockType(s: MemoryStream, bt: BlockType): void {
@@ -924,21 +944,21 @@ class BinaryWriter {
         if (t.kind === 'func') {
           s.writeU8(0x60);
           s.writeU32Leb(t.sig.params.length);
-          for (const p of t.sig.params) s.writeU8(p as number);
+          for (const p of t.sig.params) writeValueType(s, p);
           s.writeU32Leb(t.sig.results.length);
-          for (const r of t.sig.results) s.writeU8(r as number);
+          for (const r of t.sig.results) writeValueType(s, r);
         } else if (t.kind === 'struct') {
           // GC struct: 0x5f, then fieldCount, then per-field (valtype, mut).
           s.writeU8(Type.Struct as number); // 0x5f
           s.writeU32Leb(t.fields.length);
           for (const f of t.fields) {
-            s.writeU8(f.type as number);
+            writeValueType(s, f.type);
             s.writeU8(f.mutable ? 1 : 0);
           }
         } else if (t.kind === 'array') {
           // GC array: 0x5e, then (valtype, mut) for the single element type.
           s.writeU8(Type.Array as number); // 0x5e
-          s.writeU8(t.field.type as number);
+          writeValueType(s, t.field.type);
           s.writeU8(t.field.mutable ? 1 : 0);
         }
       }
@@ -963,14 +983,14 @@ class BinaryWriter {
             writeVar(s, imp.func.typeVar);
             break;
           case ExternalKind.Table:
-            s.writeU8(imp.table.elemType as number);
+            writeValueType(s, imp.table.elemType);
             writeLimits(s, imp.table.limits);
             break;
           case ExternalKind.Memory:
             writeLimits(s, imp.memory.limits);
             break;
           case ExternalKind.Global:
-            s.writeU8(imp.global.type as number);
+            writeValueType(s, imp.global.type);
             s.writeU8(imp.global.mutable ? 1 : 0);
             break;
           case ExternalKind.Tag:
@@ -1012,11 +1032,11 @@ class BinaryWriter {
           // here silently dropped the initializer and desynced the round-trip.
           s.writeU8(0x40);
           s.writeU8(0x00);
-          s.writeU8(t.elemType as number);
+          writeValueType(s, t.elemType);
           writeLimits(s, t.limits);
           this.writeInitExpr(t.init);
         } else {
-          s.writeU8(t.elemType as number);
+          writeValueType(s, t.elemType);
           writeLimits(s, t.limits);
         }
       }
@@ -1064,7 +1084,7 @@ class BinaryWriter {
    * (run by `wat2wasm`/`compat`) and binary-read modules both guarantee a
    * matching entry; a module reaching the writer without one is malformed.
    */
-  private tagTypeIndex(params: readonly Type[]): number {
+  private tagTypeIndex(params: readonly ValueType[]): number {
     const idx = this.m.types.findIndex(
       (t) =>
         t.kind === 'func' &&
@@ -1093,7 +1113,7 @@ class BinaryWriter {
     s.writeSection(BinarySection.Global, () => {
       s.writeU32Leb(m.globals.length);
       for (const g of m.globals) {
-        s.writeU8(g.type as number);
+        writeValueType(s, g.type);
         s.writeU8(g.mutable ? 1 : 0);
         this.writeInitExpr(g.init);
       }
@@ -1162,7 +1182,7 @@ class BinaryWriter {
           this.writeInitExpr(seg.offset);
         }
         if (flags !== 4) {
-          s.writeU8(seg.elemType as number); // reftype
+          writeValueType(s, seg.elemType); // reftype
         }
         s.writeU32Leb(seg.elemExprs.length);
         for (const elemExpr of seg.elemExprs) {
@@ -1197,7 +1217,7 @@ class BinaryWriter {
     s.writeU32Leb(func.localDecls.length);
     for (const decl of func.localDecls) {
       s.writeU32Leb(decl.count);
-      s.writeU8(decl.type as number);
+      writeValueType(s, decl.type);
     }
 
     // Body

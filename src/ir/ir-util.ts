@@ -12,6 +12,7 @@
 import { Type } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
+import type { ValueType } from './ir.ts';
 import type {
   BlockExpr,
   BlockType,
@@ -59,13 +60,13 @@ export enum LabelType {
 export interface Label {
   name: string;
   labelType: LabelType;
-  paramTypes: readonly Type[];
-  resultTypes: readonly Type[];
+  paramTypes: readonly ValueType[];
+  resultTypes: readonly ValueType[];
 }
 
 interface BlockArity {
-  paramTypes: readonly Type[];
-  resultTypes: readonly Type[];
+  paramTypes: readonly ValueType[];
+  resultTypes: readonly ValueType[];
 }
 
 // ---------------------------------------------------------------------------

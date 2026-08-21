@@ -33,7 +33,8 @@
 import { ExternalKind } from '../core/binary.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
-import { CatchKind } from '../ir/ir.ts';
+import { CatchKind, coarsenValueType } from '../ir/ir.ts';
+import type { ValueType } from '../ir/ir.ts';
 import type {
   ArrayGetExpr,
   ArrayLenExpr,
@@ -300,7 +301,7 @@ interface BridgeCtx {
   /** Global names indexed by the absolute global index (imports first). */
   globalNames: string[];
   /** Global value types, parallel to `globalNames`. Used by global.get / global.set. */
-  globalTypes: Type[];
+  globalTypes: ValueType[];
   /** Table names indexed by the absolute table index (imports first). Used by `call_indirect`. */
   tableNames: string[];
   /** Memory names indexed by the absolute memory index (imports first). Used by memory exports + data segments. */
@@ -317,9 +318,9 @@ interface BridgeCtx {
   /** Direct reference to the original `module.types` for field-type lookups. */
   types: WabtModule['types'];
   /** Current function param types (set inside bridgeFunc). */
-  currentParams: Type[];
+  currentParams: ValueType[];
   /** Current function local types, in slot order after params. */
-  currentLocals: Type[];
+  currentLocals: ValueType[];
   /**
    * Active label names, outermost first. Block / loop / labeled-if push;
    * `br` / `br_if` / `br_table` resolve a depth by indexing from the end.
@@ -335,7 +336,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
   const funcNames: string[] = [];
   const funcSigs: FuncSignature[] = [];
   const globalNames: string[] = [];
-  const globalTypes: Type[] = [];
+  const globalTypes: ValueType[] = [];
   const tableNames: string[] = [];
   const memoryNames: string[] = [];
   const tagNames: string[] = [];
@@ -510,7 +511,8 @@ function lookupStructFieldType(typeVar: Var, fieldVar: Var, ctx: BridgeCtx): Val
  * `addHeapType`. Packed i8/i16 are encoded as their own storage variants;
  * other types map to their ValType counterparts.
  */
-function wabtFieldTypeToValType(t: Type): ValType | 'i8' | 'i16' {
+function wabtFieldTypeToValType(tIn: ValueType): ValType | 'i8' | 'i16' {
+  const t = coarsenValueType(tIn);
   if (t === Type.I8) return 'i8';
   if (t === Type.I16) return 'i16';
   return wabtTypeToValType(t);
@@ -649,7 +651,7 @@ function bridgeFunc(b: ModuleBuilder, f: WabtFunc, baseCtx: BridgeCtx, name: str
   // Flatten localDecls (each is `{ type, count }`) into per-slot arrays for
   // both wabt-side type lookup (local.get → operand type) and the binaryen-ts
   // Local[] surface.
-  const locals: Type[] = [];
+  const locals: ValueType[] = [];
   const binaryenLocals: Local[] = [];
   for (const decl of f.localDecls) {
     for (let i = 0; i < decl.count; i++) {
@@ -1281,9 +1283,13 @@ function requireIndex(v: Var, label: string): number {
 }
 
 function localType(ctx: BridgeCtx, idx: number): Type {
-  return idx < ctx.currentParams.length
-    ? ctx.currentParams[idx]!
-    : ctx.currentLocals[idx - ctx.currentParams.length]!;
+  // The bridge's flat ValType surface cannot carry a concrete typed ref, so
+  // coarsen — same loss wabtTypeToValType takes, and only here.
+  return coarsenValueType(
+    idx < ctx.currentParams.length
+      ? ctx.currentParams[idx]!
+      : ctx.currentLocals[idx - ctx.currentParams.length]!,
+  );
 }
 
 /**

@@ -11,10 +11,20 @@
  */
 
 import { Type } from '../core/types.ts';
+import { coarsenValueType, type ValueType } from '../ir/ir.ts';
 import { ValType } from '@jrmarcum/binaryen-ts/ir';
 
-/** Map a wabt-ts numeric `Type` code to the binaryen-ts string `ValType`. */
-export function wabtTypeToValType(t: Type): ValType {
+/**
+ * Map a wabt-ts value type to the binaryen-ts string `ValType`.
+ *
+ * binaryen-ts's `ValType` is flat, so a CONCRETE typed reference
+ * (`(ref $T)`) has no counterpart and coarsens to its abstract supertype —
+ * the same loss the whole IR used to take. wabt-ts's own binary writer is
+ * precise; only this bridge is lossy, and only because the target type
+ * system is.
+ */
+export function wabtTypeToValType(tIn: ValueType): ValType {
+  const t = coarsenValueType(tIn);
   switch (t) {
     case Type.I32:
       return ValType.I32;

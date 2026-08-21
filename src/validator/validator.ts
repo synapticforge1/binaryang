@@ -3,6 +3,7 @@
 // Copyright 2016 WebAssembly Community Group participants
 // Licensed under the Apache License, Version 2.0
 
+import type { ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
@@ -296,7 +297,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     this.acc(visitor.visitExprList(exprs));
   }
 
-  private resolveTagSig(params: Type[], results: Type[]): number {
+  private resolveTagSig(params: ValueType[], results: ValueType[]): number {
     for (const [i, te] of this.module.types.entries()) {
       if (
         te.kind === 'func' &&

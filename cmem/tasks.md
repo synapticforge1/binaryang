@@ -158,6 +158,88 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — Typed-ref IR refactor DONE (V8-valid 187 → 200)
+
+The deferred refactor CLAUDE.md had carried since v1.2.3. `(ref $T)` /
+`(ref null $T)` now survive as concrete types instead of coarsening to
+structref.
+
+### The shape
+
+`FuncSignature { params: Type[] }` could not carry a heap-type index next to a
+`Ref` / `RefNull` code — the `Type` enum's values ARE single wire bytes, but a
+typed reference encodes as the `0x64` / `0x63` marker FOLLOWED BY a heap type.
+So the parser stored `Type.StructRef` as a placeholder and the writer emitted
+a structref byte. Anything using a typed ref in a signature, local, global,
+table, or element type parsed and encoded fine and was then rejected by V8 —
+**invisible to the parse-clean metric, which is why it was never in a tranche.**
+
+```ts
+export interface RefValueType { kind: 'ref'; heapType: Var; nullable: boolean }
+export type ValueType = Type | RefValueType;
+```
+
+Widened: `FuncSignature.params` / `.results`, `LocalDecl.type`, `Global.type`,
+`Table.elemType`, `ElemSegment.elemType`, `Field.type`, `SelectExpr.resultType`.
+
+### Precision where it matters, coarsening only where the target is flat
+
+- **Encoders are precise.** New `writeValueType` emits the two-part encoding;
+  `readValType` decodes it. **`readRefType` had to change too** — it read a
+  single byte, so a typed table element type left the heap type in the stream
+  and shifted every following field (`(table $x 1 (ref null $t))` came back as
+  `(table 0 ref null)`).
+- **`resolveNames` walks every value-type slot** via a new
+  `resolveModuleValueTypes`, so a `$T` heap type reaches the writer resolved.
+  Without it the writer's fail-loud guard fired on the first `$T` — the guard
+  doing its job again.
+- **The validator's type-checker and the binaryen bridge coarsen** through
+  `coarsenValueType`, applied at their boundaries (a handful of methods) rather
+  than at ~20 call sites. Their surfaces are genuinely flat: binaryen-ts's
+  `ValType` has no typed-ref case, and the type-checker compares by identity.
+  Encoders must NEVER coarsen — that was the bug.
+- **`(ref null func)` still collapses to the one-byte `funcref`**, since the
+  abstract nullable form IS funcref. Keeping it concrete would emit two bytes
+  where one is correct. `typeKey` in synthesize-types distinguishes concrete
+  refs so two different `(ref $T)` signatures don't dedupe onto one entry.
+
+### Sizing, in hindsight
+
+The scope said 80 `.params`/`.results` call sites and predicted the validator
+would be the deep end. The call-site count was right but the difficulty was
+not: because `Type` is assignable INTO `ValueType`, the compiler stayed silent
+until the *read* sites were reached, and several were hidden behind
+`writeU8(t as number)` casts that silenced it further. **Widening one function
+signature at a time and re-running `deno task check` was the productive loop**
+— the error count walked down 49 → 43 → 31 → 16 → 14 → 12 → 8 → 5 → 1 → 0.
+
+### Result
+
+Spec testsuite **fully V8-valid 187 → 200**; modules ok 1886 → 1904, rejected
+58 → 40. The entire typed-ref cluster is gone: `expected structref, got
+(ref $t)`, `call_ref expected (ref null …)`, `local.set expected structref`,
+`array.new expected structref`, the `fallthru` mismatches.
+
+The GC array-bulk module from tranche 2 — encoding-only-verified at the time
+because `(ref $arr)` coarsened — now runs in V8 and returns 42. Its test moved
+from byte assertions to execution.
+
+Regression: `tests/ir/typed_refs.test.ts`. Also removed a duplicated
+`typeName` switch found in `wasm-objdump.ts` while wiring the display helper.
+
+### Remaining (V8-rejected, 40 modules / ~28 files)
+
+| Cluster | Files |
+| --- | --- |
+| `expected N elements on the stack` | 14 |
+| relaxed SIMD `reached end while decoding` | 4 |
+| `not enough arguments on the stack` | 3 |
+| `catch kind generates …` (legacy EH) | 3 |
+| `i8x16.splat expected i32` | 2 |
+| misc singles | 6 |
+
+---
+
 ## 2026-08-21 — T7 batch 2 (V8-valid 182 → 187, parse-clean 230 → 233)
 
 Answering "is the 1 remaining write-failure covered by a tranche?" — **no**,

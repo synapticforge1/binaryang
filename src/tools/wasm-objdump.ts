@@ -28,6 +28,7 @@
  * ```
  */
 
+import { valueTypeName } from '../ir/ir.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { Result } from '../core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
@@ -121,8 +122,8 @@ function appendDetails(lines: string[], m: Module): void {
     lines.push(`Type[${m.types.length}]:`);
     for (const [i, t] of m.types.entries()) {
       if (t.kind === 'func') {
-        const params = t.sig.params.map(typeName).join(', ');
-        const results = t.sig.results.map(typeName).join(', ');
+        const params = t.sig.params.map(valueTypeName).join(', ');
+        const results = t.sig.results.map(valueTypeName).join(', ');
         lines.push(` - type[${i}] (${params}) -> (${results})`);
       } else {
         lines.push(` - type[${i}] (${t.kind})`);
@@ -144,7 +145,9 @@ function appendDetails(lines: string[], m: Module): void {
           break;
         case ExternalKind.Table:
           lines.push(
-            ` - table[${ti++}] type=${typeName(imp.table.elemType)} <- ${imp.module}.${imp.field}`,
+            ` - table[${ti++}] type=${
+              valueTypeName(imp.table.elemType)
+            } <- ${imp.module}.${imp.field}`,
           );
           break;
         case ExternalKind.Memory:
@@ -154,7 +157,7 @@ function appendDetails(lines: string[], m: Module): void {
           break;
         case ExternalKind.Global:
           lines.push(
-            ` - global[${gi++}] ${typeName(imp.global.type)}${
+            ` - global[${gi++}] ${valueTypeName(imp.global.type)}${
               imp.global.mutable ? ' mutable' : ''
             } <- ${imp.module}.${imp.field}`,
           );
@@ -236,27 +239,6 @@ function sectionCount(meta: SectionMeta, m: Module): number {
       return m.tags.length;
     default:
       return 0;
-  }
-}
-
-function typeName(t: number): string {
-  switch (t) {
-    case 0x7f:
-      return 'i32';
-    case 0x7e:
-      return 'i64';
-    case 0x7d:
-      return 'f32';
-    case 0x7c:
-      return 'f64';
-    case 0x7b:
-      return 'v128';
-    case 0x70:
-      return 'funcref';
-    case 0x6f:
-      return 'externref';
-    default:
-      return `0x${t.toString(16)}`;
   }
 }
 

@@ -17,7 +17,7 @@
  */
 
 import type { Location } from '../core/error.ts';
-import { Type } from '../core/types.ts';
+import { Type, typeName } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { Opcode } from '../core/opcode.ts';
@@ -192,7 +192,7 @@ export interface SelectExpr {
   readonly val1: Expr;
   readonly val2: Expr;
   readonly cond: Expr;
-  readonly resultType: Type[];
+  readonly resultType: ValueType[];
   readonly loc: Location;
 }
 
@@ -1096,8 +1096,21 @@ export type ExprKind = Expr['kind'];
 
 /** Function signature (type). */
 export interface FuncSignature {
-  params: Type[];
-  results: Type[];
+  params: ValueType[];
+  results: ValueType[];
+}
+
+/** Structural equality for two {@link FuncSignature} values (params + results). */
+export function valueTypeEquals(a: ValueType, b: ValueType): boolean {
+  if (isRefValueType(a) || isRefValueType(b)) {
+    if (!isRefValueType(a) || !isRefValueType(b)) return false;
+    if (a.nullable !== b.nullable) return false;
+    if (a.heapType.kind !== b.heapType.kind) return false;
+    return a.heapType.kind === 'index'
+      ? a.heapType.value === (b.heapType as { value: number }).value
+      : a.heapType.name === (b.heapType as { name: string }).name;
+  }
+  return a === b;
 }
 
 /** Structural equality for two {@link FuncSignature} values (params + results). */
@@ -1105,15 +1118,68 @@ export function sigEquals(a: FuncSignature, b: FuncSignature): boolean {
   return (
     a.params.length === b.params.length &&
     a.results.length === b.results.length &&
-    a.params.every((t, i) => t === b.params[i]) &&
-    a.results.every((t, i) => t === b.results[i])
+    a.params.every((t, i) => valueTypeEquals(t, b.params[i]!)) &&
+    a.results.every((t, i) => valueTypeEquals(t, b.results[i]!))
   );
 }
 
 /** A local variable declaration (type + count, matching LocalTypes in C++). */
 export interface LocalDecl {
-  type: Type;
+  type: ValueType;
   count: Index;
+}
+
+/**
+ * A CONCRETE typed reference — `(ref $T)` / `(ref null $T)` — carrying the
+ * heap type it points at.
+ *
+ * The flat `Type` enum cannot express this: its values are single wire bytes,
+ * but a typed reference encodes as `0x64`/`0x63` FOLLOWED BY a heap type. The
+ * parser used to coarsen every typed ref to `Type.StructRef`, so the writer
+ * emitted a structref byte and V8 rejected any module using one in a
+ * signature, local, global, or element type.
+ */
+export interface RefValueType {
+  readonly kind: 'ref';
+  /** The heap type: a name-var for `$T`, an index-var once resolved. */
+  readonly heapType: Var;
+  /** `(ref null $T)` when true, `(ref $T)` when false. */
+  readonly nullable: boolean;
+}
+
+/**
+ * Anywhere a value type can appear: either an abstract {@link Type} (whose
+ * enum value IS its wire byte) or a concrete {@link RefValueType}.
+ */
+export type ValueType = Type | RefValueType;
+
+/** Narrow a {@link ValueType} to the concrete typed-reference case. */
+export function isRefValueType(vt: ValueType): vt is RefValueType {
+  return typeof vt === 'object';
+}
+
+/**
+ * Collapse a {@link ValueType} to a single abstract {@link Type}.
+ *
+ * For consumers that cannot yet represent a concrete heap type — the
+ * type-checker's operand stack and the binaryen bridge. A typed ref becomes
+ * its nullable abstract supertype, which is what the whole IR used to store.
+ * Encoders must NOT use this: emitting the coarsened byte is precisely the
+ * bug this type exists to fix.
+ */
+export function coarsenValueType(vt: ValueType): Type {
+  return isRefValueType(vt) ? Type.StructRef : vt;
+}
+
+/**
+ * Human-readable spelling of a {@link ValueType}, matching the WAT text
+ * format. Abstract types delegate to `typeName`; a concrete typed reference
+ * prints as `(ref $T)` / `(ref null $T)`.
+ */
+export function valueTypeName(vt: ValueType): string {
+  if (!isRefValueType(vt)) return typeName(vt);
+  const h = vt.heapType.kind === 'index' ? `${vt.heapType.value}` : vt.heapType.name;
+  return `(ref ${vt.nullable ? 'null ' : ''}${h})`;
 }
 
 /** A type section entry — function, struct, or array type. */
@@ -1125,7 +1191,7 @@ export type TypeEntry =
 /** A field in a GC struct or array type. */
 export interface Field {
   name: string;
-  type: Type;
+  type: ValueType;
   mutable: boolean;
 }
 
@@ -1156,7 +1222,7 @@ export interface Func {
 export interface Global {
   name: string;
   loc: Location;
-  type: Type;
+  type: ValueType;
   mutable: boolean;
   init: Expr[]; // initializer expression (constant expr)
 }
@@ -1165,7 +1231,7 @@ export interface Global {
 export interface Table {
   name: string;
   loc: Location;
-  elemType: Type;
+  elemType: ValueType;
   limits: Limits;
   init: Expr[]; // initializer expression (for table with init value)
 }
@@ -1199,7 +1265,7 @@ export interface ElemSegment {
   kind: SegmentKind;
   tableVar: Var; // only for active
   offset: Expr[]; // only for active (constant expr)
-  elemType: Type;
+  elemType: ValueType;
   elemExprs: Expr[][]; // each element is a constant expression
 }
 

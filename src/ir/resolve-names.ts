@@ -19,8 +19,8 @@ import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
-import type { Expr, Func, Module, Var } from './ir.ts';
-import { varIndex } from './ir.ts';
+import type { Expr, Func, FuncSignature, Module, ValueType, Var } from './ir.ts';
+import { isRefValueType, varIndex } from './ir.ts';
 import { heapTypeNameToType } from '../core/types.ts';
 
 // ---------------------------------------------------------------------------
@@ -101,6 +101,12 @@ class ResolveContext {
     for (const t of this.module.tables) {
       result = combine(result, this.resolveExprList(t.init));
     }
+
+    // Concrete typed references — `(ref $T)` / `(ref null $T)` — carry a heap
+    // type var wherever a value type can appear. Nothing resolved them, so
+    // the binary writer hit its fail-loud guard on the first `$T`. Walk every
+    // value-type slot in the module.
+    this.resolveModuleValueTypes();
 
     for (const imp of this.module.imports) {
       if (imp.kind === ExternalKind.Func) {
@@ -204,6 +210,41 @@ class ResolveContext {
     for (const [i, s] of this.module.dataSegments.entries()) {
       if (s.name) this.dataSegScope.bind(s.name, i);
     }
+  }
+
+  /**
+   * Resolve the heap type inside every concrete typed reference in the
+   * module's value-type slots: type-section signatures and struct/array
+   * fields, function signatures and locals, globals, tables, and element
+   * segment element types.
+   */
+  private resolveModuleValueTypes(): void {
+    const vt = (t: ValueType): ValueType =>
+      isRefValueType(t) ? { ...t, heapType: this.resolveHeapTypeVar(t.heapType) } : t;
+    const sig = (s: FuncSignature): void => {
+      s.params = s.params.map(vt);
+      s.results = s.results.map(vt);
+    };
+
+    for (const t of this.module.types) {
+      if (t.kind === 'func') sig(t.sig);
+      else if (t.kind === 'struct') { for (const f of t.fields) f.type = vt(f.type); }
+      else if (t.kind === 'array') t.field.type = vt(t.field.type);
+    }
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Func) sig(imp.func.sig);
+      else if (imp.kind === ExternalKind.Global) imp.global.type = vt(imp.global.type);
+      else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
+      else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
+    }
+    for (const f of this.module.funcs) {
+      sig(f.sig);
+      for (const d of f.localDecls) d.type = vt(d.type);
+    }
+    for (const t of this.module.tags) sig(t.sig);
+    for (const g of this.module.globals) g.type = vt(g.type);
+    for (const t of this.module.tables) t.elemType = vt(t.elemType);
+    for (const seg of this.module.elemSegments) seg.elemType = vt(seg.elemType);
   }
 
   private resolveFunc(func: Func): Result {

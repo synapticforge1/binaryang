@@ -11,8 +11,8 @@ import { addError, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import { getOpcodeNaturalAlign, TypeChecker } from './type-checker.ts';
 import type { FuncType } from './type-checker.ts';
-import type { BlockType, Field, Limits, SegmentKind } from '../ir/ir.ts';
-import { CatchKind } from '../ir/ir.ts';
+import type { BlockType, Field, Limits, SegmentKind, ValueType } from '../ir/ir.ts';
+import { CatchKind, coarsenValueType } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public options
@@ -60,7 +60,8 @@ interface SVLocalDecl {
  * compact memory but operates on i32 values on the stack — struct.new takes
  * i32 args for packed fields; struct.get_s/get_u return i32.
  */
-function packedToStackType(t: Type): Type {
+function packedToStackType(tIn: ValueType): Type {
+  const t = coarsenValueType(tIn);
   if (t === Type.I8 || t === Type.I16) return Type.I32;
   return t;
 }
@@ -263,7 +264,14 @@ export class SharedValidator {
   // Type section
   // ---------------------------------------------------------------------------
 
-  onFuncType(_loc: Location, params: Type[], results: Type[], typeIndex: Index): Result {
+  onFuncType(
+    _loc: Location,
+    paramsIn: ValueType[],
+    resultsIn: ValueType[],
+    typeIndex: Index,
+  ): Result {
+    const params = paramsIn.map(coarsenValueType);
+    const results = resultsIn.map(coarsenValueType);
     this.funcTypesMap.set(this.numTypes, { params, results, typeIndex });
     this.numTypes++;
     return Result.Ok;
@@ -291,7 +299,8 @@ export class SharedValidator {
     return ft ? Result.Ok : Result.Error;
   }
 
-  onTable(loc: Location, elemType: Type, limits: Limits): Result {
+  onTable(loc: Location, elemTypeIn: ValueType, limits: Limits): Result {
+    const elemType = coarsenValueType(elemTypeIn);
     let r: Result = Result.Ok;
     if (this.tables.length > 0) {
       r = combineResults(r, this.printError(loc, 'only one table allowed'));
@@ -315,13 +324,15 @@ export class SharedValidator {
     return r;
   }
 
-  onGlobalImport(_loc: Location, type: Type, mutable: boolean): Result {
+  onGlobalImport(_loc: Location, typeIn: ValueType, mutable: boolean): Result {
+    const type = coarsenValueType(typeIn);
     this.globals.push({ type, mutable });
     this.numImportedGlobals++;
     return Result.Ok;
   }
 
-  onGlobal(_loc: Location, type: Type, mutable: boolean): Result {
+  onGlobal(_loc: Location, typeIn: ValueType, mutable: boolean): Result {
+    const type = coarsenValueType(typeIn);
     this.globals.push({ type, mutable });
     return Result.Ok;
   }
@@ -400,7 +411,8 @@ export class SharedValidator {
     return r;
   }
 
-  onElemSegmentElemType(_loc: Location, elemType: Type): Result {
+  onElemSegmentElemType(_loc: Location, elemTypeIn: ValueType): Result {
+    const elemType = coarsenValueType(elemTypeIn);
     const elem = this.elems[this.elems.length - 1];
     if (elem) elem.element = elemType;
     return Result.Ok;
@@ -421,7 +433,8 @@ export class SharedValidator {
   // Init expressions
   // ---------------------------------------------------------------------------
 
-  beginInitExpr(loc: Location, type: Type): Result {
+  beginInitExpr(loc: Location, typeIn: ValueType): Result {
+    const type = coarsenValueType(typeIn);
     this.currentLoc = loc;
     this.inInitExpr = true;
     return this.tc.beginInitExpr(type);
@@ -456,7 +469,8 @@ export class SharedValidator {
     return this.tc.endFunction();
   }
 
-  onLocalDecl(_loc: Location, count: number, type: Type): Result {
+  onLocalDecl(_loc: Location, count: number, typeIn: ValueType): Result {
+    const type = coarsenValueType(typeIn);
     const cur = this.locals.length === 0 ? 0 : (this.locals[this.locals.length - 1]?.end ?? 0);
     this.locals.push({ type, end: cur + count });
     return Result.Ok;
@@ -548,7 +562,8 @@ export class SharedValidator {
     return this.tc.onDrop();
   }
 
-  onSelect(loc: Location, resultTypes: Type[]): Result {
+  onSelect(loc: Location, resultTypesIn: ValueType[]): Result {
+    const resultTypes = resultTypesIn.map(coarsenValueType);
     this.currentLoc = loc;
     if (resultTypes.length > 1) {
       return this.printError(loc, `invalid arity in select instruction: ${resultTypes.length}.`);

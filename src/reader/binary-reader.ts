@@ -79,6 +79,7 @@ import {
   type Tag,
   type TypeEntry,
   type UnreachableExpr,
+  type ValueType,
   type Var,
   varIndex,
   varName,
@@ -418,8 +419,15 @@ export class BinaryReader {
   // Type helpers
   // ---------------------------------------------------------------------------
 
-  private readValType(): Type {
+  private readValType(): ValueType {
     const b = this.readU8();
+    // `0x64` / `0x63` introduce a CONCRETE typed reference — `(ref H)` /
+    // `(ref null H)` — whose heap type follows as a signed LEB. Reading them
+    // as a plain one-byte type left the heap type in the stream, desyncing
+    // every subsequent field.
+    if (b === Type.Ref || b === Type.RefNull) {
+      return { kind: 'ref', heapType: this.readHeapTypeVar(), nullable: b === Type.RefNull };
+    }
     return b as Type;
   }
 
@@ -496,8 +504,12 @@ export class BinaryReader {
     return { align, offset, memidx: varIndex(memidx) };
   }
 
-  private readRefType(): Type {
-    return this.readU8() as Type;
+  private readRefType(): ValueType {
+    // Element types can be CONCRETE typed references, whose heap type follows
+    // the 0x64 / 0x63 marker. Reading a single byte left the heap type in the
+    // stream, so every following field of the table entry was shifted by one
+    // (`(table $x 1 (ref null $t))` came back as `(table 0 ref null)`).
+    return this.readValType();
   }
 
   // ---------------------------------------------------------------------------
@@ -512,10 +524,10 @@ export class BinaryReader {
       if (marker === 0x60) {
         // func type
         const paramCount = this.readU32Leb();
-        const params: Type[] = [];
+        const params: ValueType[] = [];
         for (let j = 0; j < paramCount; j++) params.push(this.readValType());
         const resultCount = this.readU32Leb();
-        const results: Type[] = [];
+        const results: ValueType[] = [];
         for (let j = 0; j < resultCount; j++) results.push(this.readValType());
         const entry: TypeEntry = { kind: 'func', name: '', sig: { params, results }, loc };
         m.types.push(entry);
@@ -712,7 +724,7 @@ export class BinaryReader {
         offset = this.readInitExpr(m);
       }
 
-      let elemType: Type = Type.FuncRef;
+      let elemType: ValueType = Type.FuncRef;
       if (isPassive || hasExplicitIndex) {
         if (usesExprs) {
           elemType = this.readValType();
@@ -1181,9 +1193,8 @@ export class BinaryReader {
           const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const args = popN(stack, sig.params.length);
           const entry = m.types[typeIdx];
-          const sigType: { params: Type[]; results: Type[] } = entry && entry.kind === 'func'
-            ? entry.sig
-            : { params: [], results: [] };
+          const sigType: { params: ValueType[]; results: ValueType[] } =
+            entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
           const ciExpr: Expr = {
             kind: 'call_indirect',
             sig: sigType,
@@ -1223,9 +1234,8 @@ export class BinaryReader {
           const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const args = popN(stack, sig.params.length);
           const entry = m.types[typeIdx];
-          const sigType: { params: Type[]; results: Type[] } = entry && entry.kind === 'func'
-            ? entry.sig
-            : { params: [], results: [] };
+          const sigType: { params: ValueType[]; results: ValueType[] } =
+            entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
           stmts.push({
             kind: 'return_call_indirect',
             sig: sigType,
@@ -1262,7 +1272,7 @@ export class BinaryReader {
         }
         case Opcode.SelectT: {
           const numTypes = this.readU32Leb();
-          const resultType: Type[] = [];
+          const resultType: ValueType[] = [];
           for (let i = 0; i < numTypes; i++) resultType.push(this.readValType());
           const cond_ = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
           const val2 = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);

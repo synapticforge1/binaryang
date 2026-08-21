@@ -24,8 +24,8 @@
 
 import { Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
-import { varIndex } from './ir.ts';
-import type { FuncSignature, Module, TypeEntry } from './ir.ts';
+import { isRefValueType, varIndex } from './ir.ts';
+import type { FuncSignature, Module, TypeEntry, ValueType } from './ir.ts';
 
 const NO_LOC = { filename: '', line: 0, column: 0, offset: 0 };
 
@@ -86,6 +86,13 @@ function sigKey(sig: FuncSignature): string {
   return `(${sig.params.map(typeKey).join(',')})->(${sig.results.map(typeKey).join(',')})`;
 }
 
-function typeKey(t: Type): string {
+function typeKey(t: ValueType): string {
+  if (isRefValueType(t)) {
+    // Distinguish concrete typed refs from each other AND from the abstract
+    // type they used to collapse into, or two different `(ref $T)` signatures
+    // would dedupe onto one type-section entry.
+    const h = t.heapType.kind === 'index' ? `#${t.heapType.value}` : t.heapType.name;
+    return `ref${t.nullable ? '?' : ''}:${h}`;
+  }
   return t.toString(16);
 }

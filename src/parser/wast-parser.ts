@@ -73,6 +73,7 @@ import {
   type I31GetExpr,
   type IfExpr,
   type Import,
+  isRefValueType,
   type Limits,
   type LoadExpr,
   type LocalDecl,
@@ -132,6 +133,7 @@ import {
   type TypeEntry,
   type UnaryExpr,
   type UnreachableExpr,
+  type ValueType,
   type Var,
   varIndex,
   varName,
@@ -1183,7 +1185,7 @@ export class WastParser {
   }
 
   /** Parse zero or more `(param ...)` groups and return types + name bindings. */
-  private parseParams(paramTypes: Type[], bindings: Map<string, number>): Result {
+  private parseParams(paramTypes: ValueType[], bindings: Map<string, number>): Result {
     while (this.matchLpar(TokenType.Param)) {
       if (this.peek() === TokenType.Var) {
         const name = this.varTokenText(this.consume() as StringToken);
@@ -1207,7 +1209,7 @@ export class WastParser {
   }
 
   /** Parse zero or more `(result ...)` groups. */
-  private parseResults(resultTypes: Type[]): Result {
+  private parseResults(resultTypes: ValueType[]): Result {
     while (this.matchLpar(TokenType.Result)) {
       while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
         const t = this.parseValueType();
@@ -1221,8 +1223,8 @@ export class WastParser {
 
   /** Parse a function signature: `(param ...)* (result ...)*` */
   parseFuncSignature(): { sig: FuncSignature; bindings: Map<string, number> } {
-    const params: Type[] = [];
-    const results: Type[] = [];
+    const params: ValueType[] = [];
+    const results: ValueType[] = [];
     const bindings = new Map<string, number>();
     this.parseParams(params, bindings);
     this.parseResults(results);
@@ -1230,7 +1232,7 @@ export class WastParser {
   }
 
   /** Parse a value type token. Returns null on failure. */
-  parseValueType(): Type | null {
+  parseValueType(): ValueType | null {
     const tt = this.peek();
     if (tt === TokenType.ValueType) {
       const tok = this.consume() as TypeToken;
@@ -1249,33 +1251,26 @@ export class WastParser {
       return this.parseRefType();
     }
     // GC typed-reference parenthesized form: `(ref $T)` or `(ref null $T)`.
-    // Wabt-ts's flat `Type[]` IR can't faithfully carry the heap-type index
-    // for typed refs — the binary writer currently emits the abstract
-    // supertype byte (structref / arrayref / anyref) instead. The parser
-    // accepts the syntax so module definitions that mention typed refs in
-    // param / result / local slots round-trip through the parser; full
-    // typed-ref IR support is a deferred refactor (FuncSignature.params
-    // → ValueType[] with concrete heap-type metadata).
+    // `(ref H)` / `(ref null H)`. An ABSTRACT heap type collapses to its
+    // matching nullable reference Type (one wire byte); a CONCRETE `$T` or
+    // numeric index becomes a RefValueType carrying the heap type, which the
+    // writer encodes as the 0x64 / 0x63 marker plus the heap type. This used
+    // to coarsen every concrete typed ref to Type.StructRef, so the writer
+    // emitted a structref byte and V8 rejected the module.
     if (tt === TokenType.Lpar && this.peek(1) === TokenType.Ref) {
       this.drop(); // (
       this.drop(); // ref
-      this.match(TokenType.Null); // optional `null` keyword — currently ignored
-      // The next token is either a refkind keyword (func/extern/etc.) — already
-      // a complete Type — or a Var pointing at a user-defined heap type.
-      // Route through the canonical heap-type parse so every spelling is
-      // accepted: the abstract keywords with dedicated token types
-      // (`struct` / `array` / `exn`) used to fall through to the error below,
-      // so `(type (array (ref struct)))` failed outright.
+      const nullable = this.match(TokenType.Null);
       const ht = this.parseHeapTypeVar();
       if (ht === null) return null;
-      // A name-var naming an abstract heap type maps straight to its Type; a
-      // user-defined `$T` or a numeric index has no flat Type entry and
-      // coarsens to StructRef (the loose typed-ref IR — see CLAUDE.md).
-      const result: Type = ht.kind === 'name'
-        ? heapTypeNameToType(ht.name) ?? Type.StructRef
-        : Type.StructRef;
       this.expect(TokenType.Rpar);
-      return result;
+      if (ht.kind === 'name') {
+        const abstract_ = heapTypeNameToType(ht.name);
+        // `(ref null func)` is exactly `funcref`; `(ref func)` is the
+        // non-nullable form and still needs the two-part encoding.
+        if (abstract_ !== null && nullable) return abstract_;
+      }
+      return { kind: 'ref', heapType: ht, nullable };
     }
     this.error(this.loc(), `expected value type, got ${tokenName(tt)}`);
     return null;
@@ -1658,7 +1653,7 @@ export class WastParser {
    * Parse `mut? value-type`. The `mut` form is `(mut value-type)`; the bare
    * form is just a value-type.
    */
-  private parseFieldType(): { mutable: boolean; type: Type } {
+  private parseFieldType(): { mutable: boolean; type: ValueType } {
     if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Mut) {
       this.drop(); // (
       this.drop(); // mut
@@ -1893,7 +1888,7 @@ export class WastParser {
     return Result.Ok;
   }
 
-  private parseGlobalType(): { type: Type; isMut: boolean } {
+  private parseGlobalType(): { type: ValueType; isMut: boolean } {
     if (this.matchLpar(TokenType.Mut)) {
       const t = this.parseValueType() ?? Type.I32;
       this.expect(TokenType.Rpar);
@@ -2210,7 +2205,7 @@ export class WastParser {
 
     let tableVar: Var = varIndex(0);
     let offset: Expr[] = [];
-    let elemType: Type = Type.FuncRef;
+    let elemType: ValueType = Type.FuncRef;
     const inits: Expr[][] = [];
     let kind: 'active' | 'passive' | 'declared' = 'passive';
 
@@ -2928,7 +2923,7 @@ export class WastParser {
       case TokenType.Drop:
         return { kind: 'drop', value: op0(), loc } as DropExpr;
       case TokenType.Select: {
-        const resultType: Type[] = [];
+        const resultType: ValueType[] = [];
         if (this.matchLpar(TokenType.Result)) {
           while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
             const before = this.pos;
@@ -3961,7 +3956,7 @@ export class WastParser {
       return BLOCK_TYPE_VOID;
     }
 
-    const params: Type[] = [];
+    const params: ValueType[] = [];
     while (this.matchLpar(TokenType.Param)) {
       while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
         const before = this.pos;
@@ -3972,7 +3967,7 @@ export class WastParser {
       this.expect(TokenType.Rpar);
     }
 
-    const results: Type[] = [];
+    const results: ValueType[] = [];
     while (this.matchLpar(TokenType.Result)) {
       while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
         const before = this.pos;
@@ -3985,7 +3980,13 @@ export class WastParser {
 
     if (params.length === 0) {
       if (results.length === 0) return BLOCK_TYPE_VOID;
-      if (results.length === 1) return blockTypeValue(results[0]!);
+      if (results.length === 1) {
+        // A single ABSTRACT result uses the compact one-byte blocktype; a
+        // concrete typed ref cannot be spelled that way and needs the
+        // interned function type like every other non-shorthand shape.
+        const only = results[0]!;
+        if (!isRefValueType(only)) return blockTypeValue(only);
+      }
     }
     return { kind: 'func_type', typeIdx: this.internFuncType({ params, results }) };
   }
