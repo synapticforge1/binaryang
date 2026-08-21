@@ -230,10 +230,21 @@ class ResolveContext {
       if (t.kind === 'func') sig(t.sig);
       else if (t.kind === 'struct') { for (const f of t.fields) f.type = vt(f.type); }
       else if (t.kind === 'array') t.field.type = vt(t.field.type);
+      // `(sub $super …)` supertypes are type-index references like any other;
+      // left unresolved they hit the writer's fail-loud guard.
+      if (t.sub !== undefined) {
+        t.sub.supertypes = t.sub.supertypes.map((v) => this.resolveTypeVar(v, t.loc));
+      }
     }
     for (const imp of this.module.imports) {
-      if (imp.kind === ExternalKind.Func) sig(imp.func.sig);
-      else if (imp.kind === ExternalKind.Global) imp.global.type = vt(imp.global.type);
+      if (imp.kind === ExternalKind.Func) {
+        sig(imp.func.sig);
+        // `(import … (func (type $t)))` names a type. synthesizeTypes later
+        // overwrites this with a matching index, which is why the pipeline
+        // hid it — but resolveNames' own invariant is that no name-var
+        // survives, and a caller that skips synthesizeTypes would emit 0.
+        imp.func.typeVar = this.resolveTypeVar(imp.func.typeVar, imp.func.loc);
+      } else if (imp.kind === ExternalKind.Global) imp.global.type = vt(imp.global.type);
       else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
       else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
     }

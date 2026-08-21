@@ -118,7 +118,11 @@ describe('robustness — diagnostics name their tokens', () => {
   it('names the offending token instead of printing an ordinal', () => {
     // A token whose name lives only in TOKEN_NAMES, not in the parser's local
     // switch — the case that used to render as `<token:N>`.
-    const { errors } = parseWatModule('(module (type $t (sub (struct))))');
+    // NOTE: this input has been re-picked once already. `(type $t (sub …))`
+    // was used here until T5 made it parse cleanly, leaving no diagnostic to
+    // inspect. A test that asserts on an error message is coupled to that
+    // construct staying unsupported.
+    const { errors } = parseWatModule('(module (rec (type $a (struct)) (nonsense)))');
     const msg = errors[0]?.message ?? '';
     assert(!/<token:\d+>/.test(msg), `unreadable diagnostic: ${msg}`);
     assert(msg.length > 0, 'expected a diagnostic');
@@ -127,6 +131,7 @@ describe('robustness — diagnostics name their tokens', () => {
   it('never renders an ordinal across a spread of malformed inputs', () => {
     const bad = [
       '(module (type (struct (field (mut)))))',
+      '(module (rec (type $a (struct)) (nonsense)))',
       '(module (func (block (param i32))))',
       '(module (elem (i32.const 0) funcref (nonsense)))',
       '(module (func (drop (ref.null i32))))',

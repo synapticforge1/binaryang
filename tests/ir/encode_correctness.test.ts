@@ -38,7 +38,8 @@ import { parseWastScript, parseWatModule } from '../../src/parser/wast-parser.ts
 import { resolveNames } from '../../src/ir/resolve-names.ts';
 import { wat2wasm } from '../../src/tools/wat2wasm.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
-import { Type } from '../../src/core/types.ts';
+import { heapTypeNameToType, Type } from '../../src/core/types.ts';
+import type { Module } from '../../src/ir/ir.ts';
 
 function compile(wat: string): Uint8Array {
   const { binary, errors } = wat2wasm(wat);
@@ -201,7 +202,13 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
       if (v === null || typeof v !== 'object') continue;
       const vv = v as Record<string, unknown>;
       if (vv.kind === 'name' && typeof vv.name === 'string') {
-        if (kind === 'ref.null' && k === 'refType') continue;
+        // An ABSTRACT heap-type keyword (`func`, `any`, `array`, …) is not a
+        // name in any index space — it stays a name-var for the writer to
+        // encode as a single negative byte. Only a `$T` reference to a
+        // user-defined type must resolve. Keying this off the KEYWORD rather
+        // than the field name is what makes it correct for `ref.null.refType`,
+        // `ref.test`/`ref.cast` heap types, and typed-ref value types alike.
+        if (heapTypeNameToType(vv.name) !== null) continue;
         out.add(`${kind}.${k}`);
         continue;
       }
@@ -213,9 +220,30 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
     }
   }
 
+  /**
+   * Walk the WHOLE module, not just function bodies.
+   *
+   * The body-only version missed `(sub $super)` supertypes entirely — they
+   * live on a type-section entry — and the writer's fail-loud guard caught
+   * that instead. A guard scoped narrower than the thing it guards is a guard
+   * with a blind spot.
+   */
+  function moduleSurvivors(module: Module) {
+    const out = new Set<string>();
+    for (const [key, v] of Object.entries(module)) {
+      if (key !== 'funcs' && Array.isArray(v)) {
+        for (const item of v) survivors(item, key, out);
+      }
+    }
+    for (const f of module.funcs) for (const b of f.body) survivors(b, 'body', out);
+    return out;
+  }
+
   it('holds across a spread of name-bearing constructs', () => {
     const wat = `(module
       (type $ft (func (param i32) (result i32)))
+      (rec (type $ra (sub (struct (field i32))))
+           (type $rb (sub $ra (struct (field i32) (field i64)))))
       (tag $e (param i32))
       (memory $mem 1)
       (table $tab 4 funcref)
@@ -241,9 +269,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
     assert(!hasErrors(errors), formatErrors(errors));
     resolveNames(module, errors);
     assert(!hasErrors(errors), formatErrors(errors));
-    const out = new Set<string>();
-    for (const f of module.funcs) for (const b of f.body) survivors(b, 'body', out);
-    assertEquals([...out], [], 'unresolved name-vars survived resolveNames');
+    assertEquals([...moduleSurvivors(module)], [], 'unresolved name-vars survived resolveNames');
   });
 
   it('holds across the whole spec testsuite', () => {
@@ -275,6 +301,9 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
           continue;
         }
         if (hasErrors(errs)) continue;
+        for (const [k, v] of Object.entries(cmd.scriptModule.module)) {
+          if (Array.isArray(v) && k !== 'funcs') { for (const item of v) survivors(item, k, out); }
+        }
         for (const f of cmd.scriptModule.module.funcs) {
           for (const b of f.body) survivors(b, 'body', out);
         }

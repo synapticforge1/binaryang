@@ -43,7 +43,7 @@ import type {
 } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
-import { isRefValueType, type ValueType } from '../ir/ir.ts';
+import { isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
@@ -1192,6 +1192,13 @@ class WatWriter extends ModuleContext {
   private writeTypeEntry(te: TypeEntry): void {
     this.openSpace('type');
     this.writeNameOrIndex(te.name, this.typeIdx++, NC.Space);
+    // `(sub final? $super*)` wraps the comptype. Absent means the bare
+    // shorthand, which already implies `sub final` with no supertypes.
+    if (te.sub !== undefined) {
+      this.openSpace('sub');
+      if (te.sub.final) this.puts('final', NC.Space);
+      for (const sup of te.sub.supertypes) this.writeVar(sup, NC.Space);
+    }
     switch (te.kind) {
       case 'func':
         this.openSpace('func');
@@ -1216,6 +1223,7 @@ class WatWriter extends ModuleContext {
         this.closeSpace();
         break;
     }
+    if (te.sub !== undefined) this.closeSpace(); // closes (sub …)
     this.closeNewline();
   }
 
@@ -1479,9 +1487,21 @@ class WatWriter extends ModuleContext {
       this.newline(false);
     }
 
-    // 1. Type section
-    for (const te of this.module.types) {
-      this.writeTypeEntry(te);
+    // 1. Type section, walked as REC GROUPS. Writing the entries flat dropped
+    //    both the `(rec …)` wrapper and — via writeTypeEntry — the `(sub …)`
+    //    declarations, so a wasm2wat round-trip silently lost the recursion
+    //    and the subtype relations. It still REPARSED, which is why a
+    //    "does it round-trip" check did not catch it.
+    for (const g of recGroups(this.module.types)) {
+      if (g.explicit) {
+        this.openSpace('rec');
+        for (let i = g.start; i < g.start + g.count; i++) {
+          this.writeTypeEntry(this.module.types[i]!);
+        }
+        this.closeNewline();
+      } else {
+        this.writeTypeEntry(this.module.types[g.start]!);
+      }
     }
 
     // 2. All imports (in declaration order)

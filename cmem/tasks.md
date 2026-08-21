@@ -40,12 +40,12 @@ reference these ids.
 | T7.4 | Typed-ref IR refactor (`ValueType`) | done — encode +13 |
 | T7.5 | Multi-value branches (`br` / `br_if` / `br_table`) | done — encode +14 |
 | T7.6 | `try_table` catch target depth | done — encode +2 |
+| T5 | GC `(rec …)` recursive type groups and `(sub …)` subtyping | done — parse +7, encode +5 |
 
 ### Open — parse side (24 files)
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T5** | GC `(rec …)` recursive type groups and `(sub …)` subtyping | ~9 |
 | **T5.1** | `any.convert_extern` / `extern.convert_any` — GC ⇄ extern conversions | ~4 |
 | **T5.2** | `(ref.cast i31ref …)` — bare `…ref` spelling where `(ref H)` is expected | 1 |
 | **T6.4** | `(module definition …)` / `(module instance …)` — multi-module linking | 5 |
@@ -211,6 +211,9 @@ gaps are narrowing.
 - *Legacy EH / `try_table` catch depth (V8-valid 214 → 216): **no new
   binaryen-ts finding**. The bug was ours — catch targets were resolved with
   the try_table's own label pushed, one too deep.*
+- *T5 (`rec` / `sub`, parse 233 → 240, V8-valid 216 → 221): **no new
+  binaryen-ts finding**. Worth noting the bridge has no rec/sub concept at
+  all, but nothing in it was newly blocked.*
 - *T7 remaining clusters (stack residue, relaxed SIMD, splat, singles): in
   progress.*
 

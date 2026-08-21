@@ -516,39 +516,80 @@ export class BinaryReader {
   // Section readers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Read the type section: a vector of REC GROUPS.
+   *
+   *   rectype  ::= 0x4e vec(subtype) | subtype
+   *   subtype  ::= 0x50 vec(typeidx) comptype   (sub, non-final)
+   *              | 0x4f vec(typeidx) comptype   (sub final)
+   *              | comptype                     (shorthand for sub final, no supers)
+   *
+   * The vector counts GROUPS while the type index space counts SUBTYPES, so a
+   * 2-type `(rec …)` is one vector slot and two indices. Reading the count as
+   * a type count (the old behaviour) desyncs on the first explicit group.
+   */
   private readTypeSection(m: Module, end: number): void {
-    const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
-      const loc = this.loc();
-      const marker = this.readU8();
-      if (marker === 0x60) {
-        // func type
-        const paramCount = this.readU32Leb();
-        const params: ValueType[] = [];
-        for (let j = 0; j < paramCount; j++) params.push(this.readValType());
-        const resultCount = this.readU32Leb();
-        const results: ValueType[] = [];
-        for (let j = 0; j < resultCount; j++) results.push(this.readValType());
-        const entry: TypeEntry = { kind: 'func', name: '', sig: { params, results }, loc };
-        m.types.push(entry);
-      } else if (marker === 0x5f) {
-        // struct type (GC)
-        const fieldCount = this.readU32Leb();
-        const fields: Field[] = [];
-        for (let j = 0; j < fieldCount; j++) {
-          const type = this.readValType();
-          const mutable = this.readU8() !== 0;
-          fields.push({ name: '', type, mutable });
-        }
-        m.types.push({ kind: 'struct', name: '', fields, loc });
-      } else if (marker === 0x5e) {
-        // array type (GC)
+    const groupCount = this.readU32Leb();
+    for (let g = 0; g < groupCount && this.pos < end && this.ok(); g++) {
+      if (this.peekU8() === 0x4e) {
+        this.pos++;
+        const n = this.readU32Leb();
+        const first = m.types.length;
+        for (let i = 0; i < n && this.pos < end && this.ok(); i++) this.readSubType(m);
+        // Mark the group on its first entry so the writer can re-emit it.
+        const head = m.types[first];
+        if (head !== undefined) head.recGroupSize = n;
+      } else {
+        this.readSubType(m);
+      }
+    }
+  }
+
+  /** Read one subtype: the optional `sub` wrapper, then the comptype. */
+  private readSubType(m: Module): void {
+    const loc = this.loc();
+    const marker = this.peekU8();
+    let sub: { final: boolean; supertypes: Var[] } | undefined;
+    if (marker === 0x4f || marker === 0x50) {
+      this.pos++;
+      const n = this.readU32Leb();
+      const supertypes: Var[] = [];
+      for (let i = 0; i < n; i++) supertypes.push(varIndex(this.readU32Leb()));
+      sub = { final: marker === 0x4f, supertypes };
+    }
+    const before = m.types.length;
+    this.readCompType(m, loc);
+    // `sub` rides on the entry the comptype just pushed.
+    const entry = m.types[before];
+    if (entry !== undefined && sub !== undefined) entry.sub = sub;
+  }
+
+  /** Read the composite part: func (0x60), struct (0x5f), or array (0x5e). */
+  private readCompType(m: Module, loc: Location): void {
+    const marker = this.readU8();
+    if (marker === 0x60) {
+      const paramCount = this.readU32Leb();
+      const params: ValueType[] = [];
+      for (let j = 0; j < paramCount; j++) params.push(this.readValType());
+      const resultCount = this.readU32Leb();
+      const results: ValueType[] = [];
+      for (let j = 0; j < resultCount; j++) results.push(this.readValType());
+      m.types.push({ kind: 'func', name: '', sig: { params, results }, loc });
+    } else if (marker === 0x5f) {
+      const fieldCount = this.readU32Leb();
+      const fields: Field[] = [];
+      for (let j = 0; j < fieldCount; j++) {
         const type = this.readValType();
         const mutable = this.readU8() !== 0;
-        m.types.push({ kind: 'array', name: '', field: { name: '', type, mutable }, loc });
-      } else {
-        this.err(`unknown type section entry marker: 0x${marker.toString(16)}`);
+        fields.push({ name: '', type, mutable });
       }
+      m.types.push({ kind: 'struct', name: '', fields, loc });
+    } else if (marker === 0x5e) {
+      const type = this.readValType();
+      const mutable = this.readU8() !== 0;
+      m.types.push({ kind: 'array', name: '', field: { name: '', type, mutable }, loc });
+    } else {
+      this.err(`unknown type section entry marker: 0x${marker.toString(16)}`);
     }
   }
 

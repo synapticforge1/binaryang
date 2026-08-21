@@ -469,6 +469,7 @@ function isModuleField(tt0: TokenType, tt1: TokenType): boolean {
     case TokenType.Func:
     case TokenType.Function:
     case TokenType.Type:
+    case TokenType.Rec:
     case TokenType.Import:
     case TokenType.Export:
     case TokenType.Global:
@@ -1537,6 +1538,8 @@ export class WastParser {
     switch (tt1) {
       case TokenType.Type:
         return this.parseTypeModuleField(module);
+      case TokenType.Rec:
+        return this.parseRecModuleField(module);
       case TokenType.Import:
         return this.parseImportModuleField(module);
       case TokenType.Export:
@@ -1564,12 +1567,56 @@ export class WastParser {
     }
   }
 
+  /**
+   * Parse a `(rec (type …)*)` group.
+   *
+   * Every member lands in `module.types` as an ordinary entry — the type INDEX
+   * space counts members, not groups — and the group is recorded as a
+   * `recGroupSize` on its FIRST member so the binary writer can re-emit the
+   * `0x4e` wrapper. An empty `(rec)` is legal and occupies a section slot
+   * while consuming no indices, so size 0 is recorded rather than skipped.
+   */
+  private parseRecModuleField(module: Module): Result {
+    if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
+    if (this.expect(TokenType.Rec) !== Result.Ok) return Result.Error;
+    const first = module.types.length;
+    let count = 0;
+    while (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Type) {
+      if (this.parseTypeModuleField(module) !== Result.Ok) return Result.Error;
+      count++;
+    }
+    this.expect(TokenType.Rpar);
+    const head = module.types[first];
+    // An empty `(rec)` has no member to hang the marker on. It is legal but
+    // contributes nothing to the type index space, so it is simply dropped —
+    // re-emitting it would need a group representation that does not depend
+    // on a member existing.
+    if (head !== undefined) head.recGroupSize = count;
+    return Result.Ok;
+  }
+
   private parseTypeModuleField(module: Module): Result {
     const loc = this.loc();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Type) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
+
+    // Optional `(sub final? $super*)` wrapper around the comptype. A BARE
+    // comptype is the spec's shorthand for `sub final` with no supertypes, so
+    // `sub` stays undefined in that case — the two encode differently.
+    let sub: { final: boolean; supertypes: Var[] } | undefined;
+    if (this.peek() === TokenType.Sub) {
+      this.drop();
+      const final = this.match(TokenType.Final);
+      const supertypes: Var[] = [];
+      while (this.peekMatchVar()) {
+        const v = this.parseVar();
+        if (v !== null) supertypes.push(v);
+      }
+      sub = { final, supertypes };
+      if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
+    }
 
     const kindTok = this.peek();
     let entry: TypeEntry;
@@ -1588,6 +1635,10 @@ export class WastParser {
     } else {
       this.error(this.loc(), 'expected func, struct, or array in type');
       return Result.Error;
+    }
+    if (sub !== undefined) {
+      entry.sub = sub;
+      this.expect(TokenType.Rpar); // closes the comptype
     }
     this.expect(TokenType.Rpar);
     this.expect(TokenType.Rpar);
