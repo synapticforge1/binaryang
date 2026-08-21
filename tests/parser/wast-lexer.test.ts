@@ -536,16 +536,34 @@ describe('WastLexer — align= and offset=', () => {
 // ---------------------------------------------------------------------------
 
 describe('WastLexer — annotation', () => {
-  it('(@name → LparAnn with text "name"', () => {
-    const tok = lexOne('(@name') as StringToken;
-    expect(tok.tokenType).toBe(TokenType.LparAnn);
-    expect(tok.text).toBe('name');
+  // BEHAVIOUR CHANGE (T6.5): the lexer used to emit an `LparAnn` token for
+  // `(@id` and then keep lexing the body as ordinary tokens. Annotation
+  // bodies are deliberately hostile — arbitrary reserved characters, nested
+  // parens and annotations, strings containing parens, and comments
+  // containing parens — so that always failed on the first `,` with
+  // "unexpected char", and nothing consumed the annotation.
+  //
+  // The spec makes annotations TRANSPARENT: a tool that does not understand
+  // one skips it. wabt-ts has no annotation consumer, so the lexer now skips
+  // the whole annotation at the character level and emits NO tokens for it.
+  // If a consumer is ever added, the right shape is one token carrying the
+  // annotation's full source, not a re-tokenised body.
+  it('an annotation produces no tokens at all', () => {
+    const toks = lexTypes('(@name)').filter((t) => t !== TokenType.Eof);
+    expect(toks.length).toBe(0);
   });
 
-  it('(@producers → LparAnn with text "producers"', () => {
-    const tok = lexOne('(@producers') as StringToken;
-    expect(tok.tokenType).toBe(TokenType.LparAnn);
-    expect(tok.text).toBe('producers');
+  it('surrounding tokens still lex', () => {
+    const toks = lexTypes('(module (@producers "x") )').filter((t) => t !== TokenType.Eof);
+    expect(toks).toEqual([TokenType.Lpar, TokenType.Module, TokenType.Rpar]);
+  });
+
+  it('a hostile body does not derail the lexer', () => {
+    // Reserved chars, nested parens/annotations, a string holding a paren,
+    // and comments holding parens — every one of which broke the old path.
+    const src = '(module (@a , ; ] [ }} ({) ")" (@x) (; ) ;) ;; bla)\n) )';
+    const toks = lexTypes(src).filter((t) => t !== TokenType.Eof);
+    expect(toks).toEqual([TokenType.Lpar, TokenType.Module, TokenType.Rpar]);
   });
 });
 

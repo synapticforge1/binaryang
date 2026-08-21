@@ -941,8 +941,16 @@ export class WastLexer {
             return this.bareToken(TokenType.Eof);
           }
           if (this.matchStr('(@')) {
-            this.getIdChars();
-            return this.textToken(TokenType.LparAnn, 2);
+            // Custom annotation `(@id …)`. The spec makes annotations
+            // TRANSPARENT: a tool that does not understand one skips it. Their
+            // bodies are deliberately hostile — arbitrary reserved characters
+            // (`, ; ] [ }} }x{`), nested parens, nested annotations, and
+            // strings that CONTAIN parens (`")"`)— so they are skipped here at
+            // the character level rather than tokenised. Emitting LparAnn and
+            // letting the normal lexer continue produced "unexpected char" on
+            // the first `,`.
+            if (this.skipAnnotation()) continue;
+            return this.bareToken(TokenType.Eof);
           }
           this.read();
           return this.bareToken(TokenType.Lpar);
@@ -1047,6 +1055,58 @@ export class WastLexer {
   // -------------------------------------------------------------------------
   // Comment readers
   // -------------------------------------------------------------------------
+
+  /**
+   * Skip a custom annotation, starting just after the `(@`.
+   *
+   * Tracks paren depth so nested groups and nested annotations close
+   * correctly, and skips string literals wholesale — a body may contain
+   * `")"`, which would otherwise unbalance the count. Returns false only on an
+   * unterminated annotation (EOF), which is reported as an error.
+   */
+  private skipAnnotation(): boolean {
+    let depth = 1; // the `(` of `(@` is already consumed
+    while (true) {
+      const c = this.read();
+      if (c === EOF) {
+        this.error('unterminated annotation');
+        return false;
+      }
+      if (c === 0x0a) {
+        this.newlineChar();
+        continue;
+      }
+      if (c === 0x22) { // '"' — skip the whole string, escapes included
+        while (true) {
+          const d = this.read();
+          if (d === EOF) {
+            this.error('unterminated string in annotation');
+            return false;
+          }
+          if (d === 0x5c) {
+            this.read(); // escaped char, whatever it is
+            continue;
+          }
+          if (d === 0x22) break;
+          if (d === 0x0a) this.newlineChar();
+        }
+        continue;
+      }
+      // Comments inside an annotation are still comments, and their contents
+      // must NOT be counted. `(@a (; ) ;)` and `;; bla)` both contain a `)`
+      // that would close the annotation early.
+      if (c === 0x28 && this.matchChar(0x3b)) { // '(;' block comment
+        if (!this.readBlockComment()) return false;
+        continue;
+      }
+      if (c === 0x3b && this.matchChar(0x3b)) { // ';;' line comment
+        this.readLineComment();
+        continue;
+      }
+      if (c === 0x28) depth++;
+      else if (c === 0x29 && --depth === 0) return true;
+    }
+  }
 
   private readBlockComment(): boolean {
     let nesting = 1;

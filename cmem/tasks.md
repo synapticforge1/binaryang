@@ -50,12 +50,13 @@ reference these ids.
 | T8.2 | `select` with several result groups | done |
 | T8.4 | Tag declared with a type-use | done (new) |
 | T8.5 | Folded `if` condition spanning several instructions | done (new) |
+| T6.5 | `(@annotation …)` custom annotations | done — parse +1, encode +1 |
 
-### Open — parse side (24 files)
+### Open — parse side (2 files)
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T6.5** | `(@annotation …)` custom annotations | 1 |
+| ~~T6.5~~ | ~~`(@annotation …)` custom annotations~~ | closed |
 | **T5.3** | `br_on_cast` / `br_on_cast_fail` — never implemented (opcodes exist, no IR) | 2 |
 | ~~T8.3~~ | ~~multi-instruction constant expressions in the WAT writer~~ | closed |
 
@@ -231,6 +232,9 @@ gaps are narrowing.
   bridge never sees.*
 - *T8.1/8.2/8.4/8.5 (parse 249 → 254, V8-valid 237 → 242): **no new
   binaryen-ts finding** — all four were parser abbreviation forms.*
+- *T6.5 (annotations, parse 254 → 255, V8-valid 242 → 243): **no new
+  binaryen-ts finding.** Annotations are skipped in the lexer and never reach
+  the IR, so the bridge cannot see them.*
 - *T7 remaining clusters (stack residue, tail-call types, singles): in
   progress.*
 
