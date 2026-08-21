@@ -63,6 +63,7 @@ reference these ids.
 | T9.4 | The 10 valid modules T9.3's lattice rejected | done — agreement back to 2120/2120 |
 | T9.5 | Modules the spec says are invalid that we validated clean | done — assert_invalid 2395 → 2532/2737 |
 | T9.6 | Module-level structural checks that did not exist | done — assert_invalid 2532 → 2579/2737 |
+| T9.7 | Declared subtyping, ref.eq, select, defaultability, type scope | done — assert_invalid 2579 → 2629/2737 |
 
 ### Open — parse side: NONE
 
@@ -179,7 +180,17 @@ errors caught, zero false rejections.
 | --- | --- | --- |
 | ~~T9.5~~ | **DONE.** The "903" was a measurement artefact (see the correction above); the real figure was 314. Fixing the silent report alone accounted for the difference. Three real gaps then fell out: `checkSignature` peeked without an ARITY check (`peekType` answers the `Type.Any` wildcard below the frame base, and `br` only peeks — so `(block (result i32) (br 0))` validated) **+102**; a 32-bit memory's page limit is 65536, not 2^32-1; and a memarg `offset` must fit the memory's index type, newly reachable because T9.2 widened the reader to u64. **2395 → 2532 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/rejects_invalid.test.ts`. | — |
 | ~~T9.6~~ | **DONE.** Of the 205, **74 are also accepted by V8** — those spec tests predate proposals that legalised what they assert against — leaving 131 genuinely ours. Six categories closed: SIMD-memory ALIGNMENT (the validator kept its own partial natural-align table with no SIMD entries, so the check silently did nothing — `core/opcode.ts` already owns the canonical one and CLAUDE.md says not to duplicate it); LANE INDICES for `i8x16.shuffle` and `load*_lane` / `store*_lane`; IMMUTABILITY of struct fields and array elements; UNKNOWN type indices in value types; FINAL supertypes (an absent `(sub …)` is implicitly final); and CONSTANT EXPRESSIONS (only the const family, ref forms, `global.get`, extended-const arithmetic and GC allocations). **2532 → 2579 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/structural_checks.test.ts`. | — |
-| **T9.7** | The 84 still ours, by the reason the spec gives: type mismatch 52, sub type 17 (real structural subtype checking — a subtype's fields must extend its supertype's; only the finality rule is in), unknown type 6 (all cross-group FORWARD references — the index check runs after the whole section is declared, so it asks "does this type exist", not "was it in scope yet"), uninitialized local 4 (needs local-init tracking for non-defaultable locals), array types do not match 3, plus 2 singles. | — |
+| ~~T9.7~~ | **DONE.** Declared `(sub …)` relationships are now checked STRUCTURALLY, not just for finality — kind match, struct fields kept in order and appendable, mutable fields exact / immutable narrowable, func params contravariant and results covariant (**+17**, the whole category). Plus: `ref.eq` operands must be eq-hierarchy (`anyref` is a SUPERTYPE of `eqref`, so it does not qualify); a bare `select` is numeric/vector-only AND both operands must be the same type; a non-defaultable table element type needs an initializer; `array.copy`'s source element must be assignable to the destination's; and a type's scope bound is "everything before it plus the rest of its own rec group", not the section size — which closed the cross-group forward reference T9.6 had left as a documented failing case. **2579 → 2629 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/subtype_decl.test.ts`. | — |
+| **T9.8** | The 34 still ours: type mismatch 27 (try_table catch-clause label types 5, br_on_cast 6, elem/table element typing 6, array_init_elem 2, unreached-invalid 2, and a tail), uninitialized local 4 (needs local-init tracking for non-defaultable locals), plus 3 singles. | — |
+
+### A note from T9.6: our encoder can make an invalid module valid
+
+`elem.wast#0` — `(table 1 (ref func))` with `(elem (offset …) func 0)` — is
+invalid per spec, because a `func`-form elemlist is `funcref` and that is not a
+subtype of `(ref func)`. T7.11 made the writer PREFER the funcidx encoding,
+which V8 accepts. So `wat2wasm` silently repairs it. Benign, and it is why 74
+of the remaining misses are "V8 also accepts" — but worth knowing that the
+encoder is not a faithful mirror of the source in this one respect.
 
 ### Open — T9: found during the campaign, invisible to both metrics
 

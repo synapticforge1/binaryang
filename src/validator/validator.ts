@@ -273,17 +273,26 @@ class ModuleValidator implements ExprVisitorDelegate {
     // run AFTER the whole type section is declared — a type may legally
     // reference one defined later.
     const seenTypes = m.types.length;
-    const checkVt = (vt: ValueType, what: string, loc: typeof m.loc): void => {
-      this.acc(this.sv.checkValueType(loc, vt, what));
+    const checkVt = (vt: ValueType, what: string, loc: Location, bound?: number): void => {
+      this.acc(this.sv.checkValueType(loc, vt, what, bound));
     };
+    // How far each type may reach: everything before it, plus the remainder of
+    // its own rec group.
+    const scopeEnd = new Array<number>(m.types.length).fill(0);
+    for (let i = 0; i < m.types.length;) {
+      const size = Math.max(1, m.types[i]?.recGroupSize ?? 1);
+      for (let k = 0; k < size && i + k < m.types.length; k++) scopeEnd[i + k] = i + size;
+      i += size;
+    }
     for (const [i, te] of m.types.entries()) {
+      const bound = scopeEnd[i] ?? seenTypes;
       if (te.kind === 'func') {
-        for (const p of te.sig.params) checkVt(p, `type ${i} param`, te.loc);
-        for (const r of te.sig.results) checkVt(r, `type ${i} result`, te.loc);
+        for (const p of te.sig.params) checkVt(p, `type ${i} param`, te.loc, bound);
+        for (const r of te.sig.results) checkVt(r, `type ${i} result`, te.loc, bound);
       } else if (te.kind === 'struct') {
-        for (const f of te.fields) checkVt(f.type, `type ${i} field`, te.loc);
+        for (const f of te.fields) checkVt(f.type, `type ${i} field`, te.loc, bound);
       } else if (te.field) {
-        checkVt(te.field.type, `type ${i} element`, te.loc);
+        checkVt(te.field.type, `type ${i} element`, te.loc, bound);
       }
       for (const sv of te.sub?.supertypes ?? []) {
         if (sv.kind !== 'index') continue;
@@ -296,9 +305,12 @@ class ModuleValidator implements ExprVisitorDelegate {
         // `(type $a (func)) (type $b (sub 0 (func)))` is invalid even though
         // nothing says "final" anywhere in it.
         const superEntry = m.types[sv.value];
-        if (superEntry !== undefined && (superEntry.sub === undefined || superEntry.sub.final)) {
+        if (superEntry === undefined) continue;
+        if (superEntry.sub === undefined || superEntry.sub.final) {
           this.acc(this.sv.onFinalSupertype(te.loc, i, sv.value));
+          continue;
         }
+        this.checkSubtypeDecl(te, superEntry, i, sv.value);
       }
     }
     for (const g of m.globals) checkVt(g.type, 'global', g.loc);
@@ -350,7 +362,7 @@ class ModuleValidator implements ExprVisitorDelegate {
 
     // Tables
     for (const table of m.tables) {
-      this.acc(this.sv.onTable(table.loc, table.elemType, table.limits));
+      this.acc(this.sv.onTable(table.loc, table.elemType, table.limits, table.init.length > 0));
       if (table.init.length > 0) {
         this.acc(this.sv.beginInitExpr(table.loc, table.elemType));
         this.visitConstExpr(table.init, table.loc);
@@ -488,6 +500,57 @@ class ModuleValidator implements ExprVisitorDelegate {
       }
     }
     this.visitExprList(exprs);
+  }
+
+  /**
+   * Check that a declared `(sub $Super)` relationship actually holds.
+   *
+   * Only the FINALITY rule was enforced (T9.6); the structure was never
+   * compared, so `(type $a (sub (struct (field i32))))` could be extended by
+   * a type with a different field type, or by a func type entirely. The
+   * variance rules are the usual ones:
+   *
+   *   func    params CONTRAvariant, results COvariant
+   *   struct  the subtype must keep every field, in order, and may append;
+   *           a mutable field must match exactly, an immutable one may be
+   *           narrowed
+   *   array   the element behaves like a single struct field
+   */
+  private checkSubtypeDecl(sub: TypeEntry, superT: TypeEntry, i: number, j: number): void {
+    const bad = (why: string) => this.acc(this.sv.onBadSubtype(sub.loc, i, j, why));
+    if (sub.kind !== superT.kind) {
+      bad(`${sub.kind} cannot extend ${superT.kind}`);
+      return;
+    }
+    const fieldOk = (a: Field, b: Field): boolean =>
+      b.mutable
+        // A mutable slot is read AND written through the supertype, so it has
+        // to match exactly — narrowing it would break writes.
+        ? a.mutable && this.sv.isSubtype(a.type, b.type) && this.sv.isSubtype(b.type, a.type)
+        : !a.mutable && this.sv.isSubtype(a.type, b.type);
+
+    if (sub.kind === 'func' && superT.kind === 'func') {
+      const sp = sub.sig.params, pp = superT.sig.params;
+      const sr = sub.sig.results, pr = superT.sig.results;
+      if (sp.length !== pp.length || sr.length !== pr.length) {
+        bad('arity differs');
+        return;
+      }
+      for (const [k, p] of pp.entries()) {
+        if (!this.sv.isSubtype(p, sp[k]!)) return void bad(`param ${k} is not contravariant`);
+      }
+      for (const [k, r] of sr.entries()) {
+        if (!this.sv.isSubtype(r, pr[k]!)) return void bad(`result ${k} is not covariant`);
+      }
+    } else if (sub.kind === 'struct' && superT.kind === 'struct') {
+      if (sub.fields.length < superT.fields.length) return void bad('drops a field');
+      for (const [k, f] of superT.fields.entries()) {
+        if (!fieldOk(sub.fields[k]!, f)) return void bad(`field ${k} does not match`);
+      }
+    } else if (sub.kind === 'array' && superT.kind === 'array') {
+      if (!sub.field || !superT.field) return;
+      if (!fieldOk(sub.field, superT.field)) bad('element does not match');
+    }
   }
 
   private acc(r: Result): void {

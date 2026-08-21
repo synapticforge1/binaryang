@@ -1400,6 +1400,27 @@ export class TypeChecker {
     } else {
       const t2 = this.peekType(0);
       const t1 = this.peekType(1);
+      // A bare `select` — no `(result …)` annotation — is only defined for
+      // NUMERIC and VECTOR operands. Reference types need the annotated form,
+      // because the result type cannot be inferred from a join of two
+      // reference types. Nothing checked this, so `select` over two
+      // `(ref $t)` values validated.
+      for (const t of [t1, t2]) {
+        if (t !== Type.Any && (isRefValueType(t) || isReferenceType(t))) {
+          this.printError('type mismatch: select without a result type requires numeric operands');
+          r = Result.Error;
+          break;
+        }
+      }
+      // And the two operands must be the SAME type — the result is whichever
+      // one it is. Only `t1` was kept, so `select` over an i32 and an i64
+      // validated and reported the i32.
+      if (t1 !== Type.Any && t2 !== Type.Any && this.checkType(t2, t1) === Result.Error) {
+        this.printError(
+          `type mismatch in select, expected [${valueTypeName(t1)}] but got [${valueTypeName(t2)}]`,
+        );
+        r = Result.Error;
+      }
       r = combineResults(r, this.dropTypes(2));
       this.pushType(t1 !== Type.Any ? t1 : t2);
     }
@@ -1462,8 +1483,25 @@ export class TypeChecker {
   // GC: ref.eq pops two eqref-compatible refs, pushes i32.
   // We don't enforce the eqref-compatible check here (no subtype machinery);
   // the validator's job is to pop 2 ref-shaped things and push i32.
+  /**
+   * `ref.eq` compares two references in the EQ hierarchy. `anyref` is a
+   * SUPERTYPE of `eqref`, so `(ref any)` does not qualify — the operands were
+   * dropped unchecked, which let that through.
+   */
   onRefEq(): Result {
-    const r = this.dropTypes(2);
+    let r: Result = Result.Ok;
+    const eq: ValueType = Type.EqRef;
+    for (const depth of [0, 1]) {
+      const t = this.peekType(depth);
+      if (t === Type.Any) continue;
+      if (this.checkType(t, eq) === Result.Error) {
+        this.printError(
+          `type mismatch in ref.eq, expected [eqref] but got [${valueTypeName(t)}]`,
+        );
+        r = Result.Error;
+      }
+    }
+    r = combineResults(r, this.dropTypes(2));
     this.pushType(_I32);
     return r;
   }

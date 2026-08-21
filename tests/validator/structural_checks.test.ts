@@ -159,13 +159,13 @@ describe('T9.6 — type-index and supertype validity', () => {
     accepts('(module (rec (type $a (struct (field (ref null 1)))) (type $b (struct))))');
   });
 
-  it('a cross-group forward reference is NOT yet caught', () => {
-    // Known gap, part of the 6 "unknown type" cases left in T9.6: the index
-    // check runs after the whole section is declared, so it only sees
-    // "does this type exist", not "was it in scope yet".
-    const bin = compile('(module (type $a (struct (field (ref null 1)))) (type $b (struct)))');
-    assert(!WebAssembly.validate(toBuf(bin)), 'V8 should reject this');
-    assertEquals(wasmValidate(bin, { features: allFeatures() }).result, Result.Ok);
+  it('a cross-group forward reference is rejected (closed in T9.7)', () => {
+    // This was a documented gap when T9.6 landed — the index check asked
+    // "does this type exist" rather than "was it in scope yet". T9.7 gave
+    // each type a scope bound of "everything before it, plus the rest of its
+    // own rec group", which is what makes the rec-group case above legal and
+    // this one not.
+    rejects('(module (type $a (struct (field (ref null 1)))) (type $b (struct)))');
   });
 
   it('a type may not extend a FINAL type', () => {

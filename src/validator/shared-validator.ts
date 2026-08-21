@@ -316,6 +316,20 @@ export class SharedValidator {
     return this.printError(loc, `constant expression required: ${kind} is not constant`);
   }
 
+  /**
+   * Is `a` acceptable where `b` is wanted? Exposes the TypeChecker's lattice
+   * so module-level checks (declared `(sub …)` validity) can use the same
+   * rules the instruction checks do.
+   */
+  isSubtype(a: ValueType, b: ValueType): boolean {
+    return this.tc.checkType(a, b) === Result.Ok;
+  }
+
+  /** Report a `(sub …)` declaration whose definition does not fit. */
+  onBadSubtype(loc: Location, idx: number, superIdx: number, why: string): Result {
+    return this.printError(loc, `sub type ${idx} does not match supertype ${superIdx}: ${why}`);
+  }
+
   /** Report a type that declares a FINAL type as its supertype. */
   onFinalSupertype(loc: Location, idx: number, superIdx: number): Result {
     return this.printError(loc, `sub type ${idx} extends final type ${superIdx}`);
@@ -326,11 +340,16 @@ export class SharedValidator {
     return this.printError(loc, `unknown type ${idx}`);
   }
 
-  checkValueType(loc: Location, vt: ValueType, what: string): Result {
+  checkValueType(loc: Location, vt: ValueType, what: string, bound = this.numTypes): Result {
     if (!isRefValueType(vt)) return Result.Ok;
     const h = vt.heapType;
     if (h.kind !== 'index') return Result.Ok;
-    if (h.value >= this.numTypes) {
+    // `bound` is the SCOPE, not the section size: a type may reference
+    // anything defined before it plus the rest of its own rec group, and
+    // nothing later. Checking against the section size instead accepted
+    // `(type (func (result (ref 1)))) (type (func))`, a forward reference
+    // across groups that the spec and V8 both reject.
+    if (h.value >= bound) {
       return this.printError(loc, `unknown type ${h.value} in ${what}`);
     }
     return Result.Ok;
@@ -398,7 +417,18 @@ export class SharedValidator {
     return this.tables[tableIdx]?.limits.is64 ? Type.I64 : Type.I32;
   }
 
-  onTable(loc: Location, elemTypeIn: ValueType, limits: Limits): Result {
+  /**
+   * Can a slot of this type be created without an explicit value? Only
+   * NULLABLE references and the numeric types have a default. A
+   * `(ref $t)` does not, which is why `(table 0 (ref func))` needs an
+   * initializer and `(local (ref $t))` needs a `local.set` before any read.
+   */
+  static isDefaultable(t: ValueType): boolean {
+    if (isRefValueType(t)) return t.nullable;
+    return !isReferenceType(t) || t !== Type.Ref;
+  }
+
+  onTable(loc: Location, elemTypeIn: ValueType, limits: Limits, hasInit = true): Result {
     const elemType = elemTypeIn;
     let r: Result = Result.Ok;
     // MVP allowed one table; the reference-types proposal lifted that.
@@ -406,6 +436,12 @@ export class SharedValidator {
       r = combineResults(r, this.printError(loc, 'only one table allowed'));
     }
     r = combineResults(r, this.checkLimits(loc, limits, 0xFFFFFFFF, 'elems'));
+    if (!hasInit && !SharedValidator.isDefaultable(elemType)) {
+      r = combineResults(
+        r,
+        this.printError(loc, 'type mismatch: a non-defaultable table needs an initial value'),
+      );
+    }
     this.tables.push({ element: elemType, limits });
     return r;
   }
@@ -1385,8 +1421,25 @@ export class SharedValidator {
     const src = this.checkArrayTypeIndex(srcTypeIdx, loc);
     if (!dest || !src) return Result.Error;
     // [destRef, destOffset, srcRef, srcOffset, size] -> []
+    // The source element must be assignable to the destination's — copying
+    // an i16 array into an i8 array is not a type error the operand stack can
+    // see, because both are just `(ref $t)` there.
+    let r: Result = this.checkMutable(
+      loc,
+      dest.element.mutable,
+      `element of array type ${destTypeIdx}`,
+    );
+    if (!this.isSubtype(src.element.type, dest.element.type)) {
+      r = combineResults(
+        r,
+        this.printError(
+          loc,
+          `array types do not match: element of type ${srcTypeIdx} is not a subtype of type ${destTypeIdx}`,
+        ),
+      );
+    }
     return combineResults(
-      this.checkMutable(loc, dest.element.mutable, `element of array type ${destTypeIdx}`),
+      r,
       this.tc.onCall(
         [this.refNullTo(destTypeIdx), Type.I32, this.refNullTo(srcTypeIdx), Type.I32, Type.I32],
         [],
