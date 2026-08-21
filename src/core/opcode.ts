@@ -320,6 +320,8 @@ export enum GcOpcode {
   RefCastNullable = 0x17,
   BrOnCast = 0x18,
   BrOnCastFail = 0x19,
+  AnyConvertExtern = 0x1a,
+  ExternConvertAny = 0x1b,
   RefI31 = 0x1c,
   I31GetS = 0x1d,
   I31GetU = 0x1e,
@@ -919,6 +921,8 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_GC << 8) | GcOpcode.BrOnCast, 'br_on_cast'],
   [(PREFIX_GC << 8) | GcOpcode.BrOnCastFail, 'br_on_cast_fail'],
   [(PREFIX_GC << 8) | GcOpcode.RefI31, 'ref.i31'],
+  [(PREFIX_GC << 8) | GcOpcode.AnyConvertExtern, 'any.convert_extern'],
+  [(PREFIX_GC << 8) | GcOpcode.ExternConvertAny, 'extern.convert_any'],
   [(PREFIX_GC << 8) | GcOpcode.I31GetS, 'i31.get_s'],
   [(PREFIX_GC << 8) | GcOpcode.I31GetU, 'i31.get_u'],
 ]);

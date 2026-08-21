@@ -41,17 +41,19 @@ reference these ids.
 | T7.5 | Multi-value branches (`br` / `br_if` / `br_table`) | done — encode +14 |
 | T7.6 | `try_table` catch target depth | done — encode +2 |
 | T5 | GC `(rec …)` recursive type groups and `(sub …)` subtyping | done — parse +7, encode +5 |
+| T5.1 | `any.convert_extern` / `extern.convert_any` | done — parse +1, encode +1 |
+| T8.3 | WAT writer emitted multi-instruction const exprs as one folded paren | done (found via T5.1) |
 
 ### Open — parse side (24 files)
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T5.1** | `any.convert_extern` / `extern.convert_any` — GC ⇄ extern conversions | ~4 |
 | **T5.2** | `(ref.cast i31ref …)` — bare `…ref` spelling where `(ref H)` is expected | 1 |
 | **T6.4** | `(module definition …)` / `(module instance …)` — multi-module linking | 5 |
 | **T6.5** | `(@annotation …)` custom annotations | 1 |
 | **T8.1** | `(block (type $sig) (result …))` — block type-use combined with an inline signature | ~2 |
 | **T8.2** | `select (result i32) (result)` — empty result annotation | 1 |
+| ~~T8.3~~ | ~~multi-instruction constant expressions in the WAT writer~~ | closed |
 
 ### Open — encode side (21 modules / ~14 files), all under T7
 
@@ -214,6 +216,10 @@ gaps are narrowing.
 - *T5 (`rec` / `sub`, parse 233 → 240, V8-valid 216 → 221): **no new
   binaryen-ts finding**. Worth noting the bridge has no rec/sub concept at
   all, but nothing in it was newly blocked.*
+- *T5.1 + T8.3 (parse 240 → 241, V8-valid 221 → 222): **no new binaryen-ts
+  finding.** The bridge has no case for either conversion instruction, but
+  nothing previously working broke — it simply has no path, same as the other
+  GC gaps already filed as UP-3.*
 - *T7 remaining clusters (stack residue, relaxed SIMD, splat, singles): in
   progress.*
 

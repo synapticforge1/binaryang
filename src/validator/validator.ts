@@ -46,6 +46,7 @@ import type {
   DropExpr,
   ElemDropExpr,
   Expr,
+  ExternConvertExpr,
   GlobalGetExpr,
   GlobalSetExpr,
   I31GetExpr,
@@ -508,6 +509,9 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onRefI31Expr(e: RefI31Expr): Result {
     return this.sv.onRefI31(e.loc);
+  }
+  onExternConvertExpr(e: ExternConvertExpr): Result {
+    return this.sv.onExternConvert(e.loc, e.kind === 'any.convert_extern');
   }
   onI31GetExpr(e: I31GetExpr): Result {
     return this.sv.onI31Get(e.loc);

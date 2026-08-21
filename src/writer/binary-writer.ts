@@ -41,6 +41,7 @@ import type {
   DataDropExpr,
   DropExpr,
   ElemDropExpr,
+  ExternConvertExpr,
   Func,
   GlobalGetExpr,
   GlobalSetExpr,
@@ -680,6 +681,13 @@ class BodyWriter implements ExprVisitorDelegate {
   onRefI31Expr(_e: RefI31Expr): Result {
     this.s.writeU8(PREFIX_GC);
     this.s.writeU32Leb(GcOpcode.RefI31);
+    return Result.Ok;
+  }
+  onExternConvertExpr(e: ExternConvertExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(
+      e.kind === 'any.convert_extern' ? GcOpcode.AnyConvertExtern : GcOpcode.ExternConvertAny,
+    );
     return Result.Ok;
   }
   onI31GetExpr(e: I31GetExpr): Result {

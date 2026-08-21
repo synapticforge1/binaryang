@@ -639,7 +639,9 @@ class ResolveContext {
       }
       case 'ref.is_null':
       case 'ref.as_non_null':
-      case 'ref.i31': {
+      case 'ref.i31':
+      case 'any.convert_extern':
+      case 'extern.convert_any': {
         const [r, value] = this.resolveExpr(e.value);
         return [r, { ...e, value }];
       }

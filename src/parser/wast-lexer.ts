@@ -212,6 +212,8 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['ref.array', bare(TokenType.RefArrayKw)],
   ['ref.func', op(TokenType.RefFunc, Opcode.RefFunc)],
   ['ref.i31', op(TokenType.RefI31, G(GcOpcode.RefI31))],
+  ['any.convert_extern', op(TokenType.AnyConvertExtern, G(GcOpcode.AnyConvertExtern))],
+  ['extern.convert_any', op(TokenType.ExternConvertAny, G(GcOpcode.ExternConvertAny))],
   ['ref.is_null', op(TokenType.RefIsNull, Opcode.RefIsNull)],
   ['ref.null', op(TokenType.RefNull, Opcode.RefNull)],
   ['i31.get_s', op(TokenType.I31Get, G(GcOpcode.I31GetS))],

@@ -321,6 +321,8 @@ export class ModuleContext {
       case 'ref.eq':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'ref.i31':
+      case 'any.convert_extern':
+      case 'extern.convert_any':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'i31.get':
         return { nargs: 1, nreturns: 1, unreachable: false };

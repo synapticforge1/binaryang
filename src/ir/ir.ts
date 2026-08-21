@@ -549,6 +549,16 @@ export interface RefI31Expr {
   readonly value: Expr;
   readonly loc: Location;
 }
+/**
+ * `any.convert_extern` (0xfb 0x1a) / `extern.convert_any` (0xfb 0x1b) — the GC
+ * proposal's conversions between the `extern` and `any` hierarchies. One
+ * operand, no immediates.
+ */
+export interface ExternConvertExpr {
+  readonly kind: 'any.convert_extern' | 'extern.convert_any';
+  readonly value: Expr;
+  readonly loc: Location;
+}
 /** `i31.get_s` / `i31.get_u` — unboxes an `i31ref` to i32 (sign- or zero-extended). */
 export interface I31GetExpr {
   readonly kind: 'i31.get';
@@ -1066,6 +1076,7 @@ export type Expr =
   | RefAsNonNullExpr
   | RefEqExpr
   | RefI31Expr
+  | ExternConvertExpr
   | I31GetExpr
   | StructNewExpr
   | StructNewDefaultExpr

@@ -64,6 +64,7 @@ import {
   type ElemDropExpr,
   type Expr,
   ExternalKind,
+  type ExternConvertExpr,
   type Field,
   type Func,
   type FuncSignature,
@@ -407,6 +408,8 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.RefIsNull:
     case TokenType.RefEq:
     case TokenType.RefI31:
+    case TokenType.AnyConvertExtern:
+    case TokenType.ExternConvertAny:
     case TokenType.I31Get:
     case TokenType.StructNew:
     case TokenType.StructNewDefault:
@@ -678,6 +681,8 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.RefIsNull:
     case TokenType.RefAsNonNull:
     case TokenType.RefI31:
+    case TokenType.AnyConvertExtern:
+    case TokenType.ExternConvertAny:
     case TokenType.I31Get:
     case TokenType.StructGet:
     case TokenType.ArrayNewDefault:
@@ -828,6 +833,8 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.RefAsNonNull:
     case TokenType.RefEq:
     case TokenType.RefI31:
+    case TokenType.AnyConvertExtern:
+    case TokenType.ExternConvertAny:
     case TokenType.I31Get:
     case TokenType.StructNew:
     case TokenType.StructNewDefault:
@@ -3352,6 +3359,10 @@ export class WastParser {
         return { kind: 'ref.eq', left: op0(), right: op1(), loc } as RefEqExpr;
       case TokenType.RefI31:
         return { kind: 'ref.i31', value: op0(), loc } as RefI31Expr;
+      case TokenType.AnyConvertExtern:
+        return { kind: 'any.convert_extern', value: op0(), loc } as ExternConvertExpr;
+      case TokenType.ExternConvertAny:
+        return { kind: 'extern.convert_any', value: op0(), loc } as ExternConvertExpr;
       case TokenType.I31Get: {
         // The lexer routes both `i31.get_s` (opcode 0x1d) and `i31.get_u`
         // (0x1e) to TokenType.I31Get, so the opcode immediate determines

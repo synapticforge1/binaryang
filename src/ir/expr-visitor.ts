@@ -58,6 +58,7 @@ import type {
   DropExpr,
   ElemDropExpr,
   Expr,
+  ExternConvertExpr,
   Func,
   GlobalGetExpr,
   GlobalSetExpr,
@@ -184,6 +185,7 @@ export interface ExprVisitorDelegate {
   onRefFuncExpr?(e: RefFuncExpr): Result;
   onRefAsNonNullExpr?(e: RefAsNonNullExpr): Result;
   onRefEqExpr?(e: RefEqExpr): Result;
+  onExternConvertExpr?(e: ExternConvertExpr): Result;
   onRefI31Expr?(e: RefI31Expr): Result;
   onI31GetExpr?(e: I31GetExpr): Result;
   onStructNewExpr?(e: StructNewExpr): Result;
@@ -379,6 +381,12 @@ export class ExprVisitor {
         const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onRefI31Expr?.(e) ?? Result.Ok;
+      }
+      case 'any.convert_extern':
+      case 'extern.convert_any': {
+        const r = this.dispatch(e.value);
+        if (r === Result.Error) return r;
+        return this.d.onExternConvertExpr?.(e) ?? Result.Ok;
       }
       case 'i31.get': {
         const r = this.dispatch(e.i31);

@@ -2294,6 +2294,16 @@ export class BinaryReader {
         stack.push({ kind: 'ref.i31', value, loc } as RefI31Expr);
         return;
       }
+      case GcOpcode.AnyConvertExtern:
+      case GcOpcode.ExternConvertAny: {
+        const value = stack.pop() ?? nop();
+        stack.push({
+          kind: op === GcOpcode.AnyConvertExtern ? 'any.convert_extern' : 'extern.convert_any',
+          value,
+          loc,
+        });
+        return;
+      }
       case GcOpcode.I31GetS:
       case GcOpcode.I31GetU: {
         const i31 = stack.pop() ?? nop();

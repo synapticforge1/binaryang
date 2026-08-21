@@ -996,6 +996,17 @@ export class SharedValidator {
     return this.tc.onRefI31();
   }
 
+  /**
+   * `any.convert_extern` : [externref] -> [anyref]
+   * `extern.convert_any` : [anyref]    -> [externref]
+   */
+  onExternConvert(loc: Location, toAny: boolean): Result {
+    this.currentLoc = loc;
+    return toAny
+      ? this.tc.onCall([Type.ExternRef], [Type.AnyRef])
+      : this.tc.onCall([Type.AnyRef], [Type.ExternRef]);
+  }
+
   onI31Get(loc: Location): Result {
     this.currentLoc = loc;
     return this.tc.onI31Get();

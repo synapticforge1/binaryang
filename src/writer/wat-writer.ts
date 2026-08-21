@@ -442,10 +442,46 @@ class WatWriter extends ModuleContext {
 
   private writeInitExpr(exprs: Expr[]): void {
     if (exprs.length === 0) return;
-    this.puts('(', NC.None);
+    // A constant expression is `instr*`. Wrapping the WHOLE list in one paren
+    // is only correct for a SINGLE instruction: `(i32.const 1)` is a folded
+    // expression, but `(i32.const 1 ref.i31)` is not — it reads as `i32.const`
+    // with a bogus operand and fails to reparse. Anything longer is emitted in
+    // LINEAR form, which the parser accepts for init expressions.
+    // The expression VISITOR emits linear (post-order) instructions, not
+    // folded s-expressions, so a tree of more than one instruction comes out
+    // as `i32.const 1  ref.i31`. Wrapping that in a paren makes it read as one
+    // folded expression with a bogus operand, and it fails to reparse — which
+    // is why `(global anyref (ref.i31 (i32.const 1)))` did not round-trip.
+    // A constant expression is `instr*`; the linear form needs no wrapper and
+    // is what the parser reads back.
     this.writeExprList(exprs);
-    this.nextChar = NC.None;
-    this.puts(')', NC.Space);
+    this.nextChar = NC.Space;
+  }
+
+  /**
+   * Write a segment offset as an explicit `(offset instr*)`.
+   *
+   * Unlike a global's initializer, a data/elem offset cannot be emitted bare:
+   * the parser distinguishes it from the rest of the segment by seeing a `(`.
+   * `(offset …)` wraps a whole instruction SEQUENCE, so it stays correct for
+   * multi-instruction offsets where a plain paren would not.
+   */
+  private writeElemExpr(exprs: Expr[]): void {
+    if (exprs.length === 0) return;
+    // `(item instr*)` wraps a whole instruction SEQUENCE. The bare folded
+    // abbreviation `(ref.func 0)` only works when the element expression is a
+    // SINGLE instruction — and one expression tree can be several
+    // (`(ref.i31 (i32.const 1))` is two), so `item` is used uniformly.
+    this.openSpace('item');
+    this.writeExprList(exprs);
+    this.closeSpace();
+  }
+
+  private writeOffsetExpr(exprs: Expr[]): void {
+    if (exprs.length === 0) return;
+    this.openSpace('offset');
+    this.writeExprList(exprs);
+    this.closeSpace();
   }
 
   // -------------------------------------------------------------------------
@@ -707,6 +743,10 @@ class WatWriter extends ModuleContext {
       },
       onRefEqExpr: () => {
         this.putsNewline('ref.eq');
+        return Result.Ok;
+      },
+      onExternConvertExpr: (e) => {
+        this.putsNewline(e.kind);
         return Result.Ok;
       },
       onRefI31Expr: () => {
@@ -1420,7 +1460,7 @@ class WatWriter extends ModuleContext {
         this.writeVar(seg.tableVar, NC.Space);
         this.closeSpace();
       }
-      this.writeInitExpr(seg.offset);
+      this.writeOffsetExpr(seg.offset);
     } else if (seg.kind === 'declared') {
       this.putsSpace('declare');
     }
@@ -1438,7 +1478,7 @@ class WatWriter extends ModuleContext {
     } else {
       this.writeType(seg.elemType, NC.Space);
       for (const ee of seg.elemExprs) {
-        this.writeInitExpr(ee);
+        this.writeElemExpr(ee);
       }
     }
     this.closeNewline();
@@ -1454,7 +1494,7 @@ class WatWriter extends ModuleContext {
         this.writeVar(seg.memoryVar, NC.Space);
         this.closeSpace();
       }
-      this.writeInitExpr(seg.offset);
+      this.writeOffsetExpr(seg.offset);
     }
     this.writeQuotedData(seg.data);
     this.closeNewline();
