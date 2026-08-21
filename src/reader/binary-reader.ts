@@ -22,7 +22,11 @@ import { decodeS32Leb128, decodeS64Leb128, decodeU32Leb128 } from '../core/leb12
 // UTF-8 decoder reused across every name read. TextDecoder is stateless when
 // called via .decode(); a single module-level instance avoids reallocating
 // per call in the hot path.
-const TEXT_DECODER = new TextDecoder();
+// `ignoreBOM: true` keeps U+FEFF as an ordinary character instead of treating
+// a leading EF BB BF as a byte-order mark. Names in the binary are byte
+// strings and one of them may legitimately BE the BOM (names.wast exports it);
+// stripping it silently renames the export to "".
+const TEXT_DECODER = new TextDecoder('utf-8', { ignoreBOM: true });
 import {
   type ArrayGetExpr,
   type ArrayLenExpr,
@@ -1716,16 +1720,35 @@ export class BinaryReader {
           stack.push({ kind: 'ref.as_non_null', value, loc });
           break;
         }
-        case Opcode.BrOnNull: {
-          const depth = this.readU32Leb();
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          pushStmt(stack, stmts, { kind: 'br_on_null', target: varIndex(depth), value, loc });
-          break;
-        }
+        case Opcode.BrOnNull:
         case Opcode.BrOnNonNull: {
           const depth = this.readU32Leb();
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          pushStmt(stack, stmts, { kind: 'br_on_non_null', target: varIndex(depth), value, loc });
+          const ref = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          // The target may take `t*` below the ref. br_on_null's target takes
+          // exactly those; br_on_non_null's takes them plus the (non-null)
+          // ref, so one of its result slots is the ref itself.
+          const want = brTargetResultCount(labelStack, depth, m) -
+            (op === Opcode.BrOnNonNull ? 1 : 0);
+          const values: Expr[] = [];
+          for (let i = 0; i < want; i++) {
+            const v = stack.pop();
+            if (v === undefined) break;
+            values.unshift(v);
+          }
+          const node: Expr = {
+            kind: op === Opcode.BrOnNull ? 'br_on_null' : 'br_on_non_null',
+            target: varIndex(depth),
+            ref,
+            values,
+            loc,
+          };
+          // br_on_null falls through with the (now non-null) ref still on the
+          // stack, so it goes on the operand stack where a following
+          // instruction can consume it — `pushStmt` keeps that safe from the
+          // reordering hazard (T9.1). br_on_non_null branches AWAY with the
+          // ref and falls through with nothing, so it is a statement.
+          if (op === Opcode.BrOnNull) stack.push(node);
+          else pushStmt(stack, stmts, node);
           break;
         }
 

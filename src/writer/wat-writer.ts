@@ -1331,10 +1331,30 @@ class WatWriter extends ModuleContext {
   }
 
   /** Write `(func ...)` header (name, inline exports/imports, type) for imported funcs. */
+  /**
+   * Emit the function's `(type N)` type-use.
+   *
+   * A SIGNATURE does not identify a type: `(sub (func))` and
+   * `(sub final (func))` are both `() -> ()` but are not interchangeable. So
+   * printing only the inline `(param …) (result …)` loses which type the
+   * function actually has, and re-parsing picks whichever entry a structural
+   * match lands on. That was invisible while `synthesizeTypes` re-derived the
+   * index on both sides — both were equally wrong, so the bytes agreed — and
+   * surfaced as soon as an explicit type-use became authoritative (T7.14).
+   * wabt's own `wasm2wat` prints it for the same reason.
+   */
+  private writeFuncTypeUse(func: Func): void {
+    if (func.typeVar.kind !== 'index') return;
+    this.openSpace('type');
+    this.writeVar(func.typeVar, NC.None);
+    this.closeSpace();
+  }
+
   private writeFuncBegin(func: Func, _isImport: boolean): void {
     this.openSpace('func');
     this.writeNameOrIndex(func.name, this.funcIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
+    this.writeFuncTypeUse(func);
     this.writeFuncSig(func.sig);
     this.funcIdx++;
   }
@@ -1343,6 +1363,7 @@ class WatWriter extends ModuleContext {
     this.openSpace('func');
     this.writeNameOrIndex(func.name, this.funcIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
+    this.writeFuncTypeUse(func);
     this.funcIdx++;
     // Params (named individually if they have names)
     this.writeTypeBindings('param', func.sig.params, func.localDecls, 0);

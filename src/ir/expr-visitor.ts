@@ -653,15 +653,18 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onBrTableExpr?.(e) ?? Result.Ok;
       }
-      case 'br_on_null': {
-        const r = this.dispatch(e.value);
-        if (r === Result.Error) return r;
-        return this.d.onBrOnNullExpr?.(e) ?? Result.Ok;
-      }
+      case 'br_on_null':
       case 'br_on_non_null': {
-        const r = this.dispatch(e.value);
+        // Carried values are pushed first, then the ref being tested.
+        for (const v of e.values) {
+          const rv = this.dispatch(v);
+          if (rv === Result.Error) return rv;
+        }
+        const r = this.dispatch(e.ref);
         if (r === Result.Error) return r;
-        return this.d.onBrOnNonNullExpr?.(e) ?? Result.Ok;
+        return e.kind === 'br_on_null'
+          ? this.d.onBrOnNullExpr?.(e) ?? Result.Ok
+          : this.d.onBrOnNonNullExpr?.(e) ?? Result.Ok;
       }
       case 'br_on_cast': {
         const r = this.dispatch(e.value);

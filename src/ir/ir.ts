@@ -273,18 +273,32 @@ export interface BrTableExpr {
   readonly values: Expr[];
   readonly loc: Location;
 }
-/** `br_on_null $label` (0xd5) — branches if the top ref is null (typed-refs proposal). */
+/**
+ * `br_on_null $label` (0xd5) — branches if the top ref is null (typed-refs
+ * proposal).
+ *
+ * Operands are `[t* ref]` with the tested ref on TOP: the target may take
+ * `t*` as well, so `values` carries them exactly like {@link BrIfExpr}. The
+ * field is `ref`, not `value`, because a one-letter difference from `values`
+ * is too easy to misread at a call site.
+ */
 export interface BrOnNullExpr {
   readonly kind: 'br_on_null';
   readonly target: Var;
-  readonly value: Expr;
+  /** The ref being tested — the TOP operand. */
+  readonly ref: Expr;
+  /** Values carried to the branch target, in stack order, below the ref. */
+  readonly values: Expr[];
   readonly loc: Location;
 }
 /** `br_on_non_null $label` (0xd6) — branches if the top ref is non-null. */
 export interface BrOnNonNullExpr {
   readonly kind: 'br_on_non_null';
   readonly target: Var;
-  readonly value: Expr;
+  /** The ref being tested — the TOP operand. */
+  readonly ref: Expr;
+  /** Values carried to the branch target, in stack order, below the ref. */
+  readonly values: Expr[];
   readonly loc: Location;
 }
 /**
@@ -506,8 +520,8 @@ export interface CallIndirectExpr {
   readonly kind: 'call_indirect';
   readonly sig: FuncSignature;
   readonly typeVar: Var;
-  /** Unsettled type-use; see {@link PendingType}. */
-  readonly pendingType?: PendingType;
+  /** How the signature was named; see {@link TypeUse}. */
+  readonly typeUse?: TypeUse;
   readonly table: Var;
   readonly args: Expr[];
   readonly callee: Expr;
@@ -533,8 +547,8 @@ export interface ReturnCallIndirectExpr {
   readonly kind: 'return_call_indirect';
   readonly sig: FuncSignature;
   readonly typeVar: Var;
-  /** Unsettled type-use; see {@link PendingType}. */
-  readonly pendingType?: PendingType;
+  /** How the signature was named; see {@link TypeUse}. */
+  readonly typeUse?: TypeUse;
   readonly table: Var;
   readonly args: Expr[];
   readonly callee: Expr;
@@ -1328,36 +1342,41 @@ export interface Limits {
 
 /** A function defined (or imported) in the module. */
 /**
- * A type-use the parser could not settle, left for `synthesizeTypes`.
+ * How an item's signature was NAMED in the source, when `typeVar` alone
+ * cannot say.
  *
- * The WAT grammar lets a function / `call_indirect` name its signature either
- * with a `(type N)` type-use or with an inline `(param …) (result …)`, and
- * `typeVar` cannot record which: it is required and defaults to index 0 when
- * the source annotated nothing, so index 0 is ambiguous between "no
- * annotation" and "the source really wrote `(type 0)`".
+ * `typeVar` is required and defaults to index 0 when the source annotated
+ * nothing, so index 0 is ambiguous between "no annotation" and "the source
+ * really wrote `(type 0)`" — and `synthesizeTypes` needs to tell them apart
+ * before it decides whether to overwrite the index.
  *
- * - a {@link Var} — `(type N)` was written with NO inline signature, so the
+ * - `'resolved'` — a `(type N)` type-use was written and `typeVar` already
+ *   points at it. AUTHORITATIVE: `synthesizeTypes` must not re-derive the
+ *   index from the signature. Several distinct types can share one signature
+ *   (`(sub (func))` and `(sub final (func))` are both `() -> ()` but are not
+ *   interchangeable), so a structural match picks the wrong one.
+ * - a {@link Var} — a type-use was written with no inline signature, so the
  *   signature is adopted wholesale from the referenced type, but `N` was not
  *   resolvable at parse time. Either a forward reference, or an index into
  *   the IMPLICIT part of the type space, which only exists once
  *   `synthesizeTypes` has appended the inline signatures.
  * - `'inline'` — no `(type …)` was written at all, so the inline signature
  *   DEFINES a type and has to be interned. Deferred rather than interned at
- *   parse time so that explicit `(type …)` fields keep the low indices: the
- *   spec appends implicit types after all explicit ones, and the testsuite
- *   depends on it (`func.wast` writes `(type 1)` for an implicit entry).
+ *   parse time so explicit `(type …)` fields keep the low indices: the spec
+ *   appends implicit types after all explicit ones, and the testsuite depends
+ *   on it (`func.wast` writes `(type 1)` for an implicit entry).
  *
- * Omitted, never `undefined`, when the parser already settled it.
+ * Omitted, never `undefined`, when there is nothing to record.
  */
-export type PendingType = Var | 'inline';
+export type TypeUse = Var | 'resolved' | 'inline';
 
 export interface Func {
   name: string;
   loc: Location;
   /** Type-section reference (index or name). Filled during decode. */
   typeVar: Var;
-  /** Unsettled type-use; see {@link PendingType}. */
-  pendingType?: PendingType;
+  /** How the signature was named; see {@link TypeUse}. */
+  typeUse?: TypeUse;
   sig: FuncSignature;
   /** Local variable declarations (not including params). */
   localDecls: LocalDecl[];

@@ -54,7 +54,10 @@ reference these ids.
 | T5.3 | `br_on_cast` / `br_on_cast_fail` — never implemented | done — parse +2 (257/257), encode +2 |
 | T9.1 | Binary reader had no `pushStmt` — silent reordering | done — round-trip INVALID 60 → 27 |
 | T7.8 | Type-uses that resolve against an incomplete type index space | done — encode +6 |
-| T7.11 | Element segments against a non-nullable table | done — encode +2 (253/257) |
+| T7.11 | Element segments against a non-nullable table | done — encode +2 |
+| T7.12 | `br_on_null` / `br_on_non_null` carrying branch values | done — encode +2 |
+| T7.13 | UTF-8 BOM stripped from names | done — encode +1 |
+| T7.14 | Explicit type-use overwritten by a structural signature match | done — encode +1 |
 
 ### Open — parse side: NONE
 
@@ -67,18 +70,17 @@ everything remaining is on the encode side (T7.x), measured against V8.
 | ~~T5.3~~ | ~~`br_on_cast` / `br_on_cast_fail`~~ | closed |
 | ~~T8.3~~ | ~~multi-instruction constant expressions in the WAT writer~~ | closed |
 
-### Open — encode side (4 modules / 4 files)
+### Open — encode side: NONE
 
-Down from 21. `fully V8-valid` is 253/257.
+**All 257 spec-testsuite files encode to wasm V8 accepts — 2120/2120 modules.**
+Both original metrics are exhausted:
 
-| id | Scope | Files |
+| metric | campaign start | now |
 | --- | --- | --- |
-| **T7.11** | Non-nullable table element types — `elem.wast#2/#35/#37` ("Element segment of type funcref is not a subtype of referenced table 0 (of type `(ref func)`)"), `elem.wast#39` ("expected 1 elements for constant expression"), `array.wast#5` ("out of bounds table index 0"). Same area as T10.3, likely the same fix. | 2 |
-| **T7.12** | `br_on_null` / `br_on_non_null` carrying a value — `br_on_null.wast#2` ("expected 1 elements on the stack for branch"), `br_on_non_null.wast#2` (operand typed i32 where a ref was wanted). | 2 |
-| **T7.13** | `names.wast#2` — duplicate empty export name for functions 0 and 15. | 1 |
-| **T7.14** | `type-subtyping.wast#16` — constant expression typed `(ref 3)` where `(ref null 1)` was expected. | 1 |
-| ~~T7.9~~ | ~~`return_call_indirect` tail-call type mismatch~~ | closed by T7.8 |
-| ~~T7.10~~ | ~~Singles~~ | re-scoped into T7.11–T7.14 |
+| parse-clean | 107 / 257 | **257 / 257** |
+| fully V8-valid | 180 / 257 | **257 / 257** |
+
+Everything remaining is round-trip fidelity (T10) plus the two T9 items.
 
 ### A third metric — round-trip fidelity
 
@@ -87,11 +89,14 @@ path. T9.1 was invisible to both: a reordered module is still perfectly valid
 wasm. The decode path needs its own number — for each testsuite module we can
 encode, `binary -> wasm2wat -> wat2wasm`, then compare bytes AND re-validate.
 
-|  | before T9.1 | after T9.1 |
-| --- | --- | --- |
-| byte-identical | 1942 / 2105 | **1954 / 2105** |
-| V8-INVALID after round-trip | 60 | **27** |
-| files affected | 76 | **70** |
+|  | before T9.1 | after T9.1 | after T7.8-T7.14 |
+| --- | --- | --- | --- |
+| byte-identical | 1942 / 2105 | 1954 / 2105 | **1960 / 2120** |
+| V8-INVALID after round-trip | 60 | 27 | **27** |
+| files affected | 76 | 70 | **71** |
+
+The denominator grew because modules that could not encode at all are now in
+the population.
 
 **The byte-identity number badly understated T9.1.** The metric that matters
 is the second row: 33 modules went from producing INVALID wasm to producing
@@ -99,7 +104,10 @@ valid wasm, zero regressions (set-diffed by module, not counted). Always
 re-validate a round-trip, don't just diff it — "the bytes moved" and "the
 output is broken" are different findings and the first hides the second.
 
-### T10 — the 150 remaining round-trip differences, by cause
+### T10 — the remaining round-trip differences, by cause
+
+Re-measured after T7.14: **160 differing modules**, same seven groups. The
+counts below are from the original survey; the shape has not changed.
 
 Classified by evidence (differing binary SECTION + V8 rejection message +
 sampled diffs), not by guessing. Some of these may fall out of the remaining

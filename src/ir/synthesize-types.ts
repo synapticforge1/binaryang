@@ -27,7 +27,7 @@ import { ExternalKind } from '../core/binary.ts';
 import { isRefValueType, varIndex } from './ir.ts';
 import { ExprVisitor } from './expr-visitor.ts';
 import { Result } from '../core/result.ts';
-import type { FuncSignature, Module, PendingType, TypeEntry, ValueType, Var } from './ir.ts';
+import type { FuncSignature, Module, TypeEntry, TypeUse, ValueType, Var } from './ir.ts';
 
 const NO_LOC = { filename: '', line: 0, column: 0, offset: 0 };
 
@@ -57,39 +57,40 @@ export function synthesizeTypes(module: Module): void {
     return idx;
   };
 
-  // Items whose type-use the parser could not settle. Deferred for two
-  // different reasons, both about INDEX ORDER: an item that references an
-  // existing type contributes nothing to the section and must not have a
-  // spurious `() -> ()` appended for it, and an item whose inline signature
-  // DEFINES a type has to be appended after every explicit `(type …)` field,
-  // because the spec puts implicit types after explicit ones and the
-  // testsuite depends on it (`func.wast` writes `(type 1)` for an implicit
-  // entry).
-  const pending: { pendingType?: PendingType; sig: FuncSignature; typeVar: Var }[] = [];
+  // Items the parser could not settle. Deferred for two different reasons,
+  // both about INDEX ORDER: an item that references an existing type
+  // contributes nothing to the section and must not have a spurious
+  // `() -> ()` appended for it, and an item whose inline signature DEFINES a
+  // type has to be appended after every explicit `(type …)` field, because the
+  // spec puts implicit types after explicit ones and the testsuite depends on
+  // it (`func.wast` writes `(type 1)` for an implicit entry).
+  //
+  // `typeUse === 'resolved'` is skipped entirely: the source named a type and
+  // `typeVar` already points at it. Re-deriving the index from the signature
+  // picks the wrong type whenever several share one — `(sub (func))` and
+  // `(sub final (func))` are both `() -> ()`, and type-subtyping.wast has four
+  // such types in a row.
+  const pending: { typeUse?: TypeUse; sig: FuncSignature; typeVar: Var }[] = [];
+
+  const settle = (item: { typeUse?: TypeUse; sig: FuncSignature; typeVar: Var }): void => {
+    if (item.typeUse === 'resolved') return;
+    if (item.typeUse !== undefined) {
+      pending.push(item);
+      return;
+    }
+    item.typeVar = varIndex(ensureTypeFor(item.sig));
+  };
 
   for (const imp of module.imports) {
-    if (imp.kind === ExternalKind.Func) {
-      if (imp.func.pendingType !== undefined) {
-        pending.push(imp.func);
-        continue;
-      }
-      const idx = ensureTypeFor(imp.func.sig);
-      imp.func.typeVar = varIndex(idx);
-    } else if (imp.kind === ExternalKind.Tag) {
+    if (imp.kind === ExternalKind.Func) settle(imp.func);
+    else if (imp.kind === ExternalKind.Tag) {
       const idx = ensureTypeFor(imp.tag.sig);
       // Tags reuse the func-type encoding for their signature.
       (imp.tag as { typeVar?: ReturnType<typeof varIndex> }).typeVar = varIndex(idx);
     }
   }
 
-  for (const f of module.funcs) {
-    if (f.pendingType !== undefined) {
-      pending.push(f);
-      continue;
-    }
-    const idx = ensureTypeFor(f.sig);
-    f.typeVar = varIndex(idx);
-  }
+  for (const f of module.funcs) settle(f);
 
   for (const tag of module.tags) {
     const idx = ensureTypeFor(tag.sig);
@@ -100,18 +101,21 @@ export function synthesizeTypes(module: Module): void {
   // collected from every body — including the bodies of funcs deferred above.
   const collector = new ExprVisitor({
     onCallIndirectExpr: (e) => {
-      if (e.pendingType !== undefined) pending.push(e as unknown as typeof pending[number]);
+      settle(e as unknown as typeof pending[number]);
       return Result.Ok;
     },
     onReturnCallIndirectExpr: (e) => {
-      if (e.pendingType !== undefined) pending.push(e as unknown as typeof pending[number]);
+      settle(e as unknown as typeof pending[number]);
       return Result.Ok;
     },
   });
   for (const f of module.funcs) collector.visitExprList(f.body);
 
   for (const item of pending) {
-    const p = item.pendingType!;
+    const p = item.typeUse;
+    // `settle` never pushes a 'resolved' item, but narrow rather than assert:
+    // the guarantee lives in another function and could drift.
+    if (p === undefined || p === 'resolved') continue;
     if (p === 'inline') {
       // The inline signature defines the type.
       item.typeVar = varIndex(ensureTypeFor(item.sig));

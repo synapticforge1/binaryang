@@ -92,7 +92,6 @@ import {
   type MemorySizeExpr,
   type Module,
   type NopExpr,
-  type PendingType,
   type QuaternaryExpr,
   type RefAsNonNullExpr,
   type RefCastExpr,
@@ -134,6 +133,7 @@ import {
   type TryExpr,
   type TryTableExpr,
   type TypeEntry,
+  type TypeUse,
   type UnaryExpr,
   type UnreachableExpr,
   type ValueType,
@@ -628,7 +628,7 @@ function decodeStringToken(text: string): Uint8Array {
 
 /** Strip surrounding quotes and resolve escapes for a WAT string, returning text. */
 function decodeStringText(raw: string): string {
-  return new TextDecoder().decode(decodeStringToken(raw));
+  return TEXT_DECODER.decode(decodeStringToken(raw));
 }
 
 /**
@@ -1238,22 +1238,26 @@ export class WastParser {
    * matters BEFORE the body is parsed, because local slot numbering starts at
    * `sig.params.length`.
    *
-   * Only an already-declared type can be resolved here. Returns the
-   * {@link PendingType} to record when it cannot be — a forward reference, or
-   * an index into the implicit part of the type space that `synthesizeTypes`
-   * has not built yet — and null when nothing is left to settle.
+   * Returns the {@link TypeUse} to record: `'resolved'` once the index is
+   * settled (which makes it AUTHORITATIVE — `synthesizeTypes` must not
+   * re-derive it, because several distinct types can share one signature),
+   * the var itself when the referenced type does not exist yet, or null when
+   * no type-use was written at all.
    */
   private settleTypeUse(
     module: Module,
     typeVar: Var | null,
     sig: FuncSignature,
-  ): PendingType | null {
-    if (typeVar === null || sig.params.length > 0 || sig.results.length > 0) return null;
+  ): TypeUse | null {
+    if (typeVar === null) return null;
+    // A type-use WITH an inline signature still takes its INDEX from the
+    // type-use; the inline part only restates the signature.
+    if (sig.params.length > 0 || sig.results.length > 0) return 'resolved';
     const entry = this.lookupFuncTypeEntry(module, typeVar);
     if (entry === null) return typeVar;
     sig.params.push(...entry.params);
     sig.results.push(...entry.results);
-    return null;
+    return 'resolved';
   }
 
   private parseTypeUseOpt(): Var | null {
@@ -1824,12 +1828,12 @@ export class WastParser {
       const name = this.parseBindVarOpt();
       const typeVar = this.parseTypeUseOpt();
       const { sig } = this.parseFuncSignature();
-      const pendingType = this.settleTypeUse(module, typeVar, sig);
+      const typeUse = this.settleTypeUse(module, typeVar, sig);
       const func: Func = {
         name,
         loc,
         typeVar: typeVar ?? varIndex(0),
-        ...(pendingType !== null ? { pendingType } : {}),
+        ...(typeUse !== null ? { typeUse } : {}),
         sig,
         localDecls: [],
         body: [],
@@ -1946,7 +1950,7 @@ export class WastParser {
     // matters BEFORE the body is parsed, because local slot numbering starts
     // at sig.params.length. Only the already-declared case can be resolved
     // here; a forward reference still falls back to synthesizeTypes.
-    const pendingType = this.settleTypeUse(module, typeVar, sig);
+    const typeUse = this.settleTypeUse(module, typeVar, sig);
 
     if (inlineImp !== null) {
       // This is an imported function declared as (func (import ...) ...)
@@ -1954,7 +1958,7 @@ export class WastParser {
         name,
         loc,
         typeVar: typeVar ?? varIndex(0),
-        ...(pendingType !== null ? { pendingType } : {}),
+        ...(typeUse !== null ? { typeUse } : {}),
         sig,
         localDecls: [],
         body: [],
@@ -2017,7 +2021,7 @@ export class WastParser {
         name,
         loc,
         typeVar: typeVar ?? varIndex(0),
-        ...(pendingType !== null ? { pendingType } : {}),
+        ...(typeUse !== null ? { typeUse } : {}),
         sig,
         localDecls,
         body,
@@ -3152,15 +3156,25 @@ export class WastParser {
         const values = operands.slice(0, -1).filter((e) => e.kind !== 'nop');
         return { kind: 'br_if', target: v, cond, values, loc } as BrIfExpr;
       }
-      case TokenType.BrOnNull: {
-        const v = this.parseVar();
-        if (v === null) return null;
-        return { kind: 'br_on_null', target: v, value: op0(), loc } as BrOnNullExpr;
-      }
+      case TokenType.BrOnNull:
       case TokenType.BrOnNonNull: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'br_on_non_null', target: v, value: op0(), loc } as BrOnNonNullExpr;
+        // Stack order is `[t*] [ref]` — the tested ref is the TOP operand and
+        // any values the target carries sit BELOW it, exactly as for `br_if`.
+        // Taking op0() read the bottom operand as the ref, so
+        // `(br_on_null $l (local.get $n) (local.get $r))` tested $n and
+        // dropped $r entirely. A padded Nop can never be a real carried value,
+        // so it drops out.
+        const ref = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
+        const values = operands.slice(0, -1).filter((x) => x.kind !== 'nop');
+        return {
+          kind: tt === TokenType.BrOnNull ? 'br_on_null' : 'br_on_non_null',
+          target: v,
+          ref,
+          values,
+          loc,
+        } as BrOnNullExpr | BrOnNonNullExpr;
       }
       case TokenType.BrOnCast:
       case TokenType.BrOnCastFail: {
@@ -3224,7 +3238,7 @@ export class WastParser {
         // encoded against whatever type happened to be first.
         return {
           kind: 'call_indirect',
-          ...(typeVar === null ? { pendingType: 'inline' as const } : {}),
+          ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
           table: tableVar,
           sig,
           typeVar: typeVar ?? varIndex(0),
@@ -3259,7 +3273,7 @@ export class WastParser {
         // encoded against whatever type happened to be first.
         return {
           kind: 'return_call_indirect',
-          ...(typeVar === null ? { pendingType: 'inline' as const } : {}),
+          ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
           sig,
           typeVar: typeVar ?? varIndex(0),
           table: tableVar,
@@ -4823,7 +4837,14 @@ const BARE_REF_RESULT_KINDS: ReadonlyMap<TokenType, ExpectedConst['kind']> = new
 // Module-level codec singleton, matching the convention in stream.ts /
 // wat-writer.ts / binary-reader.ts / lexer-source.ts: TextDecoder is stateless
 // under .decode(), so one shared instance avoids reallocating per call.
-const TEXT_DECODER = new TextDecoder();
+//
+// `ignoreBOM: true` reads confusingly — it means "do NOT give U+FEFF its
+// byte-order-mark meaning", i.e. keep it as an ordinary character. A wasm name
+// is a byte string, and names.wast exports one that is exactly the UTF-8 BOM
+// (EF BB BF) to check that. Stripping it produced a SECOND empty export name
+// and V8 rejected the module for a duplicate export. Only the whole-file
+// decode in lexer-source.ts should strip a leading BOM.
+const TEXT_DECODER = new TextDecoder('utf-8', { ignoreBOM: true });
 const TEXT_ENCODER = new TextEncoder();
 
 const F32_BUF = new ArrayBuffer(4);
