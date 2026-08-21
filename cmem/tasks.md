@@ -116,8 +116,14 @@ output is broken" are different findings and the first hides the second.
 
 ### T10 — the remaining round-trip differences, by cause
 
-Re-measured after T7.14: **160 differing modules**, same seven groups. The
-counts below are from the original survey; the shape has not changed.
+**Re-measured 2026-08-21 after the whole T9/T11 sequence: 159 differing
+modules, 26 V8-invalid after round-trip.** The seven groups below still
+describe it; T10.3 grew (it now covers the elem/array modules T7.11 made
+encodable) and T10.6 shrank as the validator work fixed some of the same
+producers. Re-run the harness before starting any of them.
+
+This is now **the only campaign metric with open work.** parse-clean,
+V8-validity and validator agreement are all exhausted.
 
 Classified by evidence (differing binary SECTION + V8 rejection message +
 sampled diffs), not by guessing. Some of these may fall out of the remaining

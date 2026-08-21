@@ -45,6 +45,28 @@ binaryen-ts submodule is pinned at `6c6f81f66` (v1.0.9). The working checkout is
 three gaps listed there are already fixed upstream. An upstream report filed from that list would
 have been noise. — `tasks.md`, living log rule 2
 
+**Measure the direction your metric CANNOT see, or you will report the wrong verdict.** The
+validator-agreement metric counts modules V8 accepts that we also accept — false *rejections*. It
+says nothing about what a permissive validator waves through. On that number alone the T9.3 typed
+lattice looked like a **regression** (2120 → 2110) and was nearly reported as one. Adding the
+opposite direction — `assert_invalid` modules we correctly reject — showed it caught **28 more real
+errors**, and the ten false rejections turned out to be ten *further* bugs the coarse lattice had
+been hiding. One-sided metrics produce confidently wrong conclusions. — `tasks.md`, T9.3/T9.4
+
+🔁 **Read the field the code actually sets.** The T9.5 survey asked `hasErrors(result.errors)`; the
+validator signals failure through `result`, and `dropTypes` returned `Result.Error` **without
+recording a message**. Every stack underflow therefore read as "accepted". The reported gap was
+**903 missed**; measured on `result` it was **314**, and fixing the *report* accounted for the
+difference before a single check was added. Two lessons in one: a silent failure is a defect in its
+own right (`wasm-validate` exited non-zero and printed nothing), and it corrupts every measurement
+that reads the wrong field. — `tasks.md`, T9.5
+
+**When a fix makes a metric WORSE, that is information — chase it before explaining it away.**
+Correcting the element-segment type on the binary side dropped round-trip fidelity 1961 → 1779.
+The instinct is to call it acceptable collateral; following it instead found the other half of the
+bug — the WAT writer's `func` shorthand was gated on the *nullable* `funcref` when that spelling
+means `(ref func)`. Both halves fixed, fidelity back to 1961. — `tasks.md`, T11
+
 **Diff the whole per-file list, not the total.** Every tranche recorded newly-passing *and*
 newly-failing files by set difference, not just the count. A tranche that fixes 14 and breaks 2
 shows the same delta as one that fixes 12 and breaks 0.
@@ -69,6 +91,28 @@ the real index — for four tranches, behind a passing test.
 🔁 **When a rule is off by a CONSTANT, test the neighbours.** The `try_table` catch depth was fixed
 by emitting depths 0, 1 and 2 for one shape and seeing which V8 accepted. Reasoning about the spec
 rule had already produced the wrong answer once.
+
+🔁 **Read what the spec test ASSERTS before reasoning about the algorithm.** `uninitialized local`
+was deferred with the reasoning that it needed "an init set per control frame, intersected at an
+`if` join" and that any approximation would reject valid code. `local_init.wast`'s own
+`assert_invalid` cases say otherwise: setting a local in **both** arms of an `if` still leaves it
+uninitialised afterwards, so there is no join and no intersection — just frame-scoped rollback. The
+feature was a fraction of the estimated size, carried no false-rejection risk, and closed the
+category on the first run. The evidence was already in the repo and took minutes to read. —
+`tasks.md`, T9.9
+
+**Never read OUR OWN rendering as the source.** The last `assert_invalid` case was investigated as
+`select (result any)` — which is what `wasm2wat` printed. The source was
+`select (result (ref 1))`, and the misprint was itself a symptom of the bug being hunted (the
+writer emitted `0x00` for the annotation). When a tool under investigation renders the input, get
+the input from the file. — `tasks.md`, T9.10
+
+**A cast is where a refactor stops.** The T7.4 `ValueType` refactor widened the IR from `Type` to
+`Type | RefValueType`, and every site that had a cast survived compilation unchanged and silently
+wrong: `this.s.writeU8(t as number)` wrote `0x00` for an object, so **every** typed-ref
+`select (result …)` was mis-encoded; a type-lookup key built by string interpolation produced
+`(func (param [object Object]))`. After widening a type, grep the old name for casts and template
+interpolation — the compiler will not.
 
 **Check the INPUT before blaming the code.** Twice in one session a "parser bug" was invalid WAT of
 my own writing: `br_if` leaves its values on the stack when *not* taken, so nothing may follow it
@@ -122,6 +166,20 @@ Each single-slot field looked adequate until a multi-value or parameterised case
 field holds "the" value of something the format allows several of, that is the bug, not the call
 site.**
 
+**An encoder must never REPAIR invalid input.** The writer preferred the funcidx element encoding
+for any all-`ref.func` segment. That silently turned a module the spec calls invalid — a nullable
+`funcref` segment against a `(ref func)` table — into one V8 accepts, so `wat2wasm` was quietly
+fixing its input. A tool that turns invalid input into valid output is worse than one that rejects
+it: the error simply moves downstream. The distinction had been collapsed in **five** places at
+once (parser, binary reader, binary writer, WAT writer, validator), each hiding the next. —
+`tasks.md`, T11
+
+🔁 **The same off-by-one recurs in every layer that walks the same structure.** `try_table` catch
+targets resolve in the ENCLOSING scope. That was fixed in the parser in T7.6 — and reappeared
+unchanged in the validator in T9.8, where the catches were checked after `beginTryTable` had
+already pushed the try_table's own label. Six valid modules rejected. When you fix a scoping rule
+in one layer, grep for the other layers that implement it.
+
 **Coarsen at the CONSUMER's boundary, never in an encoder.** The validator's type-checker and the
 binaryen bridge both have flat type surfaces and legitimately cannot hold a concrete typed ref, so
 they call `coarsenValueType` at their entry points — a handful of methods rather than ~20 call
@@ -147,6 +205,25 @@ say in the test which one you are doing and why.
 **A test whose weak spot is known should say so in the test.** The nesting case for `try_table`
 catch depth is kept, but its comment now states it does not pin the convention and points at the
 one that does. A test that quietly overclaims is worse than no test.
+
+**A guard is only as wide as its CORPUS.** The standing "no name-var survives `resolveNames`"
+sweep — the guard credited below with ending a whole class — did not catch the `select (result
+(ref $t))` annotation, because no spec-testsuite module writes one. It was found instead by the
+binary writer's fail-loud check, once a cast stopped hiding it. Class guards are the right shape,
+but state what they run over, and do not treat them as proof for inputs the corpus never contains.
+
+**When a new check rejects something valid, suspect the CHECK's inputs before loosening the check.**
+Making the reference lattice precise produced ten false rejections. The tempting fix — widen the
+lattice until the number goes green — would have undone the entire point. Every one of the ten was
+a *separate* bug the coarse lattice had been masking: a producer still reporting a placeholder
+type, a rule that skipped its push in unreachable code, a canonical key that baked in a raw index,
+a nullability rule applied to the wrong side. **A green metric bought by weakening a check is worth
+less than a red one.** — `tasks.md`, T9.3/T9.4
+
+**Test the failing-by-design case, and flip it when it stops failing.** A known gap (cross-group
+forward type references) was written into the test suite as an assertion that we *do not* catch it,
+with the reason. When T9.7 closed it, that test failed — which is exactly how the gap announced it
+was gone. Documented gaps belong in the suite, not only in a log.
 
 **Prefer one guard for a class over one test per instance.** See the no-unresolved-name-var sweep in
 §3. Six individual regression tests would not have found the seventh.
