@@ -11,7 +11,8 @@ import { defaultFeatures } from '../core/feature.ts';
 import type { Features } from '../core/feature.ts';
 import { addError, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
-import { getOpcodeNaturalAlign, TypeChecker } from './type-checker.ts';
+import { TypeChecker } from './type-checker.ts';
+import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, ValueType } from '../ir/ir.ts';
 import { CatchKind, isRefValueType, varIndex } from '../ir/ir.ts';
@@ -297,6 +298,42 @@ export class SharedValidator {
   /** `(ref null $idx)` — what an operand slot accepts for a defined type. */
   private refNullTo(idx: number): ValueType {
     return { kind: 'ref', heapType: varIndex(idx), nullable: true };
+  }
+
+  /**
+   * Every heap-type INDEX inside a value type must name a real type-section
+   * entry.
+   *
+   * Nothing checked this: `(array (mut (ref null 10)))` in a module with one
+   * type validated clean, because the index is only ever consulted when some
+   * subtyping question happens to reach it — and `heapSatisfies` treats an
+   * unknown index as "accept" so it does not emit a second error for a cause
+   * reported elsewhere. That deferral only works if the cause IS reported
+   * somewhere, which is here.
+   */
+  /** Report an instruction that is not allowed in a constant expression. */
+  onNonConstExpr(loc: Location, kind: string): Result {
+    return this.printError(loc, `constant expression required: ${kind} is not constant`);
+  }
+
+  /** Report a type that declares a FINAL type as its supertype. */
+  onFinalSupertype(loc: Location, idx: number, superIdx: number): Result {
+    return this.printError(loc, `sub type ${idx} extends final type ${superIdx}`);
+  }
+
+  /** Report a supertype index that names no type. */
+  onUnknownType(loc: Location, idx: number): Result {
+    return this.printError(loc, `unknown type ${idx}`);
+  }
+
+  checkValueType(loc: Location, vt: ValueType, what: string): Result {
+    if (!isRefValueType(vt)) return Result.Ok;
+    const h = vt.heapType;
+    if (h.kind !== 'index') return Result.Ok;
+    if (h.value >= this.numTypes) {
+      return this.printError(loc, `unknown type ${h.value} in ${what}`);
+    }
+    return Result.Ok;
   }
 
   onFuncType(
@@ -799,7 +836,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
     r = combineResults(r, this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false));
     r = combineResults(r, this.tc.onLoad(opcode, mt?.limits.is64 ?? false));
@@ -810,7 +851,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
     r = combineResults(r, this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false));
     r = combineResults(r, this.tc.onStore(opcode, mt?.limits.is64 ?? false));
@@ -827,7 +872,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onLoadSplat(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -843,7 +892,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onLoadZero(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -926,7 +979,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onAtomicLoad(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -942,7 +999,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onAtomicStore(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -958,7 +1019,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onAtomicRmw(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -974,7 +1039,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onAtomicRmwCmpxchg(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -990,7 +1059,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onAtomicWait(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -1006,7 +1079,11 @@ export class SharedValidator {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
     r = combineResults(r, this.tc.onAtomicNotify(opcode, mt?.limits.is64 ?? false));
     return r;
@@ -1185,6 +1262,11 @@ export class SharedValidator {
     return this.tc.onCall([this.refNullTo(typeIdx)], [packedToStackType(field.type)]);
   }
 
+  /** Reject a write to an immutable struct field or array element. */
+  private checkMutable(loc: Location, mutable: boolean, what: string): Result {
+    return mutable ? Result.Ok : this.printError(loc, `${what} is immutable`);
+  }
+
   onStructSet(loc: Location, typeIdx: number, fieldIdx: number): Result {
     this.currentLoc = loc;
     const st = this.checkStructTypeIndex(typeIdx, loc);
@@ -1194,7 +1276,10 @@ export class SharedValidator {
       this.printError(loc, `field index ${fieldIdx} out of range for struct type ${typeIdx}`);
       return Result.Error;
     }
-    return this.tc.onCall([this.refNullTo(typeIdx), packedToStackType(field.type)], []);
+    return combineResults(
+      this.checkMutable(loc, field.mutable, `field ${fieldIdx} of type ${typeIdx}`),
+      this.tc.onCall([this.refNullTo(typeIdx), packedToStackType(field.type)], []),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1271,9 +1356,12 @@ export class SharedValidator {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
-    return this.tc.onCall(
-      [this.refNullTo(typeIdx), Type.I32, packedToStackType(at.element.type)],
-      [],
+    return combineResults(
+      this.checkMutable(loc, at.element.mutable, `element of array type ${typeIdx}`),
+      this.tc.onCall(
+        [this.refNullTo(typeIdx), Type.I32, packedToStackType(at.element.type)],
+        [],
+      ),
     );
   }
 
@@ -1282,9 +1370,12 @@ export class SharedValidator {
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     // [ref, offset, value, size] -> []
-    return this.tc.onCall(
-      [this.refNullTo(typeIdx), Type.I32, packedToStackType(at.element.type), Type.I32],
-      [],
+    return combineResults(
+      this.checkMutable(loc, at.element.mutable, `element of array type ${typeIdx}`),
+      this.tc.onCall(
+        [this.refNullTo(typeIdx), Type.I32, packedToStackType(at.element.type), Type.I32],
+        [],
+      ),
     );
   }
 
@@ -1294,9 +1385,12 @@ export class SharedValidator {
     const src = this.checkArrayTypeIndex(srcTypeIdx, loc);
     if (!dest || !src) return Result.Error;
     // [destRef, destOffset, srcRef, srcOffset, size] -> []
-    return this.tc.onCall(
-      [this.refNullTo(destTypeIdx), Type.I32, this.refNullTo(srcTypeIdx), Type.I32, Type.I32],
-      [],
+    return combineResults(
+      this.checkMutable(loc, dest.element.mutable, `element of array type ${destTypeIdx}`),
+      this.tc.onCall(
+        [this.refNullTo(destTypeIdx), Type.I32, this.refNullTo(srcTypeIdx), Type.I32, Type.I32],
+        [],
+      ),
     );
   }
 
@@ -1305,7 +1399,10 @@ export class SharedValidator {
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     // [ref, destOffset, srcOffset, size] -> []
-    return this.tc.onCall([this.refNullTo(typeIdx), Type.I32, Type.I32, Type.I32], []);
+    return combineResults(
+      this.checkMutable(loc, at.element.mutable, `element of array type ${typeIdx}`),
+      this.tc.onCall([this.refNullTo(typeIdx), Type.I32, Type.I32, Type.I32], []),
+    );
   }
 
   onArrayLen(loc: Location): Result {
@@ -1476,13 +1573,18 @@ export class SharedValidator {
     memIdx: number,
     align: number,
     offset: bigint,
-    _lane: number,
+    lane: number,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
+    r = combineResults(r, this.checkLaneIndex(loc, lane, this.simdLaneCount(opcode)));
     r = combineResults(r, this.tc.onSimdLoadLane(mt?.limits.is64 ?? false));
     return r;
   }
@@ -1493,20 +1595,66 @@ export class SharedValidator {
     memIdx: number,
     align: number,
     offset: bigint,
-    _lane: number,
+    lane: number,
   ): Result {
     this.currentLoc = loc;
     const mt = this.checkMemoryIndex(memIdx, loc);
     let r = mt ? Result.Ok : Result.Error;
-    const natAlign = getOpcodeNaturalAlign(opcode);
+    // The canonical per-opcode table in `core/opcode.ts`, not the
+    // validator's own partial copy — that one had no SIMD memory entries,
+    // so it returned 0 and the alignment check was skipped entirely for
+    // every `v128.load*_splat` / `*_lane` / `*_zero`.
+    const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
+    r = combineResults(r, this.checkLaneIndex(loc, lane, this.simdLaneCount(opcode)));
     r = combineResults(r, this.tc.onSimdStoreLane(mt?.limits.is64 ?? false));
     return r;
   }
 
-  onSimdShuffleOp(loc: Location, _opcode: number): Result {
+  /**
+   * `i8x16.shuffle` — every mask byte selects a lane from the two 16-byte
+   * operands concatenated, so it must be < 32. The mask was not checked at
+   * all; `i8x16.shuffle … 255` validated clean.
+   */
+  onSimdShuffleOp(loc: Location, _opcode: number, lanes?: Uint8Array): Result {
     this.currentLoc = loc;
-    return this.tc.onSimdShuffleOp();
+    let r: Result = Result.Ok;
+    if (lanes !== undefined) {
+      for (const lane of lanes) {
+        if (lane >= 32) {
+          r = combineResults(r, this.printError(loc, `invalid lane index ${lane} (max 31)`));
+          break;
+        }
+      }
+    }
+    return combineResults(r, this.tc.onSimdShuffleOp());
+  }
+
+  /**
+   * Lane count for a `v128.load*_lane` / `store*_lane` sub-opcode: 16 lanes
+   * for the 8-bit form down to 2 for the 64-bit one.
+   */
+  private simdLaneCount(opcode: number): number {
+    switch (opcode & 0xffff) {
+      case 0x54:
+      case 0x58:
+        return 16;
+      case 0x55:
+      case 0x59:
+        return 8;
+      case 0x56:
+      case 0x5a:
+        return 4;
+      default:
+        return 2;
+    }
+  }
+
+  private checkLaneIndex(loc: Location, lane: number, count: number): Result {
+    if (lane >= count) {
+      return this.printError(loc, `invalid lane index ${lane} (max ${count - 1})`);
+    }
+    return Result.Ok;
   }
 
   // ---------------------------------------------------------------------------

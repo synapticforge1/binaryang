@@ -62,6 +62,7 @@ reference these ids.
 | T9.3 | Validator on `ValueType`; real reference subtyping | done — assert_invalid caught 1806 → 1834 |
 | T9.4 | The 10 valid modules T9.3's lattice rejected | done — agreement back to 2120/2120 |
 | T9.5 | Modules the spec says are invalid that we validated clean | done — assert_invalid 2395 → 2532/2737 |
+| T9.6 | Module-level structural checks that did not exist | done — assert_invalid 2532 → 2579/2737 |
 
 ### Open — parse side: NONE
 
@@ -177,7 +178,8 @@ errors caught, zero false rejections.
 | id | Scope | Files |
 | --- | --- | --- |
 | ~~T9.5~~ | **DONE.** The "903" was a measurement artefact (see the correction above); the real figure was 314. Fixing the silent report alone accounted for the difference. Three real gaps then fell out: `checkSignature` peeked without an ARITY check (`peekType` answers the `Type.Any` wildcard below the frame base, and `br` only peeks — so `(block (result i32) (br 0))` validated) **+102**; a 32-bit memory's page limit is 65536, not 2^32-1; and a memarg `offset` must fit the memory's index type, newly reachable because T9.2 widened the reader to u64. **2395 → 2532 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/rejects_invalid.test.ts`. | — |
-| **T9.6** | The 205 `assert_invalid` modules still accepted, by the reason the spec gives: type mismatch 56, out-of-bounds memory access 35, unknown type 24, sub type 21, out-of-bounds table access 16, constant expression required 12, memory size 10, alignment larger than natural 8, plus a tail. **74 of the 205 are also accepted by V8**, so at most ~131 are genuinely ours — several spec tests predate proposals that legalised what they assert against. Mostly module-level structural checks that simply do not exist yet, not type-checker bugs. | — |
+| ~~T9.6~~ | **DONE.** Of the 205, **74 are also accepted by V8** — those spec tests predate proposals that legalised what they assert against — leaving 131 genuinely ours. Six categories closed: SIMD-memory ALIGNMENT (the validator kept its own partial natural-align table with no SIMD entries, so the check silently did nothing — `core/opcode.ts` already owns the canonical one and CLAUDE.md says not to duplicate it); LANE INDICES for `i8x16.shuffle` and `load*_lane` / `store*_lane`; IMMUTABILITY of struct fields and array elements; UNKNOWN type indices in value types; FINAL supertypes (an absent `(sub …)` is implicitly final); and CONSTANT EXPRESSIONS (only the const family, ref forms, `global.get`, extended-const arithmetic and GC allocations). **2532 → 2579 / 2737**, agreement unmoved at 2120/2120. Regression test `tests/validator/structural_checks.test.ts`. | — |
+| **T9.7** | The 84 still ours, by the reason the spec gives: type mismatch 52, sub type 17 (real structural subtype checking — a subtype's fields must extend its supertype's; only the finality rule is in), unknown type 6 (all cross-group FORWARD references — the index check runs after the whole section is declared, so it asks "does this type exist", not "was it in scope yet"), uninitialized local 4 (needs local-init tracking for non-defaultable locals), array types do not match 3, plus 2 singles. | — |
 
 ### Open — T9: found during the campaign, invisible to both metrics
 

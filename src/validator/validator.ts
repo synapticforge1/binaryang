@@ -8,8 +8,8 @@ import type { Field, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
-import { PREFIX_THREADS } from '../core/opcode.ts';
-import type { ErrorList } from '../core/error.ts';
+import { anyOpcodeName, PREFIX_THREADS } from '../core/opcode.ts';
+import type { ErrorList, Location } from '../core/error.ts';
 import type {
   ArrayCopyExpr,
   ArrayFillExpr,
@@ -269,6 +269,47 @@ class ModuleValidator implements ExprVisitorDelegate {
       }
     }
 
+    // Every heap-type index in the module must name a real type. This has to
+    // run AFTER the whole type section is declared — a type may legally
+    // reference one defined later.
+    const seenTypes = m.types.length;
+    const checkVt = (vt: ValueType, what: string, loc: typeof m.loc): void => {
+      this.acc(this.sv.checkValueType(loc, vt, what));
+    };
+    for (const [i, te] of m.types.entries()) {
+      if (te.kind === 'func') {
+        for (const p of te.sig.params) checkVt(p, `type ${i} param`, te.loc);
+        for (const r of te.sig.results) checkVt(r, `type ${i} result`, te.loc);
+      } else if (te.kind === 'struct') {
+        for (const f of te.fields) checkVt(f.type, `type ${i} field`, te.loc);
+      } else if (te.field) {
+        checkVt(te.field.type, `type ${i} element`, te.loc);
+      }
+      for (const sv of te.sub?.supertypes ?? []) {
+        if (sv.kind !== 'index') continue;
+        if (sv.value >= seenTypes) {
+          this.acc(this.sv.onUnknownType(te.loc, sv.value));
+          continue;
+        }
+        // A FINAL type cannot be extended. Absent `(sub …)` means implicitly
+        // final, so a bare `(type (func))` is final too — which is why
+        // `(type $a (func)) (type $b (sub 0 (func)))` is invalid even though
+        // nothing says "final" anywhere in it.
+        const superEntry = m.types[sv.value];
+        if (superEntry !== undefined && (superEntry.sub === undefined || superEntry.sub.final)) {
+          this.acc(this.sv.onFinalSupertype(te.loc, i, sv.value));
+        }
+      }
+    }
+    for (const g of m.globals) checkVt(g.type, 'global', g.loc);
+    for (const t of m.tables) checkVt(t.elemType, 'table', t.loc);
+    for (const el of m.elemSegments) checkVt(el.elemType, 'elem segment', el.loc);
+    for (const f of m.funcs) {
+      for (const p of f.sig.params) checkVt(p, 'param', f.loc);
+      for (const r of f.sig.results) checkVt(r, 'result', f.loc);
+      for (const d of f.localDecls) checkVt(d.type, 'local', f.loc);
+    }
+
     // Imports
     let funcImportIdx = 0;
     for (const imp of m.imports) {
@@ -312,7 +353,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       this.acc(this.sv.onTable(table.loc, table.elemType, table.limits));
       if (table.init.length > 0) {
         this.acc(this.sv.beginInitExpr(table.loc, table.elemType));
-        this.visitExprList(table.init);
+        this.visitConstExpr(table.init, table.loc);
         this.acc(this.sv.endInitExpr());
       }
     }
@@ -326,7 +367,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     for (const global of m.globals) {
       this.acc(this.sv.onGlobal(global.loc, global.type, global.mutable));
       this.acc(this.sv.beginInitExpr(global.loc, global.type));
-      this.visitExprList(global.init);
+      this.visitConstExpr(global.init, global.loc);
       this.acc(this.sv.endInitExpr());
     }
 
@@ -356,12 +397,12 @@ class ModuleValidator implements ExprVisitorDelegate {
         // active segment with "type mismatch in function".
         const offsetType = this.sv.tableIndexType(varIdx(elem.tableVar));
         this.acc(this.sv.beginInitExpr(elem.loc, offsetType));
-        this.visitExprList(elem.offset);
+        this.visitConstExpr(elem.offset, elem.loc);
         this.acc(this.sv.endInitExpr());
       }
       for (const elemExpr of elem.elemExprs) {
         this.acc(this.sv.beginInitExpr(elem.loc, elem.elemType));
-        this.visitExprList(elemExpr);
+        this.visitConstExpr(elemExpr, elem.loc);
         this.acc(this.sv.endInitExpr());
       }
     }
@@ -387,13 +428,66 @@ class ModuleValidator implements ExprVisitorDelegate {
       if (seg.kind === 'active') {
         // Same for data: the offset is in the MEMORY's index type.
         this.acc(this.sv.beginInitExpr(seg.loc, this.sv.memoryIndexType(varIdx(seg.memoryVar))));
-        this.visitExprList(seg.offset);
+        this.visitConstExpr(seg.offset, seg.loc);
         this.acc(this.sv.endInitExpr());
       }
     }
 
     this.acc(this.sv.endModule());
     return this.result;
+  }
+
+  /**
+   * A constant expression may only use a restricted instruction set: the
+   * `*.const` family, `ref.null` / `ref.func`, `global.get`, the
+   * extended-const arithmetic (`i32`/`i64` add, sub, mul), and the GC
+   * allocation forms. Nothing enforced that, so
+   * `(data (offset i32.const 0 i32.ctz) "")` validated clean.
+   *
+   * Written as an explicit recursion over the ALLOWED shapes rather than a
+   * generic walk: anything not on the list is rejected on sight, so there is
+   * no need to descend into it.
+   */
+  private isConstExpr(e: Expr): boolean {
+    switch (e.kind) {
+      case 'const':
+      case 'ref.null':
+      case 'ref.func':
+      case 'global.get':
+        return true;
+      case 'binary': {
+        // extended-const: only add / sub / mul on i32 / i64.
+        const name = anyOpcodeName(e.opcode) ?? '';
+        if (!/^i(32|64)\.(add|sub|mul)$/.test(name)) return false;
+        return this.isConstExpr(e.left) && this.isConstExpr(e.right);
+      }
+      case 'ref.i31':
+        return this.isConstExpr(e.value);
+      case 'any.convert_extern':
+      case 'extern.convert_any':
+        return this.isConstExpr(e.value);
+      case 'struct.new':
+      case 'array.new_fixed':
+        return e.operands.every((x) => this.isConstExpr(x));
+      case 'struct.new_default':
+      case 'array.new_default':
+        return true;
+      case 'array.new':
+        return this.isConstExpr(e.init) && this.isConstExpr(e.length);
+      default:
+        return false;
+    }
+  }
+
+  /** Validate a constant expression's instruction set, then its types. */
+  private visitConstExpr(exprs: Expr[], loc: Location): void {
+    for (const e of exprs) {
+      if (!this.isConstExpr(e)) {
+        this.acc(this.sv.onNonConstExpr(loc, e.kind));
+        break;
+      }
+    }
+    this.visitExprList(exprs);
   }
 
   private acc(r: Result): void {
@@ -757,7 +851,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
   }
   onSimdShuffleOpExpr(e: SimdShuffleOpExpr): Result {
-    return this.sv.onSimdShuffleOp(e.loc, e.opcode);
+    return this.sv.onSimdShuffleOp(e.loc, e.opcode, e.lanes);
   }
   onSimdLoadLaneExpr(e: SimdLoadLaneExpr): Result {
     return this.sv.onSimdLoadLane(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane);
