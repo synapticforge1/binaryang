@@ -17,7 +17,12 @@ import {
   PREFIX_SIMD,
   PREFIX_THREADS,
 } from '../core/opcode.ts';
-import { decodeS32Leb128, decodeS64Leb128, decodeU32Leb128 } from '../core/leb128.ts';
+import {
+  decodeS32Leb128,
+  decodeS64Leb128,
+  decodeU32Leb128,
+  decodeU64Leb128,
+} from '../core/leb128.ts';
 
 // UTF-8 decoder reused across every name read. TextDecoder is stateless when
 // called via .decode(); a single module-level instance avoids reallocating
@@ -432,6 +437,12 @@ export class BinaryReader {
     return v;
   }
 
+  private readU64Leb(): bigint {
+    const [v, n] = decodeU64Leb128(this.data, this.pos);
+    this.pos += n;
+    return v;
+  }
+
   private readF32Bits(): number {
     const v = this.readU32Le();
     return v;
@@ -550,7 +561,11 @@ export class BinaryReader {
     const alignLog2 = alignFlags & 0x3f;
     const align = 1 << alignLog2;
     const memidx = hasMemIdx ? this.readU32Leb() : 0;
-    const offset = BigInt(this.readU32Leb());
+    // The memarg OFFSET is u64 under memory64 — align64.wast stores at
+    // 0xffffffffffffffff — and reading it as u32 threw "LEB128 u32 overflow"
+    // on a binary V8 accepts. A value that fits in u32 encodes identically, so
+    // reading u64 unconditionally is safe; the IR field is already `bigint`.
+    const offset = this.readU64Leb();
     return { align, offset, memidx: varIndex(memidx) };
   }
 

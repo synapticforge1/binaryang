@@ -4,9 +4,9 @@
 // Licensed under the Apache License, Version 2.0
 
 import { combineResults, Result } from '../core/result.ts';
-import { Type, typeName } from '../core/types.ts';
+import { isReferenceType, Type, typeName } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
-import { MiscOpcode, Opcode, PREFIX_MISC } from '../core/opcode.ts';
+import { MiscOpcode, Opcode, PREFIX_MISC, PREFIX_SIMD } from '../core/opcode.ts';
 import { LabelType } from '../ir/ir-util.ts';
 
 // ---------------------------------------------------------------------------
@@ -43,6 +43,19 @@ const _V128 = Type.V128;
 function oi(r1: Type, p1: Type, p2: Type, p3: Type, nat: number): OpcodeTypeInfo {
   return { r1, p1, p2, p3, natAlign: nat };
 }
+
+/**
+ * Pack a SIMD sub-opcode the way the rest of the codebase does.
+ *
+ * Every SIMD entry below was written as `(0xfd << 8) | sub` and became DEAD
+ * the moment T7.7 widened the packing to `<< 16` for the relaxed-SIMD
+ * sub-opcodes: the keys stopped matching any real opcode, so all ~76 of them
+ * fell through to the `(v128, v128) -> v128` default. Wrong-arity SIMD
+ * operands then validated clean, and every SIMD memory op rejected its
+ * address as "expected [v128]". Invisible because `wat2wasm` does not run the
+ * validator. Derive the key instead of writing the arithmetic by hand.
+ */
+const S = (sub: number): number => (PREFIX_SIMD << 16) | sub;
 
 function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   // Misc-prefixed (0xfc) opcodes reach here via ConvertExpr (the saturating
@@ -379,95 +392,110 @@ function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   //     (v128) → v128
   switch (opcode) {
     // splats
-    case (0xfd << 8) | 0x0f: // i8x16.splat
-    case (0xfd << 8) | 0x10: // i16x8.splat
-    case (0xfd << 8) | 0x11: // i32x4.splat
+    case S(0x0f): // i8x16.splat
+    case S(0x10): // i16x8.splat
+    case S(0x11): // i32x4.splat
       return oi(_V128, _I32, _V, _V, 0);
-    case (0xfd << 8) | 0x12: // i64x2.splat
+    case S(0x12): // i64x2.splat
       return oi(_V128, _I64, _V, _V, 0);
-    case (0xfd << 8) | 0x13: // f32x4.splat
+    case S(0x13): // f32x4.splat
       return oi(_V128, _F32, _V, _V, 0);
-    case (0xfd << 8) | 0x14: // f64x2.splat
+    case S(0x14): // f64x2.splat
       return oi(_V128, _F64, _V, _V, 0);
     // any_true (v128 → i32)
-    case (0xfd << 8) | 0x53: // v128.any_true
+    case S(0x53): // v128.any_true
     // all_true (v128 → i32)
-    case (0xfd << 8) | 0x63: // i8x16.all_true
-    case (0xfd << 8) | 0x83: // i16x8.all_true
-    case (0xfd << 8) | 0xa3: // i32x4.all_true
-    case (0xfd << 8) | 0xc3: // i64x2.all_true
+    case S(0x63): // i8x16.all_true
+    case S(0x83): // i16x8.all_true
+    case S(0xa3): // i32x4.all_true
+    case S(0xc3): // i64x2.all_true
     // bitmask (v128 → i32)
-    case (0xfd << 8) | 0x64: // i8x16.bitmask
-    case (0xfd << 8) | 0x84: // i16x8.bitmask
-    case (0xfd << 8) | 0xa4: // i32x4.bitmask
-    case (0xfd << 8) | 0xc4: // i64x2.bitmask
+    case S(0x64): // i8x16.bitmask
+    case S(0x84): // i16x8.bitmask
+    case S(0xa4): // i32x4.bitmask
+    case S(0xc4): // i64x2.bitmask
       return oi(_I32, _V128, _V, _V, 0);
     // shifts (v128, i32 → v128)
-    case (0xfd << 8) | 0x6b: // i8x16.shl
-    case (0xfd << 8) | 0x6c: // i8x16.shr_s
-    case (0xfd << 8) | 0x6d: // i8x16.shr_u
-    case (0xfd << 8) | 0x8b: // i16x8.shl
-    case (0xfd << 8) | 0x8c: // i16x8.shr_s
-    case (0xfd << 8) | 0x8d: // i16x8.shr_u
-    case (0xfd << 8) | 0xab: // i32x4.shl
-    case (0xfd << 8) | 0xac: // i32x4.shr_s
-    case (0xfd << 8) | 0xad: // i32x4.shr_u
-    case (0xfd << 8) | 0xcb: // i64x2.shl
-    case (0xfd << 8) | 0xcc: // i64x2.shr_s
-    case (0xfd << 8) | 0xcd: // i64x2.shr_u
+    case S(0x6b): // i8x16.shl
+    case S(0x6c): // i8x16.shr_s
+    case S(0x6d): // i8x16.shr_u
+    case S(0x8b): // i16x8.shl
+    case S(0x8c): // i16x8.shr_s
+    case S(0x8d): // i16x8.shr_u
+    case S(0xab): // i32x4.shl
+    case S(0xac): // i32x4.shr_s
+    case S(0xad): // i32x4.shr_u
+    case S(0xcb): // i64x2.shl
+    case S(0xcc): // i64x2.shr_s
+    case S(0xcd): // i64x2.shr_u
       return oi(_V128, _V128, _I32, _V, 0);
     // v128 → v128 unary
-    case (0xfd << 8) | 0x4d: // v128.not
-    case (0xfd << 8) | 0x60: // i8x16.abs
-    case (0xfd << 8) | 0x61: // i8x16.neg
-    case (0xfd << 8) | 0x62: // i8x16.popcnt
-    case (0xfd << 8) | 0x67: // f32x4.ceil
-    case (0xfd << 8) | 0x68: // f32x4.floor
-    case (0xfd << 8) | 0x69: // f32x4.trunc
-    case (0xfd << 8) | 0x6a: // f32x4.nearest
-    case (0xfd << 8) | 0x74: // f64x2.ceil
-    case (0xfd << 8) | 0x75: // f64x2.floor
-    case (0xfd << 8) | 0x7a: // f64x2.trunc
-    case (0xfd << 8) | 0x7c: // i16x8.extadd_pairwise_i8x16_s
-    case (0xfd << 8) | 0x7d: // i16x8.extadd_pairwise_i8x16_u
-    case (0xfd << 8) | 0x7e: // i32x4.extadd_pairwise_i16x8_s
-    case (0xfd << 8) | 0x7f: // i32x4.extadd_pairwise_i16x8_u
-    case (0xfd << 8) | 0x80: // i16x8.abs
-    case (0xfd << 8) | 0x81: // i16x8.neg
-    case (0xfd << 8) | 0x87: // i16x8.extend_low_i8x16_s
-    case (0xfd << 8) | 0x88: // i16x8.extend_high_i8x16_s
-    case (0xfd << 8) | 0x89: // i16x8.extend_low_i8x16_u
-    case (0xfd << 8) | 0x8a: // i16x8.extend_high_i8x16_u
-    case (0xfd << 8) | 0x94: // f64x2.nearest
-    case (0xfd << 8) | 0xa0: // i32x4.abs
-    case (0xfd << 8) | 0xa1: // i32x4.neg
-    case (0xfd << 8) | 0xa7: // i32x4.extend_low_i16x8_s
-    case (0xfd << 8) | 0xa8: // i32x4.extend_high_i16x8_s
-    case (0xfd << 8) | 0xa9: // i32x4.extend_low_i16x8_u
-    case (0xfd << 8) | 0xaa: // i32x4.extend_high_i16x8_u
-    case (0xfd << 8) | 0xc0: // i64x2.abs
-    case (0xfd << 8) | 0xc1: // i64x2.neg
-    case (0xfd << 8) | 0xc7: // i64x2.extend_low_i32x4_s
-    case (0xfd << 8) | 0xc8: // i64x2.extend_high_i32x4_s
-    case (0xfd << 8) | 0xc9: // i64x2.extend_low_i32x4_u
-    case (0xfd << 8) | 0xca: // i64x2.extend_high_i32x4_u
-    case (0xfd << 8) | 0xe0: // f32x4.abs
-    case (0xfd << 8) | 0xe1: // f32x4.neg
-    case (0xfd << 8) | 0xe3: // f32x4.sqrt
-    case (0xfd << 8) | 0xec: // f64x2.abs
-    case (0xfd << 8) | 0xed: // f64x2.neg
-    case (0xfd << 8) | 0xef: // f64x2.sqrt
-    case (0xfd << 8) | 0x5e: // f32x4.demote_f64x2_zero
-    case (0xfd << 8) | 0x5f: // f64x2.promote_low_f32x4
-    case (0xfd << 8) | 0xf8: // i32x4.trunc_sat_f32x4_s
-    case (0xfd << 8) | 0xf9: // i32x4.trunc_sat_f32x4_u
-    case (0xfd << 8) | 0xfa: // f32x4.convert_i32x4_s
-    case (0xfd << 8) | 0xfb: // f32x4.convert_i32x4_u
-    case (0xfd << 8) | 0xfc: // i32x4.trunc_sat_f64x2_s_zero
-    case (0xfd << 8) | 0xfd: // i32x4.trunc_sat_f64x2_u_zero
-    case (0xfd << 8) | 0xfe: // f64x2.convert_low_i32x4_s
-    case (0xfd << 8) | 0xff: // f64x2.convert_low_i32x4_u
+    case S(0x4d): // v128.not
+    case S(0x60): // i8x16.abs
+    case S(0x61): // i8x16.neg
+    case S(0x62): // i8x16.popcnt
+    case S(0x67): // f32x4.ceil
+    case S(0x68): // f32x4.floor
+    case S(0x69): // f32x4.trunc
+    case S(0x6a): // f32x4.nearest
+    case S(0x74): // f64x2.ceil
+    case S(0x75): // f64x2.floor
+    case S(0x7a): // f64x2.trunc
+    case S(0x7c): // i16x8.extadd_pairwise_i8x16_s
+    case S(0x7d): // i16x8.extadd_pairwise_i8x16_u
+    case S(0x7e): // i32x4.extadd_pairwise_i16x8_s
+    case S(0x7f): // i32x4.extadd_pairwise_i16x8_u
+    case S(0x80): // i16x8.abs
+    case S(0x81): // i16x8.neg
+    case S(0x87): // i16x8.extend_low_i8x16_s
+    case S(0x88): // i16x8.extend_high_i8x16_s
+    case S(0x89): // i16x8.extend_low_i8x16_u
+    case S(0x8a): // i16x8.extend_high_i8x16_u
+    case S(0x94): // f64x2.nearest
+    case S(0xa0): // i32x4.abs
+    case S(0xa1): // i32x4.neg
+    case S(0xa7): // i32x4.extend_low_i16x8_s
+    case S(0xa8): // i32x4.extend_high_i16x8_s
+    case S(0xa9): // i32x4.extend_low_i16x8_u
+    case S(0xaa): // i32x4.extend_high_i16x8_u
+    case S(0xc0): // i64x2.abs
+    case S(0xc1): // i64x2.neg
+    case S(0xc7): // i64x2.extend_low_i32x4_s
+    case S(0xc8): // i64x2.extend_high_i32x4_s
+    case S(0xc9): // i64x2.extend_low_i32x4_u
+    case S(0xca): // i64x2.extend_high_i32x4_u
+    case S(0xe0): // f32x4.abs
+    case S(0xe1): // f32x4.neg
+    case S(0xe3): // f32x4.sqrt
+    case S(0xec): // f64x2.abs
+    case S(0xed): // f64x2.neg
+    case S(0xef): // f64x2.sqrt
+    case S(0x5e): // f32x4.demote_f64x2_zero
+    case S(0x5f): // f64x2.promote_low_f32x4
+    case S(0xf8): // i32x4.trunc_sat_f32x4_s
+    case S(0xf9): // i32x4.trunc_sat_f32x4_u
+    case S(0xfa): // f32x4.convert_i32x4_s
+    case S(0xfb): // f32x4.convert_i32x4_u
+    case S(0xfc): // i32x4.trunc_sat_f64x2_s_zero
+    case S(0xfd): // i32x4.trunc_sat_f64x2_u_zero
+    case S(0xfe): // f64x2.convert_low_i32x4_s
+    case S(0xff): // f64x2.convert_low_i32x4_u
       return oi(_V128, _V128, _V, _V, 0);
+    // --- SIMD memory ---
+    // These take an ADDRESS, not a v128, so the lane-wise default is wrong for
+    // them in a way that rejects every correct program. `applyMemory64` swaps
+    // the i32 for an i64 when the memory is 64-bit.
+    case S(0x00): // v128.load
+      return oi(_V128, _I32, _V, _V, 16);
+    case S(0x01): // v128.load8x8_s
+    case S(0x02): // v128.load8x8_u
+    case S(0x03): // v128.load16x4_s
+    case S(0x04): // v128.load16x4_u
+    case S(0x05): // v128.load32x2_s
+    case S(0x06): // v128.load32x2_u
+      return oi(_V128, _I32, _V, _V, 8);
+    case S(0x0b): // v128.store
+      return oi(_V, _I32, _V128, _V, 16);
   }
   // Default: SIMD lane-wise binary or unknown — (v128, v128) → v128.
   // Correct for the bulk of SIMD ops (add / sub / mul / div / min / max /
@@ -514,6 +542,67 @@ function applyMemory64(info: OpcodeTypeInfo, is64: boolean): OpcodeTypeInfo {
     p3: info.p3,
     natAlign: info.natAlign,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Reference-type subtyping
+// ---------------------------------------------------------------------------
+
+/**
+ * Reference types whose identity the IR has already thrown away.
+ *
+ * `coarsenValueType` maps EVERY concrete `(ref $T)` onto `Type.StructRef`, and
+ * `ref.test` / `ref.cast` report the bare `Ref` / `RefNull` prefix byte. Once a
+ * type is one of these, nothing can be concluded about it, so it satisfies —
+ * and is satisfied by — any other reference type. Being strict here rejected
+ * more than 100 spec-testsuite modules V8 accepts.
+ *
+ * The cost is real and worth naming: a genuine `structref` is indistinguishable
+ * from a coarsened `(ref $T)`, so mismatches involving `structref` go
+ * unreported. Removing this needs the validator moved onto `ValueType`, the
+ * same refactor T7.4 did for the IR — tracked as T9.3.
+ */
+const IMPRECISE_REFS: ReadonlySet<Type> = new Set([Type.Ref, Type.RefNull, Type.StructRef]);
+
+/** Immediate supertype of each abstract heap type in the `any` hierarchy. */
+const REF_PARENT: ReadonlyMap<Type, Type> = new Map([
+  [Type.EqRef, Type.AnyRef],
+  [Type.I31Ref, Type.EqRef],
+  [Type.ArrayRef, Type.EqRef],
+]);
+
+/** The `any` hierarchy — everything `none` is a subtype of. */
+const ANY_HIERARCHY: ReadonlySet<Type> = new Set([
+  Type.AnyRef,
+  Type.EqRef,
+  Type.I31Ref,
+  Type.StructRef,
+  Type.ArrayRef,
+  Type.NullRef,
+]);
+
+/**
+ * Reference subtyping, as precisely as the flat `Type` enum allows.
+ *
+ * The three hierarchies (`any`, `func`, `extern`, plus `exn`) do NOT
+ * interconnect, which is what makes `(result funcref) (ref.null extern)` an
+ * error — and that case is still caught. What cannot be checked is anything
+ * involving {@link IMPRECISE_REFS}.
+ */
+function refSatisfies(actual: Type, expected: Type): boolean {
+  if (actual === expected) return true;
+  if (IMPRECISE_REFS.has(actual) || IMPRECISE_REFS.has(expected)) return true;
+
+  // Bottom types are subtypes of everything in their own hierarchy.
+  if (actual === Type.NullRef) return ANY_HIERARCHY.has(expected);
+  if (actual === Type.NullFuncRef) return expected === Type.FuncRef;
+  if (actual === Type.NullExternRef) return expected === Type.ExternRef;
+  if (actual === Type.NullExnRef) return expected === Type.ExnRef;
+
+  for (let t: Type | undefined = actual; t !== undefined; t = REF_PARENT.get(t)) {
+    if (t === expected) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -638,17 +727,19 @@ export class TypeChecker {
   // Type checking helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Is `actual` acceptable where `expected` is wanted?
+   *
+   * Non-reference types are compared exactly. Reference types go through
+   * {@link refSatisfies}, which knows the abstract heap-type lattice but has
+   * to give up wherever the IR's coarsening already threw the answer away.
+   */
   checkType(actual: Type, expected: Type): Result {
     if (expected === Type.Any || actual === Type.Any) return Result.Ok;
     if (actual === expected) return Result.Ok;
-    if (
-      expected === Type.FuncRef &&
-      (actual === Type.Ref || actual === Type.RefNull)
-    ) return Result.Ok;
-    if (
-      expected === Type.ExternRef &&
-      (actual === Type.Ref || actual === Type.RefNull)
-    ) return Result.Ok;
+    if (isReferenceType(expected) && isReferenceType(actual)) {
+      return refSatisfies(actual, expected) ? Result.Ok : Result.Error;
+    }
     return Result.Error;
   }
 
@@ -1225,40 +1316,50 @@ export class TypeChecker {
     return Result.Ok;
   }
 
-  onTableGet(elemType: Type): Result {
-    const r = this.popAndCheck1Type(_I32, 'table.get');
+  // Every table operation is indexed in the TABLE's index type — i64 under
+  // the table64 proposal. These all hard-coded i32, so a 64-bit table
+  // rejected its own correct code.
+  onTableGet(elemType: Type, is64: boolean): Result {
+    const r = this.popAndCheck1Type(is64 ? _I64 : _I32, 'table.get');
     this.pushType(elemType);
     return r;
   }
 
-  onTableSet(elemType: Type): Result {
-    return this.popAndCheck2Types(_I32, elemType, 'table.set');
+  onTableSet(elemType: Type, is64: boolean): Result {
+    return this.popAndCheck2Types(is64 ? _I64 : _I32, elemType, 'table.set');
   }
 
-  onTableGrow(elemType: Type): Result {
-    const r = this.popAndCheck2Types(elemType, _I32, 'table.grow');
-    this.pushType(_I32);
+  onTableGrow(elemType: Type, is64: boolean): Result {
+    const idx = is64 ? _I64 : _I32;
+    const r = this.popAndCheck2Types(elemType, idx, 'table.grow');
+    this.pushType(idx);
     return r;
   }
 
-  onTableSize(): Result {
-    this.pushType(_I32);
+  onTableSize(is64: boolean): Result {
+    this.pushType(is64 ? _I64 : _I32);
     return Result.Ok;
   }
 
-  onTableFill(elemType: Type): Result {
-    return this.popAndCheck3Types(_I32, elemType, _I32, 'table.fill');
+  onTableFill(elemType: Type, is64: boolean): Result {
+    const idx = is64 ? _I64 : _I32;
+    return this.popAndCheck3Types(idx, elemType, idx, 'table.fill');
   }
 
   onTableCopy(is64Dst: boolean, is64Src: boolean): Result {
     const dst = is64Dst ? _I64 : _I32;
     const src = is64Src ? _I64 : _I32;
-    return this.popAndCheck3Types(dst, src, dst, 'table.copy');
+    // The COUNT is typed at the smaller of the two index types, not at the
+    // destination's — copying between a 64-bit and a 32-bit table is legal
+    // and the count must fit both.
+    const n = (is64Dst && is64Src) ? _I64 : _I32;
+    return this.popAndCheck3Types(dst, src, n, 'table.copy');
   }
 
   onTableInit(is64: boolean): Result {
-    const t = is64 ? _I64 : _I32;
-    return this.popAndCheck3Types(t, _I32, _I32, 'table.init');
+    // Only the destination is in the table's index type; the segment offset
+    // and the count are always i32.
+    return this.popAndCheck3Types(is64 ? _I64 : _I32, _I32, _I32, 'table.init');
   }
 
   onElemDrop(): Result {

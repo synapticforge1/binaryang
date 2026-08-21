@@ -58,6 +58,7 @@ reference these ids.
 | T7.12 | `br_on_null` / `br_on_non_null` carrying branch values | done — encode +2 |
 | T7.13 | UTF-8 BOM stripped from names | done — encode +1 |
 | T7.14 | Explicit type-use overwritten by a structural signature match | done — encode +1 |
+| T9.2 | Our validator rejecting modules V8 accepts | done — agreement 1702 → 2120/2120 |
 
 ### Open — parse side: NONE
 
@@ -127,6 +128,19 @@ Recommended order when the time comes: T10.6 and T10.3 first (both produce
 invalid wasm), then T10.2 (our output is unparseable by us), then T10.7,
 T10.4, T10.1, and T10.5 last.
 
+### A fourth metric — validator agreement
+
+`wat2wasm` does not run the validator, so nothing in the campaign exercised it
+and two whole classes of bug hid there: rules that were never feature-gated,
+and opcode-table keys left stale by T7.7. The metric is simple — for every
+testsuite module V8 accepts, does `wasmValidate` agree? **2120/2120.**
+
+Add a T9.3 for the remaining imprecision: `checkType` gives up on any
+comparison involving `Type.Ref` / `Type.RefNull` / `Type.StructRef`, because
+`coarsenValueType` collapses every concrete `(ref $T)` onto `StructRef`. A
+genuine `structref` mismatch therefore goes unreported. The fix is moving the
+validator onto `ValueType`, the same refactor T7.4 did for the IR.
+
 ### Open — T9: found during the campaign, invisible to both metrics
 
 Neither the parse metric nor the V8-validity metric exercises these, so they
@@ -136,7 +150,7 @@ testsuite file.
 | id | Scope | Found |
 | --- | --- | --- |
 | ~~T9.1~~ | **DONE.** The binary READER had no `pushStmt` equivalent. `endFrame` splices leftover operand-stack values in AFTER every statement (`[...stmts, ...stack]`), so any decoded expression that produces a value nobody consumes is re-emitted at the END of its block — past the statements that followed it in the original. This is the same defect the parser fixed in v1.3.0, on the other side of the round-trip. Confirmed to change program semantics, silently: `(block (result i32) (global.get $g) (global.set $g (i32.const 9)))` returns 1, and 9 after a `wasm2wat` round-trip. Fixed by a module-level `pushStmt(stack, stmts, expr)` that drains pending values first, wired into all 42 statement-commit sites. Round-trip fidelity over the testsuite: 1942 -> 1954 of 2105 modules byte-identical, 76 -> 70 files affected, zero regressions. Regression test `tests/reader/stmt_order.test.ts`. | T5.3 |
-| **T9.2** | Our own validator rejects valid GC reference flow. `ref.test` / `ref.cast` report the coarse `Type.Ref`, and `checkType` only lets `Ref` / `RefNull` satisfy `FuncRef` / `ExternRef` — so a `ref.cast` feeding a block whose result is any other reference type fails with "type mismatch". Confirmed pre-existing and independent of `br_on_cast`: a baseline module using only `ref.cast` fails identically while V8 accepts it. `wat2wasm` does not run the validator, so this only affects `wasm-validate`. The real fix is the same `ValueType` lattice the T7.4 refactor introduced — the validator was left on flat `Type`. | T5.3 |
+| ~~T9.2~~ | **DONE.** Measured properly (run `wasmValidate` over every spec-testsuite module V8 accepts; any disagreement is our bug) this was SEVEN bugs across 418/2120 modules, not one: MVP restrictions with no feature gate (218), every SIMD opcode-table key still on the pre-T7.7 `<< 8` packing and therefore DEAD (77), segment offsets checked as i32 regardless of index type (56), table ops hard-coding i32 (39), the reference lattice as originally logged (~30), MVP's imported-global-only rule for constant expressions (7), and the memarg offset read as u32 when memory64 makes it u64 (1). Agreement 1702 → **2120/2120**. Regression test `tests/validator/agreement.test.ts`. | T5.3 |
 
 ### Why the numbering changed shape
 

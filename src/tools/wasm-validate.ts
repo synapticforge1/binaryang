@@ -34,6 +34,8 @@
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { validateModule } from '../validator/validator.ts';
+import type { ValidateOptions } from '../validator/shared-validator.ts';
+import type { Features } from '../core/feature.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
@@ -46,6 +48,12 @@ import type { ErrorList } from '../core/error.ts';
 export interface WasmValidateOptions {
   /** Source filename shown in error messages. Default: `'<input>'`. */
   filename?: string;
+  /**
+   * Which proposals the module may use. Defaults to {@link defaultFeatures}.
+   * Pass {@link allFeatures} to accept every proposal wabt-ts knows, which is
+   * roughly what a current browser accepts.
+   */
+  features?: Features;
 }
 
 /** Return value from {@link wasmValidate}. */
@@ -74,7 +82,9 @@ export function wasmValidate(
   const module = readBinaryIr(binary, errors, readOpts);
   const readResult = hasErrors(errors) ? Result.Error : Result.Ok;
 
-  const valResult = validateModule(module, errors);
+  const valOpts: ValidateOptions = {};
+  if (opts.features !== undefined) valOpts.features = opts.features;
+  const valResult = validateModule(module, errors, valOpts);
 
   return { errors, result: combineResults(readResult, valResult) };
 }

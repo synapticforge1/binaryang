@@ -4,9 +4,11 @@
 // Licensed under the Apache License, Version 2.0
 
 import { combineResults, Result } from '../core/result.ts';
-import { Type } from '../core/types.ts';
+import { isReferenceType, Type } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
+import { defaultFeatures } from '../core/feature.ts';
+import type { Features } from '../core/feature.ts';
 import { addError, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import { getOpcodeNaturalAlign, TypeChecker } from './type-checker.ts';
@@ -20,7 +22,18 @@ import { CatchKind, coarsenValueType } from '../ir/ir.ts';
 
 // Placeholder for future feature flags. Switched from `interface` to a type
 // alias so the deno-lint `no-empty-interface` rule does not flag it.
-export type ValidateOptions = Record<string, never>;
+export interface ValidateOptions {
+  /**
+   * Which proposals the module is allowed to use. Defaults to
+   * {@link defaultFeatures}.
+   *
+   * This used to be `Record<string, never>` — the validator had no feature
+   * awareness at all, and rules that MVP wasm imposed but later proposals
+   * relaxed (at most one table, at most one memory) were unconditional. That
+   * alone rejected 218 spec-testsuite modules V8 accepts.
+   */
+  features?: Features;
+}
 
 // ---------------------------------------------------------------------------
 // Internal state types
@@ -110,8 +123,11 @@ export class SharedValidator {
   private declaredFuncs: Set<number> = new Set();
   private checkDeclaredFuncs: number[] = [];
 
-  constructor(errors: ErrorList, _options?: ValidateOptions) {
+  private readonly features: Features;
+
+  constructor(errors: ErrorList, options?: ValidateOptions) {
     this.errors = errors;
+    this.features = options?.features ?? defaultFeatures();
     this.tc = new TypeChecker(this.funcTypesMap);
     this.tc.setErrorCallback((msg) => this.onTypecheckerError(msg));
   }
@@ -299,10 +315,25 @@ export class SharedValidator {
     return ft ? Result.Ok : Result.Error;
   }
 
+  /**
+   * The index type of a memory / table — `i64` under memory64 / table64,
+   * `i32` otherwise. An out-of-range index falls back to `i32`; the missing
+   * item is reported separately, and guessing `i64` there would produce a
+   * second, misleading error.
+   */
+  memoryIndexType(memIdx: Index): Type {
+    return this.memories[memIdx]?.limits.is64 ? Type.I64 : Type.I32;
+  }
+
+  tableIndexType(tableIdx: Index): Type {
+    return this.tables[tableIdx]?.limits.is64 ? Type.I64 : Type.I32;
+  }
+
   onTable(loc: Location, elemTypeIn: ValueType, limits: Limits): Result {
     const elemType = coarsenValueType(elemTypeIn);
     let r: Result = Result.Ok;
-    if (this.tables.length > 0) {
+    // MVP allowed one table; the reference-types proposal lifted that.
+    if (this.tables.length > 0 && !this.features.referenceTypes) {
       r = combineResults(r, this.printError(loc, 'only one table allowed'));
     }
     r = combineResults(r, this.checkLimits(loc, limits, 0xFFFFFFFF, 'elems'));
@@ -312,7 +343,8 @@ export class SharedValidator {
 
   onMemory(loc: Location, limits: Limits): Result {
     let r: Result = Result.Ok;
-    if (this.memories.length > 0) {
+    // MVP allowed one memory; the multi-memory proposal lifted that.
+    if (this.memories.length > 0 && !this.features.multiMemory) {
       r = combineResults(r, this.printError(loc, 'only one memory block allowed'));
     }
     const absMax = limits.is64 ? 0xFFFFFFFFFFFFFFFFn : 0xFFFFFFFFn;
@@ -607,7 +639,11 @@ export class SharedValidator {
     if (!gt) return Result.Error;
     let r = this.tc.onGlobalGet(gt.type);
     if (this.inInitExpr) {
-      if (globalIdx >= this.numImportedGlobals) {
+      // MVP restricted a constant expression to imported globals. The
+      // extended-const and GC proposals both relax it to any DEFINED global
+      // declared earlier, which the spec testsuite relies on.
+      const relaxed = this.features.extendedConst || this.features.gc;
+      if (globalIdx >= this.numImportedGlobals && !relaxed) {
         r = combineResults(
           r,
           this.printError(loc, 'initializer expression can only reference an imported global'),
@@ -914,14 +950,22 @@ export class SharedValidator {
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
     const tt = this.checkTableIndex(tableIdx, loc);
     let r = (ft && tt) ? Result.Ok : Result.Error;
-    if (tt && tt.element !== Type.FuncRef) {
+    // The table must hold FUNCTION references — but `(ref null $t)` for a
+    // func type is one, and it coarsens to StructRef here, so an exact
+    // FuncRef comparison rejected it. Reference-ness is all this lattice can
+    // check; see TypeChecker.checkType.
+    if (tt && !isReferenceType(tt.element)) {
       r = combineResults(
         r,
         this.printError(loc, 'type mismatch: call_indirect must reference table of funcref type'),
       );
     }
     if (ft) {
-      r = combineResults(r, this.tc.onCallIndirect(ft.params, ft.results, false));
+      // A 64-bit table is indexed by i64.
+      r = combineResults(
+        r,
+        this.tc.onCallIndirect(ft.params, ft.results, tt?.limits.is64 ?? false),
+      );
     }
     return r;
   }
@@ -1202,35 +1246,35 @@ export class SharedValidator {
     this.currentLoc = loc;
     const tt = this.checkTableIndex(tableIdx, loc);
     if (!tt) return Result.Error;
-    return this.tc.onTableGet(tt.element);
+    return this.tc.onTableGet(tt.element, tt.limits.is64 ?? false);
   }
 
   onTableSet(loc: Location, tableIdx: number): Result {
     this.currentLoc = loc;
     const tt = this.checkTableIndex(tableIdx, loc);
     if (!tt) return Result.Error;
-    return this.tc.onTableSet(tt.element);
+    return this.tc.onTableSet(tt.element, tt.limits.is64 ?? false);
   }
 
   onTableGrow(loc: Location, tableIdx: number): Result {
     this.currentLoc = loc;
     const tt = this.checkTableIndex(tableIdx, loc);
     if (!tt) return Result.Error;
-    return this.tc.onTableGrow(tt.element);
+    return this.tc.onTableGrow(tt.element, tt.limits.is64 ?? false);
   }
 
   onTableSize(loc: Location, tableIdx: number): Result {
     this.currentLoc = loc;
-    const r = this.checkIndex(tableIdx, this.tables.length, 'table', loc);
-    if (r !== Result.Ok) return r;
-    return this.tc.onTableSize();
+    const tt = this.checkTableIndex(tableIdx, loc);
+    if (!tt) return Result.Error;
+    return this.tc.onTableSize(tt.limits.is64 ?? false);
   }
 
   onTableFill(loc: Location, tableIdx: number): Result {
     this.currentLoc = loc;
     const tt = this.checkTableIndex(tableIdx, loc);
     if (!tt) return Result.Error;
-    return this.tc.onTableFill(tt.element);
+    return this.tc.onTableFill(tt.element, tt.limits.is64 ?? false);
   }
 
   onTableCopy(loc: Location, dstIdx: number, srcIdx: number): Result {
@@ -1238,7 +1282,7 @@ export class SharedValidator {
     const dtt = this.checkTableIndex(dstIdx, loc);
     const stt = this.checkTableIndex(srcIdx, loc);
     if (!dtt || !stt) return Result.Error;
-    return this.tc.onTableCopy(false, false);
+    return this.tc.onTableCopy(dtt.limits.is64 ?? false, stt.limits.is64 ?? false);
   }
 
   onTableInit(loc: Location, segIdx: number, tableIdx: number): Result {
@@ -1246,7 +1290,7 @@ export class SharedValidator {
     const tt = this.checkTableIndex(tableIdx, loc);
     const et = this.checkElemSegmentIndex(segIdx, loc);
     let r = (tt && et) ? Result.Ok : Result.Error;
-    r = combineResults(r, this.tc.onTableInit(false));
+    r = combineResults(r, this.tc.onTableInit(tt?.limits.is64 ?? false));
     return r;
   }
 

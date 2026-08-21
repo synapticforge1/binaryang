@@ -7,6 +7,7 @@ import type { ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
+import { PREFIX_THREADS } from '../core/opcode.ts';
 import type { ErrorList } from '../core/error.ts';
 import type {
   ArrayCopyExpr,
@@ -249,7 +250,10 @@ class ModuleValidator implements ExprVisitorDelegate {
       this.acc(this.sv.onElemSegment(elem.loc, varIdx(elem.tableVar), elem.kind));
       this.acc(this.sv.onElemSegmentElemType(elem.loc, elem.elemType));
       if (elem.kind === 'active') {
-        const offsetType = Type.I32;
+        // An active segment's offset is indexed in the TABLE's index type —
+        // i64 for a table64 table. Hard-coding i32 rejected every 64-bit
+        // active segment with "type mismatch in function".
+        const offsetType = this.sv.tableIndexType(varIdx(elem.tableVar));
         this.acc(this.sv.beginInitExpr(elem.loc, offsetType));
         this.visitExprList(elem.offset);
         this.acc(this.sv.endInitExpr());
@@ -280,7 +284,8 @@ class ModuleValidator implements ExprVisitorDelegate {
     for (const seg of m.dataSegments) {
       this.acc(this.sv.onDataSegment(seg.loc, varIdx(seg.memoryVar), seg.kind));
       if (seg.kind === 'active') {
-        this.acc(this.sv.beginInitExpr(seg.loc, Type.I32));
+        // Same for data: the offset is in the MEMORY's index type.
+        this.acc(this.sv.beginInitExpr(seg.loc, this.sv.memoryIndexType(varIdx(seg.memoryVar))));
         this.visitExprList(seg.offset);
         this.acc(this.sv.endInitExpr());
       }
@@ -673,7 +678,9 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onAtomicNotifyExpr(e: AtomicNotifyExpr): Result {
     // memory.atomic.notify is a single fixed opcode: prefix 0xfe, secondary 0x00
-    const ATOMIC_NOTIFY_OPCODE = (0xfe << 8) | 0x00;
+    // `(0xfe << 8) | 0x00` was the pre-T7.7 packing; opcodes are `<< 16` now,
+    // so this key matched nothing and memory.atomic.notify went unchecked.
+    const ATOMIC_NOTIFY_OPCODE = (PREFIX_THREADS << 16) | 0x00;
     return this.sv.onAtomicNotify(e.loc, ATOMIC_NOTIFY_OPCODE, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicFenceExpr(e: AtomicFenceExpr): Result {
