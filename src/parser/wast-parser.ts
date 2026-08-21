@@ -294,11 +294,31 @@ export type WastScriptModule =
     readonly name: string | null;
     readonly source: string;
     readonly loc: Location;
+  }
+  | {
+    /**
+     * `(module definition $M …)` — a module DECLARED but not instantiated.
+     * Structurally a text module; the distinction is that a script runner
+     * must not instantiate it until a matching `(module instance …)` asks
+     * for it. memory.wast uses it for `(memory 65536)`, which is well-formed
+     * but would be absurd to instantiate.
+     */
+    readonly kind: 'definition';
+    readonly name: string | null;
+    readonly module: Module;
+    readonly loc: Location;
   };
 
 /** A command in a WAST script. */
 export type WastCommand =
   | { readonly kind: 'module'; readonly scriptModule: WastScriptModule }
+  | {
+    /** `(module instance $I $M)` — instantiate the definition named `$M`. */
+    readonly kind: 'module_instance';
+    readonly name: string | null;
+    readonly definition: Var;
+    readonly loc: Location;
+  }
   | { readonly kind: 'action'; readonly action: WastAction }
   | {
     readonly kind: 'assert_return';
@@ -1333,6 +1353,19 @@ export class WastParser {
    */
   private parseRefImmediate(): { heapType: Var; nullable: boolean } | null {
     const loc = this.loc();
+    // Abbreviated spelling: `ref.cast i31ref …` instead of
+    // `ref.cast (ref null i31) …`. A bare `…ref` value type IS the nullable
+    // reference type, so it maps to the heap type with nullable = true.
+    // Only the parenthesized form was accepted, so every abbreviated
+    // ref.cast / ref.test failed with "expected (, got VALUETYPE".
+    if (this.peek() === TokenType.ValueType) {
+      const tok = this.peekToken() as TypeToken;
+      const name = typeToHeapTypeName(tok.valueType);
+      if (name !== null) {
+        this.consume();
+        return { heapType: varName(name), nullable: true };
+      }
+    }
     if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
     if (this.peek() !== TokenType.Ref) {
       this.error(loc, 'expected (ref ...) for heap-type immediate');
@@ -4180,6 +4213,21 @@ export class WastParser {
 
     switch (tt1) {
       case TokenType.Module: {
+        // `(module instance $I $M)` instantiates an earlier
+        // `(module definition $M …)`. It is a COMMAND, not a module, so it is
+        // split off before parseScriptModule.
+        if (this.peek(2) === TokenType.Instance) {
+          const loc2 = this.loc();
+          this.drop(); // (
+          this.drop(); // module
+          this.drop(); // instance
+          const name = this.peek() === TokenType.Var
+            ? this.varTokenText(this.consume() as StringToken)
+            : null;
+          const definition = this.parseVarOpt(varIndex(0));
+          this.expect(TokenType.Rpar);
+          return { kind: 'module_instance', name, definition, loc: loc2 };
+        }
         const sm = this.parseScriptModule();
         if (sm === null) return null;
         return { kind: 'module', scriptModule: sm };
@@ -4303,6 +4351,8 @@ export class WastParser {
     const loc = this.loc();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
     if (this.expect(TokenType.Module) !== Result.Ok) return null;
+    // `(module definition $M …)` puts the keyword BEFORE the bind var.
+    const isDefinition = this.match(TokenType.Definition);
     const name = this.parseBindVarOpt() || null;
 
     if (this.match(TokenType.Bin)) {
@@ -4325,7 +4375,7 @@ export class WastParser {
     module.name = name ?? '';
     this.parseModuleFieldList(module);
     this.expect(TokenType.Rpar);
-    return { kind: 'text', name, module, loc };
+    return { kind: isDefinition ? 'definition' : 'text', name, module, loc };
   }
 
   private parseAction(): WastAction | null {

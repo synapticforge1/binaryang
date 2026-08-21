@@ -44,13 +44,13 @@ reference these ids.
 | T5.1 | `any.convert_extern` / `extern.convert_any` | done — parse +1, encode +1 |
 | T8.3 | WAT writer emitted multi-instruction const exprs as one folded paren | done (found via T5.1) |
 | T7.7 | Relaxed SIMD aliased onto low SIMD opcodes (opcode packing too narrow) | done — encode +7 |
+| T6.4 | `(module definition …)` / `(module instance …)` | done — parse +5, encode +5 |
+| T5.2 | Abbreviated heap-type immediate (`ref.cast i31ref`) | done — parse +3, encode +3 |
 
 ### Open — parse side (24 files)
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T5.2** | `(ref.cast i31ref …)` — bare `…ref` spelling where `(ref H)` is expected | 1 |
-| **T6.4** | `(module definition …)` / `(module instance …)` — multi-module linking | 5 |
 | **T6.5** | `(@annotation …)` custom annotations | 1 |
 | **T8.1** | `(block (type $sig) (result …))` — block type-use combined with an inline signature | ~2 |
 | **T8.2** | `select (result i32) (result)` — empty result annotation | 1 |
@@ -223,6 +223,9 @@ gaps are narrowing.
 - *T7.7 (relaxed SIMD, V8-valid 222 → 229): **no new binaryen-ts finding.**
   The bug was ours — the `(prefix << 8) | sub` opcode packing could not hold a
   sub-opcode >= 0x100.*
+- *T6.4 + T5.2 (parse 241 → 249, V8-valid 229 → 237): **no new binaryen-ts
+  finding.** `module definition` / `instance` are script-level constructs the
+  bridge never sees.*
 - *T7 remaining clusters (stack residue, tail-call types, singles): in
   progress.*
 
