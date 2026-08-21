@@ -1114,7 +1114,7 @@ class WatWriter extends ModuleContext {
           'memory.atomic.notify',
           e.offset,
           e.align,
-          naturalAlignForOpcode((PREFIX_THREADS << 8) | 0x00),
+          naturalAlignForOpcode((PREFIX_THREADS << 16) | 0x00),
           e.memidx,
         );
         return Result.Ok;

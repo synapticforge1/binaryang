@@ -80,7 +80,7 @@ describe('#1 SIMD float lexer opcodes', () => {
   for (const [name, sub] of cases) {
     it(`${name} lexes to 0xfd 0x${sub.toString(16)}`, () => {
       const tok = new WastLexer(name).tokenize()[0] as OpcodeToken;
-      assertEquals(tok.opcode as number, (PREFIX_SIMD << 8) | sub);
+      assertEquals(tok.opcode as number, (PREFIX_SIMD << 16) | sub);
     });
   }
 
@@ -234,14 +234,14 @@ describe('#7 SIMD lane ops', () => {
     const ctx = new ModuleContext(makeModule());
     const extract: SimdLaneOpExpr = {
       kind: 'simd_lane_op',
-      opcode: ((PREFIX_SIMD << 8) | 0x1b) as Opcode, // i32x4.extract_lane
+      opcode: ((PREFIX_SIMD << 16) | 0x1b) as Opcode, // i32x4.extract_lane
       lane: 0,
       operand: { kind: 'nop', loc: LOC },
       loc: LOC,
     };
     const replace: SimdLaneOpExpr = {
       kind: 'simd_lane_op',
-      opcode: ((PREFIX_SIMD << 8) | 0x1c) as Opcode, // i32x4.replace_lane
+      opcode: ((PREFIX_SIMD << 16) | 0x1c) as Opcode, // i32x4.replace_lane
       lane: 0,
       operand: { kind: 'nop', loc: LOC },
       value: { kind: 'nop', loc: LOC },

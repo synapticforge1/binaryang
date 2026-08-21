@@ -1442,8 +1442,8 @@ function loadInfo(opcode: number): LoadInfo {
  * here on the opcode byte rather than the IR kind.
  */
 function simdLoadOpForOpcode(opcode: number): SIMDLoadOp | null {
-  if ((opcode >> 8) !== 0xfd) return null;
-  switch (opcode & 0xff) {
+  if ((opcode >> 16) !== 0xfd) return null;
+  switch (opcode & 0xffff) {
     case 0x01:
       return SIMDLoadOp.Load8x8SVec128;
     case 0x02:

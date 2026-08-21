@@ -245,6 +245,13 @@ function popN(stack: Expr[], n: number): Expr[] {
  * any_true/demote/promote), corrupting the operand-stack reconstruction.
  */
 const SIMD_UNARY_OPS: ReadonlySet<number> = new Set([
+  // Relaxed SIMD (sub-opcodes >= 0x100). Without these the decoder fell
+  // through to its binary default and popped two operands for a one-operand
+  // instruction, so wasm2wat emitted `nop`.
+  0x101,
+  0x102,
+  0x103,
+  0x104, // i32x4.relaxed_trunc_{f32x4_s,f32x4_u,f64x2_s_zero,f64x2_u_zero}
   0x4d,
   0x53, // v128.not, v128.any_true
   0x5e,
@@ -1740,7 +1747,7 @@ export class BinaryReader {
       case MiscOpcode.I64TruncSatF32U:
       case MiscOpcode.I64TruncSatF64S:
       case MiscOpcode.I64TruncSatF64U: {
-        const opcode = (PREFIX_MISC << 8) | op;
+        const opcode = (PREFIX_MISC << 16) | op;
         const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
         stack.push({ kind: 'convert', opcode: opcode as Opcode, operand, loc });
         break;
@@ -1861,7 +1868,7 @@ export class BinaryReader {
   // ---------------------------------------------------------------------------
 
   private decodeSimdOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
-    const opcode = (PREFIX_SIMD << 8) | op;
+    const opcode = (PREFIX_SIMD << 16) | op;
 
     // v128.load + extending loads (0x00-0x06): memarg, 1 pop (address),
     // 1 push (v128).
@@ -2028,7 +2035,11 @@ export class BinaryReader {
     // Remaining SIMD arith / convert / compare / bitwise ops (no immediates).
     // These reach here as the 0x23-0x53 and 0x5e-0xff ranges; arity is NOT
     // uniformly binary, so dispatch by the actual operand count.
-    if (op === 0x52) {
+    // Ternary: v128.bitselect (0x52) plus the relaxed set — relaxed_madd /
+    // nmadd (0x105-0x108), relaxed_laneselect (0x109-0x10c), and
+    // relaxed_dot_i8x16_i7x16_add_s (0x113). Arities mirror the lexer's
+    // TokenType.Ternary entries.
+    if (op === 0x52 || (op >= 0x105 && op <= 0x10c) || op === 0x113) {
       // v128.bitselect: 3 pops (a, b, mask), 1 push.
       const c = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
       const b = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
@@ -2064,7 +2075,7 @@ export class BinaryReader {
     _m: Module,
     loc: Location,
   ): void {
-    const opcode = (PREFIX_THREADS << 8) | op;
+    const opcode = (PREFIX_THREADS << 16) | op;
 
     if (op === 0x03) {
       // atomic.fence: consistency_model byte

@@ -33,10 +33,10 @@ import type { LiteralPayload, Token } from './token.ts';
 // ---------------------------------------------------------------------------
 
 // Helper to form extended opcodes for the keyword map
-const S = (n: number) => (PREFIX_SIMD << 8) | n;
-const A = (n: number) => (PREFIX_THREADS << 8) | n;
-const M = (n: number) => (PREFIX_MISC << 8) | n;
-const G = (n: number) => (PREFIX_GC << 8) | n;
+const S = (n: number) => (PREFIX_SIMD << 16) | n;
+const A = (n: number) => (PREFIX_THREADS << 16) | n;
+const M = (n: number) => (PREFIX_MISC << 16) | n;
+const G = (n: number) => (PREFIX_GC << 16) | n;
 
 interface KwBare {
   readonly tt: TokenType;

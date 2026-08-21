@@ -49,8 +49,8 @@ function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   // truncations `i*.trunc_sat_f*`). They are NOT SIMD and must use the misc
   // table; otherwise they fall through to the SIMD default below and get
   // type-checked as `(v128,v128)→v128`, so wrong-typed operands validate clean.
-  if ((opcode >>> 8) === PREFIX_MISC) {
-    return getMiscOpcodeTypeInfo(opcode & 0xff);
+  if ((opcode >>> 16) === PREFIX_MISC) {
+    return getMiscOpcodeTypeInfo(opcode & 0xffff);
   }
   switch (opcode) {
     // --- Loads ---
@@ -1292,7 +1292,7 @@ export class TypeChecker {
     // (b) gave extract_lane the wrong result type, and (c) never range-checked
     // the lane immediate. `laneCount` is the number of lanes for the shape.
     // (laneType, laneCount) per shape; the replace family is the odd opcodes.
-    const sub = opcode & 0xff;
+    const sub = opcode & 0xffff;
     const isReplace = sub === 0x17 || sub === 0x1a || sub === 0x1c ||
       sub === 0x1e || sub === 0x20 || sub === 0x22;
     let laneType: Type;

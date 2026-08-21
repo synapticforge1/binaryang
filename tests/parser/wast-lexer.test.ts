@@ -290,31 +290,31 @@ describe('WastLexer — extended opcode tokens', () => {
   it('v128.load → SimdLoadSplat with SIMD prefix', () => {
     const tok = lexOne('v128.load') as OpcodeToken;
     expect(tok.tokenType).toBe(TokenType.Load);
-    expect(tok.opcode as unknown as number).toBe((PREFIX_SIMD << 8) | 0x00);
+    expect(tok.opcode as unknown as number).toBe((PREFIX_SIMD << 16) | 0x00);
   });
 
   it('i32x4.add → Binary with SIMD prefix', () => {
     const tok = lexOne('i32x4.add') as OpcodeToken;
     expect(tok.tokenType).toBe(TokenType.Binary);
-    expect(tok.opcode as unknown as number).toBe((PREFIX_SIMD << 8) | 0xae);
+    expect(tok.opcode as unknown as number).toBe((PREFIX_SIMD << 16) | 0xae);
   });
 
   it('atomic.fence → AtomicFence with threads prefix', () => {
     const tok = lexOne('atomic.fence') as OpcodeToken;
     expect(tok.tokenType).toBe(TokenType.AtomicFence);
-    expect(tok.opcode as unknown as number).toBe((PREFIX_THREADS << 8) | 0x03);
+    expect(tok.opcode as unknown as number).toBe((PREFIX_THREADS << 16) | 0x03);
   });
 
   it('i32.atomic.load → AtomicLoad', () => {
     const tok = lexOne('i32.atomic.load') as OpcodeToken;
     expect(tok.tokenType).toBe(TokenType.AtomicLoad);
-    expect(tok.opcode as unknown as number).toBe((PREFIX_THREADS << 8) | 0x10);
+    expect(tok.opcode as unknown as number).toBe((PREFIX_THREADS << 16) | 0x10);
   });
 
   it('memory.copy → MemoryCopy with misc prefix', () => {
     const tok = lexOne('memory.copy') as OpcodeToken;
     expect(tok.tokenType).toBe(TokenType.MemoryCopy);
-    expect(tok.opcode as unknown as number).toBe((PREFIX_MISC << 8) | 0x0a);
+    expect(tok.opcode as unknown as number).toBe((PREFIX_MISC << 16) | 0x0a);
   });
 });
 

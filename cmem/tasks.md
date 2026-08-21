@@ -43,6 +43,7 @@ reference these ids.
 | T5 | GC `(rec …)` recursive type groups and `(sub …)` subtyping | done — parse +7, encode +5 |
 | T5.1 | `any.convert_extern` / `extern.convert_any` | done — parse +1, encode +1 |
 | T8.3 | WAT writer emitted multi-instruction const exprs as one folded paren | done (found via T5.1) |
+| T7.7 | Relaxed SIMD aliased onto low SIMD opcodes (opcode packing too narrow) | done — encode +7 |
 
 ### Open — parse side (24 files)
 
@@ -59,7 +60,6 @@ reference these ids.
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T7.7** | Relaxed SIMD encoding — `reached end while decoding`, `i8x16.splat` operand type | 6 |
 | **T7.8** | Stack-arity residue — `expected N elements for fallthru` | 3 |
 | **T7.9** | `return_call_indirect` tail-call type mismatch | 2 |
 | **T7.10** | Singles — `br_on_non_null` subtype, `br_on_null` branch arity, `i32.eqz` operand type, elem segment subtype, elem const-expr arity, duplicate export name, memory ordering | 7 |
@@ -220,7 +220,10 @@ gaps are narrowing.
   finding.** The bridge has no case for either conversion instruction, but
   nothing previously working broke — it simply has no path, same as the other
   GC gaps already filed as UP-3.*
-- *T7 remaining clusters (stack residue, relaxed SIMD, splat, singles): in
+- *T7.7 (relaxed SIMD, V8-valid 222 → 229): **no new binaryen-ts finding.**
+  The bug was ours — the `(prefix << 8) | sub` opcode packing could not hold a
+  sub-opcode >= 0x100.*
+- *T7 remaining clusters (stack residue, tail-call types, singles): in
   progress.*
 
 ---

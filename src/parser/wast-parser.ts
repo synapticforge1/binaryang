@@ -14,7 +14,7 @@
 import type { Location, WabtError } from '../core/error.ts';
 import { addError, ErrorLevel, unknownLocation } from '../core/error.ts';
 import { Result } from '../core/result.ts';
-import { GcOpcode, Opcode } from '../core/opcode.ts';
+import { GcOpcode, Opcode, PREFIX_SIMD } from '../core/opcode.ts';
 import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
 import {
   type ArrayCopyExpr,
@@ -800,13 +800,19 @@ function instrInputCountForTok(tok: Token): number {
  * f32x4 / f64x2). All others under TokenType.SimdLaneOp are extract_lane.
  */
 function isReplaceLaneOpcode(op: number): boolean {
-  switch (op) {
-    case 0xfd17: // i8x16.replace_lane
-    case 0xfd1a: // i16x8.replace_lane
-    case 0xfd1c: // i32x4.replace_lane
-    case 0xfd1e: // i64x2.replace_lane
-    case 0xfd20: // f32x4.replace_lane
-    case 0xfd22: // f64x2.replace_lane
+  // Compare on the SUB-opcode. These were written as packed literals
+  // (`0xfd17`), which silently stopped matching when the packing widened from
+  // `prefix << 8` to `prefix << 16` — the check just returned false and every
+  // replace_lane lost its scalar operand. Deriving the sub-opcode keeps this
+  // independent of the packing width.
+  if ((op >>> 16) !== PREFIX_SIMD) return false;
+  switch (op & 0xffff) {
+    case 0x17: // i8x16.replace_lane
+    case 0x1a: // i16x8.replace_lane
+    case 0x1c: // i32x4.replace_lane
+    case 0x1e: // i64x2.replace_lane
+    case 0x20: // f32x4.replace_lane
+    case 0x22: // f64x2.replace_lane
       return true;
     default:
       return false;
@@ -3368,7 +3374,7 @@ export class WastParser {
         // (0x1e) to TokenType.I31Get, so the opcode immediate determines
         // the signedness.
         const op = (tok as OpcodeToken).opcode as unknown as number;
-        const signed = (op & 0xff) === GcOpcode.I31GetS;
+        const signed = (op & 0xffff) === GcOpcode.I31GetS;
         return { kind: 'i31.get', i31: op0(), signed, loc } as I31GetExpr;
       }
       case TokenType.StructNew: {

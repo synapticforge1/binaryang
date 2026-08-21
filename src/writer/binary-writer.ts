@@ -269,12 +269,17 @@ function writeBlockType(s: MemoryStream, bt: BlockType): void {
 }
 
 function writeOpcode(s: MemoryStream, op: number): void {
-  const prefix = (op >>> 8) & 0xff;
+  // Sub-opcodes occupy the LOW 16 bits. 8 was not enough: the relaxed-SIMD
+  // set lives at 0x100-0x113, and `(0xfd << 8) | 0x100` is 0xfd00 — bit 8 is
+  // already set by the prefix, so the sub-opcode ALIASED onto a low SIMD
+  // opcode (0x100 -> v128.load, 0x111 -> i32x4.splat) rather than overflowing
+  // into the next prefix.
+  const prefix = (op >>> 16) & 0xff;
   if (prefix === 0) {
-    s.writeU8(op & 0xff);
+    s.writeU8(op & 0xffff);
   } else {
     s.writeU8(prefix);
-    s.writeU32Leb(op & 0xff);
+    s.writeU32Leb(op & 0xffff);
   }
 }
 
@@ -288,7 +293,7 @@ function writeOpcode(s: MemoryStream, op: number): void {
  */
 function opcodeOf(e: unknown): number {
   const op = (e as { opcode?: number }).opcode;
-  return op ?? ((PREFIX_THREADS << 8) | 0x00);
+  return op ?? ((PREFIX_THREADS << 16) | 0x00);
 }
 
 function writeMemArg(

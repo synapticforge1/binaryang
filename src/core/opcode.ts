@@ -550,28 +550,28 @@ const OPCODE_NAMES: ReadonlyMap<Opcode, string> = new Map<Opcode, string>([
 
 const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, string>([
   // --- 0xfc: misc (saturating truncation + bulk-memory + reference-types + i128) ---
-  [(PREFIX_MISC << 8) | 0x00, 'i32.trunc_sat_f32_s'],
-  [(PREFIX_MISC << 8) | 0x01, 'i32.trunc_sat_f32_u'],
-  [(PREFIX_MISC << 8) | 0x02, 'i32.trunc_sat_f64_s'],
-  [(PREFIX_MISC << 8) | 0x03, 'i32.trunc_sat_f64_u'],
-  [(PREFIX_MISC << 8) | 0x04, 'i64.trunc_sat_f32_s'],
-  [(PREFIX_MISC << 8) | 0x05, 'i64.trunc_sat_f32_u'],
-  [(PREFIX_MISC << 8) | 0x06, 'i64.trunc_sat_f64_s'],
-  [(PREFIX_MISC << 8) | 0x07, 'i64.trunc_sat_f64_u'],
-  [(PREFIX_MISC << 8) | 0x08, 'memory.init'],
-  [(PREFIX_MISC << 8) | 0x09, 'data.drop'],
-  [(PREFIX_MISC << 8) | 0x0a, 'memory.copy'],
-  [(PREFIX_MISC << 8) | 0x0b, 'memory.fill'],
-  [(PREFIX_MISC << 8) | 0x0c, 'table.init'],
-  [(PREFIX_MISC << 8) | 0x0d, 'elem.drop'],
-  [(PREFIX_MISC << 8) | 0x0e, 'table.copy'],
-  [(PREFIX_MISC << 8) | 0x0f, 'table.grow'],
-  [(PREFIX_MISC << 8) | 0x10, 'table.size'],
-  [(PREFIX_MISC << 8) | 0x11, 'table.fill'],
-  [(PREFIX_MISC << 8) | 0x13, 'i64.add128'],
-  [(PREFIX_MISC << 8) | 0x14, 'i64.sub128'],
-  [(PREFIX_MISC << 8) | 0x15, 'i64.mul_wide_s'],
-  [(PREFIX_MISC << 8) | 0x16, 'i64.mul_wide_u'],
+  [(PREFIX_MISC << 16) | 0x00, 'i32.trunc_sat_f32_s'],
+  [(PREFIX_MISC << 16) | 0x01, 'i32.trunc_sat_f32_u'],
+  [(PREFIX_MISC << 16) | 0x02, 'i32.trunc_sat_f64_s'],
+  [(PREFIX_MISC << 16) | 0x03, 'i32.trunc_sat_f64_u'],
+  [(PREFIX_MISC << 16) | 0x04, 'i64.trunc_sat_f32_s'],
+  [(PREFIX_MISC << 16) | 0x05, 'i64.trunc_sat_f32_u'],
+  [(PREFIX_MISC << 16) | 0x06, 'i64.trunc_sat_f64_s'],
+  [(PREFIX_MISC << 16) | 0x07, 'i64.trunc_sat_f64_u'],
+  [(PREFIX_MISC << 16) | 0x08, 'memory.init'],
+  [(PREFIX_MISC << 16) | 0x09, 'data.drop'],
+  [(PREFIX_MISC << 16) | 0x0a, 'memory.copy'],
+  [(PREFIX_MISC << 16) | 0x0b, 'memory.fill'],
+  [(PREFIX_MISC << 16) | 0x0c, 'table.init'],
+  [(PREFIX_MISC << 16) | 0x0d, 'elem.drop'],
+  [(PREFIX_MISC << 16) | 0x0e, 'table.copy'],
+  [(PREFIX_MISC << 16) | 0x0f, 'table.grow'],
+  [(PREFIX_MISC << 16) | 0x10, 'table.size'],
+  [(PREFIX_MISC << 16) | 0x11, 'table.fill'],
+  [(PREFIX_MISC << 16) | 0x13, 'i64.add128'],
+  [(PREFIX_MISC << 16) | 0x14, 'i64.sub128'],
+  [(PREFIX_MISC << 16) | 0x15, 'i64.mul_wide_s'],
+  [(PREFIX_MISC << 16) | 0x16, 'i64.mul_wide_u'],
 
   // --- 0xfd: SIMD / v128 instructions (regenerated from upstream wabt
   // opcode.def via scripts/gen_simd_opcode_table.ts; cross-checked against
@@ -583,348 +583,373 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   // up OR'd into the same 16-bit key as low SIMD opcodes). Run the audit
   // script (scripts/audit_opcodes.ts) to detect future drift.
   //
-  // SIMD sub-opcodes >= 0x100 (the relaxed-SIMD set: i8x16.relaxed_swizzle
-  // and friends) are LEB128-encoded in the binary and don't fit in this
-  // (prefix << 8) | byte key scheme. They're omitted here; add a separate
-  // table if a consumer needs them by name.
-  [(PREFIX_SIMD << 8) | 0x00, 'v128.load'],
-  [(PREFIX_SIMD << 8) | 0x01, 'v128.load8x8_s'],
-  [(PREFIX_SIMD << 8) | 0x02, 'v128.load8x8_u'],
-  [(PREFIX_SIMD << 8) | 0x03, 'v128.load16x4_s'],
-  [(PREFIX_SIMD << 8) | 0x04, 'v128.load16x4_u'],
-  [(PREFIX_SIMD << 8) | 0x05, 'v128.load32x2_s'],
-  [(PREFIX_SIMD << 8) | 0x06, 'v128.load32x2_u'],
-  [(PREFIX_SIMD << 8) | 0x07, 'v128.load8_splat'],
-  [(PREFIX_SIMD << 8) | 0x08, 'v128.load16_splat'],
-  [(PREFIX_SIMD << 8) | 0x09, 'v128.load32_splat'],
-  [(PREFIX_SIMD << 8) | 0x0a, 'v128.load64_splat'],
-  [(PREFIX_SIMD << 8) | 0x0b, 'v128.store'],
-  [(PREFIX_SIMD << 8) | 0x0c, 'v128.const'],
-  [(PREFIX_SIMD << 8) | 0x0d, 'i8x16.shuffle'],
-  [(PREFIX_SIMD << 8) | 0x0e, 'i8x16.swizzle'],
-  [(PREFIX_SIMD << 8) | 0x0f, 'i8x16.splat'],
-  [(PREFIX_SIMD << 8) | 0x10, 'i16x8.splat'],
-  [(PREFIX_SIMD << 8) | 0x11, 'i32x4.splat'],
-  [(PREFIX_SIMD << 8) | 0x12, 'i64x2.splat'],
-  [(PREFIX_SIMD << 8) | 0x13, 'f32x4.splat'],
-  [(PREFIX_SIMD << 8) | 0x14, 'f64x2.splat'],
-  [(PREFIX_SIMD << 8) | 0x15, 'i8x16.extract_lane_s'],
-  [(PREFIX_SIMD << 8) | 0x16, 'i8x16.extract_lane_u'],
-  [(PREFIX_SIMD << 8) | 0x17, 'i8x16.replace_lane'],
-  [(PREFIX_SIMD << 8) | 0x18, 'i16x8.extract_lane_s'],
-  [(PREFIX_SIMD << 8) | 0x19, 'i16x8.extract_lane_u'],
-  [(PREFIX_SIMD << 8) | 0x1a, 'i16x8.replace_lane'],
-  [(PREFIX_SIMD << 8) | 0x1b, 'i32x4.extract_lane'],
-  [(PREFIX_SIMD << 8) | 0x1c, 'i32x4.replace_lane'],
-  [(PREFIX_SIMD << 8) | 0x1d, 'i64x2.extract_lane'],
-  [(PREFIX_SIMD << 8) | 0x1e, 'i64x2.replace_lane'],
-  [(PREFIX_SIMD << 8) | 0x1f, 'f32x4.extract_lane'],
-  [(PREFIX_SIMD << 8) | 0x20, 'f32x4.replace_lane'],
-  [(PREFIX_SIMD << 8) | 0x21, 'f64x2.extract_lane'],
-  [(PREFIX_SIMD << 8) | 0x22, 'f64x2.replace_lane'],
-  [(PREFIX_SIMD << 8) | 0x23, 'i8x16.eq'],
-  [(PREFIX_SIMD << 8) | 0x24, 'i8x16.ne'],
-  [(PREFIX_SIMD << 8) | 0x25, 'i8x16.lt_s'],
-  [(PREFIX_SIMD << 8) | 0x26, 'i8x16.lt_u'],
-  [(PREFIX_SIMD << 8) | 0x27, 'i8x16.gt_s'],
-  [(PREFIX_SIMD << 8) | 0x28, 'i8x16.gt_u'],
-  [(PREFIX_SIMD << 8) | 0x29, 'i8x16.le_s'],
-  [(PREFIX_SIMD << 8) | 0x2a, 'i8x16.le_u'],
-  [(PREFIX_SIMD << 8) | 0x2b, 'i8x16.ge_s'],
-  [(PREFIX_SIMD << 8) | 0x2c, 'i8x16.ge_u'],
-  [(PREFIX_SIMD << 8) | 0x2d, 'i16x8.eq'],
-  [(PREFIX_SIMD << 8) | 0x2e, 'i16x8.ne'],
-  [(PREFIX_SIMD << 8) | 0x2f, 'i16x8.lt_s'],
-  [(PREFIX_SIMD << 8) | 0x30, 'i16x8.lt_u'],
-  [(PREFIX_SIMD << 8) | 0x31, 'i16x8.gt_s'],
-  [(PREFIX_SIMD << 8) | 0x32, 'i16x8.gt_u'],
-  [(PREFIX_SIMD << 8) | 0x33, 'i16x8.le_s'],
-  [(PREFIX_SIMD << 8) | 0x34, 'i16x8.le_u'],
-  [(PREFIX_SIMD << 8) | 0x35, 'i16x8.ge_s'],
-  [(PREFIX_SIMD << 8) | 0x36, 'i16x8.ge_u'],
-  [(PREFIX_SIMD << 8) | 0x37, 'i32x4.eq'],
-  [(PREFIX_SIMD << 8) | 0x38, 'i32x4.ne'],
-  [(PREFIX_SIMD << 8) | 0x39, 'i32x4.lt_s'],
-  [(PREFIX_SIMD << 8) | 0x3a, 'i32x4.lt_u'],
-  [(PREFIX_SIMD << 8) | 0x3b, 'i32x4.gt_s'],
-  [(PREFIX_SIMD << 8) | 0x3c, 'i32x4.gt_u'],
-  [(PREFIX_SIMD << 8) | 0x3d, 'i32x4.le_s'],
-  [(PREFIX_SIMD << 8) | 0x3e, 'i32x4.le_u'],
-  [(PREFIX_SIMD << 8) | 0x3f, 'i32x4.ge_s'],
-  [(PREFIX_SIMD << 8) | 0x40, 'i32x4.ge_u'],
-  [(PREFIX_SIMD << 8) | 0x41, 'f32x4.eq'],
-  [(PREFIX_SIMD << 8) | 0x42, 'f32x4.ne'],
-  [(PREFIX_SIMD << 8) | 0x43, 'f32x4.lt'],
-  [(PREFIX_SIMD << 8) | 0x44, 'f32x4.gt'],
-  [(PREFIX_SIMD << 8) | 0x45, 'f32x4.le'],
-  [(PREFIX_SIMD << 8) | 0x46, 'f32x4.ge'],
-  [(PREFIX_SIMD << 8) | 0x47, 'f64x2.eq'],
-  [(PREFIX_SIMD << 8) | 0x48, 'f64x2.ne'],
-  [(PREFIX_SIMD << 8) | 0x49, 'f64x2.lt'],
-  [(PREFIX_SIMD << 8) | 0x4a, 'f64x2.gt'],
-  [(PREFIX_SIMD << 8) | 0x4b, 'f64x2.le'],
-  [(PREFIX_SIMD << 8) | 0x4c, 'f64x2.ge'],
-  [(PREFIX_SIMD << 8) | 0x4d, 'v128.not'],
-  [(PREFIX_SIMD << 8) | 0x4e, 'v128.and'],
-  [(PREFIX_SIMD << 8) | 0x4f, 'v128.andnot'],
-  [(PREFIX_SIMD << 8) | 0x50, 'v128.or'],
-  [(PREFIX_SIMD << 8) | 0x51, 'v128.xor'],
-  [(PREFIX_SIMD << 8) | 0x52, 'v128.bitselect'],
-  [(PREFIX_SIMD << 8) | 0x53, 'v128.any_true'],
-  [(PREFIX_SIMD << 8) | 0x54, 'v128.load8_lane'],
-  [(PREFIX_SIMD << 8) | 0x55, 'v128.load16_lane'],
-  [(PREFIX_SIMD << 8) | 0x56, 'v128.load32_lane'],
-  [(PREFIX_SIMD << 8) | 0x57, 'v128.load64_lane'],
-  [(PREFIX_SIMD << 8) | 0x58, 'v128.store8_lane'],
-  [(PREFIX_SIMD << 8) | 0x59, 'v128.store16_lane'],
-  [(PREFIX_SIMD << 8) | 0x5a, 'v128.store32_lane'],
-  [(PREFIX_SIMD << 8) | 0x5b, 'v128.store64_lane'],
-  [(PREFIX_SIMD << 8) | 0x5c, 'v128.load32_zero'],
-  [(PREFIX_SIMD << 8) | 0x5d, 'v128.load64_zero'],
-  [(PREFIX_SIMD << 8) | 0x5e, 'f32x4.demote_f64x2_zero'],
-  [(PREFIX_SIMD << 8) | 0x5f, 'f64x2.promote_low_f32x4'],
-  [(PREFIX_SIMD << 8) | 0x60, 'i8x16.abs'],
-  [(PREFIX_SIMD << 8) | 0x61, 'i8x16.neg'],
-  [(PREFIX_SIMD << 8) | 0x62, 'i8x16.popcnt'],
-  [(PREFIX_SIMD << 8) | 0x63, 'i8x16.all_true'],
-  [(PREFIX_SIMD << 8) | 0x64, 'i8x16.bitmask'],
-  [(PREFIX_SIMD << 8) | 0x65, 'i8x16.narrow_i16x8_s'],
-  [(PREFIX_SIMD << 8) | 0x66, 'i8x16.narrow_i16x8_u'],
-  [(PREFIX_SIMD << 8) | 0x67, 'f32x4.ceil'],
-  [(PREFIX_SIMD << 8) | 0x68, 'f32x4.floor'],
-  [(PREFIX_SIMD << 8) | 0x69, 'f32x4.trunc'],
-  [(PREFIX_SIMD << 8) | 0x6a, 'f32x4.nearest'],
-  [(PREFIX_SIMD << 8) | 0x6b, 'i8x16.shl'],
-  [(PREFIX_SIMD << 8) | 0x6c, 'i8x16.shr_s'],
-  [(PREFIX_SIMD << 8) | 0x6d, 'i8x16.shr_u'],
-  [(PREFIX_SIMD << 8) | 0x6e, 'i8x16.add'],
-  [(PREFIX_SIMD << 8) | 0x6f, 'i8x16.add_sat_s'],
-  [(PREFIX_SIMD << 8) | 0x70, 'i8x16.add_sat_u'],
-  [(PREFIX_SIMD << 8) | 0x71, 'i8x16.sub'],
-  [(PREFIX_SIMD << 8) | 0x72, 'i8x16.sub_sat_s'],
-  [(PREFIX_SIMD << 8) | 0x73, 'i8x16.sub_sat_u'],
-  [(PREFIX_SIMD << 8) | 0x74, 'f64x2.ceil'],
-  [(PREFIX_SIMD << 8) | 0x75, 'f64x2.floor'],
-  [(PREFIX_SIMD << 8) | 0x76, 'i8x16.min_s'],
-  [(PREFIX_SIMD << 8) | 0x77, 'i8x16.min_u'],
-  [(PREFIX_SIMD << 8) | 0x78, 'i8x16.max_s'],
-  [(PREFIX_SIMD << 8) | 0x79, 'i8x16.max_u'],
-  [(PREFIX_SIMD << 8) | 0x7a, 'f64x2.trunc'],
-  [(PREFIX_SIMD << 8) | 0x7b, 'i8x16.avgr_u'],
-  [(PREFIX_SIMD << 8) | 0x7c, 'i16x8.extadd_pairwise_i8x16_s'],
-  [(PREFIX_SIMD << 8) | 0x7d, 'i16x8.extadd_pairwise_i8x16_u'],
-  [(PREFIX_SIMD << 8) | 0x7e, 'i32x4.extadd_pairwise_i16x8_s'],
-  [(PREFIX_SIMD << 8) | 0x7f, 'i32x4.extadd_pairwise_i16x8_u'],
-  [(PREFIX_SIMD << 8) | 0x80, 'i16x8.abs'],
-  [(PREFIX_SIMD << 8) | 0x81, 'i16x8.neg'],
-  [(PREFIX_SIMD << 8) | 0x82, 'i16x8.q15mulr_sat_s'],
-  [(PREFIX_SIMD << 8) | 0x83, 'i16x8.all_true'],
-  [(PREFIX_SIMD << 8) | 0x84, 'i16x8.bitmask'],
-  [(PREFIX_SIMD << 8) | 0x85, 'i16x8.narrow_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0x86, 'i16x8.narrow_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0x87, 'i16x8.extend_low_i8x16_s'],
-  [(PREFIX_SIMD << 8) | 0x88, 'i16x8.extend_high_i8x16_s'],
-  [(PREFIX_SIMD << 8) | 0x89, 'i16x8.extend_low_i8x16_u'],
-  [(PREFIX_SIMD << 8) | 0x8a, 'i16x8.extend_high_i8x16_u'],
-  [(PREFIX_SIMD << 8) | 0x8b, 'i16x8.shl'],
-  [(PREFIX_SIMD << 8) | 0x8c, 'i16x8.shr_s'],
-  [(PREFIX_SIMD << 8) | 0x8d, 'i16x8.shr_u'],
-  [(PREFIX_SIMD << 8) | 0x8e, 'i16x8.add'],
-  [(PREFIX_SIMD << 8) | 0x8f, 'i16x8.add_sat_s'],
-  [(PREFIX_SIMD << 8) | 0x90, 'i16x8.add_sat_u'],
-  [(PREFIX_SIMD << 8) | 0x91, 'i16x8.sub'],
-  [(PREFIX_SIMD << 8) | 0x92, 'i16x8.sub_sat_s'],
-  [(PREFIX_SIMD << 8) | 0x93, 'i16x8.sub_sat_u'],
-  [(PREFIX_SIMD << 8) | 0x94, 'f64x2.nearest'],
-  [(PREFIX_SIMD << 8) | 0x95, 'i16x8.mul'],
-  [(PREFIX_SIMD << 8) | 0x96, 'i16x8.min_s'],
-  [(PREFIX_SIMD << 8) | 0x97, 'i16x8.min_u'],
-  [(PREFIX_SIMD << 8) | 0x98, 'i16x8.max_s'],
-  [(PREFIX_SIMD << 8) | 0x99, 'i16x8.max_u'],
-  [(PREFIX_SIMD << 8) | 0x9b, 'i16x8.avgr_u'],
-  [(PREFIX_SIMD << 8) | 0x9c, 'i16x8.extmul_low_i8x16_s'],
-  [(PREFIX_SIMD << 8) | 0x9d, 'i16x8.extmul_high_i8x16_s'],
-  [(PREFIX_SIMD << 8) | 0x9e, 'i16x8.extmul_low_i8x16_u'],
-  [(PREFIX_SIMD << 8) | 0x9f, 'i16x8.extmul_high_i8x16_u'],
-  [(PREFIX_SIMD << 8) | 0xa0, 'i32x4.abs'],
-  [(PREFIX_SIMD << 8) | 0xa1, 'i32x4.neg'],
-  [(PREFIX_SIMD << 8) | 0xa3, 'i32x4.all_true'],
-  [(PREFIX_SIMD << 8) | 0xa4, 'i32x4.bitmask'],
-  [(PREFIX_SIMD << 8) | 0xa7, 'i32x4.extend_low_i16x8_s'],
-  [(PREFIX_SIMD << 8) | 0xa8, 'i32x4.extend_high_i16x8_s'],
-  [(PREFIX_SIMD << 8) | 0xa9, 'i32x4.extend_low_i16x8_u'],
-  [(PREFIX_SIMD << 8) | 0xaa, 'i32x4.extend_high_i16x8_u'],
-  [(PREFIX_SIMD << 8) | 0xab, 'i32x4.shl'],
-  [(PREFIX_SIMD << 8) | 0xac, 'i32x4.shr_s'],
-  [(PREFIX_SIMD << 8) | 0xad, 'i32x4.shr_u'],
-  [(PREFIX_SIMD << 8) | 0xae, 'i32x4.add'],
-  [(PREFIX_SIMD << 8) | 0xb1, 'i32x4.sub'],
-  [(PREFIX_SIMD << 8) | 0xb5, 'i32x4.mul'],
-  [(PREFIX_SIMD << 8) | 0xb6, 'i32x4.min_s'],
-  [(PREFIX_SIMD << 8) | 0xb7, 'i32x4.min_u'],
-  [(PREFIX_SIMD << 8) | 0xb8, 'i32x4.max_s'],
-  [(PREFIX_SIMD << 8) | 0xb9, 'i32x4.max_u'],
-  [(PREFIX_SIMD << 8) | 0xba, 'i32x4.dot_i16x8_s'],
-  [(PREFIX_SIMD << 8) | 0xbc, 'i32x4.extmul_low_i16x8_s'],
-  [(PREFIX_SIMD << 8) | 0xbd, 'i32x4.extmul_high_i16x8_s'],
-  [(PREFIX_SIMD << 8) | 0xbe, 'i32x4.extmul_low_i16x8_u'],
-  [(PREFIX_SIMD << 8) | 0xbf, 'i32x4.extmul_high_i16x8_u'],
-  [(PREFIX_SIMD << 8) | 0xc0, 'i64x2.abs'],
-  [(PREFIX_SIMD << 8) | 0xc1, 'i64x2.neg'],
-  [(PREFIX_SIMD << 8) | 0xc3, 'i64x2.all_true'],
-  [(PREFIX_SIMD << 8) | 0xc4, 'i64x2.bitmask'],
-  [(PREFIX_SIMD << 8) | 0xc7, 'i64x2.extend_low_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0xc8, 'i64x2.extend_high_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0xc9, 'i64x2.extend_low_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0xca, 'i64x2.extend_high_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0xcb, 'i64x2.shl'],
-  [(PREFIX_SIMD << 8) | 0xcc, 'i64x2.shr_s'],
-  [(PREFIX_SIMD << 8) | 0xcd, 'i64x2.shr_u'],
-  [(PREFIX_SIMD << 8) | 0xce, 'i64x2.add'],
-  [(PREFIX_SIMD << 8) | 0xd1, 'i64x2.sub'],
-  [(PREFIX_SIMD << 8) | 0xd5, 'i64x2.mul'],
-  [(PREFIX_SIMD << 8) | 0xd6, 'i64x2.eq'],
-  [(PREFIX_SIMD << 8) | 0xd7, 'i64x2.ne'],
-  [(PREFIX_SIMD << 8) | 0xd8, 'i64x2.lt_s'],
-  [(PREFIX_SIMD << 8) | 0xd9, 'i64x2.gt_s'],
-  [(PREFIX_SIMD << 8) | 0xda, 'i64x2.le_s'],
-  [(PREFIX_SIMD << 8) | 0xdb, 'i64x2.ge_s'],
-  [(PREFIX_SIMD << 8) | 0xdc, 'i64x2.extmul_low_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0xdd, 'i64x2.extmul_high_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0xde, 'i64x2.extmul_low_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0xdf, 'i64x2.extmul_high_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0xe0, 'f32x4.abs'],
-  [(PREFIX_SIMD << 8) | 0xe1, 'f32x4.neg'],
-  [(PREFIX_SIMD << 8) | 0xe3, 'f32x4.sqrt'],
-  [(PREFIX_SIMD << 8) | 0xe4, 'f32x4.add'],
-  [(PREFIX_SIMD << 8) | 0xe5, 'f32x4.sub'],
-  [(PREFIX_SIMD << 8) | 0xe6, 'f32x4.mul'],
-  [(PREFIX_SIMD << 8) | 0xe7, 'f32x4.div'],
-  [(PREFIX_SIMD << 8) | 0xe8, 'f32x4.min'],
-  [(PREFIX_SIMD << 8) | 0xe9, 'f32x4.max'],
-  [(PREFIX_SIMD << 8) | 0xea, 'f32x4.pmin'],
-  [(PREFIX_SIMD << 8) | 0xeb, 'f32x4.pmax'],
-  [(PREFIX_SIMD << 8) | 0xec, 'f64x2.abs'],
-  [(PREFIX_SIMD << 8) | 0xed, 'f64x2.neg'],
-  [(PREFIX_SIMD << 8) | 0xef, 'f64x2.sqrt'],
-  [(PREFIX_SIMD << 8) | 0xf0, 'f64x2.add'],
-  [(PREFIX_SIMD << 8) | 0xf1, 'f64x2.sub'],
-  [(PREFIX_SIMD << 8) | 0xf2, 'f64x2.mul'],
-  [(PREFIX_SIMD << 8) | 0xf3, 'f64x2.div'],
-  [(PREFIX_SIMD << 8) | 0xf4, 'f64x2.min'],
-  [(PREFIX_SIMD << 8) | 0xf5, 'f64x2.max'],
-  [(PREFIX_SIMD << 8) | 0xf6, 'f64x2.pmin'],
-  [(PREFIX_SIMD << 8) | 0xf7, 'f64x2.pmax'],
-  [(PREFIX_SIMD << 8) | 0xf8, 'i32x4.trunc_sat_f32x4_s'],
-  [(PREFIX_SIMD << 8) | 0xf9, 'i32x4.trunc_sat_f32x4_u'],
-  [(PREFIX_SIMD << 8) | 0xfa, 'f32x4.convert_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0xfb, 'f32x4.convert_i32x4_u'],
-  [(PREFIX_SIMD << 8) | 0xfc, 'i32x4.trunc_sat_f64x2_s_zero'],
-  [(PREFIX_SIMD << 8) | 0xfd, 'i32x4.trunc_sat_f64x2_u_zero'],
-  [(PREFIX_SIMD << 8) | 0xfe, 'f64x2.convert_low_i32x4_s'],
-  [(PREFIX_SIMD << 8) | 0xff, 'f64x2.convert_low_i32x4_u'],
+  // SIMD sub-opcodes >= 0x100 (the relaxed-SIMD set) are LEB128-encoded in the
+  // binary. They did NOT fit the old `(prefix << 8) | byte` key: `S(0x100)`
+  // computed 0xfd00, aliasing onto v128.load (bit 8 is already set by the
+  // prefix, so the OR changed nothing), and 0x111 aliased onto i32x4.splat.
+  // The key is now
+  // `(prefix << 16) | sub`, which holds them, and they are listed below;
+  // without the names wasm2wat printed `<opcode:0xfd0100>` and could not
+  // round-trip.
+  [(PREFIX_SIMD << 16) | 0x00, 'v128.load'],
+  // --- Relaxed SIMD (sub-opcodes 0x100-0x113) ---
+  [(PREFIX_SIMD << 16) | 0x100, 'i8x16.relaxed_swizzle'],
+  [(PREFIX_SIMD << 16) | 0x101, 'i32x4.relaxed_trunc_f32x4_s'],
+  [(PREFIX_SIMD << 16) | 0x102, 'i32x4.relaxed_trunc_f32x4_u'],
+  [(PREFIX_SIMD << 16) | 0x103, 'i32x4.relaxed_trunc_f64x2_s_zero'],
+  [(PREFIX_SIMD << 16) | 0x104, 'i32x4.relaxed_trunc_f64x2_u_zero'],
+  [(PREFIX_SIMD << 16) | 0x105, 'f32x4.relaxed_madd'],
+  [(PREFIX_SIMD << 16) | 0x106, 'f32x4.relaxed_nmadd'],
+  [(PREFIX_SIMD << 16) | 0x107, 'f64x2.relaxed_madd'],
+  [(PREFIX_SIMD << 16) | 0x108, 'f64x2.relaxed_nmadd'],
+  [(PREFIX_SIMD << 16) | 0x109, 'i8x16.relaxed_laneselect'],
+  [(PREFIX_SIMD << 16) | 0x10a, 'i16x8.relaxed_laneselect'],
+  [(PREFIX_SIMD << 16) | 0x10b, 'i32x4.relaxed_laneselect'],
+  [(PREFIX_SIMD << 16) | 0x10c, 'i64x2.relaxed_laneselect'],
+  [(PREFIX_SIMD << 16) | 0x10d, 'f32x4.relaxed_min'],
+  [(PREFIX_SIMD << 16) | 0x10e, 'f32x4.relaxed_max'],
+  [(PREFIX_SIMD << 16) | 0x10f, 'f64x2.relaxed_min'],
+  [(PREFIX_SIMD << 16) | 0x110, 'f64x2.relaxed_max'],
+  [(PREFIX_SIMD << 16) | 0x111, 'i16x8.relaxed_q15mulr_s'],
+  [(PREFIX_SIMD << 16) | 0x112, 'i16x8.relaxed_dot_i8x16_i7x16_s'],
+  [(PREFIX_SIMD << 16) | 0x113, 'i32x4.relaxed_dot_i8x16_i7x16_add_s'],
+  [(PREFIX_SIMD << 16) | 0x01, 'v128.load8x8_s'],
+  [(PREFIX_SIMD << 16) | 0x02, 'v128.load8x8_u'],
+  [(PREFIX_SIMD << 16) | 0x03, 'v128.load16x4_s'],
+  [(PREFIX_SIMD << 16) | 0x04, 'v128.load16x4_u'],
+  [(PREFIX_SIMD << 16) | 0x05, 'v128.load32x2_s'],
+  [(PREFIX_SIMD << 16) | 0x06, 'v128.load32x2_u'],
+  [(PREFIX_SIMD << 16) | 0x07, 'v128.load8_splat'],
+  [(PREFIX_SIMD << 16) | 0x08, 'v128.load16_splat'],
+  [(PREFIX_SIMD << 16) | 0x09, 'v128.load32_splat'],
+  [(PREFIX_SIMD << 16) | 0x0a, 'v128.load64_splat'],
+  [(PREFIX_SIMD << 16) | 0x0b, 'v128.store'],
+  [(PREFIX_SIMD << 16) | 0x0c, 'v128.const'],
+  [(PREFIX_SIMD << 16) | 0x0d, 'i8x16.shuffle'],
+  [(PREFIX_SIMD << 16) | 0x0e, 'i8x16.swizzle'],
+  [(PREFIX_SIMD << 16) | 0x0f, 'i8x16.splat'],
+  [(PREFIX_SIMD << 16) | 0x10, 'i16x8.splat'],
+  [(PREFIX_SIMD << 16) | 0x11, 'i32x4.splat'],
+  [(PREFIX_SIMD << 16) | 0x12, 'i64x2.splat'],
+  [(PREFIX_SIMD << 16) | 0x13, 'f32x4.splat'],
+  [(PREFIX_SIMD << 16) | 0x14, 'f64x2.splat'],
+  [(PREFIX_SIMD << 16) | 0x15, 'i8x16.extract_lane_s'],
+  [(PREFIX_SIMD << 16) | 0x16, 'i8x16.extract_lane_u'],
+  [(PREFIX_SIMD << 16) | 0x17, 'i8x16.replace_lane'],
+  [(PREFIX_SIMD << 16) | 0x18, 'i16x8.extract_lane_s'],
+  [(PREFIX_SIMD << 16) | 0x19, 'i16x8.extract_lane_u'],
+  [(PREFIX_SIMD << 16) | 0x1a, 'i16x8.replace_lane'],
+  [(PREFIX_SIMD << 16) | 0x1b, 'i32x4.extract_lane'],
+  [(PREFIX_SIMD << 16) | 0x1c, 'i32x4.replace_lane'],
+  [(PREFIX_SIMD << 16) | 0x1d, 'i64x2.extract_lane'],
+  [(PREFIX_SIMD << 16) | 0x1e, 'i64x2.replace_lane'],
+  [(PREFIX_SIMD << 16) | 0x1f, 'f32x4.extract_lane'],
+  [(PREFIX_SIMD << 16) | 0x20, 'f32x4.replace_lane'],
+  [(PREFIX_SIMD << 16) | 0x21, 'f64x2.extract_lane'],
+  [(PREFIX_SIMD << 16) | 0x22, 'f64x2.replace_lane'],
+  [(PREFIX_SIMD << 16) | 0x23, 'i8x16.eq'],
+  [(PREFIX_SIMD << 16) | 0x24, 'i8x16.ne'],
+  [(PREFIX_SIMD << 16) | 0x25, 'i8x16.lt_s'],
+  [(PREFIX_SIMD << 16) | 0x26, 'i8x16.lt_u'],
+  [(PREFIX_SIMD << 16) | 0x27, 'i8x16.gt_s'],
+  [(PREFIX_SIMD << 16) | 0x28, 'i8x16.gt_u'],
+  [(PREFIX_SIMD << 16) | 0x29, 'i8x16.le_s'],
+  [(PREFIX_SIMD << 16) | 0x2a, 'i8x16.le_u'],
+  [(PREFIX_SIMD << 16) | 0x2b, 'i8x16.ge_s'],
+  [(PREFIX_SIMD << 16) | 0x2c, 'i8x16.ge_u'],
+  [(PREFIX_SIMD << 16) | 0x2d, 'i16x8.eq'],
+  [(PREFIX_SIMD << 16) | 0x2e, 'i16x8.ne'],
+  [(PREFIX_SIMD << 16) | 0x2f, 'i16x8.lt_s'],
+  [(PREFIX_SIMD << 16) | 0x30, 'i16x8.lt_u'],
+  [(PREFIX_SIMD << 16) | 0x31, 'i16x8.gt_s'],
+  [(PREFIX_SIMD << 16) | 0x32, 'i16x8.gt_u'],
+  [(PREFIX_SIMD << 16) | 0x33, 'i16x8.le_s'],
+  [(PREFIX_SIMD << 16) | 0x34, 'i16x8.le_u'],
+  [(PREFIX_SIMD << 16) | 0x35, 'i16x8.ge_s'],
+  [(PREFIX_SIMD << 16) | 0x36, 'i16x8.ge_u'],
+  [(PREFIX_SIMD << 16) | 0x37, 'i32x4.eq'],
+  [(PREFIX_SIMD << 16) | 0x38, 'i32x4.ne'],
+  [(PREFIX_SIMD << 16) | 0x39, 'i32x4.lt_s'],
+  [(PREFIX_SIMD << 16) | 0x3a, 'i32x4.lt_u'],
+  [(PREFIX_SIMD << 16) | 0x3b, 'i32x4.gt_s'],
+  [(PREFIX_SIMD << 16) | 0x3c, 'i32x4.gt_u'],
+  [(PREFIX_SIMD << 16) | 0x3d, 'i32x4.le_s'],
+  [(PREFIX_SIMD << 16) | 0x3e, 'i32x4.le_u'],
+  [(PREFIX_SIMD << 16) | 0x3f, 'i32x4.ge_s'],
+  [(PREFIX_SIMD << 16) | 0x40, 'i32x4.ge_u'],
+  [(PREFIX_SIMD << 16) | 0x41, 'f32x4.eq'],
+  [(PREFIX_SIMD << 16) | 0x42, 'f32x4.ne'],
+  [(PREFIX_SIMD << 16) | 0x43, 'f32x4.lt'],
+  [(PREFIX_SIMD << 16) | 0x44, 'f32x4.gt'],
+  [(PREFIX_SIMD << 16) | 0x45, 'f32x4.le'],
+  [(PREFIX_SIMD << 16) | 0x46, 'f32x4.ge'],
+  [(PREFIX_SIMD << 16) | 0x47, 'f64x2.eq'],
+  [(PREFIX_SIMD << 16) | 0x48, 'f64x2.ne'],
+  [(PREFIX_SIMD << 16) | 0x49, 'f64x2.lt'],
+  [(PREFIX_SIMD << 16) | 0x4a, 'f64x2.gt'],
+  [(PREFIX_SIMD << 16) | 0x4b, 'f64x2.le'],
+  [(PREFIX_SIMD << 16) | 0x4c, 'f64x2.ge'],
+  [(PREFIX_SIMD << 16) | 0x4d, 'v128.not'],
+  [(PREFIX_SIMD << 16) | 0x4e, 'v128.and'],
+  [(PREFIX_SIMD << 16) | 0x4f, 'v128.andnot'],
+  [(PREFIX_SIMD << 16) | 0x50, 'v128.or'],
+  [(PREFIX_SIMD << 16) | 0x51, 'v128.xor'],
+  [(PREFIX_SIMD << 16) | 0x52, 'v128.bitselect'],
+  [(PREFIX_SIMD << 16) | 0x53, 'v128.any_true'],
+  [(PREFIX_SIMD << 16) | 0x54, 'v128.load8_lane'],
+  [(PREFIX_SIMD << 16) | 0x55, 'v128.load16_lane'],
+  [(PREFIX_SIMD << 16) | 0x56, 'v128.load32_lane'],
+  [(PREFIX_SIMD << 16) | 0x57, 'v128.load64_lane'],
+  [(PREFIX_SIMD << 16) | 0x58, 'v128.store8_lane'],
+  [(PREFIX_SIMD << 16) | 0x59, 'v128.store16_lane'],
+  [(PREFIX_SIMD << 16) | 0x5a, 'v128.store32_lane'],
+  [(PREFIX_SIMD << 16) | 0x5b, 'v128.store64_lane'],
+  [(PREFIX_SIMD << 16) | 0x5c, 'v128.load32_zero'],
+  [(PREFIX_SIMD << 16) | 0x5d, 'v128.load64_zero'],
+  [(PREFIX_SIMD << 16) | 0x5e, 'f32x4.demote_f64x2_zero'],
+  [(PREFIX_SIMD << 16) | 0x5f, 'f64x2.promote_low_f32x4'],
+  [(PREFIX_SIMD << 16) | 0x60, 'i8x16.abs'],
+  [(PREFIX_SIMD << 16) | 0x61, 'i8x16.neg'],
+  [(PREFIX_SIMD << 16) | 0x62, 'i8x16.popcnt'],
+  [(PREFIX_SIMD << 16) | 0x63, 'i8x16.all_true'],
+  [(PREFIX_SIMD << 16) | 0x64, 'i8x16.bitmask'],
+  [(PREFIX_SIMD << 16) | 0x65, 'i8x16.narrow_i16x8_s'],
+  [(PREFIX_SIMD << 16) | 0x66, 'i8x16.narrow_i16x8_u'],
+  [(PREFIX_SIMD << 16) | 0x67, 'f32x4.ceil'],
+  [(PREFIX_SIMD << 16) | 0x68, 'f32x4.floor'],
+  [(PREFIX_SIMD << 16) | 0x69, 'f32x4.trunc'],
+  [(PREFIX_SIMD << 16) | 0x6a, 'f32x4.nearest'],
+  [(PREFIX_SIMD << 16) | 0x6b, 'i8x16.shl'],
+  [(PREFIX_SIMD << 16) | 0x6c, 'i8x16.shr_s'],
+  [(PREFIX_SIMD << 16) | 0x6d, 'i8x16.shr_u'],
+  [(PREFIX_SIMD << 16) | 0x6e, 'i8x16.add'],
+  [(PREFIX_SIMD << 16) | 0x6f, 'i8x16.add_sat_s'],
+  [(PREFIX_SIMD << 16) | 0x70, 'i8x16.add_sat_u'],
+  [(PREFIX_SIMD << 16) | 0x71, 'i8x16.sub'],
+  [(PREFIX_SIMD << 16) | 0x72, 'i8x16.sub_sat_s'],
+  [(PREFIX_SIMD << 16) | 0x73, 'i8x16.sub_sat_u'],
+  [(PREFIX_SIMD << 16) | 0x74, 'f64x2.ceil'],
+  [(PREFIX_SIMD << 16) | 0x75, 'f64x2.floor'],
+  [(PREFIX_SIMD << 16) | 0x76, 'i8x16.min_s'],
+  [(PREFIX_SIMD << 16) | 0x77, 'i8x16.min_u'],
+  [(PREFIX_SIMD << 16) | 0x78, 'i8x16.max_s'],
+  [(PREFIX_SIMD << 16) | 0x79, 'i8x16.max_u'],
+  [(PREFIX_SIMD << 16) | 0x7a, 'f64x2.trunc'],
+  [(PREFIX_SIMD << 16) | 0x7b, 'i8x16.avgr_u'],
+  [(PREFIX_SIMD << 16) | 0x7c, 'i16x8.extadd_pairwise_i8x16_s'],
+  [(PREFIX_SIMD << 16) | 0x7d, 'i16x8.extadd_pairwise_i8x16_u'],
+  [(PREFIX_SIMD << 16) | 0x7e, 'i32x4.extadd_pairwise_i16x8_s'],
+  [(PREFIX_SIMD << 16) | 0x7f, 'i32x4.extadd_pairwise_i16x8_u'],
+  [(PREFIX_SIMD << 16) | 0x80, 'i16x8.abs'],
+  [(PREFIX_SIMD << 16) | 0x81, 'i16x8.neg'],
+  [(PREFIX_SIMD << 16) | 0x82, 'i16x8.q15mulr_sat_s'],
+  [(PREFIX_SIMD << 16) | 0x83, 'i16x8.all_true'],
+  [(PREFIX_SIMD << 16) | 0x84, 'i16x8.bitmask'],
+  [(PREFIX_SIMD << 16) | 0x85, 'i16x8.narrow_i32x4_s'],
+  [(PREFIX_SIMD << 16) | 0x86, 'i16x8.narrow_i32x4_u'],
+  [(PREFIX_SIMD << 16) | 0x87, 'i16x8.extend_low_i8x16_s'],
+  [(PREFIX_SIMD << 16) | 0x88, 'i16x8.extend_high_i8x16_s'],
+  [(PREFIX_SIMD << 16) | 0x89, 'i16x8.extend_low_i8x16_u'],
+  [(PREFIX_SIMD << 16) | 0x8a, 'i16x8.extend_high_i8x16_u'],
+  [(PREFIX_SIMD << 16) | 0x8b, 'i16x8.shl'],
+  [(PREFIX_SIMD << 16) | 0x8c, 'i16x8.shr_s'],
+  [(PREFIX_SIMD << 16) | 0x8d, 'i16x8.shr_u'],
+  [(PREFIX_SIMD << 16) | 0x8e, 'i16x8.add'],
+  [(PREFIX_SIMD << 16) | 0x8f, 'i16x8.add_sat_s'],
+  [(PREFIX_SIMD << 16) | 0x90, 'i16x8.add_sat_u'],
+  [(PREFIX_SIMD << 16) | 0x91, 'i16x8.sub'],
+  [(PREFIX_SIMD << 16) | 0x92, 'i16x8.sub_sat_s'],
+  [(PREFIX_SIMD << 16) | 0x93, 'i16x8.sub_sat_u'],
+  [(PREFIX_SIMD << 16) | 0x94, 'f64x2.nearest'],
+  [(PREFIX_SIMD << 16) | 0x95, 'i16x8.mul'],
+  [(PREFIX_SIMD << 16) | 0x96, 'i16x8.min_s'],
+  [(PREFIX_SIMD << 16) | 0x97, 'i16x8.min_u'],
+  [(PREFIX_SIMD << 16) | 0x98, 'i16x8.max_s'],
+  [(PREFIX_SIMD << 16) | 0x99, 'i16x8.max_u'],
+  [(PREFIX_SIMD << 16) | 0x9b, 'i16x8.avgr_u'],
+  [(PREFIX_SIMD << 16) | 0x9c, 'i16x8.extmul_low_i8x16_s'],
+  [(PREFIX_SIMD << 16) | 0x9d, 'i16x8.extmul_high_i8x16_s'],
+  [(PREFIX_SIMD << 16) | 0x9e, 'i16x8.extmul_low_i8x16_u'],
+  [(PREFIX_SIMD << 16) | 0x9f, 'i16x8.extmul_high_i8x16_u'],
+  [(PREFIX_SIMD << 16) | 0xa0, 'i32x4.abs'],
+  [(PREFIX_SIMD << 16) | 0xa1, 'i32x4.neg'],
+  [(PREFIX_SIMD << 16) | 0xa3, 'i32x4.all_true'],
+  [(PREFIX_SIMD << 16) | 0xa4, 'i32x4.bitmask'],
+  [(PREFIX_SIMD << 16) | 0xa7, 'i32x4.extend_low_i16x8_s'],
+  [(PREFIX_SIMD << 16) | 0xa8, 'i32x4.extend_high_i16x8_s'],
+  [(PREFIX_SIMD << 16) | 0xa9, 'i32x4.extend_low_i16x8_u'],
+  [(PREFIX_SIMD << 16) | 0xaa, 'i32x4.extend_high_i16x8_u'],
+  [(PREFIX_SIMD << 16) | 0xab, 'i32x4.shl'],
+  [(PREFIX_SIMD << 16) | 0xac, 'i32x4.shr_s'],
+  [(PREFIX_SIMD << 16) | 0xad, 'i32x4.shr_u'],
+  [(PREFIX_SIMD << 16) | 0xae, 'i32x4.add'],
+  [(PREFIX_SIMD << 16) | 0xb1, 'i32x4.sub'],
+  [(PREFIX_SIMD << 16) | 0xb5, 'i32x4.mul'],
+  [(PREFIX_SIMD << 16) | 0xb6, 'i32x4.min_s'],
+  [(PREFIX_SIMD << 16) | 0xb7, 'i32x4.min_u'],
+  [(PREFIX_SIMD << 16) | 0xb8, 'i32x4.max_s'],
+  [(PREFIX_SIMD << 16) | 0xb9, 'i32x4.max_u'],
+  [(PREFIX_SIMD << 16) | 0xba, 'i32x4.dot_i16x8_s'],
+  [(PREFIX_SIMD << 16) | 0xbc, 'i32x4.extmul_low_i16x8_s'],
+  [(PREFIX_SIMD << 16) | 0xbd, 'i32x4.extmul_high_i16x8_s'],
+  [(PREFIX_SIMD << 16) | 0xbe, 'i32x4.extmul_low_i16x8_u'],
+  [(PREFIX_SIMD << 16) | 0xbf, 'i32x4.extmul_high_i16x8_u'],
+  [(PREFIX_SIMD << 16) | 0xc0, 'i64x2.abs'],
+  [(PREFIX_SIMD << 16) | 0xc1, 'i64x2.neg'],
+  [(PREFIX_SIMD << 16) | 0xc3, 'i64x2.all_true'],
+  [(PREFIX_SIMD << 16) | 0xc4, 'i64x2.bitmask'],
+  [(PREFIX_SIMD << 16) | 0xc7, 'i64x2.extend_low_i32x4_s'],
+  [(PREFIX_SIMD << 16) | 0xc8, 'i64x2.extend_high_i32x4_s'],
+  [(PREFIX_SIMD << 16) | 0xc9, 'i64x2.extend_low_i32x4_u'],
+  [(PREFIX_SIMD << 16) | 0xca, 'i64x2.extend_high_i32x4_u'],
+  [(PREFIX_SIMD << 16) | 0xcb, 'i64x2.shl'],
+  [(PREFIX_SIMD << 16) | 0xcc, 'i64x2.shr_s'],
+  [(PREFIX_SIMD << 16) | 0xcd, 'i64x2.shr_u'],
+  [(PREFIX_SIMD << 16) | 0xce, 'i64x2.add'],
+  [(PREFIX_SIMD << 16) | 0xd1, 'i64x2.sub'],
+  [(PREFIX_SIMD << 16) | 0xd5, 'i64x2.mul'],
+  [(PREFIX_SIMD << 16) | 0xd6, 'i64x2.eq'],
+  [(PREFIX_SIMD << 16) | 0xd7, 'i64x2.ne'],
+  [(PREFIX_SIMD << 16) | 0xd8, 'i64x2.lt_s'],
+  [(PREFIX_SIMD << 16) | 0xd9, 'i64x2.gt_s'],
+  [(PREFIX_SIMD << 16) | 0xda, 'i64x2.le_s'],
+  [(PREFIX_SIMD << 16) | 0xdb, 'i64x2.ge_s'],
+  [(PREFIX_SIMD << 16) | 0xdc, 'i64x2.extmul_low_i32x4_s'],
+  [(PREFIX_SIMD << 16) | 0xdd, 'i64x2.extmul_high_i32x4_s'],
+  [(PREFIX_SIMD << 16) | 0xde, 'i64x2.extmul_low_i32x4_u'],
+  [(PREFIX_SIMD << 16) | 0xdf, 'i64x2.extmul_high_i32x4_u'],
+  [(PREFIX_SIMD << 16) | 0xe0, 'f32x4.abs'],
+  [(PREFIX_SIMD << 16) | 0xe1, 'f32x4.neg'],
+  [(PREFIX_SIMD << 16) | 0xe3, 'f32x4.sqrt'],
+  [(PREFIX_SIMD << 16) | 0xe4, 'f32x4.add'],
+  [(PREFIX_SIMD << 16) | 0xe5, 'f32x4.sub'],
+  [(PREFIX_SIMD << 16) | 0xe6, 'f32x4.mul'],
+  [(PREFIX_SIMD << 16) | 0xe7, 'f32x4.div'],
+  [(PREFIX_SIMD << 16) | 0xe8, 'f32x4.min'],
+  [(PREFIX_SIMD << 16) | 0xe9, 'f32x4.max'],
+  [(PREFIX_SIMD << 16) | 0xea, 'f32x4.pmin'],
+  [(PREFIX_SIMD << 16) | 0xeb, 'f32x4.pmax'],
+  [(PREFIX_SIMD << 16) | 0xec, 'f64x2.abs'],
+  [(PREFIX_SIMD << 16) | 0xed, 'f64x2.neg'],
+  [(PREFIX_SIMD << 16) | 0xef, 'f64x2.sqrt'],
+  [(PREFIX_SIMD << 16) | 0xf0, 'f64x2.add'],
+  [(PREFIX_SIMD << 16) | 0xf1, 'f64x2.sub'],
+  [(PREFIX_SIMD << 16) | 0xf2, 'f64x2.mul'],
+  [(PREFIX_SIMD << 16) | 0xf3, 'f64x2.div'],
+  [(PREFIX_SIMD << 16) | 0xf4, 'f64x2.min'],
+  [(PREFIX_SIMD << 16) | 0xf5, 'f64x2.max'],
+  [(PREFIX_SIMD << 16) | 0xf6, 'f64x2.pmin'],
+  [(PREFIX_SIMD << 16) | 0xf7, 'f64x2.pmax'],
+  [(PREFIX_SIMD << 16) | 0xf8, 'i32x4.trunc_sat_f32x4_s'],
+  [(PREFIX_SIMD << 16) | 0xf9, 'i32x4.trunc_sat_f32x4_u'],
+  [(PREFIX_SIMD << 16) | 0xfa, 'f32x4.convert_i32x4_s'],
+  [(PREFIX_SIMD << 16) | 0xfb, 'f32x4.convert_i32x4_u'],
+  [(PREFIX_SIMD << 16) | 0xfc, 'i32x4.trunc_sat_f64x2_s_zero'],
+  [(PREFIX_SIMD << 16) | 0xfd, 'i32x4.trunc_sat_f64x2_u_zero'],
+  [(PREFIX_SIMD << 16) | 0xfe, 'f64x2.convert_low_i32x4_s'],
+  [(PREFIX_SIMD << 16) | 0xff, 'f64x2.convert_low_i32x4_u'],
 
   // --- 0xfe: atomics ---
-  [(PREFIX_THREADS << 8) | 0x00, 'memory.atomic.notify'],
-  [(PREFIX_THREADS << 8) | 0x01, 'memory.atomic.wait32'],
-  [(PREFIX_THREADS << 8) | 0x02, 'memory.atomic.wait64'],
-  [(PREFIX_THREADS << 8) | 0x03, 'atomic.fence'],
-  [(PREFIX_THREADS << 8) | 0x10, 'i32.atomic.load'],
-  [(PREFIX_THREADS << 8) | 0x11, 'i64.atomic.load'],
-  [(PREFIX_THREADS << 8) | 0x12, 'i32.atomic.load8_u'],
-  [(PREFIX_THREADS << 8) | 0x13, 'i32.atomic.load16_u'],
-  [(PREFIX_THREADS << 8) | 0x14, 'i64.atomic.load8_u'],
-  [(PREFIX_THREADS << 8) | 0x15, 'i64.atomic.load16_u'],
-  [(PREFIX_THREADS << 8) | 0x16, 'i64.atomic.load32_u'],
-  [(PREFIX_THREADS << 8) | 0x17, 'i32.atomic.store'],
-  [(PREFIX_THREADS << 8) | 0x18, 'i64.atomic.store'],
-  [(PREFIX_THREADS << 8) | 0x19, 'i32.atomic.store8'],
-  [(PREFIX_THREADS << 8) | 0x1a, 'i32.atomic.store16'],
-  [(PREFIX_THREADS << 8) | 0x1b, 'i64.atomic.store8'],
-  [(PREFIX_THREADS << 8) | 0x1c, 'i64.atomic.store16'],
-  [(PREFIX_THREADS << 8) | 0x1d, 'i64.atomic.store32'],
-  [(PREFIX_THREADS << 8) | 0x1e, 'i32.atomic.rmw.add'],
-  [(PREFIX_THREADS << 8) | 0x1f, 'i64.atomic.rmw.add'],
-  [(PREFIX_THREADS << 8) | 0x20, 'i32.atomic.rmw8.add_u'],
-  [(PREFIX_THREADS << 8) | 0x21, 'i32.atomic.rmw16.add_u'],
-  [(PREFIX_THREADS << 8) | 0x22, 'i64.atomic.rmw8.add_u'],
-  [(PREFIX_THREADS << 8) | 0x23, 'i64.atomic.rmw16.add_u'],
-  [(PREFIX_THREADS << 8) | 0x24, 'i64.atomic.rmw32.add_u'],
-  [(PREFIX_THREADS << 8) | 0x25, 'i32.atomic.rmw.sub'],
-  [(PREFIX_THREADS << 8) | 0x26, 'i64.atomic.rmw.sub'],
-  [(PREFIX_THREADS << 8) | 0x27, 'i32.atomic.rmw8.sub_u'],
-  [(PREFIX_THREADS << 8) | 0x28, 'i32.atomic.rmw16.sub_u'],
-  [(PREFIX_THREADS << 8) | 0x29, 'i64.atomic.rmw8.sub_u'],
-  [(PREFIX_THREADS << 8) | 0x2a, 'i64.atomic.rmw16.sub_u'],
-  [(PREFIX_THREADS << 8) | 0x2b, 'i64.atomic.rmw32.sub_u'],
-  [(PREFIX_THREADS << 8) | 0x2c, 'i32.atomic.rmw.and'],
-  [(PREFIX_THREADS << 8) | 0x2d, 'i64.atomic.rmw.and'],
-  [(PREFIX_THREADS << 8) | 0x2e, 'i32.atomic.rmw8.and_u'],
-  [(PREFIX_THREADS << 8) | 0x2f, 'i32.atomic.rmw16.and_u'],
-  [(PREFIX_THREADS << 8) | 0x30, 'i64.atomic.rmw8.and_u'],
-  [(PREFIX_THREADS << 8) | 0x31, 'i64.atomic.rmw16.and_u'],
-  [(PREFIX_THREADS << 8) | 0x32, 'i64.atomic.rmw32.and_u'],
-  [(PREFIX_THREADS << 8) | 0x33, 'i32.atomic.rmw.or'],
-  [(PREFIX_THREADS << 8) | 0x34, 'i64.atomic.rmw.or'],
-  [(PREFIX_THREADS << 8) | 0x35, 'i32.atomic.rmw8.or_u'],
-  [(PREFIX_THREADS << 8) | 0x36, 'i32.atomic.rmw16.or_u'],
-  [(PREFIX_THREADS << 8) | 0x37, 'i64.atomic.rmw8.or_u'],
-  [(PREFIX_THREADS << 8) | 0x38, 'i64.atomic.rmw16.or_u'],
-  [(PREFIX_THREADS << 8) | 0x39, 'i64.atomic.rmw32.or_u'],
-  [(PREFIX_THREADS << 8) | 0x3a, 'i32.atomic.rmw.xor'],
-  [(PREFIX_THREADS << 8) | 0x3b, 'i64.atomic.rmw.xor'],
-  [(PREFIX_THREADS << 8) | 0x3c, 'i32.atomic.rmw8.xor_u'],
-  [(PREFIX_THREADS << 8) | 0x3d, 'i32.atomic.rmw16.xor_u'],
-  [(PREFIX_THREADS << 8) | 0x3e, 'i64.atomic.rmw8.xor_u'],
-  [(PREFIX_THREADS << 8) | 0x3f, 'i64.atomic.rmw16.xor_u'],
-  [(PREFIX_THREADS << 8) | 0x40, 'i64.atomic.rmw32.xor_u'],
-  [(PREFIX_THREADS << 8) | 0x41, 'i32.atomic.rmw.xchg'],
-  [(PREFIX_THREADS << 8) | 0x42, 'i64.atomic.rmw.xchg'],
-  [(PREFIX_THREADS << 8) | 0x43, 'i32.atomic.rmw8.xchg_u'],
-  [(PREFIX_THREADS << 8) | 0x44, 'i32.atomic.rmw16.xchg_u'],
-  [(PREFIX_THREADS << 8) | 0x45, 'i64.atomic.rmw8.xchg_u'],
-  [(PREFIX_THREADS << 8) | 0x46, 'i64.atomic.rmw16.xchg_u'],
-  [(PREFIX_THREADS << 8) | 0x47, 'i64.atomic.rmw32.xchg_u'],
-  [(PREFIX_THREADS << 8) | 0x48, 'i32.atomic.rmw.cmpxchg'],
-  [(PREFIX_THREADS << 8) | 0x49, 'i64.atomic.rmw.cmpxchg'],
-  [(PREFIX_THREADS << 8) | 0x4a, 'i32.atomic.rmw8.cmpxchg_u'],
-  [(PREFIX_THREADS << 8) | 0x4b, 'i32.atomic.rmw16.cmpxchg_u'],
-  [(PREFIX_THREADS << 8) | 0x4c, 'i64.atomic.rmw8.cmpxchg_u'],
-  [(PREFIX_THREADS << 8) | 0x4d, 'i64.atomic.rmw16.cmpxchg_u'],
-  [(PREFIX_THREADS << 8) | 0x4e, 'i64.atomic.rmw32.cmpxchg_u'],
+  [(PREFIX_THREADS << 16) | 0x00, 'memory.atomic.notify'],
+  [(PREFIX_THREADS << 16) | 0x01, 'memory.atomic.wait32'],
+  [(PREFIX_THREADS << 16) | 0x02, 'memory.atomic.wait64'],
+  [(PREFIX_THREADS << 16) | 0x03, 'atomic.fence'],
+  [(PREFIX_THREADS << 16) | 0x10, 'i32.atomic.load'],
+  [(PREFIX_THREADS << 16) | 0x11, 'i64.atomic.load'],
+  [(PREFIX_THREADS << 16) | 0x12, 'i32.atomic.load8_u'],
+  [(PREFIX_THREADS << 16) | 0x13, 'i32.atomic.load16_u'],
+  [(PREFIX_THREADS << 16) | 0x14, 'i64.atomic.load8_u'],
+  [(PREFIX_THREADS << 16) | 0x15, 'i64.atomic.load16_u'],
+  [(PREFIX_THREADS << 16) | 0x16, 'i64.atomic.load32_u'],
+  [(PREFIX_THREADS << 16) | 0x17, 'i32.atomic.store'],
+  [(PREFIX_THREADS << 16) | 0x18, 'i64.atomic.store'],
+  [(PREFIX_THREADS << 16) | 0x19, 'i32.atomic.store8'],
+  [(PREFIX_THREADS << 16) | 0x1a, 'i32.atomic.store16'],
+  [(PREFIX_THREADS << 16) | 0x1b, 'i64.atomic.store8'],
+  [(PREFIX_THREADS << 16) | 0x1c, 'i64.atomic.store16'],
+  [(PREFIX_THREADS << 16) | 0x1d, 'i64.atomic.store32'],
+  [(PREFIX_THREADS << 16) | 0x1e, 'i32.atomic.rmw.add'],
+  [(PREFIX_THREADS << 16) | 0x1f, 'i64.atomic.rmw.add'],
+  [(PREFIX_THREADS << 16) | 0x20, 'i32.atomic.rmw8.add_u'],
+  [(PREFIX_THREADS << 16) | 0x21, 'i32.atomic.rmw16.add_u'],
+  [(PREFIX_THREADS << 16) | 0x22, 'i64.atomic.rmw8.add_u'],
+  [(PREFIX_THREADS << 16) | 0x23, 'i64.atomic.rmw16.add_u'],
+  [(PREFIX_THREADS << 16) | 0x24, 'i64.atomic.rmw32.add_u'],
+  [(PREFIX_THREADS << 16) | 0x25, 'i32.atomic.rmw.sub'],
+  [(PREFIX_THREADS << 16) | 0x26, 'i64.atomic.rmw.sub'],
+  [(PREFIX_THREADS << 16) | 0x27, 'i32.atomic.rmw8.sub_u'],
+  [(PREFIX_THREADS << 16) | 0x28, 'i32.atomic.rmw16.sub_u'],
+  [(PREFIX_THREADS << 16) | 0x29, 'i64.atomic.rmw8.sub_u'],
+  [(PREFIX_THREADS << 16) | 0x2a, 'i64.atomic.rmw16.sub_u'],
+  [(PREFIX_THREADS << 16) | 0x2b, 'i64.atomic.rmw32.sub_u'],
+  [(PREFIX_THREADS << 16) | 0x2c, 'i32.atomic.rmw.and'],
+  [(PREFIX_THREADS << 16) | 0x2d, 'i64.atomic.rmw.and'],
+  [(PREFIX_THREADS << 16) | 0x2e, 'i32.atomic.rmw8.and_u'],
+  [(PREFIX_THREADS << 16) | 0x2f, 'i32.atomic.rmw16.and_u'],
+  [(PREFIX_THREADS << 16) | 0x30, 'i64.atomic.rmw8.and_u'],
+  [(PREFIX_THREADS << 16) | 0x31, 'i64.atomic.rmw16.and_u'],
+  [(PREFIX_THREADS << 16) | 0x32, 'i64.atomic.rmw32.and_u'],
+  [(PREFIX_THREADS << 16) | 0x33, 'i32.atomic.rmw.or'],
+  [(PREFIX_THREADS << 16) | 0x34, 'i64.atomic.rmw.or'],
+  [(PREFIX_THREADS << 16) | 0x35, 'i32.atomic.rmw8.or_u'],
+  [(PREFIX_THREADS << 16) | 0x36, 'i32.atomic.rmw16.or_u'],
+  [(PREFIX_THREADS << 16) | 0x37, 'i64.atomic.rmw8.or_u'],
+  [(PREFIX_THREADS << 16) | 0x38, 'i64.atomic.rmw16.or_u'],
+  [(PREFIX_THREADS << 16) | 0x39, 'i64.atomic.rmw32.or_u'],
+  [(PREFIX_THREADS << 16) | 0x3a, 'i32.atomic.rmw.xor'],
+  [(PREFIX_THREADS << 16) | 0x3b, 'i64.atomic.rmw.xor'],
+  [(PREFIX_THREADS << 16) | 0x3c, 'i32.atomic.rmw8.xor_u'],
+  [(PREFIX_THREADS << 16) | 0x3d, 'i32.atomic.rmw16.xor_u'],
+  [(PREFIX_THREADS << 16) | 0x3e, 'i64.atomic.rmw8.xor_u'],
+  [(PREFIX_THREADS << 16) | 0x3f, 'i64.atomic.rmw16.xor_u'],
+  [(PREFIX_THREADS << 16) | 0x40, 'i64.atomic.rmw32.xor_u'],
+  [(PREFIX_THREADS << 16) | 0x41, 'i32.atomic.rmw.xchg'],
+  [(PREFIX_THREADS << 16) | 0x42, 'i64.atomic.rmw.xchg'],
+  [(PREFIX_THREADS << 16) | 0x43, 'i32.atomic.rmw8.xchg_u'],
+  [(PREFIX_THREADS << 16) | 0x44, 'i32.atomic.rmw16.xchg_u'],
+  [(PREFIX_THREADS << 16) | 0x45, 'i64.atomic.rmw8.xchg_u'],
+  [(PREFIX_THREADS << 16) | 0x46, 'i64.atomic.rmw16.xchg_u'],
+  [(PREFIX_THREADS << 16) | 0x47, 'i64.atomic.rmw32.xchg_u'],
+  [(PREFIX_THREADS << 16) | 0x48, 'i32.atomic.rmw.cmpxchg'],
+  [(PREFIX_THREADS << 16) | 0x49, 'i64.atomic.rmw.cmpxchg'],
+  [(PREFIX_THREADS << 16) | 0x4a, 'i32.atomic.rmw8.cmpxchg_u'],
+  [(PREFIX_THREADS << 16) | 0x4b, 'i32.atomic.rmw16.cmpxchg_u'],
+  [(PREFIX_THREADS << 16) | 0x4c, 'i64.atomic.rmw8.cmpxchg_u'],
+  [(PREFIX_THREADS << 16) | 0x4d, 'i64.atomic.rmw16.cmpxchg_u'],
+  [(PREFIX_THREADS << 16) | 0x4e, 'i64.atomic.rmw32.cmpxchg_u'],
 
   // GC proposal (PREFIX_GC = 0xfb)
-  [(PREFIX_GC << 8) | GcOpcode.StructNew, 'struct.new'],
-  [(PREFIX_GC << 8) | GcOpcode.StructNewDefault, 'struct.new_default'],
-  [(PREFIX_GC << 8) | GcOpcode.StructGet, 'struct.get'],
-  [(PREFIX_GC << 8) | GcOpcode.StructGetS, 'struct.get_s'],
-  [(PREFIX_GC << 8) | GcOpcode.StructGetU, 'struct.get_u'],
-  [(PREFIX_GC << 8) | GcOpcode.StructSet, 'struct.set'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayNew, 'array.new'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayNewDefault, 'array.new_default'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayNewFixed, 'array.new_fixed'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayNewData, 'array.new_data'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayNewElem, 'array.new_elem'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayGet, 'array.get'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayGetS, 'array.get_s'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayGetU, 'array.get_u'],
-  [(PREFIX_GC << 8) | GcOpcode.ArraySet, 'array.set'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayLen, 'array.len'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayFill, 'array.fill'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayCopy, 'array.copy'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayInitData, 'array.init_data'],
-  [(PREFIX_GC << 8) | GcOpcode.ArrayInitElem, 'array.init_elem'],
-  [(PREFIX_GC << 8) | GcOpcode.RefTest, 'ref.test'],
-  [(PREFIX_GC << 8) | GcOpcode.RefTestNullable, 'ref.test null'],
-  [(PREFIX_GC << 8) | GcOpcode.RefCast, 'ref.cast'],
-  [(PREFIX_GC << 8) | GcOpcode.RefCastNullable, 'ref.cast null'],
-  [(PREFIX_GC << 8) | GcOpcode.BrOnCast, 'br_on_cast'],
-  [(PREFIX_GC << 8) | GcOpcode.BrOnCastFail, 'br_on_cast_fail'],
-  [(PREFIX_GC << 8) | GcOpcode.RefI31, 'ref.i31'],
-  [(PREFIX_GC << 8) | GcOpcode.AnyConvertExtern, 'any.convert_extern'],
-  [(PREFIX_GC << 8) | GcOpcode.ExternConvertAny, 'extern.convert_any'],
-  [(PREFIX_GC << 8) | GcOpcode.I31GetS, 'i31.get_s'],
-  [(PREFIX_GC << 8) | GcOpcode.I31GetU, 'i31.get_u'],
+  [(PREFIX_GC << 16) | GcOpcode.StructNew, 'struct.new'],
+  [(PREFIX_GC << 16) | GcOpcode.StructNewDefault, 'struct.new_default'],
+  [(PREFIX_GC << 16) | GcOpcode.StructGet, 'struct.get'],
+  [(PREFIX_GC << 16) | GcOpcode.StructGetS, 'struct.get_s'],
+  [(PREFIX_GC << 16) | GcOpcode.StructGetU, 'struct.get_u'],
+  [(PREFIX_GC << 16) | GcOpcode.StructSet, 'struct.set'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayNew, 'array.new'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayNewDefault, 'array.new_default'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayNewFixed, 'array.new_fixed'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayNewData, 'array.new_data'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayNewElem, 'array.new_elem'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayGet, 'array.get'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayGetS, 'array.get_s'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayGetU, 'array.get_u'],
+  [(PREFIX_GC << 16) | GcOpcode.ArraySet, 'array.set'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayLen, 'array.len'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayFill, 'array.fill'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayCopy, 'array.copy'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayInitData, 'array.init_data'],
+  [(PREFIX_GC << 16) | GcOpcode.ArrayInitElem, 'array.init_elem'],
+  [(PREFIX_GC << 16) | GcOpcode.RefTest, 'ref.test'],
+  [(PREFIX_GC << 16) | GcOpcode.RefTestNullable, 'ref.test null'],
+  [(PREFIX_GC << 16) | GcOpcode.RefCast, 'ref.cast'],
+  [(PREFIX_GC << 16) | GcOpcode.RefCastNullable, 'ref.cast null'],
+  [(PREFIX_GC << 16) | GcOpcode.BrOnCast, 'br_on_cast'],
+  [(PREFIX_GC << 16) | GcOpcode.BrOnCastFail, 'br_on_cast_fail'],
+  [(PREFIX_GC << 16) | GcOpcode.RefI31, 'ref.i31'],
+  [(PREFIX_GC << 16) | GcOpcode.AnyConvertExtern, 'any.convert_extern'],
+  [(PREFIX_GC << 16) | GcOpcode.ExternConvertAny, 'extern.convert_any'],
+  [(PREFIX_GC << 16) | GcOpcode.I31GetS, 'i31.get_s'],
+  [(PREFIX_GC << 16) | GcOpcode.I31GetU, 'i31.get_u'],
 ]);
 
 /**
@@ -1000,105 +1025,105 @@ export function naturalAlignForOpcode(op: number): number {
   // --- Extended opcodes (prefix << 8 | subop) ---
   switch (op) {
     // SIMD memory (0xfd-prefix)
-    case (PREFIX_SIMD << 8) | 0x00: // v128.load
-    case (PREFIX_SIMD << 8) | 0x0b: // v128.store
+    case (PREFIX_SIMD << 16) | 0x00: // v128.load
+    case (PREFIX_SIMD << 16) | 0x0b: // v128.store
       return 16;
-    case (PREFIX_SIMD << 8) | 0x01: // v128.load8x8_s
-    case (PREFIX_SIMD << 8) | 0x02: // v128.load8x8_u
-    case (PREFIX_SIMD << 8) | 0x03: // v128.load16x4_s
-    case (PREFIX_SIMD << 8) | 0x04: // v128.load16x4_u
-    case (PREFIX_SIMD << 8) | 0x05: // v128.load32x2_s
-    case (PREFIX_SIMD << 8) | 0x06: // v128.load32x2_u
-    case (PREFIX_SIMD << 8) | 0x0a: // v128.load64_splat
-    case (PREFIX_SIMD << 8) | 0x5d: // v128.load64_zero
-    case (PREFIX_SIMD << 8) | 0x57: // v128.load64_lane
-    case (PREFIX_SIMD << 8) | 0x5b: // v128.store64_lane
+    case (PREFIX_SIMD << 16) | 0x01: // v128.load8x8_s
+    case (PREFIX_SIMD << 16) | 0x02: // v128.load8x8_u
+    case (PREFIX_SIMD << 16) | 0x03: // v128.load16x4_s
+    case (PREFIX_SIMD << 16) | 0x04: // v128.load16x4_u
+    case (PREFIX_SIMD << 16) | 0x05: // v128.load32x2_s
+    case (PREFIX_SIMD << 16) | 0x06: // v128.load32x2_u
+    case (PREFIX_SIMD << 16) | 0x0a: // v128.load64_splat
+    case (PREFIX_SIMD << 16) | 0x5d: // v128.load64_zero
+    case (PREFIX_SIMD << 16) | 0x57: // v128.load64_lane
+    case (PREFIX_SIMD << 16) | 0x5b: // v128.store64_lane
       return 8;
-    case (PREFIX_SIMD << 8) | 0x09: // v128.load32_splat
-    case (PREFIX_SIMD << 8) | 0x5c: // v128.load32_zero
-    case (PREFIX_SIMD << 8) | 0x56: // v128.load32_lane
-    case (PREFIX_SIMD << 8) | 0x5a: // v128.store32_lane
+    case (PREFIX_SIMD << 16) | 0x09: // v128.load32_splat
+    case (PREFIX_SIMD << 16) | 0x5c: // v128.load32_zero
+    case (PREFIX_SIMD << 16) | 0x56: // v128.load32_lane
+    case (PREFIX_SIMD << 16) | 0x5a: // v128.store32_lane
       return 4;
-    case (PREFIX_SIMD << 8) | 0x08: // v128.load16_splat
-    case (PREFIX_SIMD << 8) | 0x55: // v128.load16_lane
-    case (PREFIX_SIMD << 8) | 0x59: // v128.store16_lane
+    case (PREFIX_SIMD << 16) | 0x08: // v128.load16_splat
+    case (PREFIX_SIMD << 16) | 0x55: // v128.load16_lane
+    case (PREFIX_SIMD << 16) | 0x59: // v128.store16_lane
       return 2;
-    case (PREFIX_SIMD << 8) | 0x07: // v128.load8_splat
-    case (PREFIX_SIMD << 8) | 0x54: // v128.load8_lane
-    case (PREFIX_SIMD << 8) | 0x58: // v128.store8_lane
+    case (PREFIX_SIMD << 16) | 0x07: // v128.load8_splat
+    case (PREFIX_SIMD << 16) | 0x54: // v128.load8_lane
+    case (PREFIX_SIMD << 16) | 0x58: // v128.store8_lane
       return 1;
 
     // Atomics (0xfe-prefix). The threads proposal requires natural alignment
     // for all atomic memory ops — any other value is a validation error.
-    case (PREFIX_THREADS << 8) | 0x00: // memory.atomic.notify
-    case (PREFIX_THREADS << 8) | 0x01: // memory.atomic.wait32
-    case (PREFIX_THREADS << 8) | 0x10: // i32.atomic.load
-    case (PREFIX_THREADS << 8) | 0x16: // i64.atomic.load32_u
-    case (PREFIX_THREADS << 8) | 0x17: // i32.atomic.store
-    case (PREFIX_THREADS << 8) | 0x1d: // i64.atomic.store32
-    case (PREFIX_THREADS << 8) | 0x1e: // i32.atomic.rmw.add
-    case (PREFIX_THREADS << 8) | 0x24: // i64.atomic.rmw32.add_u
-    case (PREFIX_THREADS << 8) | 0x25: // i32.atomic.rmw.sub
-    case (PREFIX_THREADS << 8) | 0x2b: // i64.atomic.rmw32.sub_u
-    case (PREFIX_THREADS << 8) | 0x2c: // i32.atomic.rmw.and
-    case (PREFIX_THREADS << 8) | 0x32: // i64.atomic.rmw32.and_u
-    case (PREFIX_THREADS << 8) | 0x33: // i32.atomic.rmw.or
-    case (PREFIX_THREADS << 8) | 0x39: // i64.atomic.rmw32.or_u
-    case (PREFIX_THREADS << 8) | 0x3a: // i32.atomic.rmw.xor
-    case (PREFIX_THREADS << 8) | 0x40: // i64.atomic.rmw32.xor_u
-    case (PREFIX_THREADS << 8) | 0x41: // i32.atomic.rmw.xchg
-    case (PREFIX_THREADS << 8) | 0x47: // i64.atomic.rmw32.xchg_u
-    case (PREFIX_THREADS << 8) | 0x48: // i32.atomic.rmw.cmpxchg
-    case (PREFIX_THREADS << 8) | 0x4e: // i64.atomic.rmw32.cmpxchg_u
+    case (PREFIX_THREADS << 16) | 0x00: // memory.atomic.notify
+    case (PREFIX_THREADS << 16) | 0x01: // memory.atomic.wait32
+    case (PREFIX_THREADS << 16) | 0x10: // i32.atomic.load
+    case (PREFIX_THREADS << 16) | 0x16: // i64.atomic.load32_u
+    case (PREFIX_THREADS << 16) | 0x17: // i32.atomic.store
+    case (PREFIX_THREADS << 16) | 0x1d: // i64.atomic.store32
+    case (PREFIX_THREADS << 16) | 0x1e: // i32.atomic.rmw.add
+    case (PREFIX_THREADS << 16) | 0x24: // i64.atomic.rmw32.add_u
+    case (PREFIX_THREADS << 16) | 0x25: // i32.atomic.rmw.sub
+    case (PREFIX_THREADS << 16) | 0x2b: // i64.atomic.rmw32.sub_u
+    case (PREFIX_THREADS << 16) | 0x2c: // i32.atomic.rmw.and
+    case (PREFIX_THREADS << 16) | 0x32: // i64.atomic.rmw32.and_u
+    case (PREFIX_THREADS << 16) | 0x33: // i32.atomic.rmw.or
+    case (PREFIX_THREADS << 16) | 0x39: // i64.atomic.rmw32.or_u
+    case (PREFIX_THREADS << 16) | 0x3a: // i32.atomic.rmw.xor
+    case (PREFIX_THREADS << 16) | 0x40: // i64.atomic.rmw32.xor_u
+    case (PREFIX_THREADS << 16) | 0x41: // i32.atomic.rmw.xchg
+    case (PREFIX_THREADS << 16) | 0x47: // i64.atomic.rmw32.xchg_u
+    case (PREFIX_THREADS << 16) | 0x48: // i32.atomic.rmw.cmpxchg
+    case (PREFIX_THREADS << 16) | 0x4e: // i64.atomic.rmw32.cmpxchg_u
       return 4;
-    case (PREFIX_THREADS << 8) | 0x02: // memory.atomic.wait64
-    case (PREFIX_THREADS << 8) | 0x11: // i64.atomic.load
-    case (PREFIX_THREADS << 8) | 0x18: // i64.atomic.store
-    case (PREFIX_THREADS << 8) | 0x1f: // i64.atomic.rmw.add
-    case (PREFIX_THREADS << 8) | 0x26: // i64.atomic.rmw.sub
-    case (PREFIX_THREADS << 8) | 0x2d: // i64.atomic.rmw.and
-    case (PREFIX_THREADS << 8) | 0x34: // i64.atomic.rmw.or
-    case (PREFIX_THREADS << 8) | 0x3b: // i64.atomic.rmw.xor
-    case (PREFIX_THREADS << 8) | 0x42: // i64.atomic.rmw.xchg
-    case (PREFIX_THREADS << 8) | 0x49: // i64.atomic.rmw.cmpxchg
+    case (PREFIX_THREADS << 16) | 0x02: // memory.atomic.wait64
+    case (PREFIX_THREADS << 16) | 0x11: // i64.atomic.load
+    case (PREFIX_THREADS << 16) | 0x18: // i64.atomic.store
+    case (PREFIX_THREADS << 16) | 0x1f: // i64.atomic.rmw.add
+    case (PREFIX_THREADS << 16) | 0x26: // i64.atomic.rmw.sub
+    case (PREFIX_THREADS << 16) | 0x2d: // i64.atomic.rmw.and
+    case (PREFIX_THREADS << 16) | 0x34: // i64.atomic.rmw.or
+    case (PREFIX_THREADS << 16) | 0x3b: // i64.atomic.rmw.xor
+    case (PREFIX_THREADS << 16) | 0x42: // i64.atomic.rmw.xchg
+    case (PREFIX_THREADS << 16) | 0x49: // i64.atomic.rmw.cmpxchg
       return 8;
-    case (PREFIX_THREADS << 8) | 0x13: // i32.atomic.load16_u
-    case (PREFIX_THREADS << 8) | 0x15: // i64.atomic.load16_u
-    case (PREFIX_THREADS << 8) | 0x1a: // i32.atomic.store16
-    case (PREFIX_THREADS << 8) | 0x1c: // i64.atomic.store16
-    case (PREFIX_THREADS << 8) | 0x21: // i32.atomic.rmw16.add_u
-    case (PREFIX_THREADS << 8) | 0x23: // i64.atomic.rmw16.add_u
-    case (PREFIX_THREADS << 8) | 0x28: // i32.atomic.rmw16.sub_u
-    case (PREFIX_THREADS << 8) | 0x2a: // i64.atomic.rmw16.sub_u
-    case (PREFIX_THREADS << 8) | 0x2f: // i32.atomic.rmw16.and_u
-    case (PREFIX_THREADS << 8) | 0x31: // i64.atomic.rmw16.and_u
-    case (PREFIX_THREADS << 8) | 0x36: // i32.atomic.rmw16.or_u
-    case (PREFIX_THREADS << 8) | 0x38: // i64.atomic.rmw16.or_u
-    case (PREFIX_THREADS << 8) | 0x3d: // i32.atomic.rmw16.xor_u
-    case (PREFIX_THREADS << 8) | 0x3f: // i64.atomic.rmw16.xor_u
-    case (PREFIX_THREADS << 8) | 0x44: // i32.atomic.rmw16.xchg_u
-    case (PREFIX_THREADS << 8) | 0x46: // i64.atomic.rmw16.xchg_u
-    case (PREFIX_THREADS << 8) | 0x4b: // i32.atomic.rmw16.cmpxchg_u
-    case (PREFIX_THREADS << 8) | 0x4d: // i64.atomic.rmw16.cmpxchg_u
+    case (PREFIX_THREADS << 16) | 0x13: // i32.atomic.load16_u
+    case (PREFIX_THREADS << 16) | 0x15: // i64.atomic.load16_u
+    case (PREFIX_THREADS << 16) | 0x1a: // i32.atomic.store16
+    case (PREFIX_THREADS << 16) | 0x1c: // i64.atomic.store16
+    case (PREFIX_THREADS << 16) | 0x21: // i32.atomic.rmw16.add_u
+    case (PREFIX_THREADS << 16) | 0x23: // i64.atomic.rmw16.add_u
+    case (PREFIX_THREADS << 16) | 0x28: // i32.atomic.rmw16.sub_u
+    case (PREFIX_THREADS << 16) | 0x2a: // i64.atomic.rmw16.sub_u
+    case (PREFIX_THREADS << 16) | 0x2f: // i32.atomic.rmw16.and_u
+    case (PREFIX_THREADS << 16) | 0x31: // i64.atomic.rmw16.and_u
+    case (PREFIX_THREADS << 16) | 0x36: // i32.atomic.rmw16.or_u
+    case (PREFIX_THREADS << 16) | 0x38: // i64.atomic.rmw16.or_u
+    case (PREFIX_THREADS << 16) | 0x3d: // i32.atomic.rmw16.xor_u
+    case (PREFIX_THREADS << 16) | 0x3f: // i64.atomic.rmw16.xor_u
+    case (PREFIX_THREADS << 16) | 0x44: // i32.atomic.rmw16.xchg_u
+    case (PREFIX_THREADS << 16) | 0x46: // i64.atomic.rmw16.xchg_u
+    case (PREFIX_THREADS << 16) | 0x4b: // i32.atomic.rmw16.cmpxchg_u
+    case (PREFIX_THREADS << 16) | 0x4d: // i64.atomic.rmw16.cmpxchg_u
       return 2;
-    case (PREFIX_THREADS << 8) | 0x12: // i32.atomic.load8_u
-    case (PREFIX_THREADS << 8) | 0x14: // i64.atomic.load8_u
-    case (PREFIX_THREADS << 8) | 0x19: // i32.atomic.store8
-    case (PREFIX_THREADS << 8) | 0x1b: // i64.atomic.store8
-    case (PREFIX_THREADS << 8) | 0x20: // i32.atomic.rmw8.add_u
-    case (PREFIX_THREADS << 8) | 0x22: // i64.atomic.rmw8.add_u
-    case (PREFIX_THREADS << 8) | 0x27: // i32.atomic.rmw8.sub_u
-    case (PREFIX_THREADS << 8) | 0x29: // i64.atomic.rmw8.sub_u
-    case (PREFIX_THREADS << 8) | 0x2e: // i32.atomic.rmw8.and_u
-    case (PREFIX_THREADS << 8) | 0x30: // i64.atomic.rmw8.and_u
-    case (PREFIX_THREADS << 8) | 0x35: // i32.atomic.rmw8.or_u
-    case (PREFIX_THREADS << 8) | 0x37: // i64.atomic.rmw8.or_u
-    case (PREFIX_THREADS << 8) | 0x3c: // i32.atomic.rmw8.xor_u
-    case (PREFIX_THREADS << 8) | 0x3e: // i64.atomic.rmw8.xor_u
-    case (PREFIX_THREADS << 8) | 0x43: // i32.atomic.rmw8.xchg_u
-    case (PREFIX_THREADS << 8) | 0x45: // i64.atomic.rmw8.xchg_u
-    case (PREFIX_THREADS << 8) | 0x4a: // i32.atomic.rmw8.cmpxchg_u
-    case (PREFIX_THREADS << 8) | 0x4c: // i64.atomic.rmw8.cmpxchg_u
+    case (PREFIX_THREADS << 16) | 0x12: // i32.atomic.load8_u
+    case (PREFIX_THREADS << 16) | 0x14: // i64.atomic.load8_u
+    case (PREFIX_THREADS << 16) | 0x19: // i32.atomic.store8
+    case (PREFIX_THREADS << 16) | 0x1b: // i64.atomic.store8
+    case (PREFIX_THREADS << 16) | 0x20: // i32.atomic.rmw8.add_u
+    case (PREFIX_THREADS << 16) | 0x22: // i64.atomic.rmw8.add_u
+    case (PREFIX_THREADS << 16) | 0x27: // i32.atomic.rmw8.sub_u
+    case (PREFIX_THREADS << 16) | 0x29: // i64.atomic.rmw8.sub_u
+    case (PREFIX_THREADS << 16) | 0x2e: // i32.atomic.rmw8.and_u
+    case (PREFIX_THREADS << 16) | 0x30: // i64.atomic.rmw8.and_u
+    case (PREFIX_THREADS << 16) | 0x35: // i32.atomic.rmw8.or_u
+    case (PREFIX_THREADS << 16) | 0x37: // i64.atomic.rmw8.or_u
+    case (PREFIX_THREADS << 16) | 0x3c: // i32.atomic.rmw8.xor_u
+    case (PREFIX_THREADS << 16) | 0x3e: // i64.atomic.rmw8.xor_u
+    case (PREFIX_THREADS << 16) | 0x43: // i32.atomic.rmw8.xchg_u
+    case (PREFIX_THREADS << 16) | 0x45: // i64.atomic.rmw8.xchg_u
+    case (PREFIX_THREADS << 16) | 0x4a: // i32.atomic.rmw8.cmpxchg_u
+    case (PREFIX_THREADS << 16) | 0x4c: // i64.atomic.rmw8.cmpxchg_u
       return 1;
   }
   return 1; // unknown opcode — defensive default
