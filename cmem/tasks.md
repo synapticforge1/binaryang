@@ -54,6 +54,7 @@ reference these ids.
 | T5.3 | `br_on_cast` / `br_on_cast_fail` — never implemented | done — parse +2 (257/257), encode +2 |
 | T9.1 | Binary reader had no `pushStmt` — silent reordering | done — round-trip INVALID 60 → 27 |
 | T7.8 | Type-uses that resolve against an incomplete type index space | done — encode +6 |
+| T7.11 | Element segments against a non-nullable table | done — encode +2 (253/257) |
 
 ### Open — parse side: NONE
 
@@ -66,9 +67,9 @@ everything remaining is on the encode side (T7.x), measured against V8.
 | ~~T5.3~~ | ~~`br_on_cast` / `br_on_cast_fail`~~ | closed |
 | ~~T8.3~~ | ~~multi-instruction constant expressions in the WAT writer~~ | closed |
 
-### Open — encode side (9 modules / 8 files)
+### Open — encode side (4 modules / 4 files)
 
-Down from 21. `fully V8-valid` is 251/257.
+Down from 21. `fully V8-valid` is 253/257.
 
 | id | Scope | Files |
 | --- | --- | --- |
@@ -108,7 +109,7 @@ T7 work; re-measure before starting any of them.
 | --- | --- | --- | --- |
 | **T10.1** | **Export ORDER is not preserved.** The WAT writer attaches exports inline to the item they name, so re-parsing rebuilds the export section grouped per item instead of in the original order — `a, b, ac, …` comes back as `a, za, b, zb, …`. Still valid, but export order is observable (`WebAssembly.Module.exports()`). Fix: emit standalone `(export "n" (func $f))` fields in original order, or carry the order. | 69 / 21 | valid, wrong order |
 | **T10.2** | **The WAT writer emits an inline `(export …)` on IMPORTED items**, e.g. `(import "M" "f" (func $f0 (export "Mf.call") (result i32)))`. That abbreviation is only legal on definitions, so **our own parser rejects our own output** — this is the whole "reparse FAILS" group (`expected ), got (` on funcs, `expected value type, got (` on globals, `expected limit initial value` on memories/tables). Same root as T10.1; one fix likely closes both. | 11 / 6 | UNPARSEABLE |
-| **T10.3** | **A non-nullable table element type loses its initializer.** `wasm2wat` prints `(table $T0 1 (ref func))` and drops `Table.init`. The binary form `0x40 0x00 <reftype> <limits> <init>` is REQUIRED when the element type is non-nullable — there is no default value — so the re-encode emits the plain form and V8 rejects it. A further 4 modules / 2 files differ in the table section without becoming invalid. | 6 / 3 (+4 / 2) | INVALID |
+| **T10.3** | **A non-nullable table element type loses its initializer.** `wasm2wat` prints `(table $T0 1 (ref func))` and drops `Table.init`. The binary form `0x40 0x00 <reftype> <limits> <init>` is REQUIRED when the element type is non-nullable — there is no default value — so the re-encode emits the plain form and V8 rejects it. **Scoped during T7.11:** the binary reader already captures `init`; the blocker is the WAT WRITER. The table grammar wants ONE FOLDED instruction there (`parseOneInstr`), and the writer is linear-only by design — wrapping its linear output in parens reparses as a folded expression with a bogus operand. Needs a folded emitter for constant expressions. A `NOTE (T10.3)` marker sits at the drop site in `wat-writer.ts`. Now covers the 4 elem/array modules T7.11 made encodable. | 10 / 4 | INVALID |
 | **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
 | **T10.5** | **Inert Nop-operand artifacts.** The reader cannot attribute every value to an operand slot — a multi-value block result is one value on its stack, not N — so the consumer decodes with `Nop` operands and the re-encode carries extra `nop`s. Harmless at runtime (see the T9.1 note on why), but the encoding grows and never converges. | 39 / 33 | valid, larger |
 | **T10.6** | **Nop operands that are NOT inert.** The same substitution applied to an instruction that genuinely needs its operand on the stack: V8 says "not enough arguments on the stack for br_on_null (need 1, got 0)", "expected 1 elements on the stack for fallthru", "array.new_fixed[0] expected type f32, found local.get of type i32". Produces INVALID wasm. Highest severity of what remains. Files: array, br_on_cast, br_on_cast_fail, br_on_non_null, br_on_null, throw_ref, +1. | 9 / 7 | INVALID |

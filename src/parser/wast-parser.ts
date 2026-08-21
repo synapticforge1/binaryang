@@ -2375,7 +2375,8 @@ export class WastParser {
       kind = 'declared';
     } else if (
       this.peek() === TokenType.Lpar &&
-      this.peek(1) !== TokenType.Item
+      this.peek(1) !== TokenType.Item &&
+      this.peek(1) !== TokenType.Ref
     ) {
       // Bare offset expression: `(elem (i32.const 0) $f1 $f2)`.
       // The `(...)` after elem (when it's not `(table ...)`, `(offset ...)`,
@@ -2383,6 +2384,14 @@ export class WastParser {
       // active segment on table 0. wasmtk's wasic emits this shape
       // pervasively; previously the parser fell through all branches and
       // failed at "expected ), got (" inside the elem.
+      //
+      // `(ref …)` is excluded because it is a TYPE, not an instruction: it
+      // opens the `elemlist ::= reftype elemexpr*` of a PASSIVE segment, as
+      // in `(elem (ref func) (ref.func 0))`. Swallowing it as an offset made
+      // the segment active with an EMPTY offset expression, which V8 rejected
+      // with "expected 1 elements on the stack for constant expression".
+      // Nothing is lost by the exclusion — an offset must be a constant
+      // expression producing i32, and no instruction is spelled `(ref …)`.
       const ctx = newCtx();
       this.parseOffsetExpr(ctx);
       flushStack(ctx);

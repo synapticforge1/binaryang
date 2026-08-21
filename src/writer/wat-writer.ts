@@ -1422,6 +1422,18 @@ class WatWriter extends ModuleContext {
     this.tableIdx++;
     this.writeLimits(t.limits);
     this.writeType(t.elemType, NC.None);
+    // NOTE (T10.3): `t.init` is dropped here. It should print as
+    // `(table $t 10 (ref func) (ref.func $f))`, and losing it is not
+    // cosmetic — a NON-NULLABLE element type has no default value, so the
+    // spec requires the `0x40` init form for it and the re-encoded plain
+    // form is rejected outright.
+    //
+    // The blocker is not the reader (it already captures `init`) but this
+    // writer: the table grammar wants ONE FOLDED instruction there, and this
+    // writer is linear-only by design (see the header comment and
+    // `writeInitExpr`). Emitting the linear list inside parens reparses as a
+    // folded expression with a bogus operand. Needs a folded emitter for
+    // constant expressions; tracked as T10.3.
     this.closeNewline();
   }
 

@@ -171,6 +171,16 @@ function varIndexValue(v: Var, label: string): number {
  * was skipped; throws for symmetry with {@link writeVar}'s name fallback
  * that quietly emitted 0 (Bug G).
  */
+/**
+ * Can this element type hold plain function indices? True for `funcref` and
+ * for `(ref [null] func)` — the funcidx element-segment form always yields
+ * non-null function references, which are a subtype of all three.
+ */
+function isFuncElemType(t: ValueType): boolean {
+  if (t === Type.FuncRef) return true;
+  return isRefValueType(t) && t.heapType.kind === 'name' && t.heapType.name === 'func';
+}
+
 function writeHeapType(s: MemoryStream, v: Var): void {
   if (v.kind === 'index') {
     // Positive type index. The field is a signed LEB128: an unsigned write is
@@ -1219,12 +1229,30 @@ class BinaryWriter {
       s.writeU32Leb(m.elemSegments.length);
       for (const seg of m.elemSegments) {
         const tableIdx = varIndexValue(seg.tableVar, 'elem segment table');
+
+        // Prefer the FUNCIDX form (flags 0-3) whenever every element is a
+        // single `ref.func`. It is not just shorter — it types the segment as
+        // the NON-NULL `(ref func)`, while the expression form declares
+        // whatever reftype is written and `funcref` is not a subtype of a
+        // `(ref func)` table. Emitting expressions unconditionally made every
+        // `(table 10 (ref func) …)` module fail with "Element segment of type
+        // funcref is not a subtype of referenced table 0". Verified against V8
+        // for all five candidate encodings; see tests/writer/elem_form.test.ts.
+        const useFuncIdx = isFuncElemType(seg.elemType) &&
+          seg.elemExprs.every((xs) => xs.length === 1 && xs[0]!.kind === 'ref.func');
+
         let flags: number;
-        // flags 4 (active, table 0, expr-based) carries NO reftype byte —
-        // funcref is implied. Only use it when the element type is funcref;
-        // a non-funcref table-0 segment must use flags 6, which writes the
-        // reftype, or its element type is silently lost.
-        if (seg.kind === 'active' && tableIdx === 0 && seg.elemType === Type.FuncRef) {
+        if (useFuncIdx) {
+          // 0 = active/table 0, 1 = passive, 2 = active/explicit table,
+          // 3 = declared. Only flags 0 omits the elemkind byte.
+          if (seg.kind === 'passive') flags = 1;
+          else if (seg.kind === 'declared') flags = 3;
+          else flags = tableIdx === 0 ? 0 : 2;
+        } else if (seg.kind === 'active' && tableIdx === 0 && seg.elemType === Type.FuncRef) {
+          // flags 4 (active, table 0, expr-based) carries NO reftype byte —
+          // funcref is implied. Only use it when the element type is funcref;
+          // a non-funcref table-0 segment must use flags 6, which writes the
+          // reftype, or its element type is silently lost.
           flags = 4;
         } else if (seg.kind === 'active') {
           flags = 6; // active, explicit table, expr-based (writes reftype)
@@ -1233,19 +1261,20 @@ class BinaryWriter {
         } else {
           flags = 7; // declared
         }
+
         s.writeU32Leb(flags);
-        if (flags === 6) {
-          writeVar(s, seg.tableVar);
-        }
-        if (flags === 4 || flags === 6) {
-          this.writeInitExpr(seg.offset);
-        }
-        if (flags !== 4) {
+        if (flags === 2 || flags === 6) writeVar(s, seg.tableVar);
+        if (seg.kind === 'active') this.writeInitExpr(seg.offset);
+        if (useFuncIdx) {
+          if (flags !== 0) s.writeU8(0x00); // elemkind: funcref
+        } else if (flags !== 4) {
           writeValueType(s, seg.elemType); // reftype
         }
+
         s.writeU32Leb(seg.elemExprs.length);
         for (const elemExpr of seg.elemExprs) {
-          this.writeInitExpr(elemExpr);
+          if (useFuncIdx) writeVar(s, (elemExpr[0] as RefFuncExpr).func);
+          else this.writeInitExpr(elemExpr);
         }
       }
     });
