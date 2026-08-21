@@ -158,6 +158,53 @@ deno publish --dry-run` is the full local equivalent.
 
 ---
 
+## 2026-08-21 — Tranche 4: table64 / memory64 index types (214 → 230/257)
+
+Measured 214 → **230/257 clean, zero regressions** — exactly the +14 projected,
+plus two files from the table-definition shapes that turned out to live in the
+same code path.
+
+1. **`(table $t i64 30 30 funcref)`** — `i32` / `i64` in that slot is the
+   table's INDEX TYPE, not its element type. Element types are always
+   REFERENCE types, so a ValueType there must be classified first; the parser
+   consumed `i64` as the elemtype, read `30 30` as the limits, then hit the
+   real element type with "expected ), got ValueType". `parseLimits` already
+   knew how to consume the index type — only the classification was wrong.
+2. **`(memory i64 (data "…"))`** — the inline-data branch matched only a bare
+   `(data`, so the index-type spelling fell through to `parseLimits` and
+   reported "expected limit initial value". **The synthesized data-segment
+   offset must be `i64.const` for a 64-bit memory** — an `i32.const` offset
+   parses fine and then produces a binary V8 rejects, which is why the test
+   asserts V8 acceptance rather than a successful parse.
+
+`parseTableModuleField`'s non-import branch was restructured around the two
+real shapes, which also closed four adjacent gaps:
+
+- `(table $t64 i64 funcref (elem $f))` — abbreviated inline elem WITH an index
+  type.
+- `(table $t 10 funcref (ref.null func))` — table initializer expression
+  (fills every slot; the `Table.init` IR field already existed).
+- `(table $t funcref (elem (ref.func $f) (ref.null func)))` — inline elem list
+  of element EXPRESSIONS, not just a bare funcidx list. Same abbreviation
+  already fixed for standalone `(elem …)` segments in v1.3.6.
+- `(elem (table $t) (i32.const 1) (ref func) (ref.func $d))` — an elem segment
+  whose element type is the parenthesized typed-ref form, which starts with
+  `(` and so missed the bare-ValueType check.
+
+Still failing and NOT a T4 regression: `(table $x (ref null $t) (elem $tf))`
+parses but V8 rejects it — the typed-ref IR coarsens `(ref $T)` to structref,
+the pre-existing limitation documented in CLAUDE.md.
+
+Regression: `tests/parser/table_memory_types.test.ts`. The table-initializer
+and inline-elem-expression tests instantiate and read the table back
+(`table.get(i)`) so a wrong slot count or ordering cannot pass.
+
+**Remaining: 27 files.** T5 (GC `(sub …)` / `(rec …)`) and T6 (block params,
+`module definition`, annotations) plus the newly catalogued
+`any.convert_extern` / `extern.convert_any` GC conversions.
+
+---
+
 ## 2026-08-21 — Tranche 3: multi-memory (spec testsuite 179 → 214/257)
 
 Smaller than scoped: the IR ALREADY carried `memidx: Var` on every memory op,

@@ -1899,18 +1899,38 @@ export class WastParser {
       };
       module.imports.push(imp);
       module.numMemoryImports++;
-    } else if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Data) {
-      // Inline data segment
+    } else if (
+      (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Data) ||
+      (this.peek() === TokenType.ValueType && this.peek(1) === TokenType.Lpar &&
+        this.peek(2) === TokenType.Data)
+    ) {
+      // Inline data segment, optionally preceded by an index type:
+      //   (memory (data "…"))
+      //   (memory i64 (data "…"))
+      // The index-type spelling used to fall through to parseLimits, which
+      // demanded a numeric initial size and reported "expected limit initial
+      // value".
+      let is64 = false;
+      if (this.peek() === TokenType.ValueType) {
+        is64 = (this.peekToken() as TypeToken).valueType === Type.I64;
+        this.consume();
+      }
       this.drop();
       this.drop();
       const data = this.parseTextList();
       this.expect(TokenType.Rpar);
       const pages = Math.ceil(data.length / 65536);
-      const limits: Limits = { initial: pages, isShared: false, is64: false };
+      const limits: Limits = { initial: pages, isShared: false, is64 };
       const memory: Memory = { name, loc, limits };
       module.memories.push(memory);
       // Add data segment at offset 0
-      const offsetExpr: Expr = { kind: 'const', value: constI32(0), loc } as ConstExpr;
+      // A 64-bit memory needs an i64 offset — V8 rejects an i32.const offset
+      // on a memory64 data segment.
+      const offsetExpr: Expr = {
+        kind: 'const',
+        value: is64 ? constI64(0n) : constI32(0),
+        loc,
+      } as ConstExpr;
       module.dataSegments.push({
         name: '',
         kind: 'active',
@@ -1957,51 +1977,86 @@ export class WastParser {
       module.imports.push(imp);
       module.numTableImports++;
     } else {
-      const tt = this.peek();
-      const isElemRef = tt === TokenType.ValueType || tt === TokenType.Func ||
-        tt === TokenType.Extern || tt === TokenType.Ref;
-      if (isElemRef) {
-        // `(table elemtype (elem ...))` — inline elem
-        const elemType = this.parseValueType() ?? Type.FuncRef;
-        if (this.matchLpar(TokenType.Elem)) {
-          const refs: Expr[] = [];
-          while (this.peekMatchVar()) {
-            const v = this.parseVar();
-            if (v !== null) {
-              refs.push({ kind: 'ref.func', func: v, loc } as RefFuncExpr);
-            }
-          }
-          this.expect(TokenType.Rpar);
-          const limits: Limits = {
-            initial: refs.length,
-            max: refs.length,
-            isShared: false,
-            is64: false,
-          };
-          const table: Table = { name, loc, elemType, limits, init: [] };
-          module.tables.push(table);
-          // Add elem segment
-          const offsetExpr: Expr = { kind: 'const', value: constI32(0), loc } as ConstExpr;
-          module.elemSegments.push({
-            name: '',
-            kind: 'active',
-            tableVar: varIndex(tableIdx),
-            offset: [offsetExpr],
-            elemType,
-            elemExprs: refs.map((r) => [r]),
-            loc,
-          });
-        } else {
-          const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
-          const table: Table = { name, loc, elemType, limits, init: [] };
-          module.tables.push(table);
-        }
-      } else {
-        // `(table N M? reftype)` or `(table N M?)`
+      // A table definition has two shapes:
+      //
+      //   (table id? indextype? limits reftype elemexpr?)   -- limits form
+      //   (table id? indextype? reftype (elem ...))         -- abbreviated
+      //
+      // `indextype` is `i32` / `i64` (the table64 proposal). It is NOT an
+      // element type — those are always reference types — so a ValueType here
+      // must be classified before anything else; `(table $t i64 30 30
+      // funcref)` used to consume `i64` as the element type and then hit the
+      // real one with "expected ), got ValueType". `parseLimits` consumes the
+      // index type itself, so only the abbreviated form strips it here.
+      const idxTok = this.peek() === TokenType.ValueType
+        ? (this.peekToken() as TypeToken).valueType
+        : null;
+      const hasIndexType = idxTok === Type.I32 || idxTok === Type.I64;
+      const afterIndex = hasIndexType ? this.peek(1) : this.peek();
+      const isLimitsForm = afterIndex === TokenType.Nat || afterIndex === TokenType.Int;
+
+      if (isLimitsForm) {
         const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
         const elemType = this.parseValueType() ?? Type.FuncRef;
-        const table: Table = { name, loc, elemType, limits, init: [] };
-        module.tables.push(table);
+        // Optional initializer expression: `(table $t 10 funcref (ref.null func))`
+        // fills every slot with the given value.
+        const init: Expr[] = [];
+        if (this.peek() === TokenType.Lpar) {
+          const ctx = newCtx();
+          if (this.parseOneInstr(ctx) === Result.Ok) {
+            flushStack(ctx);
+            init.push(...ctx.stmts);
+          }
+        }
+        module.tables.push({ name, loc, elemType, limits, init });
+      } else {
+        // Abbreviated form: reftype followed by an inline `(elem ...)`.
+        let is64 = false;
+        if (hasIndexType) {
+          is64 = idxTok === Type.I64;
+          this.consume();
+        }
+        const elemType = this.parseValueType() ?? Type.FuncRef;
+        const inits: Expr[][] = [];
+        if (this.matchLpar(TokenType.Elem)) {
+          // Two elemlist spellings again: a bare funcidx list (`$f $g`) and
+          // element EXPRESSIONS (`(ref.func $f) (ref.null func)`). Only the
+          // funcidx list was accepted, so the expression form failed with
+          // "expected ), got (".
+          while (this.peekMatchVar() || this.peek() === TokenType.Lpar) {
+            if (this.peekMatchVar()) {
+              const v = this.parseVar();
+              if (v !== null) inits.push([{ kind: 'ref.func', func: v, loc } as RefFuncExpr]);
+              continue;
+            }
+            const ctx = newCtx();
+            if (this.parseOneInstr(ctx) !== Result.Ok) break;
+            flushStack(ctx);
+            inits.push(ctx.stmts);
+          }
+          this.expect(TokenType.Rpar);
+        }
+        const limits: Limits = {
+          initial: inits.length,
+          max: inits.length,
+          isShared: false,
+          is64,
+        };
+        module.tables.push({ name, loc, elemType, limits, init: [] });
+        const offsetExpr: Expr = {
+          kind: 'const',
+          value: is64 ? constI64(0n) : constI32(0),
+          loc,
+        } as ConstExpr;
+        module.elemSegments.push({
+          name: '',
+          kind: 'active',
+          tableVar: varIndex(tableIdx),
+          offset: [offsetExpr],
+          elemType,
+          elemExprs: inits,
+          loc,
+        });
       }
     }
 
@@ -2141,7 +2196,14 @@ export class WastParser {
         const v = this.parseVar();
         if (v !== null) inits.push([{ kind: 'ref.func', func: v, loc } as RefFuncExpr]);
       }
-    } else if (this.peek() === TokenType.ValueType || this.peek() === TokenType.Ref) {
+    } else if (
+      this.peek() === TokenType.ValueType || this.peek() === TokenType.Ref ||
+      (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Ref)
+    ) {
+      // The element type may be the parenthesized typed-ref form
+      // `(ref $t)` / `(ref null $t)`, which starts with `(` — the check used
+      // to look only for a bare ValueType or the `ref` keyword, so
+      // `(elem (table $t) (i32.const 1) (ref func) (ref.func $d))` failed.
       elemType = this.parseValueType() ?? Type.FuncRef;
       // `elemlist ::= reftype elemexpr*`, and `elemexpr` has two spellings:
       // the explicit `(item instr*)` form, and the abbreviation where a
