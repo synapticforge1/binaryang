@@ -10,34 +10,64 @@
 This file tracks implementation status, open questions, and architectural decisions.
 All project context authoritative source: `CLAUDE.md`.
 
-## PENDING ACTION — report binaryen-ts findings upstream when the tranches close
+## LIVING LOG — binaryen-ts findings, to file upstream when the tranches close
 
-**When the T-series repair tranches are done, write up the binaryen-ts gaps
-found along the way and file them with the binaryen-ts team.** They are
-blocking real bridge coverage on this side, and at least one is a spec
-deviation that would silently produce wrong output for anyone else using the
-encoder.
+**This is a running record, not a snapshot.** Every time work on this side
+hits a binaryen-ts limitation, add it to "Open findings" below with an
+`UP-n` id, the tranche that surfaced it, and — importantly — a *measured*
+severity. When the T-series repair tranches finish, this section becomes the
+upstream report.
 
-### First: the pin in our docs is stale — re-verify before filing
+### Working rules for this log
 
-CLAUDE.md says the submodule is pinned at `6c6f81f66` (v1.0.9). The working
-checkout is **v1.3.5** (`b78e5b476`), and several gaps listed there have
-already been fixed upstream. Anything filed from the old list would be noise.
-The list below was re-verified against the v1.3.5 checkout on 2026-08-21;
-re-verify again at filing time.
+1. **Measure severity, never inherit it.** The first entry (`UP-1`) was
+   originally described from CLAUDE.md as "functionally invisible under V8";
+   probing V8 directly showed it produces modules V8 **rejects**. Every entry
+   states how its severity was established.
+2. **Re-verify against the actual checkout before filing.** CLAUDE.md says the
+   submodule is pinned at `6c6f81f66` (v1.0.9); the working checkout is
+   **v1.3.5** (`b78e5b476`), and three previously-listed gaps are already
+   fixed there. Stale entries are worse than no entries.
+3. **Record the root cause, not just the symptom** — several of these are IR
+   shape limits that an encoder patch would not fix.
+4. **Do not modify the binaryen-ts checkout.** It stays clean on `main`; this
+   side only reads it. Fixes are the binaryen-ts team's to make.
 
-### Already fixed upstream — do NOT file, and correct our notes
+### Severity scale
 
-| Our note said | Actual state in v1.3.5 |
+| Level | Meaning |
+| --- | --- |
+| **blocking** | Emits bytes V8 rejects, or cannot emit the construct at all |
+| **wrong-output** | Emits bytes V8 accepts that mean something other than intended |
+| **gap** | Construct unsupported; fails loudly or is simply absent |
+| **design-limit** | Works as designed, but the design cannot express what we need |
+
+### Already fixed upstream — do NOT file; correct our notes instead
+
+| Our older note said | Actual state in v1.3.5 |
 | --- | --- |
 | no `addElement` factory | **present** (`ir/module.ts`) |
-| `loadOpcode()` has no V128 branch, silently emits `i64.load` | **fixed** — now throws `WasmEncodeError`; the fix comment documents exactly this silent-truncation bug |
+| `loadOpcode()` has no V128 branch, silently emits `i64.load` | **fixed** — throws `WasmEncodeError`; its fix comment documents that exact silent-truncation bug |
 | `WasmExport.kind` has no `"tag"` | **present** (`ir/module.ts`) |
 
-### Still open — worth filing
+### Open findings
 
-**1. `struct.get_u` / `array.get_u` cannot be encoded at all — and the bytes
-produced instead are REJECTED by V8.**
+| id | Finding | Severity | Surfaced by |
+| --- | --- | --- | --- |
+| UP-1 | `struct.get_u` / `array.get_u` unencodable; emits `0x02`/`0x0b`, which V8 rejects on a packed field | **blocking** | GC tiers / T7 review |
+| UP-2 | No `makeTupleMake` (enum value exists, factory does not) | **gap** | multi-value branches |
+| UP-3 | No GC array bulk constructors (`makeArrayFill`, `makeArrayCopy`, `array.init_data` / `init_elem`) | **gap** | tranche 2 |
+| UP-4 | No `makeRefAsNonNull` | **gap** | Tier C |
+| UP-5 | No `setStart` | **gap** | Tier D |
+| UP-6 | No `addTagImport` (tag *exports* now work) | **gap** | Tier C |
+| UP-7 | `ValType` cannot express a concrete typed reference | **design-limit** | typed-ref refactor |
+
+Details for each follow.
+
+
+#### UP-1 — `struct.get_u` / `array.get_u` unencodable (blocking)
+
+The bytes produced instead are REJECTED by V8.
 `wasm-encoder.ts` selects the opcode with `e.signed ? 0x03 : 0x02`, so the
 unsigned form 0x04 is never emitted. Same shape for `array.get_u` (0x0d vs
 `array.get` 0x0b). The root cause is in the IR, not just the encoder:
@@ -62,24 +92,36 @@ So this is not a cosmetic wire divergence: any consumer reading a PACKED field
 unsigned through binaryen-ts gets a module V8 refuses to compile. That raises
 it from "worth reporting" to "blocking for packed GC fields".
 
-**2. No `makeTupleMake`.** `ExpressionKind.TupleMake` exists in the enum but
+#### UP-2 — No `makeTupleMake` (gap)
+
+`ExpressionKind.TupleMake` exists in the enum but
 has no constructor. Blocks multi-value `return` AND — new since our
 multi-value branch work — multi-value `br` / `br_if`. Our bridge throws
 "needs makeTupleMake" rather than passing only the first value.
 
-**3. No GC array bulk constructors.** `makeArrayFill`, `makeArrayCopy`, and
+#### UP-3 — No GC array bulk constructors (gap)
+
+`makeArrayFill`, `makeArrayCopy`, and
 (by inspection) the `array.init_data` / `array.init_elem` equivalents are
 absent, so the four instructions we implemented in tranche 2 have no bridge
 path at all.
 
-**4. No `makeRefAsNonNull`.** `ref.as_non_null` still unbridgeable.
+#### UP-4 — No `makeRefAsNonNull` (gap)
 
-**5. No `setStart`.** Start functions cannot be bridged.
+`ref.as_non_null` is still unbridgeable.
 
-**6. No `addTagImport`.** Tag imports cannot be bridged (tag *exports* now
+#### UP-5 — No `setStart` (gap)
+
+Start functions cannot be bridged.
+
+#### UP-6 — No `addTagImport` (gap)
+
+Tag imports cannot be bridged (tag *exports* now
 work, see the fixed table above).
 
-**7. `ValType` cannot express a concrete typed reference.** It is a flat
+#### UP-7 — `ValType` cannot express a concrete typed reference (design-limit)
+
+It is a flat
 string enum, so `(ref $T)` / `(ref null $T)` have no representation. After our
 typed-ref IR refactor wabt-ts carries these precisely and the bridge is now
 the only lossy step — it coarsens through `coarsenValueType`. Not a bug on
@@ -93,6 +135,17 @@ across the 257-file WebAssembly spec testsuite rather than by unit tests —
 that method is worth mentioning to them, since it is what surfaced the
 silent-wrong-bytes class in our own encoder too (packed-type wire bytes,
 NaN payload mask, multi-value truncation).
+
+### Append new findings here
+
+When a tranche hits a binaryen-ts limitation, add a row to **Open findings**
+and a `#### UP-n` block below, following the working rules above: measured
+severity, root cause, and the tranche that surfaced it. If a tranche completes
+without hitting one, note that too — an empty pass is evidence the remaining
+gaps are narrowing.
+
+- *T7 remaining clusters (stack residue, relaxed SIMD, legacy EH, splat,
+  singles): in progress — no new findings yet.*
 
 ---
 
