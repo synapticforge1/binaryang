@@ -34,15 +34,18 @@ target resolves in the **enclosing** scope (depth 0 for the immediately enclosin
 the try_table's own label pushed as the spec's `C, label [t*] ⊢ catch*` rule reads. Both times the
 plausible reading was wrong and one probe settled it. — `design-decisions.md`
 
-**WASMTIME IS THE ORACLE OF RECORD; V8 is the convenient one.** Where two engines disagree about
-validity, Wasmtime decides — it comes from the people who write the spec and its reference tooling.
-V8 stays in the fast harnesses because it is in-process and needs no temp files, but a conclusion
-that rests on a disagreement is re-checked against Wasmtime before it is acted on or reported.
-Wasmer is a third data point, not an authority. Two traps when running any of them: **enable the
-proposals explicitly** (a default-off feature is not a spec opinion — `wasmer validate` "rejected"
-21 modules purely on feature gates, and `-W all-proposals=y` fails on a stock Windows Wasmtime
-because it pulls in unsupported `stack-switching`), and **give every module its own output path**
-(reusing one `-o` scored three I/O collisions as REJECT). — `CLAUDE.md`, "Oracle rule"
+**ASK ALL THREE ENGINES; WASMTIME DECIDES.** The panel is V8 (fast, in-process, what the routine
+harnesses use), **Wasmtime (the authority — Bytecode Alliance write the spec and its reference
+tooling)**, and Wasmer (differently configured, so it disagrees for different reasons). Run all
+three even when the first two agree: on the 73-module cross-check V8 and Wasmtime both returned a
+flat 73/73 accept, which carried no information beyond "no disagreement", while Wasmer's 52/21
+classified the modules by the proposal each needed. Its 21 were pure feature gates and changed no
+verdict — but they were the only DATA the exercise produced. **Two engines agreeing tells you
+nothing about why; an engine that disagrees for a boring reason still tells you what your inputs
+contain.** Two traps: enable proposals explicitly (a default-off feature is not a spec opinion, and
+`-W all-proposals=y` fails on stock Windows Wasmtime via unsupported `stack-switching`), and give
+every module its own `-o` path (reusing one scored three I/O collisions as REJECT).
+`deno task engine-check` does all of this and self-tests first. — `CLAUDE.md`, "Oracle rule"
 
 🔁 **Validate the harness against a known-good case before trusting an aggregate.** The first
 V8-validity harness reported **1937 of 1937 modules failing**; the second reported 1667 rejected.

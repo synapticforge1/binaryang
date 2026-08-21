@@ -179,9 +179,18 @@ Wasmer's 21 are `multiple memories` (14), `memory64 must be enabled` (4) and
 `rec group usage requires the gc proposal` (3): `wasmer validate` has those
 proposals off by default. Not a disagreement about validity.
 
-**Conclusion: no engine disagreement, so there is nothing here to fix.** These
-spec tests predate proposals that legalised what they assert against. Matching
-them would mean diverging from the authority.
+**Conclusion: no disagreement from the AUTHORITY, so there is nothing here to
+fix.** These spec tests predate proposals that legalised what they assert
+against; matching them would mean diverging from Wasmtime.
+
+**Wasmer earned its seat on the panel here.** V8 and Wasmtime both returned a
+flat 73/73 accept — correct, and carrying no information beyond "no
+disagreement". Wasmer's 21 rejections were the only DATA the exercise produced:
+they classified the modules by the proposal each one needs. Not a validity
+ruling, and it changed no verdict, but two engines agreeing tells you nothing
+about *why*. Hence the standing rule: run all three, Wasmtime decides.
+`deno task engine-check <dir>` does it, and self-tests against a known-invalid
+module before reporting.
 
 Two harness traps recorded in `best-practices.md` §1: enable proposals
 explicitly (`-W all-proposals=y` fails on stock Windows Wasmtime — it pulls in
