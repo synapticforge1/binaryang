@@ -59,7 +59,8 @@ reference these ids.
 | T7.13 | UTF-8 BOM stripped from names | done — encode +1 |
 | T7.14 | Explicit type-use overwritten by a structural signature match | done — encode +1 |
 | T9.2 | Our validator rejecting modules V8 accepts | done — agreement 1702 → 2120/2120 |
-| T9.3 | Validator on `ValueType`; real reference subtyping | done — assert_invalid caught 1806 → 1834; agreement 2120 → 2110 |
+| T9.3 | Validator on `ValueType`; real reference subtyping | done — assert_invalid caught 1806 → 1834 |
+| T9.4 | The 10 valid modules T9.3's lattice rejected | done — agreement back to 2120/2120 |
 
 ### Open — parse side: NONE
 
@@ -153,13 +154,20 @@ nothing about what a permissive validator waves through. Adding the
 | modules V8 accepts that we accept | 2120 / 2120 | 2110 / 2120 |
 | `assert_invalid` modules we reject | 1806 / 2737 | **1834 / 2737** |
 
-28 more real errors caught, 10 valid modules wrongly rejected. The 10 are
-**T9.4**, below — not fixed by widening the lattice again, which is the thing
-T9.3 existed to stop doing.
+**T9.4 then closed the 10** — without widening the lattice, which is the thing
+T9.3 existed to stop doing. Every one of them turned out to be a SECOND bug the
+coarse lattice had been hiding: `array.new_elem` still reporting the bare
+`Type.Ref` placeholder (5 modules), `br_on_null` skipping its result push in
+unreachable code and so changing the stack height (1), the canonical key
+rendering a same-rec-group supertype by index instead of by position (2), and
+`br_on_cast_fail` passing `rt1` through where the branch carries `rt1 \ rt2` —
+a nullable `rt2` absorbs the null case, so the difference is NON-nullable (2).
+
+Final: **2120/2120 agreement AND 1834/2737 assert_invalid** — 28 more real
+errors caught, zero false rejections.
 
 | id | Scope | Files |
 | --- | --- | --- |
-| **T9.4** | 10 valid modules the new lattice rejects: `array_new_elem` #0-#3, `array.wast#5`, `type-subtyping#12`, `br_on_cast_fail#0`, `br_on_cast#0`, `unreached-valid#2` (`(unreachable) (ref.as_non_null)` under stack polymorphism), +1. Each is a separate small investigation. | 7 |
 | **T9.5** | **903 of 2737 `assert_invalid` modules still validate clean** — the validator misses a third of the spec's invalid cases. Nothing in the campaign measured this direction until T9.3, and it is by far the largest remaining validator gap. Needs its own survey, the same way T9.2 was surveyed. | many |
 
 ### Open — T9: found during the campaign, invisible to both metrics

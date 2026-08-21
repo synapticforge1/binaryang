@@ -1202,7 +1202,14 @@ export class TypeChecker {
     if (!label) return combineResults(r, Result.Error);
     r = combineResults(r, this.popAndCheckSignature(brTypes(label), 'br_on_null'));
     this.pushTypes(brTypes(label));
-    if (actual !== Type.Any) this.pushType(actual);
+    // `br_on_null $l : [t* (ref null ht)] -> [t* (ref ht)]` — it ALWAYS
+    // pushes the non-null ref back. Skipping the push in unreachable code
+    // left the stack one short, so a following `return` read the label's own
+    // type where the ref should have been: `(block (result funcref)
+    // (unreachable) (br_on_null 0) (return))` failed with "type mismatch in
+    // return" because it compared `funcref` against the function's
+    // `(ref func)`. In unreachable code the ref is polymorphic, so push that.
+    this.pushType(actual === Type.Any ? Type.Any : nonNullable(actual));
     return r;
   }
 
@@ -1212,12 +1219,13 @@ export class TypeChecker {
     // The BRANCH carries the ref with its nullability removed — that is the
     // whole point of the instruction — so the target's `(ref $t)` slot must
     // see the non-null form, not the `(ref null $t)` that was popped.
-    if (actual !== Type.Any) this.pushType(nonNullable(actual));
+    this.pushType(actual === Type.Any ? Type.Any : nonNullable(actual));
     const label = this.getLabel(depth);
     if (!label) return combineResults(r, Result.Error);
     r = combineResults(r, this.popAndCheckSignature(brTypes(label), 'br_on_non_null'));
     this.pushTypes(brTypes(label));
-    if (actual !== Type.Any) r = combineResults(r, this.dropTypes(1));
+    // The branch carries the ref away; the FALLTHROUGH keeps only `t*`.
+    r = combineResults(r, this.dropTypes(1));
     return r;
   }
 

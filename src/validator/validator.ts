@@ -178,11 +178,20 @@ function canonicalTypeKeys(types: readonly TypeEntry[]): string[] {
     `${f.mutable ? 'm' : 'c'}${vtKey(f.type, start, size)}`;
 
   function structKey(te: TypeEntry, start: number, size: number): string {
+    // A supertype inside the SAME rec group has to be keyed by position too,
+    // exactly like a field reference. Keying it by `keyOf` recurses into the
+    // group being built, hits the in-progress guard, and bakes a raw index
+    // into the key — which made two structurally identical rec groups
+    // (type-subtyping.wast) come out with different keys.
+    const superKey = (sv: Var): string => {
+      if (sv.kind !== 'index') return sv.name;
+      return sv.value >= start && sv.value < start + size
+        ? `r:${sv.value - start}`
+        : `k:${keyOf(sv.value)}`;
+    };
     const sub = te.sub === undefined
       ? 'F'
-      : `${te.sub.final ? 'F' : 'N'}[${
-        te.sub.supertypes.map((sv) => (sv.kind === 'index' ? keyOf(sv.value) : sv.name)).join(',')
-      }]`;
+      : `${te.sub.final ? 'F' : 'N'}[${te.sub.supertypes.map(superKey).join(',')}]`;
     if (te.kind === 'func') {
       return `${sub}func(${te.sig.params.map((p) => vtKey(p, start, size)).join(',')})->(${
         te.sig.results.map((r) => vtKey(r, start, size)).join(',')

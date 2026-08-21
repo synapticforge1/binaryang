@@ -624,13 +624,21 @@ export class SharedValidator {
     to: ValueType,
   ): Result {
     this.currentLoc = loc;
-    // br_on_cast branches with rt2 and falls through with rt1; the `_fail`
-    // spelling is the other way round.
+    // br_on_cast branches with rt2 and falls through with `rt1 \ rt2`; the
+    // `_fail` spelling is the other way round.
+    //
+    // The DIFFERENCE is not just rt1. If rt2 is nullable it absorbs the null
+    // case, so the difference is non-nullable — which is why
+    // `br_on_cast_fail $l (ref null any) (ref null struct)` targets a label
+    // typed `(ref any)`, and passing rt1 through unchanged rejected it.
+    const diff: ValueType = isRefValueType(from)
+      ? { ...from, nullable: from.nullable && !(isRefValueType(to) ? to.nullable : true) }
+      : from;
     return this.tc.onBrOnCast(
       depth,
       onFail ? 'br_on_cast_fail' : 'br_on_cast',
-      onFail ? from : to,
-      onFail ? to : from,
+      onFail ? diff : to,
+      onFail ? to : diff,
     );
   }
 
@@ -1221,7 +1229,7 @@ export class SharedValidator {
     if (!at) return Result.Error;
     const elemCheck = this.checkElemSegmentIndex(elemIdx, loc);
     if (!elemCheck) return Result.Error;
-    return this.tc.onCall([Type.I32, Type.I32], [Type.Ref]);
+    return this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]);
   }
 
   onArrayGet(loc: Location, typeIdx: number): Result {
