@@ -612,7 +612,13 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onEnd(e.loc);
   }
   beginIfExpr(e: IfExpr): Result {
-    return this.sv.onIf(e.loc, e.blockType);
+    let r = this.sv.onIf(e.loc, e.blockType);
+    // A missing `else` is not modelled anywhere else, so the arity rule for a
+    // one-armed if has to be checked from the IR.
+    if (e.else_.length === 0) {
+      r = combineResults(r, this.sv.onOneArmedIf(e.loc, e.blockType));
+    }
+    return r;
   }
   afterIfTrueExpr(e: IfExpr): Result {
     return e.else_.length > 0 ? this.sv.onElse(e.loc) : Result.Ok;
@@ -895,16 +901,24 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   beginTryTableExpr(e: TryTableExpr): Result {
-    let r = this.sv.beginTryTable(e.loc, e.blockType);
-    // Bounds-check each catch clause's tag immediate (was previously never
-    // validated — an out-of-range tag in a try_table catch validated clean).
+    // Catches are checked BEFORE the try_table's own label is pushed: their
+    // depths are relative to the ENCLOSING scope. Checking them after
+    // `beginTryTable` reads every target one level too deep — the same
+    // off-by-one T7.6 fixed on the parser side, and it showed up here as six
+    // valid modules being rejected.
+    let r: Result = Result.Ok;
     for (const c of e.catches) {
       r = combineResults(
         r,
-        this.sv.onTryTableCatch(e.loc, c.kind, c.tag !== undefined ? varIdx(c.tag) : undefined),
+        this.sv.onTryTableCatch(
+          e.loc,
+          c.kind,
+          c.tag !== undefined ? varIdx(c.tag) : undefined,
+          varIdx(c.target),
+        ),
       );
     }
-    return r;
+    return combineResults(r, this.sv.beginTryTable(e.loc, e.blockType));
   }
   endTryTableExpr(e: TryTableExpr): Result {
     return this.sv.onEnd(e.loc);

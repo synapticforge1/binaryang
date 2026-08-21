@@ -654,6 +654,31 @@ export class SharedValidator {
     return this.tc.onLoop(params, results);
   }
 
+  /**
+   * A one-armed `if` — no `else` — falls through producing whatever it was
+   * given, so its block type's PARAMS and RESULTS must match. `(if (result
+   * i32) (then …))` with no else has nothing to produce on the false path.
+   * Nothing checked this; the missing else was simply not modelled.
+   */
+  onOneArmedIf(loc: Location, blockType: BlockType): Result {
+    const { params, results } = this.resolveBlockType(blockType, loc);
+    if (params.length !== results.length) {
+      return this.printError(
+        loc,
+        'type mismatch: a one-armed if must start and end with the same arity',
+      );
+    }
+    for (const [i, p] of params.entries()) {
+      if (!this.isSubtype(p, results[i]!)) {
+        return this.printError(
+          loc,
+          'type mismatch: a one-armed if must start and end with the same types',
+        );
+      }
+    }
+    return Result.Ok;
+  }
+
   onIf(loc: Location, blockType: BlockType): Result {
     this.currentLoc = loc;
     const { params, results } = this.resolveBlockType(blockType, loc);
@@ -1612,14 +1637,40 @@ export class SharedValidator {
    * the labeled block type is a known remaining gap (the flat operand model
    * doesn't carry the tag's param types into the target check).
    */
-  onTryTableCatch(loc: Location, kind: CatchKind, tag: number | undefined): Result {
+  /**
+   * A `try_table` catch clause: bounds-check the tag AND check that the
+   * target label accepts exactly what the clause hands it.
+   *
+   *   catch $tag $l          the tag's params
+   *   catch_ref $tag $l      the tag's params, plus an exnref
+   *   catch_all $l           nothing
+   *   catch_all_ref $l       an exnref
+   *
+   * Only the tag was checked, so `(catch_ref 0 0)` into a label taking
+   * nothing — V8: "catch kind generates 1 operand, target block expects 0" —
+   * validated clean.
+   */
+  onTryTableCatch(
+    loc: Location,
+    kind: CatchKind,
+    tag: number | undefined,
+    depth?: number,
+  ): Result {
     this.currentLoc = loc;
-    if (
-      (kind === CatchKind.Catch || kind === CatchKind.CatchRef) && tag !== undefined
-    ) {
-      return this.checkTagIndex(tag, loc) ? Result.Ok : Result.Error;
+    let params: ValueType[] = [];
+    if (kind === CatchKind.Catch || kind === CatchKind.CatchRef) {
+      if (tag === undefined) return Result.Error;
+      const tt = this.checkTagIndex(tag, loc);
+      if (!tt) return Result.Error;
+      params = [...tt.params];
     }
-    return Result.Ok;
+    if (kind === CatchKind.CatchRef || kind === CatchKind.CatchAllRef) {
+      // A caught exception reference is NON-NULL — `(ref exn)`, not the
+      // nullable `exnref`. There is always an exception when the clause runs.
+      params.push({ kind: 'ref', heapType: { kind: 'name', name: 'exn' }, nullable: false });
+    }
+    if (depth === undefined) return Result.Ok;
+    return this.tc.checkCatchTarget(depth, params);
   }
 
   // ---------------------------------------------------------------------------

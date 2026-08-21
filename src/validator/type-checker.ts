@@ -1335,6 +1335,34 @@ export class TypeChecker {
     return r;
   }
 
+  /**
+   * Does the label at `depth` accept exactly `produced`? Used for `try_table`
+   * catch clauses, whose operands come from the catch KIND rather than from
+   * the operand stack — so this compares type vectors, it does not pop.
+   */
+  checkCatchTarget(depth: number, produced: ValueType[]): Result {
+    const label = this.getLabel(depth);
+    if (!label) return Result.Error;
+    const want = brTypes(label);
+    if (want.length !== produced.length) {
+      this.printError(
+        `type mismatch in catch: target takes ${want.length} operands but the clause produces ${produced.length}`,
+      );
+      return Result.Error;
+    }
+    for (const [i, w] of want.entries()) {
+      if (this.checkType(produced[i]!, w) === Result.Error) {
+        this.printError(
+          `type mismatch in catch: target operand ${i} is ${
+            valueTypeName(w)
+          } but the clause produces ${valueTypeName(produced[i]!)}`,
+        );
+        return Result.Error;
+      }
+    }
+    return Result.Ok;
+  }
+
   onCall(paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     return this.popAndCheckCall(paramTypes, resultTypes, 'call');
   }
