@@ -12,9 +12,9 @@ import type { Features } from '../core/feature.ts';
 import { addError, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import { getOpcodeNaturalAlign, TypeChecker } from './type-checker.ts';
-import type { FuncType } from './type-checker.ts';
+import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, ValueType } from '../ir/ir.ts';
-import { CatchKind, coarsenValueType } from '../ir/ir.ts';
+import { CatchKind, isRefValueType, varIndex } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public options
@@ -40,26 +40,26 @@ export interface ValidateOptions {
 // ---------------------------------------------------------------------------
 
 interface SVTableType {
-  element: Type;
+  element: ValueType;
   limits: Limits;
 }
 interface SVMemoryType {
   limits: Limits;
 }
 interface SVGlobalType {
-  type: Type;
+  type: ValueType;
   mutable: boolean;
 }
 interface SVTagType {
-  params: Type[];
+  params: ValueType[];
 }
 interface SVElemType {
-  element: Type;
+  element: ValueType;
   isActive: boolean;
-  tableType: Type;
+  tableType: ValueType;
 }
 interface SVLocalDecl {
-  type: Type;
+  type: ValueType;
   end: number;
 }
 
@@ -73,8 +73,8 @@ interface SVLocalDecl {
  * compact memory but operates on i32 values on the stack — struct.new takes
  * i32 args for packed fields; struct.get_s/get_u return i32.
  */
-function packedToStackType(tIn: ValueType): Type {
-  const t = coarsenValueType(tIn);
+function packedToStackType(tIn: ValueType): ValueType {
+  const t = tIn;
   if (t === Type.I8 || t === Type.I16) return Type.I32;
   return t;
 }
@@ -95,6 +95,12 @@ export class SharedValidator {
 
   // Type section registry (index → FuncType for func entries only)
   private funcTypesMap: Map<number, FuncType> = new Map();
+  /**
+   * Kind + declared supertypes of every type-section entry, for
+   * defined-type subtyping. Shared with the TypeChecker by reference so
+   * entries decoded later are visible to checks made later.
+   */
+  private heapTypesMap: Map<number, HeapTypeInfo> = new Map();
   // Struct type entries keyed by absolute type index — used by struct.* validators
   private structTypesMap: Map<number, Field[]> = new Map();
   // Array type entries keyed by absolute type index — used by array.* validators
@@ -128,7 +134,7 @@ export class SharedValidator {
   constructor(errors: ErrorList, options?: ValidateOptions) {
     this.errors = errors;
     this.features = options?.features ?? defaultFeatures();
-    this.tc = new TypeChecker(this.funcTypesMap);
+    this.tc = new TypeChecker(this.funcTypesMap, this.heapTypesMap);
     this.tc.setErrorCallback((msg) => this.onTypecheckerError(msg));
   }
 
@@ -225,7 +231,7 @@ export class SharedValidator {
     return this.checkIndex(idx, this.dataSegmentCount, 'data_segment', loc);
   }
 
-  private checkLocalIndex(idx: number, loc: Location): Type | null {
+  private checkLocalIndex(idx: number, loc: Location): ValueType | null {
     for (const decl of this.locals) {
       if (idx < decl.end) return decl.type;
     }
@@ -265,7 +271,10 @@ export class SharedValidator {
   // Block type resolution
   // ---------------------------------------------------------------------------
 
-  private resolveBlockType(bt: BlockType, loc: Location): { params: Type[]; results: Type[] } {
+  private resolveBlockType(
+    bt: BlockType,
+    loc: Location,
+  ): { params: ValueType[]; results: ValueType[] } {
     if (bt.kind === 'void') return { params: [], results: [] };
     if (bt.kind === 'value') return { params: [], results: [bt.type] };
     const ft = this.funcTypesMap.get(bt.typeIdx);
@@ -280,27 +289,50 @@ export class SharedValidator {
   // Type section
   // ---------------------------------------------------------------------------
 
+  /** The non-nullable reference to a defined type: `(ref $idx)`. */
+  private refTo(idx: number): ValueType {
+    return { kind: 'ref', heapType: varIndex(idx), nullable: false };
+  }
+
+  /** `(ref null $idx)` — what an operand slot accepts for a defined type. */
+  private refNullTo(idx: number): ValueType {
+    return { kind: 'ref', heapType: varIndex(idx), nullable: true };
+  }
+
   onFuncType(
     _loc: Location,
-    paramsIn: ValueType[],
-    resultsIn: ValueType[],
+    params: ValueType[],
+    results: ValueType[],
     typeIndex: Index,
+    supers: number[] = [],
+    canon = '',
   ): Result {
-    const params = paramsIn.map(coarsenValueType);
-    const results = resultsIn.map(coarsenValueType);
     this.funcTypesMap.set(this.numTypes, { params, results, typeIndex });
+    this.heapTypesMap.set(this.numTypes, { kind: 'func', supers, canon });
     this.numTypes++;
     return Result.Ok;
   }
 
-  onStructType(_loc: Location, fields: Field[] = []): Result {
+  onStructType(
+    _loc: Location,
+    fields: Field[] = [],
+    supers: number[] = [],
+    canon = '',
+  ): Result {
     this.structTypesMap.set(this.numTypes, fields);
+    this.heapTypesMap.set(this.numTypes, { kind: 'struct', supers, canon });
     this.numTypes++;
     return Result.Ok;
   }
 
-  onArrayType(_loc: Location, element?: Field): Result {
+  onArrayType(
+    _loc: Location,
+    element?: Field,
+    supers: number[] = [],
+    canon = '',
+  ): Result {
     if (element) this.arrayTypesMap.set(this.numTypes, element);
+    this.heapTypesMap.set(this.numTypes, { kind: 'array', supers, canon });
     this.numTypes++;
     return Result.Ok;
   }
@@ -330,7 +362,7 @@ export class SharedValidator {
   }
 
   onTable(loc: Location, elemTypeIn: ValueType, limits: Limits): Result {
-    const elemType = coarsenValueType(elemTypeIn);
+    const elemType = elemTypeIn;
     let r: Result = Result.Ok;
     // MVP allowed one table; the reference-types proposal lifted that.
     if (this.tables.length > 0 && !this.features.referenceTypes) {
@@ -357,14 +389,14 @@ export class SharedValidator {
   }
 
   onGlobalImport(_loc: Location, typeIn: ValueType, mutable: boolean): Result {
-    const type = coarsenValueType(typeIn);
+    const type = typeIn;
     this.globals.push({ type, mutable });
     this.numImportedGlobals++;
     return Result.Ok;
   }
 
   onGlobal(_loc: Location, typeIn: ValueType, mutable: boolean): Result {
-    const type = coarsenValueType(typeIn);
+    const type = typeIn;
     this.globals.push({ type, mutable });
     return Result.Ok;
   }
@@ -433,7 +465,7 @@ export class SharedValidator {
 
   onElemSegment(loc: Location, tableIdx: number, kind: SegmentKind): Result {
     let r: Result = Result.Ok;
-    let tableType: Type = Type.FuncRef;
+    let tableType: ValueType = Type.FuncRef;
     if (kind === 'active') {
       const tt = this.checkTableIndex(tableIdx, loc);
       r = combineResults(r, tt ? Result.Ok : Result.Error);
@@ -444,7 +476,7 @@ export class SharedValidator {
   }
 
   onElemSegmentElemType(_loc: Location, elemTypeIn: ValueType): Result {
-    const elemType = coarsenValueType(elemTypeIn);
+    const elemType = elemTypeIn;
     const elem = this.elems[this.elems.length - 1];
     if (elem) elem.element = elemType;
     return Result.Ok;
@@ -466,7 +498,7 @@ export class SharedValidator {
   // ---------------------------------------------------------------------------
 
   beginInitExpr(loc: Location, typeIn: ValueType): Result {
-    const type = coarsenValueType(typeIn);
+    const type = typeIn;
     this.currentLoc = loc;
     this.inInitExpr = true;
     return this.tc.beginInitExpr(type);
@@ -502,7 +534,7 @@ export class SharedValidator {
   }
 
   onLocalDecl(_loc: Location, count: number, typeIn: ValueType): Result {
-    const type = coarsenValueType(typeIn);
+    const type = typeIn;
     const cur = this.locals.length === 0 ? 0 : (this.locals[this.locals.length - 1]?.end ?? 0);
     this.locals.push({ type, end: cur + count });
     return Result.Ok;
@@ -584,9 +616,22 @@ export class SharedValidator {
     return this.tc.onBrOnNonNull(depth);
   }
 
-  onBrOnCast(loc: Location, depth: number, onFail: boolean): Result {
+  onBrOnCast(
+    loc: Location,
+    depth: number,
+    onFail: boolean,
+    from: ValueType,
+    to: ValueType,
+  ): Result {
     this.currentLoc = loc;
-    return this.tc.onBrOnCast(depth, onFail ? 'br_on_cast_fail' : 'br_on_cast');
+    // br_on_cast branches with rt2 and falls through with rt1; the `_fail`
+    // spelling is the other way round.
+    return this.tc.onBrOnCast(
+      depth,
+      onFail ? 'br_on_cast_fail' : 'br_on_cast',
+      onFail ? from : to,
+      onFail ? to : from,
+    );
   }
 
   onReturn(loc: Location): Result {
@@ -600,7 +645,7 @@ export class SharedValidator {
   }
 
   onSelect(loc: Location, resultTypesIn: ValueType[]): Result {
-    const resultTypes = resultTypesIn.map(coarsenValueType);
+    const resultTypes = resultTypesIn;
     this.currentLoc = loc;
     if (resultTypes.length > 1) {
       return this.printError(loc, `invalid arity in select instruction: ${resultTypes.length}.`);
@@ -954,7 +999,10 @@ export class SharedValidator {
     // func type is one, and it coarsens to StructRef here, so an exact
     // FuncRef comparison rejected it. Reference-ness is all this lattice can
     // check; see TypeChecker.checkType.
-    if (tt && !isReferenceType(tt.element)) {
+    // A `(ref $T)` element type is a reference too, so ask isRefValueType
+    // first — before T9.3 it could not be one, because coarsening had already
+    // flattened it to an abstract Type.
+    if (tt && !isRefValueType(tt.element) && !isReferenceType(tt.element)) {
       r = combineResults(
         r,
         this.printError(loc, 'type mismatch: call_indirect must reference table of funcref type'),
@@ -1006,7 +1054,7 @@ export class SharedValidator {
   // Instruction handlers — ref types
   // ---------------------------------------------------------------------------
 
-  onRefNull(loc: Location, refType: Type): Result {
+  onRefNull(loc: Location, refType: ValueType): Result {
     this.currentLoc = loc;
     return this.tc.onRefNull(refType);
   }
@@ -1026,7 +1074,7 @@ export class SharedValidator {
         this.checkDeclaredFuncs.push(funcIdx);
       }
     }
-    r = combineResults(r, this.tc.onRefFunc());
+    r = combineResults(r, this.tc.onRefFunc(this.funcs[funcIdx]?.typeIndex ?? 0));
     return r;
   }
 
@@ -1082,14 +1130,14 @@ export class SharedValidator {
     // struct.new pops one value per field (in field order), pushes (ref $type).
     // Packed fields (i8/i16) are written as i32 on the stack.
     const stackParams = st.fields.map((f) => packedToStackType(f.type));
-    return this.tc.onCall(stackParams, [Type.Ref]);
+    return this.tc.onCall(stackParams, [this.refTo(typeIdx)]);
   }
 
   onStructNewDefault(loc: Location, typeIdx: number): Result {
     this.currentLoc = loc;
     const st = this.checkStructTypeIndex(typeIdx, loc);
     if (!st) return Result.Error;
-    return this.tc.onCall([], [Type.Ref]);
+    return this.tc.onCall([], [this.refTo(typeIdx)]);
   }
 
   onStructGet(loc: Location, typeIdx: number, fieldIdx: number, _signed?: boolean): Result {
@@ -1101,7 +1149,7 @@ export class SharedValidator {
       this.printError(loc, `field index ${fieldIdx} out of range for struct type ${typeIdx}`);
       return Result.Error;
     }
-    return this.tc.onCall([Type.Ref], [packedToStackType(field.type)]);
+    return this.tc.onCall([this.refNullTo(typeIdx)], [packedToStackType(field.type)]);
   }
 
   onStructSet(loc: Location, typeIdx: number, fieldIdx: number): Result {
@@ -1113,7 +1161,7 @@ export class SharedValidator {
       this.printError(loc, `field index ${fieldIdx} out of range for struct type ${typeIdx}`);
       return Result.Error;
     }
-    return this.tc.onCall([Type.Ref, packedToStackType(field.type)], []);
+    return this.tc.onCall([this.refNullTo(typeIdx), packedToStackType(field.type)], []);
   }
 
   // ---------------------------------------------------------------------------
@@ -1135,14 +1183,17 @@ export class SharedValidator {
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     // array.new pops [init, length(i32)], pushes (ref $T).
-    return this.tc.onCall([packedToStackType(at.element.type), Type.I32], [Type.Ref]);
+    return this.tc.onCall(
+      [packedToStackType(at.element.type), Type.I32],
+      [this.refTo(typeIdx)],
+    );
   }
 
   onArrayNewDefault(loc: Location, typeIdx: number): Result {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
-    return this.tc.onCall([Type.I32], [Type.Ref]);
+    return this.tc.onCall([Type.I32], [this.refTo(typeIdx)]);
   }
 
   onArrayNewFixed(loc: Location, typeIdx: number, count: number): Result {
@@ -1150,9 +1201,9 @@ export class SharedValidator {
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     const elem = packedToStackType(at.element.type);
-    const params: Type[] = [];
+    const params: ValueType[] = [];
     for (let i = 0; i < count; i++) params.push(elem);
-    return this.tc.onCall(params, [Type.Ref]);
+    return this.tc.onCall(params, [this.refTo(typeIdx)]);
   }
 
   onArrayNewData(loc: Location, typeIdx: number, dataIdx: number): Result {
@@ -1161,7 +1212,7 @@ export class SharedValidator {
     if (!at) return Result.Error;
     const dataCheck = this.checkDataSegmentIndex(dataIdx, loc);
     if (dataCheck !== Result.Ok) return dataCheck;
-    return this.tc.onCall([Type.I32, Type.I32], [Type.Ref]);
+    return this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]);
   }
 
   onArrayNewElem(loc: Location, typeIdx: number, elemIdx: number): Result {
@@ -1177,14 +1228,20 @@ export class SharedValidator {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
-    return this.tc.onCall([Type.Ref, Type.I32], [packedToStackType(at.element.type)]);
+    return this.tc.onCall(
+      [this.refNullTo(typeIdx), Type.I32],
+      [packedToStackType(at.element.type)],
+    );
   }
 
   onArraySet(loc: Location, typeIdx: number): Result {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
-    return this.tc.onCall([Type.Ref, Type.I32, packedToStackType(at.element.type)], []);
+    return this.tc.onCall(
+      [this.refNullTo(typeIdx), Type.I32, packedToStackType(at.element.type)],
+      [],
+    );
   }
 
   onArrayFill(loc: Location, typeIdx: number): Result {
@@ -1193,7 +1250,7 @@ export class SharedValidator {
     if (!at) return Result.Error;
     // [ref, offset, value, size] -> []
     return this.tc.onCall(
-      [Type.Ref, Type.I32, packedToStackType(at.element.type), Type.I32],
+      [this.refNullTo(typeIdx), Type.I32, packedToStackType(at.element.type), Type.I32],
       [],
     );
   }
@@ -1204,7 +1261,10 @@ export class SharedValidator {
     const src = this.checkArrayTypeIndex(srcTypeIdx, loc);
     if (!dest || !src) return Result.Error;
     // [destRef, destOffset, srcRef, srcOffset, size] -> []
-    return this.tc.onCall([Type.Ref, Type.I32, Type.Ref, Type.I32, Type.I32], []);
+    return this.tc.onCall(
+      [this.refNullTo(destTypeIdx), Type.I32, this.refNullTo(srcTypeIdx), Type.I32, Type.I32],
+      [],
+    );
   }
 
   onArrayInitSegment(loc: Location, typeIdx: number): Result {
@@ -1212,30 +1272,31 @@ export class SharedValidator {
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
     // [ref, destOffset, srcOffset, size] -> []
-    return this.tc.onCall([Type.Ref, Type.I32, Type.I32, Type.I32], []);
+    return this.tc.onCall([this.refNullTo(typeIdx), Type.I32, Type.I32, Type.I32], []);
   }
 
   onArrayLen(loc: Location): Result {
     this.currentLoc = loc;
-    return this.tc.onCall([Type.Ref], [Type.I32]);
+    return this.tc.onArrayLen();
   }
 
   // ---------------------------------------------------------------------------
   // Instruction handlers — GC ref.test / ref.cast
   // ---------------------------------------------------------------------------
 
-  // The cast target's precise type doesn't make it into wabt-ts's flat
-  // `Type[]` operand model yet (typed-ref IR is the deferred refactor), so
-  // these handlers simply pop a ref and push i32 / ref. V8 enforces the
-  // precise GC subtyping at runtime; wabt-ts's validator only sees the
-  // coarse shape.
   onRefTest(loc: Location): Result {
     this.currentLoc = loc;
-    return this.tc.onCall([Type.Ref], [Type.I32]);
+    return this.tc.onRefTest();
   }
-  onRefCast(loc: Location): Result {
+
+  /**
+   * `ref.cast (ref [null] H) v` — the result is the CAST-TO type, not a
+   * shrug. Reporting a coarse reference here was the whole reason a cast
+   * feeding a typed slot failed to validate.
+   */
+  onRefCast(loc: Location, castTo: ValueType): Result {
     this.currentLoc = loc;
-    return this.tc.onCall([Type.Ref], [Type.Ref]);
+    return this.tc.onRefCast(castTo);
   }
 
   // ---------------------------------------------------------------------------

@@ -3,7 +3,8 @@
 // Copyright 2016 WebAssembly Community Group participants
 // Licensed under the Apache License, Version 2.0
 
-import type { ValueType } from '../ir/ir.ts';
+import { isRefValueType } from '../ir/ir.ts';
+import type { Field, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
@@ -112,6 +113,90 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { SharedValidator } from './shared-validator.ts';
 import type { ValidateOptions } from './shared-validator.ts';
 
+/**
+ * Canonical structural keys for every type-section entry.
+ *
+ * WebAssembly type identity is STRUCTURAL, not by index: two `(type (func))`
+ * declarations are one type, and a `(ref $a)` is accepted where a `(ref $b)`
+ * is wanted when their definitions match. Comparing indices alone rejected
+ * every module in type-equivalence.wast.
+ *
+ * Recursion is handled the way the spec does it — a reference to a member of
+ * the SAME rec group is written as its position within the group, so two
+ * groups that are shaped alike key alike no matter what indices they occupy.
+ * References out of the group name the target's own key, which terminates
+ * because a group can only reference itself or an EARLIER group.
+ */
+function canonicalTypeKeys(types: readonly TypeEntry[]): string[] {
+  // Which rec group each index belongs to. `recGroupSize` is set on the first
+  // entry of an explicit `(rec …)`; anything else is a group of one.
+  const groupStart = new Array<number>(types.length).fill(0);
+  const groupSize = new Array<number>(types.length).fill(1);
+  for (let i = 0; i < types.length;) {
+    const size = types[i]?.recGroupSize ?? 1;
+    for (let k = 0; k < size && i + k < types.length; k++) {
+      groupStart[i + k] = i;
+      groupSize[i + k] = size;
+    }
+    i += Math.max(1, size);
+  }
+
+  const memo = new Array<string | undefined>(types.length).fill(undefined);
+  const inProgress = new Set<number>();
+
+  const keyOf = (i: number): string => {
+    const cached = memo[i];
+    if (cached !== undefined) return cached;
+    // A malformed module can point a group at itself through a path this
+    // walk did not expect; fall back to the index rather than recurse.
+    if (inProgress.has(i)) return `?${i}`;
+    inProgress.add(i);
+    const start = groupStart[i]!;
+    const size = groupSize[i]!;
+    const members: string[] = [];
+    for (let k = 0; k < size && start + k < types.length; k++) {
+      members.push(structKey(types[start + k]!, start, size));
+    }
+    const groupKey = members.join('|');
+    for (let k = 0; k < size && start + k < types.length; k++) {
+      memo[start + k] = `${groupKey}#${k}`;
+    }
+    inProgress.delete(i);
+    return memo[i] ?? `?${i}`;
+  };
+
+  const vtKey = (vt: ValueType, start: number, size: number): string => {
+    if (!isRefValueType(vt)) return `t${vt.toString(16)}`;
+    const h = vt.heapType;
+    const n = vt.nullable ? '?' : '!';
+    if (h.kind !== 'index') return `${n}a:${h.name}`;
+    if (h.value >= start && h.value < start + size) return `${n}r:${h.value - start}`;
+    return `${n}k:${keyOf(h.value)}`;
+  };
+
+  const fieldKey = (f: Field, start: number, size: number): string =>
+    `${f.mutable ? 'm' : 'c'}${vtKey(f.type, start, size)}`;
+
+  function structKey(te: TypeEntry, start: number, size: number): string {
+    const sub = te.sub === undefined
+      ? 'F'
+      : `${te.sub.final ? 'F' : 'N'}[${
+        te.sub.supertypes.map((sv) => (sv.kind === 'index' ? keyOf(sv.value) : sv.name)).join(',')
+      }]`;
+    if (te.kind === 'func') {
+      return `${sub}func(${te.sig.params.map((p) => vtKey(p, start, size)).join(',')})->(${
+        te.sig.results.map((r) => vtKey(r, start, size)).join(',')
+      })`;
+    }
+    if (te.kind === 'struct') {
+      return `${sub}struct(${te.fields.map((f) => fieldKey(f, start, size)).join(',')})`;
+    }
+    return `${sub}array(${te.field ? fieldKey(te.field, start, size) : ''})`;
+  }
+
+  return types.map((_, i) => keyOf(i));
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -157,14 +242,21 @@ class ModuleValidator implements ExprVisitorDelegate {
     const m = this.module;
     const loc = m.loc;
 
-    // Types
+    // Types. The declared `(sub $Super …)` list travels with each entry so the
+    // TypeChecker can answer `$A <: $B` for DEFINED types (T9.3); it used to
+    // be dropped here, and every concrete ref was coarsened anyway.
+    const canon = canonicalTypeKeys(m.types);
     for (const [i, te] of m.types.entries()) {
+      const supers = (te.sub?.supertypes ?? [])
+        .map((v) => (v.kind === 'index' ? v.value : -1))
+        .filter((n) => n >= 0);
+      const c = canon[i] ?? '';
       if (te.kind === 'func') {
-        this.acc(this.sv.onFuncType(te.loc, te.sig.params, te.sig.results, i));
+        this.acc(this.sv.onFuncType(te.loc, te.sig.params, te.sig.results, i, supers, c));
       } else if (te.kind === 'struct') {
-        this.acc(this.sv.onStructType(te.loc, te.fields));
+        this.acc(this.sv.onStructType(te.loc, te.fields, supers, c));
       } else {
-        this.acc(this.sv.onArrayType(te.loc, te.field));
+        this.acc(this.sv.onArrayType(te.loc, te.field, supers, c));
       }
     }
 
@@ -373,7 +465,13 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onBrOnNull(e.loc, varIdx(e.target));
   }
   onBrOnCastExpr(e: BrOnCastExpr): Result {
-    return this.sv.onBrOnCast(e.loc, varIdx(e.target), e.onFail);
+    return this.sv.onBrOnCast(
+      e.loc,
+      varIdx(e.target),
+      e.onFail,
+      { kind: 'ref', heapType: e.from.heapType, nullable: e.from.nullable },
+      { kind: 'ref', heapType: e.to.heapType, nullable: e.to.nullable },
+    );
   }
   onBrOnNonNullExpr(e: BrOnNonNullExpr): Result {
     return this.sv.onBrOnNonNull(e.loc, varIdx(e.target));
@@ -474,12 +572,10 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onRefNullExpr(e: RefNullExpr): Result {
-    // `refType` is a heap type. Abstract keywords map straight onto the
-    // matching nullable ref value type (they share a byte). A user-defined
-    // type index coarsens to the abstract supertype of its type entry — the
-    // loose typed-ref IR documented in CLAUDE.md. The earlier code read a
-    // name-var as plain funcref, so `ref.null extern` type-checked as funcref.
-    return this.sv.onRefNull(e.loc, this.refNullType(e.refType));
+    // `refType` is a HEAP type, and `ref.null H` produces `(ref null H)`.
+    // A user-defined `$T` used to coarsen to the abstract supertype of its
+    // entry, which lost which type it was; it now travels as an index.
+    return this.sv.onRefNull(e.loc, { kind: 'ref', heapType: e.refType, nullable: true });
   }
 
   /** Resolve a `ref.null` heap-type var to the value type it pushes. */
@@ -574,7 +670,13 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onRefTest(e.loc);
   }
   onRefCastExpr(e: RefCastExpr): Result {
-    return this.sv.onRefCast(e.loc);
+    // Hand over the type being cast TO — `(ref [null] H)` — so the result on
+    // the stack is that type rather than an anonymous reference.
+    return this.sv.onRefCast(e.loc, {
+      kind: 'ref',
+      heapType: e.heapType,
+      nullable: e.nullable,
+    });
   }
 
   onTableGetExpr(e: TableGetExpr): Result {

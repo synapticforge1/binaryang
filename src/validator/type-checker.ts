@@ -4,8 +4,16 @@
 // Licensed under the Apache License, Version 2.0
 
 import { combineResults, Result } from '../core/result.ts';
-import { isReferenceType, Type, typeName } from '../core/types.ts';
+import {
+  heapTypeNameToType,
+  isReferenceType,
+  Type,
+  typeName,
+  typeToHeapTypeName,
+} from '../core/types.ts';
 import type { Index } from '../core/types.ts';
+import { isRefValueType, valueTypeName } from '../ir/ir.ts';
+import type { ValueType } from '../ir/ir.ts';
 import { MiscOpcode, Opcode, PREFIX_MISC, PREFIX_SIMD } from '../core/opcode.ts';
 import { LabelType } from '../ir/ir-util.ts';
 
@@ -14,8 +22,8 @@ import { LabelType } from '../ir/ir-util.ts';
 // ---------------------------------------------------------------------------
 
 export interface FuncType {
-  params: Type[];
-  results: Type[];
+  params: ValueType[];
+  results: ValueType[];
   typeIndex: Index;
 }
 
@@ -548,61 +556,146 @@ function applyMemory64(info: OpcodeTypeInfo, is64: boolean): OpcodeTypeInfo {
 // Reference-type subtyping
 // ---------------------------------------------------------------------------
 
-/**
- * Reference types whose identity the IR has already thrown away.
- *
- * `coarsenValueType` maps EVERY concrete `(ref $T)` onto `Type.StructRef`, and
- * `ref.test` / `ref.cast` report the bare `Ref` / `RefNull` prefix byte. Once a
- * type is one of these, nothing can be concluded about it, so it satisfies —
- * and is satisfied by — any other reference type. Being strict here rejected
- * more than 100 spec-testsuite modules V8 accepts.
- *
- * The cost is real and worth naming: a genuine `structref` is indistinguishable
- * from a coarsened `(ref $T)`, so mismatches involving `structref` go
- * unreported. Removing this needs the validator moved onto `ValueType`, the
- * same refactor T7.4 did for the IR — tracked as T9.3.
- */
-const IMPRECISE_REFS: ReadonlySet<Type> = new Set([Type.Ref, Type.RefNull, Type.StructRef]);
+/** What a type-section entry is, and which types it declares as supertypes. */
+export interface HeapTypeInfo {
+  kind: 'func' | 'struct' | 'array';
+  supers: number[];
+  /**
+   * Canonical structural key. Two type indices denote the SAME type when
+   * their keys match, which is what makes wasm's type identity structural
+   * rather than by-index — `(type $a (func))` and `(type $b (func))` are one
+   * type, and type-equivalence.wast exists to check exactly that.
+   */
+  canon: string;
+}
 
 /** Immediate supertype of each abstract heap type in the `any` hierarchy. */
 const REF_PARENT: ReadonlyMap<Type, Type> = new Map([
   [Type.EqRef, Type.AnyRef],
   [Type.I31Ref, Type.EqRef],
+  [Type.StructRef, Type.EqRef],
   [Type.ArrayRef, Type.EqRef],
 ]);
 
-/** The `any` hierarchy — everything `none` is a subtype of. */
-const ANY_HIERARCHY: ReadonlySet<Type> = new Set([
-  Type.AnyRef,
-  Type.EqRef,
-  Type.I31Ref,
-  Type.StructRef,
-  Type.ArrayRef,
-  Type.NullRef,
+/** The hierarchy each bottom type sits at the base of. */
+const BOTTOM_OF: ReadonlyMap<Type, Type> = new Map([
+  [Type.NullRef, Type.AnyRef],
+  [Type.NullFuncRef, Type.FuncRef],
+  [Type.NullExternRef, Type.ExternRef],
+  [Type.NullExnRef, Type.ExnRef],
 ]);
 
+/** The abstract heap type a defined type sits directly under, by kind. */
+const KIND_PARENT: Readonly<Record<HeapTypeInfo['kind'], Type>> = {
+  func: Type.FuncRef,
+  struct: Type.StructRef,
+  array: Type.ArrayRef,
+};
+
 /**
- * Reference subtyping, as precisely as the flat `Type` enum allows.
- *
- * The three hierarchies (`any`, `func`, `extern`, plus `exn`) do NOT
- * interconnect, which is what makes `(result funcref) (ref.null extern)` an
- * error — and that case is still caught. What cannot be checked is anything
- * involving {@link IMPRECISE_REFS}.
+ * A heap type: an abstract one (whose `Type` enum value IS its heap encoding)
+ * or an index into the type section.
  */
-function refSatisfies(actual: Type, expected: Type): boolean {
-  if (actual === expected) return true;
-  if (IMPRECISE_REFS.has(actual) || IMPRECISE_REFS.has(expected)) return true;
+type Heap = { abstract: Type; index?: undefined } | { index: number; abstract?: undefined };
 
-  // Bottom types are subtypes of everything in their own hierarchy.
-  if (actual === Type.NullRef) return ANY_HIERARCHY.has(expected);
-  if (actual === Type.NullFuncRef) return expected === Type.FuncRef;
-  if (actual === Type.NullExternRef) return expected === Type.ExternRef;
-  if (actual === Type.NullExnRef) return expected === Type.ExnRef;
+/** Split a reference value type into heap type + nullability. */
+function refParts(t: ValueType): { heap: Heap; nullable: boolean } | null {
+  if (isRefValueType(t)) {
+    const h = t.heapType;
+    if (h.kind === 'index') return { heap: { index: h.value }, nullable: t.nullable };
+    const abs = heapTypeNameToType(h.name);
+    return abs === null ? null : { heap: { abstract: abs }, nullable: t.nullable };
+  }
+  // Every bare `…ref` spelling is the NULLABLE form of its heap type, and the
+  // `Type` enum value is that heap type's own encoding.
+  return isReferenceType(t) ? { heap: { abstract: t }, nullable: true } : null;
+}
 
-  for (let t: Type | undefined = actual; t !== undefined; t = REF_PARENT.get(t)) {
-    if (t === expected) return true;
+/** Subtyping among abstract heap types. The hierarchies do not interconnect. */
+function abstractSatisfies(a: Type, e: Type): boolean {
+  if (a === e) return true;
+  const base = BOTTOM_OF.get(a);
+  if (base !== undefined) {
+    // A bottom type is below everything in its own hierarchy. `none` is below
+    // i31, struct AND array, which is not a single parent chain.
+    if (base === Type.AnyRef) {
+      return e === Type.AnyRef || e === Type.EqRef || e === Type.I31Ref ||
+        e === Type.StructRef || e === Type.ArrayRef;
+    }
+    return e === base;
+  }
+  for (let t: Type | undefined = a; t !== undefined; t = REF_PARENT.get(t)) {
+    if (t === e) return true;
   }
   return false;
+}
+
+/**
+ * Subtyping over heap types, including DEFINED types.
+ *
+ * Before T9.3 this could not exist: `coarsenValueType` mapped every concrete
+ * `(ref $T)` onto `Type.StructRef` before the validator saw it, so a defined
+ * type was indistinguishable from the abstract `structref` and from every
+ * other defined type. The validator carries `ValueType` now, so `$T` keeps its
+ * index and this walks the declared `(sub $Super)` chain.
+ */
+function heapSatisfies(a: Heap, e: Heap, types: ReadonlyMap<number, HeapTypeInfo>): boolean {
+  if (a.abstract !== undefined && e.abstract !== undefined) {
+    return abstractSatisfies(a.abstract, e.abstract);
+  }
+
+  if (a.index !== undefined && e.index !== undefined) {
+    if (a.index === e.index) return true;
+    // Type identity is STRUCTURAL: distinct indices with the same canonical
+    // key are the same type.
+    const ec = types.get(e.index)?.canon;
+    if (ec !== undefined && types.get(a.index)?.canon === ec) return true;
+    // Transitive closure over declared supertypes. `seen` bounds it — a
+    // malformed module can declare a cycle and this must not hang on one.
+    const seen = new Set<number>();
+    const work = [a.index];
+    while (work.length > 0) {
+      const i = work.pop()!;
+      if (seen.has(i)) continue;
+      seen.add(i);
+      if (i === e.index) return true;
+      const info = types.get(i);
+      if (!info) continue;
+      if (ec !== undefined && info.canon === ec) return true;
+      work.push(...info.supers);
+    }
+    return false;
+  }
+
+  if (a.index !== undefined) {
+    // A defined type sits under the abstract type for its kind. An unknown
+    // index is reported elsewhere; accept it here rather than emit a second,
+    // misleading error for the same cause.
+    const info = types.get(a.index);
+    if (!info) return true;
+    return abstractSatisfies(KIND_PARENT[info.kind], e.abstract!);
+  }
+
+  // abstract <: defined holds only for the bottom types.
+  const info = types.get(e.index!);
+  if (!info) return true;
+  if (a.abstract === Type.NullRef) return info.kind === 'struct' || info.kind === 'array';
+  if (a.abstract === Type.NullFuncRef) return info.kind === 'func';
+  return false;
+}
+
+/**
+ * The non-nullable form of a reference type.
+ *
+ * A bare `…ref` spelling IS the nullable form, so this has to convert it to
+ * the explicit `(ref H)` shape rather than return it unchanged — the `Type`
+ * enum has no non-nullable counterpart for the abstract heap types.
+ */
+function nonNullable(t: ValueType): ValueType {
+  if (isRefValueType(t)) return t.nullable ? { ...t, nullable: false } : t;
+  const name = typeToHeapTypeName(t);
+  if (name === null) return t;
+  return { kind: 'ref', heapType: { kind: 'name', name }, nullable: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -611,13 +704,13 @@ function refSatisfies(actual: Type, expected: Type): boolean {
 
 interface TCLabel {
   labelType: LabelType;
-  paramTypes: Type[];
-  resultTypes: Type[];
+  paramTypes: ValueType[];
+  resultTypes: ValueType[];
   typeStackLimit: number;
   unreachable: boolean;
 }
 
-function brTypes(label: TCLabel): Type[] {
+function brTypes(label: TCLabel): ValueType[] {
   return label.labelType === LabelType.Loop ? label.paramTypes : label.resultTypes;
 }
 
@@ -626,14 +719,17 @@ function brTypes(label: TCLabel): Type[] {
 // ---------------------------------------------------------------------------
 
 export class TypeChecker {
-  private typeStack: Type[] = [];
+  private typeStack: ValueType[] = [];
   private labelStack: TCLabel[] = [];
-  private brTableSig: Type[] | null = null;
+  private brTableSig: ValueType[] | null = null;
   private errorCallback: (msg: string) => void = () => {};
   readonly funcTypes: Map<number, FuncType>;
+  /** Type-section entries, for defined-type subtyping. Filled as they decode. */
+  readonly heapTypes: Map<number, HeapTypeInfo>;
 
-  constructor(funcTypes: Map<number, FuncType>) {
+  constructor(funcTypes: Map<number, FuncType>, heapTypes: Map<number, HeapTypeInfo>) {
     this.funcTypes = funcTypes;
+    this.heapTypes = heapTypes;
   }
 
   setErrorCallback(cb: (msg: string) => void): void {
@@ -661,7 +757,7 @@ export class TypeChecker {
     return this.getLabel(0);
   }
 
-  private pushLabel(labelType: LabelType, paramTypes: Type[], resultTypes: Type[]): void {
+  private pushLabel(labelType: LabelType, paramTypes: ValueType[], resultTypes: ValueType[]): void {
     this.labelStack.push({
       labelType,
       paramTypes: [...paramTypes],
@@ -692,7 +788,7 @@ export class TypeChecker {
   // Type stack operations
   // ---------------------------------------------------------------------------
 
-  private peekType(depth: number): Type {
+  private peekType(depth: number): ValueType {
     const label = this.topLabel();
     if (!label) return Type.Any;
     const limit = label.typeStackLimit;
@@ -713,13 +809,13 @@ export class TypeChecker {
     return Result.Ok;
   }
 
-  private pushType(type: Type): void {
+  private pushType(type: ValueType): void {
     if (type !== Type.Void) {
       this.typeStack.push(type);
     }
   }
 
-  private pushTypes(types: Type[]): void {
+  private pushTypes(types: ValueType[]): void {
     for (const t of types) this.pushType(t);
   }
 
@@ -730,46 +826,57 @@ export class TypeChecker {
   /**
    * Is `actual` acceptable where `expected` is wanted?
    *
-   * Non-reference types are compared exactly. Reference types go through
-   * {@link refSatisfies}, which knows the abstract heap-type lattice but has
-   * to give up wherever the IR's coarsening already threw the answer away.
+   * Non-reference types are compared exactly. References go through the heap
+   * lattice, which since T9.3 covers DEFINED types too: a `(ref $A)` keeps its
+   * index all the way here, so `$A <: $B` is answered by walking the declared
+   * `(sub …)` chain rather than by giving up on the comparison.
    */
-  checkType(actual: Type, expected: Type): Result {
+  checkType(actual: ValueType, expected: ValueType): Result {
     if (expected === Type.Any || actual === Type.Any) return Result.Ok;
     if (actual === expected) return Result.Ok;
-    if (isReferenceType(expected) && isReferenceType(actual)) {
-      return refSatisfies(actual, expected) ? Result.Ok : Result.Error;
-    }
-    return Result.Error;
+
+    const a = refParts(actual);
+    const e = refParts(expected);
+    if (a === null || e === null) return Result.Error;
+    // A nullable value cannot satisfy a non-nullable slot.
+    if (a.nullable && !e.nullable) return Result.Error;
+    return heapSatisfies(a.heap, e.heap, this.heapTypes) ? Result.Ok : Result.Error;
   }
 
-  private popAndCheck1Type(expected: Type, desc: string): Result {
+  private popAndCheck1Type(expected: ValueType, desc: string): Result {
     const actual = this.peekType(0);
     const r = this.checkType(actual, expected);
     if (r === Result.Error) {
       this.printError(
-        `type mismatch in ${desc}, expected [${typeName(expected)}] but got [${typeName(actual)}]`,
+        `type mismatch in ${desc}, expected [${valueTypeName(expected)}] but got [${
+          valueTypeName(actual)
+        }]`,
       );
     }
     return combineResults(r, this.dropTypes(1));
   }
 
-  private popAndCheck2Types(exp1: Type, exp2: Type, desc: string): Result {
+  private popAndCheck2Types(exp1: ValueType, exp2: ValueType, desc: string): Result {
     const a2 = this.peekType(0);
     const a1 = this.peekType(1);
     let r = this.checkType(a1, exp1);
     r = combineResults(r, this.checkType(a2, exp2));
     if (r === Result.Error) {
       this.printError(
-        `type mismatch in ${desc}, expected [${typeName(exp1)}, ${typeName(exp2)}] but got [${
-          typeName(a1)
-        }, ${typeName(a2)}]`,
+        `type mismatch in ${desc}, expected [${valueTypeName(exp1)}, ${
+          valueTypeName(exp2)
+        }] but got [${valueTypeName(a1)}, ${valueTypeName(a2)}]`,
       );
     }
     return combineResults(r, this.dropTypes(2));
   }
 
-  private popAndCheck3Types(exp1: Type, exp2: Type, exp3: Type, desc: string): Result {
+  private popAndCheck3Types(
+    exp1: ValueType,
+    exp2: ValueType,
+    exp3: ValueType,
+    desc: string,
+  ): Result {
     const a3 = this.peekType(0);
     const a2 = this.peekType(1);
     const a1 = this.peekType(2);
@@ -778,15 +885,15 @@ export class TypeChecker {
     r = combineResults(r, this.checkType(a3, exp3));
     if (r === Result.Error) {
       this.printError(
-        `type mismatch in ${desc}, expected [${typeName(exp1)}, ${typeName(exp2)}, ${
-          typeName(exp3)
-        }] but got [${typeName(a1)}, ${typeName(a2)}, ${typeName(a3)}]`,
+        `type mismatch in ${desc}, expected [${valueTypeName(exp1)}, ${valueTypeName(exp2)}, ${
+          valueTypeName(exp3)
+        }] but got [${valueTypeName(a1)}, ${valueTypeName(a2)}, ${valueTypeName(a3)}]`,
       );
     }
     return combineResults(r, this.dropTypes(3));
   }
 
-  private checkSignature(sig: Type[], desc: string): Result {
+  private checkSignature(sig: ValueType[], desc: string): Result {
     let r = Result.Ok;
     for (let i = 0; i < sig.length; i++) {
       const expected = sig[i] ?? Type.Any;
@@ -799,18 +906,18 @@ export class TypeChecker {
     return r;
   }
 
-  private popAndCheckSignature(sig: Type[], desc: string): Result {
+  private popAndCheckSignature(sig: ValueType[], desc: string): Result {
     const r = this.checkSignature(sig, desc);
     return combineResults(r, this.dropTypes(sig.length));
   }
 
-  private popAndCheckCall(paramTypes: Type[], resultTypes: Type[], desc: string): Result {
+  private popAndCheckCall(paramTypes: ValueType[], resultTypes: ValueType[], desc: string): Result {
     const r = this.popAndCheckSignature(paramTypes, desc);
     this.pushTypes(resultTypes);
     return r;
   }
 
-  private popAndCheckReturnCall(resultTypes: Type[], desc: string): Result {
+  private popAndCheckReturnCall(resultTypes: ValueType[], desc: string): Result {
     // A tail call returns the callee's results directly to the caller's caller,
     // so the callee's result types must match the ENCLOSING FUNCTION's result
     // types — a type-vector comparison, NOT a peek of the operand stack (which
@@ -881,7 +988,7 @@ export class TypeChecker {
   // Function scope
   // ---------------------------------------------------------------------------
 
-  beginFunction(params: Type[], results: Type[]): Result {
+  beginFunction(params: ValueType[], results: ValueType[]): Result {
     this.typeStack = [];
     this.labelStack = [];
     this.pushLabel(LabelType.Func, params, results);
@@ -897,7 +1004,7 @@ export class TypeChecker {
     return r;
   }
 
-  beginInitExpr(type: Type): Result {
+  beginInitExpr(type: ValueType): Result {
     this.typeStack = [];
     this.labelStack = [];
     this.pushLabel(LabelType.Func, [], [type]);
@@ -912,7 +1019,7 @@ export class TypeChecker {
   // Instruction handlers
   // ---------------------------------------------------------------------------
 
-  onConst(type: Type): Result {
+  onConst(type: ValueType): Result {
     this.pushType(type);
     return Result.Ok;
   }
@@ -998,21 +1105,21 @@ export class TypeChecker {
   // Control flow
   // ---------------------------------------------------------------------------
 
-  onBlock(paramTypes: Type[], resultTypes: Type[]): Result {
+  onBlock(paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     const r = this.popAndCheckSignature(paramTypes, 'block');
     this.pushLabel(LabelType.Block, paramTypes, resultTypes);
     this.pushTypes(paramTypes);
     return r;
   }
 
-  onLoop(paramTypes: Type[], resultTypes: Type[]): Result {
+  onLoop(paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     const r = this.popAndCheckSignature(paramTypes, 'loop');
     this.pushLabel(LabelType.Loop, paramTypes, resultTypes);
     this.pushTypes(paramTypes);
     return r;
   }
 
-  onIf(paramTypes: Type[], resultTypes: Type[]): Result {
+  onIf(paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     let r = this.popAndCheck1Type(_I32, 'if');
     r = combineResults(r, this.popAndCheckSignature(paramTypes, 'if'));
     this.pushLabel(LabelType.If, paramTypes, resultTypes);
@@ -1102,7 +1209,10 @@ export class TypeChecker {
   onBrOnNonNull(depth: number): Result {
     const actual = this.peekType(0);
     let r = this.dropTypes(1);
-    if (actual !== Type.Any) this.pushType(actual);
+    // The BRANCH carries the ref with its nullability removed — that is the
+    // whole point of the instruction — so the target's `(ref $t)` slot must
+    // see the non-null form, not the `(ref null $t)` that was popped.
+    if (actual !== Type.Any) this.pushType(nonNullable(actual));
     const label = this.getLabel(depth);
     if (!label) return combineResults(r, Result.Error);
     r = combineResults(r, this.popAndCheckSignature(brTypes(label), 'br_on_non_null'));
@@ -1122,9 +1232,17 @@ export class TypeChecker {
    * check. The stack ARITY is still enforced exactly, which is what catches
    * the mistakes this validator can catch.
    */
-  onBrOnCast(depth: number, name: string): Result {
-    const actual = this.peekType(0); // rt1, already coarsened
-    let r = this.dropTypes(1);
+  /**
+   * `br_on_cast` / `br_on_cast_fail`. Input is `[t* rt1]`; the branch takes
+   * `[t* rt2]` and the fallthrough keeps `[t* rt1\\rt2]` — the two reference
+   * types trade places for the `_fail` spelling.
+   *
+   * `branchRef` and `fallRef` are the real reference types now (T9.3). Before,
+   * this had to stand in with whatever the label declared, which proved
+   * nothing; the `t*` below were checked for real and the reference was not.
+   */
+  onBrOnCast(depth: number, name: string, branchRef: ValueType, fallRef: ValueType): Result {
+    let r = this.dropTypes(1); // the rt1 operand
     const label = this.getLabel(depth);
     if (!label) return combineResults(r, Result.Error);
     const want = brTypes(label);
@@ -1132,44 +1250,79 @@ export class TypeChecker {
       this.printError(`type mismatch in ${name}, target carries no reference`);
       return combineResults(r, Result.Error);
     }
-    // Stand in for rt2 on the branch edge with exactly what the label
-    // declares. Checking it against itself proves nothing — but the
-    // reference type is not checkable in this lattice either way, and the
-    // `t*` BELOW it are checked for real, which is the part that catches
-    // mistakes.
-    this.pushType(want[want.length - 1]!);
+    this.pushType(branchRef);
     r = combineResults(r, this.popAndCheckSignature(want, name));
-    // Fallthrough keeps `[t* rt1\rt2]` — the same shape, coarsely, with the
-    // operand's own type on top rather than the branch edge's.
     this.pushTypes(want.slice(0, -1));
-    this.pushType(actual === Type.Any ? want[want.length - 1]! : actual);
+    this.pushType(fallRef);
     return r;
   }
 
-  onCall(paramTypes: Type[], resultTypes: Type[]): Result {
+  /**
+   * Pop one operand, requiring only that it IS a reference.
+   *
+   * `ref.test` / `ref.cast` / `array.len` accept any reference and do their
+   * real checking at run time, so demanding a particular one here would
+   * reject valid code. This is narrower than the old `Type.Ref` placeholder:
+   * that value used to sit on the operand STACK as a result type too, where
+   * it made every later comparison meaningless.
+   */
+  popAnyRef(desc: string): Result {
+    const actual = this.peekType(0);
+    if (actual !== Type.Any && !isRefValueType(actual) && !isReferenceType(actual)) {
+      this.printError(
+        `type mismatch in ${desc}, expected a reference but got [${valueTypeName(actual)}]`,
+      );
+      return combineResults(Result.Error, this.dropTypes(1));
+    }
+    return this.dropTypes(1);
+  }
+
+  onRefTest(): Result {
+    const r = this.popAnyRef('ref.test');
+    this.pushType(Type.I32);
+    return r;
+  }
+
+  onRefCast(castTo: ValueType): Result {
+    const r = this.popAnyRef('ref.cast');
+    this.pushType(castTo);
+    return r;
+  }
+
+  onArrayLen(): Result {
+    const r = this.popAnyRef('array.len');
+    this.pushType(Type.I32);
+    return r;
+  }
+
+  onCall(paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     return this.popAndCheckCall(paramTypes, resultTypes, 'call');
   }
 
-  onCallIndirect(paramTypes: Type[], resultTypes: Type[], is64Table: boolean): Result {
+  onCallIndirect(paramTypes: ValueType[], resultTypes: ValueType[], is64Table: boolean): Result {
     const addrType = is64Table ? _I64 : _I32;
     let r = this.popAndCheck1Type(addrType, 'call_indirect');
     r = combineResults(r, this.popAndCheckCall(paramTypes, resultTypes, 'call_indirect'));
     return r;
   }
 
-  onCallRef(refType: Type, paramTypes: Type[], resultTypes: Type[]): Result {
+  onCallRef(refType: ValueType, paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     let r = this.popAndCheck1Type(refType, 'call_ref');
     r = combineResults(r, this.popAndCheckCall(paramTypes, resultTypes, 'call_ref'));
     return r;
   }
 
-  onReturnCall(paramTypes: Type[], resultTypes: Type[]): Result {
+  onReturnCall(paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     let r = this.popAndCheckSignature(paramTypes, 'return_call');
     r = combineResults(r, this.popAndCheckReturnCall(resultTypes, 'return_call'));
     return r;
   }
 
-  onReturnCallIndirect(paramTypes: Type[], resultTypes: Type[], is64Table: boolean): Result {
+  onReturnCallIndirect(
+    paramTypes: ValueType[],
+    resultTypes: ValueType[],
+    is64Table: boolean,
+  ): Result {
     const addrType = is64Table ? _I64 : _I32;
     let r = this.popAndCheck1Type(addrType, 'return_call_indirect');
     r = combineResults(r, this.popAndCheckSignature(paramTypes, 'return_call_indirect'));
@@ -1177,7 +1330,7 @@ export class TypeChecker {
     return r;
   }
 
-  onReturnCallRef(refType: Type, paramTypes: Type[], resultTypes: Type[]): Result {
+  onReturnCallRef(refType: ValueType, paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     // Like return_call but also pops the function reference operand first
     // (mirrors onCallRef). The old path routed through onReturnCall, leaving
     // the ref on the stack — an off-by-one for every return_call_ref.
@@ -1198,7 +1351,7 @@ export class TypeChecker {
     return this.dropTypes(1);
   }
 
-  onSelect(resultTypes: Type[]): Result {
+  onSelect(resultTypes: ValueType[]): Result {
     let r = this.popAndCheck1Type(_I32, 'select');
     if (resultTypes.length > 0) {
       const rt = resultTypes[0] ?? Type.Any;
@@ -1213,31 +1366,31 @@ export class TypeChecker {
     return r;
   }
 
-  onLocalGet(type: Type): Result {
+  onLocalGet(type: ValueType): Result {
     this.pushType(type);
     return Result.Ok;
   }
 
-  onLocalSet(type: Type): Result {
+  onLocalSet(type: ValueType): Result {
     return this.popAndCheck1Type(type, 'local.set');
   }
 
-  onLocalTee(type: Type): Result {
+  onLocalTee(type: ValueType): Result {
     const r = this.popAndCheck1Type(type, 'local.tee');
     this.pushType(type);
     return r;
   }
 
-  onGlobalGet(type: Type): Result {
+  onGlobalGet(type: ValueType): Result {
     this.pushType(type);
     return Result.Ok;
   }
 
-  onGlobalSet(type: Type): Result {
+  onGlobalSet(type: ValueType): Result {
     return this.popAndCheck1Type(type, 'global.set');
   }
 
-  onRefNull(type: Type): Result {
+  onRefNull(type: ValueType): Result {
     this.pushType(type);
     return Result.Ok;
   }
@@ -1248,15 +1401,21 @@ export class TypeChecker {
     return r;
   }
 
-  onRefFunc(): Result {
-    this.pushType(Type.FuncRef);
+  /**
+   * `ref.func $f` produces `(ref $T)` for the function's own type — NOT the
+   * nullable `funcref`. It is non-null by construction, and it is a specific
+   * function type, so a `(result (ref $T))` slot accepts it.
+   */
+  onRefFunc(typeIndex: number): Result {
+    this.pushType({ kind: 'ref', heapType: { kind: 'index', value: typeIndex }, nullable: false });
     return Result.Ok;
   }
 
+  /** `ref.as_non_null` keeps the heap type and drops the nullability. */
   onRefAsNonNull(): Result {
     const actual = this.peekType(0);
     const r = this.dropTypes(1);
-    this.pushType(actual !== Type.Any ? actual : Type.FuncRef);
+    this.pushType(actual === Type.Any ? Type.Any : nonNullable(actual));
     return r;
   }
 
@@ -1272,7 +1431,8 @@ export class TypeChecker {
   // GC: ref.i31 pops i32, pushes i31ref.
   onRefI31(): Result {
     const r = this.dropTypes(1);
-    this.pushType(Type.I31Ref);
+    // Non-null by construction: `(ref i31)`, not the nullable `i31ref`.
+    this.pushType({ kind: 'ref', heapType: { kind: 'name', name: 'i31' }, nullable: false });
     return r;
   }
 
@@ -1319,17 +1479,17 @@ export class TypeChecker {
   // Every table operation is indexed in the TABLE's index type — i64 under
   // the table64 proposal. These all hard-coded i32, so a 64-bit table
   // rejected its own correct code.
-  onTableGet(elemType: Type, is64: boolean): Result {
+  onTableGet(elemType: ValueType, is64: boolean): Result {
     const r = this.popAndCheck1Type(is64 ? _I64 : _I32, 'table.get');
     this.pushType(elemType);
     return r;
   }
 
-  onTableSet(elemType: Type, is64: boolean): Result {
+  onTableSet(elemType: ValueType, is64: boolean): Result {
     return this.popAndCheck2Types(is64 ? _I64 : _I32, elemType, 'table.set');
   }
 
-  onTableGrow(elemType: Type, is64: boolean): Result {
+  onTableGrow(elemType: ValueType, is64: boolean): Result {
     const idx = is64 ? _I64 : _I32;
     const r = this.popAndCheck2Types(elemType, idx, 'table.grow');
     this.pushType(idx);
@@ -1341,7 +1501,7 @@ export class TypeChecker {
     return Result.Ok;
   }
 
-  onTableFill(elemType: Type, is64: boolean): Result {
+  onTableFill(elemType: ValueType, is64: boolean): Result {
     const idx = is64 ? _I64 : _I32;
     return this.popAndCheck3Types(idx, elemType, idx, 'table.fill');
   }
@@ -1366,7 +1526,7 @@ export class TypeChecker {
     return Result.Ok;
   }
 
-  onThrow(sig: Type[]): Result {
+  onThrow(sig: ValueType[]): Result {
     const r = this.popAndCheckSignature(sig, 'throw');
     return combineResults(r, this.setUnreachable());
   }
@@ -1380,14 +1540,14 @@ export class TypeChecker {
     return this.setUnreachable();
   }
 
-  onTry(paramTypes: Type[], resultTypes: Type[]): Result {
+  onTry(paramTypes: ValueType[], resultTypes: ValueType[]): Result {
     const r = this.popAndCheckSignature(paramTypes, 'try');
     this.pushLabel(LabelType.Try, paramTypes, resultTypes);
     this.pushTypes(paramTypes);
     return r;
   }
 
-  onCatch(sig: Type[]): Result {
+  onCatch(sig: ValueType[]): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
     let r = Result.Ok;

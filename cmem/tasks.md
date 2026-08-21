@@ -59,6 +59,7 @@ reference these ids.
 | T7.13 | UTF-8 BOM stripped from names | done — encode +1 |
 | T7.14 | Explicit type-use overwritten by a structural signature match | done — encode +1 |
 | T9.2 | Our validator rejecting modules V8 accepts | done — agreement 1702 → 2120/2120 |
+| T9.3 | Validator on `ValueType`; real reference subtyping | done — assert_invalid caught 1806 → 1834; agreement 2120 → 2110 |
 
 ### Open — parse side: NONE
 
@@ -135,11 +136,31 @@ and two whole classes of bug hid there: rules that were never feature-gated,
 and opcode-table keys left stale by T7.7. The metric is simple — for every
 testsuite module V8 accepts, does `wasmValidate` agree? **2120/2120.**
 
-Add a T9.3 for the remaining imprecision: `checkType` gives up on any
-comparison involving `Type.Ref` / `Type.RefNull` / `Type.StructRef`, because
-`coarsenValueType` collapses every concrete `(ref $T)` onto `StructRef`. A
-genuine `structref` mismatch therefore goes unreported. The fix is moving the
-validator onto `ValueType`, the same refactor T7.4 did for the IR.
+**T9.3 (done)** moved the validator onto `ValueType`, so reference subtyping
+is real: defined-type `(sub …)` chains walked transitively, structural type
+identity via canonical keys (rec-group-relative, so groups shaped alike key
+alike), and producers reporting their true type (`ref.cast` the cast-to type,
+`ref.func` the function's own `(ref $T)`, `ref.as_non_null` /
+`br_on_non_null` dropping nullability).
+
+**Measure BOTH directions.** Agreement only counts false rejections; it says
+nothing about what a permissive validator waves through. Adding the
+`assert_invalid` direction changed the verdict on T9.3 from "regression" to
+"worth it":
+
+|  | before T9.3 | after |
+| --- | --- | --- |
+| modules V8 accepts that we accept | 2120 / 2120 | 2110 / 2120 |
+| `assert_invalid` modules we reject | 1806 / 2737 | **1834 / 2737** |
+
+28 more real errors caught, 10 valid modules wrongly rejected. The 10 are
+**T9.4**, below — not fixed by widening the lattice again, which is the thing
+T9.3 existed to stop doing.
+
+| id | Scope | Files |
+| --- | --- | --- |
+| **T9.4** | 10 valid modules the new lattice rejects: `array_new_elem` #0-#3, `array.wast#5`, `type-subtyping#12`, `br_on_cast_fail#0`, `br_on_cast#0`, `unreached-valid#2` (`(unreachable) (ref.as_non_null)` under stack polymorphism), +1. Each is a separate small investigation. | 7 |
+| **T9.5** | **903 of 2737 `assert_invalid` modules still validate clean** — the validator misses a third of the spec's invalid cases. Nothing in the campaign measured this direction until T9.3, and it is by far the largest remaining validator gap. Needs its own survey, the same way T9.2 was surveyed. | many |
 
 ### Open — T9: found during the campaign, invisible to both metrics
 
