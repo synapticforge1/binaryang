@@ -25,6 +25,134 @@ The WT-2 series proved that structural round-trip checks (function/global/segmen
 
 ---
 
+## The UP-1…UP-7 series (2026-08-24) — wabt-ts upstream findings
+
+Seven findings filed by the wabt-ts team from its conformance campaign (their report:
+`../wabt-ts/scripts/binaryen-ts-upstream-report.md`). All seven were **re-verified against this
+checkout at v1.4.3** before acting — their report was stamped v1.3.5, and nothing between the two
+versions touches these paths. Their framing was "six of seven fail loudly or are simply absent —
+only UP-1 emits bytes an engine rejects." Verification found that understated: **three of the seven
+produce wrong bytes**, and the silent one is worse than the loud one.
+
+Their methodology is worth adopting: measure engine-acceptance of encoder output across a corpus
+(they used the 257-file spec testsuite), and put every cross-engine question to more than one
+engine. V8 alone accepts things Wasmtime rejects.
+
+| ID   | What                                             | Real severity                                        | Status                  |
+| ---- | ------------------------------------------------ | ---------------------------------------------------- | ----------------------- |
+| UP-5 | start section parsed and discarded               | **silent miscompile** — the worst of the seven       | ✅ fixed (Tier 1)       |
+| UP-1 | `struct.get_u`/`array.get_u` unencodable         | **bare round-trip corruption**, not just unencodable | ✅ fixed (Tier 1)       |
+| UP-7 | typed refs stop at the `ModuleBuilder` surface   | **bare round-trip corruption** for typed-ref locals  | ⬜ OPEN (Tier 3)        |
+| UP-6 | no tag imports                                   | loud (parser `default` error)                        | ✅ fixed (Tier 2)       |
+| UP-4 | `ref.as_non_null` absent entirely                | absent                                               | ✅ fixed (Tier 2)       |
+| UP-3 | 4 GC array bulk ops: no factory, no encoder case | loud (both directions)                               | ✅ fixed (Tier 2)       |
+| UP-2 | `tuple.make`: enum entry only                    | loud                                                 | ⬜ deferred — see below |
+
+### UP-5 — the start section (fixed) — the most severe of the seven
+
+The parser read the start funcidx and threw it away (`break; // start func index -- skip`); the
+encoder had no emit path at all. A module whose start function initialized state round-tripped into
+one that instantiated cleanly and **never ran it**: valid wasm, wrong behaviour, no diagnostic.
+Measured: an exported global went `42` → `0`. This is the WT-2c element-segment class, and it
+outranks UP-1 — UP-1 at least gets caught by the engine.
+
+Fix: `WasmModule.start`, `ModuleBuilder.setStart`, parser materializes it under the existing
+`$func${globalIndex}` naming, encoder emits section 8 between export (7) and element (9).
+
+**Wiring the section up is NOT sufficient on its own.** The start function is a reachability root
+exactly like an export, so `RemoveUnusedModuleElements` and `Inlining` must seed from it. Without
+that, `-Oz` deletes a start function that nothing else references — trading a decoder drop for an
+optimizer drop. Verified by reverting the seed: only that test goes red. **Any future pass that
+prunes module elements must consider `module.start`.**
+
+The encoder guards with `!= null` (loose) on purpose: a module built against the pre-start
+`WasmModule` shape has no field at all, and absent unambiguously means "no start function". A strict
+`!== null` treats `undefined` as a real name and emits a section referencing `"undefined"`.
+
+### UP-1 — packed-field `get` sub-opcode (fixed)
+
+The GC spec has THREE sub-opcodes per family (`get` / `get_s` / `get_u`); the encoder chose between
+two with `signed ? get_s : get`. So `get_u` was unreachable AND a packed field with `signed = false`
+emitted the non-packed `get`, which every engine rejects ("Field 0 of type 0 has type i8. Use
+struct.get_s or struct.get_u instead.").
+
+**Worse than reported:** the binary parser decodes `get_u` to `signed = false`, collapsing it with
+`get`. So a VALID module using `struct.get_u` came back INVALID from a bare `parseWasm` →
+`encodeWasm` — no passes, no builder involved. Same class as the WT-2g catch-handler corruption.
+
+Fix ([wasm-encoder.ts](../src/encoder/wasm-encoder.ts) `packedGetSubop`): derive packedness from the
+field's declared `StorageType`. That makes `signed: boolean` sufficient and total — a packed field
+admits only `get_s`/`get_u` (selected by `signed`), a non-packed field only `get` (where `signed` is
+meaningless). No IR or API change. Out-of-range type/field indices throw rather than guessing.
+
+The wabt-ts report claimed "the root cause is in the IR, not the encoder; an encoder-only patch
+cannot fix it" — that is wrong, and their own suggested option (2) is the counterexample.
+**Rebutted, and fixed encoder-only.**
+
+The WAT parser now rejects a `get`/`get_s`/`get_u` that disagrees with the field's packedness.
+Without that guard the encoder would silently REPAIR invalid source into a different instruction;
+the front door must accept-or-throw, never quietly substitute.
+
+### UP-7 — typed refs (OPEN; a third wrong-bytes bug)
+
+Reported as the mildest finding — "the representational work is done, just widen five
+`ModuleBuilder` signatures." Both halves of that are wrong:
+
+1. **It is not five signatures.** The IR record types are `ValType` too: `WasmFunction.params` /
+   `.results`, `Local.type`, `WasmGlobal.type`, `WasmTable.type`, `WasmTag.params`. Widening only
+   the builder pushes a `RefType` into a `ValType`-typed field. Behind those sits the binary
+   parser's AnyRef-collapse shim and `gcFuncTypeIndex`, whose own comment already names this as the
+   blocker and currently **throws** on ambiguity.
+2. **It emits bytes engines reject.** `readValTypeByte` collapses a local's `(ref null 0)` to
+   `anyref` on read, so re-encoding a GC module that uses typed-ref locals produces a module V8
+   rejects ("array.fill[0] expected type (ref null 0), found local.get of type anyref"). Measured:
+   the hand-built `array.fill` fixture returns 7; its bare `parseWasm` → `encodeWasm` is rejected.
+
+Found while trying to write a behavioral test for UP-3 — `array.fill`/`array.copy` need a
+`(ref null $t)` local, which the IR cannot express. Those two tests are consequently driven from
+hand-built binaries and asserted structurally; they become ordinary behavioral tests once this
+lands. Doing UP-7 properly also DELETES an existing loud failure (the `gcFuncTypeIndex` ambiguity
+throw), which is a better argument for it than the original "smaller ask" framing.
+
+### UP-2 — `tuple.make` (deferred, correctly)
+
+Not a factory-plus-encoder-case job. Multi-value blocktypes already throw on BOTH sides —
+`readBlockType` in [wasm-parser.ts](../src/binary/wasm-parser.ts) and `writeBlockType` in
+[wasm-encoder.ts](../src/encoder/wasm-encoder.ts). `tuple.make` is the tail of a multi-value
+project, not a peer of UP-3/UP-4. Scoping it alongside them would badly understate it.
+
+### UP-6 / UP-4 / UP-3 (fixed, Tier 2)
+
+- **UP-6 tag imports.** The load-bearing part is the index space: imported tags take the low end,
+  ahead of defined ones. THREE sites had to agree — `buildIndices` walking tag imports first, the
+  parser numbering defined tags from `importedTagCount`, and `parse()` no longer rebuilding every
+  tag as a fresh `$tag${i}` (it was silently discarding the offset the tag-section reader had just
+  computed). Missing any one retargets every `throw` and tag export — the `$import${n}` failure of
+  WT-2b, reproduced in the tag space. The regression test throws a DEFINED tag from a module that
+  also imports one. `StripEH` drops tag imports too, so a stripped module stops demanding a tag from
+  its host for nothing.
+- **UP-4 `ref.as_non_null`** (0xd4), on the existing `RefAs` placeholder kind plus a new `RefAsOp`
+  discriminant — matching upstream's `RefAs`/`RefAsOp` shape rather than adding a parallel node. The
+  extern conversions slot in there later.
+- **UP-3** `array.fill` / `array.copy` / `array.init_data` / `array.init_elem` (0xfb 0x10–0x13),
+  replacing four explicit rejects. `array.copy` carries dest and src heap-type indices separately,
+  in that immediate order; a dedicated test asserts the order, because swapping them is invisible
+  when both types match.
+
+**Both new node families are wired into BOTH `_mapChildren` and `_visitChildren`** in
+[walk.ts](../src/ir/walk.ts). Omitting one makes the node invisible to every pass instead of
+erroring — exactly the trap `default: throw` was added to catch.
+
+All five new instructions are pinned against the WAT front door by a test asserting **zero `nop`
+fall-throughs** — the WT-2h failure mode where `ref.*` silently became `nop`.
+
+### Confirmed still-fixed (wabt-ts had these listed stale)
+
+`addElement` present; `loadOpcode` throws instead of falling through to i64 (its comment documents
+the silent-truncation bug it replaced); `WasmExport.kind` includes `"tag"`.
+
+---
+
 ## Fail-loud audit sweep (2026-07-07, post-Asyncify) — four passes, 20 fixes, suite 379 → 394
 
 A multi-pass whole-tree audit (mechanical grep sweeps + four parallel subagent code-review agents,
@@ -331,4 +459,3 @@ the parser is provably clean).
 
 **Fix footguns immediately** — don't defer silent-corruption/footgun fixes; fail-loud is the norm.
 Only defer a fix if the fix itself risks rejecting valid input.
-</content>

@@ -152,4 +152,3 @@ portable memory (this folder) — the shared source of truth that supersedes the
 `CLAUDE.md`. `README.md` is the only other durable git-tracked project-knowledge file (public,
 user-facing). Routing rule: **if a teammate would need to see it, it goes in `README.md`; if it's
 curated internal project memory, it goes in `cmem/`.**
-</content>

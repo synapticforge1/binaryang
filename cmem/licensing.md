@@ -38,4 +38,3 @@ new export without at least a one-line JSDoc. JSDoc `{@link}` / `@example` snipp
 type-checked — grep for an old factory name in JSDoc as well as code when renaming (Phase 11.2 found
 stale `makeConst()` refs; the real factories are per-type
 `makeI32Const`/`makeI64Const`/`makeF32Const`/ `makeF64Const`).
-</content>

@@ -66,6 +66,8 @@ populates `typeNames` + `funcTypeDefs` in the first pass; `(type $sig)` referenc
   (`mod.heapTypes.length > 0`) emits types directly from `mod.heapTypes` and looks up func-type
   indices via `gcFuncTypeIndex()`; non-GC mode uses the deduped `this.types` map. The tag section
   must use the same `mod.heapTypes`-indexed path in GC mode (a WT-2d fix).
+- **Start section (id 8)** emitted between export (7) and element (9) when `mod.start != null`,
+  resolved through `resolveRef`. The loose `!= null` is deliberate — see UP-5.
 - **Null-name block unpacking**: a `BlockExpr` with `name === null` is the function-body container
   produced by the binary parser — unpacked directly, not wrapped in `0x02…0x0b`. Same unpacking is
   applied to anonymous catch-handler blocks (`encodeCatchBody`, a WT-2g fix).
@@ -78,9 +80,23 @@ populates `typeNames` + `funcTypeDefs` in the first pass; `(type $sig)` referenc
 
 - **GC (Phase 7)** — heap types, struct/array/ref instructions; `0xFB` prefix sub-opcodes; `ref.eq`
   is `0xd3` (no prefix). Ref params/results round-trip-shimmed to `ValType.AnyRef`.
+  - `struct.get`/`array.get` pick between THREE sub-opcodes (`get`/`get_s`/`get_u`); the encoder
+    derives packedness from the field's declared `StorageType` (`packedGetSubop`) rather than from
+    the IR's two-state `signed` flag, and the WAT parser rejects a mismatch (UP-1).
+  - Bulk array ops `array.fill`/`copy`/`init_data`/`init_elem` = `0xFB 0x10`–`0x13`; `array.copy`
+    takes dest THEN src heap-type immediates. `ref.as_non_null` = `0xd4`, modelled on the `RefAs`
+    kind with a `RefAsOp` discriminant (UP-3 / UP-4).
+  - With GC enabled a function's own signature must be declared as a `{ kind: "func" }` heap type or
+    `encodeWasm` throws `unresolved GC function type` — `addFunction` alone is not enough.
+  - ⚠️ **The `AnyRef` shim also applies to LOCALS, and that is a live bug** — a local declared
+    `(ref null $T)` decodes to `anyref`, so re-encoding a GC module with typed-ref locals yields one
+    engines reject. Tracked as UP-7 in [correctness.md](correctness.md).
 - **EH (Phase 8)** — tags (tag section id=13, between memory and globals), `throw`/`throw_ref`/
-  `rethrow`/`try_table`/legacy `try`. `Pop` pseudo-instruction is the catch binding placeholder
-  (encoded as nothing; preserved by Vacuum). `StripEH` pass available.
+  `rethrow`/`try_table`/legacy `try`. Tags may be imported (import kind `0x04`,
+  `ModuleBuilder.addTagImport`); **imported tags take the low end of the tag index space**, so the
+  encoder's `tagIndex`, the parser's tag naming, and `parse()`'s tag rebuild must all agree — see
+  UP-6. `Pop` pseudo-instruction is the catch binding placeholder (encoded as nothing; preserved by
+  Vacuum). `StripEH` pass available.
 - **SIMD (Phase 9)** — `ValType.V128` (0x7b); `0xFD` prefix + U32 LEB128 sub-opcode. Most ops reuse
   `UnaryExpr`/`BinaryExpr` with SIMD-prefixed op strings; **SIMD prefix checks must precede scalar
   prefix checks** in `inferUnaryType`/`inferBinaryType` (else `i32x4.splat` misclassifies as `i32`).
@@ -147,4 +163,3 @@ into `OptimizeInstructions`). Kernel selection deferred until real-corpus profil
   `Promise.resolve/reject` not `async` (a no-`await` body + `async` trips `require-await`). **Do not
   re-add `async`** without making the body actually `await`. The codebase has no `deno-lint-ignore`
   precedent — prefer structural fixes over suppressors.
-  </content>

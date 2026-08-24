@@ -4,7 +4,7 @@
 
 ```sh
 deno task check       # type-check all files
-deno task test        # run the full suite (405 passed, 1 ignored — verified 2026-07-09; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k")
+deno task test        # run the full suite (438 passed, 1 ignored — verified 2026-08-24; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k"; +19 Tier 1 of the UP-series (13 gc_packed_get_test + 6 start_section_test) and +14 Tier 2 (6 tag_import_test + 8 gc_bulk_ops_test) — see cmem/correctness.md § "The UP-1…UP-7 series")
 deno task fmt         # format
 deno task lint        # lint
 deno task ci          # check + test (the bundle CI runs)
@@ -88,4 +88,21 @@ walk the same trees as CI**: CI checks out without submodules, so `deno.json`
 ~5500 unrelated issues and "passes locally / fails on CI" diverge). See
 [publishing.md](publishing.md) for the stale-type-check- cache gotcha that lets local `check` lie
 when a cross-file type dependency changes.
-</content>
+
+## Test files ARE type-checked (as of 2026-08-24) — this was a real gap
+
+`deno task test` runs with `--no-check`, and `deno task check` used to cover only `src/**/*.ts` and
+`main.ts`. **Test files were therefore never type-checked at all**, by any task, including
+`deno task ci`. `check` now covers `tests/**/*.ts` too.
+
+Closing it immediately surfaced seven latent type errors, one of them a genuinely wrong fixture:
+`tests/encoder/wasm_encoder_test.ts` called `addTable("a", 1, null, ValType.FuncRef)` against a
+`(name, type, initial, max)` signature — passing `1` as the element type and the reftype as the max.
+The test passed anyway because it only asserted the "multiple tables" throw, which fires regardless
+of the arguments. The others were an unsound `Expression as Record<string, unknown>` cast, a
+`WebAssembly.instantiate` overload mismatch, and three missing `makeStructNew` arguments in a
+brand-new file.
+
+This is the same family as the stale-type-check-cache gotcha in [publishing.md](publishing.md): a
+task reports success while never having looked at the code in question. When adding a task that
+validates something, check what it actually walks.

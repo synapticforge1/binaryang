@@ -68,6 +68,22 @@ Enforced by `deno task bump`. See [publishing.md](publishing.md).
   typing. One subagent "live miscompile" finding was verified WRONG and rejected. Full detail in
   [correctness.md](correctness.md) § "Fail-loud audit sweep".
 
+## UP-series — wabt-ts upstream findings (2026-08-24)
+
+Seven findings filed by the wabt-ts team; re-verified against v1.4.3 before acting. Three of the
+seven produced wrong bytes, not one as reported. Detail in [correctness.md](correctness.md) § "The
+UP-1…UP-7 series"; bridge view in [bridge.md](bridge.md).
+
+| Tier   | Content                                                                                                      | Suite     | Status      |
+| ------ | ------------------------------------------------------------------------------------------------------------ | --------- | ----------- |
+| Tier 1 | UP-1 packed `get` sub-opcode; UP-5 start section (+ pass reachability seeding); tests type-checked; repo fmt | 405 → 424 | ✅ Done     |
+| Tier 2 | UP-6 tag imports; UP-4 `ref.as_non_null`; UP-3 four GC array bulk ops                                        | 430 → 438 | ✅ Done     |
+| Tier 3 | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                          | —         | ⬜ TODO     |
+| —      | UP-2 `tuple.make` — blocked behind multi-value blocktype support                                             | —         | ⬜ Deferred |
+
+**No bump/publish until Tier 3 lands** (owner decision, 2026-08-24): UP-7 is a known wrong-bytes
+bug, and the release should not go out with a known miscompile in it.
+
 ## Deferred / not-yet-done
 
 - Phase 10 kernel selection (deferred until real-corpus profiling).
@@ -75,4 +91,3 @@ Enforced by `deno task bump`. See [publishing.md](publishing.md).
 - Promote `scripts/verify_roundtrip.ts` to a real test once the parser is provably clean.
 - Custom-section preservation (parse→encode drops DWARF `.debug_*`/`name`/`producers` — fine for
   production `-Oz`, must be acknowledged).
-  </content>

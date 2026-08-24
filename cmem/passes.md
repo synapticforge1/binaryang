@@ -61,11 +61,24 @@ SPLITS its block so a wrapping `local.set`'s kill can't strip a handler-live loc
 local an exception handler reads looked dead inside the body and got wrongly coalesced —
 miscompiling valid exception code.
 
+## Reachability roots — the invariant every pruning pass must honour
+
+`RemoveUnusedModuleElements` seeds its live set from **exports, element segments, and
+`module.start`**; `Inlining` marks the same three as `usedGlobally`. The start-function root was
+added 2026-08-24 alongside UP-5: wiring up the start section in the parser/encoder without it meant
+`-Oz` deleted a start function that nothing else referenced, trading a decoder drop for an optimizer
+drop. Verified by reverting the seed — only the `-Oz` start-section test goes red.
+
+**Any new pass that prunes module elements, and any new kind of module-level root, has to be added
+to both places.** The failure mode is silent: the module still instantiates, it just does less than
+it should.
+
 ## Inlining (`inlining.ts`, Phases 5 / 5.1 / 5.2)
 
 - **Call-graph analysis** (`buildFunctionInfo`): counts call-site refs, detects
-  `hasLoops`/`hasCalls`, marks `usedGlobally` from exports + element segments (keys on `"function"`
-  — a WT-2f fix made the WAT parser emit `"function"` not `"func"`).
+  `hasLoops`/`hasCalls`, marks `usedGlobally` from exports + element segments + **the start
+  function** (keys on `"function"` — a WT-2f fix made the WAT parser emit `"function"` not
+  `"func"`).
 - **Thresholds** (upstream `pass.h` defaults): always inline if size ≤ 2; single-caller non-exported
   if size ≤ 10; `optimizeLevel ≥ 3` multi-caller if size ≤ 20. Recursion guard: never inline `$f` in
   `$f`.
@@ -281,4 +294,3 @@ decoder-reorder fix that was the true root cause of the nested-goroutine crash).
 into wasmtk's `--lang=go` build to replace external `wasm-opt --asyncify` — the shim delegates
 `--asyncify -Oz` to binaryen-ts and `-scheduler=none` is dropped — with a real TinyGo-build
 goroutine e2e. The pass itself is done + validated; that integration lives in wasmtk.
-</content>

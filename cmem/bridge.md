@@ -53,7 +53,9 @@ present and exercised: `makeI32Const`/`makeI64Const`/`makeF32Const`/`makeF64Cons
 `makeReturn`, `makeCall`, `makeCallIndirect`, `makeIf`, `makeBlock`, `makeLoop`, `makeBreak`,
 `makeSwitch`, `makeSelect`, `makeDrop`, `makeNop`, `makeUnreachable`, `makeLoad`, `makeStore`,
 `makeMemorySize`, `makeMemoryGrow`, `makeMemoryCopy`, `makeMemoryFill`, `makeRefNull`,
-`makeRefFunc`, `makeRefIsNull` (+ GC/EH/SIMD/table factories from later phases).
+`makeRefFunc`, `makeRefIsNull` (+ GC/EH/SIMD/table factories from later phases). Added 2026-08-24
+for the UP-series: `makeRefAsNonNull`, `makeArrayFill`, `makeArrayCopy`, `makeArrayInitData`,
+`makeArrayInitElem`, `ModuleBuilder.addTagImport`, `ModuleBuilder.setStart`.
 
 ## Handshake status with wabt-ts (all complete)
 
@@ -69,6 +71,50 @@ present and exercised: `makeI32Const`/`makeI64Const`/`makeF32Const`/`makeF64Cons
    expression kinds wabt-ts targeted plus imports/ exports/defined entities/module wiring. **Bridge
    scope expansion is now driven by wabt-ts's needs**, not by binaryen-ts's API surface.
 
+## Bridge gaps filed by wabt-ts (UP-1…UP-7, 2026-08-24)
+
+The wabt-ts team filed seven findings for constructs its bridge could not express or could not
+round-trip (`../wabt-ts/scripts/binaryen-ts-upstream-report.md`). Severity analysis and per-item
+detail live in [correctness.md](correctness.md) § "The UP-1…UP-7 series"; the bridge-facing summary:
+
+| ID   | Bridge impact                                             | Status                |
+| ---- | --------------------------------------------------------- | --------------------- |
+| UP-1 | packed struct/array field reads                           | ✅ fixed              |
+| UP-5 | modules with a start function                             | ✅ fixed (`setStart`) |
+| UP-6 | tag imports (`addTagImport`)                              | ✅ fixed              |
+| UP-4 | `ref.as_non_null` (`makeRefAsNonNull`)                    | ✅ fixed              |
+| UP-3 | `array.fill`/`copy`/`init_data`/`init_elem` (4 factories) | ✅ fixed              |
+| UP-7 | typed refs (`(ref $T)`) through the declaration surface   | ⬜ OPEN — see below   |
+| UP-2 | `tuple.make` / multi-value `return`, `br`, `br_if`        | ⬜ deferred           |
+
+**Do not re-add these to the gap list** — wabt-ts's own notes had them stale and they are confirmed
+present: `ModuleBuilder.addElement`, the `v128.load` encoder path (and `loadOpcode` throwing rather
+than falling through to i64), and `"tag"` in `WasmExport.kind`.
+
+### UP-7 is the remaining lossy step, and it is bigger than reported
+
+wabt-ts described it as "widening five `ModuleBuilder` signatures to a union you already define,"
+and noted that `coarsenValueType` is the only lossy step left in their pipeline. Verification found
+two corrections:
+
+1. The IR record types are `ValType` as well (`WasmFunction.params`/`.results`, `Local.type`,
+   `WasmGlobal.type`, `WasmTable.type`, `WasmTag.params`), so widening the builder alone just pushes
+   a `RefType` into a `ValType`-typed field.
+2. It is not merely an expressiveness gap — the binary parser collapses a local's `(ref null $T)` to
+   `anyref`, so **binaryen-ts currently corrupts any GC module with typed-ref locals on a bare
+   parse→encode round-trip.** That affects the direct path too, not only the bridge.
+
+Until it lands, the bridge's `coarsenValueType` is not merely lossy at the boundary — the loss is
+also reproduced inside binaryen-ts on every round-trip.
+
+### Courtesy note wabt-ts raised, now documented
+
+With GC enabled, a function's own signature must be declared as a `{ kind: "func" }` heap type or
+`encodeWasm` throws `unresolved GC function type: () -> (i32)`. `addFunction` alone is enough
+without GC and not enough with it. This is correct fail-loud behaviour, but it surprised them
+mid-repro (and bit a fixture in our own new test file), so `ModuleBuilder.addHeapType` and
+`enableGC` now document it with a worked example.
+
 ## Working with the sibling repos
 
 `../wabt-ts/` is the user's actual wabt-ts development repo (the cross-project IR-bridge work
@@ -78,4 +124,3 @@ documents this same boundary from the wabt-ts side). wasmtk's portable memory is
 `../wasmtk/cmem/`. The `npm:binaryen` compat facade (`/compat`, see
 [architecture.md](architecture.md)) is what unblocked wasmtk's migration off `npm:binaryen` — wasmtk
 call sites change only the `import` statement.
-</content>

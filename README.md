@@ -484,7 +484,22 @@ the stack across `global.set $sp; call…`, then a trailing `global.set $sp` res
 had re-evaluated `global.get $sp` after `$sp` was overwritten → a `global.set(global.get)`
 self-assign that corrupted the shadow stack (a `memory access out of bounds` trap in nested
 goroutines). The decoder now spills the reordered value into a temp local (a `Pop` placeholder is
-exempt). 403 → 405 passing. |
+exempt). 403 → 405 passing. | | — | ✅ Done | **UP-series Tier 1** (wabt-ts upstream findings) — two
+defects that emitted wrong bytes. (1) `struct.get_u` / `array.get_u` were unencodable: the encoder
+chose between only two of the three spec sub-opcodes, so a packed field read emitted the non-packed
+`get`, which every engine rejects — and because the decoder maps `get_u` to the same IR state, a
+valid module using `struct.get_u` came back **invalid** from a bare parse→encode round-trip. The
+encoder now derives packedness from the field's declared storage type, and the WAT parser rejects a
+`get`/`get_s`/`get_u` that disagrees with it. (2) The **start section was parsed and discarded**, so
+a module whose start function initialized state round-tripped into one that instantiated cleanly and
+never ran it — valid wasm, wrong behaviour, no diagnostic. Added `ModuleBuilder.setStart` +
+section-8 emit, and made the start function a reachability root in `RemoveUnusedModuleElements` /
+`Inlining` so `-Oz` cannot delete it. 405 → 424 passing. | | — | ✅ Done | **UP-series Tier 2** —
+surface the wabt-ts bridge could not cross: **tag imports** (`ModuleBuilder.addTagImport`; imported
+tags correctly take the low end of the tag index space), **`ref.as_non_null`**, and the four **GC
+array bulk ops** `array.fill` / `array.copy` / `array.init_data` / `array.init_elem`. All five are
+pinned against the WAT front door by a test asserting none fall through to `nop`. 430 → 438 passing.
+|
 
 ## Robustness & error handling
 
@@ -503,8 +518,13 @@ Concretely, the parser/encoder throw rather than corrupt when they hit:
   node left behind by a pass);
 - a branch depth or function-type that cannot be reproduced exactly on re-encode;
 - an unsupported or not-yet-implemented construct — bulk-memory/table ops, passive/declarative
-  element segments, multiple memories, `ref.null` table entries, multi-value block types, and the
-  non-MVP corners of the GC / atomics proposals.
+  element segments, multiple memories, `ref.null` table entries, multi-value block types (and
+  therefore `tuple.make`), and the non-MVP corners of the GC / atomics proposals.
+
+One known gap does **not** yet fail loudly: a local declared with a concrete typed reference
+(`(ref null $T)`) is currently widened to `anyref` on read, so a GC module using typed-ref locals
+can be re-encoded into one an engine rejects. Typed references through the declaration surface are
+being threaded end-to-end; until that lands, treat typed-ref locals as unsupported.
 
 Downstream consumers (e.g. [wasmtk](https://jsr.io/@jrmarcum/wasmtk)) should therefore expect a
 clear exception for an unsupported module rather than a miscompiled one, and can catch it to fall

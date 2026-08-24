@@ -93,5 +93,3 @@ this repo.
 - Binaryen IR has an `unreachable` type not present in the wasm spec.
 - The pass runner auto-fixes non-nullable local validation after each pass
   (`requiresNonNullableLocalFixups()` in upstream `pass.h`).
-  </content>
-  </invoke>
