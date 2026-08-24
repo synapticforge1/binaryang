@@ -661,6 +661,13 @@ function decodeStringToken(text: string): Uint8Array {
 }
 
 /** Strip surrounding quotes and resolve escapes for a WAT string, returning text. */
+/** Strict decoder for NAME positions; see `parseQuotedText`. */
+// `ignoreBOM: true` matters: a leading U+FEFF in a NAME is a character, not
+// an encoding marker (T7.13). Omitting it makes TextDecoder STRIP the BOM,
+// which silently renames the export — caught by the V8-valid metric dropping
+// 257 -> 256 the moment this decoder was introduced without it.
+const STRICT_NAME_DECODER = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+
 function decodeStringText(raw: string): string {
   return TEXT_DECODER.decode(decodeStringToken(raw));
 }
@@ -1722,14 +1729,30 @@ export class WastParser {
       : { initial, isShared: shared, is64 };
   }
 
-  /** Parse a quoted string token and return its text content (without quotes). */
+  /**
+   * Parse a quoted string token and return its text content (without quotes).
+   *
+   * This is the NAME path — import module/field names, export names, custom
+   * section ids. A wasm name must be valid UTF-8, so `"\80"` is a malformed
+   * module rather than a character to repair. The lenient decoder silently
+   * substituted U+FFFD, which produced a DIFFERENT, valid-looking name.
+   *
+   * Raw byte strings (data segments) go through `parseTextList` instead and
+   * are deliberately NOT checked — `(data "\ff")` is perfectly legal.
+   */
   parseQuotedText(): string | null {
     if (this.peek() !== TokenType.Text) {
       this.error(this.loc(), 'expected string');
       return null;
     }
     const tok = this.consume() as StringToken;
-    return decodeStringText(tok.text);
+    const bytes = decodeStringToken(tok.text);
+    try {
+      return STRICT_NAME_DECODER.decode(bytes);
+    } catch {
+      this.error(tok.loc, 'malformed UTF-8 encoding');
+      return decodeStringText(tok.text);
+    }
   }
 
   /** Parse raw quoted string bytes (for data segments). */

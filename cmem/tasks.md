@@ -77,6 +77,7 @@ reference these ids.
 | T12.2 | An import after a definition was accepted and silently RENUMBERED the module | done — malformed 698 → 714 / 1229 |
 | T12.3 | A non-power-of-two `align=N` was accepted and silently CHANGED | done — malformed 714 → 828 / 1229 |
 | T12.4 | SIMD lane immediates and `v128.const` lane values wrapped silently | done — malformed 828 → 869 / 1229 |
+| T12.5 | A wasm NAME must be valid UTF-8 — neither path checked | done — quoted 869 → 1045, **binary 110 → 638** |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -601,10 +602,10 @@ one. The result inverted the count order: the biggest categories are the mildest
 | ~~T12.2~~ | **DONE.** Import after a function/global/table/memory/tag definition | 12 | **silent REORDER** — was accepted and emitted first, shifting every index space |
 | ~~T12.3~~ | **DONE.** `align=0`, `align=7` and other non-powers-of-two | 114 | **silent WRONG VALUE** — `align=3` was emitted as `align=2`; the severity was under-rated on the first pass |
 | ~~T12.4~~ | **DONE.** SIMD lane immediates AND `v128.const` lane values | 13 + the simd_const cases | **silent WRONG VALUE** — lane 256 → 0, and `v128.const i8x16 -129` → **127** |
-| **T12.5** | Malformed UTF-8 in names / annotations | 186 | name mangled |
+| ~~T12.5~~ | **DONE.** Malformed UTF-8 in names | 186 quoted **+ 528 binary** | name silently REPLACED with U+FFFD — and the same rule fixed most of T12.8 |
 | **T12.6** | `unexpected token` — field order, block-type shapes | 82 | rejection not made |
 | **T12.7** | Illegal character, empty annotation id, mismatching label, inline function type | 77 | rejection not made |
-| **T12.8** | The 601 BINARY `assert_malformed` cases | 601 | decoder hardening; separate job |
+| **T12.8** | The remaining BINARY `assert_malformed` cases | **73** (was 601 — T12.5 closed 528) | decoder hardening |
 
 **T12.1 — done 2026-08-24.** Integers went through `BigInt.asIntN(32, n)` with
 no range check; floats were IEEE-rounded with no range check. The legal integer
@@ -702,6 +703,36 @@ signed and unsigned ranges, so an i8 lane may be written `-128`…`255` —
 Regression: `tests/parser/simd_lane_range.test.ts` (17 cases, 14 fail pre-fix,
 including both boundary directions and a V8-executed check that an accepted
 `-128` stays `-128`).
+
+**T12.5 — done 2026-08-24, and it was ranked LAST of the wrong-value work when
+it was the highest-leverage item in the tranche.** The entry read "name
+mangled", 186 cases, on the strength of the quoted metric alone. But
+`utf8-import-module.wast`, `utf8-import-field.wast` and
+`utf8-custom-section-id.wast` are **176 BINARY cases each**, and the rule is the
+same on both sides of the pipeline:
+
+| | before | after |
+| --- | --- | --- |
+| `assert_malformed` quoted | 869 / 1229 | **1045 / 1229** |
+| `assert_malformed` binary | 110 / 711 | **638 / 711** |
+
+Both decoders were lenient `TextDecoder`s, which silently substitute U+FFFD, so
+an invalid import or export name became a DIFFERENT, valid-looking name — and a
+name is the module's public contract, the one thing a host links against.
+
+**The exemption is as important as the rule.** Data segments are arbitrary
+bytes: `(data "f")` is legal. They go through `parseTextList`, names through
+`parseQuotedText`, and only the latter is checked. That separation already
+existed, which is why the fix is two decoders and no restructuring.
+
+**`ignoreBOM: true` on the strict decoder is load-bearing**, and omitting it
+cost a regression that the metrics caught immediately: without it `TextDecoder`
+STRIPS a leading U+FEFF, silently renaming the export. That is T7.13, and
+V8-valid dropped 257 → 256 the moment the decoder went in. Fixed before commit.
+
+Regression: `tests/parser/name_utf8.test.ts` (17 cases, 16 fail pre-fix — six
+invalid encodings in each of the two paths, the data-segment exemption, and the
+BOM guard).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

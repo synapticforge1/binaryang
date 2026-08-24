@@ -470,3 +470,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   layers. Unchecked, 256 truncated to lane 0. **`v128.const` lane VALUES are range-checked the same
   way** via `laneFits`, over the UNION of the signed and unsigned ranges (an i8 lane may be written
   -128..255); `BigInt.asIntN` alone wrapped `-129` to `127`, flipping the sign of every lane.
+- **A wasm NAME must be valid UTF-8, in BOTH paths (T12.5).** `parseQuotedText` (text) and
+  `readName` (binary) decode through a strict `TextDecoder({ fatal: true })`; a lenient decoder
+  substitutes U+FFFD and silently renames an import or export. **Data segments are exempt** —
+  arbitrary bytes, `(data "f")` is legal — which is why only `parseQuotedText` is checked and
+  `parseTextList` is not. **Both strict decoders MUST pass `ignoreBOM: true`**: without it a leading
+  U+FEFF in a name is stripped rather than kept as a character (T7.13), which drops V8-valid to
+  256/257.

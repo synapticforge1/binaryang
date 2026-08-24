@@ -32,6 +32,17 @@ import {
 // strings and one of them may legitimately BE the BOM (names.wast exports it);
 // stripping it silently renames the export to "".
 const TEXT_DECODER = new TextDecoder('utf-8', { ignoreBOM: true });
+
+/**
+ * Strict decoder for NAMES. A wasm name must be valid UTF-8, so an invalid
+ * sequence is a malformed MODULE, not a character to be repaired.
+ *
+ * The lenient decoder above silently substitutes U+FFFD, which turned an
+ * invalid import/export name into a DIFFERENT, valid-looking name — and a
+ * name is the module's public contract. `fatal: true` makes `decode` throw
+ * instead (T12.5).
+ */
+const STRICT_NAME_DECODER = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
 import {
   type ArrayGetExpr,
   type ArrayLenExpr,
@@ -475,7 +486,14 @@ export class BinaryReader {
   private readName(): string {
     const len = this.readU32Leb();
     const bytes = this.readBytes(len);
-    return TEXT_DECODER.decode(bytes);
+    try {
+      return STRICT_NAME_DECODER.decode(bytes);
+    } catch {
+      this.err('malformed UTF-8 encoding');
+      // Fall back to the lenient decode so the rest of the section still
+      // parses and one bad name does not cascade into a wall of noise.
+      return TEXT_DECODER.decode(bytes);
+    }
   }
 
   // ---------------------------------------------------------------------------

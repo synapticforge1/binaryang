@@ -757,3 +757,32 @@ shown it immediately.
 **When probing severity, choose inputs whose wrong answers are DISTINGUISHABLE
 from each other.** "It vanished" and "it became something else" are different
 severities and it is easy to pick a sample where they look the same.
+
+## Rank a category by the RULE it represents, not by the metric that surfaced it
+
+T12.5 was ranked last of the tranche's wrong-value work — "name mangled", 186
+cases — because that is what the `assert_malformed` QUOTED metric showed. It was
+the highest-leverage item in T12 by a wide margin.
+
+The rule "a wasm name must be valid UTF-8" holds on both sides of the pipeline,
+and the spec tests it mostly on the other one: `utf8-import-module.wast`,
+`utf8-import-field.wast` and `utf8-custom-section-id.wast` are 176 BINARY cases
+each. One fix moved quoted 869 → 1045 and binary 110 → 638.
+
+The ranking was built from a single metric's view of the category. **A category
+is a RULE; count its cases wherever the rule applies**, not just where the
+metric that found it happens to look. The tell was available before any work
+started — the file names say "import-module", "import-field",
+"custom-section-id", all of which exist in both encodings.
+
+## The exemption is part of the rule, and needs its own test
+
+Making names strict UTF-8 is only correct because DATA SEGMENTS are exempt —
+`(data "f")` is legal wasm and must stay legal. The codebase already split
+those paths (`parseQuotedText` for names, `parseTextList` for bytes), so the fix
+was two decoders and no restructuring; had they shared one, the tempting fix
+would have broken every data segment with a high byte in it.
+
+When tightening a rule, write down what it must NOT apply to, and test that
+alongside — an over-broad tightening reads exactly like a correct one until
+something legal hits it.

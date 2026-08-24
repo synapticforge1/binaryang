@@ -38,7 +38,7 @@ Measured against the official [WebAssembly spec testsuite](https://github.com/We
 | `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**     |
 | Spec `assert_return` assertions the output satisfies | **23,077 / 23,077** |
 | Modules the spec calls invalid that we reject        | 2664 / 2683         |
-| Text the spec calls malformed that we reject         | 869 / 1229          |
+| Text the spec calls malformed that we reject         | 1045 / 1229         |
 
 `assert_malformed` is the one measurement still open — the parser accepts some input the spec
 calls malformed. Tracked as tranche T12.
