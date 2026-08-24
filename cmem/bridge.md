@@ -85,12 +85,33 @@ a shared buffer.
 6. **Memory imports use the canonical `memoryNames` slot, not `imp.memory.name`** (often empty) — so
    the memory can later be looked up for an export. Same pattern as funcs/globals/tables.
 
-## Deferred / blocked (binaryen-ts v1.0.9 gaps — file upstream, not a wabt-ts workaround)
+## Deferred / blocked (binaryen-ts gaps — file upstream, not a wabt-ts workaround)
 
-`ref.as_non_null` (no `makeRefAsNonNull`) · plain `v128.load` (no `ValType.V128` branch in
-`loadOpcode` → silently emits `i64.load`) · tag imports (no `addTagImport`) · tag exports (no `"tag"`
-in `WasmExport.kind`) · multi-value `return` (needs `makeTupleMake`) · element segments (no
-`addElement`) · start function (no `setStart`) · custom sections.
+**Re-verified 2026-08-24 against the actual checkout (`b78e5b476`, v1.3.5).** The list below used
+to be written against the v1.0.9 pin and had gone stale in three places. Full detail and repros:
+`cmem/tasks.md` (LIVING LOG, UP-1..UP-7) and the report built from it,
+[../scripts/binaryen-ts-upstream-report.md](../scripts/binaryen-ts-upstream-report.md).
 
-Remaining wabt-ts-side gap: the **typed-ref IR refactor** for `(ref $T)` precision (currently
-coarsens to StructRef — see [design-decisions.md](design-decisions.md)); `br_on_cast` IR wiring.
+Still blocked:
+
+- **`struct.get_u` / `array.get_u`** — the encoder picks the sub-opcode with a boolean, so the
+  unsigned form is unreachable and `signed=false` on a PACKED field emits the non-packed opcode.
+  **V8 and Wasmtime both reject those bytes** (UP-1, the only finding that emits bad bytes).
+- `ref.as_non_null` — no factory, no encoder case, no `ExpressionKind` entry (UP-4).
+- Multi-value `return` / `br` / `br_if` — `tuple.make` has an enum entry but no factory and no
+  encoder case (UP-2).
+- GC array bulk ops — `array.fill` / `copy` / `init_data` / `init_elem`, same shape as UP-2 (UP-3).
+- Tag IMPORTS — `WasmImport.kind` has no `"tag"` (UP-6). Tag *exports* work now.
+- Start function — no `setStart`, and no start section in the IR at all (UP-5).
+- Typed refs at the **`ModuleBuilder` surface** — `RefType` exists and `FuncTypeDef` accepts it,
+  but `addFunction` / `addGlobal` / `addTable` / `addTag` / `addFunctionImport` are still
+  `ValType`-only (UP-7). This is the last lossy step in the bridge.
+- Custom sections.
+
+**No longer blocked — do not re-add these:** plain `v128.load` (has its own `0xfd 0x00` path;
+`loadOpcode` now THROWS instead of silently emitting `i64.load`) · tag exports (`"tag"` is in
+`WasmExport.kind`) · element segments (`addElement` is present).
+
+**No remaining wabt-ts-side gaps here.** The typed-ref IR refactor landed as T7.4 (wabt-ts carries
+`(ref $T)` precisely end to end — the bridge's `coarsenValueType` is now the ONLY lossy step, which
+is what UP-7 is about), and `br_on_cast` / `br_on_cast_fail` landed as T5.3.

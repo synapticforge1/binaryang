@@ -873,15 +873,20 @@ upstream report.
 
 ### Open findings
 
+**RE-VERIFIED 2026-08-24 against the actual checkout** (`b78e5b476`, v1.3.5,
+clean on `main`) per rule 2, and every severity re-measured per rule 1. Six of
+the seven stand; **UP-7 was stale and is restated**. The report built from this
+is `scripts/binaryen-ts-upstream-report.md`.
+
 | id | Finding | Severity | Surfaced by |
 | --- | --- | --- | --- |
-| UP-1 | `struct.get_u` / `array.get_u` unencodable; emits `0x02`/`0x0b`, which V8 rejects on a packed field | **blocking** | GC tiers / T7 review |
-| UP-2 | No `makeTupleMake` (enum value exists, factory does not) | **gap** | multi-value branches |
-| UP-3 | No GC array bulk constructors (`makeArrayFill`, `makeArrayCopy`, `array.init_data` / `init_elem`) | **gap** | tranche 2 |
-| UP-4 | No `makeRefAsNonNull` | **gap** | Tier C |
-| UP-5 | No `setStart` | **gap** | Tier D |
-| UP-6 | No `addTagImport` (tag *exports* now work) | **gap** | Tier C |
-| UP-7 | `ValType` cannot express a concrete typed reference | **design-limit** | typed-ref refactor |
+| UP-1 | `struct.get_u` / `array.get_u` unencodable; emits `0x02`/`0x0b`, which **V8 AND Wasmtime both reject** on a packed field | **blocking** | GC tiers / T7 review |
+| UP-2 | `tuple.make` has an `ExpressionKind` entry but no factory **and no encoder case** | **gap** | multi-value branches |
+| UP-3 | Same for all four GC array bulk ops (`array.fill` / `copy` / `init_data` / `init_elem`) | **gap** | tranche 2 |
+| UP-4 | `ref.as_non_null` — **not even an `ExpressionKind` entry** | **gap** | Tier C |
+| UP-5 | No `setStart`; no start-section support anywhere in the IR or encoder | **gap** | Tier D |
+| UP-6 | `WasmImport.kind` has no `"tag"` — asymmetric, since `WasmExport.kind` now does | **gap** | Tier C |
+| UP-7 | **RESTATED.** `RefType` now EXISTS and `FuncTypeDef` accepts it; only the `ModuleBuilder` DECLARATION surface is still narrowed to `ValType[]` | **gap** (was "design-limit") | typed-ref refactor |
 
 Details for each follow.
 
@@ -903,51 +908,96 @@ CLAUDE.md called this "functionally invisible under V8, which recovers
 signedness from the packed field type". **That is wrong.** Probing V8 directly
 with a `(struct (field (mut i8)))` read three ways:
 
-| sub-opcode | V8 | result |
-| --- | --- | --- |
-| `0x04` `get_u` (spec-correct) | accepts | `200` (zero-extended) |
-| `0x02` `get` — what binaryen-ts emits | **REJECTS** | "struct.get: Field … is packed" |
-| `0x03` `get_s` | accepts | `-56` (sign-extended) |
+**Re-measured 2026-08-24 against v1.3.5, through binaryen-ts's OWN
+`ModuleBuilder` + `encodeWasm`** (not a hand-built binary), and put to both
+engines. `(struct (field (mut i8)))` holding 200, read three ways:
+
+| sub-opcode | V8 | Wasmtime 47.0.3 | result |
+| --- | --- | --- | --- |
+| `0x04` `get_u` (spec-correct) | accepts | accepts | `200` (zero-extended) |
+| `0x02` `get` — **what binaryen-ts emits for `signed=false`** | **REJECTS** | **REJECTS** | — |
+| `0x03` `get_s` — what it emits for `signed=true` | accepts | accepts | `-56` (sign-extended) |
+
+The messages name the fix precisely:
+
+- V8: *"struct.get: Field 0 of type 0 has type i8. Use struct.get_s or
+  struct.get_u instead."*
+- Wasmtime: *"can only use struct `get` with non-packed storage types"*
+
+The array half behaves identically: binaryen-ts emits `0x0b` for
+`signed=false`, V8 rejects it (*"array.get: Array type 0 has type i8. Use
+array.get_s or array.get_u instead."*), and `0x0d` `array.get_u` returns 200.
 
 So this is not a cosmetic wire divergence: any consumer reading a PACKED field
 unsigned through binaryen-ts gets a module V8 refuses to compile. That raises
 it from "worth reporting" to "blocking for packed GC fields".
 
-#### UP-2 — No `makeTupleMake` (gap)
+#### UP-2 — `tuple.make`: enum entry, no factory, no encoder case (gap)
 
-`ExpressionKind.TupleMake` exists in the enum but
-has no constructor. Blocks multi-value `return` AND — new since our
-multi-value branch work — multi-value `br` / `br_if`. Our bridge throws
-"needs makeTupleMake" rather than passing only the first value.
+`ExpressionKind.TupleMake = "tuple.make"` is in the enum, but there is **no
+`makeTupleMake` factory and no `case` for it in the encoder**. Verified
+2026-08-24 by hand-building the node the factory would return and encoding it:
 
-#### UP-3 — No GC array bulk constructors (gap)
+    WasmEncodeError: cannot encode unsupported expression kind: tuple.make
 
-`makeArrayFill`, `makeArrayCopy`, and
-(by inspection) the `array.init_data` / `array.init_elem` equivalents are
-absent, so the four instructions we implemented in tranche 2 have no bridge
-path at all.
+So the enum entry is the only part that exists. Good failure mode — the
+encoder's `default` branch throws rather than emitting something wrong — but
+the construct is unreachable. Blocks multi-value `return` AND, since our
+multi-value branch work, multi-value `br` / `br_if`.
 
-#### UP-4 — No `makeRefAsNonNull` (gap)
+#### UP-3 — the four GC array bulk ops: same shape (gap)
 
-`ref.as_non_null` is still unbridgeable.
+`ArrayFill`, `ArrayCopy`, `ArrayInitData` and `ArrayInitElem` are all in
+`ExpressionKind` with **no factory and no encoder case**, exactly like UP-2.
+The four instructions we implemented in tranche 2 have no bridge path.
 
-#### UP-5 — No `setStart` (gap)
+#### UP-4 — `ref.as_non_null`: not even an enum entry (gap)
 
-Start functions cannot be bridged.
+Stronger than the old note. There is no `makeRefAsNonNull`, no encoder case,
+and **no `ExpressionKind` entry at all** — unlike UP-2/UP-3, nothing about the
+instruction is present.
 
-#### UP-6 — No `addTagImport` (gap)
+#### UP-5 — No `setStart`, and no start section at all (gap)
 
-Tag imports cannot be bridged (tag *exports* now
-work, see the fixed table above).
+Confirmed 2026-08-24: `ModuleBuilder` has no `setStart`, and there is no
+start-section field in the IR or emit path in the encoder. Start functions
+cannot be bridged.
 
-#### UP-7 — `ValType` cannot express a concrete typed reference (design-limit)
+#### UP-6 — `WasmImport.kind` has no `"tag"` (gap)
 
-It is a flat
-string enum, so `(ref $T)` / `(ref null $T)` have no representation. After our
-typed-ref IR refactor wabt-ts carries these precisely and the bridge is now
-the only lossy step — it coarsens through `coarsenValueType`. Not a bug on
-their side so much as a design limit, but worth raising since it is the last
-thing preventing a faithful round-trip through the bridge.
+Confirmed 2026-08-24: `WasmImport.kind` is
+`"function" | "global" | "table" | "memory"`. The asymmetry is the useful part
+— `WasmExport.kind` DOES include `"tag"` now (see the fixed table above), and
+`addTag` defines one, so tag imports are the only remaining hole in tag
+support.
+
+#### UP-7 — typed refs stop at the `ModuleBuilder` surface (gap) — RESTATED
+
+**The old entry said "`ValType` cannot express a concrete typed reference — it
+is a flat string enum". That is no longer the finding.** v1.3.5 has
+`RefType { heap: HeapType; nullable: boolean }` in `src/ir/gc-types.ts`, the
+expression-level `Type` is `ValType | TupleType | None | Unreachable | RefType`,
+and `FuncTypeDef.params` / `.results` are already `(ValType | RefType)[]`.
+
+What is still narrow is the **`ModuleBuilder` declaration surface**, which is
+the layer a bridge actually calls:
+
+| method | today | needs |
+| --- | --- | --- |
+| `addFunction(name, params, results, …)` | `ValType[]` | `(ValType \| RefType)[]` |
+| `addFunctionImport(…, params, results)` | `ValType[]` | same |
+| `addGlobal(name, type, …)` | `ValType` | `ValType \| RefType` |
+| `addTable(name, type, …)` | `ValType` | same |
+| `addTag(name, params)` | `ValType[]` | `(ValType \| RefType)[]` |
+
+So a `(ref $T)` param can be expressed one layer down (`addHeapType` with a
+`FuncTypeDef`) but not through the builder that declares the function. This is
+a much smaller ask than the original entry implied — widening five signatures
+to a union the codebase already defines, not a representational change.
+
+**Re-measured 2026-08-24; this is exactly what rule 2 exists for.** The stale
+version would have asked the binaryen-ts team to build something they had
+already built.
 
 ### Framing for the report
 
@@ -956,6 +1006,35 @@ across the 257-file WebAssembly spec testsuite rather than by unit tests —
 that method is worth mentioning to them, since it is what surfaced the
 silent-wrong-bytes class in our own encoder too (packed-type wire bytes,
 NaN payload mask, multi-value truncation).
+
+### Filed — 2026-08-24
+
+The T-series tranches closed on 2026-08-24, which is this log's stated trigger.
+Report written to
+[`scripts/binaryen-ts-upstream-report.md`](../scripts/binaryen-ts-upstream-report.md).
+
+**Rule 2 earned its place.** Re-verifying before filing changed three of the
+seven entries:
+
+- **UP-7 was wrong in the report's favour.** It claimed `ValType` "cannot
+  express a concrete typed reference" and called it a design limit. v1.3.5 has
+  `RefType`, the expression `Type` includes it, and `FuncTypeDef` already
+  accepts it — only the `ModuleBuilder` DECLARATION surface is narrow. Filing
+  the stale version would have asked them to build something they had built.
+- **UP-2 / UP-3 were understated.** Both were logged as "no factory". The
+  encoder has no `case` for those kinds either, so it is not one missing
+  function per instruction.
+- **UP-4 was overstated in the opposite direction** — it is not just a missing
+  factory, there is no `ExpressionKind` entry at all.
+
+And the three entries in the "already fixed upstream" table were re-confirmed
+present, so the report says so explicitly rather than staying silent about our
+own stale notes.
+
+**UP-1's severity was re-measured, not carried over** — this time through
+binaryen-ts's OWN `ModuleBuilder` + `encodeWasm` rather than a hand-built
+binary, and put to Wasmtime as well as V8. Both reject. That is the difference
+between "we think this is wrong" and a report they can act on in one reading.
 
 ### Append new findings here
 
