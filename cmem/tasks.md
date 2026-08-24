@@ -75,6 +75,7 @@ reference these ids.
 | T9.11 | Ten of the twelve memarg handlers never checked the offset | done — 4 SIMD false-accepts closed |
 | T12.1 | Out-of-range integer and float constants silently truncated/overflowed | done — malformed 666 → 698 / 1229 |
 | T12.2 | An import after a definition was accepted and silently RENUMBERED the module | done — malformed 698 → 714 / 1229 |
+| T12.3 | A non-power-of-two `align=N` was accepted and silently CHANGED | done — malformed 714 → 828 / 1229 |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -597,7 +598,7 @@ one. The result inverted the count order: the biggest categories are the mildest
 | --- | --- | --- | --- |
 | ~~T12.1~~ | **DONE.** Out-of-range integer / float constants | 68 | **silent WRONG VALUE** — `(i32.const 0x100000000)` → `0`, `(f32.const 1e39)` → `inf`; V8 accepts and runs |
 | ~~T12.2~~ | **DONE.** Import after a function/global/table/memory/tag definition | 12 | **silent REORDER** — was accepted and emitted first, shifting every index space |
-| **T12.3** | `align=0`, `align=7` and other non-powers-of-two | 114 | align silently DISCARDED (falls back to natural) |
+| ~~T12.3~~ | **DONE.** `align=0`, `align=7` and other non-powers-of-two | 114 | **silent WRONG VALUE** — `align=3` was emitted as `align=2`; the severity was under-rated on the first pass |
 | **T12.4** | SIMD lane index out of range (`extract_lane 256`) | 13 | silent wrong LANE |
 | **T12.5** | Malformed UTF-8 in names / annotations | 186 | name mangled |
 | **T12.6** | `unexpected token` — field order, block-type shapes | 82 | rejection not made |
@@ -649,6 +650,31 @@ the inline abbreviation first) so the rule did not become a blanket rejection.
 
 Regression: `tests/parser/import_order.test.ts` (15 cases, 8 fail pre-fix,
 including a V8-executed check that `call` still means what source order says).
+
+**T12.3 — done 2026-08-24, and it was mis-ranked when the tranche was opened.**
+The table said "align silently DISCARDED (falls back to natural)". Probing it
+properly for the fix showed worse: the raw number flowed into a `log2` that
+FLOORS, so `align=3` was emitted as **`align=2`** — a changed module, not a
+dropped annotation. binaryen's optimizer reads the alignment as a HARD
+constraint (see the `naturalAlignForOpcode` note in `design-decisions.md`, where
+getting this field wrong made it bail on rewrites and produce OOB at runtime).
+
+So this belonged with T12.1 and T12.2 in the silent-wrong-value group, not below
+them. **Ranking by measurement is only as good as the measurement** — the
+opening probe checked whether the align survived, not what it survived AS.
+
+`align=0` had a second problem: 0 is also `parseAlignOpt`'s "no `align=` given"
+sentinel, so an explicit `align=0` was indistinguishable from writing nothing.
+Rejecting it at parse time keeps the sentinel unambiguous with no IR change.
+
+**The layer split is deliberate.** The power-of-two rule is the text grammar's,
+so it is MALFORMED and belongs in the parser. "Alignment must not exceed the
+operand's natural alignment" is a VALIDATION rule — `align=8` on an `i32.load`
+is well-formed and invalid, and T9.6 already rejects it there. Conflating them
+would have moved a diagnostic to the wrong layer; a test pins each side.
+
+Regression: `tests/parser/align_power_of_two.test.ts` (14 cases, 11 fail
+pre-fix).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

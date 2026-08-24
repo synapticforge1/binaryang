@@ -457,3 +457,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   because the inline abbreviation `(func $g (import "m" "g"))` is an import too. Accepting these
   silently reordered the module: `call 0` meant the defined function in source and the import after
   our reorder, and V8 ran it happily.
+- **`align=N` must be a POWER OF TWO, checked at PARSE time (T12.3).** The text grammar says so,
+  which makes anything else malformed. Unchecked, the raw value flowed into a flooring `log2`, so
+  `align=3` was emitted as `align=2` — and the optimizer treats the alignment as a hard constraint.
+  `align=0` is rejected for the same reason plus a second one: 0 is `parseAlignOpt`'s "no `align=`
+  given" sentinel, so an explicit zero was indistinguishable from writing nothing. **The SIZE rule
+  stays in the validator** — `align` not exceeding natural alignment is a validity question, and
+  `align=8` on an `i32.load` must parse and then fail validation.

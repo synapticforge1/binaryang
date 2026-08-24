@@ -734,3 +734,26 @@ Two rules:
   error path, and the error path needs its own test.** `parseInstrList` returns
   `Result.Ok` no matter why its loop stopped; deferral removed the only thing
   that had been catching that.
+
+## Ranking by measurement is only as good as the measurement
+
+T12 was opened with its eight categories ranked by MEASURED consequence rather
+than case count — deliberately, because T10 had been mis-ordered for a whole
+campaign by inheriting a severity ranking. The probe asked, for each category,
+"what does accepting this actually produce?"
+
+T12.3 still came out one rank too low. The probe recorded `align=0` and
+`align=7` as "align silently DISCARDED (falls back to natural)" — true, and it
+sounded like a lost annotation. Fixing it showed the real behaviour: the raw
+value flows into a `log2` that FLOORS, so **`align=3` was emitted as
+`align=2`** — a different module, and the optimizer treats alignment as a hard
+constraint.
+
+The probe had checked whether the value SURVIVED, not what it survived AS. Two
+of the ten cases I chose happened to be ones where the floor landed on the
+natural alignment, which reads as "discarded"; a single `align=3` would have
+shown it immediately.
+
+**When probing severity, choose inputs whose wrong answers are DISTINGUISHABLE
+from each other.** "It vanished" and "it became something else" are different
+severities and it is easy to pick a sample where they look the same.

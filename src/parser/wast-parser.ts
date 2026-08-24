@@ -1747,12 +1747,40 @@ export class WastParser {
     return 0n;
   }
 
-  /** Parse `align=N` if present. Returns 0 if not (caller uses natural align). */
+  /**
+   * Parse `align=N` if present. Returns 0 if not (caller uses natural align).
+   *
+   * `N` must be a POWER OF TWO — the text grammar says so, which makes anything
+   * else MALFORMED rather than invalid. Without the check the value flowed into
+   * a `log2` that FLOORS, so `align=3` silently became `align=2` and `align=7`
+   * silently became the natural alignment. That is a changed module, not a
+   * cosmetic difference: binaryen's optimizer reads the alignment as a hard
+   * constraint (see the `naturalAlignForOpcode` note in design-decisions.md).
+   *
+   * Zero is rejected here too. It is not a power of two, and it would be
+   * indistinguishable from the "no `align=` keyword given" sentinel this
+   * function returns — so an explicit `align=0` silently meant "natural".
+   *
+   * The SIZE of the alignment is a separate, VALIDATION-time rule (`align`
+   * must not exceed the operand's natural alignment); `align=8` on an
+   * `i32.load` is well-formed and invalid, and is already rejected there.
+   */
   private parseAlignOpt(): number {
     if (this.peek() === TokenType.AlignEqNat) {
+      const loc = this.loc();
       const tok = this.consume() as StringToken;
       const n = parseNatText(tok.text);
-      return n !== null ? Number(n) : 0;
+      if (n === null) {
+        this.error(loc, `malformed alignment: ${tok.text}`);
+        return 0;
+      }
+      // Power-of-two test on the BigInt: a 2^32 alignment would overflow a
+      // 32-bit bitwise check.
+      if (n <= 0n || (n & (n - 1n)) !== 0n) {
+        this.error(loc, `alignment must be a power of two: ${n}`);
+        return 0;
+      }
+      return Number(n);
     }
     return 0;
   }
