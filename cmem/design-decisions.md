@@ -516,3 +516,20 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **The data-count section is load-bearing (T12.8).** `memory.init` and `data.drop` require it —
   the code section is decoded before the data section, so it is the only way to know a data index
   is in range at that point — and when present it must agree with the data section's count.
+- **An identifier is bound ONCE per index space, and the space spans imports and definitions
+  (T12.9).** Name lookup scans for the first match, so a duplicate did not collide — it was
+  unreachable, and the module quietly referred to the wrong item. Locals are scoped per function
+  (params and locals share one space) and struct fields per type.
+- **A NaN payload must be CHECKED, not masked (T12.9).** The field is 23 bits for f32 and 52 for
+  f64, and a payload of 0 is not a NaN at all: `nan:0x0` masked to a clear mantissa and emitted
+  INFINITY. Widening the mask is what the earlier 0x3fffff fix did, and it left this case open —
+  the range is `[1, 2^mantBits - 1]`.
+- **A token ends at the first character that cannot continue it, and a STRING can continue one
+  (T12.9).** `$"l"0` and `data"a"` are each one RESERVED token. Stopping at the closing quote left
+  the remainder in the stream, so `(br_table $"l"0)` gained a second target and `(data"a")` parsed
+  as a data segment.
+- **A type use may refer FORWARD, so its check belongs at the end of the field list (T12.9).**
+  `pendingTypeUses` defers the T12.7 restatement comparison until the whole module is known;
+  checking at the point of use silently skipped every forward reference. A type use with NO inline
+  signature is deliberately left to the validator — `(func (type 4))` is `assert_invalid`, not
+  `assert_malformed`.

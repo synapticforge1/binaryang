@@ -1035,10 +1035,29 @@ export class WastLexer {
           this.read();
           if (this.peek() === 0x22) {
             const tok = this.getStringToken(TokenType.Var);
+            if (tok.tokenType !== TokenType.Var) return tok;
+            // `id ::= '$' string` ENDS at the closing quote, and a token ends
+            // at the first character that cannot continue it. So `$"l"0` and
+            // `$"l"$l` are each ONE token -- a RESERVED one, not an
+            // identifier. We stopped at the quote and left the rest in the
+            // stream, which turned `(br_table $"l"0)` into a branch to `$l`
+            // followed by a stray `0` that read as a second target.
+            if (isIdChar(this.peek()) || this.peek() === 0x22) {
+              while (true) {
+                if (isIdChar(this.peek())) {
+                  this.read();
+                  continue;
+                }
+                if (this.peek() === 0x22) {
+                  this.getStringToken(TokenType.Text);
+                  continue;
+                }
+                break;
+              }
+              return this.textToken(TokenType.Reserved);
+            }
             const text = (tok as { text?: string }).text;
-            if (
-              tok.tokenType === TokenType.Var && text !== undefined && !this.checkQuotedId(text)
-            ) {
+            if (text !== undefined && !this.checkQuotedId(text)) {
               return this.bareToken(TokenType.Invalid);
             }
             return tok;
@@ -1566,6 +1585,24 @@ export class WastLexer {
   private getKeywordToken(): Token {
     // Read all reserved chars
     while (isIdChar(this.peek())) this.read();
+    // A token ends at the first character that cannot continue it, and a
+    // STRING can: `data"a"` is one RESERVED token, not the keyword `data`
+    // followed by a string. Stopping at the quote made `(data"a")` parse as a
+    // well-formed data segment.
+    if (this.peek() === 0x22) {
+      while (true) {
+        if (isIdChar(this.peek())) {
+          this.read();
+          continue;
+        }
+        if (this.peek() === 0x22) {
+          this.getStringToken(TokenType.Text);
+          continue;
+        }
+        break;
+      }
+      return this.textToken(TokenType.Reserved);
+    }
     const word = this.getText();
     const info = KEYWORDS.get(word);
     if (!info) return this.textToken(TokenType.Reserved);

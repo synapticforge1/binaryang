@@ -55,7 +55,7 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
 
 ## The conformance metrics — and what each one is BLIND to
 
-Seven numbers. Six are exhausted as of 2026-08-24; `assert_malformed` is newly measured and OPEN. **They live outside `deno task test`**; nothing in the
+Seven numbers, all exhausted as of 2026-08-24. **They live outside `deno task test`**; nothing in the
 suite will catch a regression in them, so re-measure after any parser / reader / writer / validator
 change. Harnesses live in the session scratchpad (~40–120 lines each, cheaper to rewrite than
 maintain); `tasks.md` records what each measured and when.
@@ -68,7 +68,7 @@ maintain); `tasks.md` records what each measured and when.
 | `assert_invalid`          | 2664 / 2683         | the converse; and 19 remaining are modules V8 **and Wasmtime** accept. The denominator read 2737 until `assert_trap (module …)` stopped being classified as `assert_invalid` — **a metric measures the population its classifier hands it** |
 | round-trip byte-identical | 2120 / 2120         | a consistently-wrong opcode mapping — reader and writer agree, so the bytes match           |
 | **execution**             | **23,077 / 23,077** | anything needing host imports, v128, NaN payloads, `ref.func` args (29,544 skipped)         |
-| **`assert_malformed`** | **1183 / 1229** quoted · **711 / 711** binary | the only OPEN metric — tranche **T12**, categories and severity ranking in `tasks.md` |
+| **`assert_malformed`**    | **1229 / 1229** quoted · **711 / 711** binary | the ACCEPTING direction, which the other six cover. Measured at `parseWatModule` it reads 1227 — **the last two are undefined labels, caught by `resolveNames`, so where you put the probe changes the number** |
 
 **The whole point is the last column.** Every one of these was added because the existing set could
 not see a real bug. `wat2wasm` does not validate, which is how the entire SIMD half of the validator
@@ -144,6 +144,10 @@ project contract.
   validator types all four correctly (Wasmtime-verified; V8 gates the proposal off and cannot
   arbitrate), and an exhaustive lexer-vs-reader sweep guards the CLASS. 15 cases.
 
+- `tests/parser/duplicate_ids_and_tokens.test.ts` — T12.9: duplicate ids across every index
+  space, NaN payload range (with a V8 round trip proving the in-range ones stay NaNs), lane
+  immediates, the token-boundary rule, one `(start …)` per module, and the deferred
+  forward type-use check.
 - `tests/reader/binary_malformed.test.ts` — T12.8: section identity/order/size, entry counts,
   the closing `end` of a body, the flag bytes with no defined meaning, and the data-count
   section. Written as hex-dump literals so each module reads as bytes.

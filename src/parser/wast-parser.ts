@@ -1040,6 +1040,18 @@ export class WastParser {
   private pendingBodies: PendingBody[] = [];
 
   /**
+   * Type uses that carry an inline signature, checked once the whole field
+   * list is known.
+   *
+   * `(type $t)` may refer FORWARD -- the type it names can be declared later
+   * in the module -- so checking at the point of use saw an empty table and
+   * skipped the comparison entirely. Deferring makes the restatement rule
+   * (T12.7) apply to a forward reference too, and lets a use of a type index
+   * that never exists be reported instead of ignored.
+   */
+  private pendingTypeUses: { typeVar: Var; sig: FuncSignature; loc: Location }[] = [];
+
+  /**
    * Param count of every function in the index space of the module whose
    * deferred bodies are being parsed, by index and by name. Empty outside
    * {@link parsePendingBodies}, in which case every variable-arity opcode
@@ -1354,10 +1366,7 @@ export class WastParser {
     // discard the inline part unread, emitting a function whose declared
     // signature was neither of the two the source wrote.
     if (sig.params.length > 0 || sig.results.length > 0) {
-      const declared = this.lookupFuncTypeEntry(module, typeVar);
-      if (declared !== null && !sigEquals(declared, sig)) {
-        this.error(this.loc(), 'inline function type does not match explicit type');
-      }
+      this.pendingTypeUses.push({ typeVar, sig, loc: this.loc() });
       return 'resolved';
     }
     const entry = this.lookupFuncTypeEntry(module, typeVar);
@@ -1386,6 +1395,7 @@ export class WastParser {
           this.expect(TokenType.Rpar);
           return Result.Error;
         }
+        if (bindings.has(name)) this.error(this.loc(), `duplicate local ${name}`);
         bindings.set(name, paramTypes.length);
         paramTypes.push(t);
       } else {
@@ -1789,6 +1799,8 @@ export class WastParser {
     // owns its own deferral queue.
     const savedPending = this.pendingBodies;
     this.pendingBodies = [];
+    const savedTypeUses = this.pendingTypeUses;
+    this.pendingTypeUses = [];
 
     // An import may not follow a DEFINITION of a function, table, memory,
     // global or tag. Imports occupy the low indices of each index space, so
@@ -1830,6 +1842,97 @@ export class WastParser {
     const pending = this.pendingBodies;
     this.pendingBodies = savedPending;
     this.parsePendingBodies(pending, module);
+    const typeUses = this.pendingTypeUses;
+    this.pendingTypeUses = savedTypeUses;
+    this.checkPendingTypeUses(typeUses, module);
+    this.checkDuplicateIds(module);
+  }
+
+  /**
+   * An inline signature beside a `(type …)` names a type that must EXIST and
+   * must say the same thing.
+   *
+   * Deferred to here because a type use may refer forward; see
+   * {@link pendingTypeUses}. A type use with no inline signature is NOT
+   * checked -- `(func (type 4))` against a module with fewer types is
+   * `assert_invalid`, not `assert_malformed`, and belongs to the validator.
+   */
+  private checkPendingTypeUses(
+    uses: { typeVar: Var; sig: FuncSignature; loc: Location }[],
+    module: Module,
+  ): void {
+    for (const u of uses) {
+      const declared = this.lookupFuncTypeEntry(module, u.typeVar);
+      if (declared === null) {
+        this.error(u.loc, 'unknown type');
+      } else if (!sigEquals(declared, u.sig)) {
+        this.error(u.loc, 'inline function type does not match explicit type');
+      }
+    }
+  }
+
+  /**
+   * An identifier may be bound ONCE per index space.
+   *
+   * Every lookup here resolves a name by SCANNING for the first match
+   * (`module.types.find(t => t.name === …)`, and the same shape for funcs,
+   * globals, tables, memories and tags), so a second binding of the same name
+   * did not collide -- it was simply unreachable. The module still referred to
+   * something, just never to the item the author wrote last, and nothing said
+   * so.
+   *
+   * The index space spans IMPORTS AND DEFINITIONS together, which is why this
+   * walks `module.imports` first: `(import "" "" (func $foo)) (func $foo)` is
+   * as much a duplicate as two definitions.
+   */
+  private checkDuplicateIds(module: Module): void {
+    const spaces = new Map<string, Set<string>>();
+    const bind = (space: string, name: string, loc: Location): void => {
+      if (name === '') return;
+      let seen = spaces.get(space);
+      if (seen === undefined) spaces.set(space, seen = new Set());
+      if (seen.has(name)) this.error(loc, `duplicate ${space} ${name}`);
+      else seen.add(name);
+    };
+
+    for (const imp of module.imports) {
+      switch (imp.kind) {
+        case ExternalKind.Func:
+          bind('func', imp.func.name, imp.func.loc);
+          break;
+        case ExternalKind.Table:
+          bind('table', imp.table.name, imp.table.loc);
+          break;
+        case ExternalKind.Memory:
+          bind('memory', imp.memory.name, imp.memory.loc);
+          break;
+        case ExternalKind.Global:
+          bind('global', imp.global.name, imp.global.loc);
+          break;
+        case ExternalKind.Tag:
+          bind('tag', imp.tag.name, imp.tag.loc);
+          break;
+      }
+    }
+    for (const f of module.funcs) bind('func', f.name, f.loc);
+    for (const t of module.tables) bind('table', t.name, t.loc);
+    for (const mem of module.memories) bind('memory', mem.name, mem.loc);
+    for (const g of module.globals) bind('global', g.name, g.loc);
+    for (const tag of module.tags) bind('tag', tag.name, tag.loc);
+    for (const t of module.types) bind('type', t.name, t.loc);
+    for (const e of module.elemSegments) bind('elem', e.name, e.loc);
+    for (const d of module.dataSegments) bind('data', d.name, d.loc);
+
+    // Struct field names are scoped to their own type, not to the module.
+    for (const t of module.types) {
+      if (t.kind !== 'struct') continue;
+      const seen = new Set<string>();
+      for (const f of t.fields) {
+        if (f.name === '') continue;
+        if (seen.has(f.name)) this.error(t.loc, `duplicate field ${f.name}`);
+        else seen.add(f.name);
+      }
+    }
   }
 
   /**
@@ -2280,7 +2383,9 @@ export class WastParser {
           const t = this.parseValueType();
           if (t !== null) {
             // `nameTok.text` includes the leading `$` to match the param
-            // binding convention from `parseParams`.
+            // binding convention from `parseParams`. Params and locals share
+            // ONE index space, so a local may not reuse a param's name either.
+            if (scope.has(localName)) this.error(nameTok.loc, `duplicate local ${localName}`);
             scope.set(localName, slot);
             slot++;
             localDecls.push({ type: t, count: 1 });
@@ -2566,6 +2671,10 @@ export class WastParser {
     if (this.expect(TokenType.Start) !== Result.Ok) return Result.Error;
     const v = this.parseVar();
     this.expect(TokenType.Rpar);
+    // A module has AT MOST ONE start function. A second `(start …)` used to
+    // overwrite the first, so the module ran a different function than the one
+    // it names first and nothing said so.
+    if (module.start !== undefined) this.error(this.loc(), 'multiple start sections');
     if (v !== null) module.start = v;
     return Result.Ok;
   }
@@ -3567,12 +3676,7 @@ export class WastParser {
           this.error(loc, 'unexpected token: a param in a type use may not be named');
         }
         if (typeVar !== null && (sig.params.length > 0 || sig.results.length > 0)) {
-          const declared = this.currentModule === null
-            ? null
-            : this.lookupFuncTypeEntry(this.currentModule, typeVar);
-          if (declared !== null && !sigEquals(declared, sig)) {
-            this.error(loc, 'inline function type does not match explicit type');
-          }
+          this.pendingTypeUses.push({ typeVar, sig, loc });
         }
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
@@ -3616,12 +3720,7 @@ export class WastParser {
           this.error(loc, 'unexpected token: a param in a type use may not be named');
         }
         if (typeVar !== null && (sig.params.length > 0 || sig.results.length > 0)) {
-          const declared = this.currentModule === null
-            ? null
-            : this.lookupFuncTypeEntry(this.currentModule, typeVar);
-          if (declared !== null && !sigEquals(declared, sig)) {
-            this.error(loc, 'inline function type does not match explicit type');
-          }
+          this.pendingTypeUses.push({ typeVar, sig, loc });
         }
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
@@ -4261,16 +4360,23 @@ export class WastParser {
       }
       case TokenType.SimdShuffleOp: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
+        // `i8x16.shuffle` takes EXACTLY 16 lane indices, each an unsigned
+        // byte. The loop used to skip any position whose token was not a
+        // number, so a shuffle written with 15 lanes -- or with none at all --
+        // silently got zeros for the rest; and `laneArr[i] = Number(n)` let a
+        // Uint8Array store wrap -1 to 255 and 256 to 0.
         const laneArr = new Uint8Array(16);
         for (let i = 0; i < 16; i++) {
-          if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
-            const laneTok = this.consume() as LiteralToken;
-            const n = parseNatText(laneTok.literal.text);
-            if (n === null) {
-              this.error(laneTok.loc, 'invalid i8x16.shuffle lane index');
-            } else {
-              laneArr[i] = Number(n);
-            }
+          if (this.peek() !== TokenType.Nat && this.peek() !== TokenType.Int) {
+            this.error(this.loc(), `invalid lane length: expected 16 lane indices, got ${i}`);
+            break;
+          }
+          const laneTok = this.consume() as LiteralToken;
+          const n = this.peekWasSigned(laneTok) ? null : parseNatText(laneTok.literal.text);
+          if (n === null || n < 0n || n > 0xffn) {
+            this.error(laneTok.loc, `i8 constant out of range: ${laneTok.literal.text}`);
+          } else {
+            laneArr[i] = Number(n);
           }
         }
         return {
@@ -4671,13 +4777,8 @@ export class WastParser {
       else if (v !== null && this.currentModule !== null) {
         typeIdx = this.currentModule.types.findIndex((t) => t.name === v.name);
       }
-      if (inline !== null && typeIdx >= 0) {
-        const declared = this.currentModule?.types[typeIdx];
-        if (
-          declared !== undefined && declared.kind === 'func' && !sigEquals(declared.sig, inline)
-        ) {
-          this.error(this.loc(), 'inline function type does not match explicit type');
-        }
+      if (inline !== null && v !== null) {
+        this.pendingTypeUses.push({ typeVar: v, sig: inline, loc: this.loc() });
       }
       if (typeIdx >= 0) return { kind: 'func_type', typeIdx };
       return BLOCK_TYPE_VOID;
@@ -4792,8 +4893,22 @@ export class WastParser {
    * Unchecked, `Number(n)` handed the writer 256, which the byte encoding
    * truncated to lane 0 — a silently different program.
    */
+  /** Did this numeric token carry an explicit sign? Lane indices may not. */
+  private peekWasSigned(tok: LiteralToken): boolean {
+    return tok.tokenType === TokenType.Int;
+  }
+
   private parseSimdLane(): number {
-    if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
+    // A lane index is a `u32` in the text grammar, so it is a NAT: a SIGNED
+    // spelling is not a small number, it is a different token. `+0x0f` and
+    // `+3` were accepted and their sign dropped -- `TokenType.Int` is exactly
+    // "this literal carried a sign".
+    if (this.peek() === TokenType.Int) {
+      this.error(this.loc(), 'unexpected token, a lane index may not be signed');
+      this.drop();
+      return 0;
+    }
+    if (this.peek() === TokenType.Nat) {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) {
@@ -5569,11 +5684,14 @@ function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): n
       if (payload === null) return null;
       const sign = text.startsWith('-') ? 0x80000000 : 0;
       // f32 is 1 sign + 8 exponent + 23 mantissa, so the NaN payload field is
-      // 23 bits. The mask used to be 0x3fffff (22), silently dropping the top
-      // payload bit: `nan:0x400000` — payload = just the quiet bit — masked to
-      // zero and emitted 0x7f800000, which is INFINITY, not a NaN at all.
-      // `literal.ts`'s F32_MANTISSA_MASK already had this right.
-      return sign | 0x7f800000 | (Number(payload) & 0x7fffff);
+      // 23 bits, and a payload names a NaN only when it is in [1, 2^23-1].
+      // Masking instead of checking made both ends silently WRONG: `nan:0x0`
+      // has no bits set, so it emitted 0x7f800000 -- INFINITY, not a NaN at
+      // all -- and an oversized payload was truncated into a different NaN.
+      // (The mask was 0x3fffff for four releases, which lost `nan:0x400000`
+      // the same way; `literal.ts`'s F32_MANTISSA_MASK already had it right.)
+      if (payload <= 0n || payload > 0x7fffffn) return null;
+      return sign | 0x7f800000 | Number(payload);
     }
     return text.startsWith('-') ? 0xffc00000 : 0x7fc00000;
   }
@@ -5608,7 +5726,9 @@ function parseF64LiteralBits(lit: { literalType: LiteralType; text: string }): b
       const raw = parseNanPayload(text);
       if (raw === null) return null;
       const sign = text.startsWith('-') ? 0x8000000000000000n : 0n;
-      return sign | 0x7ff0000000000000n | (raw & 0x000fffffffffffffn);
+      // As for f32: the payload field is 52 bits and 0 is not a NaN.
+      if (raw <= 0n || raw > 0x000fffffffffffffn) return null;
+      return sign | 0x7ff0000000000000n | raw;
     }
     return text.startsWith('-') ? 0xfff8000000000000n : 0x7ff8000000000000n;
   }

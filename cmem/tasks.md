@@ -81,6 +81,7 @@ reference these ids.
 | T12.6 | A missing lane immediate compiled as lane 0; NaN result patterns accepted as literals | done — quoted 1045 → 1087 |
 | T12.7 | Annotations skipped at the CHARACTER level; a closing label and an inline signature both read and discarded | done — quoted 1087 → **1183**; closes T12.6 |
 | T12.8 | The binary reader resynchronised instead of reporting | done — binary 638 → **711 / 711**, the metric is CLOSED |
+| T12.9 | Duplicate ids, `nan:0x0`, lane immediates, token boundaries, a second `(start …)`, forward type uses | done — quoted 1183 → **1227 / 1229** at the parser, **1229 / 1229** through `wat2wasm` |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -609,6 +610,7 @@ one. The result inverted the count order: the biggest categories are the mildest
 | ~~T12.6~~ | **DONE.** `unexpected token` — two silent defaults, then the block/type-use remainder closed by T12.7 | 82 | had **silent WRONG VALUE** in it after all |
 | ~~T12.7~~ | **DONE.** Illegal character, empty annotation id, mismatching label, inline function type | 77 (+19 more it reached) | two of the four were WRONG VALUE, not just a missing rejection |
 | ~~T12.8~~ | **DONE.** The remaining BINARY `assert_malformed` cases | 73 (was 601 — T12.5 closed 528) | the reader resynchronised instead of reporting |
+| ~~T12.9~~ | **DONE.** The remaining QUOTED cases — duplicate ids (16), `nan:0x0` (10), lane immediates (13), token boundaries (6), second `(start …)` (1), forward type use (1) | 46 | every one a silent WRONG VALUE |
 
 **T12.1 — done 2026-08-24.** Integers went through `BigInt.asIntN(32, n)` with
 no range check; floats were IEEE-rounded with no range check. The legal integer
@@ -868,6 +870,55 @@ panel on every change rather than the one being moved.
 
 Regression: `tests/reader/binary_malformed.test.ts` (22 steps, all 6 groups
 fail pre-fix), built from hex-dump literals so each module reads as bytes.
+
+**T12.9 — the last of the quoted gap, 2026-08-24. 1183 → 1227 / 1229 at the
+parser, and 1229 / 1229 through `wat2wasm`.**
+
+Six shapes were left, and unlike the tranche's own severity ranking predicted,
+**every one of them was a silent WRONG VALUE rather than a missing rejection**:
+
+- **A duplicate identifier was simply UNREACHABLE.** Every lookup resolves a
+  name by scanning for the FIRST match (`module.types.find(t => t.name === …)`
+  and the same shape for funcs, globals, tables, memories, tags), so a second
+  binding did not collide — the module still referred to something, just never
+  to the item written last. The index space spans imports AND definitions,
+  which is why `checkDuplicateIds` walks `module.imports` first.
+- **`nan:0x0` emitted INFINITY.** The payload was MASKED into the mantissa
+  field instead of checked, and a payload of 0 leaves no bits set, so
+  `f32.const nan:0x0` produced 0x7f800000. The same mask truncated an
+  oversized payload into a different NaN. (The mask was 0x3fffff for four
+  releases and lost `nan:0x400000` exactly this way — the shape recurred
+  because the fix then was to widen the mask instead of to check.)
+- **A signed lane index had its sign dropped**, and `i8x16.shuffle` filled any
+  missing lane with zero and let a `Uint8Array` store wrap `-1` to 255 and
+  `256` to 0.
+- **A token does not end at a quote.** `$"l"0` and `data"a"` are each ONE
+  reserved token, because a string continues a token the same way an idchar
+  does. Stopping at the closing quote turned `(br_table $"l"0)` into a branch
+  to `$l` followed by a stray `0` that read as a second target, and
+  `(data"a")` into a well-formed data segment.
+- **A second `(start …)` overwrote the first**, so the module ran a different
+  function than the one it names first.
+- **A type use may refer FORWARD**, so T12.7's restatement check saw an empty
+  type table and compared nothing whenever the type was declared later.
+
+**The forward-reference fix is worth more than the one case it closes.**
+Deferring the check to the end of the field list (`pendingTypeUses`, alongside
+`pendingBodies`) makes T12.7's rule apply to forward references too — a gap
+the metric could not see, because no spec case happens to combine a forward
+reference with a mismatched restatement. A rule that only fires when its
+operand happens to be already known is half a rule.
+
+**The last two are a HARNESS boundary, not a gap.** `(br_table $l0)` with an
+undefined label is rejected by `resolveNames`, which `wat2wasm` runs and the
+parser-only harness does not. Name resolution is genuinely a post-parse pass
+here, so the number measured at `parseWatModule` under-reports the tool by
+exactly those two; measured at `wat2wasm` it is 1229 / 1229. Both numbers are
+worth keeping — the parser-only one is the stricter statement.
+
+Regression: `tests/parser/duplicate_ids_and_tokens.test.ts` (34 steps, all six
+groups fail pre-fix), including a V8 round trip proving the in-range NaN
+payloads still come back as NaNs and not infinities.
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 
