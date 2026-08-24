@@ -444,3 +444,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `readHexNum` leave a malformed `_` UNCONSUMED so `getNumberToken`'s existing
   trailing-id-char fallback turns the literal into a Reserved token. Consuming it unconditionally
   made `1_`, `1__2`, `0x1_` and `1_.0` lex as valid numbers.
+- **A constant literal is RANGE-CHECKED before it is truncated or rounded (T12.1).** The legal
+  integer span is the UNION of the signed and unsigned ranges — `[-2^31, 2^32)` for i32 — because
+  the text format lets a 32-bit value be written either way; `BigInt.asIntN` alone silently
+  truncated `(i32.const 0x100000000)` to `0`. For floats, a FINITE literal that rounds to infinity
+  is out of range, so the check is gated on the literal FORM (`isFiniteLiteralForm`), never on the
+  resulting bits — gating on bits rejects a legitimate `inf`. Both produced modules V8 accepts and
+  RUNS with a different value.

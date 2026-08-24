@@ -20,6 +20,13 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../src/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../src/core/error.ts';
 
+/** Assert `wat2wasm` REJECTS an f32 literal (spec: "constant out of range"). */
+async function assertRejected(lit: string): Promise<void> {
+  const { errors } = wat2wasm(`(module (func (export "f") (result f32) (f32.const ${lit})))`);
+  assert(hasErrors(errors), `accepted out-of-range literal ${lit}`);
+  await Promise.resolve();
+}
+
 async function f32Bits(lit: string): Promise<number> {
   const wat = `(module (func (export "f") (result f32) (f32.const ${lit})))`;
   const { binary, errors } = wat2wasm(wat);
@@ -68,9 +75,15 @@ describe('hex-float f32 round-to-nearest-even', () => {
     assertEquals(await f32Bits('0x1.fffffe0000001p127'), 0x7f7fffff);
   });
 
-  it('value above the max-finite midpoint overflows to infinity', async () => {
-    // Above 0x1.ffffff·2^127 (the rounding boundary) -> +inf.
-    assertEquals(await f32Bits('0x1.ffffff8p127'), 0x7f800000);
+  it('value above the max-finite midpoint is OUT OF RANGE, not infinity', async () => {
+    // `hexFloatToBits` still rounds this to +inf — that is correct IEEE
+    // behaviour and is what the parser's range check reads. But a FINITE
+    // literal that rounds to infinity is a malformed CONSTANT, not infinity:
+    // const.wast has `(f32.const 0x1.ffffffp127)` as assert_malformed,
+    // "constant out of range", while the value just below the boundary is a
+    // plain valid module. This assertion originally expected 0x7f800000,
+    // written before the parser enforced the range (T12.1).
+    await assertRejected('0x1.ffffff8p127');
   });
 
   it('largest finite f32 encodes exactly', async () => {

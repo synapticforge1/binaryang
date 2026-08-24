@@ -24,6 +24,13 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../src/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../src/core/error.ts';
 
+/** Assert `wat2wasm` REJECTS an f32 literal (spec: "constant out of range"). */
+async function assertRejected(lit: string): Promise<void> {
+  const { errors } = wat2wasm(`(module (func (export "f") (result f32) (f32.const ${lit})))`);
+  assert(hasErrors(errors), `accepted out-of-range literal ${lit}`);
+  await Promise.resolve();
+}
+
 async function f32Bits(lit: string): Promise<number> {
   const wat = `(module (func (export "f") (result f32) (f32.const ${lit})))`;
   const { binary, errors } = wat2wasm(wat);
@@ -100,10 +107,13 @@ describe('decimal→f32 single-rounding (no double-round)', () => {
     }
   });
 
-  it('overflows to infinity above the max-finite midpoint', async () => {
-    // > (FLT_MAX + 2^128)/2 -> +inf.
-    assertEquals(await f32Bits('3.5e38'), 0x7f800000);
-    // FLT_MAX itself stays finite.
+  it('above the max-finite midpoint is OUT OF RANGE, not infinity', async () => {
+    // See the matching hex-float case. const.wast asserts
+    // `(f32.const 340282356779733661637539395458142568448)` — the midpoint —
+    // is malformed, "constant out of range", while the value just below it is
+    // a valid module. This originally expected 0x7f800000 (T12.1).
+    await assertRejected('3.5e38');
+    // FLT_MAX itself stays finite and legal.
     assertEquals(await f32Bits('3.4028234663852886e+38'), 0x7f7fffff);
   });
 });

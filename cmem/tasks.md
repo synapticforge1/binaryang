@@ -73,6 +73,7 @@ reference these ids.
 | T10.5 | Linear-form `call` drained the whole operand stack | done — WASI corpus 50 → 225 / 270 |
 | T10.8 | A synthesized operand slot-filler was written out as a real `nop` | done — WASI corpus **270 / 270** |
 | T9.11 | Ten of the twelve memarg handlers never checked the offset | done — 4 SIMD false-accepts closed |
+| T12.1 | Out-of-range integer and float constants silently truncated/overflowed | done — malformed 666 → 698 / 1229 |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -580,6 +581,49 @@ disagreed, and the frequency one was measured on the corpus the goal names. It
 also turned out to be the cheaper fix and to close a second item (T10.2) for
 free. Rank remaining work against the yardstick the GOAL names, not the one the
 campaign happened to start with.
+
+### Open — T12: `assert_malformed`. The only tranche with work in it
+
+**Numbering:** a new integer, per the ledger rule — nothing in T1–T11 covers
+"input the spec says must fail to PARSE". Opened 2026-08-24.
+
+**Ranked by MEASURED consequence, not by case count.** Every category below was
+probed to see what accepting it actually produces, because T10 was mis-ordered
+for the whole campaign by inheriting a severity ranking instead of measuring
+one. The result inverted the count order: the biggest categories are the mildest.
+
+| id | scope | cases | measured consequence |
+| --- | --- | --- | --- |
+| ~~T12.1~~ | **DONE.** Out-of-range integer / float constants | 68 | **silent WRONG VALUE** — `(i32.const 0x100000000)` → `0`, `(f32.const 1e39)` → `inf`; V8 accepts and runs |
+| **T12.2** | Import after a function/global/table/memory definition | 12 | **silent REORDER** — accepted and the import is emitted first, so the index spaces shift under the module |
+| **T12.3** | `align=0`, `align=7` and other non-powers-of-two | 114 | align silently DISCARDED (falls back to natural) |
+| **T12.4** | SIMD lane index out of range (`extract_lane 256`) | 13 | silent wrong LANE |
+| **T12.5** | Malformed UTF-8 in names / annotations | 186 | name mangled |
+| **T12.6** | `unexpected token` — field order, block-type shapes | 82 | rejection not made |
+| **T12.7** | Illegal character, empty annotation id, mismatching label, inline function type | 77 | rejection not made |
+| **T12.8** | The 601 BINARY `assert_malformed` cases | 601 | decoder hardening; separate job |
+
+**T12.1 — done 2026-08-24.** Integers went through `BigInt.asIntN(32, n)` with
+no range check; floats were IEEE-rounded with no range check. The legal integer
+span is the UNION of the signed and unsigned ranges (`[-2^31, 2^32)` for i32),
+because the text format lets a 32-bit value be written either way. For floats, a
+FINITE literal that rounds to infinity is out of range — `inf` must be spelled
+`inf`, which is why the check is gated on the literal FORM
+(`isFiniteLiteralForm`) and not on the resulting bits. Gating on bits alone
+rejected legitimate `inf`, caught immediately by the probe.
+
+**Two existing test expectations were wrong and are corrected**, not weakened:
+`hex_float_rounding.test.ts` and `decimal_float_rounding.test.ts` asserted that
+`0x1.ffffff8p127` and `3.5e38` *overflow to infinity*. They go through
+`wat2wasm`, so they were asserting parser behaviour, and `const.wast` settles
+it — `(f32.const 0x1.ffffffp127)` and the decimal midpoint are both
+`assert_malformed` "constant out of range", while the value just below the
+boundary is a plain valid module. The underlying rounding functions still
+return infinity, which is correct IEEE behaviour and is exactly what the
+parser's range check reads.
+
+Regression: `tests/parser/const_range.test.ts` (21 cases, 17 fail pre-fix,
+including boundary cases in both directions).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

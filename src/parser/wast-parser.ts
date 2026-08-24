@@ -682,6 +682,16 @@ function decodeStringText(raw: string): string {
  *   null: `(i32.const -0x7fffffff)` reported "expected i32 constant", which
  *   alone accounted for 16 spec-testsuite files.
  */
+/**
+ * Whether a float literal spells a FINITE value — a decimal, a hex float, or a
+ * bare integer. `inf` / `-inf` / `nan` / `nan:0x…` name their values directly
+ * and are always in range; only a finite form can OVERFLOW to infinity, which
+ * the spec calls out of range rather than infinity.
+ */
+function isFiniteLiteralForm(lt: LiteralType): boolean {
+  return lt !== LiteralType.Infinity && lt !== LiteralType.Nan;
+}
+
 function parseNatText(text: string): bigint | null {
   const t = text.replace(/_/g, '');
   // Split a leading sign off any radix-prefixed literal and re-apply it.
@@ -4258,12 +4268,26 @@ export class WastParser {
         this.error(loc, 'expected i32 constant');
         return null;
       }
+      // The spec accepts a 32-bit constant written as either signed or
+      // unsigned, so the legal span is [-2^31, 2^32); anything else is
+      // MALFORMED. `BigInt.asIntN` alone silently TRUNCATES —
+      // `(i32.const 0x100000000)` became `i32.const 0`, which V8 accepts and
+      // runs, so the program computed a different number with no diagnostic
+      // anywhere (T12.1).
+      if (n < -0x8000_0000n || n >= 0x1_0000_0000n) {
+        this.error(loc, `i32 constant out of range: ${n}`);
+        return null;
+      }
       return constI32(Number(BigInt.asIntN(32, n)));
     }
     if (type === Type.I64) {
       const n = this.parseNatOrInt();
       if (n === null) {
         this.error(loc, 'expected i64 constant');
+        return null;
+      }
+      if (n < -0x8000_0000_0000_0000n || n >= 0x1_0000_0000_0000_0000n) {
+        this.error(loc, `i64 constant out of range: ${n}`);
         return null;
       }
       return constI64(BigInt.asIntN(64, n));
@@ -4407,7 +4431,19 @@ export class WastParser {
     const tt = this.peek();
     if (tt === TokenType.Float) {
       const tok = this.consume() as LiteralToken;
-      return parseF32LiteralBits(tok.literal);
+      const bits = parseF32LiteralBits(tok.literal);
+      // A FINITE literal that rounds to infinity is out of range, not
+      // infinity: `inf` has to be written as `inf`. Silently overflowing gave
+      // `(f32.const 1e39)` the value `inf`, which V8 accepts and runs — a
+      // different number with no diagnostic (T12.1).
+      if (
+        bits !== null && isFiniteLiteralForm(tok.literal.literalType) &&
+        (bits & 0x7fffffff) === 0x7f800000
+      ) {
+        this.error(tok.loc, `f32 constant out of range: ${tok.literal.text}`);
+        return null;
+      }
+      return bits;
     }
     if (tt === TokenType.Nat || tt === TokenType.Int) {
       // `f32.const 1` means float 1.0, not bit pattern 0x00000001 (which
@@ -4416,7 +4452,12 @@ export class WastParser {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) return null;
-      return f32ValueToBits(Number(n));
+      const bits = f32ValueToBits(Number(n));
+      if ((bits & 0x7fffffff) === 0x7f800000) {
+        this.error(tok.loc, `f32 constant out of range: ${tok.literal.text}`);
+        return null;
+      }
+      return bits;
     }
     if (tt === TokenType.NanArithmetic || tt === TokenType.NanCanonical) {
       this.drop();
@@ -4429,7 +4470,16 @@ export class WastParser {
     const tt = this.peek();
     if (tt === TokenType.Float) {
       const tok = this.consume() as LiteralToken;
-      return parseF64LiteralBits(tok.literal);
+      const bits = parseF64LiteralBits(tok.literal);
+      // See parseF32Bits: a finite literal must not round to infinity.
+      if (
+        bits !== null && isFiniteLiteralForm(tok.literal.literalType) &&
+        (bits & 0x7fffffffffffffffn) === 0x7ff0000000000000n
+      ) {
+        this.error(tok.loc, `f64 constant out of range: ${tok.literal.text}`);
+        return null;
+      }
+      return bits;
     }
     if (tt === TokenType.Nat || tt === TokenType.Int) {
       // See parseF32Bits — integer literals are decimal float values, not
@@ -4438,7 +4488,12 @@ export class WastParser {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) return null;
-      return f64ValueToBits(Number(n));
+      const bits = f64ValueToBits(Number(n));
+      if ((bits & 0x7fffffffffffffffn) === 0x7ff0000000000000n) {
+        this.error(tok.loc, `f64 constant out of range: ${tok.literal.text}`);
+        return null;
+      }
+      return bits;
     }
     if (tt === TokenType.NanArithmetic || tt === TokenType.NanCanonical) {
       this.drop();
