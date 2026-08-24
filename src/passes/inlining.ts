@@ -459,121 +459,29 @@ function copyLocals(locals: Local[]): Local[] {
 // Deep copy
 // ---------------------------------------------------------------------------
 
-/** Structural deep copy of an expression tree. Required before inlining a body
- * at multiple call sites (tree ownership rule: one parent per node). */
+/**
+ * Structural deep copy of an expression tree.
+ *
+ * Required before inlining a body at multiple call sites: the IR's tree
+ * ownership rule is one parent per node, so each call site needs its own
+ * objects.
+ *
+ * This used to be a hand-written switch whose `default` returned the node
+ * unchanged, commented "no children to copy". That claim was false — the
+ * switch covered 29 of 79 expression kinds, so every SIMD, GC, EH, table
+ * and tuple node was returned AS-IS and its subtree stayed shared between the
+ * original callee and every inlined copy. Demonstrated: inlining a callee
+ * containing a `SIMDExtract` at two call sites left a node reachable from two
+ * tree positions.
+ *
+ * Delegating to `mapExpression` removes the second, drifting dispatcher:
+ * `_mapChildren` in walk.ts already enumerates every kind and THROWS on an
+ * unhandled one, so a future node cannot silently reintroduce sharing. The
+ * callback returns a fresh object for each node, and `mapExpression` rebuilds
+ * bottom-up, so leaves are copied too.
+ */
 function deepCopy(expr: Expression): Expression {
-  switch (expr.kind) {
-    case ExpressionKind.Nop:
-    case ExpressionKind.Unreachable:
-    case ExpressionKind.MemorySize:
-    case ExpressionKind.LocalGet:
-    case ExpressionKind.GlobalGet:
-    case ExpressionKind.RefNull:
-    case ExpressionKind.RefFunc:
-      return { ...expr };
-
-    case ExpressionKind.Const:
-      return { ...expr };
-
-    case ExpressionKind.Block:
-      return { ...expr, children: expr.children.map(deepCopy) };
-
-    case ExpressionKind.If:
-      return {
-        ...expr,
-        condition: deepCopy(expr.condition),
-        ifTrue: deepCopy(expr.ifTrue),
-        ifFalse: expr.ifFalse ? deepCopy(expr.ifFalse) : null,
-      };
-
-    case ExpressionKind.Loop:
-      return { ...expr, body: deepCopy(expr.body) };
-
-    case ExpressionKind.Break:
-      return {
-        ...expr,
-        condition: expr.condition ? deepCopy(expr.condition) : null,
-        value: expr.value ? deepCopy(expr.value) : null,
-      };
-
-    case ExpressionKind.Switch:
-      return {
-        ...expr,
-        condition: deepCopy(expr.condition),
-        value: expr.value ? deepCopy(expr.value) : null,
-      };
-
-    case ExpressionKind.Return:
-      return { ...expr, value: expr.value ? deepCopy(expr.value) : null };
-
-    case ExpressionKind.LocalSet:
-      return { ...expr, value: deepCopy(expr.value) };
-
-    case ExpressionKind.LocalTee:
-      return { ...expr, value: deepCopy(expr.value) };
-
-    case ExpressionKind.GlobalSet:
-      return { ...expr, value: deepCopy(expr.value) };
-
-    case ExpressionKind.Unary:
-      return { ...expr, value: deepCopy(expr.value) };
-
-    case ExpressionKind.Binary:
-      return { ...expr, left: deepCopy(expr.left), right: deepCopy(expr.right) };
-
-    case ExpressionKind.Select:
-      return {
-        ...expr,
-        ifTrue: deepCopy(expr.ifTrue),
-        ifFalse: deepCopy(expr.ifFalse),
-        condition: deepCopy(expr.condition),
-      };
-
-    case ExpressionKind.Drop:
-      return { ...expr, value: deepCopy(expr.value) };
-
-    case ExpressionKind.Load:
-      return { ...expr, ptr: deepCopy(expr.ptr) };
-
-    case ExpressionKind.Store:
-      return { ...expr, ptr: deepCopy(expr.ptr), value: deepCopy(expr.value) };
-
-    case ExpressionKind.MemoryGrow:
-      return { ...expr, delta: deepCopy(expr.delta) };
-
-    case ExpressionKind.MemoryCopy:
-      return {
-        ...expr,
-        dest: deepCopy(expr.dest),
-        source: deepCopy(expr.source),
-        size: deepCopy(expr.size),
-      };
-
-    case ExpressionKind.MemoryFill:
-      return {
-        ...expr,
-        dest: deepCopy(expr.dest),
-        value: deepCopy(expr.value),
-        size: deepCopy(expr.size),
-      };
-
-    case ExpressionKind.Call:
-      return { ...expr, operands: expr.operands.map(deepCopy) };
-
-    case ExpressionKind.CallIndirect:
-      return {
-        ...expr,
-        target: deepCopy(expr.target),
-        operands: expr.operands.map(deepCopy),
-      };
-
-    case ExpressionKind.RefIsNull:
-      return { ...expr, value: deepCopy(expr.value) };
-
-    default:
-      // Unknown kind (future IR extension) — return as-is; no children to copy.
-      return expr;
-  }
+  return mapExpression(expr, (e) => ({ ...e }));
 }
 
 // ---------------------------------------------------------------------------

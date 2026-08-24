@@ -428,6 +428,66 @@ were reachable in practice, so the next release is **1.5.0**, not 1.4.4 (owner d
 
 ---
 
+## Second "look for code issues" sweep (2026-08-24) — the duplicate-dispatcher class
+
+The first sweep chased silent fallbacks. This one chased a structural smell instead: **how many
+places dispatch on `ExpressionKind`, and do they all know every kind?** `walk.ts` owns the
+authoritative enumeration (`_mapChildren` / `_visitChildren`, both of which THROW on an unhandled
+kind). Two other files had grown their own hand-written copies, and both had silently fallen behind.
+
+Six new kinds were added this session (`TupleMake`, `RefAs`, `ArrayFill`/`Copy`/`InitData`/
+`InitElem`), which is what made the drift worth measuring.
+
+### `deepCopy` shared subtrees across inlined copies (inlining.ts)
+
+`deepCopy` exists for exactly one reason — the IR's one-parent-per-node rule, which inlining would
+otherwise break by placing the same callee body at several call sites. Its switch covered **29 of 79
+expression kinds**, ending in:
+
+```ts
+default:
+  // Unknown kind (future IR extension) — return as-is; no children to copy.
+  return expr;
+```
+
+The comment is false: an unhandled kind can have children. Every SIMD, GC, EH, table and tuple node
+was returned as-is, with its subtree shared. Demonstrated with an identity walk — inlining a callee
+containing a `SIMDExtract` at two call sites left **1 node reachable from two tree positions**; 0
+after the fix.
+
+Fixed by deleting the switch: `deepCopy` is now `mapExpression(expr, (e) => ({ ...e }))`. One
+dispatcher instead of two, and a future node cannot silently reintroduce sharing because walk.ts
+throws on an unhandled kind.
+
+### PickLoadSigns could not see uses inside a `br` (pick-load-signs.ts)
+
+`_walkWithParent` was a third hand-written child enumerator — ~15 kinds, `default: break;`. It never
+descended into a `br`/`br_if` value, a `switch` value, `struct.set`/`array.set`, any SIMD node, a
+`try` body, or a `tuple.make`.
+
+**This is a miscompile, not a missed optimization.** The pass flips a narrow load's signedness only
+when `signedCount + unsignedCount === totalCount` — every use must re-extend the value. A use the
+walk never reaches increments **neither** counter, so it is invisible rather than neutral, and the
+flip proceeds as if it did not exist. With one masked use (`x & 0xFF`) and one `br` carrying the
+value, the pass flipped `i32.load8_s` to `load8_u` and `-1` silently became `255`.
+
+Fixed by delegating to `visitChildren`. Regression test in
+[pick_load_signs_test.ts](../tests/passes/pick_load_signs_test.ts) is behavioural (asserts `-1`
+before and after) and verified to fail — "load sign was flipped despite an observing `br` use" —
+when `Break` recursion is removed.
+
+### The rule this yields
+
+**There is exactly one authoritative child enumeration, in `walk.ts`.** Anything that needs to
+recurse over children must go through `mapExpression` / `walkExpression` / `visitChildren` /
+`mapChildrenShallow`, never a private switch. A private switch cannot be kept in sync — both copies
+here fell behind without a single test noticing, because falling behind produces _silence_, not an
+error. Checked clean this round: `_exprKey` and `_isPure` and Vacuum's removal set are allow-lists
+with conservative defaults (unknown kind ⇒ not CSE-able / not pure / not removable), and `cfg.ts`
+already ends in `default: visitChildren(...)`.
+
+---
+
 ## Fail-loud audit sweep (2026-07-07, post-Asyncify) — four passes, 20 fixes, suite 379 → 394
 
 A multi-pass whole-tree audit (mechanical grep sweeps + four parallel subagent code-review agents,

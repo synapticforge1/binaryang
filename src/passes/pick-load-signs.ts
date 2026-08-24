@@ -40,7 +40,7 @@ import { BinaryOp, type Expression, ExpressionKind, type LoadExpr } from "../ir/
 import type { WasmFunction, WasmModule } from "../ir/module.ts";
 import { ValType } from "../ir/types.ts";
 import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { mapExpression, walkExpression } from "../ir/walk.ts";
+import { mapExpression, visitChildren, walkExpression } from "../ir/walk.ts";
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -201,59 +201,17 @@ function _walkWithParent(
   visitor: (e: Expression, parent: Expression | null) => void,
 ): void {
   visitor(expr, parent);
-
-  switch (expr.kind) {
-    case ExpressionKind.Block:
-      expr.children.forEach((c) => _walkWithParent(c, expr, visitor));
-      break;
-    case ExpressionKind.If:
-      _walkWithParent(expr.condition, expr, visitor);
-      _walkWithParent(expr.ifTrue, expr, visitor);
-      if (expr.ifFalse) _walkWithParent(expr.ifFalse, expr, visitor);
-      break;
-    case ExpressionKind.Loop:
-      _walkWithParent(expr.body, expr, visitor);
-      break;
-    case ExpressionKind.Binary:
-      _walkWithParent(expr.left, expr, visitor);
-      _walkWithParent(expr.right, expr, visitor);
-      break;
-    case ExpressionKind.Unary:
-      _walkWithParent(expr.value, expr, visitor);
-      break;
-    case ExpressionKind.LocalSet:
-    case ExpressionKind.LocalTee:
-      _walkWithParent(expr.value, expr, visitor);
-      break;
-    case ExpressionKind.GlobalSet:
-      _walkWithParent(expr.value, expr, visitor);
-      break;
-    case ExpressionKind.Drop:
-      _walkWithParent(expr.value, expr, visitor);
-      break;
-    case ExpressionKind.Return:
-      if (expr.value) _walkWithParent(expr.value, expr, visitor);
-      break;
-    case ExpressionKind.Call:
-      expr.operands.forEach((o) => _walkWithParent(o, expr, visitor));
-      break;
-    case ExpressionKind.CallIndirect:
-      _walkWithParent(expr.target, expr, visitor);
-      expr.operands.forEach((o) => _walkWithParent(o, expr, visitor));
-      break;
-    case ExpressionKind.Load:
-      _walkWithParent(expr.ptr, expr, visitor);
-      break;
-    case ExpressionKind.Store:
-      _walkWithParent(expr.ptr, expr, visitor);
-      _walkWithParent(expr.value, expr, visitor);
-      break;
-    case ExpressionKind.Select:
-      _walkWithParent(expr.ifTrue, expr, visitor);
-      _walkWithParent(expr.ifFalse, expr, visitor);
-      _walkWithParent(expr.condition, expr, visitor);
-      break;
-    default:
-      break;
-  }
+  // Delegate recursion to walk.ts's exhaustive child enumerator rather than a
+  // second hand-written switch.
+  //
+  // This WAS such a switch, covering ~15 kinds with `default: break;` — so it
+  // never descended into a `br`/`br_if` value, a `switch` value, `struct.set` /
+  // `array.set`, any SIMD node, a `try` body, or a `tuple.make`. That is not a
+  // missed optimization: step 3 only flips a load's sign when
+  // `signed + unsigned === total`, and a use this walk never reaches increments
+  // NEITHER counter. An unreached use is therefore invisible, not neutral, so
+  // the flip could proceed while some other use observed the raw value —
+  // silently changing it. `visitChildren` enumerates every kind and throws on
+  // an unhandled one, so a future node cannot reopen the hole.
+  visitChildren(expr, (child) => _walkWithParent(child, expr, visitor));
 }
