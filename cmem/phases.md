@@ -81,7 +81,8 @@ UP-1…UP-7 series"; bridge view in [bridge.md](bridge.md).
 | Tier 3 | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                          | 438 → 448 | ✅ Done     |
 | Tier 4 | Corpus round-trip closure: `ref.null` heap-type collapse + signed heap index + phantom-pop `nop`             | 448 → 453 | ✅ Done     |
 | Tier 5 | UP-2 `tuple.make` + multi-result blocks (p=0, r>1); multi-value `br`/`br_if`/`br_table`                      | 454 → 462 | ✅ Done     |
-| —      | Blocks with INPUTS (p≥1) — IR-shape change, `BlockExpr` has no inputs                                        | —         | ⬜ Deferred |
+| Tier 6 | Block + `if` INPUTS via spill-to-locals; `loop` inputs rejected (br_if fall-through hazard)                  | 462 → 464 | ✅ Done     |
+| —      | LOOP inputs — needs branch rewriting + br_if fall-through handling                                           | —         | ⬜ Deferred |
 
 **No bump/publish until every known bug is addressed** (owner decision, 2026-08-24). As of the Tier
 4 commit that bar is met: six of seven UP findings are fixed (UP-2 is correctly deferred behind

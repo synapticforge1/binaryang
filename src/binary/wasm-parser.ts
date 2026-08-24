@@ -161,6 +161,8 @@ interface ControlFrame {
   catchTags?: string[];
   catchBodies?: Expression[][];
   delegateTarget?: string | null;
+  /** For an `if` with parameters: the `local.get`s seeding BOTH arms. */
+  paramSeed?: Expression[];
   // try_table state
   tryCatches?: CatchClause[];
 }
@@ -498,11 +500,16 @@ function localTypeAt(locals: Local[], idx: number, r: BinaryReader): ValueType {
   return loc.type;
 }
 
-function readBlockType(r: BinaryReader, funcTypes: FuncType[]): (ValType | RefType)[] {
+interface BlockSignature {
+  params: ValueType[];
+  results: ValueType[];
+}
+
+function readBlockType(r: BinaryReader, funcTypes: FuncType[]): BlockSignature {
   const b = r.peekU8();
   if (b === 0x40) {
     r.readU8();
-    return [];
+    return { params: [], results: [] };
   }
   // Any value type byte (MVP + GC + EH ref types)
   if (
@@ -512,7 +519,7 @@ function readBlockType(r: BinaryReader, funcTypes: FuncType[]): (ValType | RefTy
     b === 0x69 || b === 0x74 ||
     b === 0x63 || b === 0x64
   ) {
-    return [readValueType(r)];
+    return { params: [], results: [readValueType(r)] };
   }
   // Type-index blocktype: the block carries a full function signature, so it
   // may have multiple results AND/OR inputs. Encoded as a NON-NEGATIVE signed
@@ -528,13 +535,7 @@ function readBlockType(r: BinaryReader, funcTypes: FuncType[]): (ValType | RefTy
   if (ft === undefined) {
     return r.error(`block type index ${typeIdx} is out of range`);
   }
-  if (ft.params.length > 0) {
-    return r.error(
-      `block type index ${typeIdx} has ${ft.params.length} input parameter(s); ` +
-        `blocks with inputs are not supported`,
-    );
-  }
-  return [...ft.results];
+  return { params: [...ft.params], results: [...ft.results] };
 }
 
 function readMemArg(r: BinaryReader): { align: number; offset: number } {
@@ -587,6 +588,28 @@ function _branchValue(
   const vals: Expression[] = [];
   for (let i = 0; i < arity; i++) vals.unshift(pop());
   return makeTupleMake(vals);
+}
+
+/**
+ * Returns a block signature's results, rejecting any parameters.
+ *
+ * Used for constructs whose IR node cannot hold entry values (`try`,
+ * `try_table`). Accepting one would silently drop them.
+ *
+ * @internal
+ */
+function rejectBlockParams(
+  sig: { params: ValueType[]; results: ValueType[] },
+  what: string,
+  r: BinaryReader,
+): ValueType[] {
+  if (sig.params.length > 0) {
+    r.error(
+      `${what} has ${sig.params.length} input parameter(s); ` +
+        `${what} with inputs is not supported`,
+    );
+  }
+  return sig.results;
 }
 
 function sealFrame(frame: ControlFrame, resultType: Type): Expression {
@@ -1291,6 +1314,36 @@ class WasmParser {
     // opcode; each later consumer then pops a `Pop`, which encodes to nothing
     // and survives optimization as `drop(pop)`). `results[i]` types the Pop
     // for the value the i-th later consumer pops.
+    /**
+     * Moves a parametrised block's entry values into fresh locals and returns
+     * the reads that seed the inner frame's operand stack.
+     *
+     * A block with `(param t0 .. tN)` pops N values from the ENCLOSING stack on
+     * entry; inside, they are the first things on its own stack. `BlockExpr` has
+     * no parameter list to hold them, so instead each value is evaluated exactly
+     * once into a fresh local BEFORE the block (a `local.set` appended to the
+     * enclosing frame), and the block body reads them back. That is semantically
+     * identical — entering a block has no observable effect — and it keeps the
+     * evaluation ORDER intact, which simply relocating the value expressions
+     * into the body would not for an `if` (both arms would re-evaluate them).
+     *
+     * The temporaries are ordinary locals, so `SimplifyLocals` / `CoalesceLocals`
+     * fold most of them away again.
+     */
+    const spillBlockParams = (params: ValueType[]): Expression[] => {
+      if (params.length === 0) return [];
+      const vals: Expression[] = [];
+      for (let i = 0; i < params.length; i++) vals.unshift(pop());
+      const reads: Expression[] = [];
+      for (let i = 0; i < params.length; i++) {
+        const tmp = locals.length;
+        locals.push({ type: params[i] });
+        push(makeLocalSet(tmp, vals[i]));
+        reads.push(makeLocalGet(tmp, params[i]));
+      }
+      return reads;
+    };
+
     const pushMultiValueCall = (call: Expression, results: ValueType[]): void => {
       for (let i = 0; i < results.length - 1; i++) push(makePop(results[i]));
       push(call);
@@ -1307,25 +1360,50 @@ class WasmParser {
           break;
 
         case 0x02: { // block
-          const rts = readBlockType(r, ctx.funcTypes);
-          frames.push({ kind: "block", label: freshLabel(), resultTypes: rts, exprs: [] });
+          const sig = readBlockType(r, ctx.funcTypes);
+          const seed = spillBlockParams(sig.params);
+          frames.push({
+            kind: "block",
+            label: freshLabel(),
+            resultTypes: sig.results,
+            exprs: seed,
+          });
           break;
         }
         case 0x03: { // loop
-          const rts = readBlockType(r, ctx.funcTypes);
-          frames.push({ kind: "loop", label: freshLabel(), resultTypes: rts, exprs: [] });
+          const sig = readBlockType(r, ctx.funcTypes);
+          if (sig.params.length > 0) {
+            // A loop's parameters are re-supplied by every BACK-EDGE branch, not
+            // just on entry, so spilling them to locals once (as `block`/`if` do)
+            // is not enough — each `br` to the loop would also have to write them
+            // before jumping, which means rewriting the branch. `LoopExpr` has no
+            // parameters to hold them either. Reject rather than drop them.
+            r.error(
+              `loop has ${sig.params.length} input parameter(s); ` +
+                `loops with inputs are not supported`,
+            );
+          }
+          frames.push({
+            kind: "loop",
+            label: freshLabel(),
+            resultTypes: sig.results,
+            exprs: [],
+          });
           break;
         }
         case 0x04: { // if
-          const rts = readBlockType(r, ctx.funcTypes);
+          const sig = readBlockType(r, ctx.funcTypes);
+          // Pop the CONDITION first: it sits above the parameters on the stack.
           const cond = pop();
+          const seed = spillBlockParams(sig.params);
           frames.push({
             kind: "if",
             label: freshLabel(),
-            resultTypes: rts,
-            exprs: [],
+            resultTypes: sig.results,
+            exprs: [...seed],
             ifCondition: cond,
             thenExprs: [],
+            paramSeed: seed,
           });
           break;
         }
@@ -1333,14 +1411,17 @@ class WasmParser {
           const frame = frames[frames.length - 1];
           if (frame.kind === "if") {
             frame.thenExprs = frame.exprs;
-            frame.exprs = [];
+            // Both arms start with the same parameters on their stack. The values
+            // were evaluated ONCE into locals before the `if`, so each arm reads
+            // them back — re-seeding here, not re-evaluating.
+            frame.exprs = [...(frame.paramSeed ?? [])];
             frame.kind = "else" as ControlFrameKind;
           }
           break;
         }
 
         case 0x06: { // try (old EH)
-          const rts = readBlockType(r, ctx.funcTypes);
+          const rts = rejectBlockParams(readBlockType(r, ctx.funcTypes), "try", r);
           frames.push({
             kind: "try",
             label: freshLabel(),
@@ -1607,7 +1688,7 @@ class WasmParser {
           break;
         }
         case 0x1f: { // try_table blocktype (numHandlers handlers) (new EH)
-          const rts = readBlockType(r, ctx.funcTypes);
+          const rts = rejectBlockParams(readBlockType(r, ctx.funcTypes), "try_table", r);
           const numHandlers = r.readU32();
           // Read catch clause data (tag+depth pairs) before pushing frame
           const catchData: Array<{ tag: string | null; depth: number; isRef: boolean }> = [];

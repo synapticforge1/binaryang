@@ -164,11 +164,58 @@ Deno.test("multi-result block: round-trip is a fixed point", () => {
   assertEquals(kinds(third.functions[0].body), kinds(second.functions[0].body));
 });
 
-Deno.test("block WITH INPUTS is still rejected, loudly and by name", () => {
+Deno.test("block WITH INPUTS: entry values reach the body", async () => {
+  // `i32.const 7; block (param i32) (result i32) end` — the parameter falls
+  // straight through, so the function returns 7. The parameter is spilled to a
+  // local before the block and read back inside it; getting that wrong loses
+  // the value entirely.
+  assertEquals(await run(BLOCK_WITH_INPUT), 7);
+  assertEquals(await run(encodeWasm(parseWasm(BLOCK_WITH_INPUT))), 7);
+});
+
+/**
+ * `i32.const 7; i32.const 1; if (param i32) (result i32) (else) end`
+ *
+ * BOTH arms start with the parameter on their stack. The value must be
+ * evaluated ONCE and read back per arm — relocating the expression into the
+ * body would duplicate it into both arms and evaluate it twice.
+ */
+const IF_WITH_INPUT = Uint8Array.from([
+  ...HDR,
+  ...sec(1, vecOf([[0x60, 0x00, 0x01, 0x7f], [0x60, 0x01, 0x7f, 0x01, 0x7f]])),
+  ...sec(3, vecOf([[0x00]])),
+  ...sec(7, vecOf([[0x01, 0x66, 0x00, 0x00]])),
+  ...sec(
+    10,
+    vecOf([fnBody([0x00, 0x41, 0x07, 0x41, 0x01, 0x04, 0x01, 0x05, 0x0b, 0x0b])]),
+  ),
+]);
+
+Deno.test("if WITH INPUTS: both arms see the parameter, evaluated once", async () => {
+  assertEquals(await run(IF_WITH_INPUT), 7);
+  assertEquals(await run(encodeWasm(parseWasm(IF_WITH_INPUT))), 7);
+});
+
+/** `i32.const 7; loop (param i32) (result i32) end` — a LOOP with an input. */
+const LOOP_WITH_INPUT = Uint8Array.from([
+  ...HDR,
+  ...sec(1, vecOf([[0x60, 0x00, 0x01, 0x7f], [0x60, 0x01, 0x7f, 0x01, 0x7f]])),
+  ...sec(3, vecOf([[0x00]])),
+  ...sec(7, vecOf([[0x01, 0x66, 0x00, 0x00]])),
+  ...sec(10, vecOf([fnBody([0x00, 0x41, 0x07, 0x03, 0x01, 0x0b, 0x0b])])),
+]);
+
+Deno.test("loop WITH INPUTS is rejected, loudly and by name", () => {
+  // Deliberate. A loop's parameters are re-supplied by every BACK-EDGE branch,
+  // not just on entry, so the spill-to-locals trick that handles block/if is
+  // not sufficient. Worse, a `br_if` to a param-taking loop leaves its values
+  // ON THE STACK when the branch is not taken, so an unconditional `local.set`
+  // before the branch would strip them from the fall-through path — a silent
+  // wrong-value miscompile of exactly the kind this pipeline exists to avoid.
   assertThrows(
-    () => parseWasm(BLOCK_WITH_INPUT),
+    () => parseWasm(LOOP_WITH_INPUT),
     WasmBinaryError,
-    "blocks with inputs are not supported",
+    "loops with inputs are not supported",
   );
 });
 

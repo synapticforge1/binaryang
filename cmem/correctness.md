@@ -170,10 +170,34 @@ type-section entry (`writeI32`, not `writeU32` — the same `s33` trap as `write
 `collectCallIndirectTypes` was generalized to `collectExprTypes` so one walk registers both
 `call_indirect` signatures and block headers.
 
-**Blocks with inputs (p ≥ 1) remain a loud rejection, by name.** `BlockExpr` cannot model consuming
-values from the enclosing operand stack, so accepting one would silently drop its parameters. That
-is an IR-shape change, not plumbing. `lit/control-flow-input.wast.wasm` — upstream's own block-input
-test — is still the only corpus file that needs it.
+### Block and `if` inputs shipped; LOOP inputs deliberately still rejected
+
+`BlockExpr` has no parameter list, but it does not need one. A parametrised block's entry values are
+spilled into fresh locals **before** the construct (a `local.set` appended to the enclosing frame),
+and the body is seeded with `local.get`s. Semantically identical — entering a block has no
+observable effect — and the temporaries are ordinary locals, so `SimplifyLocals` / `CoalesceLocals`
+fold most of them back out.
+
+For `if` this is not merely convenient, it is _required_: **both arms** start with the parameters on
+their stack. Relocating the value expressions into the body would duplicate them into both arms and
+evaluate them twice. Evaluating once into a local and re-seeding each arm (`frame.paramSeed`) is the
+only correct shape.
+
+**Loops with inputs stay rejected, and the reason is sharper than "not implemented":**
+
+1. A loop's parameters are re-supplied by every **back-edge** branch, not just on entry, so a
+   one-time spill is not enough — each `br` to the loop would also have to write the temps before
+   jumping.
+2. Worse, a **`br_if` to a param-taking loop leaves its values ON THE STACK when the branch is not
+   taken.** An unconditional `local.set` before the branch would strip them from the fall-through
+   path — a silent wrong-value miscompile of exactly the class this pipeline exists to prevent.
+   Partial support here would be worse than none.
+
+`try` / `try_table` with inputs are rejected the same way (`rejectBlockParams`).
+
+`lit/control-flow-input.wast.wasm` now decodes past its block and `if` inputs and stops on a loop
+input — so it remains the one corpus file rejected on this feature, but for a materially narrower
+reason than before.
 
 ### UP-6 / UP-4 / UP-3 (fixed, Tier 2)
 
