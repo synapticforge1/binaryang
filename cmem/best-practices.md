@@ -57,6 +57,7 @@ code
 
 - Run the whole panel, not the metric you are moving
 - Where you put the probe changes the number, so say where it is
+- An "enable everything" switch can make an engine refuse everything
 - A metric can be precise, stable, and measuring almost nothing
 - Re-measure a diagnosis before acting on it, even your own
 - A fail-loud path is only as useful as what it prints
@@ -915,4 +916,30 @@ absence**, and prefer `git show origin/main:<path>` over the working tree when
 the question is "does this exist upstream".
 
 A negative result from a grep is only as current as `git log -1`.
+
+## An "enable everything" switch can make an engine refuse everything
+
+The rule "a default-off feature is not a spec opinion, so turn the proposals on"
+is right, and the file that records it also records the trap: `-W
+all-proposals=y` pulls in `stack-switching`, which a stock Windows Wasmtime
+cannot compile, and then every module fails for a reason that has nothing to do
+with the module. **I hit the identical trap on Wasmer the moment I applied the
+rule to it.**
+
+`wasmer validate --enable-all` rejects `(module (memory 1) (func))`. Bisecting
+the individual switches, `--enable-tail-call`, `--enable-multi-memory` and
+`--enable-memory64` each do it alone: they are accepted as flags and implemented
+by no backend, so turning one on makes the ENGINE unsupported. The error is
+worded as a module-level validation failure, so a 272-file corpus reads 0/272
+and looks exactly like a catastrophic bug in the thing being measured.
+
+Two rules, and the second is the one that saved it:
+
+- **Enable proposals by explicit list, never with the blanket flag** — for every
+  engine, not just the one where you already learned it.
+- **Self-test the harness on a module that MUST pass.** A configuration failure
+  and a module rejection are indistinguishable from the outside. This one was
+  caught only because the corpus number was 0 and a trivial module was to hand;
+  `engine-check` already refuses to report if an engine fails to reject a
+  known-invalid module, and it needs the same guard in the accept direction.
 

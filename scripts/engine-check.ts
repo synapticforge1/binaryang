@@ -57,6 +57,24 @@ const WASMTIME_FEATURES = [
   'wide-arithmetic=y',
 ].join(',');
 
+/**
+ * Wasmer's proposal switches, minus the three that break the engine.
+ *
+ * 7.2.1 has no `--enable-gc` and no `--enable-custom-page-sizes`, so those two
+ * stay gated and Wasmer simply cannot speak to them.
+ */
+const WASMER_FEATURES = [
+  '--enable-simd',
+  '--enable-threads',
+  '--enable-reference-types',
+  '--enable-multi-value',
+  '--enable-bulk-memory',
+  '--enable-exceptions',
+  '--enable-relaxed-simd',
+  '--enable-extended-const',
+  '--wide-arithmetic',
+];
+
 /** One engine's verdict on one module. */
 interface Verdict {
   accepted: boolean;
@@ -112,19 +130,24 @@ const wasmtime: Engine = async (_wasm, path, scratch) => {
 
 const wasmer: Engine = async (_wasm, path) => {
   const cmd = new Deno.Command('wasmer', {
-    // `--enable-all`, for the same reason Wasmtime gets an explicit proposal
-    // list: a DEFAULT-OFF feature is not a spec opinion. Wasmer was the only
-    // engine here run with its defaults, so its verdicts were a mix of real
-    // rejections and gates — the trap this file was written to avoid, left in
-    // the file itself.
+    // An EXPLICIT list, for exactly the reason Wasmtime gets one — and the
+    // first attempt here was `--enable-all`, which is the same mistake this
+    // file's own header warns about, made a second time.
     //
-    // It does not have a per-proposal switch for everything (7.2.1 has no
-    // `--enable-gc` or `--enable-custom-page-sizes`), so the blanket flag is
-    // the only lever. Note what it does NOT buy: with the proposal parsed,
-    // a byte-paged memory then fails with "No backends support the required
-    // features", i.e. Wasmer's COMPILERS do not implement it. A gate and a gap
-    // read differently once the gate is open, which is the point of opening it.
-    args: ['validate', '--enable-all', path],
+    // `--enable-all` makes Wasmer 7.2.1 refuse EVERY module, including
+    // `(module (memory 1) (func))`, with "No backends support the required
+    // features". Bisecting the individual switches, three of them do that on
+    // their own: `--enable-tail-call`, `--enable-multi-memory` and
+    // `--enable-memory64` are accepted as flags and implemented by NO backend,
+    // so turning one on makes the ENGINE unsupported regardless of the input.
+    // The failure is indistinguishable from a module-level rejection, which is
+    // what makes it dangerous: a whole corpus reads as 0 / 272 and looks like
+    // our bug.
+    //
+    // So: open the gates Wasmer can actually open, and leave those three shut.
+    // A rejection from them is then a real GAP in Wasmer rather than a gate we
+    // failed to lift, which is the distinction the whole file exists to draw.
+    args: ['validate', ...WASMER_FEATURES, path],
     stdout: 'piped',
     stderr: 'piped',
   });

@@ -1126,6 +1126,78 @@ reaches is not covered by a corpus-shaped test, however many of them pass.**
 Regression: `tests/parser/custom_page_sizes.test.ts` (15 steps, all 4 groups
 fail pre-fix).
 
+### Will a wasic WASI program LOAD on every runtime here? — 2026-08-24
+
+wasmtk pulls our revised version and runs its own suite; what they need from us
+is to be in sync on what actually loads. So: all 272 frozen-snapshot corpus
+files, compiled by us, put to every runtime installed on this machine.
+
+| runtime | loads | what fails |
+| --- | --- | --- |
+| V8 (Deno / Node 24.19) | **265 / 272** | the 7 `KNOWN_INVALID` snapshot files |
+| Bun 1.3.14 (JavaScriptCore) | **265 / 272** | the same 7 |
+| Wasmtime 47.0.3 | **259 / 272** | those 7 + the 6 legacy-EH |
+| Wasmer 7.2.1 | **259 / 272** | **exactly the same 13** |
+| wazero 1.12.0 | **251 / 272** | those 13 + 8 more |
+
+Encode is 272 / 272 — nothing here is a wabt-ts defect. The two groups:
+
+- **The 7** are the `KNOWN_INVALID` files, which are stale snapshot bytes fixed
+  upstream in current wasic (see PROVENANCE). Every engine agrees they are bad.
+- **The 6 legacy-EH** are the ones already reported and queued for migration to
+  `try_table`. **Wasmer independently reproduces Wasmtime's verdict, file for
+  file** — `legacy_exceptions feature required for try instruction`, the same
+  six — which is the strongest confirmation yet that this is the real blocker
+  and not a Wasmtime quirk.
+
+**The migration will NOT buy wazero compatibility, and that is worth knowing
+before it is done.** wazero's extra 8 —
+`13_SecureMatrixManagerIntegration`, `15_panic`, `15_Trap-On-Error`,
+`46_BasicEscapeSeqs`, `46_HexUnicodeEscapes`, `46_Phase46Combined`,
+`46_TemplateEscapes`, `6b_testing-and-benchmarking` — all fail with *"tag
+section not supported as feature exception-handling is disabled"*. wazero's CLI
+refuses **any module carrying a tag section**, legacy or standard, so moving to
+`try_table` changes nothing there. Its Go API has feature toggles the CLI does
+not expose; a wazero-hosted wasic program needs either the embedding API or no
+EH at all.
+
+### A latent coupling to a WAT spelling we do not produce
+
+wasmtk's Go-leaf 2-page floor is a regex,
+`\(memory\s+\(export\s+"memory"\)\s+(\d+)\)`. **Our WAT writer never emits
+text that matches it.** We always write the index comment first —
+`(memory (;0;) 2)`, or `(memory (;0;) (export "memory") 1)` when the export is
+inlined — so `\(memory\s+\(export` cannot match either spelling.
+
+It works today because `watBase` is wasic's OWN generated text
+(`wasic.ts:19996` writes the inline form directly), not something that has been
+through `readWasm → toText`. But `wasmbundle.ts:197–198` does exactly that round
+trip for merged leaf WAT, and the T10.1 work made our inline-export decision
+CONDITIONAL — so the spelling is now a property of the module, not a constant.
+If that text ever reaches the floor, the floor silently does not apply and the
+TinyGo init flag at byte 65536 lands out of bounds. Worth pinning with a test on
+their side, or matching both spellings.
+
+### `/compat` re-verified against wasmtk's CURRENT call sites
+
+Replayed from `origin/main`: `parseWat(path, wat, {enable_all:true})`
+(`utils.ts`), `{enable_all:true, exceptions:true}` (`wasic.ts`),
+**`{exceptions:true}` alone** (`wasmbundle.ts:372`), `readWasm(bytes,
+{readDebugNames:true})` → `toText({foldExprs:false, inlineExport:false})`
+(`wasmbundle.ts:197`), and `wast.ts`'s reparse. All produce identical bytes;
+`inlineExport:false` is honoured; page counts survive the round trip.
+
+The partial-features call is safe because **`parseWat` ignores the features bag
+entirely** (`_features`) — the parser does not gate on proposals, so a caller
+passing only `{exceptions:true}` gets the same result as `enable_all`. Worth
+stating plainly since our own `defaultFeatures()` has GC, memory64,
+multi-memory, threads and tail calls OFF and the mismatch looks alarming until
+you read the facade.
+
+**Neither T13.3 nor T13.4 is visible through `/compat`** — it exposes `wabt()`,
+`WabtModule`, `WasmModule`, `Features` and the option types, and no `Limits` or
+IR. The `^1.3.5` range they pin accepts the release.
+
 ### Cross-engine support for what we emit — measured 2026-08-24
 
 Prompted by "can the page-size shapes be made compatible with Wasmer and V8?".

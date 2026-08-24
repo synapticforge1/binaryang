@@ -583,12 +583,16 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **A TABLE has no page size, and the flag bit is rejected on one rather than ignored (T13.4).**
   Whether the bit is legal is a property of the POSITION, so `readLimits` takes a parameter: after
   the fact an explicit log2 of 16 is indistinguishable from no flag at all.
-- **`engine-check` must give EVERY engine its proposal flags, Wasmer included.** Wasmtime got an
-  explicit list and Wasmer got nothing, so the engine kept for divergence was the only one on
-  defaults and its verdicts mixed real rejections with gates — the trap the script's own header
-  warns about. It takes `--enable-all` (7.2.1 has no per-proposal switch for gc or custom page
-  sizes) and reads its cause from the `╰─▶` continuation line, not the "failed to validate <path>"
-  heading.
+- **`engine-check` must give EVERY engine its proposal flags — an EXPLICIT list, never the blanket
+  one.** Wasmtime got a list and Wasmer got nothing, so the engine kept for divergence was the only
+  one on defaults. The first fix used `--enable-all`, which is the same trap the script's header
+  already warns about for `-W all-proposals=y`, made a second time: it makes Wasmer 7.2.1 refuse
+  EVERY module, `(module (memory 1) (func))` included, with "No backends support the required
+  features". Bisected, three switches do that alone — `--enable-tail-call`, `--enable-multi-memory`
+  and `--enable-memory64` are accepted as flags and implemented by NO backend, so one of them makes
+  the ENGINE unsupported regardless of input, and a whole corpus reads 0/272 as if it were our bug.
+  The list now opens only the gates Wasmer can open, and its cause is read from the `╰─▶`
+  continuation line rather than the "failed to validate <path>" heading.
 - **Only Wasmtime implements custom page sizes** (measured 2026-08-24). V8 has no flag,
   Bun/JSC and wazero reject the limits byte, and Wasmer parses it with `--enable-all` and then says
   "No backends support the required features". A byte-paged memory is a different memory TYPE, so
