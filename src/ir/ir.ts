@@ -1379,7 +1379,24 @@ export interface Limits {
   max?: bigint;
   isShared: boolean;
   is64: boolean;
-  pageSize?: number; // custom-page-sizes proposal (default 65536)
+  /**
+   * log2 of the memory's PAGE SIZE (custom-page-sizes proposal); omitted means
+   * the standard 16, i.e. 64 KiB.
+   *
+   * The LOG2, because that is what the wire field holds. It was `pageSize`,
+   * documented as bytes, while the reader and writer both passed the raw wire
+   * value through — so a decoded 64 KiB memory carried `pageSize = 16` and the
+   * WAT writer printed `(pagesize 16)`.
+   *
+   * Only 0 and 16 are legal — the proposal admits page sizes 1 and 65536 and
+   * NOTHING between. That is the trap: the field is already a log2, so every
+   * value looks like a power of two, and a "is it a power of two" check accepts
+   * fourteen sizes the spec rejects. `validateModule` owns that rule.
+   *
+   * A TABLE has no page size, and the binary reader rejects the flag bit on one
+   * rather than ignoring it.
+   */
+  pageSizeLog2?: number;
 }
 
 /** A function defined (or imported) in the module. */

@@ -1458,9 +1458,11 @@ class WatWriter extends ModuleContext {
     this.writef(`${lim.initial}`);
     if (lim.max !== undefined) this.writef(`${lim.max}`);
     if (lim.isShared) this.writef('shared');
-    if (lim.pageSize !== undefined && lim.pageSize !== 65536) {
+    // `(pagesize N)` trails the limits, AFTER `shared`, and N is the size in
+    // BYTES while the IR holds its log2.
+    if (lim.pageSizeLog2 !== undefined) {
       this.openSpace('pagesize');
-      this.writef(`${lim.pageSize}`);
+      this.writef(`${2 ** lim.pageSizeLog2}`);
       this.closeSpace();
     }
   }

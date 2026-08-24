@@ -1666,6 +1666,36 @@ export class WastParser {
       if (maxN !== null) max = maxN;
     }
     const shared = this.match(TokenType.Shared);
+    // `(pagesize N)` trails the limits, AFTER `shared`. The keyword had a lexer
+    // entry and `Limits` had a field, but nothing parsed it — so
+    // `(memory 1 (pagesize 1))` failed with "expected ), got (".
+    //
+    // N is the size in BYTES and the IR holds its LOG2, so a value with no log2
+    // — anything that is not a power of two — cannot be encoded at all and is
+    // MALFORMED here. Whether an encodable size is a LEGAL one (only 1 and
+    // 65536 are) is the validator's call: `(pagesize 3)` is bad text, while
+    // `(pagesize 2)` is a well-formed module that is invalid. Answering both
+    // here would answer one of them for the wrong reason.
+    let pageSizeLog2: number | undefined;
+    if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.PageSize) {
+      const psLoc = this.loc();
+      this.drop();
+      this.drop();
+      const n = this.peek() === TokenType.Nat || this.peek() === TokenType.Int
+        ? parseNatText((this.consume() as LiteralToken).literal.text)
+        : null;
+      if (n === null || n <= 0n || (n & (n - 1n)) !== 0n) {
+        this.error(psLoc, `page size must be a power of two: ${n ?? '?'}`);
+      } else {
+        pageSizeLog2 = n.toString(2).length - 1;
+      }
+      this.expect(TokenType.Rpar);
+    }
+    if (pageSizeLog2 !== undefined) {
+      return max !== undefined
+        ? { initial, max, isShared: shared, is64, pageSizeLog2 }
+        : { initial, isShared: shared, is64, pageSizeLog2 };
+    }
     return max !== undefined
       ? { initial, max, isShared: shared, is64 }
       : { initial, isShared: shared, is64 };

@@ -53,13 +53,18 @@ WASI-targeting output from the [wasmtk](https://github.com/jrmarcum/wasmtk) comp
 
 ## Breaking change since v1.3.5
 
-`Limits.initial` and `Limits.max` are **`bigint`**, not `number`.
+`Limits.initial` and `Limits.max` are **`bigint`**, not `number`, and
+`Limits.pageSize` is now **`Limits.pageSizeLog2`**.
 
 The fields are u64 for a 64-bit memory or table, and a JS number is exact only to 2^53 — so
 `(table i64 0 0xffff_ffff_ffff_ffff funcref)`, which the spec calls valid, was silently rounded and
 could not be encoded. A consumer that reads them as numbers gets a compile error at the site that
 has to handle the wider range; convert with `Number(...)` at your own boundary if you know the
 value fits.
+
+`pageSizeLog2` holds what the wire field holds — the exponent — where `pageSize` was documented as
+bytes but carried the raw value, so a decoded 64 KiB memory read as `pageSize = 16`. Omitted means
+the standard 64 KiB page.
 
 ## Runtime compatibility
 

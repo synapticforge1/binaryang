@@ -85,6 +85,7 @@ reference these ids.
 | T13.1 | The parser now reports an out-of-scope branch target | done — quoted **1229 / 1229** at the parser too |
 | T13.2 | The last 19 `assert_invalid` modules — 16 were the ENCODER repairing them | done — **2683 / 2683**; the metric is CLOSED |
 | T13.3 | `Limits.initial` / `max` are `bigint` — a 64-bit limit could not be REPRESENTED | done — V8-valid 2118 → **2119**, agreement and round-trip likewise; **breaking API change** |
+| T13.4 | Custom page sizes, wired end to end — the proposal was half-built and semantically wrong | done — no metric covers it; design taken from wazmrt |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -1062,6 +1063,68 @@ symbol**, not just when publishing.
 syntax for it — `(memory 1 (pagesize 1))` fails with "expected ), got (". No
 metric covers it because the proposal is not in this testsuite snapshot. Found
 while writing the T13.3 test; recorded, not fixed.
+
+**T13.4 — custom page sizes, end to end (2026-08-24). Modelled on wazmrt.**
+
+T13.3's test found `(memory 1 (pagesize 1))` failing to parse, and looking at
+it properly turned up a proposal that was HALF-BUILT and semantically wrong
+throughout — `customPageSizes` in `feature.ts`, `Limits.pageSize` in the IR,
+the flag bit handled in both the reader and the writer, and not one rule
+enforced anywhere:
+
+- **The field's meaning disagreed with itself.** `pageSize` was documented as
+  BYTES while the reader and writer passed the raw wire value through, and the
+  wire field is the **LOG2**. A decoded 64 KiB memory therefore carried 16, and
+  the WAT writer printed `(pagesize 16)`. Now `pageSizeLog2`, which cannot be
+  read the wrong way.
+- **The parser had no syntax at all.**
+- **Nothing validated the size.** The proposal admits exactly 1 and 65536 —
+  **not every power of two**, and that is the trap: the field is already a
+  log2, so every value looks like a power of two by construction and a
+  power-of-two test accepts the fourteen sizes between.
+- **The memory ceiling was the constant 65536**, i.e. 2^32/65536 with the
+  division already done — right only for the standard page size. With 1-byte
+  pages a 32-bit memory may legitimately declare 2^32-1 pages, and the constant
+  rejected the proposal's own valid modules. The ceiling is
+  `2^addr_bits / pageSize`.
+- **The reader accepted the flag bit on a TABLE**, which has no page size.
+  Whether the bit is legal is a property of the POSITION, not of the value —
+  after the fact an explicit log2 of 16 is indistinguishable from no flag.
+
+**What wazmrt is worth reading for.** It shipped this in 2026-08 and runs the
+four spec files clean, and its notes carry the two facts that cost it the most:
+the not-every-power-of-two trap above, and what happens when a trailing
+`(pagesize …)` is silently DROPPED — the module builds, runs, and answers a
+`memory.grow` wrong, because the memory was never the one the text asked for.
+That is 18 assertions in `custom-page-sizes-invalid.wast` and the same
+"assembled a module the source did not write" class this campaign keeps
+finding. Its conformance ledger also records that the item was carried as "2
+assertions" and was worth **69 skips** — a module the assembler cannot build
+sends every assertion targeting it into NoTarget. **Size an item by assertions
+UNBLOCKED, not by failures closed.**
+
+**Two rules are ours rather than theirs.** The layer split — a non-power-of-two
+has no log2 and is MALFORMED at parse, while an encodable-but-illegal
+`(pagesize 2)` is a well-formed module that is INVALID — follows T12.3, and the
+spec suite asserts both with different expectations. And the flag is keyed on
+**PRESENCE**, not on `!== 16`: wazmrt collapses an explicit `pagesize 65536`
+into the default, which a runtime can afford because the memory type is
+identical, but it changes the bytes and round-trip fidelity is a metric here.
+**Wasmtime accepts the explicit encoding**, so preserving it is not merely
+conservative.
+
+**The panel:** Wasmtime (authority) accepts all three shapes we emit,
+`(pagesize 1)`, an explicit `(pagesize 65536)`, and one after `shared`. V8
+rejects them with "invalid memory limits flags 0x8" and Wasmer with "the custom
+page sizes proposal must be enabled" — both proposal gates, neither a ruling.
+
+**No metric moved, and none could:** the proposal is not in our 257-file
+testsuite snapshot (wazmrt's checkout has 284 files). That is exactly why this
+sat half-built through a whole conformance campaign — **a feature no corpus
+reaches is not covered by a corpus-shaped test, however many of them pass.**
+
+Regression: `tests/parser/custom_page_sizes.test.ts` (15 steps, all 4 groups
+fail pre-fix).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

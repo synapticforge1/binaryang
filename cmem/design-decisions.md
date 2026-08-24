@@ -570,7 +570,20 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `STRICT_NAME_DECODER` into `src/core/literal.ts` made it public API without an explicit type,
   which is a slow-types error; 339 passing tests and three full metric runs never saw it. Run the
   dry-run whenever a change adds or moves an EXPORTED symbol.
-- **NOT SUPPORTED: custom page sizes.** `pagesize` has a lexer keyword and `Limits.pageSize` exists
-  in the IR, reader and writer, but the parser has no syntax for it — `(memory 1 (pagesize 1))`
-  fails with "expected ), got (". No metric covers it; the proposal is not in this testsuite
-  snapshot.
+- **Custom page sizes: `Limits.pageSizeLog2`, and only 1 and 65536 are legal (T13.4).** The wire
+  field is the LOG2, so the IR holds the log2 — the old `pageSize` was documented as bytes while
+  the reader and writer passed the raw value through, and the WAT writer printed `(pagesize 16)`
+  for a standard memory. **The legal set is {0, 16}, NOT every power of two**: the field is already
+  a log2, so a power-of-two test accepts the fourteen sizes between. A non-power-of-two has no log2
+  and is MALFORMED at parse; an encodable-but-illegal one is INVALID at validation.
+- **A memory's page ceiling is `2^addr_bits / pageSize`, not a constant (T13.4).** It was 65536 —
+  the quotient for 64 KiB pages, with the division already done — so a 32-bit memory with 1-byte
+  pages could not declare more than 65536 of them. Saturate for the 64-bit/1-byte case, where every
+  u64 page count fits.
+- **A TABLE has no page size, and the flag bit is rejected on one rather than ignored (T13.4).**
+  Whether the bit is legal is a property of the POSITION, so `readLimits` takes a parameter: after
+  the fact an explicit log2 of 16 is indistinguishable from no flag at all.
+- **The page-size flag is written on PRESENCE, not on `!== 16` (T13.4).** An explicitly encoded
+  `pagesize 65536` must come back out as one — Wasmtime accepts it, and collapsing it into the
+  default changes the bytes. A runtime can afford that collapse; a format tool with a round-trip
+  metric cannot.

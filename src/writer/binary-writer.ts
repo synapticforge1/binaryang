@@ -351,20 +351,20 @@ function u32Limit(v: bigint): number {
 
 function writeLimits(
   s: MemoryStream,
-  lim: { initial: bigint; max?: bigint; isShared: boolean; is64: boolean; pageSize?: number },
+  lim: { initial: bigint; max?: bigint; isShared: boolean; is64: boolean; pageSizeLog2?: number },
 ): void {
   let flags = 0;
   if (lim.max !== undefined) flags |= LIMITS_HAS_MAX_FLAG;
   if (lim.isShared) flags |= LIMITS_IS_SHARED_FLAG;
   if (lim.is64) flags |= LIMITS_IS_64_FLAG;
-  if (lim.pageSize !== undefined && lim.pageSize !== 65536) {
-    flags |= LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG;
-  }
+  // PRESENCE, not `!== 16`: the flag bit is observable, and an explicitly
+  // encoded `pagesize 65536` must come back out as one. Collapsing it into the
+  // default is what a runtime can afford — the memory type is identical — but
+  // it changes the bytes, and round-trip fidelity is a metric here. (The old
+  // test was `!== 65536`, comparing a log2 against a byte count, so it was true
+  // for every decoded memory.)
+  if (lim.pageSizeLog2 !== undefined) flags |= LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG;
   s.writeU32Leb(flags);
-  // A 64-bit memory's limits are u64 on the wire, not u32. Writing them as u32
-  // truncated any size above 2^32 -- `(memory i64 0x1_0000_0000_0001)` went
-  // out as `(memory i64 1)`, so the validator's 2^48 page bound never saw the
-  // value it was there to reject.
   // The field's WIDTH follows the index type: u64 for a 64-bit memory or
   // table, u32 for a 32-bit one. Writing a 64-bit limit as u32 truncated every
   // size above 2^32, so the validator's page bound never saw the value it
@@ -378,8 +378,9 @@ function writeLimits(
     s.writeU32Leb(u32Limit(lim.initial));
     if (lim.max !== undefined) s.writeU32Leb(u32Limit(lim.max));
   }
-  if ((flags & LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG) !== 0 && lim.pageSize !== undefined) {
-    s.writeU32Leb(lim.pageSize);
+  // Trails min/max, and carries the LOG2 — the wire field is the exponent.
+  if ((flags & LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG) !== 0 && lim.pageSizeLog2 !== undefined) {
+    s.writeU32Leb(lim.pageSizeLog2);
   }
 }
 

@@ -567,7 +567,14 @@ export class BinaryReader {
     return blockTypeFuncType(v);
   }
 
-  private readLimits(): Limits {
+  /**
+   * `allowPageSize` says whether the custom-page-sizes flag bit is legal here:
+   * true for a memory, false for a TABLE, which is counted in elements and has
+   * no page size. It is a parameter rather than a check on the decoded value
+   * because those are different questions — a table carrying the bit is
+   * malformed however plausible the value after it looks.
+   */
+  private readLimits(allowPageSize = true): Limits {
     const flags = this.readU8();
     // Only four flag bits are defined (max / shared / 64-bit / custom page
     // size). Masking each one out individually meant an undefined bit was
@@ -584,7 +591,26 @@ export class BinaryReader {
     const max = hasMax ? readSize() : undefined;
     const limits: Limits = { initial, isShared, is64 };
     if (max !== undefined) limits.max = max;
-    if (hasCustomPageSize) limits.pageSize = this.readU32Leb();
+    // ORDER: the page-size field TRAILS min/max, so it is read last — reading
+    // it with the flag byte would mis-frame every following field. The VALUE is
+    // not checked here; `validateModule` owns "is this a legal page size", so a
+    // bad one is an invalid module with a named error rather than a decode
+    // failure.
+    if (hasCustomPageSize) {
+      if (!allowPageSize) {
+        this.err('malformed limits flags: a table has no page size');
+        return limits;
+      }
+      const v = this.readU32Leb();
+      // Bound only what the field must HOLD; legality (0 or 16) is the
+      // validator's call. Unbounded, a log2 of 2^31 reached the WAT writer's
+      // `2 ** log2` and printed `(pagesize Infinity)`.
+      if (v > 64) {
+        this.err(`invalid page size: 2^${v}`);
+        return limits;
+      }
+      limits.pageSizeLog2 = v;
+    }
     return limits;
   }
 
@@ -744,7 +770,7 @@ export class BinaryReader {
         }
         case ExternalKind.Table: {
           const elemType = this.readRefType();
-          const limits = this.readLimits();
+          const limits = this.readLimits(false);
           const table: Table = { name: '', loc, elemType, limits, init: [] };
           m.imports.push({ kind: ExternalKind.Table, module: module_, field, table });
           m.numTableImports++;
@@ -821,12 +847,12 @@ export class BinaryReader {
         this.readU8(); // 0x40 tag
         this.readU8(); // reserved 0x00
         const elemType = this.readRefType();
-        const limits = this.readLimits();
+        const limits = this.readLimits(false);
         const init = this.readInitExpr(m);
         m.tables.push({ name: '', loc, elemType, limits, init });
       } else {
         const elemType = this.readRefType();
-        const limits = this.readLimits();
+        const limits = this.readLimits(false);
         m.tables.push({ name: '', loc, elemType, limits, init: [] });
       }
     }

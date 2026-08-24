@@ -147,6 +147,10 @@ project contract.
 - `tests/parser/label_scope.test.ts` — T13.1: out-of-scope branch targets, every legal
   spelling, and the two scopes that are NOT the enclosing block (a `try_table` catch target
   and a legacy `try` delegate).
+- `tests/parser/custom_page_sizes.test.ts` — T13.4: the `(pagesize N)` syntax, the log2 wire
+  encoding and its position, the malformed/invalid split, the page-size-scaled ceiling, the
+  feature gate, and the flag bit being illegal on a table. **No conformance metric reaches
+  this** — the proposal is not in the testsuite snapshot, which is why it sat half-built.
 - `tests/ir/limits_bigint.test.ts` — T13.3: a 64-bit limit surviving at full width through
   parse, encode, decode and print; the bounds that still apply; and a maximum of zero.
 - `tests/writer/no_repair.test.ts` — T13.2: limits that must not be truncated, the table

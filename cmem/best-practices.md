@@ -62,8 +62,10 @@ code
 - A fail-loud path is only as useful as what it prints
 - When you name an alternative, check whether it refutes your own diagnosis
 
-**Working with sibling projects** (wasmtk, binaryen-ts)
+**Working with sibling projects** (wasmtk, binaryen-ts, wazmrt)
 
+- Read the sibling project before designing the same feature twice
+- A half-built feature is worse than a missing one, and no corpus will tell you
 - Stamp a vendored snapshot with source + date, in the change that creates it
 - Verify an incoming report's premises, not just its conclusion
 - Review someone else's codebase with the metric you built for your own
@@ -863,4 +865,37 @@ functions only, so it rejected every module with a function import.
 This is now the fourth time in the campaign that the metric which caught a
 regression was not the one the work was aimed at. The panel takes minutes; a
 check written in the wrong index space looks exactly like a correct one.
+
+## A half-built feature is worse than a missing one, and no corpus will tell you
+
+Custom page sizes had a feature flag, an IR field, a lexer keyword, and reader
+and writer code — and no parser syntax, no validation, and a field whose
+documented meaning (bytes) disagreed with what every writer of it stored (a
+log2). Seven conformance metrics ran clean over it for an entire campaign,
+because the proposal is not in the testsuite snapshot.
+
+**A feature no corpus reaches is not covered by a corpus-shaped test, however
+many of them pass.** The tell is a feature flag with no test that turns it on,
+or an IR field no parser can produce. Grep for both.
+
+The related sizing rule, from wazmrt's conformance ledger: it carried this item
+as "2 assertions" and it was worth **69 skips**, because a module the assembler
+cannot build sends every assertion targeting it into NoTarget. **Size an item
+by assertions UNBLOCKED, not by failures closed** — the failure column
+undercounted it 35x.
+
+## Read the sibling project before designing the same feature twice
+
+wazmrt (the Zig runtime) had shipped custom page sizes and left its reasoning
+in the code: the not-every-power-of-two trap, the ceiling that must divide by
+the page size, the flag bit that is a property of the POSITION rather than the
+value, and what a silently-dropped `(pagesize …)` costs at run time. Reading it
+first turned a design question into a review, and produced two places where our
+answer should DIFFER — the malformed/invalid layer split, and preserving an
+explicit `pagesize 65536` because round-trip fidelity is a metric here and not
+there.
+
+**Take the rules; re-derive the choices that depend on what the project IS.**
+A runtime and a format tool are allowed different answers about what may be
+canonicalised away.
 

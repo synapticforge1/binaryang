@@ -472,11 +472,35 @@ export class SharedValidator {
     if (this.memories.length > 0 && !this.features.multiMemory) {
       r = combineResults(r, this.printError(loc, 'only one memory block allowed'));
     }
-    // The page LIMIT, not the representable range: a 32-bit memory tops out
-    // at 65536 pages (4 GiB) and memory64 at 2^48. Using the full integer
-    // range here accepted `(memory 65537)`, which the spec and every engine
-    // reject.
-    const absMax = limits.is64 ? (1n << 48n) : 65536n;
+    // Page size (custom-page-sizes): exactly 1 or 65536 — log2 of 0 or 16 —
+    // and NOTHING between. The field is already a log2, so every value looks
+    // like a power of two by construction; a power-of-two test here would
+    // accept the fourteen sizes the spec rejects. Checked before the ceiling
+    // below, which divides by it.
+    const psLog2 = limits.pageSizeLog2 ?? 16;
+    if (psLog2 !== 0 && psLog2 !== 16) {
+      r = combineResults(
+        r,
+        this.printError(loc, `invalid page size: 2^${psLog2}, must be 1 or 65536`),
+      );
+    } else if (limits.pageSizeLog2 !== undefined && !this.features.customPageSizes) {
+      // Gated on PRESENCE: both the `(pagesize N)` syntax and the flag bit come
+      // from the proposal, so an explicit `pagesize 65536` needs it too even
+      // though it names the standard size.
+      r = combineResults(r, this.printError(loc, 'custom page sizes not allowed'));
+    }
+    // The page LIMIT, not the representable range: a memory's BYTE size has to
+    // fit its index space, so the ceiling is 2^32 / pageSize for a 32-bit
+    // memory and 2^64 / pageSize for a 64-bit one. It used to be the constant
+    // 65536 (= 2^32 / 65536) with the division already done, which is right
+    // only for the standard page size: with 1-byte pages a 32-bit memory may
+    // legitimately declare 2^32 PAGES, and the constant rejected the
+    // proposal's own valid modules.
+    const shift = (limits.is64 ? 64 : 32) - (psLog2 === 0 || psLog2 === 16 ? psLog2 : 16);
+    // A 64-bit memory with 1-byte pages wants a ceiling of 2^64, which is
+    // every u64 — express it as the maximum rather than shifting past the
+    // width.
+    const absMax = shift >= 64 ? (1n << 64n) - 1n : 1n << BigInt(shift);
     r = combineResults(r, this.checkLimits64(loc, limits, absMax, 'pages'));
     // `!limits.max` also fired on a max of ZERO, so `(memory 0 0 shared)` was
     // reported as having no maximum at all.
