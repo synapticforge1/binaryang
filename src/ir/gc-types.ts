@@ -210,7 +210,15 @@ export function isRefType(t: unknown): t is RefType {
 }
 
 /**
- * Returns `true` if the heap type is an abstract built-in (string).
+ * Returns `true` if the heap type is an abstract built-in rather than a
+ * user-defined type index.
+ *
+ * This is the public discriminator for the exported {@link HeapType} union
+ * (`number | AbstractHeapType`): without it a consumer holding a `HeapType`
+ * would have to test `typeof h === "string"` and reach into the
+ * representation. Completes the guard set with {@link isRefType} and
+ * {@link isPackedType}. Unused inside this package by design — it exists for
+ * callers of the `./ir` entry point, such as the wabt-ts IR bridge.
  */
 export function isAbstractHeapType(h: HeapType): h is AbstractHeapType {
   return typeof h === "string";

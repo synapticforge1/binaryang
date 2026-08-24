@@ -412,11 +412,25 @@ export function setDebugInfo(b: boolean): void {
 export function getDebugInfo(): boolean {
   return _debugInfo;
 }
-/** Sets whether the low memory region (below 1KB) is considered unused. */
+/**
+ * Records whether the low memory region (below 1KB) may be treated as unused.
+ *
+ * **Informational only — nothing in this pipeline reads it.** Upstream uses the
+ * flag to let a few optimizations assume low addresses are free; binaryen-ts
+ * has no pass that consults it, so setting it changes no output. It exists so
+ * a call site migrating from `npm:binaryen` keeps compiling, on the same
+ * footing as {@link Module.setFeatures} — surfaced for API parity, not
+ * enforcement. Do not read a behaviour change into a `true` here.
+ */
 export function setLowMemoryUnused(b: boolean): void {
   _lowMemoryUnused = b;
 }
-/** Returns whether the low memory region is considered unused. */
+/**
+ * Returns the flag last given to {@link setLowMemoryUnused}.
+ *
+ * Reports what was set, not anything the optimizer acted on — see that
+ * function's note.
+ */
 export function getLowMemoryUnused(): boolean {
   return _lowMemoryUnused;
 }

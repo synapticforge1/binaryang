@@ -152,3 +152,16 @@ portable memory (this folder) — the shared source of truth that supersedes the
 `CLAUDE.md`. `README.md` is the only other durable git-tracked project-knowledge file (public,
 user-facing). Routing rule: **if a teammate would need to see it, it goes in `README.md`; if it's
 curated internal project memory, it goes in `cmem/`.**
+
+## Next release is 1.5.0, not 1.4.4 (owner decision, 2026-08-24)
+
+`deno task bump` follows the sub-version-capped-at-9 rule and would produce **1.4.4** from 1.4.3.
+The post-multi-value sweep removed four dead exports (`assertList`, `isAtom`, `parseWast`,
+`materializeFakeGlobals`), and removing exported symbols is a breaking change regardless of whether
+anything actually imported them — so set the version to **1.5.0 by hand** rather than running
+`bump`, which has no minor-bump mode.
+
+Reminder on the trigger: pushing a `deno.json` version with no matching tag makes `auto-tag.yml`
+create the tag and dispatch `publish.yml`, which publishes to JSR — irreversibly, since a version
+number cannot be reused. While `deno.json` stays at a version whose tag already exists on the
+remote, no push can publish.

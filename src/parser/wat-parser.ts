@@ -139,7 +139,6 @@ import {
   atomString,
   atomText,
   buildSExpr,
-  buildSExprList,
   isListWith,
   listChildren,
   listFrom,
@@ -183,25 +182,6 @@ export function parseWat(source: string, filename = "<input>"): WasmModule {
   const tokens = tokenize(source, filename);
   const root = buildSExpr(tokens, filename);
   return new WatModuleParser(filename).parseModule(root);
-}
-
-/**
- * Parses a `.wast` script (may contain multiple top-level forms).
- * Returns only the module forms, ignoring assert_* and other directives.
- *
- * @param source - WAST source text.
- * @param filename - Optional filename.
- */
-export function parseWast(source: string, filename = "<input>"): WasmModule[] {
-  const tokens = tokenize(source, filename);
-  const forms = buildSExprList(tokens, filename);
-  const modules: WasmModule[] = [];
-  for (const form of forms) {
-    if (isListWith(form, "module")) {
-      modules.push(new WatModuleParser(filename).parseModule(form));
-    }
-  }
-  return modules;
 }
 
 // ---------------------------------------------------------------------------

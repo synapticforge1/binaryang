@@ -377,11 +377,54 @@ keeps the full result list so the check can see it. An unresolved call target th
 covers every import and defined function, so a miss is a dangling reference, and typing it `none`
 discarded the call's value exactly as the WAT parser's old `inferFuncResultType` stub did.
 
-**Not changed, deliberately:** the unknown-section-id `default: this.r.seek(end)` stays lenient
-(skipping an unknown section is harmless and forward-compatible), and the handful of unreferenced
-exports (`parseWast`, `isAtom`, `assertList`, `isAbstractHeapType`, `getLowMemoryUnused` /
-`setLowMemoryUnused`) are published API surface, not dead code — removing them would be a breaking
-change.
+**Not changed, deliberately:** the unknown-section-id `default: this.r.seek(end)` stays lenient —
+skipping an unknown section is harmless and forward-compatible.
+
+### Dead-export follow-up — "published API surface" was an unchecked assumption
+
+The first pass waved the unreferenced exports through as public API. That was asserted, not
+verified. Checking the actual reachability changed the answer for most of them.
+
+**The decisive test is the `exports` map in `deno.json`, not the `export` keyword.** A symbol is
+only consumer-reachable if its module is an entry point or is re-exported from one. Two findings:
+
+- **`src/parser/` has NO export subpath at all** and is not re-exported from any entry point, so
+  everything in it is internal.
+- **`src/passes/index.ts` imports `./asyncify.ts` for its side effect only** (pass registration); it
+  re-exports solely from `pass.ts`. Asyncify's own exports are therefore internal too.
+
+Removed (each had exactly ONE reference in the whole tree — its own definition — and no
+consumer-reachable path):
+
+| symbol                   | module                 | why it was there                                       |
+| ------------------------ | ---------------------- | ------------------------------------------------------ |
+| `assertList`             | `parser/sexpr.ts`      | internal helper, never called                          |
+| `isAtom`                 | `parser/sexpr.ts`      | internal helper, never called                          |
+| `parseWast`              | `parser/wat-parser.ts` | `.wast` multi-module parsing, never wired up           |
+| `materializeFakeGlobals` | `passes/asyncify.ts`   | marked **TEST-ONLY** for tests that were never written |
+
+`materializeFakeGlobals` is the one worth remembering: its doc warned "do NOT wire this into
+`AsyncifyPass.run`", which reads like a missing call but is the opposite — fake globals are
+deliberately never materialized, because Stage 4 `lowerIntrinsics` rewrites every fake
+`global.get`/`global.set` to a scratch local before anything validates. That rationale is now a
+comment at the fake-global creation site, so removing the function did not take the knowledge with
+it. **Check whether "dead" code is really a missing call before deleting it.**
+
+Kept, with the reasoning written down so a future sweep does not re-flag them:
+
+- **`isAbstractHeapType`** — reachable via `./ir`, and it is the public discriminator for the
+  exported `HeapType = number | AbstractHeapType` union. Without it a consumer must test
+  `typeof h === "string"` and reach into the representation. Unused internally _by design_.
+- **`getLowMemoryUnused` / `setLowMemoryUnused`** — reachable via `./compat`. Not dead, but worse:
+  **live API that silently does nothing**. The flag is written and read back by no pass. Removing it
+  would break the facade's promise that migrating call sites change only the `import` line, so it is
+  kept on the same footing as `setFeatures` — and the JSDoc now says plainly that it is
+  informational and changes no output, instead of implying an effect.
+- The `ExpressionId*` numeric constants in `/compat` are the documented upstream-parity set (Phase
+  12.1); unused internally, that is the point.
+
+**Versioning:** removing consumer-reachable-by-name symbols is a breaking change even though none
+were reachable in practice, so the next release is **1.5.0**, not 1.4.4 (owner decision).
 
 ---
 

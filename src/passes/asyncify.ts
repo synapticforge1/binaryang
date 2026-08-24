@@ -786,6 +786,12 @@ function doesCall(curr: Expression): boolean {
 
 /** The fake global name for a call-result `type` (created lazily). */
 function fakeGlobalFor(ctx: FlowCtx, type: Type): string {
+  // NOTE: fake globals are never materialized into `module.globals`, by design.
+  // The pipeline runs flow -> locals back-to-back per function, and Stage 4
+  // `lowerIntrinsics` rewrites every fake `global.get`/`global.set` into a
+  // scratch local before anything validates or encodes — so no fake global ever
+  // needs to exist. Adding them would leave orphan, never-referenced globals in
+  // the output.
   let name = ctx.fakeGlobals.get(type);
   if (!name) {
     name = `$asyncify_fake_call_global_${type}`;
@@ -942,22 +948,6 @@ export function flowInstrumentFunction(func: WasmFunction, ctx: FlowCtx): void {
   // optimizer removes it later).
   if (func.results.length > 0) list.push(makeUnreachable());
   func.body = makeBlock(list, null);
-}
-
-/**
- * Materialize the fake call-result globals collected during flow instrumentation
- * (one mutable global per call-result type), adding them to `module`.
- *
- * TEST-ONLY: do NOT wire this into `AsyncifyPass.run`. The full pipeline runs
- * flow→locals back-to-back per function, and Stage 4 `lowerIntrinsics` rewrites
- * every fake `global.get`/`global.set` to a scratch local before anything
- * validates or encodes — so no fake global ever needs to exist. Calling this in
- * the pipeline would leave orphan, never-referenced globals in the output.
- */
-export function materializeFakeGlobals(module: WasmModule, fakeGlobals: Map<Type, string>): void {
-  for (const [type, name] of fakeGlobals) {
-    module.globals.push({ name, type: type as ValType, mutable: true, init: makeZero(type) });
-  }
 }
 
 // ---------------------------------------------------------------------------

@@ -220,25 +220,6 @@ export function listFrom(s: SList, from: number): SExpr[] {
 }
 
 /**
- * Asserts that `s` is a list whose head matches `expected`.
- * @throws {@link WatSExprError} if the assertion fails.
- */
-export function assertList(s: SExpr, expected: string, filename = "<input>"): SList {
-  if (s.kind !== "list") {
-    throw new WatSExprError(
-      `expected (${expected} ...) but got atom ${atomText(s)}`,
-      s.pos,
-      filename,
-    );
-  }
-  const head = listHead(s);
-  if (head !== expected) {
-    throw new WatSExprError(`expected (${expected} ...) but got (${head} ...)`, s.pos, filename);
-  }
-  return s;
-}
-
-/**
  * Returns the raw text of an atom node, or `null` if `s` is a list.
  */
 export function atomText(s: SExpr): string | null {
@@ -250,14 +231,6 @@ export function atomText(s: SExpr): string | null {
  */
 export function isListWith(s: SExpr, keyword: string): s is SList {
   return s.kind === "list" && listHead(s) === keyword;
-}
-
-/**
- * Returns `true` if `s` is an atom whose raw text equals `text`.
- */
-export function isAtom(s: SExpr, text?: string): s is Atom {
-  if (s.kind !== "atom") return false;
-  return text === undefined || s.token.raw === text;
 }
 
 /**
