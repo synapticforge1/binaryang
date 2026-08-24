@@ -65,6 +65,8 @@ async function validates(bytes: Uint8Array): Promise<{ ok: boolean; err?: string
   }
 }
 
+const rel = (f: string): string => path.relative(ROOT, f).split(path.sep).join("/");
+
 const files = await findWasmFiles(ROOT);
 const ok: string[] = [];
 const reparseFail: { file: string; err: string }[] = [];
@@ -74,14 +76,26 @@ const drift: {
   after: ReturnType<typeof summary>;
 }[] = [];
 const validateFail: { file: string; err: string }[] = [];
+/**
+ * Files rejected by the FIRST parse. These used to be `continue`d past without
+ * being counted anywhere, so the summary could report "0 failures" while
+ * silently not exercising part of the corpus — the only way to notice was that
+ * the category totals no longer added up to the file count. They are legitimate
+ * (malformed crash fixtures, invalid-magic fuzz inputs, component-model files,
+ * and loud non-MVP rejections), but they must be VISIBLE.
+ */
+const parseFail: { file: string; err: string }[] = [];
 
 for (const file of files) {
   const buf = await fs.readFile(file);
   let mod1: WasmModule;
   try {
     mod1 = parseWasm(new Uint8Array(buf), file);
-  } catch {
-    // skip files that didn't parse — already accounted for
+  } catch (e) {
+    parseFail.push({
+      file: rel(file),
+      err: e instanceof Error ? e.message : String(e),
+    });
     continue;
   }
   let bytes2: Uint8Array;
@@ -132,6 +146,12 @@ console.log(`OK (exact):       ${ok.length}`);
 console.log(`encode/reparse:   ${reparseFail.length}`);
 console.log(`structural drift: ${drift.length}`);
 console.log(`WebAssembly validate fails: ${validateFail.length}`);
+console.log(`rejected on input parse:    ${parseFail.length}`);
+const accounted = ok.length + reparseFail.length + drift.length + parseFail.length;
+console.log(`files seen: ${files.length} (accounted for: ${accounted})`);
+if (accounted !== files.length) {
+  console.log(`!! ${files.length - accounted} file(s) fell through every category`);
+}
 console.log();
 
 if (validateFail.length > 0) {
@@ -139,6 +159,12 @@ if (validateFail.length > 0) {
   for (const f of validateFail.slice(0, 20)) {
     console.log(`  ${f.file}: ${f.err.slice(0, 140)}`);
   }
+  console.log();
+}
+
+if (parseFail.length > 0) {
+  console.log("## rejected on input parse (expected: malformed / non-MVP fixtures):");
+  for (const f of parseFail) console.log(`  ${f.file}: ${f.err.slice(0, 110)}`);
   console.log();
 }
 

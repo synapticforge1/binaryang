@@ -468,6 +468,27 @@ function readValTypeByte(r: BinaryReader): ValueType {
  * local as i32 — the same silent-default class as the `?? 0` index fallbacks.
  * An out-of-range local index is malformed wasm; say so.
  */
+/**
+ * Type of global `idx`, or a loud error.
+ *
+ * `globalInfos[idx]?.type ?? ValType.I32` silently typed an out-of-range global
+ * read as i32 — the same silent-default class as {@link localTypeAt}. An i32
+ * `global.get` standing in for an i64/f64/ref global mis-drives every
+ * type-sensitive pass downstream and can be encoded back out at the wrong
+ * width. An out-of-range global index is malformed wasm; say so.
+ */
+function globalTypeAt(
+  globals: { type: ValueType }[],
+  idx: number,
+  r: BinaryReader,
+): ValueType {
+  const gi = globals[idx];
+  if (gi === undefined) {
+    return r.error(`global index ${idx} is out of range (module declares ${globals.length})`);
+  }
+  return gi.type;
+}
+
 function localTypeAt(locals: Local[], idx: number, r: BinaryReader): ValueType {
   const loc = locals[idx];
   if (loc === undefined) {
@@ -1093,8 +1114,7 @@ class WasmParser {
         break;
       case 0x23: { // global.get
         const idx = this.r.readU32();
-        const gi = this.globalInfos[idx];
-        expr = makeGlobalGet(`$global${idx}`, gi?.type ?? ValType.I32);
+        expr = makeGlobalGet(`$global${idx}`, globalTypeAt(this.globalInfos, idx, this.r));
         break;
       }
       case 0xd0: { // ref.null
@@ -1604,8 +1624,7 @@ class WasmParser {
         }
         case 0x23: { // global.get
           const idx = r.readU32();
-          const gi = ctx.globalInfos[idx];
-          push(makeGlobalGet(`$global${idx}`, gi?.type ?? ValType.I32));
+          push(makeGlobalGet(`$global${idx}`, globalTypeAt(ctx.globalInfos, idx, r)));
           break;
         }
         case 0x24: { // global.set
