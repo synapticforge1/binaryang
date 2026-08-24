@@ -44,6 +44,7 @@ code
 **Auditing — finding what no corpus reaches**
 
 - "We consume it and ignore it" is a bug shape you can GREP for
+- A one-sided rule is invisible to every metric built on your own output
 - Widening a mask is not fixing a range check
 - A rule that only fires when its operand is already known is half a rule
 - Audit a manual walk against the TYPE, not against a corpus
@@ -942,4 +943,29 @@ Two rules, and the second is the one that saved it:
   caught only because the corpus number was 0 and a trivial module was to hand;
   `engine-check` already refuses to report if an engine fails to reject a
   known-invalid module, and it needs the same guard in the accept direction.
+
+## A one-sided rule is invisible to every metric built on your own output
+
+The binary writer emitted a tag's attribute byte as `0x00` with the comment
+*"only valid value"*. The reader did `this.readU8();` and threw it away. So
+`0xff` decoded to exactly the same tag as `0x00` (T13.5).
+
+**No metric could see that, and it is worth understanding why:**
+
+- round-trip fidelity compares OUR bytes to OUR bytes, and we never emit the
+  bad value, so we never read one back;
+- `assert_malformed` only sees inputs the spec suite bothered to write, and it
+  has no case for this byte;
+- validator agreement and `assert_invalid` are about VALIDATION, and this is a
+  decode rule.
+
+The asymmetry is the tell, and it is greppable: **a constant the writer emits
+with a comment justifying it, against a reader that does not check the same
+constant.** Both halves of the rule were in the repo; only one was enforced.
+
+This was the third "consume and ignore" instance in the binary reader after
+T12.8 and T13.2 — three repetitions is enough to move the grep out of a tranche
+and into the routine, alongside the sibling-case check (the tag attribute had to
+be fixed in the section AND the import, exactly like Bug G and the
+`atomic_rmw_cmpxchg` memidx).
 

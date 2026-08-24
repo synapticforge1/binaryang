@@ -160,6 +160,9 @@ project contract.
   space, NaN payload range (with a V8 round trip proving the in-range ones stay NaNs), lane
   immediates, the token-boundary rule, one `(start …)` per module, and the deferred
   forward type-use check.
+- `tests/reader/reserved_bytes.test.ts` — T13.5: the tag attribute byte in both paths and the
+  table init form's reserved byte. **Nothing in the seven metrics reaches these** — the writer
+  never emits a bad value, so round-trip cannot see it, and the spec suite has no case.
 - `tests/reader/binary_malformed.test.ts` — T12.8: section identity/order/size, entry counts,
   the closing `end` of a body, the flag bytes with no defined meaning, and the data-count
   section. Written as hex-dump literals so each module reads as bytes.

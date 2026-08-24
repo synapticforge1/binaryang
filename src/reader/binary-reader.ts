@@ -574,6 +574,27 @@ export class BinaryReader {
    * because those are different questions — a table carrying the bit is
    * malformed however plausible the value after it looks.
    */
+  /**
+   * Read a tag's ATTRIBUTE byte, which the spec defines as 0x00 (exception).
+   *
+   * Both tag paths read it into nowhere, so `0x01` and `0xff` decoded to
+   * exactly the same tag as `0x00` — a malformed module accepted silently, and
+   * the same "we consume it and ignore it" shape as the element kind byte and
+   * the mutability byte (T12.8). Our own binary writer emits 0x00 with the
+   * comment "only valid value"; this is the reader half of a rule the producer
+   * already knew.
+   *
+   * Returns false when the caller should stop.
+   */
+  private readTagAttribute(): boolean {
+    const attr = this.readU8();
+    if (attr !== 0x00) {
+      this.err(`malformed tag attribute: 0x${attr.toString(16)}`);
+      return false;
+    }
+    return true;
+  }
+
   private readLimits(allowPageSize = true): Limits {
     const flags = this.readU8();
     // Only four flag bits are defined (max / shared / 64-bit / custom page
@@ -793,11 +814,11 @@ export class BinaryReader {
           break;
         }
         case ExternalKind.Tag: {
-          this.readU8(); // attribute byte (always 0 = exception) — must be
-          // consumed before the type index, exactly like readTagSection. The
-          // earlier code read the type index starting at the attribute byte,
-          // so every imported tag resolved to type 0 and the following bytes
-          // were misaligned for any subsequent import.
+          // The attribute byte must be consumed before the type index, exactly
+          // like readTagSection. The earlier code read the type index starting
+          // at the attribute byte, so every imported tag resolved to type 0 and
+          // the following bytes were misaligned for any subsequent import.
+          if (!this.readTagAttribute()) break;
           const sigIdx = this.readU32Leb();
           const sig = getTypeSig(m, sigIdx);
           const tag: Tag = { name: '', loc, sig };
@@ -845,7 +866,15 @@ export class BinaryReader {
       // bridge dry-run 2026-05-25.
       if (this.peekU8() === 0x40) {
         this.readU8(); // 0x40 tag
-        this.readU8(); // reserved 0x00
+        // The byte after 0x40 is RESERVED and defined as 0x00. Reading it into
+        // nowhere accepted any value: `40 03 …` decoded to exactly the same
+        // table as `40 00 …`. Our own writer emits 0x00 and says so — this is
+        // the reader half of a rule the producer already knew (T13.5).
+        const reserved = this.readU8();
+        if (reserved !== 0x00) {
+          this.err(`malformed table init form: reserved byte 0x${reserved.toString(16)}`);
+          return;
+        }
         const elemType = this.readRefType();
         const limits = this.readLimits(false);
         const init = this.readInitExpr(m);
@@ -968,7 +997,7 @@ export class BinaryReader {
     for (let i = 0; i < count && this.ok(); i++) {
       if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
-      this.readU8(); // attribute byte (always 0)
+      if (!this.readTagAttribute()) return;
       const sigIdx = this.readU32Leb();
       const sig = getTypeSig(m, sigIdx);
       m.tags.push({ name: '', loc, sig });

@@ -86,6 +86,7 @@ reference these ids.
 | T13.2 | The last 19 `assert_invalid` modules — 16 were the ENCODER repairing them | done — **2683 / 2683**; the metric is CLOSED |
 | T13.3 | `Limits.initial` / `max` are `bigint` — a 64-bit limit could not be REPRESENTED | done — V8-valid 2118 → **2119**, agreement and round-trip likewise; **breaking API change** |
 | T13.4 | Custom page sizes, wired end to end — the proposal was half-built and semantically wrong | done — no metric covers it; design taken from wazmrt |
+| T13.5 | Three more reserved bytes read into nowhere — tag attribute (×2), table init reserved | done — no metric could see them; found by grepping the SHAPE |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -1125,6 +1126,35 @@ reaches is not covered by a corpus-shaped test, however many of them pass.**
 
 Regression: `tests/parser/custom_page_sizes.test.ts` (15 steps, all 4 groups
 fail pre-fix).
+
+**T13.5 — three more reserved bytes read into nowhere (2026-08-24).** Found by
+grepping for the shape T12.8 named, not by a metric — **no metric could see
+them.** Binary `assert_malformed` is 711 / 711 and the spec suite has no case
+for either byte.
+
+    tag section    attribute byte     spec says 0x00 (exception)
+    tag IMPORT     attribute byte     the same byte, the other path
+    table 0x40     reserved byte      spec says 0x00
+
+All three were `this.readU8(); // …` with the result discarded, so `0x01`,
+`0xff` and `0x03` decoded to EXACTLY the same module as `0x00`.
+
+**The producer already knew the rule**, which is what makes this a clean example
+of the §3 asymmetry: `binary-writer.ts` emits `0x00` at both tag sites with the
+comment *"attribute = exception (only valid value)"*, and `0x40 0x00` at the
+table site. The writer enforced the rule on itself and the reader accepted
+anything — and **round-trip fidelity cannot see that either**, because we never
+emit the bad byte, so we never read one back. A one-sided rule is invisible to
+every metric built on our own output.
+
+Two things worth carrying: the tag attribute had to be fixed in TWO paths (the
+section and the import) — the sibling-case tell from Bug G and the
+`atomic_rmw_cmpxchg` memidx fix, again. And this is the third distinct instance
+of "consume and ignore" in the binary reader after T12.8 and T13.2, which is
+enough repetitions to say the grep belongs in the routine, not in a tranche.
+
+Regression: `tests/reader/reserved_bytes.test.ts` (13 steps, 2 of 3 groups fail
+pre-fix). No metric moved.
 
 ### Will a wasic WASI program LOAD on every runtime here? — 2026-08-24
 

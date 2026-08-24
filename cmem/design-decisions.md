@@ -602,3 +602,8 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `pagesize 65536` must come back out as one — Wasmtime accepts it, and collapsing it into the
   default changes the bytes. A runtime can afford that collapse; a format tool with a round-trip
   metric cannot.
+- **A tag's ATTRIBUTE byte is 0x00 and a table init form's RESERVED byte is 0x00, in the reader as
+  well as the writer (T13.5).** Both were `readU8()` with the result discarded, in three places
+  (tag section, tag import, `0x40` table form), so any value decoded to the same module. The binary
+  writer already emitted 0x00 at all three and said so in a comment — a one-sided rule, which no
+  metric can catch: round-trip never produces the bad byte, and the spec suite has no case for it.
