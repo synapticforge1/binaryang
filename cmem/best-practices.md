@@ -49,6 +49,7 @@ code
 - A rule that only fires when its operand is already known is half a rule
 - Audit a manual walk against the TYPE, not against a corpus
 - An audit must report the size of the population it examined
+- Test the two halves of a parser against each other
 - An unused parameter in one of a family of parallel handlers is a missing check
 - When a marker has to be applied at every construction site, grep for it
 - In this codebase, "the linear form is a stub" IS a round-trip bug
@@ -1018,4 +1019,30 @@ A worktree at the pinned tag is thirty seconds and would have caught this.
 2026-08-21 and was sitting unreleased on `main`. **An unreleased fix is
 indistinguishable from an absent one to everyone downstream** — if a report says
 "nothing needed on our side", check that the nothing is actually shipped.
+
+## Test the two halves of a parser against each other
+
+The strongest bug found in the 1.4.0 pre-release audit needed no oracle, no
+corpus and no engine: `instrInputCount` said one thing and `buildPlainExpr` did
+another, for three atomic families, and **`wasm2wat` was emitting wasm V8
+rejects** (T13.8).
+
+The differential that found it: write the instruction in **FOLDED** form, where
+operands are inline children and the arity table is not consulted for them;
+disassemble to **LINEAR** form, where the table is exactly what pops operands
+off the stack; re-encode; compare bytes. The two halves must agree, and neither
+is trusted as the reference.
+
+This generalises. Wherever a codebase has two paths that must agree — folded and
+linear, named and numeric, text and binary — **the differential is cheaper than
+an oracle and finds things no corpus contains.** Both audits added here are of
+that shape, and both found what seven conformance metrics could not:
+
+- folded vs linear caught the arity bug;
+- named vs numeric (T13.7) covers the class that shipped in v1.3.5 and blocked a
+  downstream team, because round-trip only ever exercises the numeric form.
+
+The corollary for invariants: **an invariant nobody has checked mechanically is
+a comment.** Both of these were written down — "audit its `opN()` calls when
+adding an opcode", and the arity note itself — and both were wrong in the tree.
 

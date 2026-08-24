@@ -166,6 +166,11 @@ project contract.
   space, NaN payload range (with a V8 round trip proving the in-range ones stay NaNs), lane
   immediates, the token-boundary rule, one `(start …)` per module, and the deferred
   forward type-use check.
+- `tests/parser/named_refs.test.ts` — T13.7: a `$name` in all 64 positions the grammar allows,
+  encode plus a numeric-form round trip. **No metric covers this class**; 21 fail at v1.3.5.
+- `tests/parser/instr_arity.test.ts` — T13.8: folded vs linear differential over 74
+  instructions, which is how `instrInputCount` is checked against `buildPlainExpr`. Includes
+  a V8 execution case proving the round trip still computes 42.
 - `tests/core/opcode_tables.test.ts` — T13.6: lexer⇄printer opcode-name symmetry and
   natural-alignment coverage, over the whole opcode population, driven by the lexer's own
   behaviour. Three guarded exemptions: `select` (many-to-one) and the two `ref.*  null`

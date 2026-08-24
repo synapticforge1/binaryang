@@ -88,6 +88,8 @@ reference these ids.
 | T13.4 | Custom page sizes, wired end to end — the proposal was half-built and semantically wrong | done — no metric covers it; design taken from wazmrt |
 | T13.5 | Three more reserved bytes read into nowhere — tag attribute (×2), table init reserved | done — no metric could see them; found by grepping the SHAPE |
 | T13.6 | Two type-level table audits made PERMANENT — lexer⇄printer names, natural-alignment coverage | done — both clean; 3 exemptions found and each guarded |
+| T13.7 | A NAMED reference in every position the grammar allows | done — 64/64 on `main`, **21 fail at v1.3.5**; the class that blocked wasmtk |
+| T13.8 | `instrInputCount` disagreed with `buildPlainExpr` for 3 atomic families | done — **`wasm2wat` was emitting INVALID wasm for every atomic store/RMW** |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -1231,6 +1233,58 @@ refuses **any module carrying a tag section**, legacy or standard, so moving to
 `try_table` changes nothing there. Its Go API has feature toggles the CLI does
 not expose; a wazero-hosted wasic program needs either the embedding API or no
 EH at all.
+
+### Pre-release audit for 1.4.0 — one serious bug, found by a NEW differential
+
+Asked for before the bump, and the bump is what made it worth doing properly:
+1.4.0 unblocks a downstream team, so a silent-corruption bug shipping in it
+would be expensive.
+
+**T13.7 — a named reference in every position (64 cases).** Built because the
+bug wasmtk hit had a shape no metric covers: the PARSER accepts a construct,
+`resolveNames` misses it, and the writer's fail-loud `writeVar` throws. All 64
+pass on `main`. **Against the v1.3.5 tag, 21 of them fail** — named memory
+operands do not parse at all, `table.grow`/`table.fill` throw on "funcref",
+`ref.null $t` and `br_on_cast` fail, and both `try_table` catch forms throw.
+That is the measure of what the release is worth, and it is why the audit is
+now a test rather than a one-off.
+
+**T13.8 — `instrInputCount` disagreed with `buildPlainExpr` for three atomic
+families, and `wasm2wat` was emitting INVALID WASM.**
+
+    AtomicStore        listed 3, reads op0/op1        -> 2
+    AtomicRmw          listed 3, reads op0/op1        -> 2
+    AtomicRmwCmpxchg   listed 4, reads op0/op1/op2    -> 3
+
+`design-decisions.md` has carried this invariant since Bug D, with the failure
+mode written down — "too high pulls bogus nops". It is worse than that. The
+linear parser pops `nInputs` off the stack, so one too many took a PLACEHOLDER
+into the address slot and left a real operand unconsumed — and a placeholder
+emits nothing (T10.8), so **the operand was simply gone**. `wasm2wat` emits
+linear form, so:
+
+    (i32.atomic.store (i32.const 0) (i32.const 5))
+    (drop (i32.atomic.rmw.add (i32.const 0) (i32.const 37)))
+    (i32.atomic.load (i32.const 0))        -- computes 42
+
+round-tripped through `wasm2wat` → `wat2wasm` and came back **rejected by V8**.
+Proven both ways: with the fix the round trip still computes 42; without it,
+V8 refuses the disassembly.
+
+**Not one of the seven metrics moved, before or after.** parse-clean stops at
+the parser; the spec testsuite's atomic modules never reach the round-trip
+metric; everything else starts from bytes. Two documented invariants pointed
+straight at it — "audit `opN()` calls when adding an opcode" and the arity note
+itself — and neither had ever been checked mechanically.
+
+**The method is the durable part**, and it generalises past atomics: write the
+instruction FOLDED, where operands are inline children and the arity table is
+not consulted for them; disassemble to LINEAR, where the table is what pops
+them; re-encode; compare bytes. A folded/linear differential tests the two
+halves of the parser against each other with no oracle needed. 74 instructions
+covered — core, SIMD, atomics, GC, bulk memory/table, control flow, EH,
+relaxed-SIMD, wide arithmetic — 8 failed, all three atomic families, and 74/74
+pass now.
 
 ### wasmtk's reply, 2026-08-24 — one ask confirmed with a blocker ON US, one RETRACTED
 

@@ -607,3 +607,15 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   (tag section, tag import, `0x40` table form), so any value decoded to the same module. The binary
   writer already emitted 0x00 at all three and said so in a comment — a one-sided rule, which no
   metric can catch: round-trip never produces the bad byte, and the spec suite has no case for it.
+- **`instrInputCount` is verified by a folded/linear DIFFERENTIAL, not by reading it (T13.8).**
+  `AtomicStore`, `AtomicRmw` and `AtomicRmwCmpxchg` were each listed one too high; the linear parser
+  popped a placeholder into the address slot, the real operand went unconsumed, and a placeholder
+  emits nothing — so `wasm2wat` output of any atomic store/RMW module was **rejected by V8**. The
+  invariant had been written down since Bug D and never checked mechanically.
+  `tests/parser/instr_arity.test.ts` writes each instruction folded, disassembles to linear and
+  re-encodes: the two halves of the parser check each other, no oracle needed. Add a case for every
+  new opcode that takes operands.
+- **A NAMED reference must survive the whole pipeline, in every position (T13.7).** Parse-clean sees
+  only the parser and round-trip never exercises a name at all (`wasm2wat` emits numeric vars), so
+  "the parser accepts it, `resolveNames` misses it, the writer throws" is invisible to every metric.
+  `tests/parser/named_refs.test.ts` covers 64 positions; 21 of them fail at v1.3.5.

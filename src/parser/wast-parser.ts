@@ -708,6 +708,8 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.TableSet:
     case TokenType.TableGrow:
     case TokenType.Store:
+    case TokenType.AtomicStore:
+    case TokenType.AtomicRmw:
     case TokenType.AtomicNotify:
     case TokenType.SimdLoadLane:
     case TokenType.SimdStoreLane:
@@ -725,16 +727,34 @@ function instrInputCount(tt: TokenType): number {
       // array.new: init + length.
       // array.new_data / array.new_elem: offset + length.
       // array.get: ref + index.
+      //
+      // atomic_store / atomic_rmw: address + value, and atomic_rmw_cmpxchg
+      // (below) is address + expected + replacement. All three were listed ONE
+      // TOO HIGH, which is worse than it sounds: the linear-form parser pops
+      // `nInputs` off the stack, so it took a placeholder into the ADDRESS slot
+      // and left a real operand unconsumed — and a placeholder emits nothing
+      // (T10.8), so the operand was simply GONE. `wasm2wat` emits linear form,
+      // so a round trip through it silently rewrote every atomic store and RMW
+      // into one with a missing operand.
+      //
+      // Invisible to all seven metrics: parse-clean sees only the parser,
+      // round-trip over the spec testsuite never reaches these (its atomic
+      // modules do not survive to that metric), and everything else starts
+      // from bytes. Caught by a folded-vs-linear differential — write the
+      // instruction folded, disassemble to linear, re-encode, compare
+      // (`tests/parser/instr_arity.test.ts`).
       return 2;
     case TokenType.Select:
     case TokenType.MemoryFill:
     case TokenType.TableFill:
-    case TokenType.AtomicStore:
     case TokenType.AtomicWait:
-    case TokenType.AtomicRmw:
     case TokenType.ArraySet:
+      // atomic_wait: address + expected + timeout.
       return 3;
     case TokenType.AtomicRmwCmpxchg:
+      // address + expected + replacement. This was 4, and `buildPlainExpr`
+      // reads op0/op1/op2 — see the note on AtomicStore/AtomicRmw above.
+      return 3;
     case TokenType.ArrayFill:
     case TokenType.ArrayInitData:
     case TokenType.ArrayInitElem:
