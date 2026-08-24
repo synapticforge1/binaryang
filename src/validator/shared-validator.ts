@@ -371,7 +371,37 @@ export class SharedValidator {
   }
 
   checkValueType(loc: Location, vt: ValueType, what: string, bound = this.numTypes): Result {
-    if (!isRefValueType(vt)) return Result.Ok;
+    if (!isRefValueType(vt)) {
+      // A GC abstract heap type is as much "using the proposal" as a
+      // `struct.new` is. Gating only the INSTRUCTIONS left `(param anyref)`,
+      // `(result anyref)` and `ref.null any` accepted with `gc: false` — and
+      // with them `any.convert_extern` / `extern.convert_any`, which have no
+      // delegate hook of their own and were reachable only through their
+      // anyref result (T13.10).
+      //
+      // `funcref` and `externref` are REFERENCE TYPES, not GC, and must not be
+      // caught here — they are ratified and on by default.
+      switch (vt) {
+        case Type.AnyRef:
+        case Type.EqRef:
+        case Type.I31Ref:
+        case Type.StructRef:
+        case Type.ArrayRef:
+        case Type.NullRef:
+        case Type.NullFuncRef:
+        case Type.NullExternRef:
+          return this.requireFeature('gc', `GC reference type in ${what}`, loc);
+        case Type.ExnRef:
+        case Type.NullExnRef:
+          return this.requireFeature('exceptions', `exception reference in ${what}`, loc);
+        default:
+          return Result.Ok;
+      }
+    }
+    // A CONCRETE typed reference `(ref $T)` is the function-references
+    // proposal, whichever kind of type it names.
+    const rf = this.requireFeature('functionReferences', `typed reference in ${what}`, loc);
+    if (rf !== Result.Ok) return rf;
     const h = vt.heapType;
     if (h.kind !== 'index') return Result.Ok;
     // `bound` is the SCOPE, not the section size: a type may reference

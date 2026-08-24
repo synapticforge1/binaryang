@@ -115,6 +115,67 @@ describe('T13.10 — a proposal that defaultFeatures() disables is REFUSED', () 
   });
 });
 
+describe('T13.10 — a TYPE uses a proposal as much as an instruction does', () => {
+  // Gating only the instructions left these accepted with `gc: false`, and with
+  // them `any.convert_extern` / `extern.convert_any`, which have no delegate
+  // hook of their own and were reachable only through an anyref result.
+  const GC_TYPES: [string, string][] = [
+    ['anyref param', '(module (func (param anyref)))'],
+    ['anyref result', '(module (func (result anyref) (ref.null any)))'],
+    ['eqref global', '(module (global eqref (ref.null none)))'],
+    ['i31ref local', '(module (func (local i31ref)))'],
+    ['structref table', '(module (table 1 structref))'],
+    [
+      'any.convert_extern',
+      '(module (func (param externref) (result anyref) (any.convert_extern (local.get 0))))',
+    ],
+    [
+      'extern.convert_any',
+      '(module (func (param anyref) (result externref) (extern.convert_any (local.get 0))))',
+    ],
+  ];
+  for (const [name, src] of GC_TYPES) {
+    it(`gates ${name} on gc`, () => {
+      const bin = encode(src);
+      assertEquals(wasmValidate(bin, { features: allFeatures() }).result, Result.Ok, name);
+      assertEquals(
+        wasmValidate(bin, { features: { ...allFeatures(), gc: false } }).result,
+        Result.Error,
+        `${name}: accepted with gc off`,
+      );
+    });
+  }
+
+  it('does NOT catch funcref or externref — those are reference types', () => {
+    // The rule has to stop exactly at the GC set; funcref and externref are
+    // ratified and on by default, and catching them would reject ordinary
+    // modules.
+    for (
+      const src of [
+        '(module (func (param funcref)))',
+        '(module (func (param externref)))',
+        '(module (table 1 funcref))',
+        '(module (table 1 externref))',
+      ]
+    ) {
+      assertEquals(
+        wasmValidate(encode(src), { features: { ...allFeatures(), gc: false } }).result,
+        Result.Ok,
+        `gc:false wrongly rejected a reference type:\n${src}`,
+      );
+    }
+  });
+
+  it('gates a concrete (ref $T) on functionReferences', () => {
+    const bin = encode('(module (type $t (func)) (func (param (ref null $t))))');
+    assertEquals(wasmValidate(bin, { features: allFeatures() }).result, Result.Ok);
+    assertEquals(
+      wasmValidate(bin, { features: { ...allFeatures(), functionReferences: false } }).result,
+      Result.Error,
+    );
+  });
+});
+
 describe('T13.10 — and the ratified set still validates by default', () => {
   it('accepts MVP + the proposals defaultFeatures() enables', () => {
     // The gates must not have turned into a blanket refusal: everything

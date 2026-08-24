@@ -1314,6 +1314,18 @@ way to opt in — a worse regression than the bug. It now takes
 hyphenated spelling wabt uses (`--enable-multi-memory`), and an unknown flag
 prints the full list instead of being ignored.
 
+**A follow-up pass found the gate INCOMPLETE, which is the useful part.** Gating
+the instructions left GC *types* open: `(param anyref)`, `(result anyref)`,
+`eqref` globals, `i31ref` locals and `structref` tables all validated with
+`gc: false` — and with them `any.convert_extern` / `extern.convert_any`, which
+have no delegate hook at all and were reachable only through their anyref
+result. **A proposal is used by its TYPES as much as by its instructions**, so
+the gate belongs in `checkValueType`, the choke point every signature, global,
+table, elem segment and type field already flows through. A concrete `(ref $T)`
+gates on `functionReferences` there too. The rule has to stop exactly at the GC
+set: `funcref` and `externref` are reference types, ratified and on by default,
+and catching them would reject ordinary modules — asserted explicitly.
+
 Regression: `tests/validator/feature_gates.test.ts` — every proposal asserted
 valid WITH its feature and rejected WITHOUT it, the error required to name the
 feature, and the ratified set asserted to still validate with no flags at all so
