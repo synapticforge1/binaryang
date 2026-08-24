@@ -78,6 +78,7 @@ reference these ids.
 | T12.3 | A non-power-of-two `align=N` was accepted and silently CHANGED | done — malformed 714 → 828 / 1229 |
 | T12.4 | SIMD lane immediates and `v128.const` lane values wrapped silently | done — malformed 828 → 869 / 1229 |
 | T12.5 | A wasm NAME must be valid UTF-8 — neither path checked | done — quoted 869 → 1045, **binary 110 → 638** |
+| T12.6 | A missing lane immediate compiled as lane 0; NaN result patterns accepted as literals | done — quoted 1045 → 1087 |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -603,7 +604,7 @@ one. The result inverted the count order: the biggest categories are the mildest
 | ~~T12.3~~ | **DONE.** `align=0`, `align=7` and other non-powers-of-two | 114 | **silent WRONG VALUE** — `align=3` was emitted as `align=2`; the severity was under-rated on the first pass |
 | ~~T12.4~~ | **DONE.** SIMD lane immediates AND `v128.const` lane values | 13 + the simd_const cases | **silent WRONG VALUE** — lane 256 → 0, and `v128.const i8x16 -129` → **127** |
 | ~~T12.5~~ | **DONE.** Malformed UTF-8 in names | 186 quoted **+ 528 binary** | name silently REPLACED with U+FFFD — and the same rule fixed most of T12.8 |
-| **T12.6** | `unexpected token` — field order, block-type shapes | 82 | rejection not made |
+| ~~T12.6~~ | **PARTLY DONE.** `unexpected token` — the two silent-default shapes are fixed; block type-use and named type-use params remain (see below) | 82 → ~12 | had **silent WRONG VALUE** in it after all |
 | **T12.7** | Illegal character, empty annotation id, mismatching label, inline function type | 77 | rejection not made |
 | **T12.8** | The remaining BINARY `assert_malformed` cases | **73** (was 601 — T12.5 closed 528) | decoder hardening |
 
@@ -733,6 +734,36 @@ V8-valid dropped 257 → 256 the moment the decoder went in. Fixed before commit
 Regression: `tests/parser/name_utf8.test.ts` (17 cases, 16 fail pre-fix — six
 invalid encodings in each of the two paths, the data-segment exemption, and the
 BOM guard).
+
+**T12.6 — the two silent defaults are fixed 2026-08-24; the rest is genuinely
+"rejection not made".** The category was filed as such, but reading the 54
+remaining cases found two more silent-WRONG-VALUE shapes hiding in it:
+
+1. **A missing lane immediate compiled as lane 0.** `parseSimdLane` returned 0
+   whenever the next token was not a number, so
+   `(i8x16.extract_lane_s (local.get 0) (v128.const …))` — no lane at all —
+   became `extract_lane_s 0`. There is no default lane.
+2. **`nan:canonical` / `nan:arithmetic` were accepted as LITERALS**, silently
+   becoming the canonical NaN bit pattern. They are `assert_return` RESULT
+   PATTERNS, meaning "any canonical NaN".
+
+**(2) could not be a global rule, and the metric caught me getting that
+wrong.** A v128 result may carry the patterns PER LANE —
+`(v128.const f32x4 nan:canonical nan:canonical …)` is legal and pervasive in
+`simd_f32x4.wast` — and those lanes go through the same `parseF32Bits` an
+instruction const uses. Rejecting them outright dropped **parse-clean 257 →
+249** across eight SIMD files. The fix is a scoped `allowNanPatterns` flag set
+only while parsing an expected result, saved and restored so it cannot leak.
+
+That is the second time in this tranche that a rule turned out to be
+CONTEXTUAL rather than absolute (T12.3's parse-vs-validate split was the
+first), and both times the giveaway was a legal shape breaking, not reasoning.
+
+**Still open in T12.6** (~12): block type-use combined with inline params or
+results, and a NAMED param in a `call_indirect` type-use.
+
+Regression: `tests/parser/lane_and_nan_context.test.ts` (15 cases, 14 fail
+pre-fix, including the per-lane v128 result and a no-leak check).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

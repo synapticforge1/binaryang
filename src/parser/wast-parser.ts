@@ -1140,6 +1140,19 @@ export class WastParser {
    * {@link parsePendingBodies}, in which case every variable-arity opcode
    * falls back to draining the operand stack as before.
    */
+  /**
+   * True only while parsing an `assert_return` EXPECTED result.
+   *
+   * `nan:canonical` / `nan:arithmetic` are result PATTERNS ("any canonical
+   * NaN"), not literals. `parseExpectedConst` handles the scalar spelling
+   * itself, but a v128 result may carry them per LANE —
+   * `(v128.const f32x4 nan:canonical …)` is legal and common in simd_f32x4
+   * .wast — and those lanes go through the same `parseF32Bits` an instruction
+   * const uses. So the rule cannot be global: the pattern is legal HERE and
+   * malformed in a real `f32.const` (T12.6).
+   */
+  private allowNanPatterns = false;
+
   private funcParamCounts: number[] = [];
   private funcParamCountsByName = new Map<string, number>();
 
@@ -4567,7 +4580,11 @@ export class WastParser {
     }
     if (tt === TokenType.NanArithmetic || tt === TokenType.NanCanonical) {
       this.drop();
-      return 0x7fc00000;
+      if (this.allowNanPatterns) return 0x7fc00000;
+      // Not in a result position: a pattern is not a literal. This used to
+      // return the canonical NaN bits silently (T12.6).
+      this.error(this.loc(), 'unexpected token, expected an f32 literal');
+      return null;
     }
     return null;
   }
@@ -4603,7 +4620,11 @@ export class WastParser {
     }
     if (tt === TokenType.NanArithmetic || tt === TokenType.NanCanonical) {
       this.drop();
-      return 0x7ff8000000000000n;
+      if (this.allowNanPatterns) return 0x7ff8000000000000n;
+      // Not in a result position: a pattern is not a literal. This used to
+      // return the canonical NaN bits silently (T12.6).
+      this.error(this.loc(), 'unexpected token, expected an f64 literal');
+      return null;
     }
     return null;
   }
@@ -4786,6 +4807,10 @@ export class WastParser {
       }
       return Number(n);
     }
+    // Every lane op REQUIRES its immediate. Returning 0 silently here made
+    // `(i8x16.extract_lane_s (local.get 0) (v128.const …))` — which omits the
+    // lane entirely — compile as lane 0 (T12.6).
+    this.error(this.loc(), 'unexpected token, expected a lane index');
     return 0;
   }
 
@@ -5124,6 +5149,18 @@ export class WastParser {
     const savedPos = this.pos;
     this.drop(); // consume '('
 
+    // Everything parsed from here is an EXPECTED RESULT, where the NaN
+    // patterns are legal — including per-lane inside a v128 literal.
+    const savedAllowNan = this.allowNanPatterns;
+    this.allowNanPatterns = true;
+    try {
+      return this.parseExpectedConstInner(savedPos);
+    } finally {
+      this.allowNanPatterns = savedAllowNan;
+    }
+  }
+
+  private parseExpectedConstInner(savedPos: number): ExpectedConst | null {
     if (this.peek() === TokenType.Const) {
       const tok = this.consume() as OpcodeToken;
       const opcode = tok.opcode as unknown as number;

@@ -477,3 +477,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `parseTextList` is not. **Both strict decoders MUST pass `ignoreBOM: true`**: without it a leading
   U+FEFF in a name is stripped rather than kept as a character (T7.13), which drops V8-valid to
   256/257.
+- **A lane op's immediate is REQUIRED, and `nan:canonical` / `nan:arithmetic` are result PATTERNS,
+  not literals (T12.6).** `parseSimdLane` returned 0 for a missing immediate, so a lane op written
+  without one compiled as lane 0. The NaN patterns silently became the canonical bit pattern in a
+  real `f32.const`. **The NaN rule is CONTEXTUAL** — a v128 expected-result may carry them per lane
+  (`(v128.const f32x4 nan:canonical …)` is legal), and those lanes share `parseF32Bits` with
+  instruction consts, so a global rejection costs eight SIMD files from parse-clean. The scoped
+  `allowNanPatterns` flag is set only inside `parseExpectedConst` and is saved/restored.
