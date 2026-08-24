@@ -52,6 +52,9 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
+- `tests/validator/memarg_offset.test.ts` — T9.11: every memarg handler checks `offset`
+  against the memory's index type, not just `onLoad` / `onStore`. 11 cases, each
+  cross-checked against V8, including the `0xffffffff` boundary and a 64-bit memory.
 - `tests/writer/operand_placeholder.test.ts` — T10.8: a synthesized operand slot-filler
   (`NopExpr.placeholder`) is not written out by either writer. 9 cases, including three T11
   no-repair guards — a starved `local.set`, an explicit `(nop)` operand and a starved

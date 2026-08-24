@@ -344,3 +344,23 @@ those took it to 2088/2120, and files affected from 27 to 14.
 
 Grep for the literal (`kind: 'nop'` here), not for the helper. And keep a second
 corpus around: one of the two would have called this done.
+
+## An unused parameter in one of a family of parallel handlers is a missing check
+
+`deno lint` had ten standing `'offset' is never used` warnings in
+`shared-validator.ts`. They looked like dead-parameter noise left over from a
+callback signature, and they were treated that way for long enough to be
+described as "lint debt to clear before a merge".
+
+They were reporting a real gap. `onLoad` and `onStore` pass `offset` to
+`checkMemArgOffset`; the other ten memarg handlers declare it and drop it — so
+the rule that a memarg offset must fit the memory's index type simply did not
+apply to any SIMD or atomic memory op. Four were demonstrable false-accepts
+against V8.
+
+Both campaign corpora were blind to it: agreement and `assert_invalid` did not
+move, because no spec-testsuite module writes an out-of-range offset on a SIMD
+op. **A lint warning caught what five metrics could not.**
+
+Before silencing an unused-variable warning, check whether the handler's
+SIBLINGS use that variable. If they do, the warning is a diff between them.

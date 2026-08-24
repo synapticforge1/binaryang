@@ -21,8 +21,13 @@ import { CatchKind, isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts'
 // Public options
 // ---------------------------------------------------------------------------
 
-// Placeholder for future feature flags. Switched from `interface` to a type
-// alias so the deno-lint `no-empty-interface` rule does not flag it.
+/**
+ * Options for {@link validateModule}.
+ *
+ * Started as a placeholder for future feature flags and is no longer one:
+ * `features` is load-bearing, and leaving it at the default silently
+ * rejects valid modules that use a proposal (see the field below).
+ */
 export interface ValidateOptions {
   /**
    * Which proposals the module is allowed to use. Defaults to
@@ -1009,6 +1014,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onLoadSplat(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1029,6 +1038,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onLoadZero(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1116,6 +1129,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onAtomicLoad(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1136,6 +1153,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onAtomicStore(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1156,6 +1177,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onAtomicRmw(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1176,6 +1201,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onAtomicRmwCmpxchg(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1196,6 +1225,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onAtomicWait(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1216,6 +1249,10 @@ export class SharedValidator {
     // every `v128.load*_splat` / `*_lane` / `*_zero`.
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAtomicAlign(loc, align, natAlign));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onAtomicNotify(opcode, mt?.limits.is64 ?? false));
     return r;
   }
@@ -1883,6 +1920,10 @@ export class SharedValidator {
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
     r = combineResults(r, this.checkLaneIndex(loc, lane, this.simdLaneCount(opcode)));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onSimdLoadLane(mt?.limits.is64 ?? false));
     return r;
   }
@@ -1905,6 +1946,10 @@ export class SharedValidator {
     const natAlign = naturalAlignForOpcode(opcode);
     if (natAlign > 0) r = combineResults(r, this.checkAlign(loc, align, natAlign));
     r = combineResults(r, this.checkLaneIndex(loc, lane, this.simdLaneCount(opcode)));
+    r = combineResults(
+      r,
+      this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
+    );
     r = combineResults(r, this.tc.onSimdStoreLane(mt?.limits.is64 ?? false));
     return r;
   }

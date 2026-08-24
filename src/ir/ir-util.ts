@@ -9,7 +9,6 @@
  * queries, and module traversal helpers.
  */
 
-import { Type } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { ValueType } from './ir.ts';

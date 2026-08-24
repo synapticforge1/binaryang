@@ -72,6 +72,7 @@ reference these ids.
 | T10.2 | Inline `(export …)` emitted on IMPORTED items — unparseable output | done (same fix) — hard failures 12 → 1 |
 | T10.5 | Linear-form `call` drained the whole operand stack | done — WASI corpus 50 → 225 / 270 |
 | T10.8 | A synthesized operand slot-filler was written out as a real `nop` | done — WASI corpus **270 / 270** |
+| T9.11 | Ten of the twelve memarg handlers never checked the offset | done — 4 SIMD false-accepts closed |
 
 ### Open — parse side: NONE
 
@@ -442,6 +443,60 @@ explicitly (`-W all-proposals=y` fails on stock Windows Wasmtime — it pulls in
 unsupported `stack-switching`), and give every module its own `-o` path (reusing
 one made three I/O collisions score as REJECT until a known-invalid module was
 run through to check the harness).
+
+### T9.11 — `deno lint` was reporting a missing validator check, not dead code
+
+Ten `no-unused-vars: 'offset' is never used` warnings sat in
+`shared-validator.ts` and read as dead-parameter noise. They were not.
+
+T9.5 added `checkMemArgOffset` — a memarg `offset=N` must fit the memory's
+INDEX TYPE, u32 for a 32-bit memory — and wired it into `onLoad` and `onStore`
+and **into none of the other ten handlers that take an offset**:
+`onLoadSplat`, `onLoadZero`, `onSimdLoadLane`, `onSimdStoreLane` and the six
+atomic ones. Each declared the parameter and ignored it, which is exactly what
+the lint was saying.
+
+Same shape as the T9.6 alignment gap: a check that exists, reads as covered,
+and silently does nothing for a whole opcode family.
+
+Four were reachable false-ACCEPTS, all of which V8 rejects:
+`v128.load8_splat`, `v128.load32_zero`, `v128.load8_lane`, `v128.store8_lane`
+with `offset=0x100000000` on a 32-bit memory. The atomic ones were already
+caught earlier in the pipeline but are now wired the same way so they cannot
+drift back.
+
+**Neither corpus could see it** — agreement stayed 2120/2120 and
+`assert_invalid` 2664/2737, because no spec-testsuite module writes an
+out-of-range offset on a SIMD memory op. Five metrics missed this; a lint
+warning found it.
+
+**The reusable rule: an unused parameter in a handler whose SIBLINGS use it is
+a missing check, not dead code.** Read the unused-variable warnings in a family
+of parallel handlers before silencing them.
+
+Regression test: `tests/validator/memarg_offset.test.ts` (9 out-of-range cases
+cross-checked against V8, plus the `0xffffffff` boundary that a `>=` would
+wrongly reject, plus a 64-bit memory where the same offset is legal).
+
+### JSR score — checked, and the `deno doc --lint` count is not it
+
+`deno doc --lint src/index.ts` reports ~788 `missing-jsdoc` errors. **They are
+not what JSR scores.** The published `@jrmarcum/wabt-ts@1.3.5` reads
+`"score": 100` from `https://jsr.io/api/scopes/jrmarcum/packages/wabt-ts` with
+every one of those already present — they are interface FIELDS (543 in
+`ir.ts` alone) and class MEMBERS, including private ones, which JSR's
+documentation metric does not count. Do not chase them expecting the score to
+move.
+
+Two findings from the same run WERE real and are fixed:
+
+- **`validateModule` is exported; `ValidateOptions` was not reachable from the
+  package root**, so a consumer could not name its own options type
+  (`private-type-ref`). Now re-exported from `src/index.ts`, and it carries
+  JSDoc instead of a stale line comment claiming it is an empty placeholder.
+- **`WastParser.parseInstrList` was public and took the module-private
+  `ExprCtx`.** Every call site is inside the class; it is now `private`, which
+  narrows the published surface as well as clearing the diagnostic.
 
 ### Wasmtime will not run wasic's legacy `try`/`catch` output (2026-08-24)
 

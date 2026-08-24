@@ -2727,7 +2727,7 @@ export class WastParser {
   // -------------------------------------------------------------------------
 
   /** Parse a list of instructions into `outExprs`, handling both forms. */
-  parseInstrList(ctx: ExprCtx): Result {
+  private parseInstrList(ctx: ExprCtx): Result {
     while (this.peekIsInstr()) {
       if (this.parseOneInstr(ctx) !== Result.Ok) break;
     }

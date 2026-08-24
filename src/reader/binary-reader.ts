@@ -88,7 +88,6 @@ import {
   type TableCatch,
   type TableSizeExpr,
   type Tag,
-  type TypeEntry,
   type UnreachableExpr,
   type ValueType,
   type Var,

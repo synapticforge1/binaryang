@@ -4,13 +4,7 @@
 // Licensed under the Apache License, Version 2.0
 
 import { combineResults, Result } from '../core/result.ts';
-import {
-  heapTypeNameToType,
-  isReferenceType,
-  Type,
-  typeName,
-  typeToHeapTypeName,
-} from '../core/types.ts';
+import { heapTypeNameToType, isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { isRefValueType, valueTypeName } from '../ir/ir.ts';
 import type { ValueType } from '../ir/ir.ts';

@@ -49,6 +49,9 @@ export * from './writer/wat-writer.ts';
 
 // Phase 5 — Validator
 export * from './validator/validator.ts';
+// `validateModule` takes this, so it has to be nameable from the package
+// root; without it `deno doc` reports a public type referencing a private one.
+export type { ValidateOptions } from './validator/shared-validator.ts';
 
 // Phase 6 — CLI tool library API
 export { wat2wasm } from './tools/wat2wasm.ts';

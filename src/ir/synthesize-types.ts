@@ -22,7 +22,6 @@
  * no type section. Fix: this pass.
  */
 
-import { Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { isRefValueType, varIndex } from './ir.ts';
 import { ExprVisitor } from './expr-visitor.ts';
