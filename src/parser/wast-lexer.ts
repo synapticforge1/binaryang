@@ -1287,22 +1287,48 @@ export class WastLexer {
     if (c === 0x2b || c === 0x2d) this.read();
   }
 
+  /** The byte one position past the cursor, or -1 at EOF. */
+  private peekAhead(): number {
+    return this.src.peek(this.src.offset + 1);
+  }
+
+  /**
+   * `num ::= d | num '_'? d` — a digit separator must sit BETWEEN digits.
+   *
+   * The old loop was `if (this.matchChar(0x5f)) continue;`, which consumed a
+   * `_` unconditionally, so `1_`, `1__2` and `0x1_` all lexed as valid
+   * numbers. The spec calls those malformed, and the mechanism to say so was
+   * already here: `getNumberToken` falls back to `getReservedToken()` when an
+   * id-char trails the literal. Leaving the offending `_` UNCONSUMED is what
+   * lets that fallback fire.
+   */
   private readNum(): boolean {
     if (!isDigit(this.peek())) return false;
     this.read();
     while (true) {
-      if (this.matchChar(0x5f)) continue; // '_' separator
+      if (this.peek() === 0x5f) { // '_' separator
+        if (!isDigit(this.peekAhead())) break; // trailing or doubled: malformed
+        this.read(); // '_'
+        this.read(); // the digit it separates
+        continue;
+      }
       if (!isDigit(this.peek())) break;
       this.read();
     }
     return true;
   }
 
+  /** As {@link readNum}, over hex digits. */
   private readHexNum(): boolean {
     if (!isHexDigit(this.peek())) return false;
     this.read();
     while (true) {
-      if (this.matchChar(0x5f)) continue;
+      if (this.peek() === 0x5f) {
+        if (!isHexDigit(this.peekAhead())) break;
+        this.read();
+        this.read();
+        continue;
+      }
       if (!isHexDigit(this.peek())) break;
       this.read();
     }

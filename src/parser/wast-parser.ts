@@ -1062,6 +1062,17 @@ interface PendingBody {
   scope: Map<string, number>;
   /** Token index of the first body token. */
   pos: number;
+  /**
+   * Token index of the function's closing `)`.
+   *
+   * Deferring the body parse cost us the error path: `parsePendingBodies`
+   * restores the cursor unconditionally, so before this field a body that
+   * failed to parse simply left `body` short and NOTHING reported it. A typo'd
+   * instruction — `(i32.addd …)` — was silently DELETED and `wat2wasm`
+   * returned Ok. Parsing must now end exactly here, or the leftovers are
+   * reported.
+   */
+  endPos: number;
 }
 
 export class WastParser {
@@ -1836,6 +1847,17 @@ export class WastParser {
       this.localScope = pb.scope;
       this.currentModule = module;
       this.parseInstrListInto(pb.func.body);
+      if (this.pos !== pb.endPos) {
+        // Unconsumed input between here and the function's `)`. The instr
+        // loop stops at the first thing it cannot parse and `parseInstrList`
+        // swallows the failure, so without this the leftovers vanish without
+        // a word — an unknown or misspelled instruction compiled to an EMPTY
+        // body and `wat2wasm` reported success.
+        this.error(
+          this.loc(),
+          `unexpected ${tokenName(this.peek())} in function body`,
+        );
+      }
     }
 
     this.funcParamCounts = savedCounts;
@@ -2248,6 +2270,7 @@ export class WastParser {
       // callee is declared later. See parsePendingBodies.
       const bodyPos = this.pos;
       this.skipToGroupClose();
+      const bodyEnd = this.pos;
       const body: Expr[] = [];
 
       const func: Func = {
@@ -2261,7 +2284,7 @@ export class WastParser {
         tailcall: false,
       };
       module.funcs.push(func);
-      this.pendingBodies.push({ func, scope, pos: bodyPos });
+      this.pendingBodies.push({ func, scope, pos: bodyPos, endPos: bodyEnd });
     }
 
     this.expect(TokenType.Rpar);

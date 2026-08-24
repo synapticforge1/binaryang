@@ -705,3 +705,32 @@ Two things follow:
   in. `parseWastScript` returning the wrong command kind is as much a defect as
   a wrong type rule, and it is invisible to every metric that consumes its
   output — because the metric IS the consumer.
+
+## A metric you have never built is where your regressions go to hide
+
+T10.5's deferred function-body parsing introduced a silent regression: an
+unknown or misspelled instruction stopped being an error and became a silent
+DELETION of the whole expression, with `wat2wasm` still reporting success.
+
+It survived six commits and a deliberate "look for code issues" audit. Every
+one of the six metrics was green throughout, and none of them could see it:
+
+- parse-clean measures files that parse WITHOUT error — this bug removes errors
+- V8-validity, round-trip and execution all start from modules that parsed
+- validator agreement and `assert_invalid` both consume the parser's output
+
+**A metric that only ever asks "does good input succeed" cannot see a change
+that makes bad input succeed too.** The seventh metric — `assert_malformed`,
+the spec's "this must fail to parse" assertions — found it on the first run,
+along with a second defect that had been there far longer.
+
+Two rules:
+
+- **For every "does X work" measurement, ask what the corresponding "does
+  NOT-X fail" measurement is.** Both directions of `assert_invalid` were
+  measured years into this project; both directions of PARSING were not.
+- **When you make a parse path more permissive as a side effect — restoring a
+  cursor, swallowing a Result, skipping a region — that is a change to the
+  error path, and the error path needs its own test.** `parseInstrList` returns
+  `Result.Ok` no matter why its loop stopped; deferral removed the only thing
+  that had been catching that.

@@ -581,6 +581,65 @@ also turned out to be the cheaper fix and to close a second item (T10.2) for
 free. Rank remaining work against the yardstick the GOAL names, not the one the
 campaign happened to start with.
 
+### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
+
+`assert_invalid` covers modules that PARSE and then fail validation. Nothing
+measured the other direction: text the spec says must **fail to parse at all**.
+Building it found two real defects immediately, and it is the first campaign
+metric that is not exhausted.
+
+| | start | after the two fixes below |
+| --- | --- | --- |
+| quoted text | 356 / 1229 | **666 / 1229** |
+| binary | 110 / 711 | 110 / 711 (untouched) |
+
+**Fix 1 — an unknown instruction was silently DELETED, and it was OUR
+regression.** `(i32.addd (i32.const 40) (i32.const 2))` parsed to an EMPTY
+function body and `wat2wasm` returned Ok; the failure surfaced at the engine as
+"expected 1 element on the stack", pointing nowhere near the typo.
+
+Bisected to **T10.5's deferred body parsing, six commits earlier**. Before it, a
+body that failed to parse left the cursor mid-body and the enclosing
+`expect(Rpar)` failed loudly (`expected ), got (`). Deferring made
+`parsePendingBodies` restore the cursor unconditionally, so the leftovers were
+never looked at again — and `parseInstrList` compounds it by breaking out of its
+loop and returning `Result.Ok` regardless of why.
+
+`PendingBody` now records `endPos` and the parse must land exactly there, so
+ANY unconsumed body content is reported, not just typos. Worth ~230 of the
+metric.
+
+**Fix 2 — digit separators were accepted anywhere.** `num ::= d | num '_'? d`;
+`readNum` consumed a `_` unconditionally, so `1_`, `1__2`, `0x1_`, `1_.0` all
+lexed as numbers. The rejection machinery already existed — `getNumberToken`
+falls back to a Reserved token when an id-char trails the literal — it just
+never saw the `_`, because `readNum` had eaten it. Leaving a malformed
+separator UNCONSUMED is the whole fix. Worth ~80.
+
+**What is still open (563 quoted + 601 binary), by the spec's own expected
+message:**
+
+| count | expected message | example |
+| --- | --- | --- |
+| 186 | malformed UTF-8 encoding | `(@a �)` |
+| 114 | alignment / must be a power of two | `align=0`, `align=7` |
+| 82 | unexpected token | field-order and block-type shapes |
+| 55 | constant out of range | `(i32.const 0x100000000)` |
+| 32 | illegal character | |
+| 24 | inline function type | |
+| 14 | mismatching label | `(func block end $l)` |
+| 13 | i8 constant out of range | `(i8x16.extract_lane_s 256 …)` |
+| 12 | import after function/global/table | |
+
+Plus the 601 binary cases, which are a separate decoder-hardening job.
+
+**This is the natural next tranche.** Note the shape of what is left: almost all
+of it is the parser being LENIENT rather than wrong — accepting input no
+producer emits. That is why six metrics could sit exhausted while this one sat
+at 29%.
+
+Regression: `tests/parser/malformed_input.test.ts` (17 cases; 11 fail pre-fix).
+
 ### CORRECTION (2026-08-24): the `assert_invalid` denominator was polluted
 
 **`(assert_trap (module …) "msg")` was being reported as `assert_invalid`.**

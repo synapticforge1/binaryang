@@ -433,3 +433,14 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   population and correctly accepting them scored as misses (2664/2737 → 2664/2683, 73 → 19). There
   is now a distinct `assert_trap_module` command kind. Regression:
   `tests/parser/assert_trap_module.test.ts`.
+- **A deferred function body must be consumed EXACTLY to its closing `)`.** `PendingBody.endPos`
+  records it and `parsePendingBodies` reports anything left over. Deferring the body parse (T10.5)
+  removed the error path that used to catch an unparseable body — the enclosing `expect(Rpar)` —
+  because the cursor is now restored unconditionally. Without the check, an unknown or misspelled
+  instruction was silently DELETED and `wat2wasm` returned Ok. `parseInstrList` returns `Result.Ok`
+  regardless of why its loop stopped, so this check is the only thing standing between a typo and a
+  silently empty function body.
+- **A digit separator must sit BETWEEN digits** (`num ::= d | num '_'? d`). `readNum` /
+  `readHexNum` leave a malformed `_` UNCONSUMED so `getNumberToken`'s existing
+  trailing-id-char fallback turns the literal into a Reserved token. Consuming it unconditionally
+  made `1_`, `1__2`, `0x1_` and `1_.0` lex as valid numbers.
