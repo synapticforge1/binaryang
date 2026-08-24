@@ -1018,7 +1018,7 @@ export function computeRelevantLocals(
     // sits just before block.end.
     const live = new Set<number>(block.end);
     const snapshot = (pos: number): void => {
-      if (posSet.has(pos)) for (const l of live) relevant.add(l);
+      if (posSet.has(pos)) { for (const l of live) relevant.add(l); }
     };
     snapshot(block.actions.length);
     for (let i = block.actions.length - 1; i >= 0; i--) {
@@ -1341,7 +1341,10 @@ export class AsyncifyPass implements Pass {
         savedCondTemps: new Set(),
       };
       flowInstrumentFunction(func, flowCtx);
-      localsInstrumentFunction(func, flowCtx.fakeGlobals, [...relevant, ...(flowCtx.savedCondTemps ?? [])]);
+      localsInstrumentFunction(func, flowCtx.fakeGlobals, [
+        ...relevant,
+        ...(flowCtx.savedCondTemps ?? []),
+      ]);
     }
 
     // Globals + the 5 control functions (exported in host-driven mode; internal

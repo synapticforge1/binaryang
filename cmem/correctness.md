@@ -280,35 +280,37 @@ separate:
 
 ### WT-2k — decoder reorders a stack-held state-dependent value past a write of its state (2026-07-09)
 
-The deepest `pop()` bug yet, and the direct sequel to WT-2h. The binary keeps a value on the
-OPERAND STACK across void statements and consumes it later — Binaryen/TinyGo emit this to avoid a
-local. The canonical case is TinyGo's **goroutine trampoline** (`tinygo_launch`), which keeps the
-caller's `$__stack_pointer` (`global.get`) live on the stack across `global.set $sp …;
-call_indirect; call`, then a trailing `global.set $sp` RESTORES it. `pop()` (post-WT-2h) returns
-the topmost value-producing entry, **skipping `none` statements**. Skipping the `global.set $sp`
-to grab the `global.get $sp` beneath it, then placing that `global.get` as the restore's operand,
-**re-evaluates `global.get $sp` AFTER `$sp` was overwritten** → `global.set $sp (global.get $sp)`
-self-assign. The old shadow-stack pointer is never restored; after each goroutine launch `$sp`
-points into the finished frame, so every later allocation corrupts memory — trapping at the linear
-memory boundary. Classic "valid wasm, wrong value" (validity never caught it).
+The deepest `pop()` bug yet, and the direct sequel to WT-2h. The binary keeps a value on the OPERAND
+STACK across void statements and consumes it later — Binaryen/TinyGo emit this to avoid a local. The
+canonical case is TinyGo's **goroutine trampoline** (`tinygo_launch`), which keeps the caller's
+`$__stack_pointer` (`global.get`) live on the stack across `global.set $sp …;
+call_indirect; call`,
+then a trailing `global.set $sp` RESTORES it. `pop()` (post-WT-2h) returns the topmost
+value-producing entry, **skipping `none` statements**. Skipping the `global.set $sp` to grab the
+`global.get $sp` beneath it, then placing that `global.get` as the restore's operand, **re-evaluates
+`global.get $sp` AFTER `$sp` was overwritten** → `global.set $sp (global.get $sp)` self-assign. The
+old shadow-stack pointer is never restored; after each goroutine launch `$sp` points into the
+finished frame, so every later allocation corrupts memory — trapping at the linear memory boundary.
+Classic "valid wasm, wrong value" (validity never caught it).
 
 **Fix** (`src/binary/wasm-parser.ts` `pop()`): when the chosen value sits BELOW ≥1 statement (a
 reorder), **spill** it — replace it in place with `local.set $tmp value` (a fresh temp appended to
 `locals`) and return `local.get $tmp`. Evaluation order is preserved exactly as the source's own
 local did; a later CoalesceLocals/Vacuum elides the temp where it turns out reorder-safe. **A `Pop`
-is exempt** (`kind === "pop"`): it is a stack placeholder that encodes to nothing, so `local.set
-(pop)` would leave the set with no stack value — splice it directly as before (the WT-2h/WT-2i
-path). Value-on-top (`i === len-1`, the common case) is unchanged.
+is exempt** (`kind === "pop"`): it is a stack placeholder that encodes to nothing, so
+`local.set
+(pop)` would leave the set with no stack value — splice it directly as before (the
+WT-2h/WT-2i path). Value-on-top (`i === len-1`, the common case) is unchanged.
 
 **How it was found (worth repeating):** end-to-end nested-goroutine crash → bisected the merged
 module function-by-function (splicing `wasm-opt`'s working functions into ours) to the single
 culprit `tinygo_launch` → diffed it (only the self-assign differed) → confirmed pure
-`readBinary→emitBinary` (no passes) reproduced it → instrumented `pop()` to log reorders →
-caught the `global.get` spliced from stack index 0 past the `global.set`. Regression test:
+`readBinary→emitBinary` (no passes) reproduced it → instrumented `pop()` to log reorders → caught
+the `global.get` spliced from stack index 0 past the `global.set`. Regression test:
 `tests/binary/decoder_reorder_test.ts` (hand-assembled value-on-stack module; verified to fail
-without the fix). Suite 403 → 405. NOTE: the earlier "memory-grow ordering" hypothesis (traced via
-a `stackPos` instrument) was a RED HERRING — the asyncify save/restore was always correct and
-matched `wasm-opt`; the corruption was upstream in the decoder.
+without the fix). Suite 403 → 405. NOTE: the earlier "memory-grow ordering" hypothesis (traced via a
+`stackPos` instrument) was a RED HERRING — the asyncify save/restore was always correct and matched
+`wasm-opt`; the corruption was upstream in the decoder.
 
 ## CoalesceLocals try/catch EH-aware CFG (v1.3.4)
 

@@ -222,6 +222,14 @@ export interface WasmModule {
   exports: WasmExport[];
   /** Exception tags (EH proposal). */
   tags: WasmTag[];
+  /**
+   * Name of the start function (section 8), or `null` if the module has none.
+   *
+   * The start function runs at instantiation time, before any export is
+   * callable. It is a root of the module's reachability graph exactly like an
+   * export, so passes that prune unreachable definitions must seed from it.
+   */
+  start: string | null;
   /** Whether the module uses the WASM exception-handling proposal. */
   hasExceptionHandling: boolean;
   /** Whether the module uses the memory64 proposal. */
@@ -263,6 +271,7 @@ export class ModuleBuilder {
   private readonly _imports: WasmImport[] = [];
   private readonly _exports: WasmExport[] = [];
   private readonly _tags: WasmTag[] = [];
+  private _start: string | null = null;
   private _hasEH = false;
   private _hasMemory64 = false;
   private _hasMultiMemory = false;
@@ -536,6 +545,21 @@ export class ModuleBuilder {
     return this;
   }
 
+  /**
+   * Sets the module's start function (section 8), or clears it with `null`.
+   *
+   * The named function runs at instantiation, before any export is callable,
+   * and must take no parameters and return no results. The name is resolved at
+   * encode time — `encodeWasm` throws if it does not match a defined or
+   * imported function.
+   *
+   * @param name - Internal function name, or `null` to remove the start function.
+   */
+  setStart(name: string | null): this {
+    this._start = name;
+    return this;
+  }
+
   /** Enables the exception-handling proposal. */
   enableExceptionHandling(): this {
     this._hasEH = true;
@@ -545,6 +569,21 @@ export class ModuleBuilder {
   /**
    * Adds a user-defined heap type (struct, array, or func) to the type section.
    * Returns the 0-based index for use in GC instructions.
+   *
+   * Calling this enables the GC proposal, which changes how the encoder emits
+   * the type section: it stops deduplicating function signatures collected from
+   * the module and emits `heapTypes` verbatim instead. **Every function's own
+   * signature must therefore be declared here as a `{ kind: "func" }` entry**,
+   * or `encodeWasm` throws `unresolved GC function type: () -> (i32)`.
+   * `addFunction` alone is enough without GC and not enough with it:
+   *
+   * ```ts
+   * const t = m.addHeapType({ kind: "struct", fields: [{ type: "i8", mutable: true }] });
+   * m.addHeapType({ kind: "func", params: [], results: [ValType.I32] }); // required
+   * m.addFunction("read", [], [ValType.I32], body);
+   * ```
+   *
+   * @param def - The struct, array, or function type to declare.
    */
   addHeapType(def: TypeDef): number {
     const idx = this._heapTypes.length;
@@ -553,7 +592,13 @@ export class ModuleBuilder {
     return idx;
   }
 
-  /** Enables the GC proposal. */
+  /**
+   * Enables the GC proposal.
+   *
+   * Note that this also puts the encoder into GC type-section mode, where each
+   * function's signature must be declared explicitly via
+   * {@link ModuleBuilder.addHeapType} — see that method for details.
+   */
   enableGC(): this {
     this._hasGC = true;
     return this;
@@ -578,6 +623,7 @@ export class ModuleBuilder {
       imports: [...this._imports],
       exports: [...this._exports],
       tags: [...this._tags],
+      start: this._start,
       heapTypes: [...this._heapTypes],
       hasExceptionHandling: this._hasEH,
       hasMemory64: this._hasMemory64,

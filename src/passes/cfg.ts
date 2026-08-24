@@ -397,7 +397,9 @@ class _CFGBuilder {
       case ExpressionKind.CallIndirect: {
         for (const op of e.operands) this.visit(op);
         this.visit(e.target);
-        if (this.current) this.current.callPoints.push({ pos: this.current.actions.length, call: e });
+        if (this.current) {
+          this.current.callPoints.push({ pos: this.current.actions.length, call: e });
+        }
         this.throwingCallContinuation(); // may throw → enclosing handler (if in a try)
         return;
       }
@@ -408,7 +410,9 @@ class _CFGBuilder {
       // -------------------------------------------------------------------
       case ExpressionKind.Call: {
         for (const op of e.operands) this.visit(op);
-        if (this.current) this.current.callPoints.push({ pos: this.current.actions.length, call: e });
+        if (this.current) {
+          this.current.callPoints.push({ pos: this.current.actions.length, call: e });
+        }
         this.throwingCallContinuation();
         return;
       }

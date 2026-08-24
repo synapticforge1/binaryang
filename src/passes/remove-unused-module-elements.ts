@@ -84,6 +84,12 @@ function _removeUnused(module: WasmModule): void {
     for (const name of seg.data) liveFuncs.add(name);
   }
 
+  // The start function runs at instantiation, so it is a reachability root
+  // exactly like an export. Without this seed a start function that nothing
+  // else references is pruned here, and the encoder then fails to resolve
+  // `mod.start` — or, worse, the module instantiates without ever running it.
+  if (module.start !== null) liveFuncs.add(module.start);
+
   // --- Step 2: fixed-point reachability walk ---
   const queue = [...liveFuncs].filter((n) => !importedFuncs.has(n));
   while (queue.length > 0) {

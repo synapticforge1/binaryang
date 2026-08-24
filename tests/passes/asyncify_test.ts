@@ -75,6 +75,7 @@ function moduleWithImport(): WasmModule {
       results: [],
     }],
     exports: [{ name: "foo", value: "$foo", kind: "function" }],
+    start: null,
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,

@@ -20,7 +20,7 @@
   },
   "tasks": {
     "test": "deno test --allow-read --allow-write --allow-run --allow-env --no-check tests/",
-    "check": "deno check src/**/*.ts main.ts",
+    "check": "deno check src/**/*.ts main.ts tests/**/*.ts",
     "fmt": "deno fmt",
     "lint": "deno lint",
     "publish": "deno run --allow-read --allow-run scripts/publish.ts",

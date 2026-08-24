@@ -558,9 +558,17 @@ class WasmParser {
         case SECTION_EXPORT:
           this.readExportSection();
           break;
-        case SECTION_START:
-          this.r.readU32();
-          break; // start func index -- skip
+        case SECTION_START: {
+          // The start function runs at instantiation. Reading the index and
+          // discarding it (as this did) dropped the section on re-encode: a
+          // module whose start function initialized state came back valid but
+          // inert — valid wasm, wrong behaviour, no diagnostic. Materialize it
+          // under the same `$func${globalIndex}` naming every other reference
+          // site uses, so the encoder can resolve it back to an index.
+          const startIdx = this.r.readU32();
+          this.builder.setStart(`$func${startIdx}`);
+          break;
+        }
         case SECTION_ELEMENT:
           this.readElementSection(end);
           break;

@@ -204,15 +204,15 @@ rewrite).
   (collected in `FlowCtx.savedCondTemps`). This mirrors upstream Binaryen and keeps coroutine frames
   small — output is now **smaller than `wasm-opt --asyncify`** on real TinyGo goroutine modules
   (nested case: 27 KB vs 29 KB) with the e2e differential oracle still matching. Support: a new
-  ADDITIVE `BasicBlock.callPoints` field in `cfg.ts` records each call's action-position (the get/set
-  liveness consumers — CoalesceLocals, `computeLiveness` — ignore it, so no regression; full suite
-  403/403). `localsInstrumentFunction` takes an optional `savedLocals` (falls back to all-locals for
-  direct callers). The nested-goroutine crash once tracked here was NOT an asyncify bug at all — it
-  was a **binary-decoder reorder bug, now FIXED (2026-07-09)** — see [correctness.md](correctness.md)
-  § "WT-2k". The liveness-minimized saving stands on its own merit (smaller frames, matches
-  `wasm-opt`). **Module RUNNABLE:** e2e tests drive a real
-  unwind/rewind — `compute(10)+get()→42 == 52`, loop `sum(3),get→7 == 21` with locals surviving —
-  and **differentially match `wasm-opt --asyncify`**.
+  ADDITIVE `BasicBlock.callPoints` field in `cfg.ts` records each call's action-position (the
+  get/set liveness consumers — CoalesceLocals, `computeLiveness` — ignore it, so no regression; full
+  suite 403/403). `localsInstrumentFunction` takes an optional `savedLocals` (falls back to
+  all-locals for direct callers). The nested-goroutine crash once tracked here was NOT an asyncify
+  bug at all — it was a **binary-decoder reorder bug, now FIXED (2026-07-09)** — see
+  [correctness.md](correctness.md) § "WT-2k". The liveness-minimized saving stands on its own merit
+  (smaller frames, matches `wasm-opt`). **Module RUNNABLE:** e2e tests drive a real unwind/rewind —
+  `compute(10)+get()→42 == 52`, loop `sum(3),get→7 == 21` with locals surviving — and
+  **differentially match `wasm-opt --asyncify`**.
 - **Stage 5 ✅** (commit `62f0fb0`) — `AsyncifyPass.run` wired to the full pipeline, `registerPass`,
   added to the pass index; `createPass` made case-insensitive so `--asyncify` (upstream lowercase
   flag, via `wasm-opt.ts`'s unknown-`--flag`→pass path) resolves to `"Asyncify"`. e2e test confirms

@@ -76,7 +76,9 @@ import type { WasmFunction, WasmModule } from "../ir/module.ts";
 import { None, type Type, ValType } from "../ir/types.ts";
 import {
   AbstractHeapType,
+  type FieldType,
   type HeapType,
+  isPackedType,
   isRefType,
   type RefType,
   type StorageType,
@@ -804,6 +806,69 @@ class WasmEncoder {
     return idx;
   }
 
+  /**
+   * Picks the `struct.get*` / `array.get*` sub-opcode for a field access.
+   *
+   * The GC spec has THREE sub-opcodes per family, not two:
+   *
+   * | family | non-packed | packed, sign-extend | packed, zero-extend |
+   * | ------ | ---------- | ------------------- | ------------------- |
+   * | struct | `get` 0x02 | `get_s` 0x03        | `get_u` 0x04        |
+   * | array  | `get` 0x0b | `get_s` 0x0c        | `get_u` 0x0d        |
+   *
+   * The IR carries only `signed: boolean`, so a naive `signed ? get_s : get`
+   * made `get_u` unreachable AND emitted the non-packed `get` for a packed
+   * field — which every engine rejects ("Field 0 of type 0 has type i8. Use
+   * struct.get_s or struct.get_u instead."). Because the binary parser decodes
+   * `get_u` to `signed = false`, that also turned a VALID input module into an
+   * invalid one across a bare `parseWasm` -> `encodeWasm` round-trip.
+   *
+   * The two states are sufficient once packedness comes from the declared
+   * storage type instead of the instruction: a packed field admits only
+   * `get_s`/`get_u` (selected by `signed`), and a non-packed field admits only
+   * `get` (where `signed` is meaningless). So this is a total function of
+   * `(storage type, signed)` and needs no IR change.
+   *
+   * An out-of-range type index or a def of the wrong kind is an IR bug; throw
+   * rather than guess a sub-opcode.
+   */
+  private packedGetSubop(
+    typeIndex: number,
+    fieldIndex: number,
+    signed: boolean,
+    family: "struct" | "array",
+  ): number {
+    const def = this.mod.heapTypes[typeIndex];
+    if (def === undefined) {
+      throw new WasmEncodeError(
+        `${family}.get: type index ${typeIndex} is out of range ` +
+          `(module declares ${this.mod.heapTypes.length} heap types)`,
+      );
+    }
+    if (def.kind !== family) {
+      throw new WasmEncodeError(
+        `${family}.get: type index ${typeIndex} is a "${def.kind}" type, not a ${family}`,
+      );
+    }
+
+    let field: FieldType | undefined;
+    if (def.kind === "struct") {
+      field = def.fields[fieldIndex];
+      if (field === undefined) {
+        throw new WasmEncodeError(
+          `struct.get: field index ${fieldIndex} is out of range for type ` +
+            `${typeIndex} (${def.fields.length} fields)`,
+        );
+      }
+    } else {
+      field = def.element;
+    }
+
+    const base = family === "struct" ? 0x02 : 0x0b;
+    if (!isPackedType(field.type)) return base;
+    return signed ? base + 1 : base + 2;
+  }
+
   encode(): Uint8Array {
     this.checkSingleMemory();
     this.checkSingleTable();
@@ -824,6 +889,12 @@ class WasmEncoder {
     if (this.mod.tags.length > 0) this.writeSection(out, 13, (w) => this.encodeTagSection(w));
     if (this.mod.globals.length > 0) this.writeSection(out, 6, (w) => this.encodeGlobalSection(w));
     if (this.mod.exports.length > 0) this.writeSection(out, 7, (w) => this.encodeExportSection(w));
+    // `!= null` (loose) on purpose: a module built against the pre-start
+    // `WasmModule` shape has no `start` field at all, and absent
+    // unambiguously means "no start function" — there is nothing to fail
+    // loudly about. A `!== null` check would treat `undefined` as a real
+    // name and emit a section referencing a function called "undefined".
+    if (this.mod.start != null) this.writeSection(out, 8, (w) => this.encodeStartSection(w));
     if (this.mod.elements.length > 0) {
       this.writeSection(out, 9, (w) => this.encodeElementSection(w));
     }
@@ -1209,6 +1280,10 @@ class WasmEncoder {
         }
       }
     }
+  }
+
+  private encodeStartSection(w: BinaryWriter): void {
+    w.writeU32(this.resolveRef(this.funcIndex, this.mod.start as string, "start function"));
   }
 
   private encodeElementSection(w: BinaryWriter): void {
@@ -1711,7 +1786,7 @@ class WasmEncoder {
         const e = expr as StructGetExpr;
         this.encodeExpr(w, e.ref, labels);
         w.writeU8(0xfb);
-        w.writeU32(e.signed ? 0x03 : 0x02);
+        w.writeU32(this.packedGetSubop(e.typeIndex, e.fieldIndex, e.signed, "struct"));
         w.writeU32(e.typeIndex);
         w.writeU32(e.fieldIndex);
         break;
@@ -1769,7 +1844,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.ref, labels);
         this.encodeExpr(w, e.index, labels);
         w.writeU8(0xfb);
-        w.writeU32(e.signed ? 0x0c : 0x0b);
+        w.writeU32(this.packedGetSubop(e.typeIndex, 0, e.signed, "array"));
         w.writeU32(e.typeIndex);
         break;
       }

@@ -440,8 +440,8 @@ Deno.test("encodeWasm: a None-typed local throws instead of silently encoding as
 
 Deno.test("encodeWasm: multiple tables throw (element segments + call_indirect encode against table 0)", () => {
   const mod = new ModuleBuilder()
-    .addTable("a", 1, null, ValType.FuncRef)
-    .addTable("b", 1, null, ValType.FuncRef)
+    .addTable("a", ValType.FuncRef, 1, null)
+    .addTable("b", ValType.FuncRef, 1, null)
     .build();
   assertThrows(() => encodeWasm(mod), WasmEncodeError, "multiple tables");
 });

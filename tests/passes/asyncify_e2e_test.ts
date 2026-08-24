@@ -26,9 +26,9 @@ import { parseWat } from "../../src/parser/wat-parser.ts";
 import { buildCallResultTypes, flattenFunction } from "../../src/passes/flatten.ts";
 import {
   analyzeModule,
+  computeRelevantLocals,
   type FlowCtx,
   flowInstrumentFunction,
-  computeRelevantLocals,
   localsInstrumentFunction,
   parseAsyncifyOptions,
   synthesizeRuntimeSupport,
@@ -64,7 +64,10 @@ function asyncify(mod: WasmModule, passArgs: Record<string, string> = {}): WasmM
       savedCondTemps: new Set(),
     };
     flowInstrumentFunction(func, flowCtx);
-    localsInstrumentFunction(func, flowCtx.fakeGlobals, [...relevant, ...(flowCtx.savedCondTemps ?? [])]);
+    localsInstrumentFunction(func, flowCtx.fakeGlobals, [
+      ...relevant,
+      ...(flowCtx.savedCondTemps ?? []),
+    ]);
   }
   synthesizeRuntimeSupport(mod, opts);
   return mod;

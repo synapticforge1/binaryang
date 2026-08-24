@@ -119,8 +119,10 @@ import {
   type FieldType,
   type FuncTypeDef,
   type HeapType,
+  isPackedType,
   type RefType,
   type StorageType,
+  storageTypeToString,
   type TypeDef,
 } from "../ir/gc-types.ts";
 import {
@@ -900,6 +902,7 @@ class WatModuleParser {
       const fi = Number(atomInt(args[1])) ?? 0;
       const ref = this.parseExpr(args[2], ctx);
       const signed = head === "struct.get_s";
+      this._checkPackedGet(head, "struct", this._structFieldStorage(ti, fi));
       return makeStructGet(ti, fi, ref, this._structFieldType(ti, fi), signed);
     }
     if (head === "struct.set") {
@@ -930,6 +933,7 @@ class WatModuleParser {
       const ref = this.parseExpr(args[1], ctx);
       const index = this.parseExpr(args[2], ctx);
       const signed = head === "array.get_s";
+      this._checkPackedGet(head, "array", this._arrayElementStorage(ti));
       return makeArrayGet(ti, ref, index, this._arrayElementType(ti), signed);
     }
     if (head === "array.set") {
@@ -1857,6 +1861,60 @@ class WatModuleParser {
       return this._storageResultType(def.fields[fi].type);
     }
     return ValType.I32;
+  }
+
+  /** Declared storage type of `struct.get $ti $fi`, or `null` if unknown. */
+  private _structFieldStorage(ti: number, fi: number): StorageType | null {
+    const def = this.heapTypeDefs.get(ti);
+    if (def?.kind === "struct" && def.fields[fi]) return def.fields[fi].type;
+    return null;
+  }
+
+  /** Declared storage type of `array.get $ti`'s element, or `null` if unknown. */
+  private _arrayElementStorage(ti: number): StorageType | null {
+    const def = this.heapTypeDefs.get(ti);
+    if (def?.kind === "array") return def.element.type;
+    return null;
+  }
+
+  /**
+   * Rejects a `get` / `get_s` / `get_u` that disagrees with the field's
+   * declared packedness.
+   *
+   * The IR records only `signed: boolean`, and the encoder derives the actual
+   * sub-opcode from the storage type (see `packedGetSubop`). That makes the
+   * encoder a total function, but it also means an invalid source instruction
+   * would be silently REPAIRED on the way out: a `struct.get` of an `i8` field
+   * parses to `signed = false` and would encode as `struct.get_u`, and a
+   * `struct.get_u` of an `i32` field would encode as the plain `struct.get`.
+   * Neither is what the author wrote. The pipeline's contract is that the WAT
+   * front door either accepts a program or fails loudly, so validate here
+   * rather than let the encoder quietly pick a different instruction.
+   *
+   * A storage type we cannot resolve (`null` — the type was never declared, or
+   * the index is out of range) is left alone; `resolveTypeIndex` and the
+   * encoder already report that class of error.
+   */
+  private _checkPackedGet(
+    head: string,
+    family: "struct" | "array",
+    storage: StorageType | null,
+  ): void {
+    if (storage === null) return;
+    const packed = isPackedType(storage);
+    const plain = head === `${family}.get`;
+    if (packed && plain) {
+      this.err(
+        `${head}: field has packed storage type "${storage}" — ` +
+          `use ${family}.get_s or ${family}.get_u`,
+      );
+    }
+    if (!packed && !plain) {
+      this.err(
+        `${head}: field has non-packed storage type "${storageTypeToString(storage)}" — ` +
+          `use ${family}.get`,
+      );
+    }
   }
 
   /** Declared result type of `array.get $ti` (falls back to i32 if unknown). */
