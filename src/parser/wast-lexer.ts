@@ -23,6 +23,7 @@ import {
   PREFIX_SIMD,
   PREFIX_THREADS,
 } from '../core/opcode.ts';
+import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
 import { Type } from '../core/types.ts';
 import { LexerSource } from './lexer-source.ts';
 import { isRefKindToken, LiteralType, TokenType } from './token.ts';
@@ -795,6 +796,16 @@ function isIdChar(c: number): boolean {
   return ((CHAR_CLASS[c] ?? 0) & 1) !== 0;
 }
 
+/**
+ * Can this character appear in WAT SOURCE at all (outside a string)?
+ *
+ * The spec's `char` production is printable ASCII plus tab / LF / CR. Control
+ * bytes, DEL and raw non-ASCII are not source characters.
+ */
+function isSourceChar(c: number): boolean {
+  return c === 0x09 || c === 0x0a || c === 0x0d || (c >= 0x20 && c <= 0x7e);
+}
+
 const EOF = -1;
 
 // ---------------------------------------------------------------------------
@@ -1022,7 +1033,16 @@ export class WastLexer {
 
         case 0x24: { // '$'
           this.read();
-          if (this.peek() === 0x22) return this.getStringToken(TokenType.Var);
+          if (this.peek() === 0x22) {
+            const tok = this.getStringToken(TokenType.Var);
+            const text = (tok as { text?: string }).text;
+            if (
+              tok.tokenType === TokenType.Var && text !== undefined && !this.checkQuotedId(text)
+            ) {
+              return this.bareToken(TokenType.Invalid);
+            }
+            return tok;
+          }
           const tok = this.getIdChars();
           // A bare `$` with no following idchars is not a valid identifier
           // (id ::= '$' idchar+); the old code returned a Var with text "$".
@@ -1060,6 +1080,97 @@ export class WastLexer {
   // -------------------------------------------------------------------------
 
   /**
+   * Check the quoted spelling of an identifier: `id ::= '$' string`.
+   *
+   * It is an alternate spelling of the same identifier, so it obeys the same
+   * rules — non-empty, valid UTF-8 (T12.5, same as any wasm name), and free of
+   * RAW control characters. The last one is easy to misread: `$"	"` is legal
+   * (an escape), while a literal tab byte in the source is not, so the check
+   * is on the SOURCE text, not the decoded bytes.
+   */
+  private checkQuotedId(text: string): boolean {
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      if (c === 0x5c) { // an escape; whatever follows is spelled, not raw
+        i++;
+        continue;
+      }
+      if (c < 0x20 || c === 0x7f) {
+        this.error('illegal character in identifier');
+        return false;
+      }
+    }
+    const bytes = decodeStringToken(text.slice(1)); // drop the leading '$'
+    if (bytes.length === 0) {
+      this.error('empty identifier');
+      return false;
+    }
+    try {
+      STRICT_NAME_DECODER.decode(bytes);
+    } catch {
+      this.error('malformed UTF-8 encoding');
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Read and validate an annotation's ID, which sits IMMEDIATELY after the
+   * `@` — `annot ::= '(@' (idchar+ | string) …`.
+   *
+   * There is no such thing as an anonymous annotation, and no space is allowed
+   * between the `@` and the id, so `(@)`, `(@ x)`, `(@(@a)x)` and `(@"")` are
+   * all malformed. Skipping the whole annotation at the character level
+   * accepted every one of them.
+   *
+   * A quoted id is a NAME, so it obeys the same UTF-8 rule as an export name
+   * (T12.5): `(@"\ef")` is malformed, not a name containing U+FFFD.
+   */
+  private readAnnotationId(): boolean {
+    const c = this.peek();
+    if (c === 0x22) { // '"' — quoted id
+      const start = this.cursor;
+      this.read();
+      while (true) {
+        const d = this.read();
+        if (d === EOF) {
+          this.error('unterminated string in annotation');
+          return false;
+        }
+        if (d === 0x0a) {
+          this.error('newline in annotation id');
+          this.newlineChar();
+          return false;
+        }
+        if (d === 0x5c) { // escape — whatever follows is part of it
+          this.read();
+          continue;
+        }
+        if (d === 0x22) break;
+      }
+      const raw = this.src.sliceText(start, this.cursor);
+      const bytes = decodeStringToken(raw);
+      if (bytes.length === 0) {
+        this.error('empty annotation id');
+        return false;
+      }
+      try {
+        STRICT_NAME_DECODER.decode(bytes);
+      } catch {
+        this.error('malformed UTF-8 encoding');
+        return false;
+      }
+      return true;
+    }
+    if (!isIdChar(c)) {
+      this.error('empty annotation id');
+      return false;
+    }
+    while (isIdChar(this.peek())) this.read();
+    return true;
+  }
+
+  /**
    * Skip a custom annotation, starting just after the `(@`.
    *
    * Tracks paren depth so nested groups and nested annotations close
@@ -1068,6 +1179,7 @@ export class WastLexer {
    * unterminated annotation (EOF), which is reported as an error.
    */
   private skipAnnotation(): boolean {
+    if (!this.readAnnotationId()) return false;
     let depth = 1; // the `(` of `(@` is already consumed
     while (true) {
       const c = this.read();
@@ -1078,6 +1190,17 @@ export class WastLexer {
       if (c === 0x0a) {
         this.newlineChar();
         continue;
+      }
+      if (!isSourceChar(c)) {
+        // The body is a TOKEN sequence, so it may only contain characters that
+        // could appear in WAT source at all. Skipping at the character level
+        // meant a control byte or a stray non-ASCII character was swallowed
+        // silently: an escaped NUL, a DEL, and a raw non-ASCII character all
+        // parsed. Strings and comments are consumed by the branches below and
+        // are deliberately NOT checked — a string is a byte string and a
+        // comment is not tokenised.
+        this.error(c >= 0x80 ? 'malformed UTF-8 encoding' : 'illegal character');
+        return false;
       }
       if (c === 0x22) { // '"' — skip the whole string, escapes included
         while (true) {

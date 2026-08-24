@@ -134,7 +134,7 @@ describe('T12.5 — what must still be accepted', () => {
     }
   });
 
-  it('keeps a BOM in a name as a CHARACTER, not a marker (T7.13)', async () => {
+  it('keeps a BOM in a name as a CHARACTER, not a marker (T7.13)', () => {
     // `ignoreBOM: true` on the strict decoder. Without it the BOM is stripped
     // and the export is silently renamed.
     const { binary, errors } = wat2wasm(

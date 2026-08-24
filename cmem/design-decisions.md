@@ -484,3 +484,20 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   (`(v128.const f32x4 nan:canonical …)` is legal), and those lanes share `parseF32Bits` with
   instruction consts, so a global rejection costs eight SIMD files from parse-clean. The scoped
   `allowNanPatterns` flag is set only inside `parseExpectedConst` and is saved/restored.
+- **An annotation is TRANSPARENT, not unparsed (T12.7).** `(@id …)` still has a grammar: the id is
+  required and adjacent to the `@`, and the body is a TOKEN sequence, so only characters that can
+  appear in WAT source may appear in it. Skipping it at the character level accepted `(@)`,
+  `(@ x)`, `(@"")` and any control byte. STRINGS and COMMENTS inside an annotation stay skipped
+  whole and unchecked — annotations.wast asserts both as valid.
+- **A repeated closing label must MATCH, and an inline signature beside a `(type $t)` must AGREE
+  (T12.7).** Both were consumed and discarded, so a typo'd `end $l` named another block and
+  `(func (type $sig) (result i32))` against `(type $sig (func))` emitted a signature the source
+  never wrote. Reading the inline part instead of skipping it also recovers the ORDER rule
+  (`(result …)` then `(param …)` is malformed) and the no-NAMED-param rule for block and
+  `call_indirect` type uses — a skip can see neither. `parseFuncSignature` still allows names,
+  because a real `(func (param $x i32) …)` needs them.
+- **A QUOTED identifier is a name (T12.7).** `$"…"` and an annotation's quoted id obey the T12.5
+  UTF-8 rule, must be non-empty, and may not contain RAW control characters — checked on the
+  SOURCE text, not the decoded bytes, because an escaped tab is a legal spelling while a literal
+  tab byte is not. `decodeStringToken` and `STRICT_NAME_DECODER` live in `src/core/literal.ts` so
+  the lexer and parser share one rule.

@@ -30,7 +30,7 @@ the harnesses: [tasks.md](tasks.md), [testing.md](testing.md).
 | `assert_invalid`    | modules the spec calls invalid that we reject        | **2664 / 2683** — all 19 remaining are ones V8 AND Wasmtime accept |
 | round-trip          | `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**                                                    |
 | execution           | spec `assert_return` assertions our output satisfies | **23,077 / 23,077**                                                |
-| `assert_malformed` | text the spec says must FAIL TO PARSE that we reject | 1087 / 1229 quoted · 638 / 711 binary — **the one metric with open work; tranche T12** |
+| `assert_malformed` | text the spec says must FAIL TO PARSE that we reject | 1183 / 1229 quoted · 638 / 711 binary — **the one metric with open work; tranche T12** |
 
 Against the wasmtk WASI corpus (`tests/wasmtk/`, a FROZEN 272-file snapshot — see
 `tests/wasmtk/PROVENANCE.md`): encode **270 / 270**, round-trip **270 / 270**.

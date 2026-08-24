@@ -14,6 +14,7 @@
 import type { Location, WabtError } from '../core/error.ts';
 import { addError, ErrorLevel, unknownLocation } from '../core/error.ts';
 import { Result } from '../core/result.ts';
+import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
 import { GcOpcode, Opcode, PREFIX_SIMD } from '../core/opcode.ts';
 import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
 import {
@@ -571,103 +572,7 @@ const FUNCIDX_ELEM_TYPE: ValueType = {
   nullable: false,
 };
 
-function decodeStringToken(text: string): Uint8Array {
-  // strip surrounding quotes
-  if (text.startsWith('"')) text = text.slice(1);
-  if (text.endsWith('"')) text = text.slice(0, -1);
-  const bytes: number[] = [];
-  let i = 0;
-  while (i < text.length) {
-    const ch = text.charCodeAt(i);
-    if (ch === 0x5c) { // backslash
-      i++;
-      const e = text.charCodeAt(i);
-      switch (e) {
-        case 0x74:
-          bytes.push(0x09);
-          i++;
-          break; // \t
-        case 0x6e:
-          bytes.push(0x0a);
-          i++;
-          break; // \n
-        case 0x72:
-          bytes.push(0x0d);
-          i++;
-          break; // \r
-        case 0x22:
-          bytes.push(0x22);
-          i++;
-          break; // \"
-        case 0x27:
-          bytes.push(0x27);
-          i++;
-          break; // \'
-        case 0x5c:
-          bytes.push(0x5c);
-          i++;
-          break; // \\
-        case 0x75: { // \u{XXXX}
-          i += 2; // skip 'u{'
-          let scalar = 0;
-          while (i < text.length && text[i] !== '}') {
-            scalar = (scalar << 4) | parseInt(text[i]!, 16);
-            i++;
-          }
-          i++; // skip '}'
-          // encode scalar as UTF-8
-          if (scalar < 0x80) bytes.push(scalar);
-          else if (scalar < 0x800) {
-            bytes.push(0xc0 | (scalar >> 6));
-            bytes.push(0x80 | (scalar & 0x3f));
-          } else if (scalar < 0x10000) {
-            bytes.push(0xe0 | (scalar >> 12));
-            bytes.push(0x80 | ((scalar >> 6) & 0x3f));
-            bytes.push(0x80 | (scalar & 0x3f));
-          } else {
-            bytes.push(0xf0 | (scalar >> 18));
-            bytes.push(0x80 | ((scalar >> 12) & 0x3f));
-            bytes.push(0x80 | ((scalar >> 6) & 0x3f));
-            bytes.push(0x80 | (scalar & 0x3f));
-          }
-          break;
-        }
-        default: { // hex escape
-          const hi = parseInt(text[i]!, 16);
-          i++;
-          const lo = parseInt(text[i]!, 16);
-          i++;
-          bytes.push((hi << 4) | lo);
-        }
-      }
-    } else if (ch < 0x80) {
-      bytes.push(ch);
-      i++;
-    } else {
-      // A raw non-ASCII character. WAT strings are BYTE strings, and the
-      // source is UTF-8, so the character contributes its UTF-8 encoding.
-      // `bytes.push(ch)` pushed the UTF-16 code unit as a single byte, which
-      // silently truncated every non-ASCII character: `é` (U+00E9) emitted
-      // `e9` instead of `c3 a9`, and U+F61A emitted `1a` instead of
-      // `ef 98 9a`. That corrupted data segments and import/export names.
-      // Consume a whole code point so surrogate pairs survive.
-      const cp = text.codePointAt(i)!;
-      const width = cp > 0xffff ? 2 : 1;
-      for (const b of TEXT_ENCODER.encode(String.fromCodePoint(cp))) bytes.push(b);
-      i += width;
-    }
-  }
-  return new Uint8Array(bytes);
-}
-
 /** Strip surrounding quotes and resolve escapes for a WAT string, returning text. */
-/** Strict decoder for NAME positions; see `parseQuotedText`. */
-// `ignoreBOM: true` matters: a leading U+FEFF in a NAME is a character, not
-// an encoding marker (T7.13). Omitting it makes TextDecoder STRIP the BOM,
-// which silently renames the export — caught by the V8-valid metric dropping
-// 257 -> 256 the moment this decoder was introduced without it.
-const STRICT_NAME_DECODER = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
-
 function decodeStringText(raw: string): string {
   return TEXT_DECODER.decode(decodeStringToken(raw));
 }
@@ -1443,8 +1348,18 @@ export class WastParser {
   ): TypeUse | null {
     if (typeVar === null) return null;
     // A type-use WITH an inline signature still takes its INDEX from the
-    // type-use; the inline part only restates the signature.
-    if (sig.params.length > 0 || sig.results.length > 0) return 'resolved';
+    // type-use; the inline part only RESTATES the signature, so it has to say
+    // the same thing. `(func (type $sig) (result i32))` against
+    // `(type $sig (func))` is malformed — we used to take the index and
+    // discard the inline part unread, emitting a function whose declared
+    // signature was neither of the two the source wrote.
+    if (sig.params.length > 0 || sig.results.length > 0) {
+      const declared = this.lookupFuncTypeEntry(module, typeVar);
+      if (declared !== null && !sigEquals(declared, sig)) {
+        this.error(this.loc(), 'inline function type does not match explicit type');
+      }
+      return 'resolved';
+    }
     const entry = this.lookupFuncTypeEntry(module, typeVar);
     if (entry === null) return typeVar;
     sig.params.push(...entry.params);
@@ -3294,6 +3209,29 @@ export class WastParser {
   // Linear instruction parsing
   // -------------------------------------------------------------------------
 
+  /**
+   * Consume the OPTIONAL label a linear `end` or `else` may repeat, and check
+   * that it MATCHES the one the block opened with.
+   *
+   * `block $a … end $l` is malformed, and so is `block … end $l` on an
+   * unlabelled block. Both were `if (peek() === Var) this.drop()` — the
+   * closing label was thrown away unread, so a typo'd or copy-pasted label
+   * silently named a different block and the module still compiled.
+   */
+  private matchClosingLabel(label: string): void {
+    if (this.peek() !== TokenType.Var) return;
+    const tok = this.consume() as StringToken;
+    const written = this.varTokenText(tok);
+    if (written !== label) {
+      this.error(
+        tok.loc,
+        `mismatching label: ${
+          label === '' ? 'the block is unlabelled' : `expected ${label}`
+        }, got ${written}`,
+      );
+    }
+  }
+
   private parseLinearBlockInstr(ctx: ExprCtx): Result {
     const loc = this.loc();
     const tt = this.peek();
@@ -3305,8 +3243,7 @@ export class WastParser {
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
       this.expect(TokenType.End);
-      // optional label
-      if (this.peek() === TokenType.Var) this.drop();
+      this.matchClosingLabel(label);
       flushStack(bodyCtx);
       const node: BlockExpr | LoopExpr = tt === TokenType.Block
         ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
@@ -3328,7 +3265,7 @@ export class WastParser {
 
       const else_: Expr[] = [];
       if (this.match(TokenType.Else)) {
-        if (this.peek() === TokenType.Var) this.drop();
+        this.matchClosingLabel(label);
         flushStack(then_Ctx);
         then_.push(...then_Ctx.stmts);
         const else_Ctx = newCtx();
@@ -3341,7 +3278,7 @@ export class WastParser {
       }
 
       this.expect(TokenType.End);
-      if (this.peek() === TokenType.Var) this.drop();
+      this.matchClosingLabel(label);
 
       const condExpr2: Expr = cond ?? operandPlaceholder(loc);
       const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr2, then_, else_, loc };
@@ -3387,7 +3324,7 @@ export class WastParser {
         delegate = this.parseVar() ?? varIndex(0);
       } else {
         this.expect(TokenType.End);
-        if (this.peek() === TokenType.Var) this.drop(); // optional trailing label
+        this.matchClosingLabel(label);
       }
       const node: TryExpr = delegate === undefined
         ? { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, loc }
@@ -3425,7 +3362,7 @@ export class WastParser {
       this.parseInstrList(bodyCtx);
       flushStack(bodyCtx);
       this.expect(TokenType.End);
-      if (this.peek() === TokenType.Var) this.drop(); // optional trailing label
+      this.matchClosingLabel(label);
       const node: TryTableExpr = {
         kind: 'try_table',
         label,
@@ -3622,7 +3559,21 @@ export class WastParser {
       case TokenType.CallIndirect: {
         const tableVar = this.parseVarOpt(varIndex(0));
         const typeVar = this.parseTypeUseOpt();
-        const { sig } = this.parseFuncSignature();
+        const { sig, bindings } = this.parseFuncSignature();
+        // A param in a `call_indirect` type use may not be NAMED: there is no
+        // body for the name to scope over. `parseFuncSignature` allows names
+        // because a real `(func (param $x i32) …)` needs them.
+        if (bindings.size > 0) {
+          this.error(loc, 'unexpected token: a param in a type use may not be named');
+        }
+        if (typeVar !== null && (sig.params.length > 0 || sig.results.length > 0)) {
+          const declared = this.currentModule === null
+            ? null
+            : this.lookupFuncTypeEntry(this.currentModule, typeVar);
+          if (declared !== null && !sigEquals(declared, sig)) {
+            this.error(loc, 'inline function type does not match explicit type');
+          }
+        }
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         // `call_indirect (param i32)` names its signature inline instead of
@@ -3657,7 +3608,21 @@ export class WastParser {
       case TokenType.ReturnCallIndirect: {
         const tableVar = this.parseVarOpt(varIndex(0));
         const typeVar = this.parseTypeUseOpt();
-        const { sig } = this.parseFuncSignature();
+        const { sig, bindings } = this.parseFuncSignature();
+        // A param in a `call_indirect` type use may not be NAMED: there is no
+        // body for the name to scope over. `parseFuncSignature` allows names
+        // because a real `(func (param $x i32) …)` needs them.
+        if (bindings.size > 0) {
+          this.error(loc, 'unexpected token: a param in a type use may not be named');
+        }
+        if (typeVar !== null && (sig.params.length > 0 || sig.results.length > 0)) {
+          const declared = this.currentModule === null
+            ? null
+            : this.lookupFuncTypeEntry(this.currentModule, typeVar);
+          if (declared !== null && !sigEquals(declared, sig)) {
+            this.error(loc, 'inline function type does not match explicit type');
+          }
+        }
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         // `call_indirect (param i32)` names its signature inline instead of
@@ -4650,19 +4615,44 @@ export class WastParser {
    * inline restatement carries no extra information — but it must still be
    * consumed or the caller trips over it.
    */
-  private skipInlineBlockSig(): void {
+  /**
+   * Parse the inline `(param …)* (result …)*` that may FOLLOW a `(type $t)`
+   * in a block type use. Returns null when nothing was written.
+   *
+   * This used to SKIP the group without reading it, which lost three rules at
+   * once: the order is fixed (`(result …)` then `(param …)` is malformed), a
+   * param in a block type use may not be NAMED, and — at the call site — an
+   * inline signature only RESTATES the referenced type, so it has to say the
+   * same thing.
+   */
+  private parseInlineBlockSig(): FuncSignature | null {
+    let written = false;
+    const params: ValueType[] = [];
+    const results: ValueType[] = [];
     while (this.peek() === TokenType.Lpar) {
       const next = this.peek(1);
-      if (next !== TokenType.Param && next !== TokenType.Result) return;
+      if (next !== TokenType.Param && next !== TokenType.Result) break;
+      const loc = this.loc();
       this.drop();
       this.drop();
+      const into = next === TokenType.Param ? params : results;
+      if (next === TokenType.Param) {
+        if (results.length > 0) this.error(loc, 'unexpected token: param after result');
+        if (this.peek() === TokenType.Var) {
+          this.error(this.loc(), 'unexpected token: a param in a block type may not be named');
+          this.drop();
+        }
+      }
+      written = true;
       while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
         const before = this.pos;
-        this.parseValueType();
+        const t = this.parseValueType();
+        if (t !== null) into.push(t);
         if (this.noProgress(before, 'inline block signature')) break;
       }
       this.expect(TokenType.Rpar);
     }
+    return written ? { params, results } : null;
   }
 
   private parseBlockType(): BlockType {
@@ -4675,12 +4665,21 @@ export class WastParser {
     if (this.matchLpar(TokenType.Type)) {
       const v = this.parseVar();
       this.expect(TokenType.Rpar);
-      this.skipInlineBlockSig();
-      if (v !== null && v.kind === 'index') return { kind: 'func_type', typeIdx: v.value };
-      if (v !== null && this.currentModule !== null) {
-        const idx = this.currentModule.types.findIndex((t) => t.name === v.name);
-        if (idx >= 0) return { kind: 'func_type', typeIdx: idx };
+      const inline = this.parseInlineBlockSig();
+      let typeIdx = -1;
+      if (v !== null && v.kind === 'index') typeIdx = v.value;
+      else if (v !== null && this.currentModule !== null) {
+        typeIdx = this.currentModule.types.findIndex((t) => t.name === v.name);
       }
+      if (inline !== null && typeIdx >= 0) {
+        const declared = this.currentModule?.types[typeIdx];
+        if (
+          declared !== undefined && declared.kind === 'func' && !sigEquals(declared.sig, inline)
+        ) {
+          this.error(this.loc(), 'inline function type does not match explicit type');
+        }
+      }
+      if (typeIdx >= 0) return { kind: 'func_type', typeIdx };
       return BLOCK_TYPE_VOID;
     }
 
@@ -5342,7 +5341,6 @@ const BARE_REF_RESULT_KINDS: ReadonlyMap<TokenType, ExpectedConst['kind']> = new
 // and V8 rejected the module for a duplicate export. Only the whole-file
 // decode in lexer-source.ts should strip a leading BOM.
 const TEXT_DECODER = new TextDecoder('utf-8', { ignoreBOM: true });
-const TEXT_ENCODER = new TextEncoder();
 
 const F32_BUF = new ArrayBuffer(4);
 const F32_VIEW = new DataView(F32_BUF);

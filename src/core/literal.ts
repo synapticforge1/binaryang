@@ -378,3 +378,123 @@ export function printF64Literal(bits: bigint): string {
   const fracHex = mantissa.toString(16).padStart(13, '0').replace(/0+$/, '') || '0';
   return `${sign}0x${leading}.${fracHex}p${trueExp >= 0 ? '+' : ''}${trueExp}`;
 }
+
+// ---------------------------------------------------------------------------
+// String literals
+// ---------------------------------------------------------------------------
+
+/**
+ * Strict UTF-8 decoder for wasm NAME positions.
+ *
+ * A wasm name (import module/field, export, custom-section id, quoted
+ * identifier, annotation id) must be valid UTF-8, so an invalid sequence makes
+ * the module malformed rather than being something to repair. The lenient
+ * default substitutes U+FFFD, which silently produces a DIFFERENT,
+ * valid-looking name (T12.5).
+ *
+ * `ignoreBOM: true` is load-bearing: a leading U+FEFF in a name is a
+ * CHARACTER, not an encoding marker (T7.13). Without it `TextDecoder` strips
+ * it and the export is silently renamed — that dropped V8-valid 257 -> 256 the
+ * moment this decoder was introduced without the flag.
+ */
+export const STRICT_NAME_DECODER = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+
+/** Shared UTF-8 encoder; WAT source is UTF-8, so raw characters encode as such. */
+const TEXT_ENCODER = new TextEncoder();
+
+/**
+ * Decode a WAT string literal (quotes included or not) to its BYTES.
+ *
+ * WAT strings are BYTE strings: an escaped 0xff is one byte, not a character.
+ * Callers that need a NAME must run the result through
+ * {@link STRICT_NAME_DECODER}; callers that need raw bytes (data segments)
+ * must NOT -- a data segment holding arbitrary bytes is legal.
+ */
+export function decodeStringToken(text: string): Uint8Array {
+  // strip surrounding quotes
+  if (text.startsWith('"')) text = text.slice(1);
+  if (text.endsWith('"')) text = text.slice(0, -1);
+  const bytes: number[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const ch = text.charCodeAt(i);
+    if (ch === 0x5c) { // backslash
+      i++;
+      const e = text.charCodeAt(i);
+      switch (e) {
+        case 0x74:
+          bytes.push(0x09);
+          i++;
+          break; // \t
+        case 0x6e:
+          bytes.push(0x0a);
+          i++;
+          break; // \n
+        case 0x72:
+          bytes.push(0x0d);
+          i++;
+          break; // \r
+        case 0x22:
+          bytes.push(0x22);
+          i++;
+          break; // \"
+        case 0x27:
+          bytes.push(0x27);
+          i++;
+          break; // \'
+        case 0x5c:
+          bytes.push(0x5c);
+          i++;
+          break; // \\
+        case 0x75: { // \u{XXXX}
+          i += 2; // skip 'u{'
+          let scalar = 0;
+          while (i < text.length && text[i] !== '}') {
+            scalar = (scalar << 4) | parseInt(text[i]!, 16);
+            i++;
+          }
+          i++; // skip '}'
+          // encode scalar as UTF-8
+          if (scalar < 0x80) bytes.push(scalar);
+          else if (scalar < 0x800) {
+            bytes.push(0xc0 | (scalar >> 6));
+            bytes.push(0x80 | (scalar & 0x3f));
+          } else if (scalar < 0x10000) {
+            bytes.push(0xe0 | (scalar >> 12));
+            bytes.push(0x80 | ((scalar >> 6) & 0x3f));
+            bytes.push(0x80 | (scalar & 0x3f));
+          } else {
+            bytes.push(0xf0 | (scalar >> 18));
+            bytes.push(0x80 | ((scalar >> 12) & 0x3f));
+            bytes.push(0x80 | ((scalar >> 6) & 0x3f));
+            bytes.push(0x80 | (scalar & 0x3f));
+          }
+          break;
+        }
+        default: { // hex escape
+          const hi = parseInt(text[i]!, 16);
+          i++;
+          const lo = parseInt(text[i]!, 16);
+          i++;
+          bytes.push((hi << 4) | lo);
+        }
+      }
+    } else if (ch < 0x80) {
+      bytes.push(ch);
+      i++;
+    } else {
+      // A raw non-ASCII character. WAT strings are BYTE strings, and the
+      // source is UTF-8, so the character contributes its UTF-8 encoding.
+      // `bytes.push(ch)` pushed the UTF-16 code unit as a single byte, which
+      // silently truncated every non-ASCII character: `é` (U+00E9) emitted
+      // `e9` instead of `c3 a9`, and U+F61A emitted `1a` instead of
+      // `ef 98 9a`. That corrupted data segments and import/export names.
+      // Consume a whole code point so surrogate pairs survive.
+      const cp = text.codePointAt(i)!;
+      const width = cp > 0xffff ? 2 : 1;
+      for (const b of TEXT_ENCODER.encode(String.fromCodePoint(cp))) bytes.push(b);
+      i += width;
+    }
+  }
+  return new Uint8Array(bytes);
+}

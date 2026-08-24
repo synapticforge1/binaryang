@@ -79,6 +79,7 @@ reference these ids.
 | T12.4 | SIMD lane immediates and `v128.const` lane values wrapped silently | done — malformed 828 → 869 / 1229 |
 | T12.5 | A wasm NAME must be valid UTF-8 — neither path checked | done — quoted 869 → 1045, **binary 110 → 638** |
 | T12.6 | A missing lane immediate compiled as lane 0; NaN result patterns accepted as literals | done — quoted 1045 → 1087 |
+| T12.7 | Annotations skipped at the CHARACTER level; a closing label and an inline signature both read and discarded | done — quoted 1087 → **1183**; closes T12.6 |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -604,8 +605,8 @@ one. The result inverted the count order: the biggest categories are the mildest
 | ~~T12.3~~ | **DONE.** `align=0`, `align=7` and other non-powers-of-two | 114 | **silent WRONG VALUE** — `align=3` was emitted as `align=2`; the severity was under-rated on the first pass |
 | ~~T12.4~~ | **DONE.** SIMD lane immediates AND `v128.const` lane values | 13 + the simd_const cases | **silent WRONG VALUE** — lane 256 → 0, and `v128.const i8x16 -129` → **127** |
 | ~~T12.5~~ | **DONE.** Malformed UTF-8 in names | 186 quoted **+ 528 binary** | name silently REPLACED with U+FFFD — and the same rule fixed most of T12.8 |
-| ~~T12.6~~ | **PARTLY DONE.** `unexpected token` — the two silent-default shapes are fixed; block type-use and named type-use params remain (see below) | 82 → ~12 | had **silent WRONG VALUE** in it after all |
-| **T12.7** | Illegal character, empty annotation id, mismatching label, inline function type | 77 | rejection not made |
+| ~~T12.6~~ | **DONE.** `unexpected token` — two silent defaults, then the block/type-use remainder closed by T12.7 | 82 | had **silent WRONG VALUE** in it after all |
+| ~~T12.7~~ | **DONE.** Illegal character, empty annotation id, mismatching label, inline function type | 77 (+19 more it reached) | two of the four were WRONG VALUE, not just a missing rejection |
 | **T12.8** | The remaining BINARY `assert_malformed` cases | **73** (was 601 — T12.5 closed 528) | decoder hardening |
 
 **T12.1 — done 2026-08-24.** Integers went through `BigInt.asIntN(32, n)` with
@@ -764,6 +765,61 @@ results, and a NAMED param in a `call_indirect` type-use.
 
 Regression: `tests/parser/lane_and_nan_context.test.ts` (15 cases, 14 fail
 pre-fix, including the per-lane v128 result and a no-leak check).
+
+**T12.7 — three things read and then thrown away, 2026-08-24.** Filed as four
+separate categories; they turned out to be one shape repeated. In each, the
+parser or lexer CONSUMED the text and looked at nothing:
+
+1. **An annotation was skipped at the CHARACTER level.** `(@id …)` is
+   transparent, and we implemented "transparent" literally — count parens,
+   stop at the matching `)`. That is right about the BODY being untokenised
+   and wrong about the rest, because an annotation still has a grammar:
+   `annot ::= '(@' (idchar+ | string) (token | annot)* ')'`. The ID is
+   REQUIRED and adjacent to the `@`, so `(@)`, `(@ x)`, `(@(@a)x)` and `(@"")`
+   are malformed; and the body is a TOKEN sequence, so a control byte, a DEL
+   or a raw non-ASCII character cannot appear in it.
+2. **The closing label of a linear block.** `block $a … end $l` repeats the
+   label at the `end` and the repeat must match. All five sites were
+   `if (peek() === Var) this.drop()`. A typo'd closing label named a different
+   block and the module compiled.
+3. **The inline signature beside a `(type $t)`.** A type use may RESTATE its
+   signature, and the restatement has to agree. `parseBlockType` called
+   `skipInlineBlockSig` and `settleTypeUse` returned early, so
+   `(type $sig (func))` with `(result i32)` emitted a function whose declared
+   signature was neither of the two the source wrote.
+
+(2) and (3) are silent-WRONG-VALUE, not merely a missing rejection — which is
+the third time this tranche a category filed as "rejection not made" contained
+one. **"We consume it and ignore it" is the tell**, and it is worth grepping
+for directly rather than waiting for a metric: a `drop()` whose result is never
+used, and a `skip…` helper that returns `void`.
+
+**Reading the inline part instead of skipping it closed T12.6's remainder for
+free.** A skip cannot see ORDER or NAMES, so the same rewrite rejected
+`(result …)` before `(param …)` and a NAMED param in a block or
+`call_indirect` type use — while `parseFuncSignature` still allows names,
+because a real `(func (param $x i32) …)` needs them.
+
+**A quoted id is a NAME.** `(@"…")` and `$"…"` take the T12.5 UTF-8 rule with
+them, plus non-emptiness and no RAW control characters. That last check is on
+the SOURCE text, not the decoded bytes, because an escaped tab is legal while a
+literal tab byte is not — checking the bytes would have rejected both. The
+shared `decodeStringToken` / `STRICT_NAME_DECODER` moved to
+`src/core/literal.ts` so the lexer and the parser apply one rule, not two.
+
+**The EXEMPTIONS are what make it safe**, and annotations.wast asserts them:
+strings and comments inside an annotation are skipped whole and stay
+unchecked (a body string containing parens, and `(@a (;bla;) (; ) ;)`, are both
+VALID), and data segments keep their T12.5 exemption.
+
+quoted assert_malformed **1087 → 1183 / 1229**; the other six metrics unmoved.
+Regressions: `tests/parser/annotation_lexing.test.ts` and
+`tests/parser/type_use_and_label.test.ts` (61 cases, 42 fail pre-fix).
+
+**Still open** (46 quoted): duplicate ids across func/local/global/memory/
+table/field (16), `nan:0x0` (10), signed lane immediates and `i8x16.shuffle`
+lane-length/range (12), a `br_table` label that runs into the next token (5),
+unknown type (1), two start sections (1), plus the 73 binary cases in T12.8.
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 
