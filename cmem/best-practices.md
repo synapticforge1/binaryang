@@ -48,6 +48,7 @@ code
 - Widening a mask is not fixing a range check
 - A rule that only fires when its operand is already known is half a rule
 - Audit a manual walk against the TYPE, not against a corpus
+- An audit must report the size of the population it examined
 - An unused parameter in one of a family of parallel handlers is a missing check
 - When a marker has to be applied at every construction site, grep for it
 - In this codebase, "the linear form is a stub" IS a round-trip bug
@@ -968,4 +969,23 @@ T12.8 and T13.2 — three repetitions is enough to move the grep out of a tranch
 and into the routine, alongside the sibling-case check (the tag attribute had to
 be fixed in the section AND the import, exactly like Bug G and the
 `atomic_rmw_cmpxchg` memidx).
+
+## An audit must report the size of the population it examined
+
+Two self-inflicted misses in one review pass, both invisible without a count:
+
+- The `Var`-field audit reported "374 of 571 unresolved" because the capture
+  group stopped at the first `)` in `S(0x61)`. It printed a result and looked
+  like it had run; it had checked a third of the table.
+- The alignment audit named three token types (`LoadSplat`, `LoadZero`,
+  `LoadExtend`) that match nothing — the SIMD loads are all `TokenType.Load`.
+  The population happened to be complete, but only a trailing line saying "these
+  names matched no rows" made that checkable.
+
+**A clean result and an empty run look identical unless the audit says how much
+it looked at.** Print the denominator, and assert on it (`assert(checked > 80)`)
+so a mis-typed filter fails instead of passing vacuously. This is the same rule
+as "a metric measures the population its classifier hands it", applied to
+one-off audits rather than standing metrics — and one-offs are MORE exposed,
+because nobody re-derives them later.
 

@@ -160,6 +160,10 @@ project contract.
   space, NaN payload range (with a V8 round trip proving the in-range ones stay NaNs), lane
   immediates, the token-boundary rule, one `(start …)` per module, and the deferred
   forward type-use check.
+- `tests/core/opcode_tables.test.ts` — T13.6: lexer⇄printer opcode-name symmetry and
+  natural-alignment coverage, over the whole opcode population, driven by the lexer's own
+  behaviour. Three guarded exemptions: `select` (many-to-one) and the two `ref.*  null`
+  disassembly labels.
 - `tests/reader/reserved_bytes.test.ts` — T13.5: the tag attribute byte in both paths and the
   table init form's reserved byte. **Nothing in the seven metrics reaches these** — the writer
   never emits a bad value, so round-trip cannot see it, and the spec suite has no case.

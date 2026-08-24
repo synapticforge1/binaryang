@@ -87,6 +87,7 @@ reference these ids.
 | T13.3 | `Limits.initial` / `max` are `bigint` — a 64-bit limit could not be REPRESENTED | done — V8-valid 2118 → **2119**, agreement and round-trip likewise; **breaking API change** |
 | T13.4 | Custom page sizes, wired end to end — the proposal was half-built and semantically wrong | done — no metric covers it; design taken from wazmrt |
 | T13.5 | Three more reserved bytes read into nowhere — tag attribute (×2), table init reserved | done — no metric could see them; found by grepping the SHAPE |
+| T13.6 | Two type-level table audits made PERMANENT — lexer⇄printer names, natural-alignment coverage | done — both clean; 3 exemptions found and each guarded |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -1155,6 +1156,46 @@ enough repetitions to say the grep belongs in the routine, not in a tranche.
 
 Regression: `tests/reader/reserved_bytes.test.ts` (13 steps, 2 of 3 groups fail
 pre-fix). No metric moved.
+
+**T13.6 — a review pass that found nothing, and left two guards behind
+(2026-08-24).** Angles checked and CLEARED, recorded so they are not re-run
+blind: memory/table checks cover IMPORTS as well as definitions (wazmrt flags
+the opposite as a real trap); `checkLabelScopes` covers all four branch-on forms
+including `br_on_cast_fail`; every `Var`-bearing Expr variant is mentioned by
+its `resolveNames` case (65 variants, 2 apparent misses both false — a
+`case A: case B:` fallthrough and `RefValueType`, which is a value type rather
+than an Expr); a NAMED heap type resolves in every value-type slot including a
+FORWARD reference; `coarsenValueType` is confined to `src/bridge/` as documented;
+and the `ValueType === Type.X` comparisons left in the encoders are correct by
+design — they exclude typed refs on purpose.
+
+Two audits were worth keeping rather than re-deriving, so they are now tests
+(`tests/core/opcode_tables.test.ts`) driven by the LEXER's own behaviour rather
+than a regex over its source:
+
+- **lexer ⇄ printer symmetry**, every named opcode. A disagreement RENAMES an
+  instruction across a round trip, and the SIMD name table has drifted before —
+  caught by the wasmtk corpus, not by anything here.
+- **natural-alignment coverage**, every memarg-bearing opcode. A missing entry
+  is not a missing feature: the writer fills `align = 0` from that table, so the
+  opcode is emitted with exponent 0, which binaryen reads as a hard constraint.
+
+**Three exemptions turned up, and each one is now guarded rather than merely
+skipped** — the "the exemption is part of the rule" practice: `select` is
+legitimately many-to-one (0x1b untyped, 0x1c annotated, both spelled `select`),
+and `ref.test null` / `ref.cast null` are DISASSEMBLY labels for the nullable
+opcodes whose text form puts nullability in the immediate. All four spellings
+are asserted to round-trip byte-identically, and the WAT is asserted not to
+contain the label.
+
+**Two of my own tooling bugs are worth the note.** The Var audit first reported
+374 of 571 rows "unresolved" because the capture stopped at the first `)` in
+`S(0x61)` — it looked like it had run when it had barely started. And the align
+audit named three token types that match nothing (`LoadSplat`, `LoadZero`,
+`LoadExtend`); the SIMD loads are all `TokenType.Load`, so the population was
+complete, but only a sanity line saying "these names matched no rows" made that
+visible. **An audit needs to report the size of the population it examined**,
+or a clean result is indistinguishable from an empty one.
 
 ### Will a wasic WASI program LOAD on every runtime here? — 2026-08-24
 
