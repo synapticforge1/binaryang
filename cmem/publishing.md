@@ -1,26 +1,32 @@
 # Publishing & release flow
 
 Published as **`@jrmarcum/wabt-ts`** on JSR. GitHub remote: `github.com/jrmarcum/wabt-ts`.
-`deno.json` reads **v1.3.5**; the import map pins binaryen-ts at `^1.0.9` while the checkout is
-v1.3.5+ (the caret accepts it — a stale pin, not a break).
+`deno.json` reads **v1.4.0** (set by hand on 2026-08-24 — `deno task bump` would have produced
+1.3.6 under the sub-version-capped-at-9 rule, and this release breaks an exported type twice, so it
+takes the minor). The import map pins binaryen-ts at `^1.0.9` while the checkout is v1.3.5+ (the
+caret accepts it — a stale pin, not a break).
 
-## ⚠️ A BUMP IS BLOCKING A DOWNSTREAM TEAM (2026-08-24)
+## v1.4.0 — what it carries, and who is waiting on it (2026-08-24)
 
-**wasmtk's exception-handling migration is written and cannot land until wabt-ts
-ships.** `try_table` catch clauses with NAMED tags or labels do not encode at
+**wasmtk's exception-handling migration is written and blocked solely on this
+release.** `try_table` catch clauses with NAMED tags or labels do not encode at
 v1.3.5 — `resolveNames` did not resolve them, so the writer's fail-loud
-`writeVar` fires. Fixed by **`d30b8599` (2026-08-21)**, unreleased. At the
-pinned version wabt-ts can emit only the EH form Wasmtime and Wasmer refuse.
+`writeVar` fires. Fixed by **`d30b8599` (2026-08-21)**. At the pinned version
+wabt-ts can emit only the EH form Wasmtime and Wasmer refuse.
 
 Their words: *"we pin it the moment it ships — the migration is written and
-blocked solely on this."*
+blocked solely on this."* Their range is `^1.3.5`, which accepts 1.4.0, so the
+pin moves on their next resolve.
 
-**An unreleased fix is indistinguishable from an absent one downstream.**
+**An unreleased fix is indistinguishable from an absent one downstream** — that
+is the whole reason this release exists.
 
-## ⚠️ UNRELEASED BREAKING CHANGES — in the same bump
+The tag push is the OWNER's action: `deno task publish` commits `deno.json` if
+it is still dirty, tags `v1.4.0`, and pushes both. Never `deno publish` locally.
 
-Two changes to an exported type are committed and **not yet published**, so
-`deno.json`'s version no longer describes what is on `main`:
+## BREAKING CHANGES IN THIS RELEASE
+
+Two changes to an exported type, plus one behavioural:
 
 - **`Limits.initial` / `Limits.max` are `bigint`**, not `number` (T13.3). The fields are u64 for a
   64-bit memory or table, and a JS number is exact only to 2^53 — so a limit near the top of its
@@ -45,7 +51,8 @@ behaviour change and belongs in the release notes. `wasm-validate` gained
 `--enable-<feature>` / `--disable-<feature>` / `--enable-all` alongside it, because a gated
 validator with no way to opt in would reject most modern wasm.
 
-`README.md` carries a "Breaking change since v1.3.5" section for downstream consumers.
+`README.md` carries a "Breaking change since v1.3.5" section for downstream consumers, including
+the `features` example every caller now has to write.
 
 ## `deno publish --dry-run` is in CI but NOT in `deno task test`
 
