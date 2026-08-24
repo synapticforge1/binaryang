@@ -1799,9 +1799,40 @@ export class WastParser {
     const savedPending = this.pendingBodies;
     this.pendingBodies = [];
 
+    // An import may not follow a DEFINITION of a function, table, memory,
+    // global or tag. Imports occupy the low indices of each index space, so
+    // accepting a late one and emitting it first silently RENUMBERS everything
+    // the module already referred to: `(func $d) (import … (func $i)) (call 0)`
+    // called `$d` in source order and `$i` after the reorder — valid wasm, V8
+    // runs it, different answer (T12.2).
+    let firstDefKind: string | null = null;
+    const defCount = (): number =>
+      module.funcs.length + module.tables.length + module.memories.length +
+      module.globals.length + module.tags.length;
+
     while (this.peekIsModuleField()) {
+      const loc = this.loc();
+      const importsBefore = module.imports.length;
+      const defsBefore = defCount();
+
       if (this.parseModuleField(module) !== Result.Ok) {
         this.synchronizeToModuleField();
+        continue;
+      }
+
+      if (module.imports.length > importsBefore && firstDefKind !== null) {
+        this.error(loc, `import after ${firstDefKind}`);
+      }
+      if (firstDefKind === null && defCount() > defsBefore) {
+        firstDefKind = module.funcs.length > 0
+          ? 'function'
+          : module.tables.length > 0
+          ? 'table'
+          : module.memories.length > 0
+          ? 'memory'
+          : module.globals.length > 0
+          ? 'global'
+          : 'tag';
       }
     }
 

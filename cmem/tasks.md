@@ -74,6 +74,7 @@ reference these ids.
 | T10.8 | A synthesized operand slot-filler was written out as a real `nop` | done — WASI corpus **270 / 270** |
 | T9.11 | Ten of the twelve memarg handlers never checked the offset | done — 4 SIMD false-accepts closed |
 | T12.1 | Out-of-range integer and float constants silently truncated/overflowed | done — malformed 666 → 698 / 1229 |
+| T12.2 | An import after a definition was accepted and silently RENUMBERED the module | done — malformed 698 → 714 / 1229 |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -595,7 +596,7 @@ one. The result inverted the count order: the biggest categories are the mildest
 | id | scope | cases | measured consequence |
 | --- | --- | --- | --- |
 | ~~T12.1~~ | **DONE.** Out-of-range integer / float constants | 68 | **silent WRONG VALUE** — `(i32.const 0x100000000)` → `0`, `(f32.const 1e39)` → `inf`; V8 accepts and runs |
-| **T12.2** | Import after a function/global/table/memory definition | 12 | **silent REORDER** — accepted and the import is emitted first, so the index spaces shift under the module |
+| ~~T12.2~~ | **DONE.** Import after a function/global/table/memory/tag definition | 12 | **silent REORDER** — was accepted and emitted first, shifting every index space |
 | **T12.3** | `align=0`, `align=7` and other non-powers-of-two | 114 | align silently DISCARDED (falls back to natural) |
 | **T12.4** | SIMD lane index out of range (`extract_lane 256`) | 13 | silent wrong LANE |
 | **T12.5** | Malformed UTF-8 in names / annotations | 186 | name mangled |
@@ -624,6 +625,30 @@ parser's range check reads.
 
 Regression: `tests/parser/const_range.test.ts` (21 cases, 17 fail pre-fix,
 including boundary cases in both directions).
+
+**T12.2 — done 2026-08-24.** Imports occupy the low indices of every index
+space, so the spec forbids one from following a definition. We accepted them and
+emitted the import FIRST, renumbering everything the module already referred to.
+Not theoretical — the module runs and returns a different answer:
+
+    (func $defined (result i32) (i32.const 111))
+    (import "host" "imported" (func $imported (result i32)))
+    (func (export "which") (result i32) (call 0))
+
+    source order:   call 0 is $defined      -> 111
+    what we emitted: call 0 is the import   -> 999
+
+V8 accepts the result, so nothing downstream catches it. Same class as T12.1.
+
+The check lives in `parseModuleFieldList` and watches whether
+`module.imports.length` GREW, not whether the `import` keyword appeared — the
+inline abbreviation `(func $g (import "m" "g"))` is an import too and would
+otherwise have slipped through. Verified against seven legal orderings
+(type/export between imports, elem/data/start after definitions, imports only,
+the inline abbreviation first) so the rule did not become a blanket rejection.
+
+Regression: `tests/parser/import_order.test.ts` (15 cases, 8 fail pre-fix,
+including a V8-executed check that `call` still means what source order says).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

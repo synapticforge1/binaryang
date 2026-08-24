@@ -451,3 +451,9 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   is out of range, so the check is gated on the literal FORM (`isFiniteLiteralForm`), never on the
   resulting bits — gating on bits rejects a legitimate `inf`. Both produced modules V8 accepts and
   RUNS with a different value.
+- **An import may not follow a DEFINITION (T12.2).** Imports occupy the low indices of every index
+  space, so a late one renumbers everything already written. `parseModuleFieldList` watches whether
+  `module.imports.length` GREW after each field — not whether the `import` keyword appeared —
+  because the inline abbreviation `(func $g (import "m" "g"))` is an import too. Accepting these
+  silently reordered the module: `call 0` meant the defined function in source and the import after
+  our reorder, and V8 ran it happily.
