@@ -5,8 +5,8 @@ that produced it and where the detail lives.
 
 **This file holds METHOD, not findings.** Post-mortems stay in their home files —
 `design-decisions.md` for load-bearing invariants, `tasks.md` for the running log, `bridge.md` for
-binaryen-ts coverage. What lives here is the transferable part: *how to work on this codebase so the
-same class does not recur.*
+binaryen-ts coverage. What lives here is the transferable part: _how to work on this codebase so the
+same class does not recur._
 
 Structure and several rules are adopted from the sibling **wazmrt** project's
 `cmem/best-practices.md`. Rules marked 🔁 were learned independently here and match one there — a
@@ -18,21 +18,66 @@ producer/consumer pair.** Most entries exist because someone competent did the o
 
 ---
 
+## Index
+
+Sections 1–5 are the original thematic groups. Everything after them was appended rule-by-rule as
+incidents happened, newest last; they are grouped here rather than moved, so the append order (and
+therefore the history) stays intact.
+
+**Working method**
+
+- [1. Verifying a change](#1-verifying-a-change)
+- [2. Investigating a defect](#2-investigating-a-defect)
+- [3. Producer/consumer pairs — the recurring blind spot](#3-producerconsumer-pairs--the-recurring-blind-spot)
+- [4. Tests and gates](#4-tests-and-gates)
+- [5. Recording what you found](#5-recording-what-you-found)
+
+**Judging severity and priority** — the campaign's most expensive mistakes were here, not in the
+code
+
+- Rank the remaining work against the yardstick the GOAL names
+- A "cosmetic" difference is not cosmetic if it is observable
+- Ask whether repeating the operation is a fixed point
+- Re-verifying a finding is not the same as re-ranking it
+- An over-correction is still a correction in the wrong direction
+
+**Auditing — finding what no corpus reaches**
+
+- Audit a manual walk against the TYPE, not against a corpus
+- An unused parameter in one of a family of parallel handlers is a missing check
+- When a marker has to be applied at every construction site, grep for it
+- In this codebase, "the linear form is a stub" IS a round-trip bug
+- Two implementations of one grammar rule will disagree, and the writer will be the inverse of the
+  wrong one
+
+**Trusting your own tools**
+
+- A metric can be precise, stable, and measuring almost nothing
+- Re-measure a diagnosis before acting on it, even your own
+- A fail-loud path is only as useful as what it prints
+- When you name an alternative, check whether it refutes your own diagnosis
+
+**Working with sibling projects** (wasmtk, binaryen-ts)
+
+- Stamp a vendored snapshot with source + date, in the change that creates it
+- Verify an incoming report's premises, not just its conclusion
+- Review someone else's codebase with the metric you built for your own
+
 ## 1. Verifying a change
 
 🔁 **A parse-success count is an UPPER BOUND, not a measurement.** Five tranches were scoped and
 ranked by "files that parse clean" — a metric that structurally cannot see a module that parses
 perfectly and then encodes to bytes V8 rejects. At the tranche-4 cut the split was **230 files
 parse-clean but only 180 whose every module V8-validates.** Two latent bugs sat in that 50-file gap
-the whole time, both already documented as unfixed and neither in any tranche, *because the tranches
-were derived from parse failures*. — `tasks.md`, "The parse metric has a blind spot"
+the whole time, both already documented as unfixed and neither in any tranche, _because the tranches
+were derived from parse failures_. — `tasks.md`, "The parse metric has a blind spot"
 
 **Measure with the strongest oracle available, and prefer it to our own reasoning.** Two encodings
-were settled by asking V8 directly rather than reading the proposal text:
-`noexn` is `0x74`, not the `0x68` that continuing the hierarchy implies; and a `try_table` catch
-target resolves in the **enclosing** scope (depth 0 for the immediately enclosing block), not with
-the try_table's own label pushed as the spec's `C, label [t*] ⊢ catch*` rule reads. Both times the
-plausible reading was wrong and one probe settled it. — `design-decisions.md`
+were settled by asking V8 directly rather than reading the proposal text: `noexn` is `0x74`, not the
+`0x68` that continuing the hierarchy implies; and a `try_table` catch target resolves in the
+**enclosing** scope (depth 0 for the immediately enclosing block), not with the try_table's own
+label pushed as the spec's `C, label [t*] ⊢ catch*` rule reads. Both times the plausible reading was
+wrong and one probe settled it. — `design-decisions.md`
 
 **ASK ALL THREE ENGINES; WASMTIME DECIDES.** The panel is V8 (fast, in-process, what the routine
 harnesses use), **Wasmtime (the authority — Bytecode Alliance write the spec and its reference
@@ -51,7 +96,7 @@ every module its own `-o` path (reusing one scored three I/O collisions as REJEC
 V8-validity harness reported **1937 of 1937 modules failing**; the second reported 1667 rejected.
 Both were harness bugs — a missing `synthesizeTypes` pass leaves an empty type section, so every
 module fails with "no signature at index 0". A number that extreme is evidence about the harness,
-not the codebase. Run it against one file you *know* is fine before reporting anything.
+not the codebase. Run it against one file you _know_ is fine before reporting anything.
 
 🔁 **Re-measure before quoting any number, especially from a memory file.** `CLAUDE.md` states the
 binaryen-ts submodule is pinned at `6c6f81f66` (v1.0.9). The working checkout is **v1.3.5**, and
@@ -59,28 +104,28 @@ three gaps listed there are already fixed upstream. An upstream report filed fro
 have been noise. — `tasks.md`, living log rule 2
 
 **Measure the direction your metric CANNOT see, or you will report the wrong verdict.** The
-validator-agreement metric counts modules V8 accepts that we also accept — false *rejections*. It
+validator-agreement metric counts modules V8 accepts that we also accept — false _rejections_. It
 says nothing about what a permissive validator waves through. On that number alone the T9.3 typed
 lattice looked like a **regression** (2120 → 2110) and was nearly reported as one. Adding the
 opposite direction — `assert_invalid` modules we correctly reject — showed it caught **28 more real
-errors**, and the ten false rejections turned out to be ten *further* bugs the coarse lattice had
+errors**, and the ten false rejections turned out to be ten _further_ bugs the coarse lattice had
 been hiding. One-sided metrics produce confidently wrong conclusions. — `tasks.md`, T9.3/T9.4
 
 🔁 **Read the field the code actually sets.** The T9.5 survey asked `hasErrors(result.errors)`; the
 validator signals failure through `result`, and `dropTypes` returned `Result.Error` **without
 recording a message**. Every stack underflow therefore read as "accepted". The reported gap was
-**903 missed**; measured on `result` it was **314**, and fixing the *report* accounted for the
+**903 missed**; measured on `result` it was **314**, and fixing the _report_ accounted for the
 difference before a single check was added. Two lessons in one: a silent failure is a defect in its
 own right (`wasm-validate` exited non-zero and printed nothing), and it corrupts every measurement
 that reads the wrong field. — `tasks.md`, T9.5
 
 **When a fix makes a metric WORSE, that is information — chase it before explaining it away.**
-Correcting the element-segment type on the binary side dropped round-trip fidelity 1961 → 1779.
-The instinct is to call it acceptable collateral; following it instead found the other half of the
-bug — the WAT writer's `func` shorthand was gated on the *nullable* `funcref` when that spelling
-means `(ref func)`. Both halves fixed, fidelity back to 1961. — `tasks.md`, T11
+Correcting the element-segment type on the binary side dropped round-trip fidelity 1961 → 1779. The
+instinct is to call it acceptable collateral; following it instead found the other half of the bug —
+the WAT writer's `func` shorthand was gated on the _nullable_ `funcref` when that spelling means
+`(ref func)`. Both halves fixed, fidelity back to 1961. — `tasks.md`, T11
 
-**Diff the whole per-file list, not the total.** Every tranche recorded newly-passing *and*
+**Diff the whole per-file list, not the total.** Every tranche recorded newly-passing _and_
 newly-failing files by set difference, not just the count. A tranche that fixes 14 and breaks 2
 shows the same delta as one that fixes 12 and breaks 0.
 
@@ -89,12 +134,12 @@ shows the same delta as one that fixes 12 and breaks 0.
 ## 2. Investigating a defect
 
 🔁 **Triage by first-error text MISLABELS — confirm every root cause with a minimal repro through
-the real entry point.** Clustering 137 failures by their first error produced four wrong
-hypotheses: underscores in numeric literals (they work), `(module quote …)` (works; only the
-*multi-string* form fails), relaxed SIMD instructions (parse fine — those files fail on `(either …)`),
-and "expected i32 constant" (nothing to do with separators; `BigInt('-0x…')` throws because JS
-rejects sign-plus-radix). Reading error strings tells you where parsing stopped, not why.
-— `tasks.md`, tranche scope
+the real entry point.** Clustering 137 failures by their first error produced four wrong hypotheses:
+underscores in numeric literals (they work), `(module quote …)` (works; only the _multi-string_ form
+fails), relaxed SIMD instructions (parse fine — those files fail on `(either …)`), and "expected i32
+constant" (nothing to do with separators; `BigInt('-0x…')` throws because JS rejects
+sign-plus-radix). Reading error strings tells you where parsing stopped, not why. — `tasks.md`,
+tranche scope
 
 🔁 **A passing test on one syntactic form says nothing about the other.** `br_table` with a carried
 value was tested and green in **linear** form since v1.3.4. The **folded** form
@@ -115,10 +160,10 @@ category on the first run. The evidence was already in the repo and took minutes
 `tasks.md`, T9.9
 
 **Never read OUR OWN rendering as the source.** The last `assert_invalid` case was investigated as
-`select (result any)` — which is what `wasm2wat` printed. The source was
-`select (result (ref 1))`, and the misprint was itself a symptom of the bug being hunted (the
-writer emitted `0x00` for the annotation). When a tool under investigation renders the input, get
-the input from the file. — `tasks.md`, T9.10
+`select (result any)` — which is what `wasm2wat` printed. The source was `select (result (ref 1))`,
+and the misprint was itself a symptom of the bug being hunted (the writer emitted `0x00` for the
+annotation). When a tool under investigation renders the input, get the input from the file. —
+`tasks.md`, T9.10
 
 **A cast is where a refactor stops.** The T7.4 `ValueType` refactor widened the IR from `Type` to
 `Type | RefValueType`, and every site that had a cast survived compilation unchanged and silently
@@ -128,18 +173,18 @@ wrong: `this.s.writeU8(t as number)` wrote `0x00` for an object, so **every** ty
 interpolation — the compiler will not.
 
 **Check the INPUT before blaming the code.** Twice in one session a "parser bug" was invalid WAT of
-my own writing: `br_if` leaves its values on the stack when *not* taken, so nothing may follow it
+my own writing: `br_if` leaves its values on the stack when _not_ taken, so nothing may follow it
 inside a block whose result those values are. Both probes were rewritten, not the parser.
 
 **A defect that parses cleanly is invisible to a parse metric — and one the bridge re-encodes is
 invisible to bridge tests.** The packed-type wire bytes (`Type.I8` was `0x7a`, spec says `0x78`)
 were wrong for four releases: invisible to parsing because the text is fine, and invisible through
-the bridge because binaryen-ts re-encodes its own way. Only asking V8 about *our* encoder's output
+the bridge because binaryen-ts re-encodes its own way. Only asking V8 about _our_ encoder's output
 found it. — `design-decisions.md`
 
 **"Silently wrong" and "loudly broken" need different hunts.** Three failure modes, in increasing
 order of how hard they are to find: throws (a stack trace names the site), V8 rejects (a message
-names the construct), V8 *accepts wrong bytes* (nothing tells you). Raw non-ASCII characters in WAT
+names the construct), V8 _accepts wrong bytes_ (nothing tells you). Raw non-ASCII characters in WAT
 strings were truncated to one byte — `é` emitted `e9` instead of `c3 a9` — producing a valid module
 with the wrong data in it. Budget hunting time by failure mode, not by cluster size.
 
@@ -155,7 +200,7 @@ written at all.
 
 🔁 **A reader that consumes N bytes where the writer emits N+1 desyncs everything after it.**
 `readRefType` read a single byte, so a typed table element type left its heap type in the stream:
-`(table $x 1 (ref null $t))` decoded as `(table 0 ref null)` — wrong limits *and* wrong type, from
+`(table $x 1 (ref null $t))` decoded as `(table 0 ref null)` — wrong limits _and_ wrong type, from
 one missing read.
 
 **`resolveNames` must walk EVERY name-bearing immediate, or the writer emits index 0.** Found five
@@ -166,11 +211,11 @@ type, `br_table`'s index expression, `try_table`'s catch tag and target, and eve
 the IR**, over a hand-built module and the whole spec testsuite. That guard is what found the
 `try_table` one. — `design-decisions.md`
 
-🔁 **A second copy of a lookup table is a second place to be incomplete.** The heap-type
-keyword ⇄ `Type` mapping existed three times (parser, binary reader, binary writer) and each was
-missing different entries; it is now one table in `core/types.ts`. A duplicate `typeName` switch
-was also found hiding in `wasm-objdump.ts`. When you need a mapping that already exists somewhere,
-extend the original — do not copy it. — `design-decisions.md`
+🔁 **A second copy of a lookup table is a second place to be incomplete.** The heap-type keyword ⇄
+`Type` mapping existed three times (parser, binary reader, binary writer) and each was missing
+different entries; it is now one table in `core/types.ts`. A duplicate `typeName` switch was also
+found hiding in `wasm-objdump.ts`. When you need a mapping that already exists somewhere, extend the
+original — do not copy it. — `design-decisions.md`
 
 **The IR must be able to EXPRESS what the format can, or every consumer silently truncates.** Four
 instances of one shape: `ReturnExpr.value` → `values[]`, then `BrExpr` / `BrIfExpr` the same way,
@@ -183,15 +228,15 @@ site.**
 for any all-`ref.func` segment. That silently turned a module the spec calls invalid — a nullable
 `funcref` segment against a `(ref func)` table — into one V8 accepts, so `wat2wasm` was quietly
 fixing its input. A tool that turns invalid input into valid output is worse than one that rejects
-it: the error simply moves downstream. The distinction had been collapsed in **five** places at
-once (parser, binary reader, binary writer, WAT writer, validator), each hiding the next. —
-`tasks.md`, T11
+it: the error simply moves downstream. The distinction had been collapsed in **five** places at once
+(parser, binary reader, binary writer, WAT writer, validator), each hiding the next. — `tasks.md`,
+T11
 
 🔁 **The same off-by-one recurs in every layer that walks the same structure.** `try_table` catch
 targets resolve in the ENCLOSING scope. That was fixed in the parser in T7.6 — and reappeared
-unchanged in the validator in T9.8, where the catches were checked after `beginTryTable` had
-already pushed the try_table's own label. Six valid modules rejected. When you fix a scoping rule
-in one layer, grep for the other layers that implement it.
+unchanged in the validator in T9.8, where the catches were checked after `beginTryTable` had already
+pushed the try_table's own label. Six valid modules rejected. When you fix a scoping rule in one
+layer, grep for the other layers that implement it.
 
 **Coarsen at the CONSUMER's boundary, never in an encoder.** The validator's type-checker and the
 binaryen bridge both have flat type surfaces and legitimately cannot hold a concrete typed ref, so
@@ -204,37 +249,38 @@ sites. Encoders must never coarsen; that was the bug being fixed.
 
 🔁 **A test that passes under BOTH the right and the wrong behaviour tests nothing — invert it and
 watch it fail.** The first `try_table` catch-depth test passed under either depth convention,
-because its two candidate targets were type-compatible and both propagated the value. It was
-written *as* the regression test for that fix and would never have caught it. The replacement was
-confirmed by reverting the fix and watching it fail. **Any test written as the guard for a specific
-fix should be run once against the unfixed code.**
+because its two candidate targets were type-compatible and both propagated the value. It was written
+_as_ the regression test for that fix and would never have caught it. The replacement was confirmed
+by reverting the fix and watching it fail. **Any test written as the guard for a specific fix should
+be run once against the unfixed code.**
 
 **Assert the VALUE, not that it parsed.** `table.init`'s two indices were transposed for the whole
-of tranche 2 while parsing fine. The test that pins it instantiates two tables and two elem
-segments and reads back which one got filled. Where semantics matter, execute in V8; where
-*encoding* matters (typed-ref GC code V8 cannot accept through this path), assert the bytes — but
-say in the test which one you are doing and why.
+of tranche 2 while parsing fine. The test that pins it instantiates two tables and two elem segments
+and reads back which one got filled. Where semantics matter, execute in V8; where _encoding_ matters
+(typed-ref GC code V8 cannot accept through this path), assert the bytes — but say in the test which
+one you are doing and why.
 
 **A test whose weak spot is known should say so in the test.** The nesting case for `try_table`
-catch depth is kept, but its comment now states it does not pin the convention and points at the
-one that does. A test that quietly overclaims is worse than no test.
+catch depth is kept, but its comment now states it does not pin the convention and points at the one
+that does. A test that quietly overclaims is worse than no test.
 
-**A guard is only as wide as its CORPUS.** The standing "no name-var survives `resolveNames`"
-sweep — the guard credited below with ending a whole class — did not catch the `select (result
-(ref $t))` annotation, because no spec-testsuite module writes one. It was found instead by the
-binary writer's fail-loud check, once a cast stopped hiding it. Class guards are the right shape,
-but state what they run over, and do not treat them as proof for inputs the corpus never contains.
+**A guard is only as wide as its CORPUS.** The standing "no name-var survives `resolveNames`" sweep
+— the guard credited below with ending a whole class — did not catch the `select (result
+(ref $t))`
+annotation, because no spec-testsuite module writes one. It was found instead by the binary writer's
+fail-loud check, once a cast stopped hiding it. Class guards are the right shape, but state what
+they run over, and do not treat them as proof for inputs the corpus never contains.
 
 **When a new check rejects something valid, suspect the CHECK's inputs before loosening the check.**
 Making the reference lattice precise produced ten false rejections. The tempting fix — widen the
-lattice until the number goes green — would have undone the entire point. Every one of the ten was
-a *separate* bug the coarse lattice had been masking: a producer still reporting a placeholder
-type, a rule that skipped its push in unreachable code, a canonical key that baked in a raw index,
-a nullability rule applied to the wrong side. **A green metric bought by weakening a check is worth
+lattice until the number goes green — would have undone the entire point. Every one of the ten was a
+_separate_ bug the coarse lattice had been masking: a producer still reporting a placeholder type, a
+rule that skipped its push in unreachable code, a canonical key that baked in a raw index, a
+nullability rule applied to the wrong side. **A green metric bought by weakening a check is worth
 less than a red one.** — `tasks.md`, T9.3/T9.4
 
 **Test the failing-by-design case, and flip it when it stops failing.** A known gap (cross-group
-forward type references) was written into the test suite as an assertion that we *do not* catch it,
+forward type references) was written into the test suite as an assertion that we _do not_ catch it,
 with the reason. When T9.7 closed it, that test failed — which is exactly how the gap announced it
 was gone. Documented gaps belong in the suite, not only in a log.
 
@@ -246,7 +292,7 @@ was gone. Documented gaps belong in the suite, not only in a log.
 ## 5. Recording what you found
 
 🔁 **Record findings that were WRONG, so they are not "fixed" again.** The binaryen-ts living log
-carries an explicit *"already fixed upstream — do NOT file"* table, because three entries inherited
+carries an explicit _"already fixed upstream — do NOT file"_ table, because three entries inherited
 from `CLAUDE.md` were stale. — `tasks.md`
 
 **Measure severity, never inherit it.** `UP-1` (binaryen-ts `struct.get_u`) was described from
@@ -274,307 +320,266 @@ subsystem, add it here **and** leave the detail in its home file.
 
 ## Rank the remaining work against the yardstick the GOAL names
 
-T10's seven groups were ranked by severity on the spec testsuite: the ones
-producing invalid wasm first, "valid but wrong export order" last. Measured
-against the wasmtk WASI corpus — the corpus the standing goal actually names —
-the ranking inverted: five of the seven groups did not occur there **at all**,
-while the one ranked last occurred in **100%** of the differences.
+T10's seven groups were ranked by severity on the spec testsuite: the ones producing invalid wasm
+first, "valid but wrong export order" last. Measured against the wasmtk WASI corpus — the corpus the
+standing goal actually names — the ranking inverted: five of the seven groups did not occur there
+**at all**, while the one ranked last occurred in **100%** of the differences.
 
-Acting on the goal's ranking (2026-08-24) closed T10.1 and, because they shared
-a root, T10.2 with it — the cheapest item on the list, and it took the corpus
-from 1/270 to 50/270 where severity-order would have spent the effort on groups
-worth 0 there.
+Acting on the goal's ranking (2026-08-24) closed T10.1 and, because they shared a root, T10.2 with
+it — the cheapest item on the list, and it took the corpus from 1/270 to 50/270 where severity-order
+would have spent the effort on groups worth 0 there.
 
 Two things generalise:
 
-- **A severity ranking and a frequency ranking are both correct, for different
-  corpora.** Neither is "the" priority. Pick the corpus the goal names, and say
-  which one you picked.
-- **Re-measure the ranking when the goal is written down**, not once at the
-  start. T10's order was set before the WASI target was recorded; nothing about
-  it was wrong at the time.
+- **A severity ranking and a frequency ranking are both correct, for different corpora.** Neither is
+  "the" priority. Pick the corpus the goal names, and say which one you picked.
+- **Re-measure the ranking when the goal is written down**, not once at the start. T10's order was
+  set before the WASI target was recorded; nothing about it was wrong at the time.
 
 ## A "cosmetic" difference is not cosmetic if it is observable
 
-T10.1 was parked as "valid, wrong order" for the whole campaign. But export
-order is readable through `WebAssembly.Module.exports()`, so a round-trip that
-changes it produces a DIFFERENT module — the same class as T9.1, where the
-decoder reordered a program. The tell is not "does it still validate" but "can
-a consumer see the difference". Ask that before filing something as cosmetic.
+T10.1 was parked as "valid, wrong order" for the whole campaign. But export order is readable
+through `WebAssembly.Module.exports()`, so a round-trip that changes it produces a DIFFERENT module
+— the same class as T9.1, where the decoder reordered a program. The tell is not "does it still
+validate" but "can a consumer see the difference". Ask that before filing something as cosmetic.
 
 ## Ask whether repeating the operation is a fixed point
 
-T10.5 was filed as "valid, larger" and ranked last but one. The stray `nop` it
-produced is inert — it pushes nothing, so the instruction that had been starved
-of an operand still found its value on the stack, and the module ran correctly.
-Everything about it said cosmetic.
+T10.5 was filed as "valid, larger" and ranked last but one. The stray `nop` it produced is inert —
+it pushes nothing, so the instruction that had been starved of an operand still found its value on
+the stack, and the module ran correctly. Everything about it said cosmetic.
 
-Running the round trip SIX times said otherwise: 517 → 521 → 525 → 529 → 533 →
-537 → 541. Every pass added the same four bytes, with no bound. A toolchain in a
-build pipeline that disassembles and reassembles more than once grows the module
-forever.
+Running the round trip SIX times said otherwise: 517 → 521 → 525 → 529 → 533 → 537 → 541. Every pass
+added the same four bytes, with no bound. A toolchain in a build pipeline that disassembles and
+reassembles more than once grows the module forever.
 
-"Does it still validate" and "is the output correct" are both weaker questions
-than "**is doing it again a fixed point**". Two lines of harness, and it moved
-the item from cosmetic to a real defect.
+"Does it still validate" and "is the output correct" are both weaker questions than "**is doing it
+again a fixed point**". Two lines of harness, and it moved the item from cosmetic to a real defect.
 
 ## Re-measure a diagnosis before acting on it, even your own
 
-T10.5's recorded cause was the binary READER ("the reader cannot attribute every
-value to an operand slot"). That was written from evidence and it was wrong for
-the dominant case: measuring which node actually over-consumed found the PARSER,
-draining the whole operand stack for `call`. The reader-side cause is real but
-is the residue (now T10.8), not the bulk.
+T10.5's recorded cause was the binary READER ("the reader cannot attribute every value to an operand
+slot"). That was written from evidence and it was wrong for the dominant case: measuring which node
+actually over-consumed found the PARSER, draining the whole operand stack for `call`. The
+reader-side cause is real but is the residue (now T10.8), not the bulk.
 
-The classification had been made once, months of work earlier, and carried
-forward as fact. Cost of re-measuring: one 40-line harness that printed
-`call args=3 want=2` and its friends.
+The classification had been made once, months of work earlier, and carried forward as fact. Cost of
+re-measuring: one 40-line harness that printed `call args=3 want=2` and its friends.
 
 ## When a marker has to be applied at every construction site, grep for it
 
-T10.8's fix is a flag on one IR node, and the obvious place to set it is the
-shared `popN` helper each decoder owns. Doing exactly that took the WASI corpus
-to 270/270 and looked finished.
+T10.8's fix is a flag on one IR node, and the obvious place to set it is the shared `popN` helper
+each decoder owns. Doing exactly that took the WASI corpus to 270/270 and looked finished.
 
-The spec testsuite disagreed: it moved only to 2074/2120. The parser builds the
-same placeholder in **13 more places** that never go near `popN` —
-`buildPlainExpr`'s `op0()`…`op4()` operand accessors, two folded-`if` condition
-slots, and four `operands[operands.length - 1] ?? …` callee slots. Converting
-those took it to 2088/2120, and files affected from 27 to 14.
+The spec testsuite disagreed: it moved only to 2074/2120. The parser builds the same placeholder in
+**13 more places** that never go near `popN` — `buildPlainExpr`'s `op0()`…`op4()` operand accessors,
+two folded-`if` condition slots, and four `operands[operands.length - 1] ?? …` callee slots.
+Converting those took it to 2088/2120, and files affected from 27 to 14.
 
-Grep for the literal (`kind: 'nop'` here), not for the helper. And keep a second
-corpus around: one of the two would have called this done.
+Grep for the literal (`kind: 'nop'` here), not for the helper. And keep a second corpus around: one
+of the two would have called this done.
 
 ## An unused parameter in one of a family of parallel handlers is a missing check
 
-`deno lint` had ten standing `'offset' is never used` warnings in
-`shared-validator.ts`. They looked like dead-parameter noise left over from a
-callback signature, and they were treated that way for long enough to be
-described as "lint debt to clear before a merge".
+`deno lint` had ten standing `'offset' is never used` warnings in `shared-validator.ts`. They looked
+like dead-parameter noise left over from a callback signature, and they were treated that way for
+long enough to be described as "lint debt to clear before a merge".
 
-They were reporting a real gap. `onLoad` and `onStore` pass `offset` to
-`checkMemArgOffset`; the other ten memarg handlers declare it and drop it — so
-the rule that a memarg offset must fit the memory's index type simply did not
-apply to any SIMD or atomic memory op. Four were demonstrable false-accepts
-against V8.
+They were reporting a real gap. `onLoad` and `onStore` pass `offset` to `checkMemArgOffset`; the
+other ten memarg handlers declare it and drop it — so the rule that a memarg offset must fit the
+memory's index type simply did not apply to any SIMD or atomic memory op. Four were demonstrable
+false-accepts against V8.
 
-Both campaign corpora were blind to it: agreement and `assert_invalid` did not
-move, because no spec-testsuite module writes an out-of-range offset on a SIMD
-op. **A lint warning caught what five metrics could not.**
+Both campaign corpora were blind to it: agreement and `assert_invalid` did not move, because no
+spec-testsuite module writes an out-of-range offset on a SIMD op. **A lint warning caught what five
+metrics could not.**
 
-Before silencing an unused-variable warning, check whether the handler's
-SIBLINGS use that variable. If they do, the warning is a diff between them.
+Before silencing an unused-variable warning, check whether the handler's SIBLINGS use that variable.
+If they do, the warning is a diff between them.
 
 ## In this codebase, "the linear form is a stub" IS a round-trip bug
 
-`try_table`'s linear branch carried a comment saying so - "simplified: parse the
-protected body and skip the catch-clause immediates to the matching `end`" -
-and it had been fine for a long time, because hand-written and wasic-generated
-WAT both use the folded form.
+`try_table`'s linear branch carried a comment saying so - "simplified: parse the protected body and
+skip the catch-clause immediates to the matching `end`" - and it had been fine for a long time,
+because hand-written and wasic-generated WAT both use the folded form.
 
-But **the WAT writer is linear-only by design**. So every `wasm2wat` output is
-in exactly the form the parser did not support, and a round trip silently
-replaced every `try_table` with an empty block. It surfaced only once the
-round-trip metric existed, as "V8 rejects this after a round trip".
+But **the WAT writer is linear-only by design**. So every `wasm2wat` output is in exactly the form
+the parser did not support, and a round trip silently replaced every `try_table` with an empty
+block. It surfaced only once the round-trip metric existed, as "V8 rejects this after a round trip".
 
-The general shape: when a producer and a consumer in the same toolchain
-deliberately favour different forms of the same grammar, a stub on one side is
-not a partial implementation - it is a hole exactly where the other side aims.
-Grep for the remaining ones rather than waiting for a metric to find them.
+The general shape: when a producer and a consumer in the same toolchain deliberately favour
+different forms of the same grammar, a stub on one side is not a partial implementation - it is a
+hole exactly where the other side aims. Grep for the remaining ones rather than waiting for a metric
+to find them.
 
 ## A fail-loud path is only as useful as what it prints
 
-T9.5's rule was "a validator failure must REPORT, not merely return
-`Result.Error`" - a silent rejection inflated a measured gap from 314 to 903.
-T10.7 is the writer-side twin, and it is subtler because the path DID report.
+T9.5's rule was "a validator failure must REPORT, not merely return `Result.Error`" - a silent
+rejection inflated a measured gap from 314 to 903. T10.7 is the writer-side twin, and it is subtler
+because the path DID report.
 
-`tagTypeIndex` threw with a real message naming the signature it could not
-find. But it rendered each param as `(p as number).toString(16)`, and a typed
-reference is an object, so the message read:
+`tagTypeIndex` threw with a real message naming the signature it could not find. But it rendered
+each param as `(p as number).toString(16)`, and a typed reference is an object, so the message read:
 
     no (type (func (param [object Object]))) in the type section
 
-The throw was correct and the diagnostic named nothing. The item sat as "T10.7,
-two hard failures" for the whole campaign; once the message printed
-`(ref $t)` the cause - `===` on a `ValueType` - was obvious in one reading.
+The throw was correct and the diagnostic named nothing. The item sat as "T10.7, two hard failures"
+for the whole campaign; once the message printed `(ref $t)` the cause - `===` on a `ValueType` - was
+obvious in one reading.
 
-When you write a fail-loud branch, print the value through the same formatter
-the rest of the codebase uses for that type (`valueTypeName` here), not a cast.
+When you write a fail-loud branch, print the value through the same formatter the rest of the
+codebase uses for that type (`valueTypeName` here), not a cast.
 
 ## Two implementations of one grammar rule will disagree, and the writer will
+
 ## be the inverse of the wrong one
 
-`nan:0x<n>` had two parsers: `literal.ts`'s `parseF32Literal`, which forced the
-quiet bit on, and the WAT parser's `parseF32LiteralBits`, which read the payload
-exactly. The spec agrees with the second, and the second is the one `wat2wasm`
-calls - the first was reachable only through the public helper.
+`nan:0x<n>` had two parsers: `literal.ts`'s `parseF32Literal`, which forced the quiet bit on, and
+the WAT parser's `parseF32LiteralBits`, which read the payload exactly. The spec agrees with the
+second, and the second is the one `wat2wasm` calls - the first was reachable only through the public
+helper.
 
-`printF32Literal` was written as the inverse of the FIRST one. So it stripped
-the quiet bit on the way out, nothing put it back, and a quiet NaN round-tripped
-into a signalling NaN. Both functions had comments confidently explaining the
-convention; they explained different conventions.
+`printF32Literal` was written as the inverse of the FIRST one. So it stripped the quiet bit on the
+way out, nothing put it back, and a quiet NaN round-tripped into a signalling NaN. Both functions
+had comments confidently explaining the convention; they explained different conventions.
 
-Two lessons. Assert **print o parse = identity** directly, over the whole input
-shape, rather than testing each direction against a remembered convention. And
-when a helper duplicates a rule the real pipeline implements elsewhere, either
-delete it or make the pipeline call it - a second implementation that nothing
-exercises is where a printer goes to get its idea of the format.
+Two lessons. Assert **print o parse = identity** directly, over the whole input shape, rather than
+testing each direction against a remembered convention. And when a helper duplicates a rule the real
+pipeline implements elsewhere, either delete it or make the pipeline call it - a second
+implementation that nothing exercises is where a printer goes to get its idea of the format.
 
 ## Stamp a vendored snapshot with source + date, in the change that creates it
 
-`tests/wasmtk/` is 272 `.wat` files copied from another project's build output.
-Its live corpus is 373. Nothing recorded where the copy came from or when,
-because files accreted one at a time as new shapes appeared.
+`tests/wasmtk/` is 272 `.wat` files copied from another project's build output. Its live corpus
+is 373. Nothing recorded where the copy came from or when, because files accreted one at a time as
+new shapes appeared.
 
-That was invisible for as long as nobody asked a question whose answer changes
-over time. Then it put a false claim in a report we sent upstream: seven
-modules described as *"genuinely invalid wasm — V8, Wasmtime and Wasmer all
-reject them"*, present tense, when all seven had been fixed. Worse, the
-`KNOWN_INVALID` assertion guarding them was written specifically to go red when
-they were fixed — and it kept passing, because it was re-checking frozen bytes.
-**It masked the fix instead of tracking it: an assertion doing the exact
-inverse of its purpose, while green.**
+That was invisible for as long as nobody asked a question whose answer changes over time. Then it
+put a false claim in a report we sent upstream: seven modules described as _"genuinely invalid wasm
+— V8, Wasmtime and Wasmer all reject them"_, present tense, when all seven had been fixed. Worse,
+the `KNOWN_INVALID` assertion guarding them was written specifically to go red when they were fixed
+— and it kept passing, because it was re-checking frozen bytes. **It masked the fix instead of
+tracking it: an assertion doing the exact inverse of its purpose, while green.**
 
-wasmtk hit the same pattern independently in the same week, with a vendored
-`proposals/threads/` snapshot. Two projects, one week, no carelessness in
-either: **a snapshot is indistinguishable from current data unless something
-records its provenance.**
+wasmtk hit the same pattern independently in the same week, with a vendored `proposals/threads/`
+snapshot. Two projects, one week, no carelessness in either: **a snapshot is indistinguishable from
+current data unless something records its provenance.**
 
 Two rules fall out:
 
-- **Stamp it at creation** — source, commit, date, count — not when someone
-  finally asks. This project already pins an upstream SHA for exactly this
-  reason; a test corpus deserves the same treatment.
-- **An assertion over vendored data can only be as fresh as the data.** If it
-  is designed to fire on an external change, it needs a path to that change, or
-  it is decoration. Re-derive from source before reporting anything upstream.
+- **Stamp it at creation** — source, commit, date, count — not when someone finally asks. This
+  project already pins an upstream SHA for exactly this reason; a test corpus deserves the same
+  treatment.
+- **An assertion over vendored data can only be as fresh as the data.** If it is designed to fire on
+  an external change, it needs a path to that change, or it is decoration. Re-derive from source
+  before reporting anything upstream.
 
 ## Verify an incoming report's premises, not just its conclusion
 
-When wasmtk received our EH report they re-checked both of its load-bearing
-premises — that `wasmtime -W` has no legacy knob, and that a `try_table` module
-runs with no flags — rather than taking them from us. Both held, and the
-confirmation was worth more than agreement would have been.
+When wasmtk received our EH report they re-checked both of its load-bearing premises — that
+`wasmtime -W` has no legacy knob, and that a `try_table` module runs with no flags — rather than
+taking them from us. Both held, and the confirmation was worth more than agreement would have been.
 
-They also regenerated their corpus before testing, per their own testing rules,
-and it changed the outcome of half the report: four modules we had not listed,
-and seven we had listed wrongly.
+They also regenerated their corpus before testing, per their own testing rules, and it changed the
+outcome of half the report: four modules we had not listed, and seven we had listed wrongly.
 
-This is "measure severity, never inherit it" pointed at an INCOMING report
-instead of an outgoing one. Same discipline, and the direction that is easier
-to skip.
+This is "measure severity, never inherit it" pointed at an INCOMING report instead of an outgoing
+one. Same discipline, and the direction that is easier to skip.
 
 ## Re-verifying a finding is not the same as re-ranking it
 
-Before filing the binaryen-ts report we applied the log's own rule 2 —
-re-verify against the actual checkout — and it worked: three of seven entries
-were stale and got corrected. We filed with confidence.
+Before filing the binaryen-ts report we applied the log's own rule 2 — re-verify against the actual
+checkout — and it worked: three of seven entries were stale and got corrected. We filed with
+confidence.
 
-Two of the seven severities were still wrong, and the recipient caught both.
-UP-5 was recorded as "no `setStart`", a bridge gap, ranked sixth. It is
-actually the worst finding in the report: the decoder discards the start
-function's index, so a decode/re-encode produces **valid wasm that behaves
-differently, with no diagnostic**. We had ranked a loud failure above a silent
-one.
+Two of the seven severities were still wrong, and the recipient caught both. UP-5 was recorded as
+"no `setStart`", a bridge gap, ranked sixth. It is actually the worst finding in the report: the
+decoder discards the start function's index, so a decode/re-encode produces **valid wasm that
+behaves differently, with no diagnostic**. We had ranked a loud failure above a silent one.
 
-Rule 2 makes facts current. It does not re-ask *"which of these is worst, and
-why"* — that is a separate judgement, and freshness does not supply it. When a
-list has been carried for a while, re-rank it as deliberately as you re-verify
-it, and rank **silent above loud**: an engine catches the loud one, the silent
-one ships.
+Rule 2 makes facts current. It does not re-ask _"which of these is worst, and why"_ — that is a
+separate judgement, and freshness does not supply it. When a list has been carried for a while,
+re-rank it as deliberately as you re-verify it, and rank **silent above loud**: an engine catches
+the loud one, the silent one ships.
 
 ## When you name an alternative, check whether it refutes your own diagnosis
 
-The UP-1 write-up said *"the root cause is in the IR, not the encoder — an
-encoder-only patch cannot fix it"*, and then listed as option (2) an
-encoder-only patch that fixes it completely. The recipient pointed at our own
-option (2) as the counterexample, and they were right: packedness is available
-at encode time, and given packedness the existing boolean is total.
+The UP-1 write-up said _"the root cause is in the IR, not the encoder — an encoder-only patch cannot
+fix it"_, and then listed as option (2) an encoder-only patch that fixes it completely. The
+recipient pointed at our own option (2) as the counterexample, and they were right: packedness is
+available at encode time, and given packedness the existing boolean is total.
 
-The diagnosis sentence was written first and never re-read against the options
-underneath it. **We undersold our own recommendation.** When a write-up ends
-with "here are the options", re-read the claim above them last — the options
-are the test of it.
+The diagnosis sentence was written first and never re-read against the options underneath it. **We
+undersold our own recommendation.** When a write-up ends with "here are the options", re-read the
+claim above them last — the options are the test of it.
 
 ## Review someone else's codebase with the metric you built for your own
 
-Our upstream report classified seven binaryen-ts findings. The count of "how
-many produce bytes an engine rejects" went **1 → 2 → 3**, wrong in the same
-direction every time, and the recipient corrected us each time.
+Our upstream report classified seven binaryen-ts findings. The count of "how many produce bytes an
+engine rejects" went **1 → 2 → 3**, wrong in the same direction every time, and the recipient
+corrected us each time.
 
-The reason is structural, not carelessness. We were measuring **what the bridge
-could not express** — missing factories, narrowed signatures, absent enum
-entries. All three wrong-bytes findings live somewhere else entirely: the
-`readBinary(b).emitBinary()` round-trip, with no builder, no bridge and no
-passes involved. A start function silently dropped; `struct.get_u` collapsed
-onto `get`; a typed-ref local read back as `anyref`.
+The reason is structural, not carelessness. We were measuring **what the bridge could not express**
+— missing factories, narrowed signatures, absent enum entries. All three wrong-bytes findings live
+somewhere else entirely: the `readBinary(b).emitBinary()` round-trip, with no builder, no bridge and
+no passes involved. A start function silently dropped; `struct.get_u` collapsed onto `get`; a
+typed-ref local read back as `anyref`.
 
-**We had already learned this about ourselves.** The campaign's third metric
-exists precisely because parse-clean and V8-validity both measure the ENCODE
-path, and T9.1 — the decoder reordering a program — was invisible to both. We
-built a round-trip metric for our own code and then reviewed someone else's
-without one.
+**We had already learned this about ourselves.** The campaign's third metric exists precisely
+because parse-clean and V8-validity both measure the ENCODE path, and T9.1 — the decoder reordering
+a program — was invisible to both. We built a round-trip metric for our own code and then reviewed
+someone else's without one.
 
-The rule: when reviewing another project, **run the metric your own hard-won
-blind spot taught you to run**. For a wasm toolchain that is decode → encode,
-compared for bytes AND behaviour. It takes about ten lines and it found three
-defects that seven careful reads had ranked as "surface".
+The rule: when reviewing another project, **run the metric your own hard-won blind spot taught you
+to run**. For a wasm toolchain that is decode → encode, compared for bytes AND behaviour. It takes
+about ten lines and it found three defects that seven careful reads had ranked as "surface".
 
 ## An over-correction is still a correction in the wrong direction
 
-Re-verifying UP-7 before filing showed our old note was stale — `RefType`
-already existed — so we restated it from "design-limit" to "gap" and wrote
-*"a much smaller ask than our old note implied"*. Correcting downward felt
-safe, because the error we had just found was an over-claim.
+Re-verifying UP-7 before filing showed our old note was stale — `RefType` already existed — so we
+restated it from "design-limit" to "gap" and wrote _"a much smaller ask than our old note implied"_.
+Correcting downward felt safe, because the error we had just found was an over-claim.
 
-It was an over-correction. The half we could see (narrowed `ModuleBuilder`
-signatures) really is small; the half we did not look for — the decoder
-collapsing a typed-ref local to `anyref` — makes it a wrong-bytes bug. Fixing
-one direction of error is not the same as being right, and the momentum of a
-correction pushes past the target as easily as the original claim did.
+It was an over-correction. The half we could see (narrowed `ModuleBuilder` signatures) really is
+small; the half we did not look for — the decoder collapsing a typed-ref local to `anyref` — makes
+it a wrong-bytes bug. Fixing one direction of error is not the same as being right, and the momentum
+of a correction pushes past the target as easily as the original claim did.
 
 ## Audit a manual walk against the TYPE, not against a corpus
 
-`resolveNames` walks the IR by hand rather than through `ExprVisitor`, so
-nothing forces it to be total. Two bugs have now come out of that: Bug G
-(`call_indirect` resolving `table` and skipping `typeVar`) and, found this
-week, `atomic_rmw_cmpxchg` / `atomic_wait` spreading `...e` and carrying
-`memidx` through unresolved — so a named multi-memory atomic silently operated
-on the WRONG MEMORY.
+`resolveNames` walks the IR by hand rather than through `ExprVisitor`, so nothing forces it to be
+total. Two bugs have now come out of that: Bug G (`call_indirect` resolving `table` and skipping
+`typeVar`) and, found this week, `atomic_rmw_cmpxchg` / `atomic_wait` spreading `...e` and carrying
+`memidx` through unresolved — so a named multi-memory atomic silently operated on the WRONG MEMORY.
 
-Both were found the same way, and it is not corpus coverage: **enumerate every
-`Var`-bearing field of every Expr interface, then check the case body that
-handles that kind actually mentions each one.** About 30 lines of script, and
-it found the second bug in one pass over 65 kinds and 99 fields.
+Both were found the same way, and it is not corpus coverage: **enumerate every `Var`-bearing field
+of every Expr interface, then check the case body that handles that kind actually mentions each
+one.** About 30 lines of script, and it found the second bug in one pass over 65 kinds and 99
+fields.
 
-Corpus coverage cannot find these. Neither the spec testsuite nor the wasmtk
-corpus contains a named multi-memory atomic, which is exactly why the standing
-"no name-var survives resolveNames" guard stayed green. A guard is only as wide
-as its corpus; a type is as wide as the code.
+Corpus coverage cannot find these. Neither the spec testsuite nor the wasmtk corpus contains a named
+multi-memory atomic, which is exactly why the standing "no name-var survives resolveNames" guard
+stayed green. A guard is only as wide as its corpus; a type is as wide as the code.
 
-**The strongest single tell is a sibling.** Four of the six atomic memory ops
-resolved `memidx` and two did not, in one switch, adjacent. When cases in a
-family diverge, the divergence is the bug — the same signal as an unused
-parameter in one of a family of parallel handlers.
+**The strongest single tell is a sibling.** Four of the six atomic memory ops resolved `memidx` and
+two did not, in one switch, adjacent. When cases in a family diverge, the divergence is the bug —
+the same signal as an unused parameter in one of a family of parallel handlers.
 
 ## A metric can be precise, stable, and measuring almost nothing
 
-The new execution metric's first run reported **2,084 / 2,240 passing**. Stable
-across runs, plausible pass rate, 17 named files failing. It was executing
-**only nullary functions**: a spec `WastArg` is `{kind:'value', value: Const}`,
-the harness read `.type` off the wrapper, got `undefined`, and silently skipped
-every invoke with arguments.
+The new execution metric's first run reported **2,084 / 2,240 passing**. Stable across runs,
+plausible pass rate, 17 named files failing. It was executing **only nullary functions**: a spec
+`WastArg` is `{kind:'value', value: Const}`, the harness read `.type` off the wrapper, got
+`undefined`, and silently skipped every invoke with arguments.
 
-Fixed, the same harness runs **23,077** assertions — more than ten times as
-many — and all of them pass. The 156 "failures" were four separate harness
-bugs, none of them in wabt-ts.
+Fixed, the same harness runs **23,077** assertions — more than ten times as many — and all of them
+pass. The 156 "failures" were four separate harness bugs, none of them in wabt-ts.
 
 Two things to take from it:
 
-- **A denominator is a measurement too.** 2,240 looked reasonable; nothing
-  about the number announced that it should have been 26,837. Sanity-check what
-  a harness SKIPS as carefully as what it fails, and print the skip count.
-- **Before reporting a failure, reproduce it standalone.** Each of the three
-  clusters here dissolved the moment it was rebuilt as a minimal module:
-  `memory.size`/`grow` worked, `br_on_non_null` emitted `0xd6` and behaved
-  correctly. The harness was wrong every time.
+- **A denominator is a measurement too.** 2,240 looked reasonable; nothing about the number
+  announced that it should have been 26,837. Sanity-check what a harness SKIPS as carefully as what
+  it fails, and print the skip count.
+- **Before reporting a failure, reproduce it standalone.** Each of the three clusters here dissolved
+  the moment it was rebuilt as a minimal module: `memory.size`/`grow` worked, `br_on_non_null`
+  emitted `0xd6` and behaved correctly. The harness was wrong every time.

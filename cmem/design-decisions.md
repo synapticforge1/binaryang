@@ -361,3 +361,43 @@ isn't parsed. Tracked with the other deferred parser-feature gaps.
   `src/api/wabt-compat.ts`) each carry `/** @module … */` with a usage example. The full exported
   surface (265 symbols as of v1.2.7) is documented. `deno doc --json src/index.ts` enumerates every
   symbol. Don't add a new export without at least a one-line JSDoc.
+
+## Invariants added 2026-08-24 (T10 close-out + the post-campaign audit)
+
+Full detail and the incident behind each: [tasks.md](tasks.md).
+
+- **The inline `(export "n")` abbreviation is not always faithful (T10.1 / T10.2).** Illegal on an
+  IMPORT, and it RE-ORDERS the export section, which is observable through
+  `WebAssembly.Module.exports()`. `buildExportMap` tests both up front and falls back to standalone
+  fields. The order test is exact: under full inlining the emitted sequence is a STABLE SORT by
+  item-visit position, so it is the identity exactly when those positions are non-decreasing.
+  All-or-nothing per module — standalone exports are written after every item.
+- **A variable-arity opcode must not drain the operand stack (T10.5).** `varArityForTok` resolves
+  `call` / `return_call` against the callee's signature and `array.new_fixed` against its immediate
+  count. **Function BODIES are parsed after the whole module field list** so a body sees signatures
+  declared later — 199 of 270 corpus modules have a forward reference. `br`, `return`, `throw`,
+  `call_indirect`, `call_ref` and `struct.new` still drain.
+- **A synthesized operand slot-filler is not an instruction (T10.8).** `NopExpr.placeholder`, built
+  only by `operandPlaceholder(loc)`; **neither writer emits one**. Build every slot-filler through
+  that helper — there are ~110 construction sites, and the 13 in `buildPlainExpr`'s `op0()`…`op4()`
+  were worth 45 of 60 affected files on their own. The marker is what keeps this inside the T11
+  no-repair rule.
+- **The WAT writer is linear, but a few grammar slots need FOLDED output (T10.3).**
+  `writeFoldedConstExpr` covers CONSTANT expressions only — a set the spec closes — and takes each
+  instruction's own text from the ordinary delegate, so no immediate formatting is duplicated.
+  Anything it cannot express THROWS.
+- **A parser branch that only handles the FOLDED form is a round-trip hole (T10.6)**, because the
+  WAT writer is linear-only. `try_table`'s linear branch was a stub that skipped its catch clauses
+  AND its body. Grep for other "linear form is a stub" comments.
+- **A `ValueType` is compared with `valueTypeEquals`, never `===` (T10.7)** — it is a number OR an
+  object. And a fail-loud path is only as useful as what it prints: this one rendered params with
+  `(p as number).toString(16)`, i.e. `[object Object]`.
+- **`nan:0x<n>` names the mantissa EXACTLY (T10.4).** Bare `nan` is the canonical quiet NaN and
+  nothing else. There were TWO NaN parsers and the printer was the inverse of the one nothing
+  called.
+- **`resolveNames` must resolve EVERY Var on a node, and a sibling case is the tell.**
+  `atomic_rmw_cmpxchg` / `atomic_wait` carried `memidx` through unresolved while four sibling
+  atomics resolved it, so a named multi-memory atomic silently hit the WRONG memory. Found by
+  auditing the type, not a corpus.
+- **Every memarg handler checks `offset` against the memory's index type (T9.11)** — not just
+  `onLoad` / `onStore`. Ten handlers declared the parameter and ignored it; four were false-accepts.

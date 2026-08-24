@@ -16,6 +16,28 @@ modules run as wasm with fully-typed TypeScript interfaces.
 wasmtk uses a **Deno backend**. All design decisions favor Deno compatibility and clean TypeScript
 public APIs. See [runtime-tooling.md](runtime-tooling.md).
 
+## Conformance state (2026-08-24) — re-measure before quoting
+
+Five metrics over the 257-file WebAssembly spec testsuite
+(`wasmtk/tests/module/wasm_wast/testsuite-main/`). **All five are exhausted.** Detail, method and
+the harnesses: [tasks.md](tasks.md), [testing.md](testing.md).
+
+| metric              | what it answers                                      | value                                                              |
+| ------------------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
+| parse-clean         | files `parseWastScript` accepts                      | **257 / 257**                                                      |
+| V8-valid            | files whose every module encodes to wasm V8 accepts  | **257 / 257** (2120 / 2120 modules)                                |
+| validator agreement | modules V8 accepts that `wasmValidate` also accepts  | **2120 / 2120**                                                    |
+| `assert_invalid`    | modules the spec calls invalid that we reject        | **2664 / 2737** — all 73 remaining are ones V8 AND Wasmtime accept |
+| round-trip          | `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**                                                    |
+| execution           | spec `assert_return` assertions our output satisfies | **23,077 / 23,077**                                                |
+
+Against the wasmtk WASI corpus (`tests/wasmtk/`, a FROZEN 272-file snapshot — see
+`tests/wasmtk/PROVENANCE.md`): encode **270 / 270**, round-trip **270 / 270**.
+
+**Each metric was blind to bugs the others caught**, which is the campaign's most reusable finding —
+see [best-practices.md](best-practices.md). The newest, execution, exists because the other five all
+check bytes or acceptance and none runs an instruction.
+
 ## Repo layout
 
 ```text
@@ -60,6 +82,6 @@ per-phase TS↔C++ file mapping lives in [phases.md](phases.md).
 validate(wabt-ts) → strip(wabt-ts) → bridge → optimize(binaryen-ts) → encode(binaryen-ts)
 ```
 
-binaryen-ts is the canonical encoder for *optimized* wasm; wabt-ts's encoder serves format tools
-(`wasm2wat`/`wat2wasm` round-trips, strip, validate). wabt-ts's WAT parser is the front door for
-all external `.wat` input.
+binaryen-ts is the canonical encoder for _optimized_ wasm; wabt-ts's encoder serves format tools
+(`wasm2wat`/`wat2wasm` round-trips, strip, validate). wabt-ts's WAT parser is the front door for all
+external `.wat` input.

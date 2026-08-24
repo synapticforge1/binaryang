@@ -29,22 +29,21 @@ directory** — the runner picks it up automatically.
   `$mathlib_*` files originally there were removed).
 - This corpus has surfaced bugs the hand-crafted tests missed: bare-offset elem segments, legacy
   `(try (do …))` syntax, SIMD opcode-name table drift, and more.
-- **`tests/wasmtk/roundtrip.test.ts`** runs the *reverse* direction over the same corpus:
+- **`tests/wasmtk/roundtrip.test.ts`** runs the _reverse_ direction over the same corpus:
   `wat2wasm → wasm2wat → wat2wasm`, asserting the disassembly RE-COMPILES. This is the structural
   guard for the invalid-`wasm2wat`-output class (the round-5 missing-`$` bug). The plain runner only
   checks the forward direction; this closes the loop. All 272 round-trip clean as of 2026-06-09.
 
 ## `tests/wasmtk/` is a FROZEN SNAPSHOT — regenerate before reporting upstream
 
-272 files here; wasmtk's live corpus emits **373**, and no source commit was
-recorded. Full detail and the refresh procedure: `tests/wasmtk/PROVENANCE.md`.
+272 files here; wasmtk's live corpus emits **373**, and no source commit was recorded. Full detail
+and the refresh procedure: `tests/wasmtk/PROVENANCE.md`.
 
-**Rule, adopted from wasmtk's own `cmem/testing.md` after it cost us a wrong
-report (2026-08-24): regenerate from the wasmtk checkout before validating
-against another runtime or stating anything about wasic.** The snapshot
-supports "our toolchain handles this shape". It does not support "wasic emits
-X" or "wasic has bug Y" — we made exactly that claim about seven modules that
-had already been fixed upstream.
+**Rule, adopted from wasmtk's own `cmem/testing.md` after it cost us a wrong report (2026-08-24):
+regenerate from the wasmtk checkout before validating against another runtime or stating anything
+about wasic.** The snapshot supports "our toolchain handles this shape". It does not support "wasic
+emits X" or "wasic has bug Y" — we made exactly that claim about seven modules that had already been
+fixed upstream.
 
 ## The wasmtk-driven hardening loop (this IS the design)
 
@@ -54,58 +53,75 @@ regression test.** This loop is the design, not a transitional phase. wasmtk's P
 idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge surface, and the full
 272-file corpus runner. Future wasmtk phases will re-open the loop; expect it.
 
-## The fifth metric — execution (2026-08-24)
+## The conformance metrics — and what each one is BLIND to
 
-parse-clean, V8-validity, validator agreement, `assert_invalid` and round-trip
-byte-identity all check **bytes or acceptance**. None runs an instruction, so a
-consistently-wrong opcode mapping would pass all five.
+Six numbers, all exhausted as of 2026-08-24. **They live outside `deno task test`**; nothing in the
+suite will catch a regression in them, so re-measure after any parser / reader / writer / validator
+change. Harnesses live in the session scratchpad (~40–120 lines each, cheaper to rewrite than
+maintain); `tasks.md` records what each measured and when.
 
-Running the spec testsuite's `assert_return` assertions against our own
-compiled output closes that: **23,077 / 23,077 pass**. Harness lives in the
-session scratchpad; ~120 lines. Skips modules needing host imports, v128, NaN
-payloads and `ref.func` args (29,544) — and **print the skip count**, because a
-harness bug once hid 24,000 unexecuted assertions behind a plausible-looking
-2,084/2,240.
+| metric                    | value               | blind to                                                                                    |
+| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------- |
+| parse-clean               | 257 / 257           | a file that parses and then encodes to bytes V8 rejects                                     |
+| V8-valid                  | 2120 / 2120         | a decoder that REORDERS a module (T9.1 changed what a program computed)                     |
+| validator agreement       | 2120 / 2120         | counts only false REJECTIONS — says nothing about what a permissive validator waves through |
+| `assert_invalid`          | 2664 / 2737         | the converse; and 73 remaining are modules V8 **and Wasmtime** accept                       |
+| round-trip byte-identical | 2120 / 2120         | a consistently-wrong opcode mapping — reader and writer agree, so the bytes match           |
+| **execution**             | **23,077 / 23,077** | anything needing host imports, v128, NaN payloads, `ref.func` args (29,544 skipped)         |
+
+**The whole point is the last column.** Every one of these was added because the existing set could
+not see a real bug. `wat2wasm` does not validate, which is how the entire SIMD half of the validator
+sat dead for four releases (T9.2) — four metrics and none of them ran the validator at all.
+
+**Execution is the newest and the reason is structural:** the first five all check bytes or
+acceptance. A parser that mapped a token to the wrong opcode would be V8-valid, validator-clean and
+byte-identical on round-trip (the reader maps the wrong byte back the same way) — and compute the
+wrong answer. Only running it catches that.
+
+**Print what a harness SKIPS.** The execution harness once reported a stable, plausible 2,084 /
+2,240 while executing **only nullary functions** — a `WastArg` is `{kind:'value', value: Const}` and
+it read `.type` off the wrapper. The real denominator was 26,837. A denominator is a measurement
+too.
 
 ## Regression-test placement (where each invariant's test lives)
 
 - `tests/tools/wat2wasm.test.ts` — natural-alignment-when-`align=` omitted.
 - `tests/reader/binary-reader.test.ts` — function-import-alongside-defined-function (the Phase 7
   off-by-one in `readCodeSection`).
-- `tests/parser/stmt_order.test.ts` — statement ordering (`pushStmt` flush; void-call-before-return).
+- `tests/parser/stmt_order.test.ts` — statement ordering (`pushStmt` flush;
+  void-call-before-return).
 - `tests/parser/empty_folded.test.ts` — Bug D (multi-value receive) + Bug F (br_if global
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
-- `tests/writer/tag_type_index.test.ts` - T10.7: a tag's type is matched with
-  `valueTypeEquals`, not `===`, so a typed-reference param does not make the encode throw;
-  and the fail-loud message names the type instead of printing `[object Object]`.
-- `tests/writer/nan_payload.test.ts` - T10.4: `nan:0x<n>` names the mantissa exactly, so a
-  quiet NaN does not round-trip into a signalling one; plus `return_call_indirect` keeping
-  its table index. 22 cases.
-- `tests/parser/linear_try_table.test.ts` - T10.6: the LINEAR `try_table` form keeps its
-  catch clauses and its body (it was a stub that skipped both), and `array.new_fixed` takes
-  its immediate element count instead of draining the operand stack. 8 cases.
-- `tests/writer/table_init.test.ts` — T10.3: a table initializer is written as the single
-  folded instruction the grammar requires, and an inexpressible one throws instead of being
-  silently dropped. 6 cases including the nested `(ref.i31 (global.get $g))` form.
-- `tests/validator/memarg_offset.test.ts` — T9.11: every memarg handler checks `offset`
-  against the memory's index type, not just `onLoad` / `onStore`. 11 cases, each
-  cross-checked against V8, including the `0xffffffff` boundary and a 64-bit memory.
+- `tests/writer/tag_type_index.test.ts` - T10.7: a tag's type is matched with `valueTypeEquals`, not
+  `===`, so a typed-reference param does not make the encode throw; and the fail-loud message names
+  the type instead of printing `[object Object]`.
+- `tests/writer/nan_payload.test.ts` - T10.4: `nan:0x<n>` names the mantissa exactly, so a quiet NaN
+  does not round-trip into a signalling one; plus `return_call_indirect` keeping its table index. 22
+  cases.
+- `tests/parser/linear_try_table.test.ts` - T10.6: the LINEAR `try_table` form keeps its catch
+  clauses and its body (it was a stub that skipped both), and `array.new_fixed` takes its immediate
+  element count instead of draining the operand stack. 8 cases.
+- `tests/writer/table_init.test.ts` — T10.3: a table initializer is written as the single folded
+  instruction the grammar requires, and an inexpressible one throws instead of being silently
+  dropped. 6 cases including the nested `(ref.i31 (global.get $g))` form.
+- `tests/validator/memarg_offset.test.ts` — T9.11: every memarg handler checks `offset` against the
+  memory's index type, not just `onLoad` / `onStore`. 11 cases, each cross-checked against V8,
+  including the `0xffffffff` boundary and a 64-bit memory.
 - `tests/writer/operand_placeholder.test.ts` — T10.8: a synthesized operand slot-filler
   (`NopExpr.placeholder`) is not written out by either writer. 9 cases, including three T11
-  no-repair guards — a starved `local.set`, an explicit `(nop)` operand and a starved
-  `i32.add` must all stay invalid to V8 AND to our validator.
-- `tests/parser/call_arity.test.ts` — T10.5: linear-form `call` drained the whole operand
-  stack instead of popping the callee's arity, so a following instruction's operand slot got
-  a Nop and the encoding grew a byte on every round trip. 8 cases; 5 fail on the pre-fix
-  parser and 3 are guards (Bug D folded multi-value receive, local-name resolution across the
-  deferred body parse, and a V8-executed check that the value is still the one named).
-- `tests/writer/export_order.test.ts` — T10.1 / T10.2: the inline `(export "n")` abbreviation
-  is illegal on an import and re-orders the export section, so the WAT writer tests before
-  using it. 6 cases; 5 fail on the pre-fix writer and the sixth guards that inlining still
-  happens when it IS faithful (a fix that just disabled the abbreviation would pass the
-  other five).
+  no-repair guards — a starved `local.set`, an explicit `(nop)` operand and a starved `i32.add` must
+  all stay invalid to V8 AND to our validator.
+- `tests/parser/call_arity.test.ts` — T10.5: linear-form `call` drained the whole operand stack
+  instead of popping the callee's arity, so a following instruction's operand slot got a Nop and the
+  encoding grew a byte on every round trip. 8 cases; 5 fail on the pre-fix parser and 3 are guards
+  (Bug D folded multi-value receive, local-name resolution across the deferred body parse, and a
+  V8-executed check that the value is still the one named).
+- `tests/writer/export_order.test.ts` — T10.1 / T10.2: the inline `(export "n")` abbreviation is
+  illegal on an import and re-orders the export section, so the WAT writer tests before using it. 6
+  cases; 5 fail on the pre-fix writer and the sixth guards that inlining still happens when it IS
+  faithful (a fix that just disabled the abbreviation would pass the other five).
 - `tests/bridge/tier_b.test.ts`, `tier_c.test.ts`, `tier_d.test.ts`, `gc_tier1..4.test.ts` — bridge
   coverage (GC tiers verify binary encoding, not V8 round-trip — typed-ref IR is loose).
 - `tests/api/wabt_compat.test.ts` — 12 steps incl. the exact wasmtk call patterns from
@@ -124,5 +140,6 @@ project contract.
 
 ## CI gate
 
-`.github/workflows/ci.yml` runs `deno fmt --check`, `deno lint`, `deno task check`, `deno task test`,
-and `deno publish --dry-run` on every push/PR to `main`. See [publishing.md](publishing.md).
+`.github/workflows/ci.yml` runs `deno fmt --check`, `deno lint`, `deno task check`,
+`deno task test`, and `deno publish --dry-run` on every push/PR to `main`. See
+[publishing.md](publishing.md).
