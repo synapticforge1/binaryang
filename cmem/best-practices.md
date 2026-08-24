@@ -65,6 +65,7 @@ code
 **Working with sibling projects** (wasmtk, binaryen-ts, wazmrt)
 
 - Read the sibling project before designing the same feature twice
+- "Nothing records that" is a claim about the checkout you searched
 - A half-built feature is worse than a missing one, and no corpus will tell you
 - Stamp a vendored snapshot with source + date, in the change that creates it
 - Verify an incoming report's premises, not just its conclusion
@@ -898,4 +899,20 @@ there.
 **Take the rules; re-derive the choices that depend on what the project IS.**
 A runtime and a format tool are allowed different answers about what may be
 canonicalised away.
+
+## "Nothing records that" is a claim about the checkout you searched
+
+Asked whether a Go/GC link to page sizes existed, I grepped wasmtk and found
+nothing — and reported that. The checkout was dated **2026-07-02** and the work
+was dated **2026-07-08**. The finding was real, six days newer than the tree I
+searched, and `git log -1` would have said so before the grep did.
+
+The project already knows the frozen-snapshot version of this rule
+(`tests/wasmtk/` and the `KNOWN_INVALID` retraction). This is the same rule
+about a *live* sibling clone, which is easier to trust precisely because it is
+not marked as a snapshot: **date the checkout before concluding from its
+absence**, and prefer `git show origin/main:<path>` over the working tree when
+the question is "does this exist upstream".
+
+A negative result from a grep is only as current as `git log -1`.
 

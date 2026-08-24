@@ -1177,12 +1177,66 @@ the sources directly (`--experimental-strip-types` rejects `enum`, and
 `src/core/types.ts` is built on them); the supported Node path is the published
 JSR package, which is why the `deno publish --dry-run` slow-types check matters.
 
-**On "page size had something to do with Go and its GC":** nothing in wabt-ts,
-wasmtk or wazmrt records such a link, and the proposal's own motivation is
-byte-granular memory for embedded targets. What is true and probably the
-memory: **wazero is the Go runtime, and it rejects the GC proposal outright**
-(`invalid byte: 0x5f != 0x60` — it does not know struct types), along with
-custom page sizes, memory64 and multi-memory.
+**On "page size had something to do with Go and its GC" — FOUND, and it is
+wasmtk's, not ours.** My first answer ("nothing records such a link") was
+searching a wasmtk checkout dated **2026-07-02**, and the work is dated
+2026-07-08 — six days later. Verified at `origin/main` (2026-08-10).
+
+It is the **mergeable Go leaf**: `modc --lang=go --go-target=wasm-unknown`
+builds a TinyGo freestanding leaf (0 imports, no `memory.grow`) that
+`wasmmerge`s into a wasic bundle. TinyGo guards every exported function on a
+runtime-"initialized" flag that its `_initialize` sets, **and emits that flag at
+the fixed address 65536 — the first byte of page 1**. So `mergeOneWasmImport`
+(`src/wasic.ts` ~20095–20110 at origin/main) does two things when a merged leaf
+carries `$<prefix>__initialize`: injects `(call $<prefix>__initialize)` at the
+top of `_start`, because nothing calls it after the merge and the leaf's exports
+would otherwise trap; and floors the merged memory at two pages with
+`Math.max(2, parseInt(n))`, purely so the byte at 65536 exists. The caveat
+travels with it: the address is hardcoded by TinyGo, so **the host must not use
+page 1** — fine for small wasic hosts, and large-memory hosts should stay on the
+reactor/bindgen path.
+
+**The connection is the CONSTANT 65536, not the custom-page-sizes proposal** —
+and that is exactly why it interacts. "Two pages, so byte 65536 exists" is true
+only at the standard page size; under `(pagesize 1)` two pages is two BYTES.
+wabt-ts now emits `(pagesize …)` end to end (T13.4), so the assumption is worth
+stating rather than leaving implicit.
+
+Three things worth carrying back to wasmtk, none of them ours to fix:
+
+1. **The floor is a REGEX on WAT text**, `\(memory\s+\(export\s+"memory"\)\s+(\d+)\)`,
+   so it matches ONLY `(memory (export "memory") N)`. It silently no-ops on a
+   memory that carries a MAX, an `i64` index type, a `(pagesize …)` clause, or a
+   non-inline export — the same "silently did not apply" shape as wazmrt's
+   dropped `(pagesize …)`, and the reason the page-size interaction above is
+   double-guarded by accident rather than by design.
+2. **`wasmbundle.ts`'s master WAT does NOT use the same floor.** It is
+   `Math.max(1, ceil(dataOffset / 65536) + (anyDroppedAllocator ? 1 : 0))` — a
+   floor of **1**, not 2, with the +1 conditional. The write-up describes it as
+   "same 2-page floor, different reason"; it is not the same floor. If a merged
+   Go leaf can reach the bundle path, the byte at 65536 is not guaranteed there.
+3. **Line refs drift.** The cited `wasic.ts:20132-20149` and `:19943` are
+   ~20095–20110 and 19904 at origin/main (with two more `Math.max(2, …)` sites
+   at 20285 and 20448). Cite the SHAPE — `mergeOneWasmImport`, the
+   allocator-unification path — the way the wasmtk team corrected us to do on
+   `scripts/wasmtk-eh-report.md`.
+
+**Our two breaking changes do not reach them.** wasmtk maps
+`"wabt": "jsr:@jrmarcum/wabt-ts@^1.3.5/compat"`, and the `/compat` facade
+exposes `wabt()`, `WabtModule`, `WasmModule`, `Features` and the option types —
+**no `Limits`, no IR**. Neither `initial`/`max` becoming `bigint` (T13.3) nor
+`pageSize` becoming `pageSizeLog2` (T13.4) is visible through it, and the caret
+range accepts the release.
+
+`tests/go_merge_tests.ts` is 7 hand-counted `ok()` assertions gated on TinyGo
+being on PATH ("the CI image has none — skips cleanly"). **TinyGo 0.41.1 IS
+installed on this machine**, so that gate does not skip here and the test is
+runnable locally against an origin/main checkout.
+
+**The separate wazero fact still stands** and is easy to conflate with the
+above: wazero is the Go RUNTIME, and it rejects the GC proposal outright
+(`invalid byte: 0x5f != 0x60`), along with custom page sizes, memory64 and
+multi-memory.
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 
