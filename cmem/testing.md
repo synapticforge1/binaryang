@@ -68,7 +68,7 @@ maintain); `tasks.md` records what each measured and when.
 | `assert_invalid`          | 2664 / 2683         | the converse; and 19 remaining are modules V8 **and Wasmtime** accept. The denominator read 2737 until `assert_trap (module …)` stopped being classified as `assert_invalid` — **a metric measures the population its classifier hands it** |
 | round-trip byte-identical | 2120 / 2120         | a consistently-wrong opcode mapping — reader and writer agree, so the bytes match           |
 | **execution**             | **23,077 / 23,077** | anything needing host imports, v128, NaN payloads, `ref.func` args (29,544 skipped)         |
-| **`assert_malformed`** | **1183 / 1229** quoted · **638 / 711** binary | the only OPEN metric — tranche **T12**, categories and severity ranking in `tasks.md` |
+| **`assert_malformed`** | **1183 / 1229** quoted · **711 / 711** binary | the only OPEN metric — tranche **T12**, categories and severity ranking in `tasks.md` |
 
 **The whole point is the last column.** Every one of these was added because the existing set could
 not see a real bug. `wat2wasm` does not validate, which is how the entire SIMD half of the validator
@@ -144,6 +144,9 @@ project contract.
   validator types all four correctly (Wasmtime-verified; V8 gates the proposal off and cannot
   arbitrate), and an exhaustive lexer-vs-reader sweep guards the CLASS. 15 cases.
 
+- `tests/reader/binary_malformed.test.ts` — T12.8: section identity/order/size, entry counts,
+  the closing `end` of a body, the flag bytes with no defined meaning, and the data-count
+  section. Written as hex-dump literals so each module reads as bytes.
 - `tests/parser/annotation_lexing.test.ts` — T12.7: annotation body characters and the
   required id, plus the string/comment exemptions annotations.wast asserts as valid, and the
   quoted spelling of an ordinary identifier.

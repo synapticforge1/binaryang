@@ -80,6 +80,7 @@ reference these ids.
 | T12.5 | A wasm NAME must be valid UTF-8 — neither path checked | done — quoted 869 → 1045, **binary 110 → 638** |
 | T12.6 | A missing lane immediate compiled as lane 0; NaN result patterns accepted as literals | done — quoted 1045 → 1087 |
 | T12.7 | Annotations skipped at the CHARACTER level; a closing label and an inline signature both read and discarded | done — quoted 1087 → **1183**; closes T12.6 |
+| T12.8 | The binary reader resynchronised instead of reporting | done — binary 638 → **711 / 711**, the metric is CLOSED |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -607,7 +608,7 @@ one. The result inverted the count order: the biggest categories are the mildest
 | ~~T12.5~~ | **DONE.** Malformed UTF-8 in names | 186 quoted **+ 528 binary** | name silently REPLACED with U+FFFD — and the same rule fixed most of T12.8 |
 | ~~T12.6~~ | **DONE.** `unexpected token` — two silent defaults, then the block/type-use remainder closed by T12.7 | 82 | had **silent WRONG VALUE** in it after all |
 | ~~T12.7~~ | **DONE.** Illegal character, empty annotation id, mismatching label, inline function type | 77 (+19 more it reached) | two of the four were WRONG VALUE, not just a missing rejection |
-| **T12.8** | The remaining BINARY `assert_malformed` cases | **73** (was 601 — T12.5 closed 528) | decoder hardening |
+| ~~T12.8~~ | **DONE.** The remaining BINARY `assert_malformed` cases | 73 (was 601 — T12.5 closed 528) | the reader resynchronised instead of reporting |
 
 **T12.1 — done 2026-08-24.** Integers went through `BigInt.asIntN(32, n)` with
 no range check; floats were IEEE-rounded with no range check. The legal integer
@@ -820,6 +821,53 @@ Regressions: `tests/parser/annotation_lexing.test.ts` and
 table/field (16), `nan:0x0` (10), signed lane immediates and `i8x16.shuffle`
 lane-length/range (12), a `br_table` label that runs into the next token (5),
 unknown type (1), two start sections (1), plus the 73 binary cases in T12.8.
+
+**T12.8 — the binary reader resynchronised instead of reporting, 2026-08-24.
+Binary 638 → 711 / 711; that half of the metric is CLOSED.**
+
+The decoder was written to keep going, and every one of the ways it did that
+produced a DIFFERENT MODULE rather than a diagnostic:
+
+- an unknown section id fell into `default` and was skipped;
+- `if (this.pos !== sectionEnd) this.pos = sectionEnd` realigned silently
+  whenever a section's contents disagreed with its declared size;
+- every entry loop was guarded by `this.pos < end`, so a section claiming more
+  entries than it held simply produced fewer — `(table 1 …)` with no table
+  entry decoded to a module with no tables;
+- there was no duplicate- or order- check at all, so a module with two code
+  sections decoded to the SECOND one's bodies;
+- a function body missing its `end` decoded as though it had had one;
+- `readU8() !== 0` made mutability 0x02, 0x04 and 0xff all MUTABLE, and
+  `alignFlags & 0x3f` made memarg flags 0x80 an alignment exponent of 0 — a
+  different instruction, in a module V8 runs. **Those two are T12.7's "we
+  consume it and ignore it" spelled arithmetically**, which is worth carrying
+  forward: a mask and a `!== 0` are discards too.
+- the data-count section was read and thrown away with the comment "we don't
+  store it". It is load-bearing: `memory.init` and `data.drop` require it (the
+  code section is decoded BEFORE the data section, so it is the only way to
+  know a data index is in range at that point), and when present it must agree
+  with the data section's own count.
+
+**The order is NOT numeric id order, and getting that wrong would have been
+invisible in this metric.** The tag section is id 13 but sits between memory
+and global; the data-count section is id 12 but sits between elem and code. A
+numeric comparison accepts an order no producer may emit AND rejects a legal
+one — and only the second half shows up as a failure. `sectionOrderRank` in
+`src/core/binary.ts` holds the one order, the same one `writeBinaryIr` emits,
+so the two cannot drift.
+
+**One check was written in the wrong index space, and only a DIFFERENT metric
+saw it.** The function/code count check first read
+`count !== m.funcs.length - m.numFuncImports`; `m.funcs` holds defined
+functions only (imports live in `m.imports`), so every module with a function
+import was rejected. The `assert_malformed` number was identical either way —
+round-trip dropped 2120 → 2051 across 14 files and named the error. That is
+the fourth time in the campaign that the metric which caught a regression was
+not the one the work was aimed at, and it is the argument for running the whole
+panel on every change rather than the one being moved.
+
+Regression: `tests/reader/binary_malformed.test.ts` (22 steps, all 6 groups
+fail pre-fix), built from hex-dump literals so each module reads as bytes.
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

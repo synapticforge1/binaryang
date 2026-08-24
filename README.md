@@ -38,10 +38,11 @@ Measured against the official [WebAssembly spec testsuite](https://github.com/We
 | `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**     |
 | Spec `assert_return` assertions the output satisfies | **23,077 / 23,077** |
 | Modules the spec calls invalid that we reject        | 2664 / 2683         |
+| Binary the spec calls malformed that we reject       | **711 / 711**       |
 | Text the spec calls malformed that we reject         | 1183 / 1229         |
 
-`assert_malformed` is the one measurement still open — the parser accepts some input the spec
-calls malformed. Tracked as tranche T12.
+`assert_malformed` is the one measurement still open, and only on its TEXT half — the parser
+accepts some input the spec calls malformed. Tracked as tranche T12.
 
 The 19 remaining `assert_invalid` modules are ones **V8 and Wasmtime both accept** — those spec
 tests predate proposals that legalised what they assert against, so matching them would mean

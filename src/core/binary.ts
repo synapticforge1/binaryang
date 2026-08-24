@@ -63,6 +63,42 @@ export enum BinarySection {
   Tag = 13,
 }
 
+/**
+ * Position of a section in the ONE order a module may list them in.
+ *
+ * The order is NOT the numeric id order: the tag section is id 13 but sits
+ * between memory and global, and the data-count section is id 12 but sits
+ * between elem and code. A reader that compared ids numerically would accept a
+ * module with its sections in an order no producer may emit, and reject a
+ * legal one. Custom sections may appear anywhere and repeat, so they have no
+ * rank; `sectionOrderRank` returns -1 for them and for an unknown id.
+ *
+ * `writeBinaryIr` emits the sections in exactly this order.
+ */
+const SECTION_ORDER: readonly BinarySection[] = [
+  BinarySection.Type,
+  BinarySection.Import,
+  BinarySection.Function,
+  BinarySection.Table,
+  BinarySection.Memory,
+  BinarySection.Tag,
+  BinarySection.Global,
+  BinarySection.Export,
+  BinarySection.Start,
+  BinarySection.Elem,
+  BinarySection.DataCount,
+  BinarySection.Code,
+  BinarySection.Data,
+];
+
+/**
+ * The rank of `s` in {@link SECTION_ORDER}, or -1 for a custom section or an
+ * id that is not a section at all.
+ */
+export function sectionOrderRank(s: number): number {
+  return SECTION_ORDER.indexOf(s as BinarySection);
+}
+
 /** Total number of known non-custom section types. */
 export const NUM_BINARY_SECTIONS = 14;
 

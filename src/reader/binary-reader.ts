@@ -6,8 +6,14 @@
 
 import type { Location } from '../core/error.ts';
 import { addError, type ErrorList } from '../core/error.ts';
-import { Type, typeToHeapTypeName } from '../core/types.ts';
-import { BinarySection, ExternalKind, WASM_MAGIC, WASM_VERSION } from '../core/binary.ts';
+import { isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
+import {
+  BinarySection,
+  ExternalKind,
+  sectionOrderRank,
+  WASM_MAGIC,
+  WASM_VERSION,
+} from '../core/binary.ts';
 import {
   GcOpcode,
   MiscOpcode,
@@ -563,6 +569,10 @@ export class BinaryReader {
 
   private readLimits(): Limits {
     const flags = this.readU8();
+    // Only four flag bits are defined (max / shared / 64-bit / custom page
+    // size). Masking each one out individually meant an undefined bit was
+    // silently IGNORED: `0x10` decoded as a plain `(memory 0)`.
+    if ((flags & ~0x0f) !== 0) this.err(`malformed limits flags: 0x${flags.toString(16)}`);
     const hasMax = (flags & 0x01) !== 0;
     const isShared = (flags & 0x02) !== 0;
     const is64 = (flags & 0x04) !== 0;
@@ -577,6 +587,11 @@ export class BinaryReader {
 
   private readMemArg(): { align: number; offset: bigint; memidx: Var } {
     const alignFlags = this.readU32Leb();
+    // Bits 0-5 are the alignment exponent and bit 6 says an explicit memory
+    // index follows. Nothing above bit 6 is defined, and `& 0x3f` DISCARDED
+    // it: `align=0x80` decoded as alignment exponent 0, which is a different
+    // instruction that V8 happily runs.
+    if (alignFlags > 0x7f) this.err(`malformed memop flags: 0x${alignFlags.toString(16)}`);
     const hasMemIdx = (alignFlags & 0x40) !== 0;
     const alignLog2 = alignFlags & 0x3f;
     const align = 1 << alignLog2;
@@ -594,7 +609,14 @@ export class BinaryReader {
     // the 0x64 / 0x63 marker. Reading a single byte left the heap type in the
     // stream, so every following field of the table entry was shifted by one
     // (`(table $x 1 (ref null $t))` came back as `(table 0 ref null)`).
-    return this.readValType();
+    const t = this.readValType();
+    // And it has to BE a reference type. `readValType` accepts any value type,
+    // so an element segment declaring element type `i32` decoded to a table of
+    // i32 rather than being rejected.
+    if (typeof t === 'number' && !isReferenceType(t)) {
+      this.err(`malformed reference type: 0x${(t as number).toString(16)}`);
+    }
+    return t;
   }
 
   // ---------------------------------------------------------------------------
@@ -665,22 +687,36 @@ export class BinaryReader {
       const fields: Field[] = [];
       for (let j = 0; j < fieldCount; j++) {
         const type = this.readValType();
-        const mutable = this.readU8() !== 0;
+        const mutable = this.readMutability();
         fields.push({ name: '', type, mutable });
       }
       m.types.push({ kind: 'struct', name: '', fields, loc });
     } else if (marker === 0x5e) {
       const type = this.readValType();
-      const mutable = this.readU8() !== 0;
+      const mutable = this.readMutability();
       m.types.push({ kind: 'array', name: '', field: { name: '', type, mutable }, loc });
     } else {
       this.err(`unknown type section entry marker: 0x${marker.toString(16)}`);
     }
   }
 
+  /**
+   * A section declared more entries than its own bytes can hold.
+   *
+   * Every entry loop used to be guarded by `this.pos < end`, which STOPS at
+   * the section boundary and produces a module with fewer items than the
+   * count said -- `(table 1 …)` with no table entry decoded to a module with
+   * no tables at all, and an export section claiming two exports decoded to
+   * one. The count is part of the encoding; falling short of it is malformed.
+   */
+  private shortSection(): void {
+    this.err('unexpected end of section or function');
+  }
+
   private readImportSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const module_ = this.readName();
       const field = this.readName();
@@ -721,7 +757,7 @@ export class BinaryReader {
         }
         case ExternalKind.Global: {
           const type = this.readValType();
-          const mutable = this.readU8() !== 0;
+          const mutable = this.readMutability();
           const global: Global = { name: '', loc, type, mutable, init: [] };
           m.imports.push({ kind: ExternalKind.Global, module: module_, field, global });
           m.numGlobalImports++;
@@ -749,7 +785,8 @@ export class BinaryReader {
 
   private readFunctionSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const sigIdx = this.readU32Leb();
       const sig = getTypeSig(m, sigIdx);
@@ -767,7 +804,8 @@ export class BinaryReader {
 
   private readTableSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       // The table-with-init form (reference-types proposal) is signalled by
       // a leading 0x40 byte BEFORE the reftype: `0x40 0x00 reftype limits
@@ -793,7 +831,8 @@ export class BinaryReader {
 
   private readMemorySection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const limits = this.readLimits();
       if (limits.isShared) m.featuresUsed.threads = true;
@@ -803,10 +842,11 @@ export class BinaryReader {
 
   private readGlobalSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const type = this.readValType();
-      const mutable = this.readU8() !== 0;
+      const mutable = this.readMutability();
       const init = this.readInitExpr(m);
       m.globals.push({ name: '', loc, type, mutable, init });
     }
@@ -814,7 +854,8 @@ export class BinaryReader {
 
   private readExportSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const name = this.readName();
       const kind = this.readU8() as ExternalKind;
       const idx = this.readU32Leb();
@@ -829,7 +870,8 @@ export class BinaryReader {
 
   private readElemSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const flags = this.readU32Leb();
       const isPassive = (flags & 0x01) !== 0;
@@ -864,9 +906,12 @@ export class BinaryReader {
         : { kind: 'ref', heapType: { kind: 'name', name: 'func' }, nullable: false };
       if (isPassive || hasExplicitIndex) {
         if (usesExprs) {
-          elemType = this.readValType();
+          elemType = this.readRefType();
         } else {
-          this.readU8(); // element kind byte (0x00 = func)
+          // The element KIND byte, which the spec defines as 0x00 and nothing
+          // else. Reading it into nowhere accepted any byte at all.
+          const kindByte = this.readU8();
+          if (kindByte !== 0x00) this.err(`malformed element kind: 0x${kindByte.toString(16)}`);
         }
       }
 
@@ -891,7 +936,8 @@ export class BinaryReader {
 
   private readTagSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       this.readU8(); // attribute byte (always 0)
       const sigIdx = this.readU32Leb();
@@ -901,13 +947,23 @@ export class BinaryReader {
     }
   }
 
+  /**
+   * The data-count section declares how many data segments follow.
+   *
+   * It was read and thrown away with the comment "we don't store it". It is
+   * not decoration: `memory.init` and `data.drop` REQUIRE it (the code section
+   * is decoded before the data section, so it is the only way to know a data
+   * index is in range at that point), and when it is present it must agree
+   * with the data section's own count.
+   */
   private readDataCountSection(_m: Module, _end: number): void {
-    this.readU32Leb(); // data count (used for validation, we don't store it)
+    this.dataCount = this.readU32Leb();
   }
 
   private readDataSection(m: Module, end: number): void {
     const count = this.readU32Leb();
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const flags = this.readU32Leb();
       const isPassive = (flags & 0x01) !== 0;
@@ -931,10 +987,27 @@ export class BinaryReader {
 
   private readCodeSection(m: Module, end: number): void {
     const count = this.readU32Leb();
+    // The code section has exactly one entry per DEFINED function, and
+    // `m.funcs` holds exactly those (imports live in `m.imports`), so the two
+    // counts must agree. Neither side checked, so a
+    // module declaring three functions and supplying two bodies decoded to a
+    // function with an EMPTY body rather than an error.
+    if (count !== m.funcs.length) {
+      this.err('function and code section have inconsistent lengths');
+      return;
+    }
 
-    for (let i = 0; i < count && this.pos < end && this.ok(); i++) {
+    for (let i = 0; i < count && this.ok(); i++) {
+      if (this.pos >= end) {
+        this.err('unexpected end of section or function');
+        return;
+      }
       const bodySize = this.readU32Leb();
       const bodyEnd = this.pos + bodySize;
+      if (bodyEnd > end) {
+        this.err('unexpected end of section or function');
+        return;
+      }
 
       // The code section has one entry per DEFINED function (imports excluded),
       // so it lines up 1:1 with m.funcs. A previous version added
@@ -950,15 +1023,27 @@ export class BinaryReader {
 
       func.loc = this.loc();
 
-      // Local declarations
+      // Local declarations. The counts are per-GROUP and the spec caps their
+      // SUM at 2^32-1, so four groups of 2^30 overflow while no single one
+      // does -- summing in a JS number keeps the check exact.
       const localDeclCount = this.readU32Leb();
+      let totalLocals = 0;
       for (let j = 0; j < localDeclCount; j++) {
         const declCount = this.readU32Leb();
         const type = this.readValType();
+        totalLocals += declCount;
         func.localDecls.push({ type, count: declCount });
+      }
+      if (totalLocals > 0xffff_ffff) {
+        this.err('too many locals');
+        return;
       }
 
       func.body = this.decodeBody(bodyEnd, m, func);
+      if (this.ok() && this.pos !== bodyEnd) {
+        this.err('unexpected end of section or function');
+        return;
+      }
       this.pos = bodyEnd;
     }
   }
@@ -1856,6 +1941,11 @@ export class BinaryReader {
       }
     }
 
+    // Reaching here means the body ran out before its root frame closed --
+    // the root `end` returns directly, above. A function body and a constant
+    // expression are BOTH terminated by an explicit `end` opcode, and one
+    // missing it used to decode as though it had had one.
+    if (this.ok()) this.err(func === null ? 'unexpected end' : 'END opcode expected');
     return labelStack.length > 0 ? labelStack[0]!.flush() : [];
   }
 
@@ -1880,6 +1970,7 @@ export class BinaryReader {
         break;
       }
       case MiscOpcode.MemoryInit: {
+        this.requireDataCount();
         const segIdx = this.readU32Leb();
         const memIdx = this.readU32Leb();
         const size = stack.pop() ?? operandPlaceholder(loc);
@@ -1897,6 +1988,7 @@ export class BinaryReader {
         break;
       }
       case MiscOpcode.DataDrop: {
+        this.requireDataCount();
         const segIdx = this.readU32Leb();
         pushStmt(
           stack,
@@ -2378,6 +2470,35 @@ export class BinaryReader {
   // Main module reader
   // ---------------------------------------------------------------------------
 
+  /**
+   * Read a mutability byte, which is 0 or 1 and NOTHING else.
+   *
+   * Every site read it as `this.readU8() !== 0`, so 0x02, 0x04 and 0xff all
+   * decoded as MUTABLE. That is a silent wrong value in a global's type, and
+   * the spec calls all three malformed.
+   */
+  private readMutability(): boolean {
+    const b = this.readU8();
+    if (b > 1) this.err(`malformed mutability: 0x${b.toString(16)}`);
+    return b === 1;
+  }
+
+  /**
+   * `memory.init` and `data.drop` may only appear in a module that HAS a
+   * data-count section.
+   *
+   * The code section is decoded before the data section, so without the count
+   * up front there is no way to know a data index is in range at the point it
+   * is used -- which is exactly why the proposal added the section. A module
+   * with data segments but no data-count section still decoded fine here.
+   */
+  private requireDataCount(): void {
+    if (this.dataCount === null) this.err('data count section required');
+  }
+
+  /** Count from the data-count section, or null when there is none. */
+  private dataCount: number | null = null;
+
   readModule(): Module {
     const m = makeModule();
     m.filename = this.filename;
@@ -2394,12 +2515,44 @@ export class BinaryReader {
       return m;
     }
 
-    // Section loop
+    // Section loop.
+    //
+    // A module lists each non-custom section AT MOST ONCE and in ONE fixed
+    // order. Neither rule was checked: an unknown id fell into `default` and
+    // was skipped, a repeated or misordered section was read as if it were the
+    // first, and the trailing `this.pos = sectionEnd` resynchronised silently
+    // whenever a section's contents disagreed with its declared size. So a
+    // module with two code sections decoded to the SECOND one's bodies, and a
+    // section whose size ran past its contents lost the difference without a
+    // word (T12.8).
+    let lastRank = -1;
+    const seen = new Set<number>();
     while (this.pos < this.data.length && this.ok()) {
       const sectionStart = this.pos;
       const sectionId = this.readU8() as BinarySection;
+      if (sectionId !== BinarySection.Custom && sectionOrderRank(sectionId) < 0) {
+        this.err(`malformed section id: ${sectionId}`);
+        return m;
+      }
       const sectionSize = this.readU32Leb();
       const sectionEnd = this.pos + sectionSize;
+      if (sectionEnd > this.data.length) {
+        this.err('length out of bounds');
+        return m;
+      }
+      if (sectionId !== BinarySection.Custom) {
+        const rank = sectionOrderRank(sectionId);
+        if (seen.has(sectionId)) {
+          this.err(`unexpected content after last section: duplicate section ${sectionId}`);
+          return m;
+        }
+        if (rank < lastRank) {
+          this.err(`unexpected content after last section: section ${sectionId} out of order`);
+          return m;
+        }
+        seen.add(sectionId);
+        lastRank = rank;
+      }
       const sectionBodyStart = this.pos;
 
       // Track section metadata
@@ -2414,6 +2567,13 @@ export class BinaryReader {
         case BinarySection.Custom: {
           const nameStart = this.pos;
           const name = this.readName();
+          // A custom section IS a name plus a payload, so a section too small
+          // to hold its own name is malformed. An empty one decoded to a
+          // custom section named "".
+          if (this.pos > sectionEnd) {
+            this.err('unexpected end');
+            return m;
+          }
           const dataStart = this.pos;
           const data = this.data.slice(dataStart, sectionEnd);
           if (name === 'name' && this.opts.readDebugNames) {
@@ -2472,7 +2632,26 @@ export class BinaryReader {
       m.sectionMeta.push(meta);
       void sectionStart;
 
-      if (this.pos !== sectionEnd) this.pos = sectionEnd;
+      if (this.ok() && this.pos !== sectionEnd) {
+        // Reading LESS than the section declared leaves bytes no producer
+        // could have meant; reading MORE means the contents ran off the end of
+        // their own section. The spec names the two separately.
+        this.err(
+          this.pos < sectionEnd ? 'section size mismatch' : 'unexpected end of section or function',
+        );
+        return m;
+      }
+      this.pos = sectionEnd;
+    }
+
+    if (this.ok() && this.dataCount !== null && this.dataCount !== m.dataSegments.length) {
+      this.err('data count and data section have inconsistent lengths');
+    }
+    // A function section with no code section at all is the same mismatch the
+    // code reader checks when both are present -- but that reader never runs,
+    // so the module decoded to functions with empty bodies.
+    if (this.ok() && m.funcs.length > 0 && !seen.has(BinarySection.Code)) {
+      this.err('function and code section have inconsistent lengths');
     }
 
     return m;

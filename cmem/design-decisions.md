@@ -501,3 +501,18 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   SOURCE text, not the decoded bytes, because an escaped tab is a legal spelling while a literal
   tab byte is not. `decodeStringToken` and `STRICT_NAME_DECODER` live in `src/core/literal.ts` so
   the lexer and parser share one rule.
+- **A binary reader must REPORT, not resynchronise (T12.8).** Skipping an unknown section id,
+  realigning to `sectionEnd` when a section's contents disagreed with its declared size, and
+  guarding entry loops with `this.pos < end` all produced a DIFFERENT module instead of an error —
+  two code sections decoded to the second one's bodies, and a section claiming more entries than it
+  held simply produced fewer. A count is part of the encoding, and a body ends with an explicit
+  `end`.
+- **A mask and a `!== 0` are discards too (T12.8).** `alignFlags & 0x3f` turned memarg flags 0x80
+  into alignment exponent 0, and `readU8() !== 0` made every non-zero mutability byte MUTABLE.
+  Reserved bits have to be CHECKED, not masked off.
+- **The section order is not numeric id order (T12.8).** Tag is id 13 but sits between memory and
+  global; data-count is id 12 but sits between elem and code. `sectionOrderRank` in
+  `src/core/binary.ts` is the single copy of that order, and `writeBinaryIr` emits the same one.
+- **The data-count section is load-bearing (T12.8).** `memory.init` and `data.drop` require it —
+  the code section is decoded before the data section, so it is the only way to know a data index
+  is in range at that point — and when present it must agree with the data section's count.
