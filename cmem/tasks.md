@@ -99,7 +99,8 @@ Both original metrics are exhausted:
 | parse-clean | 107 / 257 | **257 / 257** |
 | fully V8-valid | 180 / 257 | **257 / 257** |
 
-Everything remaining is round-trip fidelity (T10) plus the two T9 items.
+Everything remaining WAS round-trip fidelity (T10) plus the two T9 items.
+**All of it is closed as of 2026-08-24** — see "T10 IS CLOSED" below.
 
 ### A third metric — round-trip fidelity
 
@@ -131,8 +132,10 @@ describe it; T10.3 grew (it now covers the elem/array modules T7.11 made
 encodable) and T10.6 shrank as the validator work fixed some of the same
 producers. Re-run the harness before starting any of them.
 
-This is now **the only campaign metric with open work.** parse-clean,
-V8-validity and validator agreement are all exhausted.
+This WAS the only campaign metric with open work. **It is exhausted too as of
+2026-08-24** — 2120/2120 on the spec testsuite and 270/270 on the wasmtk WASI
+corpus. The seven groups below are kept for the record of what each one was
+and how it was actually diagnosed; every row is struck through.
 
 **No binaryen-ts involvement, so T10 has no upstream dependency.** The
 round-trip path is wabt-ts end to end — `wasm2wat` is our `readBinaryIr` →
