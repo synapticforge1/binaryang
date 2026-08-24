@@ -54,6 +54,19 @@ regression test.** This loop is the design, not a transitional phase. wasmtk's P
 idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge surface, and the full
 272-file corpus runner. Future wasmtk phases will re-open the loop; expect it.
 
+## The fifth metric — execution (2026-08-24)
+
+parse-clean, V8-validity, validator agreement, `assert_invalid` and round-trip
+byte-identity all check **bytes or acceptance**. None runs an instruction, so a
+consistently-wrong opcode mapping would pass all five.
+
+Running the spec testsuite's `assert_return` assertions against our own
+compiled output closes that: **23,077 / 23,077 pass**. Harness lives in the
+session scratchpad; ~120 lines. Skips modules needing host imports, v128, NaN
+payloads and `ref.func` args (29,544) — and **print the skip count**, because a
+harness bug once hid 24,000 unexecuted assertions behind a plausible-looking
+2,084/2,240.
+
 ## Regression-test placement (where each invariant's test lives)
 
 - `tests/tools/wat2wasm.test.ts` — natural-alignment-when-`align=` omitted.

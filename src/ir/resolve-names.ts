@@ -574,13 +574,29 @@ class ResolveContext {
         const [rA, address] = this.resolveExpr(e.address);
         const [rE, expected] = this.resolveExpr(e.expected);
         const [rR, replacement] = this.resolveExpr(e.replacement);
-        return [combine(rA, combine(rE, rR)), { ...e, address, expected, replacement }];
+        return [combine(rA, combine(rE, rR)), {
+          ...e,
+          // `memidx`, like every other atomic memory op. Omitting it here left
+          // a named multi-memory operand unresolved, and `writeMemoryVarUnlessZero`
+          // then wrote index 0 — so the instruction silently hit the WRONG
+          // memory. Bug G's shape: a case that resolves some of its Vars.
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          expected,
+          replacement,
+        }];
       }
       case 'atomic_wait': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rE, expected] = this.resolveExpr(e.expected);
         const [rT, timeout] = this.resolveExpr(e.timeout);
-        return [combine(rA, combine(rE, rT)), { ...e, address, expected, timeout }];
+        return [combine(rA, combine(rE, rT)), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          expected,
+          timeout,
+        }];
       }
       case 'atomic_notify': {
         const [rA, address] = this.resolveExpr(e.address);

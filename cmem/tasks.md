@@ -727,6 +727,45 @@ The migration is their top `next-work.md` item; they deliberately did not bolt
 it onto a review, since handler bodies becoming branch targets is a real
 structural change.
 
+### A FIFTH metric — execution. 23,077 / 23,077 (2026-08-24)
+
+Every metric the campaign had checks **bytes or acceptance**: parse-clean,
+V8-validity, validator agreement, `assert_invalid`, round-trip byte-identity.
+None ran a single instruction.
+
+That leaves a real hole. Suppose the parser mapped a token to the WRONG opcode
+— `i32.sub` emitting `i32.add`'s byte. V8 accepts it (a valid instruction),
+the validator agrees (well-typed), and the binary reader maps that byte back to
+`i32.add` consistently, so **round-trip is byte-identical**. All five metrics
+green, program computes the wrong answer. Only execution catches it.
+
+**Result: 23,077 of 23,077 executed `assert_return` assertions pass, zero
+failures, across the spec testsuite.** 29,544 skipped — modules needing host
+imports, v128 (cannot cross the JS boundary), NaN payloads (JS canonicalises
+them), and `ref.func` arguments.
+
+Harness: `assert_return` + `invoke`, compiled through our own pipeline,
+instantiated on V8, compared by BITS for floats. It lives in the session
+scratchpad.
+
+**Four harness bugs had to be fixed before the number meant anything, and the
+first run said "156 failures".** Every one was the harness:
+
+| bug | effect |
+| --- | --- |
+| `action` commands skipped | stateful `grow`/`size` sequences never advanced |
+| NaN payload compared by bits | unrepresentable through a JS `number`, so unscorable — not wrong |
+| **`toJs` read `.type` off the `WastArg` wrapper** | a `WastArg` is `{kind:'value', value: Const}`, so every invoke WITH ARGUMENTS was silently skipped — **2,240 assertions instead of 26,837** |
+| reference arguments skipped | the `init(externref)` that POPULATES the table in every GC test file never ran, so every slot stayed null and every downstream assertion failed |
+
+The third is the one to remember: the harness reported a healthy-looking
+2,084/2,240 while executing **only nullary functions**. A metric can be
+precise, stable, and measuring almost nothing.
+
+**And `ref.extern` arguments are expressible after all** — an externref is any
+JS value, so `(ref.extern N)` maps to a stable per-N sentinel. Skipping them
+was what made the entire GC cluster look broken.
+
 ### A frozen snapshot read as a live signal — both projects, one week (2026-08-24)
 
 `tests/wasmtk/` is a 272-file snapshot of wasmtk's build output. Its live

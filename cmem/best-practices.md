@@ -532,3 +532,49 @@ signatures) really is small; the half we did not look for — the decoder
 collapsing a typed-ref local to `anyref` — makes it a wrong-bytes bug. Fixing
 one direction of error is not the same as being right, and the momentum of a
 correction pushes past the target as easily as the original claim did.
+
+## Audit a manual walk against the TYPE, not against a corpus
+
+`resolveNames` walks the IR by hand rather than through `ExprVisitor`, so
+nothing forces it to be total. Two bugs have now come out of that: Bug G
+(`call_indirect` resolving `table` and skipping `typeVar`) and, found this
+week, `atomic_rmw_cmpxchg` / `atomic_wait` spreading `...e` and carrying
+`memidx` through unresolved — so a named multi-memory atomic silently operated
+on the WRONG MEMORY.
+
+Both were found the same way, and it is not corpus coverage: **enumerate every
+`Var`-bearing field of every Expr interface, then check the case body that
+handles that kind actually mentions each one.** About 30 lines of script, and
+it found the second bug in one pass over 65 kinds and 99 fields.
+
+Corpus coverage cannot find these. Neither the spec testsuite nor the wasmtk
+corpus contains a named multi-memory atomic, which is exactly why the standing
+"no name-var survives resolveNames" guard stayed green. A guard is only as wide
+as its corpus; a type is as wide as the code.
+
+**The strongest single tell is a sibling.** Four of the six atomic memory ops
+resolved `memidx` and two did not, in one switch, adjacent. When cases in a
+family diverge, the divergence is the bug — the same signal as an unused
+parameter in one of a family of parallel handlers.
+
+## A metric can be precise, stable, and measuring almost nothing
+
+The new execution metric's first run reported **2,084 / 2,240 passing**. Stable
+across runs, plausible pass rate, 17 named files failing. It was executing
+**only nullary functions**: a spec `WastArg` is `{kind:'value', value: Const}`,
+the harness read `.type` off the wrapper, got `undefined`, and silently skipped
+every invoke with arguments.
+
+Fixed, the same harness runs **23,077** assertions — more than ten times as
+many — and all of them pass. The 156 "failures" were four separate harness
+bugs, none of them in wabt-ts.
+
+Two things to take from it:
+
+- **A denominator is a measurement too.** 2,240 looked reasonable; nothing
+  about the number announced that it should have been 26,837. Sanity-check what
+  a harness SKIPS as carefully as what it fails, and print the skip count.
+- **Before reporting a failure, reproduce it standalone.** Each of the three
+  clusters here dissolved the moment it was rebuilt as a minimal module:
+  `memory.size`/`grow` worked, `br_on_non_null` emitted `0xd6` and behaved
+  correctly. The harness was wrong every time.
