@@ -8,7 +8,14 @@ import { heapTypeNameToType, isReferenceType, Type, typeToHeapTypeName } from '.
 import type { Index } from '../core/types.ts';
 import { isRefValueType, valueTypeName } from '../ir/ir.ts';
 import type { ValueType } from '../ir/ir.ts';
-import { MiscOpcode, Opcode, PREFIX_MISC, PREFIX_SIMD } from '../core/opcode.ts';
+import {
+  MiscOpcode,
+  naturalAlignForOpcode,
+  Opcode,
+  PREFIX_MISC,
+  PREFIX_SIMD,
+  PREFIX_THREADS,
+} from '../core/opcode.ts';
 import { LabelType } from '../ir/ir-util.ts';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +80,45 @@ function oi(r1: Type, p1: Type, p2: Type, p3: Type, nat: number): OpcodeTypeInfo
  */
 const S = (sub: number): number => (PREFIX_SIMD << 16) | sub;
 
+/**
+ * Operand widths for the atomic range 0x10-0x4e, which repeats every SEVEN
+ * sub-opcodes: `T.op`(i32), `T.op`(i64), `op8_u`(i32), `op16_u`(i32),
+ * `op8_u`(i64), `op16_u`(i64), `op32_u`(i64).
+ *
+ * The cycle holds across loads (0x10), stores (0x17), rmw (0x1e) and cmpxchg
+ * (0x48) alike, so one `(sub - 0x10) % 7` covers all sixty-odd opcodes.
+ * DERIVED rather than written out because a hand-copied table of sixty entries
+ * is precisely what drifts — see the note on `S()` above, where exactly that
+ * happened to the SIMD table.
+ */
+const ATOMIC_WIDTH: readonly Type[] = [_I32, _I64, _I32, _I32, _I64, _I64, _I64];
+
+/**
+ * Type info for a threads/atomics (0xfe) sub-opcode.
+ *
+ * The ADDRESS is `i32` here; `applyMemory64` widens it for a 64-bit memory, so
+ * this table must not do that itself.
+ */
+function getThreadsOpcodeTypeInfo(sub: number): OpcodeTypeInfo {
+  const nat = naturalAlignForOpcode((PREFIX_THREADS << 16) | sub);
+  switch (sub) {
+    case 0x00: // memory.atomic.notify: (addr, count) -> i32
+      return oi(_I32, _I32, _I32, _V, nat);
+    case 0x01: // memory.atomic.wait32: (addr, expected i32, timeout i64) -> i32
+      return oi(_I32, _I32, _I32, _I64, nat);
+    case 0x02: // memory.atomic.wait64: (addr, expected i64, timeout i64) -> i32
+      return oi(_I32, _I32, _I64, _I64, nat);
+    case 0x03: // atomic.fence — no operands; `onAtomicFence` handles it
+      return oi(_V, _V, _V, _V, 0);
+  }
+  if (sub < 0x10 || sub > 0x4e) return oi(_V, _V, _V, _V, 0);
+  const t = ATOMIC_WIDTH[(sub - 0x10) % 7]!;
+  if (sub <= 0x16) return oi(t, _I32, _V, _V, nat); // loads:    (addr) -> T
+  if (sub <= 0x1d) return oi(_V, _I32, t, _V, nat); // stores:   (addr, T) -> ()
+  if (sub <= 0x47) return oi(t, _I32, t, _V, nat); // rmw:      (addr, T) -> T
+  return oi(t, _I32, t, t, nat); // cmpxchg: (addr, expected, replacement) -> T
+}
+
 function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   // Misc-prefixed (0xfc) opcodes reach here via ConvertExpr (the saturating
   // truncations `i*.trunc_sat_f*`). They are NOT SIMD and must use the misc
@@ -80,6 +126,20 @@ function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   // type-checked as `(v128,v128)→v128`, so wrong-typed operands validate clean.
   if ((opcode >>> 16) === PREFIX_MISC) {
     return getMiscOpcodeTypeInfo(opcode & 0xffff);
+  }
+  // Threads-prefixed (0xfe) opcodes need exactly the same treatment, and did
+  // not have it: EVERY atomic fell through to the SIMD default below and was
+  // type-checked as `(v128, v128) -> v128`, so `i32.atomic.load` was rejected
+  // with "expected [v128] but got [i32]". A false REJECTION of every module
+  // using an atomic memory op — the sibling-case gap the comment above
+  // describes, one prefix over.
+  //
+  // Nothing caught it because the 257-file testsuite snapshot contains NO
+  // atomics at all: no `atomic.wast`, no shared-memory file, not one
+  // `atomic.load/store/rmw` anywhere. The threads proposal sits entirely
+  // outside the metric population.
+  if ((opcode >>> 16) === PREFIX_THREADS) {
+    return getThreadsOpcodeTypeInfo(opcode & 0xffff);
   }
   switch (opcode) {
     // --- Loads ---

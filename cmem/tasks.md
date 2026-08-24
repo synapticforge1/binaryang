@@ -90,6 +90,8 @@ reference these ids.
 | T13.6 | Two type-level table audits made PERMANENT — lexer⇄printer names, natural-alignment coverage | done — both clean; 3 exemptions found and each guarded |
 | T13.7 | A NAMED reference in every position the grammar allows | done — 64/64 on `main`, **21 fail at v1.3.5**; the class that blocked wasmtk |
 | T13.8 | `instrInputCount` disagreed with `buildPlainExpr` for 3 atomic families | done — **`wasm2wat` was emitting INVALID wasm for every atomic store/RMW** |
+| T13.9 | The validator type-checked every ATOMIC as `(v128,v128)→v128` | done — a false REJECTION of every atomic memory op; 67 opcodes now agree with V8 |
+| T13.10 | 14 of 21 feature flags gate NOTHING | **OPEN — deliberately deferred past 1.4.0**, see below |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -1233,6 +1235,63 @@ refuses **any module carrying a tag section**, legacy or standard, so moving to
 `try_table` changes nothing there. Its Go API has feature toggles the CLI does
 not expose; a wazero-hosted wasic program needs either the embedding API or no
 EH at all.
+
+### The threads proposal is outside every metric's population — and had two bugs in it
+
+**The 257-file testsuite snapshot contains NO atomics.** No `atomic.wast`, no
+shared-memory file, not one `atomic.load` / `store` / `rmw` in any file. So the
+whole threads proposal sits outside the population every conformance metric
+measures, and nothing in seven numbers could ever have looked at it. Two real
+bugs were living there:
+
+- **T13.8** (above): `instrInputCount` one too high for atomic store / rmw /
+  cmpxchg, so `wasm2wat` output of any such module was rejected by V8.
+- **T13.9**: `getOpcodeTypeInfo` has a `PREFIX_MISC` (0xfc) branch whose comment
+  says, in as many words, "they are NOT SIMD and must use the misc table;
+  otherwise they fall through to the SIMD default and get type-checked as
+  `(v128,v128)→v128`". **There was no `PREFIX_THREADS` (0xfe) branch**, so every
+  atomic did exactly that: our validator REJECTED every atomic memory op with
+  "expected [v128] but got [i32]". A false rejection — the worse class — and the
+  same sibling-case gap the neighbouring comment describes, one prefix over.
+
+The fix DERIVES the table rather than writing it out: the range 0x10–0x4e
+repeats a 7-wide cycle (`T.op` i32, `T.op` i64, `op8_u` i32, `op16_u` i32,
+`op8_u` i64, `op16_u` i64, `op32_u` i64), so a single `(sub - 0x10) % 7` covers
+all sixty-odd loads, stores, rmw and cmpxchg. A hand-copied table of that size
+is precisely what drifted for SIMD — the `S()` note in `type-checker.ts` is
+about exactly that.
+
+All **67** atomic opcodes now agree with V8 and round-trip byte-identically
+(`tests/validator/atomics.test.ts`), and the test pins the WIDTHS too: a
+uniformly-wrong table would still "agree" if it rejected everything, so the
+mistyped counterparts are asserted to be rejected.
+
+**The general lesson, and it is not about atomics.** A corpus-shaped metric can
+only ever be as complete as its corpus, and ours is missing a whole proposal.
+Before trusting "all seven green", ask which proposals the corpus does not
+contain — that list IS the blind spot.
+
+### T13.10 — 14 of 21 feature flags gate nothing. NOT fixed before 1.4.0.
+
+`wasmValidate(binary, { features })` is public API, and measured proposal by
+proposal, only **multiMemory** and **customPageSizes** are actually gated.
+`defaultFeatures()` accepts SIMD, GC, memory64, tail calls, exceptions,
+reference types, bulk memory, sign extension, saturating float→int, mutable
+globals, multi-value, relaxed SIMD, extended const and function references —
+fourteen proposals it claims to have switched off. wazmrt's phrasing fits: *a
+proposal that ships without a bit here is not "enabled by default"; it is
+unrefusable.*
+
+**Deliberately deferred**, and the reasoning matters more than the finding.
+Adding fourteen gates is a per-proposal detection walk over the whole module,
+and it can only ever ADD rejections. 1.4.0 exists to unblock wasmtk; shipping a
+broad new rejection path in the same release risks breaking a caller that
+happens to use `defaultFeatures()` — which is the one thing this release must
+not do. It is a feature, not a fix, and it wants its own tranche and its own
+before/after on the corpus.
+
+Recorded in `runtime-tooling.md` as a known API limitation so a consumer is not
+misled in the meantime.
 
 ### Pre-release audit for 1.4.0 — one serious bug, found by a NEW differential
 

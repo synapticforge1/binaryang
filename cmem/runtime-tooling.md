@@ -49,6 +49,21 @@ with Bun?", so it is evidence rather than a claim.
 - **Bun/JSC rejects `memory64` and `table64`** ("Memory64 is not enabled") where
   V8 accepts them. Relevant to anyone validating our output under Bun.
 
+## KNOWN LIMITATION — `Features` mostly does not gate (2026-08-24)
+
+`wasmValidate(binary, { features })` accepts a full `Features` bag, and only
+**`multiMemory`** and **`customPageSizes`** are actually enforced. Measured
+proposal by proposal, `defaultFeatures()` still accepts SIMD, GC, memory64, tail
+calls, exceptions, reference types, bulk memory, sign extension, saturating
+float→int, mutable globals, multi-value, relaxed SIMD, extended const and
+function references.
+
+**So a caller cannot currently use `features` to refuse a proposal.** Pass
+`allFeatures()` and treat the result as "is this valid wasm at all"; do not rely
+on `defaultFeatures()` to reject anything. Tracked as T13.10, deferred past
+1.4.0 because fourteen new gates can only add rejections and that release exists
+to unblock a downstream consumer.
+
 ## The four load-bearing TS compiler rules
 
 ### `verbatimModuleSyntax: true`

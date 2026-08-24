@@ -619,3 +619,13 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   only the parser and round-trip never exercises a name at all (`wasm2wat` emits numeric vars), so
   "the parser accepts it, `resolveNames` misses it, the writer throws" is invisible to every metric.
   `tests/parser/named_refs.test.ts` covers 64 positions; 21 of them fail at v1.3.5.
+- **`getOpcodeTypeInfo` needs a branch per PREFIX, and the SIMD fallthrough hides a missing one
+  (T13.9).** There was a `PREFIX_MISC` branch and no `PREFIX_THREADS` one, so every atomic was
+  type-checked as `(v128,v128)→v128` and REJECTED. Any new prefix group must get its own branch
+  before the SIMD default, and the atomic table is DERIVED from a 7-wide cycle rather than written
+  out, because a sixty-entry hand copy is what drifted for SIMD.
+- **KNOWN LIMITATION: 14 of 21 `Features` flags gate nothing (T13.10).** Only `multiMemory` and
+  `customPageSizes` are enforced; `defaultFeatures()` accepts SIMD, GC, memory64, tail calls,
+  exceptions and nine more. The option is public API, so a caller believes it has switched them off.
+  Deferred past 1.4.0 on purpose — fourteen new gates can only add rejections, and that release
+  exists to unblock a downstream team.
