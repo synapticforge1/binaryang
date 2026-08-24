@@ -773,8 +773,28 @@ edit could plausibly have re-wired to it. Removed, with its now-orphaned
    one toolchain — best-practices §3. Added `MiscOpcode.I64Add128` /
    `I64Sub128` and the decode.
 
-Both fixed; all six metrics unmoved. Regression:
-`tests/parser/wide_arithmetic.test.ts` (6 cases, 4 fail pre-fix).
+Both fixed; all six metrics unmoved.
+
+**Second audit pass (same day) found the first fix covered only HALF the
+proposal.** `add128` / `sub128` were fixed from the reported symptom;
+`i64.mul_wide_s` / `i64.mul_wide_u` (0xfc 0x15 / 0x16) sat with the identical
+defect — encodable, not decodable. They lex to `TokenType.Binary`, so the arity
+was already right; only the reader was missing.
+
+They were found by generalising the question instead of fixing the instance:
+**for every opcode the LEXER can produce, can the READER decode it?** Feed each
+of the 571 spellings to the reader as a synthetic body and look for the
+specific "unknown … opcode" diagnostic. Result after the fix: **0 / 571**.
+
+A first, STATIC version of that sweep (matching `case` labels in the reader
+source) reported 317 gaps — 315 of them false, because the SIMD and atomics
+decoders dispatch by RANGE (`if (op >= 0x00 && op <= 0x06)`) rather than by
+case label. The empirical version is both simpler and correct. Inverted before
+trusting it: with the fix stashed it reports exactly the two real gaps.
+
+The sweep is now the last case in the regression file, so the CLASS is guarded
+rather than the four instances. Regression:
+`tests/parser/wide_arithmetic.test.ts` (9 cases).
 
 **Noted, not changed — a latent trap.** `getMiscOpcodeTypeInfo`'s
 `default:` returns `(v128,v128,v128) → v128`. Misc opcodes are never SIMD, and

@@ -42,6 +42,7 @@ import {
   type ArrayNewFixedExpr,
   type ArraySetExpr,
   type AtomicFenceExpr,
+  type BinaryExpr,
   BLOCK_TYPE_VOID,
   type BlockType,
   blockTypeFuncType,
@@ -1986,6 +1987,21 @@ export class BinaryReader {
           size,
           loc,
         });
+        break;
+      }
+      case MiscOpcode.I64MulWideS:
+      case MiscOpcode.I64MulWideU: {
+        // Two operands, two results — lexed as `TokenType.Binary`, so the IR
+        // node is a plain BinaryExpr like every other two-operand op.
+        const right = stack.pop() ?? operandPlaceholder(loc);
+        const left = stack.pop() ?? operandPlaceholder(loc);
+        stack.push({
+          kind: 'binary',
+          opcode: ((PREFIX_MISC << 16) | op) as Opcode,
+          left,
+          right,
+          loc,
+        } as BinaryExpr);
         break;
       }
       case MiscOpcode.I64Add128:

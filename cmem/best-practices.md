@@ -615,3 +615,27 @@ collapsed to `anyref` on read).
 **Delete superseded implementations in the same change that supersedes them.** If that is not
 possible, the leftover needs a comment saying what replaced it — an uncalled private method with a
 clean doc comment reads as an oversight, not a hazard.
+
+## Fix the class, not the instance — then guard the class
+
+`i64.add128` / `i64.sub128` were encodable but not decodable, so `wasm2wat`
+could not read back what `wat2wasm` had just written. Fixed, tested, committed.
+
+The proposal has FOUR opcodes. `i64.mul_wide_s` / `i64.mul_wide_u` sat with the
+identical defect for another audit round, because the fix was driven by the
+reported symptom rather than by the opcode space.
+
+The generalisation is one question — *for every opcode the lexer can produce,
+can the reader decode it?* — and it is cheap to answer exhaustively: feed each
+of the 571 spellings to the reader as a synthetic body and look for the
+"unknown … opcode" diagnostic. **0 / 571** after the fix, and it now lives in
+the regression file, so the class is guarded rather than four instances.
+
+Two notes on building that sweep:
+
+- **The static version was wrong in the noisy direction.** Matching `case`
+  labels in the reader source reported 317 gaps, 315 of them false, because the
+  SIMD and atomics decoders dispatch by RANGE, not by case label. Running the
+  code beats parsing it — the empirical version is shorter AND correct.
+- **Invert it before trusting it.** With the fix stashed the sweep reports
+  exactly the two real gaps and nothing else.

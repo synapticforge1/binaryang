@@ -284,13 +284,20 @@ export enum MiscOpcode {
   TableSize = 16,
   TableFill = 17,
   /**
-   * Wide arithmetic (`i64.add128` / `i64.sub128`) — four i64 operands (two
-   * 128-bit values as lo/hi pairs), two i64 results. The lexer already emitted
-   * these as `TokenType.Quaternary` with raw sub-opcodes 0x13 / 0x14; naming
-   * them here is what let the binary READER decode what the writer emits.
+   * Wide arithmetic. `add128` / `sub128` take four i64 operands (two 128-bit
+   * values as lo/hi pairs) and give two; `mul_wide_s` / `mul_wide_u` take two
+   * and give the 128-bit product as two.
+   *
+   * The lexer has always emitted all four (as `TokenType.Quaternary` and
+   * `TokenType.Binary` respectively) with raw sub-opcodes, so `wat2wasm`
+   * accepted and encoded them while the binary READER had no case — `wasm2wat`
+   * could not read back what our own front end wrote. Naming them here is what
+   * closes that.
    */
   I64Add128 = 19,
   I64Sub128 = 20,
+  I64MulWideS = 21,
+  I64MulWideU = 22,
 }
 
 // ---------------------------------------------------------------------------
