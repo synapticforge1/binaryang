@@ -7,7 +7,13 @@ deno task check     # type-check (use Deno for both Deno and Bun targets)
 deno task test      # deno test — the full suite
 deno lint           # lint
 deno fmt --check    # format check
+deno task publish:dry   # slow-types check -- CI runs it, `deno task test` does NOT
 ```
+
+**`publish:dry` belongs in the gate whenever a change ADDS or MOVES an exported symbol.** It is the
+only step that runs JSR's slow-types check: moving `STRICT_NAME_DECODER` into `src/core/literal.ts`
+made it public API without an explicit type, and 339 passing tests plus three full metric runs never
+saw it (T12.7 → caught during T13.3).
 
 Tests use `@std/testing/bdd` (`jsr:@std/testing`) so the same files run under `deno test` and
 `bun test`. Import via the `@std/testing` entry in `deno.json`'s import map.

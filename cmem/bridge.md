@@ -32,6 +32,12 @@ Read these instead of trusting any snippet if they diverge:
 **Bridge type mapping (lives on the wabt-ts side):** `wabtTypeToValType(t)` maps 0x7f→I32, 0x7e→I64,
 0x7d→F32, 0x7c→F64, 0x7b→V128, 0x70→FuncRef, 0x6f→ExternRef; throws on unknown.
 
+**`Limits` is `bigint` on our side and `number` on theirs (T13.3).** The wabt IR keeps memory and
+table limits as `bigint` because a 64-bit memory or table may name a size past 2^53; binaryen-ts's
+builder API takes `number`. `limitToNumber(v, what)` converts at the bridge boundary and **THROWS
+above 2^53 rather than rounding** — a bridge that quietly halves a table is the same class of bug
+the bigint change was made to remove. Any new `addX` call taking a limit must go through it.
+
 **Import constructors are self-contained** (no type-section side-channel). `addMemoryImport.initial`
 is required; `addTableImport.initial` optional (default 0); `addTableImport.type` defaults to
 FuncRef.

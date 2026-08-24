@@ -1,7 +1,42 @@
 # Publishing & release flow
 
-Published as **`@jrmarcum/wabt-ts`** on JSR. GitHub remote: `github.com/jrmarcum/wabt-ts`. Current
-version: **v1.3.0** (binaryen-ts pinned at v1.0.9).
+Published as **`@jrmarcum/wabt-ts`** on JSR. GitHub remote: `github.com/jrmarcum/wabt-ts`.
+`deno.json` reads **v1.3.5**; the import map pins binaryen-ts at `^1.0.9` while the checkout is
+v1.3.5+ (the caret accepts it — a stale pin, not a break).
+
+## ⚠️ UNRELEASED BREAKING CHANGES — a bump is pending (2026-08-24)
+
+Two changes to an exported type are committed and **not yet published**, so
+`deno.json`'s version no longer describes what is on `main`:
+
+- **`Limits.initial` / `Limits.max` are `bigint`**, not `number` (T13.3). The fields are u64 for a
+  64-bit memory or table, and a JS number is exact only to 2^53 — so a limit near the top of its
+  range was silently ROUNDED and could not be encoded.
+- **`Limits.pageSize` → `Limits.pageSizeLog2`** (T13.4). The wire field is the LOG2; the old name
+  said bytes while the reader and writer both passed the raw value through.
+
+Both breaks are deliberate: a consumer reading either as a number gets a compile error at the one
+site that has to handle the wider range. Precedent — T7.4's `ValueType` and T12.6's
+`WastAction.args`.
+
+**They do NOT reach wasmtk.** wasmtk maps `"wabt"` to `jsr:@jrmarcum/wabt-ts@^1.3.5/compat`, and
+the `/compat` facade exposes `wabt()`, `WabtModule`, `WasmModule`, `Features` and the option types —
+no `Limits`, no IR. Verified by replaying their current call sites from `origin/main`. The caret
+range accepts the release.
+
+`README.md` carries a "Breaking change since v1.3.5" section for downstream consumers.
+
+## `deno publish --dry-run` is in CI but NOT in `deno task test`
+
+It runs the **slow-types** check, which `deno task check` does not. Moving
+`STRICT_NAME_DECODER` into `src/core/literal.ts` (T12.7) made it public API without an explicit
+type annotation — a `missing-explicit-type` error that **339 passing tests and three full metric
+runs never saw**, and that would have gone red on push.
+
+**Run `deno task publish:dry` whenever a change ADDS or MOVES an exported symbol**, not only when
+publishing. It is also what backs the Node compatibility claim: Node cannot run the sources
+directly (`--experimental-strip-types` rejects `enum`), so the supported path is the transpiled JSR
+package, and slow types are what make that transpilation possible.
 
 ## Never run `deno publish` locally
 

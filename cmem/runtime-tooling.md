@@ -27,6 +27,28 @@ Only the `if (import.meta.main)` CLI blocks in `src/tools/*.ts` use `Deno.args` 
 `Deno.exit`. Mark Deno/Bun/Node/Browser as compatible on the JSR settings page (web-UI only, not in
 `deno.json`).
 
+## What was actually MEASURED, 2026-08-24
+
+The table above is the intent; this is the run. Prompted by "do we have issues
+with Bun?", so it is evidence rather than a claim.
+
+- **Bun 1.3.14 (JavaScriptCore): the library works.** A round-trip smoke test —
+  `wat2wasm` → `wasmValidate` → `wasm2wat` → `wat2wasm`, plus instantiating and
+  calling an i64 export — produces **byte-identical output to Deno**.
+- **`bun test tests/` does NOT do what it looks like.** Bun treats the argument
+  as a path FILTER, not a directory, so it walks the sibling `binaryen-ts/` and
+  `wasmtk/` checkouts inside the repo and dies on their imports. `@std/assert`
+  also needs the import map. Neither is a defect in this code; both make a naive
+  "run the suite on Bun" read as a catastrophic failure.
+- **Node cannot run the sources directly.** `node --experimental-strip-types`
+  rejects `enum`, and `src/core/types.ts` is built on them
+  (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`). The supported Node path is the
+  published JSR package, which is transpiled — **which is why the slow-types
+  check in `deno publish --dry-run` is load-bearing for the Node claim**, not a
+  formality.
+- **Bun/JSC rejects `memory64` and `table64`** ("Memory64 is not enabled") where
+  V8 accepts them. Relevant to anyone validating our output under Bun.
+
 ## The four load-bearing TS compiler rules
 
 ### `verbatimModuleSyntax: true`

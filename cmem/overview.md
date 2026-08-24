@@ -36,8 +36,46 @@ Against the wasmtk WASI corpus (`tests/wasmtk/`, a FROZEN 272-file snapshot — 
 `tests/wasmtk/PROVENANCE.md`): encode **270 / 270**, round-trip **270 / 270**.
 
 **Each metric was blind to bugs the others caught**, which is the campaign's most reusable finding —
-see [best-practices.md](best-practices.md). The newest, execution, exists because the other five all
-check bytes or acceptance and none runs an instruction.
+see [best-practices.md](best-practices.md). The newest two exist because the others could not see
+their failure modes: **execution** because the rest check bytes or acceptance and
+none runs an instruction, and **`assert_malformed`** because every other metric
+measures the REJECTING direction or our own output.
+
+**Two of them cannot be pushed higher, and both numbers are honest rather than
+short.** The 19 `assert_invalid` misses closed only once we stopped REPAIRING
+those modules (T13.2), and V8-valid went DOWN in the same change — a 2^48-page
+`memory i64` had been passing because the encoder truncated it. Wasmtime, the
+authority, accepts what we now emit.
+
+## Current state (2026-08-24)
+
+**Tranche 13 is complete; every conformance metric is exhausted.** What it
+changed, beyond the numbers:
+
+- **The encoder no longer repairs invalid input.** `encodeU32Leb128` began
+  `let v = value >>> 0`, which WAS the range check — 2^32 encoded as 0. That,
+  plus `synthesizeTypes` inventing a type for an unresolvable type-use and
+  reusing a rec-group member for an implicit one, is what the last 19
+  `assert_invalid` misses actually were: not a permissive validator, but our own
+  pipeline rewriting the module before anything validated it (T13.2).
+- **`Limits.initial` / `max` are `bigint`** and **`Limits.pageSize` is now
+  `pageSizeLog2`** — two BREAKING changes to an exported type, both deliberate.
+  See [publishing.md](publishing.md); they are unreleased.
+- **Custom page sizes work end to end** (T13.4) — parser, reader, writer,
+  validator, feature gate. The proposal had a flag, an IR field and half a
+  decoder, and no rule enforced anywhere.
+- **An out-of-scope branch target is now the parser's error** (T13.1), so the
+  quoted `assert_malformed` number no longer depends on where the probe sits.
+- **Cross-runtime reality is measured, not assumed** — Wasmtime, V8, Bun/JSC,
+  Wasmer and wazero, over the whole WASI corpus. The matrix and what each
+  runtime refuses are in [tasks.md](tasks.md); the short version is that only
+  Wasmtime implements custom page sizes, and wazero's CLI refuses any module
+  carrying a tag section.
+
+**Open, and not ours to fix:** wasmtk's legacy-EH emission (Wasmtime and Wasmer
+both reject it; `try_table` reaches parity) and an unused `$__exn_tag` that
+costs five corpus modules on wazero. Both written up in
+`scripts/wasmtk-eh-parity-report.md`.
 
 ## Repo layout
 
