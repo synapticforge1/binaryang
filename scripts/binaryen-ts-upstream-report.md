@@ -10,9 +10,9 @@ We did not modify the binaryen-ts checkout. Paste from the horizontal rule down.
 > **ANSWERED 2026-08-24. All seven confirmed, with two severity corrections against us and one
 > rebuttal we accept.** The body below is corrected in place; see "What came back" at the end.
 >
-> The headline framing was **wrong**: it said "six of seven fail loudly or are simply absent; only
-> UP-1 emits bad bytes". **Two of seven produce wrong output, and the worse of them is silent.**
-> UP-5 is now first.
+> The headline framing was **wrong twice**. It first said "six of seven fail loudly or are simply
+> absent; only UP-1 emits bad bytes"; corrected to two; corrected again to **THREE of seven produce
+> bytes an engine rejects** — UP-5 (silent), UP-1, and UP-7. UP-5 is now first.
 >
 > Note also that our checkout was already behind theirs — we verified at v1.3.5, they are at
 > **v1.4.3** (`00e7e953858`). They diffed `v1.3.5..HEAD` and all seven hold unchanged. The stamp is
@@ -27,13 +27,16 @@ bridge in `src/bridge/`. The bridge is a dev-only dependency — no published wa
 reaches it — so none of this is urgent for our users. It is a list of what the bridge cannot express
 today, with repros.
 
-Findings are ordered by measured severity. **Two produce wrong output — UP-5 silently, UP-1 loudly —
-and the remaining five fail loudly or are simply absent.**
+Findings are ordered by measured severity. **Three produce wrong output — UP-5 silently, UP-1 and
+UP-7 loudly — and the remaining four fail loudly or are simply absent.**
 
-That ordering is a correction to our first draft, which put UP-1 first and claimed it was the only
-one emitting bad bytes. **UP-5 is worse precisely because it is silent**: an engine catches UP-1,
-whereas a dropped start function ships. Both are `readBinary(b).emitBinary()` round-trip defects
-needing no builder and no passes.
+All three are `readBinary(b).emitBinary()` round-trip defects, reachable with no builder, no bridge
+and no passes. **UP-5 is worst precisely because it is silent**: an engine catches UP-1 and UP-7,
+whereas a dropped start function ships.
+
+We got this count wrong twice. The first draft said "only UP-1 emits bad bytes". The second said
+two. It is three — UP-7 was filed as a typed-ref *surface* gap, and the surface turned out to be
+the smaller half of it.
 
 ### How these were found, which may be the most useful part
 
@@ -234,7 +237,41 @@ kind: 'function' | 'global' | 'table' | 'memory' | 'tag'; // WasmExport
 The asymmetry is the useful part: tag **exports** work now, and `addTag` defines one, so tag
 **imports** are the only remaining hole in tag support.
 
-### UP-7 — typed refs stop at the `ModuleBuilder` surface — **gap**
+### UP-7 — a typed-ref LOCAL collapses to `anyref` on read — **wrong-output**
+
+**Corrected AGAIN, 2026-08-24, this time against us.** We filed UP-7 as a
+typed-ref *surface* gap and called it "a much smaller ask than our old note implied — widening five
+signatures". The surface is real but it is the smaller half. binaryen-ts found the other half while
+trying to write a behavioural test for `array.fill`, and it is a **third wrong-bytes bug**:
+
+```ts
+// wasm-parser.ts
+function readValTypeByte(r: BinaryReader): ValType {
+  const t = readValueType(r);
+  if (typeof t === "string") return t as ValType;
+  // ref type in a legacy position -- map to nearest abstract ValType
+  return ValType.AnyRef;
+}
+```
+
+A local declared `(ref null $t)` reads back as `anyref`, so a bare `parseWasm → encodeWasm` turns
+any GC module with typed-ref locals into invalid wasm. **Reproduced here** on a module whose local
+holds a `(ref null $t)` array:
+
+```
+FIXTURE                                              -> 7
+local decl (ref null 0) = 0x63 0x00 in input         : true
+local decl anyref       = 0x6e      in roundtrip     : true
+ROUNDTRIP  REJECTS: array.get[0] expected type (ref null 0),
+                    found local.get of type anyref
+```
+
+Same class as UP-1 and UP-5, and pre-existing — untouched by the Tier 1/2 work.
+
+So the honest count is **three of seven produce wrong bytes**, not one. Two of our three severity
+calls on this report were wrong in the same direction: we under-rated defects filed as "surface" or
+"gap" because we were looking at what the BRIDGE could not express, and the round-trip path was
+never the thing we were measuring.
 
 **This one we had recorded wrong, and the correction is in your favour.** Our older note said
 "`ValType` cannot express a concrete typed reference — it is a flat string enum" and called it a
@@ -333,3 +370,43 @@ it; rejecting it in the decoder keeps the property.
 an UN-stamped vendored corpus, and had to retract it — seven modules described as currently broken
 that had been fixed. Same failure mode, opposite outcome, and the only difference was whether the
 snapshot said what it was.
+
+---
+
+## Fix status (2026-08-24) — reported by binaryen-ts, NOT yet recheckable here
+
+Their Tier 1 and Tier 2 work is **local and unpushed**: `origin/main` is at
+`00e7e9538` / v1.4.3, and neither `dd88e034bd0` nor `f664ba579a0` exists on any
+ref. So the entries below are their report, not our verification — recheck is
+queued.
+
+| tier | commit | scope | tests |
+| --- | --- | --- | --- |
+| 1 | `dd88e034bd0` | **UP-1**, **UP-5**, + 2 fold-ins | 405 → 424 |
+| 2 | `f664ba579a0` | **UP-6**, **UP-4**, **UP-3** | 430 → 438 |
+| 3 | — | **UP-7**, **UP-2** | pending |
+
+Verified here at v1.4.3 in the meantime: UP-1 and UP-5 still reproduce exactly
+(baseline unchanged by the v1.3.5 → v1.4.3 bump), and UP-7's new half
+reproduces as above.
+
+**Four of their findings are worth keeping regardless of this report:**
+
+1. **Enabling test type-checking caught a scrambled fixture** —
+   `addTable("a", 1, null, ValType.FuncRef)` against a `(name, type, initial,
+   max)` signature. It passed because the test asserted only the "multiple
+   tables" throw, which fires regardless of the arguments. A test that asserts
+   a throw can be arbitrarily wrong about everything else and stay green.
+2. **The tag index space needed three sites to agree, not one.** `parse()` was
+   rebuilding every tag as `$tag${i}`, silently discarding the offset the
+   tag-section reader had just computed — their `$import${n}` failure (WT-2b)
+   reproduced in the tag space. Caught by their first test run: the throw
+   retargeted to the imported tag.
+3. **Omitting one of `_mapChildren` / `_visitChildren` makes a node invisible
+   to every pass instead of erroring.** Silent, and exactly the failure mode
+   this report keeps circling.
+4. **`array.copy`'s dest/src immediate order gets its own test**, because
+   swapping them is invisible when both types match.
+
+(1) and (3) are the same shape as things we hit on our side, and (3) is worth
+stealing outright.

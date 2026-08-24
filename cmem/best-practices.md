@@ -495,3 +495,40 @@ The diagnosis sentence was written first and never re-read against the options
 underneath it. **We undersold our own recommendation.** When a write-up ends
 with "here are the options", re-read the claim above them last — the options
 are the test of it.
+
+## Review someone else's codebase with the metric you built for your own
+
+Our upstream report classified seven binaryen-ts findings. The count of "how
+many produce bytes an engine rejects" went **1 → 2 → 3**, wrong in the same
+direction every time, and the recipient corrected us each time.
+
+The reason is structural, not carelessness. We were measuring **what the bridge
+could not express** — missing factories, narrowed signatures, absent enum
+entries. All three wrong-bytes findings live somewhere else entirely: the
+`readBinary(b).emitBinary()` round-trip, with no builder, no bridge and no
+passes involved. A start function silently dropped; `struct.get_u` collapsed
+onto `get`; a typed-ref local read back as `anyref`.
+
+**We had already learned this about ourselves.** The campaign's third metric
+exists precisely because parse-clean and V8-validity both measure the ENCODE
+path, and T9.1 — the decoder reordering a program — was invisible to both. We
+built a round-trip metric for our own code and then reviewed someone else's
+without one.
+
+The rule: when reviewing another project, **run the metric your own hard-won
+blind spot taught you to run**. For a wasm toolchain that is decode → encode,
+compared for bytes AND behaviour. It takes about ten lines and it found three
+defects that seven careful reads had ranked as "surface".
+
+## An over-correction is still a correction in the wrong direction
+
+Re-verifying UP-7 before filing showed our old note was stale — `RefType`
+already existed — so we restated it from "design-limit" to "gap" and wrote
+*"a much smaller ask than our old note implied"*. Correcting downward felt
+safe, because the error we had just found was an over-claim.
+
+It was an over-correction. The half we could see (narrowed `ModuleBuilder`
+signatures) really is small; the half we did not look for — the decoder
+collapsing a typed-ref local to `anyref` — makes it a wrong-bytes bug. Fixing
+one direction of error is not the same as being right, and the momentum of a
+correction pushes past the target as easily as the original claim did.

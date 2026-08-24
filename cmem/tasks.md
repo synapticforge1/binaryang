@@ -962,7 +962,7 @@ confirmed all seven with exact line refs and corrected us:
 | UP-3 | Same for all four GC array bulk ops (`array.fill` / `copy` / `init_data` / `init_elem`) | **gap** | tranche 2 |
 | UP-4 | `ref.as_non_null` — **not even an `ExpressionKind` entry** | **gap** | Tier C |
 | UP-6 | `WasmImport.kind` has no `"tag"` — asymmetric, since `WasmExport.kind` now does | **gap** | Tier C |
-| UP-7 | **RESTATED.** `RefType` now EXISTS and `FuncTypeDef` accepts it; only the `ModuleBuilder` DECLARATION surface is still narrowed to `ValType[]` | **gap** (was "design-limit") | typed-ref refactor |
+| UP-7 | **RESTATED TWICE.** A typed-ref LOCAL collapses to `anyref` on READ (`readValTypeByte`), so a bare `parseWasm → encodeWasm` turns any GC module with typed-ref locals INVALID. The narrowed `ModuleBuilder` surface is the smaller half | **wrong-output** (was "design-limit", then "gap") | typed-ref refactor |
 
 Details for each follow.
 
@@ -1136,6 +1136,65 @@ both halves. **We undersold our own recommendation with the sentence above it.**
 invalid `0x02`-on-packed decode and re-encode as valid `0x04` — an encoder
 repairing its input, our T11 class. The clean split is for the DECODER to
 reject it.
+
+### UP-7 corrected a second time — and we over-corrected the first time
+
+We restated UP-7 once (design-limit → gap) when re-verifying showed `RefType`
+already exists, and called it *"a much smaller ask than our old note implied —
+widening five signatures"*. **That over-corrected.** binaryen-ts found the
+other half while writing a behavioural test for `array.fill`:
+
+```ts
+function readValTypeByte(r: BinaryReader): ValType {
+  const t = readValueType(r);
+  if (typeof t === "string") return t as ValType;
+  return ValType.AnyRef;      // ref type in a legacy position
+}
+```
+
+A local declared `(ref null $t)` reads back as `anyref`. Reproduced here:
+fixture returns 7; `0x63 0x00` in the input becomes `0x6e` in the round-trip;
+V8 rejects with *"array.get[0] expected type (ref null 0), found local.get of
+type anyref"*. **Third wrong-bytes finding**, pre-existing, untouched by their
+Tier 1/2 work.
+
+**The count went 1 → 2 → 3, wrong in the same direction each time.** We
+under-rated everything filed as "surface" or "gap" because we were measuring
+what the BRIDGE could not express. The round-trip path —
+`readBinary(b).emitBinary()`, no builder, no passes — was never what we
+measured, and all three wrong-bytes findings live there.
+
+That is the same blind spot the campaign's own third metric exists to cover:
+parse-clean and V8-validity both measure the ENCODE path, and T9.1 was
+invisible to both. **We built a round-trip metric for ourselves and then
+reviewed someone else's codebase without one.**
+
+### Their Tier 1 / Tier 2 fixes are NOT yet recheckable
+
+`origin/main` is `00e7e9538` / v1.4.3; neither `dd88e034bd0` (Tier 1: UP-1,
+UP-5) nor `f664ba579a0` (Tier 2: UP-6, UP-4, UP-3) exists on any ref — their
+work is local and unpushed. Recheck is queued; the checkout is a plain clone of
+`github.com/jrmarcum/binaryen-ts.git`, so pulling is self-serve.
+
+Verified at v1.4.3 in the meantime: UP-1 and UP-5 reproduce unchanged, so the
+baseline did not move with the version bump.
+
+**Four of their process findings are worth keeping**, independent of this
+report:
+
+1. **Enabling test type-checking caught a scrambled fixture** —
+   `addTable("a", 1, null, ValType.FuncRef)` against `(name, type, initial,
+   max)`. It passed because the test asserted only a throw, which fired
+   regardless of the arguments. *A test that asserts a throw can be arbitrarily
+   wrong about everything else and stay green.*
+2. **A tag index space needed three sites to agree**; `parse()` rebuilt every
+   tag as `$tag${i}`, discarding the offset the reader had computed — their
+   `$import${n}` bug reproduced in a new index space.
+3. **Omitting one of `_mapChildren` / `_visitChildren` makes a node invisible
+   to every pass instead of erroring.** Silent-skip rather than loud-fail.
+4. **`array.copy`'s dest/src immediate order gets its own test**, because
+   swapping them is invisible when both types match — the same shape as our
+   `memory.init` `(memory, data)` vs `(data, memory)` note.
 
 ### The lesson this pair of exchanges is actually about
 
