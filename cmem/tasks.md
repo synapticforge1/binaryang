@@ -71,6 +71,7 @@ reference these ids.
 | T10.1 | Export ORDER not preserved across a `wasm2wat` round-trip | done — round-trip 1961 → 2041 / 2120 |
 | T10.2 | Inline `(export …)` emitted on IMPORTED items — unparseable output | done (same fix) — hard failures 12 → 1 |
 | T10.5 | Linear-form `call` drained the whole operand stack | done — WASI corpus 50 → 225 / 270 |
+| T10.8 | A synthesized operand slot-filler was written out as a real `nop` | done — WASI corpus **270 / 270** |
 
 ### Open — parse side: NONE
 
@@ -151,13 +152,62 @@ T7 work; re-measure before starting any of them.
 | **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
 | ~~**T10.5**~~ | **MOSTLY CLOSED 2026-08-24.** Diagnosed wrong for the whole campaign: the dominant producer was not the binary reader but the PARSER — linear-form `call` drained the entire operand stack instead of popping the callee's arity, so a value belonging to a later instruction was swallowed and that instruction's slot got a Nop. Fixed by deferring function-body parsing until every signature is known. What remains is the genuine multi-value case, refiled as **T10.8**. | 39 / 33 | closed → T10.8 |
 | **T10.6** | **Nop operands that are NOT inert.** The same substitution applied to an instruction that genuinely needs its operand on the stack: V8 says "not enough arguments on the stack for br_on_null (need 1, got 0)", "expected 1 elements on the stack for fallthru", "array.new_fixed[0] expected type f32, found local.get of type i32". Produces INVALID wasm. Highest severity of what remains. Files: array, br_on_cast, br_on_cast_fail, br_on_non_null, br_on_null, throw_ref, +1. | 9 / 7 | INVALID |
-| **T10.8** | **A multi-result producer is ONE node on the parser's operand stack.** `call $f` where `$f` returns two values, followed by two `local.set`s, gives the first `local.set` the call node and the second a Nop placeholder. Inert (a nop pushes nothing, so the second `local.set` still takes the value the call left), but the re-encode carries the nop and each further round trip adds another — the encoding grows without bound, +2 bytes per pass on `1_regular-expressions.wat`. This is the residue of T10.5 and the part its original description actually named. A tree IR cannot express "the i-th result of this node"; the cheap fix is to mark a parser-inserted placeholder as such and have both writers emit NOTHING for it (a placeholder means "the value is already on the stack", which is exactly what the encoding should say). Care needed: an explicitly written `(local.set $x (nop))` is invalid and must STAY invalid, so the placeholder has to be distinguishable from a real `nop` — see the T11 no-repair rule. | 45 files (WASI corpus) / 35 files (testsuite) | valid, grows unbounded |
+| ~~**T10.8**~~ | **CLOSED 2026-08-24.** A multi-result producer is ONE node on the decoder's operand stack, so a second consumer got a Nop stand-in that both writers then emitted as a real instruction. `NopExpr.placeholder` now marks a synthesized slot-filler and neither writer emits one — it means "the value is already on the stack", which wasm spells by writing nothing. | 45 files | closed |
 | **T10.7** | Two hard failures. `align64.wast#25` throws `RangeError: LEB128 u32 overflow`. `try_table.wast#4` throws `binary writer: no (type (func (param [object Object]))) in the type section` — a `ValueType` object stringified into a type-lookup key, i.e. one site the T7.4 typed-ref refactor did not reach. | 2 / 2 | THROWS |
 
-Recommended order when the time comes: **T10.8 next** — it is all 45 of the
-WASI corpus's remaining differences and 35/48 of the testsuite's files, and it
-grows the encoding without bound. Then T10.6 and T10.3 (both produce invalid
+**Round-trip fidelity against the WASI corpus is now 270 / 270.** The whole
+`+nop` family is gone from the spec testsuite too; what is left there is
+exactly T10.3 (14 modules, `table`), T10.4 (13, NaN payloads), T10.6 (4,
+`INVALID code`) and T10.7 (1 throw).
+
+Recommended order for the rest: **T10.3 and T10.6 next** (both produce INVALID
 wasm), then T10.7 and T10.4.
+
+**T10.8 — done 2026-08-24.** The residue of T10.5, and the part its original
+description actually named. Both decoders build a TREE from a stack machine, so
+every operand slot has to be filled; when the value is not on the decoder's
+operand stack the slot got a bare `{ kind: 'nop' }`. The commonest reason is a
+multi-result producer — `call $two` is ONE node however many values it pushes,
+so the first `local.set` takes the call and the second is left with nothing.
+
+`NopExpr.placeholder` now marks a synthesized slot-filler, `operandPlaceholder(loc)`
+is the one way to build one, and NEITHER writer emits it: a placeholder means
+"the value is already on the stack", which wasm spells by writing nothing.
+
+**Marking only the obvious site was worth 45 of the 60 files.** The first pass
+converted `popN` in both decoders and the ~95 `stack.pop() ?? nop` sites in the
+reader, and took the corpus to 270/270 — but the spec testsuite only to
+2074/2120. The parser makes placeholders in **13 more places**: `buildPlainExpr`'s
+`op0()`…`op4()` accessors, the two folded-`if` condition slots, and four
+`operands[operands.length - 1] ?? …` callee slots. Converting those took the
+testsuite to **2088/2120** and files affected from 27 to 14. When a marker has
+to be applied at every construction site, grep for the literal — do not assume
+the helper is the only one.
+
+**The T11 no-repair rule is what shapes the design.** Skipping ALL nops in an
+operand slot would have been simpler, but `(local.set $x (nop))` is invalid
+wasm a user can write, and eliding its operand could turn it valid. So the
+marker distinguishes a synthesized slot-filler from a `nop` the source really
+wrote, and only the former is dropped. Verified both ways: `assert_invalid` is
+unmoved at 2664/2737, and three hand-built invalid shapes (a starved
+`local.set`, an explicit `(nop)` operand, a starved `i32.add`) are still
+rejected by V8 AND by our validator.
+
+| metric | before | after |
+| --- | --- | --- |
+| **wasmtk WASI corpus byte-identical** | **225 / 270** | **270 / 270** |
+| spec testsuite byte-identical | 2043 / 2120 | **2088 / 2120** |
+| differing modules (testsuite) | 77 | **32** |
+| files affected (testsuite) | 48 | **14** |
+| parse-clean | 257 / 257 | 257 / 257 |
+| V8-valid modules | 2120 / 2120 | 2120 / 2120 |
+| validator agreement | 2120 / 2120 | 2120 / 2120 |
+| assert_invalid rejected | 2664 / 2737 | 2664 / 2737 |
+
+Regression test: `tests/writer/operand_placeholder.test.ts` (9 cases — the
+parser's and the reader's placeholder both marked, no padding byte emitted, a
+round-trip fixed point, a V8-executed check that the multi-value semantics
+survive, an explicitly written `nop` preserved, and three T11 no-repair cases).
 
 **T10.5 — done 2026-08-24, and it was diagnosed wrong.** The item was filed
 against the binary READER ("the reader cannot attribute every value to an
@@ -330,9 +380,11 @@ scope — and only TWO of the seven groups appear at all.**
 | **T10.5** inert nop padding | 48 / 159 (30%) | 220 / 269 (82%) |
 | T10.2 / .3 / .4 / .6 / .7 | 42 / 159 | **0** |
 
-**Acted on 2026-08-24: T10.1 (and T10.2 with it) is closed, and the prediction
-held — the corpus went 1 → 50 / 270.** Everything still differing there is
-T10.5. See the T10 section above for the fix and the full before/after.
+**Acted on 2026-08-24: the corpus went 1 / 270 → 270 / 270.** T10.1 (with T10.2)
+took it to 50, where the classification predicted ~49; T10.5 to 225; T10.8 to
+all of it. The prediction that "T10.1 + T10.5 together" would reach ~263 was
+close — the last 45 needed T10.8, which had been folded into T10.5's
+description. See the T10 section above for each fix and its before/after.
 
 No new causes; nothing needs re-scoping. The seven modules the classifier calls
 "INVALID after round-trip" are the same seven wasic already emits invalid —
@@ -390,6 +442,41 @@ explicitly (`-W all-proposals=y` fails on stock Windows Wasmtime — it pulls in
 unsupported `stack-switching`), and give every module its own `-o` path (reusing
 one made three I/O collisions score as REJECT until a known-invalid module was
 run through to check the harness).
+
+### Wasmtime will not run wasic's legacy `try`/`catch` output (2026-08-24)
+
+Putting the round-tripped WASI corpus to the three-engine panel found **6
+modules the AUTHORITY rejects and V8 accepts**:
+
+    15_Exceptions, 15_IdiomaticCatch_Stress, 15_LexicalShadowing_Stress,
+    15_TestCase1-NestedEscalation, 15_recover,
+    18_Multi-ScopeScaleAndMemoryLongevityTest
+
+Wasmtime 47.0.3 and Wasmer 7.2.1 give the same reason:
+
+    Invalid input WebAssembly code at offset 823:
+    legacy_exceptions feature required for try instruction
+
+**This is not a feature gate we can switch on.** Unlike the multi-memory /
+memory64 / gc rejections in the 73-module cross-check, `wasmtime -W` has no
+`legacy-exceptions` option at all — only `exceptions`, which is the STANDARD
+proposal (`try_table` / `exnref`). Wasmtime cannot run the legacy encoding,
+full stop.
+
+**Nothing here is ours to fix, and the round trip is byte-identical for all
+six** — they go in rejected and come out rejected. It is wasic emitting the
+superseded legacy EH proposal for every TypeScript try/catch/throw, which
+wabt-ts supports precisely because wasic emits it (see the legacy-`try`
+invariant in `design-decisions.md`).
+
+**But it matters to the standing WASI goal**, which names Wasmtime as the
+primary p1 host: *if Wasmtime will not run it, it does not work, whatever V8
+says.* Six corpus modules do not work. **Worth reporting to the wasmtk side**
+alongside the seven `KNOWN_INVALID` ones — the fix is for wasic to emit
+`try_table`, which wabt-ts already supports end to end.
+
+Note this is the SECOND finding the panel produced that V8 alone could not
+see, and again it came from an engine disagreeing rather than agreeing.
 
 ### A fourth metric — validator agreement
 

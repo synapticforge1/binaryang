@@ -376,7 +376,11 @@ function catchKindByte(k: CatchKind): number {
 class BodyWriter implements ExprVisitorDelegate {
   constructor(private readonly s: MemoryStream) {}
 
-  onNopExpr(_e: NopExpr): Result {
+  onNopExpr(e: NopExpr): Result {
+    // A synthesized operand slot-filler is not an instruction; see
+    // NopExpr.placeholder. Writing one is inert but grows the encoding on
+    // every round trip (T10.8).
+    if (e.placeholder) return Result.Ok;
     this.s.writeU8(Opcode.Nop);
     return Result.Ok;
   }

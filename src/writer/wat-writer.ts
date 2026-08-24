@@ -605,7 +605,12 @@ class WatWriter extends ModuleContext {
     const opname = (op: number) => anyOpcodeName(op);
 
     return {
-      onNopExpr: () => {
+      onNopExpr: (e) => {
+        // Same rule as the binary writer: a synthesized operand slot-filler
+        // means "the value is already on the stack", which linear WAT spells
+        // by writing nothing. Printing `nop` here would re-enter the parser as
+        // a real instruction and the two writers would disagree (T10.8).
+        if (e.placeholder) return Result.Ok;
         this.putsNewline('nop');
         return Result.Ok;
       },

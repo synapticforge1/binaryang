@@ -71,6 +71,7 @@ import {
   type MemorySizeExpr,
   type Module,
   type NopExpr,
+  operandPlaceholder,
   type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
@@ -260,7 +261,7 @@ function popN(stack: Expr[], n: number): Expr[] {
   for (let i = 0; i < n; i++) {
     result.unshift(
       stack.pop() ??
-        ({ kind: 'nop', loc: { filename: '', line: 0, column: 0, offset: 0 } } as NopExpr),
+        operandPlaceholder({ filename: '', line: 0, column: 0, offset: 0 }),
     );
   }
   return result;
@@ -1032,7 +1033,7 @@ export class BinaryReader {
         }
         case Opcode.If: {
           const bt = this.readBlockType();
-          const cond = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const cond = stack.pop() ?? operandPlaceholder(loc);
           const f = new Frame('if_then', bt, '', loc);
           f.cond = cond;
           labelStack.push(f);
@@ -1197,7 +1198,7 @@ export class BinaryReader {
                 kind: 'if',
                 label: frame.label,
                 blockType: frame.blockType,
-                cond: frame.cond ?? ({ kind: 'nop', loc } as NopExpr),
+                cond: frame.cond ?? operandPlaceholder(loc),
                 then_: endBody,
                 else_: [],
                 loc: frame.loc,
@@ -1208,7 +1209,7 @@ export class BinaryReader {
                 kind: 'if',
                 label: frame.label,
                 blockType: frame.blockType,
-                cond: frame.cond ?? ({ kind: 'nop', loc } as NopExpr),
+                cond: frame.cond ?? operandPlaceholder(loc),
                 then_: frame.then_ ?? [],
                 else_: endBody,
                 loc: frame.loc,
@@ -1274,7 +1275,7 @@ export class BinaryReader {
         case Opcode.BrIf: {
           const depth = this.readU32Leb();
           const rCount = brTargetResultCount(labelStack, depth, m);
-          const cond_ = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const values: Expr[] = [];
           for (let i = 0; i < rCount; i++) {
             const v = stack.pop();
@@ -1295,7 +1296,7 @@ export class BinaryReader {
           const targets: Var[] = [];
           for (let i = 0; i < numTargets; i++) targets.push(varIndex(this.readU32Leb()));
           const defaultTarget = varIndex(this.readU32Leb());
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
           // Values carried to the target sit below the index. Leave them as
           // preceding statements (the linear shape) rather than pulling them
           // into the node, matching how the binary stream orders them.
@@ -1329,7 +1330,7 @@ export class BinaryReader {
           const typeIdx = this.readU32Leb();
           const tableIdx = this.readU32Leb();
           const sig = getTypeSig(m, typeIdx);
-          const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
           const entry = m.types[typeIdx];
           const sigType: { params: ValueType[]; results: ValueType[] } =
@@ -1350,7 +1351,7 @@ export class BinaryReader {
         case Opcode.CallRef: {
           const typeIdx = this.readU32Leb();
           const sig = getTypeSig(m, typeIdx);
-          const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
           const crExpr: Expr = { kind: 'call_ref', sigType: varIndex(typeIdx), args, callee, loc };
           if (sig.results.length > 0) stack.push(crExpr);
@@ -1370,7 +1371,7 @@ export class BinaryReader {
           const typeIdx = this.readU32Leb();
           const tableIdx = this.readU32Leb();
           const sig = getTypeSig(m, typeIdx);
-          const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
           const entry = m.types[typeIdx];
           const sigType: { params: ValueType[]; results: ValueType[] } =
@@ -1390,7 +1391,7 @@ export class BinaryReader {
           m.featuresUsed.tailcall = true;
           const typeIdx = this.readU32Leb();
           const sig = getTypeSig(m, typeIdx);
-          const callee = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
           pushStmt(stack, stmts, {
             kind: 'return_call_ref',
@@ -1404,14 +1405,14 @@ export class BinaryReader {
 
         // --- Drop / Select ---
         case Opcode.Drop: {
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, { kind: 'drop', value, loc });
           break;
         }
         case Opcode.Select: {
-          const cond_ = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const val2 = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const val1 = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const cond_ = stack.pop() ?? operandPlaceholder(loc);
+          const val2 = stack.pop() ?? operandPlaceholder(loc);
+          const val1 = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'select', val1, val2, cond: cond_, resultType: [], loc });
           break;
         }
@@ -1419,9 +1420,9 @@ export class BinaryReader {
           const numTypes = this.readU32Leb();
           const resultType: ValueType[] = [];
           for (let i = 0; i < numTypes; i++) resultType.push(this.readValType());
-          const cond_ = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const val2 = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const val1 = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const cond_ = stack.pop() ?? operandPlaceholder(loc);
+          const val2 = stack.pop() ?? operandPlaceholder(loc);
+          const val1 = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'select', val1, val2, cond: cond_, resultType, loc });
           break;
         }
@@ -1434,13 +1435,13 @@ export class BinaryReader {
         }
         case Opcode.LocalSet: {
           const idx = this.readU32Leb();
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, { kind: 'local.set', var: varIndex(idx), value, loc });
           break;
         }
         case Opcode.LocalTee: {
           const idx = this.readU32Leb();
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'local.tee', var: varIndex(idx), value, loc });
           break;
         }
@@ -1453,7 +1454,7 @@ export class BinaryReader {
         }
         case Opcode.GlobalSet: {
           const idx = this.readU32Leb();
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, { kind: 'global.set', var: varIndex(idx), value, loc });
           break;
         }
@@ -1461,14 +1462,14 @@ export class BinaryReader {
         // --- Tables ---
         case Opcode.TableGet: {
           const idx = this.readU32Leb();
-          const index = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const index = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'table.get', table: varIndex(idx), index, loc });
           break;
         }
         case Opcode.TableSet: {
           const idx = this.readU32Leb();
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const index = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
+          const index = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, { kind: 'table.set', table: varIndex(idx), index, value, loc });
           break;
         }
@@ -1489,7 +1490,7 @@ export class BinaryReader {
         case Opcode.I64Load32S:
         case Opcode.I64Load32U: {
           const { align, offset: memOffset, memidx } = this.readMemArg();
-          const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const address = stack.pop() ?? operandPlaceholder(loc);
           stack.push({
             kind: 'load',
             opcode: op as Opcode,
@@ -1511,8 +1512,8 @@ export class BinaryReader {
         case Opcode.I64Store16:
         case Opcode.I64Store32: {
           const { align, offset: memOffset, memidx } = this.readMemArg();
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
+          const address = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, {
             kind: 'store',
             opcode: op as Opcode,
@@ -1532,7 +1533,7 @@ export class BinaryReader {
         }
         case Opcode.MemoryGrow: {
           const memidx = this.readU32Leb();
-          const delta = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const delta = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'memory.grow', memidx: varIndex(memidx), delta, loc });
           break;
         }
@@ -1592,8 +1593,8 @@ export class BinaryReader {
         case Opcode.F64Gt:
         case Opcode.F64Le:
         case Opcode.F64Ge: {
-          const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const right = stack.pop() ?? operandPlaceholder(loc);
+          const left = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'compare', opcode: op as Opcode, left, right, loc });
           break;
         }
@@ -1626,7 +1627,7 @@ export class BinaryReader {
         case Opcode.I64Extend8S:
         case Opcode.I64Extend16S:
         case Opcode.I64Extend32S: {
-          const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const operand = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'unary', opcode: op as Opcode, operand, loc });
           break;
         }
@@ -1676,8 +1677,8 @@ export class BinaryReader {
         case Opcode.F64Min:
         case Opcode.F64Max:
         case Opcode.F64Copysign: {
-          const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const right = stack.pop() ?? operandPlaceholder(loc);
+          const left = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'binary', opcode: op as Opcode, left, right, loc });
           break;
         }
@@ -1708,7 +1709,7 @@ export class BinaryReader {
         case Opcode.I64ReinterpretF64:
         case Opcode.F32ReinterpretI32:
         case Opcode.F64ReinterpretI64: {
-          const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const operand = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'convert', opcode: op as Opcode, operand, loc });
           break;
         }
@@ -1726,7 +1727,7 @@ export class BinaryReader {
           break;
         }
         case Opcode.RefIsNull: {
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'ref.is_null', value, loc });
           break;
         }
@@ -1736,20 +1737,20 @@ export class BinaryReader {
           break;
         }
         case Opcode.RefEq: {
-          const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-          const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const right = stack.pop() ?? operandPlaceholder(loc);
+          const left = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'ref.eq', left, right, loc } as RefEqExpr);
           break;
         }
         case Opcode.RefAsNonNull: {
-          const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const value = stack.pop() ?? operandPlaceholder(loc);
           stack.push({ kind: 'ref.as_non_null', value, loc });
           break;
         }
         case Opcode.BrOnNull:
         case Opcode.BrOnNonNull: {
           const depth = this.readU32Leb();
-          const ref = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const ref = stack.pop() ?? operandPlaceholder(loc);
           // The target may take `t*` below the ref. br_on_null's target takes
           // exactly those; br_on_non_null's takes them plus the (non-null)
           // ref, so one of its result slots is the ref itself.
@@ -1789,7 +1790,7 @@ export class BinaryReader {
         }
         case Opcode.ThrowRef: {
           m.featuresUsed.exceptions = true;
-          const exnref = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+          const exnref = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, { kind: 'throw_ref', exnref, loc });
           break;
         }
@@ -1855,16 +1856,16 @@ export class BinaryReader {
       case MiscOpcode.I64TruncSatF64S:
       case MiscOpcode.I64TruncSatF64U: {
         const opcode = (PREFIX_MISC << 16) | op;
-        const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const operand = stack.pop() ?? operandPlaceholder(loc);
         stack.push({ kind: 'convert', opcode: opcode as Opcode, operand, loc });
         break;
       }
       case MiscOpcode.MemoryInit: {
         const segIdx = this.readU32Leb();
         const memIdx = this.readU32Leb();
-        const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const size = stack.pop() ?? operandPlaceholder(loc);
+        const src = stack.pop() ?? operandPlaceholder(loc);
+        const dest = stack.pop() ?? operandPlaceholder(loc);
         pushStmt(stack, stmts, {
           kind: 'memory.init',
           segment: varIndex(segIdx),
@@ -1888,9 +1889,9 @@ export class BinaryReader {
       case MiscOpcode.MemoryCopy: {
         const destMemIdx = this.readU32Leb();
         const srcMemIdx = this.readU32Leb();
-        const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const size = stack.pop() ?? operandPlaceholder(loc);
+        const src = stack.pop() ?? operandPlaceholder(loc);
+        const dest = stack.pop() ?? operandPlaceholder(loc);
         pushStmt(stack, stmts, {
           kind: 'memory.copy',
           destMemidx: varIndex(destMemIdx),
@@ -1904,9 +1905,9 @@ export class BinaryReader {
       }
       case MiscOpcode.MemoryFill: {
         const memIdx = this.readU32Leb();
-        const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const size = stack.pop() ?? operandPlaceholder(loc);
+        const value = stack.pop() ?? operandPlaceholder(loc);
+        const dest = stack.pop() ?? operandPlaceholder(loc);
         pushStmt(stack, stmts, {
           kind: 'memory.fill',
           memidx: varIndex(memIdx),
@@ -1920,9 +1921,9 @@ export class BinaryReader {
       case MiscOpcode.TableInit: {
         const segIdx = this.readU32Leb();
         const tableIdx = this.readU32Leb();
-        const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const src = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const size = stack.pop() ?? operandPlaceholder(loc);
+        const src = stack.pop() ?? operandPlaceholder(loc);
+        const dest = stack.pop() ?? operandPlaceholder(loc);
         pushStmt(stack, stmts, {
           kind: 'table.init',
           segment: varIndex(segIdx),
@@ -1946,9 +1947,9 @@ export class BinaryReader {
       case MiscOpcode.TableCopy: {
         const dstIdx = this.readU32Leb();
         const srcIdx = this.readU32Leb();
-        const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const srcOffset = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const dest = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const size = stack.pop() ?? operandPlaceholder(loc);
+        const srcOffset = stack.pop() ?? operandPlaceholder(loc);
+        const dest = stack.pop() ?? operandPlaceholder(loc);
         pushStmt(stack, stmts, {
           kind: 'table.copy',
           dst: varIndex(dstIdx),
@@ -1962,8 +1963,8 @@ export class BinaryReader {
       }
       case MiscOpcode.TableGrow: {
         const tableIdx = this.readU32Leb();
-        const delta = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const initValue = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const delta = stack.pop() ?? operandPlaceholder(loc);
+        const initValue = stack.pop() ?? operandPlaceholder(loc);
         stack.push({ kind: 'table.grow', table: varIndex(tableIdx), initValue, delta, loc });
         break;
       }
@@ -1974,9 +1975,9 @@ export class BinaryReader {
       }
       case MiscOpcode.TableFill: {
         const tableIdx = this.readU32Leb();
-        const size = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const start = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const size = stack.pop() ?? operandPlaceholder(loc);
+        const value = stack.pop() ?? operandPlaceholder(loc);
+        const start = stack.pop() ?? operandPlaceholder(loc);
         pushStmt(stack, stmts, {
           kind: 'table.fill',
           table: varIndex(tableIdx),
@@ -2003,7 +2004,7 @@ export class BinaryReader {
     // 1 push (v128).
     if (op >= 0x00 && op <= 0x06) {
       const { align, offset, memidx } = this.readMemArg();
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({ kind: 'load', opcode: opcode as Opcode, align, offset, memidx, address, loc });
       return;
     }
@@ -2013,7 +2014,7 @@ export class BinaryReader {
     // validator / bridge switch on the IR kind, not the opcode.
     if (op >= 0x07 && op <= 0x0a) {
       const { align, offset, memidx } = this.readMemArg();
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'load_splat',
         opcode: opcode as Opcode,
@@ -2030,8 +2031,8 @@ export class BinaryReader {
     // load_zero (the zero-extending loads are 0x5c / 0x5d, handled below).
     if (op === 0x0b) {
       const { align, offset, memidx } = this.readMemArg();
-      const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const value = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
         kind: 'store',
         opcode: opcode as Opcode,
@@ -2055,23 +2056,23 @@ export class BinaryReader {
     if (op === 0x0d) {
       // i8x16.shuffle: 16 lane indices, 2 pops, 1 push
       const lanes = this.readBytes(16);
-      const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const right = stack.pop() ?? operandPlaceholder(loc);
+      const left = stack.pop() ?? operandPlaceholder(loc);
       stack.push({ kind: 'simd_shuffle', opcode: opcode as Opcode, lanes, left, right, loc });
       return;
     }
 
     if (op === 0x0e) {
       // i8x16.swizzle: binary
-      const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const right = stack.pop() ?? operandPlaceholder(loc);
+      const left = stack.pop() ?? operandPlaceholder(loc);
       stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });
       return;
     }
 
     // splat ops (0x0f-0x14): unary, 1 pop, 1 push
     if (op >= 0x0f && op <= 0x14) {
-      const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const operand = stack.pop() ?? operandPlaceholder(loc);
       stack.push({ kind: 'unary', opcode: opcode as Opcode, operand, loc });
       return;
     }
@@ -2086,8 +2087,8 @@ export class BinaryReader {
         op === 0x20 || op === 0x22;
       if (isReplace) {
         // Stack order: vec was pushed first, then scalar — pop scalar first.
-        const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-        const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const value = stack.pop() ?? operandPlaceholder(loc);
+        const vec = stack.pop() ?? operandPlaceholder(loc);
         stack.push({
           kind: 'simd_lane_op',
           opcode: opcode as Opcode,
@@ -2097,7 +2098,7 @@ export class BinaryReader {
           loc,
         });
       } else {
-        const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+        const operand = stack.pop() ?? operandPlaceholder(loc);
         stack.push({ kind: 'simd_lane_op', opcode: opcode as Opcode, lane, operand, loc });
       }
       return;
@@ -2109,8 +2110,8 @@ export class BinaryReader {
     if (op >= 0x54 && op <= 0x57) {
       const { align, offset, memidx } = this.readMemArg();
       const lane = this.readU8();
-      const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const vec = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'simd_load_lane',
         opcode: opcode as Opcode,
@@ -2128,7 +2129,7 @@ export class BinaryReader {
     // v128.load32_zero (0x5c), v128.load64_zero (0x5d)
     if (op === 0x5c || op === 0x5d) {
       const { align, offset, memidx } = this.readMemArg();
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'load_zero',
         opcode: opcode as Opcode,
@@ -2145,8 +2146,8 @@ export class BinaryReader {
     if (op >= 0x58 && op <= 0x5b) {
       const { align, offset, memidx } = this.readMemArg();
       const lane = this.readU8();
-      const vec = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const vec = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
         kind: 'simd_store_lane',
         opcode: opcode as Opcode,
@@ -2170,15 +2171,15 @@ export class BinaryReader {
     // TokenType.Ternary entries.
     if (op === 0x52 || (op >= 0x105 && op <= 0x10c) || op === 0x113) {
       // v128.bitselect: 3 pops (a, b, mask), 1 push.
-      const c = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const b = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const a = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const c = stack.pop() ?? operandPlaceholder(loc);
+      const b = stack.pop() ?? operandPlaceholder(loc);
+      const a = stack.pop() ?? operandPlaceholder(loc);
       stack.push({ kind: 'ternary', opcode: opcode as Opcode, a, b, c, loc });
       return;
     }
     if (SIMD_UNARY_OPS.has(op)) {
       // 1 pop, 1 push (abs/neg/sqrt/ceil/.../convert/not/any_true/...).
-      const operand = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const operand = stack.pop() ?? operandPlaceholder(loc);
       stack.push({ kind: 'unary', opcode: opcode as Opcode, operand, loc });
       return;
     }
@@ -2188,8 +2189,8 @@ export class BinaryReader {
     // binary; the genuinely-ternary relaxed madd/laneselect are not yet
     // distinguishable because the `(prefix<<8)|sub` opcode encoding collides
     // for sub-opcodes >= 0x100 — see opcode.ts. Tracked as a known limitation.)
-    const right = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-    const left = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+    const right = stack.pop() ?? operandPlaceholder(loc);
+    const left = stack.pop() ?? operandPlaceholder(loc);
     stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });
   }
 
@@ -2216,8 +2217,8 @@ export class BinaryReader {
     if (op === 0x00) {
       // memory.atomic.notify: memarg, 2 pops (address, count), 1 push (notify count)
       const { align, offset, memidx } = this.readMemArg();
-      const count = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const count = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({ kind: 'atomic_notify', align, offset, memidx, address, count, loc });
       return;
     }
@@ -2225,9 +2226,9 @@ export class BinaryReader {
     if (op === 0x01 || op === 0x02) {
       // memory.atomic.wait32/64: memarg, 3 pops (address, expected, timeout), 1 push
       const { align, offset, memidx } = this.readMemArg();
-      const timeout = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const expected = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const timeout = stack.pop() ?? operandPlaceholder(loc);
+      const expected = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic_wait',
         opcode: opcode as Opcode,
@@ -2245,7 +2246,7 @@ export class BinaryReader {
     // Atomic loads (0x10-0x16): memarg, 1 pop (address), 1 push
     if (op >= 0x10 && op <= 0x16) {
       const { align, offset, memidx } = this.readMemArg();
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic_load',
         opcode: opcode as Opcode,
@@ -2261,8 +2262,8 @@ export class BinaryReader {
     // Atomic stores (0x17-0x1d): memarg, 2 pops (address, value), void
     if (op >= 0x17 && op <= 0x1d) {
       const { align, offset, memidx } = this.readMemArg();
-      const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const value = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
         kind: 'atomic_store',
         opcode: opcode as Opcode,
@@ -2279,8 +2280,8 @@ export class BinaryReader {
     // Atomic RMW (0x1e-0x47): memarg, 2 pops (address, value), 1 push (old value)
     if (op >= 0x1e && op <= 0x47) {
       const { align, offset, memidx } = this.readMemArg();
-      const value = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const value = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic_rmw',
         opcode: opcode as Opcode,
@@ -2297,9 +2298,9 @@ export class BinaryReader {
     // Atomic cmpxchg (0x48-0x4e): memarg, 3 pops (address, expected, replacement), 1 push
     if (op >= 0x48 && op <= 0x4e) {
       const { align, offset, memidx } = this.readMemArg();
-      const replacement = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const expected = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
-      const address = stack.pop() ?? ({ kind: 'nop', loc } as NopExpr);
+      const replacement = stack.pop() ?? operandPlaceholder(loc);
+      const expected = stack.pop() ?? operandPlaceholder(loc);
+      const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic_rmw_cmpxchg',
         opcode: opcode as Opcode,
@@ -2427,7 +2428,7 @@ export class BinaryReader {
 
   private decodeGcOp(op: number, stack: Expr[], stmts: Expr[], m: Module, loc: Location): void {
     m.featuresUsed.gc = true;
-    const nop = (): NopExpr => ({ kind: 'nop', loc });
+    const nop = (): NopExpr => operandPlaceholder(loc);
     switch (op) {
       case GcOpcode.RefI31: {
         const value = stack.pop() ?? nop();

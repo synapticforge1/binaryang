@@ -160,6 +160,38 @@ export interface TableCatch {
 export interface NopExpr {
   readonly kind: 'nop';
   readonly loc: Location;
+  /**
+   * True when this node was SYNTHESIZED to fill an operand slot, rather than
+   * decoded from a `nop` the source actually contains.
+   *
+   * Both decoders build a TREE from a stack machine, so every operand slot
+   * has to be filled with something. When the value that belongs in a slot is
+   * not on the decoder's operand stack — most often because the producer is a
+   * multi-result `call`, which is one node on that stack however many values
+   * it pushes — the slot gets one of these instead.
+   *
+   * Neither writer emits a placeholder: it stands for "the value is already
+   * on the stack", which in wasm is spelled by writing nothing. Emitting a
+   * real `nop` there is inert (a nop pushes nothing, so the consuming
+   * instruction still finds its operand) but it is a byte that was not in the
+   * input, and the next round trip adds another — the encoding grows without
+   * bound (T10.8).
+   *
+   * An explicitly written `(local.set $x (nop))` is NOT a placeholder. It is
+   * invalid wasm and must stay invalid; see the T11 rule that an encoder never
+   * repairs its input.
+   */
+  readonly placeholder?: boolean;
+}
+
+/**
+ * Build the {@link NopExpr} that stands in for an operand a decoder could not
+ * attribute a value to. Use this rather than a bare `{ kind: 'nop' }` — the
+ * writers rely on the marker to tell a synthesized slot-filler from a `nop`
+ * the source really wrote.
+ */
+export function operandPlaceholder(loc: Location): NopExpr {
+  return { kind: 'nop', loc, placeholder: true };
 }
 /** `unreachable` (0x00) — traps unconditionally. Type-stack becomes polymorphic. */
 export interface UnreachableExpr {

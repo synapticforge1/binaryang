@@ -329,3 +329,18 @@ is the residue (now T10.8), not the bulk.
 The classification had been made once, months of work earlier, and carried
 forward as fact. Cost of re-measuring: one 40-line harness that printed
 `call args=3 want=2` and its friends.
+
+## When a marker has to be applied at every construction site, grep for it
+
+T10.8's fix is a flag on one IR node, and the obvious place to set it is the
+shared `popN` helper each decoder owns. Doing exactly that took the WASI corpus
+to 270/270 and looked finished.
+
+The spec testsuite disagreed: it moved only to 2074/2120. The parser builds the
+same placeholder in **13 more places** that never go near `popN` —
+`buildPlainExpr`'s `op0()`…`op4()` operand accessors, two folded-`if` condition
+slots, and four `operands[operands.length - 1] ?? …` callee slots. Converting
+those took it to 2088/2120, and files affected from 27 to 14.
+
+Grep for the literal (`kind: 'nop'` here), not for the helper. And keep a second
+corpus around: one of the two would have called this done.

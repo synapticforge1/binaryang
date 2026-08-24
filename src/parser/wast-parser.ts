@@ -92,6 +92,7 @@ import {
   type MemorySizeExpr,
   type Module,
   type NopExpr,
+  operandPlaceholder,
   type QuaternaryExpr,
   type RefAsNonNullExpr,
   type RefCastExpr,
@@ -963,10 +964,9 @@ function newCtx(): ExprCtx {
 
 /** Pop `n` operands from stack (right-to-left order: last-in first-out). */
 function popN(ctx: ExprCtx, n: number, fallback: Location): Expr[] {
-  const nop = (): NopExpr => ({ kind: 'nop', loc: fallback });
   const result: Expr[] = [];
   for (let i = 0; i < n; i++) {
-    result.unshift(ctx.stack.pop() ?? nop());
+    result.unshift(ctx.stack.pop() ?? operandPlaceholder(fallback));
   }
   return result;
 }
@@ -2942,7 +2942,7 @@ export class WastParser {
 
       this.expect(TokenType.Rpar);
 
-      const condExpr: Expr = cond ?? ({ kind: 'nop', loc } as NopExpr);
+      const condExpr: Expr = cond ?? operandPlaceholder(loc);
       const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr, then_, else_, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
@@ -3164,7 +3164,7 @@ export class WastParser {
       this.expect(TokenType.End);
       if (this.peek() === TokenType.Var) this.drop();
 
-      const condExpr2: Expr = cond ?? ({ kind: 'nop', loc } as NopExpr);
+      const condExpr2: Expr = cond ?? operandPlaceholder(loc);
       const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr2, then_, else_, loc };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
@@ -3285,11 +3285,11 @@ export class WastParser {
 
   private buildPlainExpr(tok: Token, loc: Location, operands: Expr[]): Expr | null {
     const tt = tok.tokenType;
-    const op0 = (): Expr => operands[0] ?? ({ kind: 'nop', loc } as NopExpr);
-    const op1 = (): Expr => operands[1] ?? ({ kind: 'nop', loc } as NopExpr);
-    const op2 = (): Expr => operands[2] ?? ({ kind: 'nop', loc } as NopExpr);
-    const op3 = (): Expr => operands[3] ?? ({ kind: 'nop', loc } as NopExpr);
-    const op4 = (): Expr => operands[4] ?? ({ kind: 'nop', loc } as NopExpr);
+    const op0 = (): Expr => operands[0] ?? operandPlaceholder(loc);
+    const op1 = (): Expr => operands[1] ?? operandPlaceholder(loc);
+    const op2 = (): Expr => operands[2] ?? operandPlaceholder(loc);
+    const op3 = (): Expr => operands[3] ?? operandPlaceholder(loc);
+    const op4 = (): Expr => operands[4] ?? operandPlaceholder(loc);
 
     switch (tt) {
       case TokenType.Unreachable:
@@ -3351,7 +3351,7 @@ export class WastParser {
         // Nop when no value is on the stack, so a Nop in the value slot means
         // "no carried value" (a Nop can never be a real branch value).
         const cond = operands[operands.length - 1] ??
-          ({ kind: 'nop', loc } as NopExpr);
+          operandPlaceholder(loc);
         // Everything below cond is a carried value, in stack order — a
         // multi-value target takes several. A padded Nop can never be a real
         // branch value (it produces nothing), so it drops out.
@@ -3368,7 +3368,7 @@ export class WastParser {
         // `(br_on_null $l (local.get $n) (local.get $r))` tested $n and
         // dropped $r entirely. A padded Nop can never be a real carried value,
         // so it drops out.
-        const ref = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
+        const ref = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const values = operands.slice(0, -1).filter((x) => x.kind !== 'nop');
         return {
           kind: tt === TokenType.BrOnNull ? 'br_on_null' : 'br_on_non_null',
@@ -3430,7 +3430,7 @@ export class WastParser {
         const tableVar = this.parseVarOpt(varIndex(0));
         const typeVar = this.parseTypeUseOpt();
         const { sig } = this.parseFuncSignature();
-        const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
+        const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         // `call_indirect (param i32)` names its signature inline instead of
         // with a `(type …)`. That inline signature DEFINES a type entry, but
@@ -3452,7 +3452,7 @@ export class WastParser {
       case TokenType.CallRef: {
         const v = this.parseVar();
         if (v === null) return null;
-        const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
+        const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         return { kind: 'call_ref', sigType: v, args, callee, loc } as CallRefExpr;
       }
@@ -3465,7 +3465,7 @@ export class WastParser {
         const tableVar = this.parseVarOpt(varIndex(0));
         const typeVar = this.parseTypeUseOpt();
         const { sig } = this.parseFuncSignature();
-        const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
+        const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         // `call_indirect (param i32)` names its signature inline instead of
         // with a `(type …)`. That inline signature DEFINES a type entry, but
@@ -3487,7 +3487,7 @@ export class WastParser {
       case TokenType.ReturnCallRef: {
         const v = this.parseVar();
         if (v === null) return null;
-        const callee = operands[operands.length - 1] ?? ({ kind: 'nop', loc } as NopExpr);
+        const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         return { kind: 'return_call_ref', sigType: v, args, callee, loc } as ReturnCallRefExpr;
       }

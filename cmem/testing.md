@@ -52,6 +52,10 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
+- `tests/writer/operand_placeholder.test.ts` — T10.8: a synthesized operand slot-filler
+  (`NopExpr.placeholder`) is not written out by either writer. 9 cases, including three T11
+  no-repair guards — a starved `local.set`, an explicit `(nop)` operand and a starved
+  `i32.add` must all stay invalid to V8 AND to our validator.
 - `tests/parser/call_arity.test.ts` — T10.5: linear-form `call` drained the whole operand
   stack instead of popping the callee's arity, so a following instruction's operand slot got
   a Nop and the encoding grew a byte on every round trip. 8 cases; 5 fail on the pre-fix
