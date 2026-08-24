@@ -17,6 +17,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
 import { LexerSource } from '../../src/parser/lexer-source.ts';
+import { allFeatures } from '../../src/core/feature.ts';
 import { parseWatModule } from '../../src/parser/wast-parser.ts';
 import { resolveNames } from '../../src/ir/resolve-names.ts';
 import { readBinaryIr } from '../../src/reader/binary-reader.ts';
@@ -42,7 +43,7 @@ function bridgeAndValidate(wat: string): Uint8Array {
   const errs = makeErrorList();
   const decoded = readBinaryIr(wasm, errs);
   if (hasErrors(errs)) throw new Error(`Decode:\n${formatErrors(errs)}`);
-  const r = validateModule(decoded, errs);
+  const r = validateModule(decoded, errs, { features: allFeatures() });
   if (hasErrors(errs)) throw new Error(`Validate:\n${formatErrors(errs)}`);
   assertEquals(r, Result.Ok);
   return wasm;

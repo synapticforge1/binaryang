@@ -91,7 +91,7 @@ reference these ids.
 | T13.7 | A NAMED reference in every position the grammar allows | done — 64/64 on `main`, **21 fail at v1.3.5**; the class that blocked wasmtk |
 | T13.8 | `instrInputCount` disagreed with `buildPlainExpr` for 3 atomic families | done — **`wasm2wat` was emitting INVALID wasm for every atomic store/RMW** |
 | T13.9 | The validator type-checked every ATOMIC as `(v128,v128)→v128` | done — a false REJECTION of every atomic memory op; 67 opcodes now agree with V8 |
-| T13.10 | 14 of 21 feature flags gate NOTHING | **OPEN — deliberately deferred past 1.4.0**, see below |
+| T13.10 | 9 of 21 feature flags gated NOTHING | done — all 21 gate now, plus `--enable-*` CLI flags; **no metric moved, the project's own tests were the canary** |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -1271,7 +1271,61 @@ only ever be as complete as its corpus, and ours is missing a whole proposal.
 Before trusting "all seven green", ask which proposals the corpus does not
 contain — that list IS the blind spot.
 
-### T13.10 — 14 of 21 feature flags gate nothing. NOT fixed before 1.4.0.
+### T13.10 — DONE. Nine feature flags gated nothing; all 21 do now.
+
+*(Originally deferred past 1.4.0. The owner's call was to fix everything known
+before wasmtk starts using it, and that was right: this is the same
+reads-as-covered-does-nothing class as every other bug in the tranche, and
+shipping a version number on a public option that silently does not work is
+worse than the release risk.)*
+
+Measured proposal by proposal, only `multiMemory` and `customPageSizes` were
+enforced. **Nine claimed to be off and were not**: threads, gc, memory64,
+tailCall, exceptions, relaxedSimd, extendedConst, functionReferences,
+wideArithmetic. (The other ten are ON in `defaultFeatures()` and correctly so —
+`defaultFeatures` was right in intent all along; the enforcement was missing.)
+
+`SharedValidator.requireFeature(flag, proposal, loc)` gates at the point of USE
+rather than from a post-hoc scan, so an imported 64-bit memory needs the
+proposal exactly as much as a defined one. 39 delegate hooks in `validator.ts`
+cover the instruction families, and module-level facts are gated in
+`shared-validator.ts` (shared/64-bit memories, 64-bit tables, tags, struct and
+array type definitions).
+
+**Three of the nine had no hook to hang a gate on**, which is the part worth
+remembering: relaxed SIMD and wide arithmetic are ordinary unary/binary/ternary
+nodes distinguished only by their OPCODE, and extended-const is ordinary
+arithmetic distinguished only by appearing in an INITIALIZER. A gate keyed on
+expression kind would have missed all three; `gateOpcode` keys on the opcode
+range and on `inInitExpr` instead.
+
+**No conformance metric moved — and none could.** Every harness passes
+`allFeatures()`, which is exactly the configuration a gate cannot affect. **The
+canary was the project's own test suite**: five files validated GC / EH /
+tail-call modules with the DEFAULT features and passed only because the gates
+were inert. They now declare the features they exercise, which is the same
+"a consumer gets a compile error at the site that must handle it" property the
+breaking type changes were chosen for.
+
+**The CLI needed flags in the same change.** `wasm-validate` took a filename and
+nothing else, so gating alone would have made it reject most modern wasm with no
+way to opt in — a worse regression than the bug. It now takes
+`--enable-<feature>`, `--disable-<feature>` and `--enable-all`, with the
+hyphenated spelling wabt uses (`--enable-multi-memory`), and an unknown flag
+prints the full list instead of being ignored.
+
+Regression: `tests/validator/feature_gates.test.ts` — every proposal asserted
+valid WITH its feature and rejected WITHOUT it, the error required to name the
+feature, and the ratified set asserted to still validate with no flags at all so
+the gates cannot degrade into a blanket refusal.
+
+### Superseded note — why this was briefly deferred
+
+*(Kept because the reasoning was half right and the half that was wrong is worth
+remembering: calling it "a feature, not a fix" reclassified a bug to justify
+deferring it. The cost estimate was real — no infrastructure, and the CLI needed
+new flags — but that is an argument about SIZE, not about whether it belongs in
+the release.)*
 
 `wasmValidate(binary, { features })` is public API, and measured proposal by
 proposal, only **multiMemory** and **customPageSizes** are actually gated.

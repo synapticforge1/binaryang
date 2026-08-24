@@ -27,6 +27,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../src/parser/wast-parser.ts';
+import { allFeatures } from '../../src/core/feature.ts';
 import { wat2wasm } from '../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../src/tools/wasm2wat.ts';
 import { readBinaryIr } from '../../src/reader/binary-reader.ts';
@@ -58,7 +59,7 @@ function compileAndValidate(wat: string): Uint8Array {
   if (hasErrors(decodeErrs)) throw new Error(`decode:\n${formatErrors(decodeErrs)}`);
 
   const valErrs = makeErrorList();
-  const r = validateModule(decoded, valErrs);
+  const r = validateModule(decoded, valErrs, { features: allFeatures() });
   if (hasErrors(valErrs)) throw new Error(`validate:\n${formatErrors(valErrs)}`);
   assertEquals(r, Result.Ok, 'validateModule returned Result.Ok');
   return binary;

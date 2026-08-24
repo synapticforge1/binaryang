@@ -49,20 +49,20 @@ with Bun?", so it is evidence rather than a claim.
 - **Bun/JSC rejects `memory64` and `table64`** ("Memory64 is not enabled") where
   V8 accepts them. Relevant to anyone validating our output under Bun.
 
-## KNOWN LIMITATION — `Features` mostly does not gate (2026-08-24)
+## `Features` gates — pass the ones you mean (2026-08-24)
 
-`wasmValidate(binary, { features })` accepts a full `Features` bag, and only
-**`multiMemory`** and **`customPageSizes`** are actually enforced. Measured
-proposal by proposal, `defaultFeatures()` still accepts SIMD, GC, memory64, tail
-calls, exceptions, reference types, bulk memory, sign extension, saturating
-float→int, mutable globals, multi-value, relaxed SIMD, extended const and
-function references.
+`wasmValidate(binary, { features })` **enforces** the set as of T13.10; nine
+proposals used to be accepted regardless of the flag. If you validate a GC,
+threads, memory64, tail-call, EH, relaxed-SIMD, extended-const, typed-function-
+reference or wide-arithmetic module, enable the matching feature or it is
+rejected — with an error naming the feature.
 
-**So a caller cannot currently use `features` to refuse a proposal.** Pass
-`allFeatures()` and treat the result as "is this valid wasm at all"; do not rely
-on `defaultFeatures()` to reject anything. Tracked as T13.10, deferred past
-1.4.0 because fourteen new gates can only add rejections and that release exists
-to unblock a downstream consumer.
+`allFeatures()` is the right choice for "is this valid wasm at all", and is what
+every conformance harness here uses. `defaultFeatures()` is the ratified set,
+and now genuinely refuses the rest.
+
+The CLI matches: `wasm-validate --enable-gc mod.wasm`, `--disable-<feature>`, or
+`--enable-all`. Flag spelling is hyphenated as in wabt (`--enable-multi-memory`).
 
 ## The four load-bearing TS compiler rules
 

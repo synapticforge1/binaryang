@@ -159,6 +159,24 @@ export class SharedValidator {
     addError(this.errors, this.currentLoc, msg);
   }
 
+  /**
+   * Reject a construct whose proposal the caller has not enabled.
+   *
+   * `Features` is public API, and for nine proposals it did NOTHING:
+   * `defaultFeatures()` says `gc: false` and a GC module validated anyway. A
+   * flag that gates nothing is the same class as a check that reads as covered
+   * and is inert — the caller believes it has refused something it has not
+   * (T13.10).
+   *
+   * Gate at the point of USE, not from a post-hoc scan, so a construct
+   * reachable by any path is caught: an imported 64-bit memory needs the
+   * proposal exactly as much as a defined one.
+   */
+  requireFeature(flag: keyof Features, proposal: string, loc: Location): Result {
+    if (this.features[flag]) return Result.Ok;
+    return this.printError(loc, `${proposal} not allowed: enable the ${flag} feature`);
+  }
+
   printError(loc: Location, msg: string): Result {
     addError(this.errors, loc, msg);
     return Result.Error;
@@ -382,27 +400,29 @@ export class SharedValidator {
   }
 
   onStructType(
-    _loc: Location,
+    loc: Location,
     fields: Field[] = [],
     supers: number[] = [],
     canon = '',
   ): Result {
+    const r = this.requireFeature('gc', 'struct type', loc);
     this.structTypesMap.set(this.numTypes, fields);
     this.heapTypesMap.set(this.numTypes, { kind: 'struct', supers, canon });
     this.numTypes++;
-    return Result.Ok;
+    return r;
   }
 
   onArrayType(
-    _loc: Location,
+    loc: Location,
     element?: Field,
     supers: number[] = [],
     canon = '',
   ): Result {
+    const r = this.requireFeature('gc', 'array type', loc);
     if (element) this.arrayTypesMap.set(this.numTypes, element);
     this.heapTypesMap.set(this.numTypes, { kind: 'array', supers, canon });
     this.numTypes++;
-    return Result.Ok;
+    return r;
   }
 
   // ---------------------------------------------------------------------------
@@ -447,6 +467,9 @@ export class SharedValidator {
     if (this.tables.length > 0 && !this.features.referenceTypes) {
       r = combineResults(r, this.printError(loc, 'only one table allowed'));
     }
+    if (limits.is64) {
+      r = combineResults(r, this.requireFeature('memory64', '64-bit table', loc));
+    }
     // The element bound follows the INDEX TYPE: a 32-bit table tops out at
     // 2^32-1 entries, a 64-bit one at 2^64-1. A flat u32 cap rejected
     // `(table i64 0 0x1_0000_0000 funcref)`, which table64.wast declares
@@ -471,6 +494,12 @@ export class SharedValidator {
     // MVP allowed one memory; the multi-memory proposal lifted that.
     if (this.memories.length > 0 && !this.features.multiMemory) {
       r = combineResults(r, this.printError(loc, 'only one memory block allowed'));
+    }
+    if (limits.isShared) {
+      r = combineResults(r, this.requireFeature('threads', 'shared memory', loc));
+    }
+    if (limits.is64) {
+      r = combineResults(r, this.requireFeature('memory64', '64-bit memory', loc));
     }
     // Page size (custom-page-sizes): exactly 1 or 65536 — log2 of 0 or 16 —
     // and NOTHING between. The field is already a log2, so every value looks
@@ -525,6 +554,7 @@ export class SharedValidator {
   }
 
   onTag(loc: Location, sigIdx: number): Result {
+    const rf = this.requireFeature('exceptions', 'tag', loc);
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
     if (!ft) {
       this.tags.push({ params: [] });
@@ -537,7 +567,7 @@ export class SharedValidator {
       // wrongly reported success for this node).
       return this.printError(loc, 'Tag signature must have 0 results.');
     }
-    return Result.Ok;
+    return rf;
   }
 
   onExport(loc: Location, kind: ExternalKind, itemIdx: number, name: string): Result {

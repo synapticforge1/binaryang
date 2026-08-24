@@ -166,6 +166,10 @@ project contract.
   space, NaN payload range (with a V8 round trip proving the in-range ones stay NaNs), lane
   immediates, the token-boundary rule, one `(start …)` per module, and the deferred
   forward type-use check.
+- `tests/validator/feature_gates.test.ts` — T13.10: every proposal valid WITH its feature and
+  rejected WITHOUT it, the message required to name the feature, and the ratified set still
+  validating with no flags. **No metric can see a gate** — every harness passes
+  `allFeatures()`, so the suite is the only guard.
 - `tests/validator/atomics.test.ts` — T13.9: all 67 atomic opcodes, each required to agree with
   V8 AND round-trip byte-identically, plus width pinning so a uniformly-wrong table cannot
   pass. **The spec-testsuite snapshot has no atomics at all**, so no metric covers any of it.

@@ -624,8 +624,13 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   type-checked as `(v128,v128)→v128` and REJECTED. Any new prefix group must get its own branch
   before the SIMD default, and the atomic table is DERIVED from a 7-wide cycle rather than written
   out, because a sixty-entry hand copy is what drifted for SIMD.
-- **KNOWN LIMITATION: 14 of 21 `Features` flags gate nothing (T13.10).** Only `multiMemory` and
-  `customPageSizes` are enforced; `defaultFeatures()` accepts SIMD, GC, memory64, tail calls,
-  exceptions and nine more. The option is public API, so a caller believes it has switched them off.
-  Deferred past 1.4.0 on purpose — fourteen new gates can only add rejections, and that release
-  exists to unblock a downstream team.
+- **Every `Features` flag GATES, via `SharedValidator.requireFeature` (T13.10).** Nine used to be
+  inert — a caller could switch `gc` off and validate a GC module. Gate at the point of USE, never
+  from a post-hoc scan, so an imported 64-bit memory is caught like a defined one. **Three
+  proposals have no hook to hang a gate on** — relaxed SIMD and wide arithmetic are ordinary
+  arithmetic nodes distinguished only by opcode, and extended-const only by `inInitExpr` — so
+  `gateOpcode` keys on opcode range and initializer context. A new proposal needs a gate at BOTH
+  levels or it ships unrefusable.
+- **Gating requires CLI flags in the same change.** `wasm-validate` now takes
+  `--enable-<feature>` / `--disable-<feature>` / `--enable-all`; without them a gated validator
+  rejects most modern wasm with no way to opt in, which is worse than the bug.

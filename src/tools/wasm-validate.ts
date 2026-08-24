@@ -35,6 +35,7 @@ import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { validateModule } from '../validator/validator.ts';
 import type { ValidateOptions } from '../validator/shared-validator.ts';
+import { defaultFeatures } from '../core/feature.ts';
 import type { Features } from '../core/feature.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
@@ -97,12 +98,49 @@ if (import.meta.main) {
   const args = Deno.args.slice();
   const inputs: string[] = [];
 
+  // `--enable-<feature>` / `--disable-<feature>`, plus `--enable-all`.
+  //
+  // These exist because the validator now ENFORCES the feature set (T13.10);
+  // before that it accepted every proposal regardless, so there was nothing to
+  // turn on. Without these flags a gated validator would reject any GC, SIMD,
+  // threads, tail-call or EH module from the command line with no way to opt
+  // in — a worse regression than the bug being fixed.
+  const features = defaultFeatures();
+  const featureNames = Object.keys(features) as (keyof Features)[];
+  const byFlagName = new Map<string, keyof Features>(
+    // `multiMemory` -> `multi-memory`, matching wabt's spelling.
+    featureNames.map((n) => [n.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), n]),
+  );
+
+  let bad = false;
   for (const arg of args) {
-    if (!arg.startsWith('-')) inputs.push(arg);
+    if (!arg.startsWith('-')) {
+      inputs.push(arg);
+      continue;
+    }
+    if (arg === '--enable-all') {
+      for (const n of featureNames) features[n] = true;
+      continue;
+    }
+    const m = /^--(enable|disable)-(.+)$/.exec(arg);
+    const key = m ? byFlagName.get(m[2]!) : undefined;
+    if (!m || key === undefined) {
+      console.error(`wasm-validate: unknown option ${arg}`);
+      bad = true;
+      continue;
+    }
+    features[key] = m[1] === 'enable';
+  }
+  if (bad) {
+    console.error(
+      'features: --enable-all, or --enable-/--disable- one of:\n  ' +
+        [...byFlagName.keys()].join(' '),
+    );
+    Deno.exit(1);
   }
 
   if (inputs.length === 0) {
-    console.error('usage: wasm-validate <input.wasm> [...]');
+    console.error('usage: wasm-validate [--enable-all|--enable-<feature>] <input.wasm> [...]');
     Deno.exit(1);
   }
 
@@ -110,7 +148,7 @@ if (import.meta.main) {
 
   for (const input of inputs) {
     const binary = await Deno.readFile(input);
-    const { errors, result } = wasmValidate(binary, { filename: input });
+    const { errors, result } = wasmValidate(binary, { filename: input, features });
 
     if (errors.length > 0) {
       console.error(formatErrors(errors));

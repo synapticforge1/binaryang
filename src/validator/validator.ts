@@ -7,7 +7,13 @@ import { isRefValueType } from '../ir/ir.ts';
 import type { Field, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
-import { anyOpcodeName, PREFIX_THREADS } from '../core/opcode.ts';
+import {
+  anyOpcodeName,
+  MiscOpcode,
+  PREFIX_MISC,
+  PREFIX_SIMD,
+  PREFIX_THREADS,
+} from '../core/opcode.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import type {
   ArrayCopyExpr,
@@ -636,9 +642,13 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onBrIf(e.loc, varIdx(e.target));
   }
   onBrOnNullExpr(e: BrOnNullExpr): Result {
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onBrOnNull(e.loc, varIdx(e.target));
   }
   onBrOnCastExpr(e: BrOnCastExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onBrOnCast(
       e.loc,
       varIdx(e.target),
@@ -648,6 +658,8 @@ class ModuleValidator implements ExprVisitorDelegate {
     );
   }
   onBrOnNonNullExpr(e: BrOnNonNullExpr): Result {
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onBrOnNonNull(e.loc, varIdx(e.target));
   }
 
@@ -681,22 +693,56 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onGlobalSet(e.loc, varIdx(e.var));
   }
 
+  /**
+   * Gate the proposals that are keyed by OPCODE rather than by a dedicated
+   * hook, so they cannot be reached through the generic arithmetic handlers.
+   *
+   * Three of the nine ungated proposals had no handler of their own:
+   * relaxed SIMD and wide arithmetic are ordinary unary/binary/ternary nodes
+   * distinguished only by their opcode, and extended-const is ordinary
+   * arithmetic distinguished only by APPEARING IN AN INITIALIZER. A gate hung
+   * off an expression kind would have missed all three (T13.10).
+   */
+  private gateOpcode(op: number, loc: Location): void {
+    if ((op >>> 16) === PREFIX_SIMD && (op & 0xffff) >= 0x100) {
+      // Relaxed-SIMD sub-opcodes are the ones at or above 0x100 — the same
+      // boundary that forced the `<< 16` opcode packing (T7.7).
+      this.acc(this.sv.requireFeature('relaxedSimd', 'relaxed SIMD instruction', loc));
+    } else if ((op >>> 16) === PREFIX_MISC) {
+      const sub = op & 0xffff;
+      if (sub >= MiscOpcode.I64Add128 && sub <= MiscOpcode.I64MulWideU) {
+        this.acc(this.sv.requireFeature('wideArithmetic', 'wide arithmetic instruction', loc));
+      }
+    }
+    if (this.sv.inInitExpr) {
+      // Arithmetic is constant only under extended-const; the MVP constant
+      // expressions are `*.const`, `global.get` and the `ref.*` forms.
+      this.acc(this.sv.requireFeature('extendedConst', 'arithmetic in a constant expression', loc));
+    }
+  }
+
   onUnaryExpr(e: UnaryExpr): Result {
+    this.gateOpcode(e.opcode as unknown as number, e.loc);
     return this.sv.onUnary(e.loc, e.opcode);
   }
   onBinaryExpr(e: BinaryExpr): Result {
+    this.gateOpcode(e.opcode as unknown as number, e.loc);
     return this.sv.onBinary(e.loc, e.opcode);
   }
   onCompareExpr(e: CompareExpr): Result {
+    this.gateOpcode(e.opcode as unknown as number, e.loc);
     return this.sv.onCompare(e.loc, e.opcode);
   }
   onConvertExpr(e: ConvertExpr): Result {
+    this.gateOpcode(e.opcode as unknown as number, e.loc);
     return this.sv.onConvert(e.loc, e.opcode);
   }
   onTernaryExpr(e: TernaryExpr): Result {
+    this.gateOpcode(e.opcode as unknown as number, e.loc);
     return this.sv.onTernary(e.loc, e.opcode);
   }
   onQuaternaryExpr(e: QuaternaryExpr): Result {
+    this.gateOpcode(e.opcode as unknown as number, e.loc);
     return this.sv.onQuaternary(e.loc, e.opcode);
   }
 
@@ -733,15 +779,23 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
   }
   onCallRefExpr(e: CallRefExpr): Result {
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onCallRef(e.loc, varIdx(e.sigType));
   }
   onReturnCallExpr(e: ReturnCallExpr): Result {
+    const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCall(e.loc, varIdx(e.func));
   }
   onReturnCallIndirectExpr(e: ReturnCallIndirectExpr): Result {
+    const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
   }
   onReturnCallRefExpr(e: ReturnCallRefExpr): Result {
+    const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCallRef(e.loc, varIdx(e.sigType));
   }
 
@@ -759,57 +813,91 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onRefFunc(e.loc, varIdx(e.func));
   }
   onRefAsNonNullExpr(e: RefAsNonNullExpr): Result {
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onRefAsNonNull(e.loc);
   }
   onRefEqExpr(e: RefEqExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onRefEq(e.loc);
   }
   onRefI31Expr(e: RefI31Expr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onRefI31(e.loc);
   }
   onExternConvertExpr(e: ExternConvertExpr): Result {
     return this.sv.onExternConvert(e.loc, e.kind === 'any.convert_extern');
   }
   onI31GetExpr(e: I31GetExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onI31Get(e.loc);
   }
   onStructNewExpr(e: StructNewExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onStructNew(e.loc, varIdx(e.typeVar));
   }
   onStructNewDefaultExpr(e: StructNewDefaultExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onStructNewDefault(e.loc, varIdx(e.typeVar));
   }
   onStructGetExpr(e: StructGetExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onStructGet(e.loc, varIdx(e.typeVar), varIdx(e.fieldVar), e.signed);
   }
   onStructSetExpr(e: StructSetExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onStructSet(e.loc, varIdx(e.typeVar), varIdx(e.fieldVar));
   }
   onArrayNewExpr(e: ArrayNewExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayNew(e.loc, varIdx(e.typeVar));
   }
   onArrayNewDefaultExpr(e: ArrayNewDefaultExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayNewDefault(e.loc, varIdx(e.typeVar));
   }
   onArrayNewFixedExpr(e: ArrayNewFixedExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayNewFixed(e.loc, varIdx(e.typeVar), e.operands.length);
   }
   onArrayNewDataExpr(e: ArrayNewDataExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayNewData(e.loc, varIdx(e.typeVar), varIdx(e.dataVar));
   }
   onArrayNewElemExpr(e: ArrayNewElemExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayNewElem(e.loc, varIdx(e.typeVar), varIdx(e.elemVar));
   }
   onArrayGetExpr(e: ArrayGetExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayGet(e.loc, varIdx(e.typeVar));
   }
   onArraySetExpr(e: ArraySetExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArraySet(e.loc, varIdx(e.typeVar));
   }
   onArrayFillExpr(e: ArrayFillExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayFill(e.loc, varIdx(e.typeVar));
   }
   onArrayCopyExpr(e: ArrayCopyExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayCopy(e.loc, varIdx(e.destTypeVar), varIdx(e.srcTypeVar));
   }
   onArrayInitSegmentExpr(e: ArrayInitSegmentExpr): Result {
@@ -821,12 +909,18 @@ class ModuleValidator implements ExprVisitorDelegate {
     );
   }
   onArrayLenExpr(e: ArrayLenExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onArrayLen(e.loc);
   }
   onRefTestExpr(e: RefTestExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onRefTest(e.loc);
   }
   onRefCastExpr(e: RefCastExpr): Result {
+    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     // Hand over the type being cast TO — `(ref [null] H)` — so the result on
     // the stack is that type rather than an anonymous reference.
     return this.sv.onRefCast(e.loc, {
@@ -862,16 +956,24 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onThrowExpr(e: ThrowExpr): Result {
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onThrow(e.loc, varIdx(e.tag));
   }
   onThrowRefExpr(e: ThrowRefExpr): Result {
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onThrowRef(e.loc);
   }
   onRethrowExpr(e: RethrowExpr): Result {
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onRethrow(e.loc, varIdx(e.depth));
   }
 
   beginTryExpr(e: TryExpr): Result {
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onTry(e.loc, e.blockType);
   }
   onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
@@ -886,6 +988,8 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   beginTryTableExpr(e: TryTableExpr): Result {
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     // Catches are checked BEFORE the try_table's own label is pushed: their
     // depths are relative to the ENCLOSING scope. Checking them after
     // `beginTryTable` reads every target one level too deep — the same
@@ -929,21 +1033,33 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onAtomicLoadExpr(e: AtomicLoadExpr): Result {
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onAtomicLoad(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicStoreExpr(e: AtomicStoreExpr): Result {
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onAtomicStore(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicRmwExpr(e: AtomicRmwExpr): Result {
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onAtomicRmw(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicRmwCmpxchgExpr(e: AtomicRmwCmpxchgExpr): Result {
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onAtomicRmwCmpxchg(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicWaitExpr(e: AtomicWaitExpr): Result {
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onAtomicWait(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicNotifyExpr(e: AtomicNotifyExpr): Result {
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     // memory.atomic.notify is a single fixed opcode: prefix 0xfe, secondary 0x00
     // `(0xfe << 8) | 0x00` was the pre-T7.7 packing; opcodes are `<< 16` now,
     // so this key matched nothing and memory.atomic.notify went unchecked.
@@ -951,6 +1067,8 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onAtomicNotify(e.loc, ATOMIC_NOTIFY_OPCODE, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicFenceExpr(e: AtomicFenceExpr): Result {
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onAtomicFence(e.loc, e.consistencyModel);
   }
 

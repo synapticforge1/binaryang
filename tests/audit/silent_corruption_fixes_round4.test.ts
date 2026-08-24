@@ -11,6 +11,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
 import { parseWatModule } from '../../src/parser/wast-parser.ts';
+import { allFeatures } from '../../src/core/feature.ts';
 import { resolveNames } from '../../src/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../src/ir/synthesize-types.ts';
 import { validateModule } from '../../src/validator/validator.ts';
@@ -23,7 +24,7 @@ function validateWat(wat: string): boolean {
   resolveNames(module);
   synthesizeTypes(module);
   const errs = makeErrorList();
-  validateModule(module, errs);
+  validateModule(module, errs, { features: allFeatures() });
   return hasErrors(errs);
 }
 
