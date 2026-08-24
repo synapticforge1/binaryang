@@ -204,15 +204,49 @@ value; deleting the restore makes it fail, verified.
 Evaluation order is preserved for free: the values precede the condition in the input, and the
 emitted `local.set`s precede the branch that carries the condition.
 
-**`br_table` is the one remaining carve-out**, and it is narrower than a blanket rejection: a table
-whose targets are ALL the same parametrised loop is rewritten (one unambiguous set of temps, then a
-value-less table). A **mixed** table is refused, because once the loop's parameters are locals it
-consumes 0 stack values while a block/function target still consumes its arity — no single
-instruction serves both, and untangling it needs a per-target dispatch trampoline, which is a
-different control-flow shape rather than a rewrite. `lit/control-flow-input.wast.wasm` is exactly
-that case (`loop/2, loop/2, func/0`) and remains the single corpus file rejected on this feature.
+**`br_table` with MIXED targets is handled by a dispatch trampoline.** A table whose targets are all
+the same parametrised loop is rewritten directly (one unambiguous set of temps, then a value-less
+table). When the targets mix a parametrised loop with a block / `if` / function frame the two
+disagree on calling convention — the loop consumes 0 stack values and wants its temps written, the
+others still consume their arity from the stack — so no single table serves both. The table is
+demoted to selecting a CASE:
 
-`try` / `try_table` with inputs are rejected the same way (`rejectBlockParams`).
+```wat
+local.set $i                  ;; index
+local.set $s0 …               ;; the N values, into SHARED temps, once
+block $L0
+  block $L1
+    block $L2
+      local.get $i
+      br_table $L0 $L1 $L2    ;; every case label is void
+    end
+    <case 2>                  ;; reached by falling out of $L2
+  end
+  <case 1>
+end
+<case 0>
+```
+
+Each case is a single unconditional branch in its own convention, so no case falls through and every
+wrapper block is void. Order is preserved: the values are stored before the index, matching the
+input where values are pushed before the table's operand.
+
+`try` / `try_table` parameters use the plain entry spill — a branch to their label targets the END
+(results), and catch handlers start with the TAG's parameters, not the try's, so only the body is
+seeded.
+
+**Round-trip drift is now checked for CONVERGENCE, not equality.** These rewrites legitimately add
+`local.set`/`local.get` nodes on the first trip (control-flow-input: 218 → 220 → 220 → 220), so
+demanding gen0 == gen1 would flag a working transform. Generation 1 vs generation 2 must match
+instead — which still catches the failure that check existed for: the `unreachable-pops` defect grew
+on EVERY trip (4 → 5 → 6), verified by reverting its fix. Entity counts (functions, globals, data
+segments) stay exact. Applied to both `scripts/verify_roundtrip.ts` and
+`tests/binary/corpus_roundtrip_test.ts`.
+
+Corpus is now **80 exact, 0 drift, 0 validate failures, 10 deliberate rejections** —
+`lit/control-flow-input.wast.wasm` round-trips. (Note it does not validate under V8 _as input_, so
+it exercises decode/encode structure rather than output validity; the behavioural trampoline test
+uses a hand-built fixture that does validate.)
 
 `lit/control-flow-input.wast.wasm` now decodes past its block and `if` inputs and stops on a loop
 input — so it remains the one corpus file rejected on this feature, but for a materially narrower

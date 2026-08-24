@@ -597,28 +597,6 @@ function _branchValue(
   return makeTupleMake(vals);
 }
 
-/**
- * Returns a block signature's results, rejecting any parameters.
- *
- * Used for constructs whose IR node cannot hold entry values (`try`,
- * `try_table`). Accepting one would silently drop them.
- *
- * @internal
- */
-function rejectBlockParams(
-  sig: { params: ValueType[]; results: ValueType[] },
-  what: string,
-  r: BinaryReader,
-): ValueType[] {
-  if (sig.params.length > 0) {
-    r.error(
-      `${what} has ${sig.params.length} input parameter(s); ` +
-        `${what} with inputs is not supported`,
-    );
-  }
-  return sig.results;
-}
-
 function sealFrame(frame: ControlFrame, resultType: Type): Expression {
   if (frame.exprs.length === 0) return makeNop();
   if (frame.exprs.length === 1) return frame.exprs[0];
@@ -1402,6 +1380,98 @@ class WasmParser {
       }
     };
 
+    /**
+     * Rewrites a `br_table` whose targets MIX a parametrised loop with other
+     * frames, by replacing the single table with a dispatch trampoline.
+     *
+     * After loop parameters become locals the two kinds of target disagree on
+     * calling convention: a parametrised loop consumes 0 stack values and wants
+     * its temps written, while a block / `if` / function target still consumes
+     * its arity from the stack. No single `br_table` satisfies both. So the
+     * table is demoted to selecting a CASE, and each case then branches its own
+     * way:
+     *
+     * ```wat
+     * local.set $i                  ;; index
+     * local.set $s0 …               ;; the N values, into SHARED temps
+     * block $L0
+     *   block $L1
+     *     block $L2
+     *       local.get $i
+     *       br_table $L0 $L1 $L2    ;; every case label is void
+     *     end
+     *     <case 2>                  ;; lands here on falling out of $L2
+     *   end
+     *   <case 1>
+     * end
+     * <case 0>
+     * ```
+     *
+     * Each case is one unconditional branch, so no case falls through into the
+     * next and every wrapper block is void.
+     *
+     * Order is preserved: the values are stored before the index, matching the
+     * input where the values are pushed before the table's operand.
+     */
+    const buildBrTableTrampoline = (
+      targetFrames: (ControlFrame | undefined)[],
+      labels: string[],
+      index: Expression,
+      arity: number,
+      types: ValueType[],
+    ): void => {
+      // Shared temps for the N branch values, filled once.
+      const vals: Expression[] = [];
+      for (let i = 0; i < arity; i++) vals.unshift(pop());
+      const shared: number[] = [];
+      for (let i = 0; i < arity; i++) {
+        const tmp = locals.length;
+        locals.push({ type: types[i] });
+        shared.push(tmp);
+        push(makeLocalSet(tmp, vals[i]));
+      }
+      const idxSlot = locals.length;
+      locals.push({ type: ValType.I32 });
+      push(makeLocalSet(idxSlot, index));
+
+      /** The branch a single case performs, in that target's own convention. */
+      const caseCode = (frame: ControlFrame | undefined, label: string): Expression[] => {
+        if (frame?.paramLocals?.length) {
+          const slots = frame.paramLocals;
+          const out: Expression[] = slots.map((slot, i) =>
+            makeLocalSet(slot, makeLocalGet(shared[i], types[i]))
+          );
+          out.push(makeBreak(label, null, null));
+          return out;
+        }
+        const reads = shared.map((slot, i) => makeLocalGet(slot, types[i]));
+        const value = reads.length === 0
+          ? null
+          : reads.length === 1
+          ? reads[0]
+          : makeTupleMake(reads);
+        return [makeBreak(label, null, value)];
+      };
+
+      // One wrapper block per case; `caseLabels[j]` is exited to reach case j.
+      const caseLabels = labels.map(() => freshLabel());
+      const last = caseLabels.length - 1;
+
+      let node: Expression = makeBlock(
+        [makeSwitch(
+          caseLabels.slice(0, last),
+          caseLabels[last],
+          makeLocalGet(idxSlot, ValType.I32),
+        )],
+        caseLabels[last],
+      );
+      for (let j = last - 1; j >= 0; j--) {
+        node = makeBlock([node, ...caseCode(targetFrames[j + 1], labels[j + 1])], caseLabels[j]);
+      }
+      push(node);
+      for (const e of caseCode(targetFrames[0], labels[0])) push(e);
+    };
+
     /** The target frame of a branch, or `undefined` if the depth escapes. */
     const branchTarget = (depth: number): ControlFrame | undefined =>
       frames[frames.length - 1 - depth];
@@ -1478,12 +1548,18 @@ class WasmParser {
         }
 
         case 0x06: { // try (old EH)
-          const rts = rejectBlockParams(readBlockType(r, ctx.funcTypes), "try", r);
+          // A `try`'s parameters are supplied on ENTRY only — a branch to its
+          // label targets its END (results), and catch handlers start with the
+          // TAG's parameters, not the try's. So the plain `block` spill applies
+          // and only the try BODY is seeded.
+          const trySig = readBlockType(r, ctx.funcTypes);
+          const { reads: trySeed } = spillBlockParams(trySig.params);
+          const rts = trySig.results;
           frames.push({
             kind: "try",
             label: freshLabel(),
             resultTypes: rts,
-            exprs: [],
+            exprs: [...trySeed],
             catchTags: [],
             catchBodies: [],
             delegateTarget: null,
@@ -1676,19 +1752,24 @@ class WasmParser {
           const paramLoopTargets = tableTargets.filter((t) => t?.paramLocals?.length);
           if (paramLoopTargets.length > 0) {
             const allSame = tableTargets.every((t) => t === tableTargets[0]);
-            if (!allSame) {
-              r.error(
-                "br_table mixes a parametrised loop with other targets; " +
-                  "a single table cannot carry both stack values and loop temps",
+            const labels = [...depths, defaultDepth].map((d) => resolveLabel(frames, d));
+            if (allSame) {
+              // Every case is the SAME loop: one unambiguous set of temps, then
+              // a value-less table. No trampoline needed.
+              rewriteLoopBranch(
+                tableTargets[0]!,
+                labels[labels.length - 1],
+                null,
+                labels.slice(0, -1),
+                cond,
               );
+              break;
             }
-            rewriteLoopBranch(
-              tableTargets[0]!,
-              resolveLabel(frames, defaultDepth),
-              null,
-              depths.map((d) => resolveLabel(frames, d)),
-              cond,
-            );
+            // Mixed targets: the loop wants its temps written, the others want
+            // values on the stack. Dispatch per case.
+            const ref = tableTargets[tableTargets.length - 1] ?? tableTargets[0];
+            const tTypes = ref?.paramLocals?.length ? ref.paramTypes! : (ref?.resultTypes ?? []);
+            buildBrTableTrampoline(tableTargets, labels, cond, tTypes.length, tTypes);
             break;
           }
           const value = _branchValue(frames, defaultDepth, pop);
@@ -1789,7 +1870,10 @@ class WasmParser {
           break;
         }
         case 0x1f: { // try_table blocktype (numHandlers handlers) (new EH)
-          const rts = rejectBlockParams(readBlockType(r, ctx.funcTypes), "try_table", r);
+          // Same as `try`: parameters are entry-only, so seed just the body.
+          const ttSig = readBlockType(r, ctx.funcTypes);
+          const { reads: ttSeed } = spillBlockParams(ttSig.params);
+          const rts = ttSig.results;
           const numHandlers = r.readU32();
           // Read catch clause data (tag+depth pairs) before pushing frame
           const catchData: Array<{ tag: string | null; depth: number; isRef: boolean }> = [];
@@ -1809,7 +1893,7 @@ class WasmParser {
             kind: "try_table",
             label: freshLabel(),
             resultTypes: rts,
-            exprs: [],
+            exprs: [...ttSeed],
             tryCatches: [],
           });
           const catches: CatchClause[] = catchData.map(({ tag, depth, isRef }) => ({

@@ -132,12 +132,28 @@ for (const file of files) {
   }
   const s1 = summary(mod1);
   const s2 = summary(mod2);
-  if (
-    s1.fns !== s2.fns || s1.globals !== s2.globals || s1.data !== s2.data || s1.exprs !== s2.exprs
-  ) {
-    drift.push({ file: path.relative(ROOT, file).replace(/\\/g, "/"), before: s1, after: s2 });
+
+  // Entity counts are exact. Expression counts are checked for CONVERGENCE:
+  // constructs that are legitimately REWRITTEN on decode (block/loop/if
+  // parameters spilled to locals, a mixed-target br_table turned into a
+  // dispatch trampoline) add local.set/local.get nodes on the first trip. What
+  // must never happen is growth that keeps going — the `unreachable-pops`
+  // defect added an expression on EVERY trip. Mirrors
+  // tests/binary/corpus_roundtrip_test.ts.
+  let s3 = s2;
+  if (s1.exprs !== s2.exprs) {
+    try {
+      s3 = summary(parseWasm(encodeWasm(mod2), file));
+    } catch {
+      s3 = { ...s2, exprs: -1 };
+    }
+  }
+  if (s1.fns !== s2.fns || s1.globals !== s2.globals || s1.data !== s2.data) {
+    drift.push({ file: rel(file), before: s1, after: s2 });
+  } else if (s2.exprs !== s3.exprs) {
+    drift.push({ file: rel(file), before: s2, after: s3 });
   } else {
-    ok.push(path.relative(ROOT, file).replace(/\\/g, "/"));
+    ok.push(rel(file));
   }
 }
 

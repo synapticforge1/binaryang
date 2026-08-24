@@ -7,8 +7,8 @@
  *
  * This was `scripts/verify_roundtrip.ts`, kept out of the suite with the note
  * "promote to a real test once the parser is provably clean". It is now: the
- * corpus stands at 79 exact, 0 structural drift, 0 validate failures, and the
- * 11 remaining rejections are deliberate. Leaving it as a script meant nobody
+ * corpus stands at 80 exact, 0 structural drift, 0 validate failures, and the
+ * 10 remaining rejections are deliberate. Leaving it as a script meant nobody
  * ran it, and every one of the WT-2 / UP-series defects it would have caught
  * was instead found by a downstream consumer.
  *
@@ -47,7 +47,7 @@ const CORPUS = decodeURIComponent(
  * Lower bound on files that must survive a full round-trip. Raise it when the
  * corpus grows or a rejection is fixed; never lower it to make a run pass.
  */
-const MIN_ROUNDTRIPPING = 79;
+const MIN_ROUNDTRIPPING = 80;
 
 async function corpusPresent(): Promise<boolean> {
   try {
@@ -149,8 +149,34 @@ Deno.test({
 
       const a = summary(mod1);
       const b = summary(mod2);
-      if (a.fns !== b.fns || a.globals !== b.globals || a.data !== b.data || a.exprs !== b.exprs) {
-        drift.push(`${rel(file)}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+
+      // Entity counts are exact: no round-trip may add or drop a function,
+      // global, or data segment.
+      if (a.fns !== b.fns || a.globals !== b.globals || a.data !== b.data) {
+        drift.push(`${rel(file)}: entities ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+        continue;
+      }
+
+      // Expression counts are checked for CONVERGENCE, not equality. Some
+      // constructs are legitimately REWRITTEN on decode — a block/loop/if with
+      // parameters is spilled to locals, and a mixed-target `br_table` becomes
+      // a dispatch trampoline — which adds `local.set`/`local.get` nodes on the
+      // first trip. What must never happen is growth that keeps going: the
+      // `unreachable-pops` defect added an expression on EVERY trip. So compare
+      // generation 1 against generation 2.
+      let c = b;
+      if (a.exprs !== b.exprs) {
+        try {
+          c = summary(parseWasm(encodeWasm(mod2), file));
+        } catch (e) {
+          reparseFail.push(`${rel(file)}: gen3 ${(e as Error).message.slice(0, 100)}`);
+          continue;
+        }
+      }
+      if (b.exprs !== c.exprs) {
+        drift.push(
+          `${rel(file)}: expressions did not converge ${a.exprs} -> ${b.exprs} -> ${c.exprs}`,
+        );
       } else {
         okFiles.push(rel(file));
       }
