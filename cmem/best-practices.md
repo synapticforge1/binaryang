@@ -43,6 +43,9 @@ code
 
 **Auditing — finding what no corpus reaches**
 
+- "We consume it and ignore it" is a bug shape you can GREP for
+- Widening a mask is not fixing a range check
+- A rule that only fires when its operand is already known is half a rule
 - Audit a manual walk against the TYPE, not against a corpus
 - An unused parameter in one of a family of parallel handlers is a missing check
 - When a marker has to be applied at every construction site, grep for it
@@ -52,6 +55,8 @@ code
 
 **Trusting your own tools**
 
+- Run the whole panel, not the metric you are moving
+- Where you put the probe changes the number, so say where it is
 - A metric can be precise, stable, and measuring almost nothing
 - Re-measure a diagnosis before acting on it, even your own
 - A fail-loud path is only as useful as what it prints
@@ -786,3 +791,76 @@ would have broken every data segment with a high byte in it.
 When tightening a rule, write down what it must NOT apply to, and test that
 alongside — an over-broad tightening reads exactly like a correct one until
 something legal hits it.
+
+## "We consume it and ignore it" is a bug shape you can GREP for
+
+T12.6 through T12.9 kept turning up the same thing under four different
+category names, and the code always looked like one of these:
+
+```ts
+if (this.peek() === TokenType.Var) this.drop();   // a closing label, unread
+private skipInlineBlockSig(): void { … }          // a signature, unread
+this.readU32Leb();  // "used for validation, we don't store it"
+const mutable = this.readU8() !== 0;              // 0x02 and 0xff are MUTABLE
+const alignLog2 = alignFlags & 0x3f;              // 0x80 becomes 0
+```
+
+The first three are visibly discards. **The last two are the same discard
+spelled arithmetically**, and they are the ones that survived four releases: a
+mask and a `!== 0` look like decoding, not like throwing something away.
+
+What makes this class worth hunting directly rather than waiting for a metric
+is that it never fails loudly. The parse succeeds, the module encodes, an
+engine runs it — it is just a DIFFERENT module than the source says. Grep for
+a `drop()`/`read*()` whose result is unused, for a `skip…` that returns
+`void`, and for every `&` mask and `!== 0` applied to a field the format
+defines exactly.
+
+## Widening a mask is not fixing a range check
+
+The NaN payload mask was `0x3fffff` and lost `nan:0x400000` to infinity. The
+fix widened it to `0x7fffff` — correct for that input, and it left `nan:0x0`
+producing infinity by exactly the same mechanism, for two more releases (T12.9).
+
+A mask answers "which bits do I keep". The format's question is "is this value
+in range". When a bug report is "this value came out wrong", check whether the
+code is answering the second question at all; if it is masking, the fix is a
+comparison, not a wider mask.
+
+## A rule that only fires when its operand is already known is half a rule
+
+T12.7 made an inline signature beside a `(type $t)` check against the type it
+restates. It compared at the point of use — and a type use may refer FORWARD,
+so every module that declared the type later skipped the comparison silently.
+
+**No spec case combined a forward reference with a mismatched restatement, so
+the metric read 100% either way.** The gap was found by asking what the check
+does when its input is not there yet, which is a question worth asking of any
+check that resolves a name: defer it to the point where the whole scope is
+known (`pendingTypeUses` alongside `pendingBodies`) rather than checking
+opportunistically.
+
+## Where you put the probe changes the number, so say where it is
+
+Quoted `assert_malformed` reads **1227 / 1229** at `parseWatModule` and
+**1229 / 1229** through `wat2wasm`. Both are honest; the difference is two
+undefined labels, which `resolveNames` rejects and the parser does not, because
+name resolution is genuinely a separate pass here.
+
+That is not a rounding difference to paper over. Report the probe point with
+the number, and prefer the stricter one as the headline — a metric quoted
+without its boundary invites exactly the mistake of "fixing" something that was
+never broken.
+
+## Run the whole panel, not the metric you are moving
+
+The T12.8 function/code count check went in as
+`count !== m.funcs.length - m.numFuncImports`. `m.funcs` holds defined
+functions only, so it rejected every module with a function import.
+**`assert_malformed` was identical either way** — round-trip dropped
+2120 → 2051 across 14 files and named the error in its first line.
+
+This is now the fourth time in the campaign that the metric which caught a
+regression was not the one the work was aimed at. The panel takes minutes; a
+check written in the wrong index space looks exactly like a correct one.
+
