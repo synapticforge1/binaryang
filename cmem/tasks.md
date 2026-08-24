@@ -1126,6 +1126,64 @@ reaches is not covered by a corpus-shaped test, however many of them pass.**
 Regression: `tests/parser/custom_page_sizes.test.ts` (15 steps, all 4 groups
 fail pre-fix).
 
+### Cross-engine support for what we emit — measured 2026-08-24
+
+Prompted by "can the page-size shapes be made compatible with Wasmer and V8?".
+Every cell below is a run, not a claim, against Wasmtime 47.0.3, Deno/Node V8
+(node 24.19), Bun 1.3.14 (JavaScriptCore), Wasmer 7.2.1 and wazero 1.12.0.
+
+| shape | Wasmtime | V8 | Bun/JSC | Wasmer | wazero |
+| --- | --- | --- | --- | --- | --- |
+| plain MVP, SIMD, our real WASI corpus output | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `memory64` / `table64` | ✅ | ✅ | ❌ *"Memory64 is not enabled"* | ❌ | ❌ *limits byte not in 0x00–0x03* |
+| GC (`struct.new`) | ✅ | ✅ | — | — | ❌ *`invalid byte: 0x5f != 0x60`* |
+| multi-memory | ✅ | ✅ | — | — | ❌ *at most one memory* |
+| tail call | ✅ | ✅ | — | — | ❌ *feature disabled* |
+| exceptions | ✅ | ✅ | — | — | ❌ *feature disabled* |
+| `(pagesize 1)` | ✅ | ❌ | ❌ | ❌ | ❌ |
+| explicit `(pagesize 65536)` | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+**Custom page sizes cannot be made compatible by choosing a different
+encoding, with exactly one exception.** A byte-paged memory is a different
+memory TYPE, so there is no encoding of it that an engine without the proposal
+will take. V8 has no flag at all — the full `--*wasm*` list has nothing for it,
+and `--wasm-max-mem-pages` is documented in "64KiB memory pages", i.e. the
+fixed size is baked in. wazero's decoder allowlists limits bytes 0x00–0x03.
+Wasmer's `--enable-all` gets it past the PARSER and then fails with *"No
+backends support the required features"* — the proposal is unimplemented in its
+compilers, not merely switched off.
+
+**The exception is an explicit `(pagesize 65536)`**, which denotes exactly the
+same memory type as a plain `(memory 1)`. Emitting it WITHOUT the flag bit
+would be accepted everywhere. We deliberately keep the bit (T13.4) because
+round-trip fidelity is a metric here — but that is a WRITER-OPTION-shaped
+choice, not a law, and it is the only page-size compatibility lever that exists.
+
+**The tooling bug this question found.** `engine-check` passes Wasmtime an
+explicit proposal list and passed Wasmer NOTHING — so the one engine kept for
+"disagrees for different reasons" was the only one running on defaults, and its
+verdicts were a mix of real rejections and default-off gates. That is the exact
+trap the file's own header warns about, left in the file itself. It now gets
+`--enable-all`, and its reason extractor reads the `╰─▶` continuation line
+where the cause actually is (the first line is only "failed to validate
+<path>", which made every rejection its own group of one).
+
+**Bun and Node.** The LIBRARY API works on Bun: byte-for-byte identical output
+to Deno on a round-trip smoke test, i64 exports included. Two caveats that are
+about tooling, not the code — `bun test tests/` takes a path FILTER, not a
+directory, so it walks the sibling `binaryen-ts/` and `wasmtk/` checkouts and
+dies on their imports; and `@std/assert` needs the import map. Node cannot run
+the sources directly (`--experimental-strip-types` rejects `enum`, and
+`src/core/types.ts` is built on them); the supported Node path is the published
+JSR package, which is why the `deno publish --dry-run` slow-types check matters.
+
+**On "page size had something to do with Go and its GC":** nothing in wabt-ts,
+wasmtk or wazmrt records such a link, and the proposal's own motivation is
+byte-granular memory for embedded targets. What is true and probably the
+memory: **wazero is the Go runtime, and it rejects the GC proposal outright**
+(`invalid byte: 0x5f != 0x60` — it does not know struct types), along with
+custom page sizes, memory64 and multi-memory.
+
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 
 `assert_invalid` covers modules that PARSE and then fail validation. Nothing

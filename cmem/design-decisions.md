@@ -583,6 +583,17 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **A TABLE has no page size, and the flag bit is rejected on one rather than ignored (T13.4).**
   Whether the bit is legal is a property of the POSITION, so `readLimits` takes a parameter: after
   the fact an explicit log2 of 16 is indistinguishable from no flag at all.
+- **`engine-check` must give EVERY engine its proposal flags, Wasmer included.** Wasmtime got an
+  explicit list and Wasmer got nothing, so the engine kept for divergence was the only one on
+  defaults and its verdicts mixed real rejections with gates — the trap the script's own header
+  warns about. It takes `--enable-all` (7.2.1 has no per-proposal switch for gc or custom page
+  sizes) and reads its cause from the `╰─▶` continuation line, not the "failed to validate <path>"
+  heading.
+- **Only Wasmtime implements custom page sizes** (measured 2026-08-24). V8 has no flag,
+  Bun/JSC and wazero reject the limits byte, and Wasmer parses it with `--enable-all` and then says
+  "No backends support the required features". A byte-paged memory is a different memory TYPE, so
+  no encoding choice makes it portable; the only lever is that an explicit `(pagesize 65536)` could
+  be emitted without the flag bit, which we decline in favour of round-trip fidelity.
 - **The page-size flag is written on PRESENCE, not on `!== 16` (T13.4).** An explicitly encoded
   `pagesize 65536` must come back out as one — Wasmtime accepts it, and collapsing it into the
   default changes the bytes. A runtime can afford that collapse; a format tool with a round-trip

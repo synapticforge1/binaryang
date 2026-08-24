@@ -112,15 +112,34 @@ const wasmtime: Engine = async (_wasm, path, scratch) => {
 
 const wasmer: Engine = async (_wasm, path) => {
   const cmd = new Deno.Command('wasmer', {
-    args: ['validate', path],
+    // `--enable-all`, for the same reason Wasmtime gets an explicit proposal
+    // list: a DEFAULT-OFF feature is not a spec opinion. Wasmer was the only
+    // engine here run with its defaults, so its verdicts were a mix of real
+    // rejections and gates — the trap this file was written to avoid, left in
+    // the file itself.
+    //
+    // It does not have a per-proposal switch for everything (7.2.1 has no
+    // `--enable-gc` or `--enable-custom-page-sizes`), so the blanket flag is
+    // the only lever. Note what it does NOT buy: with the proposal parsed,
+    // a byte-paged memory then fails with "No backends support the required
+    // features", i.e. Wasmer's COMPILERS do not implement it. A gate and a gap
+    // read differently once the gate is open, which is the point of opening it.
+    args: ['validate', '--enable-all', path],
     stdout: 'piped',
     stderr: 'piped',
   });
   const { stdout, stderr } = await cmd.output();
   const out = new TextDecoder().decode(stdout) + new TextDecoder().decode(stderr);
   if (/Validation passed/.test(out)) return { accepted: true, reason: '' };
-  const m = /Validation error: (.{0,80})/.exec(out.replace(/\s+/g, ' '));
-  return { accepted: false, reason: (m?.[1] ?? out.replace(/\s+/g, ' ')).slice(0, 80) };
+  // Wasmer reports the CAUSE on a continuation line (`╰─▶ 1: …`); the first
+  // line is only "failed to validate <path>", which groups every rejection
+  // under one useless heading — and the path makes each one unique, so the
+  // summary printed N groups of 1. Prefer the cause, then the older
+  // "Validation error:" form, then whatever there is.
+  const flat = out.replace(/\s+/g, ' ');
+  const cause = /╰─▶\s*\d*:?\s*(.{0,80})/.exec(flat) ??
+    /Validation error: (.{0,80})/.exec(flat);
+  return { accepted: false, reason: (cause?.[1] ?? flat).slice(0, 80) };
 };
 
 const ENGINES: ReadonlyArray<readonly [string, Engine, string]> = [
