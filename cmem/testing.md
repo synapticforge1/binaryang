@@ -52,6 +52,11 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
+- `tests/writer/export_order.test.ts` — T10.1 / T10.2: the inline `(export "n")` abbreviation
+  is illegal on an import and re-orders the export section, so the WAT writer tests before
+  using it. 6 cases; 5 fail on the pre-fix writer and the sixth guards that inlining still
+  happens when it IS faithful (a fix that just disabled the abbreviation would pass the
+  other five).
 - `tests/bridge/tier_b.test.ts`, `tier_c.test.ts`, `tier_d.test.ts`, `gc_tier1..4.test.ts` — bridge
   coverage (GC tiers verify binary encoding, not V8 round-trip — typed-ref IR is loose).
 - `tests/api/wabt_compat.test.ts` — 12 steps incl. the exact wasmtk call patterns from

@@ -68,6 +68,8 @@ reference these ids.
 | T9.8 | One-armed `if` arity; try_table catch-clause label types | done — assert_invalid 2632 → 2641/2737 |
 | T9.9 | Immediate-vs-immediate rules, and local-init tracking | done — assert_invalid 2641 → 2658/2737 |
 | T9.10 | The last invalid modules V8 rejects that we did not | done — **ours: 0 remaining** |
+| T10.1 | Export ORDER not preserved across a `wasm2wat` round-trip | done — round-trip 1961 → 2041 / 2120 |
+| T10.2 | Inline `(export …)` emitted on IMPORTED items — unparseable output | done (same fix) — hard failures 12 → 1 |
 
 ### Open — parse side: NONE
 
@@ -142,17 +144,62 @@ T7 work; re-measure before starting any of them.
 
 | id | Cause | Modules / files | Severity |
 | --- | --- | --- | --- |
-| **T10.1** | **Export ORDER is not preserved.** The WAT writer attaches exports inline to the item they name, so re-parsing rebuilds the export section grouped per item instead of in the original order — `a, b, ac, …` comes back as `a, za, b, zb, …`. Still valid, but export order is observable (`WebAssembly.Module.exports()`). Fix: emit standalone `(export "n" (func $f))` fields in original order, or carry the order. | 69 / 21 | valid, wrong order |
-| **T10.2** | **The WAT writer emits an inline `(export …)` on IMPORTED items**, e.g. `(import "M" "f" (func $f0 (export "Mf.call") (result i32)))`. That abbreviation is only legal on definitions, so **our own parser rejects our own output** — this is the whole "reparse FAILS" group (`expected ), got (` on funcs, `expected value type, got (` on globals, `expected limit initial value` on memories/tables). Same root as T10.1; one fix likely closes both. | 11 / 6 | UNPARSEABLE |
+| ~~**T10.1**~~ | **CLOSED 2026-08-24.** **Export ORDER was not preserved.** The WAT writer attached exports inline to the item they name, so re-parsing rebuilt the export section grouped per item — `a, b, ac` came back as `a, ac, b`. Export order is observable through `WebAssembly.Module.exports()`. `buildExportMap` now tests the abbreviation before using it and falls back to standalone `(export "n" (func $f))` fields in the module's own order. | 69 / 21 | closed |
+| ~~**T10.2**~~ | **CLOSED 2026-08-24, same fix.** The writer emitted the inline `(export …)` abbreviation on IMPORTED items, e.g. `(import "M" "f" (func $f0 (export "Mf.call") (result i32)))`. That abbreviation has no place in the import grammar, so **our own parser rejected our own output** — the whole "reparse FAILS" group. | 11 / 6 | closed |
 | **T10.3** | **A non-nullable table element type loses its initializer.** `wasm2wat` prints `(table $T0 1 (ref func))` and drops `Table.init`. The binary form `0x40 0x00 <reftype> <limits> <init>` is REQUIRED when the element type is non-nullable — there is no default value — so the re-encode emits the plain form and V8 rejects it. **Scoped during T7.11:** the binary reader already captures `init`; the blocker is the WAT WRITER. The table grammar wants ONE FOLDED instruction there (`parseOneInstr`), and the writer is linear-only by design — wrapping its linear output in parens reparses as a folded expression with a bogus operand. Needs a folded emitter for constant expressions. A `NOTE (T10.3)` marker sits at the drop site in `wat-writer.ts`. Now covers the 4 elem/array modules T7.11 made encodable. | 10 / 4 | INVALID |
 | **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
 | **T10.5** | **Inert Nop-operand artifacts.** The reader cannot attribute every value to an operand slot — a multi-value block result is one value on its stack, not N — so the consumer decodes with `Nop` operands and the re-encode carries extra `nop`s. Harmless at runtime (see the T9.1 note on why), but the encoding grows and never converges. | 39 / 33 | valid, larger |
 | **T10.6** | **Nop operands that are NOT inert.** The same substitution applied to an instruction that genuinely needs its operand on the stack: V8 says "not enough arguments on the stack for br_on_null (need 1, got 0)", "expected 1 elements on the stack for fallthru", "array.new_fixed[0] expected type f32, found local.get of type i32". Produces INVALID wasm. Highest severity of what remains. Files: array, br_on_cast, br_on_cast_fail, br_on_non_null, br_on_null, throw_ref, +1. | 9 / 7 | INVALID |
 | **T10.7** | Two hard failures. `align64.wast#25` throws `RangeError: LEB128 u32 overflow`. `try_table.wast#4` throws `binary writer: no (type (func (param [object Object]))) in the type section` — a `ValueType` object stringified into a type-lookup key, i.e. one site the T7.4 typed-ref refactor did not reach. | 2 / 2 | THROWS |
 
-Recommended order when the time comes: T10.6 and T10.3 first (both produce
-invalid wasm), then T10.2 (our output is unparseable by us), then T10.7,
-T10.4, T10.1, and T10.5 last.
+Recommended order when the time comes: **T10.5 next** — it is 82% of the WASI
+corpus's remaining differences and 48/79 of the testsuite's. Then T10.6 and
+T10.3 (both produce invalid wasm), then T10.7 and T10.4.
+
+**T10.1 + T10.2 — done 2026-08-24.** One fix in `wat-writer.ts`'s
+`buildExportMap`, because both were the same root: the inline `(export "n")`
+abbreviation was applied unconditionally. It is not always faithful, in two
+independent ways — it is illegal on an import, and it re-orders the export
+section. The writer now tests both up front and falls back to standalone
+`(export "n" (func $f))` fields, in the module's own order, when either fails.
+
+The order test is **exact, not conservative**: under full inlining the emitted
+sequence is a stable sort of `module.exports` by the position at which
+`writeModule` visits each item, and a stable sort is the identity exactly when
+those positions are non-decreasing. So a module whose exports already line up
+keeps the abbreviation — the fallback fires only where it had to.
+
+It is **all-or-nothing per module** on purpose: standalone exports are written
+after every item, so inlining only SOME of them pushes the rest to the end and
+re-orders the section again.
+
+Note the emission order is imports, then funcs, tables, memories, globals, tags
+— which is NOT the index space, so "every item exported exactly once" is not
+enough for the order to survive. `(export "g" (global …))` before
+`(export "f" (func …))` already fails it.
+
+| metric | before | after |
+| --- | --- | --- |
+| spec testsuite byte-identical | 1961 / 2120 | **2041 / 2120** |
+| differing modules | 159 | **79** |
+| V8-invalid after round-trip | 26 | **15** |
+| hard failures (`wasm2wat`/reparse) | 12 | **1** |
+| files affected | 70 | **50** |
+| **wasmtk WASI corpus byte-identical** | **1 / 270** | **50 / 270** |
+
+The WASI number is the one that matters against the standing goal, and it came
+in where the classification predicted (~49). The corpus's export group is gone
+entirely; what is left there is T10.5 nop padding on 220 modules and the six
+wasic-invalid ones.
+
+Upstream wabt defaults `inline_export` to FALSE (`wat-writer.h:33`) and wabt-ts
+defaulted it to TRUE. That divergence is what made both bugs reachable from
+`wasm2wat` with no flags. The default stays TRUE — with the feasibility test in
+front of it, it is now safe — so output stays readable where it can be.
+
+Regression test: `tests/writer/export_order.test.ts` (6 cases; 5 of them fail
+on the pre-fix writer, and the sixth is the guard that inlining still happens
+when it is faithful).
 
 ### Two encoder bugs the last validator item uncovered
 
@@ -218,6 +265,10 @@ scope — and only TWO of the seven groups appear at all.**
 | **T10.5** inert nop padding | 48 / 159 (30%) | 220 / 269 (82%) |
 | T10.2 / .3 / .4 / .6 / .7 | 42 / 159 | **0** |
 
+**Acted on 2026-08-24: T10.1 (and T10.2 with it) is closed, and the prediction
+held — the corpus went 1 → 50 / 270.** Everything still differing there is
+T10.5. See the T10 section above for the fix and the full before/after.
+
 No new causes; nothing needs re-scoping. The seven modules the classifier calls
 "INVALID after round-trip" are the same seven wasic already emits invalid —
 they go in invalid and come out invalid, not a round-trip regression.
@@ -232,7 +283,13 @@ ones).
 
 Both orderings are correct for their own yardstick. **Which one to use depends
 on the goal**, and the standing goal is WASI capability — so T10.1 first, then
-T10.5.
+T10.5. T10.1 is done; T10.5 is next.
+
+**This is the reusable part.** The severity ranking and the frequency ranking
+disagreed, and the frequency one was measured on the corpus the goal names. It
+also turned out to be the cheaper fix and to close a second item (T10.2) for
+free. Rank remaining work against the yardstick the GOAL names, not the one the
+campaign happened to start with.
 
 ### Cross-engine check of the 73 (2026-08-21)
 

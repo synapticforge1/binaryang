@@ -506,11 +506,74 @@ class WatWriter extends ModuleContext {
   // Inline export map
   // -------------------------------------------------------------------------
 
+  /**
+   * Decide whether the inline `(export "n")` abbreviation is usable for this
+   * module, and if so index the exports by the item they name.
+   *
+   * Inlining is not always faithful, and both ways it fails are round-trip
+   * bugs rather than cosmetic ones (T10.1 / T10.2):
+   *
+   * - **An inline export is legal only on a DEFINITION.** Emitting one inside
+   *   `(import "M" "f" (func $f0 (export "n") …))` produces WAT our own parser
+   *   rejects — the abbreviation has no place in the import grammar.
+   * - **Inlining re-orders the export section.** Each export moves to the item
+   *   it names, so re-parsing rebuilds the section grouped per item —
+   *   `a, b, ac` comes back as `a, ac, b`. Export order is observable through
+   *   `WebAssembly.Module.exports()`, so that is a changed module.
+   *
+   * The order test is exact rather than conservative: under full inlining the
+   * emitted sequence is a STABLE SORT of `module.exports` by the position at
+   * which `writeModule` visits each item, and a stable sort is the identity
+   * exactly when those positions are non-decreasing.
+   *
+   * When either test fails the map stays empty, so every export falls back to
+   * a standalone `(export "n" (func $f))` field written in the module's own
+   * order — always legal, always faithful. It is all-or-nothing on purpose:
+   * standalone exports are emitted after every item, so inlining *some* of
+   * them would push the rest to the end and re-order the section again.
+   */
   private buildExportMap(): void {
     if (!this.opts.inlineExport) return;
+
+    // Position at which writeModule visits each item, and which items are
+    // imports. Mirrors the emission order below: imports in declaration
+    // order, then funcs, tables, memories, globals, tags.
+    const emitPos = new Map<string, number>();
+    const imported = new Set<string>();
+    const counts: Partial<Record<ExternalKind, number>> = {};
+    let pos = 0;
+    const visit = (kind: ExternalKind, isImport: boolean): void => {
+      const idx = counts[kind] ?? 0;
+      counts[kind] = idx + 1;
+      const key = `${kind}:${idx}`;
+      emitPos.set(key, pos++);
+      if (isImport) imported.add(key);
+    };
+    for (const imp of this.module.imports) visit(imp.kind, true);
+    for (let i = 0; i < this.module.funcs.length; i++) visit(ExternalKind.Func, false);
+    for (let i = 0; i < this.module.tables.length; i++) visit(ExternalKind.Table, false);
+    for (let i = 0; i < this.module.memories.length; i++) {
+      visit(ExternalKind.Memory, false);
+    }
+    for (let i = 0; i < this.module.globals.length; i++) {
+      visit(ExternalKind.Global, false);
+    }
+    for (let i = 0; i < this.module.tags.length; i++) visit(ExternalKind.Tag, false);
+
+    const keys: string[] = [];
     for (const exp of this.module.exports) {
-      const idx = this.resolveVarIndex(exp.var, exp.kind);
-      const key = `${exp.kind}:${idx}`;
+      const key = `${exp.kind}:${this.resolveVarIndex(exp.var, exp.kind)}`;
+      // An export naming an item the writer never emits cannot be inlined
+      // onto anything; bail rather than silently drop it.
+      if (!emitPos.has(key) || imported.has(key)) return;
+      keys.push(key);
+    }
+    for (let i = 1; i < keys.length; i++) {
+      if (emitPos.get(keys[i - 1]!)! > emitPos.get(keys[i]!)!) return;
+    }
+
+    for (const [i, exp] of this.module.exports.entries()) {
+      const key = keys[i]!;
       const arr = this.exportMap.get(key);
       if (arr) arr.push(exp);
       else this.exportMap.set(key, [exp]);

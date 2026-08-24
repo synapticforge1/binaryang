@@ -271,3 +271,33 @@ side only reads it. Fixes belong to that project's own workflow.
 focused). Rules there that have not yet cost us anything here are deliberately **not** copied — an
 unearned rule is noise. When a pass here produces a lesson that would apply to a different
 subsystem, add it here **and** leave the detail in its home file.
+
+## Rank the remaining work against the yardstick the GOAL names
+
+T10's seven groups were ranked by severity on the spec testsuite: the ones
+producing invalid wasm first, "valid but wrong export order" last. Measured
+against the wasmtk WASI corpus — the corpus the standing goal actually names —
+the ranking inverted: five of the seven groups did not occur there **at all**,
+while the one ranked last occurred in **100%** of the differences.
+
+Acting on the goal's ranking (2026-08-24) closed T10.1 and, because they shared
+a root, T10.2 with it — the cheapest item on the list, and it took the corpus
+from 1/270 to 50/270 where severity-order would have spent the effort on groups
+worth 0 there.
+
+Two things generalise:
+
+- **A severity ranking and a frequency ranking are both correct, for different
+  corpora.** Neither is "the" priority. Pick the corpus the goal names, and say
+  which one you picked.
+- **Re-measure the ranking when the goal is written down**, not once at the
+  start. T10's order was set before the WASI target was recorded; nothing about
+  it was wrong at the time.
+
+## A "cosmetic" difference is not cosmetic if it is observable
+
+T10.1 was parked as "valid, wrong order" for the whole campaign. But export
+order is readable through `WebAssembly.Module.exports()`, so a round-trip that
+changes it produces a DIFFERENT module — the same class as T9.1, where the
+decoder reordered a program. The tell is not "does it still validate" but "can
+a consumer see the difference". Ask that before filing something as cosmetic.
