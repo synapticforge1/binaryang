@@ -74,6 +74,7 @@ reference these ids.
 | T10.8 | A synthesized operand slot-filler was written out as a real `nop` | done — WASI corpus **270 / 270** |
 | T9.11 | Ten of the twelve memarg handlers never checked the offset | done — 4 SIMD false-accepts closed |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
+| T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 
 ### Open — parse side: NONE
 
@@ -153,7 +154,7 @@ T7 work; re-measure before starting any of them.
 | ~~**T10.3**~~ | **CLOSED 2026-08-24.** The WAT writer dropped `Table.init`, so a non-nullable element type re-encoded to the plain form the spec forbids (there is no default value for it) and V8 rejected the result. New `writeFoldedConstExpr` emits the single folded instruction the table grammar requires, and the writer now THROWS rather than dropping anything it cannot express. | 10 / 4 | closed |
 | **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
 | ~~**T10.5**~~ | **MOSTLY CLOSED 2026-08-24.** Diagnosed wrong for the whole campaign: the dominant producer was not the binary reader but the PARSER — linear-form `call` drained the entire operand stack instead of popping the callee's arity, so a value belonging to a later instruction was swallowed and that instruction's slot got a Nop. Fixed by deferring function-body parsing until every signature is known. What remains is the genuine multi-value case, refiled as **T10.8**. | 39 / 33 | closed → T10.8 |
-| **T10.6** | **Nop operands that are NOT inert.** The same substitution applied to an instruction that genuinely needs its operand on the stack: V8 says "not enough arguments on the stack for br_on_null (need 1, got 0)", "expected 1 elements on the stack for fallthru", "array.new_fixed[0] expected type f32, found local.get of type i32". Produces INVALID wasm. Highest severity of what remains. Files: array, br_on_cast, br_on_cast_fail, br_on_non_null, br_on_null, throw_ref, +1. | 9 / 7 | INVALID |
+| ~~**T10.6**~~ | **CLOSED 2026-08-24, and it was two parser bugs rather than a Nop problem.** Linear `try_table` was a stub that skipped its catch clauses AND its body to the matching `end` and built a plain `BlockExpr` (3 modules); `array.new_fixed` drained the operand stack instead of taking its immediate element count (1 module). | 9 / 7 | closed |
 | ~~**T10.8**~~ | **CLOSED 2026-08-24.** A multi-result producer is ONE node on the decoder's operand stack, so a second consumer got a Nop stand-in that both writers then emitted as a real instruction. `NopExpr.placeholder` now marks a synthesized slot-filler and neither writer emits one — it means "the value is already on the stack", which wasm spells by writing nothing. | 45 files | closed |
 | **T10.7** | Two hard failures. `align64.wast#25` throws `RangeError: LEB128 u32 overflow`. `try_table.wast#4` throws `binary writer: no (type (func (param [object Object]))) in the type section` — a `ValueType` object stringified into a type-lookup key, i.e. one site the T7.4 typed-ref refactor did not reach. | 2 / 2 | THROWS |
 
@@ -162,8 +163,48 @@ T7 work; re-measure before starting any of them.
 exactly T10.3 (14 modules, `table`), T10.4 (13, NaN payloads), T10.6 (4,
 `INVALID code`) and T10.7 (1 throw).
 
-Recommended order for the rest: **T10.6 next** (it produces INVALID wasm), then
-T10.7 and T10.4.
+Recommended order for the rest: **T10.7** (1 module, a hard throw), then T10.4
+(8 modules, NaN payloads).
+
+**T10.6 - done 2026-08-24, and it was not a Nop problem at all.** The item was
+filed as "the same Nop substitution applied to an instruction that genuinely
+needs its operand". Reproducing it found two unrelated parser bugs:
+
+1. **Linear `try_table` was a stub** - 3 of the 4 modules (throw_ref.wast#0,
+   try_table.wast#1, try_table.wast#2). It skipped the catch clauses AND the
+   body to the matching `end` and built a plain `BlockExpr`. The reason the
+   body came out EMPTY rather than merely un-caught: catch clauses are
+   parenthesised IMMEDIATES that come before the body, and `parseInstrList`
+   stops at the first `(catch ...)` because a catch clause is not an
+   instruction. **Our own `wasm2wat` emits linear form**, so a round trip
+   silently gutted any module using `try_table` - V8 said "expected 1 elements
+   on the stack for fallthru, found 0", because the block's declared result had
+   nothing left to produce it. The linear branch now reads the clauses with the
+   same `parseTryTableCatch` the folded branch uses, so the two cannot drift.
+
+2. **`array.new_fixed` drained the operand stack** - array.wast#3. Same class
+   as T10.5's `call`, except the arity needs no module context whatsoever: it
+   is the SECOND IMMEDIATE (`array.new_fixed $T N elem1 ... elemN`). V8 named it
+   exactly: `array.new_fixed[0] expected type f32, found local.get of type
+   i32`.
+
+**A "linear form is a stub" comment is a round-trip bug waiting to happen in
+this codebase**, because the WAT writer is linear-only - anything the parser
+only supports folded is unreachable from our own `wasm2wat` output. Worth
+grepping for the next one.
+
+| metric | before | after |
+| --- | --- | --- |
+| spec testsuite byte-identical | 2102 / 2120 | **2111 / 2120** |
+| differing modules | 18 | **9** |
+| files affected | 10 | **6** |
+| V8-invalid after round-trip | 5 | **1** |
+| WASI corpus | 270 / 270 | 270 / 270 |
+| parse-clean, V8-valid, agreement, assert_invalid | - | all unmoved |
+
+Regression test: `tests/parser/linear_try_table.test.ts` (8 cases; 6 fail on
+the pre-fix parser, and 2 are guards - the folded form and a folded
+`array.new_fixed` must keep working).
 
 **T10.3 — done 2026-08-24.** The binary reader already captured `Table.init`;
 the WAT writer dropped it, with a `NOTE (T10.3)` at the drop site explaining

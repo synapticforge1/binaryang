@@ -364,3 +364,20 @@ op. **A lint warning caught what five metrics could not.**
 
 Before silencing an unused-variable warning, check whether the handler's
 SIBLINGS use that variable. If they do, the warning is a diff between them.
+
+## In this codebase, "the linear form is a stub" IS a round-trip bug
+
+`try_table`'s linear branch carried a comment saying so - "simplified: parse the
+protected body and skip the catch-clause immediates to the matching `end`" -
+and it had been fine for a long time, because hand-written and wasic-generated
+WAT both use the folded form.
+
+But **the WAT writer is linear-only by design**. So every `wasm2wat` output is
+in exactly the form the parser did not support, and a round trip silently
+replaced every `try_table` with an empty block. It surfaced only once the
+round-trip metric existed, as "V8 rejects this after a round trip".
+
+The general shape: when a producer and a consumer in the same toolchain
+deliberately favour different forms of the same grammar, a stub on one side is
+not a partial implementation - it is a hole exactly where the other side aims.
+Grep for the remaining ones rather than waiting for a metric to find them.

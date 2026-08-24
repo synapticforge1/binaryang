@@ -52,6 +52,9 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
+- `tests/parser/linear_try_table.test.ts` - T10.6: the LINEAR `try_table` form keeps its
+  catch clauses and its body (it was a stub that skipped both), and `array.new_fixed` takes
+  its immediate element count instead of draining the operand stack. 8 cases.
 - `tests/writer/table_init.test.ts` — T10.3: a table initializer is written as the single
   folded instruction the grammar requires, and an inexpressible one throws instead of being
   silently dropped. 6 cases including the nested `(ref.i31 (global.get $g))` form.

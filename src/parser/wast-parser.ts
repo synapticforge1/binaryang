@@ -1295,6 +1295,20 @@ export class WastParser {
           : this.funcParamCountsByName.get(v.name);
         return count ?? -1;
       }
+      case TokenType.ArrayNewFixed: {
+        // `array.new_fixed $T N elem1 … elemN` carries its arity as the
+        // second immediate, so no module context is needed. Draining instead
+        // handed it whatever else was on the stack — V8 rejected the result
+        // with `array.new_fixed[0] expected type f32, found local.get of type
+        // i32` (T10.6).
+        const savedPos = this.pos;
+        const savedErrors = this.errors.length;
+        this.parseVar();
+        const n = this.parseNatOrInt();
+        this.pos = savedPos;
+        this.errors.length = savedErrors;
+        return n === null || n < 0n || n > 0xffffffffn ? -1 : Number(n);
+      }
       default:
         return -1;
     }
@@ -3219,28 +3233,42 @@ export class WastParser {
       return Result.Ok;
     }
 
-    // TryTable, linear form — simplified: parse the protected body and
-    // skip the catch-clause immediates to the matching `end`. (Folded
-    // try_table at the top of this method has full catch support.)
+    // TryTable, linear form:
+    //   try_table $lbl (result T)? (catch $tag $target)* … body… end $lbl?
+    //
+    // The catch clauses are parenthesised IMMEDIATES and come before the
+    // body, exactly as in the folded form — so this reads them with the same
+    // `parseTryTableCatch`, and the two forms cannot drift apart.
+    //
+    // This used to skip the clauses AND the body to the matching `end`, and
+    // build a plain `BlockExpr`. `parseInstrList` stops at the first
+    // `(catch …)` because a catch clause is not an instruction, so the body
+    // came out EMPTY and every catch edge was lost. Since our own `wasm2wat`
+    // emits linear form, that made a round trip silently gut any module using
+    // `try_table`: V8 rejected the result with "expected 1 elements on the
+    // stack for fallthru, found 0" — the block's declared result had nothing
+    // left to produce it (T10.6).
     if (tt === TokenType.TryTable) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const catches: TableCatch[] = [];
+      while (this.peek() === TokenType.Lpar && isCatchKeyword(this.peek(1))) {
+        const c = this.parseTryTableCatch();
+        if (c !== null) catches.push(c);
+      }
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
-      // skip to matching end
-      let depth = 1;
-      while (this.peek() !== TokenType.Eof) {
-        const cur = this.peek();
-        if (isBlockInstr(cur)) depth++;
-        else if (cur === TokenType.End) {
-          depth--;
-          if (depth === 0) break;
-        }
-        this.drop();
-      }
-      this.expect(TokenType.End);
       flushStack(bodyCtx);
-      const node: BlockExpr = { kind: 'block', label, blockType, body: bodyCtx.stmts, loc };
+      this.expect(TokenType.End);
+      if (this.peek() === TokenType.Var) this.drop(); // optional trailing label
+      const node: TryTableExpr = {
+        kind: 'try_table',
+        label,
+        blockType,
+        body: bodyCtx.stmts,
+        catches,
+        loc,
+      };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
