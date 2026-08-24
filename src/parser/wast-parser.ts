@@ -797,6 +797,15 @@ function instrInputCount(tt: TokenType): number {
       return 3;
     case TokenType.Ternary:
       return 3;
+    case TokenType.Quaternary:
+      // `i64.add128` / `i64.sub128` (wide arithmetic) read op0..op3 in
+      // `buildPlainExpr`. Without an entry here the token fell to the
+      // `default: return 0`, so the LINEAR form popped nothing and all four
+      // operands became placeholders — the folded form was fine because it
+      // uses its inline children. The bytes came out right anyway (pushStmt
+      // flushes the operands in order and a placeholder emits nothing), but
+      // the IR TREE was wrong, which is what a bridge or `wasm2ts` reads.
+      return 4;
     case TokenType.BrTable:
       // `br_table` consumes exactly ONE stack operand: the i32 index (top of
       // stack). Any branch value carried to the target sits BELOW the index

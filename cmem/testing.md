@@ -138,6 +138,10 @@ When fixing a footgun/silently-wrong bug, add the regression alongside the invar
 [design-decisions.md](design-decisions.md). Fail-loud (throw) over silent-wrong output is the
 project contract.
 
+- `tests/parser/wide_arithmetic.test.ts` — `i64.add128` / `i64.sub128`: all four operands reach
+  the IR in BOTH forms (the linear one used to get placeholders), and `wasm2wat` can read back
+  what `wat2wasm` writes. 6 cases.
+
 ## CI gate
 
 `.github/workflows/ci.yml` runs `deno fmt --check`, `deno lint`, `deno task check`,

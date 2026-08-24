@@ -6,7 +6,6 @@
 import { isRefValueType } from '../ir/ir.ts';
 import type { Field, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
-import { heapTypeNameToType, Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { anyOpcodeName, PREFIX_THREADS } from '../core/opcode.ts';
 import type { ErrorList, Location } from '../core/error.ts';
@@ -753,28 +752,6 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onRefNull(e.loc, { kind: 'ref', heapType: e.refType, nullable: true });
   }
 
-  /** Resolve a `ref.null` heap-type var to the value type it pushes. */
-  private refNullType(v: Var): Type {
-    if (v.kind === 'name') {
-      const t = heapTypeNameToType(v.name);
-      if (t !== null) return t;
-      // Unresolved `$T` — resolveNames wasn't run. Fall back to the top of
-      // the GC hierarchy rather than silently claiming funcref.
-      return Type.AnyRef;
-    }
-    const te = this.module.types[v.value];
-    if (te === undefined) return Type.AnyRef;
-    switch (te.kind) {
-      case 'func':
-        return Type.FuncRef;
-      case 'struct':
-        return Type.StructRef;
-      case 'array':
-        return Type.ArrayRef;
-      default:
-        return Type.AnyRef;
-    }
-  }
   onRefIsNullExpr(e: RefIsNullExpr): Result {
     return this.sv.onRefIsNull(e.loc);
   }

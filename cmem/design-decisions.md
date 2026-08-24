@@ -401,3 +401,20 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   auditing the type, not a corpus.
 - **Every memarg handler checks `offset` against the memory's index type (T9.11)** — not just
   `onLoad` / `onStore`. Ten handlers declared the parameter and ignored it; four were false-accepts.
+- **`instrInputCount` must have an entry for every token `buildPlainExpr` reads operands for.** The
+  `default: return 0` is silent: the LINEAR form pops nothing and every operand becomes a
+  placeholder, while the FOLDED form still works off its inline children. `TokenType.Quaternary`
+  (`i64.add128` / `i64.sub128`) was the third instance after two SIMD ones. **The bytes can still be
+  correct** — `pushStmt` flushes the orphaned operands in order and a placeholder emits nothing — so
+  no metric catches it; what breaks is the IR TREE, which is what the bridge and `wasm2ts` read.
+- **What `wat2wasm` accepts, `wasm2wat` must be able to read back.** The lexer mapped
+  `i64.add128` / `i64.sub128` to `TokenType.Quaternary` while the binary reader had no case for
+  `0xfc 0x13` / `0x14`, so our own front end produced modules our own back end rejected with
+  `unknown misc opcode: 19`. When adding an instruction, walk BOTH directions of the pipeline.
+
+## Removed 2026-08-24
+
+- **`Validator.refNullType`** — uncalled dead code, and the coarsening helper T9.3 replaced. It
+  collapsed `ref.null $T` to the abstract supertype of its type entry, sat directly below the live
+  call site (which correctly passes a precise `ValueType`), and carried an inviting doc comment. The
+  same shape as binaryen-ts's UP-7; a future edit could have re-wired to it.

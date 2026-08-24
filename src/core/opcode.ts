@@ -283,6 +283,14 @@ export enum MiscOpcode {
   TableGrow = 15,
   TableSize = 16,
   TableFill = 17,
+  /**
+   * Wide arithmetic (`i64.add128` / `i64.sub128`) — four i64 operands (two
+   * 128-bit values as lo/hi pairs), two i64 results. The lexer already emitted
+   * these as `TokenType.Quaternary` with raw sub-opcodes 0x13 / 0x14; naming
+   * them here is what let the binary READER decode what the writer emits.
+   */
+  I64Add128 = 19,
+  I64Sub128 = 20,
 }
 
 // ---------------------------------------------------------------------------

@@ -72,6 +72,7 @@ import {
   type Module,
   type NopExpr,
   operandPlaceholder,
+  type QuaternaryExpr,
   type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
@@ -1985,6 +1986,28 @@ export class BinaryReader {
           size,
           loc,
         });
+        break;
+      }
+      case MiscOpcode.I64Add128:
+      case MiscOpcode.I64Sub128: {
+        // Four operands, in stack order. `wat2wasm` has always ACCEPTED and
+        // encoded these (the lexer maps them to TokenType.Quaternary), so
+        // without this case `wasm2wat` could not read back a module our own
+        // front end had just written — the producer/consumer mismatch that
+        // keeps costing us.
+        const d = stack.pop() ?? operandPlaceholder(loc);
+        const c = stack.pop() ?? operandPlaceholder(loc);
+        const b = stack.pop() ?? operandPlaceholder(loc);
+        const a = stack.pop() ?? operandPlaceholder(loc);
+        stack.push({
+          kind: 'quaternary',
+          opcode: ((PREFIX_MISC << 16) | op) as Opcode,
+          a,
+          b,
+          c,
+          d,
+          loc,
+        } as QuaternaryExpr);
         break;
       }
       default:

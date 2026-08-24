@@ -583,3 +583,35 @@ Two things to take from it:
 - **Before reporting a failure, reproduce it standalone.** Each of the three clusters here dissolved
   the moment it was rebuilt as a minimal module: `memory.size`/`grow` worked, `br_on_non_null`
   emitted `0xd6` and behaved correctly. The harness was wrong every time.
+
+## Correct bytes are not evidence of a correct IR
+
+The `Quaternary` arity gap left all four operands of a linear-form `i64.add128` as placeholders,
+with the real operands stranded as separate statements. **The encoding was byte-for-byte correct
+anyway**, because `pushStmt` flushes stranded operands in source order and a placeholder emits
+nothing. Round-trip identical, V8 happy, execution metric happy — six metrics, none of which could
+see it, because every one of them ends at the bytes.
+
+What was wrong was the shape of the tree, and the tree is what the binaryen bridge and (eventually)
+`wasm2ts` consume. A consumer that walks the IR rather than the bytes would have read a quaternary
+with no operands.
+
+So: **when a metric set bottoms out at one representation, bugs hide in the others.** Ours all end
+at bytes. Audit the IR against the type when you want to know whether the tree is right — that is a
+different question from whether the module is right, and this codebase has now been bitten by the
+difference twice in one day (the atomic `memidx`, and this).
+
+## Dead code that encodes a superseded design is worse than dead
+
+`Validator.refNullType` was uncalled, so it cost nothing at runtime. But it was the COARSENING
+helper the T9.3 ValueType refactor replaced — it collapsed `ref.null $T` to an abstract supertype —
+sitting immediately below the correct call site, with a helpful-looking doc comment and a plausible
+signature.
+
+That is a trap, not just clutter: the obvious next edit is to call it. And the bug it would
+reintroduce is one a sibling project independently shipped (binaryen-ts's UP-7, a typed ref
+collapsed to `anyref` on read).
+
+**Delete superseded implementations in the same change that supersedes them.** If that is not
+possible, the leftover needs a comment saying what replaced it — an uncalled private method with a
+clean doc comment reads as an oversight, not a hazard.

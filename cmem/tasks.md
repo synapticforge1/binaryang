@@ -727,6 +727,64 @@ The migration is their top `next-work.md` item; they deliberately did not bolt
 it onto a review, since handler bodies becoming branch targets is a real
 structural change.
 
+### Post-campaign audit — 2026-08-24 (the "look for code issues" trigger)
+
+Ran the audit the way `INDEX.md` now defines it: **enumerate the type, check the
+code against it.** Corpus coverage found none of this.
+
+**Clean** (recorded so the next pass does not redo them):
+
+- every `ExprVisitorDelegate` hook (99) vs. the walkers that must be total —
+  binary writer, WAT writer, validator: **99/99 each**;
+- every `Var`-bearing `Expr` field (65 kinds, 99 fields) vs. `resolveNames`
+  **and both writers** — clean (the `TryExpr` "gap" is a false positive: block-
+  like exprs use `begin`/`end` hooks, and `delegate` round-trips byte-identical);
+- `apply-names`' two gaps are deliberate and documented; the bridge's
+  `call_indirect` uses `ci.sig` directly; `generate-names` names declarations,
+  not references;
+- the binary reader routes every memarg through ONE `readMemArg()`, so no
+  per-site divergence is possible;
+- **dest/src immediate order** for `memory.copy`, `memory.init`, `table.copy`,
+  `table.init` and `array.copy` — all five correct behaviourally and
+  byte-identical on round trip. Checked because binaryen-ts flagged
+  `array.copy` as a case where "swapping them is invisible when both types
+  match"; ours is right.
+
+**Found — dead code that was actively misleading.** `Validator.refNullType`
+was uncalled: the COARSENING helper T9.3 replaced, sitting directly below the
+live call site with an inviting doc comment, collapsing a `ref.null $T` to its
+abstract supertype. That is the same shape as binaryen-ts's UP-7, and a future
+edit could plausibly have re-wired to it. Removed, with its now-orphaned
+`heapTypeNameToType` / `Type` import.
+
+**Found — `i64.add128` / `i64.sub128` (wide arithmetic), two defects.**
+
+1. `instrInputCount` had no `TokenType.Quaternary` entry, so it fell to
+   `default: return 0` while `buildPlainExpr` reads `op0()`…`op3()`. The LINEAR
+   form popped nothing and all four operands became placeholders. **The bytes
+   were correct anyway** — `pushStmt` flushes the orphaned operands in source
+   order and a placeholder emits nothing (T10.8) — which is precisely why no
+   metric saw it. The IR TREE was wrong, and that is what the bridge and
+   `wasm2ts` read. Third instance of the documented
+   `instrInputCount` ↔ `opN()` mismatch, after two SIMD ones.
+2. The binary reader could not decode `0xfc 0x13` / `0x14` at all
+   (`unknown misc opcode: 19`), so **`wasm2wat` could not read back a module
+   our own `wat2wasm` had just written.** A producer/consumer mismatch inside
+   one toolchain — best-practices §3. Added `MiscOpcode.I64Add128` /
+   `I64Sub128` and the decode.
+
+Both fixed; all six metrics unmoved. Regression:
+`tests/parser/wide_arithmetic.test.ts` (6 cases, 4 fail pre-fix).
+
+**Noted, not changed — a latent trap.** `getMiscOpcodeTypeInfo`'s
+`default:` returns `(v128,v128,v128) → v128`. Misc opcodes are never SIMD, and
+the comment 30 lines above it in the same file documents the T9.2 incident
+where misc opcodes reaching a v128 default made wrong-typed operands validate
+clean. Unreachable today (only the sat-truncs route there, via `ConvertExpr`),
+so changing it risks moving validator metrics for no measured gain — but it is
+the same trap one level down, and worth converting to a hard fail if that
+function ever gains a caller.
+
 ### A FIFTH metric — execution. 23,077 / 23,077 (2026-08-24)
 
 Every metric the campaign had checks **bytes or acceptance**: parse-clean,
