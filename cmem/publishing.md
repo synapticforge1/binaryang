@@ -4,7 +4,20 @@ Published as **`@jrmarcum/wabt-ts`** on JSR. GitHub remote: `github.com/jrmarcum
 `deno.json` reads **v1.3.5**; the import map pins binaryen-ts at `^1.0.9` while the checkout is
 v1.3.5+ (the caret accepts it — a stale pin, not a break).
 
-## ⚠️ UNRELEASED BREAKING CHANGES — a bump is pending (2026-08-24)
+## ⚠️ A BUMP IS BLOCKING A DOWNSTREAM TEAM (2026-08-24)
+
+**wasmtk's exception-handling migration is written and cannot land until wabt-ts
+ships.** `try_table` catch clauses with NAMED tags or labels do not encode at
+v1.3.5 — `resolveNames` did not resolve them, so the writer's fail-loud
+`writeVar` fires. Fixed by **`d30b8599` (2026-08-21)**, unreleased. At the
+pinned version wabt-ts can emit only the EH form Wasmtime and Wasmer refuse.
+
+Their words: *"we pin it the moment it ships — the migration is written and
+blocked solely on this."*
+
+**An unreleased fix is indistinguishable from an absent one downstream.**
+
+## ⚠️ UNRELEASED BREAKING CHANGES — in the same bump
 
 Two changes to an exported type are committed and **not yet published**, so
 `deno.json`'s version no longer describes what is on `main`:

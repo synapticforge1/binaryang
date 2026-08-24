@@ -1232,6 +1232,47 @@ refuses **any module carrying a tag section**, legacy or standard, so moving to
 not expose; a wazero-hosted wasic program needs either the embedding API or no
 EH at all.
 
+### wasmtk's reply, 2026-08-24 — one ask confirmed with a blocker ON US, one RETRACTED
+
+Both asks were checked against current wasic rather than accepted. Both results
+re-verified here.
+
+**Ask 1 confirmed, and the blocker turned out to be ours.** The report said
+"wabt-ts supports `try_table` end to end; nothing needed on our side". That is
+true of `main` and **false of v1.3.5**, which is what their `deno.lock` pins.
+Re-derived against the v1.3.5 tag in a clean worktree: `(catch $tag $lbl)`,
+`(catch_ref …)`, `(catch_all $lbl)`, `(catch_all_ref …)` and multi-catch all
+**throw** `unresolved name-var`; only bare `try_table`, numeric `(catch 0 0)`
+and legacy `try` encode. **At the pinned version wabt-ts can emit only the form
+Wasmtime refuses.**
+
+Bisected: fixed by **`d30b8599`, "Fix packed-type wire bytes, br_table and
+try_table name resolution", 2026-08-21** — its parent `7f84d430`, 17 minutes
+earlier, throws on every named catch form. `resolveNames` was not resolving a
+`try_table` catch clause's tag or target, so the writer's fail-loud `writeVar`
+fired. Verified end to end on `main`: catch / catch_all / multi-catch modules
+are accepted by **Wasmtime, V8 and Wasmer, 3/3, zero disagreements**.
+
+**It is unreleased**, so *their EH migration is blocked solely on a wabt-ts
+version bump*. That is the concrete cost of leaving `deno.json` at 1.3.5 while
+`main` moved: a downstream team with the work written and unable to land it.
+
+**Ask 2 RETRACTED — the frozen snapshot again, and this one was ours.** The
+"five modules declare `$__exn_tag` and never use it" finding came from grepping
+`tests/wasmtk/*.wat`. Current wasic emits a real `throw` in every one
+(`tag_occurrences=2 throws=1`). So `needsExceptionTag` is not firing spuriously,
+neither candidate cause applies, and **wazero stays at 251, not 256** — the
+modules legitimately need a tag and wazero's CLI rejects any tag section, which
+was our own finding applied to a wrong premise.
+
+Corrected expectation after the migration: Wasmtime/Wasmer **265**, V8/Bun
+**265**, wazero **251**.
+
+**They confirmed the one thing we got right by checking instead of assuming:**
+we nearly proposed dropping `(export "__exn_tag")` and found `utils.ts` reads it
+for the uncaught-error path. Their words: "they talked themselves out of
+suggesting we drop it, which saved a real regression."
+
 ### Does the try_table migration reach parity? Yes — and wazero needs a second, cheaper fix
 
 Asked directly, so measured directly rather than inferred from the arithmetic.

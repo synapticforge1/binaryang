@@ -69,6 +69,7 @@ code
 
 - Read the sibling project before designing the same feature twice
 - "Nothing records that" is a claim about the checkout you searched
+- Name the ref you measured, and check it is the ref the reader will run
 - A half-built feature is worse than a missing one, and no corpus will tell you
 - Stamp a vendored snapshot with source + date, in the change that creates it
 - Verify an incoming report's premises, not just its conclusion
@@ -988,4 +989,33 @@ so a mis-typed filter fails instead of passing vacuously. This is the same rule
 as "a metric measures the population its classifier hands it", applied to
 one-off audits rather than standing metrics — and one-offs are MORE exposed,
 because nobody re-derives them later.
+
+## Name the ref you measured, and check it is the ref the reader will run
+
+One report to wasmtk contained BOTH directions of the same mistake, which is
+what makes it worth a rule rather than an apology:
+
+- **Ask 2** stated a present-tense fact about wasic from `tests/wasmtk/`, a
+  FROZEN snapshot. Current wasic emits a real `throw` in all five modules; the
+  whole finding evaporated. Third time this week the snapshot produced a wrong
+  upstream claim, after the `KNOWN_INVALID` seven and the 6-vs-10 EH scope — and
+  the rule against it was already written, and had been cited earlier in the
+  same session.
+- **Ask 1** stated a present-tense fact about a RELEASED wabt-ts version from
+  `main`. "`try_table` works end to end; nothing needed on our side" was true of
+  HEAD and false of v1.3.5, which is what they pin. At the pinned version we
+  could emit only the form Wasmtime refuses.
+
+Both are "I tested one tree and reported about another." The existing rule
+covered the snapshot direction only. It reads in both now:
+
+**Before any cross-project claim, write down the ref you measured and the ref
+the reader will run. If they differ, either measure theirs or say which is
+which.** `git log -1` on their checkout; `git worktree add <tmp> <tag>` on ours.
+A worktree at the pinned tag is thirty seconds and would have caught this.
+
+**The corollary that cost the most:** the fix they needed had existed since
+2026-08-21 and was sitting unreleased on `main`. **An unreleased fix is
+indistinguishable from an absent one to everyone downstream** — if a report says
+"nothing needed on our side", check that the nothing is actually shipped.
 
