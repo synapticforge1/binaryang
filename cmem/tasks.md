@@ -1161,6 +1161,46 @@ refuses **any module carrying a tag section**, legacy or standard, so moving to
 not expose; a wazero-hosted wasic program needs either the embedding API or no
 EH at all.
 
+### Does the try_table migration reach parity? Yes — and wazero needs a second, cheaper fix
+
+Asked directly, so measured directly rather than inferred from the arithmetic.
+Four minimal modules, every runtime here:
+
+| shape | V8 | Bun | Wasmtime | Wasmer | wazero |
+| --- | --- | --- | --- | --- | --- |
+| legacy `try`/`catch` — what wasic emits today | accept | accept | **REJECT** | **REJECT** | REJECT |
+| `try_table` — the migration target | accept | accept | **accept** | **accept** | REJECT |
+| a tag declared and never used | accept | accept | accept | accept | **REJECT** |
+| no tag section at all | accept | accept | accept | accept | **accept** |
+
+**Row 2 is the answer: migrating to `try_table` puts Wasmtime and Wasmer at
+parity with V8 and Bun, and costs nothing on V8/Bun** — they accept both forms.
+On this frozen snapshot that is 259 → 265 / 272, exactly V8's and Bun's number,
+with the residual 7 being the stale `KNOWN_INVALID` files that current wasic has
+already fixed. (Their scope is **10 modules, not 6** — the snapshot is missing
+four — so the denominator differs on their side; the conclusion does not.)
+
+**Rows 3 and 4 are the finding worth having.** wazero's extra 8 fail for the
+SAME reason as the 6 — `tag section not supported as feature
+"exception-handling" is disabled` — because its CLI refuses any module carrying
+a tag section at all. But **five of those eight declare `$__exn_tag` and never
+use it**: `15_panic`, `46_BasicEscapeSeqs`, `46_HexUnicodeEscapes`,
+`46_Phase46Combined`, `46_TemplateEscapes` each contain the string `$__exn_tag`
+exactly ONCE, the declaration itself — no `throw`, no `try`, no `try_table`.
+wasic emits the tag unconditionally.
+
+So wazero's 21 decompose as: 7 stale-snapshot + 3 that genuinely throw
+(`13_SecureMatrixManagerIntegration`, `15_Trap-On-Error`,
+`6b_testing-and-benchmarking`) + 6 legacy-EH + **5 that pay for a tag they never
+use**. Emitting the tag section only when something references it recovers those
+five at zero cost — row 3 vs row 4 is exactly that experiment. The tag is
+`(export "__exn_tag")`, so a HOST could in principle catch it; for a standalone
+WASI `_start` program that is dead weight.
+
+**What no fix reaches:** the 3 that really throw. wazero's Go embedding API has
+feature toggles its CLI does not expose, so a wazero-hosted wasic program that
+uses exceptions needs the embedding API regardless of which EH encoding it uses.
+
 ### A latent coupling to a WAT spelling we do not produce
 
 wasmtk's Go-leaf 2-page floor is a regex,
