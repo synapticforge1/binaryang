@@ -33,23 +33,33 @@ Measured against the official [WebAssembly spec testsuite](https://github.com/We
 |                                                      |                     |
 | ---------------------------------------------------- | ------------------- |
 | Files the WAT parser accepts                         | **257 / 257**       |
-| Modules that encode to wasm V8 accepts               | 2118 / 2120         |
-| Modules V8 accepts that `wasmValidate` also accepts  | **2118 / 2118**     |
-| `binary → wasm2wat → wat2wasm` byte-identical        | **2118 / 2118**     |
+| Modules that encode to wasm V8 accepts               | 2119 / 2120         |
+| Modules V8 accepts that `wasmValidate` also accepts  | **2119 / 2119**     |
+| `binary → wasm2wat → wat2wasm` byte-identical        | **2119 / 2119**     |
 | Spec `assert_return` assertions the output satisfies | **23,077 / 23,077** |
 | Modules the spec calls invalid that we reject        | **2683 / 2683**     |
 | Binary the spec calls malformed that we reject       | **711 / 711**       |
 | Text the spec calls malformed that we reject         | **1229 / 1229**     |
 
-The two modules V8 does not accept are a 2^48-page `memory i64` and a 2^64-1-element `table i64`,
-both of which exceed V8's own implementation limits at any faithful encoding. **Wasmtime**, the
-reference runtime, accepts what we emit for them.
+The one module V8 does not accept is a 2^48-page `memory i64`, which exceeds V8's own
+implementation limit at any faithful encoding. **Wasmtime**, the reference runtime, accepts what we
+emit for it.
 
 Cross-engine questions are settled against **V8, Wasmtime and Wasmer**, with Wasmtime as the
 authority (`deno task engine-check <dir-of-wasm>`).
 
 Round-trip fidelity is also **270 / 270** byte-identical over a 272-module corpus of real
 WASI-targeting output from the [wasmtk](https://github.com/jrmarcum/wasmtk) compiler.
+
+## Breaking change since v1.3.5
+
+`Limits.initial` and `Limits.max` are **`bigint`**, not `number`.
+
+The fields are u64 for a 64-bit memory or table, and a JS number is exact only to 2^53 — so
+`(table i64 0 0xffff_ffff_ffff_ffff funcref)`, which the spec calls valid, was silently rounded and
+could not be encoded. A consumer that reads them as numbers gets a compile error at the site that
+has to handle the wider range; convert with `Number(...)` at your own boundary if you know the
+value fits.
 
 ## Runtime compatibility
 

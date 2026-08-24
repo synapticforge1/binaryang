@@ -1365,8 +1365,18 @@ export interface Field {
 
 /** Memory / table size limits. */
 export interface Limits {
-  initial: number;
-  max?: number;
+  /**
+   * Initial size, in pages (memory) or elements (table).
+   *
+   * A `bigint` because the field is u64 for a 64-bit memory or table and the
+   * spec's bound is 2^48 pages / 2^64-1 elements — a JS number is exact only
+   * to 2^53, so `(table i64 0 0xffff_ffff_ffff_ffff funcref)`, which the spec
+   * calls VALID, could not be represented at all. It was rounded to 2^64 on
+   * the way in and the encoder had to refuse it (T13.2).
+   */
+  initial: bigint;
+  /** Maximum size, in the same unit as {@link initial}. `bigint` for the same reason. */
+  max?: bigint;
   isShared: boolean;
   is64: boolean;
   pageSize?: number; // custom-page-sizes proposal (default 65536)

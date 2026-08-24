@@ -397,7 +397,10 @@ export function printF64Literal(bits: bigint): string {
  * it and the export is silently renamed — that dropped V8-valid 257 -> 256 the
  * moment this decoder was introduced without the flag.
  */
-export const STRICT_NAME_DECODER = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+export const STRICT_NAME_DECODER: TextDecoder = new TextDecoder('utf-8', {
+  ignoreBOM: true,
+  fatal: true,
+});
 
 /** Shared UTF-8 encoder; WAT source is UTF-8, so raw characters encode as such. */
 const TEXT_ENCODER = new TextEncoder();

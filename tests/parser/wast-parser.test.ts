@@ -117,7 +117,7 @@ describe('parseWatModule — imports', () => {
     if (imp.kind === ExternalKind.Memory) {
       assertEquals(imp.module, 'env');
       assertEquals(imp.field, 'mem');
-      assertEquals(imp.memory.limits.initial, 1);
+      assertEquals(imp.memory.limits.initial, 1n);
     }
   });
 
@@ -150,7 +150,7 @@ describe('parseWatModule — imports', () => {
     assertExists(imp);
     assertEquals(imp.kind, ExternalKind.Table);
     if (imp.kind === ExternalKind.Table) {
-      assertEquals(imp.table.limits.initial, 10);
+      assertEquals(imp.table.limits.initial, 10n);
       assertEquals(imp.table.elemType, Type.FuncRef);
     }
   });
@@ -248,7 +248,7 @@ describe('parseWatModule — memories', () => {
     assertEquals(m.memories.length, 1);
     const mem = m.memories[0] as Memory;
     assertExists(mem);
-    assertEquals(mem.limits.initial, 1);
+    assertEquals(mem.limits.initial, 1n);
   });
 
   it('parses a memory with initial and max pages', () => {
@@ -256,8 +256,8 @@ describe('parseWatModule — memories', () => {
     assertEquals(m.memories.length, 1);
     const mem = m.memories[0] as Memory;
     assertExists(mem);
-    assertEquals(mem.limits.initial, 1);
-    assertEquals(mem.limits.max, 4);
+    assertEquals(mem.limits.initial, 1n);
+    assertEquals(mem.limits.max, 4n);
   });
 
   it('parses a memory with inline data segment', () => {
@@ -278,7 +278,7 @@ describe('parseWatModule — tables', () => {
     assertEquals(m.tables.length, 1);
     const t = m.tables[0] as Table;
     assertExists(t);
-    assertEquals(t.limits.initial, 10);
+    assertEquals(t.limits.initial, 10n);
     assertEquals(t.elemType, Type.FuncRef);
   });
 
@@ -287,8 +287,8 @@ describe('parseWatModule — tables', () => {
     assertEquals(m.tables.length, 1);
     const t = m.tables[0] as Table;
     assertExists(t);
-    assertEquals(t.limits.initial, 1);
-    assertEquals(t.limits.max, 100);
+    assertEquals(t.limits.initial, 1n);
+    assertEquals(t.limits.max, 100n);
   });
 });
 

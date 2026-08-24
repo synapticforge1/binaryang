@@ -84,6 +84,7 @@ reference these ids.
 | T12.9 | Duplicate ids, `nan:0x0`, lane immediates, token boundaries, a second `(start …)`, forward type uses | done — quoted 1183 → **1227 / 1229** at the parser, **1229 / 1229** through `wat2wasm` |
 | T13.1 | The parser now reports an out-of-scope branch target | done — quoted **1229 / 1229** at the parser too |
 | T13.2 | The last 19 `assert_invalid` modules — 16 were the ENCODER repairing them | done — **2683 / 2683**; the metric is CLOSED |
+| T13.3 | `Limits.initial` / `max` are `bigint` — a 64-bit limit could not be REPRESENTED | done — V8-valid 2118 → **2119**, agreement and round-trip likewise; **breaking API change** |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -1009,6 +1010,58 @@ size on their own implementation limits — so it is recorded, not done.
 Regressions: `tests/parser/label_scope.test.ts` (20 steps; 2 of 3 groups fail
 pre-fix) and `tests/writer/no_repair.test.ts` (23 steps; all 4 groups fail
 pre-fix).
+
+**T13.3 — `Limits.initial` / `max` hold `bigint` (2026-08-24).** T13.2 left one
+representational limit: the fields were `number`, exact only to 2^53, and they
+are u64 for a 64-bit memory or table. `0xffff_ffff_ffff_ffff` was ROUNDED to
+2^64 on the way in, so once the encoder stopped wrapping silently it had to
+REFUSE a module the spec calls valid — `table64.wast` writes exactly that shape
+twice.
+
+The change is ~20 sites in `src/` plus five test files, and it is **breaking on
+an exported type**, deliberately: a consumer reading `limits.initial` as a
+number now gets a compile error at the one site that has to handle the wider
+range. The precedent is T7.4's `ValueType` and T12.6's `WastAction.args`.
+
+Three things fell out of it:
+
+- **A dead twin disappeared.** `checkLimits` (the `number` version) had no
+  callers left once `onMemory` and `onTable` moved onto the 64-bit bounds. With
+  `Limits` on `bigint` there is nothing for it to do at all — one rule, one
+  copy.
+- **`!limits.max` was also true for a max of ZERO**, so `(memory 0 0 shared)`
+  was reported as having no maximum. Same falsy-zero shape the campaign has hit
+  before; it is now `=== undefined`.
+- **The bridge converts at its own boundary and REFUSES rather than rounds.**
+  binaryen-ts's builder API is `number`, so `limitToNumber` throws above
+  2^53 — a bridge that quietly halves a table is the bug this change removes,
+  not a new place to reintroduce it.
+
+**Verified with the engine panel, and it is unanimous where it matters:**
+Wasmtime accepts `(table i64 0 0xffff_ffff_ffff_ffff funcref)`,
+`(table i64 0xffff_ffff_ffff_ffff funcref)`, `(table i64 0 0x1_0000_0000
+funcref)` and `(memory i64 0x1_0000_0000_0000)`, and rejects
+`(memory i64 0x1_0000_0000_0001)` with "memory size must be at most" — the spec
+ruling exactly. Wasmer still rejects every 64-bit limit with *"invalid var_u32:
+integer representation too long"*, which is the u32-limits bug seen from
+outside.
+
+V8-valid 2118 → **2119 / 2120**, agreement 2118 → **2119 / 2119**, round-trip
+2118 → **2119 / 2119**. The one module left is the 2^48-page `memory i64`,
+which Wasmtime accepts and V8 rejects on its own implementation limit.
+
+**And it caught a break I had already shipped.** `deno publish --dry-run` is in
+CI but NOT in `deno task test`, and T12.7's move of `STRICT_NAME_DECODER` into
+`src/core/literal.ts` made it public API without an explicit type — a
+`missing-explicit-type` slow-types error that three full metric runs and 339
+passing tests never saw. **Run the dry-run when the change touches an exported
+symbol**, not just when publishing.
+
+**Still not supported: custom page sizes.** `pagesize` has a lexer keyword and
+`Limits.pageSize` exists in the IR, reader and writer, but the PARSER has no
+syntax for it — `(memory 1 (pagesize 1))` fails with "expected ), got (". No
+metric covers it because the proposal is not in this testsuite snapshot. Found
+while writing the T13.3 test; recorded, not fixed.
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

@@ -63,10 +63,10 @@ maintain); `tasks.md` records what each measured and when.
 | metric                    | value               | blind to                                                                                    |
 | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------- |
 | parse-clean               | 257 / 257           | a file that parses and then encodes to bytes V8 rejects                                     |
-| V8-valid                  | **2118 / 2120**     | a decoder that REORDERS a module (T9.1 changed what a program computed) — and, until T13.2, an ENCODER that truncates one: two of these passed only because their limits were wrapped into range first |
-| validator agreement       | 2120 / 2120         | counts only false REJECTIONS — says nothing about what a permissive validator waves through |
+| V8-valid                  | **2119 / 2120**     | a decoder that REORDERS a module (T9.1 changed what a program computed) — and, until T13.2, an ENCODER that truncates one: two of these passed only because their limits were wrapped into range first |
+| validator agreement       | **2119 / 2119**     | counts only false REJECTIONS — says nothing about what a permissive validator waves through |
 | `assert_invalid`          | **2683 / 2683**     | the converse. The denominator read 2737 until `assert_trap (module …)` stopped being classified as `assert_invalid` — **a metric measures the population its classifier hands it**. And for a whole campaign the last 19 read as "modules the engines accept" when 16 were the ENCODER repairing them first (T13.2) — **this metric cannot see the difference between a permissive validator and a rewritten module** |
-| round-trip byte-identical | 2120 / 2120         | a consistently-wrong opcode mapping — reader and writer agree, so the bytes match           |
+| round-trip byte-identical | **2119 / 2119**     | a consistently-wrong opcode mapping — reader and writer agree, so the bytes match           |
 | **execution**             | **23,077 / 23,077** | anything needing host imports, v128, NaN payloads, `ref.func` args (29,544 skipped)         |
 | **`assert_malformed`**    | **1229 / 1229** quoted · **711 / 711** binary | the ACCEPTING direction, which the other six cover. It read 1227 at `parseWatModule` and 1229 through `wat2wasm` until T13.1 moved the label check into the parser — **where you put the probe changes the number** |
 
@@ -147,6 +147,8 @@ project contract.
 - `tests/parser/label_scope.test.ts` — T13.1: out-of-scope branch targets, every legal
   spelling, and the two scopes that are NOT the enclosing block (a `try_table` catch target
   and a legacy `try` delegate).
+- `tests/ir/limits_bigint.test.ts` — T13.3: a 64-bit limit surviving at full width through
+  parse, encode, decode and print; the bounds that still apply; and a maximum of zero.
 - `tests/writer/no_repair.test.ts` — T13.2: limits that must not be truncated, the table
   bound following its index type, an out-of-range type index staying out of range, and an
   implicit type-use not borrowing from a multi-member rec group.

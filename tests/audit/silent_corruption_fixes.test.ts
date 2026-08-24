@@ -346,7 +346,7 @@ describe('#10 table init round-trip', () => {
       name: '',
       loc: LOC,
       elemType: Type.FuncRef,
-      limits: { initial: 1, max: 1, isShared: false, is64: false },
+      limits: { initial: 1n, max: 1n, isShared: false, is64: false },
       init: [{ kind: 'ref.func', func: varIndex(0), loc: LOC }],
     };
     module.tables.push(table);

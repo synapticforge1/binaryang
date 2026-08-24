@@ -556,8 +556,21 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   the rec group, so a `(func)` inside a multi-member `(rec …)` is a different type and must not be
   reused for an inline signature. A singleton `(rec (type …))` stays reusable — it encodes
   differently from a bare `(type …)` but denotes the same type.
-- **KNOWN LIMIT: `Limits.initial` / `max` are JS numbers, exact to 2^53.** A 64-bit limit above
-  that (e.g. `(table i64 0 0xffff_ffff_ffff_ffff funcref)`, which the spec calls valid) cannot be
-  encoded; the writer REFUSES with a message naming the cause rather than wrapping it to 0.
-  Lifting this means `Limits` holding `bigint` — ~25 sites and a breaking change to an exported
-  type. It moves no metric: V8 and Wasmtime both reject a table that size anyway.
+- **`Limits.initial` / `max` are `bigint` (T13.3).** They were `number`, exact only to 2^53, and
+  the field is u64 for a 64-bit memory or table — so `0xffff_ffff_ffff_ffff` was ROUNDED to 2^64 on
+  the way in and a module the spec calls valid could not be encoded at all. A BREAKING change to an
+  exported type, on purpose: a consumer reading it as a number gets a compile error at the site
+  that has to handle the wider range. The bridge converts at its own boundary (binaryen-ts takes
+  `number`) and REFUSES above 2^53 rather than rounding. `checkLimits`'s `number` twin is gone with
+  it — one rule, one copy.
+- **A maximum of ZERO is a maximum (T13.3).** `if (limits.isShared && !limits.max)` also fired on
+  `0`, so `(memory 0 0 shared)` was reported as having no maximum at all. Test an optional numeric
+  field with `=== undefined`.
+- **`deno publish --dry-run` is in CI but NOT in `deno task test`.** T12.7's move of
+  `STRICT_NAME_DECODER` into `src/core/literal.ts` made it public API without an explicit type,
+  which is a slow-types error; 339 passing tests and three full metric runs never saw it. Run the
+  dry-run whenever a change adds or moves an EXPORTED symbol.
+- **NOT SUPPORTED: custom page sizes.** `pagesize` has a lexer keyword and `Limits.pageSize` exists
+  in the IR, reader and writer, but the parser has no syntax for it — `(memory 1 (pagesize 1))`
+  fails with "expected ), got (". No metric covers it; the proposal is not in this testsuite
+  snapshot.

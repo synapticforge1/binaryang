@@ -36,12 +36,12 @@ describe('parseNatText underscores', () => {
   it('parses a limit with multiple underscores (1_000_001)', () => {
     const { module, errors } = parseWatModule('(module (memory 1_000_001))');
     assertEquals(errors.length, 0);
-    assertEquals(module.memories[0]?.limits.initial, 1_000_001);
+    assertEquals(module.memories[0]?.limits.initial, 1_000_001n);
   });
   it('parses a grouped hex literal (0xFF_FF)', () => {
     const { module, errors } = parseWatModule('(module (memory 0xFF_FF))');
     assertEquals(errors.length, 0);
-    assertEquals(module.memories[0]?.limits.initial, 0xffff);
+    assertEquals(module.memories[0]?.limits.initial, 0xffffn);
   });
 });
 
@@ -109,7 +109,7 @@ describe('binary-writer segment encoding', () => {
       name: '',
       loc: LOC,
       elemType: Type.FuncRef,
-      limits: { initial: 1, isShared: false, is64: false },
+      limits: { initial: 1n, isShared: false, is64: false },
       init: [],
     });
     const seg: ElemSegment = {
@@ -130,7 +130,7 @@ describe('binary-writer segment encoding', () => {
     module.memories.push({
       name: '',
       loc: LOC,
-      limits: { initial: 1, isShared: false, is64: false },
+      limits: { initial: 1n, isShared: false, is64: false },
     });
     const seg = {
       name: '',
@@ -150,7 +150,7 @@ describe('binary-writer segment encoding', () => {
       name: '',
       loc: LOC,
       elemType: Type.ExternRef,
-      limits: { initial: 1, isShared: false, is64: false },
+      limits: { initial: 1n, isShared: false, is64: false },
       init: [],
     });
     const seg: ElemSegment = {

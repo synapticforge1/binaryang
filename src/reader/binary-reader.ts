@@ -579,18 +579,7 @@ export class BinaryReader {
     const hasCustomPageSize = (flags & 0x08) !== 0;
     // Matching the writer: 64-bit limits are u64 on the wire. Reading them as
     // u32 threw "LEB128 u32 overflow" on any 64-bit memory above 2^32.
-    const readSize = (): number => {
-      if (!is64) return this.readU32Leb();
-      const v = this.readU64Leb();
-      if (v > BigInt(Number.MAX_SAFE_INTEGER)) {
-        // Beyond 2^53 a JS number is no longer exact, and the page bound the
-        // validator applies is 2^48 -- so this can only ever be an invalid
-        // size, and saying so beats silently rounding it.
-        this.err(`memory size out of range: ${v}`);
-        return Number.MAX_SAFE_INTEGER;
-      }
-      return Number(v);
-    };
+    const readSize = (): bigint => (is64 ? this.readU64Leb() : BigInt(this.readU32Leb()));
     const initial = readSize();
     const max = hasMax ? readSize() : undefined;
     const limits: Limits = { initial, isShared, is64 };

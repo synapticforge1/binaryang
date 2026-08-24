@@ -61,7 +61,7 @@ function makeGlobal(type: Type, mutable: boolean, initValue: number): Global {
   };
 }
 
-function makeMemory(initial: number, max?: number): Memory {
+function makeMemory(initial: bigint, max?: bigint): Memory {
   return {
     name: '',
     loc: LOC,
@@ -71,7 +71,7 @@ function makeMemory(initial: number, max?: number): Memory {
   };
 }
 
-function makeTable(initial: number): Table {
+function makeTable(initial: bigint): Table {
   return {
     name: '',
     loc: LOC,
@@ -148,7 +148,7 @@ describe('writeWatModule — imports', () => {
       kind: ExternalKind.Memory,
       module: 'env',
       field: 'mem',
-      memory: makeMemory(1, 10),
+      memory: makeMemory(1n, 10n),
     });
     m.numMemoryImports = 1;
     const wat = writeWatModule(m);
@@ -365,7 +365,7 @@ describe('writeWatModule — globals', () => {
 describe('writeWatModule — tables', () => {
   it('writes a table', () => {
     const m = makeModule();
-    m.tables.push(makeTable(10));
+    m.tables.push(makeTable(10n));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(table');
     assertStringIncludes(wat, '10');
@@ -380,7 +380,7 @@ describe('writeWatModule — tables', () => {
 describe('writeWatModule — memories', () => {
   it('writes a memory with initial pages only', () => {
     const m = makeModule();
-    m.memories.push(makeMemory(1));
+    m.memories.push(makeMemory(1n));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(memory');
     assertStringIncludes(wat, '1');
@@ -388,7 +388,7 @@ describe('writeWatModule — memories', () => {
 
   it('writes a memory with max pages', () => {
     const m = makeModule();
-    m.memories.push(makeMemory(1, 256));
+    m.memories.push(makeMemory(1n, 256n));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '256');
   });
@@ -453,7 +453,7 @@ describe('writeWatModule — start', () => {
 describe('writeWatModule — data segments', () => {
   it('writes an active data segment', () => {
     const m = makeModule();
-    m.memories.push(makeMemory(1));
+    m.memories.push(makeMemory(1n));
     const seg: DataSegment = {
       name: '',
       loc: LOC,
@@ -493,7 +493,7 @@ describe('writeWatModule — element segments', () => {
   it('writes an active elem segment with func shorthand', () => {
     const m = makeModule();
     m.funcs.push(makeFunc({}));
-    m.tables.push(makeTable(1));
+    m.tables.push(makeTable(1n));
     const refExpr: Expr = { kind: 'ref.func', func: varIndex(0), loc: LOC };
     const seg: ElemSegment = {
       name: '',
@@ -518,7 +518,7 @@ describe('writeWatModule — element segments', () => {
 describe('writeWatModule — memory instructions', () => {
   it('writes i32.load with natural alignment (no align keyword)', () => {
     const m = makeModule();
-    m.memories.push(makeMemory(1));
+    m.memories.push(makeMemory(1n));
     const addr: Expr = { kind: 'local.get', var: varIndex(0), loc: LOC };
     const load: Expr = {
       kind: 'load',
@@ -538,7 +538,7 @@ describe('writeWatModule — memory instructions', () => {
 
   it('writes i32.load with non-natural alignment', () => {
     const m = makeModule();
-    m.memories.push(makeMemory(1));
+    m.memories.push(makeMemory(1n));
     const addr: Expr = { kind: 'local.get', var: varIndex(0), loc: LOC };
     const load: Expr = {
       kind: 'load',
@@ -557,7 +557,7 @@ describe('writeWatModule — memory instructions', () => {
 
   it('writes i32.load with offset', () => {
     const m = makeModule();
-    m.memories.push(makeMemory(1));
+    m.memories.push(makeMemory(1n));
     const addr: Expr = { kind: 'local.get', var: varIndex(0), loc: LOC };
     const load: Expr = {
       kind: 'load',

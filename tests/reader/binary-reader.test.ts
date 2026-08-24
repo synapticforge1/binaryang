@@ -261,7 +261,7 @@ describe('readBinaryIr', () => {
     m.memories.push({
       name: 'mem',
       loc: LOC,
-      limits: { initial: 1, max: 4, isShared: false, is64: false },
+      limits: { initial: 1n, max: 4n, isShared: false, is64: false },
     });
     m.exports.push({ name: 'memory', kind: ExternalKind.Memory, var: varIndex(0) });
 
@@ -272,8 +272,8 @@ describe('readBinaryIr', () => {
 
     assertEquals(m2.memories.length, 1);
     const mem = m2.memories[0]!;
-    assertEquals(mem.limits.initial, 1);
-    assertEquals(mem.limits.max, 4);
+    assertEquals(mem.limits.initial, 1n);
+    assertEquals(mem.limits.max, 4n);
     assertEquals(mem.limits.isShared, false);
   });
 
@@ -525,7 +525,7 @@ describe('readBinaryIr', () => {
     m.memories.push({
       name: '',
       loc: LOC,
-      limits: { initial: 1, isShared: false, is64: false },
+      limits: { initial: 1n, isShared: false, is64: false },
     });
     m.dataSegments.push({
       name: '',

@@ -337,9 +337,21 @@ function writeMemArg(
   s.writeU64Leb(offset);
 }
 
+/**
+ * Narrow a limits value to the `number` the u32 LEB encoder takes.
+ *
+ * Anything at or below 2^32-1 is exact in a JS number. Anything above it does
+ * not fit the field at all, and is refused HERE rather than after a lossy
+ * `Number()` — so the message names the value the source actually wrote.
+ */
+function u32Limit(v: bigint): number {
+  if (v > 0xffff_ffffn) throw new RangeError(`u32 LEB128 out of range: ${v}`);
+  return Number(v);
+}
+
 function writeLimits(
   s: MemoryStream,
-  lim: { initial: number; max?: number; isShared: boolean; is64: boolean; pageSize?: number },
+  lim: { initial: bigint; max?: bigint; isShared: boolean; is64: boolean; pageSize?: number },
 ): void {
   let flags = 0;
   if (lim.max !== undefined) flags |= LIMITS_HAS_MAX_FLAG;
@@ -353,28 +365,18 @@ function writeLimits(
   // truncated any size above 2^32 -- `(memory i64 0x1_0000_0000_0001)` went
   // out as `(memory i64 1)`, so the validator's 2^48 page bound never saw the
   // value it was there to reject.
+  // The field's WIDTH follows the index type: u64 for a 64-bit memory or
+  // table, u32 for a 32-bit one. Writing a 64-bit limit as u32 truncated every
+  // size above 2^32, so the validator's page bound never saw the value it
+  // exists to reject (T13.2). Both LEB encoders are fail-loud on a value too
+  // large for their field, so a 32-bit limit of 2^32 is REFUSED rather than
+  // wrapped to 0.
   if (lim.is64) {
-    // `Limits.initial` / `max` are JS numbers, which hold integers exactly only
-    // to 2^53. A 64-bit limit above that has already lost precision by the time
-    // it reaches here — `0xffff_ffff_ffff_ffff` arrives as 2^64 — so encoding
-    // it would write a value the source did not say. Refuse instead: the spec
-    // allows such a limit, no engine can instantiate one, and a wrong number is
-    // worse than a reported failure. Lifting this means `Limits` holding
-    // `bigint`; see cmem/tasks.md T13.
-    const check = (v: number, what: string): bigint => {
-      if (!Number.isSafeInteger(v)) {
-        throw new RangeError(
-          `64-bit limit ${what} is not exactly representable: ${v} ` +
-            `(wabt-ts stores limits as a JS number, exact to 2^53)`,
-        );
-      }
-      return BigInt(v);
-    };
-    s.writeU64Leb(check(lim.initial, 'initial'));
-    if (lim.max !== undefined) s.writeU64Leb(check(lim.max, 'maximum'));
+    s.writeU64Leb(lim.initial);
+    if (lim.max !== undefined) s.writeU64Leb(lim.max);
   } else {
-    s.writeU32Leb(lim.initial);
-    if (lim.max !== undefined) s.writeU32Leb(lim.max);
+    s.writeU32Leb(u32Limit(lim.initial));
+    if (lim.max !== undefined) s.writeU32Leb(u32Limit(lim.max));
   }
   if ((flags & LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG) !== 0 && lim.pageSize !== undefined) {
     s.writeU32Leb(lim.pageSize);

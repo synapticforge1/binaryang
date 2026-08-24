@@ -1655,12 +1655,15 @@ export class WastParser {
       this.error(initTok.loc, 'invalid limit');
       return null;
     }
-    const initial = Number(initN);
-    let max: number | undefined;
+    // Kept as the EXACT bigint the source wrote. `Number(initN)` used to round
+    // anything past 2^53, so a 64-bit limit at the top of its range arrived as
+    // a different value than the one written (T13.2).
+    const initial = initN;
+    let max: bigint | undefined;
     if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
       const maxText = (this.consume() as LiteralToken).literal.text;
       const maxN = parseNatText(maxText);
-      if (maxN !== null) max = Number(maxN);
+      if (maxN !== null) max = maxN;
     }
     const shared = this.match(TokenType.Shared);
     return max !== undefined
@@ -2239,7 +2242,7 @@ export class WastParser {
     } else if (tt === TokenType.Table) {
       this.drop();
       const name = this.parseBindVarOpt();
-      const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
+      const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
       const elemType = this.parseValueType() ?? Type.FuncRef;
       const table: Table = { name, loc, elemType, limits, init: [] };
       imp = { kind: ExternalKind.Table, module: moduleName, field: fieldName, table };
@@ -2248,7 +2251,7 @@ export class WastParser {
     } else if (tt === TokenType.Memory) {
       this.drop();
       const name = this.parseBindVarOpt();
-      const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
+      const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
       const memory: Memory = { name, loc, limits };
       imp = { kind: ExternalKind.Memory, module: moduleName, field: fieldName, memory };
       module.imports.push(imp);
@@ -2493,7 +2496,7 @@ export class WastParser {
     const inlineImp = this.parseInlineImport();
 
     if (inlineImp !== null) {
-      const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
+      const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
       const memory: Memory = { name, loc, limits };
       const imp: Import = {
         kind: ExternalKind.Memory,
@@ -2524,7 +2527,7 @@ export class WastParser {
       const data = this.parseTextList();
       this.expect(TokenType.Rpar);
       const pages = Math.ceil(data.length / 65536);
-      const limits: Limits = { initial: pages, isShared: false, is64 };
+      const limits: Limits = { initial: BigInt(pages), isShared: false, is64 };
       const memory: Memory = { name, loc, limits };
       module.memories.push(memory);
       // Add data segment at offset 0
@@ -2544,7 +2547,7 @@ export class WastParser {
         loc,
       });
     } else {
-      const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
+      const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
       const memory: Memory = { name, loc, limits };
       module.memories.push(memory);
     }
@@ -2569,7 +2572,7 @@ export class WastParser {
     const inlineImp = this.parseInlineImport();
 
     if (inlineImp !== null) {
-      const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
+      const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
       const elemType = this.parseValueType() ?? Type.FuncRef;
       const table: Table = { name, loc, elemType, limits, init: [] };
       const imp: Import = {
@@ -2600,7 +2603,7 @@ export class WastParser {
       const isLimitsForm = afterIndex === TokenType.Nat || afterIndex === TokenType.Int;
 
       if (isLimitsForm) {
-        const limits = this.parseLimits() ?? { initial: 0, isShared: false, is64: false };
+        const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
         const elemType = this.parseValueType() ?? Type.FuncRef;
         // Optional initializer expression: `(table $t 10 funcref (ref.null func))`
         // fills every slot with the given value.
@@ -2641,8 +2644,8 @@ export class WastParser {
           this.expect(TokenType.Rpar);
         }
         const limits: Limits = {
-          initial: inits.length,
-          max: inits.length,
+          initial: BigInt(inits.length),
+          max: BigInt(inits.length),
           isShared: false,
           is64,
         };

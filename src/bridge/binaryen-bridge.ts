@@ -251,8 +251,8 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
     const m = module.memories[i]!;
     b.addMemory(
       ctx.memoryNames[memoryCursor + i]!,
-      m.limits.initial,
-      m.limits.max ?? null,
+      limitToNumber(m.limits.initial, 'memory initial'),
+      m.limits.max === undefined ? null : limitToNumber(m.limits.max, 'memory maximum'),
       m.limits.isShared,
       m.limits.is64,
     );
@@ -281,8 +281,29 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   return b.build();
 }
 
+/**
+ * Narrow a `Limits` field to the `number` binaryen-ts's builder API takes.
+ *
+ * The wabt IR keeps limits as `bigint` because a 64-bit memory or table may
+ * name a size past 2^53 (T13.2); binaryen-ts's surface is `number`. Anything
+ * that would not survive the conversion exactly is REFUSED rather than
+ * rounded -- a bridge that quietly halves a table is the same class of bug the
+ * bigint change was made to remove.
+ */
+function limitToNumber(v: bigint, what: string): number {
+  if (v > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError(`${what} is too large to bridge exactly: ${v}`);
+  }
+  return Number(v);
+}
+
 function bridgeTable(b: ModuleBuilder, t: WabtModule['tables'][number], name: string): void {
-  b.addTable(name, wabtTypeToValType(t.elemType), t.limits.initial, t.limits.max ?? null);
+  b.addTable(
+    name,
+    wabtTypeToValType(t.elemType),
+    limitToNumber(t.limits.initial, 'table initial'),
+    t.limits.max === undefined ? null : limitToNumber(t.limits.max, 'table maximum'),
+  );
 }
 
 function bridgeTag(b: ModuleBuilder, tag: WabtTag, name: string): void {
@@ -605,8 +626,10 @@ function bridgeImport(b: ModuleBuilder, imp: WabtImport, internalName: string): 
         internalName,
         imp.module,
         imp.field,
-        imp.memory.limits.initial,
-        imp.memory.limits.max ?? null,
+        limitToNumber(imp.memory.limits.initial, 'memory initial'),
+        imp.memory.limits.max === undefined
+          ? null
+          : limitToNumber(imp.memory.limits.max, 'memory maximum'),
         imp.memory.limits.isShared,
         imp.memory.limits.is64,
       );
@@ -617,8 +640,10 @@ function bridgeImport(b: ModuleBuilder, imp: WabtImport, internalName: string): 
         imp.module,
         imp.field,
         wabtTypeToValType(imp.table.elemType),
-        imp.table.limits.initial,
-        imp.table.limits.max ?? null,
+        limitToNumber(imp.table.limits.initial, 'table initial'),
+        imp.table.limits.max === undefined
+          ? null
+          : limitToNumber(imp.table.limits.max, 'table maximum'),
       );
       return;
     case ExternalKind.Tag:

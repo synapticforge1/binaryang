@@ -478,7 +478,9 @@ export class SharedValidator {
     // reject.
     const absMax = limits.is64 ? (1n << 48n) : 65536n;
     r = combineResults(r, this.checkLimits64(loc, limits, absMax, 'pages'));
-    if (limits.isShared && !limits.max) {
+    // `!limits.max` also fired on a max of ZERO, so `(memory 0 0 shared)` was
+    // reported as having no maximum at all.
+    if (limits.isShared && limits.max === undefined) {
       r = combineResults(r, this.printError(loc, 'shared memories must have max sizes'));
     }
     this.memories.push({ limits });
@@ -2032,37 +2034,12 @@ export class SharedValidator {
   // Private: limit checks
   // ---------------------------------------------------------------------------
 
-  private checkLimits(loc: Location, limits: Limits, absoluteMax: number, desc: string): Result {
-    let r: Result = Result.Ok;
-    if (limits.initial > absoluteMax) {
-      r = combineResults(
-        r,
-        this.printError(loc, `initial ${desc} (${limits.initial}) must be <= (${absoluteMax})`),
-      );
-    }
-    if (limits.max !== undefined) {
-      if (limits.max > absoluteMax) {
-        r = combineResults(
-          r,
-          this.printError(loc, `max ${desc} (${limits.max}) must be <= (${absoluteMax})`),
-        );
-      }
-      if (limits.max < limits.initial) {
-        r = combineResults(
-          r,
-          this.printError(
-            loc,
-            `max ${desc} (${limits.max}) must be >= initial ${desc} (${limits.initial})`,
-          ),
-        );
-      }
-    }
-    return r;
-  }
-
+  // There used to be a `number` twin of this, dead since `onMemory` and
+  // `onTable` moved onto the 64-bit bounds. With `Limits` holding `bigint`
+  // there is nothing left for it to do, so it is gone: one rule, one copy.
   private checkLimits64(loc: Location, limits: Limits, absoluteMax: bigint, desc: string): Result {
-    const init = BigInt(limits.initial);
-    const max = limits.max !== undefined ? BigInt(limits.max) : undefined;
+    const init = limits.initial;
+    const max = limits.max;
     let r: Result = Result.Ok;
     if (init > absoluteMax) {
       r = combineResults(
