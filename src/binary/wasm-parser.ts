@@ -323,6 +323,46 @@ const BINARY_OPCODE: Record<number, BinaryOp> = {
 // ---------------------------------------------------------------------------
 
 /** Read a heap type from a SLEB128-encoded signed integer. */
+/** Abstract heap type → the abstract `ValType` that spells `(ref null <ht>)`. */
+const ABSTRACT_HEAP_TO_VALTYPE: Record<AbstractHeapType, ValType> = {
+  [AbstractHeapType.Func]: ValType.FuncRef,
+  [AbstractHeapType.NoFunc]: ValType.NullFuncRef,
+  [AbstractHeapType.Ext]: ValType.ExternRef,
+  [AbstractHeapType.NoExt]: ValType.NullExternRef,
+  [AbstractHeapType.Any]: ValType.AnyRef,
+  [AbstractHeapType.Eq]: ValType.EqRef,
+  [AbstractHeapType.I31]: ValType.I31Ref,
+  [AbstractHeapType.Struct]: ValType.StructRef,
+  [AbstractHeapType.Array]: ValType.ArrayRef,
+  [AbstractHeapType.None]: ValType.NullRef,
+  [AbstractHeapType.Exn]: ValType.ExnRef,
+  [AbstractHeapType.NoExn]: ValType.NullExnRef,
+};
+
+/**
+ * Decodes the heap-type operand of `ref.null` into the null's own type.
+ *
+ * Both decode sites used to do `r.readU8()` then
+ * `ht === 0x70 ? FuncRef : ExternRef`, which is wrong twice over:
+ *
+ *  - it read a single byte, but a heap type is a signed LEB (`s33`), so a
+ *    concrete `ref.null $T` with a type index ≥ 64 was misparsed outright; and
+ *  - it mapped EVERY non-`func` heap type to `externref`, so `ref.null none`
+ *    and `ref.null noextern` both re-encoded as `ref.null extern`. In
+ *    `gc_target_feature.wasm` that turned a valid `(global (mut eqref)
+ *    (ref.null none))` into one V8 rejects: "type error in constant
+ *    expression[0] (expected eqref, got externref)".
+ *
+ * An abstract heap type maps back to the abstract `ValType` that names it (so
+ * the IR shape is unchanged for non-GC modules); a concrete type index becomes
+ * a real `RefType`.
+ */
+function readRefNullType(r: BinaryReader): ValueType {
+  const ht = readHeapType(r);
+  if (typeof ht === "number") return { heap: ht, nullable: true };
+  return ABSTRACT_HEAP_TO_VALTYPE[ht];
+}
+
 function readHeapType(r: BinaryReader): HeapType {
   const v = r.readI32(); // heap types encoded as signed LEB128
   switch (v) {
@@ -1058,9 +1098,7 @@ class WasmParser {
         break;
       }
       case 0xd0: { // ref.null
-        const ht = this.r.readU8();
-        const vt = ht === 0x70 ? ValType.FuncRef : ValType.ExternRef;
-        expr = makeRefNull(vt);
+        expr = makeRefNull(readRefNullType(this.r));
         break;
       }
       case 0xd2: { // ref.func
@@ -1155,7 +1193,26 @@ class WasmParser {
           return makeLocalGet(tmp, val.type as ValType);
         }
       }
-      return makeNop();
+      // No value-producing expression in this frame at all. That is legal in
+      // exactly one situation: STACK-POLYMORPHIC code. After `unreachable` (or
+      // `br` / `return` / `throw`) the validator lets an instruction pop values
+      // that were never pushed, and the phantom it pops is of the bottom type.
+      // `unreachable` IS that value; a `nop` is not a value at all.
+      //
+      // Returning `makeNop()` here (as this did) put a `none`-typed statement
+      // in an operand position — the same defect class as the catch-param and
+      // tuple-call `nop`s above, and it round-tripped unstably: the upstream
+      // fixture `unreachable-pops.wasm`
+      // (`block (result i32); unreachable; i32.add`) decoded to
+      // `i32.add(nop, unreachable)`, re-encoded with a spurious leading `nop`
+      // opcode, and grew an expression on every trip. Upstream decodes the same
+      // bytes as `(i32.add (unreachable) (unreachable))`, which is what this
+      // now produces — and it is a fixed point.
+      //
+      // If the frame is genuinely reachable this input is malformed; an
+      // `unreachable`-typed operand then surfaces as a validation failure
+      // downstream instead of a silently-wrong `nop`.
+      return makeUnreachable();
     };
 
     const popN = (n: number): Expression[] => {
@@ -1723,8 +1780,7 @@ class WasmParser {
           break;
 
         case 0xd0: { // ref.null
-          const ht = r.readU8();
-          push(makeRefNull(ht === 0x70 ? ValType.FuncRef : ValType.ExternRef));
+          push(makeRefNull(readRefNullType(r)));
           break;
         }
         case 0xd1: { // ref.is_null

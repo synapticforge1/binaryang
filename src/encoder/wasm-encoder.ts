@@ -702,9 +702,20 @@ const ABSTRACT_HEAP_TYPE_BYTE: Record<AbstractHeapType, number> = {
 
 function writeHeapType(w: BinaryWriter, h: HeapType): void {
   if (typeof h === "number") {
-    w.writeU32(h);
+    // A heap type is an `s33` — a SIGNED LEB — which is how `readHeapType`
+    // reads it back. `writeU32` agrees with the signed form only for indices
+    // below 64; at 64 the unsigned encoding (`0x40`) reads back as -64 and
+    // resolves to an abstract heap type instead of the intended index.
+    w.writeI32(h);
   } else {
-    w.writeU8(ABSTRACT_HEAP_TYPE_BYTE[h] ?? 0x6e);
+    const b = ABSTRACT_HEAP_TYPE_BYTE[h];
+    if (b === undefined) {
+      // The table is `Record<AbstractHeapType, number>`, so this is statically
+      // unreachable today; the old `?? 0x6e` silently rewrote any future
+      // unmapped heap type to `any`.
+      throw new WasmEncodeError(`cannot encode abstract heap type: ${h}`);
+    }
+    w.writeU8(b);
   }
 }
 

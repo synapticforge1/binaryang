@@ -153,6 +153,56 @@ the silent-truncation bug it replaced); `WasmExport.kind` includes `"tag"`.
 
 ---
 
+## Corpus round-trip closure (2026-08-24) — the last two upstream-corpus defects
+
+`scripts/verify_roundtrip.ts` over the upstream test tree was down to two failures, both
+**pre-existing** (identical at the pre-UP-series HEAD) and both the silent-substitution class. Fixed
+together; the corpus is now **79 exact, 0 structural drift, 0 validate failures**.
+
+### `ref.null` collapsed every heap type to `externref`
+
+Both decode sites did `r.readU8()` then `ht === 0x70 ? FuncRef : ExternRef`. Wrong twice over: a
+heap type is a signed LEB (`s33`), not one byte; and every non-`func` heap type — `none`,
+`noextern`, `eq`, a concrete `$T` — became `extern`. On `unit/input/gc_target_feature.wasm` that
+turned a valid `(global (mut eqref) (ref.null none))` into a module V8 rejects with "type error in
+constant expression[0] (expected eqref, got externref)". Valid in, invalid out, no passes.
+
+Both sites now share `readRefNullType`, which reads a real heap type and maps an abstract one back
+to the `ValType` that names it (`ABSTRACT_HEAP_TO_VALTYPE`) or builds a `RefType` for a concrete
+index.
+
+The encoder had the **mirror** defect: `writeHeapType` wrote a concrete index with `writeU32` while
+`readHeapType` reads it back signed, so an index ≥ 64 round-tripped to a negative value and resolved
+to an abstract heap type instead. Below 64 the two encodings coincide, which is why no fixture ever
+caught it — the regression test builds 70 heap types on purpose. Also converted the statically-dead
+`ABSTRACT_HEAP_TYPE_BYTE[h] ?? 0x6e` fallback to a throw (the table is
+`Record<AbstractHeapType, number>`, so TypeScript already proves it exhaustive).
+
+### `pop()` on an empty operand stack returned a `nop`
+
+An empty stack at a value pop is legal in exactly one situation: **stack-polymorphic code**. After
+`unreachable` / `br` / `return` / `throw` the validator lets an instruction pop values that were
+never pushed, and the phantom it pops has the bottom type. `unreachable` IS that value; a
+`none`-typed `nop` is not a value at all — the identical defect to the catch-param (WT-2h) and
+tuple-call (WT-2i) `nop`s, just reached from the empty-stack path rather than the skip-statements
+path.
+
+On `unreachable-pops.wasm` (`block (result i32); unreachable; i32.add`) it decoded to
+`i32.add(nop, unreachable)`, re-encoded with a spurious leading `nop` opcode, and **grew an
+expression on every round-trip**. It now decodes to `(i32.add (unreachable) (unreachable))` —
+byte-for-byte what upstream's own `.fromBinary` for that fixture says — and is a fixed point.
+
+### The 11 files that still do not parse are deliberate
+
+Verified identical before and after. Intentionally-malformed crash inputs, fuzz inputs with invalid
+magic, component-model files, and loud non-MVP rejections (declarative element segments, `local.get`
+in an init expression, multi-value block types). **Note the harness blind spot:**
+`verify_roundtrip.ts` `continue`s past a file that fails the initial parse without counting it, so
+its "0 failures" summary is not by itself proof that every file was exercised — check the file count
+too.
+
+---
+
 ## Fail-loud audit sweep (2026-07-07, post-Asyncify) — four passes, 20 fixes, suite 379 → 394
 
 A multi-pass whole-tree audit (mechanical grep sweeps + four parallel subagent code-review agents,

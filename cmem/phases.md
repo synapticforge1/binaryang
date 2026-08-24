@@ -78,11 +78,15 @@ UP-1…UP-7 series"; bridge view in [bridge.md](bridge.md).
 | ------ | ------------------------------------------------------------------------------------------------------------ | --------- | ----------- |
 | Tier 1 | UP-1 packed `get` sub-opcode; UP-5 start section (+ pass reachability seeding); tests type-checked; repo fmt | 405 → 424 | ✅ Done     |
 | Tier 2 | UP-6 tag imports; UP-4 `ref.as_non_null`; UP-3 four GC array bulk ops                                        | 430 → 438 | ✅ Done     |
-| Tier 3 | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                          | —         | ⬜ TODO     |
+| Tier 3 | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                          | 438 → 448 | ✅ Done     |
+| Tier 4 | Corpus round-trip closure: `ref.null` heap-type collapse + signed heap index + phantom-pop `nop`             | 448 → 453 | ✅ Done     |
 | —      | UP-2 `tuple.make` — blocked behind multi-value blocktype support                                             | —         | ⬜ Deferred |
 
-**No bump/publish until Tier 3 lands** (owner decision, 2026-08-24): UP-7 is a known wrong-bytes
-bug, and the release should not go out with a known miscompile in it.
+**No bump/publish until every known bug is addressed** (owner decision, 2026-08-24). As of the Tier
+4 commit that bar is met: six of seven UP findings are fixed (UP-2 is correctly deferred behind
+multi-value support, and it fails loudly), and the upstream corpus round-trips at **79 exact, 0
+structural drift, 0 validate failures**, with the 11 non-parsing files verified as deliberate
+fail-loud rejections.
 
 ## Deferred / not-yet-done
 
