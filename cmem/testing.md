@@ -34,6 +34,18 @@ directory** — the runner picks it up automatically.
   guard for the invalid-`wasm2wat`-output class (the round-5 missing-`$` bug). The plain runner only
   checks the forward direction; this closes the loop. All 272 round-trip clean as of 2026-06-09.
 
+## `tests/wasmtk/` is a FROZEN SNAPSHOT — regenerate before reporting upstream
+
+272 files here; wasmtk's live corpus emits **373**, and no source commit was
+recorded. Full detail and the refresh procedure: `tests/wasmtk/PROVENANCE.md`.
+
+**Rule, adopted from wasmtk's own `cmem/testing.md` after it cost us a wrong
+report (2026-08-24): regenerate from the wasmtk checkout before validating
+against another runtime or stating anything about wasic.** The snapshot
+supports "our toolchain handles this shape". It does not support "wasic emits
+X" or "wasic has bug Y" — we made exactly that claim about seven modules that
+had already been fixed upstream.
+
 ## The wasmtk-driven hardening loop (this IS the design)
 
 The convergence pattern is: **real module shape surfaces a wabt-ts bug → fix at root cause + add a

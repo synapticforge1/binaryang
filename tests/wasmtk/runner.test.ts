@@ -19,6 +19,12 @@
  * test setup doesn't provide. The compile + validate gate is what
  * catches the bugs wasmtk has been surfacing against wabt-ts.
  *
+ * **These files are a frozen SNAPSHOT of wasmtk's build output, not a live
+ * view of it** — 272 files here against the 373 its current corpus emits.
+ * They are fixtures: good for "our toolchain handles this shape", useless for
+ * "wasic currently does X". See PROVENANCE.md in this directory, which exists
+ * because we got that distinction wrong in a report sent upstream.
+ *
  * **The validate half of that gate was missing.** This file's own comment
  * claimed "wat2wasm returns Result.Ok on a clean compile + validate", and it
  * does not — `wat2wasm` is parse → resolveNames → synthesizeTypes →
@@ -39,16 +45,23 @@ import { formatErrors, hasErrors } from '../../src/core/error.ts';
 import { Result } from '../../src/core/result.ts';
 
 /**
- * Corpus files that are genuinely INVALID wasm — a wasic bug, not ours.
+ * Files in THIS SNAPSHOT that are invalid wasm. All seven fail the same way: a
+ * function falls through without producing its declared result ("expected 1
+ * elements on the stack"). V8, Wasmtime and Wasmer all reject these bytes, and
+ * so do we.
  *
- * All seven fail the same way: a function falls through without producing its
- * declared result ("expected 1 elements on the stack"). **V8, Wasmtime and
- * Wasmer all reject them**, and so do we; they are listed here so the corpus
- * gate can stay honest without going red on somebody else's defect.
+ * **Fixed upstream as of 2026-08-24 — these are stale bytes, not live wasic
+ * bugs.** Rebuilt from the checked-out wasmtk (`deno run -A main.ts wasic
+ * <src>.ts`), all seven are valid and exit 0 on Wasmtime with correct output.
+ * We had reported them upstream in the present tense; the wasmtk team
+ * corrected it, and re-deriving confirmed they were right.
  *
- * These are asserted to STILL be invalid. When wasic is fixed the assertion
- * flips and this list must shrink — that is the point of listing them rather
- * than skipping them.
+ * The assertion below is still the right shape — it goes red when a listed
+ * file starts validating, forcing this list to shrink. What defeated it is
+ * that the corpus is FROZEN, so the trigger never fires: it kept re-checking
+ * bytes that predate the fix, masking it instead of tracking it. See
+ * PROVENANCE.md in this directory. Expect this list to empty out on the next
+ * corpus refresh.
  */
 const KNOWN_INVALID = new Set([
   '19_NestedDiscriminantUnions.wat',

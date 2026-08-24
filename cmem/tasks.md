@@ -517,11 +517,21 @@ The wasmtk corpus is the right yardstick for it: **270 of its 272 files import
 
 Two findings, both more useful than anything the spec testsuite was saying:
 
-1. **7 corpus modules are genuinely INVALID wasm — a wasic bug, not ours.**
-   All fail the same way (a function falls through without producing its
-   declared result), and **V8, Wasmtime and Wasmer all reject them.** They are
-   now listed in `KNOWN_INVALID` in `tests/wasmtk/runner.test.ts`, asserted to
-   *stay* invalid so the list shrinks when wasic is fixed.
+1. **7 corpus modules are INVALID wasm** — all failing the same way (a function
+   falls through without producing its declared result), rejected by V8,
+   Wasmtime and Wasmer. Listed in `KNOWN_INVALID` in
+   `tests/wasmtk/runner.test.ts`, asserted to *stay* invalid so the list
+   shrinks when wasic is fixed.
+
+   **CORRECTED 2026-08-24: these are STALE SNAPSHOT BYTES, not live wasic
+   bugs.** We reported them upstream in the present tense; wasmtk rebuilt all
+   seven from current wasic and every one is valid and exits 0 on Wasmtime with
+   correct output. Re-derived on this side by recompiling from the checkout —
+   frozen INVALID, current valid, all seven. The assertion's SHAPE is right (it
+   goes red when a listed file validates, forcing the list to shrink); what
+   defeated it is that `tests/wasmtk/` is FROZEN, so the trigger never fires —
+   it re-checked bytes predating the fix and **masked it instead of tracking
+   it**. See `tests/wasmtk/PROVENANCE.md`.
 
 2. **The corpus gate never validated.** Its comment said "wat2wasm returns
    Result.Ok on a clean compile + validate" — `wat2wasm` is parse →
@@ -694,6 +704,55 @@ alongside the seven `KNOWN_INVALID` ones — the fix is for wasic to emit
 
 Note this is the SECOND finding the panel produced that V8 alone could not
 see, and again it came from an engine disagreeing rather than agreeing.
+
+
+**ANSWERED 2026-08-24 — confirmed, with three corrections against us.** wasmtk
+reproduced it and verified both of our load-bearing premises independently
+rather than trusting them (`wasmtime -W help` offers only `exceptions[=y|n]`;
+a hand-written `try_table` module runs with no `-W` flags). Their corrections:
+
+- **Scope is 10 modules, not 6** — our snapshot is missing four
+  (`56_AsyncReject`, `60_AsyncAll`, `64_ReportModuleTryCatch`,
+  `64_ReportThrowTemplate`).
+- **Two shapes need migrating, not three** — a bare `(catch_all H)` with no
+  `rethrow` is never emitted; `catch_all` is generated only inside the
+  `hasFinally` branch and always carries `(rethrow 0)`.
+- **Our `src/wasic.ts` line refs were stale** (~13976/13992/13994 → actual
+  14749 / 14756 / 14772 / 14774). The doc-block ref was exact.
+
+They took the V8-only-gate lesson as theirs and queued "add Wasmtime to the EH
+gate" **with** the migration rather than after it — migrating alone fixes the
+instance and leaves the blind spot — noting `wasmtk wast` has the same shape.
+The migration is their top `next-work.md` item; they deliberately did not bolt
+it onto a review, since handler bodies becoming branch targets is a real
+structural change.
+
+### A frozen snapshot read as a live signal — both projects, one week (2026-08-24)
+
+`tests/wasmtk/` is a 272-file snapshot of wasmtk's build output. Its live
+corpus is **373**. No source commit was recorded, because files accreted one at
+a time as wasic surfaced new shapes.
+
+That was invisible until we asked a question whose answer changes over time,
+and then it put a false claim in a report we sent upstream (the seven
+`KNOWN_INVALID` modules — see the retraction above and
+`scripts/wasmtk-eh-report.md`).
+
+**wasmtk hit the identical pattern independently in the same week**: a frozen
+vendored `proposals/threads/` snapshot read as a live signal. Neither case was
+carelessness. **A snapshot is indistinguishable from current data unless
+something records its provenance** — the same reason this project pins an
+upstream SHA rather than saying "the checkout".
+
+Fixed here by `tests/wasmtk/PROVENANCE.md`, which records what the directory
+is, that it is 272 against 373, that the source commit is unknown, and the rule
+that no present-tense claim about wasic may be derived from it. wasmtk's
+`cmem/testing.md` already required regenerating before validating against
+another runtime; ours did not, and that is exactly the gap.
+
+**The reusable rule: stamp any vendored copy with source + date in the same
+change that creates it.** An un-stamped snapshot does not announce itself — it
+reads as current until something expensive proves otherwise.
 
 ### A fourth metric — validator agreement
 

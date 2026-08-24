@@ -419,3 +419,47 @@ shape, rather than testing each direction against a remembered convention. And
 when a helper duplicates a rule the real pipeline implements elsewhere, either
 delete it or make the pipeline call it - a second implementation that nothing
 exercises is where a printer goes to get its idea of the format.
+
+## Stamp a vendored snapshot with source + date, in the change that creates it
+
+`tests/wasmtk/` is 272 `.wat` files copied from another project's build output.
+Its live corpus is 373. Nothing recorded where the copy came from or when,
+because files accreted one at a time as new shapes appeared.
+
+That was invisible for as long as nobody asked a question whose answer changes
+over time. Then it put a false claim in a report we sent upstream: seven
+modules described as *"genuinely invalid wasm — V8, Wasmtime and Wasmer all
+reject them"*, present tense, when all seven had been fixed. Worse, the
+`KNOWN_INVALID` assertion guarding them was written specifically to go red when
+they were fixed — and it kept passing, because it was re-checking frozen bytes.
+**It masked the fix instead of tracking it: an assertion doing the exact
+inverse of its purpose, while green.**
+
+wasmtk hit the same pattern independently in the same week, with a vendored
+`proposals/threads/` snapshot. Two projects, one week, no carelessness in
+either: **a snapshot is indistinguishable from current data unless something
+records its provenance.**
+
+Two rules fall out:
+
+- **Stamp it at creation** — source, commit, date, count — not when someone
+  finally asks. This project already pins an upstream SHA for exactly this
+  reason; a test corpus deserves the same treatment.
+- **An assertion over vendored data can only be as fresh as the data.** If it
+  is designed to fire on an external change, it needs a path to that change, or
+  it is decoration. Re-derive from source before reporting anything upstream.
+
+## Verify an incoming report's premises, not just its conclusion
+
+When wasmtk received our EH report they re-checked both of its load-bearing
+premises — that `wasmtime -W` has no legacy knob, and that a `try_table` module
+runs with no flags — rather than taking them from us. Both held, and the
+confirmation was worth more than agreement would have been.
+
+They also regenerated their corpus before testing, per their own testing rules,
+and it changed the outcome of half the report: four modules we had not listed,
+and seven we had listed wrongly.
+
+This is "measure severity, never inherit it" pointed at an INCOMING report
+instead of an outgoing one. Same discipline, and the direction that is easier
+to skip.

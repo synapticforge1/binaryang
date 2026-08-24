@@ -5,6 +5,12 @@ Written 2026-08-24 from the wabt-ts side. Mirrors the direction of
 
 Everything below was measured, not inferred. Paste from the horizontal rule down.
 
+> **Answered 2026-08-24 — confirmed, with three corrections and one retraction against us.** The
+> body below has been corrected in place; see "What came back" at the end for what we got wrong and
+> why. The finding itself stands: wasmtk reproduced it, verified both load-bearing premises
+> independently, and has the `try_table` migration queued as their top item with the Wasmtime gate
+> alongside it.
+
 ---
 
 ## Prompt
@@ -22,13 +28,14 @@ file's convention. The fix is in `src/wasic.ts`; it is well bounded and there is
 `catch` / `finally` / `throw`. Wasmtime cannot run it, and Wasmtime is the primary WASI Preview 1
 and Preview 2 host.**
 
-Six corpus modules are affected — exactly the six that contain a `(try …)`:
+**Ten** corpus modules are affected. Six are visible in our copy — which is a frozen 272-file
+snapshot; wasmtk's live corpus is 373, and they identified four more:
 
 ```
-15_Exceptions
-15_IdiomaticCatch_Stress
-15_LexicalShadowing_Stress
-15_TestCase1-NestedEscalation
+15_Exceptions                             56_AsyncReject         (wasmtk-side)
+15_IdiomaticCatch_Stress                  60_AsyncAll            (wasmtk-side)
+15_LexicalShadowing_Stress                64_ReportModuleTryCatch (wasmtk-side)
+15_TestCase1-NestedEscalation             64_ReportThrowTemplate (wasmtk-side)
 15_recover
 18_Multi-ScopeScaleAndMemoryLongevityTest
 ```
@@ -76,14 +83,17 @@ Verified on this machine — both forms compiled with wabt-ts, then put to Wasmt
 in 47.0.3. Both `try_table` forms also round-trip byte-identically through wabt-ts, so the toolchain
 is ready for them today.
 
-wasic emits exactly **three** legacy constructs, so the migration surface is small (`src/wasic.ts` —
-the doc block at ~107–111 and the emitter at ~13976, ~13992, ~13994):
+wasic emits **two** legacy shapes, so the migration surface is smaller than we first said
+(`src/wasic.ts` — the doc block at ~107–111, and the emitter at **14749 / 14756 / 14772 / 14774**):
 
 | wasic emits today                        | replace with                                     |
 | ---------------------------------------- | ------------------------------------------------ |
 | `(try (do B) (catch $__exn_tag H))`      | `try_table` + `(catch $__exn_tag $h)`            |
-| `(try (do B) (catch_all H))`             | `try_table` + `(catch_all $h)`                   |
 | `(try (do B) (catch_all H (rethrow 0)))` | `try_table` + `(catch_all_ref $h)` + `throw_ref` |
+
+A bare `(catch_all H)` with no `rethrow` — which an earlier draft of this report listed as a third
+shape — is **never emitted**: `catch_all` is generated only inside the `hasFinally` branch and
+always carries `(rethrow 0)`. Corpus-verified by wasmtk: 2 occurrences, both with rethrow.
 
 **No `delegate`** — wasic never emits it, so nothing needs an equivalent for it. `rethrow` appears
 in two corpus files (`15_Exceptions`, `15_TestCase1-NestedEscalation`), both via the `finally` path.
@@ -157,10 +167,10 @@ reason to wait; Wasmtime is the host the WASI target names.
 Ping the wabt-ts side when the corpus is regenerated and it will re-run the three-engine panel
 (`deno task engine-check <dir-of-wasm>`) to confirm.
 
-### Related, separate, still open
+### Related — RETRACTED 2026-08-24
 
-Seven other corpus modules are **genuinely invalid wasm** — a function falls through without
-producing its declared result — and **V8, Wasmtime and Wasmer all reject them**:
+An earlier version of this report listed seven modules as _"genuinely invalid wasm — V8, Wasmtime
+and Wasmer all reject them"_, in the present tense:
 
 ```
 19_NestedDiscriminantUnions   19_VariantMaximumMemoryAlignment   3_enums
@@ -168,7 +178,57 @@ producing its declared result — and **V8, Wasmtime and Wasmer all reject them*
 5e_MixedSignatures
 ```
 
-No overlap with the six above. They are listed in `KNOWN_INVALID` in wabt-ts's
-`tests/wasmtk/runner.test.ts` and asserted to _stay_ invalid, so that list shrinks as wasic is fixed
-instead of silently masking a regression. Reported previously; repeated here because it is the same
-channel and the same root cause pattern (a codegen path no engine will run).
+**That was wrong, and wasmtk was right to push back.** They rebuilt all seven from current wasic:
+every one is valid and exits 0 on Wasmtime with correct output. We re-derived it on this side rather
+than take it on trust — recompiled each from the wasmtk checkout with
+`deno run -A main.ts wasic <src>.ts`, then validated both sets:
+
+|                          | frozen snapshot | rebuilt from current wasic |
+| ------------------------ | --------------- | -------------------------- |
+| all seven, V8            | INVALID         | **valid**                  |
+| all seven, our validator | INVALID         | **valid**                  |
+| spot-checked on Wasmtime | —               | **exit 0, correct output** |
+
+The cause is ours: `tests/wasmtk/` is a **frozen 272-file snapshot** of wasmtk's build output with
+no recorded provenance, and our `KNOWN_INVALID` assertion — written deliberately to go red when
+wasic is fixed, so the list would shrink — kept passing because it was re-checking bytes that
+predate the fix. **It masked the fix instead of tracking it, the inverse of its purpose.**
+
+Fixed on our side: `tests/wasmtk/PROVENANCE.md` now records what the directory is, when it was
+taken, that it is 272 files against wasmtk's current 373, and the rule that no present-tense claim
+about wasic may be derived from it. The full refresh is queued as its own change.
+
+wasmtk named the general pattern in their reply, and it is worth keeping: **both projects hit it
+inside a week** — they had a frozen vendored `proposals/threads/` snapshot read as a live signal; we
+had this. Neither was carelessness. A snapshot is indistinguishable from current data unless
+something records its provenance.
+
+---
+
+## What came back (2026-08-24)
+
+wasmtk confirmed the finding and corrected us four times. Recorded here so the exchange is legible
+to whoever reads this next:
+
+|                  |                                                                                                                                                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Confirmed**    | Reproduced exactly. They verified both of our load-bearing premises independently rather than trusting them — `wasmtime -W help` offers only `exceptions[=y\|n]`, and a hand-written `try_table` module runs with no `-W` flags. |
+| **Correction 1** | Scope is **10 modules, not 6** — our corpus copy is frozen at 272 files, theirs is 373.                                                                                                                                          |
+| **Correction 2** | **Two** shapes need migrating, not three — bare `catch_all` without `rethrow` is never emitted.                                                                                                                                  |
+| **Correction 3** | Line refs `~13976/13992/13994` were stale; actual sites are **14749 / 14756 / 14772 / 14774**. Our doc-block ref was exact.                                                                                                      |
+| **Retraction**   | The seven `KNOWN_INVALID` modules are fixed — see above.                                                                                                                                                                         |
+
+They accepted the "V8-only gate" lesson as theirs and queued **"add Wasmtime to the EH gate" with
+the migration rather than after it**, on the reasoning that migrating alone fixes the instance and
+leaves the blind spot — and noted `wasmtk wast` has the same V8-only shape. They did not do the
+migration inside the review: it is a codegen change with a real structural component, so it goes in
+its own reviewed change. It is now the top item in their `next-work.md`.
+
+Two of their process points are worth adopting here, not just noting:
+
+- **They regenerated the corpus before testing against another runtime**, per their own
+  `cmem/testing.md`, and it changed the outcome of half the report. We did not, which is exactly how
+  the retracted section happened.
+- **They verified our premises instead of trusting them.** Both held. That is the same discipline as
+  this project's "measure severity, never inherit it", applied to an incoming report rather than an
+  outgoing one.
