@@ -1186,16 +1186,37 @@ SAME reason as the 6 — `tag section not supported as feature
 a tag section at all. But **five of those eight declare `$__exn_tag` and never
 use it**: `15_panic`, `46_BasicEscapeSeqs`, `46_HexUnicodeEscapes`,
 `46_Phase46Combined`, `46_TemplateEscapes` each contain the string `$__exn_tag`
-exactly ONCE, the declaration itself — no `throw`, no `try`, no `try_table`.
-wasic emits the tag unconditionally.
+exactly ONCE, the declaration itself — no `throw`, no `catch`, no `try_table`,
+and no promise machinery either.
 
 So wazero's 21 decompose as: 7 stale-snapshot + 3 that genuinely throw
 (`13_SecureMatrixManagerIntegration`, `15_Trap-On-Error`,
-`6b_testing-and-benchmarking`) + 6 legacy-EH + **5 that pay for a tag they never
-use**. Emitting the tag section only when something references it recovers those
-five at zero cost — row 3 vs row 4 is exactly that experiment. The tag is
-`(export "__exn_tag")`, so a HOST could in principle catch it; for a standalone
-WASI `_start` program that is dead weight.
+`6b_testing-and-benchmarking`) + 6 legacy-EH + **5 that pay for a tag nothing
+references**. Row 3 vs row 4 is exactly that experiment: same module, tag
+present and tag absent, and wazero flips.
+
+⚠️ **CORRECTION to the first write-up of this, which said "wasic emits the tag
+unconditionally". It does not.** `wasic.ts:20010` already gates it —
+`this.needsExceptionTag ? '(tag $__exn_tag (export "__exn_tag") (param i32 i32))' : ''`
+— and the flag is set at exactly three sites, every one of which ALSO emits WAT:
+a `throw` statement (10907), a `try`/`catch` (14720), and `Promise.reject`
+(7870). In these five modules none of that WAT is present. **So the condition
+is right and it is firing without its output**, which is a much narrower bug
+than "unconditional" and points somewhere specific: either the throw/catch lived
+in code that was not emitted, or `needsExceptionTag` — a plain instance field
+(`private needsExceptionTag = false`, 1600) — is not reset between compilations.
+Distinguishing those needs the `.ts` sources, which our WAT-only snapshot does
+not have; wasmtk can tell instantly.
+
+**The `(export "__exn_tag")` is NOT dead and must stay.** `utils.ts:317-333`
+reads `wasiInstance.exports.__exn_tag` and uses it as
+`err.is(tag)` / `err.getArg(tag, 0|1)` to pull the (ptr, len) of the message out
+of linear memory, printing `error: Uncaught (in Wasm) Error: <msg>` to stderr.
+An exported tag is the only way JS can obtain a module's `WebAssembly.Tag`, so
+without it an uncaught wasic error degrades to an opaque trap. And dropping the
+export would not buy wazero anything regardless — **wazero rejects the tag
+SECTION, not the export** — so the two questions are independent: keep the
+export, and fix the flag so the section is absent when nothing uses it.
 
 **What no fix reaches:** the 3 that really throw. wazero's Go embedding API has
 feature toggles its CLI does not expose, so a wazero-hosted wasic program that
