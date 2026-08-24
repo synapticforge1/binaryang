@@ -114,12 +114,39 @@ hand-built binaries and asserted structurally; they become ordinary behavioral t
 lands. Doing UP-7 properly also DELETES an existing loud failure (the `gcFuncTypeIndex` ambiguity
 throw), which is a better argument for it than the original "smaller ask" framing.
 
-### UP-2 — `tuple.make` (deferred, correctly)
+### UP-2 — `tuple.make` (deferred, correctly) — and what multi-value actually costs
 
 Not a factory-plus-encoder-case job. Multi-value blocktypes already throw on BOTH sides —
 `readBlockType` in [wasm-parser.ts](../src/binary/wasm-parser.ts) and `writeBlockType` in
 [wasm-encoder.ts](../src/encoder/wasm-encoder.ts). `tuple.make` is the tail of a multi-value
 project, not a peer of UP-3/UP-4. Scoping it alongside them would badly understate it.
+
+**Measured 2026-08-24** with three hand-built fixtures, because "multi-value is unsupported" turned
+out to be too coarse to plan from:
+
+| case                                            | status                                   |
+| ----------------------------------------------- | ---------------------------------------- |
+| multi-result FUNCTION `(func (result i32 i32))` | ✅ **already works** — round-trips valid |
+| multi-result CALL (N > 1 results)               | ✅ works (WT-2i `pushMultiValueCall`)    |
+| multi-result BLOCK, no params (p=0, r=2)        | ❌ throws (loud)                         |
+| block WITH INPUTS (p≥1)                         | ❌ throws (loud)                         |
+
+So the gap is narrower than "multi-value": function and call arity already work; only the
+**blocktype** path (a type-index blocktype rather than an inline valtype) is missing. That splits
+into two pieces of very different cost:
+
+- **Multi-result blocks (p=0, r>1)** — moderate. Decode needs N−1 `Pop`s seeded below the block on
+  the operand stack (the `pushMultiValueCall` pattern already in the decoder); encode needs
+  `writeBlockType` to emit a type-section index and `collectTypes` to register block signatures.
+  This is the piece UP-2's "multi-value `br` / `br_if`" needs.
+- **Blocks with inputs (p≥1)** — structurally harder: `BlockExpr` has no notion of consuming values
+  from the enclosing stack, so it is an IR-shape change, not a plumbing change.
+
+Corpus impact is exactly **one** file, `lit/control-flow-input.wast.wasm` — upstream's own test for
+block inputs, i.e. the _harder_ piece. Nothing else in the 90-file corpus needs either.
+
+**None of this is a bug.** Every unsupported case fails loudly on both sides, which is the contract
+working as designed. It is a missing feature, and should be weighed as one.
 
 ### UP-6 / UP-4 / UP-3 (fixed, Tier 2)
 
