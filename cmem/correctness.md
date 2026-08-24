@@ -32,21 +32,23 @@ Seven findings filed by the wabt-ts team from its conformance campaign (their re
 checkout at v1.4.3** before acting — their report was stamped v1.3.5, and nothing between the two
 versions touches these paths. Their framing was "six of seven fail loudly or are simply absent —
 only UP-1 emits bytes an engine rejects." Verification found that understated: **three of the seven
-produce wrong bytes**, and the silent one is worse than the loud one.
+produce wrong bytes**, and the silent one is worse than the loud one. **All seven are now fixed** —
+the per-item sections below record each one's state; the severity column is the finding as measured,
+not its status.
 
 Their methodology is worth adopting: measure engine-acceptance of encoder output across a corpus
 (they used the 257-file spec testsuite), and put every cross-engine question to more than one
 engine. V8 alone accepts things Wasmtime rejects.
 
-| ID   | What                                             | Real severity                                        | Status                  |
-| ---- | ------------------------------------------------ | ---------------------------------------------------- | ----------------------- |
-| UP-5 | start section parsed and discarded               | **silent miscompile** — the worst of the seven       | ✅ fixed (Tier 1)       |
-| UP-1 | `struct.get_u`/`array.get_u` unencodable         | **bare round-trip corruption**, not just unencodable | ✅ fixed (Tier 1)       |
-| UP-7 | typed refs stop at the `ModuleBuilder` surface   | **bare round-trip corruption** for typed-ref locals  | ⬜ OPEN (Tier 3)        |
-| UP-6 | no tag imports                                   | loud (parser `default` error)                        | ✅ fixed (Tier 2)       |
-| UP-4 | `ref.as_non_null` absent entirely                | absent                                               | ✅ fixed (Tier 2)       |
-| UP-3 | 4 GC array bulk ops: no factory, no encoder case | loud (both directions)                               | ✅ fixed (Tier 2)       |
-| UP-2 | `tuple.make`: enum entry only                    | loud                                                 | ⬜ deferred — see below |
+| ID   | What                                             | Real severity                                        | Status               |
+| ---- | ------------------------------------------------ | ---------------------------------------------------- | -------------------- |
+| UP-5 | start section parsed and discarded               | **silent miscompile** — the worst of the seven       | ✅ fixed (Tier 1)    |
+| UP-1 | `struct.get_u`/`array.get_u` unencodable         | **bare round-trip corruption**, not just unencodable | ✅ fixed (Tier 1)    |
+| UP-7 | typed refs stop at the `ModuleBuilder` surface   | **bare round-trip corruption** for typed-ref locals  | ✅ fixed (Tier 3)    |
+| UP-6 | no tag imports                                   | loud (parser `default` error)                        | ✅ fixed (Tier 2)    |
+| UP-4 | `ref.as_non_null` absent entirely                | absent                                               | ✅ fixed (Tier 2)    |
+| UP-3 | 4 GC array bulk ops: no factory, no encoder case | loud (both directions)                               | ✅ fixed (Tier 2)    |
+| UP-2 | `tuple.make`: enum entry only                    | loud                                                 | ✅ fixed (Tiers 5–8) |
 
 ### UP-5 — the start section (fixed) — the most severe of the seven
 
@@ -93,7 +95,7 @@ The WAT parser now rejects a `get`/`get_s`/`get_u` that disagrees with the field
 Without that guard the encoder would silently REPAIR invalid source into a different instruction;
 the front door must accept-or-throw, never quietly substitute.
 
-### UP-7 — typed refs (OPEN; a third wrong-bytes bug)
+### UP-7 — typed refs (FIXED; it was a third wrong-bytes bug)
 
 Reported as the mildest finding — "the representational work is done, just widen five
 `ModuleBuilder` signatures." Both halves of that are wrong:
@@ -114,7 +116,7 @@ hand-built binaries and asserted structurally; they become ordinary behavioral t
 lands. Doing UP-7 properly also DELETES an existing loud failure (the `gcFuncTypeIndex` ambiguity
 throw), which is a better argument for it than the original "smaller ask" framing.
 
-### UP-2 — `tuple.make` (deferred, correctly) — and what multi-value actually costs
+### UP-2 — `tuple.make` (FIXED in Tiers 5–8) — and what multi-value actually cost
 
 Not a factory-plus-encoder-case job. Multi-value blocktypes already throw on BOTH sides —
 `readBlockType` in [wasm-parser.ts](../src/binary/wasm-parser.ts) and `writeBlockType` in
@@ -288,7 +290,9 @@ the silent-truncation bug it replaced); `WasmExport.kind` includes `"tag"`.
 
 `scripts/verify_roundtrip.ts` over the upstream test tree was down to two failures, both
 **pre-existing** (identical at the pre-UP-series HEAD) and both the silent-substitution class. Fixed
-together; the corpus is now **79 exact, 0 structural drift, 0 validate failures**.
+together; the corpus stood at **79 exact, 0 structural drift, 0 validate failures** at that point.
+(Superseded — it is **80 exact / 10 deliberate rejections** since the multi-value work let
+`control-flow-input.wast.wasm` round-trip. See § "Block and `if` inputs".)
 
 ### `ref.null` collapsed every heap type to `externref`
 

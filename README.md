@@ -499,7 +499,28 @@ surface the wabt-ts bridge could not cross: **tag imports** (`ModuleBuilder.addT
 tags correctly take the low end of the tag index space), **`ref.as_non_null`**, and the four **GC
 array bulk ops** `array.fill` / `array.copy` / `array.init_data` / `array.init_elem`. All five are
 pinned against the WAT front door by a test asserting none fall through to `nop`. 430 → 438 passing.
-|
+| | — | ✅ Done | **UP-series Tier 3** — **concrete typed references end-to-end**. Every declared
+value type (locals, function params/results, globals, tables, tags, imports) is now
+`ValType | RefType`, not just `ValType`. This was reported as a missing feature and was a third
+wrong-bytes bug: a local declared `(ref null $T)` decoded to `anyref`, so re-encoding a GC module
+produced one engines reject. Resolving it also deleted the encoder's "ambiguous GC function type"
+error, which existed only because the collapse made two func heap types indistinguishable. 438 → 448
+passing. | | — | ✅ Done | **Corpus round-trip closure** — `ref.null` collapsed every heap type to
+`externref` (so `ref.null none` re-encoded as `ref.null extern`, which V8 rejects), a concrete
+heap-type index ≥ 64 was written unsigned where the reader expects a signed `s33`, and a phantom
+operand pop in stack-polymorphic code produced a `nop` instead of `unreachable` — the last of which
+grew an expression on every round-trip. 448 → 453 passing. | | — | ✅ Done | **Multi-value** (Tiers
+5–8) — `tuple.make`, multi-result blocks, multi-value `br` / `br_if` / `br_table`, and block / `if`
+/ `loop` / `try` / `try_table` **inputs** (spilled to locals, with a back-edge branch rewrite for
+loops and a dispatch trampoline for a `br_table` whose targets mix a parametrised loop with other
+frames). Multi-result functions and calls already worked. 453 → 467 passing. | | — | ✅ Done |
+**Code-issue sweeps** — an `if` with parameters aliased one expression node into both arms; an
+unknown export kind was silently dropped; Flatten mis-typed multi-result calls as their first
+result; `deepCopy` covered 29 of 79 expression kinds and shared subtrees across inlined copies; and
+PickLoadSigns could not see a `local.get` inside a `br`, so it flipped a narrow load's sign and
+turned `-1` into `255`. Four genuinely dead exports were removed (`parseWast`, `isAtom`,
+`assertList`, `materializeFakeGlobals` — none reachable from any `exports` subpath), which makes the
+next release a **minor** bump. 467 → 473 passing. |
 
 ## Robustness & error handling
 
@@ -521,10 +542,8 @@ Concretely, the parser/encoder throw rather than corrupt when they hit:
   element segments, multiple memories, `ref.null` table entries, multi-value block types (and
   therefore `tuple.make`), and the non-MVP corners of the GC / atomics proposals.
 
-One known gap does **not** yet fail loudly: a local declared with a concrete typed reference
-(`(ref null $T)`) is currently widened to `anyref` on read, so a GC module using typed-ref locals
-can be re-encoded into one an engine rejects. Typed references through the declaration surface are
-being threaded end-to-end; until that lands, treat typed-ref locals as unsupported.
+Concrete typed references (`(ref $T)` / `(ref null $T)`) are now carried end-to-end through every
+declared position, so the earlier caveat about typed-ref locals no longer applies.
 
 Downstream consumers (e.g. [wasmtk](https://jsr.io/@jrmarcum/wasmtk)) should therefore expect a
 clear exception for an unsupported module rather than a miscompiled one, and can catch it to fall

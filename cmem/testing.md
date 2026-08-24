@@ -31,6 +31,36 @@ and referenced by mapped name in every test — never an inline `jsr:` specifier
 `tests/tools/`, `tests/wasm/`, `tests/api/` (`binaryen_compat_test.ts`), `tests/interop/`
 (`binaryen_interop_test.ts` — mock factory, zero CI dep; live test gated on `BINARYEN_LIVE=1`).
 
+## The corpus round-trip test (`tests/binary/corpus_roundtrip_test.ts`)
+
+Parse → encode → parse over the whole `upstream/test` tree: **80 exact, 0 structural drift, 0
+validate failures, 90 of 90 files accounted for** (2026-08-24). Promoted from
+`scripts/verify_roundtrip.ts` once the parser was provably clean — as a script nobody ran it, and
+every WT-2 / UP-series defect it would have caught was found by a downstream consumer instead.
+
+Three design points worth keeping:
+
+- **It SKIPS when `upstream/` is absent** rather than failing, because the corpus is gitignored and
+  CI checks out without it. That makes the test free to keep locally without breaking the published
+  run.
+- **Expression counts are checked for CONVERGENCE, not equality.** Constructs that are legitimately
+  rewritten on decode (block/loop/`if` parameters spilled to locals, a mixed-target `br_table`
+  turned into a trampoline) add nodes on the first trip. Generation 1 vs 2 must match — which still
+  catches what the check existed for: the `unreachable-pops` defect grew on EVERY trip (4 → 5 → 6).
+  Entity counts stay exact.
+- **Every file lands in exactly one bucket and the totals are reconciled.** The old script silently
+  `continue`d past a file that failed the FIRST parse, so "0 failures" was not evidence the corpus
+  had been exercised.
+
+The 10 remaining rejections are deliberate: malformed crash fixtures, invalid-magic fuzz inputs,
+component-model binaries, and loud non-MVP rejections (declarative element segments, `local.get` in
+an init expression, atomics `0xFE`).
+
+⚠️ **The fuzzer's reach is narrower than it looks.** Measured: `optimize_fuzz_test.ts` contains zero
+`makeLoad` and zero `makeBreak` calls and no SIMD or GC nodes, so it could not have constructed
+either defect found in the 2026-08-24 duplicate-dispatcher sweep. Grep the harness for the node
+kinds it emits before assuming it covers a new construct.
+
 ## The differential optimizer fuzzer (`tests/passes/optimize_fuzz_test.ts`)
 
 Because every WT-2f…WT-2j optimizer bug was a **behavioral** miscompile (valid wasm, wrong value)

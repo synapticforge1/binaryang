@@ -74,28 +74,44 @@ Seven findings filed by the wabt-ts team; re-verified against v1.4.3 before acti
 seven produced wrong bytes, not one as reported. Detail in [correctness.md](correctness.md) § "The
 UP-1…UP-7 series"; bridge view in [bridge.md](bridge.md).
 
-| Tier   | Content                                                                                                      | Suite     | Status      |
-| ------ | ------------------------------------------------------------------------------------------------------------ | --------- | ----------- |
-| Tier 1 | UP-1 packed `get` sub-opcode; UP-5 start section (+ pass reachability seeding); tests type-checked; repo fmt | 405 → 424 | ✅ Done     |
-| Tier 2 | UP-6 tag imports; UP-4 `ref.as_non_null`; UP-3 four GC array bulk ops                                        | 430 → 438 | ✅ Done     |
-| Tier 3 | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                          | 438 → 448 | ✅ Done     |
-| Tier 4 | Corpus round-trip closure: `ref.null` heap-type collapse + signed heap index + phantom-pop `nop`             | 448 → 453 | ✅ Done     |
-| Tier 5 | UP-2 `tuple.make` + multi-result blocks (p=0, r>1); multi-value `br`/`br_if`/`br_table`                      | 454 → 462 | ✅ Done     |
-| Tier 6 | Block + `if` INPUTS via spill-to-locals; `loop` inputs rejected (br_if fall-through hazard)                  | 462 → 464 | ✅ Done     |
-| Tier 7 | LOOP inputs via back-edge branch rewrite (incl. `br_if` fall-through restore)                                | 464 → 465 | ✅ Done     |
-| Tier 8 | `br_table` dispatch trampoline for mixed targets; `try`/`try_table` inputs; convergence-based drift          | 465 → 467 | ✅ Done     |
-| —      | (nothing outstanding on multi-value)                                                                         | —         | ⬜ Deferred |
+| Tier    | Content                                                                                                      | Suite     | Status      |
+| ------- | ------------------------------------------------------------------------------------------------------------ | --------- | ----------- |
+| Tier 1  | UP-1 packed `get` sub-opcode; UP-5 start section (+ pass reachability seeding); tests type-checked; repo fmt | 405 → 424 | ✅ Done     |
+| Tier 2  | UP-6 tag imports; UP-4 `ref.as_non_null`; UP-3 four GC array bulk ops                                        | 430 → 438 | ✅ Done     |
+| Tier 3  | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                          | 438 → 448 | ✅ Done     |
+| Tier 4  | Corpus round-trip closure: `ref.null` heap-type collapse + signed heap index + phantom-pop `nop`             | 448 → 453 | ✅ Done     |
+| Tier 5  | UP-2 `tuple.make` + multi-result blocks (p=0, r>1); multi-value `br`/`br_if`/`br_table`                      | 454 → 462 | ✅ Done     |
+| Tier 6  | Block + `if` INPUTS via spill-to-locals; `loop` inputs rejected (br_if fall-through hazard)                  | 462 → 464 | ✅ Done     |
+| Tier 7  | LOOP inputs via back-edge branch rewrite (incl. `br_if` fall-through restore)                                | 464 → 465 | ✅ Done     |
+| Tier 8  | `br_table` dispatch trampoline for mixed targets; `try`/`try_table` inputs; convergence-based drift          | 465 → 467 | ✅ Done     |
+| Sweep 1 | "Look for code issues": `if`-arm node aliasing, dropped unknown export kind, Flatten multi-result mis-typing | 467 → 472 | ✅ Done     |
+| Sweep 2 | Dead-export removal (4 unreachable) + the two reachable ones documented                                      | 472       | ✅ Done     |
+| Sweep 3 | Duplicate-dispatcher class: `deepCopy` shared subtrees, PickLoadSigns could not see a use inside a `br`      | 472 → 473 | ✅ Done     |
+| —       | (nothing outstanding on multi-value)                                                                         | —         | ⬜ Deferred |
 
-**No bump/publish until every known bug is addressed** (owner decision, 2026-08-24). As of the Tier
-4 commit that bar is met: six of seven UP findings are fixed (UP-2 is correctly deferred behind
-multi-value support, and it fails loudly), and the upstream corpus round-trips at **79 exact, 0
-structural drift, 0 validate failures**, with the 11 non-parsing files verified as deliberate
-fail-loud rejections.
+**No bump/publish until every known bug is addressed** (owner decision, 2026-08-24). That bar is met
+as of Sweep 3: **all seven** UP findings are fixed (UP-2 included — multi-value landed in Tiers
+5–8), and the upstream corpus round-trips at **80 exact, 0 structural drift, 0 validate failures, 90
+of 90 files accounted for**, with the 10 non-parsing files verified as deliberate fail-loud
+rejections.
+
+**The next release is 1.5.0, not 1.4.4** — Sweep 2 removed exported symbols, which is a breaking
+change regardless of whether anything imported them. `deno task bump` has no minor mode, so set the
+version by hand. See [publishing.md](publishing.md). `deno.json` is deliberately still at 1.4.3
+while the bump is held: its tag exists on the remote, so `auto-tag.yml` no-ops and no push can
+publish.
 
 ## Deferred / not-yet-done
 
 - Phase 10 kernel selection (deferred until real-corpus profiling).
-- TranslateEH (behind multivalue/tuple IR).
-- Promote `scripts/verify_roundtrip.ts` to a real test once the parser is provably clean.
+- **TranslateEH — re-price this.** It was filed as "behind multivalue/tuple IR", and that blocker is
+  now gone: `tuple.make`, multi-result blocks and block/loop/`if` inputs all landed in Tiers 5–8.
+  Whether anything else blocks it has NOT been re-checked; do not treat the old reason as current.
 - Custom-section preservation (parse→encode drops DWARF `.debug_*`/`name`/`producers` — fine for
   production `-Oz`, must be acknowledged).
+- `br_table` mixing a parametrised loop with other targets IS handled (dispatch trampoline); nothing
+  outstanding there.
+
+**Done, previously listed here:** `scripts/verify_roundtrip.ts` was promoted to a real test
+([corpus_roundtrip_test.ts](../tests/binary/corpus_roundtrip_test.ts)) once the parser was provably
+clean; it skips when `upstream/` is absent, so CI is unaffected.

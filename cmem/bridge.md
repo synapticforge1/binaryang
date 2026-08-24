@@ -84,28 +84,40 @@ detail live in [correctness.md](correctness.md) § "The UP-1…UP-7 series"; the
 | UP-6 | tag imports (`addTagImport`)                              | ✅ fixed              |
 | UP-4 | `ref.as_non_null` (`makeRefAsNonNull`)                    | ✅ fixed              |
 | UP-3 | `array.fill`/`copy`/`init_data`/`init_elem` (4 factories) | ✅ fixed              |
-| UP-7 | typed refs (`(ref $T)`) through the declaration surface   | ⬜ OPEN — see below   |
-| UP-2 | `tuple.make` / multi-value `return`, `br`, `br_if`        | ⬜ deferred           |
+| UP-7 | typed refs (`(ref $T)`) through the declaration surface   | ✅ fixed              |
+| UP-2 | `tuple.make` / multi-value `return`, `br`, `br_if`        | ✅ fixed              |
 
 **Do not re-add these to the gap list** — wabt-ts's own notes had them stale and they are confirmed
 present: `ModuleBuilder.addElement`, the `v128.load` encoder path (and `loadOpcode` throwing rather
 than falling through to i64), and `"tag"` in `WasmExport.kind`.
 
-### UP-7 is the remaining lossy step, and it is bigger than reported
+### UP-7 landed — `coarsenValueType` is no longer needed at the boundary
 
 wabt-ts described it as "widening five `ModuleBuilder` signatures to a union you already define,"
-and noted that `coarsenValueType` is the only lossy step left in their pipeline. Verification found
-two corrections:
+and noted that `coarsenValueType` was the last lossy step in their pipeline. Two corrections found
+during the fix, both worth passing back:
 
-1. The IR record types are `ValType` as well (`WasmFunction.params`/`.results`, `Local.type`,
-   `WasmGlobal.type`, `WasmTable.type`, `WasmTag.params`), so widening the builder alone just pushes
-   a `RefType` into a `ValType`-typed field.
-2. It is not merely an expressiveness gap — the binary parser collapses a local's `(ref null $T)` to
-   `anyref`, so **binaryen-ts currently corrupts any GC module with typed-ref locals on a bare
-   parse→encode round-trip.** That affects the direct path too, not only the bridge.
+1. It was not five signatures. The IR record types were `ValType` too (`WasmFunction.params` /
+   `.results`, `Local.type`, `WasmGlobal.type`, `WasmTable.type`, `WasmTag.params`), so widening the
+   builder alone would have pushed a `RefType` into a `ValType`-typed field.
+2. It was not merely an expressiveness gap — the binary parser collapsed a local's `(ref null $T)`
+   to `anyref`, so binaryen-ts corrupted any GC module with typed-ref locals on a bare parse→encode
+   round-trip. That affected the direct path too, not only the bridge.
 
-Until it lands, the bridge's `coarsenValueType` is not merely lossy at the boundary — the loss is
-also reproduced inside binaryen-ts on every round-trip.
+Both are fixed: a new `ValueType = ValType | RefType` runs through every declaration position, and
+resolving it deleted `gcFuncTypeIndex`'s "ambiguous GC function type" throw, which only existed
+because the collapse made two func heap types indistinguishable. **wabt-ts can drop
+`coarsenValueType` and pass concrete typed references straight through.**
+
+### UP-2 landed too, and multi-value goes further than the original ask
+
+`tuple.make` exists, and with it multi-value `br` / `br_if` / `br_table`. The blocktype path came
+with it: multi-result blocks, and block / `if` / `loop` / `try` / `try_table` **inputs** (spilled to
+locals, with a back-edge branch rewrite for loops and a dispatch trampoline for a `br_table` whose
+targets mix a parametrised loop with other frames). Multi-result functions and calls already worked.
+
+So the bridge can now express the full multi-value surface. Detail and the remaining caveats are in
+[correctness.md](correctness.md) § "UP-2".
 
 ### Courtesy note wabt-ts raised, now documented
 

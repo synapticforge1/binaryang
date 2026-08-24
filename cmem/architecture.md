@@ -101,6 +101,23 @@ populates `typeNames` + `funcTypeDefs` in the first pass; `(type $sig)` referenc
   `UnaryExpr`/`BinaryExpr` with SIMD-prefixed op strings; **SIMD prefix checks must precede scalar
   prefix checks** in `inferUnaryType`/`inferBinaryType` (else `i32x4.splat` misclassifies as `i32`).
   7 specialized nodes for extract/replace/shuffle/ternary/shift/load/loadstore-lane.
+- **Multi-value (2026-08-24)** — a type-index blocktype (a non-negative `s33`, which is what
+  distinguishes it from the negative one-byte valtype forms) is resolved against the module's func
+  types. Multi-result blocks decode with N−1 typed `Pop`s seeded beneath the block node, the same
+  shape `pushMultiValueCall` uses for a tuple-returning call; `writeBlockType` emits the type index
+  with `writeI32`, and `collectExprTypes` registers block signatures alongside `call_indirect` ones.
+  `tuple.make` has no opcode — it is how the IR names "these N values on the stack", and the encoder
+  emits its operands and nothing else. `br`/`br_if`/`br_table` to a multi-result target carry their
+  values as one `tuple.make`.
+  - **Block parameters** are spilled to locals before the construct, with the body seeded by
+    `local.get`s. For `if` both arms are re-seeded with FRESH reads (sharing the nodes would alias
+    one expression into two tree positions). A `loop`'s parameters are additionally re-supplied by
+    every back-edge, so `rewriteLoopBranch` writes the temps at each `br`/`br_if` — and a `br_if`
+    that is NOT taken must have its values pushed back, since it leaves them on the stack.
+  - A `br_table` whose targets are all the same parametrised loop is rewritten directly; a table
+    mixing one with other frames becomes a **dispatch trampoline** (nested void blocks, each case
+    branching in its own convention), because the loop consumes 0 stack values after the rewrite
+    while a block/function target still consumes its arity.
 - **Tail calls (Phase 13)** — `0x12` `return_call` / `0x13` `return_call_indirect` decode to
   `Call`/`CallIndirect` with `isReturn=true`; encoder emits the tail-call opcode when set.
 
