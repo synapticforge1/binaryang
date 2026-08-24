@@ -52,6 +52,9 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
+- `tests/writer/table_init.test.ts` — T10.3: a table initializer is written as the single
+  folded instruction the grammar requires, and an inexpressible one throws instead of being
+  silently dropped. 6 cases including the nested `(ref.i31 (global.get $g))` form.
 - `tests/validator/memarg_offset.test.ts` — T9.11: every memarg handler checks `offset`
   against the memory's index type, not just `onLoad` / `onStore`. 11 cases, each
   cross-checked against V8, including the `0xffffffff` boundary and a 64-bit memory.

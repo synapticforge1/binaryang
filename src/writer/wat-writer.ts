@@ -1307,6 +1307,94 @@ class WatWriter extends ModuleContext {
     visitor.visitExprList(exprs);
   }
 
+  /**
+   * Emit a constant expression as ONE folded s-expression, e.g.
+   * `(ref.func $f)` or `(ref.i31 (global.get $g))`.
+   *
+   * This writer is linear (post-order) everywhere else, and deliberately so —
+   * see {@link writeInitExpr}. But a few grammar slots take a single folded
+   * instruction and have no `(item …)` / `(offset …)` wrapper to hold a linear
+   * sequence; the table initializer is one, and losing it is not cosmetic (see
+   * {@link writeTableDecl}).
+   *
+   * Only CONSTANT expressions are foldable here, which is what makes the
+   * operand table below closed rather than a second copy of the instruction
+   * set: the spec limits a constant expression to the const family, the `ref`
+   * forms, `global.get`, extended-const arithmetic and the GC allocations, and
+   * the validator enforces exactly that list. Anything else is rejected before
+   * it reaches a slot that needs folding.
+   *
+   * The instruction's own text still comes from the ordinary delegate — the
+   * `onXExpr` callbacks write a node's opcode and immediates and never touch
+   * its children, so folding needs the operand ORDER and nothing else. No
+   * immediate formatting is duplicated.
+   *
+   * Returns false when `e` is not a constant expression, leaving the output
+   * untouched so the caller can fail loudly rather than emit something that
+   * will not reparse.
+   */
+  private writeFoldedConstExpr(e: Expr): boolean {
+    const operands = constExprOperands(e);
+    if (operands === null) return false;
+    for (const operand of operands) {
+      if (constExprOperands(operand) === null) return false;
+    }
+
+    this.puts('(', NC.None);
+    this.indent += 2;
+    if (operands.length === 0) {
+      // A leaf's linear rendering IS its head — no children to interleave.
+      this.writeExprList([e]);
+    } else {
+      this.writeInstrHead(e);
+      for (const operand of operands) {
+        if (!this.writeFoldedConstExpr(operand)) return false;
+      }
+    }
+    this.close(NC.Space);
+    return true;
+  }
+
+  /**
+   * Write one instruction's opcode and immediates WITHOUT its operands.
+   *
+   * The delegate callbacks already have exactly this shape — the post-order
+   * visitor is what supplies children, not the callback — so this dispatches
+   * to the same method the linear path uses. Only the kinds that can carry an
+   * operand inside a constant expression need an entry.
+   */
+  private writeInstrHead(e: Expr): void {
+    const d = this.makeDelegate();
+    switch (e.kind) {
+      case 'ref.i31':
+        d.onRefI31Expr?.(e);
+        return;
+      case 'any.convert_extern':
+      case 'extern.convert_any':
+        d.onExternConvertExpr?.(e);
+        return;
+      case 'binary':
+        d.onBinaryExpr?.(e);
+        return;
+      case 'struct.new':
+        d.onStructNewExpr?.(e);
+        return;
+      case 'array.new':
+        d.onArrayNewExpr?.(e);
+        return;
+      case 'array.new_default':
+        d.onArrayNewDefaultExpr?.(e);
+        return;
+      case 'array.new_fixed':
+        d.onArrayNewFixedExpr?.(e);
+        return;
+      default:
+        // constExprOperands returned [] for it, so the leaf path is used and
+        // this is unreachable.
+        this.writeExprList([e]);
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Module-level section writers
   // -------------------------------------------------------------------------
@@ -1510,19 +1598,31 @@ class WatWriter extends ModuleContext {
     this.writeInlineExports(ExternalKind.Table, this.tableIdx);
     this.tableIdx++;
     this.writeLimits(t.limits);
-    this.writeType(t.elemType, NC.None);
-    // NOTE (T10.3): `t.init` is dropped here. It should print as
-    // `(table $t 10 (ref func) (ref.func $f))`, and losing it is not
-    // cosmetic — a NON-NULLABLE element type has no default value, so the
-    // spec requires the `0x40` init form for it and the re-encoded plain
-    // form is rejected outright.
+    this.writeType(t.elemType, NC.Space);
+    // T10.3. Dropping `t.init` here was not cosmetic: a NON-NULLABLE element
+    // type has no default value, so the spec REQUIRES the `0x40` init form
+    // for it, and the re-encoded plain form is rejected outright.
     //
-    // The blocker is not the reader (it already captures `init`) but this
-    // writer: the table grammar wants ONE FOLDED instruction there, and this
-    // writer is linear-only by design (see the header comment and
-    // `writeInitExpr`). Emitting the linear list inside parens reparses as a
-    // folded expression with a bogus operand. Needs a folded emitter for
-    // constant expressions; tracked as T10.3.
+    // The table grammar takes ONE FOLDED instruction here and has no
+    // `(item …)` wrapper to hold a linear sequence, which is why this needed
+    // `writeFoldedConstExpr` rather than the usual `writeInitExpr`.
+    if (t.init.length === 1) {
+      if (!this.writeFoldedConstExpr(t.init[0]!)) {
+        throw new Error(
+          `wat writer: table initializer is not a constant expression ` +
+            `(${t.init[0]!.kind}); it cannot be written in the folded form ` +
+            `the table grammar requires`,
+        );
+      }
+    } else if (t.init.length > 1) {
+      // A constant expression is `instr*`, but the table slot holds exactly
+      // one folded instruction — and the IR stores one expression TREE per
+      // element, so more than one is a decoder bug rather than valid input.
+      throw new Error(
+        `wat writer: table initializer has ${t.init.length} expressions; ` +
+          `the table grammar holds exactly one`,
+      );
+    }
     this.closeNewline();
   }
 
@@ -1739,6 +1839,44 @@ class WatWriter extends ModuleContext {
 // ---------------------------------------------------------------------------
 // Module-level helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Operand sub-expressions of a CONSTANT expression, in stack order, or `null`
+ * when `e` is not one.
+ *
+ * Kept to the constant-expression grammar on purpose — that list is closed by
+ * the spec (const family, `ref` forms, `global.get`, extended-const
+ * arithmetic, GC allocations) and is the same one the validator's
+ * constant-expression check enforces. It is not a general operand table for
+ * the instruction set, and should not grow into one: the only callers are
+ * grammar slots that take a single folded instruction.
+ */
+function constExprOperands(e: Expr): Expr[] | null {
+  switch (e.kind) {
+    case 'const':
+    case 'ref.null':
+    case 'ref.func':
+    case 'global.get':
+    case 'struct.new_default':
+      return [];
+    case 'ref.i31':
+    case 'any.convert_extern':
+    case 'extern.convert_any':
+      return [e.value];
+    case 'array.new_default':
+      return [e.length];
+    case 'array.new':
+      return [e.init, e.length];
+    case 'binary':
+      // Extended-const arithmetic: i32/i64 add, sub, mul.
+      return [e.left, e.right];
+    case 'struct.new':
+    case 'array.new_fixed':
+      return e.operands;
+    default:
+      return null;
+  }
+}
 
 function importItemName(imp: Import): string {
   switch (imp.kind) {

@@ -73,6 +73,7 @@ reference these ids.
 | T10.5 | Linear-form `call` drained the whole operand stack | done — WASI corpus 50 → 225 / 270 |
 | T10.8 | A synthesized operand slot-filler was written out as a real `nop` | done — WASI corpus **270 / 270** |
 | T9.11 | Ten of the twelve memarg handlers never checked the offset | done — 4 SIMD false-accepts closed |
+| T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 
 ### Open — parse side: NONE
 
@@ -149,7 +150,7 @@ T7 work; re-measure before starting any of them.
 | --- | --- | --- | --- |
 | ~~**T10.1**~~ | **CLOSED 2026-08-24.** **Export ORDER was not preserved.** The WAT writer attached exports inline to the item they name, so re-parsing rebuilt the export section grouped per item — `a, b, ac` came back as `a, ac, b`. Export order is observable through `WebAssembly.Module.exports()`. `buildExportMap` now tests the abbreviation before using it and falls back to standalone `(export "n" (func $f))` fields in the module's own order. | 69 / 21 | closed |
 | ~~**T10.2**~~ | **CLOSED 2026-08-24, same fix.** The writer emitted the inline `(export …)` abbreviation on IMPORTED items, e.g. `(import "M" "f" (func $f0 (export "Mf.call") (result i32)))`. That abbreviation has no place in the import grammar, so **our own parser rejected our own output** — the whole "reparse FAILS" group. | 11 / 6 | closed |
-| **T10.3** | **A non-nullable table element type loses its initializer.** `wasm2wat` prints `(table $T0 1 (ref func))` and drops `Table.init`. The binary form `0x40 0x00 <reftype> <limits> <init>` is REQUIRED when the element type is non-nullable — there is no default value — so the re-encode emits the plain form and V8 rejects it. **Scoped during T7.11:** the binary reader already captures `init`; the blocker is the WAT WRITER. The table grammar wants ONE FOLDED instruction there (`parseOneInstr`), and the writer is linear-only by design — wrapping its linear output in parens reparses as a folded expression with a bogus operand. Needs a folded emitter for constant expressions. A `NOTE (T10.3)` marker sits at the drop site in `wat-writer.ts`. Now covers the 4 elem/array modules T7.11 made encodable. | 10 / 4 | INVALID |
+| ~~**T10.3**~~ | **CLOSED 2026-08-24.** The WAT writer dropped `Table.init`, so a non-nullable element type re-encoded to the plain form the spec forbids (there is no default value for it) and V8 rejected the result. New `writeFoldedConstExpr` emits the single folded instruction the table grammar requires, and the writer now THROWS rather than dropping anything it cannot express. | 10 / 4 | closed |
 | **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
 | ~~**T10.5**~~ | **MOSTLY CLOSED 2026-08-24.** Diagnosed wrong for the whole campaign: the dominant producer was not the binary reader but the PARSER — linear-form `call` drained the entire operand stack instead of popping the callee's arity, so a value belonging to a later instruction was swallowed and that instruction's slot got a Nop. Fixed by deferring function-body parsing until every signature is known. What remains is the genuine multi-value case, refiled as **T10.8**. | 39 / 33 | closed → T10.8 |
 | **T10.6** | **Nop operands that are NOT inert.** The same substitution applied to an instruction that genuinely needs its operand on the stack: V8 says "not enough arguments on the stack for br_on_null (need 1, got 0)", "expected 1 elements on the stack for fallthru", "array.new_fixed[0] expected type f32, found local.get of type i32". Produces INVALID wasm. Highest severity of what remains. Files: array, br_on_cast, br_on_cast_fail, br_on_non_null, br_on_null, throw_ref, +1. | 9 / 7 | INVALID |
@@ -161,8 +162,51 @@ T7 work; re-measure before starting any of them.
 exactly T10.3 (14 modules, `table`), T10.4 (13, NaN payloads), T10.6 (4,
 `INVALID code`) and T10.7 (1 throw).
 
-Recommended order for the rest: **T10.3 and T10.6 next** (both produce INVALID
-wasm), then T10.7 and T10.4.
+Recommended order for the rest: **T10.6 next** (it produces INVALID wasm), then
+T10.7 and T10.4.
+
+**T10.3 — done 2026-08-24.** The binary reader already captured `Table.init`;
+the WAT writer dropped it, with a `NOTE (T10.3)` at the drop site explaining
+why. The blocker was real: this writer is LINEAR (post-order) by design, and
+the table grammar takes ONE FOLDED instruction there with no `(item …)` /
+`(offset …)` wrapper to hold a linear sequence — wrapping the linear output in
+parens reparses as a folded expression with a bogus operand.
+
+`writeFoldedConstExpr` supplies the folded form. Two decisions kept it from
+becoming a second copy of the instruction set:
+
+- **It handles CONSTANT expressions only**, and that grammar is closed by the
+  spec — const family, `ref` forms, `global.get`, extended-const arithmetic, GC
+  allocations — the same list the validator's constant-expression check
+  enforces (T9.6). Surveying the testsuite first showed why that is enough:
+  across every `Table.init` in all 257 files there are six shapes, 22 of 23 are
+  a single LEAF instruction, and the only nested one is
+  `ref.i31 (global.get $g)`.
+- **The instruction's own text still comes from the ordinary delegate.** An
+  `onXExpr` callback writes a node's opcode and immediates and never touches
+  its children — the post-order visitor is what supplies those — so folding
+  needs the operand ORDER and nothing else. No immediate formatting is
+  duplicated.
+
+And the drop is now **fail-loud**: a table initializer the folded emitter
+cannot express throws instead of vanishing, which is the behaviour that let
+this hide in the first place.
+
+| metric | before | after |
+| --- | --- | --- |
+| spec testsuite byte-identical | 2088 / 2120 | **2102 / 2120** |
+| differing modules | 32 | **18** |
+| files affected | 14 | **10** |
+| V8-invalid after round-trip | 15 | **5** |
+| WASI corpus | 270 / 270 | 270 / 270 |
+| parse-clean · V8-valid · agreement · assert_invalid | — | all unmoved |
+
+The whole `table` group is gone. Remaining: T10.4 (13 modules, NaN payloads),
+T10.6 (4, INVALID code) and T10.7 (1 throw).
+
+Regression test: `tests/writer/table_init.test.ts` (6 cases; 5 fail on the
+pre-fix writer, and the sixth is the guard that a table with NO initializer is
+left alone).
 
 **T10.8 — done 2026-08-24.** The residue of T10.5, and the part its original
 description actually named. Both decoders build a TREE from a stack machine, so
