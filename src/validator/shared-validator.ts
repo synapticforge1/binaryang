@@ -447,7 +447,15 @@ export class SharedValidator {
     if (this.tables.length > 0 && !this.features.referenceTypes) {
       r = combineResults(r, this.printError(loc, 'only one table allowed'));
     }
-    r = combineResults(r, this.checkLimits(loc, limits, 0xFFFFFFFF, 'elems'));
+    // The element bound follows the INDEX TYPE: a 32-bit table tops out at
+    // 2^32-1 entries, a 64-bit one at 2^64-1. A flat u32 cap rejected
+    // `(table i64 0 0x1_0000_0000 funcref)`, which table64.wast declares
+    // valid — invisible until the writer stopped truncating 64-bit limits to
+    // u32, which is what had been keeping the value away from this check.
+    r = combineResults(
+      r,
+      this.checkLimits64(loc, limits, limits.is64 ? (1n << 64n) - 1n : 0xffff_ffffn, 'elems'),
+    );
     if (!hasInit && !SharedValidator.isDefaultable(elemType)) {
       r = combineResults(
         r,

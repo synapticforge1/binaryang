@@ -25,12 +25,12 @@ the harnesses: [tasks.md](tasks.md), [testing.md](testing.md).
 | metric              | what it answers                                      | value                                                              |
 | ------------------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
 | parse-clean         | files `parseWastScript` accepts                      | **257 / 257**                                                      |
-| V8-valid            | files whose every module encodes to wasm V8 accepts  | **257 / 257** (2120 / 2120 modules)                                |
-| validator agreement | modules V8 accepts that `wasmValidate` also accepts  | **2120 / 2120**                                                    |
-| `assert_invalid`    | modules the spec calls invalid that we reject        | **2664 / 2683** — all 19 remaining are ones V8 AND Wasmtime accept |
-| round-trip          | `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**                                                    |
+| V8-valid            | files whose every module encodes to wasm V8 accepts  | **255 / 257** (2118 / 2120 modules) — the 2 are a 2^48-page `memory i64` and a 2^64-1-element `table i64`, which V8 rejects on its OWN limits; they used to pass only because the encoder truncated them (T13.2) |
+| validator agreement | modules V8 accepts that `wasmValidate` also accepts  | **2118 / 2118**                                                    |
+| `assert_invalid`    | modules the spec calls invalid that we reject        | **2683 / 2683**                                                    |
+| round-trip          | `binary → wasm2wat → wat2wasm` byte-identical        | **2118 / 2118**                                                    |
 | execution           | spec `assert_return` assertions our output satisfies | **23,077 / 23,077**                                                |
-| `assert_malformed`  | text or bytes the spec says must FAIL TO PARSE that we reject | **1229 / 1229** quoted · **711 / 711** binary — the parser alone reaches 1227; the last two are undefined labels, which `resolveNames` rejects |
+| `assert_malformed`  | text or bytes the spec says must FAIL TO PARSE that we reject | **1229 / 1229** quoted · **711 / 711** binary                       |
 
 Against the wasmtk WASI corpus (`tests/wasmtk/`, a FROZEN 272-file snapshot — see
 `tests/wasmtk/PROVENANCE.md`): encode **270 / 270**, round-trip **270 / 270**.

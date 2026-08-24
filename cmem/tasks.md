@@ -82,6 +82,8 @@ reference these ids.
 | T12.7 | Annotations skipped at the CHARACTER level; a closing label and an inline signature both read and discarded | done — quoted 1087 → **1183**; closes T12.6 |
 | T12.8 | The binary reader resynchronised instead of reporting | done — binary 638 → **711 / 711**, the metric is CLOSED |
 | T12.9 | Duplicate ids, `nan:0x0`, lane immediates, token boundaries, a second `(start …)`, forward type uses | done — quoted 1183 → **1227 / 1229** at the parser, **1229 / 1229** through `wat2wasm` |
+| T13.1 | The parser now reports an out-of-scope branch target | done — quoted **1229 / 1229** at the parser too |
+| T13.2 | The last 19 `assert_invalid` modules — 16 were the ENCODER repairing them | done — **2683 / 2683**; the metric is CLOSED |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -919,6 +921,94 @@ worth keeping — the parser-only one is the stricter statement.
 Regression: `tests/parser/duplicate_ids_and_tokens.test.ts` (34 steps, all six
 groups fail pre-fix), including a V8 round trip proving the in-range NaN
 payloads still come back as NaNs and not infinities.
+
+## T13 — the last two gaps, and a correction to what the 19 were
+
+**T13.1 — an out-of-scope branch target is now the PARSER's error
+(2026-08-24).** Labels are lexical and fully known at parse time, so
+`(block $l (br $l0))` is malformed, not invalid. `resolveNames` already said
+so, but it is a separate pass that `parseWatModule` does not run — which is why
+the quoted metric read 1227 at the parser and 1229 through `wat2wasm`.
+`checkLabelScopes` closes that, and it CHECKS ONLY: it resolves nothing and
+rewrites no `Var`, so the worst it can do is report an error that is not there,
+which parse-clean sees at once. Resolution stays in `resolveNames`, which still
+owns it for IR that never came from text.
+
+**Writing it found a live trap in `ExprVisitor`.** A `try … delegate` returns
+after `onDelegateExpr` and never fires `endTryExpr` — and that is CORRECT:
+`delegate` REPLACES `end` as the block terminator, which the binary writer, the
+WAT writer and the validator all depend on. But it means a delegate that pushes
+in `beginTryExpr` and pops in `endTryExpr` LEAKS its label into everything that
+follows. The first draft did exactly that and the test caught it. Any new
+delegate that maintains a stack has to pop in `onDelegateExpr` too.
+
+**T13.2 — 16 of the 19 `assert_invalid` modules were never a validator gap.**
+
+The ledger recorded them as *"modules V8 and Wasmtime both accept — those spec
+tests predate proposals that legalised what they assert against, so matching
+them would mean diverging from the reference runtime."* Re-deriving them showed
+the engines were accepting a **different module**: our own pipeline rewrote
+each one into validity before anything validated it.
+
+    (memory 0x1_0000_0000)            emitted as (memory 0)
+    (memory i64 0x1_0000_0000_0001)   emitted as (memory i64 1)
+    (func (type 42))                  emitted as (func (type 0))
+    (rec (type (func)) (type $ft (func))) (func $f)
+                                      given (type $ft) — a type in a rec group
+
+Three repairs, one class (T11, "an encoder must never repair invalid input"):
+
+1. **`encodeU32Leb128` began `let v = value >>> 0`.** That WAS the range check,
+   and it wraps: 2^32 encoded as 0, 2^48+1 as 1. It also hid a second bug —
+   a 64-bit memory's limits are **u64 on the wire** and we wrote them as u32,
+   so no 64-bit size above 2^32 could survive an encode at all.
+2. **`synthesizeTypes` called `ensureTypeFor(item.sig)` for a type-use naming
+   an index that does not exist.** The comment said that would leave "a
+   dangling reference for the validator to report"; `ensureTypeFor` APPENDS a
+   matching type when none exists, so what it actually left was a valid module
+   pointing at a different type. **A comment stating the intent is not evidence
+   the code does it** — this one had been read and believed for a whole
+   campaign.
+3. **`synthesizeTypes` reused any structurally-matching function type for an
+   implicit type-use.** An implicit type-use denotes a SINGLETON rec group, and
+   type identity is compared up to the rec group, so a `(func)` inside a
+   two-member `(rec …)` is a different type. `type-rec.wast` says so in a
+   comment on the assertion itself: `;; the implicit type of $f is not $ft`.
+
+**The V8-valid metric was partly earned by those repairs, and it goes DOWN.**
+Two spec modules that had counted as V8-valid — a 2^48-page `memory i64` and a
+2^64-1-element `table i64` — passed only because we truncated them first.
+V8-valid is now **2118 / 2120**, and that is the honest number: V8 rejects both
+for its own implementation limits, at any faithful encoding.
+
+**The three-engine panel settled the memory64 one, and V8 would have got it
+wrong.** Wasmtime — the authority — ACCEPTS 2^48 pages and rejects 2^48+1 with
+"memory size must be at most", which is exactly the spec ruling and exactly
+what we now emit. Wasmer rejected all four with *"invalid var_u32: integer
+representation too long"* — it reads 64-bit limits as u32, which is precisely
+the bug we had just fixed, and is the divergence detector earning its place
+again.
+
+**Fixing the encoder exposed a validator bug the repair had been hiding.**
+`onTable` capped elements at 2^32-1 regardless of index type, so
+`(table i64 0 0x1_0000_0000 funcref)` — which `table64.wast` declares VALID —
+was rejected the moment 64-bit limits stopped being truncated before the check
+ran. Agreement caught it; the `assert_invalid` number was identical either way.
+That is the fifth time in this campaign that the metric which caught a
+regression was not the one the work was aimed at.
+
+**One representational limit remains, and it is now fail-loud rather than
+silent.** `Limits.initial` / `max` are JS numbers, exact only to 2^53, so
+`(table i64 0 0xffff_ffff_ffff_ffff funcref)` — a module the spec calls valid —
+cannot be encoded: `Number()` rounds it to 2^64 and the writer now REFUSES with
+a message naming the cause, where it used to wrap to 0. Lifting it means
+`Limits` holding `bigint` (~25 sites, and a breaking change to an exported
+type). It would not move any metric — V8 and Wasmtime both reject a table that
+size on their own implementation limits — so it is recorded, not done.
+
+Regressions: `tests/parser/label_scope.test.ts` (20 steps; 2 of 3 groups fail
+pre-fix) and `tests/writer/no_repair.test.ts` (23 steps; all 4 groups fail
+pre-fix).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 

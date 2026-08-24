@@ -38,7 +38,7 @@ import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { resolveNames } from '../ir/resolve-names.ts';
 import { synthesizeTypes } from '../ir/synthesize-types.ts';
 import { Result } from '../core/result.ts';
-import { formatErrors, hasErrors } from '../core/error.ts';
+import { addError, formatErrors, hasErrors, unknownLocation } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 
 // ---------------------------------------------------------------------------
@@ -87,7 +87,23 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
   // does not back-fill the type section; this pass closes the gap.
   synthesizeTypes(module);
 
-  const binary = writeBinaryIr(module);
+  // The encoder is FAIL-LOUD on a module it cannot represent -- a limits value
+  // that does not fit its field, a tag whose type is not in the type section,
+  // an unresolved name-var. Every one of those used to be a silent repair, and
+  // making them throw was the fix; but a throw out of a TOOL is not a
+  // diagnostic, so turn it into one here. Same rule as the validator's: a
+  // failure must REPORT.
+  let binary: Uint8Array;
+  try {
+    binary = writeBinaryIr(module);
+  } catch (e) {
+    addError(
+      errors,
+      unknownLocation(),
+      `cannot encode module: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return { binary: new Uint8Array(0), errors, result: Result.Error };
+  }
   return { binary, errors, result: Result.Ok };
 }
 

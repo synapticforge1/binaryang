@@ -14,6 +14,7 @@
 import type { Location, WabtError } from '../core/error.ts';
 import { addError, ErrorLevel, unknownLocation } from '../core/error.ts';
 import { Result } from '../core/result.ts';
+import { ExprVisitor } from '../ir/expr-visitor.ts';
 import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
 import { GcOpcode, Opcode, PREFIX_SIMD } from '../core/opcode.ts';
 import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
@@ -1993,6 +1994,7 @@ export class WastParser {
           `unexpected ${tokenName(this.peek())} in function body`,
         );
       }
+      checkLabelScopes(pb.func.body, (loc, msg) => this.error(loc, msg));
     }
 
     this.funcParamCounts = savedCounts;
@@ -5649,6 +5651,110 @@ function decimalToBits(s: string, mantBits: number, expBits: number): bigint | n
   if (biased >= allOnesExp) return signBit | (allOnesExp << BigInt(mantBits)); // rounded up → inf
 
   return signBit | (biased << BigInt(mantBits)) | (q & mantMask);
+}
+
+/**
+ * Report every branch target in `body` that names a label not in scope.
+ *
+ * Labels are LEXICAL and fully known at parse time, so `(block $l (br $l0))` is
+ * malformed, not merely invalid. `resolveNames` already reports it — but
+ * `resolveNames` is a separate pass that `parseWatModule` does not run, so the
+ * parser accepted it and only `wat2wasm` (which runs both) caught it. Checking
+ * here puts the diagnostic where the spec puts it, and at the branch's own
+ * location rather than the enclosing function's.
+ *
+ * This CHECKS ONLY: it resolves nothing and rewrites no `Var`, so the worst it
+ * can do is report an error that is not there — which the parse-clean and
+ * V8-valid metrics see immediately. Resolution stays in `resolveNames`, which
+ * still owns it for IR that never came from text.
+ *
+ * Two scoping details, both of them past bugs (T7.6, T9.8, and the legacy-EH
+ * work):
+ *
+ *   - a `try_table`'s CATCH targets resolve in the ENCLOSING scope, so they
+ *     are checked before the `try_table`'s own label is pushed;
+ *   - a legacy `try`'s `delegate` likewise targets the OUTER scope, so it is
+ *     checked after the try's label is popped.
+ *
+ * `ExprVisitor` walks neither a catch clause's target nor a delegate, so both
+ * are read here explicitly.
+ */
+function checkLabelScopes(
+  body: Expr[],
+  report: (loc: Location, msg: string) => void,
+): void {
+  const stack: string[] = [];
+  const check = (v: Var, loc: Location): void => {
+    // A numeric depth is a validator matter, not a naming one.
+    if (v.kind !== 'name') return;
+    if (!stack.includes(v.name)) report(loc, `undefined label ${v.name}`);
+  };
+  const push = (label: string): Result => {
+    stack.push(label);
+    return Result.Ok;
+  };
+  const pop = (): Result => {
+    stack.pop();
+    return Result.Ok;
+  };
+  const visitor = new ExprVisitor({
+    beginBlockExpr: (e) => push(e.label),
+    endBlockExpr: () => pop(),
+    beginLoopExpr: (e) => push(e.label),
+    endLoopExpr: () => pop(),
+    beginIfExpr: (e) => push(e.label),
+    endIfExpr: () => pop(),
+    beginTryExpr: (e) => push(e.label),
+    // `delegate` REPLACES `end` as the block terminator — it is a different
+    // opcode, not an extra one — so `ExprVisitor` fires `onDelegateExpr`
+    // INSTEAD of `endTryExpr`, exactly as the binary writer, the WAT writer
+    // and the validator all rely on. This is therefore where the try's own
+    // label leaves scope; popping in `endTryExpr` alone would leak it into
+    // every branch that followed, and would never check the delegate at all.
+    onDelegateExpr: (e) => {
+      pop();
+      // AFTER the pop: `try … delegate $l` names a target OUTSIDE the try.
+      if (e.delegate !== undefined) check(e.delegate, e.loc);
+      return Result.Ok;
+    },
+    endTryExpr: () => pop(),
+    beginTryTableExpr: (e) => {
+      // BEFORE the push, for the same reason in the other direction.
+      for (const c of e.catches) check(c.target, c.loc);
+      return push(e.label);
+    },
+    endTryTableExpr: () => pop(),
+    onBrExpr: (e) => {
+      check(e.target, e.loc);
+      return Result.Ok;
+    },
+    onBrIfExpr: (e) => {
+      check(e.target, e.loc);
+      return Result.Ok;
+    },
+    onBrTableExpr: (e) => {
+      for (const t of e.targets) check(t, e.loc);
+      check(e.defaultTarget, e.loc);
+      return Result.Ok;
+    },
+    onBrOnNullExpr: (e) => {
+      check(e.target, e.loc);
+      return Result.Ok;
+    },
+    onBrOnNonNullExpr: (e) => {
+      check(e.target, e.loc);
+      return Result.Ok;
+    },
+    onBrOnCastExpr: (e) => {
+      check(e.target, e.loc);
+      return Result.Ok;
+    },
+    onRethrowExpr: (e) => {
+      check(e.depth, e.loc);
+      return Result.Ok;
+    },
+  });
+  visitor.visitExprList(body);
 }
 
 /**

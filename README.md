@@ -33,17 +33,17 @@ Measured against the official [WebAssembly spec testsuite](https://github.com/We
 |                                                      |                     |
 | ---------------------------------------------------- | ------------------- |
 | Files the WAT parser accepts                         | **257 / 257**       |
-| Modules that encode to wasm V8 accepts               | **2120 / 2120**     |
-| Modules V8 accepts that `wasmValidate` also accepts  | **2120 / 2120**     |
-| `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**     |
+| Modules that encode to wasm V8 accepts               | 2118 / 2120         |
+| Modules V8 accepts that `wasmValidate` also accepts  | **2118 / 2118**     |
+| `binary → wasm2wat → wat2wasm` byte-identical        | **2118 / 2118**     |
 | Spec `assert_return` assertions the output satisfies | **23,077 / 23,077** |
-| Modules the spec calls invalid that we reject        | 2664 / 2683         |
+| Modules the spec calls invalid that we reject        | **2683 / 2683**     |
 | Binary the spec calls malformed that we reject       | **711 / 711**       |
 | Text the spec calls malformed that we reject         | **1229 / 1229**     |
 
-The 19 remaining `assert_invalid` modules are ones **V8 and Wasmtime both accept** — those spec
-tests predate proposals that legalised what they assert against, so matching them would mean
-diverging from the reference runtime.
+The two modules V8 does not accept are a 2^48-page `memory i64` and a 2^64-1-element `table i64`,
+both of which exceed V8's own implementation limits at any faithful encoding. **Wasmtime**, the
+reference runtime, accepts what we emit for them.
 
 Cross-engine questions are settled against **V8, Wasmtime and Wasmer**, with Wasmtime as the
 authority (`deno task engine-check <dir-of-wasm>`).

@@ -533,3 +533,31 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   checking at the point of use silently skipped every forward reference. A type use with NO inline
   signature is deliberately left to the validator — `(func (type 4))` is `assert_invalid`, not
   `assert_malformed`.
+- **A branch to an out-of-scope label is the PARSER's error (T13.1).** `checkLabelScopes` in
+  `wast-parser.ts` runs per function body and CHECKS ONLY — no `Var` is rewritten, so resolution
+  stays in `resolveNames` for IR that never came from text. A `try_table`'s catch targets are
+  checked BEFORE its own label is pushed and a legacy `try`'s delegate AFTER it is popped, because
+  both name the enclosing scope. **`delegate` REPLACES `end`**, so `ExprVisitor` fires
+  `onDelegateExpr` INSTEAD of `endTryExpr` — a delegate that pops only in `endTryExpr` leaks the
+  label into everything that follows.
+- **`encodeU32Leb128` / `encodeU64Leb128` fail loud instead of wrapping (T13.2).**
+  `let v = value >>> 0` was the entire range check, so 2^32 encoded as 0 — which is how
+  `(memory 0x1_0000_0000)` was emitted as `(memory 0)` and accepted by every engine. `wat2wasm`
+  catches the throw and REPORTS it: a fail-loud encoder is right, a throw escaping a tool is not.
+- **A 64-bit memory's or table's limits are u64 on the wire (T13.2).** Writing them as u32
+  truncated every size above 2^32, so the validator's page bound never saw the value it exists to
+  reject. Fixing it exposed the converse in `onTable`, which capped elements at 2^32-1 regardless
+  of index type — the bound follows the INDEX TYPE.
+- **`synthesizeTypes` must not invent a type for a reference that does not resolve (T13.2).**
+  `ensureTypeFor` APPENDS a matching entry when none exists, so pointing an unresolvable type-use
+  at it produced a valid module aimed at a different type. Keep the index the source wrote and let
+  the validator report it.
+- **An implicit type-use is its own SINGLETON rec group (T13.2).** Type identity is compared up to
+  the rec group, so a `(func)` inside a multi-member `(rec …)` is a different type and must not be
+  reused for an inline signature. A singleton `(rec (type …))` stays reusable — it encodes
+  differently from a bare `(type …)` but denotes the same type.
+- **KNOWN LIMIT: `Limits.initial` / `max` are JS numbers, exact to 2^53.** A 64-bit limit above
+  that (e.g. `(table i64 0 0xffff_ffff_ffff_ffff funcref)`, which the spec calls valid) cannot be
+  encoded; the writer REFUSES with a message naming the cause rather than wrapping it to 0.
+  Lifting this means `Limits` holding `bigint` — ~25 sites and a breaking change to an exported
+  type. It moves no metric: V8 and Wasmtime both reject a table that size anyway.

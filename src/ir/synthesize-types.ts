@@ -23,7 +23,7 @@
  */
 
 import { ExternalKind } from '../core/binary.ts';
-import { isRefValueType, varIndex } from './ir.ts';
+import { isRefValueType, recGroups, varIndex } from './ir.ts';
 import { ExprVisitor } from './expr-visitor.ts';
 import { Result } from '../core/result.ts';
 import type { FuncSignature, Module, TypeEntry, TypeUse, ValueType, Var } from './ir.ts';
@@ -41,8 +41,21 @@ export function synthesizeTypes(module: Module): void {
 
   // Index existing type entries by their normalized signature so we don't
   // duplicate when a user-declared (type ...) already covers an inline sig.
+  //
+  // ONLY types that are their own rec group are candidates. An implicit
+  // type-use denotes a SINGLETON rec group, and type identity is compared up
+  // to the rec group — so a `(func)` sitting inside `(rec (type $a (func))
+  // (type $b (func)))` is a DIFFERENT type from a standalone `(func)`, and
+  // reusing it silently gives the function a type the source did not write.
+  // `type-rec.wast` asserts exactly this, with the comment ";; the implicit
+  // type of $f is not $ft"; we were producing `(func (type $ft))` and every
+  // engine accepted the result (T13). A singleton `(rec (type …))` counts as
+  // its own group and stays reusable — it encodes differently from a bare
+  // `(type …)` but denotes the same type.
+  const singleton = new Set<number>();
+  for (const g of recGroups(module.types)) if (g.count === 1) singleton.add(g.start);
   for (const [i, te] of module.types.entries()) {
-    if (te.kind === 'func') sigToIdx.set(sigKey(te.sig), i);
+    if (te.kind === 'func' && singleton.has(i)) sigToIdx.set(sigKey(te.sig), i);
   }
 
   const ensureTypeFor = (sig: FuncSignature): number => {
@@ -123,10 +136,20 @@ export function synthesizeTypes(module: Module): void {
     const idx = p.kind === 'index' ? p.value : module.types.findIndex((t) => t.name === p.name);
     const entry = idx >= 0 ? module.types[idx] : undefined;
     if (entry === undefined || entry.kind !== 'func') {
-      // Still unresolvable. Point at an entry matching the (empty) signature
-      // rather than inventing one — the validator then reports the dangling
-      // reference, which beats a silently wrong signature.
-      item.typeVar = varIndex(ensureTypeFor(item.sig));
+      // The source named a type that does not exist. KEEP the index it wrote,
+      // so the binary carries the dangling reference and the validator reports
+      // it.
+      //
+      // This used to point at "an entry matching the (empty) signature", on
+      // the reasoning that the validator would then report the dangling
+      // reference — but that is not what it does. `ensureTypeFor` APPENDS a
+      // matching type if none exists, so the result is a perfectly valid
+      // module referring to some other type: `(func (type 42))` came out as
+      // `(func (type 0))` and every engine accepted it. Six `assert_invalid`
+      // "unknown type" modules were being repaired into validity this way
+      // (T13). A name-form var that resolves to nothing is already reported by
+      // `resolveNames`, so only the index form can reach here in practice.
+      if (p.kind === 'index') item.typeVar = varIndex(p.value);
       continue;
     }
     item.sig.params.push(...entry.sig.params);

@@ -39,8 +39,16 @@ export const MAX_S64_LEB128_BYTES = 10;
  *   (≤ 2^53 − 1) or a BigInt for 64-bit values — see {@link encodeU64Leb128}.
  */
 export function encodeU32Leb128(value: number): Uint8Array {
+  // `>>> 0` used to be the whole range check, and it WRAPS: 2^32 encoded as 0
+  // and 2^48+1 as 1. That is how `(memory 0x1_0000_0000)` -- a module the spec
+  // calls invalid -- was emitted as `(memory 0)` and accepted by every engine.
+  // An encoder must never repair its input (T11), and a value that does not
+  // fit the field is not something to truncate.
+  if (!Number.isInteger(value) || value < 0 || value > 0xffff_ffff) {
+    throw new RangeError(`u32 LEB128 out of range: ${value}`);
+  }
   const buf: number[] = [];
-  let v = value >>> 0; // treat as unsigned 32-bit
+  let v = value >>> 0;
   do {
     let byte = v & 0x7f;
     v >>>= 7;
@@ -56,6 +64,12 @@ export function encodeU32Leb128(value: number): Uint8Array {
  * @param value - The value to encode as a BigInt.
  */
 export function encodeU64Leb128(value: bigint): Uint8Array {
+  // As for u32: `asUintN` WRAPS, so 2^64 encoded as 0. A 64-bit limit that
+  // large is not instantiable anywhere, but silently turning it into 0 is the
+  // same class of repair (T13).
+  if (value < 0n || value > 0xffff_ffff_ffff_ffffn) {
+    throw new RangeError(`u64 LEB128 out of range: ${value}`);
+  }
   const buf: number[] = [];
   let v = BigInt.asUintN(64, value);
   do {
