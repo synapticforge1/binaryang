@@ -104,9 +104,8 @@ publish.
 ## Deferred / not-yet-done
 
 - Phase 10 kernel selection (deferred until real-corpus profiling).
-- **TranslateEH — re-price this.** It was filed as "behind multivalue/tuple IR", and that blocker is
-  now gone: `tuple.make`, multi-result blocks and block/loop/`if` inputs all landed in Tiers 5–8.
-  Whether anything else blocks it has NOT been re-checked; do not treat the old reason as current.
+- **TranslateEH — SCOPED 2026-08-24, and it is a live gap, not a leftover TODO.** See
+  [correctness.md](correctness.md) § "TranslateEH" for the measurement and the plan.
 - Custom-section preservation (parse→encode drops DWARF `.debug_*`/`name`/`producers` — fine for
   production `-Oz`, must be acknowledged).
 - `br_table` mixing a parametrised loop with other targets IS handled (dispatch trampoline); nothing

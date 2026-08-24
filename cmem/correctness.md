@@ -492,6 +492,67 @@ already ends in `default: visitChildren(...)`.
 
 ---
 
+## TranslateEH — scoped 2026-08-24 (a live gap, measured against wasmtime)
+
+Filed since Phase 8.1 as "deferred behind multivalue/tuple IR". Re-priced after Tiers 5–8 removed
+that blocker, per the "by design ages badly" rule — and the re-pricing found it is **not** a
+leftover TODO.
+
+### Why it matters, measured
+
+`wasmtime compile` **rejects legacy EH outright**, on our own fixture and on a real upstream corpus
+module (`upstream/test/passes/dwarf_with_exceptions.wasm`):
+
+```
+Invalid input WebAssembly code at offset 165:
+legacy_exceptions feature required for try instruction
+```
+
+wasmtime 47.0.3 exposes **no CLI flag** for it — `-W` offers `exceptions[=y|n]` (the _new_ proposal)
+and nothing for the legacy one.
+
+The chain that makes this bite:
+
+1. wasmtk's `wasic` emits **legacy** `try`/`catch` (see WT-2g: "affected every wasic-emitted
+   `try`/`catch`", all of phase 15).
+2. binaryen-ts parses, optimizes and re-encodes it **faithfully** — so it faithfully preserves a
+   form wasmtime will not run.
+3. The agreed pipeline ends in `wasmtime → native execution` ([bridge.md](bridge.md)).
+
+⚠️ **Why nobody noticed: V8 still accepts legacy EH, and every EH test we have validates against
+V8.** Our suite is green and the target runtime refuses the output. This is the wabt-ts team's own
+lesson arriving on our side of the boundary — _put every cross-engine question to more than one
+engine_ — and the sharpest instance yet of "a green suite is evidence about the tests".
+
+### Why the old blocker was real, and is gone
+
+A `catch $tag` in `try_table` branches to a label **carrying the tag's parameters**, so the catch
+destination is a block with N results. That is multi-result blocks — precisely what Tiers 5–8
+delivered. The IR pieces were already in place from Phase 8 (`TryExpr`, `TryTableExpr`,
+`CatchClause.isRef`, `ThrowRef`, `Rethrow`, `Pop`, `ExnRef`/`NullExnRef`).
+
+### Scope (upstream `TranslateEH.cpp` is 823 lines)
+
+0. **Confirm the target form first.** Verify a `try_table` module our encoder produces is accepted
+   by wasmtime (`-W exceptions=y`). NOT yet done — a hand-built fixture attempt was malformed and
+   both engines rejected it, which says nothing either way. Translating into a form the target also
+   refuses would be pointless, so this is step 0, not an afterthought.
+1. `try` + `catch $tag` / `catch_all` → `try_table` plus block scaffolding, each clause branching to
+   a block holding its handler. The bulk, and mostly mechanical.
+2. `rethrow $label` → an `exnref` local per rethrow-targeted try, filled via `catch_ref` /
+   `catch_all_ref`, then `throw_ref $local`. Upstream allocates one local per _nesting depth_ of
+   rethrow-targeted trys, reusing across sibling trys — the fiddly part.
+3. `delegate $label` → forwards to an enclosing try's handlers; the trickiest rewrite.
+4. Register as a pass; decide whether `-Oz` runs it by default (upstream does **not** — it is
+   opt-in, and defaulting it on would change output for every EH consumer).
+5. Tests **run against wasmtime, not only V8**, since V8's leniency is what hid the gap.
+
+**Sequencing note:** this is a wasmtk-facing fix. Confirm with them whether they want binaryen-ts to
+translate, or would rather have `wasic` emit the new form directly — the second is likely cheaper
+and makes this pass a compatibility shim for already-built binaries rather than a pipeline step.
+
+---
+
 ## Fail-loud audit sweep (2026-07-07, post-Asyncify) — four passes, 20 fixes, suite 379 → 394
 
 A multi-pass whole-tree audit (mechanical grep sweeps + four parallel subagent code-review agents,
