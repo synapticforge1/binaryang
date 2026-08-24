@@ -692,6 +692,18 @@ function isFiniteLiteralForm(lt: LiteralType): boolean {
   return lt !== LiteralType.Infinity && lt !== LiteralType.Nan;
 }
 
+/**
+ * Whether a `v128.const` lane value fits a `bits`-wide integer lane.
+ *
+ * As for scalar constants, the legal span is the UNION of the signed and
+ * unsigned ranges — `[-2^(b-1), 2^b)` — because the text format lets a lane be
+ * written either way. Without the check `BigInt.asIntN` silently WRAPPED:
+ * `(v128.const i8x16 -129 …)` became 127 and `256` became 0.
+ */
+function laneFits(n: bigint, bits: number): boolean {
+  return n >= -(1n << BigInt(bits - 1)) && n < (1n << BigInt(bits));
+}
+
 function parseNatText(text: string): bigint | null {
   const t = text.replace(/_/g, '');
   // Split a leading sign off any radix-prefixed literal and re-apply it.
@@ -4406,6 +4418,10 @@ export class WastParser {
             this.error(loc, `expected i8 lane ${i} for v128.const`);
             return null;
           }
+          if (!laneFits(n, 8)) {
+            this.error(loc, `i8 constant out of range: ${n}`);
+            return null;
+          }
           bytes[i] = Number(BigInt.asIntN(8, n)) & 0xff;
         }
         return bytes;
@@ -4418,6 +4434,10 @@ export class WastParser {
             this.error(loc, `expected i16 lane ${i} for v128.const`);
             return null;
           }
+          if (!laneFits(n, 16)) {
+            this.error(loc, `i16 constant out of range: ${n}`);
+            return null;
+          }
           dv.setInt16(i * 2, Number(BigInt.asIntN(16, n)), true);
         }
         return bytes;
@@ -4428,6 +4448,10 @@ export class WastParser {
           const n = this.parseNatOrInt();
           if (n === null) {
             this.error(loc, `expected i32 lane ${i} for v128.const`);
+            return null;
+          }
+          if (!laneFits(n, 32)) {
+            this.error(loc, `i32 constant out of range: ${n}`);
             return null;
           }
           dv.setInt32(i * 4, Number(BigInt.asIntN(32, n)), true);
@@ -4711,12 +4735,30 @@ export class WastParser {
     return this.parseMemidxOpt(loc);
   }
 
+  /**
+   * Parse a SIMD lane-index immediate.
+   *
+   * The immediate is a single BYTE on the wire, so a value that does not fit
+   * `u8` is MALFORMED — simd_lane.wast asserts exactly that, with the message
+   * "i8 constant out of range", and separately asserts that 16..255 is
+   * INVALID ("invalid lane index"). The two rules live in different layers:
+   * fitting the byte is the parser's, being below the lane COUNT is the
+   * validator's (T9.6), and 255 must reach the validator to be told apart
+   * from 256.
+   *
+   * Unchecked, `Number(n)` handed the writer 256, which the byte encoding
+   * truncated to lane 0 — a silently different program.
+   */
   private parseSimdLane(): number {
     if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) {
         this.error(tok.loc, 'invalid SIMD lane index');
+        return 0;
+      }
+      if (n < 0n || n > 0xffn) {
+        this.error(tok.loc, `i8 constant out of range: ${n}`);
         return 0;
       }
       return Number(n);

@@ -464,3 +464,9 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   given" sentinel, so an explicit zero was indistinguishable from writing nothing. **The SIZE rule
   stays in the validator** — `align` not exceeding natural alignment is a validity question, and
   `align=8` on an `i32.load` must parse and then fail validation.
+- **A SIMD lane immediate must fit `u8`; being below the lane COUNT is the validator's job
+  (T12.4).** The immediate is one byte on the wire, so 256+ is MALFORMED, while 16..255 fits the
+  byte and is INVALID — the spec gives them different messages and they must fail in different
+  layers. Unchecked, 256 truncated to lane 0. **`v128.const` lane VALUES are range-checked the same
+  way** via `laneFits`, over the UNION of the signed and unsigned ranges (an i8 lane may be written
+  -128..255); `BigInt.asIntN` alone wrapped `-129` to `127`, flipping the sign of every lane.

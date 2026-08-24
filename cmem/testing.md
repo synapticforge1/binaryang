@@ -68,7 +68,7 @@ maintain); `tasks.md` records what each measured and when.
 | `assert_invalid`          | 2664 / 2683         | the converse; and 19 remaining are modules V8 **and Wasmtime** accept. The denominator read 2737 until `assert_trap (module …)` stopped being classified as `assert_invalid` — **a metric measures the population its classifier hands it** |
 | round-trip byte-identical | 2120 / 2120         | a consistently-wrong opcode mapping — reader and writer agree, so the bytes match           |
 | **execution**             | **23,077 / 23,077** | anything needing host imports, v128, NaN payloads, `ref.func` args (29,544 skipped)         |
-| **`assert_malformed`** | **828 / 1229** quoted · 110 / 711 binary | the only OPEN metric — tranche **T12**, categories and severity ranking in `tasks.md` |
+| **`assert_malformed`** | **869 / 1229** quoted · 110 / 711 binary | the only OPEN metric — tranche **T12**, categories and severity ranking in `tasks.md` |
 
 **The whole point is the last column.** Every one of these was added because the existing set could
 not see a real bug. `wat2wasm` does not validate, which is how the entire SIMD half of the validator
@@ -144,6 +144,9 @@ project contract.
   validator types all four correctly (Wasmtime-verified; V8 gates the proposal off and cannot
   arbitrate), and an exhaustive lexer-vs-reader sweep guards the CLASS. 15 cases.
 
+- `tests/parser/simd_lane_range.test.ts` — T12.4: lane immediates must fit `u8` (malformed) while
+  16..255 stays a VALIDATION error, and `v128.const` lane values must fit their width. Both
+  boundary directions plus a V8-executed no-wrap check.
 - `tests/parser/align_power_of_two.test.ts` — T12.3: `align=N` must be a power of two (parse-time,
   malformed), while an oversized alignment stays a VALIDATION error — one test pins each layer.
 - `tests/parser/import_order.test.ts` — T12.2: an import may not follow a definition (the inline

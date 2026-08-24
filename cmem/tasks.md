@@ -76,6 +76,7 @@ reference these ids.
 | T12.1 | Out-of-range integer and float constants silently truncated/overflowed | done — malformed 666 → 698 / 1229 |
 | T12.2 | An import after a definition was accepted and silently RENUMBERED the module | done — malformed 698 → 714 / 1229 |
 | T12.3 | A non-power-of-two `align=N` was accepted and silently CHANGED | done — malformed 714 → 828 / 1229 |
+| T12.4 | SIMD lane immediates and `v128.const` lane values wrapped silently | done — malformed 828 → 869 / 1229 |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
 | T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
@@ -599,7 +600,7 @@ one. The result inverted the count order: the biggest categories are the mildest
 | ~~T12.1~~ | **DONE.** Out-of-range integer / float constants | 68 | **silent WRONG VALUE** — `(i32.const 0x100000000)` → `0`, `(f32.const 1e39)` → `inf`; V8 accepts and runs |
 | ~~T12.2~~ | **DONE.** Import after a function/global/table/memory/tag definition | 12 | **silent REORDER** — was accepted and emitted first, shifting every index space |
 | ~~T12.3~~ | **DONE.** `align=0`, `align=7` and other non-powers-of-two | 114 | **silent WRONG VALUE** — `align=3` was emitted as `align=2`; the severity was under-rated on the first pass |
-| **T12.4** | SIMD lane index out of range (`extract_lane 256`) | 13 | silent wrong LANE |
+| ~~T12.4~~ | **DONE.** SIMD lane immediates AND `v128.const` lane values | 13 + the simd_const cases | **silent WRONG VALUE** — lane 256 → 0, and `v128.const i8x16 -129` → **127** |
 | **T12.5** | Malformed UTF-8 in names / annotations | 186 | name mangled |
 | **T12.6** | `unexpected token` — field order, block-type shapes | 82 | rejection not made |
 | **T12.7** | Illegal character, empty annotation id, mismatching label, inline function type | 77 | rejection not made |
@@ -675,6 +676,32 @@ would have moved a diagnostic to the wrong layer; a test pins each side.
 
 Regression: `tests/parser/align_power_of_two.test.ts` (14 cases, 11 fail
 pre-fix).
+
+**T12.4 — done 2026-08-24, and the entry named only half of it.** The table said
+"SIMD lane index out of range". Reading the spec cases showed THREE rules across
+TWO layers, and the third was not in the entry at all:
+
+| input | verdict | source |
+| --- | --- | --- |
+| lane index 256+ | **MALFORMED**, "i8 constant out of range" | simd_lane.wast |
+| lane index 16..255 | **INVALID**, "invalid lane index" | simd_lane.wast — already rejected since T9.6 |
+| `v128.const` lane VALUE out of width | **MALFORMED**, "i8 constant out of range" | simd_const.wast |
+
+**255 and 256 must fail in different layers**, which is exactly why the parser
+checks only that the immediate fits `u8` and leaves the lane-COUNT comparison to
+the validator. Collapsing them into one parse check would have merged the spec's
+two distinct diagnostics — the same layer discipline as T12.3's
+power-of-two vs not-larger-than-natural split.
+
+All three wrapped instead of erroring. The sharpest is
+`(v128.const i8x16 -129 …)` → **127**: a sign flip on every lane, in a module
+V8 accepts and runs. As for scalar constants the legal span is the UNION of the
+signed and unsigned ranges, so an i8 lane may be written `-128`…`255` —
+`laneFits` encodes that once for all three widths.
+
+Regression: `tests/parser/simd_lane_range.test.ts` (17 cases, 14 fail pre-fix,
+including both boundary directions and a V8-executed check that an accepted
+`-128` stays `-128`).
 
 ### A SEVENTH metric — `assert_malformed`. 666 / 1229, and it is OPEN
 
