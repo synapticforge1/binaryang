@@ -25,6 +25,7 @@
 
 import type { Expression } from "./expressions.ts";
 import { None, type Type, ValType } from "./types.ts";
+import type { ValueType } from "./gc-types.ts";
 import type { TypeDef } from "./gc-types.ts";
 export type { TypeDef } from "./gc-types.ts";
 
@@ -37,8 +38,8 @@ export type { TypeDef } from "./gc-types.ts";
  * Params are also represented as locals (indices 0..params.length-1).
  */
 export interface Local {
-  /** Type of the local. */
-  type: ValType;
+  /** Type of the local — a scalar/abstract type or a concrete typed reference. */
+  type: ValueType;
   /** Optional name (for WAT output readability). */
   name?: string;
 }
@@ -51,9 +52,9 @@ export interface WasmFunction {
   /** Internal name (used for calls and exports). */
   name: string;
   /** Parameter types (subset of locals at indices 0..params.length-1). */
-  params: ValType[];
+  params: ValueType[];
   /** Result types (empty = void). */
-  results: ValType[];
+  results: ValueType[];
   /** All locals including params. Additional locals start at params.length. */
   locals: Local[];
   /** The function body (a single expression, typically a Block). */
@@ -82,11 +83,11 @@ export interface WasmImport {
   /** Which kind of entity is being imported. */
   kind: "function" | "global" | "table" | "memory" | "tag";
   /** For function imports: parameter types. For tag imports: the tag's payload types. */
-  params?: ValType[];
+  params?: ValueType[];
   /** For function imports: result types. */
-  results?: ValType[];
-  /** For global imports: value type. For table imports: element type (FuncRef | ExternRef). */
-  type?: ValType;
+  results?: ValueType[];
+  /** For global imports: value type. For table imports: element type. */
+  type?: ValueType;
   /** For global imports: whether the global is mutable. */
   mutable?: boolean;
   /** For table/memory imports: minimum size (elements or pages). */
@@ -119,7 +120,7 @@ export interface WasmGlobal {
   /** Internal name used to reference this global from instructions. */
   name: string;
   /** Value type of the global. */
-  type: ValType;
+  type: ValueType;
   /** Whether the global is writable via `global.set`. */
   mutable: boolean;
   /** Constant initializer expression. */
@@ -163,7 +164,7 @@ export interface WasmTable {
   /** Internal name used to reference the table from instructions. */
   name: string;
   /** Element value type — typically a reference type. */
-  type: ValType;
+  type: ValueType;
   /** Initial number of slots. */
   initial: number;
   /** Maximum number of slots, or `null` for unbounded. */
@@ -178,7 +179,7 @@ export interface WasmTag {
   /** Internal name (used in `throw` and `try_table` catch clauses). */
   name: string;
   /** Exception payload parameter types. */
-  params: ValType[];
+  params: ValueType[];
 }
 
 /**
@@ -293,8 +294,8 @@ export class ModuleBuilder {
    */
   addFunction(
     name: string,
-    params: ValType[],
-    results: ValType[],
+    params: ValueType[],
+    results: ValueType[],
     body: Expression,
     locals: Local[] = [],
     bodyFrameLabel?: string,
@@ -323,7 +324,7 @@ export class ModuleBuilder {
    * @param mutable - Whether the global can be mutated via `global.set`.
    * @param init - Constant initializer expression.
    */
-  addGlobal(name: string, type: ValType, mutable: boolean, init: Expression): this {
+  addGlobal(name: string, type: ValueType, mutable: boolean, init: Expression): this {
     this._globals.push({ name, type, mutable, init });
     return this;
   }
@@ -387,7 +388,7 @@ export class ModuleBuilder {
    */
   addTable(
     name: string,
-    type: ValType = ValType.FuncRef,
+    type: ValueType = ValType.FuncRef,
     initial = 0,
     max: number | null = null,
   ): this {
@@ -423,8 +424,8 @@ export class ModuleBuilder {
     internalName: string,
     module: string,
     base: string,
-    params: ValType[],
-    results: ValType[],
+    params: ValueType[],
+    results: ValueType[],
   ): this {
     this._imports.push({ kind: "function", name: internalName, module, base, params, results });
     return this;
@@ -443,7 +444,7 @@ export class ModuleBuilder {
     internalName: string,
     module: string,
     base: string,
-    type: ValType,
+    type: ValueType,
     mutable = false,
   ): this {
     this._imports.push({ kind: "global", name: internalName, module, base, type, mutable });
@@ -464,7 +465,7 @@ export class ModuleBuilder {
     internalName: string,
     module: string,
     base: string,
-    type: ValType = ValType.FuncRef,
+    type: ValueType = ValType.FuncRef,
     initial = 0,
     max: number | null = null,
   ): this {
@@ -550,7 +551,7 @@ export class ModuleBuilder {
     internalName: string,
     module: string,
     base: string,
-    params: ValType[],
+    params: ValueType[],
   ): this {
     this._imports.push({ kind: "tag", name: internalName, module, base, params });
     this._hasEH = true;
@@ -563,7 +564,7 @@ export class ModuleBuilder {
    * @param name - Internal tag name (e.g. `"$MyError"`).
    * @param params - The exception payload types.
    */
-  addTag(name: string, params: ValType[]): this {
+  addTag(name: string, params: ValueType[]): this {
     this._tags.push({ name, params });
     this._hasEH = true;
     return this;
@@ -681,7 +682,7 @@ export class ModuleBuilder {
   }
 
   /** The result type of a local reference, resolving params from a function. */
-  static localType(fn: WasmFunction, index: number): ValType | undefined {
+  static localType(fn: WasmFunction, index: number): ValueType | undefined {
     return fn.locals[index]?.type;
   }
 

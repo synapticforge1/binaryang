@@ -88,6 +88,7 @@ import {
   isRefType,
   type RefType,
   type StorageType,
+  type ValueType,
 } from "../ir/gc-types.ts";
 
 // ---------------------------------------------------------------------------
@@ -764,8 +765,26 @@ function storeOpcode(expr: StoreExpr): number {
 // FuncType key for deduplication
 // ---------------------------------------------------------------------------
 
-function funcTypeKey(params: ValType[], results: ValType[]): string {
-  return params.join(",") + "->" + results.join(",");
+/**
+ * Stable string form of one value type, for map keys and diagnostics.
+ *
+ * `RefType` is an object, so `String(t)` / `join(",")` would render every
+ * concrete typed reference as `[object Object]` — collapsing `(ref $A)` and
+ * `(ref null $B)` onto the same key and silently deduping two distinct
+ * signatures into one type-section entry.
+ */
+function valueTypeKey(t: ValueType): string {
+  if (!isRefType(t)) return t;
+  return `ref${t.nullable ? " null" : ""} ${typeof t.heap === "number" ? t.heap : t.heap}`;
+}
+
+function funcTypeKey(params: ValueType[], results: ValueType[]): string {
+  return params.map(valueTypeKey).join(",") + "->" + results.map(valueTypeKey).join(",");
+}
+
+/** Human-readable `(a, b) -> (c)` rendering for error messages. */
+function funcSigString(params: ValueType[], results: ValueType[]): string {
+  return `(${params.map(valueTypeKey).join(", ")}) -> (${results.map(valueTypeKey).join(", ")})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -773,8 +792,8 @@ function funcTypeKey(params: ValType[], results: ValType[]): string {
 // ---------------------------------------------------------------------------
 
 interface FuncTypeEntry {
-  params: ValType[];
-  results: ValType[];
+  params: ValueType[];
+  results: ValueType[];
 }
 
 class WasmEncoder {
@@ -955,7 +974,7 @@ class WasmEncoder {
   // ---------------------------------------------------------------------------
 
   private collectTypes(): void {
-    const addType = (params: ValType[], results: ValType[]): void => {
+    const addType = (params: ValueType[], results: ValueType[]): void => {
       const key = funcTypeKey(params, results);
       if (!this.typeKeyToIndex.has(key)) {
         this.typeKeyToIndex.set(key, this.types.length);
@@ -984,7 +1003,7 @@ class WasmEncoder {
 
   private collectCallIndirectTypes(
     expr: Expression,
-    addType: (params: ValType[], results: ValType[]) => void,
+    addType: (params: ValueType[], results: ValueType[]) => void,
   ): void {
     if (expr.kind === ExpressionKind.CallIndirect) {
       const e = expr as CallIndirectExpr;
@@ -993,7 +1012,7 @@ class WasmEncoder {
     walkChildren(expr, (child) => this.collectCallIndirectTypes(child, addType));
   }
 
-  private getTypeIndex(params: ValType[], results: ValType[]): number {
+  private getTypeIndex(params: ValueType[], results: ValueType[]): number {
     const idx = this.typeKeyToIndex.get(funcTypeKey(params, results));
     if (idx === undefined) {
       // `collectTypes` registers exactly the signatures every call site here
@@ -1003,7 +1022,7 @@ class WasmEncoder {
       // and produced a function-signature mismatch in the output. Fail loudly,
       // matching `resolveRef` for entity references.
       throw new WasmEncodeError(
-        `unresolved function type: (${params.join(", ")}) -> (${results.join(", ")})`,
+        `unresolved function type: ${funcSigString(params, results)}`,
       );
     }
     return idx;
@@ -1102,9 +1121,9 @@ class WasmEncoder {
       for (const { params, results } of this.types) {
         w.writeU8(0x60);
         w.writeU32(params.length);
-        for (const p of params) writeValType(w, p);
+        for (const p of params) writeValueType(w, p);
         w.writeU32(results.length);
-        for (const r of results) writeValType(w, r);
+        for (const r of results) writeValueType(w, r);
       }
     }
   }
@@ -1121,51 +1140,26 @@ class WasmEncoder {
     writeValueType(w, t as ValType | RefType);
   }
 
-  private gcFuncTypeIndex(params: ValType[], results: ValType[]): number {
-    // NOTE: every `RefType` is collapsed to `AnyRef` before comparison, because
-    // the binary parser's legacy shim stores ref-typed function params/results
-    // as `AnyRef` (it does not yet thread concrete heap types into the function
-    // signature). A consequence is that two func heap types differing ONLY in
-    // their concrete heap types (e.g. `(param (ref $A))` vs `(param (ref $B))`)
-    // are indistinguishable here. The old code silently returned the FIRST such
-    // match — a wrong-type-index miscompile. We now collect ALL matches and:
-    //   - exactly one  → return it (unambiguous),
-    //   - zero         → throw (unresolved),
-    //   - more than one → throw (ambiguous under the ref-collapse shim; the IR
-    //                     cannot tell them apart, so a correct index can't be
-    //                     chosen — proper support needs concrete param heap
-    //                     types in the function-signature model).
-    const matches: number[] = [];
+  /**
+   * Resolves a function signature to its index in `mod.heapTypes` (GC mode).
+   *
+   * This used to compare with every `RefType` collapsed to `AnyRef`, because
+   * the binary parser stored ref-typed params/results as `AnyRef`. Two func
+   * heap types differing only in their concrete heap types were therefore
+   * indistinguishable, and the encoder had to throw "ambiguous GC function
+   * type" rather than pick one. Now that value types carry concrete
+   * references end-to-end, the comparison is exact and that whole failure mode
+   * is gone.
+   */
+  private gcFuncTypeIndex(params: ValueType[], results: ValueType[]): number {
+    const want = funcTypeKey(params, results);
     for (let i = 0; i < this.mod.heapTypes.length; i++) {
       const d = this.mod.heapTypes[i];
       if (d.kind !== "func") continue;
-      if (d.params.length !== params.length || d.results.length !== results.length) continue;
-      let match = true;
-      for (let j = 0; j < d.params.length; j++) {
-        const dpKey = isRefType(d.params[j]) ? ValType.AnyRef : (d.params[j] as string);
-        if (dpKey !== params[j]) {
-          match = false;
-          break;
-        }
-      }
-      if (!match) continue;
-      for (let j = 0; j < d.results.length; j++) {
-        const drKey = isRefType(d.results[j]) ? ValType.AnyRef : (d.results[j] as string);
-        if (drKey !== results[j]) {
-          match = false;
-          break;
-        }
-      }
-      if (match) matches.push(i);
-    }
-    const sig = `(${params.join(", ")}) -> (${results.join(", ")})`;
-    if (matches.length === 1) return matches[0];
-    if (matches.length === 0) {
-      throw new WasmEncodeError(`unresolved GC function type: ${sig}`);
+      if (funcTypeKey(d.params, d.results) === want) return i;
     }
     throw new WasmEncodeError(
-      `ambiguous GC function type ${sig}: ${matches.length} heap types match under the ` +
-        `ref-type collapse shim, so a correct type index cannot be chosen`,
+      `unresolved GC function type: ${funcSigString(params, results)}`,
     );
   }
 
@@ -1185,7 +1179,7 @@ class WasmEncoder {
         }
         case "table": {
           w.writeU8(0x01);
-          writeValType(w, imp.type ?? ValType.FuncRef);
+          writeValueType(w, imp.type ?? ValType.FuncRef);
           const hasMax = imp.max !== null && imp.max !== undefined;
           w.writeU8(hasMax ? 1 : 0);
           w.writeU32(imp.initial ?? 0);
@@ -1204,7 +1198,7 @@ class WasmEncoder {
         }
         case "global": {
           w.writeU8(0x03);
-          writeValType(w, imp.type ?? ValType.I32);
+          writeValueType(w, imp.type ?? ValType.I32);
           w.writeU8(imp.mutable ? 1 : 0);
           break;
         }
@@ -1238,7 +1232,7 @@ class WasmEncoder {
     const localTables = this.mod.tables;
     w.writeU32(localTables.length);
     for (const t of localTables) {
-      writeValType(w, t.type);
+      writeValueType(w, t.type);
       const hasMax = t.max !== null;
       w.writeU8(hasMax ? 1 : 0);
       w.writeU32(t.initial);
@@ -1261,7 +1255,7 @@ class WasmEncoder {
   private encodeGlobalSection(w: BinaryWriter): void {
     w.writeU32(this.mod.globals.length);
     for (const g of this.mod.globals) {
-      writeValType(w, g.type);
+      writeValueType(w, g.type);
       w.writeU8(g.mutable ? 1 : 0);
       this.encodeInitExpr(w, g.init);
     }
@@ -1390,18 +1384,23 @@ class WasmEncoder {
   private encodeFunctionBody(w: BinaryWriter, fn: WasmFunction): void {
     // Locals: non-param locals only, run-length encoded
     const nonParamLocals = fn.locals.slice(fn.params.length);
-    const groups: { count: number; type: ValType }[] = [];
+    // Run-length grouping compares by KEY, not by `===`: a `RefType` is an
+    // object, so two structurally-identical `(ref null $T)` locals are never
+    // reference-equal and would each get their own group — correct output, but
+    // needlessly larger. `valueTypeKey` merges them.
+    const groups: { count: number; type: ValueType; key: string }[] = [];
     for (const loc of nonParamLocals) {
-      if (groups.length > 0 && groups[groups.length - 1].type === loc.type) {
+      const key = valueTypeKey(loc.type);
+      if (groups.length > 0 && groups[groups.length - 1].key === key) {
         groups[groups.length - 1].count++;
       } else {
-        groups.push({ count: 1, type: loc.type });
+        groups.push({ count: 1, type: loc.type, key });
       }
     }
     w.writeU32(groups.length);
     for (const g of groups) {
       w.writeU32(g.count);
-      writeValType(w, g.type);
+      writeValueType(w, g.type);
     }
 
     // Seed the label stack with the function's implicit-block label so a `br`
@@ -1761,7 +1760,14 @@ class WasmEncoder {
       case ExpressionKind.RefNull: {
         const e = expr as RefNullExpr;
         w.writeU8(0xd0);
-        w.writeU8(refHeapTypeByte(e.type as ValType));
+        // `ref.null` takes a HEAP type. For a concrete `(ref null $T)` that is
+        // the type index, which `writeHeapType` encodes as a signed LEB — the
+        // single-byte abstract form only covers the built-in heap types.
+        if (isRefType(e.type)) {
+          writeHeapType(w, e.type.heap);
+        } else {
+          w.writeU8(refHeapTypeByte(e.type as ValType));
+        }
         break;
       }
       case ExpressionKind.RefIsNull: {

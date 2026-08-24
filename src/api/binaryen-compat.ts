@@ -111,6 +111,7 @@ import {
   type WasmModule,
 } from "../ir/module.ts";
 import { None, type Type, ValType } from "../ir/types.ts";
+import { AbstractHeapType, isRefType, type ValueType } from "../ir/gc-types.ts";
 import { createPass, PassRunner } from "../passes/index.ts";
 
 // ---------------------------------------------------------------------------
@@ -187,8 +188,27 @@ const _ID_TO_VAL: Record<number, ValType> = {
   [stringref]: ValType.StringRef,
 };
 
-function _valTypeToId(t: ValType | undefined): number {
+/**
+ * Maps a binaryen-ts value type to the upstream numeric type ID.
+ *
+ * Upstream interns a concrete typed reference (`(ref null $T)`) as an opaque
+ * type ID allocated by its own type table, which this facade does not model.
+ * Such a type is therefore reported as its nearest abstract supertype
+ * (`anyref` / `funcref` / `externref`).
+ *
+ * This is an APPROXIMATION, and it is only safe because it is confined to the
+ * read-only introspection direction: nothing turns the result back into bytes.
+ * The reverse direction ({@link _idToValTypeArray}) stays strict and throws on
+ * an unrecognized ID, so an approximate ID can never re-enter the encoder and
+ * become a wrong function signature.
+ */
+function _valTypeToId(t: ValueType | undefined): number {
   if (t === undefined) return none;
+  if (isRefType(t)) {
+    if (t.heap === AbstractHeapType.Func || t.heap === AbstractHeapType.NoFunc) return funcref;
+    if (t.heap === AbstractHeapType.Ext || t.heap === AbstractHeapType.NoExt) return externref;
+    return anyref;
+  }
   return _VAL_TO_ID[t] ?? none;
 }
 

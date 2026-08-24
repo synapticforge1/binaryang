@@ -84,6 +84,7 @@ import {
   type RefType,
   type StorageType,
   type TypeDef,
+  type ValueType,
 } from "../ir/gc-types.ts";
 import {
   BrOnOp,
@@ -136,12 +137,12 @@ const SECTION_TAG = 13;
 // ---------------------------------------------------------------------------
 
 interface FuncType {
-  params: ValType[];
-  results: ValType[];
+  params: ValueType[];
+  results: ValueType[];
 }
 
 interface GlobalInfo {
-  type: ValType;
+  type: ValueType;
   mutable: boolean;
 }
 
@@ -165,7 +166,7 @@ interface ControlFrame {
 
 interface TagInfo {
   name: string;
-  params: ValType[];
+  params: ValueType[];
 }
 
 interface DecoderCtx {
@@ -407,11 +408,32 @@ function readValueType(r: BinaryReader): ValType | RefType {
 }
 
 /** Legacy shim — returns ValType for positions that still use ValType. */
-function readValTypeByte(r: BinaryReader): ValType {
-  const t = readValueType(r);
-  if (typeof t === "string") return t as ValType;
-  // ref type in a legacy position — map to nearest abstract ValType
-  return ValType.AnyRef;
+/**
+ * Reads one value type.
+ *
+ * This used to widen every concrete typed reference to `ValType.AnyRef`,
+ * because locals/globals/tables/tags/params were all modelled as `ValType`.
+ * That was lossy in the worst way: a local declared `(ref null $T)` came back
+ * as `anyref`, so re-encoding a GC module produced one engines reject. Those
+ * positions are `ValueType` now, so the type is carried through exactly.
+ */
+function readValTypeByte(r: BinaryReader): ValueType {
+  return readValueType(r);
+}
+
+/**
+ * Type of local `idx`, or a loud error.
+ *
+ * The old `locals[idx]?.type ?? ValType.I32` silently typed an out-of-range
+ * local as i32 — the same silent-default class as the `?? 0` index fallbacks.
+ * An out-of-range local index is malformed wasm; say so.
+ */
+function localTypeAt(locals: Local[], idx: number, r: BinaryReader): ValueType {
+  const loc = locals[idx];
+  if (loc === undefined) {
+    return r.error(`local index ${idx} is out of range (function declares ${locals.length})`);
+  }
+  return loc.type;
 }
 
 function readBlockType(r: BinaryReader): (ValType | RefType)[] {
@@ -654,10 +676,11 @@ class WasmParser {
       for (let j = 0; j < resultCount; j++) results.push(readValueType(this.r));
       const def: TypeDef = { kind: "func", params, results };
       this.heapTypeDefs.push(def);
-      // Keep legacy funcTypes array in sync (map RefType params to AnyRef for compat)
-      const p2 = params.map((t) => isRefType(t) ? ValType.AnyRef : t as ValType);
-      const r2 = results.map((t) => isRefType(t) ? ValType.AnyRef : t as ValType);
-      this.funcTypes.push({ params: p2, results: r2 });
+      // `funcTypes` mirrors the heap-type entry exactly — concrete typed
+      // references included. It used to collapse them to AnyRef, which is what
+      // made two func types differing only in their heap types indistinguishable
+      // at encode time (the old "ambiguous GC function type" throw).
+      this.funcTypes.push({ params: [...params], results: [...results] });
       return;
     }
     if (tag === 0x5f) { // struct type
@@ -1012,7 +1035,7 @@ class WasmParser {
     this.r.seek(end);
   }
 
-  private readInitExpr(_expectedType: ValType): Expression {
+  private readInitExpr(_expectedType: ValueType): Expression {
     const opcode = this.r.readU8();
     let expr: Expression;
     switch (opcode) {
@@ -1154,7 +1177,7 @@ class WasmParser {
     // opcode; each later consumer then pops a `Pop`, which encodes to nothing
     // and survives optimization as `drop(pop)`). `results[i]` types the Pop
     // for the value the i-th later consumer pops.
-    const pushMultiValueCall = (call: Expression, results: ValType[]): void => {
+    const pushMultiValueCall = (call: Expression, results: ValueType[]): void => {
       for (let i = 0; i < results.length - 1; i++) push(makePop(results[i]));
       push(call);
     };
@@ -1508,7 +1531,7 @@ class WasmParser {
 
         case 0x20: { // local.get
           const idx = r.readU32();
-          push(makeLocalGet(idx, locals[idx]?.type ?? ValType.I32));
+          push(makeLocalGet(idx, localTypeAt(locals, idx, r)));
           break;
         }
         case 0x21: { // local.set
@@ -1519,7 +1542,7 @@ class WasmParser {
         case 0x22: { // local.tee
           const idx = r.readU32();
           const val = pop();
-          push(makeLocalTee(idx, val, locals[idx]?.type ?? ValType.I32));
+          push(makeLocalTee(idx, val, localTypeAt(locals, idx, r)));
           break;
         }
         case 0x23: { // global.get

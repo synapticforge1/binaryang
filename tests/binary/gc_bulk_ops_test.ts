@@ -14,21 +14,15 @@
  * with a `RefAsOp` discriminant, matching upstream's `RefAs`/`RefAsOp` shape
  * rather than adding a parallel node.
  *
- * Where a construct can be built through `ModuleBuilder`, the test executes the
- * result under V8 rather than only asserting bytes — this project's whole bug
- * history is valid-wasm-wrong-behaviour that byte assertions and
- * `WebAssembly.compile` both waved through.
+ * Every test executes the result under V8 rather than only asserting bytes —
+ * this project's whole bug history is valid-wasm-wrong-behaviour that byte
+ * assertions and `WebAssembly.compile` both waved through.
  *
- * `array.fill` / `array.copy` are the exception, and the reason is UP-7. Both
- * need a local typed `(ref null $t)`; `Local.type` is `ValType`, which cannot
- * express a concrete typed reference. So they are driven from hand-built
- * binaries, and the round-trip is asserted structurally (node decoded, correct
- * sub-opcode re-emitted) rather than behaviourally: the binary parser collapses
- * the local's `(ref null 0)` to `anyref` on the way in, so re-encoding a GC
- * module that uses typed-ref locals currently produces a module V8 rejects.
- * That collapse is UP-7's real severity and is tracked separately — it is not
- * an array.fill/array.copy defect. Once typed-ref locals land, these two become
- * ordinary `bothAgree` tests.
+ * `array.fill` / `array.copy` need a local typed `(ref null $t)`. Those were
+ * originally hand-built binaries asserted structurally, because `Local.type`
+ * was `ValType` and could not express a concrete typed reference — UP-7. Now
+ * that value types carry concrete references end-to-end they are ordinary
+ * builder-driven behavioural tests, which is the payoff UP-7 was worth.
  *
  * @license MIT
  */
@@ -40,11 +34,14 @@ import {
   type Expression,
   ExpressionKind,
   makeArrayCopy,
+  makeArrayFill,
   makeArrayGet,
   makeArrayNew,
   makeArrayNewFixed,
   makeBlock,
   makeI32Const,
+  makeLocalGet,
+  makeLocalSet,
   makeRefAsNonNull,
   RefAsOp,
 } from "../../src/ir/expressions.ts";
@@ -307,6 +304,38 @@ Deno.test("array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11",
     assert(node![k] !== undefined, `ArrayCopy is missing operand "${k}"`);
   }
   assert(gcSubops(encodeWasm(mod)).includes(0x11), "encoder did not emit array.copy");
+});
+
+Deno.test("array.fill fills the requested range via ModuleBuilder (typed-ref local)", async () => {
+  // Buildable only because `Local.type` accepts a concrete `RefType` (UP-7).
+  const { m, arrayType } = gcBuilder();
+  const arrRef = { heap: arrayType, nullable: true };
+  m.addFunction(
+    "read",
+    [],
+    [ValType.I32],
+    makeBlock([
+      makeLocalSet(
+        0,
+        makeArrayNew(arrayType, makeI32Const(0), makeI32Const(3), {
+          heap: arrayType,
+          nullable: false,
+        }),
+      ),
+      makeArrayFill(
+        arrayType,
+        makeLocalGet(0, arrRef),
+        makeI32Const(0),
+        makeI32Const(7),
+        makeI32Const(3),
+      ),
+      // index 2 is only written if the fill honoured its length
+      makeArrayGet(arrayType, makeLocalGet(0, arrRef), makeI32Const(2), ValType.I32, false),
+    ]),
+    [{ type: arrRef }],
+  );
+  m.addExport("read", "read");
+  await bothAgree(m.build(), 7);
 });
 
 Deno.test("array.copy keeps dest and src type immediates in the right order", () => {

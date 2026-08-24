@@ -106,6 +106,20 @@ export type PackedType = "i8" | "i16";
 export type StorageType = ValType | PackedType | RefType;
 
 /**
+ * Any wasm *value* type — a scalar/abstract {@link ValType} or a concrete typed
+ * reference {@link RefType} such as `(ref null $T)`.
+ *
+ * This is the type of a local, a global, a table element, a function parameter
+ * or result, and a tag payload. It deliberately excludes {@link PackedType}
+ * (`i8`/`i16`), which is only valid as struct/array *storage*.
+ *
+ * Before this existed those positions were all typed `ValType`, so a concrete
+ * typed reference had to be widened to `ValType.AnyRef` — which meant a GC
+ * module using `(ref null $T)` locals could not be re-encoded faithfully.
+ */
+export type ValueType = ValType | RefType;
+
+/**
  * A struct or array field declaration.
  */
 export interface FieldType {

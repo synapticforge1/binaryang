@@ -54,6 +54,7 @@ import {
 } from "../ir/expressions.ts";
 import type { Local, WasmFunction, WasmModule } from "../ir/module.ts";
 import { isRef, None, Unreachable, ValType } from "../ir/types.ts";
+import { isRefType, type ValueType } from "../ir/gc-types.ts";
 import { mapExpression, walkExpression } from "../ir/walk.ts";
 import { optimizeNode } from "./optimize-instructions.ts";
 import { type Pass, type PassOptions, registerPass } from "./pass.ts";
@@ -607,7 +608,14 @@ function freshLabel(base: string, used: Set<string>): string {
 // Zero initialiser for a local type
 // ---------------------------------------------------------------------------
 
-function zeroForType(type: ValType): Expression | null {
+function zeroForType(type: ValueType): Expression | null {
+  if (isRefType(type)) {
+    // A `(ref null $T)` local defaults to `ref.null $T`. A NON-nullable
+    // `(ref $T)` has no zero value at all — wasm requires it be set before use,
+    // and the pass runner's non-nullable-local fixup owns that case. Returning
+    // `null` here means "no reset", which is the correct answer for it.
+    return type.nullable ? makeRefNull(type) : null;
+  }
   switch (type) {
     case ValType.I32:
       return makeI32Const(0);

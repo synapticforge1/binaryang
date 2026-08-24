@@ -25,8 +25,8 @@
  */
 
 import { None, type Type, Unreachable, ValType } from "./types.ts";
-import type { HeapType } from "./gc-types.ts";
-export type { HeapType, RefType } from "./gc-types.ts";
+import type { HeapType, ValueType } from "./gc-types.ts";
+export type { HeapType, RefType, ValueType } from "./gc-types.ts";
 
 // ---------------------------------------------------------------------------
 // Expression kind discriminant
@@ -915,9 +915,9 @@ export interface CallIndirectExpr extends ExprBase {
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** params — see the matching factory for semantics. */
-  params: ValType[];
+  params: ValueType[];
   /** results — see the {@link make} factory for semantics. */
-  results: ValType[];
+  results: ValueType[];
   /** isReturn — see the matching factory for semantics. */
   isReturn: boolean;
 }
@@ -1548,7 +1548,7 @@ export function makeF64Const(value: number): ConstExpr {
 }
 
 /** Creates a `global.get` expression. */
-export function makeGlobalGet(name: string, type: ValType): GlobalGetExpr {
+export function makeGlobalGet(name: string, type: ValueType): GlobalGetExpr {
   return { kind: ExpressionKind.GlobalGet, type, name };
 }
 
@@ -1558,7 +1558,7 @@ export function makeGlobalSet(name: string, value: Expression): GlobalSetExpr {
 }
 
 /** Creates a `local.get` expression. */
-export function makeLocalGet(index: number, type: ValType): LocalGetExpr {
+export function makeLocalGet(index: number, type: ValueType): LocalGetExpr {
   return { kind: ExpressionKind.LocalGet, type, index };
 }
 
@@ -1568,7 +1568,7 @@ export function makeLocalSet(index: number, value: Expression): LocalSetExpr {
 }
 
 /** Creates a `local.tee` expression (result type matches the value). */
-export function makeLocalTee(index: number, value: Expression, type: ValType): LocalTeeExpr {
+export function makeLocalTee(index: number, value: Expression, type: ValueType): LocalTeeExpr {
   return { kind: ExpressionKind.LocalTee, type, index, value };
 }
 
@@ -1748,8 +1748,8 @@ export function makeCallIndirect(
   table: string,
   target: Expression,
   operands: Expression[],
-  params: ValType[],
-  results: ValType[],
+  params: ValueType[],
+  results: ValueType[],
   isReturn = false,
 ): CallIndirectExpr {
   const type: Type = results.length > 0 ? results[0] : None;
@@ -1816,8 +1816,13 @@ export function makeMemoryFill(
   return { kind: ExpressionKind.MemoryFill, type: None, dest, value, size };
 }
 
-/** Creates a `ref.null` expression. */
-export function makeRefNull(type: ValType): RefNullExpr {
+/**
+ * Creates a `ref.null` expression.
+ *
+ * Accepts a concrete `(ref null $T)` as well as an abstract reference type; the
+ * encoder writes the corresponding heap type either way.
+ */
+export function makeRefNull(type: ValueType): RefNullExpr {
   return { kind: ExpressionKind.RefNull, type };
 }
 

@@ -130,6 +130,7 @@ import {
   type StorageType,
   storageTypeToString,
   type TypeDef,
+  type ValueType,
 } from "../ir/gc-types.ts";
 import {
   type Atom,
@@ -208,7 +209,7 @@ export function parseWast(source: string, filename = "<input>"): WasmModule[] {
 // ---------------------------------------------------------------------------
 
 interface FuncContext {
-  params: ValType[];
+  params: ValueType[];
   /** All locals (params + additional locals). */
   locals: Local[];
   /** Map from `$name` → local index. */
@@ -216,7 +217,7 @@ interface FuncContext {
   /** Map from `$name` → label depth (0 = innermost). */
   labels: Map<string, number>;
   labelDepth: number;
-  results: ValType[];
+  results: ValueType[];
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +260,7 @@ class WatModuleParser {
   private funcResults = new Map<string, Type>();
   // Global internal name → value type (imports + defined globals). Backs
   // `inferGlobalType`; a miss previously defaulted `global.get` to i32.
-  private globalTypes = new Map<string, ValType>();
+  private globalTypes = new Map<string, ValueType>();
 
   // Functions whose signature is a `(type $sig)` reference (no inline result).
   // Resolved into `funcResults` after the first pass, once every `(type …)` is
@@ -526,7 +527,7 @@ class WatModuleParser {
     if (idx < children.length && isListWith(children[idx], "type")) idx++;
 
     // Params and results
-    const params: ValType[] = [];
+    const params: ValueType[] = [];
     const paramNames = new Map<string, number>();
     while (idx < children.length && isListWith(children[idx], "param")) {
       const p = children[idx] as SList;
@@ -544,7 +545,7 @@ class WatModuleParser {
       idx++;
     }
 
-    const results: ValType[] = [];
+    const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "result")) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
@@ -1055,7 +1056,7 @@ class WatModuleParser {
       idx++;
     }
     // Optional result type
-    const results: ValType[] = [];
+    const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "result")) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
@@ -1083,7 +1084,7 @@ class WatModuleParser {
     // dropping it here typed the loop `None`, so the encoder emitted a void
     // blocktype for a value-producing loop → invalid module, and any pass reading
     // `loop.type` saw `None`. Honor it, mirroring parseBlock.
-    const results: ValType[] = [];
+    const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "result")) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
@@ -1107,7 +1108,7 @@ class WatModuleParser {
     // Optional label
     if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) idx++;
     // Optional result type
-    const results: ValType[] = [];
+    const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "result")) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
@@ -1222,7 +1223,7 @@ class WatModuleParser {
       idx++;
     }
     // Optional result type
-    const results: ValType[] = [];
+    const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "result")) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
@@ -1275,7 +1276,7 @@ class WatModuleParser {
       idx++;
     }
     // Optional result type
-    const results: ValType[] = [];
+    const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "result")) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
@@ -1377,20 +1378,19 @@ class WatModuleParser {
     // Wasm spec: when both `(type ...)` and explicit `(param ...)` / `(result ...)`
     // are present they must agree; the type-ref is authoritative, so we use
     // its values and ignore any redundant inline lists.
-    let typeRefParams: ValType[] | null = null;
-    let typeRefResults: ValType[] | null = null;
+    let typeRefParams: ValueType[] | null = null;
+    let typeRefResults: ValueType[] | null = null;
     if (idx < args.length && isListWith(args[idx], "type")) {
       const tChildren = listChildren(args[idx] as SList);
       const typeRef = atomText(tChildren[0]);
       if (typeRef) {
         const def = this.funcTypeDefs.get(typeRef);
         if (def) {
-          // FuncTypeDef stores (ValType | RefType)[]; CallIndirect needs
-          // ValType[]. The two unions overlap on every ValType member and
-          // RefType is collapsed to AnyRef by `tryParseValType` elsewhere,
-          // so the cast is safe in practice.
-          typeRefParams = def.params as ValType[];
-          typeRefResults = def.results as ValType[];
+          // Both sides are `ValueType[]` now — no cast, and no AnyRef
+          // collapse. (This used to cast through `as ValType[]`, justified by
+          // the collapse that UP-7 removed.)
+          typeRefParams = def.params;
+          typeRefResults = def.results;
         } else {
           // An unresolved `(type $sig)` used to fall through to the (empty)
           // inline signature, silently giving the indirect call zero args —
@@ -1403,12 +1403,12 @@ class WatModuleParser {
     // (param ...) and (result ...) — only consulted if the type ref didn't
     // resolve. Always advance `idx` past them so the operand parser is
     // aligned regardless.
-    const inlineParams: ValType[] = [];
+    const inlineParams: ValueType[] = [];
     while (idx < args.length && isListWith(args[idx], "param")) {
       for (const t of listChildren(args[idx] as SList)) inlineParams.push(this.parseValType(t));
       idx++;
     }
-    const inlineResults: ValType[] = [];
+    const inlineResults: ValueType[] = [];
     while (idx < args.length && isListWith(args[idx], "result")) {
       for (const t of listChildren(args[idx] as SList)) inlineResults.push(this.parseValType(t));
       idx++;
@@ -1666,7 +1666,7 @@ class WatModuleParser {
   }
 
   /** Parses a global's type node: bare `<type>` or `(mut <type>)`. */
-  private parseGlobalTypeNode(s: SExpr): { type: ValType; mutable: boolean } {
+  private parseGlobalTypeNode(s: SExpr): { type: ValueType; mutable: boolean } {
     if (s.kind === "list" && listHead(s as SList) === "mut") {
       const inner = listChildren(s as SList)[0];
       if (!inner) this.err("(mut ...) missing inner type", s.pos);
@@ -1734,7 +1734,7 @@ class WatModuleParser {
     const tagIndex = this.tagNames.size;
     if (name) this.tagNames.set(name, tagIndex);
     // Parse (param ...) list for tag type
-    const params: ValType[] = [];
+    const params: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "param")) {
       for (const t of listChildren(children[idx] as SList)) params.push(this.parseValType(t));
       idx++;
@@ -1832,7 +1832,7 @@ class WatModuleParser {
 
   private parseFuncType(
     list: SList,
-  ): { name: string | null; params: ValType[]; results: ValType[] } {
+  ): { name: string | null; params: ValueType[]; results: ValueType[] } {
     const children = listChildren(list);
     let idx = 0;
     let name: string | null = null;
@@ -1842,12 +1842,12 @@ class WatModuleParser {
     }
     // Inline exports in import descriptor
     while (idx < children.length && isListWith(children[idx], "export")) idx++;
-    const params: ValType[] = [];
+    const params: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "param")) {
       for (const t of listChildren(children[idx] as SList)) params.push(this.parseValType(t));
       idx++;
     }
-    const results: ValType[] = [];
+    const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], "result")) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
@@ -2054,18 +2054,25 @@ class WatModuleParser {
   // Value type parsing
   // -------------------------------------------------------------------------
 
-  private parseValType(s: SExpr): ValType {
+  private parseValType(s: SExpr): ValueType {
     return this.tryParseValType(s) ?? this.err(`unknown value type: ${sExprToString(s)}`, s.pos);
   }
 
-  private tryParseValType(s: SExpr): ValType | null {
+  private tryParseValType(s: SExpr): ValueType | null {
     // Handle (ref ...) and (ref null ...) list forms
     if (s.kind === "list") {
       const l = s as SList;
       if (listHead(l) === "ref") {
-        // (ref null $T) or (ref $T)
+        // `(ref null $T)` / `(ref $T)`. This used to return `ValType.AnyRef`
+        // from BOTH arms of a no-op ternary, discarding the heap type and the
+        // nullability — the WAT-side half of UP-7. Build the real `RefType`.
         const ch = listChildren(l);
-        return atomText(ch[0]) === "null" ? ValType.AnyRef : ValType.AnyRef;
+        const nullable = atomText(ch[0]) === "null";
+        const heapExpr = nullable ? ch[1] : ch[0];
+        if (!heapExpr) {
+          this.err(`(ref ...) is missing a heap type`, l.pos);
+        }
+        return { heap: this.parseHeapType(heapExpr), nullable };
       }
       return null;
     }
@@ -2104,7 +2111,7 @@ class WatModuleParser {
     s: SExpr | undefined,
     ctx: FuncContext,
     instr: string,
-  ): { index: number; type: ValType } {
+  ): { index: number; type: ValueType } {
     if (!s) this.err(`${instr}: missing local index`);
     const raw = atomText(s!);
     let index: number;
@@ -2153,7 +2160,7 @@ class WatModuleParser {
     return `$depth${ctx.labelDepth - Number(ref)}`;
   }
 
-  private inferGlobalType(name: string): ValType | null {
+  private inferGlobalType(name: string): ValueType | null {
     return this.globalTypes.get(name) ?? null;
   }
 
