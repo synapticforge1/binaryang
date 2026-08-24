@@ -65,6 +65,7 @@ import {
   makeThrowRef,
   makeTry,
   makeTryTable,
+  makeTupleMake,
   makeUnary,
   makeUnreachable,
   makeV128Const,
@@ -497,7 +498,7 @@ function localTypeAt(locals: Local[], idx: number, r: BinaryReader): ValueType {
   return loc.type;
 }
 
-function readBlockType(r: BinaryReader): (ValType | RefType)[] {
+function readBlockType(r: BinaryReader, funcTypes: FuncType[]): (ValType | RefType)[] {
   const b = r.peekU8();
   if (b === 0x40) {
     r.readU8();
@@ -513,14 +514,27 @@ function readBlockType(r: BinaryReader): (ValType | RefType)[] {
   ) {
     return [readValueType(r)];
   }
-  // Type-index blocktype = a multi-value (block inputs and/or ≥2 results)
-  // signature. Silently returning `[]` (void) here decoded such a block as void
-  // and re-encoded it with a void blocktype — dropping the signature and leaving
-  // operands dangling; the encoder's own multi-value guard never fired because
-  // the type was already flattened away. Fail loudly, matching the encoder's
-  // stance on multi-value blocktypes.
+  // Type-index blocktype: the block carries a full function signature, so it
+  // may have multiple results AND/OR inputs. Encoded as a NON-NEGATIVE signed
+  // LEB (`s33`) — that is what distinguishes it from the negative one-byte
+  // valtype forms handled above.
+  //
+  // Multi-RESULT blocks are supported. Blocks with INPUTS are not: `BlockExpr`
+  // has no way to model consuming values from the enclosing operand stack, so
+  // accepting one would mean silently dropping its parameters. Reject loudly —
+  // the same stance the whole pipeline takes on constructs it cannot represent.
   const typeIdx = r.readI32();
-  return r.error(`multi-value block type (type index ${typeIdx}) is not supported`);
+  const ft = funcTypes[typeIdx];
+  if (ft === undefined) {
+    return r.error(`block type index ${typeIdx} is out of range`);
+  }
+  if (ft.params.length > 0) {
+    return r.error(
+      `block type index ${typeIdx} has ${ft.params.length} input parameter(s); ` +
+        `blocks with inputs are not supported`,
+    );
+  }
+  return [...ft.results];
 }
 
 function readMemArg(r: BinaryReader): { align: number; offset: number } {
@@ -550,6 +564,29 @@ function _branchValueArity(frames: ControlFrame[], depth: number): number {
   const target = frames[idx];
   if (target.kind === "loop") return 0;
   return target.resultTypes.length;
+}
+
+/**
+ * The value a branch to `depth` carries, or `null` when it carries none.
+ *
+ * Arity 0 → `null`; arity 1 → the popped value; arity N > 1 → one
+ * {@link makeTupleMake} holding all N, popped in reverse (the last operand is
+ * on top of the stack). `BreakExpr.value` is a single expression, so a tuple is
+ * how N values reach it.
+ *
+ * @internal
+ */
+function _branchValue(
+  frames: ControlFrame[],
+  depth: number,
+  pop: () => Expression,
+): Expression | null {
+  const arity = _branchValueArity(frames, depth);
+  if (arity === 0) return null;
+  if (arity === 1) return pop();
+  const vals: Expression[] = [];
+  for (let i = 0; i < arity; i++) vals.unshift(pop());
+  return makeTupleMake(vals);
 }
 
 function sealFrame(frame: ControlFrame, resultType: Type): Expression {
@@ -1270,17 +1307,17 @@ class WasmParser {
           break;
 
         case 0x02: { // block
-          const rts = readBlockType(r);
+          const rts = readBlockType(r, ctx.funcTypes);
           frames.push({ kind: "block", label: freshLabel(), resultTypes: rts, exprs: [] });
           break;
         }
         case 0x03: { // loop
-          const rts = readBlockType(r);
+          const rts = readBlockType(r, ctx.funcTypes);
           frames.push({ kind: "loop", label: freshLabel(), resultTypes: rts, exprs: [] });
           break;
         }
         case 0x04: { // if
-          const rts = readBlockType(r);
+          const rts = readBlockType(r, ctx.funcTypes);
           const cond = pop();
           frames.push({
             kind: "if",
@@ -1303,7 +1340,7 @@ class WasmParser {
         }
 
         case 0x06: { // try (old EH)
-          const rts = readBlockType(r);
+          const rts = readBlockType(r, ctx.funcTypes);
           frames.push({
             kind: "try",
             label: freshLabel(),
@@ -1430,7 +1467,13 @@ class WasmParser {
             } else {
               const blk = makeBlock(frame.exprs, frame.label);
               blk.type = resultType;
-              push(blk);
+              // A multi-result block leaves N values on the enclosing operand
+              // stack, but the IR models it as ONE node. Seed N-1 typed `Pop`s
+              // beneath it so each later consumer has its own value-typed
+              // representative — the same shape `pushMultiValueCall` uses for a
+              // tuple-returning call. Without this the extra results are
+              // invisible and later consumers grab a statement instead.
+              pushMultiValueCall(blk, rts);
             }
           }
           break;
@@ -1442,10 +1485,11 @@ class WasmParser {
           // stack. For a `loop`, branching jumps to the loop entry (and in
           // MVP loops have no inputs, so nothing is consumed). For
           // `block`/`if`/`try`/etc., it consumes the target's result types.
-          // Our BreakExpr.value is single-valued; multi-value branches are
-          // not yet representable in IR and fall through as value-less
-          // (preserves existing behavior on those, fixes the common case).
-          const value = _branchValueArity(frames, depth) === 1 ? pop() : null;
+          // A branch to a multi-result target carries N values. `BreakExpr.value`
+          // is a single expression, so N > 1 is delivered as one `tuple.make`.
+          // This used to pop NOTHING for N > 1 and emit a value-less break,
+          // silently discarding every value the branch carried.
+          const value = _branchValue(frames, depth, pop);
           push(makeBreak(resolveLabel(frames, depth), null, value));
           break;
         }
@@ -1453,7 +1497,7 @@ class WasmParser {
           const depth = r.readU32();
           // br_if stack order: ..., value, condition. Pop condition first.
           const cond = pop();
-          const value = _branchValueArity(frames, depth) === 1 ? pop() : null;
+          const value = _branchValue(frames, depth, pop);
           push(makeBreak(resolveLabel(frames, depth), cond, value));
           break;
         }
@@ -1465,7 +1509,7 @@ class WasmParser {
           // br_table stack order: ..., value, index. Pop index first, then
           // value if any target has results (all targets must share arity).
           const cond = pop();
-          const value = _branchValueArity(frames, defaultDepth) === 1 ? pop() : null;
+          const value = _branchValue(frames, defaultDepth, pop);
           const targets = depths.map((d) => resolveLabel(frames, d));
           const defaultTarget = resolveLabel(frames, defaultDepth);
           push(makeSwitch(targets, defaultTarget, cond, value));
@@ -1563,7 +1607,7 @@ class WasmParser {
           break;
         }
         case 0x1f: { // try_table blocktype (numHandlers handlers) (new EH)
-          const rts = readBlockType(r);
+          const rts = readBlockType(r, ctx.funcTypes);
           const numHandlers = r.readU32();
           // Read catch clause data (tag+depth pairs) before pushing frame
           const catchData: Array<{ tag: string | null; depth: number; isRef: boolean }> = [];

@@ -8,7 +8,7 @@
  * @license MIT
  */
 
-import { assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
 import { parseWasm } from "../../src/binary/index.ts";
 import { encodeWasm, WasmEncodeError } from "../../src/encoder/index.ts";
 import { ExpressionKind } from "../../src/ir/expressions.ts";
@@ -315,18 +315,29 @@ Deno.test("makeSelect: result type is the reachable arm when one arm is unreacha
   assertEquals(sel.type, ValType.I32);
 });
 
-Deno.test("encodeWasm: multi-value (tuple) block result throws instead of emitting only the first type", () => {
-  // A block typed [i32, i32] must encode as a type-index blocktype; emitting
-  // only t[0] produced a structurally invalid block. Multi-value blocktypes are
-  // deferred, so the encoder now fails loudly rather than corrupt the output.
+Deno.test("encodeWasm: a multi-value (tuple) block result encodes as a type-index blocktype", () => {
+  // A block typed [i32, i32] must name a TYPE-SECTION entry in its header;
+  // emitting only `t[0]` produced a structurally invalid block (the engine
+  // reads one result then misparses the body). This threw while multi-value
+  // was unsupported — it is now encoded properly, and the signature is
+  // registered in the type section by `collectExprTypes`.
   const tupleBlock = {
     kind: ExpressionKind.Block,
     type: [ValType.I32, ValType.I32],
     name: "b",
     children: [makeI32Const(0), makeI32Const(1)],
   } as unknown as Expression;
-  const mod = new ModuleBuilder().addFunction("f", [], [], tupleBlock).build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, "multi-value block results");
+  const mod = new ModuleBuilder().addFunction("f", [], [ValType.I32, ValType.I32], tupleBlock)
+    .build();
+
+  const bytes = encodeWasm(mod);
+  // The `() -> (i32 i32)` signature must be present in the type section.
+  const typeSec = Array.from(bytes.slice(8));
+  assertEquals(typeSec[0], 0x01, "expected a type section first");
+  assert(
+    typeSec.join(",").includes([0x60, 0x00, 0x02, 0x7f, 0x7f].join(",")),
+    "the block's () -> (i32 i32) signature was not registered",
+  );
 });
 
 Deno.test("encodeWasm: load with a non-numeric result type throws instead of silently emitting i64", () => {

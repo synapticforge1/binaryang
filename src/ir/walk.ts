@@ -237,6 +237,9 @@ function _mapChildren(
     case ExpressionKind.RefAs:
       return { ...expr, value: fn(expr.value) };
 
+    case ExpressionKind.TupleMake:
+      return { ...expr, operands: expr.operands.map(fn) };
+
     case ExpressionKind.RefEq:
       return {
         ...expr,
@@ -513,6 +516,10 @@ function _visitChildren(
 
     case ExpressionKind.RefAs:
       visit(expr.value);
+      break;
+
+    case ExpressionKind.TupleMake:
+      expr.operands.forEach(visit);
       break;
 
     case ExpressionKind.RefEq:

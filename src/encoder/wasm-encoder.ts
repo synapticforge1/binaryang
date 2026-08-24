@@ -75,6 +75,7 @@ import {
   type ThrowRefExpr,
   type TryExpr,
   type TryTableExpr,
+  type TupleMakeExpr,
   type UnaryExpr,
   UnaryOp,
 } from "../ir/expressions.ts";
@@ -624,20 +625,29 @@ function writeValType(w: BinaryWriter, t: ValType): void {
   w.writeU8(valTypeByte(t));
 }
 
-function writeBlockType(w: BinaryWriter, t: Type): void {
+/**
+ * Writes a block header's type.
+ *
+ * Three forms: `0x40` for void, an inline valtype byte for exactly one result,
+ * and — for a multi-result block — a NON-NEGATIVE signed LEB naming a
+ * type-section entry. The signed encoding is what keeps a type index distinct
+ * from the negative one-byte valtype forms, so `writeU32` would be wrong here
+ * for indices >= 64 exactly as it was in `writeHeapType`.
+ *
+ * `resolveBlockType` is passed in because the index has to come from the
+ * encoder's collected type table, which this free function has no access to.
+ */
+function writeBlockType(
+  w: BinaryWriter,
+  t: Type,
+  resolveBlockType: (results: ValueType[]) => number,
+): void {
   if (t === None || (Array.isArray(t) && t.length === 0)) {
     w.writeU8(0x40);
   } else if (Array.isArray(t)) {
     if (t.length > 1) {
-      // Multi-value (tuple) block results must encode as a SLEB128 type-section
-      // index, not an inline valtype. Emitting only `t[0]` produced a
-      // structurally invalid block header (the engine reads one result then
-      // misparses the body). Full multi-value blocktype support is deferred —
-      // the binary parser also discards multi-value blocktypes on read — so
-      // fail loudly rather than emit a corrupt module.
-      throw new WasmEncodeError(
-        `multi-value block results are not supported by the encoder: [${t.join(", ")}]`,
-      );
+      w.writeI32(resolveBlockType(t as ValueType[]));
+      return;
     }
     writeValueType(w, t[0] as ValType | RefType);
   } else if (t !== "unreachable") {
@@ -1006,13 +1016,22 @@ class WasmEncoder {
     for (const tag of this.mod.tags) {
       addType(tag.params, []);
     }
-    // Scan for call_indirect type references
+    // One walk collects both kinds of expression-level type reference:
+    // `call_indirect` signatures and multi-result block headers.
     for (const fn of this.mod.functions) {
-      this.collectCallIndirectTypes(fn.body, addType);
+      this.collectExprTypes(fn.body, addType);
     }
   }
 
-  private collectCallIndirectTypes(
+  /**
+   * Registers every type-section entry an EXPRESSION refers to.
+   *
+   * Two kinds: a `call_indirect`'s signature, and a multi-result block header
+   * — which names a type-section entry rather than an inline valtype, so its
+   * `() -> results` signature must exist before `writeBlockType` can resolve
+   * an index for it.
+   */
+  private collectExprTypes(
     expr: Expression,
     addType: (params: ValueType[], results: ValueType[]) => void,
   ): void {
@@ -1020,7 +1039,10 @@ class WasmEncoder {
       const e = expr as CallIndirectExpr;
       addType(e.params, e.results);
     }
-    walkChildren(expr, (child) => this.collectCallIndirectTypes(child, addType));
+    if (Array.isArray(expr.type) && expr.type.length > 1) {
+      addType([], expr.type as ValueType[]);
+    }
+    walkChildren(expr, (child) => this.collectExprTypes(child, addType));
   }
 
   private getTypeIndex(params: ValueType[], results: ValueType[]): number {
@@ -1484,7 +1506,7 @@ class WasmEncoder {
       case ExpressionKind.Block: {
         const e = expr as BlockExpr;
         w.writeU8(0x02);
-        writeBlockType(w, e.type);
+        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
         labels.push(e.name ?? "");
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
@@ -1495,7 +1517,7 @@ class WasmEncoder {
       case ExpressionKind.Loop: {
         const e = expr as LoopExpr;
         w.writeU8(0x03);
-        writeBlockType(w, e.type);
+        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
         labels.push(e.name);
         this.encodeExpr(w, e.body, labels);
         labels.pop();
@@ -1507,7 +1529,7 @@ class WasmEncoder {
         const e = expr as IfExpr;
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
-        writeBlockType(w, e.type);
+        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
         labels.push(e.name ?? ""); // the if's branch-target label (if any)
         this.encodeExpr(w, e.ifTrue, labels);
         if (e.ifFalse) {
@@ -1787,6 +1809,13 @@ class WasmEncoder {
         w.writeU8(0xd1);
         break;
       }
+      case ExpressionKind.TupleMake: {
+        // No wasm opcode: a tuple IS its N values sitting on the stack, so
+        // emitting the operands in order is the whole encoding.
+        const e = expr as TupleMakeExpr;
+        for (const op of e.operands) this.encodeExpr(w, op, labels);
+        break;
+      }
       case ExpressionKind.RefAs: {
         const e = expr as RefAsExpr;
         this.encodeExpr(w, e.value, labels);
@@ -1996,7 +2025,7 @@ class WasmEncoder {
       case ExpressionKind.TryTable: {
         const e = expr as TryTableExpr;
         w.writeU8(0x1f); // try_table
-        writeBlockType(w, e.type);
+        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
         w.writeU32(e.catches.length);
         labels.push(e.name ?? "");
         for (const c of e.catches) {
@@ -2019,7 +2048,7 @@ class WasmEncoder {
         if (e.delegateTarget !== null) {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
-          writeBlockType(w, e.type);
+          writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
           labels.push(e.name ?? "");
           this.encodeExpr(w, e.body, labels);
           labels.pop();
@@ -2027,7 +2056,7 @@ class WasmEncoder {
           w.writeU32(this.resolveLabel(labels, e.delegateTarget));
         } else {
           w.writeU8(0x06); // try
-          writeBlockType(w, e.type);
+          writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
           labels.push(e.name ?? "");
           this.encodeExpr(w, e.body, labels);
           for (let i = 0; i < e.catchTags.length; i++) {

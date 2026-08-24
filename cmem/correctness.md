@@ -148,6 +148,33 @@ block inputs, i.e. the _harder_ piece. Nothing else in the 90-file corpus needs 
 **None of this is a bug.** Every unsupported case fails loudly on both sides, which is the contract
 working as designed. It is a missing feature, and should be weighed as one.
 
+### Multi-result blocks shipped (2026-08-24); block inputs still rejected
+
+The first of the two pieces is done — `tuple.make` (UP-2) came with it, because it turned out to be
+required rather than adjacent.
+
+The blocktype plumbing was the easy half. The load-bearing part was the two places that would
+otherwise have **lost values silently** the moment multi-result blocks started decoding:
+
+1. A multi-result block leaves N values on the enclosing stack but is ONE IR node. N−1 typed `Pop`s
+   are now seeded beneath it — the same `pushMultiValueCall` shape used for tuple-returning calls.
+2. `br` / `br_if` / `br_table` to a multi-result target did
+   `_branchValueArity(...) === 1 ? pop() : null`. For N > 1 that popped **nothing** and emitted a
+   value-less break, discarding every value the branch carried. Latent while multi-value threw; live
+   the instant it didn't. The N values now travel as one `makeTupleMake`, which is exactly what
+   `tuple.make` is for: "these N expressions, left to right, leaving N values on the stack". It has
+   no wasm opcode, so the encoder emits the operands and nothing else.
+
+Encoder: `writeBlockType` emits a multi-result header as a **non-negative signed LEB** naming a
+type-section entry (`writeI32`, not `writeU32` — the same `s33` trap as `writeHeapType`), and
+`collectCallIndirectTypes` was generalized to `collectExprTypes` so one walk registers both
+`call_indirect` signatures and block headers.
+
+**Blocks with inputs (p ≥ 1) remain a loud rejection, by name.** `BlockExpr` cannot model consuming
+values from the enclosing operand stack, so accepting one would silently drop its parameters. That
+is an IR-shape change, not plumbing. `lit/control-flow-input.wast.wasm` — upstream's own block-input
+test — is still the only corpus file that needs it.
+
 ### UP-6 / UP-4 / UP-3 (fixed, Tier 2)
 
 - **UP-6 tag imports.** The load-bearing part is the index space: imported tags take the low end,

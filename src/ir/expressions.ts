@@ -24,7 +24,7 @@
  * @license MIT
  */
 
-import { None, type Type, Unreachable, ValType } from "./types.ts";
+import { None, type TupleType, type Type, Unreachable, ValType } from "./types.ts";
 import type { HeapType, ValueType } from "./gc-types.ts";
 export type { HeapType, RefType, ValueType } from "./gc-types.ts";
 
@@ -950,6 +950,16 @@ export enum RefAsOp {
   RefAsNonNull = "ref.as_non_null",
 }
 
+/** {@link TupleMakeExpr} — see {@link makeTupleMake} for the factory. */
+export interface TupleMakeExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.TupleMake;
+  /** The tuple's component types, in order. */
+  type: TupleType;
+  /** The operands, evaluated left to right, one per component. */
+  operands: Expression[];
+}
+
 /** {@link RefAsExpr} — see {@link makeRefAsNonNull} for the factory. */
 export interface RefAsExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
@@ -1488,6 +1498,7 @@ export type Expression =
   | RefNullExpr
   | RefIsNullExpr
   | RefAsExpr
+  | TupleMakeExpr
   | RefFuncExpr
   | RefEqExpr
   | RefI31Expr
@@ -1843,6 +1854,27 @@ export function makeRefIsNull(value: Expression): RefIsNullExpr {
  * with a non-nullable type. `resultType` should be the operand's heap type
  * with `nullable: false`.
  */
+/**
+ * Creates a `tuple.make` expression — N values delivered as one operand.
+ *
+ * There is no `tuple.make` opcode in wasm. It is how the IR names "these N
+ * expressions, left to right, leaving N values on the stack", which is what a
+ * multi-value `br` / `br_if` / `br_table` / `return` carries and what a
+ * multi-result block falls through with. The encoder therefore emits the
+ * operands in order and nothing else.
+ *
+ * Its type is the {@link TupleType} of the operand types, so a single-valued
+ * consumer that mistakes it for a scalar is caught by the type rather than
+ * silently taking only the first component.
+ */
+export function makeTupleMake(operands: Expression[]): TupleMakeExpr {
+  return {
+    kind: ExpressionKind.TupleMake,
+    type: operands.map((o) => o.type) as TupleType,
+    operands,
+  };
+}
+
 export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
   return { kind: ExpressionKind.RefAs, type: resultType, op: RefAsOp.RefAsNonNull, value };
 }
