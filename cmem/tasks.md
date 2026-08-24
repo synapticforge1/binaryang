@@ -937,13 +937,30 @@ clean on `main`) per rule 2, and every severity re-measured per rule 1. Six of
 the seven stand; **UP-7 was stale and is restated**. The report built from this
 is `scripts/binaryen-ts-upstream-report.md`.
 
+**ANSWERED the same day, and TWO SEVERITIES WERE STILL WRONG.** binaryen-ts
+confirmed all seven with exact line refs and corrected us:
+
+- **UP-5 is the most severe finding, and it is SILENT** — we had it sixth, as a
+  bridge "gap". The decoder reads the start funcidx and throws it away, so
+  `readBinary(b).emitBinary()` produces valid wasm that behaves differently
+  with no diagnostic. Reproduced here: start section present → absent, exported
+  global 42 → 0.
+- **UP-1 is a round-trip corruption**, not merely "unencodable" — the decoder
+  handles `0x04`/`0x0d` but collapses them onto `signed=false`. Reproduced
+  here: `0x04` in, `0x02` out, engine rejects. No builder, no passes.
+- **Our "root cause is in the IR, not the encoder" was wrong** — rebuttal
+  accepted, see below.
+- Their checkout is **v1.4.3** (`00e7e953858`); ours is v1.3.5. They diffed and
+  all seven hold. Our `^1.0.9` pin resolves to 1.4.3 today, so the PIN is not
+  what made this log stale — the checkout is.
+
 | id | Finding | Severity | Surfaced by |
 | --- | --- | --- | --- |
-| UP-1 | `struct.get_u` / `array.get_u` unencodable; emits `0x02`/`0x0b`, which **V8 AND Wasmtime both reject** on a packed field | **blocking** | GC tiers / T7 review |
+| UP-5 | **A start function is silently DROPPED on round-trip** — the decoder reads the funcidx and discards it. Valid in, valid out, behaviour changed, no diagnostic | **wrong-output, SILENT** | Tier D |
+| UP-1 | `struct.get_u` / `array.get_u`: the decoder collapses `0x04`/`0x0d` onto `signed=false`, so **valid wasm round-trips INVALID** — both engines reject | **wrong-output** | GC tiers / T7 review |
 | UP-2 | `tuple.make` has an `ExpressionKind` entry but no factory **and no encoder case** | **gap** | multi-value branches |
 | UP-3 | Same for all four GC array bulk ops (`array.fill` / `copy` / `init_data` / `init_elem`) | **gap** | tranche 2 |
 | UP-4 | `ref.as_non_null` — **not even an `ExpressionKind` entry** | **gap** | Tier C |
-| UP-5 | No `setStart`; no start-section support anywhere in the IR or encoder | **gap** | Tier D |
 | UP-6 | `WasmImport.kind` has no `"tag"` — asymmetric, since `WasmExport.kind` now does | **gap** | Tier C |
 | UP-7 | **RESTATED.** `RefType` now EXISTS and `FuncTypeDef` accepts it; only the `ModuleBuilder` DECLARATION surface is still narrowed to `ValType[]` | **gap** (was "design-limit") | typed-ref refactor |
 
@@ -1094,6 +1111,50 @@ own stale notes.
 binaryen-ts's OWN `ModuleBuilder` + `encodeWasm` rather than a hand-built
 binary, and put to Wasmtime as well as V8. Both reject. That is the difference
 between "we think this is wrong" and a report they can act on in one reading.
+
+### Answered — 2026-08-24, and two of our severities were still wrong
+
+Re-verifying before filing (rule 2) caught three stale entries. It did **not**
+catch two mis-ranked severities, and the recipient did:
+
+| we said | actually |
+| --- | --- |
+| UP-5: "no `setStart`" — a bridge gap, ranked 6th of 7 | **the most severe finding, and silent.** The decoder discards the start funcidx; `readBinary(b).emitBinary()` yields valid wasm with different behaviour and no diagnostic |
+| UP-1: "unencodable", blocking | **a round-trip corruption** — valid `0x04` in, `0x02` out, engine rejects. No builder, no passes |
+| "six of seven fail loudly; only UP-1 emits bad bytes" | **two of seven produce wrong output, and the silent one is worse** |
+
+Both reproduced here before being accepted, not taken on trust.
+
+**The rebuttal we accepted.** We wrote *"the root cause is in the IR, not the
+encoder — an encoder-only patch cannot fix it"*, then offered as option (2)
+exactly such a patch. They pointed out option (2) is complete: packedness is
+available at encode time via `this.mod.heapTypes`, and given packedness
+`signed` is total (non-packed → `get` only; packed → `get_s`/`get_u`). Verified
+both halves. **We undersold our own recommendation with the sentence above it.**
+
+**What we sent back.** Deriving the sub-opcode from packedness makes today's
+invalid `0x02`-on-packed decode and re-encode as valid `0x04` — an encoder
+repairing its input, our T11 class. The clean split is for the DECODER to
+reject it.
+
+### The lesson this pair of exchanges is actually about
+
+Two reports went out the same day. One carried a version stamp; one rested on
+an un-stamped vendored corpus.
+
+| | binaryen-ts report | wasmtk report |
+| --- | --- | --- |
+| snapshot identified? | **yes** — `b78e5b476`, v1.3.5 | **no** — 272 files, no commit, no date |
+| what happened | recipient noticed in one step, diffed, confirmed all seven still hold | we asserted seven modules were currently broken; all seven had been fixed — **retracted** |
+
+Same failure mode, opposite outcomes, and the only difference was whether the
+snapshot said what it was. See `tests/wasmtk/PROVENANCE.md`.
+
+**And re-verifying is not the same as re-ranking.** Rule 2 got the facts
+current; it did not re-ask "which of these is worst, and why". Severity
+ordering is a separate judgement from freshness, and ours was wrong in the way
+that matters most — we ranked the loud failure above the silent one, when
+silent is the one that ships.
 
 ### Append new findings here
 

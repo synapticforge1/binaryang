@@ -92,6 +92,16 @@ to be written against the v1.0.9 pin and had gone stale in three places. Full de
 `cmem/tasks.md` (LIVING LOG, UP-1..UP-7) and the report built from it,
 [../scripts/binaryen-ts-upstream-report.md](../scripts/binaryen-ts-upstream-report.md).
 
+**Two of these are NOT bridge-only — they are round-trip defects in
+`readBinary(b).emitBinary()`, reachable with no bridge, no builder and no passes**
+(confirmed by binaryen-ts 2026-08-24, reproduced here):
+
+- **UP-5, start function — SILENT.** The decoder reads the start funcidx and
+  discards it. Valid in, valid out, behaviour changed, no diagnostic. Measured:
+  exported global 42 → 0. The worst of the seven and we had ranked it sixth.
+- **UP-1, `struct.get_u` — loud.** The decoder collapses `0x04`/`0x0d` onto
+  `signed=false`, so valid wasm re-encodes to bytes engines reject.
+
 Still blocked:
 
 - **`struct.get_u` / `array.get_u`** — the encoder picks the sub-opcode with a boolean, so the
@@ -102,7 +112,7 @@ Still blocked:
   encoder case (UP-2).
 - GC array bulk ops — `array.fill` / `copy` / `init_data` / `init_elem`, same shape as UP-2 (UP-3).
 - Tag IMPORTS — `WasmImport.kind` has no `"tag"` (UP-6). Tag *exports* work now.
-- Start function — no `setStart`, and no start section in the IR at all (UP-5).
+- Start function — no `setStart`, no start section in the IR, and the decoder DISCARDS it (UP-5).
 - Typed refs at the **`ModuleBuilder` surface** — `RefType` exists and `FuncTypeDef` accepts it,
   but `addFunction` / `addGlobal` / `addTable` / `addTag` / `addFunctionImport` are still
   `ValType`-only (UP-7). This is the last lossy step in the bridge.

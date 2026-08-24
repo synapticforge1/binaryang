@@ -463,3 +463,35 @@ and seven we had listed wrongly.
 This is "measure severity, never inherit it" pointed at an INCOMING report
 instead of an outgoing one. Same discipline, and the direction that is easier
 to skip.
+
+## Re-verifying a finding is not the same as re-ranking it
+
+Before filing the binaryen-ts report we applied the log's own rule 2 —
+re-verify against the actual checkout — and it worked: three of seven entries
+were stale and got corrected. We filed with confidence.
+
+Two of the seven severities were still wrong, and the recipient caught both.
+UP-5 was recorded as "no `setStart`", a bridge gap, ranked sixth. It is
+actually the worst finding in the report: the decoder discards the start
+function's index, so a decode/re-encode produces **valid wasm that behaves
+differently, with no diagnostic**. We had ranked a loud failure above a silent
+one.
+
+Rule 2 makes facts current. It does not re-ask *"which of these is worst, and
+why"* — that is a separate judgement, and freshness does not supply it. When a
+list has been carried for a while, re-rank it as deliberately as you re-verify
+it, and rank **silent above loud**: an engine catches the loud one, the silent
+one ships.
+
+## When you name an alternative, check whether it refutes your own diagnosis
+
+The UP-1 write-up said *"the root cause is in the IR, not the encoder — an
+encoder-only patch cannot fix it"*, and then listed as option (2) an
+encoder-only patch that fixes it completely. The recipient pointed at our own
+option (2) as the counterexample, and they were right: packedness is available
+at encode time, and given packedness the existing boolean is total.
+
+The diagnosis sentence was written first and never re-read against the options
+underneath it. **We undersold our own recommendation.** When a write-up ends
+with "here are the options", re-read the claim above them last — the options
+are the test of it.
