@@ -66,16 +66,46 @@ changed, beyond the numbers:
   decoder, and no rule enforced anywhere.
 - **An out-of-scope branch target is now the parser's error** (T13.1), so the
   quoted `assert_malformed` number no longer depends on where the probe sits.
+- **Every `Features` flag now GATES** (T13.10). Nine of twenty-one were inert —
+  a caller could switch `gc` off and validate a GC module. Gating covers types
+  as well as instructions, and `wasm-validate` gained
+  `--enable-<feature>` / `--disable-<feature>` / `--enable-all` in the same
+  change, because a gated validator without flags rejects most modern wasm.
+- **Two atomic bugs, in a proposal no metric can see** (T13.8, T13.9). The
+  arity table was one too high for atomic store / rmw / cmpxchg, so `wasm2wat`
+  output of any such module was **rejected by V8**; and the validator had no
+  `PREFIX_THREADS` branch, so every atomic was type-checked as
+  `(v128,v128)→v128` and **falsely rejected**. See the blind spot below.
+- **Three reserved bytes were read and discarded** (T13.5) — the tag attribute
+  in both paths and the table init form's marker; **the opcode-name and
+  natural-alignment tables were audited against the lexer's own population**
+  (T13.6); and a `$name` was checked in all 64 grammar positions (T13.7), where
+  21 fail at v1.3.5.
 - **Cross-runtime reality is measured, not assumed** — Wasmtime, V8, Bun/JSC,
   Wasmer and wazero, over the whole WASI corpus. The matrix and what each
   runtime refuses are in [tasks.md](tasks.md); the short version is that only
   Wasmtime implements custom page sizes, and wazero's CLI refuses any module
   carrying a tag section.
 
-**Open, and not ours to fix:** wasmtk's legacy-EH emission (Wasmtime and Wasmer
-both reject it; `try_table` reaches parity) and an unused `$__exn_tag` that
-costs five corpus modules on wazero. Both written up in
-`scripts/wasmtk-eh-parity-report.md`.
+### The blind spot the metrics cannot cover
+
+**The 257-file testsuite snapshot contains NO atomics** — no `atomic.wast`, no
+shared-memory file, not one `atomic.load` / `store` / `rmw`. The whole threads
+proposal sits outside the population every metric measures, and two real bugs
+lived there undisturbed. A corpus-shaped metric is only as complete as its
+corpus: **the proposals the corpus lacks ARE the blind spot**, and that list is
+worth producing before trusting "all seven green".
+
+The tests added for this reason need neither a corpus nor an oracle, and each
+found something the seven metrics could not — see [testing.md](testing.md):
+folded-vs-linear (arity), named-vs-numeric references, every atomic opcode
+against V8, and the feature gates.
+
+**Open, and not ours to fix:** wasmtk's legacy-EH emission — Wasmtime and Wasmer
+both reject it, file for file, and `try_table` reaches parity. Written up in
+`scripts/wasmtk-eh-parity-report.md`, together with a RETRACTED second finding
+(an "unused `$__exn_tag`") that came from grepping the frozen snapshot and does
+not hold against current wasic.
 
 ## Repo layout
 

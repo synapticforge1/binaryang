@@ -50,6 +50,8 @@ code
 - Audit a manual walk against the TYPE, not against a corpus
 - An audit must report the size of the population it examined
 - Test the two halves of a parser against each other
+- The proposals your corpus lacks are your blind spot
+- After changing code, audit the change before auditing the codebase
 - An unused parameter in one of a family of parallel handlers is a missing check
 - When a marker has to be applied at every construction site, grep for it
 - In this codebase, "the linear form is a stub" IS a round-trip bug
@@ -1046,3 +1048,36 @@ The corollary for invariants: **an invariant nobody has checked mechanically is
 a comment.** Both of these were written down — "audit its `opN()` calls when
 adding an opcode", and the arity note itself — and both were wrong in the tree.
 
+## The proposals your corpus lacks are your blind spot
+
+Seven conformance metrics, all green, and the threads proposal had **two** real
+bugs in it: an arity table that made `wasm2wat` emit wasm V8 rejects (T13.8),
+and a validator that type-checked every atomic as `(v128,v128)→v128` and
+rejected them all (T13.9).
+
+Neither was subtle. Both were invisible for one reason: **the 257-file spec
+testsuite snapshot contains no atomics at all** — no `atomic.wast`, no
+shared-memory file, not one `atomic.load` / `store` / `rmw`. Every metric is
+shaped by that corpus, so the entire proposal sat outside the population being
+measured.
+
+**Before trusting a corpus-shaped number, enumerate what the corpus does not
+contain.** Here that list is a real artifact: `ls` the testsuite and diff it
+against the proposals the code claims to support. Anything the code implements
+and the corpus never exercises needs a test written by hand, because no amount
+of green will ever reach it.
+
+The same logic explains T13.4 (custom page sizes shipped half-built) and T13.10
+(nine dead feature gates): all three are features the corpus cannot see.
+
+## After changing code, audit the change before auditing the codebase
+
+Five audit passes over this codebase found six bugs. The fifth found exactly one
+gap — **in the feature gating written an hour earlier** (instructions gated,
+types not). Nothing in the older surface turned up.
+
+That is worth acting on rather than noting: once a codebase has been swept a few
+times, the highest-yield place to look is the most recent diff, not a new
+region. Re-audit your own change with the same instruments used on everything
+else — and specifically ask what the change does NOT cover, since a gate keyed
+on one kind of thing (instructions) says nothing about its siblings (types).

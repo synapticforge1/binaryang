@@ -37,6 +37,14 @@ the `/compat` facade exposes `wabt()`, `WabtModule`, `WasmModule`, `Features` an
 no `Limits`, no IR. Verified by replaying their current call sites from `origin/main`. The caret
 range accepts the release.
 
+**A third, BEHAVIOURAL break in the same release:** `wasmValidate` / `validateModule` now enforce
+the `Features` set (T13.10). Nine proposals used to be accepted regardless of the flag, so a caller
+passing `defaultFeatures()` and feeding it a GC, threads, memory64, tail-call or EH module will now
+get a rejection where it previously got success. That is the option finally working, but it IS a
+behaviour change and belongs in the release notes. `wasm-validate` gained
+`--enable-<feature>` / `--disable-<feature>` / `--enable-all` alongside it, because a gated
+validator with no way to opt in would reject most modern wasm.
+
 `README.md` carries a "Breaking change since v1.3.5" section for downstream consumers.
 
 ## `deno publish --dry-run` is in CI but NOT in `deno task test`

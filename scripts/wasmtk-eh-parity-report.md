@@ -34,6 +34,12 @@ from a different codebase, that the legacy encoding is the blocker.
 
 ## Ask 1 — the `try_table` migration reaches parity (confirming, not new)
 
+> **BLOCKED ON US — read the reply section at the bottom before acting on this.** The claim below
+> that "nothing is needed on our side" is true of wabt-ts `main` and FALSE of v1.3.5, which is what
+> your `deno.lock` pins: there the binary writer fails every named catch form with `unresolved
+> name-var`. Fixed by `d30b8599` (2026-08-21), shipping in v1.4.0. The migration cannot land
+> against a released wabt-ts until then.
+
 Already your top item; this just prices it. Four minimal modules, every runtime:
 
 | shape                                 | V8     | Bun    | Wasmtime   | Wasmer     | wazero     |
@@ -56,6 +62,11 @@ validator, WAT writer — so nothing is needed on our side.
 ---
 
 ## Ask 2 — `needsExceptionTag` fires without emitting anything (new, cheap)
+
+> **RETRACTED — do not act on this section.** It was derived by grepping our FROZEN snapshot and
+> then stated in the present tense about current wasic. It does not reproduce: all five modules
+> genuinely throw. wazero stays at 251; the projected 251 → 256 does not happen. See the reply
+> section at the bottom.
 
 Five modules in the snapshot declare `$__exn_tag` and **never reference it again** — the string
 occurs exactly once, the declaration:

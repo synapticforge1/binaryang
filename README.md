@@ -20,7 +20,7 @@ in the original wabt.
 | --------------- | ------------------------------------------------------------------ |
 | `wat2wasm`      | Translate WebAssembly text format (.wat) to binary (.wasm)         |
 | `wasm2wat`      | Translate WebAssembly binary (.wasm) to text format (.wat)         |
-| `wasm-validate` | Validate a WebAssembly binary                                      |
+| `wasm-validate` | Validate a WebAssembly binary (`--enable-<feature>` / `--enable-all`) |
 | `wasm-objdump`  | Inspect sections and structure of a WebAssembly binary             |
 | `wasm-strip`    | Strip custom sections (e.g. `name`) from a WebAssembly binary      |
 | `wasm2ts`       | Transpile a WebAssembly binary to typed TypeScript (new — pending) |
@@ -65,6 +65,26 @@ value fits.
 `pageSizeLog2` holds what the wire field holds — the exponent — where `pageSize` was documented as
 bytes but carried the raw value, so a decoded 64 KiB memory read as `pageSize = 16`. Omitted means
 the standard 64 KiB page.
+
+### The validator now enforces `features`
+
+Nine proposals used to be accepted no matter what the `Features` bag said — `gc`, `threads`,
+`memory64`, `tailCall`, `exceptions`, `relaxedSimd`, `extendedConst`, `functionReferences` and
+`wideArithmetic`. Switching one off did nothing.
+
+They are enforced now, for types as well as instructions. **`defaultFeatures()` disables all nine**,
+so a caller that relied on the old behaviour has to ask for what it uses:
+
+```typescript
+import { allFeatures, defaultFeatures } from 'jsr:@jrmarcum/wabt-ts';
+
+validateModule(module, errors, { features: allFeatures() }); // accept everything
+validateModule(module, errors, { features: { ...defaultFeatures(), gc: true } }); // or be specific
+```
+
+`wasm-validate` gained matching flags — `--enable-<feature>`, `--disable-<feature>` and
+`--enable-all`, hyphenated the way wabt spells them (`--enable-tail-call`). An unrecognised flag
+prints the list.
 
 ## Runtime compatibility
 
@@ -229,6 +249,7 @@ const roundTripped = writeBinaryIr(module);
 
 ```typescript
 import {
+  allFeatures,
   formatErrors,
   hasErrors,
   makeErrorList,
@@ -239,7 +260,7 @@ import {
 const bytes = await Deno.readFile('module.wasm');
 const errors = makeErrorList();
 const module = readBinaryIr(bytes, errors);
-validateModule(module, errors);
+validateModule(module, errors, { features: allFeatures() });
 
 if (hasErrors(errors)) {
   console.error(formatErrors(errors));
@@ -247,6 +268,10 @@ if (hasErrors(errors)) {
   console.log('module is valid');
 }
 ```
+
+The `features` argument is not optional in practice: the default set disables GC, threads,
+memory64, tail calls and exception handling, so omitting it rejects most modern wasm. See
+[the validator now enforces `features`](#the-validator-now-enforces-features).
 
 ## Development
 

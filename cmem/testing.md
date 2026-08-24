@@ -90,6 +90,29 @@ wrong answer. Only running it catches that.
 it read `.type` off the wrapper. The real denominator was 26,837. A denominator is a measurement
 too.
 
+## The tests that need neither a corpus nor an oracle
+
+The seven metrics above are all corpus-shaped, and a corpus-shaped number can only ever be as
+complete as its corpus. **The 257-file snapshot contains no atomics at all**, so the whole threads
+proposal was outside every one of them — which is where T13.8 (an arity table that made `wasm2wat`
+emit wasm V8 rejects) and T13.9 (every atomic type-checked as `(v128,v128)→v128`) both lived.
+
+Three shapes cover what a corpus cannot, and each found a real bug:
+
+- **A differential between two spellings of the same thing.** Folded vs linear
+  (`instr_arity.test.ts`) and `$name` vs numeric (`named_refs.test.ts`) must agree by construction,
+  so disagreement is a bug — no oracle needed, and no corpus to be missing from.
+- **Enumerate the population from the CODE, not from files.** `opcode_tables.test.ts` drives the
+  lexer's own opcode table; `atomics.test.ts` walks every `PREFIX_THREADS` sub-opcode. Anything the
+  code claims to support gets exercised whether or not a `.wast` file mentions it.
+- **Test the option, not just the path.** `feature_gates.test.ts` asserts each proposal is refused
+  with its flag off. Every harness passes `allFeatures()`, which is precisely the configuration in
+  which a gate cannot be observed.
+
+**Before trusting "all seven green", ask which proposals the corpus does not contain** — that list
+is the blind spot, and it is a real artifact you can produce by diffing the testsuite file names
+against the proposals the code implements.
+
 ## Regression-test placement (where each invariant's test lives)
 
 - `tests/tools/wat2wasm.test.ts` — natural-alignment-when-`align=` omitted.
