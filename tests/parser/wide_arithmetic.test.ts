@@ -44,6 +44,9 @@ import { parseWatModule } from '../../src/parser/wast-parser.ts';
 import { readBinaryIr } from '../../src/reader/binary-reader.ts';
 import { WastLexer } from '../../src/parser/wast-lexer.ts';
 import { LexerSource } from '../../src/parser/lexer-source.ts';
+import { wasmValidate } from '../../src/tools/wasm-validate.ts';
+import { allFeatures } from '../../src/core/feature.ts';
+import { Result } from '../../src/core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
 
 /** Every opcode spelling in the lexer keyword table, with its opcode value. */
@@ -196,5 +199,56 @@ describe('wide arithmetic — wasm2wat can read back what wat2wasm writes', () =
       const first = compile(src);
       assertEquals(compile(wasm2wat(first).text!), first, name);
     }
+  });
+});
+
+// The validator half. `getMiscOpcodeTypeInfo`'s `default:` returned a
+// `(v128,v128,v128) -> v128` signature, and `onQuaternary` hard-coded the same
+// v128 shape while IGNORING the opcode. Both were dormant until wide
+// arithmetic became decodable — and then the validator REJECTED every
+// well-typed wide-arithmetic module with "expected [v128, v128]".
+//
+// Neither corpus nor the agreement metric could see it: V8 gates the proposal
+// off entirely ("Invalid opcode 0xfc13 (enable with --experimental-...)"), so
+// V8 rejects these modules for an unrelated reason and agreement stays green.
+// **Wasmtime with `-W wide-arithmetic=y` is the oracle here**, and it accepts
+// the well-typed forms and rejects the ill-typed one — exactly as we now do.
+describe('wide arithmetic — the validator types it correctly', () => {
+  const verdict = (wat: string) => wasmValidate(compile(wat), { features: allFeatures() }).result;
+
+  const WELL_TYPED: [string, string][] = [
+    ['i64.add128', '(i64.add128 (i64.const 1) (i64.const 0) (i64.const 2) (i64.const 0))'],
+    ['i64.sub128', '(i64.sub128 (i64.const 5) (i64.const 0) (i64.const 2) (i64.const 0))'],
+    ['i64.mul_wide_s', '(i64.mul_wide_s (i64.const 6) (i64.const 7))'],
+    ['i64.mul_wide_u', '(i64.mul_wide_u (i64.const 6) (i64.const 7))'],
+  ];
+
+  for (const [name, expr] of WELL_TYPED) {
+    it(`accepts a well-typed ${name} (Wasmtime accepts it too)`, () => {
+      assertEquals(
+        verdict(`(module (func (export "f") (result i64 i64) ${expr}))`),
+        Result.Ok,
+        `${name} was rejected`,
+      );
+    });
+  }
+
+  it('still REJECTS wrong-typed operands, naming i64 rather than v128', () => {
+    const bad = `(module (func (export "f") (result i64 i64)
+      (i64.add128 (f32.const 1) (f32.const 0) (f32.const 2) (f32.const 0))))`;
+    const v = wasmValidate(compile(bad), { features: allFeatures() });
+    assertEquals(v.result, Result.Error);
+    const msg = formatErrors(v.errors);
+    assert(/expected \[i64, i64, i64\]/.test(msg), msg);
+    assert(!/v128/.test(msg), `still claiming a SIMD signature: ${msg}`);
+  });
+
+  it('pushes TWO results, so a single-result signature is rejected', () => {
+    // OpcodeTypeInfo carries one result; the second i64 is pushed by the
+    // onBinary / onQuaternary special cases. If that push were dropped, a
+    // `(result i64)` function would wrongly validate.
+    const oneResult = `(module (func (export "f") (result i64)
+      (i64.mul_wide_s (i64.const 6) (i64.const 7))))`;
+    assertEquals(verdict(oneResult), Result.Error);
   });
 });

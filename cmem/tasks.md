@@ -796,14 +796,45 @@ The sweep is now the last case in the regression file, so the CLASS is guarded
 rather than the four instances. Regression:
 `tests/parser/wide_arithmetic.test.ts` (9 cases).
 
-**Noted, not changed — a latent trap.** `getMiscOpcodeTypeInfo`'s
-`default:` returns `(v128,v128,v128) → v128`. Misc opcodes are never SIMD, and
-the comment 30 lines above it in the same file documents the T9.2 incident
-where misc opcodes reaching a v128 default made wrong-typed operands validate
-clean. Unreachable today (only the sat-truncs route there, via `ConvertExpr`),
-so changing it risks moving validator metrics for no measured gain — but it is
-the same trap one level down, and worth converting to a hard fail if that
-function ever gains a caller.
+**FIXED — and it was not latent for long.** `getMiscOpcodeTypeInfo`'s
+`default:` returned `(v128,v128,v128) → v128`. It was logged as unreachable and
+deliberately left alone. **Adding wide-arithmetic reader support in the very
+next commit made it reachable**, and the consequence was the opposite of the
+T9.2 incident it echoes: instead of wrong operands validating clean, **every
+well-typed wide-arithmetic module was REJECTED** with
+`expected [v128, v128] but got [i64, i64]`.
+
+`onQuaternary` was worse — it hard-coded the v128×4 shape and ignored the
+opcode entirely, so it rejected the only instructions that actually reach it
+(`i64.add128` / `i64.sub128` are the ONLY `TokenType.Quaternary` spellings; the
+relaxed-SIMD quaternary ops it was written for do not exist).
+
+Fixed by giving all four wide-arithmetic opcodes real type info —
+`mul_wide_*` is `[i64,i64] → [i64,i64]`, `add128`/`sub128` is
+`[i64×4] → [i64,i64]` — with the SECOND result pushed by the `onBinary` /
+`onQuaternary` special cases, since `OpcodeTypeInfo` carries only one. The misc
+`default:` now returns all-`Void` (inert) rather than a SIMD signature.
+
+**Neither corpus nor the agreement metric could see any of this.** V8 gates the
+proposal off entirely (`Invalid opcode 0xfc13 (enable with --experimental-…)`),
+so it rejects these modules for an unrelated reason and agreement stays
+2120/2120. **Wasmtime is the oracle here**, and with `-W wide-arithmetic=y` it
+agrees with us on all three probes:
+
+| module | before | after | Wasmtime |
+| --- | --- | --- | --- |
+| well-typed `add128` | REJECT | **accept** | accept |
+| well-typed `mul_wide_s` | REJECT | **accept** | accept |
+| `add128` with f32 operands | REJECT | REJECT | reject |
+
+Two lessons, both recorded in `best-practices.md`: **"unreachable" is a
+property of today's code, not of the defect** — this one became reachable one
+commit later, from a change that never touched it. And **a hard-coded shape in
+a handler that ignores its opcode is the same bug as a lying default**, just
+harder to grep for.
+
+Regression: `tests/parser/wide_arithmetic.test.ts` (15 cases; 5 of the 6
+validator cases fail pre-fix).
 
 ### A FIFTH metric — execution. 23,077 / 23,077 (2026-08-24)
 

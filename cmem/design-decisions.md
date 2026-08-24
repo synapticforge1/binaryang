@@ -418,3 +418,12 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   collapsed `ref.null $T` to the abstract supertype of its type entry, sat directly below the live
   call site (which correctly passes a precise `ValueType`), and carried an inviting doc comment. The
   same shape as binaryen-ts's UP-7; a future edit could have re-wired to it.
+- **A misc-prefixed opcode is never SIMD, and `onQuaternary` must read its opcode.**
+  `getMiscOpcodeTypeInfo`'s `default:` returned `(v128,v128,v128) → v128`, and `onQuaternary`
+  hard-coded the same shape while ignoring the opcode. Both were dormant until wide arithmetic
+  became decodable, and then the validator REJECTED every well-typed `i64.add128` / `i64.sub128` /
+  `i64.mul_wide_*` module. All four now carry real type info (`[i64,i64] → [i64,i64]` and
+  `[i64×4] → [i64,i64]`), with the SECOND result pushed by the `onBinary` / `onQuaternary` special
+  cases because `OpcodeTypeInfo` carries only one. The misc `default:` is all-`Void` — inert — not a
+  SIMD signature. **V8 cannot arbitrate this**: it gates the proposal off, so agreement stays green
+  either way. Wasmtime with `-W wide-arithmetic=y` is the oracle, and it agrees.

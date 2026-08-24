@@ -138,9 +138,10 @@ When fixing a footgun/silently-wrong bug, add the regression alongside the invar
 [design-decisions.md](design-decisions.md). Fail-loud (throw) over silent-wrong output is the
 project contract.
 
-- `tests/parser/wide_arithmetic.test.ts` — `i64.add128` / `i64.sub128`: all four operands reach
-  the IR in BOTH forms (the linear one used to get placeholders), and `wasm2wat` can read back
-  what `wat2wasm` writes. 6 cases.
+- `tests/parser/wide_arithmetic.test.ts` — the whole wide-arithmetic proposal end to end: all four
+  operands reach the IR in BOTH forms, `wasm2wat` can read back what `wat2wasm` writes, the
+  validator types all four correctly (Wasmtime-verified; V8 gates the proposal off and cannot
+  arbitrate), and an exhaustive lexer-vs-reader sweep guards the CLASS. 15 cases.
 
 ## CI gate
 

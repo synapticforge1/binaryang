@@ -639,3 +639,42 @@ Two notes on building that sweep:
   code beats parsing it — the empirical version is shorter AND correct.
 - **Invert it before trusting it.** With the fix stashed the sweep reports
   exactly the two real gaps and nothing else.
+
+## "Unreachable" is a property of today's code, not of the defect
+
+`getMiscOpcodeTypeInfo`'s `default:` returned a `(v128,v128,v128) → v128`
+signature for any unhandled misc opcode. Misc opcodes are never SIMD, and the
+comment thirty lines above it documents the T9.2 incident caused by exactly
+that fall-through. It was written up as a latent trap and deliberately left
+alone, with a defensible reason: unreachable today, and changing validator
+behaviour risks moving metrics for no measured gain.
+
+**It was reachable one commit later.** Adding wide-arithmetic support to the
+binary reader — a change that never touched the validator — routed
+`i64.mul_wide_s` (a `BinaryExpr` carrying a misc opcode) straight into it. The
+result was worse than the incident it echoed: not "wrong operands validate
+clean" but **every well-typed wide-arithmetic module rejected**.
+
+So when the reason to defer a fix is "nothing reaches it", note what WOULD
+reach it. Here the answer was "any misc opcode that is not a saturating
+truncation" — and the same audit round that logged the trap was in the middle
+of adding two.
+
+**Corollary: a hard-coded shape in a handler that ignores its opcode is the
+same bug.** `onQuaternary(_opcode)` hard-coded the v128×4 shape — note the
+underscore, marking the opcode as deliberately unused — and so rejected the
+only instructions that reach it. A lying default is greppable; a lying constant
+in a handler body is not.
+
+## When V8 gates a proposal off, it is not an oracle for that proposal
+
+Every wide-arithmetic defect here was invisible to the agreement metric,
+because V8 answers `Invalid opcode 0xfc13 (enable with --experimental-…)` — it
+rejects the module for a reason that has nothing to do with whether we typed it
+correctly. Agreement stayed 2120/2120 through a validator that rejected every
+well-typed module of that proposal.
+
+Wasmtime with `-W wide-arithmetic=y` settled it in one command. **Before
+trusting "the oracle agrees", check the oracle actually implements the feature
+under test** — a rejection for a feature gate looks identical to a rejection on
+the merits.

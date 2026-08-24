@@ -42,6 +42,20 @@ const _F32 = Type.F32;
 const _F64 = Type.F64;
 const _V128 = Type.V128;
 
+/** `i64.mul_wide_s` / `i64.mul_wide_u` — two i64 in, two i64 out. */
+function isWideMul(opcode: number): boolean {
+  if ((opcode >>> 16) !== PREFIX_MISC) return false;
+  const sub = opcode & 0xffff;
+  return sub === MiscOpcode.I64MulWideS || sub === MiscOpcode.I64MulWideU;
+}
+
+/** `i64.add128` / `i64.sub128` — four i64 in, two i64 out. */
+function isWideAddSub(opcode: number): boolean {
+  if ((opcode >>> 16) !== PREFIX_MISC) return false;
+  const sub = opcode & 0xffff;
+  return sub === MiscOpcode.I64Add128 || sub === MiscOpcode.I64Sub128;
+}
+
 function oi(r1: Type, p1: Type, p2: Type, p3: Type, nat: number): OpcodeTypeInfo {
   return { r1, p1, p2, p3, natAlign: nat };
 }
@@ -529,8 +543,26 @@ export function getMiscOpcodeTypeInfo(misc: number): OpcodeTypeInfo {
       return oi(_I64, _F64, _V, _V, 0);
     case MiscOpcode.I64TruncSatF64U:
       return oi(_I64, _F64, _V, _V, 0);
+    // Wide arithmetic. These have a SECOND i64 result, which `OpcodeTypeInfo`
+    // cannot express — the extra push is done by the `onBinary` /
+    // `onQuaternary` cases that special-case them. The entry here is what
+    // gives their OPERANDS the right types.
+    case MiscOpcode.I64MulWideS:
+    case MiscOpcode.I64MulWideU:
+      return oi(_I64, _I64, _I64, _V, 0);
+    case MiscOpcode.I64Add128:
+    case MiscOpcode.I64Sub128:
+      return oi(_I64, _I64, _I64, _I64, 0);
     default:
-      return oi(_V128, _V128, _V128, _V, 0);
+      // NOT the `(v128,v128,v128) -> v128` fall-through the main table uses.
+      // Misc opcodes are never SIMD, and claiming a SIMD signature here is the
+      // T9.2 incident in miniature: wrong-typed operands validate clean, or
+      // — as happened with wide arithmetic — a well-typed module is REJECTED
+      // with "expected [v128, v128]". `Type.Void` in every slot pops nothing
+      // and pushes nothing, so an unhandled misc opcode is inert rather than
+      // actively wrong; the reader rejects unknown misc opcodes before this is
+      // reachable at all.
+      return oi(_V, _V, _V, _V, 0);
   }
 }
 
@@ -1093,6 +1125,13 @@ export class TypeChecker {
   }
 
   onBinary(opcode: number): Result {
+    if (isWideMul(opcode)) {
+      // `i64.mul_wide_s` / `_u`: two i64 in, the 128-bit product out as TWO
+      // i64. checkOpcode2 pushes one result, so the second is pushed here.
+      const r = this.checkOpcode2(opcode);
+      this.pushType(_I64);
+      return r;
+    }
     return this.checkOpcode2(opcode);
   }
   onUnary(opcode: number): Result {
@@ -1111,7 +1150,18 @@ export class TypeChecker {
     return r;
   }
 
-  onQuaternary(_opcode: number): Result {
+  onQuaternary(opcode: number): Result {
+    if (isWideAddSub(opcode)) {
+      // `i64.add128` / `i64.sub128`: four i64 in (two 128-bit values as lo/hi
+      // pairs), two i64 out. This used to hard-code the v128 shape below and
+      // ignore the opcode entirely, so it REJECTED the only instructions that
+      // actually reach it.
+      let r = this.popAndCheck3Types(_I64, _I64, _I64, `quaternary`);
+      r = combineResults(r, this.dropTypes(1));
+      this.pushType(_I64);
+      this.pushType(_I64);
+      return r;
+    }
     // 4 V128 params → V128 result; pop extra 1 after 3-check
     let r = this.popAndCheck3Types(_V128, _V128, _V128, `quaternary`);
     r = combineResults(r, this.dropTypes(1));
