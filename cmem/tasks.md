@@ -177,7 +177,7 @@ All four campaign metrics are now exhausted:
 | parse-clean | 107 / 257 | **257 / 257** |
 | fully V8-valid | 180 / 257 | **257 / 257** |
 | validator agreement | 1702 / 2120 | **2120 / 2120** |
-| `assert_invalid` rejected | 2395 / 2737 | **2664 / 2737** (all 73 left are ones V8 accepts) |
+| `assert_invalid` rejected | 2395 / 2737† | **2664 / 2683** (all 19 left are ones V8 accepts) |
 | **round-trip byte-identical** | 1942 / 2105 | **2120 / 2120** |
 | **wasmtk WASI corpus round-trip** | 1 / 270 | **270 / 270** |
 
@@ -581,7 +581,39 @@ also turned out to be the cheaper fix and to close a second item (T10.2) for
 free. Rank remaining work against the yardstick the GOAL names, not the one the
 campaign happened to start with.
 
-### Cross-engine check of the 73 (2026-08-21)
+### CORRECTION (2026-08-24): the `assert_invalid` denominator was polluted
+
+**`(assert_trap (module …) "msg")` was being reported as `assert_invalid`.**
+The two assertions say OPPOSITE things: `assert_invalid` means the module must
+fail validation, while `assert_trap` with a module means it is well-formed and
+VALID and traps on INSTANTIATION (an out-of-bounds data/elem segment, or a
+trapping start function).
+
+54 such commands — data.wast, data1.wast, elem.wast, linking*.wast, start.wast —
+were counted into the `assert_invalid` population. They are valid modules, we
+correctly ACCEPT them, and so every one scored as a miss.
+
+| | before | after |
+| --- | --- | --- |
+| correctly rejected | 2664 / **2737** | 2664 / **2683** |
+| MISSED | **73** | **19** |
+
+Nothing about our validator changed — only what we were counting. **† Every
+historical `assert_invalid` figure in this file (2395, 2532, 2579, 2629, 2632,
+2641, 2658, 2664 … / 2737) carries the same +54 pollution.** The DELTAS between
+them are still valid, because the 54 were a constant; the denominators are not.
+They are left as written rather than rewritten, since each records what was
+actually measured at the time.
+
+**The conclusion survives, at a fifth of the size.** Re-checked after the fix:
+all 19 real remainders are still accepted by V8, so there is still nothing here
+for us to fix. But "73" was five parts artefact to one part finding, and the
+cross-engine exercise below spent its effort on a population that was mostly
+valid modules — which is exactly why V8 and Wasmtime returned a flat accept.
+
+Regression: `tests/parser/assert_trap_module.test.ts`.
+
+### Cross-engine check of the 73 (2026-08-21) — see the correction above
 
 The 73 `assert_invalid` modules wabt-ts still accepts are all ones **V8**
 accepts too. Re-checked against **Wasmtime 47.0.3**, which is now the project's

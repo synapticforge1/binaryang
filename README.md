@@ -37,9 +37,9 @@ Measured against the official [WebAssembly spec testsuite](https://github.com/We
 | Modules V8 accepts that `wasmValidate` also accepts  | **2120 / 2120**     |
 | `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**     |
 | Spec `assert_return` assertions the output satisfies | **23,077 / 23,077** |
-| Modules the spec calls invalid that we reject        | 2664 / 2737         |
+| Modules the spec calls invalid that we reject        | 2664 / 2683         |
 
-The 73 remaining `assert_invalid` modules are ones **V8 and Wasmtime both accept** — those spec
+The 19 remaining `assert_invalid` modules are ones **V8 and Wasmtime both accept** — those spec
 tests predate proposals that legalised what they assert against, so matching them would mean
 diverging from the reference runtime.
 

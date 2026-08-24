@@ -45,7 +45,7 @@ A sustained pass over the 257-file spec testsuite. **All five metrics are now ex
 | parse-clean                   | 107 / 257      | **257 / 257**       |
 | fully V8-valid                | 180 / 257      | **257 / 257**       |
 | validator agreement           | 1702 / 2120    | **2120 / 2120**     |
-| `assert_invalid` rejected     | 2395 / 2737    | **2664 / 2737**     |
+| `assert_invalid` rejected     | 2395 / 2737†   | **2664 / 2683**     |
 | round-trip byte-identical     | 1942 / 2105    | **2120 / 2120**     |
 | wasmtk WASI corpus round-trip | 1 / 270        | **270 / 270**       |
 | execution (new)               | —              | **23,077 / 23,077** |

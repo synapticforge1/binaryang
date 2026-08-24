@@ -27,7 +27,7 @@ the harnesses: [tasks.md](tasks.md), [testing.md](testing.md).
 | parse-clean         | files `parseWastScript` accepts                      | **257 / 257**                                                      |
 | V8-valid            | files whose every module encodes to wasm V8 accepts  | **257 / 257** (2120 / 2120 modules)                                |
 | validator agreement | modules V8 accepts that `wasmValidate` also accepts  | **2120 / 2120**                                                    |
-| `assert_invalid`    | modules the spec calls invalid that we reject        | **2664 / 2737** — all 73 remaining are ones V8 AND Wasmtime accept |
+| `assert_invalid`    | modules the spec calls invalid that we reject        | **2664 / 2683** — all 19 remaining are ones V8 AND Wasmtime accept |
 | round-trip          | `binary → wasm2wat → wat2wasm` byte-identical        | **2120 / 2120**                                                    |
 | execution           | spec `assert_return` assertions our output satisfies | **23,077 / 23,077**                                                |
 

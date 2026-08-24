@@ -335,6 +335,22 @@ export type WastCommand =
     readonly text: string;
     readonly loc: Location;
   }
+  | {
+    /**
+     * `(assert_trap (module …) "msg")` — the module is well-formed and VALID;
+     * INSTANTIATING it traps (an out-of-bounds data or elem segment, a start
+     * function that traps).
+     *
+     * This used to be reported as `assert_invalid`, which says the opposite:
+     * that the module should fail validation. 54 commands across data.wast,
+     * elem.wast, linking*.wast and start.wast were mislabelled, and any runner
+     * driving the script tested the wrong property for every one of them.
+     */
+    readonly kind: 'assert_trap_module';
+    readonly scriptModule: WastScriptModule;
+    readonly text: string;
+    readonly loc: Location;
+  }
   | { readonly kind: 'assert_exception'; readonly action: WastAction; readonly loc: Location }
   | {
     readonly kind: 'assert_exhaustion';
@@ -4671,11 +4687,14 @@ export class WastParser {
           this.expect(TokenType.Rpar);
           return { kind: 'assert_trap', action, text, loc };
         }
+        // `(assert_trap (module …) "msg")`: the module is VALID and traps on
+        // INSTANTIATION. Reporting it as `assert_invalid` asserted the
+        // opposite — that it should fail validation.
         const sm = this.parseScriptModule();
         const text = this.parseQuotedText() ?? '';
         this.expect(TokenType.Rpar);
         if (sm === null) return null;
-        return { kind: 'assert_invalid', scriptModule: sm, text, loc };
+        return { kind: 'assert_trap_module', scriptModule: sm, text, loc };
       }
       case TokenType.AssertException: {
         this.drop();

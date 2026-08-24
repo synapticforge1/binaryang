@@ -678,3 +678,30 @@ Wasmtime with `-W wide-arithmetic=y` settled it in one command. **Before
 trusting "the oracle agrees", check the oracle actually implements the feature
 under test** — a rejection for a feature gate looks identical to a rejection on
 the merits.
+
+## A metric measures the population you fed it — audit the CLASSIFIER, not just the checker
+
+`assert_invalid` sat at **2664 / 2737, 73 missed** for the whole campaign, and
+every tranche from T9.5 to T9.10 was driven by chasing those misses. The number
+was wrong in the denominator.
+
+`(assert_trap (module …) "msg")` was being parsed as `assert_invalid`. The two
+assertions say opposite things — one means "must fail validation", the other
+means "is valid, and traps on instantiation" — so **54 valid modules were in the
+population, and correctly accepting them scored as 54 misses**. The real figure
+is 2664 / 2683, 19 missed.
+
+Nothing about the validator changed. What changed was what we were counting.
+
+Two things follow:
+
+- **When a metric plateaus with a stubborn residue, suspect the residue's
+  provenance before hunting more bugs in the thing being measured.** The "73"
+  was five parts classification artefact to one part real finding, and a
+  cross-engine exercise was run over it — which is why all three engines
+  returned a flat accept. They were mostly valid modules.
+- **The classifier is code too.** We audited the validator exhaustively and
+  never audited the parser that decides which bucket each spec command lands
+  in. `parseWastScript` returning the wrong command kind is as much a defect as
+  a wrong type rule, and it is invisible to every metric that consumes its
+  output — because the metric IS the consumer.

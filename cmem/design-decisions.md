@@ -427,3 +427,9 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   cases because `OpcodeTypeInfo` carries only one. The misc `default:` is all-`Void` — inert — not a
   SIMD signature. **V8 cannot arbitrate this**: it gates the proposal off, so agreement stays green
   either way. Wasmtime with `-W wide-arithmetic=y` is the oracle, and it agrees.
+- **`(assert_trap (module …))` is NOT `assert_invalid`.** It asserts the module is well-formed and
+  VALID and traps on INSTANTIATION; `assert_invalid` asserts it fails validation. The parser
+  reported the module form as `assert_invalid`, so 54 valid modules polluted that metric's
+  population and correctly accepting them scored as misses (2664/2737 → 2664/2683, 73 → 19). There
+  is now a distinct `assert_trap_module` command kind. Regression:
+  `tests/parser/assert_trap_module.test.ts`.

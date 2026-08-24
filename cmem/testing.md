@@ -65,7 +65,7 @@ maintain); `tasks.md` records what each measured and when.
 | parse-clean               | 257 / 257           | a file that parses and then encodes to bytes V8 rejects                                     |
 | V8-valid                  | 2120 / 2120         | a decoder that REORDERS a module (T9.1 changed what a program computed)                     |
 | validator agreement       | 2120 / 2120         | counts only false REJECTIONS — says nothing about what a permissive validator waves through |
-| `assert_invalid`          | 2664 / 2737         | the converse; and 73 remaining are modules V8 **and Wasmtime** accept                       |
+| `assert_invalid`          | 2664 / 2683         | the converse; and 19 remaining are modules V8 **and Wasmtime** accept. The denominator read 2737 until `assert_trap (module …)` stopped being classified as `assert_invalid` — **a metric measures the population its classifier hands it** |
 | round-trip byte-identical | 2120 / 2120         | a consistently-wrong opcode mapping — reader and writer agree, so the bytes match           |
 | **execution**             | **23,077 / 23,077** | anything needing host imports, v128, NaN payloads, `ref.func` args (29,544 skipped)         |
 
