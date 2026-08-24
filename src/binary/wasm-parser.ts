@@ -161,8 +161,16 @@ interface ControlFrame {
   catchTags?: string[];
   catchBodies?: Expression[][];
   delegateTarget?: string | null;
-  /** For an `if` with parameters: the `local.get`s seeding BOTH arms. */
-  paramSeed?: Expression[];
+  /**
+   * For an `if` with parameters: the local slots holding them, and their types.
+   *
+   * Deliberately NOT the `local.get` nodes themselves. Both arms need the same
+   * reads, and this IR requires every expression node to have exactly one
+   * parent — handing the same node objects to the then-arm and the else-arm
+   * aliases one object into two tree positions. Store the slots; build fresh
+   * reads per arm.
+   */
+  paramSeed?: { slots: number[]; types: ValueType[] };
   /** For a LOOP with parameters: the local slots its parameters were spilled into. */
   paramLocals?: number[];
   /** For a LOOP with parameters: the declared type of each parameter. */
@@ -965,7 +973,11 @@ class WasmParser {
           break;
         }
         default:
-          break;
+          // A silently-skipped export is exactly how tag exports (kind 0x04)
+          // went missing before that case above existed: the module round-
+          // tripped minus an export, with no diagnostic. The import section
+          // already errors on an unknown kind; match it.
+          this.r.error(`unknown export kind 0x${kind.toString(16)}`);
       }
     }
   }
@@ -1522,15 +1534,15 @@ class WasmParser {
           const sig = readBlockType(r, ctx.funcTypes);
           // Pop the CONDITION first: it sits above the parameters on the stack.
           const cond = pop();
-          const { reads: seed } = spillBlockParams(sig.params);
+          const { reads: seed, slots: seedSlots } = spillBlockParams(sig.params);
           frames.push({
             kind: "if",
             label: freshLabel(),
             resultTypes: sig.results,
-            exprs: [...seed],
+            exprs: seed,
             ifCondition: cond,
             thenExprs: [],
-            paramSeed: seed,
+            paramSeed: { slots: seedSlots, types: [...sig.params] },
           });
           break;
         }
@@ -1541,7 +1553,10 @@ class WasmParser {
             // Both arms start with the same parameters on their stack. The values
             // were evaluated ONCE into locals before the `if`, so each arm reads
             // them back — re-seeding here, not re-evaluating.
-            frame.exprs = [...(frame.paramSeed ?? [])];
+            // FRESH reads, not the then-arm's node objects: sharing them would
+            // put one expression in two tree positions.
+            const ps = frame.paramSeed;
+            frame.exprs = ps ? ps.slots.map((slot, i) => makeLocalGet(slot, ps.types[i])) : [];
             frame.kind = "else" as ControlFrameKind;
           }
           break;

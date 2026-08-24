@@ -216,3 +216,45 @@ Deno.test("parseWasm: global.get in function body", () => {
   walk(fn.body as Parameters<typeof walk>[0]);
   assertEquals(found, true);
 });
+
+Deno.test("an unknown export kind is rejected, not silently dropped", () => {
+  // Export kind 0x07 does not exist. The old `default: break;` discarded the
+  // export entirely and carried on — which is precisely how tag exports
+  // (kind 0x04) went missing before that case was added: modules round-tripped
+  // minus an export, with no diagnostic. The import section already errored on
+  // an unknown kind; the export section now matches.
+  const bad = new Uint8Array([
+    0x00,
+    0x61,
+    0x73,
+    0x6d,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x04,
+    0x01,
+    0x60,
+    0x00,
+    0x00, //           type: () -> ()
+    0x03,
+    0x02,
+    0x01,
+    0x00, //                       func 0
+    0x07,
+    0x05,
+    0x01,
+    0x01,
+    0x66,
+    0x07,
+    0x00, //     export "f" kind 0x07 idx 0
+    0x0a,
+    0x04,
+    0x01,
+    0x02,
+    0x00,
+    0x0b, //           code
+  ]);
+  assertThrows(() => parseWasm(bad), WasmBinaryError, "unknown export kind");
+});

@@ -59,6 +59,7 @@ import {
 } from "../ir/expressions.ts";
 import type { WasmFunction, WasmModule } from "../ir/module.ts";
 import { None, type Type, Unreachable, type ValType } from "../ir/types.ts";
+import type { ValueType } from "../ir/gc-types.ts";
 import { mapChildrenShallow } from "../ir/walk.ts";
 import { type Pass, type PassOptions, registerPass } from "./pass.ts";
 
@@ -118,13 +119,43 @@ interface Ctx {
   callResultTypes: Map<string, Type>;
 }
 
-/** The effective result type of a (possibly type-`none`) call node. */
+/**
+ * The effective result type of a (possibly type-`none`) call node.
+ *
+ * Flatten hoists a value-producing expression into ONE temporary local, so a
+ * multi-result call has no representation here — a single local cannot hold N
+ * values, and taking `results[0]` (as this did) would silently drop the rest
+ * and leave the operand stack short. Multi-result calls are decodable now, so
+ * this has to fail loudly rather than mis-hoist.
+ *
+ * An unresolvable direct-call target is likewise an error, not `none`:
+ * `buildCallResultTypes` registers every import and defined function, so a miss
+ * means a dangling target. Typing it `none` silently discarded the call's
+ * value — the same defect the WAT parser's `inferFuncResultType` stub caused.
+ */
 function callEffectiveType(e: Expression, ctx: Ctx): Type {
   if (e.kind === ExpressionKind.Call) {
-    return ctx.callResultTypes.get((e as CallExpr).target) ?? None;
+    const target = (e as CallExpr).target;
+    const t = ctx.callResultTypes.get(target);
+    if (t === undefined) {
+      throw new Error(`Flatten: unresolved call target "${target}"`);
+    }
+    if (Array.isArray(t) && t.length > 1) {
+      throw new Error(
+        `Flatten: call to "${target}" returns ${t.length} values; ` +
+          `multi-result calls cannot be hoisted into a single local`,
+      );
+    }
+    return t;
   }
   if (e.kind === ExpressionKind.CallIndirect) {
     const r = (e as CallIndirectExpr).results;
+    if (r.length > 1) {
+      throw new Error(
+        `Flatten: call_indirect returns ${r.length} values; ` +
+          `multi-result calls cannot be hoisted into a single local`,
+      );
+    }
     return r.length > 0 ? r[0] : None;
   }
   return e.type;
@@ -323,11 +354,19 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
  */
 export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
   const map = new Map<string, Type>();
+  // Record the FULL result list, not `results[0]`. Collapsing a multi-result
+  // signature to its first component made a 2-result call look like a plain
+  // i32 call, which `callEffectiveType` would then hoist into one local —
+  // dropping the second value. Keeping the tuple lets that function reject it.
+  const resultType = (results: ValueType[] | undefined): Type => {
+    if (results === undefined || results.length === 0) return None;
+    return results.length === 1 ? results[0] : (results as Type);
+  };
   for (const imp of module.imports) {
-    if (imp.kind === "function") map.set(imp.name, imp.results?.[0] ?? None);
+    if (imp.kind === "function") map.set(imp.name, resultType(imp.results));
   }
   for (const f of module.functions) {
-    map.set(f.name, f.results[0] ?? None);
+    map.set(f.name, resultType(f.results));
   }
   return map;
 }

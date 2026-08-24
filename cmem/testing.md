@@ -4,7 +4,7 @@
 
 ```sh
 deno task check       # type-check all files
-deno task test        # run the full suite (467 passed, 1 ignored — verified 2026-08-24; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k"; +19 Tier 1 of the UP-series (13 gc_packed_get_test + 6 start_section_test) and +14 Tier 2 (6 tag_import_test + 8 gc_bulk_ops_test) — see cmem/correctness.md § "The UP-1…UP-7 series")
+deno task test        # run the full suite (472 passed, 1 ignored — verified 2026-08-24; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k"; +19 Tier 1 of the UP-series (13 gc_packed_get_test + 6 start_section_test) and +14 Tier 2 (6 tag_import_test + 8 gc_bulk_ops_test) — see cmem/correctness.md § "The UP-1…UP-7 series")
 deno task fmt         # format
 deno task lint        # lint
 deno task ci          # check + test (the bundle CI runs)

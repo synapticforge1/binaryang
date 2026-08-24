@@ -15,26 +15,39 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 
 import {
   type Expression,
   ExpressionKind,
+  makeBlock,
+  makeCall,
   makeCallIndirect,
   makeI32Const,
 } from "../../src/ir/expressions.ts";
 import { mapChildrenShallow, visitChildren, walkExpression } from "../../src/ir/walk.ts";
-import { ValType } from "../../src/ir/types.ts";
+import { None, ValType } from "../../src/ir/types.ts";
 import { encodeWasm } from "../../src/encoder/index.ts";
 import { parseWat } from "../../src/parser/wat-parser.ts";
-import { FlattenPass } from "../../src/passes/flatten.ts";
-import type { WasmModule } from "../../src/ir/module.ts";
+import { buildCallResultTypes, FlattenPass } from "../../src/passes/flatten.ts";
+import type { PassOptions } from "../../src/passes/pass.ts";
+import { ModuleBuilder, type WasmModule } from "../../src/ir/module.ts";
 
 // ---------------------------------------------------------------------------
 // Harness
 // ---------------------------------------------------------------------------
 
 type Imports = WebAssembly.Imports;
+
+/** Default pass options for the direct `FlattenPass.run` calls below. */
+const FLATTEN_OPTS: PassOptions = {
+  optimizeLevel: 0,
+  shrinkLevel: 0,
+  debugInfo: false,
+  closedWorld: false,
+  passArgs: {},
+  partialInliningIfs: 0,
+};
 
 function instantiate(mod: WasmModule, imports?: Imports): WebAssembly.Instance {
   const bytes = encodeWasm(mod);
@@ -299,4 +312,53 @@ Deno.test("flatten — a non-last unreachable inside a block is preserved", () =
     });
   }
   assert(unreachables >= 1, "flatten dropped the non-last unreachable (trap elided)");
+});
+
+Deno.test("Flatten: buildCallResultTypes keeps a multi-result signature whole", () => {
+  // It used to record `results[0]`, so a 2-result function looked like a plain
+  // i32 function. `callEffectiveType` would then hoist the call into ONE local
+  // and silently drop the second value.
+  const mod = new ModuleBuilder()
+    .addFunction("two", [], [ValType.I32, ValType.I32], makeI32Const(0))
+    .addFunction("one", [], [ValType.I32], makeI32Const(0))
+    .addFunction("none", [], [], makeI32Const(0))
+    .build();
+
+  const map = buildCallResultTypes(mod);
+  assertEquals(map.get("two"), [ValType.I32, ValType.I32]);
+  assertEquals(map.get("one"), ValType.I32);
+  assertEquals(map.get("none"), None);
+});
+
+Deno.test("Flatten: a multi-result call fails loudly instead of losing values", () => {
+  // Flatten hoists a value into ONE temporary local, which cannot hold N
+  // values. Taking the first result would leave the operand stack short, so
+  // this must throw rather than mis-hoist.
+  const mod = new ModuleBuilder()
+    .addFunction("two", [], [ValType.I32, ValType.I32], makeI32Const(0))
+    .addFunction(
+      "caller",
+      [],
+      [ValType.I32],
+      makeBlock([makeCall("two", [], [ValType.I32, ValType.I32])]),
+    )
+    .build();
+
+  assertThrows(
+    () => new FlattenPass().run(mod, FLATTEN_OPTS),
+    Error,
+    "multi-result calls cannot be hoisted",
+  );
+});
+
+Deno.test("Flatten: an unresolvable call target fails loudly instead of typing it void", () => {
+  // `buildCallResultTypes` registers every import and defined function, so a
+  // miss means a dangling target. Typing it `none` silently discarded the
+  // call's value — the same defect the WAT parser's `inferFuncResultType` stub
+  // produced.
+  const mod = new ModuleBuilder()
+    .addFunction("caller", [], [], makeBlock([makeCall("$nope", [], None)]))
+    .build();
+
+  assertThrows(() => new FlattenPass().run(mod, FLATTEN_OPTS), Error, "unresolved call target");
 });

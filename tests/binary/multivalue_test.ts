@@ -362,3 +362,29 @@ Deno.test("an out-of-range block type index is rejected", () => {
   // corrupted modules, so this must stay loud.
   assertThrows(() => parseWasm(BAD_BLOCK_TYPE_INDEX), WasmBinaryError, "out of range");
 });
+
+Deno.test("if WITH INPUTS: the two arms do not share expression nodes", () => {
+  // This IR requires every expression node to have exactly ONE parent. Seeding
+  // both arms with the same `local.get` objects (rather than fresh reads per
+  // arm) aliases one node into two tree positions — a pass that rewrites or
+  // marks a node by identity, as CoalesceLocals does, would then affect both
+  // arms at once.
+  const mod = parseWasm(IF_WITH_INPUT);
+  const seen = new Set<unknown>();
+  const shared: string[] = [];
+  const walk = (e: unknown): void => {
+    if (!e || typeof e !== "object") return;
+    const node = e as Record<string, unknown>;
+    if (typeof node.kind === "string") {
+      if (seen.has(e)) shared.push(node.kind);
+      seen.add(e);
+    }
+    for (const [k, v] of Object.entries(node)) {
+      if (k === "kind" || k === "type") continue;
+      if (Array.isArray(v)) v.forEach(walk);
+      else walk(v);
+    }
+  };
+  walk(mod.functions[0].body);
+  assertEquals(shared, [], "expression node(s) reachable from two tree positions");
+});

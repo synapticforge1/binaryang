@@ -334,6 +334,57 @@ too.
 
 ---
 
+## "Look for code issues" sweep (2026-08-24, post-multi-value) — 3 findings
+
+Ran the audit trigger in [INDEX.md](INDEX.md) over the tree after the multi-value work. Three real
+issues, all in the two classes that trigger names first: a silent drop and a silently-wrong type,
+plus one invariant violation in the freshly-written code.
+
+### `if` with parameters aliased one expression node into both arms
+
+Self-inflicted, from the block-inputs commit. The then-arm and else-arm were seeded with the SAME
+`local.get` node objects (`exprs: [...seed]` copies the array, not the nodes). This IR requires
+every expression to have exactly one parent — an aliased node is reachable from two tree positions,
+so a pass that rewrites or marks by identity (CoalesceLocals stamps a `Symbol` on specific nodes)
+would hit both arms at once.
+
+Fix: the frame stores `paramSeed: { slots, types }`, and each arm builds **fresh** reads. Measured
+before/after with an identity walk: 1 node reachable twice → 0. Regression test asserts no node is
+reachable from two positions.
+
+### Unknown export kind was silently dropped
+
+[wasm-parser.ts](../src/binary/wasm-parser.ts) `readExportSection` ended in `default: break;` — an
+unrecognized export kind byte discarded the export and carried on. That is _precisely_ how tag
+exports went missing before `case 0x04` was added (the wasmtk team reported it as "tag export
+stripped"); the same hole remained open for any other kind. The import section already errored. Now
+symmetrical: `unknown export kind 0x..`.
+
+### Flatten mis-typed multi-result calls
+
+[flatten.ts](../src/passes/flatten.ts). Two related defects, both newly reachable now that
+multi-result calls decode:
+
+- `buildCallResultTypes` recorded `f.results[0]`, so a 2-result function looked like a plain i32
+  function.
+- `callEffectiveType` returned `results[0]` for `call_indirect`, and `?? None` for an unresolved
+  direct-call target.
+
+The consumer hoists a value-producing expression into ONE temporary local. A multi-result call
+therefore had its extra values silently dropped, leaving the operand stack short. Flatten has no way
+to model a tuple, so it now **throws** on a multi-result call rather than mis-hoisting, and the map
+keeps the full result list so the check can see it. An unresolved call target throws too — the map
+covers every import and defined function, so a miss is a dangling reference, and typing it `none`
+discarded the call's value exactly as the WAT parser's old `inferFuncResultType` stub did.
+
+**Not changed, deliberately:** the unknown-section-id `default: this.r.seek(end)` stays lenient
+(skipping an unknown section is harmless and forward-compatible), and the handful of unreferenced
+exports (`parseWast`, `isAtom`, `assertList`, `isAbstractHeapType`, `getLowMemoryUnused` /
+`setLowMemoryUnused`) are published API surface, not dead code — removing them would be a breaking
+change.
+
+---
+
 ## Fail-loud audit sweep (2026-07-07, post-Asyncify) — four passes, 20 fixes, suite 379 → 394
 
 A multi-pass whole-tree audit (mechanical grep sweeps + four parallel subagent code-review agents,
