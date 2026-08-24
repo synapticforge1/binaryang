@@ -80,8 +80,8 @@ export interface WasmImport {
   /** Internal name used to reference this import within the module. */
   name: string;
   /** Which kind of entity is being imported. */
-  kind: "function" | "global" | "table" | "memory";
-  /** For function imports: parameter types. */
+  kind: "function" | "global" | "table" | "memory" | "tag";
+  /** For function imports: parameter types. For tag imports: the tag's payload types. */
   params?: ValType[];
   /** For function imports: result types. */
   results?: ValType[];
@@ -532,6 +532,30 @@ export class ModuleBuilder {
   // -------------------------------------------------------------------------
   // Tags (EH proposal)
   // -------------------------------------------------------------------------
+
+  /**
+   * Adds an imported exception tag.
+   *
+   * Imported tags occupy the low end of the tag index space, ahead of every
+   * tag defined by {@link ModuleBuilder.addTag} — the same layout functions,
+   * globals and tables use. Every `throw` / `catch` / tag export resolves
+   * against that combined space.
+   *
+   * @param internalName - Name used inside the module to reference this tag.
+   * @param module - External module name.
+   * @param base - External tag name.
+   * @param params - The exception payload types.
+   */
+  addTagImport(
+    internalName: string,
+    module: string,
+    base: string,
+    params: ValType[],
+  ): this {
+    this._imports.push({ kind: "tag", name: internalName, module, base, params });
+    this._hasEH = true;
+    return this;
+  }
 
   /**
    * Adds an exception tag.

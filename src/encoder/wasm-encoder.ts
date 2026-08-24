@@ -10,7 +10,11 @@
  */
 
 import {
+  type ArrayCopyExpr,
+  type ArrayFillExpr,
   type ArrayGetExpr,
+  type ArrayInitDataExpr,
+  type ArrayInitElemExpr,
   type ArrayLenExpr,
   type ArrayNewDataExpr,
   type ArrayNewElemExpr,
@@ -41,6 +45,8 @@ import {
   type MemoryCopyExpr,
   type MemoryFillExpr,
   type MemoryGrowExpr,
+  type RefAsExpr,
+  RefAsOp,
   type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
@@ -936,6 +942,9 @@ class WasmEncoder {
     }
 
     let tagi = 0;
+    for (const imp of this.mod.imports) {
+      if (imp.kind === "tag") this.tagIndex.set(imp.name, tagi++);
+    }
     for (const tag of this.mod.tags) {
       this.tagIndex.set(tag.name, tagi++);
     }
@@ -961,6 +970,9 @@ class WasmEncoder {
       addType(fn.params, fn.results);
     }
     // Tags use function-type signatures (params only, no results)
+    for (const imp of this.mod.imports) {
+      if (imp.kind === "tag") addType(imp.params ?? [], []);
+    }
     for (const tag of this.mod.tags) {
       addType(tag.params, []);
     }
@@ -1194,6 +1206,18 @@ class WasmEncoder {
           w.writeU8(0x03);
           writeValType(w, imp.type ?? ValType.I32);
           w.writeU8(imp.mutable ? 1 : 0);
+          break;
+        }
+        case "tag": {
+          w.writeU8(0x04);
+          w.writeU8(0); // reserved attribute byte
+          // Same GC-mode split as the defined-tag section: with heap types
+          // present the emitted type section IS `mod.heapTypes`, so an index
+          // into the deduped `this.types` would point at the wrong slot.
+          const idx = this.mod.heapTypes.length > 0
+            ? this.gcFuncTypeIndex(imp.params ?? [], [])
+            : this.getTypeIndex(imp.params ?? [], []);
+          w.writeU32(idx);
           break;
         }
       }
@@ -1746,6 +1770,15 @@ class WasmEncoder {
         w.writeU8(0xd1);
         break;
       }
+      case ExpressionKind.RefAs: {
+        const e = expr as RefAsExpr;
+        this.encodeExpr(w, e.value, labels);
+        if (e.op !== RefAsOp.RefAsNonNull) {
+          throw new WasmEncodeError(`unsupported ref.as operation: ${e.op}`);
+        }
+        w.writeU8(0xd4);
+        break;
+      }
       case ExpressionKind.RefFunc: {
         const e = expr as RefFuncExpr;
         w.writeU8(0xd2);
@@ -1856,6 +1889,44 @@ class WasmEncoder {
         w.writeU8(0xfb);
         w.writeU32(0x0e);
         w.writeU32(e.typeIndex);
+        break;
+      }
+      case ExpressionKind.ArrayFill: {
+        const e = expr as ArrayFillExpr;
+        this.encodeExpr(w, e.ref, labels);
+        this.encodeExpr(w, e.index, labels);
+        this.encodeExpr(w, e.value, labels);
+        this.encodeExpr(w, e.size, labels);
+        w.writeU8(0xfb);
+        w.writeU32(0x10);
+        w.writeU32(e.typeIndex);
+        break;
+      }
+      case ExpressionKind.ArrayCopy: {
+        const e = expr as ArrayCopyExpr;
+        this.encodeExpr(w, e.destRef, labels);
+        this.encodeExpr(w, e.destIndex, labels);
+        this.encodeExpr(w, e.srcRef, labels);
+        this.encodeExpr(w, e.srcIndex, labels);
+        this.encodeExpr(w, e.size, labels);
+        w.writeU8(0xfb);
+        w.writeU32(0x11);
+        // Immediate order is destination type THEN source type.
+        w.writeU32(e.destTypeIndex);
+        w.writeU32(e.srcTypeIndex);
+        break;
+      }
+      case ExpressionKind.ArrayInitData:
+      case ExpressionKind.ArrayInitElem: {
+        const e = expr as ArrayInitDataExpr | ArrayInitElemExpr;
+        this.encodeExpr(w, e.ref, labels);
+        this.encodeExpr(w, e.index, labels);
+        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.size, labels);
+        w.writeU8(0xfb);
+        w.writeU32(e.kind === ExpressionKind.ArrayInitData ? 0x12 : 0x13);
+        w.writeU32(e.typeIndex);
+        w.writeU32(e.segment);
         break;
       }
       case ExpressionKind.ArrayLen: {
@@ -2188,6 +2259,9 @@ function walkChildren(expr: Expression, visit: (child: Expression) => void): voi
     case ExpressionKind.RefIsNull:
       visit((expr as RefIsNullExpr).value);
       break;
+    case ExpressionKind.RefAs:
+      visit((expr as RefAsExpr).value);
+      break;
     case ExpressionKind.RefEq: {
       const e = expr as RefEqExpr;
       visit(e.left);
@@ -2244,6 +2318,32 @@ function walkChildren(expr: Expression, visit: (child: Expression) => void): voi
       visit(e.ref);
       visit(e.index);
       visit(e.value);
+      break;
+    }
+    case ExpressionKind.ArrayFill: {
+      const e = expr as ArrayFillExpr;
+      visit(e.ref);
+      visit(e.index);
+      visit(e.value);
+      visit(e.size);
+      break;
+    }
+    case ExpressionKind.ArrayCopy: {
+      const e = expr as ArrayCopyExpr;
+      visit(e.destRef);
+      visit(e.destIndex);
+      visit(e.srcRef);
+      visit(e.srcIndex);
+      visit(e.size);
+      break;
+    }
+    case ExpressionKind.ArrayInitData:
+    case ExpressionKind.ArrayInitElem: {
+      const e = expr as ArrayInitDataExpr | ArrayInitElemExpr;
+      visit(e.ref);
+      visit(e.index);
+      visit(e.offset);
+      visit(e.size);
       break;
     }
     case ExpressionKind.ArrayLen:

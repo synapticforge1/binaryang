@@ -54,7 +54,11 @@ import {
   type LocalSetExpr,
   type LocalTeeExpr,
   type LoopExpr,
+  makeArrayCopy,
+  makeArrayFill,
   makeArrayGet,
+  makeArrayInitData,
+  makeArrayInitElem,
   makeArrayLen,
   makeArrayNew,
   makeArrayNewDefault,
@@ -62,6 +66,7 @@ import {
   makeArraySet,
   makeI31Get,
   makeIf,
+  makeRefAsNonNull,
   makeRefCast,
   makeRefEq,
   makeRefFunc,
@@ -120,6 +125,7 @@ import {
   type FuncTypeDef,
   type HeapType,
   isPackedType,
+  isRefType,
   type RefType,
   type StorageType,
   storageTypeToString,
@@ -878,6 +884,11 @@ class WatModuleParser {
     if (head === "ref.is_null") {
       return makeRefIsNull(this.parseExpr(args[0], ctx));
     }
+    if (head === "ref.as_non_null") {
+      const value = this.parseExpr(args[0], ctx);
+      const rt = isRefType(value.type) ? { ...value.type, nullable: false } : value.type;
+      return makeRefAsNonNull(value, rt);
+    }
     if (head === "ref.i31") {
       const value = this.parseExpr(args[0], ctx);
       return makeRefI31(value, { heap: AbstractHeapType.I31, nullable: false });
@@ -942,6 +953,42 @@ class WatModuleParser {
       const index = this.parseExpr(args[2], ctx);
       const value = this.parseExpr(args[3], ctx);
       return makeArraySet(ti, ref, index, value);
+    }
+    if (head === "array.fill") {
+      const ti = this.resolveTypeIndex(args[0]);
+      return makeArrayFill(
+        ti,
+        this.parseExpr(args[1], ctx),
+        this.parseExpr(args[2], ctx),
+        this.parseExpr(args[3], ctx),
+        this.parseExpr(args[4], ctx),
+      );
+    }
+    if (head === "array.copy") {
+      const destTi = this.resolveTypeIndex(args[0]);
+      const srcTi = this.resolveTypeIndex(args[1]);
+      return makeArrayCopy(
+        destTi,
+        srcTi,
+        this.parseExpr(args[2], ctx),
+        this.parseExpr(args[3], ctx),
+        this.parseExpr(args[4], ctx),
+        this.parseExpr(args[5], ctx),
+        this.parseExpr(args[6], ctx),
+      );
+    }
+    if (head === "array.init_data" || head === "array.init_elem") {
+      const ti = this.resolveTypeIndex(args[0]);
+      const seg = Number(atomInt(args[1]));
+      const make = head === "array.init_data" ? makeArrayInitData : makeArrayInitElem;
+      return make(
+        ti,
+        seg,
+        this.parseExpr(args[2], ctx),
+        this.parseExpr(args[3], ctx),
+        this.parseExpr(args[4], ctx),
+        this.parseExpr(args[5], ctx),
+      );
     }
     if (head === "array.len") {
       const ref = this.parseExpr(args[0], ctx);

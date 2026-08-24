@@ -43,6 +43,7 @@ import {
   makeMemorySize,
   makeNop,
   makePop,
+  makeRefAsNonNull,
   makeRefFunc,
   makeRefIsNull,
   makeRefNull,
@@ -86,7 +87,11 @@ import {
 } from "../ir/gc-types.ts";
 import {
   BrOnOp,
+  makeArrayCopy,
+  makeArrayFill,
   makeArrayGet,
+  makeArrayInitData,
+  makeArrayInitElem,
   makeArrayLen,
   makeArrayNew,
   makeArrayNewData,
@@ -504,6 +509,7 @@ class WasmParser {
   private globalInfos: GlobalInfo[] = [];
   private tableNames: string[] = [];
   private tagInfos: TagInfo[] = [];
+  private importedTagCount = 0;
 
   constructor(bytes: Uint8Array) {
     this.r = new BinaryReader(bytes);
@@ -517,7 +523,10 @@ class WasmParser {
       ...mod,
       heapTypes: this.heapTypeDefs,
       hasGC: this.heapTypeDefs.length > 0,
-      tags: this.tagInfos.map((t, i) => ({ name: `$tag${i}`, params: t.params })),
+      // Use the name `readTagSection` assigned, NOT a fresh `$tag${i}`:
+      // with imported tags present the defined ones start above zero, and
+      // renumbering here would desync every throw / catch / tag export.
+      tags: this.tagInfos.map((t) => ({ name: t.name, params: t.params })),
       hasExceptionHandling: this.tagInfos.length > 0 || mod.hasExceptionHandling,
     };
   }
@@ -722,6 +731,20 @@ class WasmParser {
           const gname = `$global${this.globalInfos.length}`;
           this.globalInfos.push({ type, mutable });
           this.builder.addGlobalImport(gname, module, base, type, mutable);
+          break;
+        }
+        case 0x04: { // tag (EH proposal)
+          this.r.readU8(); // reserved attribute byte (must be 0)
+          const typeIdx = this.r.readU32();
+          const ft = this.funcTypes[typeIdx] ?? { params: [], results: [] };
+          // Imported tags occupy the low end of the tag index space, so they
+          // MUST share the `$tag${globalIndex}` naming every reference site
+          // uses (throw / catch / try_table / tag exports). Naming them on a
+          // separate counter would leave those references dangling in exactly
+          // the way `$import${n}` once did for functions.
+          const name = `$tag${this.importedTagCount}`;
+          this.builder.addTagImport(name, module, base, ft.params);
+          this.importedTagCount++;
           break;
         }
         default:
@@ -962,7 +985,10 @@ class WasmParser {
       this.r.readU8(); // reserved attribute byte (must be 0)
       const typeIdx = this.r.readU32();
       const ft = this.funcTypes[typeIdx] ?? { params: [], results: [] };
-      this.tagInfos.push({ name: `$tag${this.tagInfos.length}`, params: ft.params });
+      this.tagInfos.push({
+        name: `$tag${this.importedTagCount + this.tagInfos.length}`,
+        params: ft.params,
+      });
     }
   }
 
@@ -1692,6 +1718,15 @@ class WasmParser {
           push(makeRefEq(a2, b2));
           break;
         }
+        case 0xd4: { // ref.as_non_null
+          const r0 = pop();
+          // Result is the operand's own type made non-nullable; for a plain
+          // ValType ref (the AnyRef-collapse shim) there is nothing to sharpen,
+          // so carry the operand type through unchanged.
+          const rt = isRefType(r0.type) ? { ...r0.type, nullable: false } : r0.type;
+          push(makeRefAsNonNull(r0, rt));
+          break;
+        }
         case 0xd5: { // br_on_null
           const depth = r.readU32();
           const ref = pop();
@@ -1889,22 +1924,49 @@ function decodeGcPrefix(
       break;
     }
     // array.fill / array.copy / array.init_data / array.init_elem — bulk array
-    // GC ops. array.fill was modelled as a single-element `array.set` (dropping
-    // the length → it filled one element, not `len`), and the others as `nop`
-    // (dropping the op and mis-popping operands). Both are silent miscompiles.
-    // Fail loudly until there is real bulk-array IR support.
-    case 0x10:
-      r.error("unsupported GC opcode: array.fill (0xFB 0x10)");
+    // GC ops. These previously decoded to a loud error (and before that, to a
+    // single-element `array.set` or a bare `nop`, both silent miscompiles).
+    // They now have real IR nodes. Operands pop in reverse push order.
+    case 0x10: { // array.fill $T
+      const ti = r.readU32();
+      const size = pop();
+      const value = pop();
+      const index = pop();
+      const ref = pop();
+      push(makeArrayFill(ti, ref, index, value, size));
       break;
-    case 0x11:
-      r.error("unsupported GC opcode: array.copy (0xFB 0x11)");
+    }
+    case 0x11: { // array.copy $Tdest $Tsrc
+      const destTi = r.readU32();
+      const srcTi = r.readU32();
+      const size = pop();
+      const srcIndex = pop();
+      const srcRef = pop();
+      const destIndex = pop();
+      const destRef = pop();
+      push(makeArrayCopy(destTi, srcTi, destRef, destIndex, srcRef, srcIndex, size));
       break;
-    case 0x12:
-      r.error("unsupported GC opcode: array.init_data (0xFB 0x12)");
+    }
+    case 0x12: { // array.init_data $T $seg
+      const ti = r.readU32();
+      const seg = r.readU32();
+      const size = pop();
+      const offset = pop();
+      const index = pop();
+      const ref = pop();
+      push(makeArrayInitData(ti, seg, ref, index, offset, size));
       break;
-    case 0x13:
-      r.error("unsupported GC opcode: array.init_elem (0xFB 0x13)");
+    }
+    case 0x13: { // array.init_elem $T $seg
+      const ti = r.readU32();
+      const seg = r.readU32();
+      const size = pop();
+      const offset = pop();
+      const index = pop();
+      const ref = pop();
+      push(makeArrayInitElem(ti, seg, ref, index, offset, size));
       break;
+    }
     case 0x14: { // ref.test $T
       const ht = readHeapType(r);
       push(makeRefTest(pop(), ht, false));

@@ -234,6 +234,9 @@ function _mapChildren(
     case ExpressionKind.RefIsNull:
       return { ...expr, value: fn(expr.value) };
 
+    case ExpressionKind.RefAs:
+      return { ...expr, value: fn(expr.value) };
+
     case ExpressionKind.RefEq:
       return {
         ...expr,
@@ -291,6 +294,35 @@ function _mapChildren(
         ref: fn(expr.ref),
         index: fn(expr.index),
         value: fn(expr.value),
+      };
+
+    case ExpressionKind.ArrayFill:
+      return {
+        ...expr,
+        ref: fn(expr.ref),
+        index: fn(expr.index),
+        value: fn(expr.value),
+        size: fn(expr.size),
+      };
+
+    case ExpressionKind.ArrayCopy:
+      return {
+        ...expr,
+        destRef: fn(expr.destRef),
+        destIndex: fn(expr.destIndex),
+        srcRef: fn(expr.srcRef),
+        srcIndex: fn(expr.srcIndex),
+        size: fn(expr.size),
+      };
+
+    case ExpressionKind.ArrayInitData:
+    case ExpressionKind.ArrayInitElem:
+      return {
+        ...expr,
+        ref: fn(expr.ref),
+        index: fn(expr.index),
+        offset: fn(expr.offset),
+        size: fn(expr.size),
       };
 
     case ExpressionKind.ArrayLen:
@@ -479,6 +511,10 @@ function _visitChildren(
       visit(expr.value);
       break;
 
+    case ExpressionKind.RefAs:
+      visit(expr.value);
+      break;
+
     case ExpressionKind.RefEq:
       visit(expr.left);
       visit(expr.right);
@@ -519,6 +555,26 @@ function _visitChildren(
       visit(expr.ref);
       visit(expr.index);
       visit(expr.value);
+      break;
+    case ExpressionKind.ArrayFill:
+      visit(expr.ref);
+      visit(expr.index);
+      visit(expr.value);
+      visit(expr.size);
+      break;
+    case ExpressionKind.ArrayCopy:
+      visit(expr.destRef);
+      visit(expr.destIndex);
+      visit(expr.srcRef);
+      visit(expr.srcIndex);
+      visit(expr.size);
+      break;
+    case ExpressionKind.ArrayInitData:
+    case ExpressionKind.ArrayInitElem:
+      visit(expr.ref);
+      visit(expr.index);
+      visit(expr.offset);
+      visit(expr.size);
       break;
     case ExpressionKind.ArrayLen:
     case ExpressionKind.RefTest:

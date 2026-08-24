@@ -938,6 +938,28 @@ export interface RefIsNullExpr extends ExprBase {
   value: Expression;
 }
 
+/**
+ * The `ref.as_*` operations.
+ *
+ * Mirrors upstream's `RefAsOp`. Only `RefAsNonNull` is wired through the
+ * parser/encoder today; the extern conversions are post-MVP and would be added
+ * here rather than as separate expression kinds.
+ */
+export enum RefAsOp {
+  /** `ref.as_non_null` — traps if the operand is null, else yields it non-null. */
+  RefAsNonNull = "ref.as_non_null",
+}
+
+/** {@link RefAsExpr} — see {@link makeRefAsNonNull} for the factory. */
+export interface RefAsExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.RefAs;
+  /** Which `ref.as_*` operation this node performs. */
+  op: RefAsOp;
+  /** The reference operand. */
+  value: Expression;
+}
+
 /** {@link RefFuncExpr} — see {@link makeRefFunc} for the factory. */
 export interface RefFuncExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
@@ -1110,6 +1132,86 @@ export interface ArraySetExpr extends ExprBase {
   index: Expression;
   /** Value expression. */
   value: Expression;
+}
+
+/** {@link ArrayFillExpr} — see {@link makeArrayFill} for the factory. */
+export interface ArrayFillExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.ArrayFill;
+  /** Result type — `array.fill` yields nothing. */
+  type: None;
+  /** Index into the module heap-type table. */
+  typeIndex: number;
+  /** The array reference to write into. */
+  ref: Expression;
+  /** Start index within the array. */
+  index: Expression;
+  /** The value written to every filled slot. */
+  value: Expression;
+  /** Number of elements to fill. */
+  size: Expression;
+}
+
+/** {@link ArrayCopyExpr} — see {@link makeArrayCopy} for the factory. */
+export interface ArrayCopyExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.ArrayCopy;
+  /** Result type — `array.copy` yields nothing. */
+  type: None;
+  /** Heap-type index of the DESTINATION array. */
+  destTypeIndex: number;
+  /** Heap-type index of the SOURCE array. */
+  srcTypeIndex: number;
+  /** The destination array reference. */
+  destRef: Expression;
+  /** Start index within the destination. */
+  destIndex: Expression;
+  /** The source array reference. */
+  srcRef: Expression;
+  /** Start index within the source. */
+  srcIndex: Expression;
+  /** Number of elements to copy. */
+  size: Expression;
+}
+
+/** {@link ArrayInitDataExpr} — see {@link makeArrayInitData} for the factory. */
+export interface ArrayInitDataExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.ArrayInitData;
+  /** Result type — `array.init_data` yields nothing. */
+  type: None;
+  /** Index into the module heap-type table. */
+  typeIndex: number;
+  /** Index of the data segment read from. */
+  segment: number;
+  /** The array reference to write into. */
+  ref: Expression;
+  /** Start index within the array. */
+  index: Expression;
+  /** Byte offset within the data segment. */
+  offset: Expression;
+  /** Number of elements to write. */
+  size: Expression;
+}
+
+/** {@link ArrayInitElemExpr} — see {@link makeArrayInitElem} for the factory. */
+export interface ArrayInitElemExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.ArrayInitElem;
+  /** Result type — `array.init_elem` yields nothing. */
+  type: None;
+  /** Index into the module heap-type table. */
+  typeIndex: number;
+  /** Index of the element segment read from. */
+  segment: number;
+  /** The array reference to write into. */
+  ref: Expression;
+  /** Start index within the array. */
+  index: Expression;
+  /** Offset within the element segment. */
+  offset: Expression;
+  /** Number of elements to write. */
+  size: Expression;
 }
 
 /** {@link ArrayLenExpr} — see {@link makeArrayLen} for the factory. */
@@ -1385,6 +1487,7 @@ export type Expression =
   | CallIndirectExpr
   | RefNullExpr
   | RefIsNullExpr
+  | RefAsExpr
   | RefFuncExpr
   | RefEqExpr
   | RefI31Expr
@@ -1398,6 +1501,10 @@ export type Expression =
   | ArrayNewElemExpr
   | ArrayGetExpr
   | ArraySetExpr
+  | ArrayFillExpr
+  | ArrayCopyExpr
+  | ArrayInitDataExpr
+  | ArrayInitElemExpr
   | ArrayLenExpr
   | RefTestExpr
   | RefCastExpr
@@ -1724,6 +1831,17 @@ export function makeRefIsNull(value: Expression): RefIsNullExpr {
   return { kind: ExpressionKind.RefIsNull, type: ValType.I32, value };
 }
 
+/**
+ * Creates a `ref.as_non_null` expression.
+ *
+ * Traps at runtime if `value` is null; otherwise yields the same reference
+ * with a non-nullable type. `resultType` should be the operand's heap type
+ * with `nullable: false`.
+ */
+export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
+  return { kind: ExpressionKind.RefAs, type: resultType, op: RefAsOp.RefAsNonNull, value };
+}
+
 /** Creates a ref.eq expression. */
 export function makeRefEq(left: Expression, right: Expression): RefEqExpr {
   return { kind: ExpressionKind.RefEq, type: ValType.I32, left, right };
@@ -1869,6 +1987,82 @@ export function makeArraySet(
   value: Expression,
 ): ArraySetExpr {
   return { kind: ExpressionKind.ArraySet, type: None, typeIndex, ref, index, value };
+}
+
+/** Creates an `array.fill $T` expression (fills `size` slots from `index`). */
+export function makeArrayFill(
+  typeIndex: number,
+  ref: Expression,
+  index: Expression,
+  value: Expression,
+  size: Expression,
+): ArrayFillExpr {
+  return { kind: ExpressionKind.ArrayFill, type: None, typeIndex, ref, index, value, size };
+}
+
+/** Creates an `array.copy $Tdest $Tsrc` expression. */
+export function makeArrayCopy(
+  destTypeIndex: number,
+  srcTypeIndex: number,
+  destRef: Expression,
+  destIndex: Expression,
+  srcRef: Expression,
+  srcIndex: Expression,
+  size: Expression,
+): ArrayCopyExpr {
+  return {
+    kind: ExpressionKind.ArrayCopy,
+    type: None,
+    destTypeIndex,
+    srcTypeIndex,
+    destRef,
+    destIndex,
+    srcRef,
+    srcIndex,
+    size,
+  };
+}
+
+/** Creates an `array.init_data $T $seg` expression. */
+export function makeArrayInitData(
+  typeIndex: number,
+  segment: number,
+  ref: Expression,
+  index: Expression,
+  offset: Expression,
+  size: Expression,
+): ArrayInitDataExpr {
+  return {
+    kind: ExpressionKind.ArrayInitData,
+    type: None,
+    typeIndex,
+    segment,
+    ref,
+    index,
+    offset,
+    size,
+  };
+}
+
+/** Creates an `array.init_elem $T $seg` expression. */
+export function makeArrayInitElem(
+  typeIndex: number,
+  segment: number,
+  ref: Expression,
+  index: Expression,
+  offset: Expression,
+  size: Expression,
+): ArrayInitElemExpr {
+  return {
+    kind: ExpressionKind.ArrayInitElem,
+    type: None,
+    typeIndex,
+    segment,
+    ref,
+    index,
+    offset,
+    size,
+  };
 }
 
 /** Creates an array.len expression. */

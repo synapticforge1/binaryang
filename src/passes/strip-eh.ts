@@ -11,7 +11,8 @@
  *   Any exception that the original program would have thrown now traps.
  * - `try` and `try_table` are replaced by their body. Catch bodies are
  *   discarded along with the surrounding construct.
- * - The module's tag list is cleared and `hasExceptionHandling` is set to
+ * - The module's tag list (defined and imported) is cleared and
+ *   `hasExceptionHandling` is set to
  *   `false` so downstream consumers stop emitting the EH feature.
  *
  * This mirrors `upstream/src/passes/StripEH.cpp`. The upstream pass invokes
@@ -46,8 +47,12 @@ export class StripEHPass implements Pass {
     for (const fn of module.functions) {
       fn.body = mapExpression(fn.body, stripEHNode);
     }
-    // Clear tags + disable the EH feature flag.
+    // Clear tags + disable the EH feature flag. Imported tags go too: every
+    // instruction that could reference one has just been stripped, so leaving
+    // them would keep the module demanding a tag from its host for nothing —
+    // and would re-enable EH validation on an otherwise EH-free module.
     module.tags = [];
+    module.imports = module.imports.filter((imp) => imp.kind !== "tag");
     module.hasExceptionHandling = false;
   }
 }
