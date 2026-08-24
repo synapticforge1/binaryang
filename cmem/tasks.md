@@ -70,6 +70,7 @@ reference these ids.
 | T9.10 | The last invalid modules V8 rejects that we did not | done — **ours: 0 remaining** |
 | T10.1 | Export ORDER not preserved across a `wasm2wat` round-trip | done — round-trip 1961 → 2041 / 2120 |
 | T10.2 | Inline `(export …)` emitted on IMPORTED items — unparseable output | done (same fix) — hard failures 12 → 1 |
+| T10.5 | Linear-form `call` drained the whole operand stack | done — WASI corpus 50 → 225 / 270 |
 
 ### Open — parse side: NONE
 
@@ -148,13 +149,77 @@ T7 work; re-measure before starting any of them.
 | ~~**T10.2**~~ | **CLOSED 2026-08-24, same fix.** The writer emitted the inline `(export …)` abbreviation on IMPORTED items, e.g. `(import "M" "f" (func $f0 (export "Mf.call") (result i32)))`. That abbreviation has no place in the import grammar, so **our own parser rejected our own output** — the whole "reparse FAILS" group. | 11 / 6 | closed |
 | **T10.3** | **A non-nullable table element type loses its initializer.** `wasm2wat` prints `(table $T0 1 (ref func))` and drops `Table.init`. The binary form `0x40 0x00 <reftype> <limits> <init>` is REQUIRED when the element type is non-nullable — there is no default value — so the re-encode emits the plain form and V8 rejects it. **Scoped during T7.11:** the binary reader already captures `init`; the blocker is the WAT WRITER. The table grammar wants ONE FOLDED instruction there (`parseOneInstr`), and the writer is linear-only by design — wrapping its linear output in parens reparses as a folded expression with a bogus operand. Needs a folded emitter for constant expressions. A `NOTE (T10.3)` marker sits at the drop site in `wat-writer.ts`. Now covers the 4 elem/array modules T7.11 made encodable. | 10 / 4 | INVALID |
 | **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
-| **T10.5** | **Inert Nop-operand artifacts.** The reader cannot attribute every value to an operand slot — a multi-value block result is one value on its stack, not N — so the consumer decodes with `Nop` operands and the re-encode carries extra `nop`s. Harmless at runtime (see the T9.1 note on why), but the encoding grows and never converges. | 39 / 33 | valid, larger |
+| ~~**T10.5**~~ | **MOSTLY CLOSED 2026-08-24.** Diagnosed wrong for the whole campaign: the dominant producer was not the binary reader but the PARSER — linear-form `call` drained the entire operand stack instead of popping the callee's arity, so a value belonging to a later instruction was swallowed and that instruction's slot got a Nop. Fixed by deferring function-body parsing until every signature is known. What remains is the genuine multi-value case, refiled as **T10.8**. | 39 / 33 | closed → T10.8 |
 | **T10.6** | **Nop operands that are NOT inert.** The same substitution applied to an instruction that genuinely needs its operand on the stack: V8 says "not enough arguments on the stack for br_on_null (need 1, got 0)", "expected 1 elements on the stack for fallthru", "array.new_fixed[0] expected type f32, found local.get of type i32". Produces INVALID wasm. Highest severity of what remains. Files: array, br_on_cast, br_on_cast_fail, br_on_non_null, br_on_null, throw_ref, +1. | 9 / 7 | INVALID |
+| **T10.8** | **A multi-result producer is ONE node on the parser's operand stack.** `call $f` where `$f` returns two values, followed by two `local.set`s, gives the first `local.set` the call node and the second a Nop placeholder. Inert (a nop pushes nothing, so the second `local.set` still takes the value the call left), but the re-encode carries the nop and each further round trip adds another — the encoding grows without bound, +2 bytes per pass on `1_regular-expressions.wat`. This is the residue of T10.5 and the part its original description actually named. A tree IR cannot express "the i-th result of this node"; the cheap fix is to mark a parser-inserted placeholder as such and have both writers emit NOTHING for it (a placeholder means "the value is already on the stack", which is exactly what the encoding should say). Care needed: an explicitly written `(local.set $x (nop))` is invalid and must STAY invalid, so the placeholder has to be distinguishable from a real `nop` — see the T11 no-repair rule. | 45 files (WASI corpus) / 35 files (testsuite) | valid, grows unbounded |
 | **T10.7** | Two hard failures. `align64.wast#25` throws `RangeError: LEB128 u32 overflow`. `try_table.wast#4` throws `binary writer: no (type (func (param [object Object]))) in the type section` — a `ValueType` object stringified into a type-lookup key, i.e. one site the T7.4 typed-ref refactor did not reach. | 2 / 2 | THROWS |
 
-Recommended order when the time comes: **T10.5 next** — it is 82% of the WASI
-corpus's remaining differences and 48/79 of the testsuite's. Then T10.6 and
-T10.3 (both produce invalid wasm), then T10.7 and T10.4.
+Recommended order when the time comes: **T10.8 next** — it is all 45 of the
+WASI corpus's remaining differences and 35/48 of the testsuite's files, and it
+grows the encoding without bound. Then T10.6 and T10.3 (both produce invalid
+wasm), then T10.7 and T10.4.
+
+**T10.5 — done 2026-08-24, and it was diagnosed wrong.** The item was filed
+against the binary READER ("the reader cannot attribute every value to an
+operand slot"). Measuring it found the dominant producer was the PARSER:
+
+    i32.const 0        ;; the address for the i32.store below
+    f64.const 5
+    f64.const 3
+    call $f            ;; takes TWO args, but drained all three
+    i32.store          ;; ... so its address slot got a Nop placeholder
+
+`instrInputCount` returns -1 for `call` because the arity is the CALLEE's param
+count, not a property of the token, and `parseLinearPlainInstr` read -1 as
+"consume the whole operand stack". Our own `wasm2wat` emits LINEAR form, so a
+round trip is exactly what triggers it — which is why it was invisible to every
+other metric.
+
+**Severity was understated, and the reason is worth keeping.** The item read as
+cosmetic because a nop pushes nothing, so the starved `i32.store` still found
+its address on the stack and the module ran correctly. But the nop is a byte,
+and the next round trip adds another: `core_UnsignedIntegerComparison.wat` went
+517 → 521 → 525 → 529 … +4 every pass, forever. **"Still valid" and "still
+correct" are not the same as "converges".** Round-tripping a module through a
+build pipeline more than once grew it without bound.
+
+The fix needs the callee's signature, which may be declared LATER in the file —
+199 of the 270 corpus modules contain at least one forward reference (487 calls
+against 5470 backward). So function BODIES are now parsed after the whole module
+field list: `parseFuncModuleField` records the body's token index and skips it,
+`parseModuleFieldList` flushes the queue through `parsePendingBodies`. The token
+stream is a random-access array, so this costs one balanced-paren skip per
+function and a cursor assignment per body. Nested `(module …)` fields recurse
+through `parseModuleFieldList`, so each field list owns its own queue.
+
+`varArityForTok` returns -1 when the arity cannot be determined, which keeps the
+old draining behaviour — including for `br`, `return`, `throw`, `call_indirect`,
+`call_ref`, `struct.new` and `array.new_fixed`, which have the same shape and
+are NOT yet resolved. They did not appear in the measurement; extend the switch
+if they do.
+
+One side effect: body diagnostics are now appended after those from later module
+fields. Errors carry their own locations, so list order is presentation.
+
+| metric | before | after |
+| --- | --- | --- |
+| **wasmtk WASI corpus byte-identical** | **50 / 270** | **225 / 270** |
+| spec testsuite byte-identical | 2041 / 2120 | 2043 / 2120 |
+| differing modules (testsuite) | 79 | 77 |
+| files affected (testsuite) | 50 | 48 |
+| parse-clean | 257 / 257 | 257 / 257 |
+| V8-valid modules | 2120 / 2120 | 2120 / 2120 |
+| validator agreement | 2120 / 2120 | 2120 / 2120 |
+| assert_invalid rejected | 2664 / 2737 | 2664 / 2737 |
+
+The testsuite barely moves because its remaining differences are dominated by
+T10.3 / T10.4 / T10.6 / T10.8; the corpus is where this bug lived. **Two
+yardsticks, and only one of them could see the bug** — same lesson as T10.1.
+
+Regression test: `tests/parser/call_arity.test.ts` (8 cases; 5 fail on the
+pre-fix parser, and 3 are guards that must keep passing — the Bug D folded
+multi-value receive idiom, local-name resolution across the deferred parse, and
+a V8-executed check that the store still uses the address the source named).
 
 **T10.1 + T10.2 — done 2026-08-24.** One fix in `wat-writer.ts`'s
 `buildExportMap`, because both were the same root: the inline `(export "n")`

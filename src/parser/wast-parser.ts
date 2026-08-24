@@ -1029,6 +1029,16 @@ function pushStmt(ctx: ExprCtx, expr: Expr): void {
  * most cases; instantiate `WastParser` directly only if you need to peek
  * at parser state mid-parse.
  */
+/** A function body whose parse is deferred; see `parsePendingBodies`. */
+interface PendingBody {
+  /** The function to fill in — `body` is mutated in place. */
+  func: Func;
+  /** Its local-name -> slot map, built while the header was parsed. */
+  scope: Map<string, number>;
+  /** Token index of the first body token. */
+  pos: number;
+}
+
 export class WastParser {
   private tokens: readonly Token[];
   private pos = 0;
@@ -1052,6 +1062,21 @@ export class WastParser {
    * block with params requires.
    */
   private currentModule: Module | null = null;
+
+  /**
+   * Function bodies whose parse has been DEFERRED to the end of the enclosing
+   * module's field list. See {@link parsePendingBodies}.
+   */
+  private pendingBodies: PendingBody[] = [];
+
+  /**
+   * Param count of every function in the index space of the module whose
+   * deferred bodies are being parsed, by index and by name. Empty outside
+   * {@link parsePendingBodies}, in which case every variable-arity opcode
+   * falls back to draining the operand stack as before.
+   */
+  private funcParamCounts: number[] = [];
+  private funcParamCountsByName = new Map<string, number>();
 
   constructor(tokens: readonly Token[]) {
     this.tokens = tokens;
@@ -1215,6 +1240,64 @@ export class WastParser {
     }
     this.error(this.loc(), 'expected var (name or index)');
     return null;
+  }
+
+  /**
+   * Read the var at the cursor WITHOUT consuming it or reporting an error.
+   *
+   * Used to learn a variable-arity opcode's arity from its immediate before
+   * its operands are popped — in linear form the immediate follows the
+   * opcode, so it is already in the token stream when the pop has to happen.
+   */
+  private peekVar(): Var | null {
+    const savedPos = this.pos;
+    const savedErrors = this.errors.length;
+    const v = this.parseVar();
+    this.pos = savedPos;
+    this.errors.length = savedErrors;
+    return v;
+  }
+
+  /**
+   * Stack arity of a variable-arity opcode, resolved from its immediate.
+   *
+   * `instrInputCount` returns -1 for `call` because the arity is the CALLEE's
+   * param count, which is not a property of the token. The parser used to
+   * treat that as "consume the whole operand stack", which is wrong whenever
+   * a value below the call's own arguments belongs to a later instruction:
+   *
+   *     i32.const 0        ;; the address for the i32.store below
+   *     f64.const 5
+   *     f64.const 3
+   *     call $f            ;; takes TWO args, but swallowed all three
+   *     i32.store          ;; ... so its address slot got a Nop placeholder
+   *
+   * The Nop is inert, so the module stays valid and the bug reads as
+   * cosmetic — but the re-encode carries an extra `nop` byte, and every
+   * further round trip adds another, so the encoding grows without bound
+   * (T10.5). Our own `wasm2wat` output is linear form, which is why this
+   * only ever showed up on a round trip.
+   *
+   * Returns -1 when the arity cannot be determined, which keeps the old
+   * draining behaviour. That is why function bodies are parsed only after
+   * the whole module field list is known — see {@link parsePendingBodies}.
+   */
+  private varArityForTok(tok: Token): number {
+    const n = instrInputCountForTok(tok);
+    if (n !== -1) return n;
+    switch (tok.tokenType) {
+      case TokenType.Call:
+      case TokenType.ReturnCall: {
+        const v = this.peekVar();
+        if (v === null) return -1;
+        const count = v.kind === 'index'
+          ? this.funcParamCounts[v.value]
+          : this.funcParamCountsByName.get(v.name);
+        return count ?? -1;
+      }
+      default:
+        return -1;
+    }
   }
 
   parseVarOpt(defaultVar: Var): Var {
@@ -1651,10 +1734,95 @@ export class WastParser {
   }
 
   private parseModuleFieldList(module: Module): void {
+    // Nested `(module …)` fields recurse through here, so each field list
+    // owns its own deferral queue.
+    const savedPending = this.pendingBodies;
+    this.pendingBodies = [];
+
     while (this.peekIsModuleField()) {
       if (this.parseModuleField(module) !== Result.Ok) {
         this.synchronizeToModuleField();
       }
+    }
+
+    const pending = this.pendingBodies;
+    this.pendingBodies = savedPending;
+    this.parsePendingBodies(pending, module);
+  }
+
+  /**
+   * Parse the function bodies held back by {@link parseFuncModuleField}.
+   *
+   * Bodies are deferred so that a body sees every function's signature,
+   * including functions declared LATER in the module. `varArityForTok` needs
+   * the callee's param count to give `call` its real arity, and a forward
+   * reference is not rare: 199 of the 270 modules in the wasmtk WASI corpus
+   * contain at least one (487 calls against 5470 backward ones), so resolving
+   * only what happened to be parsed already would have left most files still
+   * differing on a round trip.
+   *
+   * The token stream is a random-access array, so deferring costs one
+   * balanced-paren skip per function and a cursor assignment per body.
+   *
+   * Diagnostics from bodies are therefore appended AFTER those from later
+   * module fields. Errors carry their own locations, so the ordering of the
+   * list is presentation, not information.
+   */
+  private parsePendingBodies(pending: PendingBody[], module: Module): void {
+    if (pending.length === 0) return;
+
+    const savedPos = this.pos;
+    const savedScope = this.localScope;
+    const savedModule = this.currentModule;
+    const savedCounts = this.funcParamCounts;
+    const savedByName = this.funcParamCountsByName;
+
+    // Function index space: imports first, then definitions — the same order
+    // resolveNames binds it in.
+    const counts: number[] = [];
+    const byName = new Map<string, number>();
+    const record = (name: string, n: number): void => {
+      if (name) byName.set(name, n);
+      counts.push(n);
+    };
+    for (const imp of module.imports) {
+      if (imp.kind === ExternalKind.Func) record(imp.func.name, imp.func.sig.params.length);
+    }
+    for (const f of module.funcs) record(f.name, f.sig.params.length);
+    this.funcParamCounts = counts;
+    this.funcParamCountsByName = byName;
+
+    for (const pb of pending) {
+      this.pos = pb.pos;
+      this.localScope = pb.scope;
+      this.currentModule = module;
+      this.parseInstrListInto(pb.func.body);
+    }
+
+    this.funcParamCounts = savedCounts;
+    this.funcParamCountsByName = savedByName;
+    this.currentModule = savedModule;
+    this.localScope = savedScope;
+    this.pos = savedPos;
+  }
+
+  /**
+   * Advance past the remainder of the current parenthesised group, leaving
+   * the cursor ON its closing `)`. Used to step over a deferred function
+   * body; the body is linear or folded WAT, so only paren depth matters.
+   */
+  private skipToGroupClose(): void {
+    let depth = 0;
+    for (;;) {
+      const tt = this.peek();
+      if (tt === TokenType.Eof) return;
+      if (tt === TokenType.Rpar) {
+        if (depth === 0) return;
+        depth--;
+      } else if (tt === TokenType.Lpar) {
+        depth++;
+      }
+      this.drop();
     }
   }
 
@@ -2036,14 +2204,12 @@ export class WastParser {
         this.expect(TokenType.Rpar);
       }
 
-      const savedScope = this.localScope;
-      const savedModule = this.currentModule;
-      this.localScope = scope;
-      this.currentModule = module;
+      // The body is parsed once the whole module field list is known, so
+      // that `call` can be given the callee's real arity even when the
+      // callee is declared later. See parsePendingBodies.
+      const bodyPos = this.pos;
+      this.skipToGroupClose();
       const body: Expr[] = [];
-      this.parseInstrListInto(body);
-      this.localScope = savedScope;
-      this.currentModule = savedModule;
 
       const func: Func = {
         name,
@@ -2056,6 +2222,7 @@ export class WastParser {
         tailcall: false,
       };
       module.funcs.push(func);
+      this.pendingBodies.push({ func, scope, pos: bodyPos });
     }
 
     this.expect(TokenType.Rpar);
@@ -2628,6 +2795,11 @@ export class WastParser {
     const tt2 = tok.tokenType;
     const immStartPos = this.pos;
 
+    // Resolve the arity while the cursor is still ON the immediate — by the
+    // time the operand count is needed below, the sub-expression loop has
+    // moved past it.
+    const varArity = this.varArityForTok(tok);
+
     // 2. Dry-run to skip over immediates. Suppress errors so a malformed
     //    immediate is only reported once (during the real pass below).
     const savedErrorCount = this.errors.length;
@@ -2666,7 +2838,7 @@ export class WastParser {
     // child operands come last (innermost, closer to the instr).
     // For variable-arity opcodes (call, return, etc.): if children are
     // supplied, use them; otherwise drain the surrounding stack.
-    const nInputs = instrInputCountForTok(tok);
+    const nInputs = varArity;
     let operands: Expr[];
     if (nInputs === -1) {
       if (innerCtx.stmts.length > 0) {
@@ -3083,7 +3255,9 @@ export class WastParser {
     const loc = this.loc();
     const tok = this.consume();
     const tt = tok.tokenType;
-    const nInputs = instrInputCountForTok(tok);
+    // `varArityForTok` resolves `call` against the callee's signature; the
+    // -1 fallback (arity genuinely unknown) keeps the old drain.
+    const nInputs = this.varArityForTok(tok);
 
     let operands: Expr[];
     if (nInputs === -1) {

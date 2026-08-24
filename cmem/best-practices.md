@@ -301,3 +301,31 @@ order is readable through `WebAssembly.Module.exports()`, so a round-trip that
 changes it produces a DIFFERENT module — the same class as T9.1, where the
 decoder reordered a program. The tell is not "does it still validate" but "can
 a consumer see the difference". Ask that before filing something as cosmetic.
+
+## Ask whether repeating the operation is a fixed point
+
+T10.5 was filed as "valid, larger" and ranked last but one. The stray `nop` it
+produced is inert — it pushes nothing, so the instruction that had been starved
+of an operand still found its value on the stack, and the module ran correctly.
+Everything about it said cosmetic.
+
+Running the round trip SIX times said otherwise: 517 → 521 → 525 → 529 → 533 →
+537 → 541. Every pass added the same four bytes, with no bound. A toolchain in a
+build pipeline that disassembles and reassembles more than once grows the module
+forever.
+
+"Does it still validate" and "is the output correct" are both weaker questions
+than "**is doing it again a fixed point**". Two lines of harness, and it moved
+the item from cosmetic to a real defect.
+
+## Re-measure a diagnosis before acting on it, even your own
+
+T10.5's recorded cause was the binary READER ("the reader cannot attribute every
+value to an operand slot"). That was written from evidence and it was wrong for
+the dominant case: measuring which node actually over-consumed found the PARSER,
+draining the whole operand stack for `call`. The reader-side cause is real but
+is the residue (now T10.8), not the bulk.
+
+The classification had been made once, months of work earlier, and carried
+forward as fact. Cost of re-measuring: one 40-line harness that printed
+`call args=3 want=2` and its friends.

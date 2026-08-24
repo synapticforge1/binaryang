@@ -52,6 +52,11 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
+- `tests/parser/call_arity.test.ts` — T10.5: linear-form `call` drained the whole operand
+  stack instead of popping the callee's arity, so a following instruction's operand slot got
+  a Nop and the encoding grew a byte on every round trip. 8 cases; 5 fail on the pre-fix
+  parser and 3 are guards (Bug D folded multi-value receive, local-name resolution across the
+  deferred body parse, and a V8-executed check that the value is still the one named).
 - `tests/writer/export_order.test.ts` — T10.1 / T10.2: the inline `(export "n")` abbreviation
   is illegal on an import and re-orders the export section, so the WAT writer tests before
   using it. 6 cases; 5 fail on the pre-fix writer and the sixth guards that inlining still
