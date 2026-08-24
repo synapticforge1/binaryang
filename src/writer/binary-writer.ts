@@ -103,7 +103,7 @@ import type {
   ValueType,
   Var,
 } from '../ir/ir.ts';
-import { isRefValueType, recGroups } from '../ir/ir.ts';
+import { isRefValueType, recGroups, valueTypeEquals, valueTypeName } from '../ir/ir.ts';
 import type { TypeEntry } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
@@ -1167,14 +1167,22 @@ class BinaryWriter {
       (t) =>
         t.kind === 'func' &&
         t.sig.params.length === params.length &&
-        t.sig.params.every((p, i) => p === params[i]) &&
+        // `valueTypeEquals`, not `===`. A ValueType is an abstract `Type`
+        // (a number, where identity is equality) OR a typed reference, which
+        // is an OBJECT — so two structurally identical `(ref $t)` params
+        // compared unequal, no type matched, and a tag with a typed-ref param
+        // made the whole encode THROW. Another site the T7.4 ValueType
+        // refactor did not reach, like the `select` annotation cast (T10.7).
+        t.sig.params.every((p, i) => valueTypeEquals(p, params[i]!)) &&
         t.sig.results.length === 0,
     );
     if (idx < 0) {
       throw new Error(
         `binary writer: no (type (func (param ${
-          params.map((p) => (p as number).toString(16)).join(' ')
-        }))) in the type section matches the tag signature; ` +
+          // valueTypeName, not `(p as number).toString(16)` — that cast
+          // rendered every typed reference as "[object Object]", so the one
+          // diagnostic that could have identified the cause named nothing.
+          params.map(valueTypeName).join(' ')}))) in the type section matches the tag signature; ` +
           `cannot encode tag type index (run synthesizeTypes first)`,
       );
     }

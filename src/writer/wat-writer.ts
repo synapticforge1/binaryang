@@ -770,6 +770,12 @@ class WatWriter extends ModuleContext {
       },
       onReturnCallIndirectExpr: (e) => {
         this.putsSpace('return_call_indirect');
+        // The TABLE index, like `call_indirect` above. Omitting it did not
+        // fail to reparse — `parseVarOpt` defaults it to 0 — so every
+        // `return_call_indirect` against a table other than 0 came back
+        // pointing at table 0 instead. Still valid wasm, different program.
+        // Last of the round-trip differences (T10.4's file, a separate bug).
+        this.writeVarUnlessZero(e.table, NC.Space);
         this.openSpace('type');
         this.writeVar(e.typeVar, NC.Space);
         this.closeNewline();

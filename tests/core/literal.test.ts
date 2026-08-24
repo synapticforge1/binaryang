@@ -138,10 +138,31 @@ describe('parseF32Literal', () => {
     assertEquals(bits >>> 31, 1); // negative
     assertEquals(bits & 0x7fc00000, 0x7fc00000);
   });
-  it('parses nan:0x200000', () => {
+  it('parses nan:0x200000 as the payload EXACTLY, quiet bit and all', () => {
+    // `nan:0x<n>` names the mantissa exactly; the spec gives the quiet bit no
+    // special treatment here, and the testsuite writes both `nan:0x400000`
+    // (the canonical quiet NaN) and `nan:0x7fffff`. This used to force the
+    // quiet bit on, which made 0x200000 — a SIGNALLING NaN — decode as
+    // 0x600000, and disagreed with `parseF32LiteralBits` in the WAT parser,
+    // the one `wat2wasm` actually calls (T10.4).
     const [r, bits] = parseF32Literal('nan:0x200000');
     assertEquals(r, Result.Ok);
-    assertEquals(bits & 0x7fffff, 0x600000); // quiet bit (0x400000) | payload (0x200000)
+    assertEquals(bits & 0x7fffff, 0x200000);
+  });
+  it('parses nan:0x400000 as the canonical quiet NaN', () => {
+    const [r, bits] = parseF32Literal('nan:0x400000');
+    assertEquals(r, Result.Ok);
+    assertEquals(bits >>> 0, 0x7fc00000);
+  });
+  it('round-trips every NaN payload through print and parse', () => {
+    // The printer is the inverse of the parser, which is the property T10.4
+    // broke: it stripped the quiet bit on the way out and nothing put it back.
+    for (const mantissa of [0x1, 0x80, 0x200000, 0x400000, 0x400001, 0x7fffff]) {
+      const bits = (0x7f800000 | mantissa) >>> 0;
+      const [r, back] = parseF32Literal(printF32Literal(bits));
+      assertEquals(r, Result.Ok, `printed ${printF32Literal(bits)}`);
+      assertEquals(back >>> 0, bits, `mantissa 0x${mantissa.toString(16)}`);
+    }
   });
   it('parses hex float 0x1.8p+1 = 3.0', () => {
     const [r, bits] = parseF32Literal('0x1.8p+1');

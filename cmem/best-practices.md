@@ -381,3 +381,41 @@ The general shape: when a producer and a consumer in the same toolchain
 deliberately favour different forms of the same grammar, a stub on one side is
 not a partial implementation - it is a hole exactly where the other side aims.
 Grep for the remaining ones rather than waiting for a metric to find them.
+
+## A fail-loud path is only as useful as what it prints
+
+T9.5's rule was "a validator failure must REPORT, not merely return
+`Result.Error`" - a silent rejection inflated a measured gap from 314 to 903.
+T10.7 is the writer-side twin, and it is subtler because the path DID report.
+
+`tagTypeIndex` threw with a real message naming the signature it could not
+find. But it rendered each param as `(p as number).toString(16)`, and a typed
+reference is an object, so the message read:
+
+    no (type (func (param [object Object]))) in the type section
+
+The throw was correct and the diagnostic named nothing. The item sat as "T10.7,
+two hard failures" for the whole campaign; once the message printed
+`(ref $t)` the cause - `===` on a `ValueType` - was obvious in one reading.
+
+When you write a fail-loud branch, print the value through the same formatter
+the rest of the codebase uses for that type (`valueTypeName` here), not a cast.
+
+## Two implementations of one grammar rule will disagree, and the writer will
+## be the inverse of the wrong one
+
+`nan:0x<n>` had two parsers: `literal.ts`'s `parseF32Literal`, which forced the
+quiet bit on, and the WAT parser's `parseF32LiteralBits`, which read the payload
+exactly. The spec agrees with the second, and the second is the one `wat2wasm`
+calls - the first was reachable only through the public helper.
+
+`printF32Literal` was written as the inverse of the FIRST one. So it stripped
+the quiet bit on the way out, nothing put it back, and a quiet NaN round-tripped
+into a signalling NaN. Both functions had comments confidently explaining the
+convention; they explained different conventions.
+
+Two lessons. Assert **print o parse = identity** directly, over the whole input
+shape, rather than testing each direction against a remembered convention. And
+when a helper duplicates a rule the real pipeline implements elsewhere, either
+delete it or make the pipeline call it - a second implementation that nothing
+exercises is where a printer goes to get its idea of the format.

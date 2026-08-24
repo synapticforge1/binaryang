@@ -42,6 +42,8 @@ const F32_EXP_MASK = 0x7f800000;
 const F32_MANTISSA_MASK = 0x007fffff;
 const F32_INF_BITS = 0x7f800000;
 const F32_CANONICAL_NAN_BITS = 0x7fc00000; // quiet NaN, zero payload
+/** Mantissa of the canonical quiet NaN — the value bare `nan` denotes. */
+const F32_CANONICAL_PAYLOAD = 0x400000;
 const F32_EXP_BIAS = 127;
 
 const F64_SIGN_BIT = 0x8000000000000000n;
@@ -49,6 +51,8 @@ const F64_EXP_MASK = 0x7ff0000000000000n;
 const F64_MANTISSA_MASK = 0x000fffffffffffffn;
 const F64_INF_BITS = 0x7ff0000000000000n;
 const F64_CANONICAL_NAN_BITS = 0x7ff8000000000000n; // quiet NaN, zero payload
+/** Mantissa of the canonical quiet NaN — the value bare `nan` denotes. */
+const F64_CANONICAL_PAYLOAD = 0x8000000000000n;
 const F64_EXP_BIAS = 1023;
 
 // ---------------------------------------------------------------------------
@@ -214,8 +218,11 @@ export function parseF32Literal(s: string): [result: Result, bits: number] {
     if (!/^[0-9a-fA-F]+$/.test(payloadStr)) return [Result.Error, 0];
     const payload = parseInt(payloadStr, 16);
     if (payload === 0 || payload > F32_MANTISSA_MASK) return [Result.Error, 0];
-    // Ensure quiet NaN bit is set (bit 22)
-    const bits = F32_INF_BITS | 0x00400000 | (payload & F32_MANTISSA_MASK);
+    // The mantissa IS the payload — no quiet bit is forced. Forcing it made
+    // `nan:0x200000` (a signalling NaN) decode as 0x7fe00000, and disagreed
+    // with `parseF32LiteralBits` in the WAT parser, which is the one
+    // `wat2wasm` calls and which was already right (T10.4).
+    const bits = F32_INF_BITS | (payload & F32_MANTISSA_MASK);
     return [Result.Ok, (signBits | bits) >>> 0];
   }
 
@@ -270,8 +277,8 @@ export function parseF64Literal(s: string): [result: Result, bits: bigint] {
       return [Result.Error, 0n];
     }
     if (payload === 0n || payload > F64_MANTISSA_MASK) return [Result.Error, 0n];
-    // Ensure quiet NaN bit is set (bit 51)
-    const bits = F64_INF_BITS | 0x0008000000000000n | (payload & F64_MANTISSA_MASK);
+    // As in parseF32Literal: the mantissa is the payload, unmodified.
+    const bits = F64_INF_BITS | (payload & F64_MANTISSA_MASK);
     return [Result.Ok, signBits | bits];
   }
 
@@ -313,12 +320,19 @@ export function printF32Literal(bits: number): string {
 
   if (rawExp === 0xff) {
     if (mantissa === 0) return sign + 'inf';
-    // NaN. The payload excludes the quiet bit (the parser always ORs it back
-    // in). A zero residual payload is the canonical quiet NaN → bare `nan`;
-    // the old `nan:0x200000` fallback re-parsed to a DIFFERENT NaN
-    // (0x7fc00000 → 0x7fe00000) because the parser re-adds the quiet bit.
-    const payload = mantissa & 0x3fffff; // payload without quiet bit
-    return sign + (payload === 0 ? 'nan' : 'nan:0x' + payload.toString(16));
+    // NaN. `nan:0x<n>` names the mantissa EXACTLY — the spec does not treat
+    // the quiet bit specially there, and the testsuite writes both
+    // `nan:0x400000` (the canonical quiet NaN) and `nan:0x7fffff`. Bare `nan`
+    // is the canonical quiet NaN and nothing else.
+    //
+    // This used to strip the quiet bit before printing, on the theory that
+    // "the parser always ORs it back in". Two parsers disagreed: the one that
+    // matters — `parseF32LiteralBits` in the WAT parser, which `wat2wasm`
+    // actually calls — reads the payload exactly, per the spec. So printing
+    // 0x7fffffff as `nan:0x3fffff` re-parsed to 0x7fbfffff, turning a QUIET
+    // NaN into a SIGNALLING one: valid wasm, different value (T10.4).
+    return sign +
+      (mantissa === F32_CANONICAL_PAYLOAD ? 'nan' : 'nan:0x' + mantissa.toString(16));
   }
 
   if (rawExp === 0 && mantissa === 0) return sign + '0x0p+0';
@@ -349,10 +363,10 @@ export function printF64Literal(bits: bigint): string {
 
   if (rawExp === 0x7ff) {
     if (mantissa === 0n) return sign + 'inf';
-    const payload = mantissa & 0x0007ffffffffffffn;
-    // Zero residual payload → canonical quiet NaN → bare `nan` (consistent with
-    // the f32 path; the parser re-adds the quiet bit for `nan:0x…` forms).
-    return sign + (payload === 0n ? 'nan' : 'nan:0x' + payload.toString(16));
+    // As in printF32Literal: `nan:0x<n>` names the mantissa exactly, and bare
+    // `nan` is the canonical quiet NaN.
+    return sign +
+      (mantissa === F64_CANONICAL_PAYLOAD ? 'nan' : 'nan:0x' + mantissa.toString(16));
   }
 
   if (rawExp === 0 && mantissa === 0n) return sign + '0x0p+0';

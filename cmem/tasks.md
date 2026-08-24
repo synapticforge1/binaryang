@@ -75,6 +75,8 @@ reference these ids.
 | T9.11 | Ten of the twelve memarg handlers never checked the offset | done — 4 SIMD false-accepts closed |
 | T10.3 | A non-nullable table element type lost its initializer | done — testsuite 2088 → 2102 / 2120 |
 | T10.6 | Linear `try_table` was a stub; `array.new_fixed` drained the stack | done — testsuite 2102 → 2111 / 2120 |
+| T10.7 | Tag type matched by identity, so a typed-ref param made encode THROW | done — hard failures 1 → 0 |
+| T10.4 | NaN payloads mangled; `return_call_indirect` lost its table index | done — **round-trip 2120 / 2120** |
 
 ### Open — parse side: NONE
 
@@ -152,19 +154,91 @@ T7 work; re-measure before starting any of them.
 | ~~**T10.1**~~ | **CLOSED 2026-08-24.** **Export ORDER was not preserved.** The WAT writer attached exports inline to the item they name, so re-parsing rebuilt the export section grouped per item — `a, b, ac` came back as `a, ac, b`. Export order is observable through `WebAssembly.Module.exports()`. `buildExportMap` now tests the abbreviation before using it and falls back to standalone `(export "n" (func $f))` fields in the module's own order. | 69 / 21 | closed |
 | ~~**T10.2**~~ | **CLOSED 2026-08-24, same fix.** The writer emitted the inline `(export …)` abbreviation on IMPORTED items, e.g. `(import "M" "f" (func $f0 (export "Mf.call") (result i32)))`. That abbreviation has no place in the import grammar, so **our own parser rejected our own output** — the whole "reparse FAILS" group. | 11 / 6 | closed |
 | ~~**T10.3**~~ | **CLOSED 2026-08-24.** The WAT writer dropped `Table.init`, so a non-nullable element type re-encoded to the plain form the spec forbids (there is no default value for it) and V8 rejected the result. New `writeFoldedConstExpr` emits the single folded instruction the table grammar requires, and the writer now THROWS rather than dropping anything it cannot express. | 10 / 4 | closed |
-| **T10.4** | **NaN payloads are mangled.** `f32.const` bits `0x7fffffff` come back as `0x7fbfffff` — the quiet bit is lost, turning a quiet NaN into a signalling one. Valid wasm, different value. Sampled in const / float_literals / float_memory / float_memory64; instance.wast and try_table.wast are in the same bucket but unsampled and may differ. | 11 / 6 | valid, wrong value |
+| ~~**T10.4**~~ | **CLOSED 2026-08-24.** The WAT writer stripped the quiet bit before printing a NaN payload, so `f32.const` bits 0x7fffffff came back as 0x7fbfffff — a QUIET NaN turned SIGNALLING. `nan:0x<n>` names the mantissa exactly; the printer was the inverse of a parser nothing calls. | 11 / 6 | closed |
 | ~~**T10.5**~~ | **MOSTLY CLOSED 2026-08-24.** Diagnosed wrong for the whole campaign: the dominant producer was not the binary reader but the PARSER — linear-form `call` drained the entire operand stack instead of popping the callee's arity, so a value belonging to a later instruction was swallowed and that instruction's slot got a Nop. Fixed by deferring function-body parsing until every signature is known. What remains is the genuine multi-value case, refiled as **T10.8**. | 39 / 33 | closed → T10.8 |
 | ~~**T10.6**~~ | **CLOSED 2026-08-24, and it was two parser bugs rather than a Nop problem.** Linear `try_table` was a stub that skipped its catch clauses AND its body to the matching `end` and built a plain `BlockExpr` (3 modules); `array.new_fixed` drained the operand stack instead of taking its immediate element count (1 module). | 9 / 7 | closed |
 | ~~**T10.8**~~ | **CLOSED 2026-08-24.** A multi-result producer is ONE node on the decoder's operand stack, so a second consumer got a Nop stand-in that both writers then emitted as a real instruction. `NopExpr.placeholder` now marks a synthesized slot-filler and neither writer emits one — it means "the value is already on the stack", which wasm spells by writing nothing. | 45 files | closed |
-| **T10.7** | Two hard failures. `align64.wast#25` throws `RangeError: LEB128 u32 overflow`. `try_table.wast#4` throws `binary writer: no (type (func (param [object Object]))) in the type section` — a `ValueType` object stringified into a type-lookup key, i.e. one site the T7.4 typed-ref refactor did not reach. | 2 / 2 | THROWS |
+| ~~**T10.7**~~ | **CLOSED 2026-08-24.** `tagTypeIndex` compared signature params with `===`, so two structurally identical `(ref $t)` params never matched and a well-formed module made the encode THROW — with `[object Object]` in the message, because the diagnostic cast each param to a number. The `align64` LEB overflow had already been fixed earlier in the campaign. | 2 / 2 | closed |
 
 **Round-trip fidelity against the WASI corpus is now 270 / 270.** The whole
 `+nop` family is gone from the spec testsuite too; what is left there is
 exactly T10.3 (14 modules, `table`), T10.4 (13, NaN payloads), T10.6 (4,
 `INVALID code`) and T10.7 (1 throw).
 
-Recommended order for the rest: **T10.7** (1 module, a hard throw), then T10.4
-(8 modules, NaN payloads).
+## T10 IS CLOSED - round-trip fidelity is 2120 / 2120 (2026-08-24)
+
+All four campaign metrics are now exhausted:
+
+| metric | campaign start | now |
+| --- | --- | --- |
+| parse-clean | 107 / 257 | **257 / 257** |
+| fully V8-valid | 180 / 257 | **257 / 257** |
+| validator agreement | 1702 / 2120 | **2120 / 2120** |
+| `assert_invalid` rejected | 2395 / 2737 | **2664 / 2737** (all 73 left are ones V8 accepts) |
+| **round-trip byte-identical** | 1942 / 2105 | **2120 / 2120** |
+| **wasmtk WASI corpus round-trip** | 1 / 270 | **270 / 270** |
+
+**T10.7 - done 2026-08-24.** `tagTypeIndex` in the binary writer resolves the
+type-section entry matching a tag's signature, and compared the params with
+`===`. A `ValueType` is an abstract `Type` - a number, where identity IS
+equality - OR a typed reference, which is an OBJECT. So two structurally
+identical `(ref $t)` params compared unequal, nothing matched, and the writer
+took its fail-loud branch on a well-formed module. `valueTypeEquals` had been in
+`ir.ts` all along; this was one more site the T7.4 ValueType refactor did not
+reach, the same family as the `select` annotation still being cast to a byte.
+
+The `[object Object]` in the message was the second half, and the reason it
+stayed a mystery: the diagnostic rendered each param with
+`(p as number).toString(16)`, so the one output that could have named the cause
+named nothing. **A fail-loud path is only as useful as what it prints** - the
+T9.5 rule ("a validator failure must REPORT") has a writer-side twin.
+
+**T10.4 - done 2026-08-24, and it was the printer that was wrong.**
+`printF32Literal` stripped the quiet bit before emitting the payload, on the
+stated theory that "the parser always ORs it back in". TWO parsers disagreed:
+
+| function | behaviour |
+| --- | --- |
+| `src/core/literal.ts` `parseF32Literal` | forced the quiet bit ON |
+| `src/parser/wast-parser.ts` `parseF32LiteralBits` | read the payload EXACTLY |
+
+The second is the one `wat2wasm` calls, and the one the spec agrees with:
+`nan:0x<n>` names the mantissa exactly, with no special treatment of the quiet
+bit - `float_literals.wast` writes both `nan:0x400000` (which IS the canonical
+quiet NaN) and `nan:0x7fffff`. **So the printer was the exact inverse of a
+function nothing called**, and `f32.const` bits 0x7fffffff round-tripped to
+0x7fbfffff: valid wasm, different value, same class as T9.1. Both `literal.ts`
+halves now match the spec and the WAT parser, and a print/parse round-trip over
+every payload shape is asserted.
+
+Fixed alongside, the LAST differing module: the WAT writer never emitted
+`return_call_indirect`'s TABLE index. It did not fail to reparse -
+`parseVarOpt` defaults it to 0 - so every `return_call_indirect` against a
+table other than 0 came back pointing at table 0. `call_indirect` two cases
+above it in the same switch writes the index; this one just did not. Bug G's
+lesson at the writer instead of the resolver.
+
+### What T10 cost, and what it was worth
+
+Seven filed items became nine real bugs, and **three of the seven were
+misdiagnosed**:
+
+- **T10.5** was filed against the binary reader; the dominant cause was the
+  PARSER draining the operand stack for `call`.
+- **T10.6** was filed as a Nop problem; it was a `try_table` parser stub plus
+  `array.new_fixed` draining the stack.
+- **T10.8** did not exist as an item at all - it was folded into T10.5's
+  description and turned out to be 45 of the 60 affected files on its own.
+
+The classification had been done once, carefully, months of work earlier, and
+carried forward as fact. Re-measuring each item before starting it cost one
+~40-line harness apiece.
+
+**Two corpora, and neither could see everything.** T10.1 and T10.5 lived almost
+entirely in the wasmtk WASI corpus (100% and 82% of its differences, against 43%
+and 30% of the testsuite's). T10.3, T10.4, T10.6 and T10.7 did not occur in real
+WASI modules at all. Either corpus alone would have called the work finished
+somewhere in the middle.
 
 **T10.6 - done 2026-08-24, and it was not a Nop problem at all.** The item was
 filed as "the same Nop substitution applied to an instruction that genuinely

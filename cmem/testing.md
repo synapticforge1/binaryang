@@ -52,6 +52,12 @@ idiom (Bug D), `br_if` cond with non-first globals (Bug F), the Tier D bridge su
   resolution).
 - `tests/parser/legacy_try.test.ts` — folded/linear/catch_all/delegate/multi-catch parse shape; V8
   compile + throw/catch/catch_all/rethrow runtime; round-trip non-duplication.
+- `tests/writer/tag_type_index.test.ts` - T10.7: a tag's type is matched with
+  `valueTypeEquals`, not `===`, so a typed-reference param does not make the encode throw;
+  and the fail-loud message names the type instead of printing `[object Object]`.
+- `tests/writer/nan_payload.test.ts` - T10.4: `nan:0x<n>` names the mantissa exactly, so a
+  quiet NaN does not round-trip into a signalling one; plus `return_call_indirect` keeping
+  its table index. 22 cases.
 - `tests/parser/linear_try_table.test.ts` - T10.6: the LINEAR `try_table` form keeps its
   catch clauses and its body (it was a stub that skipped both), and `array.new_fixed` takes
   its immediate element count instead of draining the operand stack. 8 cases.
