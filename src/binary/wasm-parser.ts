@@ -163,6 +163,10 @@ interface ControlFrame {
   delegateTarget?: string | null;
   /** For an `if` with parameters: the `local.get`s seeding BOTH arms. */
   paramSeed?: Expression[];
+  /** For a LOOP with parameters: the local slots its parameters were spilled into. */
+  paramLocals?: number[];
+  /** For a LOOP with parameters: the declared type of each parameter. */
+  paramTypes?: ValueType[];
   // try_table state
   tryCatches?: CatchClause[];
 }
@@ -563,7 +567,10 @@ function _branchValueArity(frames: ControlFrame[], depth: number): number {
   const idx = frames.length - 1 - depth;
   if (idx < 0) return 0;
   const target = frames[idx];
-  if (target.kind === "loop") return 0;
+  // Branching to a loop jumps to its ENTRY, so it consumes the loop's
+  // PARAMETERS (0 for an MVP loop, N for a parametrised one) — never its
+  // results. Every other frame consumes its result arity.
+  if (target.kind === "loop") return target.paramLocals?.length ?? 0;
   return target.resultTypes.length;
 }
 
@@ -1330,19 +1337,74 @@ class WasmParser {
      * The temporaries are ordinary locals, so `SimplifyLocals` / `CoalesceLocals`
      * fold most of them away again.
      */
-    const spillBlockParams = (params: ValueType[]): Expression[] => {
-      if (params.length === 0) return [];
+    const spillBlockParams = (
+      params: ValueType[],
+    ): { reads: Expression[]; slots: number[] } => {
+      if (params.length === 0) return { reads: [], slots: [] };
       const vals: Expression[] = [];
       for (let i = 0; i < params.length; i++) vals.unshift(pop());
       const reads: Expression[] = [];
+      const slots: number[] = [];
       for (let i = 0; i < params.length; i++) {
         const tmp = locals.length;
         locals.push({ type: params[i] });
+        slots.push(tmp);
         push(makeLocalSet(tmp, vals[i]));
         reads.push(makeLocalGet(tmp, params[i]));
       }
-      return reads;
+      return { reads, slots };
     };
+
+    /**
+     * Rewrites a branch whose target is a parametrised LOOP.
+     *
+     * The loop's parameters have become locals, so a back-edge must WRITE those
+     * locals and then branch carrying nothing. Two forms:
+     *
+     * `br $loop`  →  `local.set $t0 v0; …; br $loop`
+     *
+     * `br_if $loop` →
+     * ```
+     *   local.set $t0 v0; … ;   ;; values evaluated once, into the loop's temps
+     *   br_if $loop (cond)      ;; loop takes no values now
+     *   local.get $t0; …        ;; NOT TAKEN: put them back on the stack
+     * ```
+     * That trailing restore is the whole reason loop inputs were rejected: a
+     * `br_if` that is not taken leaves its values on the operand stack, so
+     * writing the temps unconditionally without pushing them back would strip
+     * them from the fall-through path — a silent wrong-value miscompile.
+     *
+     * Evaluation order is preserved: the values were evaluated before the
+     * condition in the input, and the emitted `local.set`s precede the branch
+     * that carries the condition.
+     */
+    const rewriteLoopBranch = (
+      target: ControlFrame,
+      label: string,
+      cond: Expression | null,
+      switchTargets?: string[],
+      switchIndex?: Expression,
+    ): void => {
+      const slots = target.paramLocals!;
+      const types = target.paramTypes!;
+      const vals: Expression[] = [];
+      for (let i = 0; i < slots.length; i++) vals.unshift(pop());
+      for (let i = 0; i < slots.length; i++) push(makeLocalSet(slots[i], vals[i]));
+      if (switchTargets !== undefined) {
+        // `br_table` where every target is this same loop: one set of temps,
+        // then a value-less table.
+        push(makeSwitch(switchTargets, label, switchIndex!, null));
+        return;
+      }
+      push(makeBreak(label, cond, null));
+      if (cond !== null) {
+        for (let i = 0; i < slots.length; i++) push(makeLocalGet(slots[i], types[i]));
+      }
+    };
+
+    /** The target frame of a branch, or `undefined` if the depth escapes. */
+    const branchTarget = (depth: number): ControlFrame | undefined =>
+      frames[frames.length - 1 - depth];
 
     const pushMultiValueCall = (call: Expression, results: ValueType[]): void => {
       for (let i = 0; i < results.length - 1; i++) push(makePop(results[i]));
@@ -1361,7 +1423,7 @@ class WasmParser {
 
         case 0x02: { // block
           const sig = readBlockType(r, ctx.funcTypes);
-          const seed = spillBlockParams(sig.params);
+          const { reads: seed } = spillBlockParams(sig.params);
           frames.push({
             kind: "block",
             label: freshLabel(),
@@ -1372,22 +1434,17 @@ class WasmParser {
         }
         case 0x03: { // loop
           const sig = readBlockType(r, ctx.funcTypes);
-          if (sig.params.length > 0) {
-            // A loop's parameters are re-supplied by every BACK-EDGE branch, not
-            // just on entry, so spilling them to locals once (as `block`/`if` do)
-            // is not enough — each `br` to the loop would also have to write them
-            // before jumping, which means rewriting the branch. `LoopExpr` has no
-            // parameters to hold them either. Reject rather than drop them.
-            r.error(
-              `loop has ${sig.params.length} input parameter(s); ` +
-                `loops with inputs are not supported`,
-            );
-          }
+          // Entry values go into locals exactly as for `block`/`if`; what makes
+          // a LOOP different is that every back-edge branch re-supplies them, so
+          // the temps are recorded on the frame for `rewriteLoopBranch` to find.
+          const { reads, slots } = spillBlockParams(sig.params);
           frames.push({
             kind: "loop",
             label: freshLabel(),
             resultTypes: sig.results,
-            exprs: [],
+            exprs: [...reads],
+            paramLocals: slots,
+            paramTypes: [...sig.params],
           });
           break;
         }
@@ -1395,7 +1452,7 @@ class WasmParser {
           const sig = readBlockType(r, ctx.funcTypes);
           // Pop the CONDITION first: it sits above the parameters on the stack.
           const cond = pop();
-          const seed = spillBlockParams(sig.params);
+          const { reads: seed } = spillBlockParams(sig.params);
           frames.push({
             kind: "if",
             label: freshLabel(),
@@ -1570,6 +1627,11 @@ class WasmParser {
           // is a single expression, so N > 1 is delivered as one `tuple.make`.
           // This used to pop NOTHING for N > 1 and emit a value-less break,
           // silently discarding every value the branch carried.
+          const brTarget = branchTarget(depth);
+          if (brTarget?.paramLocals?.length) {
+            rewriteLoopBranch(brTarget, resolveLabel(frames, depth), null);
+            break;
+          }
           const value = _branchValue(frames, depth, pop);
           push(makeBreak(resolveLabel(frames, depth), null, value));
           break;
@@ -1578,6 +1640,11 @@ class WasmParser {
           const depth = r.readU32();
           // br_if stack order: ..., value, condition. Pop condition first.
           const cond = pop();
+          const brIfTarget = branchTarget(depth);
+          if (brIfTarget?.paramLocals?.length) {
+            rewriteLoopBranch(brIfTarget, resolveLabel(frames, depth), cond);
+            break;
+          }
           const value = _branchValue(frames, depth, pop);
           push(makeBreak(resolveLabel(frames, depth), cond, value));
           break;
@@ -1590,6 +1657,40 @@ class WasmParser {
           // br_table stack order: ..., value, index. Pop index first, then
           // value if any target has results (all targets must share arity).
           const cond = pop();
+          // A `br_table` picks its target at RUNTIME, so a parametrised loop
+          // among the targets cannot be rewritten: the `local.set`s would have
+          // to name whichever loop's temps the index selects, and distinct
+          // loops have distinct slots. Emitting one loop's sets and jumping to
+          // another would corrupt both. Rare enough to reject outright.
+          // `br_table` picks its target at RUNTIME, so a parametrised loop among
+          // the targets can only be rewritten when EVERY target is that same
+          // loop — then there is one unambiguous set of temps to write.
+          //
+          // Mixed targets cannot be served by a single table once the loop's
+          // parameters have become locals: the loop now consumes 0 stack values
+          // while a block/function target still consumes its own arity, so no
+          // one instruction satisfies both. Untangling that needs a per-target
+          // dispatch trampoline — a different control-flow shape, not a
+          // rewrite — so it is rejected rather than approximated.
+          const tableTargets = [...depths, defaultDepth].map(branchTarget);
+          const paramLoopTargets = tableTargets.filter((t) => t?.paramLocals?.length);
+          if (paramLoopTargets.length > 0) {
+            const allSame = tableTargets.every((t) => t === tableTargets[0]);
+            if (!allSame) {
+              r.error(
+                "br_table mixes a parametrised loop with other targets; " +
+                  "a single table cannot carry both stack values and loop temps",
+              );
+            }
+            rewriteLoopBranch(
+              tableTargets[0]!,
+              resolveLabel(frames, defaultDepth),
+              null,
+              depths.map((d) => resolveLabel(frames, d)),
+              cond,
+            );
+            break;
+          }
           const value = _branchValue(frames, defaultDepth, pop);
           const targets = depths.map((d) => resolveLabel(frames, d));
           const defaultTarget = resolveLabel(frames, defaultDepth);

@@ -183,15 +183,34 @@ their stack. Relocating the value expressions into the body would duplicate them
 evaluate them twice. Evaluating once into a local and re-seeding each arm (`frame.paramSeed`) is the
 only correct shape.
 
-**Loops with inputs stay rejected, and the reason is sharper than "not implemented":**
+**Loops with inputs are now supported too, via a branch rewrite.** A loop's parameters are
+re-supplied by every back-edge, so the one-time entry spill is not enough — the branch has to write
+the temps as well. `rewriteLoopBranch` emits:
 
-1. A loop's parameters are re-supplied by every **back-edge** branch, not just on entry, so a
-   one-time spill is not enough — each `br` to the loop would also have to write the temps before
-   jumping.
-2. Worse, a **`br_if` to a param-taking loop leaves its values ON THE STACK when the branch is not
-   taken.** An unconditional `local.set` before the branch would strip them from the fall-through
-   path — a silent wrong-value miscompile of exactly the class this pipeline exists to prevent.
-   Partial support here would be worse than none.
+```wat
+br $loop      →   local.set $t0 v0; … ;  br $loop
+
+br_if $loop   →   local.set $t0 v0; … ;      ;; values evaluated once, into the temps
+                  br_if $loop (cond)          ;; loop now carries nothing
+                  local.get $t0; …            ;; NOT TAKEN: put them back
+```
+
+**That trailing restore is the whole difficulty**, and it is why this was rejected first. A `br_if`
+that is _not_ taken leaves its values on the operand stack. Writing the temps unconditionally
+without pushing them back strips them from the fall-through path — a silent wrong-value miscompile.
+The regression test (`loop back-edge br_if`) is a countdown whose loop result IS the fall-through
+value; deleting the restore makes it fail, verified.
+
+Evaluation order is preserved for free: the values precede the condition in the input, and the
+emitted `local.set`s precede the branch that carries the condition.
+
+**`br_table` is the one remaining carve-out**, and it is narrower than a blanket rejection: a table
+whose targets are ALL the same parametrised loop is rewritten (one unambiguous set of temps, then a
+value-less table). A **mixed** table is refused, because once the loop's parameters are locals it
+consumes 0 stack values while a block/function target still consumes its arity — no single
+instruction serves both, and untangling it needs a per-target dispatch trampoline, which is a
+different control-flow shape rather than a rewrite. `lit/control-flow-input.wast.wasm` is exactly
+that case (`loop/2, loop/2, func/0`) and remains the single corpus file rejected on this feature.
 
 `try` / `try_table` with inputs are rejected the same way (`rejectBlockParams`).
 

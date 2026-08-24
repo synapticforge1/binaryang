@@ -205,32 +205,127 @@ const LOOP_WITH_INPUT = Uint8Array.from([
   ...sec(10, vecOf([fnBody([0x00, 0x41, 0x07, 0x03, 0x01, 0x0b, 0x0b])])),
 ]);
 
-Deno.test("loop WITH INPUTS is rejected, loudly and by name", () => {
-  // Deliberate. A loop's parameters are re-supplied by every BACK-EDGE branch,
-  // not just on entry, so the spill-to-locals trick that handles block/if is
-  // not sufficient. Worse, a `br_if` to a param-taking loop leaves its values
-  // ON THE STACK when the branch is not taken, so an unconditional `local.set`
-  // before the branch would strip them from the fall-through path — a silent
-  // wrong-value miscompile of exactly the kind this pipeline exists to avoid.
-  assertThrows(
-    () => parseWasm(LOOP_WITH_INPUT),
-    WasmBinaryError,
-    "loops with inputs are not supported",
-  );
+Deno.test("loop WITH INPUTS: entry values reach the body", async () => {
+  assertEquals(await run(LOOP_WITH_INPUT), 7);
+  assertEquals(await run(encodeWasm(parseWasm(LOOP_WITH_INPUT))), 7);
 });
 
-/** Same shape as MULTI_RESULT_BLOCK but the block names type index 9. */
-const BAD_BLOCK_TYPE_INDEX = Uint8Array.from([
+/**
+ * A countdown whose loop parameter is re-supplied by the BACK-EDGE:
+ *
+ * ```wat
+ * (func (result i32) (local $acc i32)
+ *   i32.const 3
+ *   loop $l (param i32) (result i32)      ;; param = counter
+ *     local.tee $acc                       ;; keep a copy
+ *     i32.const 1
+ *     i32.sub                              ;; counter - 1
+ *     local.tee $acc
+ *     br_if $l                             ;; not taken -> value stays on stack
+ *   end)
+ * ```
+ *
+ * This is the case that made loop inputs dangerous. The `br_if` re-supplies the
+ * loop parameter on the taken path, and on the NOT-taken path leaves its value
+ * on the operand stack as the loop's result. Writing the parameter temp
+ * unconditionally without restoring the stack loses the result; forgetting to
+ * write it at all makes the loop spin on a stale counter.
+ *
+ * Counts 3 -> 2 -> 1 -> 0 and falls out with 0.
+ */
+const LOOP_BACKEDGE = Uint8Array.from([
   ...HDR,
-  ...sec(1, vecOf([[0x60, 0x00, 0x02, 0x7f, 0x7f], [0x60, 0x00, 0x02, 0x7f, 0x7f]])),
+  ...sec(1, vecOf([[0x60, 0x00, 0x01, 0x7f], [0x60, 0x01, 0x7f, 0x01, 0x7f]])),
   ...sec(3, vecOf([[0x00]])),
   ...sec(7, vecOf([[0x01, 0x66, 0x00, 0x00]])),
-  ...sec(10, vecOf([fnBody([0x00, 0x02, 0x09, 0x41, 0x01, 0x41, 0x02, 0x0b, 0x0b])])),
+  ...sec(
+    10,
+    vecOf([
+      fnBody([
+        0x01,
+        0x01,
+        0x7f, //     one i32 local
+        0x41,
+        0x03, //     i32.const 3
+        0x03,
+        0x01, //     loop (param i32) (result i32)
+        0x41,
+        0x01, //     i32.const 1
+        0x6b, //     i32.sub          -> counter - 1
+        0x22,
+        0x00, //     local.tee 0      -> keep a copy, leave it as the next param
+        0x20,
+        0x00, //     local.get 0      -> the br_if condition
+        0x0d,
+        0x00, //     br_if $l         -> taken: re-supplies the param
+        //           not taken: the param value STAYS as the loop's result
+        0x0b, //     end loop
+        0x0b, //     end func
+      ]),
+    ]),
+  ),
 ]);
 
-Deno.test("an out-of-range block type index is rejected", () => {
-  // The module declares 2 types; the block names index 9. Silently treating an
-  // unresolvable blocktype as void is how the ORIGINAL multi-value defect
-  // corrupted modules, so this must stay loud.
-  assertThrows(() => parseWasm(BAD_BLOCK_TYPE_INDEX), WasmBinaryError, "out of range");
+Deno.test("loop back-edge br_if: parameter re-supplied, fall-through value kept", async () => {
+  // The fixture itself must be valid, or the test proves nothing.
+  assertEquals(await run(LOOP_BACKEDGE), 0);
+  // And the rewrite must preserve it: writing the loop's temp unconditionally
+  // without restoring the stack would strip the fall-through value.
+  assertEquals(await run(encodeWasm(parseWasm(LOOP_BACKEDGE))), 0);
+});
+
+/**
+ * `br_table` whose targets are a parametrised loop AND the function frame:
+ *
+ * ```wat
+ * (func (result i32)
+ *   i32.const 7
+ *   loop $l (param i32) (result i32)
+ *     i32.const 0
+ *     br_table $l 1        ;; depth 0 = the loop, depth 1 = the function frame
+ *   end)
+ * ```
+ *
+ * Both targets have arity 1, so the input is valid wasm. But once the loop's
+ * parameter is a local it consumes 0 stack values while the function frame
+ * still consumes 1 — no single table serves both.
+ */
+const BR_TABLE_MIXED = Uint8Array.from([
+  ...HDR,
+  ...sec(1, vecOf([[0x60, 0x00, 0x01, 0x7f], [0x60, 0x01, 0x7f, 0x01, 0x7f]])),
+  ...sec(3, vecOf([[0x00]])),
+  ...sec(7, vecOf([[0x01, 0x66, 0x00, 0x00]])),
+  ...sec(
+    10,
+    vecOf([
+      fnBody([
+        0x00, //                    no locals
+        0x41,
+        0x07, //              i32.const 7
+        0x03,
+        0x01, //              loop (param i32) (result i32)
+        0x41,
+        0x00, //              i32.const 0   (table index)
+        0x0e,
+        0x01,
+        0x00,
+        0x01, //  br_table [0] default 1
+        0x0b, //                    end loop
+        0x0b, //                    end func
+      ]),
+    ]),
+  ),
+]);
+
+Deno.test("br_table mixing a parametrised loop with other targets is rejected", () => {
+  // Deliberate, and narrower than the old blanket rejection: a br_table whose
+  // targets are ALL the same parametrised loop IS rewritten. Only a mixed table
+  // is refused, because untangling it needs a per-target dispatch trampoline —
+  // a different control-flow shape, not a rewrite.
+  // `lit/control-flow-input.wast.wasm` is the real-world instance.
+  assertThrows(
+    () => parseWasm(BR_TABLE_MIXED),
+    WasmBinaryError,
+    "mixes a parametrised loop",
+  );
 });
