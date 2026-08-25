@@ -1,5 +1,31 @@
 # Publishing & release flow
 
+## v1.5.0 (2026-08-25) — the first MINOR, and what the release actually took
+
+`deno task bump` has no minor mode: it only advances the patch under the sub-version-capped-at-9
+rule. A minor is set **by hand** in `deno.json`, then `deno task publish` does the rest unchanged.
+v1.5.0 needed a minor because a sweep removed exported symbols, which is breaking regardless of
+whether anything imported them.
+
+Result: `rekorLogId=2590420167` (provenance attached), release commit `39a76d52686`, tag `v1.5.0`,
+GitHub Release auto-created by `publish.yml`. The whole chain — hand-set version →
+`deno task
+publish` → tag push → OIDC publish → release — worked with no intervention.
+
+**Pre-flight worth repeating verbatim next time:**
+
+1. `deno check --reload` over `src/` + `main.ts` + `tests/` — the v1.2.4 trap is a cached local
+   check passing while cold CI fails, and CI fails AFTER the tag is already public.
+2. fmt, lint, full suite, corpus round-trip, `equiv_check`, a 10k-iteration fuzz, `publish:dry` at
+   the NEW version number.
+3. Confirm the tag is absent **both locally and on the remote** (`git ls-remote --tags origin`)
+   before tagging — a stray local tag is recoverable, a pushed one much less so.
+4. Confirm only `deno.json` is dirty, or the publish guard refuses.
+
+**And re-run the suite if it crashes.** `deno task test` hit the intermittent V8 panic during this
+pre-flight and produced no summary line at all. A crashed run is not a green run; it was repeated
+twice at 513 passing before the version was touched. See [testing.md](testing.md).
+
 Published as **`@jrmarcum/binaryen-ts`** on JSR. GitHub remote: `github.com/jrmarcum/binaryen-ts`.
 Current version: **v1.3.9**. JSR publish runs via GitHub Actions with **OIDC provenance — no publish
 token is stored anywhere**. ⚠️ Provenance recording is currently broken JSR-side for this package

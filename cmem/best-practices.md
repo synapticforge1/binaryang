@@ -272,6 +272,15 @@ patch was possible but risked a commit that does not compile, and **a broken bis
 than a coarse one**. If a session is going to produce separable rounds, commit each before starting
 the next.
 
+**Name WHO is blocked and on WHAT — a coupling does not block both parties.** The wabt-ts bridge
+compensates for a binaryen-ts bug and either fix alone emits wrong output; that much was true and
+verified at the byte level. The conclusion recorded from it — "1.5.0 cannot ship alone" — was wrong
+in direction, and held the release for no benefit. They pin an exact version, so publishing could
+not touch their builds, and their own fix was explicitly gated on the upgrade existing: withholding
+the release was the thing keeping them stuck. The atomic step belonged to them, not to us. A true
+fact about a dependency becomes a false conclusion about a release the moment the blocked party is
+left implicit.
+
 **Know which action is irreversible, and what triggers it.** Pushing a `deno.json` version with no
 matching tag makes `auto-tag.yml` create the tag and dispatch `publish.yml`, which publishes to JSR
 — and a JSR version number can never be reused. While `deno.json` holds a version whose tag already

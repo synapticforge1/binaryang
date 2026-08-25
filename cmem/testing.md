@@ -80,6 +80,12 @@ every WT-2 / UP-series defect it would have caught was found by a downstream con
 2.9.5 (`Check failed: !job->compile_imports_.empty()`) before producing any output — a runtime
 crash, not a finding. The test covers the same ground in 165 ms.
 
+**The same panic hits `deno task test` INTERMITTENTLY, and it is not a test failure.** Seen twice on
+2026-08-25, once during the v1.5.0 pre-flight; both times the immediately following run was a clean
+513. It aborts the process, so the run produces no summary line at all — which is the danger: it is
+easy to read as "the suite did not print ok" and easier still to skip past. **A crashed run is not a
+green run.** Re-run it; if it reproduces consistently on the same file, THEN it is a finding.
+
 Three design points worth keeping:
 
 - **It SKIPS when `upstream/` is absent** rather than failing, because the corpus is gitignored and

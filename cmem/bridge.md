@@ -119,12 +119,18 @@ targets mix a parametrised loop with other frames). Multi-result functions and c
 So the bridge can now express the full multi-value surface. Detail and the remaining caveats are in
 [correctness.md](correctness.md) § "UP-2".
 
-### Multi-value blocks are only usable from a RELEASE (2026-08-25)
+### Multi-value blocks: SHIPPED in v1.5.0 (2026-08-25)
 
-The team re-filed against published v1.4.3, where `readBinary` still refuses a type-index blocktype:
-everything above sits on `main`, above the tag. Chasing their report also found the encode half
-broken — a multi-result blocktype resolved against the wrong type table — so the writer only started
-working on 2026-08-25. Nothing in this section is reachable from JSR until 1.5.0 ships.
+The team re-filed against published v1.4.3, where `readBinary` still refused a type-index blocktype
+— the decode work sat on `main`, above the tag. Chasing that report also found the encode half
+broken (a multi-result blocktype resolved against the wrong type table), so the writer only started
+working the same day. **All of it is on JSR as of v1.5.0**, and their whole shape table was
+re-verified against it: single-value block, multi-value function result, `try_table` with a
+single-value handler, the multi-value block from the report, and the wasic 2-param-tag → 2-value
+handler shape — each across input, bare round-trip, full `-Oz`, and the `/compat` facade.
+
+They cannot consume it until they move off the exact `1.0.9` pin, which is the coupled upgrade
+below.
 
 ### `try_table` catch destinations changed meaning (BREAKING for bridge code)
 
@@ -139,7 +145,7 @@ This is the shape that matters for the EH migration: `$__exn_tag (param i32 i32)
 values to the handler as the results of the enclosing block, so the catch destination is an ordinary
 multi-value block label — and it is the _only_ spelling of that shape.
 
-### RELEASE BLOCKER: the `dest` fix is COUPLED to a wabt-ts bridge fix (2026-08-25)
+### The `dest` coupling — ours is SHIPPED; the atomic step is now THEIRS (2026-08-25)
 
 The wabt-ts team replied with byte-level evidence, and the answer is the worse of the two branches I
 offered them: **their bridge compensates for our bug, and the two errors cancel.**
@@ -162,10 +168,26 @@ bug — catch targets resolve in the ENCLOSING scope, before the try_table's own
 it has now hit them in three separate layers (parser, validator, bridge), none of which grepped for
 the others. Same one-authoritative-rule failure as our own four region sites.
 
-**Status at wabt-ts 1.4.1 — re-verified 2026-08-25, STILL BLOCKING.** Their version bump did not
-touch it: `bridgeExpr`'s `try_table` case still does `ctx.labelStack.push(name)` and then builds the
-catch clauses inside that push, so `buildCatchClause` → `resolveLabel` resolves one frame too
-shallow. Their own `cmem/bridge.md` opens with it as "⚠ RELEASE BLOCKER — the catch-scope
+**v1.5.0 shipped on 2026-08-25 and this is now a wabt-ts UPGRADE item, not a binaryen-ts release
+item.** The framing that held the release ("1.5.0 cannot ship alone") was wrong in direction: they
+pin binaryen-ts at an EXACT `1.0.9`, so publishing cannot touch their builds, and their own note
+says the fix lands "in the same change as the binaryen-ts upgrade" — they were waiting for a version
+to upgrade TO. See [phases.md](phases.md) § "The 'cannot ship alone' framing was WRONG".
+
+**What they need to do, in ONE commit** (either half alone emits the wrong catch depth):
+
+1. move `buildCatchClause` OUT of the `ctx.labelStack.push(name)` in `bridgeExpr`'s `try_table` case
+   — catch targets resolve in the ENCLOSING scope;
+2. bump the pin `1.0.9` → `1.5.0`.
+
+Worth telling them the jump spans far more than the catch scope: `1.0.9 → 1.5.0` also brings
+multi-value blocks, the removed dead exports (which is why it is a minor), and the region-container
+fixes.
+
+**Status at wabt-ts 1.4.1 — verified 2026-08-25, compensation STILL PRESENT.** Their version bump
+did not touch it: `bridgeExpr`'s `try_table` case still does `ctx.labelStack.push(name)` and then
+builds the catch clauses inside that push, so `buildCatchClause` → `resolveLabel` resolves one frame
+too shallow. Their own `cmem/bridge.md` opens with it as "⚠ RELEASE BLOCKER — the catch-scope
 compensation (T13.22)" and calls the bridge bug-compatible with 1.0.9. They said they would hold it
 deliberately, and they have.
 
