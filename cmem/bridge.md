@@ -162,13 +162,19 @@ bug — catch targets resolve in the ENCLOSING scope, before the try_table's own
 it has now hit them in three separate layers (parser, validator, bridge), none of which grepped for
 the others. Same one-authoritative-rule failure as our own four region sites.
 
-**The coupling is protected only by a lockfile.** `../wabt-ts/deno.json` asks for
-`jsr:@jrmarcum/binaryen-ts@^1.0.9` and `deno.lock` pins exactly `1.0.9` — verified by reading their
-repo. That range already admits every published version (JSR latest is 1.4.3, confirmed via
-`jsr.io/@jrmarcum/binaryen-ts/meta.json`), and a lock refresh today is harmless because EVERY
-released version has the old catch scope. **The moment 1.5.0 publishes, a plain
-`deno cache --reload` on their side silently breaks their EH output with no version bump on their
-part.** Worth telling them to pin exactly until the coordinated change lands.
+**Status at wabt-ts 1.4.1 — re-verified 2026-08-25, STILL BLOCKING.** Their version bump did not
+touch it: `bridgeExpr`'s `try_table` case still does `ctx.labelStack.push(name)` and then builds the
+catch clauses inside that push, so `buildCatchClause` → `resolveLabel` resolves one frame too
+shallow. Their own `cmem/bridge.md` opens with it as "⚠ RELEASE BLOCKER — the catch-scope
+compensation (T13.22)" and calls the bridge bug-compatible with 1.0.9. They said they would hold it
+deliberately, and they have.
+
+**The ACCIDENT risk is gone, though.** `../wabt-ts/deno.json` previously asked for
+`jsr:@jrmarcum/binaryen-ts@^1.0.9` — a range admitting every published version — and now pins the
+EXACT `1.0.9` (verified by reading their repo, along with `deno.lock`). A `deno cache --reload` can
+no longer float them onto a new binaryen-ts. Publishing 1.5.0 therefore cannot silently break them;
+it can only keep them from upgrading until the paired fix lands. Coupling unchanged, blast radius
+reduced.
 
 A method note from their side worth adopting: their first probe compared RUNTIME RESULTS of the two
 orderings and got 111 from both, which read as a refutation. It was not — depth 1 and depth 2 both

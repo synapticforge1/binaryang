@@ -116,13 +116,18 @@ publish.
 **RELEASE BLOCKER (2026-08-25): 1.5.0 cannot ship alone.** The `try_table` catch-scope fix is
 COUPLED to a matching fix in the wabt-ts bridge — their bridge compensates for our bug and the two
 errors cancel, so either fix shipped by itself produces wrong output. Confirmed by them at the byte
-level. See [bridge.md](bridge.md) § "RELEASE BLOCKER". The two changes land together or not at all,
-and their `^1.0.9` range means a lock refresh on their side would pick 1.5.0 up silently.
+level. See [bridge.md](bridge.md) § "RELEASE BLOCKER". The two changes land together or not at all.
+
+**Re-verified against wabt-ts 1.4.1 (2026-08-25): still blocking.** Their bump to 1.4.1 did NOT
+remove the compensation — `bridgeExpr`'s `try_table` case still pushes the frame's own label before
+building the catch clauses, and their own memory carries it as an open RELEASE BLOCKER (T13.22). One
+thing did improve: they tightened `^1.0.9` to an EXACT `1.0.9` pin, so a lock refresh can no longer
+float them onto a new binaryen-ts silently. The coupling stands; the accident risk is gone.
 
 **The hold has a cost, and the owner has priced it (2026-08-25).** Everything above — all of
 multi-value decoding included — sits above the `v1.4.3` tag, so a JSR consumer still gets
 "multi-value block type is not supported". That makes binaryen-ts the sole remaining blocker on the
-wasmtk EH migration (wabt-ts shipped its half in 1.4.0, with 1.4.1 following 2026-08-25).
+wasmtk EH migration (wabt-ts shipped its half in 1.4.0; 1.4.1 is current as of 2026-08-25).
 
 The owner's decision, asked and answered directly: **commit, but do not bump — the bump happens once
 he is satisfied there are no more bugs to find.** So the hold is no longer "until every known bug is
