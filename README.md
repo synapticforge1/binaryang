@@ -520,7 +520,27 @@ result; `deepCopy` covered 29 of 79 expression kinds and shared subtrees across 
 PickLoadSigns could not see a `local.get` inside a `br`, so it flipped a narrow load's sign and
 turned `-1` into `255`. Four genuinely dead exports were removed (`parseWast`, `isAtom`,
 `assertList`, `materializeFakeGlobals` — none reachable from any `exports` subpath), which makes the
-next release a **minor** bump. 467 → 473 passing. |
+next release a **minor** bump. 467 → 473 passing. | | — | ✅ Done | **Multi-value block round-trip +
+`try_table` catch scope** — multi-value blocks decoded but did not survive re-encoding: a
+multi-result block header names a type-section index, and the encoder resolved it against its
+internal deduplicated table instead of the one it actually emits, so the re-encoded block declared
+one result while pushing two. Two defects behind it: a `try_table` catch destination was resolved
+one frame too deep by BOTH the decoder and the encoder (symmetric, so round-trips were
+byte-identical and hid it — the IR was wrong, which is what passes and the wabt-ts bridge read), and
+`RemoveUnusedNames` counted only `br` / `br_if` / `br_table` as label references, stripping a label
+referenced solely by a catch destination. **If you construct `TryTableExpr` nodes directly,
+`catches[].dest` must now name the enclosing label.** 473 → 477 passing. | | — | ✅ Done |
+**Fail-loud audit sweep** — seven inputs that were accepted and quietly turned into a different
+program: a type index naming a struct decoded as an empty signature (so the call popped no
+operands); the `call_indirect` table index was read and discarded, retargeting every indirect call
+in a multi-table module to table 0; an unknown section id was skipped and dropped from the output;
+the export-kind switch had no `default`, so an unrecognized kind wrote a name with no kind/index
+bytes and corrupted every later export; `CoalesceLocals` filled a "can't happen" slot gap with an
+arbitrary local's type; the WAT parser truncated a multi-result `(result …)` to its first type; and
+~70 folded WAT handlers died with an untyped `TypeError` when an operand was absent. Separately, the
+encoder kept a private copy of the IR child walk that did not list `tuple.make`, so a
+`call_indirect` carried by a multi-value branch failed to encode — the copy is gone and the shared
+walk, which throws on an unhandled node, is used instead. 477 → 484 passing. |
 
 ## Robustness & error handling
 
@@ -539,8 +559,36 @@ Concretely, the parser/encoder throw rather than corrupt when they hit:
   node left behind by a pass);
 - a branch depth or function-type that cannot be reproduced exactly on re-encode;
 - an unsupported or not-yet-implemented construct — bulk-memory/table ops, passive/declarative
-  element segments, multiple memories, `ref.null` table entries, multi-value block types (and
-  therefore `tuple.make`), and the non-MVP corners of the GC / atomics proposals.
+  element segments, multiple memories, `ref.null` table entries, and the non-MVP corners of the GC /
+  atomics proposals. (Multi-value block types are **supported**, not rejected — see the multi-value
+  entry in the phase table.)
+
+A 2026-08-25 audit closed seven more places where an input was accepted and quietly decoded or
+encoded as something else. Newly rejected, all with a typed error:
+
+- a type index that is out of range or names a struct/array where a function type is required (it
+  used to resolve to an empty `() -> ()` signature, so the call popped no operands and came out with
+  the wrong arity);
+- an unknown section id (silently skipped, and therefore dropped from the re-encoded module);
+- an unknown export kind reaching the encoder (the export name was written without its kind/index
+  bytes, corrupting that export and every one after it);
+- a `call_indirect` whose table index is out of range — and the table index is now honoured rather
+  than assumed to be 0;
+- a folded WAT instruction missing an operand, including stack-form WAT such as
+  `(i32.const 1) (i32.const 2) (drop)`, which is not supported by this parser (use wabt-ts's WAT
+  front door) and previously died with an untyped `TypeError` and no location.
+
+Also fixed, in the other direction: `(block (result i32 i32) …)` in WAT no longer truncates to its
+first result, and a `call_indirect` carried by a multi-value branch now encodes instead of failing
+with `unresolved function type`.
+
+A follow-up pass then enabled TypeScript's `noUncheckedIndexedAccess` across the shipped code, which
+found four more of the same kind: the inliner remapped a callee local with no caller slot to an
+`undefined` index (written out as garbage rather than reported) and filled a call/param arity
+mismatch with nothing; a struct or array field declared with no type silently became `i32`; and two
+places paired parallel arrays by index without checking they matched (`br_table` target arity, and a
+`try`'s catch tags against its catch bodies — the latter emitting a `catch` opcode with no handler
+after it). All four now throw.
 
 Concrete typed references (`(ref $T)` / `(ref null $T)`) are now carried end-to-end through every
 declared position, so the earlier caveat about typed-ref locals no longer applies.

@@ -64,8 +64,13 @@ populates `typeNames` + `funcTypeDefs` in the first pass; `(type $sig)` referenc
   0" bug class).
 - **Type dedup**: unique `FuncType`s collected by tree walk, contiguous indices. GC mode
   (`mod.heapTypes.length > 0`) emits types directly from `mod.heapTypes` and looks up func-type
-  indices via `gcFuncTypeIndex()`; non-GC mode uses the deduped `this.types` map. The tag section
-  must use the same `mod.heapTypes`-indexed path in GC mode (a WT-2d fix).
+  indices via `gcFuncTypeIndex()`; non-GC mode uses the deduped `this.types` map. **Every site that
+  emits a type INDEX must resolve against the table `encodeTypeSection` will actually emit** — the
+  two orderings are unrelated, so a lookup in the wrong one is right only by luck. The tag section
+  was the WT-2d instance; the six multi-result blocktype sites were the 2026-08-25 one
+  (`blockTypeIndex()` now picks the table, and `ensureHeapFuncType` appends a signature that only a
+  pass-synthesised block needs, into a working COPY of `mod.heapTypes` so encoding never mutates the
+  caller's module).
 - **Start section (id 8)** emitted between export (7) and element (9) when `mod.start != null`,
   resolved through `resolveRef`. The loose `!= null` is deliberate — see UP-5.
 - **Null-name block unpacking**: a `BlockExpr` with `name === null` is the function-body container
@@ -105,10 +110,10 @@ populates `typeNames` + `funcTypeDefs` in the first pass; `(type $sig)` referenc
   distinguishes it from the negative one-byte valtype forms) is resolved against the module's func
   types. Multi-result blocks decode with N−1 typed `Pop`s seeded beneath the block node, the same
   shape `pushMultiValueCall` uses for a tuple-returning call; `writeBlockType` emits the type index
-  with `writeI32`, and `collectExprTypes` registers block signatures alongside `call_indirect` ones.
-  `tuple.make` has no opcode — it is how the IR names "these N values on the stack", and the encoder
-  emits its operands and nothing else. `br`/`br_if`/`br_table` to a multi-result target carry their
-  values as one `tuple.make`.
+  with `writeI32` (via `blockTypeIndex`, see the type-dedup note above), and `collectExprTypes`
+  registers block signatures alongside `call_indirect` ones. `tuple.make` has no opcode — it is how
+  the IR names "these N values on the stack", and the encoder emits its operands and nothing else.
+  `br`/`br_if`/`br_table` to a multi-result target carry their values as one `tuple.make`.
   - **Block parameters** are spilled to locals before the construct, with the body seeded by
     `local.get`s. For `if` both arms are re-seeded with FRESH reads (sharing the nodes would alias
     one expression into two tree positions). A `loop`'s parameters are additionally re-supplied by

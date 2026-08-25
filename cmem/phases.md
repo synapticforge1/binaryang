@@ -74,20 +74,22 @@ Seven findings filed by the wabt-ts team; re-verified against v1.4.3 before acti
 seven produced wrong bytes, not one as reported. Detail in [correctness.md](correctness.md) § "The
 UP-1…UP-7 series"; bridge view in [bridge.md](bridge.md).
 
-| Tier    | Content                                                                                                      | Suite     | Status      |
-| ------- | ------------------------------------------------------------------------------------------------------------ | --------- | ----------- |
-| Tier 1  | UP-1 packed `get` sub-opcode; UP-5 start section (+ pass reachability seeding); tests type-checked; repo fmt | 405 → 424 | ✅ Done     |
-| Tier 2  | UP-6 tag imports; UP-4 `ref.as_non_null`; UP-3 four GC array bulk ops                                        | 430 → 438 | ✅ Done     |
-| Tier 3  | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                          | 438 → 448 | ✅ Done     |
-| Tier 4  | Corpus round-trip closure: `ref.null` heap-type collapse + signed heap index + phantom-pop `nop`             | 448 → 453 | ✅ Done     |
-| Tier 5  | UP-2 `tuple.make` + multi-result blocks (p=0, r>1); multi-value `br`/`br_if`/`br_table`                      | 454 → 462 | ✅ Done     |
-| Tier 6  | Block + `if` INPUTS via spill-to-locals; `loop` inputs rejected (br_if fall-through hazard)                  | 462 → 464 | ✅ Done     |
-| Tier 7  | LOOP inputs via back-edge branch rewrite (incl. `br_if` fall-through restore)                                | 464 → 465 | ✅ Done     |
-| Tier 8  | `br_table` dispatch trampoline for mixed targets; `try`/`try_table` inputs; convergence-based drift          | 465 → 467 | ✅ Done     |
-| Sweep 1 | "Look for code issues": `if`-arm node aliasing, dropped unknown export kind, Flatten multi-result mis-typing | 467 → 472 | ✅ Done     |
-| Sweep 2 | Dead-export removal (4 unreachable) + the two reachable ones documented                                      | 472       | ✅ Done     |
-| Sweep 3 | Duplicate-dispatcher class: `deepCopy` shared subtrees, PickLoadSigns could not see a use inside a `br`      | 472 → 473 | ✅ Done     |
-| —       | (nothing outstanding on multi-value)                                                                         | —         | ⬜ Deferred |
+| Tier    | Content                                                                                                                                                                                                                                                                                                                   | Suite     | Status      |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------- |
+| Tier 1  | UP-1 packed `get` sub-opcode; UP-5 start section (+ pass reachability seeding); tests type-checked; repo fmt                                                                                                                                                                                                              | 405 → 424 | ✅ Done     |
+| Tier 2  | UP-6 tag imports; UP-4 `ref.as_non_null`; UP-3 four GC array bulk ops                                                                                                                                                                                                                                                     | 430 → 438 | ✅ Done     |
+| Tier 3  | UP-7 typed refs end-to-end (IR records + builder + parser shim + `gcFuncTypeIndex`)                                                                                                                                                                                                                                       | 438 → 448 | ✅ Done     |
+| Tier 4  | Corpus round-trip closure: `ref.null` heap-type collapse + signed heap index + phantom-pop `nop`                                                                                                                                                                                                                          | 448 → 453 | ✅ Done     |
+| Tier 5  | UP-2 `tuple.make` + multi-result blocks (p=0, r>1); multi-value `br`/`br_if`/`br_table`                                                                                                                                                                                                                                   | 454 → 462 | ✅ Done     |
+| Tier 6  | Block + `if` INPUTS via spill-to-locals; `loop` inputs rejected (br_if fall-through hazard)                                                                                                                                                                                                                               | 462 → 464 | ✅ Done     |
+| Tier 7  | LOOP inputs via back-edge branch rewrite (incl. `br_if` fall-through restore)                                                                                                                                                                                                                                             | 464 → 465 | ✅ Done     |
+| Tier 8  | `br_table` dispatch trampoline for mixed targets; `try`/`try_table` inputs; convergence-based drift                                                                                                                                                                                                                       | 465 → 467 | ✅ Done     |
+| Sweep 1 | "Look for code issues": `if`-arm node aliasing, dropped unknown export kind, Flatten multi-result mis-typing                                                                                                                                                                                                              | 467 → 472 | ✅ Done     |
+| Sweep 2 | Dead-export removal (4 unreachable) + the two reachable ones documented                                                                                                                                                                                                                                                   | 472       | ✅ Done     |
+| Sweep 3 | Duplicate-dispatcher class: `deepCopy` shared subtrees, PickLoadSigns could not see a use inside a `br`                                                                                                                                                                                                                   | 472 → 473 | ✅ Done     |
+| Tier 9  | The multi-value block **writer** (blocktype indexed the wrong type table), `try_table` catch scope, `RemoveUnusedNames` label refs — 2026-08-25                                                                                                                                                                           | 473 → 477 | ✅ Done     |
+| Sweep 4 | "Look for code issues" (2026-08-25): encoder's duplicate child enumeration missed `TupleMake`; export-kind switch with no `default`; non-function type index; discarded `call_indirect` table index; skipped unknown section id; `CoalesceLocals` type guess; WAT multi-result truncation + untyped missing-operand crash | 477 → 484 | ✅ Done     |
+| —       | (nothing outstanding on multi-value)                                                                                                                                                                                                                                                                                      | —         | ⬜ Deferred |
 
 **No bump/publish until every known bug is addressed** (owner decision, 2026-08-24). That bar is met
 as of Sweep 3: **all seven** UP findings are fixed (UP-2 included — multi-value landed in Tiers
@@ -95,11 +97,26 @@ as of Sweep 3: **all seven** UP findings are fixed (UP-2 included — multi-valu
 of 90 files accounted for**, with the 10 non-parsing files verified as deliberate fail-loud
 rejections.
 
+**Tier 9 (2026-08-25) reopened and re-closed that bar.** The wabt-ts/wasmtk team filed a follow-up
+against published v1.4.3 — multi-value blocks refused by `readBinary` — and flagged, honestly, that
+they could not test the writer. They were right to: the decode half had shipped in Tiers 5–8, but
+the ENCODE half resolved a multi-result blocktype against the wrong type table, so the reporter's
+own repro round-tripped into a block declaring one result while pushing two. Two further defects sat
+behind it: `try_table` catch destinations resolved one frame too deep (symmetric across decoder and
+encoder, so round-trips hid it), and `RemoveUnusedNames` stripping a label referenced only by a
+catch destination. Detail in [correctness.md](correctness.md) § "The multi-value block WRITER".
+
 **The next release is 1.5.0, not 1.4.4** — Sweep 2 removed exported symbols, which is a breaking
 change regardless of whether anything imported them. `deno task bump` has no minor mode, so set the
 version by hand. See [publishing.md](publishing.md). `deno.json` is deliberately still at 1.4.3
 while the bump is held: its tag exists on the remote, so `auto-tag.yml` no-ops and no push can
 publish.
+
+**The hold now has a cost.** Everything above — all of multi-value decoding included — sits above
+the `v1.4.3` tag, so a JSR consumer still gets "multi-value block type is not supported". That makes
+binaryen-ts the sole remaining blocker on the wasmtk EH migration (wabt-ts shipped its half in
+1.4.0, with 1.4.1 following 2026-08-25). Releasing 1.5.0 is the action that unblocks them; holding
+it further only costs the downstream project.
 
 ## Deferred / not-yet-done
 

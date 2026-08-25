@@ -31,7 +31,7 @@ that before touching CoalesceLocals, LocalCSE, Inlining, or Vacuum.
 | `remove-unused-module-elements.ts` | Reachability-based dead function/global removal. Seeds from exports + element segments; fixed-point call-graph walk via `Call` + `RefFunc`. Imported elements never removed.                                                                                                                        |
 | `pick-load-signs.ts`               | Sign/unsigned selection for narrow loads. Tracks `local.set(i, narrow_load)`, counts signed/unsigned uses, flips if all agree.                                                                                                                                                                      |
 | `inlining.ts`                      | `Inlining` + `InliningOptimizing` (see below).                                                                                                                                                                                                                                                      |
-| `remove-unused-names.ts`           | Strip unused block/loop labels (2-pass per fn: collect branch targets, then strip bottom-up). A loop with no back-edge → replaced by its body (type-guarded).                                                                                                                                       |
+| `remove-unused-names.ts`           | Strip unused block/loop labels (2-pass per fn: collect branch targets, then strip bottom-up). A loop with no back-edge → replaced by its body (type-guarded). **Branch targets = all SEVEN label references**, not just `br`/`br_if`/`br_table` — see below.                                        |
 | `strip-eh.ts`                      | `throw`/`throw_ref` → `block[drop(op)…, unreachable]`; `rethrow` → `unreachable`; `try`/`try_table` → body. Clears tags + `hasExceptionHandling`.                                                                                                                                                   |
 | `flatten.ts`                       | Rewrites functions into **Flat IR**: every value subexpr hoisted into its own `local.set`, operands trivial, control flow routes values through temp locals. Port of upstream `--flatten`. Registered. Prerequisite for Asyncify Stage 3b. Also surfaced the `mapChildrenShallow` fix in `walk.ts`. |
 | `asyncify.ts`                      | ✅ **COMPLETE + registered** (`"Asyncify"`, opt-in). Pause/resume (unwind/rewind the call stack) — full port of upstream `--asyncify`; runnable e2e, differentially matches wasm-opt v130. See the dedicated section below.                                                                         |
@@ -60,6 +60,28 @@ An EH-aware CFG (v1.3.4) models exception edges: a `try` pushes its catch entrie
 SPLITS its block so a wrapping `local.set`'s kill can't strip a handler-live local. Without this, a
 local an exception handler reads looked dead inside the body and got wrongly coalesced —
 miscompiling valid exception code.
+
+## Label references — the other enumeration a pruning pass must honour
+
+`RemoveUnusedNames` decides a block/loop label is dead when nothing names it. "Nothing names it" has
+**seven** sources, and the pass knew three of them until 2026-08-25:
+
+| Expression | Field            |
+| ---------- | ---------------- |
+| `Break`    | `name`           |
+| `Switch`   | `targets[]`      |
+| `Switch`   | `defaultTarget`  |
+| `BrOn`     | `label`          |
+| `TryTable` | `catches[].dest` |
+| `Try`      | `delegateTarget` |
+| `Rethrow`  | `target`         |
+
+The authoritative enumeration is the set of `resolveLabel` call sites in
+[src/encoder/wasm-encoder.ts](../src/encoder/wasm-encoder.ts) — same one-authoritative-enumeration
+rule as `walk.ts`'s child dispatch. Check a label-reasoning pass against that list, never against
+intuition about what counts as "a branch": a `try_table` catch destination is an ordinary block
+label with no `br` anywhere naming it, so the pass stripped it and the encoder was handed a dangling
+target. Full account in [correctness.md](correctness.md) § "The multi-value block WRITER".
 
 ## Reachability roots — the invariant every pruning pass must honour
 

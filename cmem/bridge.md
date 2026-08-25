@@ -119,6 +119,26 @@ targets mix a parametrised loop with other frames). Multi-result functions and c
 So the bridge can now express the full multi-value surface. Detail and the remaining caveats are in
 [correctness.md](correctness.md) § "UP-2".
 
+### Multi-value blocks are only usable from a RELEASE (2026-08-25)
+
+The team re-filed against published v1.4.3, where `readBinary` still refuses a type-index blocktype:
+everything above sits on `main`, above the tag. Chasing their report also found the encode half
+broken — a multi-result blocktype resolved against the wrong type table — so the writer only started
+working on 2026-08-25. Nothing in this section is reachable from JSR until 1.5.0 ships.
+
+### `try_table` catch destinations changed meaning (BREAKING for bridge code)
+
+**If wabt-ts constructs `TryTableExpr` nodes directly, `catches[].dest` must now name the ENCLOSING
+label.** A `try_table`'s own label is not in scope for its handlers — depth 0 is the immediately
+enclosing frame — and until 2026-08-25 both our decoder and our encoder were shifted one frame
+deeper. They were shifted _symmetrically_, so a parse→encode round-trip was byte-identical and the
+bug was invisible from the binary side; but a correct `dest` handed in from the bridge would have
+encoded one frame wrong. Bridge code written against the old behaviour needs the shift removed.
+
+This is the shape that matters for the EH migration: `$__exn_tag (param i32 i32)` hands its two
+values to the handler as the results of the enclosing block, so the catch destination is an ordinary
+multi-value block label — and it is the _only_ spelling of that shape.
+
 ### Courtesy note wabt-ts raised, now documented
 
 With GC enabled, a function's own signature must be declared as a `{ kind: "func" }` heap type or

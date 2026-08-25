@@ -25,6 +25,254 @@ The WT-2 series proved that structural round-trip checks (function/global/segmen
 
 ---
 
+## The multi-value block WRITER + `try_table` catch scope (2026-08-25)
+
+A follow-up report from the wabt-ts/wasmtk team, filed against **published v1.4.3**: `readBinary`
+refused
+`(module (func (result i32) (block $b (result i32 i32) (i32.const 1) (i32.const 2)) (drop)))` with
+"multi-value block type (type index 0) is not supported". They had isolated the layer rather than
+reporting a symptom — single-value blocks fine, multi-value function results fine, `try_table` with
+a single-value handler fine, **a block type given as a type index** not — and traded the ~823-line
+TranslateEH ask for this one, because `$__exn_tag (param i32 i32)` hands a catch handler two values
+as the enclosing block's results and there is **no single-value spelling** for that shape. With
+wabt-ts 1.4.0 shipping the encoder, binaryen-ts was the sole remaining blocker on their EH
+migration.
+
+**The decode side was already fixed and unpublished** — Tiers 5–8 above (`b27176ae1f6`,
+`ea42b1a24ed`, `94d55655600`, `0a729aaaf53`) all landed after the `v1.4.3` tag. What they explicitly
+could not test was the writer, because they could not get a multi-value block IN to see whether one
+came back out: **"a decoder rule with no matching emitter rule hides itself."** That was the correct
+instinct and it named a real bug. Three fixes, each found by following that thread:
+
+### The encoder resolved a multi-result blocktype against the wrong type table
+
+`writeBlockType(…, (rs) => this.getTypeIndex([], rs))` looked the signature up in the **deduped**
+`this.types` collection. But a binary-parsed module carries its declared type list in
+`mod.heapTypes`, and `encodeTypeSection` emits from `mod.heapTypes` whenever it is non-empty — which
+is essentially every parsed module. The two orderings are unrelated, so the emitted index was right
+only **by luck**: the reporter's own repro decodes cleanly and then re-encodes a block declaring ONE
+result while pushing two ("expected 1 elements on the stack for fallthru, found 2").
+
+This is precisely the WT-2d tag-retyping class, and the tell was already in the file: imports, the
+function section, the tag section, and `call_indirect` all carry the
+`mod.heapTypes.length > 0 ? gcFuncTypeIndex(…) : getTypeIndex(…)` branch. The six blocktype sites
+were the ones that never got it.
+
+Fix ([src/encoder/wasm-encoder.ts](../src/encoder/wasm-encoder.ts)): a `blockTypeIndex(results)`
+helper that picks the table `encodeTypeSection` will actually emit, plus `ensureHeapFuncType` so a
+signature only an EXPRESSION needs — a multi-result block a **pass synthesised**, which the input
+module never declared — is appended instead of failing to encode. The append targets
+`this.heapTypes`, a working COPY taken at `collectTypes` time, so encoding never mutates the
+caller's module.
+
+**Order-dependence is why this survived the suite.** The existing `MULTI_RESULT_BLOCK` fixture
+declares the same signature twice, so both orderings coincide. The new fixture
+(`BLOCK_TYPE_INDEX_ORDER`, [tests/binary/multivalue_test.ts](../tests/binary/multivalue_test.ts))
+deliberately declares them in the opposite order from the dedupe walk, which is the only way to give
+the test teeth.
+
+### `try_table` catch destinations were resolved one frame too deep
+
+A `try_table`'s own label is **NOT in scope for its handlers** — depth 0 names the immediately
+enclosing frame. The decoder pushed the try_table frame BEFORE resolving the catch depths
+([src/binary/wasm-parser.ts](../src/binary/wasm-parser.ts)) and the encoder pushed the label before
+emitting them ([src/encoder/wasm-encoder.ts](../src/encoder/wasm-encoder.ts)). Symmetrically wrong,
+so **every round-trip came out byte-identical and hid it completely**. Only the IR was wrong — which
+is what a pass reads, and what the wabt-ts bridge would build against (see [bridge.md](bridge.md)).
+
+This is the producer/consumer failure mode [best-practices.md](best-practices.md) warns about: the
+two halves agreed with each other instead of with the spec, and the round-trip test they share
+cannot tell the difference. The fixture pins the semantics **against V8, not against our own
+convention**: in the nested `$outer` / `$inner` fixture the tag carries one value while the two
+candidate targets take one and two respectively, so only the correct reading type-checks. Depth 0
+and depth 1 give different verdicts from the engine — that is the evidence, not our decoder's
+opinion.
+
+### `RemoveUnusedNames` knew only three of seven label references
+
+With catch destinations now correctly naming the ENCLOSING block, that block's label has no `br`
+naming it — so the pass stripped it and the encoder hit a dangling target. (Loudly, per the
+robustness contract, but a broken pipeline all the same.) The pass collected only `Break` and
+`Switch`; it was missing **four** kinds, not one: `BrOn` (`br_on_null` / `br_on_cast`), `TryTable`
+(`catches[].dest`), `Try` (`delegateTarget`), and `Rethrow` (`target`).
+
+The authoritative enumeration is the set of `resolveLabel` call sites in the encoder — the same
+one-authoritative-child-enumeration rule as `walk.ts`. Any pass that reasons about labels must be
+checked against that list, not against intuition about what "a branch" is.
+
+### Verification
+
+The repro and the real wasic shape (2-param tag → `try_table` catch → 2-value handler block) both
+green across three paths: bare parse→encode, full `-Oz`, and the `/compat` facade (`readBinary` →
+`optimize` → `emitBinary`) they actually call. 4 regression tests (2 in
+[tests/binary/eh_test.ts](../tests/binary/eh_test.ts), 2 in
+[tests/binary/multivalue_test.ts](../tests/binary/multivalue_test.ts)), **each teeth-verified by
+reverting its own fix in isolation**. Suite 473 → 477. `scripts/equiv_check.ts`: 0 divergences, 0
+memory mismatches across the 5-file corpus.
+
+### The rule this yields
+
+**A decode rule with no matching encode rule hides itself.** When either half of the parser/encoder
+pair gains support for a construct, the round-trip test proves only that the two halves agree — it
+cannot prove either agrees with the spec. Reach for an outside oracle (V8's validator on a fixture
+crafted so the readings disagree) or the construct's own emitter, and prefer a fixture where the two
+candidate answers are distinguishable.
+
+---
+
+## "Look for code issues" sweep (2026-08-25, post-multi-value-writer) — 7 findings, all fixed
+
+Ran after the multi-value WRITER round. Method was mechanical first (grep for `?? <default>`, bare
+`nop`/`break` in `default:` arms, hack markers), then reading the sites the greps surfaced. Every
+finding below was **reproduced before it was fixed** and pinned by a test that was verified to fail
+with its own fix reverted in isolation. Suite 477 → 484.
+
+### 1. The encoder kept a SECOND child enumeration, and it did not list `TupleMake`
+
+`collectExprTypes` (which registers the type-section entries a `call_indirect` signature or a
+multi-result block header needs) recursed through a **private `walkChildren` inside
+`wasm-encoder.ts`** — 260 lines, `default: break`, 55 of the 66 kinds `src/ir/walk.ts` knows. The 11
+it lacked were leaves except one: `TupleMake`, the node a multi-value `br` uses to carry its values.
+
+So a `call_indirect` reached only through a branch value was invisible to type collection, and a
+**legal module failed to encode**: `unresolved function type: () -> (i32)`. Reproduced directly.
+
+The fix is not "add the missing case" — it is deleting the private copy and calling `visitChildren`,
+which is authoritative and THROWS on an unhandled kind. This is the rule in
+[best-practices.md](best-practices.md) § 2 applied to the place that was still violating it; had the
+encoder used the shared walk from the start, adding `TupleMake` to the IR could not have created
+this gap.
+
+### 2. `encodeExportSection` had no `default` — the trap its own comment describes
+
+The `case "tag"` arm carries a comment explaining that falling out of this switch writes the export
+NAME with no kind/index bytes, "corrupting every subsequent export" — because that is exactly what
+happened to tag exports (WT-2d). The fix at the time added the missing `case` and **left the switch
+open**, so the identical corruption was one new export kind away. Found by accident: a fixture
+passed the arguments in the wrong order and produced a silently truncated export section.
+
+Now `default:` binds `exp.kind` to `never` and throws. The `never` also makes TS fail the build if
+`WasmExport["kind"]` ever gains a member without this switch being updated — a compile-time version
+of the same guard.
+
+### 3. A non-function type index decoded as `() -> ()` instead of failing
+
+`funcTypes` mirrors the type section index-for-index, and a struct/array entry occupied its slot
+with a **placeholder `{ params: [], results: [] }`** — indistinguishable from a real `() -> ()`. On
+top of that, four call sites had `?? { params: [], results: [] }` for the out-of-range case.
+
+Consequence: a `call` / `call_indirect` whose type index is out of range, or names a struct, popped
+**zero operands** and built a call node of the wrong arity — the WT-2b "call need N got M" shape,
+arriving from a different direction and with no diagnostic. Now `funcTypes` is `(FuncType | null)[]`
+and one `funcTypeAt()` resolver throws on out-of-range and on not-a-function; `readBlockType`
+distinguishes the two in its message. Making the array nullable was worth it on its own: the type
+checker immediately pointed at the two remaining unguarded sites.
+
+### 4. `call_indirect` discarded its table index
+
+`r.readU32(); // table index` — read and thrown away, with `ctx.tableNames[0]` hard-coded. The
+element-segment decoder and `table.get`/`table.set` were already index-aware; this one was not, so
+every indirect call in a multi-table module silently retargeted to table 0. It never reached bytes
+only because the encoder rejects >1 table — a guard in a different file, which parse-only consumers
+(the wabt-ts bridge, the compat facade's introspection) do not go through. Now resolved from `tidx`,
+throwing when out of range.
+
+### 5. An unknown section id was silently skipped
+
+`default: this.r.seek(end)`. Three lines above it sits the start-section case, whose comment records
+that dropping a section produced "valid wasm, wrong behaviour, no diagnostic" — the general case
+underneath it was still doing precisely that for every future section at once. Now throws. Verified
+against the corpus first: no upstream file relies on it.
+
+### 6. `CoalesceLocals` filled a "can't happen" slot gap with an arbitrary local's TYPE
+
+`if (!newLocals[i]) newLocals[i] = fn.locals[numParams] ?? fn.locals[0];`, commented "shouldn't
+happen". If it ever did happen, the slot would take the **wrong type** and encode a different
+program. A can't-happen that silently miscompiles when it does happen is worse than a throw; it now
+throws. 10k fuzz functions plus the suite confirm it stays unreached.
+
+### 7. The WAT parser truncated `(result i32 i32)` to its first type
+
+Every block-like construct collected all declared results and then kept `results[0]`, so
+`(block (result i32 i32) ...)` produced a block typed `i32`; the encoder emitted a single-result
+blocktype for a body pushing two, and V8 rejected a module whose WAT source was legal. The IR has
+carried tuple types since multi-value landed — the annotation just was not reaching them. One
+`declaredType()` helper now feeds block / loop / if-arms / if / try / try_table / function-body.
+
+Found alongside it: ~70 folded handlers reach for `args[N]` without a check (indexing is unchecked,
+so `undefined` is not a type error), and every one died on `s.kind` with a raw `TypeError` and no
+location. Stack-form WAT hits this on every instruction — it is genuinely unsupported here (wabt-ts
+is the front door for user-authored WAT), so one guard in `parseExpr` now reports
+`missing operand for "<op>" (stack-form WAT is not supported here...)` with a position. The
+instruction name comes from an `_op` field set and restored around each list dispatch.
+
+### The pattern across 1, 2 and 5
+
+Three of the seven are **a previous fix that closed one instance and left the mechanism open**: a
+second enumeration that must be kept in sync by hand, a switch that corrupts when it falls through,
+a `default` that swallows. In each case the file already contained a comment describing the failure.
+When fixing a silent-fallback bug, close the SHAPE — delete the duplicate enumeration, make the
+`default` throw — not just the one arm that bit.
+
+---
+
+## `noUncheckedIndexedAccess` rollout (2026-08-25) — 261 errors, 4 real defects
+
+Turned on at the repo root after the fail-loud sweep traced ~70 raw `TypeError`s to the fact that
+`args[1]` on a one-element array is typed `SExpr`, not `SExpr | undefined`. Baseline was **261
+errors across `src/` + `main.ts`; now 0.**
+
+**261 errors were not 261 edits.** They collapsed to a handful of structural causes, because one
+under-typed helper produces dozens of call-site errors:
+
+| Step | Change                                                                      | Errors |
+| ---- | --------------------------------------------------------------------------- | ------ |
+| —    | baseline                                                                    | 261    |
+| 1    | 5 S-expr accessors accept `SExpr \| undefined`                              | 200    |
+| 2    | 3 tokenizer char predicates accept `string \| undefined`                    | 187    |
+| 3    | `topFrame()` / `popFrame()` replace 7 raw `frames[len-1]` reads             | 158    |
+| 4    | `reader.ts` byte reads annotated against their `checkBounds`                | 152    |
+| 5    | `oneOrBlock` / `resultTypeOf` / `oneOrTuple`; parallel-array spill loops    | 101    |
+| 6    | `wat-parser` bounded guards → `?.`; type parsers widened; `oneOrTypedBlock` | 87     |
+| 7    | encoder, passes, tokenizer, sexpr, wasm-opt, long tail                      | **0**  |
+
+Steps 1–2 are semantic widenings, not silencing. Those helpers were already total functions
+returning `| null` for "not the shape you wanted", and **absent is the same answer as wrong kind**;
+every call site already handled the `null`, usually as `?? this.err(...)`. Narrowing the parameter
+to `SExpr` never made the absent case impossible — it only hid it from the checker.
+
+Step 5–6 removed real duplication on the way: `length === 1 ? x[0] : block` was written out
+**seventeen times** across the two parsers and is now two named helpers.
+
+### The four defects it surfaced
+
+1. **The inliner remapped callee locals to `undefined`.** `localMapping[e.index]` on a miss produced
+   a `local.get` / `local.set` whose index is not a number. Nothing downstream checks that, so it
+   reached the encoder and was written as garbage rather than reported.
+2. **…and its sibling: an arity mismatch built `local.set` nodes with `value: undefined`.** The call
+   site simply had fewer operands than the callee has params and the inliner filled the difference
+   with nothing — the WT-2b "call need N got M" shape reached from the OPTIMIZER instead of the
+   decoder. Both refuse now.
+3. **`parseStorageTypeSExpr` had `if (!s) return ValType.I32`.** A field declared with no type
+   silently became `i32`, changing the struct/array layout instead of reporting malformed input. The
+   signature also lied, declaring `SExpr` while the body tested for absence — the § 2c shape
+   exactly.
+4. **Two parallel-array pairings with no check.** `br_table` paired the target frame's params
+   against the table's arity (the spec requires them equal; a malformed table silently produced
+   `local.get undefined`), and the `Try` encoder paired `catchTags` against `catchBodies` by index
+   (a mismatched node emitted a `catch` opcode with no handler after it, corrupting the rest of the
+   function body).
+
+### The rule the rollout was worked to
+
+**`!` is allowed only where the bound is visible in the same function.** `reader.ts` qualifies: each
+of its six byte reads sits directly under a `checkBounds(n)` that throws for exactly the count being
+consumed, and the block carries a comment saying so. Anywhere the invariant is further away, it gets
+a guard or a throw. Scattering `!` mechanically would have converted the audit into noise and
+defeated the reason for turning the flag on at all.
+
+---
+
 ## The UP-1…UP-7 series (2026-08-24) — wabt-ts upstream findings
 
 Seven findings filed by the wabt-ts team from its conformance campaign (their report:

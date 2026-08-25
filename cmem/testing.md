@@ -4,7 +4,7 @@
 
 ```sh
 deno task check       # type-check all files
-deno task test        # run the full suite (473 passed, 1 ignored — verified 2026-08-24; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k"; +19 Tier 1 of the UP-series (13 gc_packed_get_test + 6 start_section_test) and +14 Tier 2 (6 tag_import_test + 8 gc_bulk_ops_test) — see cmem/correctness.md § "The UP-1…UP-7 series")
+deno task test        # run the full suite (484 passed, 1 ignored — verified 2026-08-25; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k"; +19 Tier 1 of the UP-series (13 gc_packed_get_test + 6 start_section_test) and +14 Tier 2 (6 tag_import_test + 8 gc_bulk_ops_test) — see cmem/correctness.md § "The UP-1…UP-7 series"; +4 on 2026-08-25 for the multi-value block WRITER and the try_table catch scope: 2 in eh_test.ts, 2 in multivalue_test.ts, each teeth-verified by reverting its own fix — see cmem/correctness.md § "The multi-value block WRITER"; +7 from the same day's "look for code issues" sweep — encoder duplicate child enumeration, unknown export kind, non-function type index, call_indirect table index, unknown section id, WAT multi-result truncation, WAT missing operand — see cmem/correctness.md § "Look for code issues" sweep (2026-08-25))
 deno task fmt         # format
 deno task lint        # lint
 deno task ci          # check + test (the bundle CI runs)
@@ -31,12 +31,43 @@ and referenced by mapped name in every test — never an inline `jsr:` specifier
 `tests/tools/`, `tests/wasm/`, `tests/api/` (`binaryen_compat_test.ts`), `tests/interop/`
 (`binaryen_interop_test.ts` — mock factory, zero CI dep; live test gated on `BINARYEN_LIVE=1`).
 
+## `noUncheckedIndexedAccess` is ON for `src/`, OFF for `tests/` (2026-08-25)
+
+The root `deno.json` sets it; `tests/deno.json` is a workspace member that exists only to turn it
+back off. The asymmetry is deliberate: in `src/` an unchecked index that turns out to be `undefined`
+becomes wrong bytes in a `.wasm`, which is this project's worst failure mode; in a test it becomes a
+failed assertion, which is the test working. Doing the ~420 `mod.functions[0]!` edits the flag wants
+in the test tree would be churn against files whose purpose is to break loudly.
+
+**The gotcha that costs an hour if you don't know it:** a workspace member INHERITS the root's
+`compilerOptions` and merges its own over them. **Omitting the key does not reset it** — the member
+config is read either way, so an omitted override looks like it works right up until you check the
+error count and find it unchanged. It has to be written out:
+
+```jsonc
+// tests/deno.json
+{ "compilerOptions": { "noUncheckedIndexedAccess": false } }
+```
+
+Verified on Deno 2.9.5. The member is deliberately NOT a JSR package — no `name`, `version` or
+`exports` — so `deno publish` at the root still publishes only `@jrmarcum/binaryen-ts`, and
+`publish.exclude` keeps `tests/**` (including that config) out of the tarball. Confirmed with
+`deno task publish:dry`.
+
+To check one tree at a time: `deno check src/**/*.ts main.ts` (flag on) and
+`deno check tests/**/*.ts` (flag off). `deno task check` does both in one invocation and each file
+gets the config nearest it.
+
 ## The corpus round-trip test (`tests/binary/corpus_roundtrip_test.ts`)
 
 Parse → encode → parse over the whole `upstream/test` tree: **80 exact, 0 structural drift, 0
 validate failures, 90 of 90 files accounted for** (2026-08-24). Promoted from
 `scripts/verify_roundtrip.ts` once the parser was provably clean — as a script nobody ran it, and
 every WT-2 / UP-series defect it would have caught was found by a downstream consumer instead.
+
+**Run the promoted test, not the legacy script.** `scripts/verify_roundtrip.ts` hard-panics Deno
+2.9.5 (`Check failed: !job->compile_imports_.empty()`) before producing any output — a runtime
+crash, not a finding. The test covers the same ground in 165 ms.
 
 Three design points worth keeping:
 

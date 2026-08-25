@@ -45,10 +45,31 @@ instruction decode paths — `readInitExpr` for constant expressions and the mai
 `ref.null` was wrong in both, so fixing one would have read as fixed. **When an encoding gains a
 form, grep for every site that reads that grammar.**
 
+**When the IR gains a capability, grep every PRODUCER of that node — not just every reader.** The
+rule above is about readers of an encoding; this is its mirror, and it is the one that was missed.
+Multi-value landed in the binary decoder, and the WAT parser went on truncating
+`(block (result i32 i32) …)` to its first type for a day — collecting every declared result and then
+discarding all but one. The IR could express the tuple; one of its two front doors just never
+started producing it. Ask which constructors build this node, and check each.
+
 **Two implementations agreeing is not corroboration when they share the mistake.** Count the places
 that implement a rule before trusting that they check each other. (adopted — the wazmrt instance had
 three: assembler, validator and interpreter all resolved a `try_table` label one frame too deep, and
 every round trip was green.)
+
+**…and on 2026-08-25 we found we had the two-implementation version of that exact bug.** Our decoder
+and encoder both resolved a `try_table` catch destination one frame too deep, symmetrically, so
+every round trip was byte-identical and green — the paragraph above described our own code and
+nobody had grepped for it. Two lessons, and the second is the sharper one:
+
+- A borrowed war story is a **search query**, not a trophy. When a sibling project's failure mode
+  lands in this file, spend the ten minutes grepping this codebase for the same shape before filing
+  it away. `try_table` label resolution appears in exactly two places here; checking them was cheap
+  and would have found it that day.
+- **The evidence has to be able to disagree with you.** The fixture that finally pinned it puts the
+  question to V8 with the two candidate readings made distinguishable — a tag carrying one value,
+  and two candidate target blocks taking one and two. Depth 0 and depth 1 get different verdicts
+  from the engine. A fixture where both readings type-check proves nothing, however green it is.
 
 ## 2. One authoritative enumeration
 
@@ -71,6 +92,79 @@ still disagree.
 (`return false`) and Vacuum's removal set are allow-lists: an unknown kind is simply not CSE-able,
 not pure, not removable. That is correct by construction and does not drift. An allow-list whose
 default _guesses_ is the dangerous shape.
+
+## 2b. Close the shape, not the arm (2026-08-25)
+
+Three of the seven findings in that day's sweep were **a previous fix that closed one instance and
+left the mechanism open**, and in each case the file already carried a comment describing the
+failure mode:
+
+- `encodeExportSection`'s `case "tag"` explains that falling out of the switch writes an export name
+  with no kind/index and "corrupts every subsequent export" — and the fix added the case without
+  adding a `default`, leaving the trap armed for the next kind.
+- The start-section case explains that a dropped section is "valid wasm, wrong behaviour, no
+  diagnostic" — three lines above a `default:` that silently skipped every unknown section.
+- `walk.ts` was made to throw on an unhandled kind after exactly this class of bug; the encoder was
+  still keeping its own private child enumeration, which silently skipped `TupleMake`.
+
+**When you fix a silent fallback, ask what SHAPE allowed it and close that**: delete the duplicate
+enumeration rather than adding the missing case, make the `default` throw rather than adding the
+missing arm, bind the discriminant to `never` so the compiler catches the next member. A fix that
+closes one arm leaves a comment describing a bug that is still there.
+
+A useful corollary for reviewing: **grep the codebase for the failure your own comments describe.**
+Three of these were findable by reading the explanations already written next to them.
+
+## 2c. A placeholder must not be representable as real data (2026-08-25)
+
+`funcTypes` mirrors the type section index-for-index, so a struct or array entry has to occupy its
+slot. The filler chosen was `{ params: [], results: [] }` — **a perfectly valid function type**. A
+`call_indirect` naming a struct index therefore resolved to an empty signature, popped zero
+operands, and built a call of the wrong arity: the WT-2b "call need N got M" shape, with no
+diagnostic. `CoalesceLocals` had the same shape in miniature, filling a "can't happen" slot gap with
+`fn.locals[numParams] ?? fn.locals[0]` — an arbitrary local's TYPE, which would encode a different
+program if the gap ever appeared.
+
+The alignment need was real in both cases. The mistake was picking a filler that reads as data.
+**Use a sentinel the domain cannot produce (`null`), or throw** — never a well-formed value of the
+same type. "Placeholder to keep indices aligned" is a comment that makes a silent fallback look
+deliberate.
+
+**Then put the sentinel in the TYPE and let the compiler do the audit.** Widening `funcTypes` to
+`(FuncType | null)[]` immediately failed the build at the two call sites that were still unguarded —
+found in seconds, and they were not the ones the grep had turned up. An invariant expressed as a
+type is checked at every site forever; one expressed in a comment is checked by whoever reads it.
+
+Related, and now done: `noUncheckedIndexedAccess` was OFF, so `args[1]` on a one-element array was
+typed `SExpr`, not `SExpr | undefined` — which is what let ~70 folded WAT handlers reach for
+operands they were never given and die on `s.kind` with a raw `TypeError`. It is ON for `src/` as of
+2026-08-25; see [correctness.md](correctness.md) § "`noUncheckedIndexedAccess` rollout".
+
+Two things worth carrying from that rollout:
+
+- **A big error count is not a big edit count.** 261 errors collapsed to a handful of structural
+  causes, because one under-typed helper produces dozens of call-site errors. Widening five S-expr
+  accessors removed 61 on its own. Measure the SHAPES before estimating the work — and fix the
+  helper, never the call sites.
+- **`!` only where the bound is visible in the same function.** `reader.ts` qualifies: each byte
+  read sits directly under a `checkBounds(n)` that throws for exactly that count. Anywhere the
+  invariant is further away, guard or throw. Scattering `!` mechanically converts the audit into
+  noise and defeats the reason for enabling the flag.
+
+## 2d. A value read and discarded is a decision (2026-08-25)
+
+`r.readU32(); // table index` reads like frame-advancing, but the very next line hard-coded
+`ctx.tableNames[0]`. Every `call_indirect` in a multi-table module was silently retargeted to table
+0 — while the element-segment and `table.get`/`table.set` decoders in the same file did honour the
+index. **A read whose result is dropped is pinning a semantic to a constant; say so, or use it.**
+
+What kept it off the radar is worth naming separately: it never reached bytes, because the ENCODER
+rejects modules with more than one table. **A wrong decode made harmless by a guard in another file
+is a load-bearing coincidence**, not a fix — it holds only while that guard stays, and it does
+nothing for consumers who never reach it. This decoder is read directly by the wabt-ts bridge and by
+the compat facade's introspection; both saw the wrong table with no diagnostic. When you find a
+defect that "can't happen because X", check whether X is in the same module and whether every
+consumer goes through it.
 
 ## 3. Verifying a change
 
