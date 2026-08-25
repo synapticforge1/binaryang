@@ -34,8 +34,18 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import { parseWasm, WasmBinaryError } from "../../src/binary/index.ts";
 import { encodeWasm } from "../../src/encoder/index.ts";
-import { ExpressionKind } from "../../src/ir/expressions.ts";
+import {
+  ExpressionKind,
+  makeBlock,
+  makeBreak,
+  makeCallIndirect,
+  makeI32Const,
+  makeTupleMake,
+} from "../../src/ir/expressions.ts";
+import { ModuleBuilder } from "../../src/ir/module.ts";
 import { ValType } from "../../src/ir/types.ts";
+import { PassRunner } from "../../src/passes/pass.ts";
+import "../../src/passes/index.ts"; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
 
@@ -387,4 +397,79 @@ Deno.test("if WITH INPUTS: the two arms do not share expression nodes", () => {
   };
   walk(mod.functions[0].body);
   assertEquals(shared, [], "expression node(s) reachable from two tree positions");
+});
+
+// ---------------------------------------------------------------------------
+// A multi-result block header names a TYPE-SECTION INDEX, so which table the
+// encoder resolves it against has to be the one it actually emitted.
+//
+// (module (func (export "f") (result i32)
+//   (block (result i32 i32) i32.const 1; i32.const 2) drop))
+//
+// The two type-section entries are DELIBERATELY declared in the opposite order
+// from the one the encoder's dedupe walk produces: the module declares
+// `() -> (i32 i32)` first, while the dedupe registers the function's own
+// `() -> (i32)` first. A parsed module carries its declared type list in
+// `heapTypes`, and that is the list the type section is emitted from — so
+// resolving the blocktype against the deduped table yielded a valid-but-wrong
+// index, and the block came out declaring one result while pushing two.
+//
+// Same class as the WT-2d tag retyping. The two orderings coincide by luck in
+// most modules, which is why the fixture forces them apart.
+// ---------------------------------------------------------------------------
+
+const BLOCK_TYPE_INDEX_ORDER = Uint8Array.from([
+  ...HDR,
+  ...sec(1, vecOf([[0x60, 0x00, 0x02, 0x7f, 0x7f], [0x60, 0x00, 0x01, 0x7f]])),
+  ...sec(3, vecOf([[0x01]])),
+  ...sec(7, vecOf([[0x01, 0x66, 0x00, 0x00]])),
+  ...sec(10, vecOf([fnBody([0x00, 0x02, 0x00, 0x41, 0x01, 0x41, 0x02, 0x0b, 0x1a, 0x0b])])),
+]);
+
+Deno.test("multi-result block: the emitted blocktype index addresses the emitted type section", async () => {
+  assertEquals(await run(BLOCK_TYPE_INDEX_ORDER), 1);
+  assertEquals(await run(encodeWasm(parseWasm(BLOCK_TYPE_INDEX_ORDER))), 1);
+});
+
+Deno.test("multi-result block: type-index ordering survives the full -Oz pipeline", async () => {
+  const mod = parseWasm(BLOCK_TYPE_INDEX_ORDER);
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
+    .addDefaultOptimizationPasses()
+    .run();
+  assertEquals(await run(encodeWasm(mod)), 1);
+});
+
+// ---------------------------------------------------------------------------
+// A `call_indirect` reached only through a `tuple.make`
+//
+// The encoder kept a PRIVATE child enumeration for `collectExprTypes` (its own
+// `walkChildren`) that silently `break`ed on any kind it did not list — and it
+// did not list `TupleMake`, the node a multi-value `br` uses to carry its N
+// values. So a `call_indirect` (or a multi-result block header) reached only
+// through a branch value was invisible to type collection, and encoding a legal
+// module failed with `unresolved function type`.
+//
+// The fix is not "add the missing case": it is to stop keeping a second
+// enumeration at all. `visitChildren` from `src/ir/walk.ts` is the authoritative
+// one and THROWS on an unhandled kind, so the next node added cannot go missing
+// the same way.
+// ---------------------------------------------------------------------------
+
+Deno.test("type collection reaches a call_indirect carried by a tuple.make", async () => {
+  const b = new ModuleBuilder();
+  b.addTable("$t", ValType.FuncRef, 1, null);
+
+  // (block $l (result i32 i32) (br $l (tuple.make (call_indirect () -> i32) 7)))
+  const ci = makeCallIndirect("$t", makeI32Const(0), [], [], [ValType.I32]);
+  const blk = makeBlock([makeBreak("$l", null, makeTupleMake([ci, makeI32Const(7)]))], "$l");
+  blk.type = [ValType.I32, ValType.I32];
+
+  b.addFunction("$f", [], [ValType.I32, ValType.I32], blk, []);
+  b.addExport("f", "$f", "function");
+
+  // Threw `unresolved function type: () -> (i32)` before the fix.
+  const out = encodeWasm(b.build());
+  const buf = new ArrayBuffer(out.byteLength);
+  new Uint8Array(buf).set(out);
+  await WebAssembly.compile(buf);
 });

@@ -88,7 +88,7 @@ function eliminateDeadBlock(
     // Recurse before deciding the tail — a child may contain inner dead code
     // (e.g. unreachable buried in a Try body) without itself being typed
     // unreachable, but we still want to clean inside it.
-    const processed = eliminateDeadCode(block.children[i]);
+    const processed = eliminateDeadCode(block.children[i]!); // bounded by the loop header
     newChildren.push(processed);
     if (processed.type === Unreachable && i < block.children.length - 1) {
       trimmed = true;

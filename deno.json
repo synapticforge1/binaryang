@@ -45,8 +45,12 @@
       "wabt-ts/**"
     ]
   },
+  "workspace": [
+    "./tests"
+  ],
   "compilerOptions": {
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "lib": ["deno.ns", "esnext", "dom"]
   },
   "fmt": {

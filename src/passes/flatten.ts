@@ -156,7 +156,7 @@ function callEffectiveType(e: Expression, ctx: Ctx): Type {
           `multi-result calls cannot be hoisted into a single local`,
       );
     }
-    return r.length > 0 ? r[0] : None;
+    return r[0] ?? None;
   }
   return e.type;
 }
@@ -360,7 +360,7 @@ export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
   // dropping the second value. Keeping the tuple lets that function reject it.
   const resultType = (results: ValueType[] | undefined): Type => {
     if (results === undefined || results.length === 0) return None;
-    return results.length === 1 ? results[0] : (results as Type);
+    return results.length === 1 ? results[0]! : (results as Type);
   };
   for (const imp of module.imports) {
     if (imp.kind === "function") map.set(imp.name, resultType(imp.results));

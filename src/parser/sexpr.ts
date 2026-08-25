@@ -164,7 +164,12 @@ class SExprBuilder {
   }
 
   consume(): Token {
-    const tok = this.tokens[this.pos];
+    // Past the end there is no token to return, and the tokenizer always
+    // terminates the stream with EOF — so a miss here means the stream was
+    // built by something else, not that input ran out. Synthesize EOF rather
+    // than returning `undefined` typed as `Token`, matching `peek()` below.
+    const tok = this.tokens[this.pos] ??
+      { kind: TokenKind.EOF, raw: "", pos: { line: 1, col: 1 } };
     if (tok.kind !== TokenKind.EOF) this.pos++;
     return tok;
   }
@@ -220,40 +225,49 @@ export function listFrom(s: SList, from: number): SExpr[] {
 }
 
 /**
- * Returns the raw text of an atom node, or `null` if `s` is a list.
+ * Returns the raw text of an atom node, or `null` if `s` is a list or absent.
+ *
+ * `undefined` is accepted deliberately: callers index into a child array
+ * (`atomText(args[0])`), and "there is no such child" is the same answer as
+ * "that child is not an atom" — you do not get a value. Every call site already
+ * handles the `null`, usually as `?? this.err(...)`. Narrowing the parameter to
+ * `SExpr` did not make the absent case impossible, it only hid it from the
+ * type checker.
  */
-export function atomText(s: SExpr): string | null {
-  return s.kind === "atom" ? s.token.raw : null;
+export function atomText(s: SExpr | undefined): string | null {
+  return s?.kind === "atom" ? s.token.raw : null;
 }
 
 /**
- * Returns `true` if `s` is a list whose head equals `keyword`.
+ * Returns `true` if `s` is a list whose head equals `keyword`. An absent node is
+ * not a list with that keyword, so `undefined` is `false` — see { atomText}
+ * for why the parameter admits it.
  */
-export function isListWith(s: SExpr, keyword: string): s is SList {
-  return s.kind === "list" && listHead(s) === keyword;
+export function isListWith(s: SExpr | undefined, keyword: string): s is SList {
+  return s?.kind === "list" && listHead(s) === keyword;
 }
 
 /**
  * Returns the string value of a string-literal atom, or `null`.
  */
-export function atomString(s: SExpr): string | null {
-  if (s.kind !== "atom" || s.token.kind !== TokenKind.String) return null;
+export function atomString(s: SExpr | undefined): string | null {
+  if (s?.kind !== "atom" || s.token.kind !== TokenKind.String) return null;
   return s.token.text ?? null;
 }
 
 /**
  * Returns the integer value of an integer-literal atom, or `null`.
  */
-export function atomInt(s: SExpr): number | bigint | null {
-  if (s.kind !== "atom" || s.token.kind !== TokenKind.Integer) return null;
+export function atomInt(s: SExpr | undefined): number | bigint | null {
+  if (s?.kind !== "atom" || s.token.kind !== TokenKind.Integer) return null;
   return s.token.value ?? null;
 }
 
 /**
  * Returns the float value of a float-literal atom, or `null`.
  */
-export function atomFloat(s: SExpr): number | null {
-  if (s.kind !== "atom" || s.token.kind !== TokenKind.Float) return null;
+export function atomFloat(s: SExpr | undefined): number | null {
+  if (s?.kind !== "atom" || s.token.kind !== TokenKind.Float) return null;
   return (s.token.value as number) ?? null;
 }
 

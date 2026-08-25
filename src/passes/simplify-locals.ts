@@ -62,7 +62,7 @@ function _simplifyBlock(
   let i = 0;
 
   while (i < children.length) {
-    const curr = children[i];
+    const curr = children[i]!; // bounded by the `while` condition
     const next = i + 1 < children.length ? children[i + 1] : undefined;
 
     if (

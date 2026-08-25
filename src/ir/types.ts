@@ -140,7 +140,7 @@ export function typeToString(t: Type): string {
   if (Array.isArray(t)) {
     if (t.length === 0) return "";
     const strs = t.map((e) => isRefType(e) ? refTypeToString(e) : e as string);
-    if (strs.length === 1) return strs[0];
+    if (strs.length === 1) return strs[0]!;
     return `(${strs.join(" ")})`;
   }
   if (isRefType(t)) return refTypeToString(t);

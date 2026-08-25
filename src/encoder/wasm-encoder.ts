@@ -81,6 +81,14 @@ import {
 } from "../ir/expressions.ts";
 import type { WasmFunction, WasmModule } from "../ir/module.ts";
 import { None, type Type, ValType } from "../ir/types.ts";
+// The ONE authoritative child enumeration. The encoder used to keep a private
+// `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
+// it did not list, and it did not list `TupleMake` — so a `call_indirect` (or a
+// multi-result block) carried by a multi-value `br` was invisible to type
+// collection and the encode failed with "unresolved function type" on a legal
+// module. `visitChildren` throws on an unhandled kind, so a future node cannot
+// go missing the same way.
+import { visitChildren } from "../ir/walk.ts";
 import {
   AbstractHeapType,
   type FieldType,
@@ -89,6 +97,7 @@ import {
   isRefType,
   type RefType,
   type StorageType,
+  type TypeDef,
   type ValueType,
 } from "../ir/gc-types.ts";
 
@@ -828,6 +837,14 @@ class WasmEncoder {
   private types: FuncTypeEntry[] = [];
   private typeKeyToIndex = new Map<string, number>();
 
+  /**
+   * Working copy of `mod.heapTypes` — the list the type section is emitted
+   * from in GC mode. It starts as a copy so a signature that only an
+   * EXPRESSION needs (a multi-result block header) can be appended without
+   * mutating the caller's module. See `ensureHeapFuncType`.
+   */
+  private heapTypes: TypeDef[] = [];
+
   constructor(mod: WasmModule) {
     this.mod = mod;
   }
@@ -884,11 +901,11 @@ class WasmEncoder {
     signed: boolean,
     family: "struct" | "array",
   ): number {
-    const def = this.mod.heapTypes[typeIndex];
+    const def = this.heapTypes[typeIndex];
     if (def === undefined) {
       throw new WasmEncodeError(
         `${family}.get: type index ${typeIndex} is out of range ` +
-          `(module declares ${this.mod.heapTypes.length} heap types)`,
+          `(module declares ${this.heapTypes.length} heap types)`,
       );
     }
     if (def.kind !== family) {
@@ -995,6 +1012,7 @@ class WasmEncoder {
   // ---------------------------------------------------------------------------
 
   private collectTypes(): void {
+    this.heapTypes = [...this.mod.heapTypes];
     const addType = (params: ValueType[], results: ValueType[]): void => {
       const key = funcTypeKey(params, results);
       if (!this.typeKeyToIndex.has(key)) {
@@ -1019,7 +1037,13 @@ class WasmEncoder {
     // One walk collects both kinds of expression-level type reference:
     // `call_indirect` signatures and multi-result block headers.
     for (const fn of this.mod.functions) {
-      this.collectExprTypes(fn.body, addType);
+      this.collectExprTypes(fn.body, (params, results) => {
+        addType(params, results);
+        // In GC mode the emitted type section IS `this.heapTypes`, not the
+        // deduped `this.types` — so an expression-level signature has to
+        // exist THERE to be addressable by index.
+        if (this.heapTypes.length > 0) this.ensureHeapFuncType(params, results);
+      });
     }
   }
 
@@ -1042,7 +1066,40 @@ class WasmEncoder {
     if (Array.isArray(expr.type) && expr.type.length > 1) {
       addType([], expr.type as ValueType[]);
     }
-    walkChildren(expr, (child) => this.collectExprTypes(child, addType));
+    visitChildren(expr, (child) => this.collectExprTypes(child, addType));
+  }
+
+  /**
+   * Resolves the type-section index for a multi-result block header.
+   *
+   * Which table that index addresses depends on which one `encodeTypeSection`
+   * emitted: `this.heapTypes` in GC mode, the deduped `this.types` otherwise.
+   * Resolving against the wrong one yields a valid-but-wrong index — the same
+   * class of bug that once retyped tag signatures (WT-2d). The two orderings
+   * are unrelated, so they only coincide by luck.
+   */
+  private blockTypeIndex(results: ValueType[]): number {
+    return this.heapTypes.length > 0
+      ? this.gcFuncTypeIndex([], results)
+      : this.getTypeIndex([], results);
+  }
+
+  /**
+   * Returns the `this.heapTypes` index of `params -> results`, appending the
+   * entry when it is absent.
+   *
+   * A multi-result block header names a type-section entry, and the block may
+   * be one a PASS synthesised — in which case the input module never declared
+   * that signature and there is nothing to look up. Appending keeps the
+   * blocktype addressable instead of failing to encode a legal block.
+   */
+  private ensureHeapFuncType(params: ValueType[], results: ValueType[]): number {
+    const want = funcTypeKey(params, results);
+    for (const [i, d] of this.heapTypes.entries()) {
+      if (d.kind === "func" && funcTypeKey(d.params, d.results) === want) return i;
+    }
+    this.heapTypes.push({ kind: "func", params: [...params], results: [...results] });
+    return this.heapTypes.length - 1;
   }
 
   private getTypeIndex(params: ValueType[], results: ValueType[]): number {
@@ -1127,9 +1184,9 @@ class WasmEncoder {
   // ---------------------------------------------------------------------------
 
   private encodeTypeSection(w: BinaryWriter): void {
-    if (this.mod.heapTypes.length > 0) {
-      w.writeU32(this.mod.heapTypes.length);
-      for (const def of this.mod.heapTypes) {
+    if (this.heapTypes.length > 0) {
+      w.writeU32(this.heapTypes.length);
+      for (const def of this.heapTypes) {
         if (def.kind === "func") {
           w.writeU8(0x60);
           w.writeU32(def.params.length);
@@ -1186,8 +1243,7 @@ class WasmEncoder {
    */
   private gcFuncTypeIndex(params: ValueType[], results: ValueType[]): number {
     const want = funcTypeKey(params, results);
-    for (let i = 0; i < this.mod.heapTypes.length; i++) {
-      const d = this.mod.heapTypes[i];
+    for (const [i, d] of this.heapTypes.entries()) {
       if (d.kind !== "func") continue;
       if (funcTypeKey(d.params, d.results) === want) return i;
     }
@@ -1204,7 +1260,7 @@ class WasmEncoder {
       switch (imp.kind) {
         case "function": {
           w.writeU8(0x00);
-          const idx = this.mod.heapTypes.length > 0
+          const idx = this.heapTypes.length > 0
             ? this.gcFuncTypeIndex(imp.params ?? [], imp.results ?? [])
             : this.getTypeIndex(imp.params ?? [], imp.results ?? []);
           w.writeU32(idx);
@@ -1241,7 +1297,7 @@ class WasmEncoder {
           // Same GC-mode split as the defined-tag section: with heap types
           // present the emitted type section IS `mod.heapTypes`, so an index
           // into the deduped `this.types` would point at the wrong slot.
-          const idx = this.mod.heapTypes.length > 0
+          const idx = this.heapTypes.length > 0
             ? this.gcFuncTypeIndex(imp.params ?? [], [])
             : this.getTypeIndex(imp.params ?? [], []);
           w.writeU32(idx);
@@ -1254,7 +1310,7 @@ class WasmEncoder {
   private encodeFunctionSection(w: BinaryWriter): void {
     w.writeU32(this.mod.functions.length);
     for (const fn of this.mod.functions) {
-      const idx = this.mod.heapTypes.length > 0
+      const idx = this.heapTypes.length > 0
         ? this.gcFuncTypeIndex(fn.params, fn.results)
         : this.getTypeIndex(fn.params, fn.results);
       w.writeU32(idx);
@@ -1329,6 +1385,19 @@ class WasmEncoder {
           w.writeU32(this.resolveRef(this.tagIndex, exp.value, "exported tag"));
           break;
         }
+        default: {
+          // The `tag` case above records what falling out of this switch does:
+          // the export NAME is written and the kind/index bytes are not, which
+          // silently corrupts this export and every one after it in the
+          // section. Adding the missing case without a guard left the same
+          // trap armed for the next kind. This `never` binding also makes TS
+          // fail the build if `WasmExport["kind"]` gains a member and this
+          // switch is not updated.
+          const bad: never = exp.kind;
+          throw new WasmEncodeError(
+            `cannot encode export "${exp.name}": unknown export kind ${String(bad)}`,
+          );
+        }
       }
     }
   }
@@ -1378,7 +1447,7 @@ class WasmEncoder {
       // the one site that didn't. (Surfaced by the wasmtk team's bug report
       // as "tag's type-index re-pointed to a different entry in the type
       // section after `RemoveUnusedModuleElements`".)
-      const idx = this.mod.heapTypes.length > 0
+      const idx = this.heapTypes.length > 0
         ? this.gcFuncTypeIndex(tag.params, [])
         : this.getTypeIndex(tag.params, []);
       w.writeU32(idx);
@@ -1424,8 +1493,9 @@ class WasmEncoder {
     const groups: { count: number; type: ValueType; key: string }[] = [];
     for (const loc of nonParamLocals) {
       const key = valueTypeKey(loc.type);
-      if (groups.length > 0 && groups[groups.length - 1].key === key) {
-        groups[groups.length - 1].count++;
+      const open = groups[groups.length - 1];
+      if (open !== undefined && open.key === key) {
+        open.count++;
       } else {
         groups.push({ count: 1, type: loc.type, key });
       }
@@ -1506,7 +1576,7 @@ class WasmEncoder {
       case ExpressionKind.Block: {
         const e = expr as BlockExpr;
         w.writeU8(0x02);
-        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
+        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
         labels.push(e.name ?? "");
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
@@ -1517,7 +1587,7 @@ class WasmEncoder {
       case ExpressionKind.Loop: {
         const e = expr as LoopExpr;
         w.writeU8(0x03);
-        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
+        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
         labels.push(e.name);
         this.encodeExpr(w, e.body, labels);
         labels.pop();
@@ -1529,7 +1599,7 @@ class WasmEncoder {
         const e = expr as IfExpr;
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
-        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
+        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
         labels.push(e.name ?? ""); // the if's branch-target label (if any)
         this.encodeExpr(w, e.ifTrue, labels);
         if (e.ifFalse) {
@@ -1782,7 +1852,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.target, labels);
         // 0x11 = call_indirect, 0x13 = return_call_indirect (tail-call proposal).
         w.writeU8(e.isReturn ? 0x13 : 0x11);
-        const ciIdx = this.mod.heapTypes.length > 0
+        const ciIdx = this.heapTypes.length > 0
           ? this.gcFuncTypeIndex(e.params, e.results)
           : this.getTypeIndex(e.params, e.results);
         w.writeU32(ciIdx);
@@ -2025,9 +2095,13 @@ class WasmEncoder {
       case ExpressionKind.TryTable: {
         const e = expr as TryTableExpr;
         w.writeU8(0x1f); // try_table
-        writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
+        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
         w.writeU32(e.catches.length);
-        labels.push(e.name ?? "");
+        // The catch clauses are resolved BEFORE the try_table label is pushed:
+        // its own label is not in scope for its handlers, so depth 0 names the
+        // enclosing frame. Pushing first emitted every handler one frame too
+        // deep — symmetric with the decoder, so round-trips hid it, but IR
+        // built anywhere else (a pass, the wabt-ts bridge) encoded wrong.
         for (const c of e.catches) {
           if (c.tag !== null) {
             w.writeU8(c.isRef ? 0x01 : 0x00); // catch / catch_ref
@@ -2037,6 +2111,7 @@ class WasmEncoder {
           }
           w.writeU32(this.resolveLabel(labels, c.dest));
         }
+        labels.push(e.name ?? "");
         this.encodeExpr(w, e.body, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -2048,7 +2123,7 @@ class WasmEncoder {
         if (e.delegateTarget !== null) {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
-          writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
+          writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
           labels.push(e.name ?? "");
           this.encodeExpr(w, e.body, labels);
           labels.pop();
@@ -2056,17 +2131,25 @@ class WasmEncoder {
           w.writeU32(this.resolveLabel(labels, e.delegateTarget));
         } else {
           w.writeU8(0x06); // try
-          writeBlockType(w, e.type, (rs) => this.getTypeIndex([], rs));
+          writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
           labels.push(e.name ?? "");
           this.encodeExpr(w, e.body, labels);
-          for (let i = 0; i < e.catchTags.length; i++) {
-            if (e.catchTags[i] === "") {
+          // Tags and bodies are parallel by construction. Pairing them by index
+          // without checking meant a mismatched `Try` emitted a `catch` opcode
+          // with no handler after it, corrupting the rest of the function body.
+          if (e.catchTags.length !== e.catchBodies.length) {
+            throw new WasmEncodeError(
+              `try has ${e.catchTags.length} catch tags but ${e.catchBodies.length} bodies`,
+            );
+          }
+          for (const [i, tag] of e.catchTags.entries()) {
+            if (tag === "") {
               w.writeU8(0x19); // catch_all
             } else {
               w.writeU8(0x07); // catch
-              w.writeU32(this.resolveRef(this.tagIndex, e.catchTags[i], "catch tag"));
+              w.writeU32(this.resolveRef(this.tagIndex, tag, "catch tag"));
             }
-            this.encodeCatchBody(w, e.catchBodies[i], labels);
+            this.encodeCatchBody(w, e.catchBodies[i]!, labels);
           }
           labels.pop();
           w.writeU8(0x0b);
@@ -2193,271 +2276,6 @@ class WasmEncoder {
         );
       }
     }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Walk helpers
-// ---------------------------------------------------------------------------
-
-function walkChildren(expr: Expression, visit: (child: Expression) => void): void {
-  switch (expr.kind) {
-    case ExpressionKind.Block:
-      for (const c of (expr as BlockExpr).children) visit(c);
-      break;
-    case ExpressionKind.Loop:
-      visit((expr as LoopExpr).body);
-      break;
-    case ExpressionKind.If: {
-      const e = expr as IfExpr;
-      visit(e.condition);
-      visit(e.ifTrue);
-      if (e.ifFalse) visit(e.ifFalse);
-      break;
-    }
-    case ExpressionKind.Break: {
-      const e = expr as BreakExpr;
-      if (e.condition) visit(e.condition);
-      if (e.value) visit(e.value);
-      break;
-    }
-    case ExpressionKind.Switch: {
-      const e = expr as SwitchExpr;
-      visit(e.condition);
-      if (e.value) visit(e.value);
-      break;
-    }
-    case ExpressionKind.Return:
-      if ((expr as ReturnExpr).value) visit((expr as ReturnExpr).value!);
-      break;
-    case ExpressionKind.LocalSet:
-      visit((expr as LocalSetExpr).value);
-      break;
-    case ExpressionKind.LocalTee:
-      visit((expr as LocalTeeExpr).value);
-      break;
-    case ExpressionKind.GlobalSet:
-      visit((expr as GlobalSetExpr).value);
-      break;
-    case ExpressionKind.TableGet:
-      visit((expr as TableGetExpr).index);
-      break;
-    case ExpressionKind.TableSet: {
-      const e = expr as TableSetExpr;
-      visit(e.index);
-      visit(e.value);
-      break;
-    }
-    case ExpressionKind.Unary:
-      visit((expr as UnaryExpr).value);
-      break;
-    case ExpressionKind.Binary: {
-      const e = expr as BinaryExpr;
-      visit(e.left);
-      visit(e.right);
-      break;
-    }
-    case ExpressionKind.Select: {
-      const e = expr as SelectExpr;
-      visit(e.ifTrue);
-      visit(e.ifFalse);
-      visit(e.condition);
-      break;
-    }
-    case ExpressionKind.Drop:
-      visit((expr as DropExpr).value);
-      break;
-    case ExpressionKind.Load:
-      visit((expr as LoadExpr).ptr);
-      break;
-    case ExpressionKind.Store: {
-      const e = expr as StoreExpr;
-      visit(e.ptr);
-      visit(e.value);
-      break;
-    }
-    case ExpressionKind.MemoryGrow:
-      visit((expr as MemoryGrowExpr).delta);
-      break;
-    case ExpressionKind.MemoryCopy: {
-      const e = expr as MemoryCopyExpr;
-      visit(e.dest);
-      visit(e.source);
-      visit(e.size);
-      break;
-    }
-    case ExpressionKind.MemoryFill: {
-      const e = expr as MemoryFillExpr;
-      visit(e.dest);
-      visit(e.value);
-      visit(e.size);
-      break;
-    }
-    case ExpressionKind.Call:
-      for (const op of (expr as CallExpr).operands) visit(op);
-      break;
-    case ExpressionKind.CallIndirect: {
-      const e = expr as CallIndirectExpr;
-      for (const op of e.operands) visit(op);
-      visit(e.target);
-      break;
-    }
-    case ExpressionKind.RefIsNull:
-      visit((expr as RefIsNullExpr).value);
-      break;
-    case ExpressionKind.RefAs:
-      visit((expr as RefAsExpr).value);
-      break;
-    case ExpressionKind.RefEq: {
-      const e = expr as RefEqExpr;
-      visit(e.left);
-      visit(e.right);
-      break;
-    }
-    case ExpressionKind.RefI31:
-      visit((expr as RefI31Expr).value);
-      break;
-    case ExpressionKind.I31Get:
-      visit((expr as I31GetExpr).i31);
-      break;
-    case ExpressionKind.StructNew:
-      for (const op of (expr as StructNewExpr).operands) visit(op);
-      break;
-    case ExpressionKind.StructGet:
-      visit((expr as StructGetExpr).ref);
-      break;
-    case ExpressionKind.StructSet: {
-      const e = expr as StructSetExpr;
-      visit(e.ref);
-      visit(e.value);
-      break;
-    }
-    case ExpressionKind.ArrayNew: {
-      const e = expr as ArrayNewExpr;
-      if (e.init) visit(e.init);
-      visit(e.length);
-      break;
-    }
-    case ExpressionKind.ArrayNewFixed:
-      for (const v of (expr as ArrayNewFixedExpr).values) visit(v);
-      break;
-    case ExpressionKind.ArrayNewData: {
-      const e = expr as ArrayNewDataExpr;
-      visit(e.offset);
-      visit(e.length);
-      break;
-    }
-    case ExpressionKind.ArrayNewElem: {
-      const e = expr as ArrayNewElemExpr;
-      visit(e.offset);
-      visit(e.length);
-      break;
-    }
-    case ExpressionKind.ArrayGet: {
-      const e = expr as ArrayGetExpr;
-      visit(e.ref);
-      visit(e.index);
-      break;
-    }
-    case ExpressionKind.ArraySet: {
-      const e = expr as ArraySetExpr;
-      visit(e.ref);
-      visit(e.index);
-      visit(e.value);
-      break;
-    }
-    case ExpressionKind.ArrayFill: {
-      const e = expr as ArrayFillExpr;
-      visit(e.ref);
-      visit(e.index);
-      visit(e.value);
-      visit(e.size);
-      break;
-    }
-    case ExpressionKind.ArrayCopy: {
-      const e = expr as ArrayCopyExpr;
-      visit(e.destRef);
-      visit(e.destIndex);
-      visit(e.srcRef);
-      visit(e.srcIndex);
-      visit(e.size);
-      break;
-    }
-    case ExpressionKind.ArrayInitData:
-    case ExpressionKind.ArrayInitElem: {
-      const e = expr as ArrayInitDataExpr | ArrayInitElemExpr;
-      visit(e.ref);
-      visit(e.index);
-      visit(e.offset);
-      visit(e.size);
-      break;
-    }
-    case ExpressionKind.ArrayLen:
-      visit((expr as ArrayLenExpr).ref);
-      break;
-    case ExpressionKind.RefTest:
-      visit((expr as RefTestExpr).ref);
-      break;
-    case ExpressionKind.RefCast:
-      visit((expr as RefCastExpr).ref);
-      break;
-    case ExpressionKind.BrOn:
-      visit((expr as BrOnExpr).ref);
-      break;
-    case ExpressionKind.TryTable:
-      visit((expr as TryTableExpr).body);
-      break;
-    case ExpressionKind.Try: {
-      const e = expr as TryExpr;
-      visit(e.body);
-      for (const b of e.catchBodies) visit(b);
-      break;
-    }
-    case ExpressionKind.Throw:
-      for (const op of (expr as ThrowExpr).operands) visit(op);
-      break;
-    case ExpressionKind.ThrowRef:
-      visit((expr as ThrowRefExpr).exnref);
-      break;
-    case ExpressionKind.SIMDExtract:
-      visit((expr as SIMDExtractExpr).vec);
-      break;
-    case ExpressionKind.SIMDReplace: {
-      const e = expr as SIMDReplaceExpr;
-      visit(e.vec);
-      visit(e.value);
-      break;
-    }
-    case ExpressionKind.SIMDShuffle: {
-      const e = expr as SIMDShuffleExpr;
-      visit(e.left);
-      visit(e.right);
-      break;
-    }
-    case ExpressionKind.SIMDTernary: {
-      const e = expr as SIMDTernaryExpr;
-      visit(e.a);
-      visit(e.b);
-      visit(e.c);
-      break;
-    }
-    case ExpressionKind.SIMDShift: {
-      const e = expr as SIMDShiftExpr;
-      visit(e.vec);
-      visit(e.shift);
-      break;
-    }
-    case ExpressionKind.SIMDLoad:
-      visit((expr as SIMDLoadExpr).ptr);
-      break;
-    case ExpressionKind.SIMDLoadStoreLane: {
-      const e = expr as SIMDLoadStoreLaneExpr;
-      visit(e.ptr);
-      visit(e.vec);
-      break;
-    }
-    default:
-      break;
   }
 }
 

@@ -419,10 +419,10 @@ export function parseArgs(args: string[]): ParsedArgs {
       if (Number.isFinite(n) && n >= 0) result.options.partialInliningIfs = n;
     } else if (a === "--print-all-passes") {
       result.printAllPasses = true;
-    } else if (a.startsWith("--") && !RECOGNIZED_LONG_FLAGS.has(a)) {
+    } else if (a !== undefined && a.startsWith("--") && !RECOGNIZED_LONG_FLAGS.has(a)) {
       // Treat unknown --flags as pass names (e.g. --vacuum, --dce)
       passes.push(a.slice(2));
-    } else if (!a.startsWith("-")) {
+    } else if (a !== undefined && !a.startsWith("-")) {
       result.input = a;
     }
   }

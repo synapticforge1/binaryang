@@ -472,8 +472,8 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
         return makeI32Const((v << 16) >> 16);
       case UnaryOp.ReinterpretI32: {
         const buf = new ArrayBuffer(4);
-        new Int32Array(buf)[0] = v;
-        return makeI32Const(new Float32Array(buf)[0]);
+        new Int32Array(buf)[0]! = v;
+        return makeI32Const(new Float32Array(buf)[0]!);
       }
     }
   }
@@ -498,8 +498,8 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
     const v = val.f32 as number;
     if (op === UnaryOp.ReinterpretF32) {
       const buf = new ArrayBuffer(4);
-      new Float32Array(buf)[0] = v;
-      return makeI32Const(new Int32Array(buf)[0]);
+      new Float32Array(buf)[0]! = v;
+      return makeI32Const(new Int32Array(buf)[0]!);
     }
   }
 
@@ -508,8 +508,8 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
     if (op === UnaryOp.ReinterpretF64) {
       const buf = new ArrayBuffer(8);
       new Float64Array(buf)[0] = v;
-      const lo = new Int32Array(buf)[0];
-      const hi = new Int32Array(buf)[1];
+      const lo = new Int32Array(buf)[0]!;
+      const hi = new Int32Array(buf)[1]!;
       return makeI64Const(BigInt.asIntN(64, (BigInt(hi) << 32n) | BigInt(lo >>> 0)));
     }
   }

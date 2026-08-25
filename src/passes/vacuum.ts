@@ -111,11 +111,12 @@ function _simplifyBlock(
   // statement): collapsing would silently change the type the block presents to
   // its parent. In that case fall through and keep the wrapper so `block.type`
   // is preserved (as the multi-child path does below).
+  const only = filtered.length === 1 ? filtered[0] : undefined;
   if (
-    filtered.length === 1 && block.name === null &&
-    (filtered[0].type === block.type || filtered[0].type === Unreachable)
+    only !== undefined && block.name === null &&
+    (only.type === block.type || only.type === Unreachable)
   ) {
-    return filtered[0];
+    return only;
   }
 
   // No change

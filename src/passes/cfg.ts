@@ -185,7 +185,8 @@ class _CFGBuilder {
 
   resolveLabel(name: string): BasicBlock | null {
     for (let i = this.labelStack.length - 1; i >= 0; i--) {
-      if (this.labelStack[i].name === name) return this.labelStack[i].target;
+      const entry = this.labelStack[i]!; // bounded by the loop header
+      if (entry.name === name) return entry.target;
     }
     return null; // unknown label — treat as exiting the function
   }
@@ -356,9 +357,11 @@ class _CFGBuilder {
         // Catch bodies run with this try's scope popped — a throw inside a catch
         // transfers to the ENCLOSING handler (rethrow semantics), not back to
         // this try's own catch.
-        for (let i = 0; i < e.catchBodies.length; i++) {
-          this.current = catchEntries[i];
-          this.visit(e.catchBodies[i]);
+        // `catchEntries` is built one-per-catch-body directly above, so the
+        // two are the same length by construction.
+        for (const [i, body] of e.catchBodies.entries()) {
+          this.current = catchEntries[i]!;
+          this.visit(body);
           this.link(this.current, merge);
         }
 
@@ -493,7 +496,7 @@ function scanBackward(
 ): Set<number> {
   const live = new Set(liveAtEnd);
   for (let i = actions.length - 1; i >= 0; i--) {
-    const a = actions[i];
+    const a = actions[i]!; // bounded by the loop header
     if (a.kind === "get") {
       live.add(a.index);
     } else {

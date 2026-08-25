@@ -353,7 +353,7 @@ class WatModuleParser {
       const { name, params, results } = this.parseFuncType(descList);
       const internalName = name ?? `$__import_func_${this.funcNames.size}`;
       this.funcNames.set(internalName, this.funcNames.size);
-      this.funcResults.set(internalName, results.length > 0 ? results[0] : None);
+      this.funcResults.set(internalName, results[0] ?? None);
       this.builder.addFunctionImport(internalName, modName, baseName, params, results);
     } else if (head === "global") {
       // `(global $name <type>)` or `(global $name (mut <type>))`
@@ -514,7 +514,7 @@ class WatModuleParser {
       const pChildren = listChildren(p);
       // (param $name type) or (param type...)
       if (
-        pChildren.length >= 2 && pChildren[0].kind === "atom" &&
+        pChildren.length >= 2 && pChildren[0]?.kind === "atom" &&
         (pChildren[0] as Atom).token.raw.startsWith("$")
       ) {
         paramNames.set((pChildren[0] as Atom).token.raw, params.length);
@@ -539,7 +539,7 @@ class WatModuleParser {
       const l = children[idx] as SList;
       const lChildren = listChildren(l);
       if (
-        lChildren.length >= 2 && lChildren[0].kind === "atom" &&
+        lChildren.length >= 2 && lChildren[0]?.kind === "atom" &&
         (lChildren[0] as Atom).token.raw.startsWith("$")
       ) {
         localNames.set((lChildren[0] as Atom).token.raw, localIdx++);
@@ -576,12 +576,7 @@ class WatModuleParser {
       idx++;
     }
 
-    const body = bodyExprs.length === 1 ? bodyExprs[0] : {
-      kind: ExpressionKind.Block,
-      type: results[0] ?? None,
-      name: null,
-      children: bodyExprs,
-    } as BlockExpr;
+    const body = this.oneOrTypedBlock(bodyExprs, this.declaredType(results, None));
 
     this.builder.addFunction(raw.name, params, results, body, additionalLocals);
 
@@ -594,11 +589,49 @@ class WatModuleParser {
   // Expression parser
   // -------------------------------------------------------------------------
 
-  private parseExpr(s: SExpr, ctx: FuncContext): Expression {
+  /**
+   * The instruction currently being parsed, for operand diagnostics. Set and
+   * restored around every list dispatch, so it always names the instruction
+   * whose operand list is being read.
+   */
+  private _op: string | null = null;
+  private _opPos: TextPos | undefined;
+
+  private parseExpr(s: SExpr | undefined, ctx: FuncContext): Expression {
+    // Array indexing is unchecked here (`args[1]` on a one-argument list is
+    // `undefined` with no type error), so every folded handler that reaches for
+    // an operand it was not given used to die on `s.kind` with a raw TypeError
+    // and no location. Stack-form WAT — `(i32.const 1) (i32.const 2) (drop)` —
+    // hits this on every instruction whose operands are on the stack rather
+    // than nested, and is genuinely unsupported here (wabt-ts is the front door
+    // for user-authored WAT). Say so, with a position, per the contract that
+    // every failure is a typed error.
+    if (s === undefined) {
+      return this.err(
+        this._op === null
+          ? "missing operand"
+          : `missing operand for "${this._op}" (stack-form WAT is not supported here; ` +
+            `each operand must be a nested expression)`,
+        this._opPos,
+      );
+    }
     if (s.kind === "atom") {
       return this.parseAtomExpr(s as Atom, ctx);
     }
     return this.parseListExpr(s as SList, ctx);
+  }
+
+  private parseListExpr(list: SList, ctx: FuncContext): Expression {
+    const prevOp = this._op;
+    const prevPos = this._opPos;
+    this._op = listHead(list) ?? prevOp;
+    this._opPos = list.pos;
+    try {
+      return this._parseListExpr(list, ctx);
+    } finally {
+      this._op = prevOp;
+      this._opPos = prevPos;
+    }
   }
 
   private parseAtomExpr(atom: Atom, _ctx: FuncContext): Expression {
@@ -629,7 +662,7 @@ class WatModuleParser {
     this.err(`unexpected atom in expression: ${atom.token.raw}`, atom.pos);
   }
 
-  private parseListExpr(list: SList, ctx: FuncContext): Expression {
+  private _parseListExpr(list: SList, ctx: FuncContext): Expression {
     const head = listHead(list) ?? this.err("empty list in expression position", list.pos);
     const args = listChildren(list);
 
@@ -1048,7 +1081,7 @@ class WatModuleParser {
       bodyExprs.push(this.parseExpr(children[idx], innerCtx));
       idx++;
     }
-    const type: Type = results[0] ?? (bodyExprs[bodyExprs.length - 1]?.type ?? None);
+    const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
     return { kind: ExpressionKind.Block, type, name: label, children: bodyExprs };
   }
 
@@ -1075,10 +1108,8 @@ class WatModuleParser {
       bodyExprs.push(this.parseExpr(children[idx], innerCtx));
       idx++;
     }
-    const type: Type = results[0] ?? None;
-    const body: Expression = bodyExprs.length === 1
-      ? bodyExprs[0]
-      : { kind: ExpressionKind.Block, type, name: null, children: bodyExprs } as BlockExpr;
+    const type = this.declaredType(results, None);
+    const body = this.oneOrTypedBlock(bodyExprs, type);
     return { kind: ExpressionKind.Loop, type, name: label, body };
   }
 
@@ -1109,24 +1140,14 @@ class WatModuleParser {
     // then branch
     if (!isListWith(children[idx], "then")) this.err("if: expected (then ...)", list.pos);
     const thenExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, ctx));
-    const ifTrue: Expression = thenExprs.length === 1 ? thenExprs[0] : {
-      kind: ExpressionKind.Block,
-      type: results[0] ?? None,
-      name: null,
-      children: thenExprs,
-    } as BlockExpr;
+    const ifTrue: Expression = this.oneOrTypedBlock(thenExprs, this.declaredType(results, None));
     idx++;
 
     // else branch (optional)
     let ifFalse: Expression | null = null;
     if (idx < children.length && isListWith(children[idx], "else")) {
       const elseExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, ctx));
-      ifFalse = elseExprs.length === 1 ? elseExprs[0] : {
-        kind: ExpressionKind.Block,
-        type: results[0] ?? None,
-        name: null,
-        children: elseExprs,
-      } as BlockExpr;
+      ifFalse = this.oneOrTypedBlock(elseExprs, this.declaredType(results, None));
     }
 
     // Route through makeIf so the result type is the LUB of the reachable
@@ -1139,7 +1160,9 @@ class WatModuleParser {
     // when present, is honored for the value-typed case; for valid wasm it
     // equals the inferred LUB whenever neither arm is unreachable.
     const node = makeIf(condition!, ifTrue, ifFalse);
-    if (results[0] !== undefined && node.type !== Unreachable) node.type = results[0];
+    if (results.length > 0 && node.type !== Unreachable) {
+      node.type = this.declaredType(results, node.type);
+    }
     return node;
   }
 
@@ -1169,7 +1192,7 @@ class WatModuleParser {
   private parseBrTable(args: SExpr[], ctx: FuncContext, pos: TextPos): Expression {
     // Split args into leading label atoms and trailing expression operands.
     let labelEnd = 0;
-    while (labelEnd < args.length && args[labelEnd].kind === "atom") {
+    while (labelEnd < args.length && args[labelEnd]?.kind === "atom") {
       const text = (args[labelEnd] as Atom).token.raw;
       // Labels are `$name` or a plain integer literal; stop at the first list
       // (which is always an operand expression).
@@ -1181,7 +1204,9 @@ class WatModuleParser {
     }
     const labelRefs = args.slice(0, labelEnd).map((a) => atomText(a)!);
     const targets = labelRefs.slice(0, -1).map((r) => this.resolveLabel(r, ctx, pos));
-    const defaultTarget = this.resolveLabel(labelRefs[labelRefs.length - 1], ctx, pos);
+    const defaultRef = labelRefs[labelRefs.length - 1] ??
+      this.err("br_table: expected at least one label", pos);
+    const defaultTarget = this.resolveLabel(defaultRef, ctx, pos);
 
     // Remaining args are operand expressions. Last is always the condition;
     // anything before it is the optional value.
@@ -1211,7 +1236,7 @@ class WatModuleParser {
     // Catch clauses before body
     const catches: CatchClause[] = [];
     const innerCtx = this.pushLabel(label, ctx);
-    while (idx < children.length && children[idx].kind === "list") {
+    while (idx < children.length && children[idx]?.kind === "list") {
       const clauseList = children[idx] as SList;
       const clauseHead = listHead(clauseList);
       if (clauseHead === "catch" || clauseHead === "catch_ref") {
@@ -1239,10 +1264,8 @@ class WatModuleParser {
       bodyExprs.push(this.parseExpr(children[idx], innerCtx));
       idx++;
     }
-    const type: Type = results[0] ?? (bodyExprs[bodyExprs.length - 1]?.type ?? None);
-    const body: Expression = bodyExprs.length === 1
-      ? bodyExprs[0]
-      : { kind: ExpressionKind.Block, type, name: null, children: bodyExprs } as BlockExpr;
+    const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
+    const body = this.oneOrTypedBlock(bodyExprs, type);
     return makeTryTable(label, body, catches, type);
   }
 
@@ -1269,7 +1292,7 @@ class WatModuleParser {
       idx++;
     } else {
       while (idx < children.length) {
-        const child = children[idx];
+        const child = children[idx]!; // bounded by the `while` condition
         if (child.kind === "list") {
           const h = listHead(child as SList);
           if (h === "catch" || h === "catch_all" || h === "delegate") break;
@@ -1278,13 +1301,8 @@ class WatModuleParser {
         idx++;
       }
     }
-    const bodyType: Type = results[0] ?? (bodyExprs[bodyExprs.length - 1]?.type ?? None);
-    const body: Expression = bodyExprs.length === 1 ? bodyExprs[0] : {
-      kind: ExpressionKind.Block,
-      type: bodyType,
-      name: null,
-      children: bodyExprs,
-    } as BlockExpr;
+    const bodyType = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
+    const body: Expression = this.oneOrTypedBlock(bodyExprs, bodyType);
     // Catch / catch_all / delegate clauses
     const catchTags: string[] = [];
     const catchBodies: Expression[] = [];
@@ -1299,12 +1317,7 @@ class WatModuleParser {
         catchTags.push(tagName);
         const catchExprs = clauseArgs.slice(1).map((e) => this.parseExpr(e, innerCtx));
         catchBodies.push(
-          catchExprs.length === 1 ? catchExprs[0] : {
-            kind: ExpressionKind.Block,
-            type: bodyType,
-            name: null,
-            children: catchExprs,
-          } as BlockExpr,
+          this.oneOrTypedBlock(catchExprs, bodyType),
         );
         idx++;
       } else if (clauseHead === "catch_all") {
@@ -1312,12 +1325,7 @@ class WatModuleParser {
         const clauseArgs = listChildren(clause);
         const catchExprs = clauseArgs.map((e) => this.parseExpr(e, innerCtx));
         catchBodies.push(
-          catchExprs.length === 1 ? catchExprs[0] : {
-            kind: ExpressionKind.Block,
-            type: bodyType,
-            name: null,
-            children: catchExprs,
-          } as BlockExpr,
+          this.oneOrTypedBlock(catchExprs, bodyType),
         );
         idx++;
       } else if (clauseHead === "delegate") {
@@ -1420,7 +1428,7 @@ class WatModuleParser {
     let offset = 0, align = 0, bytes: 1 | 2 | 4 | 8 | 16 = 4;
     let argIdx = 0;
     // offset= and align= keywords
-    while (argIdx < args.length && args[argIdx].kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
       const raw = (args[argIdx] as Atom).token.raw;
       if (raw.startsWith("offset=")) {
         offset = parseInt(raw.slice(7));
@@ -1443,7 +1451,7 @@ class WatModuleParser {
   private parseStore(head: string, _list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
     let offset = 0, align = 0;
     let argIdx = 0;
-    while (argIdx < args.length && args[argIdx].kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
       const raw = (args[argIdx] as Atom).token.raw;
       if (raw.startsWith("offset=")) {
         offset = parseInt(raw.slice(7));
@@ -1500,7 +1508,7 @@ class WatModuleParser {
     // First 16 atoms are the mask bytes, then two expression operands
     const mask = new Uint8Array(16);
     let i = 0;
-    while (i < args.length && i < 16 && args[i].kind === "atom") {
+    while (i < args.length && i < 16 && args[i]?.kind === "atom") {
       mask[i] = Number(atomInt(args[i] as Atom) ?? 0) & 0xff;
       i++;
     }
@@ -1542,7 +1550,7 @@ class WatModuleParser {
   private parseSIMDLoad(head: string, args: SExpr[], ctx: FuncContext): SIMDLoadExpr {
     // (v128.load8x8_s [offset=N] [align=N] <ptr>)
     let offset = 0, align = 0, argIdx = 0;
-    while (argIdx < args.length && args[argIdx].kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
       const raw = (args[argIdx] as Atom).token.raw;
       if (raw.startsWith("offset=")) {
         offset = parseInt(raw.slice(7));
@@ -1566,7 +1574,7 @@ class WatModuleParser {
     // We accept lane as the first non-memarg integer, then memargs, then ptr, vec
     let offset = 0, align = 0, argIdx = 0;
     // Skip any leading memargs
-    while (argIdx < args.length && args[argIdx].kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
       const raw = (args[argIdx] as Atom).token.raw;
       if (raw.startsWith("offset=")) {
         offset = parseInt(raw.slice(7));
@@ -1584,7 +1592,7 @@ class WatModuleParser {
     const lane = Number(atomInt(args[argIdx] as Atom) ?? 0);
     argIdx++;
     // Skip any trailing memargs
-    while (argIdx < args.length && args[argIdx].kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
       const raw = (args[argIdx] as Atom).token.raw;
       if (raw.startsWith("offset=")) {
         offset = parseInt(raw.slice(7));
@@ -1694,7 +1702,7 @@ class WatModuleParser {
     const tableIndex = this.tableNames.size;
     if (name) this.tableNames.set(name, tableIndex);
     const initial = Number(atomInt(children[idx]) ?? 0);
-    const max = children[idx + 1] && children[idx + 1].kind === "atom"
+    const max = children[idx + 1]?.kind === "atom"
       ? (Number(atomInt(children[idx + 1])) || null)
       : null;
     const refType = max !== null
@@ -1764,7 +1772,7 @@ class WatModuleParser {
     if (idx < children.length && isListWith(children[idx], "memory")) idx++;
     // Optional offset expression: (offset ...) or (i32.const ...)
     let offset: Expression | null = null;
-    if (idx < children.length && children[idx].kind === "list") {
+    if (idx < children.length && children[idx]?.kind === "list") {
       const child = children[idx] as SList;
       const head = listHead(child);
       if (head === "offset" || head === "i32.const") {
@@ -1983,8 +1991,14 @@ class WatModuleParser {
     return { type: this.parseStorageTypeSExpr(children[0]), mutable: false };
   }
 
-  private parseStorageTypeSExpr(s: SExpr): StorageType {
-    if (!s) return ValType.I32;
+  private parseStorageTypeSExpr(s: SExpr | undefined): StorageType {
+    // `if (!s) return ValType.I32` used to sit here: a field declared with no
+    // type silently became `i32`, changing the struct/array layout rather than
+    // reporting the malformed input. The signature also lied about it, claiming
+    // an `SExpr` while the body tested for absence.
+    if (s === undefined) {
+      return this.err("expected a storage type, found nothing", this._opPos);
+    }
     const raw = atomText(s);
     if (raw === "i8") return "i8";
     if (raw === "i16") return "i16";
@@ -2034,11 +2048,13 @@ class WatModuleParser {
   // Value type parsing
   // -------------------------------------------------------------------------
 
-  private parseValType(s: SExpr): ValueType {
+  private parseValType(s: SExpr | undefined): ValueType {
+    if (s === undefined) return this.err("expected a value type, found nothing", this._opPos);
     return this.tryParseValType(s) ?? this.err(`unknown value type: ${sExprToString(s)}`, s.pos);
   }
 
-  private tryParseValType(s: SExpr): ValueType | null {
+  private tryParseValType(s: SExpr | undefined): ValueType | null {
+    if (s === undefined) return null;
     // Handle (ref ...) and (ref null ...) list forms
     if (s.kind === "list") {
       const l = s as SList;
@@ -2120,7 +2136,7 @@ class WatModuleParser {
    *  the table reference; otherwise default to the first defined table.
    *  Returns the table name and the unconsumed remaining args. */
   private _takeOptionalTableRef(args: SExpr[]): { table: string; rest: SExpr[] } {
-    if (args.length > 0 && args[0].kind === "atom") {
+    if (args.length > 0 && args[0]?.kind === "atom") {
       const raw = (args[0] as Atom).token.raw;
       if (raw.startsWith("$") && this.tableNames.has(raw)) {
         return { table: raw, rest: args.slice(1) };
@@ -2197,6 +2213,32 @@ class WatModuleParser {
       this.err(`expected (${head} ...) but got (${listHead(s as SList)} ...)`, s.pos);
     }
     return s as SList;
+  }
+
+  /**
+   * The type a `(result ...)` annotation declares.
+   *
+   * `results[0]` alone silently TRUNCATED a multi-result construct to its first
+   * result: `(block (result i32 i32) ...)` produced a block typed `i32`, which
+   * the encoder then emitted with a single-result blocktype while the body
+   * pushed two — "expected 1 elements on the stack for fallthru, found 2" from a
+   * legal input. The IR has carried tuple types since multi-value landed, so a
+   * multi-result annotation becomes the array.
+   */
+  /**
+   * One expression from a body list: the single expression when there is
+   * exactly one, an anonymous block of the declared type otherwise. The WAT
+   * side needs the type stamped explicitly (the decoder's `oneOrBlock` lets
+   * `makeBlock` infer it), which is why this is a separate helper.
+   */
+  private oneOrTypedBlock(exprs: Expression[], type: Type): Expression {
+    if (exprs.length === 1) return exprs[0]!;
+    return { kind: ExpressionKind.Block, type, name: null, children: exprs } as BlockExpr;
+  }
+
+  private declaredType(results: ValueType[], fallback: Type): Type {
+    if (results.length > 1) return results;
+    return results[0] ?? fallback;
   }
 
   private err(msg: string, pos?: TextPos): never {

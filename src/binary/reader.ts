@@ -71,21 +71,28 @@ export class BinaryReader {
 
   // ---------------------------------------------------------------------------
   // Raw reads
+  //
+  // The `!` on each `this.bytes[...]` below is load-bearing but provable: every
+  // one of these reads is preceded by a `checkBounds(n)` that THROWS, on the
+  // line directly above, for exactly the byte count the read consumes. That is
+  // the only shape in which a non-null assertion is acceptable here — the bound
+  // is visible in the same function. Anywhere the invariant is further away
+  // than that, guard or throw instead (see cmem/best-practices.md 2c).
   // ---------------------------------------------------------------------------
 
   /** Read one byte as an unsigned 8-bit integer. */
   readU8(): number {
     this.checkBounds(1);
-    return this.bytes[this.pos++];
+    return this.bytes[this.pos++]!;
   }
 
   /** Read four bytes as a little-endian fixed-width unsigned 32-bit integer. */
   readU32Fixed(): number {
     this.checkBounds(4);
-    const v = this.bytes[this.pos] |
-      (this.bytes[this.pos + 1] << 8) |
-      (this.bytes[this.pos + 2] << 16) |
-      (this.bytes[this.pos + 3] << 24);
+    const v = this.bytes[this.pos]! |
+      (this.bytes[this.pos + 1]! << 8) |
+      (this.bytes[this.pos + 2]! << 16) |
+      (this.bytes[this.pos + 3]! << 24);
     this.pos += 4;
     return v >>> 0;
   }
@@ -209,7 +216,7 @@ export class BinaryReader {
   /** Peek at the next byte without advancing. */
   peekU8(): number {
     this.checkBounds(1);
-    return this.bytes[this.pos];
+    return this.bytes[this.pos]!; // bounds-checked on the line above
   }
 
   /** Skip `n` bytes. */

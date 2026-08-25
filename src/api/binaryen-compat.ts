@@ -268,7 +268,7 @@ function _idToValTypeArray(id: number | number[]): ValType[] {
  */
 export function createType(types: number[]): number | number[] {
   if (types.length === 0) return none;
-  if (types.length === 1) return types[0];
+  if (types.length === 1) return types[0]!;
   return types;
 }
 
@@ -1348,14 +1348,14 @@ export class Module {
   /** `call $target operands` — direct call. */
   call(target: string, operands: Expression[], returnType: number | number[]): Expression {
     const resultVts = _idToValTypeArray(returnType);
-    const resultType: Type = resultVts.length > 0 ? resultVts[0] : None;
+    const resultType: Type = resultVts[0] ?? None;
     return makeCall(target, operands, resultType);
   }
 
   /** `return_call $target operands` — tail call (returns directly from caller). */
   return_call(target: string, operands: Expression[], returnType: number | number[]): Expression {
     const resultVts = _idToValTypeArray(returnType);
-    const resultType: Type = resultVts.length > 0 ? resultVts[0] : None;
+    const resultType: Type = resultVts[0] ?? None;
     return makeCall(target, operands, resultType, true);
   }
 

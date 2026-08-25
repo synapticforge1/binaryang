@@ -1,0 +1,21 @@
+{
+  // Workspace member that exists ONLY to scope one compiler option.
+  //
+  // `noUncheckedIndexedAccess` is on at the repo root: in `src/`, an unchecked
+  // index that turns out to be `undefined` becomes wrong bytes in a .wasm file,
+  // which is this project's worst failure mode. In a test it becomes a failed
+  // assertion — the test doing its job — so the ~420 `mod.functions[0]!` edits
+  // it would demand here are churn against files whose purpose is to break
+  // loudly. Turned off for the test tree, on everywhere that ships.
+  //
+  // It must be stated EXPLICITLY as `false`. A workspace member INHERITS the
+  // root's `compilerOptions` and merges its own over them, so omitting the key
+  // leaves the root's `true` in force — the member config is read either way,
+  // which makes the omission look like it works until you check.
+  //
+  // Deliberately not a JSR package: no `name`, `version` or `exports`, so
+  // `deno publish` at the root still publishes only `@jrmarcum/binaryen-ts`.
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false
+  }
+}

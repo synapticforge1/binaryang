@@ -124,13 +124,13 @@ function _coalesceFunction(fn: WasmFunction): void {
 
   let nextSlot = numParams;
   for (let local = numParams; local < numLocals; local++) {
-    const myType = fn.locals[local].type;
+    const myType = fn.locals[local]!.type; // local < numLocals === fn.locals.length
     let assigned = -1;
     // Try existing non-param slots in order.
     for (let slot = numParams; slot < nextSlot; slot++) {
       const members = slotMembers.get(slot)!;
       // Type must match (slots are typed).
-      if (fn.locals[members[0]].type !== myType) continue;
+      if (fn.locals[members[0]!]!.type !== myType) continue; // slots always have members
       let ok = true;
       for (const m of members) {
         if (interferes.get(m, local)) {
@@ -164,12 +164,22 @@ function _coalesceFunction(fn: WasmFunction): void {
     const newLocals = new Array(nextSlot);
     for (let i = 0; i < numParams; i++) newLocals[i] = fn.locals[i];
     for (let i = numParams; i < numLocals; i++) {
-      newLocals[mapping[i]] = fn.locals[i];
+      newLocals[mapping[i]!] = fn.locals[i]!;
     }
-    // Defensive: fill any gaps (shouldn't happen — every slot from numParams
-    // to nextSlot-1 was allocated by the loop above).
+    // Every slot from numParams to nextSlot-1 was allocated by the loop above,
+    // so a gap is an invariant violation in the colouring. Filling it with an
+    // arbitrary other local's type (the old `fn.locals[numParams] ?? fn.locals[0]`)
+    // would hand the slot the WRONG TYPE and encode a different program —
+    // exactly the guessed-default shape the robustness contract forbids. A
+    // "can't happen" that silently miscompiles when it does happen is worse
+    // than a throw.
     for (let i = numParams; i < nextSlot; i++) {
-      if (!newLocals[i]) newLocals[i] = fn.locals[numParams] ?? fn.locals[0];
+      if (!newLocals[i]) {
+        throw new Error(
+          `CoalesceLocals: slot ${i} of ${nextSlot} was never assigned a local in ` +
+            `function ${fn.name} — interference colouring left a gap`,
+        );
+      }
     }
     fn.locals = newLocals;
   }
@@ -187,7 +197,7 @@ function _classifyActions(
 ): void {
   const live = new Set(liveAtEnd);
   for (let i = actions.length - 1; i >= 0; i--) {
-    const a = actions[i];
+    const a = actions[i]!; // bounded by the loop header
     if (a.kind === "get") {
       if (!live.has(a.index)) {
         endsLiveRange.add(a.origin);
@@ -318,20 +328,21 @@ function _rewriteBody(
     if (e.kind === ExpressionKind.LocalSet) {
       // `e.value` here is already the post-rewrite (renamed) value subtree.
       if (_isIneffective(e)) return makeDrop(e.value);
-      if (mapping[e.index] !== e.index) return { ...e, index: mapping[e.index] };
+      const slot = mapping[e.index];
+      if (slot !== undefined && slot !== e.index) return { ...e, index: slot };
       return e;
     }
     if (e.kind === ExpressionKind.LocalTee) {
       // Tee both writes and pushes the value. If the write is ineffective,
       // the tee degrades to just the (already-rewritten) value.
       if (_isIneffective(e)) return e.value;
-      if (mapping[e.index] !== e.index) return { ...e, index: mapping[e.index] };
+      const slot = mapping[e.index];
+      if (slot !== undefined && slot !== e.index) return { ...e, index: slot };
       return e;
     }
     if (e.kind === ExpressionKind.LocalGet) {
-      if (e.index < mapping.length && mapping[e.index] !== e.index) {
-        return { ...e, index: mapping[e.index] };
-      }
+      const slot = mapping[e.index];
+      if (slot !== undefined && slot !== e.index) return { ...e, index: slot };
     }
     return e;
   });

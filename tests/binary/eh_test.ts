@@ -13,12 +13,13 @@
  * @license MIT
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { parseWasm } from "../../src/binary/index.ts";
 import { encodeWasm } from "../../src/encoder/index.ts";
 import { ExpressionKind } from "../../src/ir/expressions.ts";
-import type { ThrowExpr, ThrowRefExpr, TryTableExpr } from "../../src/ir/expressions.ts";
+import type { BlockExpr, ThrowExpr, ThrowRefExpr, TryTableExpr } from "../../src/ir/expressions.ts";
 import { ValType } from "../../src/ir/types.ts";
+import { walkExpression } from "../../src/ir/walk.ts";
 import { PassRunner } from "../../src/passes/pass.ts";
 import "../../src/passes/index.ts"; // side-effect: register all built-in passes
 
@@ -636,4 +637,189 @@ Deno.test("EH optimize: catch binding dead tag params stays valid after full -Oz
     .addDefaultOptimizationPasses()
     .run();
   await WebAssembly.compile(encodeWasm(mod) as BufferSource);
+});
+
+// ---------------------------------------------------------------------------
+// try_table catch destinations are resolved in the ENCLOSING scope
+//
+// (module
+//   (tag $e (param i32))
+//   (func (export "f") (result i32)
+//     (block $outer (result i32)
+//       (block $inner (result i32 i32)
+//         (try_table (catch $e $outer) (i32.const 7) (throw $e))
+//         (i32.const 0) (i32.const 0))
+//       drop)))
+//
+// A `try_table`'s own label is NOT in scope for its handlers, so the encoded
+// depth `1` names `$outer`, not `$inner`. V8 confirms the reading rather than
+// echoing our convention back at us: the tag carries one value, `$outer` takes
+// one and `$inner` takes two, so only one of the two readings type-checks.
+//
+// The decoder used to push the try_table frame BEFORE resolving those depths,
+// shifting every handler one frame too deep; the encoder pushed the same
+// phantom label, so the round-trip came out byte-identical and hid it.
+// ---------------------------------------------------------------------------
+
+const NESTED_CATCH_BODY = [
+  0x00,
+  0x02,
+  0x01, // block $outer (result i32)
+  0x02,
+  0x02, // block $inner (result i32 i32)
+  0x1f,
+  0x40,
+  0x01,
+  0x00,
+  0x00,
+  0x01, // try_table (void) catch $e -> depth 1
+  0x41,
+  0x07,
+  0x08,
+  0x00, // i32.const 7; throw $e
+  0x0b, // end try_table
+  0x41,
+  0x00,
+  0x41,
+  0x00,
+  0x0b, // end $inner
+  0x1a, // drop
+  0x0b, // end $outer
+  0x0b, // end func
+];
+
+const NESTED_CATCH_TARGET = module(
+  section(
+    0x01,
+    0x03,
+    0x60,
+    0x01,
+    0x7f,
+    0x00, // 0: tag sig  (i32) -> ()
+    0x60,
+    0x00,
+    0x01,
+    0x7f, // 1: $outer   () -> (i32)
+    0x60,
+    0x00,
+    0x02,
+    0x7f,
+    0x7f, // 2: $inner () -> (i32 i32)
+  ),
+  section(0x03, 0x01, 0x01),
+  section(0x0d, 0x01, 0x00, 0x00),
+  section(0x07, 0x01, 0x01, 0x66, 0x00, 0x00),
+  section(0x0a, 0x01, NESTED_CATCH_BODY.length, ...NESTED_CATCH_BODY),
+);
+
+async function runF(bytes: Uint8Array): Promise<unknown> {
+  const buf = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buf).set(bytes);
+  const { instance } = await WebAssembly.instantiate(buf, {});
+  return (instance.exports.f as () => unknown)();
+}
+
+Deno.test("try_table: a catch destination names the ENCLOSING frame, not the try_table", async () => {
+  assertEquals(await runF(NESTED_CATCH_TARGET), 7);
+
+  const mod = parseWasm(NESTED_CATCH_TARGET);
+  const blocks: BlockExpr[] = [];
+  let tt: TryTableExpr | null = null;
+  walkExpression(mod.functions[0].body, (e) => {
+    if (e.kind === ExpressionKind.Block) blocks.push(e as BlockExpr);
+    if (e.kind === ExpressionKind.TryTable) tt = e as TryTableExpr;
+  });
+  // Outermost first: `$outer` yields one value, `$inner` two.
+  const [outer, inner] = blocks;
+  assertEquals(outer.type, ValType.I32);
+  assertEquals(inner.type, [ValType.I32, ValType.I32]);
+  assert(tt !== null, "no try_table decoded");
+
+  // The handler targets `$outer`. Resolving one frame too deep named `$inner`;
+  // resolving inside the try_table's own frame named the try_table itself.
+  assertEquals((tt as TryTableExpr).catches[0].dest, outer.name);
+
+  assertEquals(await runF(encodeWasm(mod)), 7);
+});
+
+// ---------------------------------------------------------------------------
+// A block label referenced ONLY by a catch destination
+//
+// (module
+//   (tag $e (param i32 i32))
+//   (func (export "f") (result i32)
+//     (block $h (result i32 i32)
+//       (try_table (catch $e $h) (i32.const 11) (i32.const 22) (throw $e))
+//       (i32.const 0) (i32.const 0))
+//     i32.add))
+//
+// This is the shape wasic emits: a two-param tag hands both values to the
+// handler as the results of the enclosing block, which has no single-value
+// spelling. Nothing in the tree `br`s to `$h`, so a pass that counts only
+// `br` / `br_if` / `br_table` sees an unused label and strips it — leaving the
+// encoder a dangling catch destination.
+// ---------------------------------------------------------------------------
+
+const CATCH_ONLY_BODY = [
+  0x00,
+  0x02,
+  0x02, // block $h (result i32 i32)
+  0x1f,
+  0x40,
+  0x01,
+  0x00,
+  0x00,
+  0x00, // try_table (void) catch $e -> $h
+  0x41,
+  0x0b,
+  0x41,
+  0x16,
+  0x08,
+  0x00, // i32.const 11; i32.const 22; throw $e
+  0x0b, // end try_table
+  0x41,
+  0x00,
+  0x41,
+  0x00,
+  0x0b, // end $h
+  0x6a, // i32.add
+  0x0b, // end func
+];
+
+const CATCH_ONLY_LABEL = module(
+  section(
+    0x01,
+    0x03,
+    0x60,
+    0x02,
+    0x7f,
+    0x7f,
+    0x00, // 0: tag sig (i32 i32) -> ()
+    0x60,
+    0x00,
+    0x01,
+    0x7f, // 1: func () -> (i32)
+    0x60,
+    0x00,
+    0x02,
+    0x7f,
+    0x7f, // 2: $h   () -> (i32 i32)
+  ),
+  section(0x03, 0x01, 0x01),
+  section(0x0d, 0x01, 0x00, 0x00),
+  section(0x07, 0x01, 0x01, 0x66, 0x00, 0x00),
+  section(0x0a, 0x01, CATCH_ONLY_BODY.length, ...CATCH_ONLY_BODY),
+);
+
+Deno.test("try_table: a label used only as a catch destination survives -Oz", async () => {
+  assertEquals(await runF(CATCH_ONLY_LABEL), 33);
+  assertEquals(await runF(encodeWasm(parseWasm(CATCH_ONLY_LABEL))), 33);
+
+  const mod = parseWasm(CATCH_ONLY_LABEL);
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
+    .addDefaultOptimizationPasses()
+    .run();
+  // Without RemoveUnusedNames counting catch destinations this throws
+  // `unresolved branch label` at encode time.
+  assertEquals(await runF(encodeWasm(mod)), 33);
 });

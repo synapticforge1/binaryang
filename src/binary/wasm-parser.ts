@@ -185,7 +185,11 @@ interface TagInfo {
 }
 
 interface DecoderCtx {
-  funcTypes: FuncType[];
+  // Index-for-index with the type section. A struct/array entry is `null`:
+  // it used to hold a placeholder `() -> ()`, which was indistinguishable from
+  // a real one, so a call naming a struct index popped ZERO operands and built
+  // a zero-arity call node instead of failing.
+  funcTypes: (FuncType | null)[];
   heapTypeDefs: TypeDef[];
   importedFuncCount: number;
   importedFuncTypeIndices: number[];
@@ -517,7 +521,7 @@ interface BlockSignature {
   results: ValueType[];
 }
 
-function readBlockType(r: BinaryReader, funcTypes: FuncType[]): BlockSignature {
+function readBlockType(r: BinaryReader, funcTypes: (FuncType | null)[]): BlockSignature {
   const b = r.peekU8();
   if (b === 0x40) {
     r.readU8();
@@ -544,10 +548,36 @@ function readBlockType(r: BinaryReader, funcTypes: FuncType[]): BlockSignature {
   // the same stance the whole pipeline takes on constructs it cannot represent.
   const typeIdx = r.readI32();
   const ft = funcTypes[typeIdx];
-  if (ft === undefined) {
-    return r.error(`block type index ${typeIdx} is out of range`);
+  if (ft == null) {
+    return r.error(
+      ft === undefined
+        ? `block type index ${typeIdx} is out of range`
+        : `block type index ${typeIdx} is not a function type`,
+    );
   }
   return { params: [...ft.params], results: [...ft.results] };
+}
+
+/**
+ * Resolves a type-section index to a FUNCTION type, or throws.
+ *
+ * The `?? { params: [], results: [] }` this replaces was the WT-2b
+ * "call need N got M" shape arriving from a different direction: an
+ * out-of-range index (or one naming a struct/array entry) yielded an empty
+ * signature, so the decoder popped no operands and built a call node of the
+ * wrong arity — a different program, decoded without a diagnostic.
+ */
+function funcTypeAt(
+  funcTypes: (FuncType | null)[],
+  idx: number | undefined,
+  r: BinaryReader,
+  what: string,
+): FuncType {
+  if (idx === undefined) return r.error(`${what}: no type index`);
+  const ft = funcTypes[idx];
+  if (ft === undefined) return r.error(`${what}: type index ${idx} is out of range`);
+  if (ft === null) return r.error(`${what}: type index ${idx} is not a function type`);
+  return ft;
 }
 
 function readMemArg(r: BinaryReader): { align: number; offset: number } {
@@ -556,10 +586,34 @@ function readMemArg(r: BinaryReader): { align: number; offset: number } {
   return { align, offset };
 }
 
+/**
+ * The innermost open control frame, or a typed error.
+ *
+ * Every `frames[frames.length - 1]` was an unchecked read whose result was then
+ * dereferenced repeatedly (`frame.kind`, `frame.exprs`, `frame.tryBody`, …), so
+ * one malformed instruction stream — an `end` with no matching frame, a `catch`
+ * outside a `try` — produced a raw `TypeError` from deep inside the decoder
+ * with no offset and no diagnostic. Reading through here makes the whole
+ * cluster a single `WasmBinaryError`.
+ */
+function topFrame(frames: ControlFrame[], r: BinaryReader): ControlFrame {
+  const f = frames[frames.length - 1];
+  if (f === undefined) return r.error("control frame stack underflow");
+  return f;
+}
+
+/** { topFrame}, popping it. */
+function popFrame(frames: ControlFrame[], r: BinaryReader): ControlFrame {
+  const f = frames.pop();
+  if (f === undefined) return r.error("control frame stack underflow");
+  return f;
+}
+
 function resolveLabel(frames: ControlFrame[], depth: number): string {
   const idx = frames.length - 1 - depth;
-  if (idx < 0) return `$label${depth}`;
-  return frames[idx].label;
+  const frame = frames[idx];
+  if (frame === undefined) return `$label${depth}`;
+  return frame.label;
 }
 
 /**
@@ -573,8 +627,8 @@ function resolveLabel(frames: ControlFrame[], depth: number): string {
  */
 function _branchValueArity(frames: ControlFrame[], depth: number): number {
   const idx = frames.length - 1 - depth;
-  if (idx < 0) return 0;
   const target = frames[idx];
+  if (target === undefined) return 0;
   // Branching to a loop jumps to its ENTRY, so it consumes the loop's
   // PARAMETERS (0 for an MVP loop, N for a parametrised one) — never its
   // results. Every other frame consumes its result arity.
@@ -605,9 +659,35 @@ function _branchValue(
   return makeTupleMake(vals);
 }
 
+/**
+ * One expression from a body list: the single expression when there is exactly
+ * one, an anonymous block otherwise.
+ *
+ * This ternary was written out a dozen times across the decoder before it had a
+ * name. The `!` is safe and stays legible because the length check that
+ * guarantees it is the condition of the same expression.
+ */
+/** { oneOrBlock} for a branch VALUE: one expression, or a `tuple.make`. */
+function oneOrTuple(exprs: Expression[]): Expression {
+  return exprs.length === 1 ? exprs[0]! : makeTupleMake(exprs);
+}
+
+function oneOrBlock(exprs: Expression[]): Expression {
+  return exprs.length === 1 ? exprs[0]! : makeBlock(exprs, null);
+}
+
+/**
+ * The `Type` a result-type list denotes: `None` for empty, the scalar for one,
+ * the tuple itself for many. Same story — four copies, one meaning.
+ */
+function resultTypeOf(results: ValueType[]): Type {
+  if (results.length === 0) return None;
+  return results.length === 1 ? results[0]! : results;
+}
+
 function sealFrame(frame: ControlFrame, resultType: Type): Expression {
   if (frame.exprs.length === 0) return makeNop();
-  if (frame.exprs.length === 1) return frame.exprs[0];
+  if (frame.exprs.length === 1) return frame.exprs[0]!;
   // The wrapper block is an artificial container for a multi-expression body;
   // it must be ANONYMOUS. Callers (`loop`, `try_table`) re-apply `frame.label`
   // to the enclosing construct (`makeLoop(frame.label, body, ...)`), so reusing
@@ -637,7 +717,7 @@ function sealFrame(frame: ControlFrame, resultType: Type): Expression {
 class WasmParser {
   private readonly r: BinaryReader;
   private readonly builder = new ModuleBuilder();
-  private funcTypes: FuncType[] = [];
+  private funcTypes: (FuncType | null)[] = [];
   private heapTypeDefs: TypeDef[] = [];
   private importedFuncCount = 0;
   private importedFuncTypeIndices: number[] = [];
@@ -733,7 +813,14 @@ class WasmParser {
           this.readCustomSection(start, end);
           break;
         default:
-          this.r.seek(end);
+          // Skipping an unknown section id dropped it from the re-encoded
+          // module with no diagnostic — the same shape as the start section
+          // above, which came back "valid wasm, wrong behaviour" until it was
+          // materialized. A section this decoder does not know is a construct
+          // the module needs, so refuse rather than emit a quietly different
+          // program. (Custom sections, id 0, have their own case and are a
+          // documented drop.)
+          this.r.error(`unknown section id ${id}`);
           break;
       }
 
@@ -802,13 +889,13 @@ class WasmParser {
       const fields: FieldType[] = [];
       for (let j = 0; j < fieldCount; j++) fields.push(this.readFieldType());
       this.heapTypeDefs.push({ kind: "struct", fields });
-      this.funcTypes.push({ params: [], results: [] }); // placeholder to keep indices aligned
+      this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
     }
     if (tag === 0x5e) { // array type
       const element = this.readFieldType();
       this.heapTypeDefs.push({ kind: "array", element });
-      this.funcTypes.push({ params: [], results: [] }); // placeholder
+      this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
     }
     // Unknown type form — skip gracefully via error (will be caught by caller)
@@ -826,7 +913,7 @@ class WasmParser {
       switch (kind) {
         case 0x00: { // function
           const typeIdx = this.r.readU32();
-          const ft = this.funcTypes[typeIdx];
+          const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, "imported function");
           // Imported functions occupy the low end of the single function index
           // space (global indices 0..importedFuncCount-1), so they MUST share
           // the `$func${globalIndex}` naming used by every reference site —
@@ -873,7 +960,7 @@ class WasmParser {
         case 0x04: { // tag (EH proposal)
           this.r.readU8(); // reserved attribute byte (must be 0)
           const typeIdx = this.r.readU32();
-          const ft = this.funcTypes[typeIdx] ?? { params: [], results: [] };
+          const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, "imported tag");
           // Imported tags occupy the low end of the tag index space, so they
           // MUST share the `$tag${globalIndex}` naming every reference site
           // uses (throw / catch / try_table / tag exports). Naming them on a
@@ -1080,7 +1167,7 @@ class WasmParser {
       const bodyEnd = bodyStart + bodySize;
       const funcIdx = this.importedFuncCount + i;
       const typeIdx = this.funcTypeIndices[i];
-      const ft = this.funcTypes[typeIdx];
+      const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, `function body ${i}`);
       const bodyReader = this.r.slice(bodyStart, bodyEnd);
       const fn = this.decodeFunction(bodyReader, ft, funcIdx, ctx);
       this.builder.addFunction(
@@ -1125,7 +1212,7 @@ class WasmParser {
     for (let i = 0; i < count; i++) {
       this.r.readU8(); // reserved attribute byte (must be 0)
       const typeIdx = this.r.readU32();
-      const ft = this.funcTypes[typeIdx] ?? { params: [], results: [] };
+      const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, `tag ${this.tagInfos.length}`);
       this.tagInfos.push({
         name: `$tag${this.importedTagCount + this.tagInfos.length}`,
         params: ft.params,
@@ -1221,11 +1308,11 @@ class WasmParser {
     });
 
     const push = (e: Expression): void => {
-      frames[frames.length - 1].exprs.push(e);
+      topFrame(frames, r).exprs.push(e);
     };
 
     const pop = (): Expression => {
-      const exprs = frames[frames.length - 1].exprs;
+      const exprs = topFrame(frames, r).exprs;
       // The operand stack and the statement list share one array. A value
       // consumer must pop the topmost *value-producing* expression — not a
       // `none`-typed statement (nop / local.set / store / void call) that the
@@ -1240,13 +1327,13 @@ class WasmParser {
       // lets the consumer reach the real `Pop`. In well-formed straight-line
       // code values are always on top, so this is a no-op there.
       for (let i = exprs.length - 1; i >= 0; i--) {
-        if (exprs[i].type !== None) {
+        if (exprs[i]!.type !== None) { // bounded by the loop header
           // A `Pop` is a stack PLACEHOLDER (a multi-value call's extra result or
           // a catch's exception param) that encodes to NOTHING — it must be
           // consumed in place, never spilled (`local.set (pop)` would leave the
           // set with no stack value). Splice it directly, as before.
-          if (i === exprs.length - 1 || exprs[i].kind === "pop") {
-            return exprs.splice(i, 1)[0];
+          if (i === exprs.length - 1 || exprs[i]!.kind === "pop") {
+            return exprs.splice(i, 1)[0]!;
           }
           // The value sits BELOW ≥1 statement. Returning it directly would move
           // it AFTER those statements in the reconstructed tree — CORRECT only
@@ -1263,7 +1350,7 @@ class WasmParser {
           // POSITION and read it back — exactly what the source's own local did —
           // so evaluation order is preserved. (A later CoalesceLocals/Vacuum pass
           // elides the temp where it turns out to be reorder-safe.)
-          const val = exprs[i];
+          const val = exprs[i]!;
           const tmp = locals.length;
           locals.push({ type: val.type as ValType });
           exprs[i] = makeLocalSet(tmp, val);
@@ -1335,12 +1422,14 @@ class WasmParser {
       for (let i = 0; i < params.length; i++) vals.unshift(pop());
       const reads: Expression[] = [];
       const slots: number[] = [];
-      for (let i = 0; i < params.length; i++) {
+      // `vals` was filled with exactly `params.length` entries on the line above,
+      // so `vals[i]!` is bounded by the loop it shares with `params`.
+      for (const [i, ptype] of params.entries()) {
         const tmp = locals.length;
-        locals.push({ type: params[i] });
+        locals.push({ type: ptype });
         slots.push(tmp);
-        push(makeLocalSet(tmp, vals[i]));
-        reads.push(makeLocalGet(tmp, params[i]));
+        push(makeLocalSet(tmp, vals[i]!));
+        reads.push(makeLocalGet(tmp, ptype));
       }
       return { reads, slots };
     };
@@ -1377,9 +1466,18 @@ class WasmParser {
     ): void => {
       const slots = target.paramLocals!;
       const types = target.paramTypes!;
+      // The two are written together when the frame is seeded, so a mismatch is
+      // an internal invariant break rather than bad input — but the reads below
+      // pair them by index, and pairing two lists of different lengths silently
+      // builds a `local.get` with an undefined type. Check once, index freely.
+      if (slots.length !== types.length) {
+        r.error(
+          `loop parameter seed is inconsistent: ${slots.length} slots, ${types.length} types`,
+        );
+      }
       const vals: Expression[] = [];
       for (let i = 0; i < slots.length; i++) vals.unshift(pop());
-      for (let i = 0; i < slots.length; i++) push(makeLocalSet(slots[i], vals[i]));
+      for (const [i, slot] of slots.entries()) push(makeLocalSet(slot, vals[i]!));
       if (switchTargets !== undefined) {
         // `br_table` where every target is this same loop: one set of temps,
         // then a value-less table.
@@ -1388,7 +1486,7 @@ class WasmParser {
       }
       push(makeBreak(label, cond, null));
       if (cond !== null) {
-        for (let i = 0; i < slots.length; i++) push(makeLocalGet(slots[i], types[i]));
+        for (const [i, slot] of slots.entries()) push(makeLocalGet(slot, types[i]!));
       }
     };
 
@@ -1438,9 +1536,9 @@ class WasmParser {
       const shared: number[] = [];
       for (let i = 0; i < arity; i++) {
         const tmp = locals.length;
-        locals.push({ type: types[i] });
+        locals.push({ type: types[i]! });
         shared.push(tmp);
-        push(makeLocalSet(tmp, vals[i]));
+        push(makeLocalSet(tmp, vals[i]!)); // both filled to `arity` above
       }
       const idxSlot = locals.length;
       locals.push({ type: ValType.I32 });
@@ -1450,18 +1548,24 @@ class WasmParser {
       const caseCode = (frame: ControlFrame | undefined, label: string): Expression[] => {
         if (frame?.paramLocals?.length) {
           const slots = frame.paramLocals;
+          // `slots` belongs to the TARGET frame; `shared`/`types` are sized by the
+          // table's arity. The spec requires every `br_table` label to share the
+          // default's arity, so these agree for any valid module — but pairing
+          // them by index without checking meant a malformed table silently
+          // produced `local.get undefined` rather than a diagnostic.
+          if (slots.length !== arity) {
+            r.error(
+              `br_table target arity ${slots.length} does not match the table arity ${arity}`,
+            );
+          }
           const out: Expression[] = slots.map((slot, i) =>
-            makeLocalSet(slot, makeLocalGet(shared[i], types[i]))
+            makeLocalSet(slot, makeLocalGet(shared[i]!, types[i]!))
           );
           out.push(makeBreak(label, null, null));
           return out;
         }
-        const reads = shared.map((slot, i) => makeLocalGet(slot, types[i]));
-        const value = reads.length === 0
-          ? null
-          : reads.length === 1
-          ? reads[0]
-          : makeTupleMake(reads);
+        const reads = shared.map((slot, i) => makeLocalGet(slot, types[i]!));
+        const value = reads.length === 0 ? null : oneOrTuple(reads);
         return [makeBreak(label, null, value)];
       };
 
@@ -1472,16 +1576,16 @@ class WasmParser {
       let node: Expression = makeBlock(
         [makeSwitch(
           caseLabels.slice(0, last),
-          caseLabels[last],
+          caseLabels[last]!,
           makeLocalGet(idxSlot, ValType.I32),
         )],
         caseLabels[last],
       );
       for (let j = last - 1; j >= 0; j--) {
-        node = makeBlock([node, ...caseCode(targetFrames[j + 1], labels[j + 1])], caseLabels[j]);
+        node = makeBlock([node, ...caseCode(targetFrames[j + 1], labels[j + 1]!)], caseLabels[j]!);
       }
       push(node);
-      for (const e of caseCode(targetFrames[0], labels[0])) push(e);
+      for (const e of caseCode(targetFrames[0], labels[0]!)) push(e);
     };
 
     /** The target frame of a branch, or `undefined` if the depth escapes. */
@@ -1489,7 +1593,7 @@ class WasmParser {
       frames[frames.length - 1 - depth];
 
     const pushMultiValueCall = (call: Expression, results: ValueType[]): void => {
-      for (let i = 0; i < results.length - 1; i++) push(makePop(results[i]));
+      for (let i = 0; i < results.length - 1; i++) push(makePop(results[i]!));
       push(call);
     };
 
@@ -1547,7 +1651,7 @@ class WasmParser {
           break;
         }
         case 0x05: { // else
-          const frame = frames[frames.length - 1];
+          const frame = topFrame(frames, r);
           if (frame.kind === "if") {
             frame.thenExprs = frame.exprs;
             // Both arms start with the same parameters on their stack. The values
@@ -1556,7 +1660,7 @@ class WasmParser {
             // FRESH reads, not the then-arm's node objects: sharing them would
             // put one expression in two tree positions.
             const ps = frame.paramSeed;
-            frame.exprs = ps ? ps.slots.map((slot, i) => makeLocalGet(slot, ps.types[i])) : [];
+            frame.exprs = ps ? ps.slots.map((slot, i) => makeLocalGet(slot, ps.types[i]!)) : [];
             frame.kind = "else" as ControlFrameKind;
           }
           break;
@@ -1585,7 +1689,7 @@ class WasmParser {
           const tagIdx = r.readU32();
           const tagName = ctx.tagInfos[tagIdx]?.name ?? `$tag${tagIdx}`;
           const tagParams = ctx.tagInfos[tagIdx]?.params ?? [];
-          const frame = frames[frames.length - 1];
+          const frame = topFrame(frames, r);
           if (frame.kind === "try" || frame.kind === "catch") {
             // save current body
             if (frame.kind === "try") {
@@ -1624,12 +1728,12 @@ class WasmParser {
         }
 
         case 0x0b: { // end
-          if (frames[frames.length - 1].kind === "func") {
+          if (topFrame(frames, r).kind === "func") {
             break decode; // leave func frame on stack for body assembly
           }
-          const frame = frames.pop()!;
+          const frame = popFrame(frames, r);
           const rts = frame.resultTypes;
-          const resultType: Type = rts.length === 0 ? None : rts.length === 1 ? rts[0] : rts;
+          const resultType: Type = resultTypeOf(rts);
           if (frame.kind === "if" || frame.kind === "else") {
             const cond = frame.ifCondition!;
             // Pivot on whether the `else` opcode (0x05) was seen for this frame:
@@ -1646,10 +1750,8 @@ class WasmParser {
             // checks, null guards).
             const thenExprs = frame.kind === "if" ? frame.exprs : (frame.thenExprs ?? []);
             const elseExprs = frame.kind === "if" ? [] : frame.exprs;
-            const thenExpr = thenExprs.length === 1 ? thenExprs[0] : makeBlock(thenExprs, null);
-            const elseExpr = elseExprs.length > 0
-              ? (elseExprs.length === 1 ? elseExprs[0] : makeBlock(elseExprs, null))
-              : null;
+            const thenExpr = oneOrBlock(thenExprs);
+            const elseExpr = elseExprs.length > 0 ? oneOrBlock(elseExprs) : null;
             // Pass `frame.label` so a `br` that targets this `if` (resolved to
             // this label at decode time) round-trips to the correct branch
             // depth on encode. Without it the encoder pushed an empty label and
@@ -1662,14 +1764,10 @@ class WasmParser {
             push(makeLoop(frame.label, body, resultType));
           } else if (frame.kind === "try" || frame.kind === "catch") {
             const tryBodyExprs = frame.kind === "try" ? frame.exprs : (frame.tryBody ?? []);
-            const tryBody = tryBodyExprs.length === 1
-              ? tryBodyExprs[0]
-              : makeBlock(tryBodyExprs, null);
+            const tryBody = oneOrBlock(tryBodyExprs);
             const allCatchBodies = [...(frame.catchBodies ?? [])];
             if (frame.kind === "catch") allCatchBodies.push(frame.exprs);
-            const catchBodyExprs = allCatchBodies.map((ce) =>
-              ce.length === 1 ? ce[0] : makeBlock(ce, null)
-            );
+            const catchBodyExprs = allCatchBodies.map(oneOrBlock);
             push(
               makeTry(
                 frame.label,
@@ -1773,7 +1871,7 @@ class WasmParser {
               // a value-less table. No trampoline needed.
               rewriteLoopBranch(
                 tableTargets[0]!,
-                labels[labels.length - 1],
+                labels[labels.length - 1]!,
                 null,
                 labels.slice(0, -1),
                 cond,
@@ -1803,23 +1901,26 @@ class WasmParser {
           const typeIdx = fidx < ctx.importedFuncCount
             ? ctx.importedFuncTypeIndices[fidx]
             : ctx.funcTypeIndices[fidx - ctx.importedFuncCount];
-          const cft = typeIdx !== undefined ? ctx.funcTypes[typeIdx] : { params: [], results: [] };
+          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, `call ${fidx}`);
           const operands = popN(cft.params.length);
-          const resultType: Type = cft.results.length === 0
-            ? None
-            : cft.results.length === 1
-            ? cft.results[0]
-            : cft.results;
+          const resultType: Type = resultTypeOf(cft.results);
           pushMultiValueCall(makeCall(`$func${fidx}`, operands, resultType), cft.results);
           break;
         }
         case 0x11: { // call_indirect
           const typeIdx = r.readU32();
-          r.readU32(); // table index
-          const cft = ctx.funcTypes[typeIdx] ?? { params: [], results: [] };
+          const tidx = r.readU32();
+          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, "call_indirect");
           const target = pop();
           const operands = popN(cft.params.length);
-          const tableName = ctx.tableNames[0] ?? "$table0";
+          // Discarding the table index and hard-coding table 0 silently retargeted
+          // an indirect call in a multi-table module — the element-segment and
+          // `table.get`/`table.set` decoders were already index-aware, this one
+          // was not. The encoder happens to reject >1 table today, so it never
+          // reached bytes; parse-only consumers (the bridge, the compat facade's
+          // introspection) saw the wrong table with no diagnostic.
+          const tableName = ctx.tableNames[tidx] ??
+            r.error(`call_indirect table index ${tidx} is out of range`);
           pushMultiValueCall(
             makeCallIndirect(tableName, target, operands, cft.params, cft.results),
             cft.results,
@@ -1831,23 +1932,26 @@ class WasmParser {
           const typeIdx = fidx < ctx.importedFuncCount
             ? ctx.importedFuncTypeIndices[fidx]
             : ctx.funcTypeIndices[fidx - ctx.importedFuncCount];
-          const cft = typeIdx !== undefined ? ctx.funcTypes[typeIdx] : { params: [], results: [] };
+          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, `call ${fidx}`);
           const operands = popN(cft.params.length);
-          const resultType: Type = cft.results.length === 0
-            ? None
-            : cft.results.length === 1
-            ? cft.results[0]
-            : cft.results;
+          const resultType: Type = resultTypeOf(cft.results);
           push(makeCall(`$func${fidx}`, operands, resultType, /* isReturn */ true));
           break;
         }
         case 0x13: { // return_call_indirect (tail-call proposal)
           const typeIdx = r.readU32();
-          r.readU32(); // table index
-          const cft = ctx.funcTypes[typeIdx] ?? { params: [], results: [] };
+          const tidx = r.readU32();
+          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, "call_indirect");
           const target = pop();
           const operands = popN(cft.params.length);
-          const tableName = ctx.tableNames[0] ?? "$table0";
+          // Discarding the table index and hard-coding table 0 silently retargeted
+          // an indirect call in a multi-table module — the element-segment and
+          // `table.get`/`table.set` decoders were already index-aware, this one
+          // was not. The encoder happens to reject >1 table today, so it never
+          // reached bytes; parse-only consumers (the bridge, the compat facade's
+          // introspection) saw the wrong table with no diagnostic.
+          const tableName = ctx.tableNames[tidx] ??
+            r.error(`call_indirect table index ${tidx} is out of range`);
           push(
             makeCallIndirect(
               tableName,
@@ -1863,15 +1967,15 @@ class WasmParser {
 
         case 0x18: { // delegate $depth (old EH — ends the try without end opcode)
           const depth = r.readU32();
-          const frame = frames.pop()!;
+          const frame = popFrame(frames, r);
           const rts = frame.resultTypes;
-          const resultType: Type = rts.length === 0 ? None : rts.length === 1 ? rts[0] : rts;
-          const tryBody = frame.exprs.length === 1 ? frame.exprs[0] : makeBlock(frame.exprs, null);
+          const resultType: Type = resultTypeOf(rts);
+          const tryBody = oneOrBlock(frame.exprs);
           push(makeTry(frame.label, tryBody, [], [], resolveLabel(frames, depth), resultType));
           break;
         }
         case 0x19: { // catch_all (old EH)
-          const frame = frames[frames.length - 1];
+          const frame = topFrame(frames, r);
           if (frame.kind === "try" || frame.kind === "catch") {
             if (frame.kind === "try") {
               frame.tryBody = frame.exprs;
@@ -1903,20 +2007,26 @@ class WasmParser {
             const isRef = code === 0x01 || code === 0x03;
             catchData.push({ tag, depth, isRef });
           }
-          // Push the frame first — catch dest depths are relative to this frame at depth 0
-          frames.push({
-            kind: "try_table",
-            label: freshLabel(),
-            resultTypes: rts,
-            exprs: [...ttSeed],
-            tryCatches: [],
-          });
+          // Catch-clause label indices are resolved in the ENCLOSING scope: a
+          // try_table's own label is NOT in scope for its own handlers, so
+          // depth 0 names the immediately enclosing frame. Resolving them after
+          // pushing the frame shifted every handler one frame too deep — a
+          // handler meant for the surrounding block pointed at the try_table
+          // itself. The encoder pushed the same phantom label, so a round-trip
+          // stayed byte-identical and hid it; only the IR — and anything built
+          // against it, such as the wabt-ts bridge — saw the wrong target.
           const catches: CatchClause[] = catchData.map(({ tag, depth, isRef }) => ({
             tag,
             dest: resolveLabel(frames, depth),
             isRef,
           }));
-          frames[frames.length - 1].tryCatches = catches;
+          frames.push({
+            kind: "try_table",
+            label: freshLabel(),
+            resultTypes: rts,
+            exprs: [...ttSeed],
+            tryCatches: catches,
+          });
           break;
         }
 
@@ -2195,9 +2305,7 @@ class WasmParser {
     }
 
     const funcFrame = frames[0] ?? { exprs: [], label: undefined };
-    const body = funcFrame.exprs.length === 1
-      ? funcFrame.exprs[0]
-      : makeBlock(funcFrame.exprs, null);
+    const body = oneOrBlock(funcFrame.exprs);
 
     return {
       name: `$func${funcIdx}`,

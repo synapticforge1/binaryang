@@ -665,3 +665,52 @@ Deno.test("parseWat — (func (type $sig)) result type resolves for callers (for
   assertEquals(call.kind, ExpressionKind.Call);
   assertEquals(call.type, ValType.I64);
 });
+
+// ---------------------------------------------------------------------------
+// A `(result ...)` annotation with more than one type
+//
+// The parser collected every declared result and then kept only `results[0]`,
+// so `(block (result i32 i32) ...)` produced a block typed `i32`. The encoder
+// dutifully emitted a single-result blocktype for a body pushing two values,
+// and V8 rejected a module whose WAT source was perfectly legal. The IR has
+// carried tuple types since multi-value landed; the annotation just was not
+// reaching them.
+//
+// Asserted behaviorally, not structurally: the function must actually return
+// both values.
+// ---------------------------------------------------------------------------
+
+Deno.test("WAT: a nested multi-result block keeps both results", async () => {
+  const mod = parseWat(`(module (func (export "f") (result i32 i32)
+    (block $outer (result i32 i32)
+      (block $inner (result i32 i32) (i32.const 1) (i32.const 2)))))`);
+
+  const outer = mod.functions[0].body as { type: unknown; children: { type: unknown }[] };
+  assertEquals(outer.type, [ValType.I32, ValType.I32]);
+  assertEquals(outer.children[0].type, [ValType.I32, ValType.I32]);
+
+  const out = encodeWasm(mod);
+  const buf = new ArrayBuffer(out.byteLength);
+  new Uint8Array(buf).set(out);
+  const { instance } = await WebAssembly.instantiate(buf, {});
+  assertEquals((instance.exports.f as () => unknown)(), [1, 2]);
+});
+
+// ---------------------------------------------------------------------------
+// A folded instruction that was not given the operand it reaches for
+//
+// Array indexing is unchecked (`args[1]` on a one-argument list is `undefined`
+// with no type error), so all ~70 folded handlers died on `s.kind` with a raw
+// `TypeError` and no location. Stack-form WAT hits this on every instruction
+// whose operands are on the stack rather than nested — it is genuinely
+// unsupported here (wabt-ts is the front door for user-authored WAT), so the
+// requirement is a typed error that SAYS so, per the robustness contract.
+// ---------------------------------------------------------------------------
+
+Deno.test("WAT: a missing operand is a WatParseError naming the instruction", () => {
+  assertThrows(
+    () => parseWat(`(module (func (export "f") (result i32) (i32.const 1) (i32.const 2) (drop)))`),
+    WatParseError,
+    `missing operand for "drop"`,
+  );
+});

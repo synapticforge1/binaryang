@@ -560,22 +560,53 @@ function zeroForType(type: ValueType): Expression | null {
  * because `return_call $f(args)` semantically *is* `return f(args)` — the
  * callee frame replaces the caller frame, and the callee's return exits the
  * caller. See Phase 5.2. */
+/**
+ * The caller slot a callee local index maps to. See { substituteBody}'s
+ * `remap` for why a miss is an error rather than an `undefined` index.
+ */
+function remapSlot(mapping: number[], index: number): number {
+  const slot = mapping[index];
+  if (slot === undefined) {
+    throw new Error(
+      `Inlining: callee local ${index} has no caller slot (mapping covers ${mapping.length})`,
+    );
+  }
+  return slot;
+}
+
 function substituteBody(
   body: Expression,
   localMapping: number[],
   returnLabel: string,
   rewriteReturns = true,
 ): Expression {
+  // A callee local with no slot in the caller used to remap to `undefined`,
+  // producing a `local.get`/`local.set` whose index is not a number. Nothing
+  // downstream checks that, so it reached the encoder and was written as
+  // garbage rather than reported. The mapping is built with one entry per
+  // callee local, so a miss means the body references a local the function
+  // never declared — an IR bug worth naming.
+  const remap = (index: number): number => {
+    const mapped = localMapping[index];
+    if (mapped === undefined) {
+      throw new Error(
+        `Inlining: callee local ${index} has no caller slot ` +
+          `(mapping covers ${localMapping.length})`,
+      );
+    }
+    return mapped;
+  };
+
   return mapExpression(body, (e): Expression => {
     switch (e.kind) {
       case ExpressionKind.LocalGet:
-        return { ...e, index: localMapping[e.index] };
+        return { ...e, index: remap(e.index) };
 
       case ExpressionKind.LocalSet:
-        return { ...e, index: localMapping[e.index] };
+        return { ...e, index: remap(e.index) };
 
       case ExpressionKind.LocalTee:
-        return { ...e, index: localMapping[e.index] };
+        return { ...e, index: remap(e.index) };
 
       case ExpressionKind.Return: {
         if (!rewriteReturns) return e;
@@ -635,12 +666,24 @@ function inlineCallSite(
   const children: Expression[] = [];
 
   // Assign call operands to param slots (operands moved from the call node).
-  for (let i = 0; i < callee.params.length; i++) {
+  //
+  // An arity mismatch here used to build `local.set` nodes with `value:
+  // undefined` — the call site simply had fewer operands than the callee has
+  // params, and the inliner filled the difference with nothing. That is the
+  // WT-2b "call need N got M" shape reached from the optimizer instead of the
+  // decoder, so it gets the same treatment: refuse.
+  if (call.operands.length !== callee.params.length) {
+    throw new Error(
+      "Inlining: call to " + callee.name + " passes " + call.operands.length +
+        " operands but the function declares " + callee.params.length + " params",
+    );
+  }
+  for (const [i, operand] of call.operands.entries()) {
     const setParam: LocalSetExpr = {
       kind: ExpressionKind.LocalSet,
       type: None,
-      index: mapping[i],
-      value: call.operands[i],
+      index: remapSlot(mapping, i),
+      value: operand,
     };
     children.push(setParam);
   }
@@ -648,9 +691,9 @@ function inlineCallSite(
   // Zero-initialise non-param locals (needed for correctness in loops).
   const varBase = callee.params.length;
   for (let i = varBase; i < callee.locals.length; i++) {
-    const zero = zeroForType(callee.locals[i].type);
+    const zero = zeroForType(callee.locals[i]!.type);
     if (zero !== null) {
-      children.push(makeLocalSet(mapping[i], zero));
+      children.push(makeLocalSet(remapSlot(mapping, i), zero));
     }
   }
 
@@ -662,7 +705,7 @@ function inlineCallSite(
   children.push(substituted);
 
   // 4. Result type of the wrapper block.
-  const retType = callee.results.length > 0 ? callee.results[0] : None;
+  const retType = callee.results.length > 0 ? callee.results[0]! : None;
 
   // 4a. Guarantee a valid wrapper fallthrough.
   //

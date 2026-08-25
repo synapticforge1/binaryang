@@ -66,7 +66,7 @@ function _optimizeBlock(
 ): Expression {
   if (!block.name || block.children.length === 0) return block;
 
-  const last = block.children[block.children.length - 1];
+  const last = block.children[block.children.length - 1]!; // children is non-empty (guard above)
 
   // Case 1: (br $name) — unconditional, no value, at end of own block
   if (
@@ -77,7 +77,7 @@ function _optimizeBlock(
   ) {
     const rest = block.children.slice(0, -1);
     if (rest.length === 0) return makeNop();
-    const newLast = rest[rest.length - 1];
+    const newLast = rest[rest.length - 1]!; // `rest` is non-empty (checked above)
     // Only safe when the new tail has type none (block type is preserved)
     if (newLast.type !== None) return block;
     return { ...block, type: None, children: rest };

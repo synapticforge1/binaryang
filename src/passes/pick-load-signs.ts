@@ -181,7 +181,10 @@ function _pickLoadSigns(fn: WasmFunction): void {
   fn.body = mapExpression(fn.body, (expr) => {
     if (expr.kind === ExpressionKind.Load && _PICK_SIGN in expr) {
       const rec = expr as unknown as Record<symbol, boolean>;
-      const signed = rec[_PICK_SIGN];
+      // The marker is written by the analysis pass above, so it is always a
+      // boolean here; `?? expr.signed` keeps the load's existing sign rather
+      // than silently flipping it to `undefined` if that ever stops holding.
+      const signed = rec[_PICK_SIGN] ?? expr.signed;
       const cleaned = { ...expr, signed };
       delete (cleaned as unknown as Record<symbol, boolean>)[_PICK_SIGN];
       return cleaned;

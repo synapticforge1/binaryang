@@ -456,3 +456,35 @@ Deno.test("encodeWasm: multiple tables throw (element segments + call_indirect e
     .build();
   assertThrows(() => encodeWasm(mod), WasmEncodeError, "multiple tables");
 });
+
+// ---------------------------------------------------------------------------
+// An export kind the encoder does not know must not fall out of the switch.
+//
+// `encodeExportSection` writes the export NAME first and the kind/index bytes
+// inside the per-kind `case`. Falling through therefore emits a name with no
+// kind and no index, which desynchronizes the reader and corrupts this export
+// AND every one after it. That is not hypothetical: it is exactly what happened
+// to tag exports before `case "tag"` existed, and the comment inside that case
+// records it — but the fix added the missing case without adding a guard, so
+// the same trap stayed armed for the next kind.
+//
+// `WasmExport["kind"]` is a TS union, so this is unreachable from type-checked
+// callers; it is reachable from JavaScript consumers (the package ships to JSR)
+// and from a future kind added to the union. The `never` binding in the default
+// case additionally turns that second case into a compile error.
+// ---------------------------------------------------------------------------
+
+Deno.test("encoder: an unknown export kind throws instead of emitting a truncated entry", () => {
+  const b = new ModuleBuilder();
+  b.addFunction("$f", [], [ValType.I32], makeI32Const(1), []);
+  b.addExport("ok", "$f", "function");
+  const mod = b.build();
+  // Reach past the type union the way a JS caller would.
+  (mod.exports[0] as { kind: string }).kind = "elem";
+
+  assertThrows(
+    () => encodeWasm(mod),
+    WasmEncodeError,
+    "unknown export kind",
+  );
+});

@@ -302,7 +302,7 @@ class Tokenizer {
         // Two-digit hex escape: \XX
         if (isHexDigit(c)) {
           const c2 = this.src[this.pos];
-          if (!isHexDigit(c2)) this.err(`invalid hex escape \\${c}`);
+          if (c2 === undefined || !isHexDigit(c2)) this.err(`invalid hex escape \\${c}`);
           this.advance();
           return String.fromCharCode(parseInt(c + c2, 16));
         }
@@ -507,11 +507,17 @@ class Tokenizer {
 // Character class helpers
 // ---------------------------------------------------------------------------
 
-function isDigit(c: string): boolean {
-  return c >= "0" && c <= "9";
+// Each predicate takes `string | undefined` because every caller feeds it an
+// indexed character (`this.src[this.pos]`), and past the end of input there is
+// no character. "Not a digit" is the right answer for absent, and saying so in
+// the signature is what lets `noUncheckedIndexedAccess` check the callers
+// instead of the callers pretending the index is always in bounds.
+function isDigit(c: string | undefined): boolean {
+  return c !== undefined && c >= "0" && c <= "9";
 }
 
-function isHexDigit(c: string): boolean {
+function isHexDigit(c: string | undefined): boolean {
+  if (c === undefined) return false;
   return (c >= "0" && c <= "9") || (c >= "a" && c <= "f") || (c >= "A" && c <= "F");
 }
 
@@ -519,7 +525,8 @@ function isHexDigit(c: string): boolean {
  * WAT identifier characters: printable ASCII except whitespace and
  * the reserved characters `(`, `)`, `"`, `;`, `,`.
  */
-function isIdChar(c: string): boolean {
+function isIdChar(c: string | undefined): boolean {
+  if (c === undefined) return false;
   const code = c.charCodeAt(0);
   if (code < 0x21 || code > 0x7e) return false;
   // Excluded: `(` 0x28, `)` 0x29, `"` 0x22, `;` 0x3b, `,` 0x2c
@@ -543,7 +550,7 @@ function parseHexFloat(raw: string): number {
     /^([+-]?)0x([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?(?:[pP]([+-]?\d+))?$/,
   );
   if (!m) return NaN;
-  const [, signStr, intHex, fracHex = "", expStr] = m;
+  const [, signStr, intHex = "", fracHex = "", expStr] = m;
   if (intHex === "" && fracHex === "") return NaN; // must have at least one digit
   const sign = signStr === "-" ? -1 : 1;
   const exp = expStr ? parseInt(expStr, 10) : 0;

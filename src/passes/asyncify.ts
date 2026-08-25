@@ -479,7 +479,7 @@ export function resolveAsyncifyImports(module: WasmModule): boolean {
   // Remove the now-redirected control imports (splice in place — `imports` may be
   // a builder-backed array, so don't reassign the property).
   for (let i = module.imports.length - 1; i >= 0; i--) {
-    const imp = module.imports[i];
+    const imp = module.imports[i]!; // bounded by the loop header
     if (imp.kind === "function" && imp.module === ASYNCIFY_IMPORT_MODULE) {
       module.imports.splice(i, 1);
     }
@@ -870,16 +870,17 @@ function processFlow(curr: Expression, ctx: FlowCtx): Expression {
       const newList: Expression[] = [];
       let i = 0;
       while (i < children.length) {
-        if (exprCanChangeState(children[i], ctx)) {
-          newList.push(processFlow(children[i], ctx));
+        const child = children[i]!; // bounded by the `while` condition
+        if (exprCanChangeState(child, ctx)) {
+          newList.push(processFlow(child, ctx));
           i++;
         } else {
           // Clump a run of non-state-changing statements under one skip.
           let j = i;
-          while (j < children.length && !exprCanChangeState(children[j], ctx)) j++;
+          while (j < children.length && !exprCanChangeState(children[j]!, ctx)) j++;
           const run = children.slice(i, j);
           newList.push(
-            run.length === 1 ? makeMaybeSkip(run[0]) : makeMaybeSkip(makeBlock(run, null)),
+            run.length === 1 ? makeMaybeSkip(run[0]!) : makeMaybeSkip(makeBlock(run, null)),
           );
           i = j;
         }
@@ -1012,7 +1013,7 @@ export function computeRelevantLocals(
     };
     snapshot(block.actions.length);
     for (let i = block.actions.length - 1; i >= 0; i--) {
-      const a = block.actions[i];
+      const a = block.actions[i]!; // bounded by the loop header
       if (a.kind === "get") live.add(a.index);
       else live.delete(a.index); // set / tee: defined here, not live before
       snapshot(i);
@@ -1141,7 +1142,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
         return makeBinary(
           BinaryOp.EqI32,
           makeLocalGet(ctx.rewindIndex, ValType.I32),
-          c.operands[0],
+          c.operands[0]!,
         );
       }
     } else if (e.kind === ExpressionKind.GlobalSet) {
@@ -1168,7 +1169,7 @@ function makeCallIndexPush(unwindIndex: number): Expression {
 /** Restore the saved locals from the stack (run in the rewind prelude). */
 function makeLocalLoading(func: WasmFunction, saved: number[]): Expression {
   if (saved.length === 0) return makeBlock([], null);
-  const total = saved.reduce((s, i) => s + byteSize(func.locals[i].type), 0);
+  const total = saved.reduce((s, i) => s + byteSize(func.locals[i]!.type), 0);
   const temp = allocLocal(func, ValType.I32);
   const list: Expression[] = [
     makeIncStackPos(-total),
@@ -1176,7 +1177,7 @@ function makeLocalLoading(func: WasmFunction, saved: number[]): Expression {
   ];
   let offset = 0;
   for (const i of saved) {
-    const t = func.locals[i].type;
+    const t = func.locals[i]!.type;
     list.push(makeLocalSet(
       i,
       makeLoad(
@@ -1200,7 +1201,7 @@ function makeLocalSaving(func: WasmFunction, saved: number[]): Expression {
   const list: Expression[] = [makeLocalSet(temp, makeGetStackPos())];
   let offset = 0;
   for (const i of saved) {
-    const t = func.locals[i].type;
+    const t = func.locals[i]!.type;
     list.push(makeStore(
       loadOpBytes(t),
       offset,
@@ -1267,7 +1268,7 @@ export function localsInstrumentFunction(
   ];
   // On the unwind path the function must still "return" a value (ignored by the
   // host); provide a zero of the result type.
-  if (func.results.length > 0) newList.push(makeZero(func.results[0]));
+  if (func.results[0] !== undefined) newList.push(makeZero(func.results[0]));
 
   func.body = makeBlock(newList, null);
 }

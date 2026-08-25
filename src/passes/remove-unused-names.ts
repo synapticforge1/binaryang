@@ -4,8 +4,10 @@
  * RemoveUnusedNames pass — strips block and loop labels that are never
  * referenced by a branch instruction.
  *
- * A block label is unused when no `br`, `br_if`, or `br_table` instruction
- * names it as a branch target. Such names are meaningless noise that the
+ * A block label is unused when nothing names it as a branch target — not a
+ * `br` / `br_if` / `br_table`, and not one of the label references that are
+ * easy to forget: `br_on_*`, a `try_table` catch destination, a
+ * `try…delegate` target, or a `rethrow`. Such names are meaningless noise that the
  * encoder still has to emit (and the decoder parse), so removing them
  * shrinks the binary and simplifies downstream passes.
  *
@@ -20,9 +22,13 @@
 
 import {
   type BlockExpr,
+  type BrOnExpr,
   type Expression,
   ExpressionKind,
   type LoopExpr,
+  type RethrowExpr,
+  type TryExpr,
+  type TryTableExpr,
 } from "../ir/expressions.ts";
 import type { WasmModule } from "../ir/module.ts";
 import { mapExpression, walkExpression } from "../ir/walk.ts";
@@ -61,6 +67,20 @@ function _processBody(body: Expression): Expression {
     } else if (e.kind === ExpressionKind.Switch) {
       for (const t of e.targets) targets.add(t);
       targets.add(e.defaultTarget);
+    } else if (e.kind === ExpressionKind.BrOn) {
+      // `br_on_null` / `br_on_cast` name a label exactly like `br` does.
+      targets.add((e as BrOnExpr).label);
+    } else if (e.kind === ExpressionKind.TryTable) {
+      // A catch clause branches to its `dest` when the handler fires. The
+      // label lives OUTSIDE the try_table, so it is an ordinary block label
+      // that this pass would otherwise see no reference to and strip —
+      // leaving the encoder with a dangling target it can only throw on.
+      for (const c of (e as TryTableExpr).catches) targets.add(c.dest);
+    } else if (e.kind === ExpressionKind.Try) {
+      const t = (e as TryExpr).delegateTarget;
+      if (t !== null) targets.add(t);
+    } else if (e.kind === ExpressionKind.Rethrow) {
+      targets.add((e as RethrowExpr).target);
     }
   });
 

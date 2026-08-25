@@ -1763,7 +1763,7 @@ export function makeCallIndirect(
   results: ValueType[],
   isReturn = false,
 ): CallIndirectExpr {
-  const type: Type = results.length > 0 ? results[0] : None;
+  const type: Type = results[0] ?? None;
   return {
     kind: ExpressionKind.CallIndirect,
     type,
