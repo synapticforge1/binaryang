@@ -24,6 +24,41 @@ is the whole reason this release exists.
 The tag push is the OWNER's action: `deno task publish` commits `deno.json` if
 it is still dirty, tags `v1.4.0`, and pushes both. Never `deno publish` locally.
 
+## `auto-tag.yml` CAN TAG BUT CANNOT PUBLISH (2026-08-24)
+
+**Do not release by pushing `main` and letting the safety net do the rest.** It
+tags correctly and then fails at the last step:
+
+```
+error: Failed to publish @jrmarcum/wabt-ts@1.4.0
+Caused by: The actor that this request was authenticated for is not authorized
+as a scope member for this scope. (actorNotScopeMember)
+```
+
+`auto-tag.yml` creates the tag as `github-actions[bot]` and dispatches
+`publish.yml` with `gh workflow run` under `GITHUB_TOKEN`, so the OIDC actor
+presented to JSR is the BOT. JSR authorizes the triggering user against scope
+membership, and a bot is not a member. Every one of the 28 published versions
+went the other way — `deno task publish` pushes the tag from a dev machine with
+a PAT, so `publish.yml` fires on `push: tags` with the owner as actor.
+`publish.yml`'s own header says this ("developer pushes are authenticated with a
+PAT ... without going through the auto-tag detour"); the trap is that
+`auto-tag.yml`'s header describes itself as closing that gap, and it only closes
+half of it.
+
+**Recovery when it happens — nothing is lost, and do NOT re-cut the version.**
+The tag is correct and points at the right commit. Re-trigger `publish.yml` as a
+human: Actions → "Publish to JSR" → Run workflow → ref `vX.Y.Z`. A `workflow_dispatch`
+sets the actor to whoever clicked. **Re-running the failed run is not reliable** —
+a re-run keeps the original `github.actor`, which is the bot that just failed.
+The git-side alternative is `git push origin :refs/tags/vX.Y.Z` then
+`git push origin vX.Y.Z`, which re-fires `push: tags` under the owner's
+credentials.
+
+The durable fix is a PAT secret for `auto-tag.yml`, or accepting that the safety
+net only tags. Until one of those, **the tag push is the release trigger, and it
+has to come from a human**.
+
 ## BREAKING CHANGES IN THIS RELEASE
 
 Two changes to an exported type, plus one behavioural:
