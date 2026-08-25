@@ -148,6 +148,7 @@ for one, write the row.
 | T13.20 | `applyNames` walked 37 of 87 expression kinds — `resolveNames`'s sibling, never run through the same two-axis enumeration | done — **published API produced silently INCONSISTENT naming**; axis 1 is now generic and cannot miss a kind, axis 2 an explicit 55-kind table |
 | T13.21 | `constExprOperands` and `writeInstrHead` are coupled in the WAT writer and nothing said so | done — latent, not live: drift writes an operand TWICE and the output still REPARSES (T10.6's shape). Both now carry INTENT blocks and a source-enumeration gate |
 | T13.22 | The bridge resolves `try_table` catch targets AFTER pushing the try_table's own label — the T7.6 / T9.8 off-by-one in a third layer | **BLOCKED, not done** — it cancels a matching off-by-one in binaryen-ts 1.0.9, so fixing it alone turns correct bytes into wrong ones. Lands with the dependency bump |
+| T13.47 | binaryen-ts shipped **1.5.0** with their half of the catch-scope fix. Upgrade attempted, verified, **NOT landed** | **BLOCKED, and not by what we were waiting for.** Our half is done and proven (full 2x2 vs our own encoder; 3 of 4 cells emit bytes **V8 still accepts**). Blocked by (1) Deno's 24h `minimumDependencyAge` — CI hits it too; (2) **12 of 28 bridge tests fail** on 1.5.0 with `unresolved GC function type`: their `gcFuncTypeIndex` wants an exact declared func heap type, our `coarsenValueType` maps `(ref $T)` -> `structref`, so no key can match. **Their import-surface check (0 of 72 missing, verified here) did not predict it.** Asked them about a compatibility path before de-coarsening |
 | T13.46 | The corpus was still the stale 2026-05-25 snapshot — stamping it made it honest, not current | done — **regenerated all 417 wasic sources from wasmtk `4600ba9`** (verified level with `origin/main`): 413 compiled, 4 are wasic compile failures. Corpus **272 -> 421** (413 fresh + 8 preserved non-wasic fixtures). **encode 421/421, validate 421/421, round-trip 421/421**, up from 265/272 validating. `KNOWN_INVALID` **emptied** — all seven fired their "now VALIDATES" assertion simultaneously, proving the gate was right and only its INPUT was stale. The 373-vs-413 count difference with wasmtk is recorded UNRECONCILED on purpose |
 | T13.45 | `tests/wasmtk/PROVENANCE.md` said the snapshot date and source commit were **unknown**. Both were false — one `git log --diff-filter=A` in THIS repo answers it | done — raised by the wasmtk team after **asking twice**. The corpus is a single capture (`fbafca9e`, 2026-05-25 21:50), not an accretion; source bounded to wasmtk **`e147d28`** because the next upstream commit is 3 days later. **The snapshot has caused THREE wrong reports to them, not one** (KNOWN_INVALID seven, EH scope 6-vs-10, retracted `needsExceptionTag` five) — all caught by the recipient. Stamped and gated; the file-count assertion catches a refresh that skips re-stamping |
 | T13.44 | T13.43's test covered `releaseBlockers` but **not that `publish.ts` calls it** — delete the guard block and all 12 cases still pass, because the pure function is untouched | done — structural gate on the WIRING: guard imported and called, **no mutating git subcommand before it** (every `['git', <sub>]` extracted in source order and classified against a read-only allowlist), refuses rather than warns, `release-guard.ts` stays side-effect free so it stays importable, `scripts/` stays in the gate, and the mutations still exist AFTER the guard so it cannot pass vacuously. **Verified by injecting all four faults** |
@@ -3218,6 +3219,125 @@ clean.**
 
 Corrected in place rather than deleted, per the standing rule: the correction is
 the useful artifact, because it tells the next reader the claim was tested.
+
+### T13.47 — BLOCKED, and the blocker is not the one we were waiting for (2026-08-25).
+
+binaryen-ts published **1.5.0** with their half of the T13.22 catch-scope fix,
+which is what the coupling had been waiting on since the pin was made exact. The
+upgrade was attempted, verified, and **not landed**. `main` is unchanged at
+`1.0.9`; the work sits on branch `t13.22-binaryen-1.5.0` (`23f31299`).
+
+#### Our half is done and proven
+
+`bridgeExpr`'s `try_table` now builds its catch clauses BEFORE pushing the
+try_table's own label. Measured against our own encoder as reference:
+
+| | binaryen-ts 1.0.9 | binaryen-ts 1.5.0 |
+| --- | --- | --- |
+| bridge **old** | MATCH — the cancellation | throws / silently depth 0 |
+| bridge **fixed** | wrong: depth +1 | **MATCH** |
+
+The whole 2×2 was measured, not reasoned. That matters because it is the
+empirical case for one atomic commit, and because **three of the four cells emit
+bytes V8 still ACCEPTS** — V8 is no guard for this class, only a byte comparison
+against a second encoder is.
+
+**The probe had to be built to discriminate, and the first one was not.** A
+catch target written as a NAME cannot see this bug in either direction: the
+bridge resolves a name to a name, insensitive to what is on the label stack.
+Only a NUMERIC depth separates the hypotheses. The first probe used `$outer`,
+reported a clean MATCH in a configuration that was actually broken, and would
+have licensed the merge. Same shape as T13.22's original misdiagnosis, which is
+the second time this exact trap has been walked into on this exact item.
+
+#### Blocker 1 — the dependency-age gate
+
+1.5.0 published at `2026-08-25T22:17:43Z`. Deno refuses a JSR version younger
+than 24 hours by default (`minimumDependencyAge`), and **CI hits the same wall**.
+Landing on the day would mean lowering that policy project-wide — a supply-chain
+decision, not a workaround, and not worth it for 24 hours. "1.5.0 is live" and
+"1.5.0 is adoptable" are a day apart.
+
+#### Blocker 2 — the real one, and it was invisible to the compatibility check
+
+binaryen-ts checked their side and reported that every name our bridge imports
+from `/ir` still resolves at v1.5.0. **Verified here independently: 0 missing**,
+72 imported against 205 exported.
+
+And with all 72 resolving, **12 of 28 bridge tests fail**. All 28 pass on 1.0.9.
+One root cause:
+
+    WasmEncodeError: unresolved GC function type: (structref) -> (i32)
+
+Their `gcFuncTypeIndex` now demands an exactly-matching declared `func` heap type
+for any GC-typed signature — the UP-7 typed-ref work landing. Our
+`coarsenValueType` maps `(ref $T)` → `structref` at the boundary, a deliberate
+accommodation to their older flat `ValType` surface, so **no key can ever
+match**, for any GC module.
+
+They had flagged the area — *"their `coarsenValueType` may be doing unnecessary
+work"* — but it is not now-redundant work, it is a hard encode failure. Removing
+the bridge's last lossy step is the actual cost of this upgrade, and it is a
+larger change than the catch-scope fix it was meant to accompany.
+
+**Asked back before starting it**, because a compatibility path on their side is
+a decision they can make once and every GC-using consumer of `ModuleBuilder` will
+otherwise hit this the same way.
+
+#### A false alarm, checked rather than assumed
+
+Importing their source as local `file:///` modules (to test against the exact
+v1.5.0 tag without waiting out the age gate) produced 13 type errors under our
+`exactOptionalPropertyTypes`. **The same method against 1.0.9 produces 30**, so
+the errors are an artifact of the method and say nothing about 1.5.0. A control
+run was the whole cost of not filing that as a finding.
+
+#### Not the blocker, recorded so it is not re-derived
+
+`/encoder` appears in `src/` exactly once, in a doc comment
+(`binaryen-bridge.ts:12`), and is never imported there — binaryen-ts are right
+that it is free to change as far as the BRIDGE is concerned. But **11 test files
+import it**, so the mapping is not free to drop.
+
+### T13.46 — DONE. The corpus refresh the stamp made possible (2026-08-25).
+
+T13.45 stamped the snapshot, which made it honest, not current. This made it
+current, and it is the answer to a question the wasmtk team had raised three
+times in different forms.
+
+Regenerated all 417 `tests/wasi/wasm_wasi/*.ts` from wasmtk `4600ba9`, **verified
+level with `origin/main` first** — refreshing from a stale checkout would have
+manufactured a new stale snapshot, which is the failure being fixed. 413
+compiled; 4 are wasic compile failures and are simply absent
+(`18zl_VarGateBlockEscape`, `18zm_VarGateLoopClosure`,
+`33_IntersectionBasePrefixGuard`, `34_InlinePredicateUnresolvable`).
+
+| | before | after |
+| --- | --- | --- |
+| files | 272 (frozen 2026-05-25) | **421** |
+| encode | 272 / 272 | **421 / 421** |
+| validate | **265 / 272** | **421 / 421** |
+| round-trip | 272 / 272 | **421 / 421** |
+| `KNOWN_INVALID` | 7 | **empty** |
+
+**8 files had no wasic source** and had to survive: `18_symbol_table`,
+`1_fib-rs`, `1_fib-rs-opt`, `1_fib-zig-opt`, `1_fizzbuzz_wat`,
+`1_helloWorld_wat`, `1_helloworld`, `1_print` — Rust / Zig / hand-written WAT
+from other producers. A delete-and-replace would have dropped them silently;
+`PROVENANCE.md` now names them so the next refresh cannot.
+
+**`KNOWN_INVALID` emptied itself.** All seven fired their *"now VALIDATES — wasic
+appears fixed"* assertion simultaneously. The gate was correct for its entire
+life; only its INPUT was stale, which is the one thing it structurally could not
+detect. The mechanism stays, with a note that new entries carry a date and a
+reason.
+
+**Deliberately NOT reconciled:** wasmtk count their live corpus at 373; we
+generate 413 from the same checkout. Which sources constitute "the corpus" is a
+fact about wasmtk, and inferring it from file counts on our side is precisely the
+move that produced three wrong reports. Recorded as an open question in
+`PROVENANCE.md` rather than guessed.
+
 
 ### T13.45 — DONE. The snapshot's provenance was recoverable all along, and "unknown" had never been checked (2026-08-25).
 
