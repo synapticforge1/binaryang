@@ -115,6 +115,15 @@ closes one arm leaves a comment describing a bug that is still there.
 A useful corollary for reviewing: **grep the codebase for the failure your own comments describe.**
 Three of these were findable by reading the explanations already written next to them.
 
+**And when you fix a bug of a given SHAPE, enumerate every site of that shape in the same sitting —
+then test the enumeration, not the instance.** The anonymous-region container bug was fixed twice
+(WT-2f, WT-2g) without anyone asking where else a region body is emitted; the remaining two sites
+(the `try` body, the `if` arms) surfaced a month later as two more "valid module fails its own round
+trip" reports. Four one-off fixtures over four sessions never provoked the fifth case. The fix that
+finally closed it was a matrix — every construct that owns a region × falls-through vs
+exits-via-`br` — and a single helper all four sites call, documented as the thing a new region must
+use. A fixture proves one case; a matrix proves you knew what the cases were.
+
 ## 2c. A placeholder must not be representable as real data (2026-08-25)
 
 `funcTypes` mirrors the type section index-for-index, so a struct or array entry has to occupy its

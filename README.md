@@ -590,6 +590,14 @@ places paired parallel arrays by index without checking they matched (`br_table`
 `try`'s catch tags against its catch bodies — the latter emitting a `catch` opcode with no handler
 after it). All four now throw.
 
+A second sweep the same day fixed two cases where a **valid module would not survive its own
+round-trip**: a `try` body or an `if` arm that spans several instructions and exits via `br` was
+re-wrapped in a block on the way out, which swallowed the value the branch carried. Both are now
+covered by a matrix over every construct that owns a body, rather than by another one-off fixture.
+The legacy-EH opcodes `else`, `catch`, `catch_all` and `delegate` also stopped silently ignoring
+malformed input — arriving outside the construct they belong to, they used to be dropped (or, for
+`delegate`, to rebuild a plain block as an exception construct); they now throw.
+
 Concrete typed references (`(ref $T)` / `(ref null $T)`) are now carried end-to-end through every
 declared position, so the earlier caveat about typed-ref locals no longer applies.
 

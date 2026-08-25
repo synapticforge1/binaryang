@@ -1536,7 +1536,37 @@ class WasmEncoder {
    * stack ("not enough arguments on the stack"). A named block, or a
    * single-expression handler, is emitted as-is.
    */
-  private encodeCatchBody(w: BinaryWriter, body: Expression, labels: string[]): void {
+  /**
+   * Emits the body of a REGION that is not itself a block — a `try` body or a
+   * `catch` handler — unpacking the anonymous container the decoder wraps a
+   * multi-instruction body in.
+   *
+   * The container is an artifact of the IR (one `Expression` per body), not
+   * something the binary had. Emitting it as a real `block` re-wraps the body a
+   * level deeper than it was read, and the wrapper carries the type `makeBlock`
+   * INFERRED from its last child rather than the region's declared result type.
+   * A body that exits via `br` ends in an `unreachable`-typed child, so the
+   * wrapper is emitted with a void blocktype, absorbs the unreachability, and
+   * yields nothing to a result-typed region — "expected 1 elements on the stack
+   * for fallthru, found 0" on a module that was valid going in.
+   *
+   * The catch handlers had a second reason (WT-2g): `catch` pushes the tag's
+   * params onto the catch region's stack, which an inner void-blocktype block
+   * cannot receive. The other regions have only the typing reason, which is why
+   * they went unnoticed longer.
+   *
+   * EVERY region goes through here. The four sites are the function body
+   * (unpacked inline in `encodeFunctionBody`), the `if` arms, the `try` body
+   * and the `catch` handlers — and three of them were found one at a time, each
+   * time as a valid module that would not survive its own round trip. A region
+   * added later must use this, not `encodeExpr`.
+   *
+   * `loop` / `try_table` / `block` bodies are NOT regions in this sense: their
+   * container is stamped with the construct's declared result type by
+   * `sealFrame`, so it encodes as a correctly-typed block. They are verbose
+   * rather than wrong, and are left alone.
+   */
+  private encodeRegionBody(w: BinaryWriter, body: Expression, labels: string[]): void {
     if (body.kind === ExpressionKind.Block && (body as BlockExpr).name === null) {
       for (const child of (body as BlockExpr).children) {
         this.encodeExpr(w, child, labels);
@@ -1601,10 +1631,14 @@ class WasmEncoder {
         w.writeU8(0x04);
         writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
         labels.push(e.name ?? ""); // the if's branch-target label (if any)
-        this.encodeExpr(w, e.ifTrue, labels);
+        // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
+        // exits via `br` ends in an unreachable-typed child, so re-wrapping it
+        // emitted a void blocktype that absorbed the unreachability and yielded
+        // nothing to a result-typed `if`.
+        this.encodeRegionBody(w, e.ifTrue, labels);
         if (e.ifFalse) {
           w.writeU8(0x05); // else
-          this.encodeExpr(w, e.ifFalse, labels);
+          this.encodeRegionBody(w, e.ifFalse, labels);
         }
         labels.pop();
         w.writeU8(0x0b);
@@ -2125,7 +2159,7 @@ class WasmEncoder {
           w.writeU8(0x06); // try
           writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
           labels.push(e.name ?? "");
-          this.encodeExpr(w, e.body, labels);
+          this.encodeRegionBody(w, e.body, labels);
           labels.pop();
           w.writeU8(0x18); // delegate
           w.writeU32(this.resolveLabel(labels, e.delegateTarget));
@@ -2133,7 +2167,7 @@ class WasmEncoder {
           w.writeU8(0x06); // try
           writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
           labels.push(e.name ?? "");
-          this.encodeExpr(w, e.body, labels);
+          this.encodeRegionBody(w, e.body, labels);
           // Tags and bodies are parallel by construction. Pairing them by index
           // without checking meant a mismatched `Try` emitted a `catch` opcode
           // with no handler after it, corrupting the rest of the function body.
@@ -2149,7 +2183,7 @@ class WasmEncoder {
               w.writeU8(0x07); // catch
               w.writeU32(this.resolveRef(this.tagIndex, tag, "catch tag"));
             }
-            this.encodeCatchBody(w, e.catchBodies[i]!, labels);
+            this.encodeRegionBody(w, e.catchBodies[i]!, labels);
           }
           labels.pop();
           w.writeU8(0x0b);

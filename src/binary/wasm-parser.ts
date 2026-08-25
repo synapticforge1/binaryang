@@ -1662,6 +1662,12 @@ class WasmParser {
             const ps = frame.paramSeed;
             frame.exprs = ps ? ps.slots.map((slot, i) => makeLocalGet(slot, ps.types[i]!)) : [];
             frame.kind = "else" as ControlFrameKind;
+          } else {
+            // `else` outside an `if` used to fall through this `if` and vanish:
+            // the opcode was consumed and nothing happened, so the instructions
+            // that followed kept accumulating into the enclosing frame and the
+            // module decoded as a DIFFERENT program with no diagnostic.
+            r.error(`else outside an if (enclosing frame is ${frame.kind})`);
           }
           break;
         }
@@ -1706,6 +1712,10 @@ class WasmParser {
             frame.exprs = tagParams.map((p) => makePop(p));
             frame.catchTags!.push(tagName);
             frame.kind = "catch" as ControlFrameKind;
+          } else {
+            // Same silent drop as `else` above: the tag index was consumed and the
+            // handler transition never happened.
+            r.error(`catch outside a try (enclosing frame is ${frame.kind})`);
           }
           break;
         }
@@ -1968,6 +1978,12 @@ class WasmParser {
         case 0x18: { // delegate $depth (old EH — ends the try without end opcode)
           const depth = r.readU32();
           const frame = popFrame(frames, r);
+          // `delegate` terminates a `try`. Applied to any other frame it silently
+          // rebuilt that frame as a `try ... delegate` — a plain block came back
+          // out as an exception construct.
+          if (frame.kind !== "try") {
+            r.error(`delegate outside a try (enclosing frame is ${frame.kind})`);
+          }
           const rts = frame.resultTypes;
           const resultType: Type = resultTypeOf(rts);
           const tryBody = oneOrBlock(frame.exprs);
@@ -1985,6 +2001,8 @@ class WasmParser {
             frame.exprs = [];
             frame.catchTags!.push(""); // empty string = catch_all
             frame.kind = "catch" as ControlFrameKind;
+          } else {
+            r.error(`catch_all outside a try (enclosing frame is ${frame.kind})`);
           }
           break;
         }

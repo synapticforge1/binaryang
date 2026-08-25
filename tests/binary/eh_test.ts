@@ -13,8 +13,8 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
+import { assert, assertEquals, assertThrows } from "@std/assert";
+import { parseWasm, WasmBinaryError } from "../../src/binary/index.ts";
 import { encodeWasm } from "../../src/encoder/index.ts";
 import { ExpressionKind } from "../../src/ir/expressions.ts";
 import type { BlockExpr, ThrowExpr, ThrowRefExpr, TryTableExpr } from "../../src/ir/expressions.ts";
@@ -823,3 +823,38 @@ Deno.test("try_table: a label used only as a catch destination survives -Oz", as
   // `unresolved branch label` at encode time.
   assertEquals(await runF(encodeWasm(mod)), 33);
 });
+
+// ---------------------------------------------------------------------------
+// EH opcodes on a frame of the wrong kind
+//
+// `else` (0x05), `catch` (0x07) and `catch_all` (0x19) each did their work
+// inside `if (frame.kind === ...)` with NO else branch, so an opcode arriving on
+// the wrong frame was silently dropped: the immediate was consumed and the
+// instruction vanished, leaving the following instructions to accumulate into
+// the enclosing frame. The module decoded as a different program with no
+// diagnostic. `delegate` (0x18) was worse — it popped whatever frame was open
+// and rebuilt it as a `try ... delegate`, turning a plain block into an
+// exception construct.
+//
+// These are malformed inputs, which is exactly when the robustness contract
+// says to fail loudly rather than invent a program.
+// ---------------------------------------------------------------------------
+
+const STRAY_BODY: [name: string, body: number[], msg: string][] = [
+  ["else outside an if", [0x02, 0x40, 0x05, 0x0b], "else outside an if"],
+  ["catch outside a try", [0x02, 0x40, 0x07, 0x00, 0x0b], "catch outside a try"],
+  ["catch_all outside a try", [0x02, 0x40, 0x19, 0x0b], "catch_all outside a try"],
+  ["delegate outside a try", [0x02, 0x40, 0x18, 0x00], "delegate outside a try"],
+];
+
+for (const [name, inner, msg] of STRAY_BODY) {
+  Deno.test(`EH: ${name} is rejected, not silently dropped`, () => {
+    const mod = module(
+      section(0x01, 0x01, 0x60, 0x00, 0x00),
+      section(0x03, 0x01, 0x00),
+      section(0x0d, 0x01, 0x00, 0x00),
+      section(0x0a, 0x01, inner.length + 2, 0x00, ...inner, 0x0b),
+    );
+    assertThrows(() => parseWasm(mod), WasmBinaryError, msg);
+  });
+}

@@ -273,6 +273,75 @@ defeated the reason for turning the flag on at all.
 
 ---
 
+## "Look for code issues" sweep #2 (2026-08-25 evening) — the region class, found twice more
+
+Two behavioural bugs and one silent-misdecode family. Suite 484 → 501.
+
+### The same bug, in its third and fourth locations
+
+**A valid module would not survive its own round trip** whenever a `try` body or an `if` arm was
+multi-instruction AND exited via `br`:
+
+```
+(func (result i32) (try (result i32) (do nop (br 0 (i32.const 7))) (catch_all (i32.const 9))))
+  input: valid, returns 7
+  parse -> encode: "expected 1 elements on the stack for fallthru, found 0"
+```
+
+The mechanism is one this project has now paid for four times. The decoder packs a multi-instruction
+region body into an ANONYMOUS `BlockExpr` — one `Expression` per body is what the IR demands. That
+container is an artifact of the IR, not something the binary had, so the encoder must UNPACK it.
+Emitting it as a real `block` re-wraps the body a level deeper than it was read, and the wrapper
+carries the type `makeBlock` inferred from its LAST CHILD rather than the region's declared result
+type. A body that exits via `br` ends in an `unreachable`-typed child, so the wrapper goes out with
+a void blocktype, absorbs the unreachability, and yields nothing to a result-typed region.
+
+Four sites, four separate discoveries, each from a downstream failure rather than a search:
+
+| Site                       | Found      |
+| -------------------------- | ---------- |
+| the inlined-callee wrapper | WT-2f      |
+| `catch` handlers           | WT-2g      |
+| the `try` body             | this sweep |
+| the `if` arms              | this sweep |
+
+`encodeCatchBody` (WT-2g's fix) is now `encodeRegionBody` and every region goes through it. Its doc
+comment names all four sites and says a region added later must use it rather than `encodeExpr`.
+
+`loop` / `try_table` / `block` bodies are deliberately NOT routed through it: `sealFrame` stamps
+their container with the construct's declared result type, so it encodes as a correctly-typed block.
+Verbose rather than wrong — left alone.
+
+**The test is a MATRIX, not a fifth fixture.** `tests/binary/region_body_test.ts` covers every
+construct that owns a region × falls-through vs exits-via-`br`, 13 cases; 3 go red if
+`encodeRegionBody` is reverted at either site. Four one-off fixtures over four sessions never once
+provoked the fifth case, which is the argument for the matrix.
+
+### EH opcodes on a frame of the wrong kind were silently dropped
+
+`else` (0x05), `catch` (0x07) and `catch_all` (0x19) each did their work inside
+`if (frame.kind === ...)` with **no else branch**. An opcode arriving on the wrong frame therefore
+had its immediate consumed and then vanished, and the instructions after it kept accumulating into
+the enclosing frame — a different program, decoded with no diagnostic. `delegate` (0x18) was worse:
+it popped whatever frame was open and rebuilt it as a `try ... delegate`, turning a plain block into
+an exception construct. All four now throw. Four tests in `eh_test.ts`.
+
+### Two sweeps that found NOTHING, recorded so nobody re-runs them
+
+Both were exhaustive differential round-trips (build a fixture per opcode, keep it only if V8
+accepts it, then require the re-encode to be byte-identical):
+
+- **All 23 MVP load/store opcodes** (0x28–0x3E): 23 covered, 0 drift. The
+  `(bytes, signed, resultType)` → opcode inversion in the encoder is sound.
+- **All 128 numeric opcodes** (0x45–0xC4): 128 covered, 0 drift, 0 throws, and every one of them was
+  reachable by some operand shape. The unary/binary tables agree end to end.
+
+Worth keeping because "we checked the opcode tables" is otherwise unfalsifiable, and because the
+technique — brute-force a fixture per opcode, let V8 decide which are legal, then demand byte
+identity — generalises to any future table.
+
+---
+
 ## The UP-1…UP-7 series (2026-08-24) — wabt-ts upstream findings
 
 Seven findings filed by the wabt-ts team from its conformance campaign (their report:
