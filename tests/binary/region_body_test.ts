@@ -32,6 +32,8 @@
 import { assertEquals } from "@std/assert";
 import { parseWasm } from "../../src/binary/index.ts";
 import { encodeWasm } from "../../src/encoder/index.ts";
+import { PassRunner } from "../../src/passes/pass.ts";
+import "../../src/passes/index.ts"; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
 
@@ -53,6 +55,8 @@ const NOP = 0x01;
 const END = 0x0b;
 const C7 = [0x41, 0x07];
 const C9 = [0x41, 0x09];
+const I32 = 0x7f;
+const VOID = 0x40;
 
 /** `(module (func (export "f") (result i32) <body>))` */
 function mk(body: number[]): Uint8Array {
@@ -111,6 +115,102 @@ const CASES: [name: string, body: number[], want: number][] = [
     [0x02, 0x7f, NOP, 0x41, 0x01, 0x04, 0x7f, NOP, ...C7, 0x0c, 0x01, 0x05, ...C9, END, END],
     7,
   ],
+
+  // A region whose SOLE child is a real, named block. `RemoveUnusedNames`
+  // strips the name when nothing branches to it, which hands the encoder an
+  // anonymous block that is NOT a decoder container — and `encodeRegionBody`
+  // unpacks it anyway. That is sound (a block yields its declared type, and so
+  // do its children emitted directly), but it is the one way the unpacking can
+  // meet a block it did not create, so it is pinned rather than argued.
+  [
+    "if arm is an inner named block",
+    [0x41, 0x01, 0x04, I32, 0x02, I32, NOP, ...C7, END, 0x05, ...C9, END],
+    7,
+  ],
+  [
+    "if arm is an inner block that brs past it",
+    [0x41, 0x01, 0x04, I32, 0x02, I32, NOP, ...C7, 0x0c, 0x01, END, 0x05, ...C9, END],
+    7,
+  ],
+  [
+    "try body is an inner named block",
+    [0x06, I32, 0x02, I32, NOP, ...C7, END, 0x19, ...C9, END],
+    7,
+  ],
+  [
+    "try body is an inner block that brs past it",
+    [0x06, I32, 0x02, I32, NOP, ...C7, 0x0c, 0x01, END, 0x19, ...C9, END],
+    7,
+  ],
+  [
+    "catch handler is an inner named block",
+    [0x06, I32, ...C7, 0x19, 0x02, I32, NOP, ...C9, END, END],
+    7,
+  ],
+
+  // `loop` and `try_table` containers are STAMPED with the declared result type
+  // by `sealFrame`, so they encode as correctly-typed blocks and are
+  // deliberately not unpacked. Pinned so that stays true.
+  [
+    "loop i32, multi-instruction, brs to the enclosing block",
+    [0x02, I32, 0x03, I32, NOP, ...C7, 0x0c, 0x01, END, END],
+    7,
+  ],
+  [
+    "try_table i32, multi-instruction, brs out",
+    [0x02, I32, 0x1f, I32, 0x00, NOP, ...C7, 0x0c, 0x01, END, END],
+    7,
+  ],
+
+  // Regions nested inside regions of a different kind.
+  [
+    "try inside if inside block",
+    [
+      0x02,
+      I32,
+      0x41,
+      0x01,
+      0x04,
+      I32,
+      0x06,
+      I32,
+      NOP,
+      ...C7,
+      0x0c,
+      0x02,
+      0x19,
+      ...C9,
+      END,
+      0x05,
+      ...C9,
+      END,
+      END,
+    ],
+    7,
+  ],
+  [
+    "if inside a try body",
+    [0x06, I32, NOP, 0x41, 0x01, 0x04, I32, NOP, ...C7, 0x05, ...C9, END, 0x19, ...C9, END],
+    7,
+  ],
+  [
+    "if inside a catch handler",
+    [0x06, I32, ...C7, 0x19, 0x41, 0x01, 0x04, I32, NOP, ...C9, 0x05, ...C7, END, END],
+    7,
+  ],
+
+  // Void regions carrying only side effects — no value to lose, so a failure
+  // here would mean the unpacking broke something other than the result type.
+  [
+    "if void, both arms multi-instruction",
+    [0x41, 0x01, 0x04, VOID, NOP, NOP, 0x05, NOP, NOP, END, ...C7],
+    7,
+  ],
+  [
+    "try void, body and handler multi-instruction",
+    [0x06, VOID, NOP, NOP, 0x19, NOP, NOP, END, ...C7],
+    7,
+  ],
 ];
 
 for (const [name, body, want] of CASES) {
@@ -121,6 +221,15 @@ for (const [name, body, want] of CASES) {
     // round-trip assertion below would be measuring nothing.
     assertEquals(await run(input), want, "fixture does not behave as expected");
 
-    assertEquals(await run(encodeWasm(parseWasm(input))), want);
+    assertEquals(await run(encodeWasm(parseWasm(input))), want, "bare round-trip");
+
+    // The full pipeline too: `RemoveUnusedNames` is what can turn a real block
+    // into an anonymous one, and Vacuum is what collapses containers — both
+    // change what the encoder is handed.
+    const opt = parseWasm(input);
+    new PassRunner(opt, { optimizeLevel: 2, shrinkLevel: 2 })
+      .addDefaultOptimizationPasses()
+      .run();
+    assertEquals(await run(encodeWasm(opt)), want, "full -Oz");
   });
 }

@@ -313,9 +313,44 @@ their container with the construct's declared result type, so it encodes as a co
 Verbose rather than wrong — left alone.
 
 **The test is a MATRIX, not a fifth fixture.** `tests/binary/region_body_test.ts` covers every
-construct that owns a region × falls-through vs exits-via-`br`, 13 cases; 3 go red if
-`encodeRegionBody` is reverted at either site. Four one-off fixtures over four sessions never once
-provoked the fifth case, which is the argument for the matrix.
+construct that owns a region × falls-through vs exits-via-`br`. Four one-off fixtures over four
+sessions never once provoked the fifth case, which is the argument for the matrix.
+
+### The class, enumerated and CLOSED
+
+After the fourth instance the class was scoped rather than patched again. Both sides enumerate to a
+fixed, small list, and the two lists agree:
+
+**Decoder — every anonymous container it creates** (`grep 'oneOrBlock|sealFrame'`):
+
+| Site                                 | Container                | Status                           |
+| ------------------------------------ | ------------------------ | -------------------------------- |
+| function body                        | `oneOrBlock`, UNSTAMPED  | unpacked in `encodeFunctionBody` |
+| `if` arms (×2)                       | `oneOrBlock`, UNSTAMPED  | unpacked (this sweep)            |
+| `try` body (×2 — plain and delegate) | `oneOrBlock`, UNSTAMPED  | unpacked (this sweep)            |
+| `catch` handlers                     | `oneOrBlock`, UNSTAMPED  | unpacked (WT-2g)                 |
+| `loop` body                          | `sealFrame`, **STAMPED** | left as a typed block            |
+| `try_table` body                     | `sealFrame`, **STAMPED** | left as a typed block            |
+
+**Encoder — every site that emits a body or arm**
+(`grep 'encodeExpr(w, e.body|e.ifTrue|e.ifFalse'`): the same six, plus `Select`'s operands (not a
+region at all). Nothing else emits a body.
+
+The split is the whole point: `sealFrame` STAMPS its container with the construct's declared result
+type, so it encodes as a correctly-typed block and cannot absorb unreachability. `oneOrBlock` does
+not, so its containers must never be emitted as blocks. **A new region belongs on one list or the
+other, and the choice is which helper builds its body.**
+
+The matrix is now **25 cases**, and it covers the second dimension the first version missed — **full
+`-Oz`, not just the bare round trip**. That matters because `RemoveUnusedNames` is the one thing
+that can hand `encodeRegionBody` an anonymous block it did NOT create (it nulls the name of a real
+block nothing branches to), and Vacuum collapses containers. Both change what the encoder sees.
+Unpacking such a block is sound — a block yields its declared type and so do its children emitted
+directly — but that is an argument, so it is pinned by fixtures instead: five cases whose region's
+sole child is a real named block. **5 of the 25 go red if `encodeRegionBody` is reverted.**
+
+Also probed and clean: regions nested inside regions of a different kind (try-in-if-in-block,
+if-in-try-body, if-in-catch-handler) and void regions carrying only side effects.
 
 ### EH opcodes on a frame of the wrong kind were silently dropped
 

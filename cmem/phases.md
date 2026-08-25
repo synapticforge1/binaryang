@@ -113,6 +113,12 @@ version by hand. See [publishing.md](publishing.md). `deno.json` is deliberately
 while the bump is held: its tag exists on the remote, so `auto-tag.yml` no-ops and no push can
 publish.
 
+**RELEASE BLOCKER (2026-08-25): 1.5.0 cannot ship alone.** The `try_table` catch-scope fix is
+COUPLED to a matching fix in the wabt-ts bridge — their bridge compensates for our bug and the two
+errors cancel, so either fix shipped by itself produces wrong output. Confirmed by them at the byte
+level. See [bridge.md](bridge.md) § "RELEASE BLOCKER". The two changes land together or not at all,
+and their `^1.0.9` range means a lock refresh on their side would pick 1.5.0 up silently.
+
 **The hold has a cost, and the owner has priced it (2026-08-25).** Everything above — all of
 multi-value decoding included — sits above the `v1.4.3` tag, so a JSR consumer still gets
 "multi-value block type is not supported". That makes binaryen-ts the sole remaining blocker on the

@@ -139,6 +139,44 @@ This is the shape that matters for the EH migration: `$__exn_tag (param i32 i32)
 values to the handler as the results of the enclosing block, so the catch destination is an ordinary
 multi-value block label — and it is the _only_ spelling of that shape.
 
+### RELEASE BLOCKER: the `dest` fix is COUPLED to a wabt-ts bridge fix (2026-08-25)
+
+The wabt-ts team replied with byte-level evidence, and the answer is the worse of the two branches I
+offered them: **their bridge compensates for our bug, and the two errors cancel.**
+
+Their `buildCatchClause` resolves the catch target against a stack that already has the try_table's
+own label pushed, so it hands us a label one level too SHALLOW. Our released encoder then counts the
+try_table frame, one level too DEEP. Net: the emitted depth is correct.
+
+```
+1f 7f 01 00 00 01     try_table i32 | 1 catch | kind=catch | tag 0 | depth 1   <- correct
+```
+
+**Either fix alone produces wrong output.** Removing their ordering bug against a released
+binaryen-ts takes the depth 1 → 2. Releasing our fix against their current bridge takes it 1 → 0.
+The two changes must land in the same coordinated step, and this is now a **release-gating
+constraint on 1.5.0**, not a courtesy note.
+
+Their framing is worth keeping: it is not a deliberate ±1 that either side can delete. It is a SCOPE
+bug — catch targets resolve in the ENCLOSING scope, before the try_table's own label is pushed — and
+it has now hit them in three separate layers (parser, validator, bridge), none of which grepped for
+the others. Same one-authoritative-rule failure as our own four region sites.
+
+**The coupling is protected only by a lockfile.** `../wabt-ts/deno.json` asks for
+`jsr:@jrmarcum/binaryen-ts@^1.0.9` and `deno.lock` pins exactly `1.0.9` — verified by reading their
+repo. That range already admits every published version (JSR latest is 1.4.3, confirmed via
+`jsr.io/@jrmarcum/binaryen-ts/meta.json`), and a lock refresh today is harmless because EVERY
+released version has the old catch scope. **The moment 1.5.0 publishes, a plain
+`deno cache --reload` on their side silently breaks their EH output with no version bump on their
+part.** Worth telling them to pin exactly until the coordinated change lands.
+
+A method note from their side worth adopting: their first probe compared RUNTIME RESULTS of the two
+orderings and got 111 from both, which read as a refutation. It was not — depth 1 and depth 2 both
+return 111 in that shape, and only depth 0 differs, so the probe could not discriminate. The byte
+comparison against a known-correct reference is what settled it. That is our own rule ("a fixture
+where both readings type-check proves nothing") rediscovered independently on the other side of the
+bridge, and it nearly cost them the wrong answer.
+
 ### PENDING: the wabt-ts team has not been told about the `dest` change
 
 A handoff note is **drafted but not sent** (2026-08-25) — it lives in this session's scratchpad, not

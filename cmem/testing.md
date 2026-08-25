@@ -4,7 +4,7 @@
 
 ```sh
 deno task check       # type-check all files
-deno task test        # run the full suite (501 passed, 1 ignored — verified 2026-08-25; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k"; +19 Tier 1 of the UP-series (13 gc_packed_get_test + 6 start_section_test) and +14 Tier 2 (6 tag_import_test + 8 gc_bulk_ops_test) — see cmem/correctness.md § "The UP-1…UP-7 series"; +4 on 2026-08-25 for the multi-value block WRITER and the try_table catch scope: 2 in eh_test.ts, 2 in multivalue_test.ts, each teeth-verified by reverting its own fix — see cmem/correctness.md § "The multi-value block WRITER"; +7 from the same day's "look for code issues" sweep — encoder duplicate child enumeration, unknown export kind, non-function type index, call_indirect table index, unknown section id, WAT multi-result truncation, WAT missing operand — see cmem/correctness.md § "Look for code issues" sweep (2026-08-25); +17 from sweep #2 the same evening — 13 in the new region_body_test.ts matrix and 4 stray-EH-opcode tests, see cmem/correctness.md § "Look for code issues" sweep #2)
+deno task test        # run the full suite (513 passed, 1 ignored — verified 2026-08-25; asyncify COMPLETE incl. the in-wasm asyncify.* IMPORT mode for TinyGo goroutines + liveness-minimized saving; +9 flatten; +7 from the 2026-07-08 wasmtk-side audit sweep: call_indirect eval-order + dropped-unreachable regressions, asyncify memory-ensure / import-globals / multi-memory / legacy-alias tests; +2 import-mode tests; +2 the WT-2k decoder value-on-stack reorder regression (decoder_reorder_test.ts); see cmem/passes.md § "In-wasm asyncify-import mode" + cmem/correctness.md § "WT-2k"; +19 Tier 1 of the UP-series (13 gc_packed_get_test + 6 start_section_test) and +14 Tier 2 (6 tag_import_test + 8 gc_bulk_ops_test) — see cmem/correctness.md § "The UP-1…UP-7 series"; +4 on 2026-08-25 for the multi-value block WRITER and the try_table catch scope: 2 in eh_test.ts, 2 in multivalue_test.ts, each teeth-verified by reverting its own fix — see cmem/correctness.md § "The multi-value block WRITER"; +7 from the same day's "look for code issues" sweep — encoder duplicate child enumeration, unknown export kind, non-function type index, call_indirect table index, unknown section id, WAT multi-result truncation, WAT missing operand — see cmem/correctness.md § "Look for code issues" sweep (2026-08-25); +29 from sweep #2 the same evening — 25 in the new region_body_test.ts matrix (the region class enumerated and closed) and 4 stray-EH-opcode tests, see cmem/correctness.md § "Look for code issues" sweep #2)
 deno task fmt         # format
 deno task lint        # lint
 deno task ci          # check + test (the bundle CI runs)
@@ -61,8 +61,9 @@ gets the config nearest it.
 ## The region matrix (`tests/binary/region_body_test.ts`)
 
 Every construct that owns a REGION body (`block` / `loop` / `if` arms / `try` body and handlers /
-`try_table`) crossed with a body that falls through and a body that exits via `br`. 13 cases; 3 go
-red if `encodeRegionBody` is reverted to `encodeExpr` at either the `if` or the `try` site.
+`try_table`) crossed with a body that falls through and a body that exits via `br`. 25 cases across
+two dimensions — falls-through vs exits-via-`br`, and bare round-trip vs full `-Oz`; 5 go red if
+`encodeRegionBody` is reverted.
 
 It exists because the same bug was found FOUR times as four one-off fixtures (WT-2f, WT-2g, then the
 `try` body and the `if` arms on 2026-08-25) and none of those fixtures ever provoked the next case.
