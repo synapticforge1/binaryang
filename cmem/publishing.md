@@ -8,28 +8,37 @@ sub-version-capped-at-9 rule, and this release breaks an exported type twice, so
 minor. The import map still pins binaryen-ts at `^1.0.9` while the checkout is v1.3.5+ (the
 caret accepts it — a stale pin, not a break).
 
-## UNRELEASED on `main` (as of 2026-08-25) — FIFTEEN user-visible fixes awaiting a bump
+## SHIPPED in v1.4.1 (2026-08-25) — fifteen user-visible fixes
 
-<!-- This count is derived, and it went stale once already: the heading read "five"
-     while the table below held twelve, because rows were appended one audit pass at a
-     time and nobody re-counted. Re-derive it, do not trust it:
-     `grep -cE '^\| \*{0,2}T13.*\| \*\*yes' cmem/publishing.md`  ->  12
-     (VERIFIED 2026-08-25. The first version of this command returned 0: it skipped
-     one table cell where there are two before the verdict. A documented command
-     that silently returns nothing is worse than no command -- run it before you
-     write it down.) -->
+Published to JSR with OIDC provenance (rekor `2589519728`), attributed to the OWNER
+rather than `github-actions[bot]` — **the tag came from a human `deno task publish`,
+which is what avoids the `actorNotScopeMember` trap below**. Roughly 60 seconds from
+tag push to live.
+
+<!-- The count in this heading is DERIVED and has gone stale twice. It read "five"
+     while the table held twelve, was corrected, and then read "twelve" while the
+     table held fifteen. Re-derive it, never quote it:
+     `grep -cE '^\| \*{0,2}T13.*\| \*\*yes' cmem/publishing.md`
+     (The first version of that command returned 0 — it skipped one table cell where
+     there are two before the verdict. A documented command that silently returns
+     nothing is worse than no command: run it before you write it down, and again
+     when you next rely on it.) -->
 
 T13.11, T13.14, T13.15, T13.16, T13.20, T13.26, T13.29, T13.30, T13.31, T13.33,
-T13.34, T13.40 and T13.41 change BEHAVIOUR; T13.37 and T13.38 change only error WORDING.
-**T13.40 changes the BYTES every module encodes to** (3.2% smaller), so anyone
-pinning an output hash will see it move. **T13.16 emitted wrong
-code and T13.26 silently repaired an invalid module into a valid different one** —
-those two are the argument for shipping rather than accumulating more.
+T13.34, T13.40 and T13.41 changed BEHAVIOUR; T13.37 and T13.38 changed only error
+WORDING. **T13.40 changed the BYTES every module encodes to** (3.2% smaller), so a
+consumer pinning an output hash sees it move. **T13.16 emitted wrong code and T13.26
+silently repaired an invalid module into a valid different one** — those two were the
+argument for shipping rather than accumulating more, and they are the reason anyone
+still on 1.4.0 should move.
 
-`deno.json` reads **1.4.0 and that version is published**, so everything below is
-currently invisible to consumers. Recorded here rather than only in
-[tasks.md](tasks.md) because this file already carries the rule that settles it:
-*an unreleased fix is indistinguishable from an absent one downstream.*
+**Nothing is unreleased on `main` as of 2026-08-25.** The one deliberately unfixed item
+is T13.22 (bridge `try_table` catch scope), which has no published entrypoint and is
+coupled to the binaryen-ts bump — see [bridge.md](bridge.md).
+
+The table below is the release CONTENTS. It is kept because
+*an unreleased fix is indistinguishable from an absent one downstream* — and because
+each row names the v1.4.0 behaviour a consumer still pinned there is exposed to.
 
 | id | change | user-visible? |
 | --- | --- | --- |
@@ -99,10 +108,10 @@ behaviour anything could have depended on. Nothing here breaks `/compat`, which 
 nor the IR — and note `/compat` does not expose `wasmValidate` either, so T13.14
 cannot reach wasmtk through it at all.
 
-**`README.md` carries an "Unreleased (fixed on `main`, not yet published)" section
-describing these, added 2026-08-25 at the owner's request while the bump waits on
-further bug-hunting.** It states plainly that installing today gets v1.4.0 with the
-bugs still present, and gives the v1.4.0 workaround for the `table.get` case (write
+**`README.md` carries a "What changed in v1.4.1" section describing these**, retitled
+from "Unreleased (fixed on `main`, not yet published)" when v1.4.1 shipped on
+2026-08-25. Each entry still names the **v1.4.0** behaviour so anyone pinned there
+can see the exposure, and gives the v1.4.0 workaround for the `table.get` case (write
 the inner reference numerically — verified against a reverted tree, not assumed).
 
 **AT BUMP TIME that section must be folded into a released-version heading**, the

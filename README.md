@@ -54,10 +54,23 @@ authority (`deno task engine-check <dir-of-wasm>`).
 Round-trip fidelity is also **270 / 270** byte-identical over a 272-module corpus of real
 WASI-targeting output from the [wasmtk](https://github.com/jrmarcum/wasmtk) compiler.
 
-## Unreleased (fixed on `main`, not yet published)
+## What changed in v1.4.1
 
-**These are fixed in the repository but are NOT in v1.4.0**, the current JSR release. Installing
-`@jrmarcum/wabt-ts` today gets v1.4.0, which still has them.
+Published 2026-08-25. Fifteen user-visible fixes from a sustained audit of code that was already
+green — lint clean, type-check clean, every conformance metric exhausted. Two of them emitted or
+accepted **wrong output** in v1.4.0, and three change what the toolchain produces or says, so read
+those before upgrading:
+
+- **`wat2wasm` silently deleted an instruction** before `data.drop` / `elem.drop` — valid module,
+  different answer. Fixed.
+- **Every module now encodes ~3.2% smaller**, so output hashes move.
+- **Error message text changed** in the parser and the binary reader.
+
+Everything below is that release.
+
+**All of these ship in v1.4.1.** Installing `@jrmarcum/wabt-ts` today gets them. Each entry names
+the behaviour on **v1.4.0** so anyone still pinned there can see what they are exposed to, and
+gives the workaround where one exists.
 
 ### `data.drop` / `elem.drop` deleted the instruction before them
 

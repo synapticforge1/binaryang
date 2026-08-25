@@ -1,6 +1,6 @@
 # Phase delivery plan & per-phase gotchas
 
-## Status (deno.json at v1.4.0, published 2026-08-25; binaryen-ts pinned v1.0.9)
+## Status (deno.json at v1.4.1, published 2026-08-25; binaryen-ts pinned EXACTLY v1.0.9)
 
 > Everything through **T13.10** is RELEASED as of v1.4.0 — the 2026-06-09
 > silent-corruption audit, the whole post-v1.3.5 conformance campaign, and the
@@ -8,7 +8,7 @@
 > [publishing.md](publishing.md) for what the release breaks,
 > [design-decisions.md](design-decisions.md) and [tasks.md](tasks.md) for the detail.
 >
-> **UNRELEASED on `main` as of 2026-08-25: T13.11, T13.12, T13.13.** A post-release
+> **SHIPPED in v1.4.1 (2026-08-25): T13.11, T13.12, T13.13 and twelve more.** A post-release
 > audit pass — `resolveNames` skipping `table.get`'s index (valid WAT that failed to
 > encode), the two signed LEB encoders still repairing out-of-range input, and the
 > named-reference guard gaining its second axis plus V8-validity assertions. **T13.11
@@ -104,12 +104,12 @@ State as of 2026-08-25:
 | | |
 | --- | --- |
 | findings recorded | T13.1 – T13.44 |
-| **unreleased and user-visible** | **15** — see [publishing.md](publishing.md), which lists them and the command to re-derive the count |
+| **unreleased and user-visible** | **0** — all fifteen shipped in **v1.4.1** (2026-08-25, OIDC provenance). [publishing.md](publishing.md) keeps the contents table and the command to re-derive the count |
 | deliberately unfixed | 1 (T13.22 — the bridge defect currently cancels a matching one in binaryen-ts 1.0.9; must land with the dependency bump) |
 | enumeration frontier | **empty** since T13.32 — meaning the cheap axes are spent, NOT that the code is clean |
 | hardening passes | 8, findings 1 / 2 / 0 / 0 / 2 / 2 / 2 / 2 |
 
-Two of the unreleased twelve are the argument for cutting 1.4.1 rather than
+Two of the fifteen were the argument for cutting 1.4.1 rather than
 accumulating more: **T13.16** emitted wrong code (an instruction silently
 deleted), and **T13.26** silently repaired a malformed module into a valid,
 different one.
