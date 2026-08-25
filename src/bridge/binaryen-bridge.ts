@@ -1275,12 +1275,24 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'try_table': {
       const tt = e as TryTableExpr;
       const name = nameForLabel(ctx, tt.label);
+      // INTENT: catch targets resolve in the ENCLOSING scope -- a try_table's
+      // own label is NOT in scope for its handlers, so depth 0 names the frame
+      // outside it. The clauses are therefore built BEFORE the push, and the
+      // body after it. Getting this backwards is T13.22, and it was invisible
+      // for four releases because binaryen-ts 1.0.9 counted the try_table
+      // frame too, so the two errors cancelled to the right wire depth.
+      //
+      // binaryen-ts 1.5.0 fixed their half. With the pin there and this line
+      // in the old position, a numeric `(catch $e 1)` silently encoded depth 0
+      // -- bytes V8 still accepts, naming the wrong handler -- and a named
+      // target threw `unresolved branch label`. So this ordering and the pin
+      // are ONE change; see cmem/bridge.md.
+      const catches: CatchClause[] = tt.catches.map((c) => buildCatchClause(c, ctx));
       ctx.labelStack.push(name);
       try {
         const body = tt.body.length === 1
           ? bridgeExpr(tt.body[0]!, ctx)
           : makeBlock(tt.body.map((c) => bridgeExpr(c, ctx)));
-        const catches: CatchClause[] = tt.catches.map((c) => buildCatchClause(c, ctx));
         return withDeclaredType(
           makeTryTable(name, body, catches, bridgeBlockType(tt.blockType)),
           bridgeBlockType(tt.blockType),
