@@ -6,11 +6,31 @@ Read that before drawing any conclusion about wasmtk or its wasic compiler from 
 |                                     |                                                                                                      |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Source                              | [wasmtk](https://github.com/jrmarcum/wasmtk) — `.wat` emitted by its `wasic` TypeScript→WAT compiler |
-| Files here                          | **272**                                                                                              |
-| Files wasmtk's current corpus emits | **373** (as of 2026-08-24)                                                                           |
-| Snapshot date                       | **2026-05-25 21:50:17 -0400** (recovered 2026-08-25, see below)                                      |
-| Source commit                       | **`e147d28`** — wasmtk, 2026-05-25 11:25:15 -0400, "phase 22 stress test bug fixes"                  |
-| Captured by                         | wabt-ts `fbafca9e` ("update"), which added 278 `.wat` in one commit; a same-day follow-up removed the 6 `$mathlib_*` pre-link files, leaving 272 |
+| Files here                          | **421** — 413 regenerated from wasic + 8 non-wasic fixtures (below)                                   |
+| Files wasmtk's current corpus emits | **373** by their count (2026-08-24); we generate **413** from 417 sources — see the note below        |
+| Snapshot date                       | **2026-08-25** — REFRESHED (was 2026-05-25, recovered; see history below)                             |
+| Source commit                       | **`4600ba9`** — wasmtk `main`, 2026-08-10 18:29:20 -0400, verified level with `origin/main` at refresh time                  |
+| Captured by                         | Regenerated with `deno run -A main.ts wasic <src>.ts` over all 417 of `tests/wasi/wasm_wasi/*.ts`. Previous capture: wabt-ts `fbafca9e`, 278 files from wasmtk `e147d28` (2026-05-25) |
+| The 8 non-wasic fixtures            | `18_symbol_table`, `1_fib-rs`, `1_fib-rs-opt`, `1_fib-zig-opt`, `1_fizzbuzz_wat`, `1_helloWorld_wat`, `1_helloworld`, `1_print` — Rust / Zig / hand-written WAT, NOT wasic output. A refresh must preserve them |
+
+## Refreshed 2026-08-25 — and a count we deliberately did NOT reconcile
+
+Regenerated from wasmtk `4600ba9`, verified level with `origin/main` at the time. Every one of
+the 417 `tests/wasi/wasm_wasi/*.ts` sources was compiled; **413 produced a `.wat`** and 4 failed
+to compile (`18zl_VarGateBlockEscape`, `18zm_VarGateLoopClosure`,
+`33_IntersectionBasePrefixGuard`, `34_InlinePredicateUnresolvable`). Those four are wasic
+compile failures, not wabt-ts failures, and are simply absent here.
+
+**The wasmtk team count their live corpus at 373; we generate 413 from the same checkout.** We
+have not reconciled that, on purpose: which sources constitute "the corpus" is a fact about
+wasmtk, and inferring it from file counts on our side is exactly the move that produced three
+wrong reports. What we can state is what we did — compile every source in that directory and
+keep what compiled. **If the 40-file difference matters, ask them; do not derive it here.**
+
+Result on the refreshed corpus: **421 files, encode 421/421, validate 421/421, round-trip
+421/421** — up from 272 with 265/272 validating. `KNOWN_INVALID` emptied: all seven fired their
+"now VALIDATES" assertion at once, which is the gate working and only its input having been
+stale.
 
 ## The provenance was RECOVERABLE, and the record was wrong about that
 

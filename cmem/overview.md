@@ -42,11 +42,20 @@ cannot" is a good one.
 | execution           | spec `assert_return` assertions our output satisfies | **23,077 / 23,077**                                                |
 | `assert_malformed`  | text or bytes the spec says must FAIL TO PARSE that we reject | **1229 / 1229** quoted · **711 / 711** binary                       |
 
-Against the wasmtk WASI corpus (`tests/wasmtk/`, a FROZEN 272-file snapshot — see
-`tests/wasmtk/PROVENANCE.md`): encode **270 / 270**, round-trip **270 / 270** — over the **270
-files that import `wasi_snapshot_preview1`**. A harness walking all **272** `.wat` files reports
-**272 / 272** (re-measured 2026-08-25). Same result, different population: do not "correct" one
-number to the other without re-deriving which population is meant.
+Against the wasmtk WASI corpus (`tests/wasmtk/`, **REFRESHED 2026-08-25** from wasmtk `4600ba9` —
+see `tests/wasmtk/PROVENANCE.md`): **421 files, encode 421 / 421, validate 421 / 421, round-trip
+421 / 421.**
+
+It was a frozen 272-file snapshot from 2026-05-25 until then, of which 265 / 272 validated. The 7
+that did not were the `KNOWN_INVALID` set — all seven already fixed upstream, with the stale bytes
+the only thing still saying otherwise. On the refresh every one of them fired the gate's "now
+VALIDATES" assertion at once, and `KNOWN_INVALID` is now empty.
+
+**Populations still differ, so re-derive before quoting.** 421 = 413 regenerated from wasic + 8
+non-wasic fixtures (Rust / Zig / hand-written WAT). The wasmtk team count their live corpus at
+**373**; we generate 413 from the same checkout and have deliberately NOT reconciled that — which
+sources constitute "the corpus" is a fact about wasmtk, and inferring it here is the move that
+produced three wrong reports.
 
 **Each metric was blind to bugs the others caught**, which is the campaign's most reusable finding —
 see [best-practices.md](best-practices.md). The newest two exist because the others could not see

@@ -465,9 +465,10 @@ implementation that nothing exercises is where a printer goes to get its idea of
 
 ## Stamp a vendored snapshot with source + date, in the change that creates it
 
-`tests/wasmtk/` is 272 `.wat` files copied from another project's build output. Its live corpus
-is 373. Nothing recorded where the copy came from or when, because files accreted one at a time as
-new shapes appeared.
+`tests/wasmtk/` is a copy of another project's build output. For three months nothing recorded
+where the copy came from or when — the file claimed the files had "accreted one at a time" and the
+source commit was unknown. **Both were false**: one `git log --diff-filter=A` showed a single
+capture commit, and the upstream window around its timestamp held exactly one candidate.
 
 That was invisible for as long as nobody asked a question whose answer changes over time. Then it
 put a false claim in a report we sent upstream: seven modules described as _"genuinely invalid wasm

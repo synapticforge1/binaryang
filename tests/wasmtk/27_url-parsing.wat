@@ -3,14 +3,48 @@
   (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
   (memory (export "memory") 2)
   (global $__heap_ptr (mut i32) (i32.const 326))
+  (global $__d4s (mut i32) (i32.const 0))
+  (global $__free_list (mut i32) (i32.const 0))
   (global $__str_ret_ptr (mut i32) (i32.const 0))
   (global $__str_ret_len (mut i32) (i32.const 0))
-  ;; Bump allocator — advances __heap_ptr and returns the old value
+  ;; Free-list + bump allocator (auto-grows). GC Part 1+2.
   (func $__malloc (param $size i32) (result i32)
     (local $ptr i32)
+    (local $cur i32)
+    (local $prev i32)
+    (local.set $cur (global.get $__free_list))
+    (local.set $prev (i32.const 0))
+    (block $done
+      (loop $scan
+        (br_if $done (i32.eqz (local.get $cur)))
+        (if (i32.ge_u (i32.load (local.get $cur)) (local.get $size))
+          (then
+            (if (i32.eqz (local.get $prev))
+              (then (global.set $__free_list (i32.load offset=4 (local.get $cur))))
+              (else (i32.store offset=4 (local.get $prev) (i32.load offset=4 (local.get $cur)))))
+            (return (local.get $cur))))
+        (local.set $prev (local.get $cur))
+        (local.set $cur (i32.load offset=4 (local.get $cur)))
+        (br $scan)))
     (local.set $ptr (global.get $__heap_ptr))
     (global.set $__heap_ptr (i32.add (local.get $ptr) (local.get $size)))
+    (if (i32.gt_u (global.get $__heap_ptr) (i32.shl (memory.size) (i32.const 16)))
+      (then
+        (drop (memory.grow
+          (i32.shr_u
+            (i32.add
+              (i32.sub (global.get $__heap_ptr) (i32.shl (memory.size) (i32.const 16)))
+              (i32.const 65535))
+            (i32.const 16))))))
     (local.get $ptr)
+  )
+  ;; Return a block (>= 8 bytes) to the free list. Smaller blocks are leaked (can't hold the header).
+  (func $__free (param $ptr i32) (param $size i32)
+    (if (i32.ge_u (local.get $size) (i32.const 8))
+      (then
+        (i32.store (local.get $ptr) (local.get $size))
+        (i32.store offset=4 (local.get $ptr) (global.get $__free_list))
+        (global.set $__free_list (local.get $ptr))))
   )
   ;; Canonical ABI allocator — fresh allocation (ptr==0) delegates to $__malloc;
   ;; realloc requests (ptr!=0) return ptr unchanged (bump allocator has no free).
@@ -671,6 +705,42 @@
     (i32.store (local.get $arr) (local.get $count))
     (local.get $arr)
   )
+
+  ;; ── str_from_codepoint: UTF-8 encode a single code point into a fresh buffer ──
+  ;; Returns (ptr, len). Handles the full U+0000..U+10FFFF range (1–4 bytes).
+  (func $__str_from_codepoint (param $cp i32) (result i32 i32)
+    (local $p i32)
+    (local.set $p (call $__malloc (i32.const 4)))
+    (if (i32.lt_u (local.get $cp) (i32.const 0x80))
+      (then
+        (i32.store8 (local.get $p) (local.get $cp))
+        (return (local.get $p) (i32.const 1))))
+    (if (i32.lt_u (local.get $cp) (i32.const 0x800))
+      (then
+        (i32.store8 (local.get $p)
+          (i32.or (i32.const 0xC0) (i32.shr_u (local.get $cp) (i32.const 6))))
+        (i32.store8 offset=1 (local.get $p)
+          (i32.or (i32.const 0x80) (i32.and (local.get $cp) (i32.const 0x3F))))
+        (return (local.get $p) (i32.const 2))))
+    (if (i32.lt_u (local.get $cp) (i32.const 0x10000))
+      (then
+        (i32.store8 (local.get $p)
+          (i32.or (i32.const 0xE0) (i32.shr_u (local.get $cp) (i32.const 12))))
+        (i32.store8 offset=1 (local.get $p)
+          (i32.or (i32.const 0x80) (i32.and (i32.shr_u (local.get $cp) (i32.const 6)) (i32.const 0x3F))))
+        (i32.store8 offset=2 (local.get $p)
+          (i32.or (i32.const 0x80) (i32.and (local.get $cp) (i32.const 0x3F))))
+        (return (local.get $p) (i32.const 3))))
+    (i32.store8 (local.get $p)
+      (i32.or (i32.const 0xF0) (i32.shr_u (local.get $cp) (i32.const 18))))
+    (i32.store8 offset=1 (local.get $p)
+      (i32.or (i32.const 0x80) (i32.and (i32.shr_u (local.get $cp) (i32.const 12)) (i32.const 0x3F))))
+    (i32.store8 offset=2 (local.get $p)
+      (i32.or (i32.const 0x80) (i32.and (i32.shr_u (local.get $cp) (i32.const 6)) (i32.const 0x3F))))
+    (i32.store8 offset=3 (local.get $p)
+      (i32.or (i32.const 0x80) (i32.and (local.get $cp) (i32.const 0x3F))))
+    (local.get $p) (i32.const 4)
+  )
   (func $getScheme (param $u_ptr i32) (param $u_len i32) 
     (local $idx f64)
     (local $__iface_tmp i32)
@@ -706,7 +776,7 @@
     (local $__str_op_len i32)
     (local.set $afterScheme (f64.add (f64.convert_i32_s (call $__str_indexof (local.get $u_ptr) (local.get $u_len) (i32.const 305) (i32.const 3))) (f64.const 3)))
     (local.set $atIdx (f64.convert_i32_s (call $__str_indexof_from (local.get $u_ptr) (local.get $u_len) (i32.const 308) (i32.const 1) (i32.trunc_f64_s (local.get $afterScheme)))))
-    (local.set $hostStart (f64.convert_i32_s (call $__str_indexof_from (local.get $u_ptr) (local.get $u_len) (i32.const 309) (i32.const 1) (f64.ge (;? afterScheme + (atIdx ;) (f64.const 0) (;? 0 ? atIdx - afterScheme + 1 : 0) ;) (f64.const 0)))))
+    (local.set $hostStart (f64.convert_i32_s (call $__str_indexof_from (local.get $u_ptr) (local.get $u_len) (i32.const 309) (i32.const 1) (i32.trunc_f64_s (f64.add (local.get $afterScheme) (if (result f64) (f64.ge (local.get $atIdx) (f64.const 0)) (then (f64.add (f64.sub (local.get $atIdx) (local.get $afterScheme)) (f64.const 1))) (else (f64.const 0))))))))
     (if (f64.ge (local.get $atIdx) (f64.const 0))
       (then
       (call $__str_slice (local.get $u_ptr) (local.get $u_len) (i32.trunc_f64_s (local.get $afterScheme)) (i32.trunc_f64_s (local.get $atIdx)))
@@ -741,7 +811,7 @@
       )
     )
     (local.set $q (f64.convert_i32_s (call $__str_indexof_from (local.get $u_ptr) (local.get $u_len) (i32.const 310) (i32.const 1) (i32.trunc_f64_s (local.get $afterAt)))))
-    (if (i32.and (f64.ge (local.get $q) (f64.const 0)) (f64.lt (local.get $q) (local.get $end)))
+    (if (if (result i32) (f64.ge (local.get $q) (f64.const 0)) (then (f64.lt (local.get $q) (local.get $end))) (else (i32.const 0)))
       (then
       (local.set $end (local.get $q))
       )
@@ -864,6 +934,8 @@
     (local $userParts i32)
     (local $hostParts i32)
     (local $__iface_tmp i32)
+    (local $__str_op_ptr i32)
+    (local $__str_op_len i32)
     (local.set $rawURL_ptr (i32.const 260))
       (local.set $rawURL_len (i32.const 45))
     (call $getScheme (local.get $rawURL_ptr) (local.get $rawURL_len))

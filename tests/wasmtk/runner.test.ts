@@ -63,15 +63,16 @@ import { Result } from '../../src/core/result.ts';
  * PROVENANCE.md in this directory. Expect this list to empty out on the next
  * corpus refresh.
  */
-const KNOWN_INVALID = new Set([
-  '19_NestedDiscriminantUnions.wat',
-  '19_VariantMaximumMemoryAlignment.wat',
-  '3_enums.wat',
-  '32_BasicDiscUnion.wat',
-  '32_DiscUnionMixed.wat',
-  '32_Phase32Combined.wat',
-  '5e_MixedSignatures.wat',
-]);
+// EMPTIED 2026-08-25 by the corpus refresh (T13.46). All seven entries were
+// reported to the wasmtk team as "genuinely invalid wasm" in the present
+// tense; all seven had already been fixed upstream, and the frozen bytes were
+// the only thing still saying otherwise. On the refresh every one of them
+// validated and this assertion fired for all seven at once -- the gate was
+// correct the whole time, and only its INPUT was stale.
+//
+// Keep the mechanism. An entry added here must carry the date and the reason,
+// and it goes red the moment wasic fixes the shape -- which is the point.
+const KNOWN_INVALID = new Set<string>([]);
 
 const WAT_DIR = new URL('.', import.meta.url);
 

@@ -117,7 +117,44 @@ wire depth.
     bridge as shipped (dest=$inner + old shift)  catch depth 1   correct by cancellation
     bridge with the scope fixed ALONE            catch depth 2   WRONG
 
-So the fix is coupled to the upgrade. **When the pin moves off `^1.0.9`:** resolve
+### The coordinated sequence — and why our fix cannot land first
+
+Confirmed from BOTH sides 2026-08-25. binaryen-ts read our `bridgeExpr` and quoted it
+exactly; we read their `wasm-encoder.ts` at the **released v1.4.3 tag** and their
+`labels.push(e.name ?? "")` still precedes `resolveLabel`, with `resolveLabel` counting
+innermost-first. Both bugs are intact, so the cancellation holds and neither side has
+moved.
+
+**Their proposed sequence needs one correction.** As written it reads: wabt-ts lands the
+`bridgeExpr` ordering fix "gated on the upgrade", binaryen-ts publishes 1.5.0, wabt-ts
+bumps the pin. **The fix cannot land on `main` before the pin moves** — with the fix in
+and the pin still at 1.0.9 there is nothing to cancel, and every `try_table` the bridge
+emits is one level too deep. There is no practical gate for it either; it is an
+ordering change in one function, not a feature flag.
+
+So the atomic unit is **(ordering fix + pin bump) in ONE commit**, which can only be
+authored once 1.5.0 exists:
+
+1. binaryen-ts publishes **1.5.0** with their scope fix;
+2. wabt-ts lands ordering fix **and** the exact pin bump in a single commit, and
+   re-checks the emitted bytes against our own encoder before merging;
+3. wabt-ts publishes.
+
+The fix can be PREPARED on a branch beforehand so step 2 is a merge rather than
+authoring under time pressure — that satisfies the intent of their step 1 without
+putting broken bytes on `main`.
+
+**Risk status, agreed:** the pin is now EXACT, so 1.5.0 can no longer float us via a
+`deno cache --reload`. It can only stop us upgrading until the paired change lands.
+Coupling unchanged, blast radius reduced.
+
+> **Do not "correct" binaryen-ts version numbers to ours.** Their `passes.md` and README
+> cite **v1.4.1** (asyncify import mode) and **v1.4.2** (liveness-minimized saving) —
+> those are binaryen-ts releases and are right. wabt-ts 1.4.1 is a coincidence of
+> numbering, not the same thing. Flagged by them 2026-08-25 precisely because it looks
+> like a stale cross-reference.
+
+So the fix is coupled to the upgrade. **When the pin moves off `1.0.9`:** resolve
 `tt.catches` BEFORE `ctx.labelStack.push(name)`, in the same commit, and re-check the
 byte `1f 7f 01 00 00 <depth>` against our own encoder's output for the same module.
 binaryen-ts's stated contract after their fix is that **`catches[].dest` must name the

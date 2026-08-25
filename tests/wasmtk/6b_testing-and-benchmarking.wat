@@ -2,14 +2,48 @@
   (import "wasi_snapshot_preview1" "proc_exit" (func $proc_exit (param i32)))
   (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
   (memory (export "memory") 2)
-  (global $__heap_ptr (mut i32) (i32.const 650))
+  (global $__heap_ptr (mut i32) (i32.const 679))
+  (global $__d4s (mut i32) (i32.const 0))
+  (global $__free_list (mut i32) (i32.const 0))
   (tag $__exn_tag (export "__exn_tag") (param i32 i32))
-  ;; Bump allocator — advances __heap_ptr and returns the old value
+  ;; Free-list + bump allocator (auto-grows). GC Part 1+2.
   (func $__malloc (param $size i32) (result i32)
     (local $ptr i32)
+    (local $cur i32)
+    (local $prev i32)
+    (local.set $cur (global.get $__free_list))
+    (local.set $prev (i32.const 0))
+    (block $done
+      (loop $scan
+        (br_if $done (i32.eqz (local.get $cur)))
+        (if (i32.ge_u (i32.load (local.get $cur)) (local.get $size))
+          (then
+            (if (i32.eqz (local.get $prev))
+              (then (global.set $__free_list (i32.load offset=4 (local.get $cur))))
+              (else (i32.store offset=4 (local.get $prev) (i32.load offset=4 (local.get $cur)))))
+            (return (local.get $cur))))
+        (local.set $prev (local.get $cur))
+        (local.set $cur (i32.load offset=4 (local.get $cur)))
+        (br $scan)))
     (local.set $ptr (global.get $__heap_ptr))
     (global.set $__heap_ptr (i32.add (local.get $ptr) (local.get $size)))
+    (if (i32.gt_u (global.get $__heap_ptr) (i32.shl (memory.size) (i32.const 16)))
+      (then
+        (drop (memory.grow
+          (i32.shr_u
+            (i32.add
+              (i32.sub (global.get $__heap_ptr) (i32.shl (memory.size) (i32.const 16)))
+              (i32.const 65535))
+            (i32.const 16))))))
     (local.get $ptr)
+  )
+  ;; Return a block (>= 8 bytes) to the free list. Smaller blocks are leaked (can't hold the header).
+  (func $__free (param $ptr i32) (param $size i32)
+    (if (i32.ge_u (local.get $size) (i32.const 8))
+      (then
+        (i32.store (local.get $ptr) (local.get $size))
+        (i32.store offset=4 (local.get $ptr) (global.get $__free_list))
+        (global.set $__free_list (local.get $ptr))))
   )
   ;; Canonical ABI allocator — fresh allocation (ptr==0) delegates to $__malloc;
   ;; realloc requests (ptr!=0) return ptr unchanged (bump allocator has no free).
@@ -184,9 +218,13 @@
     (local $labels i32)
     (local $tests i32)
     (local $i f64)
+    (local $__throw_msg_ptr i32)
     (local $__iface_tmp i32)
     (local $__tmpl_num_ptr i32)
     (local $__tmpl_num_len i32)
+    (local $__str_op_ptr i32)
+    (local $__str_op_len i32)
+    (local $__throw_msg_len i32)
     (local.set $labels (i32.const 278))
     (local.set $tests (i32.const 446))
         (i32.store (i32.const 0) (i32.const 474))
@@ -282,8 +320,15 @@
         (block $cont_1
           (if (f64.ne (call $intMin (f64.load (i32.add (i32.load (i32.add (i32.add (i32.const 446) (i32.const 8)) (i32.shl (i32.trunc_f64_s (local.get $i)) (i32.const 2)))) (i32.const 0))) (f64.load (i32.add (i32.load (i32.add (i32.add (i32.const 446) (i32.const 8)) (i32.shl (i32.trunc_f64_s (local.get $i)) (i32.const 2)))) (i32.const 8)))) (f64.load (i32.add (i32.load (i32.add (i32.add (i32.const 446) (i32.const 8)) (i32.shl (i32.trunc_f64_s (local.get $i)) (i32.const 2)))) (i32.const 16))))
             (then
-            (call $proc_exit (i32.const 0))
-      (unreachable)
+            (local.set $__throw_msg_ptr (i32.const 628))
+      (local.set $__throw_msg_len (i32.const 22))
+      (call $__str_concat (local.get $__throw_msg_ptr) (local.get $__throw_msg_len) (i32.load (i32.add (i32.add (i32.const 278) (i32.const 8)) (i32.shl (i32.trunc_f64_s (local.get $i)) (i32.const 3)))) (i32.load offset=4 (i32.add (i32.add (i32.const 278) (i32.const 8)) (i32.shl (i32.trunc_f64_s (local.get $i)) (i32.const 3)))))
+      (local.set $__throw_msg_len)
+      (local.set $__throw_msg_ptr)
+      (call $__str_concat (local.get $__throw_msg_ptr) (local.get $__throw_msg_len) (i32.const 650) (i32.const 7))
+      (local.set $__throw_msg_len)
+      (local.set $__throw_msg_ptr)
+      (throw $__exn_tag (local.get $__throw_msg_ptr) (local.get $__throw_msg_len))
             )
           )
               (i32.store (i32.const 0) (i32.const 132))
@@ -346,14 +391,14 @@
         (br $loop_1)
       )
     )
-        (i32.store (i32.const 0) (i32.const 628))
+        (i32.store (i32.const 0) (i32.const 657))
           (i32.store (i32.const 4) (i32.const 5))
           (drop (call $fd_write
             (i32.const 1)
             (i32.const 0)
             (i32.const 1)
             (i32.const 128)))
-        (i32.store (i32.const 0) (i32.const 633))
+        (i32.store (i32.const 0) (i32.const 662))
           (i32.store (i32.const 4) (i32.const 17))
           (drop (call $fd_write
             (i32.const 1)
@@ -372,8 +417,10 @@
   (data (i32.const 522) "\2d\2d\2d\20\50\41\53\53\3a\20\54\65\73\74\49\6e\74\4d\69\6e\42\61\73\69\63\20\28\30\2e\30\30\73\29\0a")
   (data (i32.const 556) "\3d\3d\3d\20\52\55\4e\20\20\20\54\65\73\74\49\6e\74\4d\69\6e\54\61\62\6c\65\44\72\69\76\65\6e\0a")
   (data (i32.const 588) "\2d\2d\2d\20\50\41\53\53\3a\20\54\65\73\74\49\6e\74\4d\69\6e\54\61\62\6c\65\44\72\69\76\65\6e\20\28\30\2e\30\30\73\29\0a")
-  (data (i32.const 628) "\50\41\53\53\0a")
-  (data (i32.const 633) "\6f\6b\20\20\09\6d\61\69\6e\09\30\2e\30\32\33\73\0a")
+  (data (i32.const 628) "\54\65\73\74\49\6e\74\4d\69\6e\54\61\62\6c\65\44\72\69\76\65\6e\2f")
+  (data (i32.const 650) "\20\66\61\69\6c\65\64")
+  (data (i32.const 657) "\50\41\53\53\0a")
+  (data (i32.const 662) "\6f\6b\20\20\09\6d\61\69\6e\09\30\2e\30\32\33\73\0a")
   (data (i32.const 278) "\05\00\00\00\05\00\00\00\04\01\00\00\03\00\00\00\07\01\00\00\03\00\00\00\0a\01\00\00\04\00\00\00\0e\01\00\00\04\00\00\00\12\01\00\00\04\00\00\00")
   (data (i32.const 326) "\00\00\00\00\00\00\00\00\00\00\00\00\00\00\f0\3f\00\00\00\00\00\00\00\00")
   (data (i32.const 350) "\00\00\00\00\00\00\f0\3f\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00")
