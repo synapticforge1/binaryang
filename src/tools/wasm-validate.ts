@@ -94,6 +94,35 @@ export function wasmValidate(
 // CLI
 // ---------------------------------------------------------------------------
 
+/**
+ * Read a file for the CLI, or exit with a one-line message.
+ *
+ * A bare `await Deno.readFile(path)` throws an uncaught `NotFound` /
+ * `IsADirectory` on a mistyped argument, which Deno renders as a stack trace
+ * naming its own internals and the absolute path of this file. That is the
+ * wrong output for a user typo, and it is the same "report, do not throw" rule
+ * the library side got in T13.29 — applied to the CLI layer (T13.31).
+ */
+async function cliRead(tool: string, path: string): Promise<Uint8Array> {
+  try {
+    return await Deno.readFile(path);
+  } catch (e) {
+    console.error(`${tool}: cannot read '${path}': ${e instanceof Error ? e.message : String(e)}`);
+    Deno.exit(1);
+  }
+}
+
+/** Write a file for the CLI, or exit with a one-line message. See {@link cliRead}. */
+async function cliWrite(tool: string, path: string, data: Uint8Array | string): Promise<void> {
+  try {
+    if (typeof data === 'string') await Deno.writeTextFile(path, data);
+    else await Deno.writeFile(path, data);
+  } catch (e) {
+    console.error(`${tool}: cannot write '${path}': ${e instanceof Error ? e.message : String(e)}`);
+    Deno.exit(1);
+  }
+}
+
 if (import.meta.main) {
   const args = Deno.args.slice();
   const inputs: string[] = [];
@@ -147,7 +176,7 @@ if (import.meta.main) {
   let anyFailed = false;
 
   for (const input of inputs) {
-    const binary = await Deno.readFile(input);
+    const binary = await cliRead('wasm-validate', input);
     const { errors, result } = wasmValidate(binary, { filename: input, features });
 
     if (errors.length > 0) {

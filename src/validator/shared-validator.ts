@@ -370,6 +370,83 @@ export class SharedValidator {
     return this.printError(loc, `unknown type ${idx}`);
   }
 
+  /**
+   * A type's subtyping DEPTH — its number of ancestors — may not exceed 63.
+   *
+   * This is an implementation limit the GC proposal fixes so a subtype check
+   * can be O(1) (a depth-indexed display rather than a walk), and **both
+   * engines enforce it**: Wasmtime rejects, and V8 says
+   * `type 64: subtyping depth is greater than 63`. We accepted chains of any
+   * length, so a 2000-deep chain validated clean here and loaded nowhere
+   * (T13.34).
+   *
+   * Must be called after the whole type section is registered — a type may
+   * legally name a supertype declared later in its own rec group.
+   *
+   * **It also reports supertype CYCLES**, because nothing else did. `$a`
+   * extending `$b` extending `$a`, a 3-cycle, and the self-referential
+   * `$a extending $a` all validated clean here and are rejected by both
+   * Wasmtime and V8 (`type 0: invalid supertype`). The first draft of this
+   * method assumed "the ordinary subtype checks report the cycle" and said so
+   * in a comment; checking that assumption rather than trusting it is what
+   * found the second half of T13.34.
+   *
+   * The depth walk already has to detect cycles to terminate, so reporting
+   * them is free — `inProgress` marks the nodes on the current path, and
+   * meeting one again IS the cycle.
+   */
+  checkSubtypingDepth(loc: Location): Result {
+    const MAX_SUBTYPING_DEPTH = 63;
+    const depth = new Map<number, number>();
+    const inProgress = new Set<number>();
+    const cyclic = new Set<number>();
+
+    const depthOf = (idx: number): number => {
+      const memo = depth.get(idx);
+      if (memo !== undefined) return memo;
+      if (inProgress.has(idx)) {
+        // Meeting a node already on the current path IS the cycle. Record it
+        // and unwind with 0 so the walk terminates; it is reported below.
+        cyclic.add(idx);
+        return 0;
+      }
+      const info = this.heapTypesMap.get(idx);
+      if (info === undefined || info.supers.length === 0) {
+        depth.set(idx, 0);
+        return 0;
+      }
+      inProgress.add(idx);
+      let best = 0;
+      for (const s of info.supers) best = Math.max(best, depthOf(s) + 1);
+      inProgress.delete(idx);
+      depth.set(idx, best);
+      return best;
+    };
+
+    let r: Result = Result.Ok;
+    for (const idx of this.heapTypesMap.keys()) depthOf(idx);
+    for (const idx of [...cyclic].sort((a, b) => a - b)) {
+      r = combineResults(
+        r,
+        this.printError(loc, `type ${idx}: invalid supertype (cycle in the subtyping chain)`),
+      );
+    }
+    for (const idx of this.heapTypesMap.keys()) {
+      if (cyclic.has(idx)) continue; // its depth is meaningless
+      const d = depthOf(idx);
+      if (d > MAX_SUBTYPING_DEPTH) {
+        r = combineResults(
+          r,
+          this.printError(
+            loc,
+            `type ${idx}: subtyping depth ${d} is greater than the maximum ${MAX_SUBTYPING_DEPTH}`,
+          ),
+        );
+      }
+    }
+    return r;
+  }
+
   checkValueType(loc: Location, vt: ValueType, what: string, bound = this.numTypes): Result {
     if (!isRefValueType(vt)) {
       // A GC abstract heap type is as much "using the proposal" as a
@@ -1041,6 +1118,23 @@ export class SharedValidator {
 
   // ---------------------------------------------------------------------------
   // Instruction handlers — memory
+  //
+  // INTENT OF THIS WHOLE FAMILY: every handler that takes a memarg owes the
+  // SAME four things, and each one is a separate defect if omitted —
+  //
+  //   1. resolve the memory index (`checkMemoryIndex`);
+  //   2. check `align` against the opcode's natural alignment, via
+  //      `naturalAlignForOpcode` in `core/opcode.ts` and NO other table;
+  //   3. check `offset` fits the memory's index type (`checkMemArgOffset`);
+  //   4. pass `is64` down to the type checker so the ADDRESS operand is i64
+  //      on a 64-bit memory.
+  //
+  // This list exists because the family has been audited three times and each
+  // audit checked one item: T9.6 found (2) missing, T9.11 found (3) missing in
+  // ten of twelve handlers, and T13.15 then found (4) missing in two of those
+  // same ten — an audit along one axis certifies one axis. If a parameter here
+  // is unused, that is the missing check, not a tidy signature; do not silence
+  // it with an underscore.
   // ---------------------------------------------------------------------------
 
   /**
@@ -1543,7 +1637,7 @@ export class SharedValidator {
     return this.tc.onCall([], [this.refTo(typeIdx)]);
   }
 
-  onStructGet(loc: Location, typeIdx: number, fieldIdx: number, _signed?: boolean): Result {
+  onStructGet(loc: Location, typeIdx: number, fieldIdx: number, signed?: boolean): Result {
     this.currentLoc = loc;
     const st = this.checkStructTypeIndex(typeIdx, loc);
     if (!st) return Result.Error;
@@ -1552,7 +1646,44 @@ export class SharedValidator {
       this.printError(loc, `field index ${fieldIdx} out of range for struct type ${typeIdx}`);
       return Result.Error;
     }
-    return this.tc.onCall([this.refNullTo(typeIdx)], [packedToStackType(field.type)]);
+    return combineResults(
+      this.checkPackedAccess(loc, field.type, signed, 'struct.get', `field ${fieldIdx}`),
+      this.tc.onCall([this.refNullTo(typeIdx)], [packedToStackType(field.type)]),
+    );
+  }
+
+  /**
+   * `_s` / `_u` is legal on a PACKED field or element and required there; the
+   * plain spelling is legal only on an unpacked one.
+   *
+   * `signed` is a tri-state: `undefined` is the plain `get`, `true` is `_s`,
+   * `false` is `_u` — the same encoding both writers already read. The struct
+   * handler took the flag and named it `_signed`, i.e. declared and dropped
+   * it, and the array handler did not take it at all, so all four illegal
+   * combinations validated. Same shape as T9.11's ten unused `offset`
+   * parameters: a check that reads as covered and does nothing (T13.14).
+   */
+  private checkPackedAccess(
+    loc: Location,
+    fieldType: ValueType,
+    signed: boolean | undefined,
+    op: string,
+    what: string,
+  ): Result {
+    const packed = fieldType === Type.I8 || fieldType === Type.I16;
+    if (packed && signed === undefined) {
+      return this.printError(
+        loc,
+        `${op} on packed ${what} requires the _s or _u form`,
+      );
+    }
+    if (!packed && signed !== undefined) {
+      return this.printError(
+        loc,
+        `${op}_${signed ? 's' : 'u'} is only valid on a packed (i8 / i16) ${what}`,
+      );
+    }
+    return Result.Ok;
   }
 
   /** Reject a write to an immutable struct field or array element. */
@@ -1679,13 +1810,16 @@ export class SharedValidator {
     return combineResults(kindCheck, this.tc.onCall([Type.I32, Type.I32], [this.refTo(typeIdx)]));
   }
 
-  onArrayGet(loc: Location, typeIdx: number): Result {
+  onArrayGet(loc: Location, typeIdx: number, signed?: boolean): Result {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
-    return this.tc.onCall(
-      [this.refNullTo(typeIdx), Type.I32],
-      [packedToStackType(at.element.type)],
+    return combineResults(
+      this.checkPackedAccess(loc, at.element.type, signed, 'array.get', 'element'),
+      this.tc.onCall(
+        [this.refNullTo(typeIdx), Type.I32],
+        [packedToStackType(at.element.type)],
+      ),
     );
   }
 
@@ -1791,9 +1925,15 @@ export class SharedValidator {
   // Instruction handlers — GC ref.test / ref.cast
   // ---------------------------------------------------------------------------
 
-  onRefTest(loc: Location): Result {
+  /**
+   * `ref.test (ref [null] H) v` — the type being TESTED FOR has to reach the
+   * type checker, exactly as `onRefCast` passes the type being cast to.
+   * Without it there was nothing to compare the operand against, so a
+   * cross-hierarchy test validated (T13.14).
+   */
+  onRefTest(loc: Location, testTo: ValueType): Result {
     this.currentLoc = loc;
-    return this.tc.onRefTest();
+    return this.tc.onRefTest(testTo);
   }
 
   /**
@@ -1911,9 +2051,9 @@ export class SharedValidator {
     return this.tc.onThrowRef();
   }
 
-  onRethrow(loc: Location, _depth: number): Result {
+  onRethrow(loc: Location, depth: number): Result {
     this.currentLoc = loc;
-    return this.tc.onRethrow();
+    return this.tc.onRethrow(depth);
   }
 
   onTry(loc: Location, blockType: BlockType): Result {

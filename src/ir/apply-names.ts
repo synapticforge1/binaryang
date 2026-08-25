@@ -221,154 +221,235 @@ function rewriteExprListVars(exprs: Expr[], ctx: ApplyContext): void {
   }
 }
 
-function rewriteExprVars(e: Expr, ctx: ApplyContext): Expr {
-  const { names } = ctx;
+// INTENT: this pass must be TOTAL over the IR on two axes, exactly like its
+// sibling `resolveNames` (which goes the other direction, name -> index):
+//
+//   1. every `Expr`-typed field is RECURSED into;
+//   2. every `Var`-typed field naming a module-level entity is rewritten.
+//
+// Axis 1 is generic below and therefore cannot miss a kind. Axis 2 is an
+// explicit table, because which NAME SPACE a var belongs to is per-kind
+// knowledge that cannot be inferred from the field name alone (`segment` is a
+// data index on `memory.init` and an elem index on `table.init`), and guessing
+// wrong silently renames a reference to a different entity — Bug G's failure
+// mode. `tests/ir/apply_names_total.test.ts` gates both axes.
+//
+// Before T13.20 this was a single hand-written switch covering 37 of 87 kinds;
+// the other 50 fell to `default: return e`, so a `global.get` nested inside
+// (say) `memory.fill` kept its numeric index while the identical reference at
+// statement position was named. The output was silently INCONSISTENT rather
+// than wrong, which is why nothing caught it.
+
+/** Is this a `Var` (`{kind:'index'|'name'}`) rather than an `Expr`? */
+function isVar(v: unknown): v is Var {
+  if (typeof v !== 'object' || v === null) return false;
+  const k = (v as { kind?: unknown }).kind;
+  return k === 'index' || k === 'name';
+}
+
+/** Is this an `Expr` node? Every Expr carries a `kind` that is not a Var kind. */
+function isExpr(v: unknown): v is Expr {
+  if (typeof v !== 'object' || v === null) return false;
+  const k = (v as { kind?: unknown }).kind;
+  return typeof k === 'string' && k !== 'index' && k !== 'name';
+}
+
+function hasExprBody(c: unknown): c is { body: Expr[] } {
+  return typeof c === 'object' && c !== null && Array.isArray((c as { body?: unknown }).body);
+}
+
+/**
+ * Axis 1 — recurse into every `Expr`-typed field of `e`, whatever its kind.
+ *
+ * Generic on purpose: a per-kind list is exactly what let 50 kinds go
+ * unwalked. The only structural case needing help is the catch-clause
+ * container on `try` / `try_table`, whose bodies sit one level deeper than a
+ * plain field.
+ */
+function rewriteChildren(e: Expr, ctx: ApplyContext): Expr {
+  const out: Record<string, unknown> = { ...(e as unknown as Record<string, unknown>) };
+  let changed = false;
+  for (const [key, value] of Object.entries(out)) {
+    if (isVar(value)) continue; // axis 2 owns these, never a child
+    if (isExpr(value)) {
+      out[key] = rewriteExprVars(value, ctx);
+      changed = true;
+      continue;
+    }
+    if (!Array.isArray(value) || value.length === 0) continue;
+    if (value.every(isExpr)) {
+      out[key] = (value as Expr[]).map((x) => rewriteExprVars(x, ctx));
+      changed = true;
+      continue;
+    }
+    if (value.every(hasExprBody)) {
+      out[key] = (value as { body: Expr[] }[]).map((c) => ({
+        ...c,
+        body: c.body.map((x) => rewriteExprVars(x, ctx)),
+      }));
+      changed = true;
+    }
+  }
+  return changed ? (out as unknown as Expr) : e;
+}
+
+/**
+ * Axis 2 — rewrite this node's own `Var` immediates through the right name
+ * space. A kind absent from this switch has no module-level var to rewrite.
+ *
+ * LABEL vars (`target`, `defaultTarget`, `depth`, `delegate`) are deliberately
+ * NOT rewritten: `ModuleNames.labelNames` is per-function and this pass has no
+ * function context, so renaming them here would be a guess. `local.*` vars are
+ * left alone for the same reason — and because rewriting a local index through
+ * `funcNames` is a bug this pass has already had once.
+ */
+function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
+  const n = ctx.names;
   switch (e.kind) {
-    case 'local.get':
-      // Locals are NOT in the function-name space. The previous code rewrote
-      // the local index through `funcNames`, so a local index that collided
-      // with a named function index was silently renamed to that function.
-      // Local names would require a per-function local-name map (not currently
-      // populated by the name-section reader), so leave the index as-is —
-      // consistent with local.set / local.tee, which don't rewrite their var.
-      return e;
-    case 'local.set':
-      return { ...e, value: rewriteExprVars(e.value, ctx) };
-    case 'local.tee':
-      return { ...e, value: rewriteExprVars(e.value, ctx) };
     case 'global.get':
-      return { ...e, var: rewriteVar(e.var, names.globalNames) };
     case 'global.set':
-      return {
-        ...e,
-        var: rewriteVar(e.var, names.globalNames),
-        value: rewriteExprVars(e.value, ctx),
-      };
+      return { ...e, var: rewriteVar(e.var, n.globalNames) };
     case 'call':
-      return {
-        ...e,
-        func: rewriteVar(e.func, names.funcNames),
-        args: e.args.map((a) => rewriteExprVars(a, ctx)),
-      };
     case 'return_call':
-      return {
-        ...e,
-        func: rewriteVar(e.func, names.funcNames),
-        args: e.args.map((a) => rewriteExprVars(a, ctx)),
-      };
+    case 'ref.func':
+      return { ...e, func: rewriteVar(e.func, n.funcNames) };
     case 'call_indirect':
     case 'return_call_indirect':
       return {
         ...e,
-        table: rewriteVar(e.table, names.tableNames),
-        // typeVar is name-bearing too (mirror of the resolveNames Bug-G fix);
-        // without this a named type prints as a numeric index in wasm2wat.
-        typeVar: rewriteVar(e.typeVar, names.typeNames),
-        args: e.args.map((a) => rewriteExprVars(a, ctx)),
-        callee: rewriteExprVars(e.callee, ctx),
+        table: rewriteVar(e.table, n.tableNames),
+        typeVar: rewriteVar(e.typeVar, n.typeNames),
       };
-    case 'ref.func':
-      return { ...e, func: rewriteVar(e.func, names.funcNames) };
+    case 'call_ref':
+    case 'return_call_ref':
+      return { ...e, sigType: rewriteVar(e.sigType, n.typeNames) };
     case 'memory.size':
-      return { ...e, memidx: rewriteVar(e.memidx, names.memoryNames) };
     case 'memory.grow':
-      return {
-        ...e,
-        memidx: rewriteVar(e.memidx, names.memoryNames),
-        delta: rewriteExprVars(e.delta, ctx),
-      };
+    case 'memory.fill':
     case 'load':
-    case 'atomic_load':
+    case 'store':
     case 'load_splat':
     case 'load_zero':
-      return {
-        ...e,
-        memidx: rewriteVar(e.memidx, names.memoryNames),
-        address: rewriteExprVars(e.address, ctx),
-      };
-    case 'store':
+    case 'simd_load_lane':
+    case 'simd_store_lane':
+    case 'atomic_load':
     case 'atomic_store':
     case 'atomic_rmw':
+    case 'atomic_rmw_cmpxchg':
+    case 'atomic_wait':
+    case 'atomic_notify':
+      return { ...e, memidx: rewriteVar(e.memidx, n.memoryNames) };
+    case 'memory.copy':
       return {
         ...e,
-        memidx: rewriteVar(e.memidx, names.memoryNames),
-        address: rewriteExprVars(e.address, ctx),
-        value: rewriteExprVars(e.value, ctx),
+        destMemidx: rewriteVar(e.destMemidx, n.memoryNames),
+        srcMemidx: rewriteVar(e.srcMemidx, n.memoryNames),
       };
-    case 'throw':
+    case 'memory.init':
+      // `segment` is a DATA index here and an ELEM index on `table.init`.
       return {
         ...e,
-        tag: rewriteVar(e.tag, names.tagNames),
-        args: e.args.map((a) => rewriteExprVars(a, ctx)),
+        memidx: rewriteVar(e.memidx, n.memoryNames),
+        segment: rewriteVar(e.segment, n.dataSegmentNames),
       };
     case 'data.drop':
-      return { ...e, segment: rewriteVar(e.segment, names.dataSegmentNames) };
+      return { ...e, segment: rewriteVar(e.segment, n.dataSegmentNames) };
     case 'elem.drop':
-      return { ...e, segment: rewriteVar(e.segment, names.elemSegmentNames) };
+      return { ...e, segment: rewriteVar(e.segment, n.elemSegmentNames) };
     case 'table.get':
-      return {
-        ...e,
-        table: rewriteVar(e.table, names.tableNames),
-        index: rewriteExprVars(e.index, ctx),
-      };
     case 'table.set':
-      return {
-        ...e,
-        table: rewriteVar(e.table, names.tableNames),
-        index: rewriteExprVars(e.index, ctx),
-        value: rewriteExprVars(e.value, ctx),
-      };
-    case 'table.size':
-      return { ...e, table: rewriteVar(e.table, names.tableNames) };
     case 'table.grow':
-      return {
-        ...e,
-        table: rewriteVar(e.table, names.tableNames),
-        initValue: rewriteExprVars(e.initValue, ctx),
-        delta: rewriteExprVars(e.delta, ctx),
-      };
+    case 'table.size':
     case 'table.fill':
+      return { ...e, table: rewriteVar(e.table, n.tableNames) };
+    case 'table.copy':
       return {
         ...e,
-        table: rewriteVar(e.table, names.tableNames),
-        start: rewriteExprVars(e.start, ctx),
-        value: rewriteExprVars(e.value, ctx),
-        size: rewriteExprVars(e.size, ctx),
+        dst: rewriteVar(e.dst, n.tableNames),
+        src: rewriteVar(e.src, n.tableNames),
       };
-    case 'block':
-    case 'loop':
-      return { ...e, body: e.body.map((c) => rewriteExprVars(c, ctx)) };
-    case 'if':
+    case 'table.init':
       return {
         ...e,
-        cond: rewriteExprVars(e.cond, ctx),
-        then_: e.then_.map((c) => rewriteExprVars(c, ctx)),
-        else_: e.else_.map((c) => rewriteExprVars(c, ctx)),
+        table: rewriteVar(e.table, n.tableNames),
+        segment: rewriteVar(e.segment, n.elemSegmentNames),
       };
-    case 'return':
-      return e.values.length === 0
-        ? e
-        : { ...e, values: e.values.map((v) => rewriteExprVars(v, ctx)) };
-    case 'drop':
-      return { ...e, value: rewriteExprVars(e.value, ctx) };
-    case 'select':
+    case 'throw':
+      return { ...e, tag: rewriteVar(e.tag, n.tagNames) };
+    case 'struct.new':
+    case 'struct.new_default':
+    case 'array.new':
+    case 'array.new_default':
+    case 'array.new_fixed':
+    case 'array.get':
+    case 'array.set':
+    case 'array.fill':
+      return { ...e, typeVar: rewriteVar(e.typeVar, n.typeNames) };
+    case 'struct.get':
+    case 'struct.set': {
+      // A field name lives under its OWN type, so the field map is selected by
+      // the type INDEX — before that var is rewritten to a name.
+      const typeIdx = e.typeVar.kind === 'index' ? e.typeVar.value : undefined;
+      const fieldMap = typeIdx === undefined ? undefined : n.fieldNames.get(typeIdx);
       return {
         ...e,
-        val1: rewriteExprVars(e.val1, ctx),
-        val2: rewriteExprVars(e.val2, ctx),
-        cond: rewriteExprVars(e.cond, ctx),
+        typeVar: rewriteVar(e.typeVar, n.typeNames),
+        fieldVar: fieldMap ? rewriteVar(e.fieldVar, fieldMap) : e.fieldVar,
       };
-    case 'unary':
-      return { ...e, operand: rewriteExprVars(e.operand, ctx) };
-    case 'binary':
-      return { ...e, left: rewriteExprVars(e.left, ctx), right: rewriteExprVars(e.right, ctx) };
-    case 'compare':
-      return { ...e, left: rewriteExprVars(e.left, ctx), right: rewriteExprVars(e.right, ctx) };
-    case 'convert':
-      return { ...e, operand: rewriteExprVars(e.operand, ctx) };
+    }
+    case 'array.new_data':
+      return {
+        ...e,
+        typeVar: rewriteVar(e.typeVar, n.typeNames),
+        dataVar: rewriteVar(e.dataVar, n.dataSegmentNames),
+      };
+    case 'array.new_elem':
+      return {
+        ...e,
+        typeVar: rewriteVar(e.typeVar, n.typeNames),
+        elemVar: rewriteVar(e.elemVar, n.elemSegmentNames),
+      };
+    case 'array.copy':
+      return {
+        ...e,
+        destTypeVar: rewriteVar(e.destTypeVar, n.typeNames),
+        srcTypeVar: rewriteVar(e.srcTypeVar, n.typeNames),
+      };
+    case 'array.init_data':
+      return {
+        ...e,
+        typeVar: rewriteVar(e.typeVar, n.typeNames),
+        segment: rewriteVar(e.segment, n.dataSegmentNames),
+      };
+    case 'array.init_elem':
+      return {
+        ...e,
+        typeVar: rewriteVar(e.typeVar, n.typeNames),
+        segment: rewriteVar(e.segment, n.elemSegmentNames),
+      };
+    case 'ref.null':
+      // A heap type is a TYPE index only in its index form; the name form is
+      // an abstract keyword (`func` / `any` / …) and rewriteVar leaves it be.
+      return { ...e, refType: rewriteVar(e.refType, n.typeNames) };
+    case 'ref.test':
+    case 'ref.cast':
+      return { ...e, heapType: rewriteVar(e.heapType, n.typeNames) };
+    case 'br_on_cast':
+      return {
+        ...e,
+        from: { ...e.from, heapType: rewriteVar(e.from.heapType, n.typeNames) },
+        to: { ...e.to, heapType: rewriteVar(e.to.heapType, n.typeNames) },
+      };
     default:
+      // INTENT: reached only by nodes with no module-level Var immediate.
+      // Children are still walked — `rewriteExprVars` applies axis 1 to every
+      // node regardless of whether it appears in this switch.
       return e;
   }
+}
+
+function rewriteExprVars(e: Expr, ctx: ApplyContext): Expr {
+  return rewriteChildren(rewriteOwnVars(e, ctx), ctx);
 }
 
 function rewriteVar(v: Var, names: NameMap): Var {

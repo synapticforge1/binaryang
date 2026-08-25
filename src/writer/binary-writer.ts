@@ -104,7 +104,7 @@ import type {
   Var,
 } from '../ir/ir.ts';
 import { isRefValueType, recGroups, valueTypeEquals, valueTypeName } from '../ir/ir.ts';
-import type { TypeEntry } from '../ir/ir.ts';
+import type { Custom, TypeEntry } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
@@ -1411,13 +1411,33 @@ class BinaryWriter {
   // Custom sections
   // ---------------------------------------------------------------------------
 
-  private writeCustomSections(): void {
-    const { m, s } = this;
-    for (const c of m.customs) {
-      s.writeSection(BinarySection.Custom, () => {
-        s.writeName(c.name);
-        s.writeBytes(c.data);
-      });
+  private emitCustom(c: Custom): void {
+    const { s } = this;
+    s.writeSection(BinarySection.Custom, () => {
+      s.writeName(c.name);
+      s.writeBytes(c.data);
+    });
+  }
+
+  /**
+   * Emit the custom sections anchored to `after` -- `null` for those that came
+   * before any known section. Relative order among them is preserved.
+   *
+   * A custom whose `precedingSection` is `undefined` has no recorded position
+   * and is left for `writeTrailingCustomSections`, which keeps the old
+   * append-at-the-end behaviour for hand-built IR.
+   */
+  private writeCustomSectionsAfter(after: BinarySection | null): void {
+    for (const c of this.m.customs) {
+      if (c.precedingSection === undefined) continue;
+      if (c.precedingSection === after) this.emitCustom(c);
+    }
+  }
+
+  /** Customs with no recorded position, appended last. */
+  private writeTrailingCustomSections(): void {
+    for (const c of this.m.customs) {
+      if (c.precedingSection === undefined) this.emitCustom(c);
     }
   }
 
@@ -1432,21 +1452,30 @@ class BinaryWriter {
     s.writeU32Le(WASM_MAGIC);
     s.writeU32Le(WASM_VERSION);
 
-    // Sections in standard order
-    this.writeTypeSection();
-    this.writeImportSection();
-    this.writeFunctionSection();
-    this.writeTableSection();
-    this.writeMemorySection();
-    this.writeTagSection();
-    this.writeGlobalSection();
-    this.writeExportSection();
-    this.writeStartSection();
-    this.writeElemSection();
-    this.writeDataCountSection();
-    this.writeCodeSection();
-    this.writeDataSection();
-    this.writeCustomSections();
+    // Sections in standard order, with each custom section emitted back at
+    // the position it held in the source binary (see `Custom.precedingSection`
+    // -- moving them is not merely cosmetic, `dylink.0` must come first).
+    this.writeCustomSectionsAfter(null);
+    const ORDER: [BinarySection, () => void][] = [
+      [BinarySection.Type, () => this.writeTypeSection()],
+      [BinarySection.Import, () => this.writeImportSection()],
+      [BinarySection.Function, () => this.writeFunctionSection()],
+      [BinarySection.Table, () => this.writeTableSection()],
+      [BinarySection.Memory, () => this.writeMemorySection()],
+      [BinarySection.Tag, () => this.writeTagSection()],
+      [BinarySection.Global, () => this.writeGlobalSection()],
+      [BinarySection.Export, () => this.writeExportSection()],
+      [BinarySection.Start, () => this.writeStartSection()],
+      [BinarySection.Elem, () => this.writeElemSection()],
+      [BinarySection.DataCount, () => this.writeDataCountSection()],
+      [BinarySection.Code, () => this.writeCodeSection()],
+      [BinarySection.Data, () => this.writeDataSection()],
+    ];
+    for (const [id, write] of ORDER) {
+      write();
+      this.writeCustomSectionsAfter(id);
+    }
+    this.writeTrailingCustomSections();
 
     return s.toUint8Array();
   }

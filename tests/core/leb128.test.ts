@@ -129,3 +129,39 @@ describe('encodeS64Leb128 / decodeS64Leb128', () => {
     });
   }
 });
+
+// The signed encoders used to normalise out-of-range input with `| 0` /
+// `BigInt.asIntN(64, …)` — silently returning the encoding of a DIFFERENT
+// value — while their unsigned siblings had already been hardened to throw
+// (T11/T13: an encoder must never repair its input). Nothing reaches this from
+// WAT, because the parser normalises an i32/i64 literal into signed range and
+// rejects anything outside it, but `writeBinaryIr` is a published entrypoint
+// and a hand-built IR can hand these a value they cannot represent.
+describe('the signed encoders reject values they cannot represent', () => {
+  const S32_BAD: number[] = [0x8000_0000, -0x8000_0001, 0x1_0000_0000, 1.5, NaN];
+  for (const v of S32_BAD) {
+    it(`encodeS32Leb128 throws on ${v}`, () => {
+      assertThrows(() => encodeS32Leb128(v), RangeError, 's32 LEB128 out of range');
+    });
+  }
+
+  const S64_BAD: bigint[] = [0x8000_0000_0000_0000n, -0x8000_0000_0000_0001n];
+  for (const v of S64_BAD) {
+    it(`encodeS64Leb128 throws on ${v}n`, () => {
+      assertThrows(() => encodeS64Leb128(v), RangeError, 's64 LEB128 out of range');
+    });
+  }
+
+  it('the boundary values themselves still encode', () => {
+    assertEquals(decodeS32Leb128(encodeS32Leb128(0x7fff_ffff))[0], 0x7fff_ffff);
+    assertEquals(decodeS32Leb128(encodeS32Leb128(-0x8000_0000))[0], -0x8000_0000);
+    assertEquals(
+      decodeS64Leb128(encodeS64Leb128(0x7fff_ffff_ffff_ffffn))[0],
+      0x7fff_ffff_ffff_ffffn,
+    );
+    assertEquals(
+      decodeS64Leb128(encodeS64Leb128(-0x8000_0000_0000_0000n))[0],
+      -0x8000_0000_0000_0000n,
+    );
+  });
+});

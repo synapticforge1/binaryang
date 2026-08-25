@@ -35,7 +35,10 @@
  *   wabt-ts itself is synchronous; the Promise is shape-matching only.
  * - `WabtModule.parseWat(filename, source, features?)` — throws on parse error.
  * - `WabtModule.readWasm(buffer, opts?)` — throws on decode error.
- * - `WasmModule.toBinary(opts)` → `{ buffer: ArrayBuffer }` — encodes the IR.
+ * - `WasmModule.toBinary(opts)` → `{ buffer: ArrayBuffer }` — encodes the IR. **Throws** if the
+ *   module cannot be encoded, which a module obtained from `readWasm` can be: decoding does not
+ *   check index validity (that is the validator's job), so a corrupt-but-decodable binary yields a
+ *   module that fails here rather than earlier.
  * - `WasmModule.toText(opts?)` → `string` — renders the IR as WAT.
  * - `WasmModule.applyNames()` — fills any unnamed entities with synthetic names.
  * - `WasmModule.destroy()` — releases the IR (a no-op aside from clearing the
@@ -185,7 +188,28 @@ function makeWasmModuleHandle(ir: WabtIrModule | null): WasmModule {
   return {
     toBinary(_opts: ToBinaryOptions = {}): { buffer: ArrayBuffer; log?: string } {
       const m = checkAlive('toBinary');
-      const bytes = writeBinaryIr(m);
+      // The binary writer is deliberately FAIL-LOUD (T10.7) and must stay so —
+      // it refuses to emit bytes it cannot justify. But its raw message is an
+      // internal diagnostic, and `parseWat` / `readWasm` both surface failures
+      // as `new Error(formatErrors(...))`. This one propagated the writer's own
+      // string, so the same API threw two different SHAPES of error depending
+      // on which method failed (T13.30).
+      //
+      // Reachable without any bug on the caller's part: a module can decode
+      // cleanly and still be un-encodable, because index validity is the
+      // VALIDATOR's job and not the reader's — `readWasm` of a corrupted binary
+      // whose func references a type the type section no longer holds returns a
+      // module, and this is where it fails.
+      let bytes: Uint8Array;
+      try {
+        bytes = writeBinaryIr(m);
+      } catch (e) {
+        throw new Error(
+          `toBinary: the module could not be encoded: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
+      }
       // Match upstream's `{ buffer }` shape. Copy into a fresh ArrayBuffer
       // so the caller can read `result.buffer` as a standalone ArrayBuffer
       // (Uint8Array.buffer can be a SharedArrayBuffer or shared between

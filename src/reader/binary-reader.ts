@@ -5,6 +5,7 @@
 // Licensed under the Apache License, Version 2.0
 
 import type { Location } from '../core/error.ts';
+import { unknownLocation } from '../core/error.ts';
 import { addError, type ErrorList } from '../core/error.ts';
 import { isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
 import {
@@ -438,28 +439,72 @@ export class BinaryReader {
     return v;
   }
 
+  // INTENT OF THE FOUR HELPERS BELOW: the `decode*Leb128` functions in
+  // `core/leb128.ts` THROW a RangeError on a truncated or over-long encoding,
+  // which is right for a pure decoder — but this reader answers to a
+  // Result-based contract, and every published binary tool
+  // (`wasm2wat`, `wasm-validate`, `wasm-objdump`, `wasm-strip`) sits on top of
+  // it. Letting the throw escape turned malformed INPUT into an uncaught
+  // exception in a caller that was correctly checking `result`: ~102 of 585
+  // truncated / single-byte-corrupted modules crashed each tool (T13.29).
+  //
+  // So each one converts the throw into a positioned diagnostic and returns a
+  // safe zero; `this.hadError` then halts decoding through the existing
+  // `ok()` guard. This mirrors T7.1's "never throw, never hang" rule, which was
+  // applied to the WAT parser and never to the binary path.
+  //
+  // Do NOT make `core/leb128.ts` stop throwing to fix this — its callers
+  // include the WAT parser and the bridge, where a throw is the right signal.
+  // The conversion belongs at THIS boundary.
+  private lebError(e: unknown): void {
+    this.err(e instanceof Error ? e.message : String(e));
+    // Park the cursor at the end so a caller that ignores `hadError` cannot
+    // spin on the same malformed bytes.
+    this.pos = this.data.length;
+  }
+
   private readU32Leb(): number {
-    const [v, n] = decodeU32Leb128(this.data, this.pos);
-    this.pos += n;
-    return v;
+    try {
+      const [v, n] = decodeU32Leb128(this.data, this.pos);
+      this.pos += n;
+      return v;
+    } catch (e) {
+      this.lebError(e);
+      return 0;
+    }
   }
 
   private readS32Leb(): number {
-    const [v, n] = decodeS32Leb128(this.data, this.pos);
-    this.pos += n;
-    return v;
+    try {
+      const [v, n] = decodeS32Leb128(this.data, this.pos);
+      this.pos += n;
+      return v;
+    } catch (e) {
+      this.lebError(e);
+      return 0;
+    }
   }
 
   private readS64Leb(): bigint {
-    const [v, n] = decodeS64Leb128(this.data, this.pos);
-    this.pos += n;
-    return v;
+    try {
+      const [v, n] = decodeS64Leb128(this.data, this.pos);
+      this.pos += n;
+      return v;
+    } catch (e) {
+      this.lebError(e);
+      return 0n;
+    }
   }
 
   private readU64Leb(): bigint {
-    const [v, n] = decodeU64Leb128(this.data, this.pos);
-    this.pos += n;
-    return v;
+    try {
+      const [v, n] = decodeU64Leb128(this.data, this.pos);
+      this.pos += n;
+      return v;
+    } catch (e) {
+      this.lebError(e);
+      return 0n;
+    }
   }
 
   private readF32Bits(): number {
@@ -644,7 +689,17 @@ export class BinaryReader {
     if (alignFlags > 0x7f) this.err(`malformed memop flags: 0x${alignFlags.toString(16)}`);
     const hasMemIdx = (alignFlags & 0x40) !== 0;
     const alignLog2 = alignFlags & 0x3f;
-    const align = 1 << alignLog2;
+    // `2 **`, NOT `1 <<`. JS shift operands are taken mod 32, so `1 << 32` is
+    // 1 and `1 << 33` is 2: an absurd alignment exponent WRAPPED into a small
+    // plausible one. The validator then compared that against the opcode's
+    // natural alignment, found it smaller, and accepted a module V8 and
+    // Wasmtime both reject — and `wasm2wat` printed it as `align=1`, so
+    // re-encoding produced a VALID module that is a different instruction.
+    // That is the T11 class (the pipeline must never repair invalid input),
+    // reached through the decoder rather than the encoder. Exponents 31 and 63
+    // happened to wrap to a NEGATIVE value and were rejected by accident,
+    // which is why this looked covered.
+    const align = 2 ** alignLog2;
     const memidx = hasMemIdx ? this.readU32Leb() : 0;
     // The memarg OFFSET is u64 under memory64 — align64.wast stores at
     // 0xffffffffffffffff — and reading it as u32 threw "LEB128 u32 overflow"
@@ -687,12 +742,26 @@ export class BinaryReader {
    */
   private readTypeSection(m: Module, end: number): void {
     const groupCount = this.readU32Leb();
-    for (let g = 0; g < groupCount && this.pos < end && this.ok(); g++) {
+    // INTENT: the declared count and the entries present must AGREE. Running
+    // out of input mid-section is `shortSection()`, not the end of the loop.
+    //
+    // This was the one section reader of eleven that put `this.pos < end` in
+    // the loop CONDITION instead of checking it in the body — so a declared
+    // count larger than the entries supplied simply stopped early and reported
+    // nothing. `(type count 4294967295)` with no entries decoded to a module
+    // with ZERO types and validated clean; V8 rejects it. Its ten siblings all
+    // call `shortSection()` (or `this.err`) from inside the loop, which is the
+    // pattern to copy (T13.33).
+    for (let g = 0; g < groupCount && this.ok(); g++) {
+      if (this.pos >= end) return this.shortSection();
       if (this.peekU8() === 0x4e) {
         this.pos++;
         const n = this.readU32Leb();
         const first = m.types.length;
-        for (let i = 0; i < n && this.pos < end && this.ok(); i++) this.readSubType(m);
+        for (let i = 0; i < n && this.ok(); i++) {
+          if (this.pos >= end) return this.shortSection();
+          this.readSubType(m);
+        }
         // Mark the group on its first entry so the writer can re-emit it.
         const head = m.types[first];
         if (head !== undefined) head.recGroupSize = n;
@@ -2561,15 +2630,29 @@ export class BinaryReader {
     const m = makeModule();
     m.filename = this.filename;
 
-    // Magic + version
+    // Magic + version.
+    //
+    // The magic is judged AS SOON AS IT IS READ, before the version. Reading
+    // both first meant a 4-byte input — enough bytes to prove the magic wrong —
+    // failed on the VERSION read and reported `unexpected end of binary`, a
+    // length fault, for a module whose actual fault is its content. The spec
+    // names the expected error for exactly these two fixtures: "magic header
+    // not detected" (T13.37).
+    //
+    // The `data.length >=` guards keep the genuinely-short cases honest: with
+    // fewer than 4 bytes there is nothing to compare, `readU32Le` has already
+    // reported the truncation, and "unexpected end of binary" IS the right
+    // diagnosis.
     const magic = this.readU32Le();
-    const version = this.readU32Le();
+    if (this.data.length < 4) return m;
     if (magic !== WASM_MAGIC) {
-      this.err(`bad magic: 0x${magic.toString(16)}`);
+      this.err(`magic header not detected: bad magic 0x${magic.toString(16)}`);
       return m;
     }
+    const version = this.readU32Le();
+    if (this.data.length < 8) return m;
     if (version !== WASM_VERSION) {
-      this.err(`bad version: ${version}`);
+      this.err(`unknown binary version: ${version}`);
       return m;
     }
 
@@ -2585,6 +2668,9 @@ export class BinaryReader {
     // word (T12.8).
     let lastRank = -1;
     const seen = new Set<number>();
+    // Anchor for custom sections: the last NON-custom section seen, or null
+    // while we are still before the first one. See `Custom.precedingSection`.
+    let lastKnownSection: BinarySection | null = null;
     while (this.pos < this.data.length && this.ok()) {
       const sectionStart = this.pos;
       const sectionId = this.readU8() as BinarySection;
@@ -2610,6 +2696,7 @@ export class BinaryReader {
         }
         seen.add(sectionId);
         lastRank = rank;
+        lastKnownSection = sectionId;
       }
       const sectionBodyStart = this.pos;
 
@@ -2637,7 +2724,12 @@ export class BinaryReader {
           if (name === 'name' && this.opts.readDebugNames) {
             this.readNameSection(m, this.data.slice(nameStart, sectionEnd));
           } else {
-            m.customs.push({ name, data, loc: this.loc() });
+            m.customs.push({
+              name,
+              data,
+              loc: this.loc(),
+              precedingSection: lastKnownSection,
+            });
           }
           this.pos = sectionEnd;
           break;
@@ -3055,5 +3147,20 @@ export function readBinaryIr(
   opts: ReadBinaryOptions = {},
 ): Module {
   const reader = new BinaryReader(data, errors, opts);
-  return reader.readModule();
+  try {
+    return reader.readModule();
+  } catch (e) {
+    // Backstop. The LEB helpers convert their own RangeErrors, but this is a
+    // decoder for UNTRUSTED bytes behind four published entrypoints whose
+    // contract is `{ errors, result }` — one unconverted throw anywhere in
+    // 3000 lines becomes a crash in a caller that was checking `result`
+    // correctly. Report and return an empty module rather than propagate
+    // (T13.29).
+    addError(
+      errors,
+      unknownLocation(),
+      `internal decode error: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return makeModule();
+  }
 }

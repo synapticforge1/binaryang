@@ -283,6 +283,22 @@ class ResolveContext {
   }
 
   private resolveExpr(e: Expr): [Result, Expr] {
+    // INTENT OF EVERY ARM BELOW: this switch must be TOTAL on two independent
+    // axes, and an arm has to satisfy both.
+    //
+    //   1. every `Var`-typed field on the node is resolved;
+    //   2. every `Expr`-typed field on the node is RECURSED into.
+    //
+    // A missing var silently becomes index 0 in the writer (Bug G, the atomic
+    // `memidx`); a missing sub-expression leaves a name-var alive that the
+    // fail-loud writer then rejects, so valid WAT fails to encode (T13.11).
+    //
+    // Both axes must be checked when adding or editing an arm — the `Var`
+    // audit came back clean across all 64 interfaces while an `Expr` gap was
+    // live. And a `case` sharing a label with a genuine LEAF is the specific
+    // trap: `table.get` inherited `table.size`'s body that way and stopped
+    // walking its own operand. The mechanical form of both checks is in
+    // cmem/INDEX.md under the "look for code issues" trigger.
     const loc = e.loc;
 
     switch (e.kind) {
@@ -641,9 +657,21 @@ class ResolveContext {
           size,
         }];
       }
-      case 'table.get':
       case 'table.size':
         return [Result.Ok, { ...e, table: this.resolveTableVar(e.table, loc) }];
+      case 'table.get': {
+        // `table.get` is NOT a leaf: it carries the element `index` as a
+        // sub-expression, so grouping it with `table.size` left any name-var
+        // inside that index unresolved — `(table.get $t (global.get $g))` and
+        // `(table.get $t (call $f))` both failed to encode outright. Its
+        // sibling `table.set` two cases down resolved both of its operands;
+        // this is the same asymmetry-in-a-family shape as the atomic `memidx`
+        // gap. Invisible to every corpus: `table.get` does not appear in the
+        // wasmtk corpus at all, and no spec-testsuite module pairs it with a
+        // named operand.
+        const [r, index] = this.resolveExpr(e.index);
+        return [r, { ...e, table: this.resolveTableVar(e.table, loc), index }];
+      }
       case 'table.set': {
         const [rI, index] = this.resolveExpr(e.index);
         const [rV, value] = this.resolveExpr(e.value);
@@ -895,8 +923,12 @@ class ResolveContext {
           vec,
         }];
       }
-      // Truly leaf expressions or kinds the bridge / writer don't need to
-      // recurse into. Returning `e` unchanged is safe.
+      // INTENT: reached only by nodes with NO `Var` field and NO `Expr` field.
+      // That is the entry condition, not a description of what happens to land
+      // here — anything else arriving is a missing arm, and it fails silently
+      // because returning `e` unchanged is indistinguishable from correctly
+      // resolving a leaf. Do not add a node here to make a compile error go
+      // away; give it an arm above.
       default:
         return [Result.Ok, e];
     }

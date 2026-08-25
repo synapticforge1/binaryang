@@ -793,7 +793,7 @@ started — the file names say "import-module", "import-field",
 ## The exemption is part of the rule, and needs its own test
 
 Making names strict UTF-8 is only correct because DATA SEGMENTS are exempt —
-`(data "f")` is legal wasm and must stay legal. The codebase already split
+`(data "\0cf")` is legal wasm and must stay legal. The codebase already split
 those paths (`parseQuotedText` for names, `parseTextList` for bytes), so the fix
 was two decoders and no restructuring; had they shared one, the tempting fix
 would have broken every data segment with a high byte in it.
@@ -1081,3 +1081,1653 @@ times, the highest-yield place to look is the most recent diff, not a new
 region. Re-audit your own change with the same instruments used on everything
 else — and specifically ask what the change does NOT cover, since a gate keyed
 on one kind of thing (instructions) says nothing about its siblings (types).
+
+
+## A guard is only as wide as the AXIS it varies
+
+T13.7 built `tests/parser/named_refs.test.ts` — a named reference in every
+position the grammar allows, 64 cases, 21 of which fail against v1.3.5. It is a
+good guard, built for exactly the right reason, and it **covers `table.get`**:
+
+```wat
+(module (table $t 1 funcref) (func (drop (table.get $t (i32.const 0)))))
+```
+
+It still missed T13.11, a `resolveNames` bug in `table.get`, for a reason worth
+internalising. The axis that test varies is WHERE the name appears — the table
+slot, the memory slot, the tag slot, the catch target. In every one of the 64
+cases the *operands* are held constant as literals (`(i32.const 0)`,
+`(ref.null func)`). And T13.11 lives in the operand: `table.get`'s index
+sub-expression was never recursed into, so `(table.get $t (global.get $g))`
+failed while `(table.get $t (i32.const 0))` passed.
+
+The guard varied position and held operands fixed, so it could only ever find
+position bugs. This is the same lesson as "a guard is only as wide as its
+corpus," one level up: **a hand-built guard has an axis, the axis is a choice,
+and everything off it is as invisible as it was before the guard existed.**
+When building one, write down the axis explicitly and ask what the *other*
+dimensions are being pinned to.
+
+**Closed 2026-08-25 (T13.13).** The operand axis was added — 69 cases, one per
+instruction that takes sub-expressions — and came back **69 / 69 clean**. No
+product bug lived there beyond T13.11 itself. That is worth stating as a result
+rather than a shrug: before the axis existed the honest position was "we have
+never looked," and those are different states even when the number is the same.
+
+Reverting the T13.11 fix turns **exactly one** of the 69 red. A guard that goes
+uniformly red under inversion is measuring something coarser than it claims;
+one that flips precisely the case you broke is calibrated.
+
+## Enumerate the type on every axis the type has
+
+The audit that found the atomic `memidx` gap is recorded here as "audit a manual
+walk against the TYPE, not against a corpus," and it works. But it was run on
+one axis: every `Var`-bearing field of every `Expr` interface vs. the
+`resolveNames` case that handles it.
+
+`resolveNames` has to be total on **two** kinds of field — name-bearing
+immediates (`Var`) and sub-expressions (`Expr`) — and the `Var` audit came back
+clean while T13.11, an `Expr`-field gap, was live. Re-run mechanically over
+`ir.ts` on 2026-08-25, the two axes report:
+
+| axis | population | misses |
+| --- | --- | --- |
+| `Var`-typed fields vs. case body | 64 interfaces | 0 |
+| `Expr`-typed fields vs. case body | 75 interfaces | **1** (`table.get.index`) |
+
+A clean result on one axis says nothing about the other. When enumerating a
+type, enumerate every KIND of member the invariant ranges over, not just the one
+that produced the last bug — the previous bug is what makes an axis feel like
+*the* axis.
+
+Cheap to do: the whole audit is ~30 lines of `awk` over the interface
+declarations plus a regex over the switch bodies, and it runs in under a second.
+Worth re-running after any change that adds an IR variant.
+
+## A behavioural fixture must go through the instruction under test
+
+The first behavioural fixture written for T13.11 reached the table through
+`call_indirect` and **passed with the bug still in place**, because
+`call_indirect` has its own, correct `resolveNames` case. It reached the same
+observable state — a table element selected by a named global — by a path that
+was never broken.
+
+The shipped fixture uses `table.get` directly. Only slot 3 is populated and only
+global 1 holds 3, so a resolve that fell back to global 0 reads the empty slot
+and `ref.is_null` flips.
+
+This is a specific failure mode of the standing "invert the guard before
+trusting it" rule: inverting catches a test that passes *unconditionally*, but
+this one failed correctly on the assertion-count axis — 4 of 7 steps went red —
+while the behavioural step, the one carrying the semantic claim, stayed green
+for the wrong reason. **When inverting, check WHICH steps flip, not just that
+some do.** A behavioural step that survives the inversion is testing a
+neighbour, not the defect.
+
+## A green gate is a floor, not a result
+
+The audit that produced T13.11 and T13.12 started from: `deno lint` clean,
+`deno task check` clean, 363 tests passing, and **all seven conformance metrics
+exhausted** — 257/257 parse, 2119/2119 agreement, 2683/2683 `assert_invalid`,
+round-trip closed. There was no failing signal anywhere to pull on.
+
+Both bugs were found by enumerating types and comparing siblings, which is
+exactly what the tooling cannot do. Neither moved a metric, and neither could:
+`table.get` with a named operand is absent from both corpora, and six of the
+seven metrics start from bytes, downstream of a text-side name-resolution
+failure.
+
+The practical form of this: when everything is green, do not read that as
+"nothing to find." Read it as "the instruments that can see are all reporting" —
+and reach for the ones that require reading, not running.
+
+## A harness reporting zero is broken until proven otherwise
+
+Re-measuring the conformance metrics after T13.11 / T13.12 took three attempts,
+and **both failures printed a confident number rather than an error**:
+
+- `0 / 0` — a wrong guess at the wast-command shape, so no module was ever
+  reached;
+- `0 / 2120` — the population was right, but `writeBinaryIr` returns a
+  `Uint8Array` and the harness did `w.buffer ?? w`. A `Uint8Array` *has* a
+  `.buffer`, so this quietly took the underlying `ArrayBuffer`, and the
+  `instanceof Uint8Array` guard then rejected all 2120 modules.
+
+Read literally, the second run said the encoder had stopped working entirely.
+It had not. **Sanity-check the DENOMINATOR before believing the numerator**: the
+populations here are known constants — 257 files, 2120 modules, 272 corpus files
+— and hitting them exactly is the evidence the walk is correct. A metric whose
+denominator is right and whose numerator is zero is a real catastrophe; a metric
+that reports zero out of zero, or zero out of everything, is almost always a
+harness bug.
+
+Corollary for the `?? ` idiom specifically: `a.b ?? a` is only a safe "unwrap or
+passthrough" when `a` genuinely lacks `b`. On built-ins it usually does not —
+typed arrays have `.buffer`, functions have `.name`, everything has
+`.constructor` — so the fallback never fires and the wrong branch is taken
+silently.
+
+## Measure even when the argument for "nothing could move" is good
+
+The argument for skipping re-measurement after T13.11 / T13.12 was sound:
+`table.get` with a named operand is absent from both corpora, and six of the
+seven metrics start from bytes, downstream of a text-side name-resolution
+failure. All true, and all beside the point — **T13.12 adds a `throw` to a code
+path every single encode runs through.** A bound off by one would have converted
+valid modules into hard failures across the entire corpus, which is precisely
+what a metric detects and what an argument about reachability does not even
+address.
+
+The measurement cost about two minutes and returned `0` hard failures, which is
+the fact that actually retires the risk. When a change touches a shared path,
+the reachability argument tells you where the bug ISN'T; only the run tells you
+the change is inert.
+
+## Ask what a suite ASSERTS before borrowing a fixture from it
+
+Building the operand axis for `named_refs.test.ts`, three fixtures failed the
+new V8-validity check. Two of them had been copy-pasted out of the existing
+64-case table in the same file — and triaging "my fixture or a real bug?"
+revealed that **the originals were invalid wasm too**, and had been for four
+releases:
+
+- `array.new_elem` — elem segment `(ref func)` against an array of
+  `(ref null $ft)`; V8: *not a subtype of array element type*.
+- `br_on_cast` — the branch target was a bare `(block $l)`; V8: *must target a
+  branch of arity at least 1*.
+
+They passed because that suite only ever asserted `wat2wasm` returned a
+non-empty buffer. It never asked an engine anything. For those two constructs it
+was asserting "the encoder produced bytes" about input that was not a module.
+
+Two rules fall out. **A fixture inherits the assumptions of the suite it came
+from, including the unchecked ones** — when a borrowed fixture fails a stricter
+assertion, check whether the source suite ever asserted that property, rather
+than assuming the fixture was vetted. And **"the encoder accepted it" is not a
+validity claim**: any suite whose fixtures are supposed to be valid wasm should
+say so to an engine, or its fixtures will drift and nothing will report it.
+
+## A metric that counts one direction is blind to the other, structurally
+
+Validator agreement is *"of the modules V8 accepts, how many do we accept?"*. It
+counts **false REJECTIONS**. It can sit at 2119 / 2119 while the validator waves
+through anything at all, because a module we wrongly ACCEPT is not in its
+population. That is not a gap in the measurement, it is the measurement's shape,
+and no amount of corpus will fix it.
+
+T13.14 found twelve false accepts in the GC instructions with every one of the
+seven campaign metrics green and unmoved — and none of them could have moved,
+because `assert_invalid` only covers the invalid modules the spec testsuite
+happens to contain, and it contains none of these shapes.
+
+**The counter-measure is a hand-built INVALID corpus, and it is cheap.** Roughly
+twenty lines: a table of modules that should be rejected, run through
+`wat2wasm` (which does NOT validate) into `wasmValidate`, with V8 as oracle and
+Wasmtime as the authority. Twelve real bugs came out of the first two passes.
+Write the fixtures by asking, per instruction family, "what is the most obvious
+way to be wrong here?" — wrong hierarchy, wrong numeric type, wrong
+signedness, missing check entirely.
+
+**And read the direction of every metric you quote before concluding from it.**
+"Agreement 2119 / 2119" reads like "the validator is correct"; it means "the
+validator is not too strict". Those are different claims, and only one of them
+was ever measured.
+
+## A rejection is evidence only for the check you actually varied
+
+`ref.as_non_null` on an i32 was rejected by a first probe, so it was scored
+correct and set aside. It was rejected on the RESULT type: the fixture declared
+`(result anyref)` and the instruction pushed the i32 straight back, so the
+mismatch was at the function boundary and the operand check — the thing being
+audited — never ran at all. Make the declared result agree with the wrong
+operand and the module validates clean.
+
+The fixture had **two** reasons to fail and the wrong one was credited. When a
+negative result clears a check, confirm the failure came from that check:
+change the fixture so every other reason to fail is removed, or read the error
+message and see that it names what you expect. A green "it rejects" is worth
+nothing if you cannot say which rule did the rejecting — this is the same
+discipline as the sensitivity check (revert the fix, see EXACTLY which steps
+flip), applied to a probe rather than to a suite.
+
+## Enumerate the family, then ask what each member checks
+
+Three separate bug clusters here — Bug G, the atomic `memidx`, and now T13.14's
+twelve — were found the same way, and none by a corpus:
+
+1. pick a FAMILY (all the memarg handlers, all the `Var`-bearing cases, all the
+   GC instructions that pop a reference);
+2. for each member, read what it checks;
+3. any member that checks less than its neighbours is the finding.
+
+The tells, in rough order of strength:
+
+- **an underscore-prefixed parameter** (`_signed`, `_offset`) in one handler of
+  a family whose siblings use it — declared and dropped IS the missing check;
+- **a parameter the sibling takes and this one does not** — `onStructGet` took
+  `signed`, `onArrayGet` never did, and `validator.ts` had `e.signed` in hand;
+- **a bare `dropTypes(n)`** where siblings call `popAndCheck1Type`;
+- **a `case` sharing a label with a genuine LEAF** (T13.11's `table.get`);
+- **a helper that exists and is not called** — `isSubtype` was already on
+  `SharedValidator` and `onBrOnCast` already used it; `ref.cast` and `ref.test`
+  simply never did.
+
+That last one is worth its own note: **the fix for T13.14's largest root was to
+call a function that had been sitting in the same class for releases.** When a
+check is missing, look first for a sibling that already has it rather than
+designing one — and if you find it, the comment on that sibling usually
+explains the rule for free.
+
+## Fixing one direction of a rule can break the other, so pin both
+
+The obvious repair for a cross-hierarchy cast is "require the cast-to type to
+be a subtype of the operand" — and it is WRONG. Both V8 and Wasmtime accept a
+WIDENING `ref.cast` (`(ref $s)` to `(ref null any)`), so a subtype test in
+either direction rejects valid modules; the actual rule is that the two types
+share a hierarchy. The check that catches this is the one nobody writes: a
+table of modules that were ALREADY VALID and must STAY valid, asserted in the
+same test as the newly-rejected ones.
+
+`gc_operand_checks.test.ts` carries 15 invalid + 14 valid for exactly this
+reason, and the valid half is the half that constrains the design. **A
+tightening change needs a both-directions measurement before it lands** — for a
+validator that means the false-reject sweep as well as the false-accept one; the
+former was re-run with the three edited files reverted, to establish that 449 /
+449 was the baseline and not a coincidence of the new code.
+
+## Enumerate the SIGNATURE, not the parameter
+
+T9.11 swept twelve memarg handlers for one thing: does each use its `offset`?
+Ten did not, all ten were fixed, and the item was closed. On 2026-08-25 T13.15
+found `onSimdLoadLane` and `onSimdStoreLane` — **two of those same twelve
+handlers** — still declaring and dropping `is64`, so a 64-bit memory got an i32
+address check. The earlier audit had walked the family along ONE PARAMETER and
+declared the family clean.
+
+That is the axis lesson (*"a guard is only as wide as the axis it varies"*)
+applied to an audit rather than a test, and it has a cheap fix: when a family
+audit turns up a missing parameter, **finish the member before closing the
+family** — read the whole signature of at least the handlers you touched, and
+ask of every parameter what a sibling does with it. Ten fixes in one pass is a
+signal that the family is neglected, not that it is now complete.
+
+The same reading applies to a fix list: the presence of `is64` in
+`onLoadSplat` right next to the two that dropped it was visible the whole time.
+Nobody looked because the question being asked was about `offset`.
+
+## Run the mechanical axis even at a low true-positive rate
+
+The `instrInputCount` vs `buildPlainExpr` scan (declared arity vs the highest
+`opN()` each case actually reads) reported six mismatches. **Four were regex
+artifacts** — stacked `case` labels confusing the block splitter — and had to be
+dismissed by hand. The remaining two were `data.drop` and `elem.drop` declared
+at arity 1 while consuming nothing, which made the compiler silently delete a
+preceding instruction and emit a module that ran and returned the wrong answer
+(T13.16).
+
+A 33% true-positive rate on a scan that takes a minute to write and a second to
+run is an excellent trade, and the instinct to distrust a noisy enumeration is
+worth resisting. **Triage the false positives by hand rather than tightening the
+scan** — tightening is where a real finding gets filtered out, and the four
+dismissals took less time than making the regex understand stacked labels would
+have.
+
+## Not every family has three engines — say which oracle you actually had
+
+The standing rule is V8 as fast oracle, Wasmer as divergence detector, Wasmtime
+as the authority. **Legacy EH has none of that**: Wasmtime 47.0.3 and Wasmer
+both refuse `try` outright (`legacy_exceptions feature required`) and
+`wasmtime -W` has no switch to enable it, so V8 is the only engine that will
+rule on a legacy-EH module at all. T13.17's fixtures are V8-only for that
+reason.
+
+Two things follow. **Write the limitation into the test header**, not just into
+the commit message — a fixture asserting `v8Accepts(binary) === false` reads
+like a full cross-check to the next person unless it says otherwise. And
+**weight the severity by it**: a soundness hole in a family the primary WASI
+host will not execute is real and worth fixing, but it is not the same
+proposition as one in a family that ships, and a bug list that does not
+distinguish them is misleading in the direction of panic.
+
+## A shared `case` label asserts its members are interchangeable
+
+Grouping labels to share one body is the most ordinary thing in a switch, and it
+is also a **silent claim**: that every member of the group is the same in every
+respect the body cares about. Nothing type-checks that claim, no test states it,
+and when it is false the body does something plausible to an instruction it was
+never written for.
+
+It has now produced two separate bugs in this codebase, in two different files,
+three weeks apart:
+
+| item | the group | the member that did not belong | what it cost |
+| --- | --- | --- | --- |
+| T13.11 | `resolveNames`: `case 'table.size'` — a genuine LEAF | `table.get`, which carries a sub-expression | its index was never walked; **valid WAT failed to encode** |
+| T13.16 | `instrInputCount`: the arity-**1** group | `data.drop` / `elem.drop`, which are `[] -> []` | the parser ate the preceding instruction and **DELETED it** — wrong answer, no diagnostic |
+
+Both read perfectly naturally in review. `table.get` and `table.size` are
+adjacent in the spec and both take a table immediate; `data.drop` sits among a
+dozen instructions that do take exactly one operand. The grouping is wrong on an
+axis the surrounding names do not mention.
+
+So: **when you add a label to an existing `case` group, state to yourself what
+the group is asserting and check the new member against it** — not against the
+other labels' names. And when auditing, treat every multi-label `case` as a
+claim to verify rather than as one unit to read. The two axes that have actually
+bitten are *is every member a leaf?* and *does every member have this arity?*
+
+## A closed audit item is a claim about the question you asked
+
+T9.11's entry reads like a family was finished: twelve memarg handlers
+enumerated, ten defects found, all ten fixed. What it actually established is
+narrower — *ten of twelve handlers ignored their `offset`, and no longer do*. The
+handlers themselves were never certified; one parameter of theirs was. T13.15
+then found `is64` dropped in two of those same twelve.
+
+This is worth separating from the fix that follows it (*enumerate the SIGNATURE,
+not the parameter*), because the failure is one of **bookkeeping, not
+technique**. The audit was competent. Its result was recorded in a form that
+overstated it, and the next person read "memarg handlers: audited" instead of
+"memarg handlers: audited for offset".
+
+Two habits fix it, both cheap:
+
+- **Write the question into the finding, not just the answer.** "Every memarg
+  handler checks its offset" ages correctly; "the memarg handlers were audited"
+  does not.
+- **When a bug lands somewhere a previous audit visited, record the RECURRENCE
+  as part of the finding.** It is the strongest available evidence about where
+  the next bug is, and it is invisible unless someone writes it down at the
+  moment it happens — by the next pass it just looks like two unrelated entries.
+
+### Root causes that have recurred — check these first
+
+The point of the table is that these are not hypotheses. Each has produced a
+real, shipped-or-nearly-shipped defect more than once, which makes them the
+highest-yield things to look at in any new audit here.
+
+| root cause | occurrences | where to look |
+| --- | --- | --- |
+| **Unused parameter in a family of parallel handlers** | T9.11 (`offset`, 10 handlers) → T13.14 (`_signed`, struct/array get) → T13.15 (`is64`, **two of T9.11's own handlers**) | any `_`-prefixed parameter whose siblings use the same name; any parameter a sibling takes and this one does not |
+| **Shared `case` label whose members are not interchangeable** | T13.11 (leaf vs non-leaf) → T13.16 (arity 0 vs 1) | every multi-label `case`, checked on the axis its body actually depends on |
+| **A helper that exists and is simply never called** | T13.14 (`isSubtype`, already used by `onBrOnCast`) → T13.17 (`LabelType.Catch`, already set by `onCatch`) → T13.18 (`getOpcodeNaturalAlign`, a duplicate table nothing called) | a check missing in one place that a sibling performs — look for the existing helper before designing a new one |
+| **A `default:` arm returning a benign value** | T13.18 (`instrInputCount`'s `default: return 0` — already the cause of the `Quaternary` wrong-IR-tree bug) → T13.16 (its inverse: a wrong explicit entry) | any `default` that returns `0` / `false` / `null` / `Result.Ok` in a function whose other arms return real per-case data |
+
+**Three of the four T13.14–T13.17 findings sit in this table**, which is the
+argument for keeping it: the pass that found them did not start from a fresh
+idea about where bugs live, it started from where bugs had already lived.
+
+### How the table actually performed, and what that predicts
+
+The first audit run FROM the table (2026-08-25, T13.18) found **no new
+wrong-answer bugs**. One row — *a helper that exists and is never called* —
+pointed straight at a duplicated alignment table that would not have been
+reached any other way. The other two rows produced only negative results.
+
+That is the expected shape and it is worth stating so the next person is not
+disappointed by it: **a recurrence table's predictive value decays as it is
+used**, because the pass that writes a row is usually the pass that sweeps that
+row clean. It stays valuable for two things after that — catching the row's
+NEXT instance in code written later, and telling a newcomer where this codebase
+is structurally weak — but it stops being a bug-finding engine after a round or
+two.
+
+So: keep extending it, do not expect a yield curve, and **treat a clean sweep of
+a row as the result** rather than as a failed search. The rows are cheap to
+re-run and the alternative — deciding fresh each time where to look — is how
+T9.11 came to be re-audited three releases late.
+
+## Record the negative results, or the next pass re-derives them
+
+Three axes came back clean in T13.18: `instrProducesValue` omitting the SIMD
+loads (runtime-checked in four shapes), the 87-token arity enumeration, and a
+differential of the two natural-alignment tables across the whole opcode space.
+None of them produced a fix. All three are written into `tasks.md` anyway.
+
+The reason is that **"clean" and "never examined" are indistinguishable from the
+code**, and they imply completely different next actions. An auditor who finds
+no record of the SIMD-load question will spend the same twenty minutes deriving
+the same answer; one who finds "checked 2026-08-25, correct because folded
+parsing collects children explicitly and the linear placeholder means
+already-on-the-stack" can move on — or, better, can notice if the reasoning
+stops holding after a parser change.
+
+A negative result needs the same three things a positive one does: **what was
+varied, what was held fixed, and why the answer is what it is.** "Looks fine" is
+not a negative result; it is the absence of one.
+
+## An unearned fix is a worse trade than the doubt
+
+`instrProducesValue` omitting `SimdLoadSplat` / `SimdLoadLane` looked wrong —
+both produce a v128, both fall to `default: return false`, and the comment
+directly above them documents this exact setup causing operand scrambling for
+`call`. The tempting move was to add them "for robustness".
+
+Four runtime probes said the behaviour is correct, for a reason that holds
+generally (folded parsing collects children explicitly; in the linear case the
+placeholder means "already on the runtime stack"). Adding the tokens would have
+changed which list a value-producing instruction lands in, in a function whose
+own comment history records two prior regressions from exactly that kind of
+change — to fix nothing.
+
+**A change that fixes no demonstrated defect is not free**; it is a bet against
+a delicate function with no upside to win. Prefer recording the reasoning
+(above) and leaving the code alone. Same instinct as *"an unearned rule is
+noise"*, applied to code rather than to documentation.
+
+## Write down the thing you only said out loud
+
+Every rule in this file exists because someone paid for it once. What decides
+whether it gets paid for TWICE is not whether anyone understood it at the time
+- it is whether the understanding reached a file.
+
+The pattern is consistent and it is worth naming, because it does not feel like
+a failure while it is happening:
+
+| what was known | what the record said | what it cost |
+| --- | --- | --- |
+| "we audited these handlers for `offset`" | "the memarg handlers were audited" | T13.15 - the same two handlers still dropped `is64` three releases later |
+| "these snapshot files are frozen and predate the fix" | (nothing; the snapshot's age was undocumented) | a wrong present-tense claim sent upstream, corrected by the wasmtk team |
+| "the arity list is hand-maintained, so it can drift" | a header comment ASSERTING the list was complete | `Quaternary`, then T13.16 - a wrong IR tree, then a deleted instruction |
+
+In all three, nobody was confused. The scope, the staleness and the fragility
+were understood by the person doing the work and simply did not survive into
+the artifact. **Knowledge that exists only in a conversation is operationally
+identical to knowledge nobody has** - and the conversation always ends first.
+
+So when writing anything up here:
+
+- **The scope of a check belongs in the finding.** "Every memarg handler checks
+  its offset" ages correctly; "the memarg handlers were audited" does not.
+- **A completeness claim in a comment is a liability unless it is tested.** If
+  the claim is true it is testable (T13.18); if it is not testable it should not
+  be phrased as a claim.
+- **Calibrate honestly, including downward.** A tool described accurately keeps
+  getting used. One oversold gets abandoned the first time it disappoints, and
+  then its real value - which was never zero - goes with it.
+- **The two lines it costs are always cheaper than the re-derivation.** Every
+  row in the table above was a multi-release round trip that a sentence would
+  have prevented.
+
+## Notate the INTENT of a section, at the section, for whoever edits it next
+
+Distinct from the rule above about writing findings down. This one is about
+comments in the CODE, and it is aimed at a specific failure: an editor works on
+the right file, in the right function, makes a locally reasonable change, and
+introduces a bug - because the section carried an invariant that nothing at the
+section stated.
+
+Every multi-label `case` group, every parallel handler family, every table
+keyed by opcode is a **membership assertion**: joining the group claims you
+satisfy whatever the group's body assumes. That claim is usually invisible.
+
+Three defects here came from exactly that, and in all three the edit looked
+right:
+
+| section | the unstated assertion | what an editor did |
+| --- | --- | --- |
+| `resolveNames`, the `table.size` arm | "every member is a LEAF - no sub-expressions to walk" | added `table.get`, which carries an index (T13.11) |
+| `instrInputCount`, the `return 1` group | "every member pops exactly one operand" | added `data.drop`, which pops none (T13.16) |
+| the memarg handler family | "every handler resolves memidx, checks align, checks offset, AND passes `is64`" | wrote handlers honouring three of the four (T9.6, T9.11, T13.15) |
+
+Nobody was careless. `table.get` and `table.size` are adjacent in the spec and
+both take a table immediate; `data.drop` sits among a dozen genuinely
+one-operand instructions. **The grouping is on an axis the surrounding names do
+not mention**, so reading the neighbours - which is what an editor does - gives
+the wrong answer.
+
+So, at the head of any section whose membership carries an invariant, write:
+
+1. **What joining this group asserts**, in the group's own terms (arity,
+   leaf-ness, which four things a handler owes) - not what the section is
+   "for".
+2. **What breaks if it is wrong**, in both directions where both exist. Too
+   high and too low fail differently in `instrInputCount`, and only one of them
+   is visible in the emitted bytes.
+3. **Where the gate is**, so the editor knows what will catch them - and knows
+   there is nothing to catch them if no gate is named.
+
+Cost is five lines at a site that gets edited rarely and read every time it is
+edited. Compare that with the three rows above, each of which was a multi-round
+trip: found, diagnosed, fixed, regression-tested, and written up.
+
+**A section comment that explains WHAT the code does is close to worthless** -
+the code says that already, and it goes stale. Notate the constraint the code
+cannot express: the reason a wrong edit here is not caught by the type checker.
+
+## An example that satisfies its own matcher is data, not documentation
+
+Documentation that lives INSIDE the corpus a tool scans becomes input to that
+tool. An illustrative value written to explain a command is indistinguishable,
+to the command, from a real one.
+
+The ledger's "how to pick the next id" block is the instance, and it took three
+drafts to get right:
+
+1. The instructions carried an example id. Running the documented command
+   returned that example as the highest id in use.
+2. The fix added a sentence warning about the first literal - and that sentence
+   contained a literal of its own, which the command then returned instead.
+3. Only the third draft, using a `<next>` placeholder throughout and describing
+   the trap without instancing it, returns the true answer.
+
+Nothing about this is specific to ids. The same shape applies to a fixture
+directory a test walks, a rule file a linter reads, an allowlist a scanner
+consumes, a `.wast` snippet inside a doc that a corpus runner globs, or a
+sample config a loader picks up. **If the doc and the data share a namespace,
+the doc is data.**
+
+Two habits:
+
+- **Write placeholders, never well-formed values**, in any documentation the
+  tool can see. `<next>`, `$NAME`, `0xNN` - anything the matcher rejects.
+- **Run the documented command against the documentation.** It is one line and
+  it is the only check that catches this; reading the passage cannot, because
+  the passage reads correctly. This is the same discipline as inverting a new
+  guard before trusting it, applied to prose.
+
+The paragraph in `tasks.md` now says so in place, and the check is named there
+as its own test.
+
+## An INTENT block goes on any section with a membership invariant
+
+The convention that came out of the notation work, stated so it can be applied
+uniformly rather than re-derived per site. A section qualifies if joining it
+asserts something the type checker cannot verify - a multi-label `case` group, a
+family of parallel handlers, an opcode-keyed table, a `default:` arm with an
+entry condition.
+
+The block states three things, in this order:
+
+1. **What joining asserts**, in the group's own terms - "pops exactly N
+   operands", "is a LEAF", "owes these four checks". Not what the section is
+   for; an editor can see that.
+2. **What breaks if it is wrong**, in each direction where the directions differ.
+   `instrInputCount` fails asymmetrically: too high deletes an instruction and
+   the module still runs, too low corrupts the IR tree while the bytes come out
+   right. An editor who knows only one of those will check only for that one.
+3. **Which gate catches it** - by test file name - or, explicitly, that none
+   does. "Nothing will catch this" is the most useful sentence in the block.
+
+Live examples: `instrInputCount` and `resolveExpr` in the parser and IR, and the
+memarg handler family in `shared-validator.ts`. Each of the three has already
+been joined wrongly by an edit that looked locally reasonable, which is the
+whole argument - the editor was in the right file, in the right function, and
+had no way to see the constraint.
+
+## Read a partial switch's `default` before its case count
+
+A switch that handles 13 of 87 kinds is not thereby a bug, and one that handles
+57 is not thereby safe. What decides it is where the unhandled kinds land.
+
+Enumerated across `src/` in T13.21, every partial switch over expression kinds
+falls into one of two groups:
+
+| default | sites | consequence of a gap |
+| --- | --- | --- |
+| **rejects or throws** | `isConstExpr` (`return false`), the binaryen bridge (`throw`) | a missing kind is refused, loudly. Cannot be silently wrong. |
+| **returns something plausible** | `applyNames` (`return e`), `writeInstrHead` (fall back to a full render) | a missing kind is processed WRONGLY and nothing says so |
+
+Both bugs found that round were in the second group and neither was reachable
+from any metric. `isConstExpr` covers 13 kinds and is completely safe, because
+anything not on its allowlist is rejected on sight - the doc comment says so
+explicitly, which is why nobody has ever had to re-derive it.
+
+So when auditing: **find the `default`, ask what a kind landing there
+experiences, and only then look at coverage.** A short allowlist with a
+rejecting default needs no further thought. A long list with a benign default
+deserves the full enumeration however complete it looks.
+
+And when WRITING one: if the set is closed and you can reject, reject - it
+converts every future omission from a silent defect into a loud one for free.
+That is the same trade as fail-loud `writeVar`, applied to control flow.
+
+## Scope the SHAPE, not the instance
+
+Finding a bug is the beginning of the work, not the end of it. T13.20 was one
+pass (`applyNames`) walking 37 of 87 expression kinds. The instance took an
+afternoon; asking *"where else does something walk expression kinds?"* took ten
+minutes, covered all 24 `switch (x.kind)` sites in `src/`, and turned up T13.21
+- a coupling between two writer switches whose failure mode is a duplicated
+operand that still reparses.
+
+The scoping pass is cheap because the shape is already known. It also produces
+the thing a bug report cannot: **a map of where the shape does and does not
+appear**, including the sites that are fine and WHY they are fine. That map is
+in `tasks.md` under T13.21 and it is what makes the next audit of this shape
+five minutes instead of an afternoon.
+
+Two rules:
+
+- **After fixing, enumerate the shape across the codebase before closing.** Not
+  "are there other bugs" - specifically "where else does this exact structure
+  occur".
+- **Record the clean sites with their reason.** "The bridge is fine because its
+  default throws" is what stops the next person re-checking it, and it is also
+  the sentence that goes stale loudly if someone ever changes that default.
+
+## A probe that cannot separate the hypothesis from its negation proves nothing
+
+Reviewing a report that our bridge had an off-by-one, the first check ran the
+module both ways and got the same answer, 111 and 111. That reads as "no
+difference, report refuted". It was a bad probe, and the report was correct.
+
+Patching the disputed byte directly shows why:
+
+    depth 0 -> 222        depth 1 -> 111        depth 2 -> 111
+
+The two candidate depths were 1 and 2, and they are INDISTINGUISHABLE in that
+shape - depth 2 lands on the function body, which happens to yield the same
+value. The fixture separated depth 0 from the rest, which was never in question.
+
+**Before trusting a probe's negative result, show that it can produce a positive
+one.** Feed it the wrong answer deliberately and check it says so. That is the
+same discipline as inverting a new guard test, applied to an investigation
+rather than to a suite - and it matters more here, because an investigation's
+output is a claim to somebody else rather than a red bar.
+
+What settled it was comparing BYTES against a known-correct reference encoder,
+one difference in one field, rather than comparing behaviour. **When a
+disagreement is about an encoding, compare encodings.** Behaviour is downstream
+of the thing in dispute and can mask it; the artifact cannot.
+
+## Answer an upstream question in the terms it was asked
+
+binaryen-ts framed their breaking change as a fork: *if your bridge compensates
+for our old off-by-one, remove the shift; if it was already spec-correct, you
+were being mis-encoded.* That framing is a gift - it names the evidence that
+decides it, so the reply is a measurement rather than an opinion.
+
+Three things made the answer usable to them:
+
+- **Pick the branch explicitly** ("it is the first branch"), rather than
+  describing findings and leaving them to infer it.
+- **Correct the framing where it is too narrow.** Ours was not a deliberate
+  shift they could tell us to delete; it was a scope bug that happens to
+  cancel. That distinction changes what they should expect from our fix, so it
+  belongs in the reply even though it was not asked.
+- **Say plainly what you could not verify.** Two of their four notes had no
+  record on our side or depended on their own passes. Confirming those to be
+  agreeable would have been worse than useless - it is how the `KNOWN_INVALID`
+  claim went upstream wrong. "We cannot confirm this, here is what we checked"
+  is a complete answer.
+
+And when a dependency's fix is unpublished, **the coupled change is the unit of
+work**: record the fix, do not apply it, and name the trigger. Applying half of
+a cancelling pair is worse than applying neither.
+
+## A caret range plus a lockfile is not a pin
+
+It is a pin *until someone reloads*. `deno.lock` held binaryen-ts at 1.0.9 while
+`deno.json` asked `^1.0.9` and the registry already carried 1.4.3 - so the only
+thing keeping us on the version our bridge is bug-compatible with was a file
+that routine commands regenerate. `deno cache --reload`, a fresh clone with a
+stale lock, a CI cache miss: any of them floats the dependency with **no version
+change of ours, no commit, and nothing to review**.
+
+That was survivable only by luck of timing: every released version still had the
+old behaviour, so a float landed somewhere harmless. The next release makes the
+same float silently wrong.
+
+**Distinguish the two reasons a version constraint exists.** Most ranges express
+COMPATIBILITY - "anything from here up should work" - and a lockfile is the
+right place to make that concrete. A few express CORRECTNESS - "our code is
+bug-compatible with exactly this" - and those belong in the SPECIFIER, where a
+reload cannot move them and a reader can see the intent. Ours was the second
+kind written as the first.
+
+The tell that you have one: ask what a `--reload` would do. If the answer is
+"nothing, the lock holds", ask again with the next upstream release imagined as
+already published. If the answer changes, pin exactly and say why in the file
+someone will open before bumping it.
+
+## The upstream fix can be necessary without being sufficient
+
+binaryen-ts confirmed a multi-value writer bug and its repro reproduces here
+exactly - but not through the path they expected. Our own bridge raises
+*"multi-value blocks (func_type BlockType) not yet supported"* BEFORE their
+encoder is reached, so their fix alone changes nothing for us; lifting our own
+restriction is the second half.
+
+Worth checking on any accepted upstream report, because it changes what you tell
+them and when you can act: **is our own layer clean on the path to the defect?**
+A fail-loud guard of ours in front of their bug means the shape is unreachable
+from here, so their fix unblocks nothing until we also move - and saying so is
+more useful to them than "confirmed".
+
+The inverse case is the one to watch for: if our layer is SILENT rather than
+fail-loud on that path, their fix may start surfacing shapes we have never
+exercised. Same question, opposite conclusion.
+
+## A comment answers the question that was asked; ask the other one
+
+The bridge's `if` case rejects a LABELED `if`, with a comment explaining that
+binaryen-ts's `makeIf` has no label slot. It reads as thorough - somebody
+clearly thought about `if` and about labels. What it does not say, and what
+nobody asked, is what happens to an UNLABELED one: it is still a branch target,
+it still occupies a depth, and the case pushed no frame for it. Every `br`
+inside an `if` was off by one for as long as the bridge has existed (T13.24).
+
+This is the code-comment form of *"a closed audit item is a claim about the
+question you asked"*, and it is more dangerous, because a comment reads as
+coverage in a way a ledger entry does not. **A thoughtful comment about one case
+is the strongest available evidence that the neighbouring case was never
+considered** - the author was demonstrably in the right place, thinking about
+the right topic, and stopped at the boundary of the question they had.
+
+So when auditing, treat an explanatory comment as a prompt rather than an
+answer: name the case it covers, then name the complement and go looking.
+Labeled/unlabeled, present/absent, zero/non-zero, the abstract form and the
+indexed form. In this log the complement has been live three times - T9.11's
+`is64` beside a certified `offset`, T13.16's `data.drop` beside genuinely
+one-operand siblings, and this.
+
+## Verify the restore, do not trust it
+
+Sensitivity measurement means reverting a fix, re-running, and putting the file
+back. The putting-back is the step nobody checks, and on this checkout it
+silently rewrote a file: `git stash push` and `git checkout --` both re-run the
+EOL filter, so with `core.autocrlf=true` a round trip turned
+`binaryen-bridge.ts` from LF into CRLF. `git diff --stat` went from a surgical
+47/10 to **1649 insertions / 1612 deletions** - three real edits buried in a
+whole-file diff, which is unreviewable and would have been committed.
+
+Two habits, and the second one generalises past line endings:
+
+- **Use a byte-level copy aside and back** for revert experiments here, not a
+  git operation. Git operations apply filters; `cp` does not.
+- **Run `git diff --stat` after any experiment that touched the working tree.**
+  One line. It catches EOL churn, a half-applied restore, a stray edit in a file
+  you thought you had reverted, and a `finally` block you left instrumented.
+
+The general point is that an experiment has a teardown, and the teardown is
+unverified by construction - the test you just ran passed against the MODIFIED
+tree, so nothing you ran afterwards proves the tree came back.
+
+## Your tooling has a silent failure mode too - gate it
+
+Every enumeration in this project's audit definition is grep- or regex-driven
+over the source. A single NUL byte written into `binaryen-bridge.ts` made grep
+classify the file as BINARY, so it printed
+
+    Binary file src/bridge/binaryen-bridge.ts matches
+
+*instead of* the match lines - and an alignment-duplication sweep that should
+have covered that file **reported clean** (T13.25). Type-check, lint, fmt and
+377 tests were all green throughout, because a NUL is legal in a TS string
+literal.
+
+That is this project's own worst-case shape - a silent fall-through - sitting in
+the tooling rather than the code, and it invalidates results rather than
+producing wrong output. Nothing about a green gate can catch it.
+
+Two things follow:
+
+- **Gate the properties your METHOD depends on**, not only the ones your product
+  depends on. `tests/audit/source_hygiene.test.ts` costs 300ms and defends every
+  grep-driven audit here. If a sweep's validity rests on an assumption
+  (greppable source, a complete file list, a parseable table), that assumption
+  is testable and should be tested.
+- **A tool saying something unexpected is a finding, not noise.** "Binary file
+  … matches" where match lines were expected is the entire tell. The instinct to
+  skim past an odd-looking line from a tool - rather than from the code - is
+  what would have left this live.
+
+The generalisation: an enumeration reports on the population it actually saw,
+never the one you meant. **Pin the population.** Every source-enumeration gate
+here now asserts a floor on what it scanned (`scanned > 100`, `instrs.size >
+80`, `withOperands.size >= 5`) precisely so a walk that silently found nothing
+fails instead of passing.
+
+## Probe the OPERATION's boundaries, not the domain's
+
+`readMemArg` computed alignment as `1 << alignLog2`. JS shift operands are taken
+mod 32, so exponent 32 wrapped to align 1 and 33 to align 2 - small, plausible
+values that the validator accepted on modules V8 and Wasmtime both reject
+(T13.26).
+
+What makes this worth a rule is where the bug lived. Anyone probing alignment
+reasons in ALIGNMENTS: 1, 2, 4, 8, 16, then "try something huge". Every one of
+those gives the right answer:
+
+    exponent 2      valid          accepted    correct
+    exponent 4, 5   too large      rejected    correct
+    exponent 31, 63 wrap NEGATIVE  rejected    correct, by accident
+    exponent 32, 33 wrap SMALL     accepted    WRONG
+
+The live range is 32..62, and nothing about alignment points there. It is a
+property of `<<`, not of memargs. The "something huge" spot check - the one a
+careful reviewer actually performs - lands on 63 and passes for the wrong
+reason.
+
+So: **when a value is derived through a bit operation, a cast, or a fixed-width
+container, enumerate that mechanism's boundaries as well as the domain's.**
+Shift widths (31/32/33), `| 0` and `>>> 0` wraps at 2^31 and 2^32, `Number`
+precision at 2^53, byte and LEB field widths. Those numbers belong in the
+fixture table next to the domain-meaningful ones, and they are the ones that
+find things.
+
+Corollary, and it is the sharper half: **a spot check that passes for the wrong
+reason is worse than no spot check**, because it is recorded as coverage.
+Exponent 63 was almost certainly tried at some point and behaved correctly. When
+a boundary case passes, confirm it passes for the reason you think - here, by
+printing the decoded value rather than only the accept/reject verdict.
+
+## Read a decode next to its encode
+
+The memarg bug was found by putting `readMemArg` and `writeMemArg` side by side
+during the first real audit pass over `binary-reader.ts` - 3059 lines, the
+largest surface in this project that had never been enumerated. The two agree on
+the flag-bit protocol exactly; the defect was one line further on, in how the
+decoded exponent became a number.
+
+**Encode/decode pairs are a cheap, high-yield axis** and they are easy to skip
+because each half looks fine alone. Read them together and ask, field by field:
+does the decode invert the encode, for every value the encode can produce AND
+every value the wire format allows? The second half is where this one was - the
+writer can never emit exponent 32, but the format permits it, and a decoder
+answers to the format rather than to its sibling.
+
+## Scope a hygiene gate to what the WORKFLOW reads, not what the compiler reads
+
+T13.25 gated `src/` and `tests/` against control bytes, because those are the
+files that compile. Three days of edits later, five control bytes had
+accumulated in `cmem/` - unscoped - and two memory files were BINARY to grep
+(T13.28). Searching project memory is itself a grep, and `cmem/` is the
+most-grepped directory here.
+
+One of the corrupted bytes was a `\b` collapsed to a backspace **inside the
+documented command for picking the next tranche id**, so the instruction the
+ledger gives for its most routine bookkeeping step matched nothing. Another sat
+in the prose explaining the NUL-byte hazard, a few lines from the rule telling
+people not to write NULs.
+
+The boundary was drawn around the wrong thing. A gate that exists to keep a
+METHOD working belongs around every file that method touches: source, tests,
+memory, README, config, fixture directories. Ask what the workflow greps, and
+scope to that.
+
+Two related habits:
+
+- **When a gate finds a bug, ask what else has the property the gate checks** -
+  before writing the gate, not after. The `cmem/` bytes were already there when
+  T13.25 was written; a moment's thought about "where else could a control byte
+  hide" would have caught them a session earlier.
+- **Tool-quoting is the hazard, not the content.** Every one of these was a
+  two-character escape (`\b`, `\0`) collapsed by a shell heredoc while writing
+  files through one-liners. The same class mangled a regex three times in T13.19
+  and produced the original sentinel NUL in T13.24. Where the text contains
+  backslash escapes, write it through a file rather than through a shell string,
+  and let the gate catch what slips.
+
+## A stale rationale is worse than no rationale
+
+`design-decisions.md` recorded a performance invariant - `ModuleContext`
+precomputes two index maps "because `getExprArity` runs for every expression
+during validator and writer walks". **`getExprArity` has no production caller.**
+Nor do the two methods the maps exist to accelerate. Only the WAT writer extends
+the class, and it calls none of them.
+
+Nothing is broken; the maps are cheap and the code is published API that cannot
+simply be deleted. What is broken is the RECORD, and it is broken in the
+expensive direction: it tells a future reader that a cold path is hot. That
+reader will defend it in review, refuse to simplify it, and cite the invariant
+while doing so - the file's authority working against the codebase.
+
+**When recording a performance decision, record the measurement or the caller
+that motivated it, not a plausible story about why it matters.** "Precomputed
+because X calls it per-expression" is checkable and ages loudly - one grep for
+X. "Precomputed for speed" is unfalsifiable and ages silently. And when an audit
+finds the cited caller gone, **correct the entry in place rather than deleting
+it**: the correction is the useful artifact, because it tells the next person
+the claim was tested.
+
+## Fuzz the published surface — it needs no oracle
+
+Every axis in this file until now has been an enumeration: types against
+walkers, tables against consumers, decodes against encodes. T13.29 came from
+something cheaper. Take one module exercising every section kind, feed each tool
+every truncation of it and every single-byte corruption to 0x00 / 0x7f / 0xff,
+and assert only that nothing throws. 585 inputs, four tools, about fifteen lines
+of harness.
+
+All four published binary tools crashed on roughly 102 inputs each.
+
+**The reason this works with no oracle is the property being tested.** "Does not
+throw" is decidable without knowing the right answer, so there is nothing to
+compare against, no corpus to be missing from, and no fixture to maintain. Most
+of the hard work in testing this project is establishing what SHOULD happen;
+here that question does not arise.
+
+Make it a standing axis: **any entrypoint that accepts bytes from outside gets
+the truncate-and-corrupt sweep.** Two guards keep it honest — assert that a
+malformed input is still REPORTED (otherwise "never throws" is satisfied by
+swallowing everything), and that a valid input still succeeds.
+
+## Fix the contract at the boundary, not at the source
+
+Every one of T13.29's crashes came from `core/leb128.ts`, whose `decode*Leb128`
+throws a `RangeError` on a truncated encoding. The tempting fix is to stop it
+throwing.
+
+That would have been wrong. `leb128.ts` is a pure decoder and its other callers
+— the WAT parser, the bridge — want the throw; softening it there trades one
+loud bug for silent ones in three subsystems. The defect was never the throw,
+it was that nothing CONVERTED it where the contract changes: the binary reader
+promises `{ errors, result }` and sits between the two.
+
+So the general question when an exception escapes an API: **where does the
+contract change, and is anything standing there?** Not "who threw". The throw is
+usually correct in its own context, and moving the fix to its origin damages
+every other caller.
+
+Two details worth copying:
+
+- **The conversion parks the cursor at end-of-input**, so a caller that ignores
+  the error flag cannot spin on the same malformed bytes. Converting a throw
+  into a value means inventing a resumption state; pick one that terminates.
+- **A backstop at the public entry is not redundant.** The four LEB helpers
+  handle the known cases; `readBinaryIr` also wraps the whole decode, because
+  one unconverted throw anywhere in 3000 lines reproduces the entire bug, and a
+  four-entrypoint contract should not depend on having found them all.
+
+## An API should fail in ONE shape, and its docs should name every method that fails
+
+`/compat` has three failure paths. Two were documented as throwing and surfaced
+`new Error(formatErrors(errors))`. The third documented no failure at all and
+propagated the binary writer's raw internal string (T13.30). So the same API
+threw two different shapes, and the method that surprised a caller was precisely
+the one whose contract did not mention failing.
+
+The asymmetry is the tell, and it is the same one that has produced defect after
+defect here at the level of code: **look along the family, not at the method.**
+Three siblings, two documented, one not — that third one is where to look, in
+docs exactly as in handler tables.
+
+Two rules for an error boundary:
+
+- **One shape.** A caller writes one `catch`. If some failures arrive as
+  `Error(formatErrors(...))` and others as a deeper layer's string, the caller
+  cannot tell what it is holding, and the useful ones get logged identically to
+  the useless ones.
+- **Every error names its origin.** `binary writer: no (type (func (param )))`
+  is a fine message and a terrible top-level one — it tells you what broke and
+  not which call you made. Prefixing with the method (`toBinary: the module
+  could not be encoded: …`) costs one line and turns a mystery into a bug
+  report. The regression test asserts exactly this property over the whole fuzz
+  population rather than any specific message.
+
+And on the docs: **if a method can fail, its doc comment says so, even when the
+failure is rare or "obviously" internal.** `toBinary` failing on a module the
+same API had just handed back is not a caller error and not an internal
+invariant — it is a real path, because decoding does not check what encoding
+requires.
+
+## Fix the shape, not the instance — the version for entrypoints
+
+T13.29 fixed four byte-consuming CLI tools. The instance was done; the SHAPE was
+"every published entrypoint that accepts outside input", and two more existed:
+`wat2wasm` (text) and `/compat`. Asking that question directly, rather than
+waiting for the next fuzz run to wander into them, produced T13.30 the same day —
+and cleared `wat2wasm` as a recorded negative result (2505 malformed-text inputs,
+never threw).
+
+The enumeration is trivial and worth writing down once: **list the exported
+functions that take a `Uint8Array` or a `string` from the caller.** For this
+project that is `wat2wasm`, `wasm2wat`, `wasmValidate`, `wasmObjdump`,
+`wasmStrip`, and `/compat`'s `parseWat` / `readWasm` plus the `WasmModule`
+methods reachable from them. Six of the eight had never been fuzzed; two of those
+six were broken.
+
+## Scope a test's PERMISSIONS deliberately — the low-privilege half is the one that runs
+
+`deno task test` is `deno test --allow-read`. A test that spawns the real CLIs
+needs `run` and `write`, so T13.31's behavioural checks could never execute in
+the normal gate. Three options, and only one is right:
+
+- **Broaden the suite to `-A`.** One file gains what it needs; every other test
+  gains permissions it does not. The sandbox stops meaning anything.
+- **Let the test skip.** It runs under `-A` and nowhere else — so in CI, which
+  runs `deno task test`, it never runs at all. **A test that always skips
+  protects nothing** and is worse than absent, because the file's existence
+  reads as coverage.
+- **Split it by privilege.** Ask which half of the property can be checked at
+  the lowest privilege, and make that half always-on.
+
+For T13.31 the split was: a SOURCE gate (`--allow-read`) asserting no
+`import.meta.main` block calls `Deno.readFile` / `writeFile` / `writeTextFile`
+directly, plus the subprocess checks `ignore`d when permission is absent. The
+source gate is not the more convincing test — it never proves the message is
+right — but it guards the exact site where a regression is reintroduced, and it
+runs every day. The behavioural half proved the fix once and will catch a helper
+that stops working, whenever someone runs with `-A`.
+
+Two details:
+
+- **Skip LOUDLY.** `describe(..., { ignore: !canRun }, ...)` makes Deno print
+  `ignored`, so the gate output says the check did not run. A silent `return`
+  inside the test body looks identical to a pass.
+- **Pin the source gate's population.** It asserts it reached every tool
+  (`scanned === TOOLS.length`) and that each tool DEFINES the helper — otherwise
+  a tool that does no I/O at all would satisfy "no unguarded I/O" vacuously.
+
+## The frontier list is a claim, and a missing row looks like a swept one
+
+`cmem/testing.md` keeps a running list of what has NOT been enumerated, so an
+audit does not restart on ground already covered. T13.31 found that the list
+**never mentioned the CLI shims** — a whole class of published entrypoint, five
+files, absent. Not marked pending, not marked done: absent.
+
+That is the failure mode of any such list, and it is asymmetric. A row saying
+"not yet examined" is honest and gets picked up. **A missing row is
+indistinguishable from a swept one**, and an audit working from the list will
+never reach it — the list actively steers attention away.
+
+So when maintaining a frontier record:
+
+- **Derive the population, do not recall it.** For entrypoints that is one
+  command: list the exported functions and the `import.meta.main` blocks. For
+  files it is a glob. Anything reconstructed from memory inherits memory's gaps.
+- **Add the row before auditing it**, so the list is complete even if the pass
+  runs out of time. T13.31 added and struck the CLI row in the same session,
+  which is fine — what matters is that the row existed before the work did.
+- Treat "the list is complete" as **itself an unaudited claim** until someone
+  regenerates the population and diffs it.
+
+## Gate the correspondence even when today's answer is "no bug"
+
+The lexer enumeration (T13.32) found nothing wrong: two `TokenType` members are
+never emitted, and both were deliberate and already explained in place. The
+obvious conclusion is "clean, move on". The gate got written anyway, for a
+reason that has nothing to do with the two dead members:
+
+**A member stops being emitted when its `KEYWORDS` entry is deleted or
+mistyped, and that is not a compile error.** A `const enum` member with no
+remaining reference produces no diagnostic. The symptom is valid WAT quietly
+failing to parse, with the error surfacing somewhere unrelated to the keyword
+that went missing.
+
+So the question when an enumeration comes back clean is not "was there a bug"
+but **"what would it look like if this correspondence broke tomorrow, and would
+anything say so?"** Where the answer is "nothing would", the enumeration you
+just ran by hand is worth ten lines as a test — you have already written the
+hard part.
+
+This is why several gates here exist with no bug behind them:
+`opcode_tables.test.ts` (T13.6), `instr_arity.test.ts`'s totality half (T13.18),
+`const_expr_head_coupling.test.ts` (T13.21, the two switches had not drifted),
+and this one. Each pins a hand-maintained correspondence that the compiler
+cannot see.
+
+**A hand-maintained correspondence is the unit worth gating**, not a bug. Two
+tables that must agree, an enum and the code that populates it, a list and its
+consumers — those decay silently, and every one of them can be checked from the
+source in a few lines.
+
+## An empty frontier means the cheap axes are spent, not that the code is clean
+
+`cmem/testing.md`'s "what has NOT been enumerated" list reached empty on
+2026-08-25. That is a real milestone and a dangerous sentence, because the
+obvious misreading — "everything has been audited, the code is clean" — is not
+what it says.
+
+What it says is narrower and more useful: **every surface has had SOME axis run
+against it, and the axes that were cheap are used up.** The evidence is in the
+yield curve, which is public in the log: the last several passes returned
+progressively less, and two of them (T13.27, T13.32) found nothing at all.
+
+Two honest options when the frontier empties, and it is worth naming which one
+you are taking:
+
+- **Invent a new axis.** The fuzz axis was the last new one and it paid three
+  times in three sessions (T13.29, T13.30, T13.31) across surfaces that six
+  conformance metrics and 380 tests never touched. New axes beat re-running
+  spent ones.
+- **Accept a lower yield and say so.** A pass that finds nothing is a result,
+  provided it records what it varied — but do not dress it as thoroughness if
+  the honest description is "the same enumerations, again".
+
+Write the reading into the list itself. A future reader arriving at an empty
+frontier with no note will draw the wrong conclusion, and the list will have
+caused it.
+
+## "We fuzzed it" is a claim about ONE property — ask a different question, not for more inputs
+
+T13.29 fed the published tools 585 truncated and corrupted modules and asserted
+*does it throw?* It found four broken entrypoints, and the axis was cheap
+precisely because that property needs no oracle. Then it was clean, and the
+surface was treated as covered.
+
+T13.33 used the SAME KIND OF INPUT and asked *does it NOTICE?* — and found a
+module that decodes, returns a `Module`, reports success, and is malformed. A
+type section declaring 4 294 967 295 entries with none present decoded to zero
+types and validated clean. No throw, so the fuzz axis was blind to it by
+construction.
+
+**When a robustness sweep comes back clean, the productive move is a different
+QUESTION over the same corpus, not more inputs.** The questions are separable,
+and each is its own axis:
+
+| question | needs an oracle? | what it catches |
+| --- | --- | --- |
+| does it **survive**? | no | crashes, uncaught throws |
+| does it **terminate**? | no | hangs, unbounded loops |
+| does it stay **linear**? | no | algorithmic-complexity DoS |
+| does it **notice**? | **yes** | silent acceptance of malformed input |
+| does it **report accurately**? | yes | wrong or misleading diagnostics |
+
+The first three are nearly free and should be standing. The last two cost an
+oracle, which is why they get skipped — and why they are where the interesting
+defects survive. Three cheap axes came back clean here in the same session that
+the expensive one found a real bug.
+
+The trap to name: **a clean fuzz run reads like "this surface is robust"** when
+it means "this surface does not crash on these inputs". Record which property
+was actually asserted, or the next person will not know which question is still
+open.
+
+## Hardening is a lens, not a task
+
+The request was "look for hardening opportunities", which sounds like polish —
+add a bounds check here, a guard there. What it actually produced was a
+correctness bug that eight sessions of bug-hunting had missed, because the lens
+changes which questions get asked.
+
+Bug-hunting asks *what is wrong with this code?* and is steered by where defects
+have been found before — which is why a recurrence table works, and why its
+yield decays. Hardening asks *what would an adversary or an accident do to
+this?* and is steered by the input space instead: enormous counts, deep nesting,
+pathological sizes, resource limits. Different steering, different reachable
+set.
+
+Both are worth running. Reach for hardening specifically when the frontier list
+empties and the enumeration axes stop paying.
+
+**CORRECTED 2026-08-25 (T13.36).** This paragraph originally claimed
+*"hardening does not decay the way bug-hunting does, because the input space is
+not exhausted by finding a bug in it"* — written after ONE successful pass, and
+too strong. Four passes in, the record is 1 finding, 2 findings, 0, 0: the same
+curve enumeration showed. The input space is indeed not exhausted, but **the
+CHEAP hardening axes are consumed at the same rate as the cheap enumeration
+axes**, because what gets used up is not the inputs, it is the supply of
+properties that can be checked without an oracle (hangs, allocation, growth
+factors). What remains on this lens is the expensive row — diagnostic quality —
+which needs a real oracle.
+
+The correction is left in place rather than the claim quietly rewritten: an
+over-confident generalisation from one data point is a normal failure, and the
+useful record is that it was tested and revised.
+
+**REVISED AGAIN 2026-08-25 (T13.37), one pass later.** The fifth pass ran the
+one axis the correction named as remaining — diagnostic quality — and found **2**.
+The curve is 1, 2, 0, 0, 2. So the correction was right about the mechanism and
+wrong to leave "expensive" hanging as a reason to stop: the oracle that axis
+needed was already in the repo, unread. **Two empty passes in a row are evidence
+the axis LIST is stale, not that the code is clean** — the cheap axes being
+spent is a prompt to go find a new oracle, and the first place to look is what
+the corpora you already parse are telling you and you are throwing away.
+
+## Disbelieve the comment you just wrote
+
+While fixing the subtyping-depth limit (T13.34) I wrote a cycle guard and
+documented it:
+
+> `state` marks a node as in-progress, and meeting an in-progress node returns 0
+> and **lets the ordinary subtype checks report the cycle**.
+
+Nothing reported the cycle. Supertype cycles validated clean, and both engines
+reject them. The sentence was plausible, written seconds after reading the
+surrounding code, and false — and it would have been believed by the next
+reader, because it reads exactly like a fact someone checked.
+
+**A comment asserting that some OTHER code handles a case is a claim, and it is
+the easiest kind to get wrong**, because writing it feels like documenting
+rather than asserting. You are describing code you are not currently looking at,
+from a mental model built minutes ago, at the moment your attention is on
+something else.
+
+The fix is mechanical: **when a comment says "X is handled elsewhere", go and
+watch X fail.** One probe. Here the probe already existed — the same run that
+produced the depth finding had a cycle case in it, and the result line said
+`ACCEPT(!)` next to the sentence claiming otherwise.
+
+This is T13.24's rule ("a thoughtful comment about one case is evidence the
+neighbouring case was never tested") turned inward. The version worth
+remembering: **your own fresh comment is not evidence. It is a hypothesis you
+happen to believe.**
+
+## Ask whether a rejection is a SPEC limit or an engine limit — the answer changes what you do
+
+V8 rejected a 500-deep subtyping chain that we accepted. That could be either
+of two very different things:
+
+- a **spec limit** we are missing, in which case we have a false accept and must
+  fix it;
+- an **engine implementation limit**, in which case V8 is stricter than the spec
+  and we are correct to accept — exactly the situation with the 2^48-page
+  `memory i64` already in the log, which **Wasmtime accepts and V8 does not**,
+  and which the metrics table records as a known non-defect.
+
+The two look identical from V8 alone. Asking Wasmtime settled it in one command:
+Wasmtime rejects too, at the same boundary, so it is a spec limit and ours was a
+real gap.
+
+That is what the three-engine oracle rule is FOR, and it is worth restating
+because the single-engine version of this investigation reaches the wrong
+conclusion in both directions — either shipping a false accept, or "fixing"
+something by adding a limit the spec does not have and rejecting valid modules.
+
+**Find the exact boundary as well as the verdict.** 64 types accepted, 65
+rejected, on both engines. A limit adopted without its boundary is an off-by-one
+waiting to happen, and here the off-by-one direction rejects VALID modules.
+
+## A probe that produces findings is not thereby a good probe
+
+The diagnostic-accuracy probe (T13.35) corrupted one byte at a time and checked
+that the reported error offset landed at or shortly after the corruption. Across
+317 errors it flagged 32 as suspicious. That looks like a result.
+
+**Every flagged case examined was correct behaviour.** A `LEB128 u32 overflow`
+for a corruption at byte 13 reported offset 9 — and 9 is where that LEB starts.
+Reporting the beginning of the malformed construct is BETTER than reporting
+where the decoder gave up, and the oracle's rule ("the offset must not precede
+the corruption") is false for every multi-byte construct in the format.
+
+Had those 32 been reported as defects, the "fix" would have made diagnostics
+WORSE — pointing at a corrupted byte instead of the construct containing it.
+
+This is the T13.22 non-discriminating-probe lesson turned around. There the
+probe could not tell the hypothesis from its negation. Here it discriminated
+perfectly — it was measuring the wrong property. Both produce confident wrong
+answers, and the second is more dangerous because it produces a LIST, and a list
+looks like work.
+
+**Before believing a probe's findings, read three of them by hand.** Not to
+confirm they are real — to check the oracle encodes the property you meant. Ten
+seconds each, and it is the only step that catches a well-implemented
+measurement of the wrong thing.
+
+And when the oracle turns out not to hold: **record the axis as UNMEASURED, not
+as clean.** "We looked and it was fine" and "we looked with an instrument that
+does not work" are different states, and only one of them means the next person
+can skip it.
+
+## Distinguish clean, unmeasured, and not-attempted
+
+Three states get collapsed into "nothing found", and they imply different next
+actions:
+
+| state | meaning | what the next pass should do |
+| --- | --- | --- |
+| **clean** | measured with an oracle that holds; no defect | skip, unless the code changed |
+| **unmeasured** | attempted; the instrument did not discriminate | needs a better oracle before it means anything |
+| **not attempted** | never run | run it |
+
+T13.35 produced one of each: size amplification and string scaling are CLEAN
+(the oracles — hang, allocation, growth factor — are sound and need no external
+truth), diagnostic accuracy is UNMEASURED, and diagnostic USEFULNESS beyond
+offsets was never attempted.
+
+The frontier list already distinguishes "not attempted" from "swept". It should
+distinguish unmeasured too, or an honest failure gets filed as a success — and
+the cost is that nobody ever returns to it, because the record says it was
+covered.
+
+## Check whether a corpus you already own carries an answer key you are discarding
+
+Recording diagnostic accuracy as UNMEASURED (above) is what made this findable.
+The rule said the axis needed a real oracle, so the next pass went looking for
+one — and it had been in the repo for the whole campaign.
+
+Every `assert_malformed` command in the spec testsuite carries **the error text
+the module is supposed to produce**. Our metric parsed those commands, took the
+module bytes, checked we rejected them, and threw the string away. It scored
+711 / 711 and had done since the campaign closed.
+
+**Counting rejections cannot tell rejecting for the right reason from rejecting
+for the wrong one.** Reading the strings took 40 lines and found that **70 of
+the 711 were rejected with wording the spec does not recognise** — including one
+genuinely wrong diagnosis: a 4-byte file with a bad magic number was reported as
+a file that ended unexpectedly, because the reader read the version field before
+it compared the magic. We named a fault the user had not made.
+
+The generalisation is cheap to apply and worth doing once per corpus:
+
+- a testsuite with **expected error texts** grades your diagnostics;
+- one with **expected VALUES** (`assert_return`) grades your semantics, not just
+  your acceptance — that is how the execution metric came about;
+- one with **expected byte counts, offsets, or section sizes** grades your
+  encoder's fidelity beyond "the engine took it".
+
+Ask of every corpus already wired up: **what fields am I parsing and then not
+asserting on?** An unused field in a harness is a metric nobody has run.
+
+## Conformance metrics measure acceptance; the ERROR PATH needs its own
+
+Seven of the eight metrics answer some form of "do we agree about which modules
+are good?". None of them looks at what we SAY about a bad one, and the T13.29–31
+and T13.37 findings are all on that path: entrypoints that threw raw internal
+strings, CLI shims that dumped a stack trace for a typo, a reader that
+misidentified which fault it had found.
+
+That is not a coincidence. **A metric built from a corpus of modules can only
+grade the accept/reject decision**, because that is the only output it compares.
+Everything downstream of the decision — the message, the offset, whether the
+process exits or throws — is invisible to all of them, which is why those
+findings kept arriving with every number green and unmoved.
+
+The corollary for a release: **the error path carries the least-tested code in
+the project**, and it is the code that runs precisely when a user is already
+confused. Treat "what does this print when the input is wrong?" as a first-class
+question about every published entrypoint, not as polish.
+
+## A broken harness can score BETTER — check the instrument against a metric it should fail
+
+The scratch harnesses omitted `synthesizeTypes`, so nearly every module they
+built had dangling type indices and was rejected on sight (T13.39). On a metric
+that counts rejections — `assert_invalid` — that reads as **success**. The
+harness reported `2673 / 2678`, a plausible number, for a whole session.
+
+The general shape: **a measurement defect that pushes a metric the way the
+metric is scored is invisible.** It is the mirror of a false-accept-blind
+metric, and it is worse, because the number goes UP.
+
+Two cheap defences, both of which would have caught this on day one:
+
+- **Give the harness an input it must FAIL on**, the way `engine-check`
+  self-tests against a known-invalid module and refuses to report if an engine
+  accepts it. A harness that cannot fail is not measuring.
+- **Sanity-check the denominator against a second route.** Agreement read 449
+  where round-trip's population was also 449 and the corpus runner — the one
+  harness that called `wat2wasm` instead of rebuilding it — was unaffected.
+  One instrument disagreeing with another about how many modules exist is the
+  whole finding, available for free.
+
+And the specific rule: **do not reassemble a pipeline inside a harness.** Call
+the published entry point. Every stage a harness re-implements is a stage it can
+get wrong, and it will get it wrong silently, because the harness has no tests.
+
+## An allowlist entry is a claim — ask what the thing is FOR before excusing it
+
+T13.32's token-reachability gate lists tokens the lexer emits and the parser
+never consumes, with a comment explaining why that is fine (unimplemented wabt
+script keywords). `Reserved` was on that list.
+
+But `Reserved` is what the lexer emits for **a word it does not recognise** — a
+misspelled instruction. The parser never consuming it is not an unimplemented
+feature; it is precisely the defect T13.38 fixed. **The symptom sat inside a
+passing test, labelled benign, for an entire tranche.**
+
+The gate was not wrong to list it — the list is the right mechanism, and it did
+force the entry to be justified. What failed is that the justification was
+written once, for the group, and never re-examined per member. When you add an
+entry to an allowlist, write down what that specific member IS, not just that it
+is currently unused. "The lexer emits this for unrecognised words" and "the
+parser ignores it" are, side by side, obviously a bug.
+
+## A test can pin the WEAKER of two behaviours simply by being satisfied with it
+
+`malformed_input.test.ts` contained a case named **"names the offending token
+and where it is"** whose assertion was `/in function body/`. The message it was
+testing was `unexpected ( in function body` — which names a parenthesis, not the
+offending token. The test's name described the property that was wanted; its
+assertion accepted a message that did not have it, and so it passed for as long
+as the weaker behaviour lasted.
+
+This is not the same as a vacuous test. It ran, it was sensitive to total
+breakage, and it would have caught a regression to silence. It just could not
+distinguish the behaviour it was named for from a nearby worse one.
+
+**When a test's name states a property, assert the property.** Here that meant
+`/i32\.addd/` — the operator text — rather than a substring of the surrounding
+sentence. The re-write is usually one line, and the moment to do it is when you
+are already looking at the test because something else changed.
+
+## Classify a difference by its PROVENANCE before explaining it
+
+The round-trip metric reported 83 differences and I explained them in one line —
+*"almost all deliberately non-minimal LEB encodings that cannot round-trip by
+construction"* — without opening one. The file tally in the same output said
+`elem.wast:19`, which is not crafted bytes at all, and the explanation did not
+survive contact with it: **22 of the 83 were our own encoder padding every
+section size to 5 bytes** (T13.40).
+
+The fix was to split the population by where the input came from:
+
+| input source | meaning of a difference |
+| --- | --- |
+| the module was **text** | the input binary is OUR OWN output — a difference is our bug |
+| the module was **binary** | the input is bytes someone crafted — a difference may be correct |
+
+That single distinction took a 96%-looking number to **2119 / 2119, 100%** on the
+half that measures us, and isolated the real defect in the other half. Before it,
+the two were summed, so a genuine 3.2% size regression sat inside a number that
+looked like a modest round-trip shortfall.
+
+**Ask of any difference metric: for which inputs am I obliged to match?** If the answer
+differs across the population, it is two metrics wearing one number, and the
+mixture will hide whichever direction is smaller.
+
+## Byte-identity against a non-canonical input can mean you SHARE its defect
+
+When the section-size padding was fixed, `float_literals.wast` moved from
+MATCHING to differing. That reads as a regression and is the reverse: that file's
+input is itself padded, so our padded output had matched it **by coincidence —
+two wrongs cancelling**. `binary_leb128_64.wast` moved the other way at the same
+time, for the same reason.
+
+A round-trip metric compares output against whatever the input happened to be. A
+match is evidence of fidelity **only when the input is canonical**; against a
+non-canonical input it may be telling you that you faithfully reproduce its
+non-canonicality. So a round-trip score that moves DOWN after a correctness fix
+is not automatically a regression — check which direction each moved case went,
+and why.
+
+The corollary is a nastier one: **a defect shared between the producer and the
+consumer of a round trip is invisible to that round trip**, exactly as a
+consistently-wrong opcode mapping is (already recorded). Padding was that shape —
+reader and writer agreed, and only an input from OUTSIDE our own pipeline could
+show it.
+
+## Upstream has an option; check whether the port has its default
+
+`canonicalize_lebs` is a `WriteBinaryOptions` field in upstream wabt, and its
+default is **true**. wabt-ts ported the fixed-width branch and not the
+canonicalising one — so the port silently shipped upstream's non-default
+behaviour, with no option and no note saying so.
+
+When porting a function that reads an option, port both branches or record which
+one you chose and why. A dropped branch looks like a simplification and behaves
+like a configuration change nobody made.
+
+## An oracle can pass VACUOUSLY — check that the input exercises the behaviour
+
+`wasm-strip` scored perfectly on the sharpest oracle available: *a module with
+no custom section has nothing to strip, so strip must be the identity.* 272 /
+272. Idempotent 272 / 272. Never grew a module. It read as a clean sweep.
+
+It was a coverage illusion. `wat2wasm` emits no custom sections, so **every
+input had nothing to strip** — the tool's actual job was never executed. Feeding
+it modules that DID have custom sections found that `--sections` was wrong in
+every single case (T13.41).
+
+The identity test was not wrong, and it was worth having. What was missing is
+the question that goes with it: **did the input make the code under test
+actually do anything?** For a tool, that means checking the input has the
+feature the tool operates on. Two cheap forms:
+
+- assert the precondition — `expect(customSectionCount(input)).toBeGreaterThan(0)`
+  before asserting the tool removed them;
+- report the split, the way the T13.41 probe ended up doing: "272 modules, of
+  which 272 had no custom section" is a sentence that answers itself.
+
+This is the sibling of "print what a harness SKIPS". That rule catches inputs
+dropped from the denominator; this one catches inputs that are counted, pass,
+and exercise nothing.
+
+## Read the option's DOC before believing your probe of it
+
+The first `--sections` probe scored 0 / 265 because I had assumed the option
+meant *keep these*; the documentation says *"Names of custom sections to
+strip"*. Had I filed on that run, the "fix" would have inverted a correct
+option and broken every existing caller.
+
+The corrected oracle then also scored 0 / 265, and only then was it a finding.
+Two probes agreeing is not what made it real — reading the contract is. **When a
+probe says an option is completely broken, the first hypothesis is that you have
+the option backwards**, because "wrong in 100% of cases" is far more often a
+misread contract than a defect that survived release.
+
+Related, from the same file: the implementation named its local `keep` and used
+it as `!keep.has(...)`. The name said one thing and the code did the other, so
+the doc was the only correct statement of intent in the file. Renamed with an
+INTENT block — **when a name and its use disagree, an editor will trust the
+name.**
+
+## A defect shared by a producer and its consumer is invisible to their round trip
+
+Already recorded for a consistently-wrong opcode mapping; T13.40 and T13.41 are
+two more instances, and the pattern is worth stating as a class.
+
+If the reader and the writer agree on something wrong, a round trip through them
+returns the input unchanged and every fidelity metric reads 100%. Section-size
+padding was that shape (T13.40). Custom-section relocation was nearly that shape
+(T13.41) and escaped only because it changes ORDER, which a byte comparison can
+see — but nothing in the corpus had a custom section to reorder.
+
+The counter-measure is an input the pipeline **did not produce**:
+
+- the spec testsuite's `(module binary …)` blobs — crafted by someone else,
+  which is exactly what exposed the padding;
+- a synthetic input built to have the feature under test, which is what exposed
+  the relocation;
+- another implementation's output.
+
+**A corpus made of your own output cannot test your own output.** When a metric
+over such a corpus reads 100%, that is the moment to ask where an independent
+input could come from.
+
+## A command written to see past a false alarm must be proven to still fire
+
+`deno fmt --check src tests` reports ~104 files failing on line endings on this
+checkout. That is git's `autocrlf`, it is documented, and the documented
+workaround was a per-file diff with the endings stripped.
+
+The workaround was wrong. `deno fmt --ext ts -` reads from stdin and **does not
+read `deno.json`**, so it used deno's default lineWidth of 80 against a project
+set to 100 — flagging every line of 81–100 characters, which is noise, and
+missing a real 101-character line. Two files would have failed CI on push
+(T13.42), on a branch where every other gate was green and re-run after every
+edit.
+
+**A standing false alarm is not free.** It costs whatever the workaround misses,
+and nobody re-examines a workaround that has been in the docs for months.
+
+The discipline is already recorded twice — invert a guard test before trusting
+it; give a harness an input it must fail on. It applies to a diagnostic COMMAND
+in the docs too:
+
+- **break something on purpose and confirm the command still reports it.** For
+  the corrected format check that was one re-joined import line and five
+  seconds;
+- **and check it clears the noise it was written for** — the corrected form was
+  validated in both directions, 11 of 12 false alarms gone AND the real fault
+  still caught. One direction alone proves nothing: a command that reports
+  everything passes the first test, and one that reports nothing passes the
+  second.
+
+This is the second documented command in two days found not to work — the other
+was the ledger-count `grep` in `publishing.md`, which returned 0. **Run the
+command before you write it down, and again when you next rely on it.**
+
+## Documentation of a SAFETY guard is a claim to verify, not a description to trust
+
+Two files stated that `scripts/publish.ts` "refuses if the working tree is dirty
+or the tag already exists." Neither guard existed. The script staged
+`deno.json`, force-tagged, and pushed — and the tag is what JSR publishes, so on
+a dirty tree it would have released a bare version bump containing none of the
+work, permanently (T13.43).
+
+The tell was in the same file: `cmem/publishing.md` line 130 described the real
+behaviour ("commits `deno.json` if it is still dirty") and line 221 promised the
+refusal. **A document that contradicts itself about a safety property is
+evidence that nobody has run the path recently.**
+
+The general rule: a sentence describing what a tool REFUSES to do is a test
+case, not prose. Two minutes to check — put the tool in the state it claims to
+reject and run it:
+
+- for a release script, a dirty tree;
+- for a validator, the thing it says it rejects;
+- for a guard, the condition it guards against.
+
+**Prefer to verify the negative claims first.** "It does X" fails visibly the
+first time it does not. "It refuses to do X" fails silently until the day it
+matters, and by then the damage is a published artifact, a deleted branch, or an
+overwritten file.
+
+## Code that acts at import time cannot be tested — extract the decision
+
+`publish.ts` stages, tags and pushes at the top level, so importing it performs
+a release. That is why a four-release-old script with a documented safety
+contract had zero tests: not an oversight, a structural impossibility.
+
+The fix is not "write a test for publish.ts" — it is to move the DECISION into a
+pure function that a test can import, and leave the effects in the script.
+`releaseBlockers(porcelain: string): string[]` takes the output of
+`git status --porcelain` and returns what would be left out; the script runs git
+and acts on the answer. Twelve test cases, no repository state, no network.
+
+Look for this shape wherever a file has top-level side effects: a release
+driver, a migration, a CLI entry point, anything under `if (import.meta.main)`
+whose logic sits outside the guard. **If the only way to exercise a decision is
+to perform its consequences, it will not be exercised.**
+
+## Test the case where the guard must NOT fire
+
+A guard is two claims: it blocks the bad state, and it permits the good one.
+The second is the one that gets skipped, and it is the one that decides whether
+the guard survives contact with a deadline — a guard that refuses a legitimate
+release fails safe exactly once, and is then removed by whoever needs to ship.
+
+For the release preflight that meant asserting an empty `git status --porcelain`
+and a `deno.json`-only tree both come back with **no blockers**, alongside the
+five blocking cases. Same shape as the sensitivity-inversion rule for regression
+tests, pointed the other way: **invert a new guard to prove it fires, and feed
+it the happy path to prove it does not.**
+
+## A regression test for a guard must gate the CALL SITE, not just the logic
+
+After adding the release preflight, the obvious test covered `releaseBlockers`:
+twelve cases, clean tree, dirty tree, renames, precision. All good, and all
+useless against the actual failure — **delete the guard block from
+`publish.ts` and every one of those twelve still passes**, because the pure
+function is untouched (T13.44).
+
+That is precisely the shape of the defect they were written for. T13.43 was not
+"the dirty-tree logic is wrong"; it was "the dirty-tree logic is absent." A test
+of the logic cannot see that.
+
+So for any guard, ask which of the two you have covered:
+
+| covered | catches |
+| --- | --- |
+| the LOGIC (`f(bad) === blocked`) | someone breaking the rule |
+| the WIRING (the caller calls `f`, before acting) | someone deleting or bypassing it |
+
+The second is usually the one that actually happens, and it is usually the one
+missing. When the caller cannot be executed in a test — a release driver, a
+migration, an `import.meta.main` block — a **source-text** assertion is the only
+thing that runs on every commit, and it is worth the bluntness.
+
+Two properties make such a gate durable rather than decorative:
+
+- **Classify by allowlist, not blocklist.** The wiring gate extracts every
+  `['git', '<sub>']` call in source order and fails on anything before the guard
+  that is not on a READ_ONLY list. A new subcommand is therefore mutating until
+  someone says otherwise — the safe default, and it forces a decision at the
+  moment the call is added.
+- **Assert the effects still exist afterwards.** Without a check that `add`,
+  `commit`, `tag` and `push` still appear AFTER the guard, the whole file passes
+  vacuously on a script that no longer releases anything. Same trap as the strip
+  identity test that passed on inputs with nothing to strip.

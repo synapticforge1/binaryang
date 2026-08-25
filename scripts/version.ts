@@ -14,14 +14,14 @@
  */
 
 /** Resolves the repository's `deno.json` regardless of CWD. */
-export const DENO_JSON_URL: URL = new URL("../deno.json", import.meta.url);
+export const DENO_JSON_URL: URL = new URL('../deno.json', import.meta.url);
 
 /** Reads the current `version` field from `deno.json`. */
 export async function readCurrentVersion(): Promise<string> {
   const text = await Deno.readTextFile(DENO_JSON_URL);
   const data = JSON.parse(text);
   const v = data.version;
-  if (typeof v !== "string") {
+  if (typeof v !== 'string') {
     throw new Error(`deno.json has no string \`version\` field (got ${JSON.stringify(v)})`);
   }
   return v;

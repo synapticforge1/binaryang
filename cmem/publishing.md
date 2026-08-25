@@ -8,6 +8,109 @@ sub-version-capped-at-9 rule, and this release breaks an exported type twice, so
 minor. The import map still pins binaryen-ts at `^1.0.9` while the checkout is v1.3.5+ (the
 caret accepts it — a stale pin, not a break).
 
+## UNRELEASED on `main` (as of 2026-08-25) — FIFTEEN user-visible fixes awaiting a bump
+
+<!-- This count is derived, and it went stale once already: the heading read "five"
+     while the table below held twelve, because rows were appended one audit pass at a
+     time and nobody re-counted. Re-derive it, do not trust it:
+     `grep -cE '^\| \*{0,2}T13.*\| \*\*yes' cmem/publishing.md`  ->  12
+     (VERIFIED 2026-08-25. The first version of this command returned 0: it skipped
+     one table cell where there are two before the verdict. A documented command
+     that silently returns nothing is worse than no command -- run it before you
+     write it down.) -->
+
+T13.11, T13.14, T13.15, T13.16, T13.20, T13.26, T13.29, T13.30, T13.31, T13.33,
+T13.34, T13.40 and T13.41 change BEHAVIOUR; T13.37 and T13.38 change only error WORDING.
+**T13.40 changes the BYTES every module encodes to** (3.2% smaller), so anyone
+pinning an output hash will see it move. **T13.16 emitted wrong
+code and T13.26 silently repaired an invalid module into a valid different one** —
+those two are the argument for shipping rather than accumulating more.
+
+`deno.json` reads **1.4.0 and that version is published**, so everything below is
+currently invisible to consumers. Recorded here rather than only in
+[tasks.md](tasks.md) because this file already carries the rule that settles it:
+*an unreleased fix is indistinguishable from an absent one downstream.*
+
+| id | change | user-visible? |
+| --- | --- | --- |
+| T13.11 | `resolveNames` never walked `table.get`'s index, so `(table.get $t (global.get $g))` and `(table.get $t (call $f))` **failed to encode at all** | **yes — valid WAT was rejected** |
+| T13.12 | The two SIGNED LEB encoders wrapped out-of-range input instead of throwing | only via a hand-built IR through `writeBinaryIr`; unreachable from WAT |
+| T13.13 | `named_refs` guard gained its operand axis; 2 of its own fixtures were invalid wasm; V8-validity now asserted | no — tests only |
+| T13.14 | `wasmValidate` ACCEPTED twelve invalid GC shapes that V8 and Wasmtime both reject — cross-hierarchy `ref.test` / `ref.cast`, `array.len` on a non-array, unchecked `ref.i31` / `i31.get_*` / `ref.is_null` / `ref.as_non_null` operands, and all four illegal packed-field signedness combinations | **yes — a caller relying on the validator was told invalid modules were fine** |
+| **T13.16** | **`wat2wasm` SILENTLY DELETED an instruction**: a value-producing expression immediately before `data.drop` / `elem.drop` was swallowed and discarded, so `(call $bump) (data.drop $d)` emitted a module both engines accept, that runs, and that computes a different answer | **yes — WRONG CODE EMITTED, no diagnostic** |
+| T13.15 | SIMD lane memory ops ignored the memory's index type: on a 64-bit memory a valid i64 address was rejected and an invalid i32 one accepted | **yes — valid memory64 input was refused** |
+| T13.17 | `rethrow` ignored its depth, so a rethrow with no enclosing catch validated | only for legacy EH, which neither Wasmtime nor Wasmer will run at all |
+| T13.18 | Removed a dead, never-called duplicate alignment table (`getOpcodeNaturalAlign`); made `instrInputCount` total over the instruction tokens and added a gate test | **no** — the removed symbol was not re-exported from the package root, and the arity entries make explicit what `default: return 0` already produced |
+| T13.19 | Tranche-ledger documentation; INTENT blocks on three code sections | **no** — comments and `cmem/` only, nothing executable touched |
+| T13.20 | `applyNames` left 50 of 87 expression kinds unwalked, so naming came out silently inconsistent | **yes, but narrowly** — `applyNames` is published from the package root and used by no internal pipeline, so only a consumer calling it directly (say, applying a parsed name section) saw it. `/compat.applyNames()` calls `generateNames` and is unaffected |
+| T13.21 | Two coupled WAT-writer switches, now notated and gated | **no** — they had not drifted; the change is comments plus a test |
+| T13.22 | Bridge `try_table` catch-scope off-by-one, diagnosed and **deliberately unfixed** | **no** — the bridge is a dev-only dependency with no published entrypoint, and the defect is currently cancelled. Must land with the binaryen-ts bump |
+| T13.24 | The bridge pushed no label frame for `if`; every `br` inside one was off by one | **no** — dev-only dependency, no published entrypoint reaches the bridge |
+| T13.25 | A NUL byte made a source file invisible to grep; sentinel fixed and the tree gated | **no** — a string-literal constant and a new test; nothing observable changes |
+| T13.41 | `wasm-strip` with `sections` removed the named custom sections and **relocated every survivor to the end of the module**, because the writer emitted all custom sections in one block and the IR recorded no position | **yes** — a module whose `dylink.0` section must come FIRST came back with it last, which a dynamic linker will not load. Default strip (remove everything) was never affected |
+| T13.40 | Every section header was written with a padded 5-byte size LEB, because the back-patch reservation was never collapsed. Upstream wabt canonicalises by default and that half was not ported | **yes — every binary we emit shrinks**, 3.2% on the 272-file wasmtk WASI corpus (628,201 -> 607,845 bytes). Output stays valid and semantically identical; only the encoding gets smaller. A consumer comparing output HASHES will see them change |
+| T13.38 | A misspelled or nonexistent instruction — the most common mistake in hand-written WAT — was reported as `unexpected ( in function body`, as `expected ), got (`, or by leaking the internal token-class name `Reserved`. None of them named the instruction | **yes, in wording** — `wat2wasm` and everything above it now report `unknown operator "i32.load32"`. Accept/reject is unchanged; a consumer matching on the old strings will see different text |
+| T13.37 | Decoder error MESSAGES realigned to the spec's vocabulary: the two LEB faults the spec names separately (`integer too large` vs `integer representation too long`) had shared one message, and a 4-byte file with a bad magic number was reported as ending unexpectedly because the version was read before the magic was compared | **yes, but only in wording** — every entrypoint accepts and rejects exactly the same inputs (all conformance metrics unmoved). A consumer MATCHING ON ERROR TEXT will see different strings: `LEB128 u32 overflow` and `LEB128 sequence is truncated` no longer appear. Nothing documented promised those strings, and no test asserted on them |
+| T13.36 | Fourth hardening pass | **no** — no defects found; nothing changed |
+| T13.35 | Third hardening pass | **no** — no defects found; nothing changed |
+| T13.34 | `wasmValidate` accepted GC modules with a subtyping chain deeper than 63 or a supertype cycle | **yes** — modules reported valid that neither Wasmtime nor V8 will load |
+| T13.33 | `wasm2wat` / `wasm-validate` accepted a module whose type-section count outran its entries, decoding it to a DIFFERENT module (zero types) | **yes** — a malformed binary was reported valid and disassembled as though the missing types never existed |
+| T13.32 | Lexer token-reachability enumeration and gate | **no** — no defects found; a test only |
+| T13.31 | The five CLI shims dumped an uncaught Deno stack trace on a bad path | **yes** — `deno run -A jsr:@jrmarcum/wabt-ts/wasm-validate <typo>` printed Deno internals plus our absolute source path instead of one line, and leaked local paths into anything the user pasted into a bug report |
+| T13.30 | `/compat.toBinary` threw an undocumented, differently-shaped error | **yes, and on the migration surface** — `/compat` is what wasmtk consumes as `import wabt from "wabt"`. A module from `readWasm` of a corrupt-but-decodable binary failed here with the writer's raw internal string; it now names itself and the docs say it throws |
+| T13.29 | `wasm2wat` / `wasm-validate` / `wasm-objdump` / `wasm-strip` threw uncaught `RangeError` on malformed input instead of returning `{ errors, result }` | **yes** — any consumer feeding untrusted or truncated wasm to a published tool got a crash where the documented contract promises a reported error |
+| T13.28 | Control bytes repaired in `cmem/`; hygiene gate widened; a stale perf rationale corrected | **no** — documentation and a test only |
+| T13.27 | Audit pass over the binary reader and `wasm-strip` | **no** — no defects found; nothing changed |
+| T13.26 | `wasm2wat` / `wasm-validate` accepted a module with a wrapped alignment exponent, and the round trip REPAIRED it into a valid one | **yes** — `wasmValidate` returned Ok on modules V8 and Wasmtime reject, and `wasm2wat` of such a module produced text that re-encodes to a DIFFERENT, valid program |
+| T13.23 | `@jrmarcum/binaryen-ts` pinned EXACTLY (was `^1.0.9` held only by the lockfile) | **no** — nothing a consumer resolves changes. `wat2wasm` / `wasm2wat` / `wasm-validate` / `wasm-objdump` / `wasm-strip` / `/compat` are pure wabt-ts and never pull binaryen-ts; the pin governs a dev-only dependency reached by no published entrypoint |
+
+**T13.16 changes the release calculus and should be treated as the reason to
+ship.** T13.11 and T13.15 are "valid input rejected" — loud, self-announcing,
+and impossible to mistake for correct output. T13.14 and T13.17 are "invalid
+input accepted" — silent, but a consumer only loses a safety net it should not
+have been relying on alone. **T13.16 is neither: it emitted WRONG CODE from
+valid input.** The module compiles, validates, loads on every engine, runs, and
+returns a different answer than the source says. There is no downstream check
+that catches that, because every check that exists says the module is fine.
+
+None of the five has been reported, and the shapes explain why — `table.get`,
+these GC forms, memory64 SIMD lane ops and a stacked value before `data.drop` are
+all absent from the wasmtk corpus. That bounds the blast radius; it does not
+bound the severity. **An unreleased fix is indistinguishable from an absent one
+downstream**, and for T13.16 the absent one means a consumer can ship a wasm
+binary that quietly does the wrong thing.
+
+**T13.14 tightens the validator, so check it against the v1.4.0 precedent.** It
+is NOT the same class of break as T13.10: that one made previously-ACCEPTED
+modules fail because a feature flag started being honoured, and it was called
+out as breaking. This rejects only modules that were already invalid — no engine
+loads any of them — so no working input changes behaviour. The measurement backs
+that rather than the reasoning: **449 / 449 V8-accepted spec modules still
+validate (zero false rejects), re-run with the three edited files reverted to
+confirm the baseline was 449 and not an artefact of the new code**, and the
+wasmtk corpus is unchanged at 265 / 272 (the 7 are the known stale-snapshot
+`KNOWN_INVALID` files).
+
+Under the sub-version-capped-at-9 rule `deno task bump` gives **1.4.1**, which is
+right: no exported type changes, and no behavioural change to any input that
+previously worked CORRECTLY — T13.16 changes what is emitted for
+`(call $f) (data.drop $d)`, but the previous output was wrong code, not a
+behaviour anything could have depended on. Nothing here breaks `/compat`, which exposes neither `Limits`
+nor the IR — and note `/compat` does not expose `wasmValidate` either, so T13.14
+cannot reach wasmtk through it at all.
+
+**`README.md` carries an "Unreleased (fixed on `main`, not yet published)" section
+describing these, added 2026-08-25 at the owner's request while the bump waits on
+further bug-hunting.** It states plainly that installing today gets v1.4.0 with the
+bugs still present, and gives the v1.4.0 workaround for the `table.get` case (write
+the inner reference numerically — verified against a reverted tree, not assumed).
+
+**AT BUMP TIME that section must be folded into a released-version heading**, the
+way "Breaking change since v1.3.5" describes v1.4.0. Leaving it saying "not yet
+published" after publishing is the same failure the release rule already names, in
+reverse: a shipped fix that still reads as absent. The workaround paragraph should
+go at the same time — it is advice for a version nobody should still be on.
+
 ## v1.4.0 — what it carries, and who was waiting on it (2026-08-25)
 
 **wasmtk's exception-handling migration was blocked solely on this release, and
@@ -27,6 +130,14 @@ The tag push is the OWNER's action and MUST come from a human: `deno task publis
 commits `deno.json` if it is still dirty, tags, and pushes both. Never
 `deno publish` locally — and never rely on the auto-tag path, for the reason
 below.
+
+**`deno task publish` commits `deno.json` AND NOTHING ELSE, so it refuses to run on a
+dirty tree (T13.43).** That guard was added 2026-08-25 after this file was found
+claiming it in one place and describing the opposite in another — while the tree
+held 56 dirty paths and 15 unreleased user-visible fixes. Without it the flow
+`deno task bump && deno task publish` commits a bare version bump, tags THAT, and
+publishes a release containing none of the work. **A JSR version is immutable**, so
+the only remedy would have been to burn the next number.
 
 ## `auto-tag.yml` CAN TAG BUT CANNOT PUBLISH (2026-08-24)
 
@@ -115,9 +226,12 @@ invocation is `deno task publish:dry` (`deno publish --dry-run --allow-dirty`) �
 
 1. Bump `version` in `deno.json` and commit on `main` (use `deno task bump` — see the version rule
    below).
-2. `deno task publish` runs [scripts/publish.ts]: refuses if the working tree is dirty or the tag
-   already exists, then creates and pushes the matching `v<version>` tag (atomic commit + tag +
-   push).
+2. `deno task publish` runs [scripts/publish.ts]: **refuses if any path other than `deno.json` is
+   dirty — untracked files included — and refuses if the tag already exists ON THE REMOTE**; then
+   creates and pushes the matching `v<version>` tag (atomic commit + tag + push). A LOCAL tag is
+   still force-written on purpose, so a run that died after tagging can be retried. The guards are
+   `scripts/release-guard.ts`, tested in `tests/scripts/release_guard.test.ts` — `publish.ts`
+   itself pushes at IMPORT time and so can never be imported by a test.
 3. `.github/workflows/publish.yml` fires on the tag push — verifies the tag matches `deno.json`,
    type-checks, tests, then calls `deno publish` **directly inside the Actions runner** (a subprocess
    invocation would break JSR OIDC) so JSR stamps OIDC provenance, and finally creates a matching

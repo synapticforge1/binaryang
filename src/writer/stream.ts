@@ -105,7 +105,19 @@ export class MemoryStream {
     this.writeBytes(encoded);
   }
 
-  /** Reserve 5 bytes for a u32 LEB128 and return the position for back-patching. */
+  /**
+   * Reserve room for a u32 LEB128 whose value is not known yet -- a section or
+   * function-body size -- and return the position to hand back to
+   * `patchU32Leb`.
+   *
+   * INTENT: this reserves the MAXIMUM width (5 bytes) and `patchU32Leb` then
+   * collapses it to the minimal encoding. The pair is therefore strictly
+   * LIFO-scoped: everything written between the reserve and its patch is the
+   * body being measured, and the patch MOVES that body. Do not hold an offset
+   * taken after a `reserveU32Leb` across its `patchU32Leb` -- it will be stale.
+   * Offsets taken BEFORE the reserve are safe, which is why nesting works
+   * (a function body patches before the code section that contains it).
+   */
   reserveU32Leb(): number {
     const pos = this._pos;
     this.grow(MAX_U32_LEB128_BYTES);
@@ -113,13 +125,28 @@ export class MemoryStream {
     return pos;
   }
 
-  /** Back-patch a 5-byte fixed-width u32 LEB128 at the given position. */
+  /**
+   * Back-patch the reservation at `pos` with `value`, encoded MINIMALLY, and
+   * close the unused bytes by shifting the body left.
+   *
+   * This used to write a fixed-width 5-byte LEB and leave the padding in
+   * place. That is legal -- 5 is the maximum width for a u32, so engines
+   * accept it -- but it made every section header 4 bytes larger than needed,
+   * inflating every binary the writer produced and making it impossible to
+   * reproduce a minimally-encoded input byte-for-byte. Upstream wabt
+   * canonicalises by default (`canonicalize_lebs = true`, which computes the
+   * real length and `MoveData`s the body); this is the same thing, reserving
+   * the maximum up front instead of guessing and growing.
+   */
   patchU32Leb(pos: number, value: number): void {
-    let v = value >>> 0;
-    for (let i = 0; i < MAX_U32_LEB128_BYTES; i++) {
-      this._buf[pos + i] = (v & 0x7f) | (i < MAX_U32_LEB128_BYTES - 1 ? 0x80 : 0x00);
-      v >>>= 7;
+    const encoded = encodeU32Leb128(value);
+    const gap = MAX_U32_LEB128_BYTES - encoded.length;
+    if (gap > 0) {
+      // Slide the measured body down over the bytes the size did not need.
+      this._buf.copyWithin(pos + encoded.length, pos + MAX_U32_LEB128_BYTES, this._pos);
+      this._pos -= gap;
     }
+    this._buf.set(encoded, pos);
   }
 
   /** Write a sub-section: reserve size, call writer, patch size. */

@@ -77,7 +77,14 @@ describe('an unknown instruction is an error, not a silent deletion', () => {
       '(module (func (result i32) (i32.addd (i32.const 1) (i32.const 2))))',
     );
     const msg = formatErrors(errors);
-    assert(/in function body/.test(msg), msg);
+    // This asserted only `/in function body/` until T13.38 -- which the test's
+    // own NAME says is not the property it wanted. The message named the token
+    // CLASS ("unexpected ( in function body"), pointing at the paren rather
+    // than at `i32.addd`, and the assertion was weak enough to pass anyway.
+    // A test can pin the weaker of two behaviours simply by being satisfied
+    // with it; assert the operator text itself.
+    assert(/unknown operator/.test(msg), msg);
+    assert(/i32\.addd/.test(msg), `does not name the operator: ${msg}`);
     assert(/:1:\d+/.test(msg), `no source position: ${msg}`);
   });
 

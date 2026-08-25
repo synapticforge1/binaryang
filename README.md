@@ -40,6 +40,9 @@ Measured against the official [WebAssembly spec testsuite](https://github.com/We
 | Modules the spec calls invalid that we reject        | **2683 / 2683**     |
 | Binary the spec calls malformed that we reject       | **711 / 711**       |
 | Text the spec calls malformed that we reject         | **1229 / 1229**     |
+| Reader rejections whose message matches the spec      | 689 / 711           |
+| Validator rejections whose message matches the spec   | 2446 / 2683         |
+| Parser rejections whose message matches the spec      | 816 / 1229          |
 
 The one module V8 does not accept is a 2^48-page `memory i64`, which exceeds V8's own
 implementation limit at any faithful encoding. **Wasmtime**, the reference runtime, accepts what we
@@ -50,6 +53,264 @@ authority (`deno task engine-check <dir-of-wasm>`).
 
 Round-trip fidelity is also **270 / 270** byte-identical over a 272-module corpus of real
 WASI-targeting output from the [wasmtk](https://github.com/jrmarcum/wasmtk) compiler.
+
+## Unreleased (fixed on `main`, not yet published)
+
+**These are fixed in the repository but are NOT in v1.4.0**, the current JSR release. Installing
+`@jrmarcum/wabt-ts` today gets v1.4.0, which still has them.
+
+### `data.drop` / `elem.drop` deleted the instruction before them
+
+**This one emitted wrong code.** A value-producing expression immediately before a `data.drop` or
+`elem.drop` was swallowed by the parser and discarded. The resulting module is accepted by every
+engine, runs, and computes a different answer than the source says — with no error, warning, or
+diagnostic anywhere:
+
+```wat
+(module
+  (memory 1) (data $d "xy")
+  (global $g (mut i32) (i32.const 0))
+  (func $bump (global.set $g (i32.const 7)))
+  (func (export "run") (result i32)
+    (call $bump)        ;; on v1.4.0 this call is DELETED
+    (data.drop $d)
+    (global.get $g)))
+```
+
+`run()` returns **0** on v1.4.0 and **7** after the fix. Both instructions take their segment as an
+immediate and consume nothing from the stack; they were miscounted as taking one operand, so the
+parser took a value that belonged to the surrounding code and had nowhere to put it.
+
+If you compile WAT that places any value-producing expression directly before a `data.drop` or
+`elem.drop`, check the output. The workaround on v1.4.0 is to reorder so the drop does not directly
+follow such an expression.
+
+### SIMD lane loads and stores were rejected on 64-bit memories
+
+On a `(memory i64 …)`, `v128.load8_lane` / `v128.store8_lane` (and the 16/32/64-bit widths) required
+an `i32` address instead of the `i64` the memory's index type calls for, so valid modules failed to
+validate — and the reverse mistake was accepted:
+
+```wat
+;; rejected on v1.4.0, valid per spec and accepted by V8 and Wasmtime
+(module (memory i64 1)
+  (func (param v128) (result v128) (v128.load8_lane 0 (i64.const 0) (local.get 0))))
+```
+
+Other memory64 instructions — `i32.load`, `memory.fill`, `memory.grow`, `v128.load`, the atomics —
+were unaffected; only the lane-indexed SIMD ops had it wrong.
+
+### `table.get` with a computed index failed to encode
+
+A `table.get` whose index operand referred to anything by name did not compile at all:
+
+```wat
+(module
+  (table $t 4 funcref)
+  (global $i i32 (i32.const 3))
+  (func (drop (table.get $t (global.get $i)))))
+```
+
+```
+<binary>:0x00000000: error: cannot encode module: binary writer:
+unresolved name-var "$i" for var - run resolveNames before encoding
+```
+
+Name resolution treated `table.get` as having no operands, so the name inside its index was never
+resolved and reached the binary writer as-is. It affects any named reference in that position —
+`(global.get $i)`, `(call $f)`, and so on.
+
+Unaffected, on v1.4.0 and after: a literal index (`(table.get $t (i32.const 0))`), a **numeric**
+index expression (`(table.get $t (global.get 0))`), and every other table instruction, including
+`table.set`. So the workaround on v1.4.0 is to write the inner reference numerically — `$i` is
+global 0 in the module above:
+
+```wat
+(func (drop (table.get $t (global.get 0))))   ;; encodes on v1.4.0
+```
+
+### Signed LEB128 encoders reject out-of-range values
+
+`encodeS32Leb128` and `encodeS64Leb128` silently wrapped a value that did not fit — 2^31 encoded as
+-2^31 — where their unsigned counterparts already threw. They now throw `RangeError` too.
+
+This is not reachable from `wat2wasm`: the text parser normalises and range-checks integer literals
+before they reach the encoder. It only affects code that builds IR by hand and calls `writeBinaryIr`
+directly, which previously got back the encoding of a different value.
+
+### The validator accepted twelve invalid GC module shapes
+
+`wasmValidate` returned a clean verdict on twelve kinds of module that no engine will load — V8 and
+Wasmtime both reject all of them. If you validate before shipping, you were told these were fine:
+
+```wat
+;; accepted on v1.4.0; rejected by every engine
+(module (func (param funcref) (result i32) (ref.test (ref null any) (local.get 0))))
+(module (func (param anyref)  (result i32) (i31.get_s (local.get 0))))
+(module (func (param i64) (result i31ref)  (ref.i31 (local.get 0))))
+(module (type $s (struct (field i8)))
+  (func (param (ref $s)) (result i32) (struct.get $s 0 (local.get 0))))
+```
+
+The full set: `ref.test` / `ref.cast` against a type from an unrelated hierarchy; `array.len` on
+something that is not an array; `ref.i31`, `i31.get_s` / `i31.get_u`, `ref.is_null` and
+`ref.as_non_null` given an operand of the wrong type; and `struct.get` / `array.get` using the
+wrong signedness form for the field — `_s` / `_u` are valid only on a packed `i8` / `i16` field and
+required there, while the plain spelling is valid only on an unpacked one.
+
+Casting **within** a hierarchy is unaffected in both directions — narrowing `anyref` to a concrete
+struct type and widening a concrete type back to `(ref null any)` are both still valid, as the spec
+requires.
+
+### `rethrow` with no enclosing catch validated
+
+`wasmValidate` accepted `rethrow` naming a `block`, a `loop`, or nothing at all. This affects only
+the superseded legacy exception-handling proposal, which neither Wasmtime nor Wasmer will execute
+in any case.
+
+### Malformed input crashed four of the published tools
+
+`wasm2wat`, `wasm-validate`, `wasm-objdump` and `wasm-strip` document a
+`{ errors, result }` contract, and threw an uncaught `RangeError` instead on
+truncated or corrupt input — exactly the input a tool like this exists to be
+pointed at. They now report the failure through `errors` as documented.
+
+`/compat`'s `toBinary` likewise threw the binary writer's raw internal string.
+It now throws an error that names itself, and the documentation says that it
+throws.
+
+### The CLI shims printed a stack trace for a mistyped filename
+
+```
+deno run -A jsr:@jrmarcum/wabt-ts/wasm-validate typo.wasm
+```
+
+dumped Deno internals plus absolute paths from our own source tree. All five
+CLIs now print one line and exit 1 — which also stops local paths leaking into
+whatever you paste into a bug report.
+
+### A malformed memory alignment was silently repaired
+
+A load or store whose alignment exponent exceeded what the opcode allows is
+malformed, and the reader wrapped it into range instead of rejecting it — so
+`wasm2wat` followed by `wat2wasm` turned a module the spec calls invalid into a
+valid, different one. It is now rejected.
+
+### A truncated type section decoded to a different module
+
+A binary whose type-section count outran its actual entries stopped decoding
+silently and reported success, so `wasm2wat` disassembled it as though the
+missing types had never been declared and `wasm-validate` called it valid. Both
+now reject it, as V8 does.
+
+### The validator accepted unloadable subtyping graphs
+
+`wasmValidate` accepted a GC module whose subtyping chain was deeper than the
+63 levels the proposal permits, and one whose supertype declarations formed a
+cycle (`$a <: $b <: $a`). Neither V8 nor Wasmtime will load either.
+
+### `applyNames` left most expression kinds unnamed
+
+The exported `applyNames` pass walked 37 of 87 expression kinds, so names were
+applied inconsistently across a module — a name inside, say, an `if` condition
+or a `try_table` handler was left as a raw index. This affects only callers
+using `applyNames` directly; `/compat`'s `applyNames()` goes through
+`generateNames` and was never affected.
+
+### `wasm-strip` no longer moves the custom sections it keeps
+
+Custom sections may appear anywhere in a module, and the encoder wrote them all
+in one block at the end. So stripping *some* of them relocated the rest:
+
+```
+before:  wasm-strip --sections bloat  →  removes "bloat", moves everything else to the end
+now:     removes "bloat", every other custom section stays where it was
+```
+
+This matters for sections whose position carries meaning. The dynamic-linking
+convention requires `dylink.0` to be the **first** section; stripping debug info
+from such a module previously produced something a dynamic linker would not
+load.
+
+Stripping everything — the default, with no `sections` argument — was never
+affected, and still returns exactly the module minus its custom sections.
+
+### Every module now encodes 3.2% smaller
+
+Section sizes are not known until the section body has been written, so the
+encoder reserved the maximum width for them — 5 bytes — and then wrote the size
+into that reservation without collapsing it. Every section header in every
+binary was therefore 4 bytes longer than it needed to be.
+
+The sizes are now encoded minimally. On the 272-module WASI corpus this project
+tests against, total output went from 628,201 to 607,845 bytes. Modules remain
+valid and semantically identical — only the encoding is smaller — and the
+encoder can now reproduce a minimally-encoded input byte-for-byte, which it
+could not before.
+
+**If you compare output hashes, they will change.**
+
+### A misspelled instruction now says which one
+
+A typo'd or nonexistent instruction — the most common mistake in hand-written
+WAT — was reported by naming whatever token the parser had stopped on, which was
+almost never the instruction:
+
+```
+(module (memory 1) (func (param i32) (result i32) (i32.load32 (local.get 0))))
+```
+
+```
+before:  unexpected ( in function body
+now:     unknown operator "i32.load32"
+```
+
+The linear form reported `unexpected Reserved in function body`, leaking an
+internal token-class name; a typo inside a `block` reported `expected ), got (`.
+All of them now name the operator, using the wording the spec uses.
+
+Accept/reject is unchanged — these inputs were always rejected. **If you match
+on error strings, this is a text change.**
+
+### Decoder error messages now use the spec's wording
+
+Error text only — every entrypoint accepts and rejects exactly the same inputs.
+The binary reader's diagnostics were compared against the error each
+`assert_malformed` case in the spec testsuite says it should produce, and 70 of
+711 did not match; 5 do not now.
+
+Two were wrong rather than merely differently worded. A 4-byte file with a bad
+magic number was reported as ending unexpectedly, because the version field was
+read before the magic was compared. And the spec names two distinct LEB128
+faults — `integer too large` (the value exceeds the width) and
+`integer representation too long` (the encoding exceeds the byte count) — which
+the decoders distinguished internally and then reported with one shared message.
+
+**If you match on error strings, note that `LEB128 u32 overflow` and
+`LEB128 sequence is truncated` no longer appear.** No documented behaviour
+promised them.
+
+### Not affected
+
+The acceptance figures above are unchanged — every fix was re-measured against the full testsuite
+and the WASI corpus, each time against a baseline with the change reverted, and each time
+byte-identical. The validator and reader fixes reject **only** input that was already invalid or
+malformed: all 449 engine-accepted spec modules still validate. No exported type changes.
+
+Three things do change beyond a verdict. The `data.drop` / `elem.drop` case above changes **emitted
+output**, because the previous output was wrong code. **Every** module's encoding changes — it gets
+smaller — from the minimal section-size fix. And error **message text** changes in the parser and
+the binary reader. The last two are worth reading if you compare output hashes or match on error
+strings.
+
+The last three rows are new and are the only figures here not at ceiling. They grade our error
+MESSAGES rather than our verdicts, against the error text the spec testsuite says each rejected
+input should produce — for the binary reader, the validator, and the text parser respectively.
+
+They measure **agreement with the reference implementation, not quality**, and the gap is not a
+defect list. Most of the parser's remainder is inputs like `(i32.const 0x)`, which the spec calls
+`unknown operator` because its lexer reserves the token; we say `expected i32 constant`, which is
+the more useful message. We are not going to close that gap by making it worse.
 
 ## Breaking change since v1.3.5
 

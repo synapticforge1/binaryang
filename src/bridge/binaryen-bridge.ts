@@ -428,6 +428,18 @@ function synthesizeAnonymousNames(names: string[], prefix: string): void {
   }
 }
 
+/**
+ * Placeholder frame for an `if`.
+ *
+ * An `if` is a branch target in wasm whether or not it carries a label, so it
+ * must occupy a slot on `labelStack` or every depth measured inside it is
+ * wrong. binaryen-ts's `makeIf` has no label slot, so nothing can branch TO
+ * it — a target landing on this frame fails loudly in `resolveLabel` instead
+ * of silently resolving to the enclosing block. Cannot collide with a real
+ * label: those always begin with `$`.
+ */
+const IF_FRAME = '<if-frame>';
+
 function resolveLabel(ctx: BridgeCtx, v: Var): string {
   // After resolveNames, br targets are depth indices into the label stack.
   // Name-bearing targets are resolved here too, in case the caller skipped
@@ -444,7 +456,17 @@ function resolveLabel(ctx: BridgeCtx, v: Var): string {
       `Bridge: br depth ${v.value} out of range (stack size ${ctx.labelStack.length})`,
     );
   }
-  return ctx.labelStack[idx]!;
+  const name = ctx.labelStack[idx]!;
+  if (name === IF_FRAME) {
+    // Reachable only for a branch whose target IS an `if`. binaryen-ts cannot
+    // express it (no label slot on makeIf), and the alternative — resolving to
+    // whatever block encloses the if — is a valid module that computes
+    // something else. Fail loudly.
+    throw new Error(
+      'Bridge: br to an `if` label is not supported (binaryen-ts makeIf has no label slot)',
+    );
+  }
+  return name;
 }
 
 /** Resolve a block/loop/if label, generating a synthetic name if empty. */
@@ -842,16 +864,31 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           'Bridge: labeled `if` not yet supported (binaryen-ts has no if label slot)',
         );
       }
+      // The condition is evaluated BEFORE the if is entered, so it is bridged
+      // outside the frame: a `br` inside the condition targets the enclosing
+      // scope, not this `if`.
       const condition = bridgeExpr(ife.cond, ctx);
-      const ifTrue = ife.then_.length === 1
-        ? bridgeExpr(ife.then_[0]!, ctx)
-        : makeBlock(ife.then_.map((c) => bridgeExpr(c, ctx)));
-      const ifFalse = ife.else_.length === 0
-        ? null
-        : ife.else_.length === 1
-        ? bridgeExpr(ife.else_[0]!, ctx)
-        : makeBlock(ife.else_.map((c) => bridgeExpr(c, ctx)));
-      return withDeclaredType(makeIf(condition, ifTrue, ifFalse), bridgeBlockType(ife.blockType));
+      // An `if` occupies a branch-target depth even with no label. Omitting
+      // this frame made every `br` inside an if resolve ONE FRAME TOO SHALLOW:
+      // `br 0` (branch out of the if) silently retargeted the enclosing block
+      // and produced a valid module with a different answer, and `br 1`
+      // (branch past the if) died with a bogus "depth out of range". Same
+      // class as T13.22's catch scope — bridge label bookkeeping diverging
+      // from `resolveNames`, which does push a frame here.
+      ctx.labelStack.push(IF_FRAME);
+      try {
+        const ifTrue = ife.then_.length === 1
+          ? bridgeExpr(ife.then_[0]!, ctx)
+          : makeBlock(ife.then_.map((c) => bridgeExpr(c, ctx)));
+        const ifFalse = ife.else_.length === 0
+          ? null
+          : ife.else_.length === 1
+          ? bridgeExpr(ife.else_[0]!, ctx)
+          : makeBlock(ife.else_.map((c) => bridgeExpr(c, ctx)));
+        return withDeclaredType(makeIf(condition, ifTrue, ifFalse), bridgeBlockType(ife.blockType));
+      } finally {
+        ctx.labelStack.pop();
+      }
     }
 
     // --- Branches ---------------------------------------------------------

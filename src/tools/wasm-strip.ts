@@ -34,7 +34,13 @@ import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { Result } from '../core/result.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import {
+  addError,
+  formatErrors,
+  hasErrors,
+  makeErrorList,
+  unknownLocation,
+} from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 
 // ---------------------------------------------------------------------------
@@ -66,7 +72,8 @@ export interface WasmStripResult {
  * Strip custom sections from a wasm binary.
  *
  * By default removes all custom sections (name section and any others).
- * Pass `sections` to restrict which section names are removed.
+ * Pass `sections` to name the ones to remove; every other custom section is
+ * kept, in the position it held in the input.
  */
 export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): WasmStripResult {
   const errors = makeErrorList();
@@ -81,21 +88,73 @@ export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): Wasm
     return { binary: new Uint8Array(0), errors, result: Result.Error };
   }
 
-  // Filter customs in-place.
+  // INTENT: `opts.sections` names the sections to REMOVE, not the ones to
+  // keep -- see `WasmStripOptions.sections`. The local was called `keep` while
+  // being used as `!keep.has(...)`, which reads as the opposite of what it
+  // does; a reader trusting the name would invert the condition and silently
+  // turn strip into keep.
+  //
+  // The survivors keep their POSITION in the section sequence, which the
+  // writer honours via `Custom.precedingSection` (T13.41). This tool must not
+  // relocate a section it was not asked to touch.
   if (opts.sections) {
-    const keep = new Set(opts.sections);
-    module.customs = module.customs.filter((c) => !keep.has(c.name));
+    const remove = new Set(opts.sections);
+    module.customs = module.customs.filter((c) => !remove.has(c.name));
   } else {
     module.customs = [];
   }
 
-  const stripped = writeBinaryIr(module);
-  return { binary: stripped, errors, result: Result.Ok };
+  // The binary writer is deliberately FAIL-LOUD (T10.7): it throws rather than
+  // emit bytes it cannot justify. That is right for the writer and wrong to
+  // propagate from here — `wasmStrip` is a published entrypoint whose contract
+  // is `{ binary, errors, result }`, and its input is untrusted.
+  //
+  // A module can decode cleanly and still be un-encodable: index validity is
+  // the VALIDATOR's job, not the reader's, so a corrupted binary whose func
+  // references a type the type section no longer contains reaches this line
+  // with no decode error. Two such inputs crashed this tool during the T13.29
+  // fuzz. Report instead.
+  try {
+    const stripped = writeBinaryIr(module);
+    return { binary: stripped, errors, result: Result.Ok };
+  } catch (e) {
+    addError(errors, unknownLocation(), e instanceof Error ? e.message : String(e));
+    return { binary: new Uint8Array(0), errors, result: Result.Error };
+  }
 }
 
 // ---------------------------------------------------------------------------
 // CLI
 // ---------------------------------------------------------------------------
+
+/**
+ * Read a file for the CLI, or exit with a one-line message.
+ *
+ * A bare `await Deno.readFile(path)` throws an uncaught `NotFound` /
+ * `IsADirectory` on a mistyped argument, which Deno renders as a stack trace
+ * naming its own internals and the absolute path of this file. That is the
+ * wrong output for a user typo, and it is the same "report, do not throw" rule
+ * the library side got in T13.29 — applied to the CLI layer (T13.31).
+ */
+async function cliRead(tool: string, path: string): Promise<Uint8Array> {
+  try {
+    return await Deno.readFile(path);
+  } catch (e) {
+    console.error(`${tool}: cannot read '${path}': ${e instanceof Error ? e.message : String(e)}`);
+    Deno.exit(1);
+  }
+}
+
+/** Write a file for the CLI, or exit with a one-line message. See {@link cliRead}. */
+async function cliWrite(tool: string, path: string, data: Uint8Array | string): Promise<void> {
+  try {
+    if (typeof data === 'string') await Deno.writeTextFile(path, data);
+    else await Deno.writeFile(path, data);
+  } catch (e) {
+    console.error(`${tool}: cannot write '${path}': ${e instanceof Error ? e.message : String(e)}`);
+    Deno.exit(1);
+  }
+}
 
 if (import.meta.main) {
   const args = Deno.args.slice();
@@ -120,7 +179,7 @@ if (import.meta.main) {
     Deno.exit(1);
   }
 
-  const binary = await Deno.readFile(input);
+  const binary = await cliRead('wasm-strip', input);
   const stripOpts: WasmStripOptions = { filename: input };
   if (stripSections.length > 0) stripOpts.sections = stripSections;
   const { binary: stripped, errors, result } = wasmStrip(binary, stripOpts);
@@ -133,5 +192,5 @@ if (import.meta.main) {
   }
 
   const dest = output ?? input;
-  await Deno.writeFile(dest, stripped);
+  await cliWrite('wasm-strip', dest, stripped);
 }

@@ -274,6 +274,12 @@ class ModuleValidator implements ExprVisitorDelegate {
       }
     }
 
+    // Subtyping depth is capped at 63 by the GC proposal so a subtype check can
+    // be O(1); both Wasmtime and V8 enforce it. Checked here rather than inside
+    // the loop above because a type may name a supertype declared later in its
+    // own rec group (T13.34).
+    this.acc(this.sv.checkSubtypingDepth(loc));
+
     // Every heap-type index in the module must name a real type. This has to
     // run AFTER the whole type section is declared — a type may legally
     // reference one defined later.
@@ -883,7 +889,7 @@ class ModuleValidator implements ExprVisitorDelegate {
   onArrayGetExpr(e: ArrayGetExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayGet(e.loc, varIdx(e.typeVar));
+    return this.sv.onArrayGet(e.loc, varIdx(e.typeVar), e.signed);
   }
   onArraySetExpr(e: ArraySetExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
@@ -916,7 +922,13 @@ class ModuleValidator implements ExprVisitorDelegate {
   onRefTestExpr(e: RefTestExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onRefTest(e.loc);
+    // Hand over the type being tested FOR — `(ref [null] H)` — so the operand
+    // can be checked against it, exactly as `onRefCastExpr` does below.
+    return this.sv.onRefTest(e.loc, {
+      kind: 'ref',
+      heapType: e.heapType,
+      nullable: e.nullable,
+    });
   }
   onRefCastExpr(e: RefCastExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);

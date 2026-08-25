@@ -104,6 +104,18 @@ chain won't see the error. Use a `hadError` boolean flag on the context object, 
 helper when an error is added, and fold it into the final return:
 `combineResults(result, this.hadError ? Result.Error : Result.Ok)`.
 
+## Dependency pins — one of them is a CORRECTNESS pin (T13.23, 2026-08-25)
+
+`@jrmarcum/binaryen-ts` is named **exactly** (`@1.0.9`, no caret) in `deno.json`'s import map.
+That is not routine caution: the bridge is bug-compatible with that version's `try_table` catch
+scope, and a newer release breaks the cancellation (T13.22). **Do not restore the caret** until the
+coordinated fix lands — see the ⚠ block at the top of [bridge.md](bridge.md).
+
+The general rule it produced: a caret range plus a lockfile is a pin only until someone reloads.
+Where a constraint exists for COMPATIBILITY the lockfile is the right place for it; where it exists
+for CORRECTNESS it belongs in the specifier, which a `deno cache --reload` cannot move and a reader
+can see. Everything else here (`@std/*`, `@jrmarcum/binaryen-ts` aside) is an ordinary caret range.
+
 ## Where Deno I/O is allowed
 
 **Do not use `Deno.*` APIs in** `src/core/`, `src/ir/`, `src/reader/`, `src/writer/`,

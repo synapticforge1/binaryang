@@ -653,6 +653,21 @@ function isTryLegacySubBlock(tt: TokenType): boolean {
 }
 
 function instrInputCount(tt: TokenType): number {
+  // INTENT OF EACH GROUP BELOW: every label sharing a `return N` asserts that
+  // THAT instruction pops exactly N operands off the surrounding operand stack
+  // — nothing about what it means, what section it belongs to, or how the spec
+  // groups it. Adding a label to a group is that assertion, so check the
+  // arity, not the neighbours' names.
+  //
+  // Getting this wrong is silent and expensive in both directions: too HIGH
+  // and the parser eats an instruction that was not this one's operand
+  // (T13.16 — `data.drop` sat here at 1 and deleted the preceding call, so
+  // the module ran and returned a different answer); too LOW and the operands
+  // become placeholders and the IR TREE is wrong even though the bytes come
+  // out right (the `Quaternary` bug — which is what the bridge and `wasm2ts`
+  // read). `tests/parser/instr_arity.test.ts` gates both: T13.8 differentials
+  // folded against linear form, and T13.18 fails if any `isPlainInstr` token
+  // has no entry here at all.
   switch (tt) {
     case TokenType.Unreachable:
     case TokenType.Nop:
@@ -664,6 +679,27 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.RefFunc:
     case TokenType.MemorySize:
     case TokenType.TableSize:
+    case TokenType.Rethrow:
+    case TokenType.StructNewDefault:
+      // Genuinely zero-operand, and listed EXPLICITLY rather than left to fall
+      // through: `default: return 0` is a silent landing pad, and it has
+      // already cost one bug — `Quaternary` had no entry, so the linear form
+      // popped nothing and all four operands became placeholders (right bytes,
+      // wrong IR tree, which is what a bridge or `wasm2ts` reads). An
+      // instruction that is absent from this table and one that is deliberately
+      // zero must not look the same. `instr_arity.test.ts` now enumerates
+      // `isPlainInstr` and fails if any member has no explicit entry here.
+    case TokenType.DataDrop:
+    case TokenType.ElemDrop:
+      // `data.drop $x` / `elem.drop $x` are `[] -> []`: the segment is an
+      // IMMEDIATE and nothing comes off the stack. They sat in the arity-1
+      // group below, sharing a `case` label with genuine one-operand
+      // instructions (`table.get`, `ref.test`, `memory.grow`), so
+      // `parseFoldedInstr`'s deficit fill popped a value that belonged to the
+      // surrounding scope — and `buildPlainExpr` has no slot to put it in, so
+      // it was silently DISCARDED. `(call $f) (data.drop $d)` dropped the
+      // call: valid wasm, no diagnostic, wrong program. Same shape as
+      // T13.11's `table.get` inheriting `table.size`'s body, one table over.
       return 0;
     case TokenType.Drop:
     case TokenType.LocalSet:
@@ -684,8 +720,6 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.RefCast:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
-    case TokenType.DataDrop:
-    case TokenType.ElemDrop:
     case TokenType.ThrowRef:
     case TokenType.BrOnCast:
     case TokenType.BrOnCastFail:
@@ -1156,8 +1190,39 @@ export class WastParser {
    */
   private noProgress(before: number, what: string): boolean {
     if (this.pos > before) return false;
-    this.error(this.loc(), `unexpected ${tokenName(this.peek())} in ${what}`);
+    this.reportUnexpected(`unexpected ${tokenName(this.peek())} in ${what}`);
     return true;
+  }
+
+  /**
+   * INTENT: turn "the parser stopped here" into "you misspelled an
+   * instruction", which is what actually happened most of the time.
+   *
+   * The lexer emits `TokenType.Reserved` for a word it does not recognise, and
+   * for no other reason — so a Reserved token is by definition not a valid
+   * anything, and naming it is correct wherever it turns up. That makes this
+   * safe to consult from any error site: it returns null unless the offending
+   * token really is an unrecognised word.
+   *
+   * Looks one token past a `(` as well, because the folded form puts the
+   * operator there: in `(i32.load32 …)` the token the parser is sitting on is
+   * the paren, and reporting the paren tells the author nothing.
+   *
+   * The spec calls this an "unknown operator" and the testsuite asserts that
+   * wording, so the phrase is load-bearing — see
+   * `tests/parser/unknown_operator.test.ts`.
+   */
+  private unknownOperatorText(): string | null {
+    const i = this.peek() === TokenType.Lpar ? this.pos + 1 : this.pos;
+    const t = this.tokens[i];
+    if (t === undefined || t.tokenType !== TokenType.Reserved) return null;
+    return (t as StringToken).text;
+  }
+
+  /** Report `fallback`, unless an unknown operator explains it better. */
+  private reportUnexpected(fallback: string): void {
+    const op = this.unknownOperatorText();
+    this.error(this.loc(), op === null ? fallback : `unknown operator "${op}"`);
   }
 
   private matchLpar(tt: TokenType): boolean {
@@ -1170,7 +1235,9 @@ export class WastParser {
 
   private expect(tt: TokenType): Result {
     if (this.match(tt)) return Result.Ok;
-    this.error(this.loc(), `expected ${tokenName(tt)}, got ${tokenName(this.peek())}`);
+    this.reportUnexpected(
+      `expected ${tokenName(tt)}, got ${tokenName(this.peek())}`,
+    );
     return Result.Error;
   }
 
@@ -2042,8 +2109,7 @@ export class WastParser {
         // swallows the failure, so without this the leftovers vanish without
         // a word — an unknown or misspelled instruction compiled to an EMPTY
         // body and `wat2wasm` reported success.
-        this.error(
-          this.loc(),
+        this.reportUnexpected(
           `unexpected ${tokenName(this.peek())} in function body`,
         );
       }

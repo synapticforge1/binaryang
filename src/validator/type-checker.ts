@@ -579,11 +579,6 @@ function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   return oi(_V128, _V128, _V128, _V, 0);
 }
 
-/** Returns the natural byte alignment for a load/store opcode (0 = N/A). */
-export function getOpcodeNaturalAlign(opcode: number): number {
-  return getOpcodeTypeInfo(opcode).natAlign;
-}
-
 // For MiscOpcode sat-trunc (passed via ConvertExpr.opcode when opcode < 8)
 export function getMiscOpcodeTypeInfo(misc: number): OpcodeTypeInfo {
   switch (misc) {
@@ -714,6 +709,40 @@ function abstractSatisfies(a: Type, e: Type): boolean {
     if (t === e) return true;
   }
   return false;
+}
+
+/**
+ * The TOP of the reference hierarchy `t` belongs to, or `null` if `t` is not
+ * an abstract heap type.
+ *
+ * The four hierarchies (`any`, `func`, `extern`, `exn`) do not interconnect —
+ * which `abstractSatisfies` already relies on. This names the ROOT of each, so
+ * a check can ask "are these two in the same hierarchy at all?" without asking
+ * the stronger "is one a subtype of the other?". That is exactly the
+ * distinction `ref.test` / `ref.cast` need: both engines accept a WIDENING
+ * cast, so a subtype test in either direction would be wrong.
+ */
+function topOfAbstract(t: Type): Type | null {
+  switch (t) {
+    case Type.AnyRef:
+    case Type.EqRef:
+    case Type.I31Ref:
+    case Type.StructRef:
+    case Type.ArrayRef:
+    case Type.NullRef:
+      return Type.AnyRef;
+    case Type.FuncRef:
+    case Type.NullFuncRef:
+      return Type.FuncRef;
+    case Type.ExternRef:
+    case Type.NullExternRef:
+      return Type.ExternRef;
+    case Type.ExnRef:
+    case Type.NullExnRef:
+      return Type.ExnRef;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -1466,20 +1495,78 @@ export class TypeChecker {
     return this.dropTypes(1);
   }
 
-  onRefTest(): Result {
-    const r = this.popAnyRef('ref.test');
+  /**
+   * The top of the hierarchy a heap type belongs to, or `null` when it cannot
+   * be determined (an unknown type index, reported elsewhere — do not emit a
+   * second, misleading error for the same cause).
+   */
+  private topHeapOf(h: Heap): Type | null {
+    if (h.index !== undefined) {
+      const info = this.heapTypes.get(h.index);
+      return info ? topOfAbstract(KIND_PARENT[info.kind]) : null;
+    }
+    return h.abstract === undefined ? null : topOfAbstract(h.abstract);
+  }
+
+  /**
+   * Pop the operand of a `ref.test` / `ref.cast` against the type named in the
+   * immediate.
+   *
+   * `popAnyRef` alone only asks "is this SOME reference", which accepted
+   * `ref.test (ref null any) (local.get $funcref)` — a cross-hierarchy cast
+   * that V8 and Wasmtime both reject. The spec requires the operand and the
+   * immediate to share a top heap type; it does NOT require either to be a
+   * subtype of the other, so widening (`(ref $s)` tested against
+   * `(ref null any)`) stays legal. `br_on_cast` two files over has had its
+   * `to <: from` check since T9.x — this is the same check missing from its
+   * siblings (T13.14).
+   */
+  private popCastOperand(target: ValueType, desc: string): Result {
+    const actual = this.peekType(0);
+    // `Type.Any` is the unknown/unreachable sentinel — nothing to compare.
+    if (actual === Type.Any) return this.dropTypes(1);
+    const a = refParts(actual);
+    if (a === null) {
+      this.printError(
+        `type mismatch in ${desc}, expected a reference but got [${valueTypeName(actual)}]`,
+      );
+      return combineResults(Result.Error, this.dropTypes(1));
+    }
+    const t = refParts(target);
+    if (t !== null) {
+      const at = this.topHeapOf(a.heap);
+      const tt = this.topHeapOf(t.heap);
+      if (at !== null && tt !== null && at !== tt) {
+        this.printError(
+          `type mismatch in ${desc}: [${valueTypeName(target)}] and [${
+            valueTypeName(actual)
+          }] are in different reference hierarchies`,
+        );
+        return combineResults(Result.Error, this.dropTypes(1));
+      }
+    }
+    return this.dropTypes(1);
+  }
+
+  onRefTest(testTo: ValueType): Result {
+    const r = this.popCastOperand(testTo, 'ref.test');
     this.pushType(Type.I32);
     return r;
   }
 
   onRefCast(castTo: ValueType): Result {
-    const r = this.popAnyRef('ref.cast');
+    const r = this.popCastOperand(castTo, 'ref.cast');
     this.pushType(castTo);
     return r;
   }
 
   onArrayLen(): Result {
-    const r = this.popAnyRef('array.len');
+    // The operand must be an ARRAY reference, not merely a reference:
+    // `array.len` on a `(ref $struct)` or a `funcref` used to validate.
+    const r = this.popAndCheck1Type(
+      { kind: 'ref', heapType: { kind: 'name', name: 'array' }, nullable: true },
+      'array.len',
+    );
     this.pushType(Type.I32);
     return r;
   }
@@ -1634,7 +1721,10 @@ export class TypeChecker {
   }
 
   onRefIsNull(): Result {
-    const r = this.dropTypes(1);
+    // `ref.as_non_null` immediately below peeks its operand and rejects a
+    // non-reference; this sibling dropped one unconditionally, so
+    // `(ref.is_null (local.get $i32))` validated.
+    const r = this.popAnyRef('ref.is_null');
     this.pushType(_I32);
     return r;
   }
@@ -1652,14 +1742,20 @@ export class TypeChecker {
   /** `ref.as_non_null` keeps the heap type and drops the nullability. */
   onRefAsNonNull(): Result {
     const actual = this.peekType(0);
-    const r = this.dropTypes(1);
-    this.pushType(actual === Type.Any ? Type.Any : nonNullable(actual));
+    // Peeking the type is not the same as CHECKING it: `nonNullable` returns a
+    // non-reference unchanged, so `(func (param i32) (result i32)
+    // (ref.as_non_null (local.get 0)))` popped an i32, pushed it straight back
+    // and validated clean. It only looked rejected while the declared result
+    // type disagreed with the operand — make the result agree and the hole is
+    // visible. Push the unknown sentinel on failure so one bad operand does
+    // not cascade into a second, misleading error.
+    const r = this.popAnyRef('ref.as_non_null');
+    this.pushType(
+      r === Result.Error || actual === Type.Any ? Type.Any : nonNullable(actual),
+    );
     return r;
   }
 
-  // GC: ref.eq pops two eqref-compatible refs, pushes i32.
-  // We don't enforce the eqref-compatible check here (no subtype machinery);
-  // the validator's job is to pop 2 ref-shaped things and push i32.
   /**
    * `ref.eq` compares two references in the EQ hierarchy. `anyref` is a
    * SUPERTYPE of `eqref`, so `(ref any)` does not qualify — the operands were
@@ -1685,7 +1781,10 @@ export class TypeChecker {
 
   // GC: ref.i31 pops i32, pushes i31ref.
   onRefI31(): Result {
-    const r = this.dropTypes(1);
+    // The operand is the i32 being boxed. A bare `dropTypes(1)` popped
+    // whatever happened to be there, so `(ref.i31 (local.get $i64))`
+    // validated.
+    const r = this.popAndCheck1Type(_I32, 'ref.i31');
     // Non-null by construction: `(ref i31)`, not the nullable `i31ref`.
     this.pushType({ kind: 'ref', heapType: { kind: 'name', name: 'i31' }, nullable: false });
     return r;
@@ -1694,7 +1793,12 @@ export class TypeChecker {
   // GC: i31.get_s / i31.get_u pop i31ref, push i32. Signedness is encoded
   // in the opcode; either way the validator effect is the same.
   onI31Get(): Result {
-    const r = this.dropTypes(1);
+    // Must be an i31 reference. Unchecked, `i31.get_s` accepted any operand
+    // at all — `anyref` and even `funcref`.
+    const r = this.popAndCheck1Type(
+      { kind: 'ref', heapType: { kind: 'name', name: 'i31' }, nullable: true },
+      'i31.get',
+    );
     this.pushType(_I32);
     return r;
   }
@@ -1791,7 +1895,24 @@ export class TypeChecker {
     return combineResults(r, this.setUnreachable());
   }
 
-  onRethrow(): Result {
+  /**
+   * `rethrow N` re-raises the exception caught by the Nth enclosing CATCH.
+   *
+   * The depth is not decoration: the label it names must actually be a catch
+   * handler, because that is where the caught exception lives. This took no
+   * depth at all and unconditionally went unreachable, so `(func (rethrow 0))`
+   * — a rethrow in a function with no `try` anywhere — validated clean, and so
+   * did a rethrow targeting an ordinary `block`. V8 rejects both.
+   */
+  onRethrow(depth: number): Result {
+    const label = this.getLabel(depth);
+    if (!label) return Result.Error;
+    if (label.labelType !== LabelType.Catch) {
+      this.printError(
+        `rethrow depth ${depth} does not name a catch block (found ${label.labelType})`,
+      );
+      return combineResults(Result.Error, this.setUnreachable());
+    }
     return this.setUnreachable();
   }
 
@@ -1885,14 +2006,21 @@ export class TypeChecker {
     return r;
   }
 
-  onSimdLoadLane(_is64: boolean): Result {
-    const r = this.popAndCheck2Types(_I32, _V128, 'simd_load_lane');
+  // The address operand follows the MEMORY'S INDEX TYPE, exactly as in
+  // `onLoadSplat` / `onLoadZero` above. Both of these declared `is64` and
+  // dropped it, hard-coding i32 — so on a 64-bit memory a correct i64 address
+  // was REJECTED and an incorrect i32 one accepted. T9.11 fixed the `offset`
+  // parameter for this same pair of handlers and left `is64` behind.
+  onSimdLoadLane(is64: boolean): Result {
+    const addrType = is64 ? _I64 : _I32;
+    const r = this.popAndCheck2Types(addrType, _V128, 'simd_load_lane');
     this.pushType(_V128);
     return r;
   }
 
-  onSimdStoreLane(_is64: boolean): Result {
-    return this.popAndCheck2Types(_I32, _V128, 'simd_store_lane');
+  onSimdStoreLane(is64: boolean): Result {
+    const addrType = is64 ? _I64 : _I32;
+    return this.popAndCheck2Types(addrType, _V128, 'simd_store_lane');
   }
 
   onSimdShuffleOp(): Result {

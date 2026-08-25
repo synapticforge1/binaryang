@@ -11,9 +11,19 @@ exhaustive line-by-line version is in the legacy `CLAUDE.md`.
   stateless under `.encode()`/`.decode()`. Never write `new TextEncoder()`/`new TextDecoder()`
   inside a method body in these files — reuse the file-level `TEXT_ENCODER`/`TEXT_DECODER` const.
 - **`ModuleContext` builds `funcSigsByIndex` + `tagArityByIndex` once** in its constructor
-  (`src/ir/ir-util.ts`). `getFuncSig`/`getTagArity` are O(1) indexed lookups. Do not reintroduce the
-  `for (const imp of module.imports)` scan — `getExprArity` runs for every expression during
-  validator and writer walks.
+  (`src/ir/ir-util.ts`). `getFuncSig`/`getTagArity` are O(1) indexed lookups rather than a
+  `for (const imp of module.imports)` scan.
+  **CORRECTED 2026-08-25 (T13.28): the justification recorded here was wrong.** It read
+  "`getExprArity` runs for every expression during validator and writer walks", and
+  `getExprArity` has **no production caller at all** — only one test in
+  `tests/audit/silent_corruption_fixes.test.ts`. `ModuleContext.getFuncSig` / `getTagArity` have
+  none either; `binary-reader.ts` uses its own free function of the same name. Only `WatWriter`
+  extends `ModuleContext`, and it never calls any of the three. So this is **not a hot path** and
+  nobody should defend it as one. All three are kept because `ir-util.ts` is re-exported from
+  `src/index.ts` and removing them is a breaking API change — unlike `getOpcodeNaturalAlign`
+  (T13.18) and `Validator.refNullType`, which were internal and were deleted. The class's own doc
+  comment still claims it is "reused across validator, binary writer, and bridge"; that is false
+  and is the kind of stale claim T13.24's rule is about.
 - **`WatWriter` builds `nameIndexMap` once** in its constructor (`src/writer/wat-writer.ts`).
   `resolveVarIndex` is an O(1) `Map.get` keyed by `"kind:name"`. The previous two-pass linear scan
   grew quadratically with export count.
@@ -92,6 +102,22 @@ exhaustive line-by-line version is in the legacy `CLAUDE.md`.
   type/func/global/table/tag/field, ensure `resolveNames` walks every one — **the binary writer
   treats any unresolved name-var as index 0** (fail-silent → fail-loud is the goal; see
   cross-project footgun policy).
+
+- **A `case` grouped with a LEAF must actually be a leaf (T13.11, 2026-08-25).** `table.get` sat on
+  the same `case` label as `table.size` and inherited its "resolve the table var, spread `...e`,
+  done" body — but `table.size` has no sub-expressions and `table.get` carries the element `index`.
+  So any name-var inside the index was never walked, and since `writeVar` is fail-loud now the whole
+  module failed to encode: `(table.get $t (global.get $g))` and `(table.get $t (call $f))` both died
+  with `unresolved name-var`. Its sibling `table.set`, three lines below in the same switch, resolved
+  both of its operands correctly — **a sibling that does what its neighbour skips remains the
+  strongest single tell.** Regression: `tests/ir/table_get_index.test.ts`.
+- **`resolveNames` completeness has TWO axes, and the `Var` audit only covers one.** The standing
+  rule above is about name-bearing IMMEDIATES (`Var` fields). This bug was a `Expr` field — a
+  sub-expression that was never recursed into — so the `Var`-only audit came back clean while the
+  bug was live. Audit both: every `Var`-typed field vs. its case body, AND every `Expr`-typed field
+  vs. its case body. Run mechanically over `ir.ts` on 2026-08-25, the `Expr` axis reported exactly
+  one miss across all 75 sub-expression-bearing interfaces (this one) and the `Var` axis reported
+  none across all 64.
 
 ## Legacy exception handling
 
@@ -411,6 +437,290 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `i64.add128` / `i64.sub128` to `TokenType.Quaternary` while the binary reader had no case for
   `0xfc 0x13` / `0x14`, so our own front end produced modules our own back end rejected with
   `unknown misc opcode: 19`. When adding an instruction, walk BOTH directions of the pipeline.
+- **Every LEB encoder rejects what it cannot represent — all FOUR of them (T13.12, 2026-08-25).**
+  `encodeU32Leb128` and `encodeU64Leb128` were hardened for T11/T13 and throw a `RangeError`; the
+  two SIGNED encoders beside them were left on `value | 0` / `BigInt.asIntN(64, value)`, which wrap
+  — 2^31 encodes as -2^31, 2^63 as -2^63 — i.e. they silently returned the encoding of a DIFFERENT
+  value. All four throw now. Nothing reaches it from WAT (the parser normalises an i32 literal into
+  signed range before the IR sees it and rejects anything outside), but `writeBinaryIr` is a
+  published entrypoint, so a hand-built IR could get a silently different module back. **The
+  boundary values themselves are asserted to still round-trip**, so the check cannot degrade into a
+  blanket refusal.
+
+## Dependency pinning (T13.23, 2026-08-25)
+
+- **`@jrmarcum/binaryen-ts` is pinned EXACTLY (`@1.0.9`, no caret) and that is a CORRECTNESS pin,
+  not a compatibility one.** The bridge is bug-compatible with 1.0.9's `try_table` catch scope
+  (T13.22); a newer release breaks the cancellation. It was `^1.0.9` with only `deno.lock` holding
+  the actual version while JSR already carried 1.4.3, so a `deno cache --reload` could have floated
+  it with no commit and nothing to review. **Do not restore the caret** until the coordinated fix
+  lands — see the ⚠ block at the top of [bridge.md](bridge.md).
+
+## CLI shims guard their file I/O (T13.31, 2026-08-25)
+
+- **No `if (import.meta.main)` block calls `Deno.readFile` / `writeFile` / `writeTextFile`
+  directly.** Each tool defines `cliRead` / `cliWrite`, which print
+  `<tool>: cannot read '<path>': <reason>` and `Deno.exit(1)`. A bare call throws an uncaught
+  `NotFound` / `IsADirectory` that Deno renders as a stack trace naming its own internals and the
+  ABSOLUTE PATH of our source — the wrong output for a user typo, and it leaks local paths into
+  anything pasted into a bug report. All five tools did this, in both failure modes. Same rule as
+  T13.29 / T13.30, one layer further out. **The doc-comment examples above each main block still
+  show bare `Deno.readFile` and should** — those illustrate LIBRARY usage, where the caller owns
+  its own I/O. Gated by `tests/tools/cli_io_errors.test.ts`, whose source half runs under the
+  suite's `--allow-read`.
+
+## `/compat` error shape (T13.30, 2026-08-25)
+
+- **Every `/compat` failure is an `Error` that NAMES the method it came from.** Its three failure
+  paths must agree: `parseWat` and `readWasm` throw `new Error(formatErrors(errors))`, and
+  `toBinary` wraps the fail-loud binary writer as
+  `toBinary: the module could not be encoded: …` rather than propagating the writer's raw internal
+  string. A caller writes one `catch`; two shapes make the useful errors indistinguishable from the
+  useless ones. **A method that can fail says so in its doc comment** — `toBinary`'s did not, and it
+  is reachable with no caller mistake, because decoding does not check what encoding requires
+  (index validity is the validator's job). `/compat` is the wasmtk-facing migration surface, so this
+  matters more than the CLI equivalents. Regression: `tests/api/compat_error_shape.test.ts`.
+
+## The binary path never throws (T13.29, 2026-08-25)
+
+- **`wasm2wat` / `wasmValidate` / `wasmObjdump` / `wasmStrip` return `{ errors, result }` and must
+  never throw**, whatever bytes they are given. This is T7.1's parser-robustness rule applied to the
+  binary front door, which it had never covered. **`core/leb128.ts` still throws and must keep
+  throwing** — it is a pure decoder and the WAT parser and bridge depend on that; the conversion
+  belongs at the READER boundary, in the four `readXLeb` helpers, plus a backstop `try/catch` in
+  `readBinaryIr` because one unconverted throw in 3000 lines reproduces the whole defect. The
+  converting helpers park the cursor at end-of-input so a caller ignoring the error flag cannot
+  spin. **`wasmStrip` additionally guards its RE-ENCODE**: a module can decode cleanly and still be
+  un-encodable (index validity is the validator's job), and the binary writer is deliberately
+  fail-loud (T10.7) — the tool catches, the writer does not soften. Regression:
+  `tests/tools/malformed_never_throws.test.ts`.
+
+## The subtyping graph is bounded and acyclic (T13.34, 2026-08-25)
+
+- **A type's subtyping DEPTH (its ancestor count) may not exceed 63**, and **the supertype graph
+  must be ACYCLIC**. Both are enforced by Wasmtime and V8; we checked neither, so a 2000-deep chain
+  and `$a <: $b <: $a` both validated clean. The depth cap is a GC-proposal implementation limit
+  that makes a subtype check O(1). `SharedValidator.checkSubtypingDepth` does both — the walk must
+  detect cycles to terminate anyway, so reporting them is free. It runs AFTER the whole type section
+  is registered, because a type may legally name a supertype declared later in its own rec group,
+  and it memoises so a long chain stays linear.
+- **Cycles in the SUPERTYPE graph are illegal; mutual REFERENCES between types are not.** A rec
+  group whose members hold fields of each other's types is the entire point of rec groups. Do not
+  let a cycle check conflate the two — the regression test pins the legal case alongside the
+  illegal ones. Regression: `tests/validator/subtype_depth_and_cycles.test.ts`.
+
+## A declared count must match what follows (T13.33, 2026-08-25)
+
+- **Every section reader checks the section bound INSIDE its loop and REPORTS**, via
+  `shortSection()` or `this.err`. Putting `this.pos < end` in the loop CONDITION instead makes
+  running out of input indistinguishable from finishing normally — `readTypeSection` did that in
+  both of its loops, so `(type count 4294967295)` with no entries decoded to zero types and
+  validated clean while V8 rejects it. Ten of the eleven readers had it right; copy them.
+  Regression: `tests/reader/section_count_truncation.test.ts`.
+- **Enormous declared counts must fail FAST and LOUDLY — both halves.** A 14-byte module declaring
+  4.29 billion entries must neither loop nor allocate before checking the remaining input (all
+  eleven sections already bail in 0 ms, and a test step pins that), and must not bail silently,
+  which was the bug. Fast-and-silent looks identical to correct from the outside.
+
+## Decoder must not normalise (T13.26, 2026-08-25)
+
+- **A memarg alignment exponent is `2 ** alignLog2`, never `1 << alignLog2`.** JS shift operands are
+  taken mod 32, so exponent 32 wrapped to align 1 and 33 to align 2 — a *smaller* alignment than
+  natural, which `checkAlign` accepts. V8 and Wasmtime both reject those modules, and `wasm2wat`
+  printed the result as `align=1` so re-encoding produced a VALID, different program. **That is T11
+  through the decoder**: the rule "the pipeline must never turn invalid input into valid output"
+  binds the reader as much as the encoder. Regression:
+  `tests/reader/memarg_align_wrap.test.ts`.
+- **When a value comes out of a bit operation, probe the OPERATION's boundaries, not the domain's.**
+  Alignment reviewers think 1/2/4/8/16 and "something huge"; every one of those was either valid or
+  rejected. Exponents 31 and 63 wrap NEGATIVE and were rejected by accident, so a large-value spot
+  check gave the right answer for the wrong reason. The live range was 32..62, which nothing about
+  alignment suggests.
+
+## Source hygiene (T13.25, 2026-08-25)
+
+- **No control bytes in any `.ts` under `src/` or `tests/`** — TAB, LF and CR excepted. This is not
+  style: a NUL makes grep classify the file as BINARY, so it prints `Binary file … matches` INSTEAD
+  of the match lines and the file drops silently out of every grep-driven sweep — while the sweep
+  still reports clean. Every enumeration in this project's audit definition is grep- or
+  regex-driven, so one invisible byte narrows the population all of them measure. It happened to
+  `binaryen-bridge.ts` (our own `IF_FRAME` sentinel) and cost an alignment sweep its validity.
+  **Sentinel values must be visible strings** — `'<if-frame>'` is as collision-proof as `'\0if'`
+  was, since real labels always begin with `$`. Gated by `tests/audit/source_hygiene.test.ts`,
+  which also pins its own scanned-file count so a broken walk cannot pass as a clean tree.
+
+## Bridge label frames (T13.24, 2026-08-25)
+
+- **Every construct that is a branch target in wasm needs a frame on `ctx.labelStack`, labeled or
+  not.** `if` pushed none, so every `br` inside one resolved one frame too shallow — `br 0` silently
+  retargeted the enclosing block (valid module, different answer) and `br 1` rejected valid input.
+  The case DID reject a *labeled* `if` with a comment explaining why, which is what made it read as
+  covered: **the comment answered the question that was asked, and nobody asked about the unlabeled
+  case.** A sentinel `IF_FRAME` is now pushed after the condition is bridged (the condition is
+  evaluated before the if is entered, so a `br` in it targets the enclosing scope), and
+  `resolveLabel` THROWS if a target lands on it — binaryen-ts cannot express a branch to an
+  unlabeled `if`, and resolving to the enclosing block is the silent wrong answer. **The default of
+  "not pushing" is never right**; when adding a construct, push the frame and decide explicitly what
+  a branch TO it does. Regression: `tests/bridge/label_frames.test.ts`.
+
+## try_table catch scope — the third layer (T13.22, 2026-08-25)
+
+- **`try_table` catch targets resolve in the ENCLOSING scope, in EVERY layer — and the bridge is
+  the third layer to get it wrong.** Fixed in the parser (T7.6), reintroduced in the validator
+  (T9.8), and now found in `src/bridge/binaryen-bridge.ts`, which pushes the try_table's own label
+  before resolving `tt.catches`. `resolveNames` is the reference implementation: it resolves the
+  catches, THEN pushes. **The bridge is deliberately NOT fixed yet** — its error cancels a matching
+  one in binaryen-ts 1.0.9, so applying it alone emits catch depth 2 where 1 is correct. It is
+  coupled to the dependency bump; see the ⚠ section at the top of [bridge.md](bridge.md), which is
+  the file anyone changing the pin will open.
+- **The bridge belongs in every layer-sweep even though it ships to nobody.** No published
+  entrypoint reaches it, which is why it was skipped in both earlier sweeps of this exact rule.
+  That is an argument about fix PRIORITY, not about whether to look.
+
+## Validator operand checks (T13.14, 2026-08-25)
+
+- **A GC instruction must check WHICH reference it got, not merely that it got one.**
+  `popAnyRef` in `type-checker.ts` answers "is this SOME reference" and nothing more. Used alone it
+  made `ref.test` / `ref.cast` / `array.len` accept an operand from an unrelated hierarchy —
+  `ref.test (ref null any) (local.get $funcref)`, `array.len` on a `(ref $struct)` — all of which V8
+  and Wasmtime 47.0.3 reject. `array.len` now pops against `(ref null array)`; the two cast
+  instructions go through `popCastOperand`. **The rule is SHARED HIERARCHY, not subtyping**: both
+  engines accept a WIDENING cast, so a subtype test in either direction is wrong in the other
+  direction. `topOfAbstract()` names the root of each of the four hierarchies (`any` / `func` /
+  `extern` / `exn`) for exactly this comparison; it is NOT a substitute for `isSubtype`, which
+  `br_on_cast` still needs. Keep both.
+
+- **A bare `dropTypes(n)` in an instruction handler is an unchecked pop.** `onRefI31`, `onI31Get`
+  and `onRefIsNull` each popped one operand with no type check at all, so `ref.i31` accepted an i64
+  and `ref.is_null` accepted an i32. Use `popAndCheck1Type` (or `popAnyRef` where any reference
+  really is legal) — `dropTypes` alone is for operands whose type has already been checked, and a
+  new handler that reaches for it is almost always a missing check.
+
+- **PEEKING an operand is not CHECKING it (`ref.as_non_null`).** It read `peekType(0)` to compute
+  its result type and then dropped unconditionally; `nonNullable()` returns a non-reference
+  unchanged, so an i32 was popped and pushed straight back. It only ever LOOKED rejected because
+  the fixtures had a declared result type that disagreed — make the result agree with the wrong
+  operand and it validates clean. **When a probe rejects, confirm it rejected for the reason you
+  are testing**: that fixture had two reasons to fail and the check being audited was not one of
+  them.
+
+- **`struct.get` / `array.get` signedness is a TRI-STATE and is load-bearing.** `signed` is
+  `undefined` for the plain spelling, `true` for `_s`, `false` for `_u` — the encoding both writers
+  already read. `_s`/`_u` are legal only on a PACKED (`i8` / `i16`) field or element and are
+  REQUIRED there; the plain form is legal only on an unpacked one. `checkPackedAccess` enforces both
+  directions for structs and arrays. Previously `onStructGet` declared the flag as `_signed` and
+  dropped it and `onArrayGet` did not take it at all, so all four illegal combinations validated —
+  the same shape as T9.11's ten unused `offset` parameters, and **an underscore-prefixed parameter
+  in one of a family of parallel handlers stays the strongest single tell.**
+
+- **A memarg handler follows the memory's INDEX TYPE, and that is a separate
+  parameter from the offset (T13.15, 2026-08-25).** `onSimdLoadLane` /
+  `onSimdStoreLane` hard-coded the address operand as i32 while declaring and
+  dropping `is64`, so on a 64-bit memory a correct i64 address was REJECTED and
+  an incorrect i32 one accepted. `onLoadSplat` / `onLoadZero` in the same file
+  get it right (`is64Memory ? _I64 : _I32`) and `SharedValidator` was already
+  passing the right value to all four. **T9.11 fixed `offset` for this same pair
+  of handlers and left `is64` behind** — the two parameters travel together and a
+  new memory op must honour BOTH. Regression:
+  `tests/validator/simd_lane_index_type.test.ts`.
+
+- **`rethrow N` must name a CATCH frame (T13.17, 2026-08-25).** The depth is a
+  label reference like a `br` target, but not every label is a legal target:
+  `rethrow` re-raises the exception caught by the Nth enclosing catch, so the
+  frame it names must have `labelType === LabelType.Catch`, which `onCatch`
+  already sets. Unchecked, `(func (rethrow 0))` with no `try` anywhere
+  validated. Note legacy EH cannot be cross-checked against Wasmtime or Wasmer
+  — neither will run `try` at all — so V8 is the only oracle available for this
+  family and any test here must say so. Regression:
+  `tests/validator/rethrow_depth.test.ts`.
+
+## Parser arity invariants
+
+- **`instrInputCount` must equal the number of operands `buildPlainExpr`
+  actually reads, and a zero-operand instruction grouped with one-operand
+  siblings DELETES code (T13.16, 2026-08-25).** `data.drop` / `elem.drop` are
+  `[] -> []` — the segment is an immediate — but sat in the arity-1 group beside
+  `table.get` / `ref.test` / `memory.grow`. `parseFoldedInstr`'s deficit fill
+  popped a value from the surrounding scope and `buildPlainExpr` had no slot for
+  it, so the expression was **silently discarded**: `(call $bump) (data.drop $d)`
+  emitted a module both engines accept, that runs, and that computes a different
+  answer. Same class as the v1.3.0 statement-ordering bug, same structure as
+  T13.11 (a `case` label shared with instructions that do not match).
+  **When adding an opcode to `buildPlainExpr`, count its `opN()` calls and add
+  the matching `instrInputCount` entry — and when adding one to an existing
+  `case` group, check every member of that group has the same arity.** The
+  mechanical form of this check (declared arity vs max `opN()` per case) is in
+  the audit definition in [INDEX.md](INDEX.md). Regression:
+  `tests/parser/drop_arity.test.ts`.
+
+- **`instrInputCount` must be TOTAL over `isPlainInstr`, and `default: return 0` is a silent
+  landing pad (T13.18, 2026-08-25).** A token with no entry does not fail — it silently becomes
+  zero-arity, the linear-form parser pops nothing, and every operand becomes a placeholder. That
+  has already cost one bug (`Quaternary` / wide arithmetic: the BYTES came out right because
+  `pushStmt` flushes operands in order and a placeholder emits nothing, but the **IR TREE was
+  wrong**, which is what the bridge and `wasm2ts` read), and T13.16 was its inverse. **A deliberate
+  zero and a forgotten one must not look the same**, so `Rethrow` and `StructNewDefault` are listed
+  explicitly rather than left to fall through. `SimdLaneOp` is the one legitimate absence: its
+  arity depends on the OPCODE (extract_lane 1, replace_lane 2), which a TokenType-keyed table
+  cannot express, so `instrInputCountForTok` routes it before the table is consulted. The gate is
+  `tests/parser/instr_arity.test.ts` (T13.18), which reads `isPlainInstr`'s labels out of the
+  parser source and fails if any lacks an entry — adding an instruction without one is now red
+  immediately instead of a quietly wrong tree.
+
+## Name-pass and writer invariants (T13.20 / T13.21, 2026-08-25)
+
+- **`applyNames` is total on the same two axes as `resolveNames`, and axis 1 is GENERIC.**
+  Recursion into `Expr`-typed fields walks every field whatever the node kind, so it cannot miss
+  one — a hand-written per-kind list is what let 50 of 87 kinds go unwalked, producing WAT where a
+  `global.get` at statement position was named and the identical reference inside `memory.fill` was
+  not. Axis 2 (rewriting `Var` immediates) stays an EXPLICIT table on purpose: which name space a
+  var belongs to cannot be read off the field name — `segment` is a data index on `memory.init` and
+  an elem index on `table.init` — and inferring it would silently retarget a reference, which is
+  Bug G. **LABEL and LOCAL vars are deliberately never rewritten**: `labelNames` is per-function and
+  this pass has no function context, and rewriting a local index through `funcNames` is a bug this
+  pass has already shipped once. Regression: `tests/ir/apply_names_total.test.ts`.
+
+- **`constExprOperands` and `WatWriter.writeInstrHead` are COUPLED; adding an operand-bearing case
+  to one obliges the other.** `writeFoldedConstExpr` calls `writeInstrHead` only for kinds with
+  operands, then writes those operands itself. A kind with operands but no head-writer case falls to
+  a `default` that renders the instruction AND its operands, so they are emitted twice — and the
+  result REPARSES as a different module. Same shape as the `writeCatch` duplication (T10.6). Neither
+  signature shows the coupling, so both carry INTENT blocks and
+  `tests/writer/const_expr_head_coupling.test.ts` reads both switches out of the source and fails on
+  drift.
+
+- **A partial switch over expression kinds is safe or not according to the DIRECTION of its
+  `default`.** Enumerated across `src/` (T13.21): `isConstExpr` rejects on sight and the binaryen
+  bridge throws, so neither can be silently wrong however few cases it lists; `applyNames` returned
+  the node unchanged and `writeInstrHead` fell back to a plausible render, and both were silently
+  wrong. **Read the `default` before the case count** — it, not coverage, decides whether a gap
+  matters.
+
+## Code-comment convention: INTENT blocks (T13.19, 2026-08-25)
+
+- **A section whose MEMBERSHIP carries an invariant must state that invariant at the section.**
+  Applies to any multi-label `case` group, family of parallel handlers, opcode-keyed table, or
+  `default:` arm with an entry condition — anywhere joining the group asserts something the type
+  checker cannot verify. The block states what joining asserts (in the group's own terms), what
+  breaks in each direction where the directions differ, and which gate catches it — or explicitly
+  that none does. Live at three sites, each of which has already been joined wrongly by a locally
+  reasonable edit: `instrInputCount` and `resolveExpr` (T13.11 / T13.16) and the memarg handler
+  family in `shared-validator.ts` (T9.6 / T9.11 / T13.15). **Do not replace these with comments
+  describing what the code does** — the code says that already and such a comment goes stale; the
+  point is to record the constraint the code cannot express. Rationale and the general form:
+  [best-practices.md](best-practices.md).
+
+## Removed 2026-08-25
+
+- **`getOpcodeNaturalAlign`** (`validator/type-checker.ts`) — a second, parallel natural-alignment
+  lookup beside the canonical `naturalAlignForOpcode` in `core/opcode.ts`, which the performance
+  invariants above explicitly say must not be duplicated. Exported, never called, and **silently
+  incomplete**: it returned `0` — *"no alignment constraint"* — for all 14 SIMD splat / lane / zero
+  memory ops that the canonical table knows. Since every live call site guards on `natAlign > 0`, a
+  future caller reaching for this one would have skipped alignment checking on exactly those
+  opcodes, which is the T9.6 / T9.11 gap for the third time. Verified never to CONTRADICT the
+  canonical table on a real memory opcode, and not re-exported from the package root, so removing
+  it is not an API change. Same shape and same call as `Validator.refNullType` below.
 
 ## Removed 2026-08-24
 
@@ -473,7 +783,7 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **A wasm NAME must be valid UTF-8, in BOTH paths (T12.5).** `parseQuotedText` (text) and
   `readName` (binary) decode through a strict `TextDecoder({ fatal: true })`; a lenient decoder
   substitutes U+FFFD and silently renames an import or export. **Data segments are exempt** —
-  arbitrary bytes, `(data "f")` is legal — which is why only `parseQuotedText` is checked and
+  arbitrary bytes, `(data "\0cf")` is legal — which is why only `parseQuotedText` is checked and
   `parseTextList` is not. **Both strict decoders MUST pass `ignoreBOM: true`**: without it a leading
   U+FEFF in a name is stripped rather than kept as a character (T7.13), which drops V8-valid to
   256/257.
@@ -634,3 +944,211 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **Gating requires CLI flags in the same change.** `wasm-validate` now takes
   `--enable-<feature>` / `--disable-<feature>` / `--enable-all`; without them a gated validator
   rejects most modern wasm with no way to opt in, which is worse than the bug.
+
+## Decoder error messages use the SPEC's vocabulary, and the two LEB faults stay distinct
+
+Reader and `src/core/leb128.ts` diagnostics are worded to match the error texts
+the WebAssembly spec testsuite's `assert_malformed` commands expect. This is not
+cosmetic: those strings are the only oracle we have for whether we reject a
+module **for the right reason**, and they are what the eighth conformance metric
+measures (689 / 711 as of 2026-08-25, T13.37).
+
+Two rules that a later edit can silently undo:
+
+- **`integer too large` and `integer representation too long` are different
+  faults and must keep different messages.** The first is a terminating byte
+  carrying value bits beyond the target width; the second is an encoding that
+  runs past the maximum byte count. Each decoder — u32, u64, s32, s64 — has both
+  branches and has always had them; for four releases both threw
+  `LEB128 <w> overflow`, discarding at the point of reporting a distinction the
+  code had already made. Merging them back rejects the same inputs, moves no
+  metric, and is invisible to everything except
+  `tests/core/leb128_diagnostics.test.ts`.
+- **Compare a header field before reading the next one.** `readModule` read the
+  magic, read the version, then compared the magic — so a 4-byte input failed on
+  the version read and was reported as `unexpected end of binary` when its magic
+  was wrong. Ordering a read before the check that guards it turns "you gave me
+  the wrong kind of file" into "your file is too short".
+
+The generic truncation message is `unexpected end of section or function`, which
+contains the spec's shorter `unexpected end` as a substring so it satisfies both
+spellings. That deliberately drops the old hint about WHICH decoder failed; the
+error's byte offset already points at the LEB, so the hint was redundant, and
+the spec's wording is what a wasm developer is looking for.
+
+## `TokenType.Reserved` is the parser's unknown-operator signal — do not let a site swallow it
+
+The lexer emits `Reserved` for a word it does not recognise **and for no other
+reason**. That makes it a reliable oracle: a Reserved token is by definition not
+a valid anything, so naming it in a diagnostic is correct wherever it appears,
+and a site that reports something else about it is reporting the wrong thing.
+
+`unknownOperatorText()` in `src/parser/wast-parser.ts` returns its source text —
+looking one token past a `(`, because the folded form `(i32.load32 …)` puts the
+operator there and the token the parser is sitting on is the paren.
+`reportUnexpected(fallback)` prefers it over the positional message. Three sites
+route through it: `noProgress`, the leftover-input check after a function body,
+and `expect()`.
+
+Before this (T13.38), a misspelled instruction — the most common mistake in
+hand-written WAT — produced `unexpected ( in function body` (blames a
+parenthesis), `expected ), got (` (mentions nothing relevant), or
+`unexpected Reserved in function body` (**leaks an internal token-class name to
+the author**). None named the operator.
+
+Two rules follow:
+
+- **A new error site that can face a Reserved token should call
+  `reportUnexpected`, not `this.error` directly.** The fallback string stays
+  whatever is right for the site; the helper only overrides when the offending
+  token really is an unrecognised word.
+- **The phrase `unknown operator` is load-bearing, not stylistic.** The spec
+  testsuite matches it as a substring across 400+ cases. Rewording it silently
+  drops the parser's diagnostic-wording metric.
+
+**Do not chase that metric to 100%.** About 200 of the remaining misses are
+inputs like `(i32.const 0x)` — a malformed hex literal that the spec's reference
+implementation also calls `unknown operator`, because its lexer reserves the
+token too. We say `expected i32 constant`, which is strictly more useful. The
+metric measures agreement with the reference implementation, not quality, and
+the last stretch is bought by making messages worse.
+
+## A conformance harness calls `wat2wasm`; it does not rebuild the pipeline
+
+`wat2wasm` is **parse → resolveNames → synthesizeTypes → writeBinaryIr**, and
+`synthesizeTypes` is not optional — it back-fills the type section for every
+inline-declared signature. A harness that encodes a parsed module with
+`resolveNames` + `writeBinaryIr` emits dangling type indices for almost every
+module.
+
+That is exactly what the scratch harnesses did until 2026-08-25 (T13.39), which
+made the validator reject nearly everything for a fault the harness had created,
+and dropped every valid module out of the denominator through a
+`catch { continue; }`. Agreement read `449 / 449` where the truth was
+**2207 / 2207**.
+
+It survived because **the output looked right**. `assert_invalid` scores by
+counting rejections, so a harness that breaks every module scores *better*, and
+`2673 / 2678` is a plausible, publishable-looking number. Of the harnesses in
+use, only `corpus.ts` was correct — and it is the only one that called
+`wat2wasm` rather than reassembling it.
+
+## Section sizes are encoded MINIMALLY, and the reserve/patch pair is LIFO
+
+`reserveU32Leb` (`src/writer/stream.ts`) reserves the maximum u32 LEB width — 5
+bytes — for a size that is not known until the body has been written.
+`patchU32Leb` then writes the **minimal** encoding and `copyWithin`s the body
+down over the bytes the size did not need.
+
+It wrote a fixed-width 5-byte LEB and left the padding until T13.40. That is
+legal, and every engine accepts it, which is why it survived: it made every
+section header **4 bytes larger than necessary** in every binary the writer has
+produced, and it meant a minimally-encoded input could never be reproduced
+byte-for-byte. Upstream wabt canonicalises by default
+(`canonicalize_lebs = true`); this half of the port was missing. Removing the
+padding took the 272-file wasmtk WASI corpus from 628,201 to 607,845 bytes.
+
+**The invariant that makes the shift legal: the pair is strictly LIFO-scoped.**
+Everything written between a `reserveU32Leb` and its `patchU32Leb` is the body
+being measured, and the patch MOVES that body. So:
+
+- **Never hold an offset taken AFTER a `reserveU32Leb` across its
+  `patchU32Leb`** — the shift invalidates it.
+- Offsets taken BEFORE the reserve are safe, because a shift only ever moves
+  bytes that come after it. This is what makes nesting work: a function body
+  patches before the code section that contains it, and the code section's own
+  `sizePos` is at a lower offset than anything the inner patch moves.
+
+Two call sites rely on this — `writeSection` in `stream.ts` and `writeFuncBody`
+in `binary-writer.ts`. A third would need the same discipline.
+
+**Do not "fix" the remaining round-trip differences against crafted binaries.**
+A `(module binary …)` blob may legally use a non-minimal LEB or the explicit
+element-segment flags where the abbreviated form means the same thing. The text
+format records neither, so a text round trip cannot restore them. Reproducing
+those bytes would mean carrying encoding trivia through the IR, and emitting
+non-minimal output again.
+
+## Custom sections keep the position they had in the input
+
+`Custom.precedingSection` records the known section a custom section followed:
+`null` if it came before any of them, `undefined` if the position is unknown
+(IR built by hand). The binary reader stamps it; `BinaryWriter.write()` walks an
+explicit `ORDER` table and emits each anchor's customs immediately after that
+section, appending unanchored ones last.
+
+Before this (T13.41) `writeCustomSections()` emitted them all in one block at
+the end. Custom sections may legally appear anywhere, so the output was valid —
+but it meant **`wasm-strip` relocated every section it was asked to keep**, and
+position is load-bearing for at least one real one: the dynamic-linking
+convention requires **`dylink.0` to be first**.
+
+Rules for anything touching this:
+
+- **A new module-level section must call `writeCustomSectionsAfter(id)` after
+  writing itself**, or customs anchored to it silently fall through to the next
+  anchor. The `ORDER` table exists so that pairing is one line and hard to
+  forget; do not go back to a bare sequence of `writeXSection()` calls.
+- **`undefined` must keep meaning "append at the end."** Hand-built IR and the
+  bridge construct `Custom` without a position, and giving them a default anchor
+  would move sections nobody asked to move — the exact defect, inverted.
+- The anchor is a SLOT, not an offset: if the anchored section is not emitted
+  (an empty type section, say), the customs still land in the right relative
+  place. `custom.wast` depends on this — it interleaves customs between ten
+  empty sections.
+
+## `wasmStrip`'s `sections` option names what to REMOVE
+
+Not what to keep. Everything else is retained, in its original position. The
+implementation's local was called `keep` and used as `!keep.has(name)`; it is
+now `remove`, with an INTENT block, because a reader trusting the old name would
+invert the condition and turn the tool into its opposite.
+
+## The release preflight lives in `scripts/release-guard.ts`, not in `publish.ts`
+
+`scripts/publish.ts` stages, tags and pushes **at import time** — it is top-level
+script code — so importing it performs a release, and nothing can test it. That
+is why it went four releases with a documented safety contract it did not
+implement (T13.43).
+
+The decisions are therefore pure and separate:
+
+- `releaseBlockers(porcelain)` — the `git status --porcelain` lines that would
+  be LEFT OUT of the release. Everything except `deno.json`, because
+  `publish.ts` stages exactly that one file. **Untracked files count**: a new
+  source file that was never committed is absent from the tag while every local
+  check still passes, because it is sitting on disk.
+- `statusPath(line)` — the path from a porcelain line, taking the NEW name of a
+  rename.
+
+Rules:
+
+- **Keep new preflight logic in `release-guard.ts`.** Anything added directly to
+  `publish.ts` is untestable by construction, which is the exact defect.
+- **`release-guard.ts` must stay side-effect free** — no `Deno.Command`, no
+  `Deno.exit`, no top-level `await`. That is what keeps it importable by a
+  test, and it is gated: `tests/scripts/publish_preflight_wiring.test.ts`
+  fails if any of the three appears.
+- **A git subcommand added to `publish.ts` is MUTATING unless allowlisted.**
+  The same gate extracts every `['git', <sub>]` call in source order and
+  refuses anything before the guard that is not in its READ_ONLY set
+  (`status`, `ls-remote`, `rev-parse`, `diff`, `config`, `log`). Adding a
+  read-only call means adding it there, deliberately.
+- **The `deno.json` exclusion is an exact path match**, never a substring —
+  `deno.json.bak` and `scripts/deno.json` must still block.
+- **The guards run before any mutation.** `publish.ts` refuses and exits 1
+  having staged nothing; a guard that runs after `git add` leaves the tree in a
+  state the user did not ask for.
+- A **local** tag is still force-written on purpose (retry safety after a run
+  that died between tagging and pushing). A **remote** tag is refused: it has
+  already triggered `publish.yml`, so that version is either live on JSR —
+  immutable — or failed for a reason a re-push will not change.
+
+## `scripts/` is inside the gate
+
+`deno task check`, `deno lint` and `deno fmt` all cover `src/`, `tests/` **and
+`scripts/`**. Until 2026-08-25 they listed only the first two, so the six files
+that bump versions, cut releases and generate opcode tables were type-checked by
+nothing. Markdown under `scripts/` is excluded from `fmt` — those are reports
+already sent upstream, and reformatting them creates churn in a diff someone
+else has read.

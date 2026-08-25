@@ -1368,6 +1368,19 @@ class WatWriter extends ModuleContext {
    * visitor is what supplies children, not the callback — so this dispatches
    * to the same method the linear path uses. Only the kinds that can carry an
    * operand inside a constant expression need an entry.
+   *
+   * INTENT — THIS SWITCH IS COUPLED TO `constExprOperands`, and the coupling is
+   * not visible from either side. Every kind that function returns a NON-EMPTY
+   * operand list for must have a case here. If one is missing, the `default`
+   * below writes the instruction *and* its operands (a full linear rendering),
+   * and `writeFoldedConstExpr` then writes the operands a second time — so the
+   * emitted WAT carries a duplicated operand and still REPARSES, producing a
+   * different module with no diagnostic. Same shape as the `writeCatch`
+   * duplication (T10.6). Verified by deleting the `ref.i31` case: a table
+   * initializer came out as `(i32.const 7 ref.i31 (i32.const 7))`.
+   *
+   * Gated by `tests/writer/const_expr_head_coupling.test.ts` (T13.21), which
+   * reads both switches out of this file and fails if they drift.
    */
   private writeInstrHead(e: Expr): void {
     const d = this.makeDelegate();
@@ -1858,6 +1871,14 @@ class WatWriter extends ModuleContext {
  * constant-expression check enforces. It is not a general operand table for
  * the instruction set, and should not grow into one: the only callers are
  * grammar slots that take a single folded instruction.
+ *
+ * INTENT — ADDING A CASE HERE THAT RETURNS OPERANDS OBLIGES YOU TO ADD ONE TO
+ * `WatWriter.writeInstrHead` TOO. The two are coupled and neither signature
+ * shows it: a kind with operands here but no head-writer case emits the
+ * instruction with its operands AND then the operands again, which reparses
+ * cleanly as a different module. Returning `[]` (a leaf) carries no such
+ * obligation — that path never calls `writeInstrHead`. Gated by
+ * `tests/writer/const_expr_head_coupling.test.ts` (T13.21).
  */
 function constExprOperands(e: Expr): Expr[] | null {
   switch (e.kind) {

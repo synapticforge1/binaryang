@@ -1525,6 +1525,21 @@ export interface Custom {
   name: string;
   data: Uint8Array;
   loc: Location;
+  /**
+   * The known section this custom section FOLLOWED in the source binary:
+   * `null` if it came before any of them, `undefined` if the position is not
+   * known (IR built by hand, or by a reader that did not record it).
+   *
+   * Custom sections may legally appear anywhere, so the writer used to emit
+   * them all in one block at the END. That silently RELOCATED a section the
+   * caller had asked to keep -- `wasm-strip --sections` removes the named ones
+   * and moves the survivors -- and position is load-bearing for at least one
+   * of them: the dynamic-linking convention requires `dylink.0` to come FIRST.
+   *
+   * `undefined` keeps the old append-at-the-end behaviour, so hand-built IR is
+   * unaffected.
+   */
+  precedingSection?: BinarySection | null;
 }
 
 // ---------------------------------------------------------------------------

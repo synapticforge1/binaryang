@@ -296,6 +296,67 @@ describe('T13.8 - folded and linear forms encode identically', () => {
   }
 });
 
+describe('T13.18 - the arity table is TOTAL over the instruction tokens', () => {
+  // The case list above is hand-maintained, and the header says "every
+  // instruction that takes operands belongs here" - but nothing enforced it.
+  // `instrInputCount` ends in `default: return 0`, so an instruction nobody
+  // adds an entry for does not fail: it silently becomes zero-arity, the
+  // linear-form parser pops nothing, and every operand becomes a placeholder.
+  // That has already happened once (`Quaternary` / wide arithmetic: right
+  // bytes, WRONG IR tree) and the inverse happened in T13.16 (`data.drop` in
+  // the arity-1 group: the parser DELETED the preceding instruction).
+  //
+  // So enumerate the population from the CODE rather than trusting the list:
+  // every token `isPlainInstr` accepts must have an explicit `instrInputCount`
+  // entry. Adding an instruction without one turns this red immediately
+  // instead of shipping a quietly wrong tree.
+  const SOURCE = new URL('../../src/parser/wast-parser.ts', import.meta.url);
+
+  /** Case labels inside a named top-level function in the parser source. */
+  function caseLabels(src: string, fn: string): Set<string> {
+    // Located by indexOf rather than a RegExp: the function bodies end at a
+    // brace in column 0, which is unambiguous, and it keeps this helper free
+    // of escaping that a future edit could silently break.
+    const start = src.indexOf('function ' + fn + '(');
+    assert(start !== -1, 'could not locate function ' + fn + ' in wast-parser.ts');
+    const end = src.indexOf('\n}', start);
+    assert(end !== -1, 'could not find the end of ' + fn + ' in wast-parser.ts');
+    const body = src.slice(start, end);
+    return new Set([...body.matchAll(/case TokenType\.(\w+):/g)].map((x) => x[1]!));
+  }
+
+  // The one legitimate absence: `SimdLaneOp`'s arity depends on the OPCODE
+  // (extract_lane takes 1, replace_lane 2), which a TokenType-keyed table
+  // cannot express, so `instrInputCountForTok` routes it before the table is
+  // consulted. Anything else appearing here is a missing entry, not a new
+  // exception - add the entry rather than the allowlist.
+  const ROUTED_ELSEWHERE = new Set(['SimdLaneOp']);
+
+  it('gives every instruction token an explicit arity entry', async () => {
+    const src = await Deno.readTextFile(SOURCE);
+    const instrs = caseLabels(src, 'isPlainInstr');
+    const arities = caseLabels(src, 'instrInputCount');
+    assert(instrs.size > 80, 'isPlainInstr enumeration looks wrong: ' + instrs.size + ' labels');
+
+    const missing = [...instrs].filter((t) => !arities.has(t) && !ROUTED_ELSEWHERE.has(t)).sort();
+    assert(
+      missing.length === 0,
+      missing.length + ' instruction token(s) have no instrInputCount entry and would silently ' +
+        'fall through to `default: return 0`: ' + missing.join(', ') +
+        ' - add an explicit case; a deliberate zero and a forgotten one must not look the same.',
+    );
+  });
+
+  it('does not carry a stale allowlist entry', async () => {
+    // If `SimdLaneOp` ever gains a real entry, the allowlist above is a lie
+    // and the next person will trust it. Fail rather than let it rot.
+    const src = await Deno.readTextFile(SOURCE);
+    const arities = caseLabels(src, 'instrInputCount');
+    const stale = [...ROUTED_ELSEWHERE].filter((t) => arities.has(t));
+    assert(stale.length === 0, 'allowlisted but now present in the table: ' + stale.join(', '));
+  });
+});
+
 describe('T13.8 - and the round trip still COMPUTES the same thing', () => {
   it('keeps an atomic store/rmw/load sequence at 42', async () => {
     // The regression in its original form: this returned 42, and its own

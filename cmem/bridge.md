@@ -91,6 +91,67 @@ a shared buffer.
 6. **Memory imports use the canonical `memoryNames` slot, not `imp.memory.name`** (often empty) — so
    the memory can later be looked up for an export. Same pattern as funcs/globals/tables.
 
+## ⚠ RELEASE BLOCKER — the catch-scope compensation (T13.22)
+
+**Do not bump the `@jrmarcum/binaryen-ts` pin without reading this.** The bridge and
+binaryen-ts 1.0.9 currently hold two off-by-ones that cancel, and upgrading breaks the
+cancellation.
+
+**The pin is now EXACT (`jsr:@jrmarcum/binaryen-ts@1.0.9`), and that is load-bearing.**
+It was `^1.0.9` with `deno.lock` holding 1.0.9 — so the coupling was protected by the
+LOCKFILE ALONE. JSR's latest is already 1.4.3, which the caret accepted. That is harmless
+today because every RELEASED version still has the old catch scope, but the moment
+binaryen-ts 1.5.0 publishes, a plain `deno cache --reload` — no version change of ours,
+no commit, no review — would silently break our EH output. Raised by the binaryen-ts team
+2026-08-25; they have recorded it as a release blocker on their side and **1.5.0 does not
+ship alone**. Keep the pin exact until the coordinated change lands.
+
+`bridgeExpr`'s `try_table` case pushes the try_table's own label and THEN resolves the
+catch clauses. Catch targets resolve in the ENCLOSING scope (the try_table's own frame is
+not counted), so the bridge hands binaryen-ts a label ONE LEVEL TOO SHALLOW —
+`dest=$inner` where `$outer` was meant. binaryen-ts 1.0.9 counts the try_table frame when
+turning `dest` into a depth, one level too deep, and the two errors cancel to the correct
+wire depth.
+
+    our own encoder (V8-verified reference)      catch depth 1   correct
+    bridge as shipped (dest=$inner + old shift)  catch depth 1   correct by cancellation
+    bridge with the scope fixed ALONE            catch depth 2   WRONG
+
+So the fix is coupled to the upgrade. **When the pin moves off `^1.0.9`:** resolve
+`tt.catches` BEFORE `ctx.labelStack.push(name)`, in the same commit, and re-check the
+byte `1f 7f 01 00 00 <depth>` against our own encoder's output for the same module.
+binaryen-ts's stated contract after their fix is that **`catches[].dest` must name the
+enclosing label**, which is what the reordering produces.
+
+Also expected from their side, unverified here: `RemoveUnusedNames` now counts a catch
+destination as a label reference.
+
+**This is the T7.6 / T9.8 off-by-one for the THIRD time** — parser, then validator, then
+here. The bridge gets skipped in these sweeps because it is dev-only and no published
+entrypoint reaches it. That is a reason to deprioritise fixing it, never a reason to leave
+it out of the enumeration. Detail, evidence and the probe that nearly got it wrong:
+`cmem/tasks.md` T13.22.
+
+## Label frames — the bridge keeps its OWN stack, and it has diverged twice
+
+`bridgeExpr` maintains `ctx.labelStack` and resolves `br` depths against it, duplicating
+what `resolveNames` already does. Both divergences found so far were off-by-ones in that
+bookkeeping:
+
+- **T13.22** — `try_table` resolves its catch clauses AFTER pushing its own label; they
+  belong in the enclosing scope. Currently cancelled by binaryen-ts 1.0.9; see the ⚠ block
+  above.
+- **T13.24** — `if` pushed no frame at all, so every `br` inside one was one frame too
+  shallow. Fixed: a sentinel `IF_FRAME` is pushed after the condition is bridged, and
+  `resolveLabel` THROWS if a target lands on it (binaryen-ts cannot express a branch to an
+  unlabeled `if`, and resolving to the enclosing block is a silent wrong answer).
+
+**Every construct that is a branch target in wasm needs a frame here**, labeled or not —
+`block`, `loop`, `if`, `try_table`, and legacy `try` if it is ever bridged (it currently
+throws). When adding one, push the frame and decide explicitly what a branch TO it should
+do; the default of "not pushing" is never right. Gate:
+`tests/bridge/label_frames.test.ts`.
+
 ## Deferred / blocked (binaryen-ts gaps — file upstream, not a wabt-ts workaround)
 
 **Re-verified 2026-08-24 against the actual checkout (`b78e5b476`, v1.3.5).** The list below used

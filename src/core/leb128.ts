@@ -101,12 +101,12 @@ export function decodeU32Leb128(bytes: Uint8Array, offset = 0): [value: number, 
       // For the 5th byte (shift will become 35), only the bottom 4 bits are
       // valid for a 32-bit value (bits 28-31). Bits 4-6 of the 5th byte would
       // land in bits 32-34 — that's overflow.
-      if (shift === 35 && (byte & 0x70) !== 0) throw new RangeError('LEB128 u32 overflow');
+      if (shift === 35 && (byte & 0x70) !== 0) throw new RangeError('integer too large');
       return [result >>> 0, i - offset];
     }
-    if (shift >= 35) throw new RangeError('LEB128 u32 overflow');
+    if (shift >= 35) throw new RangeError('integer representation too long');
   }
-  throw new RangeError('LEB128 sequence is truncated');
+  throw new RangeError('unexpected end of section or function');
 }
 
 /**
@@ -132,12 +132,12 @@ export function decodeU64Leb128(
       // 10th byte (shift === 70): only bit 0 (→ value bit 63) is valid; bits
       // 1-6 land at positions 64-69 and would be silently truncated by
       // asUintN(64) — reject instead of accepting an over-long encoding.
-      if (shift === 70n && (byte & 0x7e) !== 0) throw new RangeError('LEB128 u64 overflow');
+      if (shift === 70n && (byte & 0x7e) !== 0) throw new RangeError('integer too large');
       return [BigInt.asUintN(64, result), i - offset];
     }
-    if (shift >= 70n) throw new RangeError('LEB128 u64 overflow');
+    if (shift >= 70n) throw new RangeError('integer representation too long');
   }
-  throw new RangeError('LEB128 sequence is truncated');
+  throw new RangeError('unexpected end of section or function');
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +150,17 @@ export function decodeU64Leb128(
  * @param value - The value to encode. Must be in the range [−2^31, 2^31 − 1].
  */
 export function encodeS32Leb128(value: number): Uint8Array {
+  // `| 0` used to be the whole range check, and it WRAPS exactly the way
+  // `>>> 0` did in `encodeU32Leb128` — 2^31 encoded as -2^31, 2^32 as 0. Both
+  // unsigned encoders were hardened for T11/T13 and these two were not, which
+  // is the same asymmetry-in-a-family shape as the atomic `memidx` gap.
+  // Nothing reaches it from WAT (the parser normalises an i32 literal into
+  // signed range and rejects anything outside it) but `writeBinaryIr` is a
+  // published entrypoint, so a hand-built IR could hand an encoder a value it
+  // cannot represent and get a silently different module back.
+  if (!Number.isInteger(value) || value < -0x8000_0000 || value > 0x7fff_ffff) {
+    throw new RangeError(`s32 LEB128 out of range: ${value}`);
+  }
   const buf: number[] = [];
   let v = value | 0; // signed 32-bit
   let more = true;
@@ -172,6 +183,10 @@ export function encodeS32Leb128(value: number): Uint8Array {
  * @param value - The value to encode as a BigInt in the range [−2^63, 2^63 − 1].
  */
 export function encodeS64Leb128(value: bigint): Uint8Array {
+  // As for s32: `asIntN` WRAPS, so 2^63 would encode as -2^63.
+  if (value < -0x8000_0000_0000_0000n || value > 0x7fff_ffff_ffff_ffffn) {
+    throw new RangeError(`s64 LEB128 out of range: ${value}`);
+  }
   const buf: number[] = [];
   let v = BigInt.asIntN(64, value);
   let more = true;
@@ -210,16 +225,16 @@ export function decodeS32Leb128(bytes: Uint8Array, offset = 0): [value: number, 
       // bits 3-6 all-0 (non-negative) or all-1 (negative); anything else is an
       // out-of-range encoding that `result | 0` would silently truncate.
       if (shift === 35 && (byte & 0x78) !== 0 && (byte & 0x78) !== 0x78) {
-        throw new RangeError('LEB128 s32 overflow');
+        throw new RangeError('integer too large');
       }
       if (shift < 32 && (byte & 0x40) !== 0) {
         result |= ~0 << shift; // sign-extend
       }
       return [result | 0, i - offset];
     }
-    if (shift >= 35) throw new RangeError('LEB128 s32 overflow');
+    if (shift >= 35) throw new RangeError('integer representation too long');
   }
-  throw new RangeError('LEB128 sequence is truncated');
+  throw new RangeError('unexpected end of section or function');
 }
 
 /**
@@ -247,14 +262,14 @@ export function decodeS64Leb128(
       // (non-negative) or 0x7f (negative); anything else is an over-range
       // encoding that `asIntN(64)` would silently truncate.
       if (shift === 70n && (byte & 0x7f) !== 0 && (byte & 0x7f) !== 0x7f) {
-        throw new RangeError('LEB128 s64 overflow');
+        throw new RangeError('integer too large');
       }
       if (shift < 64n && (byte & 0x40) !== 0) {
         result |= ~0n << shift; // sign-extend
       }
       return [BigInt.asIntN(64, result), i - offset];
     }
-    if (shift >= 70n) throw new RangeError('LEB128 s64 overflow');
+    if (shift >= 70n) throw new RangeError('integer representation too long');
   }
-  throw new RangeError('LEB128 sequence is truncated');
+  throw new RangeError('unexpected end of section or function');
 }

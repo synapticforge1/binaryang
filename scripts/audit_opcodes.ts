@@ -11,10 +11,10 @@
  * is small enough that bugs would have been caught long ago.
  */
 
-const UPSTREAM_DEF = new URL("../upstream/include/wabt/opcode.def", import.meta.url);
-const WABT_TS_OPCODE = new URL("../src/core/opcode.ts", import.meta.url);
+const UPSTREAM_DEF = new URL('../upstream/include/wabt/opcode.def', import.meta.url);
+const WABT_TS_OPCODE = new URL('../src/core/opcode.ts', import.meta.url);
 
-const PREFIX_LABELS: Record<number, string> = { 0xfc: "MISC", 0xfd: "SIMD", 0xfe: "ATOMIC" };
+const PREFIX_LABELS: Record<number, string> = { 0xfc: 'MISC', 0xfd: 'SIMD', 0xfe: 'ATOMIC' };
 
 function parseUpstream(src: string): Map<number, string> {
   const out = new Map<number, string>();
@@ -46,7 +46,7 @@ function parseWabtTs(src: string): Map<number, string> {
     const combined = (prefix << 8) | code;
     if (out.has(combined)) {
       console.log(
-        `DUPLICATE KEY: ${PREFIX_LABELS[prefix]} 0x${code.toString(16).padStart(2, "0")} ` +
+        `DUPLICATE KEY: ${PREFIX_LABELS[prefix]} 0x${code.toString(16).padStart(2, '0')} ` +
           `— "${out.get(combined)}" then "${m[3]}"`,
       );
     }
@@ -69,7 +69,7 @@ for (const [combined, upstreamName] of upstream.entries()) {
   const wabtName = wabtTs.get(combined);
   const prefix = (combined >> 8) & 0xff;
   const code = combined & 0xff;
-  const tag = `${PREFIX_LABELS[prefix]} 0x${code.toString(16).padStart(2, "0")}`;
+  const tag = `${PREFIX_LABELS[prefix]} 0x${code.toString(16).padStart(2, '0')}`;
   if (wabtName === undefined) {
     console.log(`MISSING: ${tag} — upstream "${upstreamName}", wabt-ts has no entry`);
     missing++;
@@ -82,7 +82,7 @@ for (const [combined, wabtName] of wabtTs.entries()) {
   if (!upstream.has(combined)) {
     const prefix = (combined >> 8) & 0xff;
     const code = combined & 0xff;
-    const tag = `${PREFIX_LABELS[prefix]} 0x${code.toString(16).padStart(2, "0")}`;
+    const tag = `${PREFIX_LABELS[prefix]} 0x${code.toString(16).padStart(2, '0')}`;
     console.log(`EXTRA: ${tag} — wabt-ts "${wabtName}", no upstream entry`);
     extras++;
   }
