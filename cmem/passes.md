@@ -76,6 +76,21 @@ miscompiling valid exception code.
 | `Try`      | `delegateTarget` |
 | `Rethrow`  | `target`         |
 
+**Which of the four additions are reachable, measured (2026-08-25):**
+
+- `Try.delegateTarget` — **reachable and verified**. Revert only that line and a block label named
+  solely by a `try…delegate` target is stripped; the pipeline then dies with
+  `unresolved branch label`. V8 accepts the fixture, so this is live code, and it is the instance
+  that matters for LEGACY-EH producers (wasic emits `try`/`catch`, not `try_table`).
+- `TryTable.catches[].dest` — reachable, covered by
+  [tests/binary/eh_test.ts](../tests/binary/eh_test.ts) ("a label used only as a catch destination
+  survives -Oz"). Note it does NOT apply to legacy `try`/`catch`, which has no catch-destination
+  label — a claim made to the wabt-ts team and retracted, see [bridge.md](bridge.md).
+- `Rethrow.target` — names a `try` label, and the pass only strips `Block` names and `Loop`s, so it
+  cannot be stripped today. Collected anyway: it costs nothing and stops being correct-by-accident
+  the moment try labels become strippable.
+- `BrOn.label` — an ordinary block label like `br`'s; no reason it would not be stripped.
+
 The authoritative enumeration is the set of `resolveLabel` call sites in
 [src/encoder/wasm-encoder.ts](../src/encoder/wasm-encoder.ts) — same one-authoritative-enumeration
 rule as `walk.ts`'s child dispatch. Check a label-reasoning pass against that list, never against

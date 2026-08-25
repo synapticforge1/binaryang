@@ -177,24 +177,30 @@ comparison against a known-correct reference is what settled it. That is our own
 where both readings type-check proves nothing") rediscovered independently on the other side of the
 bridge, and it nearly cost them the wrong answer.
 
-### PENDING: the wabt-ts team has not been told about the `dest` change
+### SENT and answered — what came back, and what I got wrong
 
-A handoff note is **drafted but not sent** (2026-08-25) — it lives in this session's scratchpad, not
-in the repo, and nothing was written into `../wabt-ts/` (see "Working with the sibling repos"
-below). It covers four things, and any re-draft should keep all four:
+The handoff note went out and the wabt-ts team replied point by point (2026-08-25). Outcomes:
 
-1. Their report was right, **including the half they flagged as untestable** — decoding was already
-   fixed and unpublished; the writer they could not reach really was broken.
-2. The breaking `catches[].dest` change, stated as an action and framed both ways: if their bridge
-   compensates for our old off-by-one, remove the shift; if it already passed the spec-correct
-   label, they were the ones being mis-encoded.
-3. That `RemoveUnusedNames` now counts a catch destination as a label reference. Worth calling out
-   separately because the `$__exn_tag` shape has NOTHING branching to that block, so the old pass
-   stripped its label — they would have hit this the moment they ran passes over bridge-built IR.
-4. That none of it is on JSR yet, so there is nothing they can install today.
+- **The `dest` change: confirmed, and it is the bad branch** — their bridge compensates. Promoted to
+  the RELEASE BLOCKER entry above.
+- **They have no record of the multi-value report.** It is not in their 7-finding upstream report
+  (that is UP-1…UP-7) but a later, separate ask, which opened by explicitly excluding try_table:
+  "one thing, and it isn't try_table". Identifying marks if it needs re-finding: the repro
+  `(module (func (result i32) (block $b (result i32 i32) (i32.const 1) (i32.const 2)) (drop)))`, the
+  error `multi-value block type (type index 0) is not supported (at offset 0x3)`, and a four-row
+  shape table. It reached us and was never filed on either side.
+- **RETRACTED — my `$__exn_tag` / catch-destination claim was the wrong instance.** I told them
+  `RemoveUnusedNames` mattered to them because the `$__exn_tag` shape has nothing branching to its
+  catch destination. Their snapshot has **zero `try_table` modules** — wasic emits LEGACY
+  `try`/`catch`, which has no catch-destination label at all, so that reasoning does not touch their
+  modules. They also warned that an earlier finding of theirs from that same frozen snapshot had
+  already been retracted; do not re-derive from it.
 
-Send it when the release goes out, or sooner — the `dest` change is something they can act on before
-a version exists.
+  The operative instance for legacy EH is **`delegate`**, and it is verified rather than argued:
+  revert only the `Try.delegateTarget` line in the pass's collection and a block label named solely
+  by a `try…delegate` target is stripped, after which the pipeline dies with
+  `unresolved branch label: "$l0_1"`. V8 accepts the fixture, so it is live code. `Rethrow.target`
+  names a `try` label, which the pass never strips — not affected.
 
 ### Courtesy note wabt-ts raised, now documented
 
