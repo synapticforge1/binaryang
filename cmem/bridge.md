@@ -205,6 +205,26 @@ comparison against a known-correct reference is what settled it. That is our own
 where both readings type-check proves nothing") rediscovered independently on the other side of the
 bridge, and it nearly cost them the wrong answer.
 
+### Second handoff drafted (v1.5.0) — upgrade-compatibility facts worth keeping
+
+A follow-up note is drafted for the team now that v1.5.0 is out. It lives in a session scratchpad,
+not the repo. Two things in it were MEASURED and are worth keeping here regardless of whether the
+note itself survives:
+
+- **All 66 names their bridge imports from `/ir` still resolve at v1.5.0** — checked by extracting
+  the import list from `../wabt-ts/src/bridge/binaryen-bridge.ts` and diffing it against the live
+  `src/ir/index.ts` surface. The four exports Sweep 2 removed (`parseWast`, `isAtom`, `assertList`,
+  `materializeFakeGlobals`) are the reason 1.5.0 is a MINOR, but none is reachable from an `exports`
+  subpath, so they cannot be what breaks a consumer.
+- **`/encoder` is mapped in their `deno.json` but only referenced in a doc comment**, never imported
+  in `src/`. The mapping is free to update or drop as far as the bridge is concerned.
+
+The note also flags what most likely reaches them behaviourally across `1.0.9 → 1.5.0` (four months,
+not just the catch scope): multi-value blocks now encode as well as decode; typed refs are carried
+end-to-end, so their `coarsenValueType` at the boundary may be doing unnecessary work; and region
+bodies that used to round-trip to invalid wasm no longer do. It recommends they upgrade behind their
+own differential harness rather than trusting the list.
+
 ### SENT and answered — what came back, and what I got wrong
 
 The handoff note went out and the wabt-ts team replied point by point (2026-08-25). Outcomes:
