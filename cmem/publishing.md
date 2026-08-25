@@ -1,28 +1,32 @@
 # Publishing & release flow
 
 Published as **`@jrmarcum/wabt-ts`** on JSR. GitHub remote: `github.com/jrmarcum/wabt-ts`.
-`deno.json` reads **v1.4.0** (set by hand on 2026-08-24 — `deno task bump` would have produced
-1.3.6 under the sub-version-capped-at-9 rule, and this release breaks an exported type twice, so it
-takes the minor). The import map pins binaryen-ts at `^1.0.9` while the checkout is v1.3.5+ (the
+**v1.4.0 is PUBLISHED** (2026-08-25T00:06Z), with OIDC provenance —
+`rekorLogId 2582221500`, doc score 100, GitHub Release `wabt-ts v1.4.0` created.
+The version was set by hand: `deno task bump` would have produced 1.3.6 under the
+sub-version-capped-at-9 rule, and this release breaks an exported type twice, so it took the
+minor. The import map still pins binaryen-ts at `^1.0.9` while the checkout is v1.3.5+ (the
 caret accepts it — a stale pin, not a break).
 
-## v1.4.0 — what it carries, and who is waiting on it (2026-08-24)
+## v1.4.0 — what it carries, and who was waiting on it (2026-08-25)
 
-**wasmtk's exception-handling migration is written and blocked solely on this
-release.** `try_table` catch clauses with NAMED tags or labels do not encode at
-v1.3.5 — `resolveNames` did not resolve them, so the writer's fail-loud
-`writeVar` fires. Fixed by **`d30b8599` (2026-08-21)**. At the pinned version
-wabt-ts can emit only the EH form Wasmtime and Wasmer refuse.
+**wasmtk's exception-handling migration was blocked solely on this release, and
+is now unblocked.** `try_table` catch clauses with NAMED tags or labels do not
+encode at v1.3.5 — `resolveNames` did not resolve them, so the writer's
+fail-loud `writeVar` fires. Fixed by **`d30b8599` (2026-08-21)**. At the pinned
+version wabt-ts could emit only the EH form Wasmtime and Wasmer refuse.
 
 Their words: *"we pin it the moment it ships — the migration is written and
 blocked solely on this."* Their range is `^1.3.5`, which accepts 1.4.0, so the
-pin moves on their next resolve.
+pin moves on their next resolve — no action needed from them beyond that.
 
 **An unreleased fix is indistinguishable from an absent one downstream** — that
-is the whole reason this release exists.
+is the whole reason this release existed.
 
-The tag push is the OWNER's action: `deno task publish` commits `deno.json` if
-it is still dirty, tags `v1.4.0`, and pushes both. Never `deno publish` locally.
+The tag push is the OWNER's action and MUST come from a human: `deno task publish`
+commits `deno.json` if it is still dirty, tags, and pushes both. Never
+`deno publish` locally — and never rely on the auto-tag path, for the reason
+below.
 
 ## `auto-tag.yml` CAN TAG BUT CANNOT PUBLISH (2026-08-24)
 

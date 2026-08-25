@@ -60,7 +60,7 @@ changed, beyond the numbers:
   pipeline rewriting the module before anything validated it (T13.2).
 - **`Limits.initial` / `max` are `bigint`** and **`Limits.pageSize` is now
   `pageSizeLog2`** — two BREAKING changes to an exported type, both deliberate.
-  See [publishing.md](publishing.md); they are unreleased.
+  See [publishing.md](publishing.md). **Shipped in v1.4.0 (2026-08-25).**
 - **Custom page sizes work end to end** (T13.4) — parser, reader, writer,
   validator, feature gate. The proposal had a flag, an IR field and half a
   decoder, and no rule enforced anywhere.

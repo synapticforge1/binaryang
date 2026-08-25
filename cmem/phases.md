@@ -1,10 +1,12 @@
 # Phase delivery plan & per-phase gotchas
 
-## Status (deno.json at v1.3.2; binaryen-ts pinned v1.0.9)
+## Status (deno.json at v1.4.0, published 2026-08-25; binaryen-ts pinned v1.0.9)
 
-> The 2026-06-09 silent-corruption audit (~18 root-cause fixes across parser/reader/writer/
-> validator/ir) is **unreleased in the working tree** on top of v1.3.2 — see
-> [design-decisions.md](design-decisions.md) and [tasks.md](tasks.md).
+> Everything through the T13 tranche is RELEASED as of v1.4.0 — the 2026-06-09
+> silent-corruption audit, the whole post-v1.3.5 conformance campaign, and the
+> `try_table` named-catch fix wasmtk was blocked on. See
+> [publishing.md](publishing.md) for what the release breaks,
+> [design-decisions.md](design-decisions.md) and [tasks.md](tasks.md) for the detail.
 
 | Phase | Scope                    | Status          | Notes                                                                           |
 | ----- | ------------------------ | --------------- | ------------------------------------------------------------------------------- |
@@ -35,7 +37,7 @@ Recent release highlights:
   `br_if` / `br_table` branch-value mis-encoding, hex-float truncation instead of
   round-to-nearest-even, and decimal→f32 DOUBLE rounding.
 
-## Post-v1.3.5 conformance campaign (unreleased) — COMPLETE 2026-08-24
+## Post-v1.3.5 conformance campaign — COMPLETE 2026-08-24, SHIPPED in v1.4.0
 
 A sustained pass over the 257-file spec testsuite. **All five metrics are now exhausted** — see
 [overview.md](overview.md) for the table and [tasks.md](tasks.md) for the tranche-by-tranche log.
