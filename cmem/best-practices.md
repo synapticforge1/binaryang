@@ -2731,3 +2731,46 @@ Two properties make such a gate durable rather than decorative:
   `commit`, `tag` and `push` still appear AFTER the guard, the whole file passes
   vacuously on a script that no longer releases anything. Same trap as the strip
   identity test that passed on inputs with nothing to strip.
+
+## A stale artifact read as a live signal — now seen in two projects independently
+
+wabt-ts kept a frozen copy of wasmtk's build output and reported three
+present-tense claims from it, all wrong, all caught by the recipient (T13.45).
+Within the same period wasmtk's own `bundle_tests` reported **4/4 green while
+the malformation was still in the file**, because it read a stale artifact
+rather than the current one. Same shape, different projects, neither caused by
+carelessness.
+
+That independence is the reason to write it down as a class rather than an
+incident: **a cached, vendored or generated input is indistinguishable from a
+live one unless something records when it was taken.** The failure is silent by
+construction — the stale copy answers every question confidently, and the
+answers were true once.
+
+Two counter-measures, both cheap:
+
+- **Stamp the artifact where it lives**, with the source revision and the date,
+  and gate the stamp so a refresh cannot silently skip it. The useful assertion
+  is a derived quantity — a file count, a hash, a row count — because that is
+  what changes when someone refreshes the data and forgets the metadata.
+- **Never let a check read an artifact it did not just produce**, or make the
+  freshness part of what it asserts. `bundle_tests` reading a stale bundle and
+  `KNOWN_INVALID` re-checking pre-fix bytes are the same bug: an assertion whose
+  input is older than the thing it claims to be testing.
+
+## "Unmeasured" is worth strictly more than an oracle you assume holds
+
+From the wasmtk team, on our recording diagnostic-offset accuracy as UNMEASURED
+rather than clean: *an oracle that doesn't hold is worth strictly more than one
+you assume holds.*
+
+That sharpens the clean / unmeasured / not-attempted distinction already
+recorded. The value of "unmeasured" is not honesty for its own sake — it is that
+it names a specific, still-open question, whereas an assumed-good oracle
+produces a number that closes the question wrongly and nobody revisits.
+`bundle_tests`'s 4/4 was exactly that: not a missing measurement, a confident
+wrong one.
+
+So when a probe's oracle turns out not to hold, **the finding is the oracle**,
+and it belongs in the record with the same weight as a defect. It is the thing
+that tells the next person where to spend effort.

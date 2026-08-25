@@ -148,6 +148,7 @@ for one, write the row.
 | T13.20 | `applyNames` walked 37 of 87 expression kinds — `resolveNames`'s sibling, never run through the same two-axis enumeration | done — **published API produced silently INCONSISTENT naming**; axis 1 is now generic and cannot miss a kind, axis 2 an explicit 55-kind table |
 | T13.21 | `constExprOperands` and `writeInstrHead` are coupled in the WAT writer and nothing said so | done — latent, not live: drift writes an operand TWICE and the output still REPARSES (T10.6's shape). Both now carry INTENT blocks and a source-enumeration gate |
 | T13.22 | The bridge resolves `try_table` catch targets AFTER pushing the try_table's own label — the T7.6 / T9.8 off-by-one in a third layer | **BLOCKED, not done** — it cancels a matching off-by-one in binaryen-ts 1.0.9, so fixing it alone turns correct bytes into wrong ones. Lands with the dependency bump |
+| T13.45 | `tests/wasmtk/PROVENANCE.md` said the snapshot date and source commit were **unknown**. Both were false — one `git log --diff-filter=A` in THIS repo answers it | done — raised by the wasmtk team after **asking twice**. The corpus is a single capture (`fbafca9e`, 2026-05-25 21:50), not an accretion; source bounded to wasmtk **`e147d28`** because the next upstream commit is 3 days later. **The snapshot has caused THREE wrong reports to them, not one** (KNOWN_INVALID seven, EH scope 6-vs-10, retracted `needsExceptionTag` five) — all caught by the recipient. Stamped and gated; the file-count assertion catches a refresh that skips re-stamping |
 | T13.44 | T13.43's test covered `releaseBlockers` but **not that `publish.ts` calls it** — delete the guard block and all 12 cases still pass, because the pure function is untouched | done — structural gate on the WIRING: guard imported and called, **no mutating git subcommand before it** (every `['git', <sub>]` extracted in source order and classified against a read-only allowlist), refuses rather than warns, `release-guard.ts` stays side-effect free so it stays importable, `scripts/` stays in the gate, and the mutations still exist AFTER the guard so it cannot pass vacuously. **Verified by injecting all four faults** |
 | T13.43 | **`deno task publish` would have released a version containing none of the work.** It stages `deno.json` and nothing else, then tags and pushes — and the tag is what JSR publishes. Two documents said it "refuses if the working tree is dirty"; **no such check existed**, and `publish.ts` force-tagged regardless | done — live at the time: **56 dirty paths, 15 unreleased user-visible fixes**, and a JSR version is immutable. Dirty-tree + remote-tag guards added ahead of any mutation (refuses, exit 1, stages nothing). Untestable by construction — `publish.ts` pushes at IMPORT time — so the pure part moved to `scripts/release-guard.ts` with 12 cases, the most important being the one that must NOT block. Same pass: `scripts/` was covered by **no gate at all** (check, lint and fmt all listed only `src/` + `tests/`); now 164 -> 172 files |
 | T13.42 | The documented per-file format check passed `--ext ts -` on stdin, which **does not read `deno.json`** — so it used lineWidth 80 instead of 100 and drowned in its own false positives, while `deno fmt --check FILE` drowned in the CRLF false alarm | done — **two files would have failed CI on push** (a 101-char import from T13.29, a template literal from T13.30), invisible behind a standing, documented, worked-around false alarm. Corrected command validated BOTH ways: clears 11 of 12 false alarms and still fires on a deliberately re-broken file |
@@ -3216,6 +3217,67 @@ clean.**
 
 Corrected in place rather than deleted, per the standing rule: the correction is
 the useful artifact, because it tells the next reader the claim was tested.
+
+### T13.45 — DONE. The snapshot's provenance was recoverable all along, and "unknown" had never been checked (2026-08-25).
+
+Raised by the wasmtk team, who had **asked twice** for a source + date stamp on
+`tests/wasmtk/` and pointed out that the snapshot has now caused **three** wrong
+reports to them, not the one we had recorded.
+
+#### The three
+
+| report | what we said | what is true |
+| --- | --- | --- |
+| `KNOWN_INVALID` seven | "genuinely invalid wasm — V8, Wasmtime and Wasmer all reject them", present tense | all seven fixed in current wasic |
+| legacy-EH scope | **6** modules affected | **10** — our snapshot is missing four |
+| `needsExceptionTag` | five modules declare `$__exn_tag` and never use it | retracted; does not hold against current wasic |
+
+All three were the same mistake — reading a fixture set as evidence — and **all
+three were caught by the recipient rather than by us.**
+
+#### The stamp took one command
+
+`PROVENANCE.md` said *"Snapshot date: unknown — accreted file-by-file rather than
+taken at once"* and *"Source commit: unknown"*. Both were false, and neither
+needed anything the wasmtk team had:
+
+    git log --diff-filter=A -- 'tests/wasmtk/*.wat'
+
+returns **exactly one commit** — `fbafca9e`, 2026-05-25 21:50:17 -0400, which
+added 278 `.wat` in one go; a same-day follow-up removed the 6 `$mathlib_*`
+pre-link files, leaving 272. Nothing has touched them since. So the corpus is a
+single point-in-time capture, not an accretion.
+
+In the wasmtk repository the last commit before that timestamp is **`e147d28`**
+(11:25 the same day, "phase 22 stress test bug fixes") and the next is **three
+days later**, so the window holds exactly one candidate.
+
+The bound is on the CAPTURE, not the compiler: the files came from a wasmtk
+working tree at or just after `e147d28` and could include uncommitted local
+work. But a bound of one commit is not "unknown".
+
+**The claim sat in the file for three months, was repeated to the wasmtk team,
+and cost them two requests.** Nobody had run the command, because "we don't
+know" reads like a finding rather than an assumption.
+
+#### Gated
+
+`tests/wasmtk/provenance.test.ts` — the stamp is now non-optional: a source
+commit matching a git hash, a real date, the "FROZEN SNAPSHOT" warning and the
+re-derive rule still present, and the incident count still recorded so the rule
+keeps its weight.
+
+The load-bearing assertion is the **file count**: the declared "Files here" must
+equal the `.wat` on disk. A refresh that moves files without re-stamping is
+exactly the failure mode, and the one most likely to be committed in a hurry.
+Verified by injecting all three faults — reverting the stamp to "unknown",
+changing the declared count, and dropping the warning — each fails.
+
+#### Not ours
+
+The 373-file live corpus is wasmtk's, and the number checks out against what we
+cite. There is nothing for them to fix: **the stale copy is in our repository**,
+which is why the stamp is our obligation and not theirs.
 
 ### T13.44 — DONE. Gating the WIRING of the release preflight, not just its logic (2026-08-25).
 

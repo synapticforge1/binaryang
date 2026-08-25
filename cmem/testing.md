@@ -98,7 +98,12 @@ directory** — the runner picks it up automatically.
 272 files here; wasmtk's live corpus emits **373**, and no source commit was recorded. Full detail
 and the refresh procedure: `tests/wasmtk/PROVENANCE.md`.
 
-**Rule, adopted from wasmtk's own `cmem/testing.md` after it cost us a wrong report (2026-08-24):
+**The snapshot has now cost THREE wrong reports to the wasmtk team, all caught by them rather than
+by us** — the `KNOWN_INVALID` seven, the legacy-EH scope reported as 6 when it is 10, and the
+retracted `needsExceptionTag` five. It also cost them two requests for a source + date stamp before
+one was produced (T13.45; the answer was one `git log` in this repository).
+
+**Rule, adopted from wasmtk's own `cmem/testing.md` after the first of those (2026-08-24):
 regenerate from the wasmtk checkout before validating against another runtime or stating anything
 about wasic.** The snapshot supports "our toolchain handles this shape". It does not support "wasic
 emits X" or "wasic has bug Y" — we made exactly that claim about seven modules that had already been
