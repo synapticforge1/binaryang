@@ -139,6 +139,25 @@ This is the shape that matters for the EH migration: `$__exn_tag (param i32 i32)
 values to the handler as the results of the enclosing block, so the catch destination is an ordinary
 multi-value block label — and it is the _only_ spelling of that shape.
 
+### PENDING: the wabt-ts team has not been told about the `dest` change
+
+A handoff note is **drafted but not sent** (2026-08-25) — it lives in this session's scratchpad, not
+in the repo, and nothing was written into `../wabt-ts/` (see "Working with the sibling repos"
+below). It covers four things, and any re-draft should keep all four:
+
+1. Their report was right, **including the half they flagged as untestable** — decoding was already
+   fixed and unpublished; the writer they could not reach really was broken.
+2. The breaking `catches[].dest` change, stated as an action and framed both ways: if their bridge
+   compensates for our old off-by-one, remove the shift; if it already passed the spec-correct
+   label, they were the ones being mis-encoded.
+3. That `RemoveUnusedNames` now counts a catch destination as a label reference. Worth calling out
+   separately because the `$__exn_tag` shape has NOTHING branching to that block, so the old pass
+   stripped its label — they would have hit this the moment they ran passes over bridge-built IR.
+4. That none of it is on JSR yet, so there is nothing they can install today.
+
+Send it when the release goes out, or sooner — the `dest` change is something they can act on before
+a version exists.
+
 ### Courtesy note wabt-ts raised, now documented
 
 With GC enabled, a function's own signature must be declared as a `{ kind: "func" }` heap type or

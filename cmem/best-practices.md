@@ -254,6 +254,15 @@ editing A does not re-check B even when B's types depend on A. CI starts cold an
 including a fixture calling `addTable` with scrambled arguments. Check what a validating task
 actually walks.
 
+**Commit granularity is decided BEFORE you edit, not after.** Hunk-level staging (`git add -p` /
+`-i`) is not available in this environment, so once three rounds of work have interleaved hunks in
+the same file, they can only be committed together. That is what happened on 2026-08-25: the
+multi-value writer fix, the fail-loud sweep and the strict-indexing rollout all landed in
+`wasm-parser.ts` / `wasm-encoder.ts` / `wat-parser.ts` and shipped as one commit. Hand-splitting the
+patch was possible but risked a commit that does not compile, and **a broken bisect point is worse
+than a coarse one**. If a session is going to produce separable rounds, commit each before starting
+the next.
+
 **Know which action is irreversible, and what triggers it.** Pushing a `deno.json` version with no
 matching tag makes `auto-tag.yml` create the tag and dispatch `publish.yml`, which publishes to JSR
 — and a JSR version number can never be reused. While `deno.json` holds a version whose tag already

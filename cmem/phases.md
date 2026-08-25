@@ -91,11 +91,12 @@ UP-1…UP-7 series"; bridge view in [bridge.md](bridge.md).
 | Sweep 4 | "Look for code issues" (2026-08-25): encoder's duplicate child enumeration missed `TupleMake`; export-kind switch with no `default`; non-function type index; discarded `call_indirect` table index; skipped unknown section id; `CoalesceLocals` type guess; WAT multi-result truncation + untyped missing-operand crash | 477 → 484 | ✅ Done     |
 | —       | (nothing outstanding on multi-value)                                                                                                                                                                                                                                                                                      | —         | ⬜ Deferred |
 
-**No bump/publish until every known bug is addressed** (owner decision, 2026-08-24). That bar is met
-as of Sweep 3: **all seven** UP findings are fixed (UP-2 included — multi-value landed in Tiers
-5–8), and the upstream corpus round-trips at **80 exact, 0 structural drift, 0 validate failures, 90
-of 90 files accounted for**, with the 10 non-parsing files verified as deliberate fail-loud
-rejections.
+**No bump/publish until every known bug is addressed** (owner decision, 2026-08-24; SUPERSEDED
+2026-08-25 — see "The hold has a cost" below, where the condition became "until the bug SEARCH is
+called off"). That bar was met as of Sweep 3: **all seven** UP findings are fixed (UP-2 included —
+multi-value landed in Tiers 5–8), and the upstream corpus round-trips at **80 exact, 0 structural
+drift, 0 validate failures, 90 of 90 files accounted for**, with the 10 non-parsing files verified
+as deliberate fail-loud rejections.
 
 **Tier 9 (2026-08-25) reopened and re-closed that bar.** The wabt-ts/wasmtk team filed a follow-up
 against published v1.4.3 — multi-value blocks refused by `readBinary` — and flagged, honestly, that
@@ -112,11 +113,26 @@ version by hand. See [publishing.md](publishing.md). `deno.json` is deliberately
 while the bump is held: its tag exists on the remote, so `auto-tag.yml` no-ops and no push can
 publish.
 
-**The hold now has a cost.** Everything above — all of multi-value decoding included — sits above
-the `v1.4.3` tag, so a JSR consumer still gets "multi-value block type is not supported". That makes
-binaryen-ts the sole remaining blocker on the wasmtk EH migration (wabt-ts shipped its half in
-1.4.0, with 1.4.1 following 2026-08-25). Releasing 1.5.0 is the action that unblocks them; holding
-it further only costs the downstream project.
+**The hold has a cost, and the owner has priced it (2026-08-25).** Everything above — all of
+multi-value decoding included — sits above the `v1.4.3` tag, so a JSR consumer still gets
+"multi-value block type is not supported". That makes binaryen-ts the sole remaining blocker on the
+wasmtk EH migration (wabt-ts shipped its half in 1.4.0, with 1.4.1 following 2026-08-25).
+
+The owner's decision, asked and answered directly: **commit, but do not bump — the bump happens once
+he is satisfied there are no more bugs to find.** So the hold is no longer "until every known bug is
+addressed" (that bar was met and then cleared twice more on 2026-08-25); it is until the SEARCH is
+called off. Do not propose a bump as a next step; deliver findings and let him call it.
+
+Current state: two commits on local `main`, **not pushed** — `ff15ffc9937` (the multi-value writer
+fix, the 7-finding sweep, and the `noUncheckedIndexedAccess` rollout, with tests) and `748cb6be9b0`
+(the cmem + README record). `deno.json` is still `1.4.3` and no `v*` tag was created, so
+`auto-tag.yml` cannot fire and no push can publish. Working tree clean, 484 tests green.
+
+**Why two commits and not three.** The three rounds all modify `wasm-parser.ts`, `wasm-encoder.ts`
+and `wat-parser.ts` with interleaved hunks, and hunk-level staging (`git add -p` / `-i`) is not
+available in this environment — see [best-practices.md](best-practices.md) § 6. Hand-splitting the
+patch risked a commit that does not compile, which is worse than a combined one, so the code commit
+carries all three rounds with its body separating them.
 
 ## Deferred / not-yet-done
 
