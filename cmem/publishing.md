@@ -8,6 +8,26 @@ sub-version-capped-at-9 rule, and this release breaks an exported type twice, so
 minor. The import map still pins binaryen-ts at `^1.0.9` while the checkout is v1.3.5+ (the
 caret accepts it — a stale pin, not a break).
 
+## Unreleased on `main` after v1.4.1 — NOTHING user-visible (as of 2026-08-25)
+
+Verified rather than assumed: `git diff --stat v1.4.1..HEAD -- src/` touches **exactly one
+file**, `src/bridge/binaryen-bridge.ts`. The bridge has **no `exports` subpath**, so no consumer
+can reach it and nothing in the published surface changed.
+
+What is on `main` beyond v1.4.1:
+
+- **T13.45 / T13.46** — the wasmtk corpus stamped and then refreshed, 272 -> 421 files. Test
+  fixtures and `cmem/` only.
+- **T13.47** — binaryen-ts pin 1.0.9 -> **1.5.0** with the coupled T13.22 catch-scope fix, the
+  precise `wabtTypeToValueType`, and per-signature `func` heap types. Dev dependency only.
+- `deno.json`: `minimumDependencyAge: "0"`, and the pin itself — both ship inside `deno.json`,
+  neither is reachable behaviour for a consumer.
+
+**So a release cut from here would deliver no user-visible change.** That is not an argument
+against cutting one — version parity with the sibling project is a real reason, and the
+published `deno.json` would carry the new pin — but the release notes should say plainly that
+consumers gain nothing, rather than implying the bridge work reaches them.
+
 ## SHIPPED in v1.4.1 (2026-08-25) — fifteen user-visible fixes
 
 Published to JSR with OIDC provenance (rekor `2589519728`), attributed to the OWNER

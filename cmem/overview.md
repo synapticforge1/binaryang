@@ -176,6 +176,14 @@ meant the axis list was stale, not that the code was clean.** The sixth pass als
 denominator five times too small — a measurement defect that scored WELL, because
 `assert_invalid` counts rejections and a harness that breaks every module rejects everything.
 
+**binaryen-ts 1.5.0 landed 2026-08-25 (T13.47), and T13.22 is closed.** The catch-scope
+coupling that made the pin load-bearing no longer exists on either side. The upgrade cost two
+real bridge defects that their careful import-surface check could not see — we coarsened
+`(ref $T)` where their encoder now matches signatures exactly, and we never declared `func` heap
+types, which their encoder requires of EVERY function once a module declares any heap type.
+Bridge suite 16/28 -> **28/28**. **Keep the pin exact** — not for the old cancellation, but
+because their encoder changes what it REQUIRES of callers between versions.
+
 Following that thread one step further (T13.40, raised by the owner) found the round-trip figure
 was **summing two populations that must not be summed**. Split by whether the input binary was
 our own output or bytes the testsuite crafted, fidelity was already **2119 / 2119** — and the
