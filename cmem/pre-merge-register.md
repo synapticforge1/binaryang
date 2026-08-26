@@ -12,7 +12,7 @@ This supersedes two documents as the operational register for the merge:
 
 **Why it exists:** the kickoff brief's own instruction — *"reconcile those last two before any file
 moves; two views of the same merge is how things get missed twice."* That prediction was correct.
-The reconciliation found four conflicts, one unexecuted pre-merge action, and six findings present
+The reconciliation found four conflicts, one unexecuted pre-merge action, and seven findings present
 in neither document. Two of the four conflicts are cases where a document contradicts **itself**.
 
 **Status, 2026-08-26:** both blocking items are **closed** — P1 (the requote, `2c41d3d1371`) and
@@ -249,7 +249,7 @@ respecting repo boundaries is the first thing to erode and the last thing anyone
 
 ## 3. Findings in neither register
 
-Six. All measured today.
+Seven. All measured today.
 
 ### N1 🆕 The two projects use different test-file naming conventions
 
@@ -525,6 +525,81 @@ and 1.4.0 (Rust) behave identically** — verified, not assumed.
 Whatever is chosen lands in the same README sentence as the Node floor, because it is the same kind
 of claim: something a consumer must know before adopting.
 
+### N7 🔓 Runtime-portability rule — no `Deno.*` in shipped source, and `node:` is not the universal answer
+
+Owner direction, 2026-08-26: **avoid Deno-specific functions, for cross-compatibility between Deno,
+Node, Bun and the web.** Recorded as a proposed MUST rather than a note, because it has the same
+shape as the naming rule — a binding invariant both codebases already half-hold, cheap to check
+mechanically, and expensive to restore once violated.
+
+#### The rule is layered, and that is the part worth writing down
+
+**Four targets, not three.** Adding *web* changes the answer, because the portable substitute for a
+Deno API is not the same at every layer:
+
+| layer | may use | may not use | why |
+| --- | --- | --- | --- |
+| **library** — the exported surface | web-standard APIs only | `Deno.*`, `node:*` | must run in a browser |
+| **CLI + interop** — `tools/`, `interop/`, `main.ts` | `node:*` builtins | `Deno.*` | not browser code; `node:` works on Deno, Node **and** Bun |
+
+⚠️ **The trap this prevents:** `node:` builtins look like the portable answer, and for the CLI layer
+they are — that is exactly why binaryen-ts's `wasm-opt.ts` reads files through `node:fs/promises` and
+runs on all three runtimes. But applying the same substitution to **library** code would break the
+browser target while feeling like a portability improvement. Porting `Deno.readFile` →
+`node:fs/promises` is correct for the six tools **because tools are not browser code**, not because
+`node:` is universal. Anyone doing N3's step-4 work mechanically will reach for that substitution;
+this is the note that tells them where it stops.
+
+binaryen-ts already documents the boundary at the file that sits on it — `src/interop/binaryen-js.ts`
+says *"Node 18+, or Bun. Not available in the browser."*
+
+#### Measured 2026-08-26
+
+| | `Deno.*` | real `node:` imports |
+| --- | --- | --- |
+| **binaryen-ts** | **0 occurrences** — the ban is real and observed | `main.ts`, `src/tools/wasm-opt.ts`, `src/interop/binaryen-js.ts` — the CLI/interop layer only |
+| **wabt-ts** | **53 occurrences on 43 lines**, all 6 files in `src/tools/` | **0** |
+
+So the violation set is exactly wabt-ts's six CLI tools — **this rule and N3 are the same work seen
+as policy rather than as a task.** Everything else in both trees already complies, and wabt-ts's
+library tree is the stricter of the two: zero `Deno.*` *and* zero `node:`.
+
+#### The check
+
+Mechanical, so the rule survives whoever last read it — wire it into CI beside `fmt`, `lint` and the
+naming check:
+
+```sh
+# 1. No Deno globals in shipped source. Must be empty.
+git ls-files 'src/*.ts' 'main.ts' \
+  | xargs -I{} git grep -nE '\bDeno\.[a-zA-Z]' -- {} \
+  | grep -vE ':[0-9]+:\s*\*'
+
+# 2. No node: imports outside the CLI/interop layer. Must be empty.
+git ls-files 'src/*.ts' | grep -vE '/(tools|interop)/' \
+  | xargs -I{} git grep -nE "^\s*(import|const|let)\b.*['\"]node:" -- {}
+```
+
+✅ **Both verified against the live trees, 2026-08-26**: binaryen-ts returns 0 and 0; wabt-ts
+returns 43 and 0 — the 43 being exactly the six tools' `Deno.readFile` / `Deno.exit` /
+`Deno.writeTextFile` lines and nothing else. A check that has never been seen to fire is a claim,
+not a gate.
+
+⚠️ **Both greps must exclude JSDoc.** Found the hard way while measuring this entry: a first pass
+matched `node:` and reported two wabt-ts *library* modules as violations. They were `const node:
+BlockExpr` — a variable named `node` with a type annotation. A second pass matched doc-comment lines
+showing consumers `import { writeFile } from "node:fs/promises"`, which is legitimate documentation
+of Node usage, not the module's own import. **Neither false positive was a violation, and both would
+have been reported as one.** A portability check that cries wolf gets disabled, so it is worth the
+extra clause.
+
+#### Status
+
+🔓 Open only in the sense that it is not yet enforced. The rule itself follows from a decision already
+made — cross-runtime support is a published capability — and nothing in either tree contests it. It
+becomes true automatically when step 4 lands, so the natural sequencing is: **do N3's extraction,
+then turn the check on in the same commit**, the way gate 4 already turns on the naming check.
+
 ---
 
 ## 4. Re-derived numbers
@@ -670,7 +745,7 @@ is a single entry point. 6 is last because `cmem` describes the result, and half
 | 0.5 | ✅ met — one commit, 104 files, insertions equal deletions, nothing else in the diff |
 | 2 | **907** tests green · both publish dry-runs clean · **`verify-baseline.ts` reports `IDENTICAL`** |
 | 3 | every old subpath still resolves |
-| 4 | the naming check returns empty, in CI · all six tools run from `binaryang <tool>` on Deno **and Node 18** |
+| 4 | the naming check returns empty, in CI · **the portability checks return empty (N7)** · all six tools run from `binaryang <tool>` on Deno, Node and Bun |
 | 5 | one command runs everything, across both test-file conventions |
 | before 1.5.1 | wasmtk builds green against binaryang alone |
 
