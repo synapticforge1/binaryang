@@ -161,16 +161,17 @@ describe('GC Tier 3: data/elem segment-index resolution', () => {
   });
 });
 
-describe('GC Tier 3: array.get_u (bridge collapses to 0x0b)', () => {
-  it('array.get_u via the bridge emits 0xfb 0x0b (binaryen-ts collapses get/get_u)', () => {
-    // Same pattern as struct.get_u (Tier 2) — binaryen-ts's encoder uses
-    // `signed ? signed-opcode : unsigned-opcode`, so get_u collapses to the
-    // base get opcode 0x0b on the wire. wabt-ts's own binary writer is
-    // spec-correct (emits 0x0d for get_u); the bridge routes via binaryen-ts.
+describe('GC Tier 3: array.get_u emits its own opcode', () => {
+  it('array.get_u emits 0xfb 0x0d, spec-correct since binaryen-ts 1.5.0', () => {
+    // Same story as struct.get_u in Tier 2. binaryen-ts <= 1.4.3 chose the
+    // sub-opcode with `signed ? signed : base`, so get_u collapsed onto the
+    // base 0x0b. Reported as UP-1, fixed in 1.5.0 by `packedGetSubop`, and
+    // this assertion moved from the collapsed byte to the spec-correct one.
     const wasm = bridge(`(module
       (type $A (array i8))
       (func $f (param (ref $A) i32) (result i32)
         (array.get_u $A (local.get 0) (local.get 1))))`);
-    assertEquals(findBytes(wasm, [0xfb, 0x0b, 0x00]) >= 0, true);
+    assertEquals(findBytes(wasm, [0xfb, 0x0d, 0x00]) >= 0, true);
+    assertEquals(findBytes(wasm, [0xfb, 0x0b, 0x00]) >= 0, false);
   });
 });

@@ -152,22 +152,29 @@ describe('GC Tier 2: struct.get opcode encoding + signedness', () => {
     assertEquals(findBytes(wasm, [0xfb, 0x03, 0x00, 0x00]) >= 0, true);
   });
 
-  it('struct.get_u via the bridge emits 0xfb 0x02 (binaryen-ts collapses get/get_u)', () => {
+  it('struct.get_u emits its own 0xfb 0x04, spec-correct since binaryen-ts 1.5.0', () => {
     // The wasm GC spec defines three distinct opcodes:
     //   struct.get   = 0xfb 0x02  (non-packed field)
     //   struct.get_s = 0xfb 0x03  (packed, sign-extended)
     //   struct.get_u = 0xfb 0x04  (packed, zero-extended)
-    // binaryen-ts's encoder doesn't model a separate 0x04 — it uses
-    // `signed ? 0x03 : 0x02`, so get_u and get end up indistinguishable
-    // on the wire (V8 treats them the same anyway since the field's
-    // packedness is recoverable from the type). wabt-ts's own binary
-    // writer is spec-correct (3-way); the bridge routes via binaryen-ts
-    // so its output is 2-way. Test what the bridge actually emits.
+    //
+    // This asserted 0x02 until 2026-08-25, and the assertion was RIGHT at the
+    // time: binaryen-ts <= 1.4.3 chose the sub-opcode with `signed ? 0x03 :
+    // 0x02`, so get_u was indistinguishable from get on the wire. That was
+    // reported upstream as UP-1 -- the one finding of the seven that emitted
+    // bytes engines reject -- and 1.5.0 fixed it with `packedGetSubop`.
+    //
+    // The test pinned a documented upstream DEFECT, so fixing the defect broke
+    // it. That is the same shape as tests/wasmtk's KNOWN_INVALID: an
+    // assertion whose job is to go red when someone else's bug is fixed. Keep
+    // it that way round -- it is how we learn the fix landed.
     const wasm = bridge(`(module
       (type $T (struct (field $b i8)))
       (func $f (param (ref $T)) (result i32)
         (struct.get_u $T $b (local.get 0))))`);
-    assertEquals(findBytes(wasm, [0xfb, 0x02, 0x00, 0x00]) >= 0, true);
+    assertEquals(findBytes(wasm, [0xfb, 0x04, 0x00, 0x00]) >= 0, true);
+    // And it must NOT be the collapsed form any more.
+    assertEquals(findBytes(wasm, [0xfb, 0x02, 0x00, 0x00]) >= 0, false);
   });
 });
 
