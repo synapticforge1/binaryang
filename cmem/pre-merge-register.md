@@ -12,7 +12,7 @@ This supersedes two documents as the operational register for the merge:
 
 **Why it exists:** the kickoff brief's own instruction — *"reconcile those last two before any file
 moves; two views of the same merge is how things get missed twice."* That prediction was correct.
-The reconciliation found four conflicts, one unexecuted pre-merge action, and five findings present
+The reconciliation found four conflicts, one unexecuted pre-merge action, and six findings present
 in neither document. Two of the four conflicts are cases where a document contradicts **itself**.
 
 **Status, 2026-08-26:** both blocking items are **closed** — P1 (the requote, `2c41d3d1371`) and
@@ -249,7 +249,7 @@ respecting repo boundaries is the first thing to erode and the last thing anyone
 
 ## 3. Findings in neither register
 
-Five. All measured today.
+Six. All measured today.
 
 ### N1 🆕 The two projects use different test-file naming conventions
 
@@ -311,7 +311,9 @@ the project already fixed once.
 `Deno.stdout`. Node lacks that global **entirely**, so these blocks are further from cross-runtime
 than `import.meta.main` alone would make them. The stated reason for step 4 is preserving
 binaryen-ts's documented cross-runtime capability; that reason applies *more* strongly than the
-brief argues, not less.
+brief argues, not less. 🆕 **See N6:** if the Node floor moves to the current LTS, this
+becomes the *only* surviving reason for step 4 — the `import.meta.main` half of the argument
+disappears entirely, and this half does not.
 
 The pattern to copy is in the tree already, and it is small: `binaryen-ts/src/tools/wasm-opt.ts`
 imports `readFile`/`writeFile` from `node:fs/promises` and `process` from `node:process`, and
@@ -373,6 +375,91 @@ More usefully: wabt-ts's section D reads as though binaryen-ts lacks the Apache 
 has `NOTICE.md`, the copyright lines differ in both name form and year (`2026 Jon Marcum` vs
 `2024 J.R. Marcum`), per-file attribution headers must survive relocation, and JSR takes a single
 SPDX identifier — so it stays `MIT`.
+
+### N6 🔓⚠️ The Node 18 floor is EOL, and it is the stated reason for two decisions
+
+Raised by the owner, 2026-08-26. Both registers, the kickoff brief and every decision below it assume
+a **Node 18** floor. Node 18 reached end of life on 2025-04-30 — sixteen months before this merge —
+and Node 20 followed on 2026-04-30. Supporting neither is the owner's stated direction: **latest LTS
+and up.** Today that is Node 24 (LTS, 24.20.0) with 26.8.0 current.
+
+**Where it came from**, since it was not obvious: it is a **Phase 11 deliverable** in binaryen-ts —
+*"Cross-runtime migration + JSR publish hardening — single source tree runs on Deno, Node 18+, Bun,
+and modern browsers"* (`README.md`), restated in `cmem/overview.md` as the package's headline support
+claim and codified as an architecture rule in `cmem/architecture.md`: *"No `import.meta.main` in
+published modules (Node 18 lacks it) — CLI entry is always `main.ts`."* So it is not an arbitrary
+floor. It is a published capability, which is exactly why it is load-bearing and why moving it is a
+decision rather than a cleanup.
+
+**The project's own infrastructure has already moved.** `binaryen-ts/cmem/publishing.md` records
+`checkout@v4 → @v6` as forced by GitHub's **Node 20** runtime deprecation (off 2026-06-02, removed
+2026-09-16), with the current action runtime target `node24`. wabt-ts runs its V8 conformance panel
+on *Deno / Node 24.19*. Both projects test and build on Node 24 while promising Node 18 in their API
+docs.
+
+#### Measured here, 2026-08-26 — not recalled
+
+| probe | Node 24.19.0 | Bun 1.3.14 |
+| --- | --- | --- |
+| `import.meta.main` | ✅ `true`, boolean | — |
+| `import(…, { with: { type: 'json' } })` | ✅ works | ✅ works |
+| `globalThis.Deno` | ❌ `undefined` | ❌ `undefined` |
+
+#### What this changes, and what it does not
+
+**Step 4's stated rationale dies. Step 4's conclusion survives.** The brief frames the CLI
+unification as *forced* because "binaryen-ts's cross-runtime guarantee is a published capability and
+Node 18 lacks that global." On a Node 24 floor, `import.meta.main` is available and that argument is
+simply gone.
+
+**Step 4 remains forced anyway** — for the reason recorded in N3(c), which is now its *only* reason.
+The six tools use `Deno.args`, `Deno.exit`, `Deno.readFile`, `Deno.writeFile`, `Deno.writeTextFile`
+and `Deno.stdout`, and the `Deno` global is `undefined` on **both** Node and Bun, at any version.
+That barrier does not move with the floor. Raising the floor removes the smaller half of the
+portability problem and leaves the larger half exactly where it was.
+
+⚠️ So nothing about the plan reopens — but the *argument* in the brief and in
+`cmem/architecture.md` needs replacing, or the next person reads a rule whose reason has expired and
+cannot tell whether the rule still holds.
+
+**N4's stated rationale dies too. N4's solution should stand.** The fix in `73ab06cb627` keeps the
+version literal because `with { type: 'json' }` is unavailable on Node 18. On Node 24 it is
+available, verified above. **Do not revisit the fix on that basis.** It stands on reasons the floor
+does not touch: `deno task bump` fails loudly if the literal moves, `tests/version_sync_test.ts`
+catches a hand-set version — the case that actually caused the bug — and neither needs `deno.json`
+to be readable or adjacent in the published package. This is wabt-ts's own rule applying to
+binaryen-ts's code: **a stale rationale is worse than no rationale.** The solution is right; the
+sentence explaining it is about to become false.
+
+#### The documentation debt is real and it is growing
+
+**21 occurrences of "Node 18" across 12 files** in binaryen-ts — `README.md` ×4, `main.ts` ×3,
+`src/tools/wasm-opt.ts` ×3, `tests/version_sync_test.ts` ×2, plus `src/api/index.ts`,
+`src/interop/binaryen-js.ts`, `scripts/bump_version.ts` and the `cmem/` files. Every one becomes a
+false claim the moment the floor moves.
+
+🆕 **Five of those lines were added today**, by the N4 fix. The rationale is actively propagating into
+new code while the constraint behind it is sixteen months expired. That is not a criticism of the
+fix — it is the strongest available argument for settling the floor *before* step 4 rather than
+after, since step 4 rewrites exactly these files.
+
+#### Why the merge is the cheapest moment to do it
+
+Raising a support floor is a breaking change, and normally that means waiting for a major. binaryang
+does not have to wait: it is **already a new package** that consumers must adopt deliberately, with a
+migration note they must read to change the package name. Stating the floor once, in that note,
+costs nothing. Discovering later that binaryang silently stopped working on an EOL runtime costs a
+support thread.
+
+🔓 **Open for the owner:** the floor is a policy call, not a measurement. *Latest LTS and up* means
+**Node 24+**. A more conservative **Node 22+** buys the maintenance-LTS line at the cost of keeping
+the `import.meta.main` question open, since I could only verify 24 on this machine — the version that
+introduced it should be confirmed before 22 is promised. The EOL dates above should be confirmed
+against Node's published schedule too; they are stated from the release calendar and corroborated by
+GitHub's runtime deprecation, not read from it today.
+
+Whatever is chosen, it belongs in the binaryang README beside the version note, because it is the
+same kind of claim: something a consumer must know before adopting.
 
 ---
 
@@ -500,7 +587,7 @@ part and is preserved.
 | **1** | Write the decisions into the binaryang README — two projects, not three | draft on disk; extend with the six decisions and 1.5.1 |
 | **2** | Merge the trees, both histories, into `src/binaryen-ts/` + `src/wabt-ts/` | preserve `tests/deno.json` as a workspace member (N2); rename `binaryen-bridge.ts` → `bridge.ts` |
 | **3** | Resolve the export map | ✅ **decided 2026-08-26** — narrow authored root, not wabt's barrel; map drafted in C2; no subpath named `./ir` |
-| **4** | Unify the CLI | ⚠️ **six extractions + a `Deno`→`node:` port, not six registrations** (N3). VERSION is no longer on this list — closed upstream (N4). |
+| **4** | Unify the CLI | ⚠️ **six extractions + a `Deno`→`node:` port, not six registrations** (N3). VERSION closed upstream (N4). 🔓 **Settle the Node floor first (N6)** — it rewrites these same files, and the `import.meta.main` rationale expires with it. |
 | **5** | Unify the harness | ⚠️ settle the `_test.ts` / `.test.ts` split first (N1) |
 | **6** | Merge `cmem` by topic | `bridge.md` has inverted; `best-practices.md` keeps both origin stories |
 
