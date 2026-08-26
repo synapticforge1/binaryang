@@ -23,7 +23,13 @@ misfired.
 **And the release itself carries nothing user-visible** — see the section below. The parity is the
 point; there is no consumer-facing change to announce.
 
-## Unreleased on `main` after v1.4.1 — NOTHING user-visible (as of 2026-08-25)
+## SHIPPED in v1.5.0 (2026-08-25) — nothing user-visible, and that is the point
+
+Published to JSR with OIDC provenance (rekor `2603257282`), ~70 seconds from tag push to live.
+
+**Verified rather than assumed before cutting it:** `git diff --stat v1.4.1..HEAD -- src/` touched
+**exactly one file**, `src/bridge/binaryen-bridge.ts`, and the bridge has **no `exports` subpath**.
+No consumer can reach it; nothing in the published surface changed.
 
 Verified rather than assumed: `git diff --stat v1.4.1..HEAD -- src/` touches **exactly one
 file**, `src/bridge/binaryen-bridge.ts`. The bridge has **no `exports` subpath**, so no consumer
@@ -38,10 +44,10 @@ What is on `main` beyond v1.4.1:
 - `deno.json`: `minimumDependencyAge: "0"`, and the pin itself — both ship inside `deno.json`,
   neither is reachable behaviour for a consumer.
 
-**So a release cut from here would deliver no user-visible change.** That is not an argument
-against cutting one — version parity with the sibling project is a real reason, and the
-published `deno.json` would carry the new pin — but the release notes should say plainly that
-consumers gain nothing, rather than implying the bridge work reaches them.
+**So this release delivered no user-visible change.** That was not an argument
+against cutting it — version parity with sibling binaryen-ts 1.5.0 was the reason, and the
+published `deno.json` carries the new pin — but it is recorded plainly here so nobody later reads
+the T13.47 bridge work as something consumers received.
 
 ## SHIPPED in v1.4.1 (2026-08-25) — fifteen user-visible fixes
 
