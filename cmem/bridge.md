@@ -91,7 +91,27 @@ a shared buffer.
 6. **Memory imports use the canonical `memoryNames` slot, not `imp.memory.name`** (often empty) — so
    the memory can later be looked up for an export. Same pattern as funcs/globals/tables.
 
-## ⚠ RELEASE BLOCKER — the catch-scope compensation (T13.22)
+## RESOLVED 2026-08-25 — the catch-scope coupling is gone (T13.22 / T13.47)
+
+**The pin is `1.5.0` and the bridge fix has landed, together, in `5404946d`.** Bridge suite
+28 / 28. The two off-by-ones no longer exist on either side, so there is nothing left to cancel
+and nothing to coordinate. `deno.json` also sets `minimumDependencyAge: "0"` — deliberate; every
+dependency here is our own scope plus `@std`.
+
+**Keep the pin EXACT anyway.** Not for the cancellation — for the reason T13.47 found: their
+encoder changes what it REQUIRES of callers between versions (exact GC signature matching,
+declared `func` heap types), and an import-surface check cannot see that. A caret range would let
+a `deno cache --reload` move us onto a version whose preconditions we have never run against.
+
+**And keep `tests/bridge/try_table_catch_scope.test.ts`.** It is the only thing that would catch
+the ordering regressing, and its probe must stay NUMERIC — a named catch target cannot see this
+bug in either direction.
+
+The history below is kept because the failure mode is reusable: two errors that cancel are
+invisible to every test that looks only at the final bytes, and stay invisible until one side
+fixes its half.
+
+### Historical — the compensation, while it existed
 
 **Do not bump the `@jrmarcum/binaryen-ts` pin without reading this.** The bridge and
 binaryen-ts 1.0.9 currently hold two off-by-ones that cancel, and upgrading breaks the

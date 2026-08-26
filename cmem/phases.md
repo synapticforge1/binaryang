@@ -25,7 +25,7 @@
 | 6     | CLI Tool Wrappers        | **complete**    | wat2wasm, wasm2wat, wasm-validate, wasm-objdump, wasm-strip                     |
 | 6.1   | Pre-publish housekeeping | **complete**    | JSR/CI hardening; 71→0 lint; codec singletons + index-map caches                |
 | 6.2   | Release-flow alignment   | **complete**    | `deno task bump`; atomic commit+tag+push; first JSR publish                     |
-| 7     | binaryen Bridge          | **in progress — ⚠ RELEASE BLOCKER on the next binaryen-ts bump** | ~60 expr kinds + module surface. The bridge is **bug-compatible with binaryen-ts 1.0.9's `try_table` catch scope** (T13.22): its own off-by-one cancels theirs, so the pin is EXACT and upgrading requires the paired fix in the same commit. binaryen-ts have gated their 1.5.0 on it. Read the ⚠ block at the top of [bridge.md](bridge.md) before touching the pin |
+| 7     | binaryen Bridge          | **in progress — pinned EXACTLY at binaryen-ts 1.5.0** | ~60 expr kinds + module surface. The T13.22 catch-scope coupling is **RESOLVED** (2026-08-25): both off-by-ones are fixed and the bridge suite is 28/28 on 1.5.0. Keep the pin exact — not for the old cancellation, but because their encoder changes what it REQUIRES of callers between versions and an import-surface check cannot see that (T13.47) |
 | 8     | wasm2ts                  | pending         | wasm→TypeScript AOT transpiler; deferred pending wasmtk QA/QC                   |
 
 Versioning uses the **sub-version-capped-at-9 rule**: 1.0.9 → 1.1.0 → … → 1.2.9 → 1.3.0.
@@ -105,7 +105,7 @@ State as of 2026-08-25:
 | --- | --- |
 | findings recorded | T13.1 – T13.47 |
 | **unreleased and user-visible** | **0** — all fifteen shipped in **v1.4.1** (2026-08-25, OIDC provenance). [publishing.md](publishing.md) keeps the contents table and the command to re-derive the count |
-| deliberately unfixed | 1 (T13.22 — **our half is now DONE and verified** on branch `t13.22-binaryen-1.5.0`; binaryen-ts shipped 1.5.0 with theirs. Landing is blocked on the GC func-type change, T13.47) |
+| deliberately unfixed | **0** — T13.22 LANDED 2026-08-25 with the binaryen-ts 1.5.0 bump (T13.47) |
 | enumeration frontier | **empty** since T13.32 — meaning the cheap axes are spent, NOT that the code is clean |
 | hardening passes | 8, findings 1 / 2 / 0 / 0 / 2 / 2 / 2 / 2 |
 

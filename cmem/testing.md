@@ -71,7 +71,7 @@ Test tree mirrors `src/`: `tests/core/`, `tests/ir/`, `tests/reader/`, `tests/wr
 `tests/parser/`, `tests/validator/`, `tests/bridge/`, `tests/tools/`, `tests/api/`, `tests/audit/`,
 `tests/scripts/` (the release preflight — `scripts/publish.ts` cannot be imported by a test)
 (the silent-corruption audit regressions), plus `tests/fixtures/` (`.wasm` / `.wat` vectors) and
-`tests/wasmtk/` (real-world corpus, below). Full suite is **392 tests / 3109 steps** (plus 1
+`tests/wasmtk/` (real-world corpus, below). Full suite is **393 tests / 3122 steps** (plus 1
 ignored by design — see `cli_io_errors.test.ts`) as of 2026-08-25. (It read "146 / 1044 as of
 2026-06-09" until one update, then "381 / 2689" until the next — and that second one went stale
 **the same day**, five tests later. A count in prose goes stale silently, so treat any number here

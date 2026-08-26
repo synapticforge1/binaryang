@@ -976,6 +976,35 @@ spellings. That deliberately drops the old hint about WHICH decoder failed; the
 error's byte offset already points at the LEB, so the hint was redundant, and
 the spec's wording is what a wasm developer is looking for.
 
+## A type crossing into binaryen-ts uses `wabtTypeToValueType`, which keeps refs CONCRETE
+
+`wabtTypeToValType` (in `src/bridge/type-map.ts`) COARSENS: `(ref $T)` becomes
+`structref`. That was correct while binaryen-ts's `ValType` was flat and a typed
+reference had nowhere to go. Since **1.5.0 their `ValueType` is
+`ValType | RefType`**, and their encoder REQUIRES the precision —
+`gcFuncTypeIndex` matches a signature exactly, so a coarsened one matches
+nothing and throws `unresolved GC function type` for every GC module.
+
+`wabtTypeToValueType(t, ctx)` in `binaryen-bridge.ts` is the precise version.
+Use it wherever a type crosses the boundary; `wabtTypeToValType` survives only
+for callers that genuinely want the abstract type.
+
+## The bridge declares a `func` heap type per signature — but ONLY for GC modules
+
+binaryen-ts's encoder picks its path on `heapTypes.length > 0`. Once a module
+declares ANY heap type, EVERY function's type index is resolved through
+`gcFuncTypeIndex`, **including a plain `() -> ()`**. We registered struct and
+array heap types and never func ones, so every GC module failed on its first
+function (T13.47).
+
+Two constraints, both load-bearing:
+
+- **Append after the struct/array entries.** Instruction immediates already
+  reference those heap-type indices; inserting ahead of them moves the targets.
+- **Only when a struct/array type exists.** Declaring func types unconditionally
+  makes `heapTypes` non-empty for EVERY module and switches non-GC modules onto
+  the GC path, which they must not take.
+
 ## `TokenType.Reserved` is the parser's unknown-operator signal — do not let a site swallow it
 
 The lexer emits `Reserved` for a word it does not recognise **and for no other

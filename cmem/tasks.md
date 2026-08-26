@@ -148,7 +148,7 @@ for one, write the row.
 | T13.20 | `applyNames` walked 37 of 87 expression kinds — `resolveNames`'s sibling, never run through the same two-axis enumeration | done — **published API produced silently INCONSISTENT naming**; axis 1 is now generic and cannot miss a kind, axis 2 an explicit 55-kind table |
 | T13.21 | `constExprOperands` and `writeInstrHead` are coupled in the WAT writer and nothing said so | done — latent, not live: drift writes an operand TWICE and the output still REPARSES (T10.6's shape). Both now carry INTENT blocks and a source-enumeration gate |
 | T13.22 | The bridge resolves `try_table` catch targets AFTER pushing the try_table's own label — the T7.6 / T9.8 off-by-one in a third layer | **BLOCKED, not done** — it cancels a matching off-by-one in binaryen-ts 1.0.9, so fixing it alone turns correct bytes into wrong ones. Lands with the dependency bump |
-| T13.47 | binaryen-ts shipped **1.5.0** with their half of the catch-scope fix. Upgrade attempted, verified, **NOT landed** | **BLOCKED, and not by what we were waiting for.** Our half is done and proven (full 2x2 vs our own encoder; 3 of 4 cells emit bytes **V8 still accepts**). Blocked by (1) Deno's 24h `minimumDependencyAge` — CI hits it too; (2) **12 of 28 bridge tests fail** on 1.5.0 with `unresolved GC function type`: their `gcFuncTypeIndex` wants an exact declared func heap type, our `coarsenValueType` maps `(ref $T)` -> `structref`, so no key can match. **Their import-surface check (0 of 72 missing, verified here) did not predict it.** Asked them about a compatibility path before de-coarsening |
+| T13.47 | binaryen-ts shipped **1.5.0** with their half of the catch-scope fix; the coupled change landed | **DONE.** Pin 1.0.9 -> 1.5.0 and the bridge fix in one merge, because either alone emits wrong bytes. The 12 bridge failures were TWO defects: our `coarsenValueType` mapping `(ref $T)` -> `structref` where their `gcFuncTypeIndex` now matches EXACTLY, and our never declaring `func` heap types — needed once ANY heap type exists, since their encoder switches the whole module onto the GC path. Bridge 16/28 -> **28/28**; conformance unmoved. Two tests updated: they pinned UP-1, an upstream defect 1.5.0 FIXED |
 | T13.46 | The corpus was still the stale 2026-05-25 snapshot — stamping it made it honest, not current | done — **regenerated all 417 wasic sources from wasmtk `4600ba9`** (verified level with `origin/main`): 413 compiled, 4 are wasic compile failures. Corpus **272 -> 421** (413 fresh + 8 preserved non-wasic fixtures). **encode 421/421, validate 421/421, round-trip 421/421**, up from 265/272 validating. `KNOWN_INVALID` **emptied** — all seven fired their "now VALIDATES" assertion simultaneously, proving the gate was right and only its INPUT was stale. The 373-vs-413 count difference with wasmtk is recorded UNRECONCILED on purpose |
 | T13.45 | `tests/wasmtk/PROVENANCE.md` said the snapshot date and source commit were **unknown**. Both were false — one `git log --diff-filter=A` in THIS repo answers it | done — raised by the wasmtk team after **asking twice**. The corpus is a single capture (`fbafca9e`, 2026-05-25 21:50), not an accretion; source bounded to wasmtk **`e147d28`** because the next upstream commit is 3 days later. **The snapshot has caused THREE wrong reports to them, not one** (KNOWN_INVALID seven, EH scope 6-vs-10, retracted `needsExceptionTag` five) — all caught by the recipient. Stamped and gated; the file-count assertion catches a refresh that skips re-stamping |
 | T13.44 | T13.43's test covered `releaseBlockers` but **not that `publish.ts` calls it** — delete the guard block and all 12 cases still pass, because the pure function is untouched | done — structural gate on the WIRING: guard imported and called, **no mutating git subcommand before it** (every `['git', <sub>]` extracted in source order and classified against a read-only allowlist), refuses rather than warns, `release-guard.ts` stays side-effect free so it stays importable, `scripts/` stays in the gate, and the mutations still exist AFTER the guard so it cannot pass vacuously. **Verified by injecting all four faults** |
@@ -3220,7 +3220,18 @@ clean.**
 Corrected in place rather than deleted, per the standing rule: the correction is
 the useful artifact, because it tells the next reader the claim was tested.
 
-### T13.47 — BLOCKED, and the blocker is not the one we were waiting for (2026-08-25).
+### T13.47 — DONE. The 1.5.0 upgrade, and the two defects the compatibility check could not see (2026-08-25).
+
+> **Landed.** This entry was written while BLOCKED and is kept in that order —
+> the blockers first, then how each cleared — because what they were is the
+> useful part. Pin and fix merged together as `5404946d`; bridge suite
+> **28 / 28** on 1.5.0, full suite 393 tests / 3122 steps, every conformance
+> metric unmoved.
+
+> **Blocker 1 cleared by decision:** `minimumDependencyAge: "0"` in `deno.json`.
+> Deliberate — every dependency here is our own scope plus `@std`.
+
+> **Blocker 2 cleared by fixing two real defects**, described at the end.
 
 binaryen-ts published **1.5.0** with their half of the T13.22 catch-scope fix,
 which is what the coupling had been waiting on since the pin was made exact. The
@@ -7423,3 +7434,50 @@ cycle. Any divergence in the second WAT output is a code-gen bug.
 ### C++ reference
 
 - `upstream/src/c-writer.cc` — structural model (replace C emit with TS emit)
+
+#### T13.47 addendum — what actually fixed the 12 (2026-08-25)
+
+Recorded separately because the *diagnosis* took three measurements and each one
+moved the error message, which is the only reason the second defect was visible
+at all.
+
+**Defect 1 — we coarsened where they now demand precision.** binaryen-ts's
+`ValueType` became `ValType | RefType` in 1.5.0, and `gcFuncTypeIndex` matches a
+signature EXACTLY. Our `coarsenValueType` maps `(ref $T)` → `structref`, so
+nothing could match. New `wabtTypeToValueType(t, ctx)` keeps a concrete
+reference concrete, reusing the `heapTypeForBridge` converter GC Tier 4 already
+had. `wabtTypeToValType` survives for the callers that genuinely want the
+abstract type.
+
+Fixing this alone changed the error from `unresolved GC function type:
+(structref) -> (i32)` to `(ref 0) -> (i32)` and fixed **zero tests** — the
+message moving is what showed the signature was now right and something else was
+wrong.
+
+**Defect 2 — we never declared `func` heap types.** Their encoder chooses its
+path on `heapTypes.length > 0`: once a module declares ANY heap type, EVERY
+function is resolved through `gcFuncTypeIndex`, including a plain `() -> ()`.
+We registered struct and array heap types and never func ones, so every GC
+module failed on its first function. Now declared, with two constraints that are
+both load-bearing:
+
+- **appended after** the struct/array entries, so heap-type indices that
+  instruction immediates already reference do not move;
+- **only when a struct/array type exists.** Declaring them unconditionally would
+  make `heapTypes` non-empty for every module and switch NON-GC modules onto the
+  GC path too.
+
+**Two tests were pinning an upstream defect, and the fix broke them.**
+`struct.get_u` / `array.get_u` asserted the collapsed opcodes `0x02` / `0x0b`,
+correct against binaryen-ts ≤ 1.4.3 and reported upstream as UP-1 — the one
+finding of the seven that emitted bytes engines reject. 1.5.0 fixed it with
+`packedGetSubop`. The tests now assert the spec-correct `0x04` / `0x0d` **and
+that the collapsed form is gone**. This is the same shape as `KNOWN_INVALID`:
+an assertion whose job is to go red when someone else's bug is fixed, and going
+red is it working.
+
+**The gate the fix needed and did not have.** `tests/bridge/try_table_catch_scope.test.ts`
+pins agreement with our own encoder, the ABSOLUTE depth (agreement alone passes
+if both encoders regress together), V8 acceptance, and — guarding the guard —
+that the two depth fixtures encode differently from each other. Verified
+sensitive: restoring the old ordering fails it.

@@ -2822,3 +2822,45 @@ and still be blind because the input never engages the code path.
 The tell was available and ignored: the named case and the numeric case returned
 identical bytes. **Two inputs that should stress different paths returning
 identical results is evidence the probe is not reaching one of them.**
+
+## A test pinning someone else's DEFECT is supposed to go red when they fix it
+
+Two bridge tests asserted that binaryen-ts collapsed `struct.get_u` onto `0x02`
+and `array.get_u` onto `0x0b`. Both assertions were correct, both carried a
+comment explaining that the spec defines three opcodes and binaryen-ts modelled
+two, and both were reported upstream as UP-1 — the one finding of seven that
+emitted bytes engines reject.
+
+binaryen-ts 1.5.0 fixed it, and the tests failed.
+
+**That is the tests working.** They are the same instrument as `tests/wasmtk`'s
+`KNOWN_INVALID`: an assertion whose purpose is to fail the moment someone else's
+bug is fixed, so the workaround gets removed instead of ossifying. The failure
+IS the notification.
+
+Two things make the pattern pay off rather than annoy:
+
+- **Say in the test that it pins a defect, and name the upstream item.** A bare
+  `assertEquals(byte, 0x02)` reads as a spec claim, and the next person "fixes"
+  the test toward the wrong value. The comment is what turns a red test into a
+  message.
+- **When it fires, assert the NEW behaviour and that the old is gone.** Both
+  tests now check the spec-correct opcode AND that the collapsed byte is absent.
+  Without the second half, a regression back to the collapse would only be
+  caught if it also broke something else.
+
+The anti-pattern is silently relaxing the assertion to make the suite green —
+which discards the one signal you built the test to receive.
+
+## Watch the ERROR MESSAGE move, not just the failure count
+
+Fixing the first of two stacked defects changed
+`unresolved GC function type: (structref) -> (i32)` to `(ref 0) -> (i32)` and
+fixed **zero tests**. By count, the change did nothing and looked like a wrong
+theory. By message, it had clearly worked — the signature was now precise — and
+something else was wrong underneath.
+
+Had the count been the only instrument, the obvious move was to revert a correct
+fix and look elsewhere. **When defects stack, the failure count is the last
+thing to move and the message is the first.** Read the diagnostic before
+concluding a fix missed.
