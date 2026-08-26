@@ -21,6 +21,49 @@ Plus the **direct path** for pure optimization (no prior wabt-ts step):
 path is the production route when wabt-ts tools (validate, strip) have already processed the module.
 Re-serializing to binary between steps just to use the direct path is wasteful and wrong.
 
+## BINDING for binaryang — upstream names are reserved
+
+**A bare upstream project name (`binaryen`, `wabt`) may appear in a path ONLY where upstream
+compatibility is the subject — `compat/` and `interop/`. It must never name a directory or module
+holding binaryang's own implementation.**
+
+Agreed 2026-08-25, and binding on the binaryang team from the first commit.
+
+**Why it is a must and not a preference.** Both codebases already hold this invariant without ever
+having written it down. Every path in either repo containing a bare upstream name refers to
+UPSTREAM: `src/api/binaryen-compat.ts` (the `npm:binaryen` API shape), `src/interop/binaryen-js.ts`
+(the bridge to upstream binaryen.js), `src/api/wabt-compat.ts` (the wabt.js API shape), `upstream/`
+(the literal C++ clone). Own code has always lived under functional names — `ir`, `encoder`,
+`passes`, `parser`, `validator`, `writer`.
+
+Breaking it would put the same word on our code and on theirs inside one repository: `src/binaryen/`
+a few directories from `compat/binaryen`, meaning opposite things. Beyond the ambiguity, it invites
+the reader to assume binaryang vendors the upstream projects rather than implementing them — a claim
+about provenance that must not be made by accident.
+
+**Where own code goes.** Functional names, as both projects already do. During convergence, code may
+sit under the PORTING project that produced it — `src/binaryen-ts/`, `src/wabt-ts/` — because the
+`-ts` suffix is exactly what distinguishes our port from the project it ports. That is the qualified
+form and it is permitted; the bare form is not.
+
+**The check** — mechanical, so the rule survives whoever is reading it:
+
+```sh
+git ls-files \
+  | grep -iE '(^|/)(binaryen|wabt)([-_./]|$)' \
+  | grep -viE '(binaryen|wabt)-ts' \
+  | grep -viE 'compat|interop'
+```
+
+Empty output means the rule holds. Wire it into CI alongside `fmt`/`lint`, where it costs nothing
+and cannot rot.
+
+**One known violation to fix at merge time**, found by running it: `wabt-ts`'s
+`src/bridge/binaryen-bridge.ts`. binaryen-ts is clean. That file is the bridge INTO the binaryen-ts
+IR, so it is the qualified sense — but it is spelled in the bare form, in the single most
+load-bearing file the two projects share. Rename it on the way in (`bridge.ts` is sufficient; it
+already lives in `bridge/`).
+
 ## The five agreed decisions
 
 | Decision                 | Resolution                                                                                                                                                               |
