@@ -37,11 +37,11 @@ import {
   ExpressionKind,
   type LocalTeeExpr,
   makeLocalGet,
-} from "../ir/expressions.ts";
-import type { Local, WasmFunction, WasmModule } from "../ir/module.ts";
-import { ValType } from "../ir/types.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { mapExpression, walkExpression } from "../ir/walk.ts";
+} from '../ir/expressions.ts';
+import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
+import { ValType } from '../ir/types.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { mapExpression, walkExpression } from '../ir/walk.ts';
 
 const _VAL_TYPES = new Set<string>(Object.values(ValType) as string[]);
 
@@ -51,9 +51,9 @@ const _VAL_TYPES = new Set<string>(Object.values(ValType) as string[]);
 
 /** Extracts repeated pure sub-expressions into fresh locals within blocks. */
 export class LocalCSEPass implements Pass {
-  readonly name = "LocalCSE";
+  readonly name = 'LocalCSE';
   readonly description =
-    "Common subexpression elimination: repeated pure expressions are computed once and cached in a local.";
+    'Common subexpression elimination: repeated pure expressions are computed once and cached in a local.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
@@ -161,10 +161,10 @@ function _exprKey(expr: Expression): string | null {
   switch (expr.kind) {
     case ExpressionKind.Const: {
       const v = expr.value;
-      if ("i32" in v) return `i32:${v.i32}`;
-      if ("i64" in v) return `i64:${v.i64}`;
-      if ("f32" in v) return `f32:${v.f32}`;
-      if ("f64" in v) return `f64:${v.f64}`;
+      if ('i32' in v) return `i32:${v.i32}`;
+      if ('i64' in v) return `i64:${v.i64}`;
+      if ('f32' in v) return `f32:${v.f32}`;
+      if ('f64' in v) return `f64:${v.f64}`;
       return null;
     }
     case ExpressionKind.LocalGet:
@@ -188,7 +188,7 @@ function _exprKey(expr: Expression): string | null {
     case ExpressionKind.Unary: {
       const op = expr.op as string;
       // Exclude trapping truncations
-      if (op.includes("trunc") && !op.includes("sat")) return null;
+      if (op.includes('trunc') && !op.includes('sat')) return null;
       const vk = _exprKey(expr.value);
       if (vk === null) return null;
       return `u:${op}(${vk})`;
@@ -341,7 +341,7 @@ function _rewriteExpr(
 
 function _exprType(expr: Expression): ValType {
   const t = expr.type;
-  if (typeof t === "string" && _VAL_TYPES.has(t)) {
+  if (typeof t === 'string' && _VAL_TYPES.has(t)) {
     return t as ValType;
   }
   return ValType.I32; // fallback

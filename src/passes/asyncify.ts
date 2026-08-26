@@ -71,29 +71,29 @@ import {
   makeUnary,
   makeUnreachable,
   UnaryOp,
-} from "../ir/expressions.ts";
-import type { Local, WasmFunction, WasmImport, WasmModule } from "../ir/module.ts";
-import { None, type Type, ValType } from "../ir/types.ts";
-import { mapExpression, walkExpression } from "../ir/walk.ts";
-import { buildCFG, computeLiveness } from "./cfg.ts";
-import { buildCallResultTypes, flattenFunction } from "./flatten.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
+} from '../ir/expressions.ts';
+import type { Local, WasmFunction, WasmImport, WasmModule } from '../ir/module.ts';
+import { None, type Type, ValType } from '../ir/types.ts';
+import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { buildCFG, computeLiveness } from './cfg.ts';
+import { buildCallResultTypes, flattenFunction } from './flatten.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 // ---------------------------------------------------------------------------
 // ABI constants (mirror Asyncify.cpp lines 366-386)
 // ---------------------------------------------------------------------------
 
 /** Internal name of the i32 state global (0 normal / 1 unwind / 2 rewind). */
-export const ASYNCIFY_STATE = "$__asyncify_state";
+export const ASYNCIFY_STATE = '$__asyncify_state';
 /** Internal name of the i32 data-pointer global. */
-export const ASYNCIFY_DATA = "$__asyncify_data";
+export const ASYNCIFY_DATA = '$__asyncify_data';
 
 /** Host-visible export names of the five control functions (upstream order). */
-export const ASYNCIFY_START_UNWIND = "asyncify_start_unwind";
-export const ASYNCIFY_STOP_UNWIND = "asyncify_stop_unwind";
-export const ASYNCIFY_START_REWIND = "asyncify_start_rewind";
-export const ASYNCIFY_STOP_REWIND = "asyncify_stop_rewind";
-export const ASYNCIFY_GET_STATE = "asyncify_get_state";
+export const ASYNCIFY_START_UNWIND = 'asyncify_start_unwind';
+export const ASYNCIFY_STOP_UNWIND = 'asyncify_stop_unwind';
+export const ASYNCIFY_START_REWIND = 'asyncify_start_rewind';
+export const ASYNCIFY_STOP_REWIND = 'asyncify_stop_rewind';
+export const ASYNCIFY_GET_STATE = 'asyncify_get_state';
 
 /** The `__asyncify_state` values. */
 export const enum State {
@@ -175,21 +175,21 @@ export function parseAsyncifyOptions(passArgs: Record<string, string>): Asyncify
     Object.prototype.hasOwnProperty.call(passArgs, `asyncify-${name}`);
 
   return {
-    imports: splitList(get("imports")),
-    ignoreImports: has("ignore-imports"),
-    ignoreIndirect: has("ignore-indirect"),
-    asserts: has("asserts"),
-    ignoreUnwindFromCatch: has("ignore-unwind-from-catch"),
-    verbose: has("verbose"),
-    memory: get("memory") ?? "",
+    imports: splitList(get('imports')),
+    ignoreImports: has('ignore-imports'),
+    ignoreIndirect: has('ignore-indirect'),
+    asserts: has('asserts'),
+    ignoreUnwindFromCatch: has('ignore-unwind-from-catch'),
+    verbose: has('verbose'),
+    memory: get('memory') ?? '',
     // Accept the upstream back-compat aliases: blacklist→removelist,
     // whitelist→onlylist, relocatable→import-globals.
-    removeList: splitList(get("removelist") ?? get("blacklist")),
-    addList: splitList(get("addlist")),
-    propagateAddList: has("propagate-addlist"),
-    onlyList: splitList(get("onlylist") ?? get("whitelist")),
-    importGlobals: has("import-globals") || has("relocatable"),
-    exportGlobals: has("export-globals"),
+    removeList: splitList(get('removelist') ?? get('blacklist')),
+    addList: splitList(get('addlist')),
+    propagateAddList: has('propagate-addlist'),
+    onlyList: splitList(get('onlylist') ?? get('whitelist')),
+    importGlobals: has('import-globals') || has('relocatable'),
+    exportGlobals: has('export-globals'),
   };
 }
 
@@ -249,8 +249,8 @@ export function synthesizeRuntimeSupport(
 ): void {
   if (module.hasMemory64) {
     throw new Error(
-      "asyncify: wasm64 (memory64) is not yet supported in this port; " +
-        "the driving use case (TinyGo goroutines) is wasm32.",
+      'asyncify: wasm64 (memory64) is not yet supported in this port; ' +
+        'the driving use case (TinyGo goroutines) is wasm32.',
     );
   }
 
@@ -259,10 +259,10 @@ export function synthesizeRuntimeSupport(
   // wrong memory (upstream fatals unless asyncify-memory@name selects one — which
   // this port does not yet thread through the load/store builders).
   const memoryCount = module.memories.length +
-    module.imports.filter((imp) => imp.kind === "memory").length;
+    module.imports.filter((imp) => imp.kind === 'memory').length;
   if (memoryCount > 1 || module.hasMultiMemory) {
     throw new Error(
-      "asyncify: multi-memory modules are not yet supported; the pass instruments memory 0.",
+      'asyncify: multi-memory modules are not yet supported; the pass instruments memory 0.',
     );
   }
 
@@ -273,7 +273,7 @@ export function synthesizeRuntimeSupport(
   // TinyGo output always has a memory, so this is a robustness backstop.
   if (memoryCount === 0) {
     module.memories.push({
-      name: "$__asyncify_memory",
+      name: '$__asyncify_memory',
       initial: 1,
       max: null,
       shared: false,
@@ -286,22 +286,22 @@ export function synthesizeRuntimeSupport(
   // globals across modules by IMPORTING them from `env` instead of defining them;
   // it is mutually exclusive with export-globals.
   if (options.importGlobals && options.exportGlobals) {
-    throw new Error("asyncify: import-globals and export-globals are mutually exclusive.");
+    throw new Error('asyncify: import-globals and export-globals are mutually exclusive.');
   }
   if (options.importGlobals) {
     module.imports.push({
-      kind: "global",
+      kind: 'global',
       name: ASYNCIFY_STATE,
-      module: "env",
-      base: "__asyncify_state",
+      module: 'env',
+      base: '__asyncify_state',
       type: ValType.I32,
       mutable: true,
     });
     module.imports.push({
-      kind: "global",
+      kind: 'global',
       name: ASYNCIFY_DATA,
-      module: "env",
-      base: "__asyncify_data",
+      module: 'env',
+      base: '__asyncify_data',
       type: ValType.I32,
       mutable: true,
     });
@@ -319,8 +319,8 @@ export function synthesizeRuntimeSupport(
       init: makeI32Const(0),
     });
     if (options.exportGlobals) {
-      module.exports.push({ name: "__asyncify_state", value: ASYNCIFY_STATE, kind: "global" });
-      module.exports.push({ name: "__asyncify_data", value: ASYNCIFY_DATA, kind: "global" });
+      module.exports.push({ name: '__asyncify_state', value: ASYNCIFY_STATE, kind: 'global' });
+      module.exports.push({ name: '__asyncify_data', value: ASYNCIFY_DATA, kind: 'global' });
     }
   }
 
@@ -379,7 +379,7 @@ function addControlFunction(
     locals: [...params],
     body,
   });
-  if (exported) module.exports.push({ name: hostName, value: internalName, kind: "function" });
+  if (exported) module.exports.push({ name: hostName, value: internalName, kind: 'function' });
 }
 
 // ---------------------------------------------------------------------------
@@ -410,7 +410,7 @@ export interface AnalysisResult {
 }
 
 /** The `asyncify` import module namespace (the in-wasm-runtime control API). */
-const ASYNCIFY_IMPORT_MODULE = "asyncify";
+const ASYNCIFY_IMPORT_MODULE = 'asyncify';
 
 /**
  * In-wasm asyncify-import mode (Asyncify.cpp 177-199, 582-712): a module — e.g.
@@ -456,7 +456,7 @@ const ASYNCIFY_RUNTIME_BOTTOM = new Set([`$${ASYNCIFY_STOP_UNWIND}`, `$${ASYNCIF
 export function resolveAsyncifyImports(module: WasmModule): boolean {
   const rename = new Map<string, string>();
   for (const imp of module.imports) {
-    if (imp.kind !== "function" || imp.module !== ASYNCIFY_IMPORT_MODULE) continue;
+    if (imp.kind !== 'function' || imp.module !== ASYNCIFY_IMPORT_MODULE) continue;
     const control = ASYNCIFY_IMPORT_TO_CONTROL[imp.base];
     if (control === undefined) {
       throw new Error(`asyncify: unidentified asyncify import "asyncify.${imp.base}".`);
@@ -480,7 +480,7 @@ export function resolveAsyncifyImports(module: WasmModule): boolean {
   // a builder-backed array, so don't reassign the property).
   for (let i = module.imports.length - 1; i >= 0; i--) {
     const imp = module.imports[i]!; // bounded by the loop header
-    if (imp.kind === "function" && imp.module === ASYNCIFY_IMPORT_MODULE) {
+    if (imp.kind === 'function' && imp.module === ASYNCIFY_IMPORT_MODULE) {
       module.imports.splice(i, 1);
     }
   }
@@ -492,7 +492,7 @@ export function resolveAsyncifyImports(module: WasmModule): boolean {
  * upstream `String::wildcardMatch`) into an anchored RegExp and test it.
  */
 function wildcardMatch(pattern: string, str: string): boolean {
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
   return new RegExp(`^${escaped}$`).test(str);
 }
 
@@ -524,7 +524,7 @@ export function analyzeModule(
     options.onlyList.length > 0 && (options.removeList.length > 0 || options.addList.length > 0)
   ) {
     throw new Error(
-      "asyncify: an only-list cannot be combined with an add-list or remove-list.",
+      'asyncify: an only-list cannot be combined with an add-list or remove-list.',
     );
   }
 
@@ -540,17 +540,17 @@ export function analyzeModule(
   // binary-parsed input (not yet done in wasmtk) requires name-section retention.
   const definedNames = new Set(module.functions.map((f) => f.name));
   const importFnNames = new Set(
-    module.imports.filter((i) => i.kind === "function").map((i) => i.name),
+    module.imports.filter((i) => i.kind === 'function').map((i) => i.name),
   );
   for (
     const [label, list] of [
-      ["add-list", options.addList],
-      ["remove-list", options.removeList],
-      ["only-list", options.onlyList],
+      ['add-list', options.addList],
+      ['remove-list', options.removeList],
+      ['only-list', options.onlyList],
     ] as const
   ) {
     for (const entry of list) {
-      if (entry.includes("*")) continue; // wildcard patterns are matched by shape
+      if (entry.includes('*')) continue; // wildcard patterns are matched by shape
       if (importFnNames.has(entry)) {
         throw new Error(
           `asyncify: ${label} entry "${entry}" names an imported function; ` +
@@ -573,7 +573,7 @@ export function analyzeModule(
   };
 
   const matchesAny = (patterns: string[], name: string): boolean =>
-    patterns.some((p) => (p.includes("*") ? wildcardMatch(p, name) : p === name));
+    patterns.some((p) => (p.includes('*') ? wildcardMatch(p, name) : p === name));
 
   // Reverse call-graph edges: callee name -> set of (defined) caller names.
   const calledBy = new Map<string, Set<string>>();
@@ -589,7 +589,7 @@ export function analyzeModule(
 
   // Seed imports.
   for (const imp of module.imports) {
-    if (imp.kind === "function") {
+    if (imp.kind === 'function') {
       canChangeState.set(imp.name, canImportChangeState(imp));
     }
   }
@@ -611,14 +611,14 @@ export function analyzeModule(
       if (e.kind === ExpressionKind.Call) {
         const call = e as CallExpr;
         if (call.isReturn) {
-          throw new Error("asyncify: tail calls (return_call) are not yet supported.");
+          throw new Error('asyncify: tail calls (return_call) are not yet supported.');
         }
         if (ASYNCIFY_STATE_STARTERS.has(call.target)) isTop = true;
         else if (ASYNCIFY_RUNTIME_BOTTOM.has(call.target)) isBottom = true;
         addEdge(call.target, func.name);
       } else if (e.kind === ExpressionKind.CallIndirect) {
         if ((e as CallIndirectExpr).isReturn) {
-          throw new Error("asyncify: tail calls (return_call_indirect) are not yet supported.");
+          throw new Error('asyncify: tail calls (return_call_indirect) are not yet supported.');
         }
         indirect = true;
       }
@@ -718,11 +718,11 @@ export function analyzeModule(
 // ---------------------------------------------------------------------------
 
 /** Temporary intrinsic: pop the next call index off the stack (start of a rewind). */
-const ASYNCIFY_GET_CALL_INDEX = "$__asyncify_get_call_index";
+const ASYNCIFY_GET_CALL_INDEX = '$__asyncify_get_call_index';
 /** Temporary intrinsic: is `index` the call to resume into? → i32. */
-const ASYNCIFY_CHECK_CALL_INDEX = "$__asyncify_check_call_index";
+const ASYNCIFY_CHECK_CALL_INDEX = '$__asyncify_check_call_index';
 /** Temporary intrinsic: note an unwind through call `index`. */
-const ASYNCIFY_UNWIND = "$__asyncify_unwind";
+const ASYNCIFY_UNWIND = '$__asyncify_unwind';
 
 /** Per-function flow context. */
 export interface FlowCtx {
@@ -1014,7 +1014,7 @@ export function computeRelevantLocals(
     snapshot(block.actions.length);
     for (let i = block.actions.length - 1; i >= 0; i--) {
       const a = block.actions[i]!; // bounded by the loop header
-      if (a.kind === "get") live.add(a.index);
+      if (a.kind === 'get') live.add(a.index);
       else live.delete(a.index); // set / tee: defined here, not live before
       snapshot(i);
     }
@@ -1047,7 +1047,7 @@ const STACK_POS_OFFSET = DataOffset.StackPos;
 /** log2 alignment for i32 stack accesses (STACK_ALIGN = 4 bytes). */
 const STACK_ALIGN_LOG2 = 2;
 /** Branch label of the unwind block (breaks here to unwind out of the body). */
-const ASYNCIFY_UNWIND_LABEL = "$__asyncify_unwind";
+const ASYNCIFY_UNWIND_LABEL = '$__asyncify_unwind';
 
 /** `load i32 from $__asyncify_data[stackPos]` — the current asyncify stack pointer. */
 function makeGetStackPos(): Expression {
@@ -1289,8 +1289,8 @@ export function localsInstrumentFunction(
  * matching upstream `--asyncify`.
  */
 export class AsyncifyPass implements Pass {
-  readonly name = "Asyncify";
-  readonly description = "Transforms a module to support pausing and resuming (unwind/rewind the " +
+  readonly name = 'Asyncify';
+  readonly description = 'Transforms a module to support pausing and resuming (unwind/rewind the ' +
     "call stack). Port of Binaryen's --asyncify.";
   readonly requiresNonNullableLocalFixups = false;
 

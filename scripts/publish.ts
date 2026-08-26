@@ -27,18 +27,18 @@
  * @license MIT
  */
 
-import { readCurrentVersion } from "./version.ts";
+import { readCurrentVersion } from './version.ts';
 
 async function run(cmd: string[]): Promise<void> {
-  console.log(`$ ${cmd.join(" ")}`);
+  console.log(`$ ${cmd.join(' ')}`);
   const p = new Deno.Command(cmd[0], {
     args: cmd.slice(1),
-    stdout: "inherit",
-    stderr: "inherit",
+    stdout: 'inherit',
+    stderr: 'inherit',
   });
   const { code } = await p.output();
   if (code !== 0) {
-    console.error(`\nCommand failed with exit code ${code}: ${cmd.join(" ")}`);
+    console.error(`\nCommand failed with exit code ${code}: ${cmd.join(' ')}`);
     Deno.exit(code);
   }
 }
@@ -62,41 +62,41 @@ async function run(cmd: string[]): Promise<void> {
  * anyway should not stop a publish.
  */
 async function guardCleanWorkingTree(): Promise<void> {
-  const result = await new Deno.Command("git", {
-    args: ["status", "--porcelain"],
-    stdout: "piped",
-    stderr: "inherit",
+  const result = await new Deno.Command('git', {
+    args: ['status', '--porcelain'],
+    stdout: 'piped',
+    stderr: 'inherit',
   }).output();
   if (result.code !== 0) {
-    console.error("git status --porcelain failed; refusing to publish.");
+    console.error('git status --porcelain failed; refusing to publish.');
     Deno.exit(1);
   }
   const text = new TextDecoder().decode(result.stdout);
   const dirty: string[] = [];
-  for (const line of text.split("\n")) {
+  for (const line of text.split('\n')) {
     if (line.length === 0) continue;
     const status = line.slice(0, 2);
     const path = line.slice(3);
-    if (status === "??") continue; // untracked — fine, won't be in the release anyway
-    if (path === "deno.json") continue; // the one file we expect bump+publish to touch
+    if (status === '??') continue; // untracked — fine, won't be in the release anyway
+    if (path === 'deno.json') continue; // the one file we expect bump+publish to touch
     dirty.push(`  ${status} ${path}`);
   }
   if (dirty.length > 0) {
-    console.error("✗ Refusing to publish: working tree has uncommitted changes");
-    console.error("  to tracked files other than deno.json.");
-    console.error("");
+    console.error('✗ Refusing to publish: working tree has uncommitted changes');
+    console.error('  to tracked files other than deno.json.');
+    console.error('');
     for (const d of dirty) console.error(d);
-    console.error("");
-    console.error("This script stages and commits ONLY deno.json. Those changes would be");
-    console.error("silently left behind — the tag commit JSR builds from would contain");
-    console.error("nothing but the version bump.");
-    console.error("");
-    console.error("Recovery:");
-    console.error("  git add -A             # stage everything (or selectively)");
+    console.error('');
+    console.error('This script stages and commits ONLY deno.json. Those changes would be');
+    console.error('silently left behind — the tag commit JSR builds from would contain');
+    console.error('nothing but the version bump.');
+    console.error('');
+    console.error('Recovery:');
+    console.error('  git add -A             # stage everything (or selectively)');
     console.error("  git commit -m '...'    # commit the real changes");
-    console.error("  deno task bump         # roll deno.json to the next version");
-    console.error("  deno task publish      # now safe");
-    console.error("");
+    console.error('  deno task bump         # roll deno.json to the next version');
+    console.error('  deno task publish      # now safe');
+    console.error('');
     Deno.exit(1);
   }
 }
@@ -109,33 +109,33 @@ const tag = `v${version}`;
 console.log(`Releasing ${tag}\n`);
 
 // 1. Stage deno.json (only file we touch on a release)
-await run(["git", "add", "deno.json"]);
+await run(['git', 'add', 'deno.json']);
 
 // 2. Commit only if there's actually something staged. `deno task bump` +
 //    `deno task publish` is the common path (deno.json is dirty), but if the
 //    user already committed the bump manually, skip the no-op commit.
-const diffCheck = new Deno.Command("git", {
-  args: ["diff", "--cached", "--quiet"],
+const diffCheck = new Deno.Command('git', {
+  args: ['diff', '--cached', '--quiet'],
 });
 const { code: diffCode } = await diffCheck.output();
 if (diffCode !== 0) {
-  await run(["git", "commit", "-m", `bump to ${tag}`]);
+  await run(['git', 'commit', '-m', `bump to ${tag}`]);
 } else {
-  console.log("(deno.json already committed — skipping commit)\n");
+  console.log('(deno.json already committed — skipping commit)\n');
 }
 
 // 3. Force-tag locally for re-run safety: if a previous publish attempt got
 //    as far as creating the tag but failed before pushing, this overwrites
 //    the stale local tag instead of erroring.
-await run(["git", "tag", "-f", tag]);
+await run(['git', 'tag', '-f', tag]);
 
 // 4. Push commit + tag in a single operation. Atomic from git's perspective,
 //    which avoids racing `auto-tag.yml` (it sees the tag already exists when
 //    it fires on the main push and no-ops).
-await run(["git", "push", "origin", "main", tag]);
+await run(['git', 'push', 'origin', 'main', tag]);
 
 console.log(`\nPushed ${tag}. publish.yml will run:`);
 console.log(`  https://github.com/jrmarcum/binaryen-ts/actions`);
-console.log("");
-console.log("It performs: version verify -> check -> test -> deno publish (with OIDC");
-console.log("provenance) -> create GitHub Release.");
+console.log('');
+console.log('It performs: version verify -> check -> test -> deno publish (with OIDC');
+console.log('provenance) -> create GitHub Release.');

@@ -15,7 +15,7 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import {
   type Expression,
@@ -24,14 +24,14 @@ import {
   makeCall,
   makeCallIndirect,
   makeI32Const,
-} from "../../src/ir/expressions.ts";
-import { mapChildrenShallow, visitChildren, walkExpression } from "../../src/ir/walk.ts";
-import { None, ValType } from "../../src/ir/types.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
-import { parseWat } from "../../src/parser/wat-parser.ts";
-import { buildCallResultTypes, FlattenPass } from "../../src/passes/flatten.ts";
-import type { PassOptions } from "../../src/passes/pass.ts";
-import { ModuleBuilder, type WasmModule } from "../../src/ir/module.ts";
+} from '../../src/ir/expressions.ts';
+import { mapChildrenShallow, visitChildren, walkExpression } from '../../src/ir/walk.ts';
+import { None, ValType } from '../../src/ir/types.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWat } from '../../src/parser/wat-parser.ts';
+import { buildCallResultTypes, FlattenPass } from '../../src/passes/flatten.ts';
+import type { PassOptions } from '../../src/passes/pass.ts';
+import { ModuleBuilder, type WasmModule } from '../../src/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -76,7 +76,7 @@ function assertEquivalent(
   const of = original.exports[fn] as (...a: number[]) => number;
   const ff = flattened.exports[fn] as (...a: number[]) => number;
   for (const args of argSets) {
-    assertEquals(ff(...args), of(...args), `${fn}(${args.join(",")}) diverged after flatten`);
+    assertEquals(ff(...args), of(...args), `${fn}(${args.join(',')}) diverged after flatten`);
   }
 }
 
@@ -93,7 +93,7 @@ const TRIVIAL = new Set<ExpressionKind>([
 function assertFlat(mod: WasmModule): void {
   for (const func of mod.functions) {
     walkExpression(func.body, (e: Expression) => {
-      assert(e.kind !== ExpressionKind.LocalTee, "flat IR must not contain local.tee");
+      assert(e.kind !== ExpressionKind.LocalTee, 'flat IR must not contain local.tee');
 
       if (e.kind === ExpressionKind.If) {
         assert(TRIVIAL.has(e.condition.kind), `if condition not trivial: ${e.condition.kind}`);
@@ -110,7 +110,7 @@ function assertFlat(mod: WasmModule): void {
           break;
         case ExpressionKind.CallIndirect:
           checkOperands(e.operands);
-          assert(TRIVIAL.has(e.target.kind), "call_indirect target not trivial");
+          assert(TRIVIAL.has(e.target.kind), 'call_indirect target not trivial');
           break;
         case ExpressionKind.Binary:
           checkOperands([e.left, e.right]);
@@ -193,46 +193,46 @@ const VOID_STORE = `(module
 // Behavioral equivalence
 // ---------------------------------------------------------------------------
 
-Deno.test("flatten preserves semantics — arithmetic", () => {
-  assertEquivalent(ARITH, "f", [[3, 4], [0, 0], [-5, 9], [100, -100]]);
+Deno.test('flatten preserves semantics — arithmetic', () => {
+  assertEquivalent(ARITH, 'f', [[3, 4], [0, 0], [-5, 9], [100, -100]]);
 });
 
-Deno.test("flatten preserves semantics — if/else", () => {
-  assertEquivalent(IFELSE, "f", [[3], [10], [11], [-1], [9]]);
+Deno.test('flatten preserves semantics — if/else', () => {
+  assertEquivalent(IFELSE, 'f', [[3], [10], [11], [-1], [9]]);
 });
 
-Deno.test("flatten preserves semantics — loop (sum 0..n)", () => {
-  assertEquivalent(LOOP_SUM, "f", [[0], [1], [5], [10], [100]]);
+Deno.test('flatten preserves semantics — loop (sum 0..n)', () => {
+  assertEquivalent(LOOP_SUM, 'f', [[0], [1], [5], [10], [100]]);
 });
 
-Deno.test("flatten preserves semantics — nested defined-function calls", () => {
-  assertEquivalent(NESTED_CALLS, "f", [[0], [5], [-3], [42]]);
+Deno.test('flatten preserves semantics — nested defined-function calls', () => {
+  assertEquivalent(NESTED_CALLS, 'f', [[0], [5], [-3], [42]]);
 });
 
-Deno.test("flatten preserves semantics — recursion (factorial)", () => {
-  assertEquivalent(FACTORIAL, "f", [[0], [1], [5], [7], [10]]);
+Deno.test('flatten preserves semantics — recursion (factorial)', () => {
+  assertEquivalent(FACTORIAL, 'f', [[0], [1], [5], [7], [10]]);
 });
 
-Deno.test("flatten preserves semantics — import calls with eval order", () => {
+Deno.test('flatten preserves semantics — import calls with eval order', () => {
   const imports = { env: { dbl: (x: number) => x * 2 } };
-  assertEquivalent(IMPORT_CALL, "f", [[3], [0], [-4]], imports);
+  assertEquivalent(IMPORT_CALL, 'f', [[3], [0], [-4]], imports);
 });
 
-Deno.test("flatten preserves semantics — void store then load", () => {
-  assertEquivalent(VOID_STORE, "f", [[3], [0], [35]]);
+Deno.test('flatten preserves semantics — void store then load', () => {
+  assertEquivalent(VOID_STORE, 'f', [[3], [0], [35]]);
 });
 
 // ---------------------------------------------------------------------------
 // Flatness invariants
 // ---------------------------------------------------------------------------
 
-Deno.test("flatten output is flat — no local.tee, trivial conditions & operands", () => {
+Deno.test('flatten output is flat — no local.tee, trivial conditions & operands', () => {
   for (const wat of [ARITH, IFELSE, LOOP_SUM, NESTED_CALLS, FACTORIAL, IMPORT_CALL, VOID_STORE]) {
     assertFlat(flattenParsed(wat));
   }
 });
 
-Deno.test("flatten hoists every call to a standalone statement operand set", () => {
+Deno.test('flatten hoists every call to a standalone statement operand set', () => {
   // The Asyncify-critical property: no call is nested inside another value
   // expression — each call's operands are trivial (checked by assertFlat), so a
   // call only ever appears as the RHS of a local.set / drop / return.
@@ -244,18 +244,18 @@ Deno.test("flatten hoists every call to a standalone statement operand set", () 
       if (e.kind === ExpressionKind.Call) calls++;
     });
   }
-  assert(calls >= 3, "expected the 3 nested calls to survive flattening");
+  assert(calls >= 3, 'expected the 3 nested calls to survive flattening');
 });
 
 // Regression: a local.tee whose result is read by a parent must survive a later
 // sibling operand that writes the SAME local. Before the fix, flatten returned
 // `local.get tee.index` (the original local), which the second tee's prelude
 // clobbered → both operands read the second value. (sub(10,3)=7, not 3-3=0.)
-Deno.test("flatten — two tees to the same local as sibling operands are not clobbered", () => {
+Deno.test('flatten — two tees to the same local as sibling operands are not clobbered', () => {
   assertEquivalent(
     `(module (func $f (export "f") (result i32) (local $t i32)
       (i32.sub (local.tee $t (i32.const 10)) (local.tee $t (i32.const 3)))))`,
-    "f",
+    'f',
     [[]],
   );
 });
@@ -272,9 +272,9 @@ Deno.test("flatten — two tees to the same local as sibling operands are not cl
 // reversed, so Flatten would hoist a side-effecting target ahead of the operands,
 // silently miscompiling any interface/func-value call whose target and operands
 // interact. Assert both the map primitive and the visitor yield operand→target.
-Deno.test("walk — call_indirect visits operands before the table index", () => {
+Deno.test('walk — call_indirect visits operands before the table index', () => {
   const ci = makeCallIndirect(
-    "$t",
+    '$t',
     makeI32Const(200), // target (table index) — must be visited LAST
     [makeI32Const(100)], // operand — must be visited FIRST
     [ValType.I32],
@@ -287,17 +287,17 @@ Deno.test("walk — call_indirect visits operands before the table index", () =>
     mapOrder.push(readVal(c));
     return c;
   });
-  assertEquals(mapOrder, [100, 200], "mapChildrenShallow: operand must precede target");
+  assertEquals(mapOrder, [100, 200], 'mapChildrenShallow: operand must precede target');
 
   const visitOrder: number[] = [];
   visitChildren(ci, (c) => visitOrder.push(readVal(c)));
-  assertEquals(visitOrder, [100, 200], "visitChildren: operand must precede target");
+  assertEquals(visitOrder, [100, 200], 'visitChildren: operand must precede target');
 });
 
 // Regression: a non-last `unreachable` inside a block is trivial with an empty
 // prelude, so the old flattenBlock appended it nowhere and the trap vanished —
 // letting control fall through. It must survive flattening.
-Deno.test("flatten — a non-last unreachable inside a block is preserved", () => {
+Deno.test('flatten — a non-last unreachable inside a block is preserved', () => {
   const mod = flattenParsed(
     `(module (func $f (export "f") (result i32) (local $x i32)
       (block
@@ -311,54 +311,54 @@ Deno.test("flatten — a non-last unreachable inside a block is preserved", () =
       if (e.kind === ExpressionKind.Unreachable) unreachables++;
     });
   }
-  assert(unreachables >= 1, "flatten dropped the non-last unreachable (trap elided)");
+  assert(unreachables >= 1, 'flatten dropped the non-last unreachable (trap elided)');
 });
 
-Deno.test("Flatten: buildCallResultTypes keeps a multi-result signature whole", () => {
+Deno.test('Flatten: buildCallResultTypes keeps a multi-result signature whole', () => {
   // It used to record `results[0]`, so a 2-result function looked like a plain
   // i32 function. `callEffectiveType` would then hoist the call into ONE local
   // and silently drop the second value.
   const mod = new ModuleBuilder()
-    .addFunction("two", [], [ValType.I32, ValType.I32], makeI32Const(0))
-    .addFunction("one", [], [ValType.I32], makeI32Const(0))
-    .addFunction("none", [], [], makeI32Const(0))
+    .addFunction('two', [], [ValType.I32, ValType.I32], makeI32Const(0))
+    .addFunction('one', [], [ValType.I32], makeI32Const(0))
+    .addFunction('none', [], [], makeI32Const(0))
     .build();
 
   const map = buildCallResultTypes(mod);
-  assertEquals(map.get("two"), [ValType.I32, ValType.I32]);
-  assertEquals(map.get("one"), ValType.I32);
-  assertEquals(map.get("none"), None);
+  assertEquals(map.get('two'), [ValType.I32, ValType.I32]);
+  assertEquals(map.get('one'), ValType.I32);
+  assertEquals(map.get('none'), None);
 });
 
-Deno.test("Flatten: a multi-result call fails loudly instead of losing values", () => {
+Deno.test('Flatten: a multi-result call fails loudly instead of losing values', () => {
   // Flatten hoists a value into ONE temporary local, which cannot hold N
   // values. Taking the first result would leave the operand stack short, so
   // this must throw rather than mis-hoist.
   const mod = new ModuleBuilder()
-    .addFunction("two", [], [ValType.I32, ValType.I32], makeI32Const(0))
+    .addFunction('two', [], [ValType.I32, ValType.I32], makeI32Const(0))
     .addFunction(
-      "caller",
+      'caller',
       [],
       [ValType.I32],
-      makeBlock([makeCall("two", [], [ValType.I32, ValType.I32])]),
+      makeBlock([makeCall('two', [], [ValType.I32, ValType.I32])]),
     )
     .build();
 
   assertThrows(
     () => new FlattenPass().run(mod, FLATTEN_OPTS),
     Error,
-    "multi-result calls cannot be hoisted",
+    'multi-result calls cannot be hoisted',
   );
 });
 
-Deno.test("Flatten: an unresolvable call target fails loudly instead of typing it void", () => {
+Deno.test('Flatten: an unresolvable call target fails loudly instead of typing it void', () => {
   // `buildCallResultTypes` registers every import and defined function, so a
   // miss means a dangling target. Typing it `none` silently discarded the
   // call's value — the same defect the WAT parser's `inferFuncResultType` stub
   // produced.
   const mod = new ModuleBuilder()
-    .addFunction("caller", [], [], makeBlock([makeCall("$nope", [], None)]))
+    .addFunction('caller', [], [], makeBlock([makeCall('$nope', [], None)]))
     .build();
 
-  assertThrows(() => new FlattenPass().run(mod, FLATTEN_OPTS), Error, "unresolved call target");
+  assertThrows(() => new FlattenPass().run(mod, FLATTEN_OPTS), Error, 'unresolved call target');
 });

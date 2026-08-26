@@ -6,7 +6,7 @@
  * @license MIT
  */
 
-import { assertEquals, assertNotEquals } from "@std/assert";
+import { assertEquals, assertNotEquals } from '@std/assert';
 
 import {
   BinaryOp,
@@ -36,11 +36,11 @@ import {
   makeUnary,
   makeUnreachable,
   UnaryOp,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder, type WasmFunction, type WasmModule } from "../../src/ir/module.ts";
-import { None, ValType } from "../../src/ir/types.ts";
-import { listPasses, PassRunner } from "../../src/passes/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder, type WasmFunction, type WasmModule } from '../../src/ir/module.ts';
+import { None, ValType } from '../../src/ir/types.ts';
+import { listPasses, PassRunner } from '../../src/passes/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,18 +80,18 @@ function emptyModule(): WasmModule {
 // Pass registry
 // ---------------------------------------------------------------------------
 
-Deno.test("listPasses: all Phase 4 passes are registered", () => {
+Deno.test('listPasses: all Phase 4 passes are registered', () => {
   const passes = listPasses();
   const expected = [
-    "CoalesceLocals",
-    "DCE",
-    "LocalCSE",
-    "OptimizeInstructions",
-    "PickLoadSigns",
-    "RemoveUnusedBrs",
-    "RemoveUnusedModuleElements",
-    "SimplifyLocals",
-    "Vacuum",
+    'CoalesceLocals',
+    'DCE',
+    'LocalCSE',
+    'OptimizeInstructions',
+    'PickLoadSigns',
+    'RemoveUnusedBrs',
+    'RemoveUnusedModuleElements',
+    'SimplifyLocals',
+    'Vacuum',
   ];
   for (const name of expected) {
     assertEquals(passes.includes(name), true, `Expected pass "${name}" to be registered`);
@@ -102,12 +102,12 @@ Deno.test("listPasses: all Phase 4 passes are registered", () => {
 // Vacuum pass
 // ---------------------------------------------------------------------------
 
-Deno.test("Vacuum: removes nop from block children", () => {
+Deno.test('Vacuum: removes nop from block children', () => {
   const mod = emptyModule();
   const body = makeBlock([makeNop(), makeI32Const(42), makeNop()]);
-  mod.functions.push(makeTestFn("f", body));
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("Vacuum").run();
+  new PassRunner(mod).add('Vacuum').run();
 
   const fn = mod.functions[0];
   // Nops should be removed; block should collapse to single const or small block
@@ -121,31 +121,31 @@ Deno.test("Vacuum: removes nop from block children", () => {
   }
 });
 
-Deno.test("Vacuum: empty block (all nops) collapses to nop", () => {
+Deno.test('Vacuum: empty block (all nops) collapses to nop', () => {
   const mod = emptyModule();
   const body = makeBlock([makeNop(), makeNop()]);
-  mod.functions.push(makeTestFn("f", body));
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("Vacuum").run();
+  new PassRunner(mod).add('Vacuum').run();
 
   assertEquals(mod.functions[0].body.kind, ExpressionKind.Nop);
 });
 
-Deno.test("Vacuum: drop(const) becomes nop", () => {
+Deno.test('Vacuum: drop(const) becomes nop', () => {
   const mod = emptyModule();
   // Block with drop(const) which should become nop → then block collapses
   const body = makeBlock([makeDrop(makeI32Const(5))]);
-  mod.functions.push(makeTestFn("f", body));
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("Vacuum").run();
+  new PassRunner(mod).add('Vacuum').run();
 
   assertEquals(mod.functions[0].body.kind, ExpressionKind.Nop);
 });
 
-Deno.test("Vacuum: drop(local.get) becomes nop", () => {
+Deno.test('Vacuum: drop(local.get) becomes nop', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [ValType.I32],
     results: [],
     locals: [{ type: ValType.I32 }],
@@ -153,18 +153,18 @@ Deno.test("Vacuum: drop(local.get) becomes nop", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("Vacuum").run();
+  new PassRunner(mod).add('Vacuum').run();
 
   assertEquals(mod.functions[0].body.kind, ExpressionKind.Nop);
 });
 
-Deno.test("Vacuum: unnamed single-child block collapses", () => {
+Deno.test('Vacuum: unnamed single-child block collapses', () => {
   const mod = emptyModule();
   const inner = makeI32Const(7);
   const body = makeBlock([inner]); // unnamed, single child
-  mod.functions.push(makeTestFn("f", body));
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("Vacuum").run();
+  new PassRunner(mod).add('Vacuum').run();
 
   assertEquals(mod.functions[0].body.kind, ExpressionKind.Const);
 });
@@ -173,10 +173,10 @@ Deno.test("Vacuum: unnamed single-child block collapses", () => {
 // OptimizeInstructions — algebraic identities
 // ---------------------------------------------------------------------------
 
-Deno.test("OptimizeInstructions: add(x, 0) → x", () => {
+Deno.test('OptimizeInstructions: add(x, 0) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
@@ -186,7 +186,7 @@ Deno.test("OptimizeInstructions: add(x, 0) → x", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const fnBody = mod.functions[0].body;
   const ret: Expression = fnBody.kind === ExpressionKind.Block
@@ -198,10 +198,10 @@ Deno.test("OptimizeInstructions: add(x, 0) → x", () => {
   }
 });
 
-Deno.test("OptimizeInstructions: mul(x, 1) → x", () => {
+Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
@@ -209,7 +209,7 @@ Deno.test("OptimizeInstructions: mul(x, 1) → x", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = mod.functions[0].body;
   if (ret.kind === ExpressionKind.Return) {
@@ -217,17 +217,17 @@ Deno.test("OptimizeInstructions: mul(x, 1) → x", () => {
   }
 });
 
-Deno.test("OptimizeInstructions: constant folding i32.add(3, 4) → 7", () => {
+Deno.test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
   const mod = emptyModule();
   mod.functions.push({
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [],
     body: makeReturn(makeBinary(BinaryOp.AddI32, makeI32Const(3), makeI32Const(4))),
   });
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = mod.functions[0].body;
   if (ret.kind === ExpressionKind.Return && ret.value?.kind === ExpressionKind.Const) {
@@ -235,17 +235,17 @@ Deno.test("OptimizeInstructions: constant folding i32.add(3, 4) → 7", () => {
   }
 });
 
-Deno.test("OptimizeInstructions: constant folding i32.mul(6, 7) → 42", () => {
+Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
   const mod = emptyModule();
   mod.functions.push({
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [],
     body: makeReturn(makeBinary(BinaryOp.MulI32, makeI32Const(6), makeI32Const(7))),
   });
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = mod.functions[0].body;
   if (ret.kind === ExpressionKind.Return && ret.value?.kind === ExpressionKind.Const) {
@@ -253,17 +253,17 @@ Deno.test("OptimizeInstructions: constant folding i32.mul(6, 7) → 42", () => {
   }
 });
 
-Deno.test("OptimizeInstructions: constant folding i32.eqz(0) → 1", () => {
+Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
   const mod = emptyModule();
   mod.functions.push({
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [],
     body: makeReturn(makeUnary(UnaryOp.EqzI32, makeI32Const(0))),
   });
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = mod.functions[0].body;
   if (ret.kind === ExpressionKind.Return && ret.value?.kind === ExpressionKind.Const) {
@@ -271,10 +271,10 @@ Deno.test("OptimizeInstructions: constant folding i32.eqz(0) → 1", () => {
   }
 });
 
-Deno.test("OptimizeInstructions: and(x, -1) → x", () => {
+Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
@@ -282,7 +282,7 @@ Deno.test("OptimizeInstructions: and(x, -1) → x", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = mod.functions[0].body;
   if (ret.kind === ExpressionKind.Return) {
@@ -290,10 +290,10 @@ Deno.test("OptimizeInstructions: and(x, -1) → x", () => {
   }
 });
 
-Deno.test("OptimizeInstructions: i64 add(x, 0) → x", () => {
+Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [ValType.I64],
     results: [ValType.I64],
     locals: [{ type: ValType.I64 }],
@@ -301,7 +301,7 @@ Deno.test("OptimizeInstructions: i64 add(x, 0) → x", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = mod.functions[0].body;
   if (ret.kind === ExpressionKind.Return) {
@@ -313,20 +313,20 @@ Deno.test("OptimizeInstructions: i64 add(x, 0) → x", () => {
 // RemoveUnusedBrs pass
 // ---------------------------------------------------------------------------
 
-Deno.test("RemoveUnusedBrs: br at tail of own block is removed", () => {
+Deno.test('RemoveUnusedBrs: br at tail of own block is removed', () => {
   // (block $B (nop) (br $B))  →  (block $B (nop))  →  nop (via Vacuum)
   const mod = emptyModule();
   const nop = makeNop();
-  const br = makeBreak("$B");
+  const br = makeBreak('$B');
   const body: ReturnType<typeof makeBlock> = {
     kind: ExpressionKind.Block,
     type: None,
-    name: "$B",
+    name: '$B',
     children: [nop, br],
   };
-  mod.functions.push(makeTestFn("f", body));
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("RemoveUnusedBrs").run();
+  new PassRunner(mod).add('RemoveUnusedBrs').run();
 
   const fn = mod.functions[0];
   if (fn.body.kind === ExpressionKind.Block) {
@@ -337,17 +337,17 @@ Deno.test("RemoveUnusedBrs: br at tail of own block is removed", () => {
   }
 });
 
-Deno.test("RemoveUnusedBrs: solo br to own block → nop", () => {
+Deno.test('RemoveUnusedBrs: solo br to own block → nop', () => {
   const mod = emptyModule();
   const body: ReturnType<typeof makeBlock> = {
     kind: ExpressionKind.Block,
     type: None,
-    name: "$B",
-    children: [makeBreak("$B")],
+    name: '$B',
+    children: [makeBreak('$B')],
   };
-  mod.functions.push(makeTestFn("f", body));
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("RemoveUnusedBrs").run();
+  new PassRunner(mod).add('RemoveUnusedBrs').run();
 
   assertEquals(mod.functions[0].body.kind, ExpressionKind.Nop);
 });
@@ -356,10 +356,10 @@ Deno.test("RemoveUnusedBrs: solo br to own block → nop", () => {
 // SimplifyLocals pass
 // ---------------------------------------------------------------------------
 
-Deno.test("SimplifyLocals: local.set + local.get → local.tee", () => {
+Deno.test('SimplifyLocals: local.set + local.get → local.tee', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
@@ -370,7 +370,7 @@ Deno.test("SimplifyLocals: local.set + local.get → local.tee", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("SimplifyLocals").run();
+  new PassRunner(mod).add('SimplifyLocals').run();
 
   const body = mod.functions[0].body;
   // Should be either a single tee or a block with a single tee
@@ -382,10 +382,10 @@ Deno.test("SimplifyLocals: local.set + local.get → local.tee", () => {
   }
 });
 
-Deno.test("SimplifyLocals: non-matching indices are not merged", () => {
+Deno.test('SimplifyLocals: non-matching indices are not merged', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
@@ -396,7 +396,7 @@ Deno.test("SimplifyLocals: non-matching indices are not merged", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("SimplifyLocals").run();
+  new PassRunner(mod).add('SimplifyLocals').run();
 
   const body = mod.functions[0].body;
   if (body.kind === ExpressionKind.Block) {
@@ -410,10 +410,10 @@ Deno.test("SimplifyLocals: non-matching indices are not merged", () => {
 // CoalesceLocals pass — dead-write elimination
 // ---------------------------------------------------------------------------
 
-Deno.test("CoalesceLocals: dead local.set becomes drop", () => {
+Deno.test('CoalesceLocals: dead local.set becomes drop', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     // local 0 is set but never read
@@ -422,7 +422,7 @@ Deno.test("CoalesceLocals: dead local.set becomes drop", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // The set should have been replaced with drop(const(99))
   const body = mod.functions[0].body;
@@ -430,10 +430,10 @@ Deno.test("CoalesceLocals: dead local.set becomes drop", () => {
   assertEquals(child.kind, ExpressionKind.Drop);
 });
 
-Deno.test("CoalesceLocals: used local.set is preserved", () => {
+Deno.test('CoalesceLocals: used local.set is preserved', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
@@ -444,7 +444,7 @@ Deno.test("CoalesceLocals: used local.set is preserved", () => {
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // local 0 is read, so the set must be preserved
   const body = mod.functions[0].body;
@@ -460,7 +460,7 @@ Deno.test("CoalesceLocals: used local.set is preserved", () => {
   assertEquals(hasSet, true);
 });
 
-Deno.test("CoalesceLocals: two locals with disjoint live ranges coalesce", () => {
+Deno.test('CoalesceLocals: two locals with disjoint live ranges coalesce', () => {
   // Two locals used in sequence:
   //   local.set $a 1
   //   call $use $a
@@ -470,7 +470,7 @@ Deno.test("CoalesceLocals: two locals with disjoint live ranges coalesce", () =>
   // with live holes recognizes the gap and assigns both to the same slot.
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
@@ -483,19 +483,19 @@ Deno.test("CoalesceLocals: two locals with disjoint live ranges coalesce", () =>
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // Both locals should map to slot 0 — only one local remains.
   assertEquals(mod.functions[0].locals.length, 1);
 });
 
-Deno.test("CoalesceLocals: two locals with overlapping live ranges stay distinct", () => {
+Deno.test('CoalesceLocals: two locals with overlapping live ranges stay distinct', () => {
   // Both live simultaneously: $a's set + use brackets $b's set + use.
   //   set $a 1; set $b 2; use $a; use $b
   // Can't coalesce.
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
@@ -508,7 +508,7 @@ Deno.test("CoalesceLocals: two locals with overlapping live ranges stay distinct
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // Both locals are live simultaneously between their two reads — must stay
   // separate.
@@ -520,7 +520,7 @@ Deno.test("CoalesceLocals: single local with two value lifetimes doesn't blow up
   // slot. After coalescing, just one local should remain (mapped to itself).
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [{ type: ValType.I32 }],
@@ -533,7 +533,7 @@ Deno.test("CoalesceLocals: single local with two value lifetimes doesn't blow up
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   assertEquals(mod.functions[0].locals.length, 1);
 });
@@ -542,7 +542,7 @@ Deno.test("CoalesceLocals: single local with two value lifetimes doesn't blow up
 // CoalesceLocals — exception-handling liveness (EH-aware CFG)
 // ---------------------------------------------------------------------------
 
-Deno.test("CoalesceLocals: throwing call in try body keeps the pre-try value live", () => {
+Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value live', () => {
   // `let r = -1; try { r = mayThrow() } catch {} return r`
   // If `mayThrow()` throws, the inner `set $r` never completes, so `r` keeps -1
   // and the catch falls through to `return r` (= -1). The body's `set $r` must
@@ -551,7 +551,7 @@ Deno.test("CoalesceLocals: throwing call in try body keeps the pre-try value liv
   // ignores the exceptional edge drops `set $r = -1` (→ r reads 0).
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }], // $r
@@ -559,8 +559,8 @@ Deno.test("CoalesceLocals: throwing call in try body keeps the pre-try value liv
       makeLocalSet(0, makeI32Const(-1)),
       makeTry(
         null,
-        makeLocalSet(0, makeCall("mayThrow", [], ValType.I32)),
-        ["t"],
+        makeLocalSet(0, makeCall('mayThrow', [], ValType.I32)),
+        ['t'],
         [makeNop()],
         null,
         None,
@@ -570,14 +570,14 @@ Deno.test("CoalesceLocals: throwing call in try body keeps the pre-try value liv
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // The entry `set $r = -1` must survive (not be turned into a drop).
   const body = mod.functions[0].body as BlockExpr;
   assertEquals(body.children[0].kind, ExpressionKind.LocalSet);
 });
 
-Deno.test("CoalesceLocals: nested rethrow keeps an outer local distinct from the inner catch var", () => {
+Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the inner catch var', () => {
   // Mirrors 15_LexicalShadowing_Stress:
   //   e = 100
   //   try { try { throw t(200) } catch { catchE = 200; rethrow } }
@@ -588,7 +588,7 @@ Deno.test("CoalesceLocals: nested rethrow keeps an outer local distinct from the
   // rethrow path's `catchE = 200` clobbers `e` and `use(e)` reads 200.
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }], // e, catchE, outerErr
@@ -598,19 +598,19 @@ Deno.test("CoalesceLocals: nested rethrow keeps an outer local distinct from the
         null,
         makeTry(
           null,
-          makeThrow("t", [makeI32Const(200)]),
-          ["t"],
+          makeThrow('t', [makeI32Const(200)]),
+          ['t'],
           // inner catch: catchE = 200; use(catchE); rethrow. The use() makes the
           // set effective (otherwise it's a dead drop and the coalesce question is moot).
           [makeBlock([
             makeLocalSet(1, makeI32Const(200)),
             makeDrop(makeLocalGet(1, ValType.I32)),
-            makeRethrow("0"),
+            makeRethrow('0'),
           ])],
           null,
           None,
         ),
-        ["t"],
+        ['t'],
         [makeBlock([makeLocalSet(2, makeI32Const(300)), makeDrop(makeLocalGet(0, ValType.I32))])], // outer catch: outerErr = 300; use(e)
         null,
         None,
@@ -619,7 +619,7 @@ Deno.test("CoalesceLocals: nested rethrow keeps an outer local distinct from the
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // Navigate the rewritten IR: inner-catch `set` index vs outer-catch `get` index.
   const body = mod.functions[0].body as BlockExpr;
@@ -638,40 +638,40 @@ Deno.test("CoalesceLocals: nested rethrow keeps an outer local distinct from the
 // CoalesceLocals — CFG-based liveness (loop back-edge cases)
 // ---------------------------------------------------------------------------
 
-Deno.test("CoalesceLocals: loop-carried value interferes via back-edge", () => {
+Deno.test('CoalesceLocals: loop-carried value interferes via back-edge', () => {
   // $A is set before the loop and read at the loop top every iteration.
   // $B is set/used entirely inside the body, source-order AFTER $A's read.
   // With strictly-sequential ordinals the two ranges look disjoint, but $A's
   // value flows around the back-edge — coalescing would corrupt it on iter 2+.
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
       makeLocalSet(0, makeI32Const(42)),
       makeLoop(
-        "L",
+        'L',
         makeBlock([
           makeDrop(makeLocalGet(0, ValType.I32)),
           makeLocalSet(1, makeI32Const(5)),
           makeDrop(makeLocalGet(1, ValType.I32)),
-          makeBreak("L", makeI32Const(0), null),
+          makeBreak('L', makeI32Const(0), null),
         ]),
       ),
     ]),
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // $A and $B must remain distinct — $A's value has to survive the back-edge.
   assertEquals(mod.functions[0].locals.length, 2);
 });
 
 Deno.test(
-  "CoalesceLocals: two locals entirely within loop body coalesce when ranges are disjoint",
+  'CoalesceLocals: two locals entirely within loop body coalesce when ranges are disjoint',
   () => {
     // $A and $B are both confined to one iteration; their live ranges don't
     // overlap (use-A before set-B, B never alive at the same time as A within
@@ -679,32 +679,32 @@ Deno.test(
     // pessimistic than the simple disjoint case.
     const mod = emptyModule();
     const fn: WasmFunction = {
-      name: "f",
+      name: 'f',
       params: [],
       results: [],
       locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
       body: makeBlock([
         makeLoop(
-          "L",
+          'L',
           makeBlock([
             makeLocalSet(0, makeI32Const(1)),
             makeDrop(makeLocalGet(0, ValType.I32)),
             makeLocalSet(1, makeI32Const(2)),
             makeDrop(makeLocalGet(1, ValType.I32)),
-            makeBreak("L", makeI32Const(0), null),
+            makeBreak('L', makeI32Const(0), null),
           ]),
         ),
       ]),
     };
     mod.functions.push(fn);
 
-    new PassRunner(mod).add("CoalesceLocals").run();
+    new PassRunner(mod).add('CoalesceLocals').run();
 
     assertEquals(mod.functions[0].locals.length, 1);
   },
 );
 
-Deno.test("CoalesceLocals: loop counter live across back-edge stays distinct from temp", () => {
+Deno.test('CoalesceLocals: loop counter live across back-edge stays distinct from temp', () => {
   // Classic counter pattern: $i is the loop counter (set outside, read +
   // mutated inside, used as the back-edge condition); $tmp is a single-
   // iteration scratch that comes after the counter update. Reading $i for
@@ -712,14 +712,14 @@ Deno.test("CoalesceLocals: loop counter live across back-edge stays distinct fro
   // it with $tmp would clobber the counter.
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
       makeLocalSet(0, makeI32Const(0)),
       makeLoop(
-        "L",
+        'L',
         makeBlock([
           // increment counter: $i = $i + 1
           makeLocalSet(
@@ -731,7 +731,7 @@ Deno.test("CoalesceLocals: loop counter live across back-edge stays distinct fro
           makeDrop(makeLocalGet(1, ValType.I32)),
           // loop while $i < 10
           makeBreak(
-            "L",
+            'L',
             makeBinary(BinaryOp.LtSI32, makeLocalGet(0, ValType.I32), makeI32Const(10)),
             null,
           ),
@@ -741,13 +741,13 @@ Deno.test("CoalesceLocals: loop counter live across back-edge stays distinct fro
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // $i (slot 0) is loop-carried; $tmp (slot 1) cannot coalesce into it.
   assertEquals(mod.functions[0].locals.length, 2);
 });
 
-Deno.test("CoalesceLocals: if-else with overlapping liveness on merge stays distinct", () => {
+Deno.test('CoalesceLocals: if-else with overlapping liveness on merge stays distinct', () => {
   // $A is set in the then-branch and read on the merge path; $B is set in
   // the else-branch and read on the same merge path. Both arrive at the
   // merge live (their values flow from one of the two branches). The merge-
@@ -755,7 +755,7 @@ Deno.test("CoalesceLocals: if-else with overlapping liveness on merge stays dist
   // not coalesce.
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [ValType.I32],
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }],
@@ -778,35 +778,35 @@ Deno.test("CoalesceLocals: if-else with overlapping liveness on merge stays dist
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // Param is at slot 0; $A and $B (slots 1, 2) must remain distinct.
   assertEquals(mod.functions[0].locals.length, 3);
 });
 
-Deno.test("CoalesceLocals: dead set inside loop is replaced with drop", () => {
+Deno.test('CoalesceLocals: dead set inside loop is replaced with drop', () => {
   // A local set inside a loop whose value is never read should still be
   // identified as ineffective by CFG-based liveness — same outcome as the
   // straight-line case, just verifying the CFG path doesn't lose this.
   const mod = emptyModule();
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [{ type: ValType.I32 }],
     body: makeBlock([
       makeLoop(
-        "L",
+        'L',
         makeBlock([
           makeLocalSet(0, makeI32Const(99)),
-          makeBreak("L", makeI32Const(0), null),
+          makeBreak('L', makeI32Const(0), null),
         ]),
       ),
     ]),
   };
   mod.functions.push(fn);
 
-  new PassRunner(mod).add("CoalesceLocals").run();
+  new PassRunner(mod).add('CoalesceLocals').run();
 
   // The dead set should have been replaced with drop(const).
   let foundDrop = false;
@@ -823,18 +823,18 @@ Deno.test("CoalesceLocals: dead set inside loop is replaced with drop", () => {
 // RemoveUnusedModuleElements pass
 // ---------------------------------------------------------------------------
 
-Deno.test("RemoveUnusedModuleElements: unreachable function is removed", () => {
+Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
   const mod: WasmModule = {
     functions: [
       {
-        name: "exported",
+        name: 'exported',
         params: [],
         results: [],
         locals: [],
         body: makeNop(),
       },
       {
-        name: "dead",
+        name: 'dead',
         params: [],
         results: [],
         locals: [],
@@ -848,7 +848,7 @@ Deno.test("RemoveUnusedModuleElements: unreachable function is removed", () => {
     elements: [],
     dataSegments: [],
     imports: [],
-    exports: [{ name: "exported", value: "exported", kind: "function" }],
+    exports: [{ name: 'exported', value: 'exported', kind: 'function' }],
     start: null,
     hasExceptionHandling: false,
     hasMemory64: false,
@@ -857,17 +857,17 @@ Deno.test("RemoveUnusedModuleElements: unreachable function is removed", () => {
     hasGC: false,
   };
 
-  new PassRunner(mod).add("RemoveUnusedModuleElements").run();
+  new PassRunner(mod).add('RemoveUnusedModuleElements').run();
 
   assertEquals(mod.functions.length, 1);
-  assertEquals(mod.functions[0].name, "exported");
+  assertEquals(mod.functions[0].name, 'exported');
 });
 
-Deno.test("RemoveUnusedModuleElements: callee of exported function is kept", () => {
+Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () => {
   const mod: WasmModule = {
     functions: [
       {
-        name: "root",
+        name: 'root',
         params: [],
         results: [],
         locals: [],
@@ -875,14 +875,14 @@ Deno.test("RemoveUnusedModuleElements: callee of exported function is kept", () 
           {
             kind: ExpressionKind.Call,
             type: None,
-            target: "helper",
+            target: 'helper',
             operands: [],
             isReturn: false,
           },
         ]),
       },
       {
-        name: "helper",
+        name: 'helper',
         params: [],
         results: [],
         locals: [],
@@ -896,7 +896,7 @@ Deno.test("RemoveUnusedModuleElements: callee of exported function is kept", () 
     elements: [],
     dataSegments: [],
     imports: [],
-    exports: [{ name: "root", value: "root", kind: "function" }],
+    exports: [{ name: 'root', value: 'root', kind: 'function' }],
     start: null,
     hasExceptionHandling: false,
     hasMemory64: false,
@@ -905,18 +905,18 @@ Deno.test("RemoveUnusedModuleElements: callee of exported function is kept", () 
     hasGC: false,
   };
 
-  new PassRunner(mod).add("RemoveUnusedModuleElements").run();
+  new PassRunner(mod).add('RemoveUnusedModuleElements').run();
 
   const names = mod.functions.map((f) => f.name);
-  assertEquals(names.includes("root"), true);
-  assertEquals(names.includes("helper"), true);
+  assertEquals(names.includes('root'), true);
+  assertEquals(names.includes('helper'), true);
 });
 
-Deno.test("RemoveUnusedModuleElements: dead global is removed", () => {
+Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
   const mod: WasmModule = {
     functions: [
       {
-        name: "f",
+        name: 'f',
         params: [],
         results: [],
         locals: [],
@@ -924,8 +924,8 @@ Deno.test("RemoveUnusedModuleElements: dead global is removed", () => {
       },
     ],
     globals: [
-      { name: "g_used", type: ValType.I32, mutable: false, init: makeI32Const(1) },
-      { name: "g_dead", type: ValType.I32, mutable: false, init: makeI32Const(2) },
+      { name: 'g_used', type: ValType.I32, mutable: false, init: makeI32Const(1) },
+      { name: 'g_dead', type: ValType.I32, mutable: false, init: makeI32Const(2) },
     ],
     memories: [],
     tables: [],
@@ -934,8 +934,8 @@ Deno.test("RemoveUnusedModuleElements: dead global is removed", () => {
     dataSegments: [],
     imports: [],
     exports: [
-      { name: "f", value: "f", kind: "function" },
-      { name: "g_used", value: "g_used", kind: "global" },
+      { name: 'f', value: 'f', kind: 'function' },
+      { name: 'g_used', value: 'g_used', kind: 'global' },
     ],
     start: null,
     hasExceptionHandling: false,
@@ -945,22 +945,22 @@ Deno.test("RemoveUnusedModuleElements: dead global is removed", () => {
     hasGC: false,
   };
 
-  new PassRunner(mod).add("RemoveUnusedModuleElements").run();
+  new PassRunner(mod).add('RemoveUnusedModuleElements').run();
 
   const gNames = mod.globals.map((g) => g.name);
-  assertEquals(gNames.includes("g_used"), true);
-  assertEquals(gNames.includes("g_dead"), false);
+  assertEquals(gNames.includes('g_used'), true);
+  assertEquals(gNames.includes('g_dead'), false);
 });
 
 // ---------------------------------------------------------------------------
 // LocalCSE pass
 // ---------------------------------------------------------------------------
 
-Deno.test("LocalCSE: repeated pure expression is extracted to local", () => {
+Deno.test('LocalCSE: repeated pure expression is extracted to local', () => {
   const mod = emptyModule();
   // Two occurrences of add(local.get(0), 1) in a block
   const fn: WasmFunction = {
-    name: "f",
+    name: 'f',
     params: [ValType.I32],
     results: [],
     locals: [{ type: ValType.I32 }],
@@ -972,7 +972,7 @@ Deno.test("LocalCSE: repeated pure expression is extracted to local", () => {
   mod.functions.push(fn);
   const originalLocalCount = fn.locals.length;
 
-  new PassRunner(mod).add("LocalCSE").run();
+  new PassRunner(mod).add('LocalCSE').run();
 
   // A new local should have been introduced for the CSE
   assertEquals(mod.functions[0].locals.length > originalLocalCount, true);
@@ -982,10 +982,10 @@ Deno.test("LocalCSE: repeated pure expression is extracted to local", () => {
 // PickLoadSigns pass (no-op when no narrow loads present)
 // ---------------------------------------------------------------------------
 
-Deno.test("PickLoadSigns: no crash on empty module", () => {
+Deno.test('PickLoadSigns: no crash on empty module', () => {
   const mod = emptyModule();
   // Should run without errors even with no functions
-  new PassRunner(mod).add("PickLoadSigns").run();
+  new PassRunner(mod).add('PickLoadSigns').run();
   assertEquals(mod.functions.length, 0);
 });
 
@@ -993,10 +993,10 @@ Deno.test("PickLoadSigns: no crash on empty module", () => {
 // PassRunner integration: DCE + Vacuum chain
 // ---------------------------------------------------------------------------
 
-Deno.test("PassRunner: DCE + Vacuum chain removes unreachable code", () => {
+Deno.test('PassRunner: DCE + Vacuum chain removes unreachable code', () => {
   const mod = emptyModule();
   mod.functions.push({
-    name: "f",
+    name: 'f',
     params: [],
     results: [],
     locals: [],
@@ -1007,14 +1007,14 @@ Deno.test("PassRunner: DCE + Vacuum chain removes unreachable code", () => {
     ]),
   });
 
-  new PassRunner(mod).add("DCE").add("Vacuum").run();
+  new PassRunner(mod).add('DCE').add('Vacuum').run();
 
   const body = mod.functions[0].body;
   // After DCE, only unreachable remains in block; after Vacuum, block collapses
   assertEquals(body.kind, ExpressionKind.Unreachable);
 });
 
-Deno.test("Vacuum: single-child unnamed block keeps its declared type on a concrete-type mismatch", () => {
+Deno.test('Vacuum: single-child unnamed block keeps its declared type on a concrete-type mismatch', () => {
   // A result-typed (i32) unnamed block whose only non-nop child is void-typed
   // (a `local.set`). Collapsing to that child would present `none` where `i32`
   // was declared, silently changing the type the block's parent relies on.
@@ -1029,14 +1029,14 @@ Deno.test("Vacuum: single-child unnamed block keeps its declared type on a concr
     children: [makeNop(), makeLocalSet(0, makeI32Const(0))],
   } as unknown as Expression;
   mod.functions.push({
-    name: "f",
+    name: 'f',
     params: [],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
     body: block,
   });
 
-  new PassRunner(mod).add("Vacuum").run();
+  new PassRunner(mod).add('Vacuum').run();
 
   // Old (unguarded) collapse returned the void `local.set`, making the body
   // `none`; the guard keeps the i32 type.
@@ -1047,17 +1047,17 @@ Deno.test("Vacuum: single-child unnamed block keeps its declared type on a concr
 // Phase 8.1b — DCE recurses into Try / TryTable
 // ---------------------------------------------------------------------------
 
-Deno.test("DCE: recurses into TryTable body — dead tail after throw is trimmed", () => {
+Deno.test('DCE: recurses into TryTable body — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   // try_table body = (block [throw $e, i32.const 99 /* dead */])
   const innerBlock = makeBlock([
-    makeThrow("$e", []),
+    makeThrow('$e', []),
     makeI32Const(99),
   ]);
   const tt = makeTryTable(null, innerBlock, [], None);
-  mod.functions.push(makeTestFn("f", makeBlock([tt])));
+  mod.functions.push(makeTestFn('f', makeBlock([tt])));
 
-  new PassRunner(mod).add("DCE").run();
+  new PassRunner(mod).add('DCE').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   const ttOut = outer.children[0] as { body: BlockExpr };
@@ -1067,16 +1067,16 @@ Deno.test("DCE: recurses into TryTable body — dead tail after throw is trimmed
   assertEquals(ttOut.body.children[0].kind, ExpressionKind.Throw);
 });
 
-Deno.test("DCE: recurses into Try body — dead tail after throw is trimmed", () => {
+Deno.test('DCE: recurses into Try body — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   const innerBlock = makeBlock([
-    makeThrow("$e", []),
+    makeThrow('$e', []),
     makeI32Const(42), // dead
   ]);
   const t = makeTry(null, innerBlock, [], [], null, None);
-  mod.functions.push(makeTestFn("f", makeBlock([t])));
+  mod.functions.push(makeTestFn('f', makeBlock([t])));
 
-  new PassRunner(mod).add("DCE").run();
+  new PassRunner(mod).add('DCE').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   const tOut = outer.children[0] as { body: BlockExpr };
@@ -1088,7 +1088,7 @@ Deno.test("DCE: recurses into Try body — dead tail after throw is trimmed", ()
 // CoalesceLocals — call_indirect operand/index evaluation-order regression
 // ---------------------------------------------------------------------------
 
-Deno.test("CoalesceLocals: a local.tee in a call_indirect operand feeding the index is preserved", async () => {
+Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the index is preserved', async () => {
   // wasm evaluates call_indirect operands BEFORE the table index. The CFG used
   // to visit the index (`target`) first, so a `local.tee $t` in an operand —
   // whose written value is consumed only by the index expression of the SAME
@@ -1106,30 +1106,30 @@ Deno.test("CoalesceLocals: a local.tee in a call_indirect operand feeding the in
   const SIG_P = [ValType.I32];
   const SIG_R = [ValType.I32];
   const b = new ModuleBuilder();
-  b.addMemory("mem0", 1);
+  b.addMemory('mem0', 1);
   // mem[0] = 1 (→ index 1 → $f1), mem[4] = 0 (→ index 0 → $f0)
-  b.addDataSegment("d", makeI32Const(0), new Uint8Array([1, 0, 0, 0, 0, 0, 0, 0]));
+  b.addDataSegment('d', makeI32Const(0), new Uint8Array([1, 0, 0, 0, 0, 0, 0, 0]));
   b.addFunction(
-    "$f0",
+    '$f0',
     SIG_P,
     SIG_R,
     makeReturn(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(100))),
   );
   b.addFunction(
-    "$f1",
+    '$f1',
     SIG_P,
     SIG_R,
     makeReturn(makeBinary(BinaryOp.MulI32, makeLocalGet(0, ValType.I32), makeI32Const(2))),
   );
-  b.addTable("$t0", ValType.FuncRef, 2, 2);
-  b.addElement({ name: "$e", table: "$t0", offset: makeI32Const(0), data: ["$f0", "$f1"] });
+  b.addTable('$t0', ValType.FuncRef, 2, 2);
+  b.addElement({ name: '$e', table: '$t0', offset: makeI32Const(0), data: ['$f0', '$f1'] });
   // $dispatch: local 0 = param $obj, local 1 = $t
   b.addFunction(
-    "$dispatch",
+    '$dispatch',
     [ValType.I32],
     [ValType.I32],
     makeCallIndirect(
-      "$t0",
+      '$t0',
       makeLoad(4, false, 0, 2, makeLocalGet(1, ValType.I32), ValType.I32), // index = mem[$t]
       [makeLocalTee(1, makeLocalGet(0, ValType.I32), ValType.I32)], // arg = ($t := obj)
       SIG_P,
@@ -1137,10 +1137,10 @@ Deno.test("CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     ),
     [{ type: ValType.I32 }],
   );
-  b.addExport("dispatch", "$dispatch", "function");
+  b.addExport('dispatch', '$dispatch', 'function');
   const mod = b.build();
 
-  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add("CoalesceLocals").run();
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('CoalesceLocals').run();
 
   const inst = new WebAssembly.Instance(
     await WebAssembly.compile(encodeWasm(mod) as BufferSource),
@@ -1152,17 +1152,17 @@ Deno.test("CoalesceLocals: a local.tee in a call_indirect operand feeding the in
   assertEquals(dispatch(4), 104);
 });
 
-Deno.test("DCE: recurses into Try catchBodies — dead tail after throw is trimmed", () => {
+Deno.test('DCE: recurses into Try catchBodies — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   const catchBody = makeBlock([
-    makeThrow("$e", []),
+    makeThrow('$e', []),
     makeNop(), // dead
     makeI32Const(7), // dead
   ]);
-  const t = makeTry(null, makeNop(), ["$e"], [catchBody], null, None);
-  mod.functions.push(makeTestFn("f", makeBlock([t])));
+  const t = makeTry(null, makeNop(), ['$e'], [catchBody], null, None);
+  mod.functions.push(makeTestFn('f', makeBlock([t])));
 
-  new PassRunner(mod).add("DCE").run();
+  new PassRunner(mod).add('DCE').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   const tOut = outer.children[0] as { catchBodies: BlockExpr[] };
@@ -1171,12 +1171,12 @@ Deno.test("DCE: recurses into Try catchBodies — dead tail after throw is trimm
   assertEquals(tOut.catchBodies[0].children[0].kind, ExpressionKind.Throw);
 });
 
-Deno.test("DCE: Try expression itself is preserved (recursion does not strip the node)", () => {
+Deno.test('DCE: Try expression itself is preserved (recursion does not strip the node)', () => {
   const mod = emptyModule();
   const t = makeTry(null, makeNop(), [], [], null, None);
-  mod.functions.push(makeTestFn("f", makeBlock([t, makeI32Const(1)])));
+  mod.functions.push(makeTestFn('f', makeBlock([t, makeI32Const(1)])));
 
-  new PassRunner(mod).add("DCE").run();
+  new PassRunner(mod).add('DCE').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   // The Try itself has type=none (not unreachable), so the i32.const survives.
@@ -1188,18 +1188,18 @@ Deno.test("DCE: Try expression itself is preserved (recursion does not strip the
 // Phase 8.1c — StripEH pass
 // ---------------------------------------------------------------------------
 
-Deno.test("StripEH: registered in pass registry", () => {
-  assertEquals(listPasses().includes("StripEH"), true);
+Deno.test('StripEH: registered in pass registry', () => {
+  assertEquals(listPasses().includes('StripEH'), true);
 });
 
-Deno.test("StripEH: throw becomes unreachable, operands wrapped in drop", () => {
+Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => {
   const mod = emptyModule();
   // throw $e (i32.const 42)
-  mod.functions.push(makeTestFn("f", makeBlock([makeThrow("$e", [makeI32Const(42)])])));
-  mod.tags.push({ name: "$e", params: [ValType.I32] });
+  mod.functions.push(makeTestFn('f', makeBlock([makeThrow('$e', [makeI32Const(42)])])));
+  mod.tags.push({ name: '$e', params: [ValType.I32] });
   mod.hasExceptionHandling = true;
 
-  new PassRunner(mod).add("StripEH").run();
+  new PassRunner(mod).add('StripEH').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   // The throw was replaced by a block [drop(i32.const 42), unreachable].
@@ -1210,28 +1210,28 @@ Deno.test("StripEH: throw becomes unreachable, operands wrapped in drop", () => 
   assertEquals(replacement.children[1].kind, ExpressionKind.Unreachable);
 });
 
-Deno.test("StripEH: throw with no operands becomes bare unreachable", () => {
+Deno.test('StripEH: throw with no operands becomes bare unreachable', () => {
   const mod = emptyModule();
-  mod.functions.push(makeTestFn("f", makeBlock([makeThrow("$e", [])])));
-  mod.tags.push({ name: "$e", params: [] });
+  mod.functions.push(makeTestFn('f', makeBlock([makeThrow('$e', [])])));
+  mod.tags.push({ name: '$e', params: [] });
   mod.hasExceptionHandling = true;
 
-  new PassRunner(mod).add("StripEH").run();
+  new PassRunner(mod).add('StripEH').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   assertEquals(outer.children[0].kind, ExpressionKind.Unreachable);
 });
 
-Deno.test("StripEH: try is replaced by its body; catch is discarded", () => {
+Deno.test('StripEH: try is replaced by its body; catch is discarded', () => {
   const mod = emptyModule();
   const tryBody = makeI32Const(1);
   const catchBody = makeI32Const(99);
-  const t = makeTry(null, tryBody, ["$e"], [catchBody], null, ValType.I32);
-  mod.functions.push(makeTestFn("f", makeBlock([t])));
-  mod.tags.push({ name: "$e", params: [] });
+  const t = makeTry(null, tryBody, ['$e'], [catchBody], null, ValType.I32);
+  mod.functions.push(makeTestFn('f', makeBlock([t])));
+  mod.tags.push({ name: '$e', params: [] });
   mod.hasExceptionHandling = true;
 
-  new PassRunner(mod).add("StripEH").run();
+  new PassRunner(mod).add('StripEH').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   // The try was substituted by its body (the i32.const 1).
@@ -1239,28 +1239,28 @@ Deno.test("StripEH: try is replaced by its body; catch is discarded", () => {
   assertEquals((outer.children[0] as { value: { i32: number } }).value.i32, 1);
 });
 
-Deno.test("StripEH: try_table is replaced by its body", () => {
+Deno.test('StripEH: try_table is replaced by its body', () => {
   const mod = emptyModule();
   const tt = makeTryTable(null, makeI32Const(7), [], ValType.I32);
-  mod.functions.push(makeTestFn("f", makeBlock([tt])));
-  mod.tags.push({ name: "$e", params: [] });
+  mod.functions.push(makeTestFn('f', makeBlock([tt])));
+  mod.tags.push({ name: '$e', params: [] });
   mod.hasExceptionHandling = true;
 
-  new PassRunner(mod).add("StripEH").run();
+  new PassRunner(mod).add('StripEH').run();
 
   const outer = mod.functions[0].body as BlockExpr;
   assertEquals(outer.children[0].kind, ExpressionKind.Const);
   assertEquals((outer.children[0] as { value: { i32: number } }).value.i32, 7);
 });
 
-Deno.test("StripEH: module.tags cleared and hasExceptionHandling reset", () => {
+Deno.test('StripEH: module.tags cleared and hasExceptionHandling reset', () => {
   const mod = emptyModule();
-  mod.functions.push(makeTestFn("f", makeBlock([makeNop()])));
-  mod.tags.push({ name: "$e", params: [ValType.I32] });
-  mod.tags.push({ name: "$f", params: [] });
+  mod.functions.push(makeTestFn('f', makeBlock([makeNop()])));
+  mod.tags.push({ name: '$e', params: [ValType.I32] });
+  mod.tags.push({ name: '$f', params: [] });
   mod.hasExceptionHandling = true;
 
-  new PassRunner(mod).add("StripEH").run();
+  new PassRunner(mod).add('StripEH').run();
 
   assertEquals(mod.tags.length, 0);
   assertEquals(mod.hasExceptionHandling, false);
@@ -1270,18 +1270,18 @@ Deno.test("StripEH: module.tags cleared and hasExceptionHandling reset", () => {
 // ModuleBuilder + OptimizeInstructions round-trip
 // ---------------------------------------------------------------------------
 
-Deno.test("ModuleBuilder + OptimizeInstructions: add(x, 0) optimized", () => {
+Deno.test('ModuleBuilder + OptimizeInstructions: add(x, 0) optimized', () => {
   const mod = new ModuleBuilder()
     .addFunction(
-      "identity",
+      'identity',
       [ValType.I32],
       [ValType.I32],
       makeReturn(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(0))),
     )
-    .addExport("identity", "identity")
+    .addExport('identity', 'identity')
     .build();
 
-  new PassRunner(mod).add("OptimizeInstructions").run();
+  new PassRunner(mod).add('OptimizeInstructions').run();
 
   const fn = mod.functions[0];
   const ret = fn.body;

@@ -51,14 +51,14 @@ import {
   type RefIsNullExpr,
   type UnaryExpr,
   UnaryOp,
-} from "../ir/expressions.ts";
-import type { Local, WasmFunction, WasmModule } from "../ir/module.ts";
-import { isRef, None, Unreachable, ValType } from "../ir/types.ts";
-import { isRefType, type ValueType } from "../ir/gc-types.ts";
-import { mapExpression, walkExpression } from "../ir/walk.ts";
-import { optimizeNode } from "./optimize-instructions.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { vacuumNode } from "./vacuum.ts";
+} from '../ir/expressions.ts';
+import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
+import { isRef, None, Unreachable, ValType } from '../ir/types.ts';
+import { isRefType, type ValueType } from '../ir/gc-types.ts';
+import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { optimizeNode } from './optimize-instructions.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { vacuumNode } from './vacuum.ts';
 
 // ---------------------------------------------------------------------------
 // Size thresholds (matching upstream defaults in pass.h)
@@ -119,7 +119,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
 
   // Exports make a function globally used.
   for (const ex of module.exports) {
-    if (ex.kind === "function") {
+    if (ex.kind === 'function') {
       const entry = info.get(ex.value);
       if (entry) entry.usedGlobally = true;
     }
@@ -177,15 +177,15 @@ function isInlineable(
 
 /** Classification result for {@link FunctionSplitter.getSplitMode}. */
 type SplitMode =
-  | "Uninlineable"
+  | 'Uninlineable'
   /** The function isn't worth splitting on its own, but the would-be outlined
    *  chunk is small enough to fully inline — skip the inlineable/outlined
    *  intermediate state and just full-inline the whole function. */
-  | "Full"
+  | 'Full'
   /** `if (simple_cond) return; ... lots of code ...` */
-  | "SplitPatternA"
+  | 'SplitPatternA'
   /** `if (simple_A_1) heavy_1; if (simple_A_2) heavy_2; ... [simple_final]` */
-  | "SplitPatternB";
+  | 'SplitPatternB';
 
 /** Upstream's `isSimple` — the allow-list of expressions cheap enough to
  *  duplicate at every call site as part of a partial inline. Intentionally
@@ -274,72 +274,72 @@ class FunctionSplitter {
   /** Classify `fn` per upstream's two patterns. Returns `"Uninlineable"` if
    *  no pattern matches or partial inlining is disabled. */
   getSplitMode(fn: WasmFunction, info: FunctionInfo): SplitMode {
-    if (this.opts.partialInliningIfs <= 0) return "Uninlineable";
+    if (this.opts.partialInliningIfs <= 0) return 'Uninlineable';
 
     const body = fn.body;
 
     // A block with a self-targeted break can't be safely outlined.
     if (body.kind === ExpressionKind.Block) {
       const b = body as BlockExpr;
-      if (b.name && hasBreakTo(body, b.name)) return "Uninlineable";
+      if (b.name && hasBreakTo(body, b.name)) return 'Uninlineable';
     }
 
     const iff = getIf(body);
-    if (!iff) return "Uninlineable";
-    if (!isSimple(iff.condition)) return "Uninlineable";
+    if (!iff) return 'Uninlineable';
+    if (!isSimple(iff.condition)) return 'Uninlineable';
 
     // ---- Pattern A: `if (simple) return; ...rest` ----
     if (!iff.ifFalse && fn.results.length === 0 && iff.ifTrue.kind === ExpressionKind.Return) {
       // Must be a block — otherwise the whole function is just the if and the
       // normal inliner would have taken it already.
-      if (body.kind !== ExpressionKind.Block) return "Uninlineable";
+      if (body.kind !== ExpressionKind.Block) return 'Uninlineable';
 
       const outlinedSize = info.size - measureSize(iff);
-      if (this.outlinedFunctionWorthInlining(info, outlinedSize)) return "Full";
+      if (this.outlinedFunctionWorthInlining(info, outlinedSize)) return 'Full';
 
-      return "SplitPatternA";
+      return 'SplitPatternA';
     }
 
     // ---- Pattern B: sequence of `if (simple) { heavy }` plus optional final ----
     const maxIfs = this.opts.partialInliningIfs;
     let numIfs = 0;
     while (numIfs <= maxIfs && getIf(body, numIfs)) numIfs++;
-    if (numIfs === 0 || numIfs > maxIfs) return "Uninlineable";
+    if (numIfs === 0 || numIfs > maxIfs) return 'Uninlineable';
 
     const finalItem = getItem(body, numIfs);
-    if (finalItem && !isSimple(finalItem)) return "Uninlineable";
-    if (finalItem && getItem(body, numIfs + 1)) return "Uninlineable";
+    if (finalItem && !isSimple(finalItem)) return 'Uninlineable';
+    if (finalItem && getItem(body, numIfs + 1)) return 'Uninlineable';
 
     const writtenLocals = new Set<number>();
     for (let i = 0; i < numIfs; i++) {
       const ifI = getIf(body, i)!;
-      if (!isSimple(ifI.condition) || ifI.ifFalse) return "Uninlineable";
+      if (!isSimple(ifI.condition) || ifI.ifFalse) return 'Uninlineable';
 
       const bodyType = ifI.ifTrue.type;
       if (bodyType === None) {
-        if (hasReturn(ifI.ifTrue)) return "Uninlineable";
+        if (hasReturn(ifI.ifTrue)) return 'Uninlineable';
       } else if (bodyType !== Unreachable) {
         // An if-without-else must have type none or unreachable. Anything
         // else would mean the if produces a value, which Pattern B doesn't
         // currently outline cleanly.
-        return "Uninlineable";
+        return 'Uninlineable';
       }
 
       if (finalItem) collectLocalSets(ifI, writtenLocals);
     }
     if (finalItem) {
       for (const localIdx of collectLocalGets(finalItem)) {
-        if (writtenLocals.has(localIdx)) return "Uninlineable";
+        if (writtenLocals.has(localIdx)) return 'Uninlineable';
       }
     }
 
     if (numIfs === 1) {
       const ifI = getIf(body, 0)!;
       const outlinedSize = measureSize(ifI.ifTrue);
-      if (this.outlinedFunctionWorthInlining(info, outlinedSize)) return "Full";
+      if (this.outlinedFunctionWorthInlining(info, outlinedSize)) return 'Full';
     }
 
-    return "SplitPatternB";
+    return 'SplitPatternB';
   }
 
   /** Returns (and caches) the inlineable-shell `WasmFunction` for `fn`. The
@@ -349,7 +349,7 @@ class FunctionSplitter {
   getInlineableTemplate(fn: WasmFunction, mode: SplitMode): WasmFunction {
     const cached = this.cache.get(fn.name);
     if (cached) return cached;
-    const template = mode === "SplitPatternA" ? this.doSplitA(fn) : this.doSplitB(fn);
+    const template = mode === 'SplitPatternA' ? this.doSplitA(fn) : this.doSplitB(fn);
     this.cache.set(fn.name, template);
     return template;
   }
@@ -674,8 +674,8 @@ function inlineCallSite(
   // decoder, so it gets the same treatment: refuse.
   if (call.operands.length !== callee.params.length) {
     throw new Error(
-      "Inlining: call to " + callee.name + " passes " + call.operands.length +
-        " operands but the function declares " + callee.params.length + " params",
+      'Inlining: call to ' + callee.name + ' passes ' + call.operands.length +
+        ' operands but the function declares ' + callee.params.length + ' params',
     );
   }
   for (const [i, operand] of call.operands.entries()) {
@@ -808,8 +808,8 @@ function inlineIntoFunction(
  * `MAX_ITERATIONS` rounds.
  */
 export class InliningPass implements Pass {
-  readonly name: string = "Inlining";
-  readonly description: string = "Inlines small direct-call targets to eliminate call overhead.";
+  readonly name: string = 'Inlining';
+  readonly description: string = 'Inlines small direct-call targets to eliminate call overhead.';
   readonly requiresNonNullableLocalFixups = false;
 
   /** Whether to run Vacuum + OptimizeInstructions on modified functions. */
@@ -838,7 +838,7 @@ export class InliningPass implements Pass {
 
     // Build a set of defined (non-imported) function names for quick lookup.
     const importedNames = new Set(
-      module.imports.filter((i) => i.kind === "function").map((i) => i.name),
+      module.imports.filter((i) => i.kind === 'function').map((i) => i.name),
     );
 
     // Collect inlineable functions. Two passes: first the standard
@@ -850,7 +850,7 @@ export class InliningPass implements Pass {
       // Synthetic outlined-* functions skip both classifiers — they would
       // either get inlined right back into the shells we just produced
       // (defeating the split) or thrash the iteration counter.
-      if (fn.name.startsWith("byn-split-outlined-")) continue;
+      if (fn.name.startsWith('byn-split-outlined-')) continue;
       const fi = info.get(fn.name);
       if (fi && isInlineable(fi, opts)) {
         inlineable.set(fn.name, fn);
@@ -861,12 +861,12 @@ export class InliningPass implements Pass {
       for (const fn of module.functions) {
         if (importedNames.has(fn.name)) continue;
         if (inlineable.has(fn.name)) continue;
-        if (fn.name.startsWith("byn-split-")) continue;
+        if (fn.name.startsWith('byn-split-')) continue;
         const fi = info.get(fn.name);
         if (!fi) continue;
         const mode = this._splitter.getSplitMode(fn, fi);
-        if (mode === "Uninlineable") continue;
-        if (mode === "Full") {
+        if (mode === 'Uninlineable') continue;
+        if (mode === 'Full') {
           // Outlined chunk would itself be inlineable — skip the
           // intermediate and inline the whole original.
           inlineable.set(fn.name, fn);
@@ -922,11 +922,11 @@ export class InliningPass implements Pass {
       // longest match to disambiguate a name that is a prefix of another.
       const bodyBefore = fn.body;
       walkExpression(bodyBefore, (e) => {
-        if (e.kind === ExpressionKind.Block && e.name?.startsWith("__inlined_func$")) {
-          const rest = e.name.slice("__inlined_func$".length);
+        if (e.kind === ExpressionKind.Block && e.name?.startsWith('__inlined_func$')) {
+          const rest = e.name.slice('__inlined_func$'.length);
           let calleeName: string | undefined;
           for (const name of inlineable.keys()) {
-            if (rest === name || rest.startsWith(name + "$")) {
+            if (rest === name || rest.startsWith(name + '$')) {
               if (calleeName === undefined || name.length > calleeName.length) {
                 calleeName = name;
               }
@@ -963,9 +963,9 @@ export class InliningPass implements Pass {
  * every modified function to clean up the inlined code.
  */
 export class InliningOptimizingPass extends InliningPass {
-  override readonly name: string = "InliningOptimizing";
+  override readonly name: string = 'InliningOptimizing';
   override readonly description: string =
-    "Inlines small direct-call targets and optimizes the resulting code.";
+    'Inlines small direct-call targets and optimizes the resulting code.';
   protected override readonly optimize: boolean = true;
 }
 

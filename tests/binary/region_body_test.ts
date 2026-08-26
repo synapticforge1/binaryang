@@ -29,11 +29,11 @@
  * @license MIT
  */
 
-import { assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
-import { PassRunner } from "../../src/passes/pass.ts";
-import "../../src/passes/index.ts"; // side-effect: register all built-in passes
+import { assertEquals } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { PassRunner } from '../../src/passes/pass.ts';
+import '../../src/passes/index.ts'; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
 
@@ -82,36 +82,36 @@ async function run(bytes: Uint8Array): Promise<unknown> {
  * bare and never had the problem).
  */
 const CASES: [name: string, body: number[], want: number][] = [
-  ["block i32, falls through", [0x02, 0x7f, NOP, ...C7, END], 7],
-  ["block i32, exits via br", [0x02, 0x7f, NOP, ...C7, 0x0c, 0x00, END], 7],
-  ["loop i32, falls through", [0x03, 0x7f, NOP, ...C7, END], 7],
+  ['block i32, falls through', [0x02, 0x7f, NOP, ...C7, END], 7],
+  ['block i32, exits via br', [0x02, 0x7f, NOP, ...C7, 0x0c, 0x00, END], 7],
+  ['loop i32, falls through', [0x03, 0x7f, NOP, ...C7, END], 7],
   [
-    "if i32, then-arm exits via br",
+    'if i32, then-arm exits via br',
     [0x41, 0x01, 0x04, 0x7f, NOP, ...C7, 0x0c, 0x00, 0x05, ...C9, END],
     7,
   ],
   [
-    "if i32, both arms fall through",
+    'if i32, both arms fall through',
     [0x41, 0x01, 0x04, 0x7f, NOP, ...C7, 0x05, NOP, ...C9, END],
     7,
   ],
   [
-    "if i32, else-arm exits via br",
+    'if i32, else-arm exits via br',
     [0x41, 0x00, 0x04, 0x7f, ...C7, 0x05, NOP, ...C9, 0x0c, 0x00, END],
     9,
   ],
-  ["if void, multi-instruction arm", [0x41, 0x01, 0x04, 0x40, NOP, NOP, END, ...C7], 7],
-  ["try i32, body exits via br", [0x06, 0x7f, NOP, ...C7, 0x0c, 0x00, 0x19, ...C9, END], 7],
+  ['if void, multi-instruction arm', [0x41, 0x01, 0x04, 0x40, NOP, NOP, END, ...C7], 7],
+  ['try i32, body exits via br', [0x06, 0x7f, NOP, ...C7, 0x0c, 0x00, 0x19, ...C9, END], 7],
   [
-    "try i32, body and handler fall through",
+    'try i32, body and handler fall through',
     [0x06, 0x7f, NOP, ...C7, 0x19, NOP, ...C9, END],
     7,
   ],
-  ["try void, multi-instruction handler", [0x06, 0x40, NOP, NOP, 0x19, NOP, END, ...C7], 7],
-  ["try_table i32, body exits via br", [0x1f, 0x7f, 0x00, NOP, ...C7, 0x0c, 0x00, END], 7],
-  ["try_table i32, falls through", [0x1f, 0x7f, 0x00, NOP, ...C7, END], 7],
+  ['try void, multi-instruction handler', [0x06, 0x40, NOP, NOP, 0x19, NOP, END, ...C7], 7],
+  ['try_table i32, body exits via br', [0x1f, 0x7f, 0x00, NOP, ...C7, 0x0c, 0x00, END], 7],
+  ['try_table i32, falls through', [0x1f, 0x7f, 0x00, NOP, ...C7, END], 7],
   [
-    "nested: block i32 containing an if that brs to the block",
+    'nested: block i32 containing an if that brs to the block',
     [0x02, 0x7f, NOP, 0x41, 0x01, 0x04, 0x7f, NOP, ...C7, 0x0c, 0x01, 0x05, ...C9, END, END],
     7,
   ],
@@ -123,27 +123,27 @@ const CASES: [name: string, body: number[], want: number][] = [
   // do its children emitted directly), but it is the one way the unpacking can
   // meet a block it did not create, so it is pinned rather than argued.
   [
-    "if arm is an inner named block",
+    'if arm is an inner named block',
     [0x41, 0x01, 0x04, I32, 0x02, I32, NOP, ...C7, END, 0x05, ...C9, END],
     7,
   ],
   [
-    "if arm is an inner block that brs past it",
+    'if arm is an inner block that brs past it',
     [0x41, 0x01, 0x04, I32, 0x02, I32, NOP, ...C7, 0x0c, 0x01, END, 0x05, ...C9, END],
     7,
   ],
   [
-    "try body is an inner named block",
+    'try body is an inner named block',
     [0x06, I32, 0x02, I32, NOP, ...C7, END, 0x19, ...C9, END],
     7,
   ],
   [
-    "try body is an inner block that brs past it",
+    'try body is an inner block that brs past it',
     [0x06, I32, 0x02, I32, NOP, ...C7, 0x0c, 0x01, END, 0x19, ...C9, END],
     7,
   ],
   [
-    "catch handler is an inner named block",
+    'catch handler is an inner named block',
     [0x06, I32, ...C7, 0x19, 0x02, I32, NOP, ...C9, END, END],
     7,
   ],
@@ -152,19 +152,19 @@ const CASES: [name: string, body: number[], want: number][] = [
   // by `sealFrame`, so they encode as correctly-typed blocks and are
   // deliberately not unpacked. Pinned so that stays true.
   [
-    "loop i32, multi-instruction, brs to the enclosing block",
+    'loop i32, multi-instruction, brs to the enclosing block',
     [0x02, I32, 0x03, I32, NOP, ...C7, 0x0c, 0x01, END, END],
     7,
   ],
   [
-    "try_table i32, multi-instruction, brs out",
+    'try_table i32, multi-instruction, brs out',
     [0x02, I32, 0x1f, I32, 0x00, NOP, ...C7, 0x0c, 0x01, END, END],
     7,
   ],
 
   // Regions nested inside regions of a different kind.
   [
-    "try inside if inside block",
+    'try inside if inside block',
     [
       0x02,
       I32,
@@ -189,12 +189,12 @@ const CASES: [name: string, body: number[], want: number][] = [
     7,
   ],
   [
-    "if inside a try body",
+    'if inside a try body',
     [0x06, I32, NOP, 0x41, 0x01, 0x04, I32, NOP, ...C7, 0x05, ...C9, END, 0x19, ...C9, END],
     7,
   ],
   [
-    "if inside a catch handler",
+    'if inside a catch handler',
     [0x06, I32, ...C7, 0x19, 0x41, 0x01, 0x04, I32, NOP, ...C9, 0x05, ...C7, END, END],
     7,
   ],
@@ -202,12 +202,12 @@ const CASES: [name: string, body: number[], want: number][] = [
   // Void regions carrying only side effects — no value to lose, so a failure
   // here would mean the unpacking broke something other than the result type.
   [
-    "if void, both arms multi-instruction",
+    'if void, both arms multi-instruction',
     [0x41, 0x01, 0x04, VOID, NOP, NOP, 0x05, NOP, NOP, END, ...C7],
     7,
   ],
   [
-    "try void, body and handler multi-instruction",
+    'try void, body and handler multi-instruction',
     [0x06, VOID, NOP, NOP, 0x19, NOP, NOP, END, ...C7],
     7,
   ],
@@ -219,9 +219,9 @@ for (const [name, body, want] of CASES) {
 
     // The fixture itself must be valid and produce `want` — otherwise the
     // round-trip assertion below would be measuring nothing.
-    assertEquals(await run(input), want, "fixture does not behave as expected");
+    assertEquals(await run(input), want, 'fixture does not behave as expected');
 
-    assertEquals(await run(encodeWasm(parseWasm(input))), want, "bare round-trip");
+    assertEquals(await run(encodeWasm(parseWasm(input))), want, 'bare round-trip');
 
     // The full pipeline too: `RemoveUnusedNames` is what can turn a real block
     // into an anonymous one, and Vacuum is what collapses containers — both
@@ -230,6 +230,6 @@ for (const [name, body, want] of CASES) {
     new PassRunner(opt, { optimizeLevel: 2, shrinkLevel: 2 })
       .addDefaultOptimizationPasses()
       .run();
-    assertEquals(await run(encodeWasm(opt)), want, "full -Oz");
+    assertEquals(await run(encodeWasm(opt)), want, 'full -Oz');
   });
 }

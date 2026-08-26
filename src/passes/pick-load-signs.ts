@@ -36,11 +36,11 @@
  * @license MIT
  */
 
-import { BinaryOp, type Expression, ExpressionKind, type LoadExpr } from "../ir/expressions.ts";
-import type { WasmFunction, WasmModule } from "../ir/module.ts";
-import { ValType } from "../ir/types.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { mapExpression, visitChildren, walkExpression } from "../ir/walk.ts";
+import { BinaryOp, type Expression, ExpressionKind, type LoadExpr } from '../ir/expressions.ts';
+import type { WasmFunction, WasmModule } from '../ir/module.ts';
+import { ValType } from '../ir/types.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { mapExpression, visitChildren, walkExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -48,9 +48,9 @@ import { mapExpression, visitChildren, walkExpression } from "../ir/walk.ts";
 
 /** Picks signed vs unsigned for narrow loads based on usage patterns. */
 export class PickLoadSignsPass implements Pass {
-  readonly name = "PickLoadSigns";
+  readonly name = 'PickLoadSigns';
   readonly description =
-    "Selects signed/unsigned narrow load variants based on how the loaded value is used.";
+    'Selects signed/unsigned narrow load variants based on how the loaded value is used.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
@@ -71,7 +71,7 @@ registerPass(PickLoadSignsPass);
  *  `mapExpression`'s node rebuild (object spread copies symbol-keyed props).
  *  Keying a `Map` by the original node reference did NOT survive the rebuild —
  *  the pass was silently inert (the WT-2c #5 identity-loss class). */
-const _PICK_SIGN = Symbol("pickLoadSign");
+const _PICK_SIGN = Symbol('pickLoadSign');
 
 /** Zero-extension mask for a load of the given byte width. */
 function _zeroMask(bytes: number): number {
@@ -148,7 +148,7 @@ function _pickLoadSigns(fn: WasmFunction): void {
       parent.kind === ExpressionKind.Binary &&
       parent.op === BinaryOp.AndI32 &&
       parent.right.kind === ExpressionKind.Const &&
-      "i32" in parent.right.value &&
+      'i32' in parent.right.value &&
       (parent.right.value.i32 as number) === _zeroMask(info.load.bytes as number)
     ) {
       usage.unsignedCount++;

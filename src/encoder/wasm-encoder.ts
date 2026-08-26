@@ -78,9 +78,9 @@ import {
   type TupleMakeExpr,
   type UnaryExpr,
   UnaryOp,
-} from "../ir/expressions.ts";
-import type { WasmFunction, WasmModule } from "../ir/module.ts";
-import { None, type Type, ValType } from "../ir/types.ts";
+} from '../ir/expressions.ts';
+import type { WasmFunction, WasmModule } from '../ir/module.ts';
+import { None, type Type, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
 // it did not list, and it did not list `TupleMake` — so a `call_indirect` (or a
@@ -88,7 +88,7 @@ import { None, type Type, ValType } from "../ir/types.ts";
 // collection and the encode failed with "unresolved function type" on a legal
 // module. `visitChildren` throws on an unhandled kind, so a future node cannot
 // go missing the same way.
-import { visitChildren } from "../ir/walk.ts";
+import { visitChildren } from '../ir/walk.ts';
 import {
   AbstractHeapType,
   type FieldType,
@@ -99,7 +99,7 @@ import {
   type StorageType,
   type TypeDef,
   type ValueType,
-} from "../ir/gc-types.ts";
+} from '../ir/gc-types.ts';
 
 // ---------------------------------------------------------------------------
 // BinaryWriter — growable byte buffer with WASM encoding helpers
@@ -519,68 +519,68 @@ const SIMD_BINARY_SUBOP: Partial<Record<BinaryOp, number>> = {
 
 // SIMD shift op to sub-opcode
 const SIMD_SHIFT_SUBOP: Record<string, number> = {
-  "i8x16.shl": 0x6b,
-  "i8x16.shr_s": 0x6c,
-  "i8x16.shr_u": 0x6d,
-  "i16x8.shl": 0x8b,
-  "i16x8.shr_s": 0x8c,
-  "i16x8.shr_u": 0x8d,
-  "i32x4.shl": 0xab,
-  "i32x4.shr_s": 0xac,
-  "i32x4.shr_u": 0xad,
-  "i64x2.shl": 0xcb,
-  "i64x2.shr_s": 0xcc,
-  "i64x2.shr_u": 0xcd,
+  'i8x16.shl': 0x6b,
+  'i8x16.shr_s': 0x6c,
+  'i8x16.shr_u': 0x6d,
+  'i16x8.shl': 0x8b,
+  'i16x8.shr_s': 0x8c,
+  'i16x8.shr_u': 0x8d,
+  'i32x4.shl': 0xab,
+  'i32x4.shr_s': 0xac,
+  'i32x4.shr_u': 0xad,
+  'i64x2.shl': 0xcb,
+  'i64x2.shr_s': 0xcc,
+  'i64x2.shr_u': 0xcd,
 };
 
 // SIMD extract op to (sub-opcode) — lane immediate follows
 const SIMD_EXTRACT_SUBOP: Record<string, number> = {
-  "i8x16.extract_lane_s": 0x15,
-  "i8x16.extract_lane_u": 0x16,
-  "i16x8.extract_lane_s": 0x18,
-  "i16x8.extract_lane_u": 0x19,
-  "i32x4.extract_lane": 0x1b,
-  "i64x2.extract_lane": 0x1d,
-  "f32x4.extract_lane": 0x1f,
-  "f64x2.extract_lane": 0x21,
+  'i8x16.extract_lane_s': 0x15,
+  'i8x16.extract_lane_u': 0x16,
+  'i16x8.extract_lane_s': 0x18,
+  'i16x8.extract_lane_u': 0x19,
+  'i32x4.extract_lane': 0x1b,
+  'i64x2.extract_lane': 0x1d,
+  'f32x4.extract_lane': 0x1f,
+  'f64x2.extract_lane': 0x21,
 };
 
 // SIMD replace op to sub-opcode
 const SIMD_REPLACE_SUBOP: Record<string, number> = {
-  "i8x16.replace_lane": 0x17,
-  "i16x8.replace_lane": 0x1a,
-  "i32x4.replace_lane": 0x1c,
-  "i64x2.replace_lane": 0x1e,
-  "f32x4.replace_lane": 0x20,
-  "f64x2.replace_lane": 0x22,
+  'i8x16.replace_lane': 0x17,
+  'i16x8.replace_lane': 0x1a,
+  'i32x4.replace_lane': 0x1c,
+  'i64x2.replace_lane': 0x1e,
+  'f32x4.replace_lane': 0x20,
+  'f64x2.replace_lane': 0x22,
 };
 
 // SIMD load op to sub-opcode
 const SIMD_LOAD_SUBOP: Record<string, number> = {
-  "v128.load8x8_s": 0x01,
-  "v128.load8x8_u": 0x02,
-  "v128.load16x4_s": 0x03,
-  "v128.load16x4_u": 0x04,
-  "v128.load32x2_s": 0x05,
-  "v128.load32x2_u": 0x06,
-  "v128.load8_splat": 0x07,
-  "v128.load16_splat": 0x08,
-  "v128.load32_splat": 0x09,
-  "v128.load64_splat": 0x0a,
-  "v128.load32_zero": 0x5c,
-  "v128.load64_zero": 0x5d,
+  'v128.load8x8_s': 0x01,
+  'v128.load8x8_u': 0x02,
+  'v128.load16x4_s': 0x03,
+  'v128.load16x4_u': 0x04,
+  'v128.load32x2_s': 0x05,
+  'v128.load32x2_u': 0x06,
+  'v128.load8_splat': 0x07,
+  'v128.load16_splat': 0x08,
+  'v128.load32_splat': 0x09,
+  'v128.load64_splat': 0x0a,
+  'v128.load32_zero': 0x5c,
+  'v128.load64_zero': 0x5d,
 };
 
 // SIMD load/store lane op to sub-opcode
 const SIMD_LANE_SUBOP: Record<string, number> = {
-  "v128.load8_lane": 0x54,
-  "v128.load16_lane": 0x55,
-  "v128.load32_lane": 0x56,
-  "v128.load64_lane": 0x57,
-  "v128.store8_lane": 0x58,
-  "v128.store16_lane": 0x59,
-  "v128.store32_lane": 0x5a,
-  "v128.store64_lane": 0x5b,
+  'v128.load8_lane': 0x54,
+  'v128.load16_lane': 0x55,
+  'v128.load32_lane': 0x56,
+  'v128.load64_lane': 0x57,
+  'v128.store8_lane': 0x58,
+  'v128.store16_lane': 0x59,
+  'v128.store32_lane': 0x5a,
+  'v128.store64_lane': 0x5b,
 };
 
 // ---------------------------------------------------------------------------
@@ -659,7 +659,7 @@ function writeBlockType(
       return;
     }
     writeValueType(w, t[0] as ValType | RefType);
-  } else if (t !== "unreachable") {
+  } else if (t !== 'unreachable') {
     writeValueType(w, t as ValType | RefType);
   } else {
     w.writeU8(0x40);
@@ -720,7 +720,7 @@ const ABSTRACT_HEAP_TYPE_BYTE: Record<AbstractHeapType, number> = {
 };
 
 function writeHeapType(w: BinaryWriter, h: HeapType): void {
-  if (typeof h === "number") {
+  if (typeof h === 'number') {
     // A heap type is an `s33` — a SIGNED LEB — which is how `readHeapType`
     // reads it back. `writeU32` agrees with the signed form only for indices
     // below 64; at 64 the unsigned encoding (`0x40`) reads back as -64 and
@@ -805,16 +805,16 @@ function storeOpcode(expr: StoreExpr): number {
  */
 function valueTypeKey(t: ValueType): string {
   if (!isRefType(t)) return t;
-  return `ref${t.nullable ? " null" : ""} ${typeof t.heap === "number" ? t.heap : t.heap}`;
+  return `ref${t.nullable ? ' null' : ''} ${typeof t.heap === 'number' ? t.heap : t.heap}`;
 }
 
 function funcTypeKey(params: ValueType[], results: ValueType[]): string {
-  return params.map(valueTypeKey).join(",") + "->" + results.map(valueTypeKey).join(",");
+  return params.map(valueTypeKey).join(',') + '->' + results.map(valueTypeKey).join(',');
 }
 
 /** Human-readable `(a, b) -> (c)` rendering for error messages. */
 function funcSigString(params: ValueType[], results: ValueType[]): string {
-  return `(${params.map(valueTypeKey).join(", ")}) -> (${results.map(valueTypeKey).join(", ")})`;
+  return `(${params.map(valueTypeKey).join(', ')}) -> (${results.map(valueTypeKey).join(', ')})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -899,7 +899,7 @@ class WasmEncoder {
     typeIndex: number,
     fieldIndex: number,
     signed: boolean,
-    family: "struct" | "array",
+    family: 'struct' | 'array',
   ): number {
     const def = this.heapTypes[typeIndex];
     if (def === undefined) {
@@ -915,7 +915,7 @@ class WasmEncoder {
     }
 
     let field: FieldType | undefined;
-    if (def.kind === "struct") {
+    if (def.kind === 'struct') {
       field = def.fields[fieldIndex];
       if (field === undefined) {
         throw new WasmEncodeError(
@@ -927,7 +927,7 @@ class WasmEncoder {
       field = def.element;
     }
 
-    const base = family === "struct" ? 0x02 : 0x0b;
+    const base = family === 'struct' ? 0x02 : 0x0b;
     if (!isPackedType(field.type)) return base;
     return signed ? base + 1 : base + 2;
   }
@@ -976,7 +976,7 @@ class WasmEncoder {
   private buildIndices(): void {
     let fi = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === "function") this.funcIndex.set(imp.name, fi++);
+      if (imp.kind === 'function') this.funcIndex.set(imp.name, fi++);
     }
     for (const fn of this.mod.functions) {
       this.funcIndex.set(fn.name, fi++);
@@ -984,7 +984,7 @@ class WasmEncoder {
 
     let gi = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === "global") this.globalIndex.set(imp.name, gi++);
+      if (imp.kind === 'global') this.globalIndex.set(imp.name, gi++);
     }
     for (const g of this.mod.globals) {
       this.globalIndex.set(g.name, gi++);
@@ -992,7 +992,7 @@ class WasmEncoder {
 
     let ti = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === "table") this.tableIndex.set(imp.name, ti++);
+      if (imp.kind === 'table') this.tableIndex.set(imp.name, ti++);
     }
     for (const t of this.mod.tables) {
       this.tableIndex.set(t.name, ti++);
@@ -1000,7 +1000,7 @@ class WasmEncoder {
 
     let tagi = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === "tag") this.tagIndex.set(imp.name, tagi++);
+      if (imp.kind === 'tag') this.tagIndex.set(imp.name, tagi++);
     }
     for (const tag of this.mod.tags) {
       this.tagIndex.set(tag.name, tagi++);
@@ -1022,14 +1022,14 @@ class WasmEncoder {
     };
 
     for (const imp of this.mod.imports) {
-      if (imp.kind === "function") addType(imp.params ?? [], imp.results ?? []);
+      if (imp.kind === 'function') addType(imp.params ?? [], imp.results ?? []);
     }
     for (const fn of this.mod.functions) {
       addType(fn.params, fn.results);
     }
     // Tags use function-type signatures (params only, no results)
     for (const imp of this.mod.imports) {
-      if (imp.kind === "tag") addType(imp.params ?? [], []);
+      if (imp.kind === 'tag') addType(imp.params ?? [], []);
     }
     for (const tag of this.mod.tags) {
       addType(tag.params, []);
@@ -1096,9 +1096,9 @@ class WasmEncoder {
   private ensureHeapFuncType(params: ValueType[], results: ValueType[]): number {
     const want = funcTypeKey(params, results);
     for (const [i, d] of this.heapTypes.entries()) {
-      if (d.kind === "func" && funcTypeKey(d.params, d.results) === want) return i;
+      if (d.kind === 'func' && funcTypeKey(d.params, d.results) === want) return i;
     }
-    this.heapTypes.push({ kind: "func", params: [...params], results: [...results] });
+    this.heapTypes.push({ kind: 'func', params: [...params], results: [...results] });
     return this.heapTypes.length - 1;
   }
 
@@ -1136,11 +1136,11 @@ class WasmEncoder {
   }
 
   private hasTables(): boolean {
-    return this.mod.tables.length > 0 || this.mod.imports.some((i) => i.kind === "table");
+    return this.mod.tables.length > 0 || this.mod.imports.some((i) => i.kind === 'table');
   }
 
   private hasMemories(): boolean {
-    return this.mod.memories.length > 0 || this.mod.imports.some((i) => i.kind === "memory");
+    return this.mod.memories.length > 0 || this.mod.imports.some((i) => i.kind === 'memory');
   }
 
   /**
@@ -1151,11 +1151,11 @@ class WasmEncoder {
    * loudly when more than one memory is present.
    */
   private checkSingleMemory(): void {
-    const importedMemories = this.mod.imports.filter((i) => i.kind === "memory").length;
+    const importedMemories = this.mod.imports.filter((i) => i.kind === 'memory').length;
     if (importedMemories + this.mod.memories.length > 1) {
       throw new WasmEncodeError(
-        "multiple memories are not supported: memory exports, data segments, and " +
-          "memory.* instructions are encoded against memory index 0",
+        'multiple memories are not supported: memory exports, data segments, and ' +
+          'memory.* instructions are encoded against memory index 0',
       );
     }
   }
@@ -1170,11 +1170,11 @@ class WasmEncoder {
    * encoders thread the real table index.
    */
   private checkSingleTable(): void {
-    const importedTables = this.mod.imports.filter((i) => i.kind === "table").length;
+    const importedTables = this.mod.imports.filter((i) => i.kind === 'table').length;
     if (importedTables + this.mod.tables.length > 1) {
       throw new WasmEncodeError(
-        "multiple tables are not supported: element segments and call_indirect are " +
-          "encoded against table index 0",
+        'multiple tables are not supported: element segments and call_indirect are ' +
+          'encoded against table index 0',
       );
     }
   }
@@ -1187,13 +1187,13 @@ class WasmEncoder {
     if (this.heapTypes.length > 0) {
       w.writeU32(this.heapTypes.length);
       for (const def of this.heapTypes) {
-        if (def.kind === "func") {
+        if (def.kind === 'func') {
           w.writeU8(0x60);
           w.writeU32(def.params.length);
           for (const p of def.params) writeValueType(w, p);
           w.writeU32(def.results.length);
           for (const r of def.results) writeValueType(w, r);
-        } else if (def.kind === "struct") {
+        } else if (def.kind === 'struct') {
           w.writeU8(0x5f);
           w.writeU32(def.fields.length);
           for (const f of def.fields) {
@@ -1219,11 +1219,11 @@ class WasmEncoder {
   }
 
   private writeStorageType(w: BinaryWriter, t: StorageType): void {
-    if (t === "i8") {
+    if (t === 'i8') {
       w.writeU8(0x78);
       return;
     }
-    if (t === "i16") {
+    if (t === 'i16') {
       w.writeU8(0x77);
       return;
     }
@@ -1244,7 +1244,7 @@ class WasmEncoder {
   private gcFuncTypeIndex(params: ValueType[], results: ValueType[]): number {
     const want = funcTypeKey(params, results);
     for (const [i, d] of this.heapTypes.entries()) {
-      if (d.kind !== "func") continue;
+      if (d.kind !== 'func') continue;
       if (funcTypeKey(d.params, d.results) === want) return i;
     }
     throw new WasmEncodeError(
@@ -1258,7 +1258,7 @@ class WasmEncoder {
       w.writeUTF8(imp.module);
       w.writeUTF8(imp.base);
       switch (imp.kind) {
-        case "function": {
+        case 'function': {
           w.writeU8(0x00);
           const idx = this.heapTypes.length > 0
             ? this.gcFuncTypeIndex(imp.params ?? [], imp.results ?? [])
@@ -1266,7 +1266,7 @@ class WasmEncoder {
           w.writeU32(idx);
           break;
         }
-        case "table": {
+        case 'table': {
           w.writeU8(0x01);
           writeValueType(w, imp.type ?? ValType.FuncRef);
           const hasMax = imp.max !== null && imp.max !== undefined;
@@ -1275,7 +1275,7 @@ class WasmEncoder {
           if (hasMax) w.writeU32(imp.max as number);
           break;
         }
-        case "memory": {
+        case 'memory': {
           w.writeU8(0x02);
           const flags = (imp.max !== null && imp.max !== undefined ? 0x01 : 0) |
             (imp.shared ? 0x02 : 0) |
@@ -1285,13 +1285,13 @@ class WasmEncoder {
           if (imp.max !== null && imp.max !== undefined) w.writeU32(imp.max as number);
           break;
         }
-        case "global": {
+        case 'global': {
           w.writeU8(0x03);
           writeValueType(w, imp.type ?? ValType.I32);
           w.writeU8(imp.mutable ? 1 : 0);
           break;
         }
-        case "tag": {
+        case 'tag': {
           w.writeU8(0x04);
           w.writeU8(0); // reserved attribute byte
           // Same GC-mode split as the defined-tag section: with heap types
@@ -1355,34 +1355,34 @@ class WasmEncoder {
     for (const exp of this.mod.exports) {
       w.writeUTF8(exp.name);
       switch (exp.kind) {
-        case "function": {
+        case 'function': {
           w.writeU8(0x00);
-          w.writeU32(this.resolveRef(this.funcIndex, exp.value, "exported function"));
+          w.writeU32(this.resolveRef(this.funcIndex, exp.value, 'exported function'));
           break;
         }
-        case "table": {
+        case 'table': {
           w.writeU8(0x01);
-          w.writeU32(this.resolveRef(this.tableIndex, exp.value, "exported table"));
+          w.writeU32(this.resolveRef(this.tableIndex, exp.value, 'exported table'));
           break;
         }
-        case "memory": {
+        case 'memory': {
           w.writeU8(0x02);
           w.writeU32(0); // memory index 0
           break;
         }
-        case "global": {
+        case 'global': {
           w.writeU8(0x03);
-          w.writeU32(this.resolveRef(this.globalIndex, exp.value, "exported global"));
+          w.writeU32(this.resolveRef(this.globalIndex, exp.value, 'exported global'));
           break;
         }
-        case "tag": {
+        case 'tag': {
           // EH proposal: export kind 0x04 = tag, payload is tag index.
           // Without this case the switch fell through, writing the export
           // name then NO kind/index bytes — corrupting every subsequent
           // export. (The matching `case 0x04` was also missing in the
           // parser, so tag exports never survived a round-trip.)
           w.writeU8(0x04);
-          w.writeU32(this.resolveRef(this.tagIndex, exp.value, "exported tag"));
+          w.writeU32(this.resolveRef(this.tagIndex, exp.value, 'exported tag'));
           break;
         }
         default: {
@@ -1403,7 +1403,7 @@ class WasmEncoder {
   }
 
   private encodeStartSection(w: BinaryWriter): void {
-    w.writeU32(this.resolveRef(this.funcIndex, this.mod.start as string, "start function"));
+    w.writeU32(this.resolveRef(this.funcIndex, this.mod.start as string, 'start function'));
   }
 
   private encodeElementSection(w: BinaryWriter): void {
@@ -1418,7 +1418,7 @@ class WasmEncoder {
       }
       w.writeU32(seg.data.length);
       for (const fname of seg.data) {
-        w.writeU32(this.resolveRef(this.funcIndex, fname, "element-segment function"));
+        w.writeU32(this.resolveRef(this.funcIndex, fname, 'element-segment function'));
       }
     }
   }
@@ -1512,7 +1512,7 @@ class WasmEncoder {
     // phantom — no `block` opcode is emitted for it — and is never resolved for
     // functions that don't branch to the function frame, so the common case is
     // unchanged.
-    const labels: string[] = [fn.bodyFrameLabel ?? ""];
+    const labels: string[] = [fn.bodyFrameLabel ?? ''];
     const body = fn.body;
     if (body.kind === ExpressionKind.Block && (body as BlockExpr).name === null) {
       for (const child of (body as BlockExpr).children) {
@@ -1607,7 +1607,7 @@ class WasmEncoder {
         const e = expr as BlockExpr;
         w.writeU8(0x02);
         writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
-        labels.push(e.name ?? "");
+        labels.push(e.name ?? '');
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -1630,7 +1630,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
         writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
-        labels.push(e.name ?? ""); // the if's branch-target label (if any)
+        labels.push(e.name ?? ''); // the if's branch-target label (if any)
         // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
         // exits via `br` ends in an unreachable-typed child, so re-wrapping it
         // emitted a void blocktype that absorbed the unreachability and yielded
@@ -1679,16 +1679,16 @@ class WasmEncoder {
       case ExpressionKind.Const: {
         const e = expr as ConstExpr;
         const v = e.value;
-        if ("i32" in v) {
+        if ('i32' in v) {
           w.writeU8(0x41);
           w.writeI32(v.i32);
-        } else if ("i64" in v) {
+        } else if ('i64' in v) {
           w.writeU8(0x42);
           w.writeI64(v.i64);
-        } else if ("f32" in v) {
+        } else if ('f32' in v) {
           w.writeU8(0x43);
           w.writeF32(v.f32);
-        } else if ("v128" in v) {
+        } else if ('v128' in v) {
           w.writeU8(0xfd);
           w.writeU32(0x0c);
           w.writeBytes((v as { v128: Uint8Array }).v128);
@@ -1723,14 +1723,14 @@ class WasmEncoder {
       case ExpressionKind.GlobalGet: {
         const e = expr as GlobalGetExpr;
         w.writeU8(0x23);
-        w.writeU32(this.resolveRef(this.globalIndex, e.name, "global.get"));
+        w.writeU32(this.resolveRef(this.globalIndex, e.name, 'global.get'));
         break;
       }
       case ExpressionKind.GlobalSet: {
         const e = expr as GlobalSetExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x24);
-        w.writeU32(this.resolveRef(this.globalIndex, e.name, "global.set"));
+        w.writeU32(this.resolveRef(this.globalIndex, e.name, 'global.set'));
         break;
       }
 
@@ -1738,7 +1738,7 @@ class WasmEncoder {
         const e = expr as TableGetExpr;
         this.encodeExpr(w, e.index, labels);
         w.writeU8(0x25);
-        w.writeU32(this.resolveRef(this.tableIndex, e.table, "table.get"));
+        w.writeU32(this.resolveRef(this.tableIndex, e.table, 'table.get'));
         break;
       }
       case ExpressionKind.TableSet: {
@@ -1746,7 +1746,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.index, labels);
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x26);
-        w.writeU32(this.resolveRef(this.tableIndex, e.table, "table.set"));
+        w.writeU32(this.resolveRef(this.tableIndex, e.table, 'table.set'));
         break;
       }
 
@@ -1876,7 +1876,7 @@ class WasmEncoder {
         for (const op of e.operands) this.encodeExpr(w, op, labels);
         // 0x10 = call, 0x12 = return_call (tail-call proposal).
         w.writeU8(e.isReturn ? 0x12 : 0x10);
-        w.writeU32(this.resolveRef(this.funcIndex, e.target, "call target"));
+        w.writeU32(this.resolveRef(this.funcIndex, e.target, 'call target'));
         break;
       }
 
@@ -1890,7 +1890,7 @@ class WasmEncoder {
           ? this.gcFuncTypeIndex(e.params, e.results)
           : this.getTypeIndex(e.params, e.results);
         w.writeU32(ciIdx);
-        w.writeU32(this.resolveRef(this.tableIndex, e.table, "call_indirect table"));
+        w.writeU32(this.resolveRef(this.tableIndex, e.table, 'call_indirect table'));
         break;
       }
 
@@ -1932,7 +1932,7 @@ class WasmEncoder {
       case ExpressionKind.RefFunc: {
         const e = expr as RefFuncExpr;
         w.writeU8(0xd2);
-        w.writeU32(this.resolveRef(this.funcIndex, e.func, "ref.func"));
+        w.writeU32(this.resolveRef(this.funcIndex, e.func, 'ref.func'));
         break;
       }
 
@@ -1969,7 +1969,7 @@ class WasmEncoder {
         const e = expr as StructGetExpr;
         this.encodeExpr(w, e.ref, labels);
         w.writeU8(0xfb);
-        w.writeU32(this.packedGetSubop(e.typeIndex, e.fieldIndex, e.signed, "struct"));
+        w.writeU32(this.packedGetSubop(e.typeIndex, e.fieldIndex, e.signed, 'struct'));
         w.writeU32(e.typeIndex);
         w.writeU32(e.fieldIndex);
         break;
@@ -2027,7 +2027,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.ref, labels);
         this.encodeExpr(w, e.index, labels);
         w.writeU8(0xfb);
-        w.writeU32(this.packedGetSubop(e.typeIndex, 0, e.signed, "array"));
+        w.writeU32(this.packedGetSubop(e.typeIndex, 0, e.signed, 'array'));
         w.writeU32(e.typeIndex);
         break;
       }
@@ -2139,13 +2139,13 @@ class WasmEncoder {
         for (const c of e.catches) {
           if (c.tag !== null) {
             w.writeU8(c.isRef ? 0x01 : 0x00); // catch / catch_ref
-            w.writeU32(this.resolveRef(this.tagIndex, c.tag, "try_table catch tag"));
+            w.writeU32(this.resolveRef(this.tagIndex, c.tag, 'try_table catch tag'));
           } else {
             w.writeU8(c.isRef ? 0x03 : 0x02); // catch_all / catch_all_ref
           }
           w.writeU32(this.resolveLabel(labels, c.dest));
         }
-        labels.push(e.name ?? "");
+        labels.push(e.name ?? '');
         this.encodeExpr(w, e.body, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -2158,7 +2158,7 @@ class WasmEncoder {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
           writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
-          labels.push(e.name ?? "");
+          labels.push(e.name ?? '');
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
           w.writeU8(0x18); // delegate
@@ -2166,7 +2166,7 @@ class WasmEncoder {
         } else {
           w.writeU8(0x06); // try
           writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
-          labels.push(e.name ?? "");
+          labels.push(e.name ?? '');
           this.encodeRegionBody(w, e.body, labels);
           // Tags and bodies are parallel by construction. Pairing them by index
           // without checking meant a mismatched `Try` emitted a `catch` opcode
@@ -2177,11 +2177,11 @@ class WasmEncoder {
             );
           }
           for (const [i, tag] of e.catchTags.entries()) {
-            if (tag === "") {
+            if (tag === '') {
               w.writeU8(0x19); // catch_all
             } else {
               w.writeU8(0x07); // catch
-              w.writeU32(this.resolveRef(this.tagIndex, tag, "catch tag"));
+              w.writeU32(this.resolveRef(this.tagIndex, tag, 'catch tag'));
             }
             this.encodeRegionBody(w, e.catchBodies[i]!, labels);
           }
@@ -2195,7 +2195,7 @@ class WasmEncoder {
         const e = expr as ThrowExpr;
         for (const op of e.operands) this.encodeExpr(w, op, labels);
         w.writeU8(0x08);
-        w.writeU32(this.resolveRef(this.tagIndex, e.tag, "throw tag"));
+        w.writeU32(this.resolveRef(this.tagIndex, e.tag, 'throw tag'));
         break;
       }
 
@@ -2330,7 +2330,7 @@ export class WasmEncodeError extends Error {
    */
   constructor(message: string) {
     super(message);
-    this.name = "WasmEncodeError";
+    this.name = 'WasmEncodeError';
   }
 }
 

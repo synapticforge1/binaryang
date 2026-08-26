@@ -11,20 +11,20 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
-import { walkExpression } from "../src/ir/walk.ts";
-import type { WasmModule } from "../src/ir/module.ts";
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { walkExpression } from '../src/ir/walk.ts';
+import type { WasmModule } from '../src/ir/module.ts';
 
-const ROOT = new URL("../upstream/test", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
 async function findWasmFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
   async function recurse(d: string): Promise<void> {
-    let entries: import("node:fs").Dirent[];
+    let entries: import('node:fs').Dirent[];
     try {
       entries = await fs.readdir(d, { withFileTypes: true });
     } catch {
@@ -33,7 +33,7 @@ async function findWasmFiles(dir: string): Promise<string[]> {
     for (const e of entries) {
       const full = path.join(d, e.name);
       if (e.isDirectory()) await recurse(full);
-      else if (e.isFile() && e.name.endsWith(".wasm")) out.push(full);
+      else if (e.isFile() && e.name.endsWith('.wasm')) out.push(full);
     }
   }
   await recurse(dir);
@@ -65,7 +65,7 @@ async function validates(bytes: Uint8Array): Promise<{ ok: boolean; err?: string
   }
 }
 
-const rel = (f: string): string => path.relative(ROOT, f).split(path.sep).join("/");
+const rel = (f: string): string => path.relative(ROOT, f).split(path.sep).join('/');
 
 const files = await findWasmFiles(ROOT);
 const ok: string[] = [];
@@ -103,18 +103,18 @@ for (const file of files) {
     bytes2 = encodeWasm(mod1);
   } catch (e) {
     reparseFail.push({
-      file: path.relative(ROOT, file).replace(/\\/g, "/"),
-      err: "encode: " + (e instanceof Error ? e.message : String(e)),
+      file: path.relative(ROOT, file).replace(/\\/g, '/'),
+      err: 'encode: ' + (e instanceof Error ? e.message : String(e)),
     });
     continue;
   }
   let mod2: WasmModule;
   try {
-    mod2 = parseWasm(bytes2, file + "::roundtrip");
+    mod2 = parseWasm(bytes2, file + '::roundtrip');
   } catch (e) {
     reparseFail.push({
-      file: path.relative(ROOT, file).replace(/\\/g, "/"),
-      err: "reparse: " + (e instanceof Error ? e.message : String(e)),
+      file: path.relative(ROOT, file).replace(/\\/g, '/'),
+      err: 'reparse: ' + (e instanceof Error ? e.message : String(e)),
     });
     continue;
   }
@@ -125,8 +125,8 @@ for (const file of files) {
     const outputValid = await validates(bytes2);
     if (!outputValid.ok) {
       validateFail.push({
-        file: path.relative(ROOT, file).replace(/\\/g, "/"),
-        err: outputValid.err ?? "",
+        file: path.relative(ROOT, file).replace(/\\/g, '/'),
+        err: outputValid.err ?? '',
       });
     }
   }
@@ -171,7 +171,7 @@ if (accounted !== files.length) {
 console.log();
 
 if (validateFail.length > 0) {
-  console.log("## WebAssembly.compile failures on re-encoded output:");
+  console.log('## WebAssembly.compile failures on re-encoded output:');
   for (const f of validateFail.slice(0, 20)) {
     console.log(`  ${f.file}: ${f.err.slice(0, 140)}`);
   }
@@ -179,19 +179,19 @@ if (validateFail.length > 0) {
 }
 
 if (parseFail.length > 0) {
-  console.log("## rejected on input parse (expected: malformed / non-MVP fixtures):");
+  console.log('## rejected on input parse (expected: malformed / non-MVP fixtures):');
   for (const f of parseFail) console.log(`  ${f.file}: ${f.err.slice(0, 110)}`);
   console.log();
 }
 
 if (reparseFail.length > 0) {
-  console.log("## encode/reparse failures:");
+  console.log('## encode/reparse failures:');
   for (const f of reparseFail) console.log(`  ${f.file}: ${f.err.slice(0, 120)}`);
   console.log();
 }
 
 if (drift.length > 0) {
-  console.log("## structural drift:");
+  console.log('## structural drift:');
   for (const d of drift) {
     console.log(`  ${d.file}:`);
     console.log(`    before: ${JSON.stringify(d.before)}`);

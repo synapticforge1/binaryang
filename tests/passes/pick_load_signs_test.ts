@@ -20,8 +20,8 @@
  * @license MIT
  */
 
-import { assertEquals } from "@std/assert";
-import { encodeWasm } from "../../src/encoder/index.ts";
+import { assertEquals } from '@std/assert';
+import { encodeWasm } from '../../src/encoder/index.ts';
 import {
   BinaryOp,
   makeBinary,
@@ -32,11 +32,11 @@ import {
   makeLoad,
   makeLocalGet,
   makeLocalSet,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder } from "../../src/ir/module.ts";
-import { ValType } from "../../src/ir/types.ts";
-import { PassRunner } from "../../src/passes/pass.ts";
-import "../../src/passes/index.ts"; // side-effect: pass registration
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import { PassRunner } from '../../src/passes/pass.ts';
+import '../../src/passes/index.ts'; // side-effect: pass registration
 
 /**
  * Byte 0 of memory is `0xFF`, so the narrow load reads either `-1` (signed) or
@@ -57,17 +57,17 @@ import "../../src/passes/index.ts"; // side-effect: pass registration
  * concluded every use re-extends, and flipped `load8_s` to `load8_u` — turning
  * -1 into 255.
  */
-function buildModule(): ReturnType<ModuleBuilder["build"]> {
-  const inner = makeBlock([makeBreak("$l", null, makeLocalGet(0, ValType.I32))], "$l");
+function buildModule(): ReturnType<ModuleBuilder['build']> {
+  const inner = makeBlock([makeBreak('$l', null, makeLocalGet(0, ValType.I32))], '$l');
   // A block whose body exits via `br` infers `unreachable`; stamp the declared
   // result type so the encoder emits an i32 blocktype.
   inner.type = ValType.I32;
 
   return new ModuleBuilder()
-    .addMemory("mem0", 1)
-    .addDataSegment("$d", makeI32Const(0), new Uint8Array([0xff]))
+    .addMemory('mem0', 1)
+    .addDataSegment('$d', makeI32Const(0), new Uint8Array([0xff]))
     .addFunction(
-      "$f",
+      '$f',
       [],
       [ValType.I32],
       makeBlock([
@@ -77,14 +77,14 @@ function buildModule(): ReturnType<ModuleBuilder["build"]> {
       ]),
       [{ type: ValType.I32 }],
     )
-    .addExport("f", "$f")
+    .addExport('f', '$f')
     .build();
 }
 
 function run(optimized: boolean): number {
   const mod = buildModule();
   if (optimized) {
-    new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add("PickLoadSigns").run();
+    new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('PickLoadSigns').run();
   }
   const bytes = encodeWasm(mod);
   const buf = new ArrayBuffer(bytes.byteLength);
@@ -93,9 +93,9 @@ function run(optimized: boolean): number {
   return (inst.exports.f as () => number)();
 }
 
-Deno.test("PickLoadSigns: a value carried by `br` is a real use, not an invisible one", () => {
+Deno.test('PickLoadSigns: a value carried by `br` is a real use, not an invisible one', () => {
   // The unoptimized program is the oracle.
-  assertEquals(run(false), -1, "fixture itself is wrong");
+  assertEquals(run(false), -1, 'fixture itself is wrong');
   // PickLoadSigns must not flip the load: the `br` observes the value.
-  assertEquals(run(true), -1, "load sign was flipped despite an observing `br` use");
+  assertEquals(run(true), -1, 'load sign was flipped despite an observing `br` use');
 });

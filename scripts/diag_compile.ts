@@ -10,17 +10,17 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
+import * as fs from 'node:fs/promises';
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
 
-const ROOT = new URL("../upstream/test/", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const re = encodeWasm(parseWasm(orig));
 try {
   await WebAssembly.compile(re as BufferSource);
-  console.log("OK compiles");
+  console.log('OK compiles');
 } catch (e) {
-  console.log("COMPILE ERR:", (e as Error).message);
+  console.log('COMPILE ERR:', (e as Error).message);
 }

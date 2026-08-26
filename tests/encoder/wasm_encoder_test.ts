@@ -8,11 +8,11 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm, WasmEncodeError } from "../../src/encoder/index.ts";
-import { ExpressionKind } from "../../src/ir/expressions.ts";
-import { None, Unreachable, ValType } from "../../src/ir/types.ts";
+import { assert, assertEquals, assertInstanceOf, assertThrows } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm, WasmEncodeError } from '../../src/encoder/index.ts';
+import { ExpressionKind } from '../../src/ir/expressions.ts';
+import { None, Unreachable, ValType } from '../../src/ir/types.ts';
 import {
   BinaryOp,
   type Expression,
@@ -22,8 +22,8 @@ import {
   makeLocalGet,
   makeSelect,
   makeUnreachable,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder } from "../../src/ir/module.ts";
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Shared binary fixtures (same as parser tests)
@@ -176,7 +176,7 @@ function walkFind(
 // Encoder output shape tests
 // ---------------------------------------------------------------------------
 
-Deno.test("encodeWasm: empty module produces valid WASM header", () => {
+Deno.test('encodeWasm: empty module produces valid WASM header', () => {
   const mod = parseWasm(EMPTY_MODULE);
   const bytes = encodeWasm(mod);
   assertEquals(bytes[0], 0x00);
@@ -189,7 +189,7 @@ Deno.test("encodeWasm: empty module produces valid WASM header", () => {
   assertEquals(bytes[7], 0x00);
 });
 
-Deno.test("encodeWasm: empty module output is re-parseable", () => {
+Deno.test('encodeWasm: empty module output is re-parseable', () => {
   const mod = parseWasm(EMPTY_MODULE);
   const encoded = encodeWasm(mod);
   const mod2 = parseWasm(encoded);
@@ -203,21 +203,21 @@ Deno.test("encodeWasm: empty module output is re-parseable", () => {
 // Round-trip tests
 // ---------------------------------------------------------------------------
 
-Deno.test("round-trip: add module preserves function signature", () => {
+Deno.test('round-trip: add module preserves function signature', () => {
   const mod2 = roundTrip(ADD_MODULE);
   assertEquals(mod2.functions.length, 1);
   assertEquals(mod2.functions[0].params, [ValType.I32, ValType.I32]);
   assertEquals(mod2.functions[0].results, [ValType.I32]);
 });
 
-Deno.test("round-trip: add module preserves export", () => {
+Deno.test('round-trip: add module preserves export', () => {
   const mod2 = roundTrip(ADD_MODULE);
   assertEquals(mod2.exports.length, 1);
-  assertEquals(mod2.exports[0].name, "add");
-  assertEquals(mod2.exports[0].kind, "function");
+  assertEquals(mod2.exports[0].name, 'add');
+  assertEquals(mod2.exports[0].kind, 'function');
 });
 
-Deno.test("round-trip: add module body still contains binary op", () => {
+Deno.test('round-trip: add module body still contains binary op', () => {
   const mod2 = roundTrip(ADD_MODULE);
   const fn = mod2.functions[0];
   const found = walkFind(
@@ -227,14 +227,14 @@ Deno.test("round-trip: add module body still contains binary op", () => {
   assertEquals(found, true);
 });
 
-Deno.test("round-trip: global module preserves global count and type", () => {
+Deno.test('round-trip: global module preserves global count and type', () => {
   const mod2 = roundTrip(GLOBAL_MODULE);
   assertEquals(mod2.globals.length, 1);
   assertEquals(mod2.globals[0].type, ValType.I32);
   assertEquals(mod2.globals[0].mutable, true);
 });
 
-Deno.test("round-trip: global module init expression preserved", () => {
+Deno.test('round-trip: global module init expression preserved', () => {
   const mod2 = roundTrip(GLOBAL_MODULE);
   const g = mod2.globals[0];
   assertEquals(g.init.kind, ExpressionKind.Const);
@@ -243,7 +243,7 @@ Deno.test("round-trip: global module init expression preserved", () => {
   }
 });
 
-Deno.test("round-trip: global module body contains global.get", () => {
+Deno.test('round-trip: global module body contains global.get', () => {
   const mod2 = roundTrip(GLOBAL_MODULE);
   const fn = mod2.functions[0];
   const found = walkFind(
@@ -257,15 +257,15 @@ Deno.test("round-trip: global module body contains global.get", () => {
 // Builder → encode → parse
 // ---------------------------------------------------------------------------
 
-Deno.test("encodeWasm: ModuleBuilder add function round-trips", () => {
+Deno.test('encodeWasm: ModuleBuilder add function round-trips', () => {
   const body = makeBinary(
     BinaryOp.AddI32,
     makeLocalGet(0, ValType.I32),
     makeLocalGet(1, ValType.I32),
   );
   const mod = new ModuleBuilder()
-    .addFunction("add", [ValType.I32, ValType.I32], [ValType.I32], body)
-    .addExport("add", "add")
+    .addFunction('add', [ValType.I32, ValType.I32], [ValType.I32], body)
+    .addExport('add', 'add')
     .build();
 
   const bytes = encodeWasm(mod);
@@ -274,48 +274,48 @@ Deno.test("encodeWasm: ModuleBuilder add function round-trips", () => {
   assertEquals(mod2.functions.length, 1);
   assertEquals(mod2.functions[0].params, [ValType.I32, ValType.I32]);
   assertEquals(mod2.functions[0].results, [ValType.I32]);
-  assertEquals(mod2.exports[0].name, "add");
+  assertEquals(mod2.exports[0].name, 'add');
 });
 
-Deno.test("encodeWasm: unresolved call target throws instead of silently encoding index 0", () => {
+Deno.test('encodeWasm: unresolved call target throws instead of silently encoding index 0', () => {
   // A name→index miss used to fall back to `?? 0`, encoding a dangling
   // reference as `call 0` — a valid-but-wrong binary that passes
   // WebAssembly.compile (this exact shape once made every imported-function
   // call encode as index 0). The encoder now fails loudly on the miss.
   const mod = new ModuleBuilder()
-    .addFunction("caller", [], [], makeCall("does_not_exist", [], None))
+    .addFunction('caller', [], [], makeCall('does_not_exist', [], None))
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, "unresolved call target");
+  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'unresolved call target');
 });
 
-Deno.test("encodeWasm: unknown unary opcode throws instead of emitting a silent nop", () => {
+Deno.test('encodeWasm: unknown unary opcode throws instead of emitting a silent nop', () => {
   // An op missing from the unary opcode table used to fall back to `nop` (0x01)
   // AFTER its operand was already emitted — leaving a dangling stack value and
   // an invalid module. It now fails loudly.
   const bogus = {
     kind: ExpressionKind.Unary,
     type: ValType.I32,
-    op: "not.a.real.unary.op",
+    op: 'not.a.real.unary.op',
     value: makeI32Const(0),
   } as unknown as Expression;
   const mod = new ModuleBuilder()
-    .addFunction("f", [], [ValType.I32], bogus)
+    .addFunction('f', [], [ValType.I32], bogus)
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, "unknown unary opcode");
+  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'unknown unary opcode');
 });
 
 // ---------------------------------------------------------------------------
 // Tier 3 — correctness gaps: select LUB typing + encoder edge-case hardening
 // ---------------------------------------------------------------------------
 
-Deno.test("makeSelect: result type is the reachable arm when one arm is unreachable", () => {
+Deno.test('makeSelect: result type is the reachable arm when one arm is unreachable', () => {
   // A `select` always has both arms; its type is the reachable arm's type, not
   // a blind `ifTrue.type`. With ifTrue unreachable, the type is ifFalse's.
   const sel = makeSelect(makeUnreachable(), makeI32Const(0), makeI32Const(1));
   assertEquals(sel.type, ValType.I32);
 });
 
-Deno.test("encodeWasm: a multi-value (tuple) block result encodes as a type-index blocktype", () => {
+Deno.test('encodeWasm: a multi-value (tuple) block result encodes as a type-index blocktype', () => {
   // A block typed [i32, i32] must name a TYPE-SECTION entry in its header;
   // emitting only `t[0]` produced a structurally invalid block (the engine
   // reads one result then misparses the body). This threw while multi-value
@@ -324,23 +324,23 @@ Deno.test("encodeWasm: a multi-value (tuple) block result encodes as a type-inde
   const tupleBlock = {
     kind: ExpressionKind.Block,
     type: [ValType.I32, ValType.I32],
-    name: "b",
+    name: 'b',
     children: [makeI32Const(0), makeI32Const(1)],
   } as unknown as Expression;
-  const mod = new ModuleBuilder().addFunction("f", [], [ValType.I32, ValType.I32], tupleBlock)
+  const mod = new ModuleBuilder().addFunction('f', [], [ValType.I32, ValType.I32], tupleBlock)
     .build();
 
   const bytes = encodeWasm(mod);
   // The `() -> (i32 i32)` signature must be present in the type section.
   const typeSec = Array.from(bytes.slice(8));
-  assertEquals(typeSec[0], 0x01, "expected a type section first");
+  assertEquals(typeSec[0], 0x01, 'expected a type section first');
   assert(
-    typeSec.join(",").includes([0x60, 0x00, 0x02, 0x7f, 0x7f].join(",")),
+    typeSec.join(',').includes([0x60, 0x00, 0x02, 0x7f, 0x7f].join(',')),
     "the block's () -> (i32 i32) signature was not registered",
   );
 });
 
-Deno.test("encodeWasm: load with a non-numeric result type throws instead of silently emitting i64", () => {
+Deno.test('encodeWasm: load with a non-numeric result type throws instead of silently emitting i64', () => {
   // The opcode resolver treated any non-f32/f64/i32 type as i64. A load whose
   // result type is unexpectedly `unreachable` used to silently emit an i64
   // opcode of the wrong width; it now fails loudly.
@@ -353,23 +353,23 @@ Deno.test("encodeWasm: load with a non-numeric result type throws instead of sil
     align: 2,
     ptr: makeI32Const(0),
   } as unknown as Expression;
-  const mod = new ModuleBuilder().addFunction("f", [], [], badLoad).build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, "cannot encode load");
+  const mod = new ModuleBuilder().addFunction('f', [], [], badLoad).build();
+  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'cannot encode load');
 });
 
-Deno.test("encodeWasm: multiple memories throw (encoder hardcodes memory index 0)", () => {
+Deno.test('encodeWasm: multiple memories throw (encoder hardcodes memory index 0)', () => {
   // Memory exports, data segments, and memory.* ops are all encoded against
   // index 0; a second memory would be silently misencoded against memory 0.
   const mod = new ModuleBuilder()
-    .addMemory("a", 1, null)
-    .addMemory("b", 1, null)
+    .addMemory('a', 1, null)
+    .addMemory('b', 1, null)
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, "multiple memories");
+  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'multiple memories');
 });
 
-Deno.test("encodeWasm: memory section round-trips", () => {
+Deno.test('encodeWasm: memory section round-trips', () => {
   const mod = new ModuleBuilder()
-    .addMemory("mem0", 1, 4)
+    .addMemory('mem0', 1, 4)
     .build();
 
   const bytes = encodeWasm(mod);
@@ -380,11 +380,11 @@ Deno.test("encodeWasm: memory section round-trips", () => {
   assertEquals(mod2.memories[0].max, 4);
 });
 
-Deno.test("encodeWasm: data segment round-trips", () => {
-  const data = new TextEncoder().encode("hello");
+Deno.test('encodeWasm: data segment round-trips', () => {
+  const data = new TextEncoder().encode('hello');
   const mod = new ModuleBuilder()
-    .addMemory("mem0", 1, null)
-    .addDataSegment("$data0", makeI32Const(0), data)
+    .addMemory('mem0', 1, null)
+    .addDataSegment('$data0', makeI32Const(0), data)
     .build();
 
   const bytes = encodeWasm(mod);
@@ -395,11 +395,11 @@ Deno.test("encodeWasm: data segment round-trips", () => {
   assertEquals(mod2.dataSegments[0].data, data);
 });
 
-Deno.test("encodeWasm: passive data segment round-trips", () => {
+Deno.test('encodeWasm: passive data segment round-trips', () => {
   const data = new Uint8Array([1, 2, 3, 4]);
   const mod = new ModuleBuilder()
-    .addMemory("mem0", 1, null)
-    .addPassiveDataSegment("$data0", data)
+    .addMemory('mem0', 1, null)
+    .addPassiveDataSegment('$data0', data)
     .build();
 
   const bytes = encodeWasm(mod);
@@ -410,10 +410,10 @@ Deno.test("encodeWasm: passive data segment round-trips", () => {
   assertEquals(mod2.dataSegments[0].data, data);
 });
 
-Deno.test("encodeWasm: i32.const value preserved through encode/parse", () => {
+Deno.test('encodeWasm: i32.const value preserved through encode/parse', () => {
   const body = makeI32Const(1337);
   const mod = new ModuleBuilder()
-    .addFunction("getVal", [], [ValType.I32], body)
+    .addFunction('getVal', [], [ValType.I32], body)
     .build();
 
   const bytes = encodeWasm(mod);
@@ -426,35 +426,35 @@ Deno.test("encodeWasm: i32.const value preserved through encode/parse", () => {
     (e) => {
       if (e.kind !== ExpressionKind.Const) return false;
       const v = (e as { value?: { i32?: number } }).value;
-      return v !== undefined && typeof v === "object" && "i32" in v && v.i32 === 1337;
+      return v !== undefined && typeof v === 'object' && 'i32' in v && v.i32 === 1337;
     },
   );
   assertEquals(found, true);
 });
 
-Deno.test("encodeWasm: output is a Uint8Array", () => {
+Deno.test('encodeWasm: output is a Uint8Array', () => {
   const mod = parseWasm(ADD_MODULE);
   const bytes = encodeWasm(mod);
   assertInstanceOf(bytes, Uint8Array);
 });
 
-Deno.test("encodeWasm: a None-typed local throws instead of silently encoding as i32", () => {
+Deno.test('encodeWasm: a None-typed local throws instead of silently encoding as i32', () => {
   // A function local typed `none` is invalid wasm. The encoder used to fall
   // through valTypeByte's `default` and emit it as i32 (0x7f), papering over
   // upstream producers of such a local (e.g. Asyncify deriving a spill local
   // from a mistyped void call). Fail loudly instead.
   const mod = new ModuleBuilder()
-    .addFunction("f", [], [], makeI32Const(0), [{ type: None as unknown as ValType }])
+    .addFunction('f', [], [], makeI32Const(0), [{ type: None as unknown as ValType }])
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, "cannot encode value type");
+  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'cannot encode value type');
 });
 
-Deno.test("encodeWasm: multiple tables throw (element segments + call_indirect encode against table 0)", () => {
+Deno.test('encodeWasm: multiple tables throw (element segments + call_indirect encode against table 0)', () => {
   const mod = new ModuleBuilder()
-    .addTable("a", ValType.FuncRef, 1, null)
-    .addTable("b", ValType.FuncRef, 1, null)
+    .addTable('a', ValType.FuncRef, 1, null)
+    .addTable('b', ValType.FuncRef, 1, null)
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, "multiple tables");
+  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'multiple tables');
 });
 
 // ---------------------------------------------------------------------------
@@ -474,17 +474,17 @@ Deno.test("encodeWasm: multiple tables throw (element segments + call_indirect e
 // case additionally turns that second case into a compile error.
 // ---------------------------------------------------------------------------
 
-Deno.test("encoder: an unknown export kind throws instead of emitting a truncated entry", () => {
+Deno.test('encoder: an unknown export kind throws instead of emitting a truncated entry', () => {
   const b = new ModuleBuilder();
-  b.addFunction("$f", [], [ValType.I32], makeI32Const(1), []);
-  b.addExport("ok", "$f", "function");
+  b.addFunction('$f', [], [ValType.I32], makeI32Const(1), []);
+  b.addExport('ok', '$f', 'function');
   const mod = b.build();
   // Reach past the type union the way a JS caller would.
-  (mod.exports[0] as { kind: string }).kind = "elem";
+  (mod.exports[0] as { kind: string }).kind = 'elem';
 
   assertThrows(
     () => encodeWasm(mod),
     WasmEncodeError,
-    "unknown export kind",
+    'unknown export kind',
   );
 });

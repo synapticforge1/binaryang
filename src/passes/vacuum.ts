@@ -20,11 +20,11 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, makeNop } from "../ir/expressions.ts";
-import type { WasmModule } from "../ir/module.ts";
-import { Unreachable } from "../ir/types.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { mapExpression } from "../ir/walk.ts";
+import { type Expression, ExpressionKind, makeNop } from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { Unreachable } from '../ir/types.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { mapExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -32,9 +32,9 @@ import { mapExpression } from "../ir/walk.ts";
 
 /** Removes nops, empty blocks, and dropped pure expressions. */
 export class VacuumPass implements Pass {
-  readonly name = "Vacuum";
+  readonly name = 'Vacuum';
   readonly description =
-    "Removes nop instructions, empty/redundant blocks, and dropped pure expressions.";
+    'Removes nop instructions, empty/redundant blocks, and dropped pure expressions.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {

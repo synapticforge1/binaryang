@@ -58,7 +58,7 @@ binaryen-ts/
 ### Deno (via JSR)
 
 ```ts
-import { BinaryOp, createModule, ValType } from "jsr:@jrmarcum/binaryen-ts/api";
+import { BinaryOp, createModule, ValType } from 'jsr:@jrmarcum/binaryen-ts/api';
 ```
 
 Or add to your `deno.json` imports:
@@ -81,7 +81,7 @@ npx jsr add @jrmarcum/binaryen-ts
 Then import with the JSR-mapped specifier:
 
 ```ts
-import { BinaryOp, createModule, ValType } from "@jrmarcum/binaryen-ts/api";
+import { BinaryOp, createModule, ValType } from '@jrmarcum/binaryen-ts/api';
 ```
 
 Node 18+ is required. The CLI entry point (`main.ts`) uses TypeScript natively under Node 22.6+ with
@@ -96,7 +96,7 @@ bunx jsr add @jrmarcum/binaryen-ts
 Or import directly from JSR (Bun resolves `jsr:` specifiers natively in recent versions):
 
 ```ts
-import { createModule } from "jsr:@jrmarcum/binaryen-ts/api";
+import { createModule } from 'jsr:@jrmarcum/binaryen-ts/api';
 ```
 
 ### Browser (via JSR ESM)
@@ -106,7 +106,7 @@ JSR ESM endpoint (or via a bundler like esbuild/Vite that supports the JSR regis
 
 ```html
 <script type="module">
-import { BinaryOp, createModule, ValType } from "https://esm.sh/jsr/@jrmarcum/binaryen-ts/api";
+import { BinaryOp, createModule, ValType } from 'https://esm.sh/jsr/@jrmarcum/binaryen-ts/api';
 // ... build and encode a module, then instantiate via WebAssembly.instantiate ...
 </script>
 ```
@@ -119,37 +119,37 @@ Not browser-safe: `/tools/wasm-opt` (filesystem I/O), `/interop` (subprocess).
 ### Build and optimize a WASM module (Node / Deno / Bun)
 
 ```ts
-import { BinaryOp, createModule, ValType } from "@jrmarcum/binaryen-ts/api";
-import { writeFile } from "node:fs/promises";
+import { BinaryOp, createModule, ValType } from '@jrmarcum/binaryen-ts/api';
+import { writeFile } from 'node:fs/promises';
 
 const mod = createModule((b, e) => {
   // Define a function:  add(a: i32, b: i32) -> i32
   b.addFunction(
-    "add",
+    'add',
     [ValType.I32, ValType.I32], // params
     [ValType.I32], // results
     e.return(
       e.binary(BinaryOp.AddI32, e.localGet(0), e.localGet(1)),
     ),
   );
-  b.addExport("add", "add");
+  b.addExport('add', 'add');
 });
 
 // Pure-TS pass pipeline (works on all runtimes including the browser)
-const wasm: Uint8Array = await mod.optimize("-O2");
-await writeFile("add.wasm", wasm);
+const wasm: Uint8Array = await mod.optimize('-O2');
+await writeFile('add.wasm', wasm);
 
 // Or hybrid mode — delegates to `wasm-opt` subprocess (Node/Deno/Bun only)
-const opt: Uint8Array = await mod.optimize("-Oz", true);
+const opt: Uint8Array = await mod.optimize('-Oz', true);
 ```
 
 ### Build and instantiate in the browser
 
 ```ts
-import { BinaryOp, createModule, ValType } from "@jrmarcum/binaryen-ts/api";
+import { BinaryOp, createModule, ValType } from '@jrmarcum/binaryen-ts/api';
 
 const mod = createModule(/* ... as above ... */);
-const wasm: Uint8Array = await mod.optimize("-O2");
+const wasm: Uint8Array = await mod.optimize('-O2');
 
 const { instance } = await WebAssembly.instantiate(wasm);
 const add = instance.exports.add as (a: number, b: number) => number;
@@ -166,23 +166,23 @@ import {
   makeReturn,
   ModuleBuilder,
   ValType,
-} from "@jrmarcum/binaryen-ts/ir";
+} from '@jrmarcum/binaryen-ts/ir';
 
 const body = makeReturn(
   makeBinary(BinaryOp.MulI32, makeLocalGet(0, ValType.I32), makeLocalGet(0, ValType.I32)),
 );
 
 const mod = new ModuleBuilder()
-  .addFunction("square", [ValType.I32], [ValType.I32], body)
-  .addExport("square", "square")
+  .addFunction('square', [ValType.I32], [ValType.I32], body)
+  .addExport('square', 'square')
   .build();
 ```
 
 ### Run optimization passes
 
 ```ts
-import { listPasses, PassRunner } from "@jrmarcum/binaryen-ts/passes";
-import { ModuleBuilder } from "@jrmarcum/binaryen-ts/ir";
+import { listPasses, PassRunner } from '@jrmarcum/binaryen-ts/passes';
+import { ModuleBuilder } from '@jrmarcum/binaryen-ts/ir';
 
 // ["Asyncify", "CoalesceLocals", "DCE", "Flatten", "Inlining",
 //  "InliningOptimizing", "LocalCSE", "OptimizeInstructions", "PickLoadSigns",
@@ -256,13 +256,13 @@ The native path is the default as of Phase 6: `parseWasm` → `PassRunner` → `
 binaryen.js path (tier 3) is opt-in — instantiate the bridge yourself:
 
 ```ts
-import { BinaryenInterop } from "@jrmarcum/binaryen-ts/interop";
+import { BinaryenInterop } from '@jrmarcum/binaryen-ts/interop';
 
 // Deno/Bun resolve npm: specifiers natively; Node requires `npm install binaryen` first.
-const interop = await BinaryenInterop.create({ binaryenJsPath: "npm:binaryen" });
+const interop = await BinaryenInterop.create({ binaryenJsPath: 'npm:binaryen' });
 
 // WAT round-trip — `-Oz` shorthand or explicit { optimizeLevel, shrinkLevel, passes }
-const optimizedWat = interop.optimizeWat(watText, "-Oz");
+const optimizedWat = interop.optimizeWat(watText, '-Oz');
 
 // Binary round-trip
 const optimizedBytes = interop.optimizeBinary(wasmBytes, { optimizeLevel: 2 });
@@ -281,10 +281,10 @@ the native TypeScript pipeline:
 
 ```ts
 // before
-import binaryen from "binaryen";
+import binaryen from 'binaryen';
 
 // after
-import * as binaryen from "@jrmarcum/binaryen-ts/compat";
+import * as binaryen from '@jrmarcum/binaryen-ts/compat';
 
 const mod = binaryen.readBinary(bytes);
 mod.setFeatures(binaryen.Features.All);
@@ -301,7 +301,7 @@ you can populate with the namespaced expression factories upstream binaryen.js e
 ```ts
 const mod = new binaryen.Module();
 mod.addFunction(
-  "add",
+  'add',
   binaryen.createType([binaryen.i32, binaryen.i32]),
   binaryen.i32,
   [],
@@ -310,8 +310,8 @@ mod.addFunction(
     mod.local.get(1, binaryen.i32),
   ),
 );
-mod.addFunctionExport("add", "add");
-mod.runPasses(["DCE", "Vacuum"]);
+mod.addFunctionExport('add', 'add');
+mod.runPasses(['DCE', 'Vacuum']);
 const bytes = mod.emitBinary();
 ```
 
@@ -334,11 +334,11 @@ baseline. Kernels are built by binaryen-ts itself (Phase 1 WAT parser → Phase 
 external toolchain dependency.
 
 ```ts
-import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from "@jrmarcum/binaryen-ts/wasm";
-import { loadKernel } from "@jrmarcum/binaryen-ts/wasm-runtime";
+import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from '@jrmarcum/binaryen-ts/wasm';
+import { loadKernel } from '@jrmarcum/binaryen-ts/wasm-runtime';
 
 const demo = await loadKernel({
-  name: "demo",
+  name: 'demo',
   bytes: DEMO_BYTES,
   exports: DEMO_KERNEL_EXPORTS,
 });

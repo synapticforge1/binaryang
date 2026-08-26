@@ -29,10 +29,10 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind } from "../ir/expressions.ts";
-import type { WasmModule } from "../ir/module.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { walkExpression } from "../ir/walk.ts";
+import { type Expression, ExpressionKind } from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { walkExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -40,9 +40,9 @@ import { walkExpression } from "../ir/walk.ts";
 
 /** Removes unreachable functions and globals from the module. */
 export class RemoveUnusedModuleElementsPass implements Pass {
-  readonly name = "RemoveUnusedModuleElements";
+  readonly name = 'RemoveUnusedModuleElements';
   readonly description =
-    "Removes functions and globals not reachable from exports or element segments.";
+    'Removes functions and globals not reachable from exports or element segments.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
@@ -60,12 +60,12 @@ function _removeUnused(module: WasmModule): void {
   // Set of imported function names — these must never be removed
   const importedFuncs = new Set<string>(
     module.imports
-      .filter((imp) => imp.kind === "function")
+      .filter((imp) => imp.kind === 'function')
       .map((imp) => imp.name),
   );
   const importedGlobals = new Set<string>(
     module.imports
-      .filter((imp) => imp.kind === "global")
+      .filter((imp) => imp.kind === 'global')
       .map((imp) => imp.name),
   );
 
@@ -76,7 +76,7 @@ function _removeUnused(module: WasmModule): void {
   const liveFuncs = new Set<string>();
 
   for (const exp of module.exports) {
-    if (exp.kind === "function") liveFuncs.add(exp.value);
+    if (exp.kind === 'function') liveFuncs.add(exp.value);
   }
 
   // Functions referenced in element segments (indirect-call targets)
@@ -117,7 +117,7 @@ function _removeUnused(module: WasmModule): void {
 
   // Always keep globals that are exported
   for (const exp of module.exports) {
-    if (exp.kind === "global") liveGlobals.add(exp.value);
+    if (exp.kind === 'global') liveGlobals.add(exp.value);
   }
 
   // --- Step 4: prune non-live, non-imported definitions ---
@@ -134,7 +134,7 @@ function _removeUnused(module: WasmModule): void {
 
   // --- Step 5: prune exports pointing to removed functions/globals ---
   module.exports = module.exports.filter((exp) => {
-    if (exp.kind === "function") return !removedFuncs.has(exp.value);
+    if (exp.kind === 'function') return !removedFuncs.has(exp.value);
     return true;
   });
 }

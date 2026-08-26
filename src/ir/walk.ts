@@ -23,7 +23,7 @@ import {
   type SIMDShiftExpr,
   type SIMDShuffleExpr,
   type SIMDTernaryExpr,
-} from "./expressions.ts";
+} from './expressions.ts';
 
 // ---------------------------------------------------------------------------
 // mapExpression — bottom-up tree transform

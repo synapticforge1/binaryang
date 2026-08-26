@@ -7,18 +7,18 @@
  * @license MIT
  */
 
-import { assertEquals, assertThrows } from "@std/assert";
-import { parseWasm, WasmBinaryError } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
+import { assertEquals, assertThrows } from '@std/assert';
+import { parseWasm, WasmBinaryError } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
 import {
   type Expression,
   ExpressionKind,
   type TableGetExpr,
   type TableSetExpr,
-} from "../../src/ir/expressions.ts";
-import { parseWat } from "../../src/parser/wat-parser.ts";
+} from '../../src/ir/expressions.ts';
+import { parseWat } from '../../src/parser/wat-parser.ts';
 
-Deno.test("table.get: WAT → encode → parse round-trip preserves the op + table-index slot", () => {
+Deno.test('table.get: WAT → encode → parse round-trip preserves the op + table-index slot', () => {
   // funcref table at index 0; `f` reads element 0 and returns it.
   // Note: binary form stores tables by numeric index, so the `$t` name from
   // the WAT source is recovered as the binary parser's default `$tableN`
@@ -33,11 +33,11 @@ Deno.test("table.get: WAT → encode → parse round-trip preserves the op + tab
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableGet);
   const g = top as TableGetExpr;
-  assertEquals(g.table, "$table0");
+  assertEquals(g.table, '$table0');
   assertEquals(g.index.kind, ExpressionKind.Const);
 });
 
-Deno.test("table.set: WAT → encode → parse round-trip preserves the op", () => {
+Deno.test('table.set: WAT → encode → parse round-trip preserves the op', () => {
   // externref table; `f` writes a null ref at index 0.
   const mod = parseWat(`(module
     (table $t 1 externref)
@@ -48,11 +48,11 @@ Deno.test("table.set: WAT → encode → parse round-trip preserves the op", () 
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableSet);
   const s = top as TableSetExpr;
-  assertEquals(s.table, "$table0");
+  assertEquals(s.table, '$table0');
   assertEquals(s.index.kind, ExpressionKind.Const);
 });
 
-Deno.test("table.get with default table reference (no $name prefix)", () => {
+Deno.test('table.get with default table reference (no $name prefix)', () => {
   // Bare `(table.get index)` — default to the first table.
   const mod = parseWat(`(module
     (table $only 2 funcref)
@@ -63,10 +63,10 @@ Deno.test("table.get with default table reference (no $name prefix)", () => {
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableGet);
   const g = top as TableGetExpr;
-  assertEquals(g.table, "$table0");
+  assertEquals(g.table, '$table0');
 });
 
-Deno.test("element segment: flag-4 (expression-form) active funcref segment round-trips and dispatches", async () => {
+Deno.test('element segment: flag-4 (expression-form) active funcref segment round-trips and dispatches', async () => {
   // Hand-crafted module equivalent to:
   //   (table 4 funcref)
   //   (elem (i32.const 0) func $a $b)
@@ -205,7 +205,7 @@ Deno.test("element segment: flag-4 (expression-form) active funcref segment roun
   const mod = parseWasm(bytes);
   // The segment must survive parsing with both function references intact.
   assertEquals(mod.elements.length, 1);
-  assertEquals(mod.elements[0].data, ["$func0", "$func1"]);
+  assertEquals(mod.elements[0].data, ['$func0', '$func1']);
 
   // And re-encoding must produce a binary whose table is actually populated,
   // so the `call_indirect` resolves at runtime instead of trapping.
@@ -234,19 +234,19 @@ function unwrap(e: Expression): Expression {
 
 const MAGIC = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
-Deno.test("element segment: a ref.null entry throws instead of silently shifting table indices", () => {
+Deno.test('element segment: a ref.null entry throws instead of silently shifting table indices', () => {
   // Element section: 1 segment, flag 4 (active, expr-list), offset i32.const 0,
   // one entry that is `ref.null func` (0xd0 0x70 0x0b). Omitting it used to
   // shift every later entry down a table slot; now it fails loudly.
   const body = [0x01, 0x04, 0x41, 0x00, 0x0b, 0x01, 0xd0, 0x70, 0x0b];
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError, "ref.null");
+  assertThrows(() => parseWasm(bytes), WasmBinaryError, 'ref.null');
 });
 
-Deno.test("element segment: a passive segment throws instead of being silently discarded", () => {
+Deno.test('element segment: a passive segment throws instead of being silently discarded', () => {
   // Element section: 1 segment, flag 1 (passive). Previously parsed-and-dropped
   // (so a table.init that consumes it found an empty table); now it fails loud.
   const body = [0x01, 0x01];
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError, "only active table-initializer");
+  assertThrows(() => parseWasm(bytes), WasmBinaryError, 'only active table-initializer');
 });

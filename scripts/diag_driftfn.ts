@@ -11,13 +11,13 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
-import { walkExpression } from "../src/ir/walk.ts";
-import type { Expression } from "../src/ir/expressions.ts";
+import * as fs from 'node:fs/promises';
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { walkExpression } from '../src/ir/walk.ts';
+import type { Expression } from '../src/ir/expressions.ts';
 
-const ROOT = new URL("../upstream/test/", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const mod1 = parseWasm(orig);

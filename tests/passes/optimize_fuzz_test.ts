@@ -33,11 +33,11 @@
  * @license MIT
  */
 
-import { assert } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
-import { createPass, PassRunner } from "../../src/passes/pass.ts";
-import "../../src/passes/index.ts"; // register all built-in passes
+import { assert } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { createPass, PassRunner } from '../../src/passes/pass.ts';
+import '../../src/passes/index.ts'; // register all built-in passes
 import {
   BinaryOp,
   type Expression,
@@ -53,10 +53,10 @@ import {
   makeSelect,
   makeUnary,
   UnaryOp,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder, type WasmModule } from "../../src/ir/module.ts";
-import { ValType } from "../../src/ir/types.ts";
-import { mapExpression } from "../../src/ir/walk.ts";
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder, type WasmModule } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import { mapExpression } from '../../src/ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Seeded PRNG (mulberry32) — deterministic so failures are reproducible.
@@ -212,33 +212,33 @@ function buildModule(seed: number): { mod: WasmModule; nParams: number; ir: stri
   );
   const mod = new ModuleBuilder()
     .addFunction(
-      "f",
+      'f',
       Array.from({ length: nParams }, () => ValType.I32),
       [ValType.I32],
       body,
       Array.from({ length: nVars }, () => ({ type: ValType.I32 })),
     )
-    .addExport("f", "f")
+    .addExport('f', 'f')
     .build();
   return { mod, nParams, ir: irToString(body) };
 }
 
 // deno-lint-ignore no-explicit-any
 function irToString(e: any): string {
-  if (!e) return "_";
+  if (!e) return '_';
   let r = e.kind;
   if (e.op) r += `[${e.op}]`;
   if (e.index !== undefined) r += `#${e.index}`;
-  if (e.kind === "const") r += `=${e.value?.i32}`;
+  if (e.kind === 'const') r += `=${e.value?.i32}`;
   const kids: string[] = [];
   for (const k of Object.keys(e)) {
     const v = e[k];
-    if (v && typeof v === "object" && v.kind) kids.push(irToString(v));
+    if (v && typeof v === 'object' && v.kind) kids.push(irToString(v));
     else if (Array.isArray(v)) {
-      for (const it of v) if (it && typeof it === "object" && it.kind) kids.push(irToString(it));
+      for (const it of v) if (it && typeof it === 'object' && it.kind) kids.push(irToString(it));
     }
   }
-  return kids.length ? `${r}(${kids.join(",")})` : r;
+  return kids.length ? `${r}(${kids.join(',')})` : r;
 }
 
 const INPUTS = [0, 1, -1, 2, 7, -7, 31, 32, 12345, -12345, 0x7fffffff, -0x80000000];
@@ -252,33 +252,33 @@ function inputVec(g: () => number, n: number): number[] {
 }
 
 const PASS_NAMES = [
-  "DCE",
-  "PickLoadSigns",
-  "Vacuum",
-  "RemoveUnusedBrs",
-  "RemoveUnusedNames",
-  "OptimizeInstructions",
-  "CoalesceLocals",
-  "SimplifyLocals",
-  "LocalCSE",
-  "Vacuum(2)",
-  "RemoveUnusedModuleElements",
+  'DCE',
+  'PickLoadSigns',
+  'Vacuum',
+  'RemoveUnusedBrs',
+  'RemoveUnusedNames',
+  'OptimizeInstructions',
+  'CoalesceLocals',
+  'SimplifyLocals',
+  'LocalCSE',
+  'Vacuum(2)',
+  'RemoveUnusedModuleElements',
 ];
 
 /** Re-run only the first `n` -Oz passes on the unoptimized binary, re-encode. */
 function ozPrefix(bytes: Uint8Array, n: number): Uint8Array {
   const mod = parseWasm(bytes);
   const runner = new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 });
-  for (const p of PASS_NAMES.slice(0, n)) runner.addPass(createPass(p.replace("(2)", "")));
+  for (const p of PASS_NAMES.slice(0, n)) runner.addPass(createPass(p.replace('(2)', '')));
   runner.run();
   return encodeWasm(mod);
 }
 
 // ---------------------------------------------------------------------------
 
-Deno.test("optimize fuzz: full -Oz preserves validity + behavior on random i32 functions", () => {
-  const ITERS = Number(Deno.env.get("FUZZ_ITERS") ?? "350");
-  const BASE = Number(Deno.env.get("FUZZ_SEED") ?? "1");
+Deno.test('optimize fuzz: full -Oz preserves validity + behavior on random i32 functions', () => {
+  const ITERS = Number(Deno.env.get('FUZZ_ITERS') ?? '350');
+  const BASE = Number(Deno.env.get('FUZZ_SEED') ?? '1');
 
   for (let i = 0; i < ITERS; i++) {
     const seed = BASE + i;
@@ -307,7 +307,7 @@ Deno.test("optimize fuzz: full -Oz preserves validity + behavior on random i32 f
       optInst = new WebAssembly.Instance(new WebAssembly.Module(opt as BufferSource));
     } catch (e) {
       // Validity miscompile (e.g. dangling-stack fallthru). Bisect to the pass.
-      let firstBad = "?";
+      let firstBad = '?';
       for (let n = 1; n <= PASS_NAMES.length; n++) {
         try {
           new WebAssembly.Module(ozPrefix(unopt, n) as BufferSource);
@@ -333,7 +333,7 @@ Deno.test("optimize fuzz: full -Oz preserves validity + behavior on random i32 f
       const rb = fb(...args);
       if (ra !== rb) {
         // Behavioral miscompile. Bisect to the first pass that changes the result.
-        let firstBad = "?";
+        let firstBad = '?';
         for (let n = 1; n <= PASS_NAMES.length; n++) {
           try {
             const inst = new WebAssembly.Instance(
@@ -344,13 +344,13 @@ Deno.test("optimize fuzz: full -Oz preserves validity + behavior on random i32 f
               break;
             }
           } catch {
-            firstBad = PASS_NAMES[n - 1] + " (invalid)";
+            firstBad = PASS_NAMES[n - 1] + ' (invalid)';
             break;
           }
         }
         throw new Error(
           `[seed ${seed}] BEHAVIORAL miscompile (first bad pass: ${firstBad})\n` +
-            `  f(${args.join(", ")}) = ${ra} (unopt) vs ${rb} (-Oz)\n  IR: ${ir}`,
+            `  f(${args.join(', ')}) = ${ra} (unopt) vs ${rb} (-Oz)\n  IR: ${ir}`,
         );
       }
     }

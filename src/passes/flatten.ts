@@ -56,12 +56,12 @@ import {
   makeReturn,
   makeUnreachable,
   type SwitchExpr,
-} from "../ir/expressions.ts";
-import type { WasmFunction, WasmModule } from "../ir/module.ts";
-import { None, type Type, Unreachable, type ValType } from "../ir/types.ts";
-import type { ValueType } from "../ir/gc-types.ts";
-import { mapChildrenShallow } from "../ir/walk.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
+} from '../ir/expressions.ts';
+import type { WasmFunction, WasmModule } from '../ir/module.ts';
+import { None, type Type, Unreachable, type ValType } from '../ir/types.ts';
+import type { ValueType } from '../ir/gc-types.ts';
+import { mapChildrenShallow } from '../ir/walk.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -210,10 +210,10 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
 
   // Value-carrying branches need break-target temps — not yet supported.
   if (e.kind === ExpressionKind.Break && (e as BreakExpr).value) {
-    throw new Error("flatten: value-carrying br/br_if is not yet supported by this port.");
+    throw new Error('flatten: value-carrying br/br_if is not yet supported by this port.');
   }
   if (e.kind === ExpressionKind.Switch && (e as SwitchExpr).value) {
-    throw new Error("flatten: value-carrying br_table is not yet supported by this port.");
+    throw new Error('flatten: value-carrying br_table is not yet supported by this port.');
   }
 
   // General case: flatten each child (eval order), collecting their preludes,
@@ -363,7 +363,7 @@ export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
     return results.length === 1 ? results[0]! : (results as Type);
   };
   for (const imp of module.imports) {
-    if (imp.kind === "function") map.set(imp.name, resultType(imp.results));
+    if (imp.kind === 'function') map.set(imp.name, resultType(imp.results));
   }
   for (const f of module.functions) {
     map.set(f.name, resultType(f.results));
@@ -398,10 +398,10 @@ export function flattenFunction(
 
 /** Rewrites every function in the module into Flat IR. */
 export class FlattenPass implements Pass {
-  readonly name = "Flatten";
+  readonly name = 'Flatten';
   readonly description =
-    "Rewrites functions into Flat IR: every value-producing subexpression is " +
-    "hoisted into its own local, operands become trivial, and control flow " +
+    'Rewrites functions into Flat IR: every value-producing subexpression is ' +
+    'hoisted into its own local, operands become trivial, and control flow ' +
     "routes values through temp locals. Port of Binaryen's --flatten.";
   readonly requiresNonNullableLocalFixups = false;
 

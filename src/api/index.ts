@@ -56,12 +56,12 @@ import {
   makeUnary,
   makeUnreachable,
   type UnaryOp,
-} from "../ir/expressions.ts";
-import { ModuleBuilder, type WasmModule } from "../ir/module.ts";
-import { None, ValType } from "../ir/types.ts";
-import { encodeWasm } from "../encoder/wasm-encoder.ts";
-import { BinaryenInterop } from "../interop/binaryen-js.ts";
-import { PassRunner } from "../passes/index.ts";
+} from '../ir/expressions.ts';
+import { ModuleBuilder, type WasmModule } from '../ir/module.ts';
+import { None, ValType } from '../ir/types.ts';
+import { encodeWasm } from '../encoder/wasm-encoder.ts';
+import { BinaryenInterop } from '../interop/binaryen-js.ts';
+import { PassRunner } from '../passes/index.ts';
 
 // ---------------------------------------------------------------------------
 // Expression builder (fluent helper passed to function body closures)
@@ -164,7 +164,7 @@ export class Module {
    * @param hybridMode - Use upstream binaryen.js / wasm-opt subprocess.
    *   Default: `false` (TypeScript pass infrastructure).
    */
-  optimize(flags = "-Oz", hybridMode = false): Promise<Uint8Array> {
+  optimize(flags = '-Oz', hybridMode = false): Promise<Uint8Array> {
     if (hybridMode) {
       const wat = this.toWat();
       return BinaryenInterop.optimizeViaSubprocess(wat, [flags]);
@@ -173,12 +173,12 @@ export class Module {
     // matching `wasm-opt`'s convention. Previously `optimizeLevel` was hardcoded
     // to 2, so `optimize("-O0")` / `"-O1"` / `"-O3"` all ran the level-2 pipeline.
     const tok = /-O([0-4sz])/.exec(flags)?.[1];
-    const optimizeLevel: 0 | 1 | 2 | 3 | 4 = tok === "z" || tok === "s"
+    const optimizeLevel: 0 | 1 | 2 | 3 | 4 = tok === 'z' || tok === 's'
       ? 2
       : tok !== undefined
       ? (Number(tok) as 0 | 1 | 2 | 3 | 4)
       : 2;
-    const shrinkLevel: 0 | 1 | 2 = tok === "z" ? 2 : tok === "s" ? 1 : 0;
+    const shrinkLevel: 0 | 1 | 2 = tok === 'z' ? 2 : tok === 's' ? 1 : 0;
     const runner = new PassRunner(this._inner, { optimizeLevel, shrinkLevel });
     if (optimizeLevel > 0 || shrinkLevel > 0) {
       runner.addDefaultOptimizationPasses();
@@ -245,9 +245,9 @@ export function createModule(body: ModuleBodyBuilder): Module {
 // Re-exports for convenience
 // ---------------------------------------------------------------------------
 
-export { BinaryOp, UnaryOp } from "../ir/expressions.ts";
-export { ExpressionKind } from "../ir/expressions.ts";
-export { ModuleBuilder } from "../ir/module.ts";
+export { BinaryOp, UnaryOp } from '../ir/expressions.ts';
+export { ExpressionKind } from '../ir/expressions.ts';
+export { ModuleBuilder } from '../ir/module.ts';
 export {
   isFloat,
   isInteger,
@@ -256,8 +256,8 @@ export {
   typeToString,
   Unreachable,
   ValType,
-} from "../ir/types.ts";
-export type { Expression, Literal } from "../ir/expressions.ts";
+} from '../ir/types.ts';
+export type { Expression, Literal } from '../ir/expressions.ts';
 export type {
   Local,
   WasmExport,
@@ -265,8 +265,8 @@ export type {
   WasmGlobal,
   WasmImport,
   WasmModule,
-} from "../ir/module.ts";
-export type { Type } from "../ir/types.ts";
+} from '../ir/module.ts';
+export type { Type } from '../ir/types.ts';
 
 // ---------------------------------------------------------------------------
 // WAT serialization (stub — full impl is phase 2)
@@ -278,21 +278,21 @@ export type { Type } from "../ir/types.ts";
  * @internal Stub — full implementation is planned for Phase 2.
  */
 function serializeToWat(mod: WasmModule): string {
-  const lines: string[] = ["(module"];
+  const lines: string[] = ['(module'];
 
   for (const imp of mod.imports) {
-    if (imp.kind === "function") {
-      const params = (imp.params ?? []).map((t) => `(param ${t})`).join(" ");
-      const results = (imp.results ?? []).map((t) => `(result ${t})`).join(" ");
-      const sig = [params, results].filter(Boolean).join(" ");
+    if (imp.kind === 'function') {
+      const params = (imp.params ?? []).map((t) => `(param ${t})`).join(' ');
+      const results = (imp.results ?? []).map((t) => `(result ${t})`).join(' ');
+      const sig = [params, results].filter(Boolean).join(' ');
       lines.push(
-        `  (import "${imp.module}" "${imp.base}" (func $${imp.name}${sig ? " " + sig : ""}))`,
+        `  (import "${imp.module}" "${imp.base}" (func $${imp.name}${sig ? ' ' + sig : ''}))`,
       );
     }
   }
 
   for (const mem of mod.memories) {
-    const maxStr = mem.max !== null ? ` ${mem.max}` : "";
+    const maxStr = mem.max !== null ? ` ${mem.max}` : '';
     lines.push(`  (memory $${mem.name} ${mem.initial}${maxStr})`);
   }
 
@@ -302,24 +302,24 @@ function serializeToWat(mod: WasmModule): string {
   }
 
   for (const fn of mod.functions) {
-    const params = fn.params.map((t, i) => `(param $p${i} ${t})`).join(" ");
-    const results = fn.results.map((t) => `(result ${t})`).join(" ");
-    const header = [params, results].filter(Boolean).join(" ");
-    lines.push(`  (func $${fn.name}${header ? " " + header : ""}`);
+    const params = fn.params.map((t, i) => `(param $p${i} ${t})`).join(' ');
+    const results = fn.results.map((t) => `(result ${t})`).join(' ');
+    const header = [params, results].filter(Boolean).join(' ');
+    lines.push(`  (func $${fn.name}${header ? ' ' + header : ''}`);
     const extraLocals = fn.locals.slice(fn.params.length);
     for (const loc of extraLocals) {
-      lines.push(`    (local ${loc.name ?? ""} ${loc.type})`);
+      lines.push(`    (local ${loc.name ?? ''} ${loc.type})`);
     }
     lines.push(`    ${exprToWat(fn.body, 4)}`);
-    lines.push("  )");
+    lines.push('  )');
   }
 
   for (const exp of mod.exports) {
     lines.push(`  (export "${exp.name}" (${exp.kind} $${exp.value}))`);
   }
 
-  lines.push(")");
-  return lines.join("\n");
+  lines.push(')');
+  return lines.join('\n');
 }
 
 /**
@@ -329,15 +329,15 @@ function serializeToWat(mod: WasmModule): string {
 function exprToWat(expr: Expression, _indent: number): string {
   switch (expr.kind) {
     case ExpressionKind.Nop:
-      return "(nop)";
+      return '(nop)';
     case ExpressionKind.Unreachable:
-      return "(unreachable)";
+      return '(unreachable)';
     case ExpressionKind.Const: {
       const v = expr.value;
-      if ("i32" in v) return `(i32.const ${v.i32})`;
-      if ("i64" in v) return `(i64.const ${v.i64})`;
-      if ("f32" in v) return `(f32.const ${v.f32})`;
-      return `(f64.const ${"f64" in v ? v.f64 : 0})`;
+      if ('i32' in v) return `(i32.const ${v.i32})`;
+      if ('i64' in v) return `(i64.const ${v.i64})`;
+      if ('f32' in v) return `(f32.const ${v.f32})`;
+      return `(f64.const ${'f64' in v ? v.f64 : 0})`;
     }
     case ExpressionKind.LocalGet:
       return `(local.get ${expr.index})`;
@@ -354,24 +354,24 @@ function exprToWat(expr: Expression, _indent: number): string {
     case ExpressionKind.Unary:
       return `(${expr.op} ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Return:
-      return expr.value ? `(return ${exprToWat(expr.value, _indent)})` : "(return)";
+      return expr.value ? `(return ${exprToWat(expr.value, _indent)})` : '(return)';
     case ExpressionKind.Drop:
       return `(drop ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Block: {
-      const label = expr.name ? ` $${expr.name}` : "";
-      const result = expr.type !== None ? ` (result ${expr.type})` : "";
-      const body = expr.children.map((c) => `  ${exprToWat(c, _indent + 2)}`).join("\n");
+      const label = expr.name ? ` $${expr.name}` : '';
+      const result = expr.type !== None ? ` (result ${expr.type})` : '';
+      const body = expr.children.map((c) => `  ${exprToWat(c, _indent + 2)}`).join('\n');
       return `(block${label}${result}\n${body}\n)`;
     }
     case ExpressionKind.If: {
-      const result = expr.type !== None ? ` (result ${expr.type})` : "";
+      const result = expr.type !== None ? ` (result ${expr.type})` : '';
       const then = `(then ${exprToWat(expr.ifTrue, _indent)})`;
-      const else_ = expr.ifFalse ? ` (else ${exprToWat(expr.ifFalse, _indent)})` : "";
+      const else_ = expr.ifFalse ? ` (else ${exprToWat(expr.ifFalse, _indent)})` : '';
       return `(if${result} ${exprToWat(expr.condition, _indent)} ${then}${else_})`;
     }
     case ExpressionKind.Call: {
-      const args = expr.operands.map((a) => exprToWat(a, _indent)).join(" ");
-      return `(call $${expr.target}${args ? " " + args : ""})`;
+      const args = expr.operands.map((a) => exprToWat(a, _indent)).join(' ');
+      return `(call $${expr.target}${args ? ' ' + args : ''})`;
     }
     default:
       // This serializer only covers a subset of expression kinds. Emitting a

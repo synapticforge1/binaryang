@@ -144,7 +144,7 @@ export async function loadKernel<Exports extends readonly string[]>(
         `kernel "${spec.name}" missing required export "${name}"`,
       );
     }
-    if (typeof e !== "function") {
+    if (typeof e !== 'function') {
       throw new WasmRuntimeError(
         `kernel "${spec.name}" export "${name}" is not a function ` +
           `(got ${typeof e})`,
@@ -156,7 +156,7 @@ export async function loadKernel<Exports extends readonly string[]>(
   const kernel: WasmKernel<Exports> = {
     name: spec.name,
     instance,
-    exports: typed as WasmKernel<Exports>["exports"],
+    exports: typed as WasmKernel<Exports>['exports'],
   };
   _kernelCache.set(spec.name, kernel);
   return kernel;
@@ -191,5 +191,5 @@ export function listLoadedKernels(): string[] {
 /** Thrown when a kernel cannot be loaded or fails an export check. */
 export class WasmRuntimeError extends Error {
   /** Always `"WasmRuntimeError"` — identifies the error class for `instanceof`-free dispatch. */
-  override readonly name = "WasmRuntimeError";
+  override readonly name = 'WasmRuntimeError';
 }

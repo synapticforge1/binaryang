@@ -21,16 +21,16 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { performance } from "node:perf_hooks";
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { performance } from 'node:perf_hooks';
 
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
-import { walkExpression } from "../src/ir/walk.ts";
-import type { WasmModule } from "../src/ir/module.ts";
-import { ModuleBuilder } from "../src/ir/module.ts";
-import { ValType } from "../src/ir/types.ts";
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { walkExpression } from '../src/ir/walk.ts';
+import type { WasmModule } from '../src/ir/module.ts';
+import { ModuleBuilder } from '../src/ir/module.ts';
+import { ValType } from '../src/ir/types.ts';
 import {
   BinaryOp,
   type Expression,
@@ -43,17 +43,17 @@ import {
   makeLoop,
   makeUnary,
   UnaryOp,
-} from "../src/ir/expressions.ts";
+} from '../src/ir/expressions.ts';
 
-import { createPass, type Pass, type PassOptions } from "../src/passes/pass.ts";
+import { createPass, type Pass, type PassOptions } from '../src/passes/pass.ts';
 // Side-effect import to register passes
-import "../src/passes/index.ts";
+import '../src/passes/index.ts';
 
 // ---------------------------------------------------------------------------
 // Corpus loading
 // ---------------------------------------------------------------------------
 
-const ROOT = new URL("../upstream/test", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
 interface CorpusEntry {
   source: string;
@@ -64,7 +64,7 @@ interface CorpusEntry {
 async function findWasmFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
   async function recurse(d: string): Promise<void> {
-    let entries: import("node:fs").Dirent[];
+    let entries: import('node:fs').Dirent[];
     try {
       entries = await fs.readdir(d, { withFileTypes: true });
     } catch {
@@ -73,7 +73,7 @@ async function findWasmFiles(dir: string): Promise<string[]> {
     for (const e of entries) {
       const full = path.join(d, e.name);
       if (e.isDirectory()) await recurse(full);
-      else if (e.isFile() && e.name.endsWith(".wasm")) out.push(full);
+      else if (e.isFile() && e.name.endsWith('.wasm')) out.push(full);
     }
   }
   await recurse(dir);
@@ -102,7 +102,7 @@ async function loadRealCorpus(): Promise<CorpusEntry[]> {
       // Skip trivial modules: they pollute averages without exercising passes
       if (numExprs < 10) continue;
       out.push({
-        source: path.relative(ROOT, file).replace(/\\/g, "/"),
+        source: path.relative(ROOT, file).replace(/\\/g, '/'),
         bytes: new Uint8Array(buf),
         numExprs,
       });
@@ -166,19 +166,19 @@ function buildStressFunction(numChunks: number): Expression {
   }
   // Wrap in a loop so RemoveUnusedBrs/RemoveUnusedNames have something to chew on
   return makeBlock([
-    makeLoop("$L0", makeBlock(body)),
+    makeLoop('$L0', makeBlock(body)),
   ]);
 }
 
 function buildStressModule(numFunctions: number, chunksPerFn: number): WasmModule {
   const builder = new ModuleBuilder();
-  builder.addMemory("$mem", 1);
+  builder.addMemory('$mem', 1);
   for (let f = 0; f < numFunctions; f++) {
     const locals = Array.from({ length: 8 }, () => ({ type: ValType.I32 }));
     const body = buildStressFunction(chunksPerFn);
     builder.addFunction(`$f${f}`, [], [], body, locals);
   }
-  builder.addExport("f0", "$f0", "function");
+  builder.addExport('f0', '$f0', 'function');
   return builder.build();
 }
 
@@ -209,16 +209,16 @@ function timeIt(label: string, iterations: number, fn: () => void): number {
 // ---------------------------------------------------------------------------
 
 const PASS_NAMES = [
-  "DCE",
-  "PickLoadSigns",
-  "Vacuum",
-  "RemoveUnusedBrs",
-  "RemoveUnusedNames",
-  "OptimizeInstructions",
-  "CoalesceLocals",
-  "SimplifyLocals",
-  "LocalCSE",
-  "RemoveUnusedModuleElements",
+  'DCE',
+  'PickLoadSigns',
+  'Vacuum',
+  'RemoveUnusedBrs',
+  'RemoveUnusedNames',
+  'OptimizeInstructions',
+  'CoalesceLocals',
+  'SimplifyLocals',
+  'LocalCSE',
+  'RemoveUnusedModuleElements',
 ] as const;
 
 const OPTS: PassOptions = {
@@ -236,7 +236,7 @@ function runPassOnce(passName: string, mod: WasmModule): void {
 }
 
 async function main(): Promise<void> {
-  console.log("# Phase 10 profiling — per-pass timing on real + synthetic corpus");
+  console.log('# Phase 10 profiling — per-pass timing on real + synthetic corpus');
   console.log();
 
   // Real corpus
@@ -252,9 +252,9 @@ async function main(): Promise<void> {
   const synth: { name: string; mod: WasmModule; numExprs: number; bytes: Uint8Array }[] = [];
   for (
     const [label, nf, nc] of [
-      ["synth-small", 4, 50] as const,
-      ["synth-medium", 8, 200] as const,
-      ["synth-large", 16, 400] as const,
+      ['synth-small', 4, 50] as const,
+      ['synth-medium', 8, 200] as const,
+      ['synth-large', 16, 400] as const,
     ]
   ) {
     const mod = buildStressModule(nf, nc);
@@ -266,7 +266,7 @@ async function main(): Promise<void> {
       bytes,
     });
   }
-  console.log("## Synthetic stress modules:");
+  console.log('## Synthetic stress modules:');
   for (const s of synth) {
     console.log(`   ${s.name}: exprs=${s.numExprs}, bytes=${s.bytes.byteLength}`);
   }
@@ -306,8 +306,8 @@ async function main(): Promise<void> {
     });
   }
 
-  console.log("## Per-pass timing");
-  console.log("# pass,source,exprs,iters,total_ms,ns_per_expr,ns_per_call");
+  console.log('## Per-pass timing');
+  console.log('# pass,source,exprs,iters,total_ms,ns_per_expr,ns_per_call');
   for (const wl of workloads) {
     for (const passName of PASS_NAMES) {
       // Clone module per iteration so each pass sees a fresh tree
@@ -336,10 +336,10 @@ async function main(): Promise<void> {
     }
     // Also time encoder + parser on this module
     const fresh = parseWasm(wl.modBytes);
-    const tEnc = timeIt("encode", wl.iters, () => {
+    const tEnc = timeIt('encode', wl.iters, () => {
       encodeWasm(fresh);
     });
-    const tPar = timeIt("parse", wl.iters, () => {
+    const tPar = timeIt('parse', wl.iters, () => {
       parseWasm(wl.modBytes);
     });
     const nsPerExprEnc = (tEnc * 1e6) / (wl.iters * wl.numExprs);
@@ -358,9 +358,9 @@ async function main(): Promise<void> {
   // Aggregate: pass × source — compute average ns/expr across all sources
   // ---------------------------------------------------------------------------
   console.log();
-  console.log("## Aggregate — ns per IR node, per pass");
-  console.log("(weighted by total expressions × iterations)");
-  console.log("pass,total_work_exprs,total_ms,avg_ns_per_expr,avg_ms_per_call_on_synth-large");
+  console.log('## Aggregate — ns per IR node, per pass');
+  console.log('(weighted by total expressions × iterations)');
+  console.log('pass,total_work_exprs,total_ms,avg_ns_per_expr,avg_ms_per_call_on_synth-large');
   const synthLarge = synth[synth.length - 1];
 
   for (const passName of PASS_NAMES) {
@@ -381,26 +381,26 @@ async function main(): Promise<void> {
   // Candidate analysis — which passes break ≥50 ns/expr?
   // ---------------------------------------------------------------------------
   console.log();
-  console.log("## Candidate analysis");
-  console.log("# A pass is a plausible Phase 10 kernel candidate only if it averages");
-  console.log("# >= 50 ns per IR node AND total ms/call is substantial enough that");
-  console.log("# moving the inner loop to WASM could amortize the ~3 ns boundary tax.");
+  console.log('## Candidate analysis');
+  console.log('# A pass is a plausible Phase 10 kernel candidate only if it averages');
+  console.log('# >= 50 ns per IR node AND total ms/call is substantial enough that');
+  console.log('# moving the inner loop to WASM could amortize the ~3 ns boundary tax.');
   console.log();
   for (const passName of PASS_NAMES) {
     const passSamples = samples.filter((s) => s.passName === passName);
     const totalWork = passSamples.reduce((a, b) => a + b.numExprs * b.iterations, 0);
     const totalMs = passSamples.reduce((a, b) => a + b.totalMs, 0);
     const nsPerExpr = (totalMs * 1e6) / totalWork;
-    const verdict = nsPerExpr >= 50 ? "CANDIDATE" : "skip";
+    const verdict = nsPerExpr >= 50 ? 'CANDIDATE' : 'skip';
     console.log(
       `  ${passName.padEnd(28)} ${nsPerExpr.toFixed(1).padStart(7)} ns/node   ${verdict}`,
     );
   }
 
   console.log();
-  console.log("## Encoder/parser baseline");
+  console.log('## Encoder/parser baseline');
   // Re-derive from samples we collected on synth-large
-  console.log("(already reported per-workload above; check synth-large rows)");
+  console.log('(already reported per-workload above; check synth-large rows)');
 }
 
 await main();

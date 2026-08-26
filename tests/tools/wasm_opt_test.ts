@@ -12,7 +12,7 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertInstanceOf, assertThrows } from '@std/assert';
 
 import {
   BinaryOp,
@@ -28,13 +28,13 @@ import {
   makeNop,
   makeReturn,
   makeUnreachable,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder, type WasmFunction, type WasmModule } from "../../src/ir/module.ts";
-import { None, ValType } from "../../src/ir/types.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
-import { parseWasm } from "../../src/binary/index.ts";
-import { listPasses, PassRunner } from "../../src/passes/index.ts";
-import { parseArgs, wasmOpt } from "../../src/tools/wasm-opt.ts";
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder, type WasmFunction, type WasmModule } from '../../src/ir/module.ts';
+import { None, ValType } from '../../src/ir/types.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWasm } from '../../src/binary/index.ts';
+import { listPasses, PassRunner } from '../../src/passes/index.ts';
+import { parseArgs, wasmOpt } from '../../src/tools/wasm-opt.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -79,8 +79,8 @@ function buildAddWasm(): Uint8Array {
     null,
   );
   const mod = new ModuleBuilder()
-    .addFunction("add", [ValType.I32, ValType.I32], [ValType.I32], body)
-    .addExport("add", "add")
+    .addFunction('add', [ValType.I32, ValType.I32], [ValType.I32], body)
+    .addExport('add', 'add')
     .build();
   return encodeWasm(mod);
 }
@@ -93,7 +93,7 @@ function buildDeadCodeWasm(): Uint8Array {
     makeNop(), // dead
   ]);
   const mod = new ModuleBuilder()
-    .addFunction("fn", [], [], body)
+    .addFunction('fn', [], [], body)
     .build();
   return encodeWasm(mod);
 }
@@ -103,7 +103,7 @@ async function withTempWasm<T>(
   bytes: Uint8Array,
   fn: (path: string) => Promise<T>,
 ): Promise<T> {
-  const path = await Deno.makeTempFile({ suffix: ".wasm" });
+  const path = await Deno.makeTempFile({ suffix: '.wasm' });
   try {
     await Deno.writeFile(path, bytes);
     return await fn(path);
@@ -116,27 +116,27 @@ async function withTempWasm<T>(
 // listPasses / registry
 // ---------------------------------------------------------------------------
 
-Deno.test("listPasses includes RemoveUnusedNames", () => {
+Deno.test('listPasses includes RemoveUnusedNames', () => {
   const passes = listPasses();
-  assert(passes.includes("RemoveUnusedNames"), "RemoveUnusedNames must be registered");
+  assert(passes.includes('RemoveUnusedNames'), 'RemoveUnusedNames must be registered');
 });
 
-Deno.test("listPasses includes all Phase 4-5 passes", () => {
+Deno.test('listPasses includes all Phase 4-5 passes', () => {
   const passes = listPasses();
   for (
     const expected of [
-      "DCE",
-      "Vacuum",
-      "RemoveUnusedBrs",
-      "RemoveUnusedNames",
-      "OptimizeInstructions",
-      "CoalesceLocals",
-      "SimplifyLocals",
-      "LocalCSE",
-      "RemoveUnusedModuleElements",
-      "PickLoadSigns",
-      "Inlining",
-      "InliningOptimizing",
+      'DCE',
+      'Vacuum',
+      'RemoveUnusedBrs',
+      'RemoveUnusedNames',
+      'OptimizeInstructions',
+      'CoalesceLocals',
+      'SimplifyLocals',
+      'LocalCSE',
+      'RemoveUnusedModuleElements',
+      'PickLoadSigns',
+      'Inlining',
+      'InliningOptimizing',
     ]
   ) {
     assert(passes.includes(expected), `Pass ${expected} must be registered`);
@@ -147,84 +147,84 @@ Deno.test("listPasses includes all Phase 4-5 passes", () => {
 // RemoveUnusedNames — unit tests
 // ---------------------------------------------------------------------------
 
-Deno.test("RemoveUnusedNames: strips unused block name", () => {
+Deno.test('RemoveUnusedNames: strips unused block name', () => {
   const mod = emptyModule();
-  mod.functions.push(makeTestFn("f", makeBlock([makeNop()], "unused_label")));
+  mod.functions.push(makeTestFn('f', makeBlock([makeNop()], 'unused_label')));
 
-  new PassRunner(mod).add("RemoveUnusedNames").run();
+  new PassRunner(mod).add('RemoveUnusedNames').run();
 
   const body = mod.functions[0].body as BlockExpr;
-  assertEquals(body.name, null, "unused block name should be stripped to null");
+  assertEquals(body.name, null, 'unused block name should be stripped to null');
 });
 
-Deno.test("RemoveUnusedNames: keeps block name that is branched to", () => {
+Deno.test('RemoveUnusedNames: keeps block name that is branched to', () => {
   const mod = emptyModule();
   // (block $exit (br $exit))
-  const body = makeBlock([makeBreak("exit")], "exit");
-  mod.functions.push(makeTestFn("f", body));
+  const body = makeBlock([makeBreak('exit')], 'exit');
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("RemoveUnusedNames").run();
+  new PassRunner(mod).add('RemoveUnusedNames').run();
 
   const newBody = mod.functions[0].body as BlockExpr;
-  assertEquals(newBody.name, "exit", "used block name must be kept");
+  assertEquals(newBody.name, 'exit', 'used block name must be kept');
 });
 
-Deno.test("RemoveUnusedNames: replaces unused loop with body", () => {
+Deno.test('RemoveUnusedNames: replaces unused loop with body', () => {
   const mod = emptyModule();
   // (block (loop $lp (nop)))  — no br targeting $lp
   const nop = makeNop();
-  const loop = makeLoop("lp", nop, None);
+  const loop = makeLoop('lp', nop, None);
   const body = makeBlock([loop]);
-  mod.functions.push(makeTestFn("f", body));
+  mod.functions.push(makeTestFn('f', body));
 
-  new PassRunner(mod).add("RemoveUnusedNames").run();
+  new PassRunner(mod).add('RemoveUnusedNames').run();
 
   const newBody = mod.functions[0].body as BlockExpr;
   // The loop should have been replaced by its body (nop)
   assertEquals(
     newBody.children[0].kind,
     ExpressionKind.Nop,
-    "unused loop should be replaced by its body",
+    'unused loop should be replaced by its body',
   );
 });
 
-Deno.test("RemoveUnusedNames: keeps loop with br back-edge", () => {
+Deno.test('RemoveUnusedNames: keeps loop with br back-edge', () => {
   const mod = emptyModule();
   // (loop $lp (br $lp))  — has a back-edge
-  const br = makeBreak("lp");
-  const loop = makeLoop("lp", br, None);
-  mod.functions.push(makeTestFn("f", loop));
+  const br = makeBreak('lp');
+  const loop = makeLoop('lp', br, None);
+  mod.functions.push(makeTestFn('f', loop));
 
-  new PassRunner(mod).add("RemoveUnusedNames").run();
+  new PassRunner(mod).add('RemoveUnusedNames').run();
 
   // The body should still be a loop (not replaced)
   assertEquals(
     mod.functions[0].body.kind,
     ExpressionKind.Loop,
-    "loop with back-edge must not be removed",
+    'loop with back-edge must not be removed',
   );
 });
 
-Deno.test("RemoveUnusedNames: strips outer name but keeps inner used name", () => {
+Deno.test('RemoveUnusedNames: strips outer name but keeps inner used name', () => {
   // (block $outer (block $inner (br $inner)))
   const mod = emptyModule();
-  const inner = makeBlock([makeBreak("inner")], "inner");
-  const outer = makeBlock([inner], "outer");
-  mod.functions.push(makeTestFn("f", outer));
+  const inner = makeBlock([makeBreak('inner')], 'inner');
+  const outer = makeBlock([inner], 'outer');
+  mod.functions.push(makeTestFn('f', outer));
 
-  new PassRunner(mod).add("RemoveUnusedNames").run();
+  new PassRunner(mod).add('RemoveUnusedNames').run();
 
   const newOuter = mod.functions[0].body as BlockExpr;
-  assertEquals(newOuter.name, null, "outer unused name should be stripped");
+  assertEquals(newOuter.name, null, 'outer unused name should be stripped');
   const newInner = newOuter.children[0] as BlockExpr;
-  assertEquals(newInner.name, "inner", "inner used name should be kept");
+  assertEquals(newInner.name, 'inner', 'inner used name should be kept');
 });
 
 // ---------------------------------------------------------------------------
 // wasmOpt integration — native path
 // ---------------------------------------------------------------------------
 
-Deno.test("wasmOpt: native path returns valid WASM magic bytes", async () => {
+Deno.test('wasmOpt: native path returns valid WASM magic bytes', async () => {
   const input = buildAddWasm();
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 0 }));
   assertInstanceOf(result, Uint8Array);
@@ -234,17 +234,17 @@ Deno.test("wasmOpt: native path returns valid WASM magic bytes", async () => {
   assertEquals(result[3], 0x6d);
 });
 
-Deno.test("wasmOpt: output is re-parseable as valid WASM module", async () => {
+Deno.test('wasmOpt: output is re-parseable as valid WASM module', async () => {
   const input = buildAddWasm();
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 2 }));
   assertInstanceOf(result, Uint8Array);
   const mod = parseWasm(result as Uint8Array);
   assertEquals(mod.functions.length, 1);
   assertEquals(mod.exports.length, 1);
-  assertEquals(mod.exports[0].name, "add");
+  assertEquals(mod.exports[0].name, 'add');
 });
 
-Deno.test("wasmOpt: -O1 applies DCE and removes dead code", async () => {
+Deno.test('wasmOpt: -O1 applies DCE and removes dead code', async () => {
   const input = buildDeadCodeWasm();
   // Before optimization: body is a block with 3 children (unreachable + 2 nops)
   const inputMod = parseWasm(input);
@@ -260,21 +260,21 @@ Deno.test("wasmOpt: -O1 applies DCE and removes dead code", async () => {
   assertEquals(
     optimized.functions[0].body.kind,
     ExpressionKind.Unreachable,
-    "dead nops should be eliminated; body collapses to just unreachable",
+    'dead nops should be eliminated; body collapses to just unreachable',
   );
 });
 
-Deno.test("wasmOpt: explicit passes override default pass set", async () => {
+Deno.test('wasmOpt: explicit passes override default pass set', async () => {
   // With only Vacuum specified, DCE-specific logic won't run;
   // function structure should still be present and valid
   const input = buildAddWasm();
-  const result = await withTempWasm(input, (path) => wasmOpt(path, { passes: ["Vacuum"] }));
+  const result = await withTempWasm(input, (path) => wasmOpt(path, { passes: ['Vacuum'] }));
   assertInstanceOf(result, Uint8Array);
   const mod = parseWasm(result as Uint8Array);
-  assertEquals(mod.functions.length, 1, "function should still be present after Vacuum pass");
+  assertEquals(mod.functions.length, 1, 'function should still be present after Vacuum pass');
 });
 
-Deno.test("wasmOpt: empty module round-trips cleanly", async () => {
+Deno.test('wasmOpt: empty module round-trips cleanly', async () => {
   const input = encodeWasm({
     functions: [],
     globals: [],
@@ -298,13 +298,13 @@ Deno.test("wasmOpt: empty module round-trips cleanly", async () => {
   assert((result as Uint8Array).byteLength >= 8);
 });
 
-Deno.test("wasmOpt: passArgs are accepted without error", async () => {
+Deno.test('wasmOpt: passArgs are accepted without error', async () => {
   const input = buildAddWasm();
   // passArgs forwarded — no pass currently uses them, but must not throw
   const result = await withTempWasm(input, (path) =>
     wasmOpt(path, {
       optimizeLevel: 1,
-      passArgs: { "inlining@maxSize": "10" },
+      passArgs: { 'inlining@maxSize': '10' },
     }));
   assertInstanceOf(result, Uint8Array);
 });
@@ -313,45 +313,45 @@ Deno.test("wasmOpt: passArgs are accepted without error", async () => {
 // parseArgs — CLI flag wiring
 // ---------------------------------------------------------------------------
 
-Deno.test("parseArgs: --partial-inlining-ifs N sets PassOptions.partialInliningIfs", () => {
-  const parsed = parseArgs(["--partial-inlining-ifs", "4", "input.wasm"]);
+Deno.test('parseArgs: --partial-inlining-ifs N sets PassOptions.partialInliningIfs', () => {
+  const parsed = parseArgs(['--partial-inlining-ifs', '4', 'input.wasm']);
   assertEquals(parsed.options.partialInliningIfs, 4);
-  assertEquals(parsed.input, "input.wasm");
+  assertEquals(parsed.input, 'input.wasm');
 });
 
-Deno.test("parseArgs: -pii N alias sets PassOptions.partialInliningIfs", () => {
-  const parsed = parseArgs(["-pii", "8", "in.wasm", "-o", "out.wasm"]);
+Deno.test('parseArgs: -pii N alias sets PassOptions.partialInliningIfs', () => {
+  const parsed = parseArgs(['-pii', '8', 'in.wasm', '-o', 'out.wasm']);
   assertEquals(parsed.options.partialInliningIfs, 8);
-  assertEquals(parsed.options.output, "out.wasm");
+  assertEquals(parsed.options.output, 'out.wasm');
 });
 
-Deno.test("parseArgs: --partial-inlining-ifs is NOT misread as a pass name", () => {
-  const parsed = parseArgs(["--partial-inlining-ifs", "2", "in.wasm"]);
+Deno.test('parseArgs: --partial-inlining-ifs is NOT misread as a pass name', () => {
+  const parsed = parseArgs(['--partial-inlining-ifs', '2', 'in.wasm']);
   assertEquals(parsed.options.partialInliningIfs, 2);
   // The flag is recognized, so it must not also appear in the explicit pass list.
   assertEquals(parsed.options.passes, undefined);
 });
 
-Deno.test("parseArgs: --partial-inlining-ifs missing/invalid arg leaves option unset", () => {
+Deno.test('parseArgs: --partial-inlining-ifs missing/invalid arg leaves option unset', () => {
   // Trailing flag with no value → no crash, option not set.
-  const parsedTrailing = parseArgs(["in.wasm", "--partial-inlining-ifs"]);
+  const parsedTrailing = parseArgs(['in.wasm', '--partial-inlining-ifs']);
   assertEquals(parsedTrailing.options.partialInliningIfs, undefined);
   // Negative value rejected.
-  const parsedNeg = parseArgs(["--partial-inlining-ifs", "-1", "in.wasm"]);
+  const parsedNeg = parseArgs(['--partial-inlining-ifs', '-1', 'in.wasm']);
   assertEquals(parsedNeg.options.partialInliningIfs, undefined);
 });
 
-Deno.test("wasmOpt: -O2 with RemoveUnusedNames strips block names", async () => {
+Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => {
   // Build a module with a named block that has no br targeting it.
   // RemoveUnusedNames will strip the name; the encoder then unpacks the
   // resulting null-named block; the parser re-wraps single-expression bodies
   // without a block node — so the final body is just i32.const(42).
   const body = makeBlock(
     [makeI32Const(42)],
-    "dead_label",
+    'dead_label',
   );
   const mod = new ModuleBuilder()
-    .addFunction("fn", [], [ValType.I32], body)
+    .addFunction('fn', [], [ValType.I32], body)
     .build();
   const input = encodeWasm(mod);
 
@@ -366,10 +366,10 @@ Deno.test("wasmOpt: -O2 with RemoveUnusedNames strips block names", async () => 
   assertEquals(
     fnBody.kind,
     ExpressionKind.Const,
-    "dead_label block should have been stripped by RemoveUnusedNames; body simplifies to i32.const",
+    'dead_label block should have been stripped by RemoveUnusedNames; body simplifies to i32.const',
   );
 });
 
-Deno.test("parseArgs: trailing -o with no value throws instead of defaulting to output.wasm", () => {
-  assertThrows(() => parseArgs(["in.wasm", "-o"]), Error, "requires an output path");
+Deno.test('parseArgs: trailing -o with no value throws instead of defaulting to output.wasm', () => {
+  assertThrows(() => parseArgs(['in.wasm', '-o']), Error, 'requires an output path');
 });

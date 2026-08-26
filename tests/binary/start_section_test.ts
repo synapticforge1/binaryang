@@ -17,14 +17,14 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertThrows } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm, WasmEncodeError } from "../../src/encoder/index.ts";
-import { makeGlobalSet, makeI32Const } from "../../src/ir/expressions.ts";
-import { ModuleBuilder } from "../../src/ir/module.ts";
-import { ValType } from "../../src/ir/types.ts";
-import { PassRunner } from "../../src/passes/pass.ts";
-import "../../src/passes/index.ts"; // side-effect: registers the pass registry
+import { assert, assertEquals, assertThrows } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm, WasmEncodeError } from '../../src/encoder/index.ts';
+import { makeGlobalSet, makeI32Const } from '../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import { PassRunner } from '../../src/passes/pass.ts';
+import '../../src/passes/index.ts'; // side-effect: registers the pass registry
 
 /**
  * Hand-built module: `global $g (mut i32) = 0`, `func $init { $g = 42 }`,
@@ -105,22 +105,22 @@ function hasSection(bytes: Uint8Array, id: number): boolean {
   return false;
 }
 
-Deno.test("start section: the fixture actually runs its start function", async () => {
+Deno.test('start section: the fixture actually runs its start function', async () => {
   assertEquals(await readGlobalG(START_MODULE), 42);
 });
 
-Deno.test("start section: survives a bare parse→encode round-trip", async () => {
+Deno.test('start section: survives a bare parse→encode round-trip', async () => {
   const out = encodeWasm(parseWasm(START_MODULE));
-  assert(hasSection(out, 8), "re-encoded module is missing section 8");
+  assert(hasSection(out, 8), 're-encoded module is missing section 8');
   assertEquals(await readGlobalG(out), 42);
 });
 
-Deno.test("start section: parser records the start function under $func naming", () => {
+Deno.test('start section: parser records the start function under $func naming', () => {
   const mod = parseWasm(START_MODULE);
-  assertEquals(mod.start, "$func0");
+  assertEquals(mod.start, '$func0');
 });
 
-Deno.test("start section: a non-exported start function survives full -Oz", async () => {
+Deno.test('start section: a non-exported start function survives full -Oz', async () => {
   // The trap: RemoveUnusedModuleElements seeds liveness from exports and
   // element segments. `$func0` is neither — only `mod.start` keeps it alive.
   const mod = parseWasm(START_MODULE);
@@ -128,31 +128,31 @@ Deno.test("start section: a non-exported start function survives full -Oz", asyn
     .addDefaultOptimizationPasses()
     .run();
 
-  assertEquals(mod.start, "$func0");
+  assertEquals(mod.start, '$func0');
   assert(
-    mod.functions.some((f) => f.name === "$func0"),
-    "-Oz deleted the start function",
+    mod.functions.some((f) => f.name === '$func0'),
+    '-Oz deleted the start function',
   );
 
   const out = encodeWasm(mod);
-  assert(hasSection(out, 8), "optimized module is missing section 8");
+  assert(hasSection(out, 8), 'optimized module is missing section 8');
   assertEquals(await readGlobalG(out), 42);
 });
 
-Deno.test("start section: absent start emits no section 8", () => {
+Deno.test('start section: absent start emits no section 8', () => {
   const mod = new ModuleBuilder()
-    .addGlobal("$g", ValType.I32, true, makeI32Const(0))
-    .addFunction("$f", [], [], makeGlobalSet("$g", makeI32Const(1)))
+    .addGlobal('$g', ValType.I32, true, makeI32Const(0))
+    .addFunction('$f', [], [], makeGlobalSet('$g', makeI32Const(1)))
     .build();
   assertEquals(mod.start, null);
   assert(!hasSection(encodeWasm(mod), 8));
 });
 
-Deno.test("start section: setStart with an unknown name throws at encode time", () => {
+Deno.test('start section: setStart with an unknown name throws at encode time', () => {
   const mod = new ModuleBuilder()
-    .addGlobal("$g", ValType.I32, true, makeI32Const(0))
-    .addFunction("$f", [], [], makeGlobalSet("$g", makeI32Const(1)))
-    .setStart("$nope")
+    .addGlobal('$g', ValType.I32, true, makeI32Const(0))
+    .addFunction('$f', [], [], makeGlobalSet('$g', makeI32Const(1)))
+    .setStart('$nope')
     .build();
 
   assertThrows(

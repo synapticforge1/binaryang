@@ -66,29 +66,29 @@
  * @license MIT
  */
 
-import process from "node:process";
-import { main as wasmOptMain } from "./src/tools/wasm-opt.ts";
+import process from 'node:process';
+import { main as wasmOptMain } from './src/tools/wasm-opt.ts';
 
 // ---------------------------------------------------------------------------
 // CLI dispatch
 // ---------------------------------------------------------------------------
 
 /** Package version. Keep in sync with `deno.json` `version` (bumped on release). */
-const VERSION = "1.3.4";
+const VERSION = '1.3.4';
 
 const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
-  "wasm-opt": wasmOptMain,
+  'wasm-opt': wasmOptMain,
 };
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (!command || command === "--help" || command === "-h") {
+  if (!command || command === '--help' || command === '-h') {
     printHelp();
     return;
   }
 
-  if (command === "--version" || command === "-v") {
+  if (command === '--version' || command === '-v') {
     console.log(`binaryen-ts ${VERSION}`);
     return;
   }

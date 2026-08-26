@@ -29,21 +29,21 @@ export {
   PassRunner,
   registerPass,
   shrinkPassOptions,
-} from "./pass.ts";
-export type { Pass, PassCtor, PassOptions } from "./pass.ts";
+} from './pass.ts';
+export type { Pass, PassCtor, PassOptions } from './pass.ts';
 
 // Side-effect imports: register all built-in passes.
-import "./dce.ts";
-import "./vacuum.ts";
-import "./optimize-instructions.ts";
-import "./remove-unused-brs.ts";
-import "./simplify-locals.ts";
-import "./coalesce-locals.ts";
-import "./local-cse.ts";
-import "./remove-unused-module-elements.ts";
-import "./pick-load-signs.ts";
-import "./inlining.ts";
-import "./remove-unused-names.ts";
-import "./strip-eh.ts";
-import "./flatten.ts";
-import "./asyncify.ts";
+import './dce.ts';
+import './vacuum.ts';
+import './optimize-instructions.ts';
+import './remove-unused-brs.ts';
+import './simplify-locals.ts';
+import './coalesce-locals.ts';
+import './local-cse.ts';
+import './remove-unused-module-elements.ts';
+import './pick-load-signs.ts';
+import './inlining.ts';
+import './remove-unused-names.ts';
+import './strip-eh.ts';
+import './flatten.ts';
+import './asyncify.ts';

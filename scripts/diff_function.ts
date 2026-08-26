@@ -11,15 +11,15 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
-import { BinaryReader } from "../src/binary/reader.ts";
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { BinaryReader } from '../src/binary/reader.ts';
 
-const ROOT = new URL("../upstream/test", import.meta.url).pathname.replace(/^\//, "");
-const TARGET_REL = "passes/fannkuch0_dwarf.wasm";
+const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
 const TARGET_FN_INDEX = 5; // from validator error: function #5
 
 // ---------------------------------------------------------------------------
@@ -100,15 +100,15 @@ function findFunctionRanges(bytes: Uint8Array): FuncRange[] {
 }
 
 function hex(b: number): string {
-  return b.toString(16).padStart(2, "0");
+  return b.toString(16).padStart(2, '0');
 }
 
 function hexdump(bytes: Uint8Array, start: number, len: number, label: string): void {
   console.log(`  ${label} [${start}..${start + len})`);
   for (let i = 0; i < len; i += 16) {
     const chunk = bytes.subarray(start + i, Math.min(start + i + 16, start + len));
-    const offsetStr = (start + i).toString(16).padStart(8, "0");
-    const hexStr = Array.from(chunk, (b) => hex(b)).join(" ");
+    const offsetStr = (start + i).toString(16).padStart(8, '0');
+    const hexStr = Array.from(chunk, (b) => hex(b)).join(' ');
     console.log(`    ${offsetStr}: ${hexStr}`);
   }
 }
@@ -171,7 +171,7 @@ if (divergeAt === -1 && origLen !== reLen) {
 }
 
 if (divergeAt === -1) {
-  console.log("Bodies are byte-identical — divergence must be elsewhere.");
+  console.log('Bodies are byte-identical — divergence must be elsewhere.');
   Deno.exit(0);
 }
 
@@ -184,9 +184,9 @@ const ctxAfter = 48;
 const start = Math.max(0, divergeAt - ctxBefore);
 const lenDump = ctxBefore + ctxAfter;
 
-hexdump(original, origFn.bodyStart + start, Math.min(lenDump, origLen - start), "ORIGINAL");
+hexdump(original, origFn.bodyStart + start, Math.min(lenDump, origLen - start), 'ORIGINAL');
 console.log();
-hexdump(reEncoded, reFn.bodyStart + start, Math.min(lenDump, reLen - start), "RE-ENCODED");
+hexdump(reEncoded, reFn.bodyStart + start, Math.min(lenDump, reLen - start), 'RE-ENCODED');
 console.log();
 
 // Identify divergent byte values explicitly

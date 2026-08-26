@@ -30,7 +30,7 @@
  * @license MIT
  */
 
-export * from "./gc-types.ts";
-export * from "./types.ts";
-export * from "./expressions.ts";
-export * from "./module.ts";
+export * from './gc-types.ts';
+export * from './types.ts';
+export * from './expressions.ts';
+export * from './module.ts';

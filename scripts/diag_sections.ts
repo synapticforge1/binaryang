@@ -12,26 +12,26 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
-import { BinaryReader } from "../src/binary/reader.ts";
+import * as fs from 'node:fs/promises';
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { BinaryReader } from '../src/binary/reader.ts';
 
 const SECTION_NAMES: Record<number, string> = {
-  0: "custom",
-  1: "type",
-  2: "import",
-  3: "function",
-  4: "table",
-  5: "memory",
-  6: "global",
-  7: "export",
-  8: "start",
-  9: "element",
-  10: "code",
-  11: "data",
-  12: "datacount",
-  13: "tag",
+  0: 'custom',
+  1: 'type',
+  2: 'import',
+  3: 'function',
+  4: 'table',
+  5: 'memory',
+  6: 'global',
+  7: 'export',
+  8: 'start',
+  9: 'element',
+  10: 'code',
+  11: 'data',
+  12: 'datacount',
+  13: 'tag',
 };
 
 function sections(bytes: Uint8Array): { id: number; label: string; size: number }[] {
@@ -53,7 +53,7 @@ function sections(bytes: Uint8Array): { id: number; label: string; size: number 
   return out;
 }
 
-const ROOT = new URL("../upstream/test/", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const reenc = encodeWasm(parseWasm(orig));
@@ -61,7 +61,7 @@ const reenc = encodeWasm(parseWasm(orig));
 console.log(`# ${rel}`);
 console.log(`# original ${orig.byteLength} B  →  re-encoded ${reenc.byteLength} B`);
 console.log();
-console.log("ORIGINAL sections:");
+console.log('ORIGINAL sections:');
 let oCustom = 0;
 for (const s of sections(orig)) {
   console.log(`  ${s.label.padEnd(22)} ${s.size.toString().padStart(8)} B`);
@@ -69,7 +69,7 @@ for (const s of sections(orig)) {
 }
 console.log(`  (custom-section bytes total: ${oCustom})`);
 console.log();
-console.log("RE-ENCODED sections:");
+console.log('RE-ENCODED sections:');
 for (const s of sections(reenc)) {
   console.log(`  ${s.label.padEnd(22)} ${s.size.toString().padStart(8)} B`);
 }

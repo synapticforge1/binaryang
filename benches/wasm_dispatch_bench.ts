@@ -26,11 +26,11 @@
  * @license MIT
  */
 
-import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from "../src/wasm/index.ts";
-import { loadKernel } from "../src/wasm-runtime.ts";
+import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from '../src/wasm/index.ts';
+import { loadKernel } from '../src/wasm-runtime.ts';
 
 const kernel = await loadKernel({
-  name: "demo-bench",
+  name: 'demo-bench',
   bytes: DEMO_BYTES,
   exports: DEMO_KERNEL_EXPORTS,
 });
@@ -44,63 +44,63 @@ const wasmEq = kernel.exports.eq_i32 as (a: number, b: number) => number;
 // ---------------------------------------------------------------------------
 
 Deno.bench({
-  name: "single-op add :: native JS  (a + b) | 0",
-  group: "single-op",
+  name: 'single-op add :: native JS  (a + b) | 0',
+  group: 'single-op',
   baseline: true,
   fn: () => {
     let acc = 0;
     for (let i = 0; i < 1000; i++) acc = (acc + i) | 0;
-    if (acc === -1) throw new Error("optimizer escaped the loop");
+    if (acc === -1) throw new Error('optimizer escaped the loop');
   },
 });
 
 Deno.bench({
-  name: "single-op add :: WASM add_i32(a, b)",
-  group: "single-op",
+  name: 'single-op add :: WASM add_i32(a, b)',
+  group: 'single-op',
   fn: () => {
     let acc = 0;
     for (let i = 0; i < 1000; i++) acc = wasmAdd(acc, i);
-    if (acc === -1) throw new Error("optimizer escaped the loop");
+    if (acc === -1) throw new Error('optimizer escaped the loop');
   },
 });
 
 Deno.bench({
-  name: "single-op mul :: native JS  Math.imul(a, b)",
-  group: "single-op",
+  name: 'single-op mul :: native JS  Math.imul(a, b)',
+  group: 'single-op',
   fn: () => {
     let acc = 1;
     for (let i = 1; i < 1000; i++) acc = Math.imul(acc, i) | 0;
-    if (acc === Number.MIN_SAFE_INTEGER) throw new Error("optimizer escaped");
+    if (acc === Number.MIN_SAFE_INTEGER) throw new Error('optimizer escaped');
   },
 });
 
 Deno.bench({
-  name: "single-op mul :: WASM mul_i32(a, b)",
-  group: "single-op",
+  name: 'single-op mul :: WASM mul_i32(a, b)',
+  group: 'single-op',
   fn: () => {
     let acc = 1;
     for (let i = 1; i < 1000; i++) acc = wasmMul(acc, i);
-    if (acc === Number.MIN_SAFE_INTEGER) throw new Error("optimizer escaped");
+    if (acc === Number.MIN_SAFE_INTEGER) throw new Error('optimizer escaped');
   },
 });
 
 Deno.bench({
-  name: "single-op eq  :: native JS  a === b ? 1 : 0",
-  group: "single-op",
+  name: 'single-op eq  :: native JS  a === b ? 1 : 0',
+  group: 'single-op',
   fn: () => {
     let hits = 0;
     for (let i = 0; i < 1000; i++) hits += i === (i & 0x3FF) ? 1 : 0;
-    if (hits < 0) throw new Error("optimizer escaped");
+    if (hits < 0) throw new Error('optimizer escaped');
   },
 });
 
 Deno.bench({
-  name: "single-op eq  :: WASM eq_i32(a, b)",
-  group: "single-op",
+  name: 'single-op eq  :: WASM eq_i32(a, b)',
+  group: 'single-op',
   fn: () => {
     let hits = 0;
     for (let i = 0; i < 1000; i++) hits += wasmEq(i, i & 0x3FF);
-    if (hits < 0) throw new Error("optimizer escaped");
+    if (hits < 0) throw new Error('optimizer escaped');
   },
 });
 
@@ -111,12 +111,12 @@ Deno.bench({
 // ---------------------------------------------------------------------------
 
 Deno.bench({
-  name: "loadKernel — cache hit (warm)",
-  group: "instantiation",
+  name: 'loadKernel — cache hit (warm)',
+  group: 'instantiation',
   baseline: true,
   fn: async () => {
     await loadKernel({
-      name: "demo-bench",
+      name: 'demo-bench',
       bytes: DEMO_BYTES,
       exports: DEMO_KERNEL_EXPORTS,
     });

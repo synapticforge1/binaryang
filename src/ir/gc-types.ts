@@ -21,7 +21,7 @@
  * @license MIT
  */
 
-import type { ValType } from "./types.ts";
+import type { ValType } from './types.ts';
 
 // ---------------------------------------------------------------------------
 // Heap types
@@ -33,29 +33,29 @@ import type { ValType } from "./types.ts";
  */
 export enum AbstractHeapType {
   /** Top of the function reference hierarchy. */
-  Func = "func",
+  Func = 'func',
   /** Bottom of the function reference hierarchy (null func). */
-  NoFunc = "nofunc",
+  NoFunc = 'nofunc',
   /** External (host) reference. */
-  Ext = "ext",
+  Ext = 'ext',
   /** Bottom of the external reference hierarchy. */
-  NoExt = "noext",
+  NoExt = 'noext',
   /** Top of the GC reference hierarchy. */
-  Any = "any",
+  Any = 'any',
   /** Equatable references (structs, arrays, i31). */
-  Eq = "eq",
+  Eq = 'eq',
   /** 31-bit integers as references. */
-  I31 = "i31",
+  I31 = 'i31',
   /** Abstract struct type. */
-  Struct = "struct",
+  Struct = 'struct',
   /** Abstract array type. */
-  Array = "array",
+  Array = 'array',
   /** Bottom of the GC reference hierarchy (null ref). */
-  None = "none",
+  None = 'none',
   /** Exception reference. */
-  Exn = "exn",
+  Exn = 'exn',
   /** Bottom of the exception reference hierarchy. */
-  NoExn = "noexn",
+  NoExn = 'noexn',
 }
 
 /**
@@ -97,7 +97,7 @@ export interface RefType {
  * Packed integer storage types for struct and array fields.
  * These are not valid value types — they are only valid inside field declarations.
  */
-export type PackedType = "i8" | "i16";
+export type PackedType = 'i8' | 'i16';
 
 /**
  * The storage type of a struct or array field: a value type, a packed integer,
@@ -149,7 +149,7 @@ export interface FieldType {
  */
 export interface StructTypeDef {
   /** Discriminant — identifies this entry as a struct type. */
-  kind: "struct";
+  kind: 'struct';
   /** The ordered list of field declarations. */
   fields: FieldType[];
 }
@@ -167,7 +167,7 @@ export interface StructTypeDef {
  */
 export interface ArrayTypeDef {
   /** Discriminant — identifies this entry as an array type. */
-  kind: "array";
+  kind: 'array';
   /** The element field declaration. */
   element: FieldType;
 }
@@ -178,7 +178,7 @@ export interface ArrayTypeDef {
  */
 export interface FuncTypeDef {
   /** Discriminant — identifies this entry as a function type. */
-  kind: "func";
+  kind: 'func';
   /** Parameter types in declaration order. */
   params: (ValType | RefType)[];
   /** Result types in declaration order (empty array = void). */
@@ -201,11 +201,11 @@ export type TypeDef = StructTypeDef | ArrayTypeDef | FuncTypeDef;
  */
 export function isRefType(t: unknown): t is RefType {
   return (
-    typeof t === "object" &&
+    typeof t === 'object' &&
     t !== null &&
     !Array.isArray(t) &&
-    "heap" in t &&
-    "nullable" in t
+    'heap' in t &&
+    'nullable' in t
   );
 }
 
@@ -221,14 +221,14 @@ export function isRefType(t: unknown): t is RefType {
  * callers of the `./ir` entry point, such as the wabt-ts IR bridge.
  */
 export function isAbstractHeapType(h: HeapType): h is AbstractHeapType {
-  return typeof h === "string";
+  return typeof h === 'string';
 }
 
 /**
  * Returns `true` if the storage type is a packed integer (`i8` or `i16`).
  */
 export function isPackedType(t: StorageType): t is PackedType {
-  return t === "i8" || t === "i16";
+  return t === 'i8' || t === 'i16';
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ export function isPackedType(t: StorageType): t is PackedType {
  * Abstract types use their built-in name; type indices use `$typeN`.
  */
 export function heapTypeToString(h: HeapType): string {
-  if (typeof h === "string") return h;
+  if (typeof h === 'string') return h;
   return `$type${h}`;
 }
 

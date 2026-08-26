@@ -26,26 +26,26 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import * as ours from "../src/api/binaryen-compat.ts";
-import type { WasmModule } from "../src/ir/module.ts";
-import { ValType } from "../src/ir/types.ts";
+import * as fs from 'node:fs/promises';
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import * as ours from '../src/api/binaryen-compat.ts';
+import type { WasmModule } from '../src/ir/module.ts';
+import { ValType } from '../src/ir/types.ts';
 
-const ROOT = new URL("../upstream/test/", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 
 // Files where WT-2 showed ours producing notably different code size — the
 // highest-value targets for an equivalence check — plus a couple of controls.
 const DEFAULT_CORPUS = [
-  "passes/fannkuch0_dwarf.wasm", // ours 2.03× larger code
-  "passes/class_with_dwarf_noprint.wasm", // ours 0.86×
-  "unit/input/dwarf/zlib.wasm", // ours 1.00× (parity)
-  "unit/input/dwarf/cubescript.wasm", // ours 0.78× (smaller — top suspect)
-  "passes/fib2_dwarf.wasm", // small control
+  'passes/fannkuch0_dwarf.wasm', // ours 2.03× larger code
+  'passes/class_with_dwarf_noprint.wasm', // ours 0.86×
+  'unit/input/dwarf/zlib.wasm', // ours 1.00× (parity)
+  'unit/input/dwarf/cubescript.wasm', // ours 0.78× (smaller — top suspect)
+  'passes/fib2_dwarf.wasm', // small control
 ];
 
 const NUMERIC = new Set<string>([ValType.I32, ValType.I64, ValType.F32, ValType.F64]);
-const ENTRY_POINTS = new Set(["_start", "main"]); // skip whole-program drivers (hang risk)
+const ENTRY_POINTS = new Set(['_start', 'main']); // skip whole-program drivers (hang risk)
 
 type Arg = number | bigint;
 
@@ -89,29 +89,29 @@ function makeImports(
     (obj[m] ??= {})[b] = v;
   };
   for (const imp of mod.imports) {
-    if (imp.kind === "function") {
+    if (imp.kind === 'function') {
       const i64Result = (imp.results ?? []).length === 1 && imp.results![0] === ValType.I64;
       put(imp.module, imp.base, (..._a: unknown[]) => (i64Result ? 0n : 0));
-    } else if (imp.kind === "memory") {
+    } else if (imp.kind === 'memory') {
       const desc: WebAssembly.MemoryDescriptor = { initial: imp.initial ?? 0 };
       if (imp.max != null) desc.maximum = imp.max;
       if (imp.shared) (desc as { shared?: boolean }).shared = true;
       mem = new WebAssembly.Memory(desc);
       put(imp.module, imp.base, mem);
-    } else if (imp.kind === "global") {
+    } else if (imp.kind === 'global') {
       const t = imp.type === ValType.I64
-        ? "i64"
+        ? 'i64'
         : imp.type === ValType.F32
-        ? "f32"
+        ? 'f32'
         : imp.type === ValType.F64
-        ? "f64"
-        : "i32";
+        ? 'f64'
+        : 'i32';
       const init: Arg = imp.type === ValType.I64 ? 0n : 0;
       put(imp.module, imp.base, new WebAssembly.Global({ value: t, mutable: !!imp.mutable }, init));
-    } else if (imp.kind === "table") {
-      const element = imp.type === ValType.ExternRef ? "externref" : "anyfunc";
+    } else if (imp.kind === 'table') {
+      const element = imp.type === ValType.ExternRef ? 'externref' : 'anyfunc';
       const desc: WebAssembly.TableDescriptor = {
-        element: element as "anyfunc",
+        element: element as 'anyfunc',
         initial: imp.initial ?? 0,
       };
       if (imp.max != null) desc.maximum = imp.max;
@@ -134,7 +134,7 @@ function instanceMemory(
 
 /** FNV-1a over the committed memory bytes. */
 function hashMem(mem: WebAssembly.Memory | null): string {
-  if (!mem) return "n/a";
+  if (!mem) return 'n/a';
   const bytes = new Uint8Array(mem.buffer);
   let h = 0x811c9dc5;
   for (let i = 0; i < bytes.length; i++) {
@@ -154,34 +154,34 @@ function call(fn: (...a: Arg[]) => unknown, args: Arg[]): CallOutcome {
     const r = fn(...args);
     // Normalize: NaN→"nan" so NaN===NaN; bigint→"<n>n"; undefined(void)→"void".
     let ret: string;
-    if (r === undefined) ret = "void";
-    else if (typeof r === "bigint") ret = r.toString() + "n";
-    else if (typeof r === "number" && Number.isNaN(r)) ret = "nan";
+    if (r === undefined) ret = 'void';
+    else if (typeof r === 'bigint') ret = r.toString() + 'n';
+    else if (typeof r === 'number' && Number.isNaN(r)) ret = 'nan';
     else ret = String(r);
     return { trap: false, ret };
   } catch {
-    return { trap: true, ret: "trap" };
+    return { trap: true, ret: 'trap' };
   }
 }
 
 interface FileReport {
   rel: string;
-  status: "ok" | "instantiate-fail" | "skip";
+  status: 'ok' | 'instantiate-fail' | 'skip';
   exportsTested: number;
   callsCompared: number;
   divergences: string[];
-  memMatch: boolean | "n/a";
+  memMatch: boolean | 'n/a';
   note?: string;
 }
 
 async function checkFile(rel: string): Promise<FileReport> {
   const rep: FileReport = {
     rel,
-    status: "ok",
+    status: 'ok',
     exportsTested: 0,
     callsCompared: 0,
     divergences: [],
-    memMatch: "n/a",
+    memMatch: 'n/a',
   };
   const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 
@@ -198,8 +198,8 @@ async function checkFile(rel: string): Promise<FileReport> {
     optimized = m.emitBinary();
     m.dispose();
   } catch (e) {
-    rep.status = "skip";
-    rep.note = "optimize threw: " + (e as Error).message;
+    rep.status = 'skip';
+    rep.note = 'optimize threw: ' + (e as Error).message;
     return rep;
   }
 
@@ -213,7 +213,7 @@ async function checkFile(rel: string): Promise<FileReport> {
     memA = instanceMemory(instA, ia.mem);
     memB = instanceMemory(instB, ib.mem);
   } catch (e) {
-    rep.status = "instantiate-fail";
+    rep.status = 'instantiate-fail';
     rep.note = (e as Error).message.slice(0, 160);
     return rep;
   }
@@ -225,7 +225,7 @@ async function checkFile(rel: string): Promise<FileReport> {
   }
 
   for (const exp of mod.exports) {
-    if (exp.kind !== "function" || ENTRY_POINTS.has(exp.name)) continue;
+    if (exp.kind !== 'function' || ENTRY_POINTS.has(exp.name)) continue;
     const sig = sigByName.get(exp.value);
     if (!sig) continue; // exported import, or unresolved
     if (sig.results.length > 1) continue;
@@ -234,7 +234,7 @@ async function checkFile(rel: string): Promise<FileReport> {
     if (!vecs) continue;
     const fa = instA.exports[exp.name] as ((...a: Arg[]) => unknown) | undefined;
     const fb = instB.exports[exp.name] as ((...a: Arg[]) => unknown) | undefined;
-    if (typeof fa !== "function" || typeof fb !== "function") continue;
+    if (typeof fa !== 'function' || typeof fb !== 'function') continue;
 
     rep.exportsTested++;
     for (const args of vecs) {
@@ -244,7 +244,7 @@ async function checkFile(rel: string): Promise<FileReport> {
       if (ra.trap !== rb.trap || ra.ret !== rb.ret) {
         rep.divergences.push(
           `${exp.name}(${
-            args.join(",")
+            args.join(',')
           }): input={trap:${ra.trap},ret:${ra.ret}} ours={trap:${rb.trap},ret:${rb.ret}}`,
         );
       }
@@ -252,7 +252,7 @@ async function checkFile(rel: string): Promise<FileReport> {
   }
 
   const ha = hashMem(memA), hb = hashMem(memB);
-  rep.memMatch = ha === "n/a" || hb === "n/a" ? "n/a" : ha === hb;
+  rep.memMatch = ha === 'n/a' || hb === 'n/a' ? 'n/a' : ha === hb;
   return rep;
 }
 
@@ -267,16 +267,16 @@ for (const rel of corpus) {
   reports.push(await checkFile(rel));
 }
 
-console.log("# WT-2c — behavioral equivalence: original input vs binaryen-ts/compat -Oz");
+console.log('# WT-2c — behavioral equivalence: original input vs binaryen-ts/compat -Oz');
 console.log();
 let totalDiv = 0;
 for (const r of reports) {
   const divs = r.divergences.length;
   totalDiv += divs;
-  const memStr = r.memMatch === "n/a" ? "mem:n/a" : r.memMatch ? "mem:match" : "mem:DIFF";
+  const memStr = r.memMatch === 'n/a' ? 'mem:n/a' : r.memMatch ? 'mem:match' : 'mem:DIFF';
   console.log(
     `${r.rel}\n  status=${r.status} exports=${r.exportsTested} calls=${r.callsCompared} divergences=${divs} ${memStr}` +
-      (r.note ? `\n  note: ${r.note}` : ""),
+      (r.note ? `\n  note: ${r.note}` : ''),
   );
   for (const d of r.divergences.slice(0, 8)) console.log(`    ✗ ${d}`);
   if (divs > 8) console.log(`    … and ${divs - 8} more`);
@@ -289,6 +289,6 @@ console.log(
 );
 console.log(
   totalDiv === 0 && memDiffs === 0
-    ? "✅ No behavioral divergence detected — optimization is semantics-preserving on the sampled surface."
-    : "✗ Divergence detected — investigate the listed exports.",
+    ? '✅ No behavioral divergence detected — optimization is semantics-preserving on the sampled surface.'
+    : '✗ Divergence detected — investigate the listed exports.',
 );

@@ -26,22 +26,22 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
+import { assert, assertEquals } from '@std/assert';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
-import { parseWasm } from "../../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../../src/encoder/wasm-encoder.ts";
-import { walkExpression } from "../../src/ir/walk.ts";
-import type { WasmModule } from "../../src/ir/module.ts";
+import { parseWasm } from '../../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/encoder/wasm-encoder.ts';
+import { walkExpression } from '../../src/ir/walk.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
 
 // `path.fromFileUrl` is Deno-std; this file uses `node:path` for cross-runtime
 // parity with the rest of the tree, so convert the URL by hand (matching
 // scripts/verify_roundtrip.ts). The leading slash of a Windows file URL
 // path ("/D:/...") has to go.
 const CORPUS = decodeURIComponent(
-  new URL("../../upstream/test", import.meta.url).pathname,
-).replace(/^\/(?=[A-Za-z]:)/, "");
+  new URL('../../upstream/test', import.meta.url).pathname,
+).replace(/^\/(?=[A-Za-z]:)/, '');
 
 /**
  * Lower bound on files that must survive a full round-trip. Raise it when the
@@ -71,7 +71,7 @@ async function findWasm(dir: string, out: string[] = []): Promise<string[]> {
   for (const e of entries) {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) await findWasm(full, out);
-    else if (e.name.endsWith(".wasm")) out.push(full);
+    else if (e.name.endsWith('.wasm')) out.push(full);
   }
   return out;
 }
@@ -100,13 +100,13 @@ async function validates(bytes: Uint8Array): Promise<boolean> {
 }
 
 Deno.test({
-  name: "corpus: parse->encode->parse is lossless and stays valid",
+  name: 'corpus: parse->encode->parse is lossless and stays valid',
   ignore: !(await corpusPresent()),
   fn: async () => {
     const files = await findWasm(CORPUS);
     assert(files.length > 0, `no .wasm files under ${CORPUS}`);
 
-    const rel = (f: string) => path.relative(CORPUS, f).split(path.sep).join("/");
+    const rel = (f: string) => path.relative(CORPUS, f).split(path.sep).join('/');
     const okFiles: string[] = [];
     const rejectedOnInput: string[] = [];
     const encodeFail: string[] = [];
@@ -182,10 +182,10 @@ Deno.test({
       }
     }
 
-    assertEquals(encodeFail, [], "encode failures");
-    assertEquals(reparseFail, [], "re-parse failures");
-    assertEquals(drift, [], "structural drift across the round-trip");
-    assertEquals(validateFail, [], "output failed to validate though the input did");
+    assertEquals(encodeFail, [], 'encode failures');
+    assertEquals(reparseFail, [], 're-parse failures');
+    assertEquals(drift, [], 'structural drift across the round-trip');
+    assertEquals(validateFail, [], 'output failed to validate though the input did');
 
     // Every file lands in exactly one bucket — the old script silently dropped
     // input-rejected files, so its "0 failures" could hide unexercised inputs.
@@ -193,14 +193,14 @@ Deno.test({
       okFiles.length + rejectedOnInput.length + encodeFail.length +
         reparseFail.length + drift.length,
       files.length,
-      "some files fell through every category",
+      'some files fell through every category',
     );
 
     assert(
       okFiles.length >= MIN_ROUNDTRIPPING,
       `only ${okFiles.length} files round-tripped, expected at least ${MIN_ROUNDTRIPPING} — ` +
         `a file that used to parse now does not. Rejected on input:\n  ${
-          rejectedOnInput.join("\n  ")
+          rejectedOnInput.join('\n  ')
         }`,
     );
   },

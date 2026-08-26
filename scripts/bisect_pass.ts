@@ -12,34 +12,34 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
-import { createPass, PassRunner } from "../src/passes/pass.ts";
-import "../src/passes/index.ts"; // side-effect: register all built-in passes
+import * as fs from 'node:fs/promises';
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { createPass, PassRunner } from '../src/passes/pass.ts';
+import '../src/passes/index.ts'; // side-effect: register all built-in passes
 
-const ROOT = new URL("../upstream/test/", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 
 const OZ = [
-  "DCE",
-  "PickLoadSigns",
-  "Vacuum",
-  "RemoveUnusedBrs",
-  "RemoveUnusedNames",
-  "OptimizeInstructions",
-  "CoalesceLocals",
-  "SimplifyLocals",
-  "LocalCSE",
-  "Vacuum",
-  "RemoveUnusedModuleElements",
+  'DCE',
+  'PickLoadSigns',
+  'Vacuum',
+  'RemoveUnusedBrs',
+  'RemoveUnusedNames',
+  'OptimizeInstructions',
+  'CoalesceLocals',
+  'SimplifyLocals',
+  'LocalCSE',
+  'Vacuum',
+  'RemoveUnusedModuleElements',
 ];
 
 async function compiles(bytes: Uint8Array): Promise<string> {
   try {
     await WebAssembly.compile(bytes as BufferSource);
-    return "ok";
+    return 'ok';
   } catch (e) {
     return (e as Error).message.slice(0, 110);
   }
@@ -49,7 +49,7 @@ console.log(`# bisect ${rel}`);
 console.log(`baseline parse->encode: ${await compiles(encodeWasm(parseWasm(orig)))}`);
 console.log();
 
-console.log("## each pass individually (parse -> pass -> encode):");
+console.log('## each pass individually (parse -> pass -> encode):');
 for (const name of [...new Set(OZ)]) {
   const mod = parseWasm(orig);
   try {
@@ -61,7 +61,7 @@ for (const name of [...new Set(OZ)]) {
 }
 
 console.log();
-console.log("## cumulative -Oz prefix:");
+console.log('## cumulative -Oz prefix:');
 for (let i = 1; i <= OZ.length; i++) {
   const prefix = OZ.slice(0, i);
   const mod = parseWasm(orig);
@@ -72,8 +72,8 @@ for (let i = 1; i <= OZ.length; i++) {
     runner.run();
     res = await compiles(encodeWasm(mod));
   } catch (e) {
-    res = "THREW: " + (e as Error).message.slice(0, 80);
+    res = 'THREW: ' + (e as Error).message.slice(0, 80);
   }
   console.log(`  [${i}] +${prefix[i - 1].padEnd(26)} ${res}`);
-  if (res !== "ok") break;
+  if (res !== 'ok') break;
 }

@@ -10,23 +10,23 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { buildCFG, computeLiveness } from "../src/passes/cfg.ts";
+import * as fs from 'node:fs/promises';
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { buildCFG, computeLiveness } from '../src/passes/cfg.ts';
 
-const ROOT = new URL("../upstream/test/", import.meta.url).pathname.replace(/^\//, "");
-const mod = parseWasm(new Uint8Array(await fs.readFile(ROOT + "fib-dbg.wasm")));
-const fib = mod.functions.find((f) => f.name === "$func5")!;
+const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const mod = parseWasm(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
+const fib = mod.functions.find((f) => f.name === '$func5')!;
 
 const cfg = buildCFG(fib.body);
 computeLiveness(cfg);
 
-const set = (s: Iterable<number>) => `{${[...s].sort((a, b) => a - b).join(",")}}`;
+const set = (s: Iterable<number>) => `{${[...s].sort((a, b) => a - b).join(',')}}`;
 for (const b of cfg.blocks) {
-  const acts = b.actions.map((a) => `${a.kind === "get" ? "g" : "s"}${a.index}`).join(" ");
+  const acts = b.actions.map((a) => `${a.kind === 'get' ? 'g' : 's'}${a.index}`).join(' ');
   console.log(
-    `B${b.id}  in=[${b.in.map((x) => x.id).join(",")}] out=[${
-      b.out.map((x) => x.id).join(",")
+    `B${b.id}  in=[${b.in.map((x) => x.id).join(',')}] out=[${
+      b.out.map((x) => x.id).join(',')
     }]  ` +
       `start=${set(b.start)} end=${set(b.end)}  acts: ${acts}`,
   );
@@ -38,7 +38,7 @@ for (const b of cfg.blocks) {
   const live = new Set(b.end);
   for (let i = b.actions.length - 1; i >= 0; i--) {
     const a = b.actions[i];
-    if (a.kind === "get") live.add(a.index);
+    if (a.kind === 'get') live.add(a.index);
     else {
       if (a.index === 4 && live.has(4)) eff4 = true;
       live.delete(a.index);

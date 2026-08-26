@@ -70,8 +70,8 @@
  * @license MIT
  */
 
-import { parseWasm } from "../binary/wasm-parser.ts";
-import { encodeWasm } from "../encoder/wasm-encoder.ts";
+import { parseWasm } from '../binary/wasm-parser.ts';
+import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import {
   BinaryOp,
   type Expression,
@@ -103,16 +103,16 @@ import {
   makeUnary,
   makeUnreachable,
   UnaryOp,
-} from "../ir/expressions.ts";
+} from '../ir/expressions.ts';
 import {
   ModuleBuilder,
   type WasmExport,
   type WasmFunction,
   type WasmModule,
-} from "../ir/module.ts";
-import { None, type Type, ValType } from "../ir/types.ts";
-import { AbstractHeapType, isRefType, type ValueType } from "../ir/gc-types.ts";
-import { createPass, PassRunner } from "../passes/index.ts";
+} from '../ir/module.ts';
+import { None, type Type, ValType } from '../ir/types.ts';
+import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
+import { createPass, PassRunner } from '../passes/index.ts';
 
 // ---------------------------------------------------------------------------
 // Numeric type IDs — same values as upstream binaryen.js
@@ -246,7 +246,7 @@ function _idToValTypeArray(id: number | number[]): ValType[] {
     return id.map((x) => {
       const vt = _idToValType(x);
       if (vt === null) {
-        throw new TypeError(`unrecognized wasm type id ${x} in tuple type [${id.join(", ")}]`);
+        throw new TypeError(`unrecognized wasm type id ${x} in tuple type [${id.join(', ')}]`);
       }
       return vt;
     });
@@ -318,7 +318,7 @@ export const ExternalGlobal: number = 3;
 /** Export kind for a tag (EH proposal). */
 export const ExternalTag: number = 4;
 
-const _KIND_TO_ID: Record<WasmExport["kind"], number> = {
+const _KIND_TO_ID: Record<WasmExport['kind'], number> = {
   function: ExternalFunction,
   table: ExternalTable,
   memory: ExternalMemory,
@@ -605,7 +605,7 @@ export class I32Ops {
 export class I64Ops {
   /** `i64.const value` (bigint). */
   const(value: bigint | number): Expression {
-    return makeI64Const(typeof value === "number" ? BigInt(value) : value);
+    return makeI64Const(typeof value === 'number' ? BigInt(value) : value);
   }
   /** `i64.add`. */
   add(l: Expression, r: Expression): Expression {
@@ -1122,7 +1122,7 @@ export class Module {
     results: number | number[],
   ): void {
     this._inner.imports.push({
-      kind: "function",
+      kind: 'function',
       name: internalName,
       module: externalModule,
       base: externalBase,
@@ -1162,7 +1162,7 @@ export class Module {
   ): void {
     const vt = _idToValTypeStrict(type);
     this._inner.imports.push({
-      kind: "global",
+      kind: 'global',
       name: internalName,
       module: externalModule,
       base: externalBase,
@@ -1186,7 +1186,7 @@ export class Module {
     shared = false,
   ): void {
     this._inner.imports.push({
-      kind: "memory",
+      kind: 'memory',
       name: internalName,
       module: externalModule,
       base: externalBase,
@@ -1224,7 +1224,7 @@ export class Module {
     segments: MemoryDataSegment[] = [],
     shared = false,
     is64 = false,
-    internalName = "0",
+    internalName = '0',
   ): void {
     const max = maximum === -1 || maximum === null ? null : maximum;
     const existing = this._inner.memories[0];
@@ -1267,7 +1267,7 @@ export class Module {
   addExport(
     externalName: string,
     internalName: string,
-    kind: WasmExport["kind"] = "function",
+    kind: WasmExport['kind'] = 'function',
   ): WasmExport {
     const exp: WasmExport = { name: externalName, value: internalName, kind };
     this._inner.exports.push(exp);
@@ -1276,22 +1276,22 @@ export class Module {
 
   /** Adds a function export. */
   addFunctionExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, "function");
+    return this.addExport(externalName, internalName, 'function');
   }
 
   /** Adds a memory export. */
   addMemoryExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, "memory");
+    return this.addExport(externalName, internalName, 'memory');
   }
 
   /** Adds a global export. */
   addGlobalExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, "global");
+    return this.addExport(externalName, internalName, 'global');
   }
 
   /** Adds a table export. */
   addTableExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, "table");
+    return this.addExport(externalName, internalName, 'table');
   }
 
   // -------------------------------------------------------------------------
@@ -1539,8 +1539,8 @@ export function getFunctionInfo(func: WasmFunction): FunctionInfo {
   const results = func.results.map(_valTypeToId);
   return {
     name: func.name,
-    module: "",
-    base: "",
+    module: '',
+    base: '',
     type: createType(results),
     params: func.params.map(_valTypeToId),
     results,

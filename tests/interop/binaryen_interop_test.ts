@@ -16,12 +16,12 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert';
 import {
   BinaryenInterop,
   type BinaryenJsLib,
   type BinaryenWrappedModule,
-} from "../../src/interop/binaryen-js.ts";
+} from '../../src/interop/binaryen-js.ts';
 
 // ---------------------------------------------------------------------------
 // Mock binaryen.js
@@ -29,16 +29,16 @@ import {
 
 interface MockEvent {
   type:
-    | "parseText"
-    | "readBinary"
-    | "setOptimizeLevel"
-    | "setShrinkLevel"
-    | "optimize"
-    | "runPasses"
-    | "emitText"
-    | "emitBinary"
-    | "validate"
-    | "dispose";
+    | 'parseText'
+    | 'readBinary'
+    | 'setOptimizeLevel'
+    | 'setShrinkLevel'
+    | 'optimize'
+    | 'runPasses'
+    | 'emitText'
+    | 'emitBinary'
+    | 'validate'
+    | 'dispose';
   payload?: unknown;
 }
 
@@ -55,19 +55,19 @@ function makeMockBinaryen(): MockLib {
     shrinkLevel: 0,
     events,
     parseText(text: string): BinaryenWrappedModule {
-      events.push({ type: "parseText", payload: text });
+      events.push({ type: 'parseText', payload: text });
       return makeMockModule(events);
     },
     readBinary(data: Uint8Array): BinaryenWrappedModule {
-      events.push({ type: "readBinary", payload: data });
+      events.push({ type: 'readBinary', payload: data });
       return makeMockModule(events);
     },
     setOptimizeLevel(level: number): void {
-      events.push({ type: "setOptimizeLevel", payload: level });
+      events.push({ type: 'setOptimizeLevel', payload: level });
       lib.optimizeLevel = level;
     },
     setShrinkLevel(level: number): void {
-      events.push({ type: "setShrinkLevel", payload: level });
+      events.push({ type: 'setShrinkLevel', payload: level });
       lib.shrinkLevel = level;
     },
     getOptimizeLevel(): number {
@@ -83,26 +83,26 @@ function makeMockBinaryen(): MockLib {
 function makeMockModule(events: MockEvent[]): BinaryenWrappedModule {
   return {
     emitText(): string {
-      events.push({ type: "emitText" });
-      return "(module (;optimized;))";
+      events.push({ type: 'emitText' });
+      return '(module (;optimized;))';
     },
     emitBinary(): Uint8Array {
-      events.push({ type: "emitBinary" });
+      events.push({ type: 'emitBinary' });
       // 8-byte WASM header is enough to assert binary shape.
       return new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
     },
     optimize(): void {
-      events.push({ type: "optimize" });
+      events.push({ type: 'optimize' });
     },
     runPasses(passes: string[]): void {
-      events.push({ type: "runPasses", payload: passes });
+      events.push({ type: 'runPasses', payload: passes });
     },
     validate(): number {
-      events.push({ type: "validate" });
+      events.push({ type: 'validate' });
       return 1;
     },
     dispose(): void {
-      events.push({ type: "dispose" });
+      events.push({ type: 'dispose' });
     },
   };
 }
@@ -111,28 +111,28 @@ function makeMockModule(events: MockEvent[]): BinaryenWrappedModule {
 // create()
 // ---------------------------------------------------------------------------
 
-Deno.test("BinaryenInterop.create — accepts pre-loaded binaryen instance", async () => {
+Deno.test('BinaryenInterop.create — accepts pre-loaded binaryen instance', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   assertEquals(interop.binaryen, mock);
 });
 
-Deno.test("BinaryenInterop.create — rejects invalid pre-loaded binaryen", async () => {
+Deno.test('BinaryenInterop.create — rejects invalid pre-loaded binaryen', async () => {
   await assertRejects(
     () => BinaryenInterop.create({ binaryen: {} as unknown as BinaryenJsLib }),
     Error,
-    "does not match the binaryen.js API",
+    'does not match the binaryen.js API',
   );
 });
 
-Deno.test("BinaryenInterop.create — surfaces import failure with hint", async () => {
+Deno.test('BinaryenInterop.create — surfaces import failure with hint', async () => {
   await assertRejects(
     () =>
       BinaryenInterop.create({
-        binaryenJsPath: "./this-path-definitely-does-not-exist.js",
+        binaryenJsPath: './this-path-definitely-does-not-exist.js',
       }),
     Error,
-    "failed to import binaryen.js",
+    'failed to import binaryen.js',
   );
 });
 
@@ -140,41 +140,41 @@ Deno.test("BinaryenInterop.create — surfaces import failure with hint", async 
 // optimizeWat — pass-list and level routing
 // ---------------------------------------------------------------------------
 
-Deno.test("optimizeWat — runs default pipeline when no passes given", async () => {
+Deno.test('optimizeWat — runs default pipeline when no passes given', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
-  const out = interop.optimizeWat("(module)");
+  const out = interop.optimizeWat('(module)');
   // Default is optimizeLevel=2, shrinkLevel=0, then ref.optimize() then emitText.
-  assertEquals(out, "(module (;optimized;))");
+  assertEquals(out, '(module (;optimized;))');
   const types = mock.events.map((e) => e.type);
   assertEquals(types, [
-    "parseText",
-    "setOptimizeLevel",
-    "setShrinkLevel",
-    "optimize",
-    "emitText",
-    "dispose",
+    'parseText',
+    'setOptimizeLevel',
+    'setShrinkLevel',
+    'optimize',
+    'emitText',
+    'dispose',
   ]);
   assertEquals(mock.optimizeLevel, 2);
   assertEquals(mock.shrinkLevel, 0);
 });
 
-Deno.test("optimizeWat — explicit pass list bypasses default optimize()", async () => {
+Deno.test('optimizeWat — explicit pass list bypasses default optimize()', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
-  interop.optimizeWat("(module)", { passes: ["vacuum", "dce"] });
+  interop.optimizeWat('(module)', { passes: ['vacuum', 'dce'] });
   const types = mock.events.map((e) => e.type);
-  assert(types.includes("runPasses"));
-  assertEquals(types.includes("optimize"), false);
+  assert(types.includes('runPasses'));
+  assertEquals(types.includes('optimize'), false);
   // The passes payload survived the call.
-  const runPassesEvent = mock.events.find((e) => e.type === "runPasses");
-  assertEquals(runPassesEvent?.payload, ["vacuum", "dce"]);
+  const runPassesEvent = mock.events.find((e) => e.type === 'runPasses');
+  assertEquals(runPassesEvent?.payload, ['vacuum', 'dce']);
 });
 
 Deno.test("optimizeWat — '-Oz' shorthand maps to optimizeLevel=2, shrinkLevel=2", async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
-  interop.optimizeWat("(module)", "-Oz");
+  interop.optimizeWat('(module)', '-Oz');
   assertEquals(mock.optimizeLevel, 2);
   assertEquals(mock.shrinkLevel, 2);
 });
@@ -182,7 +182,7 @@ Deno.test("optimizeWat — '-Oz' shorthand maps to optimizeLevel=2, shrinkLevel=
 Deno.test("optimizeWat — '-Os' shorthand maps to optimizeLevel=2, shrinkLevel=1", async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
-  interop.optimizeWat("(module)", "-Os");
+  interop.optimizeWat('(module)', '-Os');
   assertEquals(mock.optimizeLevel, 2);
   assertEquals(mock.shrinkLevel, 1);
 });
@@ -190,22 +190,22 @@ Deno.test("optimizeWat — '-Os' shorthand maps to optimizeLevel=2, shrinkLevel=
 Deno.test("optimizeWat — '-O3' shorthand maps to optimizeLevel=3, shrinkLevel=0", async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
-  interop.optimizeWat("(module)", "-O3");
+  interop.optimizeWat('(module)', '-O3');
   assertEquals(mock.optimizeLevel, 3);
   assertEquals(mock.shrinkLevel, 0);
 });
 
-Deno.test("optimizeWat — unknown shorthand throws", async () => {
+Deno.test('optimizeWat — unknown shorthand throws', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   assertThrows(
-    () => interop.optimizeWat("(module)", "-Owat"),
+    () => interop.optimizeWat('(module)', '-Owat'),
     Error,
-    "Unknown optimization shorthand",
+    'Unknown optimization shorthand',
   );
 });
 
-Deno.test("optimizeWat — dispose runs even when emitText throws", async () => {
+Deno.test('optimizeWat — dispose runs even when emitText throws', async () => {
   const mock = makeMockBinaryen();
   // Substitute the next parseText result with a module whose emitText throws.
   const original = mock.parseText;
@@ -214,20 +214,20 @@ Deno.test("optimizeWat — dispose runs even when emitText throws", async () => 
     return {
       ...ref,
       emitText: () => {
-        throw new Error("boom");
+        throw new Error('boom');
       },
     };
   };
   const interop = await BinaryenInterop.create({ binaryen: mock });
-  assertThrows(() => interop.optimizeWat("(module)"), Error, "boom");
-  assertEquals(mock.events.some((e) => e.type === "dispose"), true);
+  assertThrows(() => interop.optimizeWat('(module)'), Error, 'boom');
+  assertEquals(mock.events.some((e) => e.type === 'dispose'), true);
 });
 
 // ---------------------------------------------------------------------------
 // optimizeBinary
 // ---------------------------------------------------------------------------
 
-Deno.test("optimizeBinary — round-trips through readBinary + optimize + emitBinary", async () => {
+Deno.test('optimizeBinary — round-trips through readBinary + optimize + emitBinary', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   const input = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
@@ -236,22 +236,22 @@ Deno.test("optimizeBinary — round-trips through readBinary + optimize + emitBi
   assertEquals(out, input);
   const types = mock.events.map((e) => e.type);
   assertEquals(types, [
-    "readBinary",
-    "setOptimizeLevel",
-    "setShrinkLevel",
-    "optimize",
-    "emitBinary",
-    "dispose",
+    'readBinary',
+    'setOptimizeLevel',
+    'setShrinkLevel',
+    'optimize',
+    'emitBinary',
+    'dispose',
   ]);
 });
 
-Deno.test("optimizeBinary — honors explicit passes", async () => {
+Deno.test('optimizeBinary — honors explicit passes', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
-  interop.optimizeBinary(new Uint8Array([0]), { passes: ["dce"] });
+  interop.optimizeBinary(new Uint8Array([0]), { passes: ['dce'] });
   const types = mock.events.map((e) => e.type);
-  assert(types.includes("runPasses"));
-  assertEquals(types.includes("optimize"), false);
+  assert(types.includes('runPasses'));
+  assertEquals(types.includes('optimize'), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -264,13 +264,13 @@ Deno.test("optimizeBinary — honors explicit passes", async () => {
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "BinaryenInterop.create — live npm:binaryen end-to-end",
-  ignore: Deno.env.get("BINARYEN_LIVE") !== "1",
+  name: 'BinaryenInterop.create — live npm:binaryen end-to-end',
+  ignore: Deno.env.get('BINARYEN_LIVE') !== '1',
   fn: async () => {
-    const interop = await BinaryenInterop.create({ binaryenJsPath: "npm:binaryen" });
+    const interop = await BinaryenInterop.create({ binaryenJsPath: 'npm:binaryen' });
     const watIn = '(module (func (export "f") (result i32) i32.const 42))';
-    const watOut = interop.optimizeWat(watIn, "-Oz");
+    const watOut = interop.optimizeWat(watIn, '-Oz');
     assert(watOut.length > 0);
-    assert(watOut.includes("i32.const"));
+    assert(watOut.includes('i32.const'));
   },
 });

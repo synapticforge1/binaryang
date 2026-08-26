@@ -13,16 +13,16 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
+import { assert, assertEquals } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
 import {
   type CallExpr,
   type CallIndirectExpr,
   type Expression,
   ExpressionKind,
-} from "../../src/ir/expressions.ts";
-import { parseWat } from "../../src/parser/wat-parser.ts";
+} from '../../src/ir/expressions.ts';
+import { parseWat } from '../../src/parser/wat-parser.ts';
 
 // ---------------------------------------------------------------------------
 // Hand-crafted binary fixture — module with `f(): void` whose body is
@@ -77,7 +77,7 @@ const RETURN_CALL_MODULE = new Uint8Array([
   0x0b,
 ]);
 
-Deno.test("Phase 13: parser decodes 0x12 as Call with isReturn=true", () => {
+Deno.test('Phase 13: parser decodes 0x12 as Call with isReturn=true', () => {
   const mod = parseWasm(RETURN_CALL_MODULE);
   assertEquals(mod.functions.length, 1);
   const body = mod.functions[0].body;
@@ -86,15 +86,15 @@ Deno.test("Phase 13: parser decodes 0x12 as Call with isReturn=true", () => {
   assertEquals(target.kind, ExpressionKind.Call);
   const call = target as CallExpr;
   assertEquals(call.isReturn, true);
-  assertEquals(call.target, "$func0");
+  assertEquals(call.target, '$func0');
 });
 
-Deno.test("Phase 13: parser distinguishes call vs return_call", () => {
+Deno.test('Phase 13: parser distinguishes call vs return_call', () => {
   // Same module but opcode 0x10 (plain call) instead of 0x12.
   const plainCallModule = new Uint8Array(RETURN_CALL_MODULE);
   // The opcode byte is at offset 30 in this fixture (right before func index 0x00).
   const opcodeOffset = plainCallModule.indexOf(0x12, 25);
-  assert(opcodeOffset > 0, "could not locate 0x12 in fixture");
+  assert(opcodeOffset > 0, 'could not locate 0x12 in fixture');
   plainCallModule[opcodeOffset] = 0x10;
 
   const mod = parseWasm(plainCallModule);
@@ -103,7 +103,7 @@ Deno.test("Phase 13: parser distinguishes call vs return_call", () => {
   assertEquals((target as CallExpr).isReturn, false);
 });
 
-Deno.test("Phase 13: encoder emits 0x12 for isReturn=true Call", () => {
+Deno.test('Phase 13: encoder emits 0x12 for isReturn=true Call', () => {
   const mod = parseWasm(RETURN_CALL_MODULE);
   const out = encodeWasm(mod);
   // Re-parse: isReturn must survive the round-trip.
@@ -112,7 +112,7 @@ Deno.test("Phase 13: encoder emits 0x12 for isReturn=true Call", () => {
   assertEquals((target as CallExpr).isReturn, true);
 });
 
-Deno.test("Phase 13: WAT (return_call $f) → encode → parse round-trip preserves isReturn", () => {
+Deno.test('Phase 13: WAT (return_call $f) → encode → parse round-trip preserves isReturn', () => {
   const mod = parseWat(`(module
     (func $f
       (return_call $f)))`);
@@ -123,7 +123,7 @@ Deno.test("Phase 13: WAT (return_call $f) → encode → parse round-trip preser
   assertEquals((target as CallExpr).isReturn, true);
 });
 
-Deno.test("Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(result ...) round-trips", () => {
+Deno.test('Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(result ...) round-trips', () => {
   const mod = parseWat(`(module
     (table $t 1 funcref)
     (func $f (param i32) (result i32)
@@ -135,7 +135,7 @@ Deno.test("Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(r
   assertEquals((target as CallIndirectExpr).isReturn, true);
 });
 
-Deno.test("Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolves type ref", () => {
+Deno.test('Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolves type ref', () => {
   // Same as the test above but using `(type $sig)` to reference a
   // module-level function-type declaration. Exercises the Phase 1 fix that
   // makes parseCallIndirect look up the signature via `funcTypeDefs`

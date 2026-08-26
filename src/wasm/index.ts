@@ -17,7 +17,7 @@
  * @license MIT
  */
 
-export { DEMO_BYTES } from "./demo_bytes.ts";
+export { DEMO_BYTES } from './demo_bytes.ts';
 
 /**
  * Spec for the Phase 10 demo kernel — three trivial single-op i32 functions.
@@ -27,4 +27,4 @@ export { DEMO_BYTES } from "./demo_bytes.ts";
  * to be wired into any optimisation pass — the per-call boundary cost would
  * regress against the native TypeScript implementation.
  */
-export const DEMO_KERNEL_EXPORTS = ["add_i32", "mul_i32", "eq_i32"] as const;
+export const DEMO_KERNEL_EXPORTS = ['add_i32', 'mul_i32', 'eq_i32'] as const;

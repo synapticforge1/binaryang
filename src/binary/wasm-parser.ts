@@ -7,14 +7,14 @@
  * @license MIT
  */
 
-import { BinaryReader, WasmBinaryError } from "./reader.ts";
+import { BinaryReader, WasmBinaryError } from './reader.ts';
 import {
   type ElementSegment,
   type Local,
   ModuleBuilder,
   type WasmFunction,
   type WasmModule,
-} from "../ir/module.ts";
+} from '../ir/module.ts';
 import {
   BinaryOp,
   type CatchClause,
@@ -76,7 +76,7 @@ import {
   SIMDShiftOp,
   SIMDTernaryOp,
   UnaryOp,
-} from "../ir/expressions.ts";
+} from '../ir/expressions.ts';
 import {
   AbstractHeapType,
   type FieldType,
@@ -86,7 +86,7 @@ import {
   type StorageType,
   type TypeDef,
   type ValueType,
-} from "../ir/gc-types.ts";
+} from '../ir/gc-types.ts';
 import {
   BrOnOp,
   makeArrayCopy,
@@ -111,8 +111,8 @@ import {
   makeStructNew,
   makeStructNewDefault,
   makeStructSet,
-} from "../ir/expressions.ts";
-import { None, type Type, ValType } from "../ir/types.ts";
+} from '../ir/expressions.ts';
+import { None, type Type, ValType } from '../ir/types.ts';
 
 // ---------------------------------------------------------------------------
 // Section IDs
@@ -147,7 +147,7 @@ interface GlobalInfo {
   mutable: boolean;
 }
 
-type ControlFrameKind = "block" | "loop" | "if" | "else" | "func" | "try" | "catch" | "try_table";
+type ControlFrameKind = 'block' | 'loop' | 'if' | 'else' | 'func' | 'try' | 'catch' | 'try_table';
 
 interface ControlFrame {
   kind: ControlFrameKind;
@@ -378,7 +378,7 @@ const ABSTRACT_HEAP_TO_VALTYPE: Record<AbstractHeapType, ValType> = {
  */
 function readRefNullType(r: BinaryReader): ValueType {
   const ht = readHeapType(r);
-  if (typeof ht === "number") return { heap: ht, nullable: true };
+  if (typeof ht === 'number') return { heap: ht, nullable: true };
   return ABSTRACT_HEAP_TO_VALTYPE[ht];
 }
 
@@ -598,14 +598,14 @@ function readMemArg(r: BinaryReader): { align: number; offset: number } {
  */
 function topFrame(frames: ControlFrame[], r: BinaryReader): ControlFrame {
   const f = frames[frames.length - 1];
-  if (f === undefined) return r.error("control frame stack underflow");
+  if (f === undefined) return r.error('control frame stack underflow');
   return f;
 }
 
 /** { topFrame}, popping it. */
 function popFrame(frames: ControlFrame[], r: BinaryReader): ControlFrame {
   const f = frames.pop();
-  if (f === undefined) return r.error("control frame stack underflow");
+  if (f === undefined) return r.error('control frame stack underflow');
   return f;
 }
 
@@ -632,7 +632,7 @@ function _branchValueArity(frames: ControlFrame[], depth: number): number {
   // Branching to a loop jumps to its ENTRY, so it consumes the loop's
   // PARAMETERS (0 for an MVP loop, N for a parametrised one) — never its
   // results. Every other frame consumes its result arity.
-  if (target.kind === "loop") return target.paramLocals?.length ?? 0;
+  if (target.kind === 'loop') return target.paramLocals?.length ?? 0;
   return target.resultTypes.length;
 }
 
@@ -749,7 +749,7 @@ class WasmParser {
 
   private readHeader(): void {
     const magic = this.r.readU32Fixed();
-    if (magic !== 0x6d736100) this.r.error("invalid WASM magic");
+    if (magic !== 0x6d736100) this.r.error('invalid WASM magic');
     const version = this.r.readU32Fixed();
     if (version !== 1) this.r.error(`unsupported WASM version ${version}`);
   }
@@ -839,11 +839,11 @@ class WasmParser {
     const b = this.r.peekU8();
     if (b === 0x78) {
       this.r.readU8();
-      return "i8";
+      return 'i8';
     }
     if (b === 0x77) {
       this.r.readU8();
-      return "i16";
+      return 'i16';
     }
     return readValueType(this.r);
   }
@@ -875,7 +875,7 @@ class WasmParser {
       const resultCount = this.r.readU32();
       const results: (ValType | RefType)[] = [];
       for (let j = 0; j < resultCount; j++) results.push(readValueType(this.r));
-      const def: TypeDef = { kind: "func", params, results };
+      const def: TypeDef = { kind: 'func', params, results };
       this.heapTypeDefs.push(def);
       // `funcTypes` mirrors the heap-type entry exactly — concrete typed
       // references included. It used to collapse them to AnyRef, which is what
@@ -888,13 +888,13 @@ class WasmParser {
       const fieldCount = this.r.readU32();
       const fields: FieldType[] = [];
       for (let j = 0; j < fieldCount; j++) fields.push(this.readFieldType());
-      this.heapTypeDefs.push({ kind: "struct", fields });
+      this.heapTypeDefs.push({ kind: 'struct', fields });
       this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
     }
     if (tag === 0x5e) { // array type
       const element = this.readFieldType();
-      this.heapTypeDefs.push({ kind: "array", element });
+      this.heapTypeDefs.push({ kind: 'array', element });
       this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
     }
@@ -913,7 +913,7 @@ class WasmParser {
       switch (kind) {
         case 0x00: { // function
           const typeIdx = this.r.readU32();
-          const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, "imported function");
+          const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, 'imported function');
           // Imported functions occupy the low end of the single function index
           // space (global indices 0..importedFuncCount-1), so they MUST share
           // the `$func${globalIndex}` naming used by every reference site —
@@ -946,7 +946,7 @@ class WasmParser {
           const hasMax = (flags & 0x01) !== 0;
           const initial = this.r.readU32();
           const max = hasMax ? this.r.readU32() : null;
-          this.builder.addMemoryImport("mem0", module, base, initial, max, shared, is64);
+          this.builder.addMemoryImport('mem0', module, base, initial, max, shared, is64);
           break;
         }
         case 0x03: { // global
@@ -960,7 +960,7 @@ class WasmParser {
         case 0x04: { // tag (EH proposal)
           this.r.readU8(); // reserved attribute byte (must be 0)
           const typeIdx = this.r.readU32();
-          const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, "imported tag");
+          const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, 'imported tag');
           // Imported tags occupy the low end of the tag index space, so they
           // MUST share the `$tag${globalIndex}` naming every reference site
           // uses (throw / catch / try_table / tag exports). Naming them on a
@@ -1032,19 +1032,19 @@ class WasmParser {
       switch (kind) {
         case 0x00: { // function
           const funcName = `$func${index}`;
-          this.builder.addExport(name, funcName, "function");
+          this.builder.addExport(name, funcName, 'function');
           break;
         }
         case 0x01: { // table
           const tname = this.tableNames[index] ?? `$table${index}`;
-          this.builder.addExport(name, tname, "table");
+          this.builder.addExport(name, tname, 'table');
           break;
         }
         case 0x02: // memory
-          this.builder.addExport(name, "mem0", "memory");
+          this.builder.addExport(name, 'mem0', 'memory');
           break;
         case 0x03: { // global
-          this.builder.addExport(name, `$global${index}`, "global");
+          this.builder.addExport(name, `$global${index}`, 'global');
           break;
         }
         case 0x04: { // tag (EH proposal)
@@ -1056,7 +1056,7 @@ class WasmParser {
           // was silently dropped, which broke wasic-emitted modules that
           // export `__exn_tag` (and reproduced as "tag export stripped" in the
           // wasmtk team's bug report against v1.2.2).
-          this.builder.addExport(name, `$tag${index}`, "tag");
+          this.builder.addExport(name, `$tag${index}`, 'tag');
           break;
         }
         default:
@@ -1116,7 +1116,7 @@ class WasmParser {
         funcs.push(useExpressions ? this.readElemExprFuncName() : `$func${this.r.readU32()}`);
       }
 
-      const tname = this.tableNames[tableIdx] ?? this.tableNames[0] ?? "$table0";
+      const tname = this.tableNames[tableIdx] ?? this.tableNames[0] ?? '$table0';
       const seg: ElementSegment = { name: `$elem${i}`, table: tname, offset, data: funcs };
       this.builder.addElement(seg);
     }
@@ -1141,7 +1141,7 @@ class WasmParser {
       // wrong function (or trapped). Fail loudly until null slots are
       // representable.
       this.r.error(
-        "unsupported element segment: a ref.null entry cannot be represented in the table model",
+        'unsupported element segment: a ref.null entry cannot be represented in the table model',
       );
     }
     return this.r.error(
@@ -1228,7 +1228,7 @@ class WasmParser {
       return;
     }
     const name = this.r.readUTF8(nameLen);
-    if (name === "name") {
+    if (name === 'name') {
       this.readNameSection(end);
     } else {
       this.r.seek(end);
@@ -1301,7 +1301,7 @@ class WasmParser {
     const freshLabel = (): string => `$l${funcIdx}_${labelIdx++}`;
 
     frames.push({
-      kind: "func",
+      kind: 'func',
       label: freshLabel(),
       resultTypes: ft.results,
       exprs: [],
@@ -1332,7 +1332,7 @@ class WasmParser {
           // a catch's exception param) that encodes to NOTHING — it must be
           // consumed in place, never spilled (`local.set (pop)` would leave the
           // set with no stack value). Splice it directly, as before.
-          if (i === exprs.length - 1 || exprs[i]!.kind === "pop") {
+          if (i === exprs.length - 1 || exprs[i]!.kind === 'pop') {
             return exprs.splice(i, 1)[0]!;
           }
           // The value sits BELOW ≥1 statement. Returning it directly would move
@@ -1611,7 +1611,7 @@ class WasmParser {
           const sig = readBlockType(r, ctx.funcTypes);
           const { reads: seed } = spillBlockParams(sig.params);
           frames.push({
-            kind: "block",
+            kind: 'block',
             label: freshLabel(),
             resultTypes: sig.results,
             exprs: seed,
@@ -1625,7 +1625,7 @@ class WasmParser {
           // the temps are recorded on the frame for `rewriteLoopBranch` to find.
           const { reads, slots } = spillBlockParams(sig.params);
           frames.push({
-            kind: "loop",
+            kind: 'loop',
             label: freshLabel(),
             resultTypes: sig.results,
             exprs: [...reads],
@@ -1640,7 +1640,7 @@ class WasmParser {
           const cond = pop();
           const { reads: seed, slots: seedSlots } = spillBlockParams(sig.params);
           frames.push({
-            kind: "if",
+            kind: 'if',
             label: freshLabel(),
             resultTypes: sig.results,
             exprs: seed,
@@ -1652,7 +1652,7 @@ class WasmParser {
         }
         case 0x05: { // else
           const frame = topFrame(frames, r);
-          if (frame.kind === "if") {
+          if (frame.kind === 'if') {
             frame.thenExprs = frame.exprs;
             // Both arms start with the same parameters on their stack. The values
             // were evaluated ONCE into locals before the `if`, so each arm reads
@@ -1661,7 +1661,7 @@ class WasmParser {
             // put one expression in two tree positions.
             const ps = frame.paramSeed;
             frame.exprs = ps ? ps.slots.map((slot, i) => makeLocalGet(slot, ps.types[i]!)) : [];
-            frame.kind = "else" as ControlFrameKind;
+            frame.kind = 'else' as ControlFrameKind;
           } else {
             // `else` outside an `if` used to fall through this `if` and vanish:
             // the opcode was consumed and nothing happened, so the instructions
@@ -1681,7 +1681,7 @@ class WasmParser {
           const { reads: trySeed } = spillBlockParams(trySig.params);
           const rts = trySig.results;
           frames.push({
-            kind: "try",
+            kind: 'try',
             label: freshLabel(),
             resultTypes: rts,
             exprs: [...trySeed],
@@ -1696,9 +1696,9 @@ class WasmParser {
           const tagName = ctx.tagInfos[tagIdx]?.name ?? `$tag${tagIdx}`;
           const tagParams = ctx.tagInfos[tagIdx]?.params ?? [];
           const frame = topFrame(frames, r);
-          if (frame.kind === "try" || frame.kind === "catch") {
+          if (frame.kind === 'try' || frame.kind === 'catch') {
             // save current body
-            if (frame.kind === "try") {
+            if (frame.kind === 'try') {
               frame.tryBody = frame.exprs;
             } else {
               frame.catchBodies!.push(frame.exprs);
@@ -1711,7 +1711,7 @@ class WasmParser {
             // consume a real `Pop` so the consumption survives optimization.
             frame.exprs = tagParams.map((p) => makePop(p));
             frame.catchTags!.push(tagName);
-            frame.kind = "catch" as ControlFrameKind;
+            frame.kind = 'catch' as ControlFrameKind;
           } else {
             // Same silent drop as `else` above: the tag index was consumed and the
             // handler transition never happened.
@@ -1738,13 +1738,13 @@ class WasmParser {
         }
 
         case 0x0b: { // end
-          if (topFrame(frames, r).kind === "func") {
+          if (topFrame(frames, r).kind === 'func') {
             break decode; // leave func frame on stack for body assembly
           }
           const frame = popFrame(frames, r);
           const rts = frame.resultTypes;
           const resultType: Type = resultTypeOf(rts);
-          if (frame.kind === "if" || frame.kind === "else") {
+          if (frame.kind === 'if' || frame.kind === 'else') {
             const cond = frame.ifCondition!;
             // Pivot on whether the `else` opcode (0x05) was seen for this frame:
             //   * `"if"`   — no else; `frame.exprs` IS the then-arm body, and
@@ -1758,8 +1758,8 @@ class WasmParser {
             // FALSE — the wasmtk team reported four real test failures driven
             // by this on wasic-emitted single-arm ifs (break conditions, bounds
             // checks, null guards).
-            const thenExprs = frame.kind === "if" ? frame.exprs : (frame.thenExprs ?? []);
-            const elseExprs = frame.kind === "if" ? [] : frame.exprs;
+            const thenExprs = frame.kind === 'if' ? frame.exprs : (frame.thenExprs ?? []);
+            const elseExprs = frame.kind === 'if' ? [] : frame.exprs;
             const thenExpr = oneOrBlock(thenExprs);
             const elseExpr = elseExprs.length > 0 ? oneOrBlock(elseExprs) : null;
             // Pass `frame.label` so a `br` that targets this `if` (resolved to
@@ -1769,14 +1769,14 @@ class WasmParser {
             const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label);
             void resultType;
             push(ifExpr);
-          } else if (frame.kind === "loop") {
+          } else if (frame.kind === 'loop') {
             const body = sealFrame(frame, resultType);
             push(makeLoop(frame.label, body, resultType));
-          } else if (frame.kind === "try" || frame.kind === "catch") {
-            const tryBodyExprs = frame.kind === "try" ? frame.exprs : (frame.tryBody ?? []);
+          } else if (frame.kind === 'try' || frame.kind === 'catch') {
+            const tryBodyExprs = frame.kind === 'try' ? frame.exprs : (frame.tryBody ?? []);
             const tryBody = oneOrBlock(tryBodyExprs);
             const allCatchBodies = [...(frame.catchBodies ?? [])];
-            if (frame.kind === "catch") allCatchBodies.push(frame.exprs);
+            if (frame.kind === 'catch') allCatchBodies.push(frame.exprs);
             const catchBodyExprs = allCatchBodies.map(oneOrBlock);
             push(
               makeTry(
@@ -1788,7 +1788,7 @@ class WasmParser {
                 resultType,
               ),
             );
-          } else if (frame.kind === "try_table") {
+          } else if (frame.kind === 'try_table') {
             const body = sealFrame(frame, resultType);
             push(makeTryTable(frame.label, body, frame.tryCatches ?? [], resultType));
           } else {
@@ -1920,7 +1920,7 @@ class WasmParser {
         case 0x11: { // call_indirect
           const typeIdx = r.readU32();
           const tidx = r.readU32();
-          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, "call_indirect");
+          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, 'call_indirect');
           const target = pop();
           const operands = popN(cft.params.length);
           // Discarding the table index and hard-coding table 0 silently retargeted
@@ -1951,7 +1951,7 @@ class WasmParser {
         case 0x13: { // return_call_indirect (tail-call proposal)
           const typeIdx = r.readU32();
           const tidx = r.readU32();
-          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, "call_indirect");
+          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, 'call_indirect');
           const target = pop();
           const operands = popN(cft.params.length);
           // Discarding the table index and hard-coding table 0 silently retargeted
@@ -1981,7 +1981,7 @@ class WasmParser {
           // `delegate` terminates a `try`. Applied to any other frame it silently
           // rebuilt that frame as a `try ... delegate` — a plain block came back
           // out as an exception construct.
-          if (frame.kind !== "try") {
+          if (frame.kind !== 'try') {
             r.error(`delegate outside a try (enclosing frame is ${frame.kind})`);
           }
           const rts = frame.resultTypes;
@@ -1992,15 +1992,15 @@ class WasmParser {
         }
         case 0x19: { // catch_all (old EH)
           const frame = topFrame(frames, r);
-          if (frame.kind === "try" || frame.kind === "catch") {
-            if (frame.kind === "try") {
+          if (frame.kind === 'try' || frame.kind === 'catch') {
+            if (frame.kind === 'try') {
               frame.tryBody = frame.exprs;
             } else {
               frame.catchBodies!.push(frame.exprs);
             }
             frame.exprs = [];
-            frame.catchTags!.push(""); // empty string = catch_all
-            frame.kind = "catch" as ControlFrameKind;
+            frame.catchTags!.push(''); // empty string = catch_all
+            frame.kind = 'catch' as ControlFrameKind;
           } else {
             r.error(`catch_all outside a try (enclosing frame is ${frame.kind})`);
           }
@@ -2039,7 +2039,7 @@ class WasmParser {
             isRef,
           }));
           frames.push({
-            kind: "try_table",
+            kind: 'try_table',
             label: freshLabel(),
             resultTypes: rts,
             exprs: [...ttSeed],
@@ -2359,7 +2359,7 @@ function decodeGcPrefix(
     case 0x00: { // struct.new $T
       const ti = r.readU32();
       const def = ctx.heapTypeDefs[ti];
-      const n = (def?.kind === "struct") ? def.fields.length : 0;
+      const n = (def?.kind === 'struct') ? def.fields.length : 0;
       const ops: Expression[] = [];
       for (let i = 0; i < n; i++) ops.unshift(pop());
       push(makeStructNew(ti, ops, gcRefType(ti)));
@@ -2375,7 +2375,7 @@ function decodeGcPrefix(
       const fi = r.readU32();
       const ref = pop();
       const def = ctx.heapTypeDefs[ti];
-      const ft = (def?.kind === "struct") ? def.fields[fi] : undefined;
+      const ft = (def?.kind === 'struct') ? def.fields[fi] : undefined;
       const rt: Type = ft ? (isRefType(ft.type) ? ft.type : ft.type as ValType) : ValType.I32;
       push(makeStructGet(ti, fi, ref, rt, false));
       break;
@@ -2439,7 +2439,7 @@ function decodeGcPrefix(
     case 0x0b: { // array.get $T
       const ti = r.readU32();
       const def = ctx.heapTypeDefs[ti];
-      const eft = (def?.kind === "array") ? def.element : undefined;
+      const eft = (def?.kind === 'array') ? def.element : undefined;
       const rt: Type = eft ? (isRefType(eft.type) ? eft.type : eft.type as ValType) : ValType.I32;
       const idx = pop();
       const ref = pop();
@@ -2666,21 +2666,21 @@ function decodeMiscPrefix(
 function FC_SUBOP_NAME(sub: number): string {
   switch (sub) {
     case 8:
-      return "memory.init";
+      return 'memory.init';
     case 9:
-      return "data.drop";
+      return 'data.drop';
     case 12:
-      return "table.init";
+      return 'table.init';
     case 13:
-      return "elem.drop";
+      return 'elem.drop';
     case 14:
-      return "table.copy";
+      return 'table.copy';
     case 15:
-      return "table.grow";
+      return 'table.grow';
     case 16:
-      return "table.size";
+      return 'table.size';
     case 17:
-      return "table.fill";
+      return 'table.fill';
     default:
       return `0xFC 0x${sub.toString(16)}`;
   }

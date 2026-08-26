@@ -29,13 +29,13 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
-import { ExpressionKind, makeRefNull } from "../../src/ir/expressions.ts";
-import { ModuleBuilder } from "../../src/ir/module.ts";
-import { ValType } from "../../src/ir/types.ts";
-import { isRefType, type RefType } from "../../src/ir/gc-types.ts";
+import { assert, assertEquals } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { ExpressionKind, makeRefNull } from '../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import { isRefType, type RefType } from '../../src/ir/gc-types.ts';
 
 /**
  * `upstream/test/unit/input/gc_target_feature.wasm`, minus its custom sections:
@@ -132,23 +132,23 @@ function section(bytes: Uint8Array, id: number): Uint8Array {
 
 /** Flattened `kind` list of an expression tree, pre-order. */
 function kinds(root: unknown, out: string[] = []): string[] {
-  if (!root || typeof root !== "object") return out;
+  if (!root || typeof root !== 'object') return out;
   const node = root as Record<string, unknown>;
-  if (typeof node.kind === "string") out.push(node.kind);
+  if (typeof node.kind === 'string') out.push(node.kind);
   for (const [k, v] of Object.entries(node)) {
-    if (k === "kind" || k === "type") continue;
+    if (k === 'kind' || k === 'type') continue;
     if (Array.isArray(v)) v.forEach((c) => kinds(c, out));
     else kinds(v, out);
   }
   return out;
 }
 
-Deno.test("ref.null preserves non-func, non-extern heap types byte-for-byte", async () => {
+Deno.test('ref.null preserves non-func, non-extern heap types byte-for-byte', async () => {
   const out = encodeWasm(parseWasm(REF_NULL_HEAP_MODULE));
   assertEquals(
     Array.from(section(out, 6)),
     Array.from(section(REF_NULL_HEAP_MODULE, 6)),
-    "global section changed: a ref.null heap type was rewritten",
+    'global section changed: a ref.null heap type was rewritten',
   );
   // The whole point: the collapsed form does not validate.
   const buf = new ArrayBuffer(out.byteLength);
@@ -156,14 +156,14 @@ Deno.test("ref.null preserves non-func, non-extern heap types byte-for-byte", as
   await WebAssembly.compile(buf);
 });
 
-Deno.test("ref.null of `none` decodes to nullref, not externref", () => {
+Deno.test('ref.null of `none` decodes to nullref, not externref', () => {
   const mod = parseWasm(REF_NULL_HEAP_MODULE);
   assertEquals(mod.globals.length, 2);
   assertEquals(mod.globals[0].init.type, ValType.NullExternRef); // ref.null noextern
   assertEquals(mod.globals[1].init.type, ValType.NullRef); //       ref.null none
 });
 
-Deno.test("ref.null of a concrete heap type index >= 64 survives (signed LEB)", () => {
+Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', () => {
   // `writeU32` and `writeI32` agree below 64. At 64 the unsigned form (0x40)
   // reads back as -64 under the signed `s33` decode and resolves to an abstract
   // heap type, silently retargeting the null.
@@ -171,13 +171,13 @@ Deno.test("ref.null of a concrete heap type index >= 64 survives (signed LEB)", 
   m.enableGC();
   let target = -1;
   for (let i = 0; i < 70; i++) {
-    const idx = m.addHeapType({ kind: "array", element: { type: ValType.I32, mutable: true } });
+    const idx = m.addHeapType({ kind: 'array', element: { type: ValType.I32, mutable: true } });
     if (i === 64) target = idx;
   }
   assert(target >= 64, `expected a heap type index >= 64, got ${target}`);
 
   const refT: RefType = { heap: target, nullable: true };
-  m.addGlobal("$g", refT, true, makeRefNull(refT));
+  m.addGlobal('$g', refT, true, makeRefNull(refT));
 
   const parsed = parseWasm(encodeWasm(m.build()));
   const initType = parsed.globals[0].init.type;
@@ -185,23 +185,23 @@ Deno.test("ref.null of a concrete heap type index >= 64 survives (signed LEB)", 
   assertEquals((initType as RefType).heap, target);
 });
 
-Deno.test("a phantom pop in stack-polymorphic code yields unreachable, not nop", () => {
+Deno.test('a phantom pop in stack-polymorphic code yields unreachable, not nop', () => {
   const mod = parseWasm(UNREACHABLE_POPS_MODULE);
   const seen = kinds(mod.functions[0].body);
   assertEquals(
     seen.filter((k) => k === ExpressionKind.Nop).length,
     0,
-    `a nop was synthesized as an operand: ${seen.join(", ")}`,
+    `a nop was synthesized as an operand: ${seen.join(', ')}`,
   );
   // Matches upstream's own decode: (i32.add (unreachable) (unreachable)).
   assertEquals(
     seen.filter((k) => k === ExpressionKind.Unreachable).length,
     2,
-    `expected two unreachable operands, got: ${seen.join(", ")}`,
+    `expected two unreachable operands, got: ${seen.join(', ')}`,
   );
 });
 
-Deno.test("stack-polymorphic decode is a round-trip fixed point", () => {
+Deno.test('stack-polymorphic decode is a round-trip fixed point', () => {
   // Previously each trip added a spurious `nop` opcode, so the expression
   // count grew without bound.
   const first = parseWasm(UNREACHABLE_POPS_MODULE);
@@ -211,6 +211,6 @@ Deno.test("stack-polymorphic decode is a round-trip fixed point", () => {
   const a = kinds(first.functions[0].body);
   const b = kinds(second.functions[0].body);
   const c = kinds(third.functions[0].body);
-  assertEquals(b, a, "IR changed on the first round-trip");
-  assertEquals(c, b, "IR changed on the second round-trip");
+  assertEquals(b, a, 'IR changed on the first round-trip');
+  assertEquals(c, b, 'IR changed on the second round-trip');
 });

@@ -9,10 +9,10 @@
  * @license MIT
  */
 
-import { assertEquals, assertNotEquals, assertThrows } from "@std/assert";
-import * as binaryen from "../../src/api/binaryen-compat.ts";
-import { ValType } from "../../src/ir/types.ts";
-import { type CallIndirectExpr, ExpressionKind } from "../../src/ir/expressions.ts";
+import { assertEquals, assertNotEquals, assertThrows } from '@std/assert';
+import * as binaryen from '../../src/api/binaryen-compat.ts';
+import { ValType } from '../../src/ir/types.ts';
+import { type CallIndirectExpr, ExpressionKind } from '../../src/ir/expressions.ts';
 
 // ---------------------------------------------------------------------------
 // Fixture: same ADD_MODULE used by encoder tests — a tiny module with one
@@ -67,7 +67,7 @@ const ADD_MODULE = new Uint8Array([
 // Type ID constants
 // ---------------------------------------------------------------------------
 
-Deno.test("type ID constants match upstream binaryen.js values", () => {
+Deno.test('type ID constants match upstream binaryen.js values', () => {
   assertEquals(binaryen.none, 0);
   assertEquals(binaryen.i32, 2);
   assertEquals(binaryen.i64, 3);
@@ -78,7 +78,7 @@ Deno.test("type ID constants match upstream binaryen.js values", () => {
   assertEquals(binaryen.externref, 8);
 });
 
-Deno.test("external kind constants match upstream binaryen.js values", () => {
+Deno.test('external kind constants match upstream binaryen.js values', () => {
   assertEquals(binaryen.ExternalFunction, 0);
   assertEquals(binaryen.ExternalTable, 1);
   assertEquals(binaryen.ExternalMemory, 2);
@@ -86,7 +86,7 @@ Deno.test("external kind constants match upstream binaryen.js values", () => {
   assertEquals(binaryen.ExternalTag, 4);
 });
 
-Deno.test("Features.All is a non-zero bitmask", () => {
+Deno.test('Features.All is a non-zero bitmask', () => {
   assertEquals(binaryen.Features.All, 0x7fffffff);
   assertEquals(binaryen.Features.MVP, 0);
 });
@@ -95,7 +95,7 @@ Deno.test("Features.All is a non-zero bitmask", () => {
 // Global setters / getters
 // ---------------------------------------------------------------------------
 
-Deno.test("setShrinkLevel / setOptimizeLevel / setDebugInfo round-trip", () => {
+Deno.test('setShrinkLevel / setOptimizeLevel / setDebugInfo round-trip', () => {
   binaryen.setShrinkLevel(2);
   assertEquals(binaryen.getShrinkLevel(), 2);
   binaryen.setOptimizeLevel(3);
@@ -113,7 +113,7 @@ Deno.test("setShrinkLevel / setOptimizeLevel / setDebugInfo round-trip", () => {
 // readBinary + emitBinary round-trip
 // ---------------------------------------------------------------------------
 
-Deno.test("readBinary -> emitBinary preserves a parseable module", () => {
+Deno.test('readBinary -> emitBinary preserves a parseable module', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
   const out = mod.emitBinary();
 
@@ -122,25 +122,25 @@ Deno.test("readBinary -> emitBinary preserves a parseable module", () => {
   assertEquals(reparsed.getNumExports(), 1);
   const exp = binaryen.getExportInfo(reparsed.getExportByIndex(0));
   assertEquals(exp.kind, binaryen.ExternalFunction);
-  assertEquals(exp.name, "add");
+  assertEquals(exp.name, 'add');
 });
 
 // ---------------------------------------------------------------------------
 // Inspection: getNumExports / getExportByIndex / getExportInfo
 // ---------------------------------------------------------------------------
 
-Deno.test("getNumExports + getExportByIndex + getExportInfo", () => {
+Deno.test('getNumExports + getExportByIndex + getExportInfo', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
   assertEquals(mod.getNumExports(), 1);
 
   const exp = binaryen.getExportInfo(mod.getExportByIndex(0));
   assertEquals(exp.kind, binaryen.ExternalFunction);
-  assertEquals(exp.name, "add");
+  assertEquals(exp.name, 'add');
 
   assertThrows(
     () => mod.getExportByIndex(99),
     RangeError,
-    "out of range",
+    'out of range',
   );
 });
 
@@ -148,7 +148,7 @@ Deno.test("getNumExports + getExportByIndex + getExportInfo", () => {
 // Inspection: getFunction / getFunctionInfo / expandType
 // ---------------------------------------------------------------------------
 
-Deno.test("getFunction + getFunctionInfo + expandType for `add(i32,i32)->i32`", () => {
+Deno.test('getFunction + getFunctionInfo + expandType for `add(i32,i32)->i32`', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
   const exp = binaryen.getExportInfo(mod.getExportByIndex(0));
   const func = mod.getFunction(exp.value);
@@ -161,12 +161,12 @@ Deno.test("getFunction + getFunctionInfo + expandType for `add(i32,i32)->i32`", 
   assertEquals(info.vars.length, 0);
 });
 
-Deno.test("getFunction returns null for missing name", () => {
+Deno.test('getFunction returns null for missing name', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
-  assertEquals(mod.getFunction("nope"), null);
+  assertEquals(mod.getFunction('nope'), null);
 });
 
-Deno.test("expandType accepts both packed and array inputs", () => {
+Deno.test('expandType accepts both packed and array inputs', () => {
   assertEquals(binaryen.expandType(binaryen.i32), [binaryen.i32]);
   assertEquals(
     binaryen.expandType([binaryen.i32, binaryen.i64]),
@@ -174,14 +174,14 @@ Deno.test("expandType accepts both packed and array inputs", () => {
   );
 });
 
-Deno.test("expandType(none) is an empty list (arity 0), not [none]", () => {
+Deno.test('expandType(none) is an empty list (arity 0), not [none]', () => {
   // Upstream `expandType` is arity-driven, so a void function's results expand
   // to []. The previous `[typeId]` fallback returned [none], rendering one
   // spurious result.
   assertEquals(binaryen.expandType(binaryen.none), []);
 });
 
-Deno.test("an unrecognized type id throws instead of being silently dropped from a signature", () => {
+Deno.test('an unrecognized type id throws instead of being silently dropped from a signature', () => {
   // 999 is not a valid wasm type id. It used to be silently filtered out of the
   // param list, producing a 1-param function instead of erroring — a
   // signature-corruption footgun.
@@ -189,14 +189,14 @@ Deno.test("an unrecognized type id throws instead of being silently dropped from
   assertThrows(
     () =>
       mod.addFunction(
-        "f",
+        'f',
         binaryen.createType([binaryen.i32, 999]),
         binaryen.none,
         [],
         mod.i32.const(0),
       ),
     TypeError,
-    "unrecognized wasm type id 999",
+    'unrecognized wasm type id 999',
   );
 });
 
@@ -207,8 +207,8 @@ Deno.test('getFunctionInfo reports module/base as "" for a defined function and 
   if (!func) throw new Error(`function ${exp.value} not found`);
   const info = binaryen.getFunctionInfo(func);
   // Upstream uses "" (UTF8ToString of an empty C string), not null.
-  assertEquals(info.module, "");
-  assertEquals(info.base, "");
+  assertEquals(info.module, '');
+  assertEquals(info.base, '');
   // `type` is present (the packed result type — single i32 here), not undefined.
   assertEquals(info.type, binaryen.i32);
 });
@@ -217,7 +217,7 @@ Deno.test('getFunctionInfo reports module/base as "" for a defined function and 
 // setFeatures (informational)
 // ---------------------------------------------------------------------------
 
-Deno.test("setFeatures updates the features field", () => {
+Deno.test('setFeatures updates the features field', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
   // Default is All.
   assertEquals(mod.features, binaryen.Features.All);
@@ -229,7 +229,7 @@ Deno.test("setFeatures updates the features field", () => {
 // optimize() actually runs the pipeline
 // ---------------------------------------------------------------------------
 
-Deno.test("optimize() at -Oz produces a valid, possibly smaller wasm", () => {
+Deno.test('optimize() at -Oz produces a valid, possibly smaller wasm', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
   binaryen.setShrinkLevel(2);
   binaryen.setOptimizeLevel(2);
@@ -248,7 +248,7 @@ Deno.test("optimize() at -Oz produces a valid, possibly smaller wasm", () => {
   }
 });
 
-Deno.test("optimize() does not throw on a module with no functions", () => {
+Deno.test('optimize() does not throw on a module with no functions', () => {
   // Minimal empty module — wasm header only.
   const EMPTY = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
   const mod = binaryen.readBinary(EMPTY);
@@ -261,7 +261,7 @@ Deno.test("optimize() does not throw on a module with no functions", () => {
 // Programmatic construction — new binaryen.Module() + low-level factories
 // ---------------------------------------------------------------------------
 
-Deno.test("new Module() returns an empty, emittable module", () => {
+Deno.test('new Module() returns an empty, emittable module', () => {
   const mod = new binaryen.Module();
   assertEquals(mod.getNumExports(), 0);
   const bytes = mod.emitBinary();
@@ -272,13 +272,13 @@ Deno.test("new Module() returns an empty, emittable module", () => {
   assertEquals(bytes[3], 0x6d);
 });
 
-Deno.test("createType packs as upstream binaryen.js does", () => {
+Deno.test('createType packs as upstream binaryen.js does', () => {
   assertEquals(binaryen.createType([]), binaryen.none);
   assertEquals(binaryen.createType([binaryen.i32]), binaryen.i32);
   assertEquals(binaryen.createType([binaryen.i32, binaryen.i64]), [binaryen.i32, binaryen.i64]);
 });
 
-Deno.test("ExpressionId constants match upstream binaryen.js values", () => {
+Deno.test('ExpressionId constants match upstream binaryen.js values', () => {
   assertEquals(binaryen.BlockId, 1);
   assertEquals(binaryen.IfId, 2);
   assertEquals(binaryen.LoopId, 3);
@@ -289,10 +289,10 @@ Deno.test("ExpressionId constants match upstream binaryen.js values", () => {
   assertEquals(binaryen.UnreachableId, 23);
 });
 
-Deno.test("programmatic add(i32,i32)->i32 builds, emits, re-parses", () => {
+Deno.test('programmatic add(i32,i32)->i32 builds, emits, re-parses', () => {
   const mod = new binaryen.Module();
   mod.addFunction(
-    "add",
+    'add',
     binaryen.createType([binaryen.i32, binaryen.i32]),
     binaryen.i32,
     [],
@@ -301,7 +301,7 @@ Deno.test("programmatic add(i32,i32)->i32 builds, emits, re-parses", () => {
       mod.local.get(1, binaryen.i32),
     ),
   );
-  mod.addFunctionExport("add", "add");
+  mod.addFunctionExport('add', 'add');
 
   const bytes = mod.emitBinary();
   const reparsed = binaryen.readBinary(bytes);
@@ -309,68 +309,68 @@ Deno.test("programmatic add(i32,i32)->i32 builds, emits, re-parses", () => {
 
   const exp = binaryen.getExportInfo(reparsed.getExportByIndex(0));
   assertEquals(exp.kind, binaryen.ExternalFunction);
-  assertEquals(exp.name, "add");
+  assertEquals(exp.name, 'add');
 
   const fn = reparsed.getFunction(exp.value);
-  if (!fn) throw new Error("missing function after round-trip");
+  if (!fn) throw new Error('missing function after round-trip');
   const info = binaryen.getFunctionInfo(fn);
   assertEquals(binaryen.expandType(info.params), [binaryen.i32, binaryen.i32]);
   assertEquals(binaryen.expandType(info.results), [binaryen.i32]);
 });
 
-Deno.test("i32 / i64 / f32 / f64 namespaces produce correct expression types", () => {
+Deno.test('i32 / i64 / f32 / f64 namespaces produce correct expression types', () => {
   const mod = new binaryen.Module();
   const i32Add = mod.i32.add(mod.i32.const(1), mod.i32.const(2));
-  assertEquals(i32Add.kind, "binary");
+  assertEquals(i32Add.kind, 'binary');
   const i64Mul = mod.i64.mul(mod.i64.const(3n), mod.i64.const(4n));
-  assertEquals(i64Mul.kind, "binary");
+  assertEquals(i64Mul.kind, 'binary');
   const f32Div = mod.f32.div(mod.f32.const(1.5), mod.f32.const(0.5));
-  assertEquals(f32Div.kind, "binary");
+  assertEquals(f32Div.kind, 'binary');
   const f64Sqrt = mod.f64.sqrt(mod.f64.const(4.0));
-  assertEquals(f64Sqrt.kind, "unary");
+  assertEquals(f64Sqrt.kind, 'unary');
 });
 
-Deno.test("local.get with non-i32 type respects the type ID", () => {
+Deno.test('local.get with non-i32 type respects the type ID', () => {
   const mod = new binaryen.Module();
   const lg = mod.local.get(0, binaryen.f64);
-  assertEquals(lg.kind, "local.get");
+  assertEquals(lg.kind, 'local.get');
   assertEquals(lg.type, ValType.F64);
 });
 
-Deno.test("control flow factories return well-formed nodes", () => {
+Deno.test('control flow factories return well-formed nodes', () => {
   const mod = new binaryen.Module();
-  const blk = mod.block("$L", [mod.nop(), mod.unreachable()]);
-  assertEquals(blk.kind, "block");
+  const blk = mod.block('$L', [mod.nop(), mod.unreachable()]);
+  assertEquals(blk.kind, 'block');
 
   const cond = mod.i32.eqz(mod.i32.const(0));
   const ifExpr = mod.if(cond, mod.i32.const(1), mod.i32.const(2));
-  assertEquals(ifExpr.kind, "if");
+  assertEquals(ifExpr.kind, 'if');
 
-  const loop = mod.loop("$top", mod.br("$top"));
-  assertEquals(loop.kind, "loop");
+  const loop = mod.loop('$top', mod.br('$top'));
+  assertEquals(loop.kind, 'loop');
 
   const ret = mod.return(mod.i32.const(7));
-  assertEquals(ret.kind, "return");
+  assertEquals(ret.kind, 'return');
 
   const sel = mod.select(mod.i32.const(1), mod.i32.const(10), mod.i32.const(20));
-  assertEquals(sel.kind, "select");
+  assertEquals(sel.kind, 'select');
 });
 
-Deno.test("addGlobal + setMemory + addFunctionImport survive round-trip", () => {
+Deno.test('addGlobal + setMemory + addFunctionImport survive round-trip', () => {
   const mod = new binaryen.Module();
 
   mod.addFunctionImport(
-    "host_log",
-    "env",
-    "log",
+    'host_log',
+    'env',
+    'log',
     binaryen.createType([binaryen.i32]),
     binaryen.none,
   );
-  mod.addGlobal("counter", binaryen.i32, true, mod.i32.const(0));
-  mod.setMemory(1, -1, "memory");
+  mod.addGlobal('counter', binaryen.i32, true, mod.i32.const(0));
+  mod.setMemory(1, -1, 'memory');
 
   mod.addFunction(
-    "tick",
+    'tick',
     binaryen.none,
     binaryen.i32,
     [],
@@ -378,15 +378,15 @@ Deno.test("addGlobal + setMemory + addFunctionImport survive round-trip", () => 
       null,
       [
         mod.global.set(
-          "counter",
-          mod.i32.add(mod.global.get("counter", binaryen.i32), mod.i32.const(1)),
+          'counter',
+          mod.i32.add(mod.global.get('counter', binaryen.i32), mod.i32.const(1)),
         ),
-        mod.global.get("counter", binaryen.i32),
+        mod.global.get('counter', binaryen.i32),
       ],
       binaryen.i32,
     ),
   );
-  mod.addFunctionExport("tick", "tick");
+  mod.addFunctionExport('tick', 'tick');
 
   const bytes = mod.emitBinary();
   const reparsed = binaryen.readBinary(bytes);
@@ -398,24 +398,24 @@ Deno.test("addGlobal + setMemory + addFunctionImport survive round-trip", () => 
 // Upstream-signature parity: call_indirect (table first) + setMemory segments
 // ---------------------------------------------------------------------------
 
-Deno.test("compat: Module.call_indirect takes table as the FIRST argument (upstream order)", () => {
+Deno.test('compat: Module.call_indirect takes table as the FIRST argument (upstream order)', () => {
   // Upstream is `call_indirect(table, target, operands, params, results)`. The
   // previous signature put `table` last, so an upstream-style call bound the
   // table string into the `target` slot and shifted everything else.
   const mod = new binaryen.Module();
   const target = mod.i32.const(0);
   const ci = mod.call_indirect(
-    "0",
+    '0',
     target,
     [],
     binaryen.none,
     binaryen.none,
   ) as CallIndirectExpr;
-  assertEquals(ci.table, "0");
+  assertEquals(ci.table, '0');
   assertEquals(ci.target.kind, ExpressionKind.Const); // not the bare "0" string
 });
 
-Deno.test("compat: Module.setMemory installs data segments without binding them to `shared`", () => {
+Deno.test('compat: Module.setMemory installs data segments without binding them to `shared`', () => {
   // `segments` is the 4th positional arg (upstream order). The previous
   // signature omitted it, so a positional segments array landed on `shared`
   // (marking the memory shared) and the data was silently dropped.
@@ -432,24 +432,24 @@ Deno.test("compat: Module.setMemory installs data segments without binding them 
 // runPasses
 // ---------------------------------------------------------------------------
 
-Deno.test("Module.runPasses runs an explicit pass list", () => {
+Deno.test('Module.runPasses runs an explicit pass list', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
-  mod.runPasses(["DCE", "Vacuum"]);
+  mod.runPasses(['DCE', 'Vacuum']);
   const out = mod.emitBinary();
   const reparsed = binaryen.readBinary(out);
   assertEquals(reparsed.getNumExports(), 1);
 });
 
-Deno.test("Module.runPasses throws on unknown pass names", () => {
+Deno.test('Module.runPasses throws on unknown pass names', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
   assertThrows(
-    () => mod.runPasses(["NoSuchPassExists"]),
+    () => mod.runPasses(['NoSuchPassExists']),
     Error,
-    "Unknown pass",
+    'Unknown pass',
   );
 });
 
-Deno.test("validate() and dispose() exist for upstream parity", () => {
+Deno.test('validate() and dispose() exist for upstream parity', () => {
   const mod = new binaryen.Module();
   assertEquals(mod.validate(), 1);
   mod.dispose();

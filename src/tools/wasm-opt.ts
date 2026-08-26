@@ -23,15 +23,15 @@
  * @license MIT
  */
 
-import { readFile, writeFile } from "node:fs/promises";
-import process from "node:process";
-import { parseWasm } from "../binary/index.ts";
-import { encodeWasm } from "../encoder/index.ts";
-import { parseWat } from "../parser/wat-parser.ts";
-import { BinaryenInterop } from "../interop/binaryen-js.ts";
-import { defaultPassOptions, listPasses, PassRunner, shrinkPassOptions } from "../passes/index.ts";
-import type { PassOptions } from "../passes/pass.ts";
-import { ModuleBuilder } from "../ir/module.ts";
+import { readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
+import { parseWasm } from '../binary/index.ts';
+import { encodeWasm } from '../encoder/index.ts';
+import { parseWat } from '../parser/wat-parser.ts';
+import { BinaryenInterop } from '../interop/binaryen-js.ts';
+import { defaultPassOptions, listPasses, PassRunner, shrinkPassOptions } from '../passes/index.ts';
+import type { PassOptions } from '../passes/pass.ts';
+import { ModuleBuilder } from '../ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -90,7 +90,7 @@ export interface WasmOptOptions {
 }
 
 const defaults: WasmOptOptions = {
-  output: "output.wasm",
+  output: 'output.wasm',
   optimizeLevel: 0,
   shrinkLevel: 0,
   emitText: false,
@@ -126,7 +126,7 @@ export async function wasmOpt(
   const opts: WasmOptOptions = { ...defaults, ...options };
 
   const inputBytes = new Uint8Array(await readFile(inputPath));
-  const isWat = inputPath.endsWith(".wat");
+  const isWat = inputPath.endsWith('.wat');
 
   if (opts.hybridMode) {
     return await _hybridOptimize(inputBytes, isWat, opts);
@@ -175,31 +175,31 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   }
 
   if (!parsed.input) {
-    console.error("Usage: wasm-opt <input.wasm> [options]");
-    console.error("  -o <file>            Output file (default: output.wasm)");
-    console.error("  -O0 .. -O4           Optimization level");
-    console.error("  -Os, -Oz             Size optimization (shrink level 1, 2)");
-    console.error("  -S                   Emit WAT text (hybrid mode only)");
-    console.error("  --<pass-name>        Run a specific pass by name");
-    console.error("  --pass-arg key=val   Per-pass argument (passname@key=val)");
-    console.error("  --partial-inlining-ifs N  Enable split inlining (Pattern A/B); -pii N");
-    console.error("  --print-all-passes   List all registered passes and exit");
-    console.error("  --hybrid             Use upstream wasm-opt subprocess");
+    console.error('Usage: wasm-opt <input.wasm> [options]');
+    console.error('  -o <file>            Output file (default: output.wasm)');
+    console.error('  -O0 .. -O4           Optimization level');
+    console.error('  -Os, -Oz             Size optimization (shrink level 1, 2)');
+    console.error('  -S                   Emit WAT text (hybrid mode only)');
+    console.error('  --<pass-name>        Run a specific pass by name');
+    console.error('  --pass-arg key=val   Per-pass argument (passname@key=val)');
+    console.error('  --partial-inlining-ifs N  Enable split inlining (Pattern A/B); -pii N');
+    console.error('  --print-all-passes   List all registered passes and exit');
+    console.error('  --hybrid             Use upstream wasm-opt subprocess');
     process.exit(1);
   }
 
   const result = await wasmOpt(parsed.input, parsed.options);
-  const outPath = parsed.options.output ?? "output.wasm";
+  const outPath = parsed.options.output ?? 'output.wasm';
 
-  if (typeof result === "string") {
-    if (outPath === "-") {
+  if (typeof result === 'string') {
+    if (outPath === '-') {
       console.log(result);
     } else {
       await writeFile(outPath, result);
       console.log(`Wrote WAT: ${outPath}`);
     }
   } else {
-    if (outPath === "-") {
+    if (outPath === '-') {
       process.stdout.write(result);
     } else {
       await writeFile(outPath, result);
@@ -219,8 +219,8 @@ function _nativeOptimize(
 ): Uint8Array {
   if (opts.emitText) {
     throw new Error(
-      "WAT text output (--emit-text / -S) requires wabt-ts wasm2wat. " +
-        "Use --hybrid for subprocess-based WAT output.",
+      'WAT text output (--emit-text / -S) requires wabt-ts wasm2wat. ' +
+        'Use --hybrid for subprocess-based WAT output.',
     );
   }
 
@@ -272,28 +272,28 @@ async function _hybridOptimize(
 function buildSubprocessFlags(opts: WasmOptOptions): string[] {
   const flags: string[] = [];
   if (opts.optimizeLevel > 0) flags.push(`-O${opts.optimizeLevel}`);
-  if (opts.shrinkLevel === 1) flags.push("-Os");
-  if (opts.shrinkLevel === 2) flags.push("-Oz");
-  if (opts.debugInfo) flags.push("-g");
-  if (opts.closedWorld) flags.push("--closed-world");
-  if (opts.partialInliningIfs > 0) flags.push("-pii", String(opts.partialInliningIfs));
+  if (opts.shrinkLevel === 1) flags.push('-Os');
+  if (opts.shrinkLevel === 2) flags.push('-Oz');
+  if (opts.debugInfo) flags.push('-g');
+  if (opts.closedWorld) flags.push('--closed-world');
+  if (opts.partialInliningIfs > 0) flags.push('-pii', String(opts.partialInliningIfs));
   for (const p of opts.passes) flags.push(`--${p}`);
-  if (opts.emitText) flags.push("-S");
+  if (opts.emitText) flags.push('-S');
   return flags;
 }
 
 async function _disassembleViaSubprocess(wasm: Uint8Array): Promise<string> {
-  const { spawn } = await import("node:child_process");
+  const { spawn } = await import('node:child_process');
   return await new Promise((resolve, reject) => {
-    const proc = spawn("wasm-opt", ["--emit-text", "-"], {
-      stdio: ["pipe", "pipe", "pipe"],
+    const proc = spawn('wasm-opt', ['--emit-text', '-'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
     const stdoutChunks: Uint8Array[] = [];
     const stderrChunks: Uint8Array[] = [];
-    proc.stdout.on("data", (c: Uint8Array) => stdoutChunks.push(c));
-    proc.stderr.on("data", (c: Uint8Array) => stderrChunks.push(c));
-    proc.on("error", reject);
-    proc.on("close", (code: number | null) => {
+    proc.stdout.on('data', (c: Uint8Array) => stdoutChunks.push(c));
+    proc.stderr.on('data', (c: Uint8Array) => stderrChunks.push(c));
+    proc.on('error', reject);
+    proc.on('close', (code: number | null) => {
       const decoder = new TextDecoder();
       if (code !== 0) {
         reject(
@@ -340,17 +340,17 @@ export interface ParsedArgs {
  * Everything else that starts with `--` is treated as an explicit pass name.
  */
 const RECOGNIZED_LONG_FLAGS = new Set([
-  "--output",
-  "--emit-text",
-  "--debug-info",
-  "--hybrid",
-  "--validate",
-  "--no-validate",
-  "--closed-world",
-  "--pass-arg",
-  "--partial-inlining-ifs",
-  "--print-all-passes",
-  "--help",
+  '--output',
+  '--emit-text',
+  '--debug-info',
+  '--hybrid',
+  '--validate',
+  '--no-validate',
+  '--closed-world',
+  '--pass-arg',
+  '--partial-inlining-ifs',
+  '--print-all-passes',
+  '--help',
 ]);
 
 /**
@@ -368,61 +368,61 @@ export function parseArgs(args: string[]): ParsedArgs {
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === "-o" || a === "--output") {
+    if (a === '-o' || a === '--output') {
       const v = args[++i];
-      if (v === undefined || v.startsWith("-")) {
+      if (v === undefined || v.startsWith('-')) {
         // Without this guard a trailing `-o` (or `-o -O2`) silently fell back
         // to the default `output.wasm` instead of reporting the missing path.
         throw new Error(`${a} requires an output path argument`);
       }
       result.options.output = v;
-    } else if (a === "-O0") {
+    } else if (a === '-O0') {
       result.options.optimizeLevel = 0;
-    } else if (a === "-O1") {
+    } else if (a === '-O1') {
       result.options.optimizeLevel = 1;
-    } else if (a === "-O2") {
+    } else if (a === '-O2') {
       result.options.optimizeLevel = 2;
-    } else if (a === "-O3") {
+    } else if (a === '-O3') {
       result.options.optimizeLevel = 3;
-    } else if (a === "-O4") {
+    } else if (a === '-O4') {
       result.options.optimizeLevel = 4;
-    } else if (a === "-Os") {
+    } else if (a === '-Os') {
       result.options.optimizeLevel = 2;
       result.options.shrinkLevel = 1;
-    } else if (a === "-Oz") {
+    } else if (a === '-Oz') {
       result.options.optimizeLevel = 2;
       result.options.shrinkLevel = 2;
-    } else if (a === "-S" || a === "--emit-text") {
+    } else if (a === '-S' || a === '--emit-text') {
       result.options.emitText = true;
-    } else if (a === "-g" || a === "--debug-info") {
+    } else if (a === '-g' || a === '--debug-info') {
       result.options.debugInfo = true;
-    } else if (a === "--hybrid") {
+    } else if (a === '--hybrid') {
       result.options.hybridMode = true;
-    } else if (a === "--validate") {
+    } else if (a === '--validate') {
       result.options.validate = true;
-    } else if (a === "--no-validate") {
+    } else if (a === '--no-validate') {
       result.options.validate = false;
-    } else if (a === "--closed-world") {
+    } else if (a === '--closed-world') {
       result.options.closedWorld = true;
-    } else if (a === "--pass-arg") {
+    } else if (a === '--pass-arg') {
       const kv = args[++i];
       if (kv) {
-        const eq = kv.indexOf("=");
+        const eq = kv.indexOf('=');
         if (eq > 0) {
           passArgs[kv.slice(0, eq)] = kv.slice(eq + 1);
         } else {
-          passArgs[kv] = "";
+          passArgs[kv] = '';
         }
       }
-    } else if (a === "--partial-inlining-ifs" || a === "-pii") {
-      const n = Number.parseInt(args[++i] ?? "", 10);
+    } else if (a === '--partial-inlining-ifs' || a === '-pii') {
+      const n = Number.parseInt(args[++i] ?? '', 10);
       if (Number.isFinite(n) && n >= 0) result.options.partialInliningIfs = n;
-    } else if (a === "--print-all-passes") {
+    } else if (a === '--print-all-passes') {
       result.printAllPasses = true;
-    } else if (a !== undefined && a.startsWith("--") && !RECOGNIZED_LONG_FLAGS.has(a)) {
+    } else if (a !== undefined && a.startsWith('--') && !RECOGNIZED_LONG_FLAGS.has(a)) {
       // Treat unknown --flags as pass names (e.g. --vacuum, --dce)
       passes.push(a.slice(2));
-    } else if (a !== undefined && !a.startsWith("-")) {
+    } else if (a !== undefined && !a.startsWith('-')) {
       result.input = a;
     }
   }

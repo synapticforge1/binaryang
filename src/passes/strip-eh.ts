@@ -31,16 +31,16 @@ import {
   makeBlock,
   makeDrop,
   makeUnreachable,
-} from "../ir/expressions.ts";
-import type { WasmModule } from "../ir/module.ts";
-import { mapExpression } from "../ir/walk.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
+} from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { mapExpression } from '../ir/walk.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 /** Removes all EH instructions and tags; throws become traps. */
 export class StripEHPass implements Pass {
-  readonly name = "StripEH";
+  readonly name = 'StripEH';
   readonly description =
-    "Removes EH instructions and tags. Throws become unreachable; try / try_table are replaced by their body.";
+    'Removes EH instructions and tags. Throws become unreachable; try / try_table are replaced by their body.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
@@ -52,7 +52,7 @@ export class StripEHPass implements Pass {
     // them would keep the module demanding a tag from its host for nothing —
     // and would re-enable EH validation on an otherwise EH-free module.
     module.tags = [];
-    module.imports = module.imports.filter((imp) => imp.kind !== "tag");
+    module.imports = module.imports.filter((imp) => imp.kind !== 'tag');
     module.hasExceptionHandling = false;
   }
 }

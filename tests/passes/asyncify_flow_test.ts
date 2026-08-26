@@ -18,19 +18,19 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals } from '@std/assert';
 
-import { type CallExpr, type Expression, ExpressionKind } from "../../src/ir/expressions.ts";
-import { walkExpression } from "../../src/ir/walk.ts";
-import { parseWat } from "../../src/parser/wat-parser.ts";
-import { buildCallResultTypes, flattenFunction } from "../../src/passes/flatten.ts";
+import { type CallExpr, type Expression, ExpressionKind } from '../../src/ir/expressions.ts';
+import { walkExpression } from '../../src/ir/walk.ts';
+import { parseWat } from '../../src/parser/wat-parser.ts';
+import { buildCallResultTypes, flattenFunction } from '../../src/passes/flatten.ts';
 import {
   analyzeModule,
   type FlowCtx,
   flowInstrumentFunction,
   parseAsyncifyOptions,
-} from "../../src/passes/asyncify.ts";
-import type { WasmFunction, WasmModule } from "../../src/ir/module.ts";
+} from '../../src/passes/asyncify.ts';
+import type { WasmFunction, WasmModule } from '../../src/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -72,9 +72,9 @@ function countCallsTo(e: Expression, target: string): number {
   return n;
 }
 
-const GET_INDEX = "$__asyncify_get_call_index";
-const CHECK_INDEX = "$__asyncify_check_call_index";
-const UNWIND = "$__asyncify_unwind";
+const GET_INDEX = '$__asyncify_get_call_index';
+const CHECK_INDEX = '$__asyncify_check_call_index';
+const UNWIND = '$__asyncify_unwind';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -116,8 +116,8 @@ const LOOP_CALL = `(module
 // Tests
 // ---------------------------------------------------------------------------
 
-Deno.test("flow — body starts with the rewind prelude (pop call index)", () => {
-  const foo = fn(flowModule(ONE_CALL), "$foo");
+Deno.test('flow — body starts with the rewind prelude (pop call index)', () => {
+  const foo = fn(flowModule(ONE_CALL), '$foo');
   assertEquals(foo.body.kind, ExpressionKind.Block);
   const first = (foo.body as { children: Expression[] }).children[0];
   assertEquals(first.kind, ExpressionKind.If);
@@ -125,16 +125,16 @@ Deno.test("flow — body starts with the rewind prelude (pop call index)", () =>
   assertEquals(countCallsTo(first, GET_INDEX), 1);
 });
 
-Deno.test("flow — wraps a single state-changing call with a check + unwind", () => {
-  const foo = fn(flowModule(ONE_CALL), "$foo");
+Deno.test('flow — wraps a single state-changing call with a check + unwind', () => {
+  const foo = fn(flowModule(ONE_CALL), '$foo');
   // 1 check-call-index guard, 1 unwind note, 1 rewind-prelude get-index.
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 1);
   assertEquals(countCallsTo(foo.body, UNWIND), 1);
   assertEquals(countCallsTo(foo.body, GET_INDEX), 1);
 });
 
-Deno.test("flow — each call gets a distinct index (two calls → two checks/unwinds)", () => {
-  const foo = fn(flowModule(TWO_CALLS), "$foo");
+Deno.test('flow — each call gets a distinct index (two calls → two checks/unwinds)', () => {
+  const foo = fn(flowModule(TWO_CALLS), '$foo');
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 2);
   assertEquals(countCallsTo(foo.body, UNWIND), 2);
   // The two check-call-index intrinsics receive indices 0 and 1.
@@ -148,24 +148,24 @@ Deno.test("flow — each call gets a distinct index (two calls → two checks/un
   assertEquals(indices.sort(), [0, 1]);
 });
 
-Deno.test("flow — instruments a call inside an if arm (linearized)", () => {
-  const foo = fn(flowModule(IF_CALL), "$foo");
+Deno.test('flow — instruments a call inside an if arm (linearized)', () => {
+  const foo = fn(flowModule(IF_CALL), '$foo');
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 1);
   assertEquals(countCallsTo(foo.body, UNWIND), 1);
   // The state global is consulted (rewinding/normal checks) — many state reads.
   let stateReads = 0;
   walkExpression(foo.body, (e) => {
     if (
-      e.kind === ExpressionKind.GlobalGet && (e as { name: string }).name === "$__asyncify_state"
+      e.kind === ExpressionKind.GlobalGet && (e as { name: string }).name === '$__asyncify_state'
     ) {
       stateReads++;
     }
   });
-  assert(stateReads >= 3, "expected several __asyncify_state checks after linearization");
+  assert(stateReads >= 3, 'expected several __asyncify_state checks after linearization');
 });
 
-Deno.test("flow — instruments a call inside a loop", () => {
-  const foo = fn(flowModule(LOOP_CALL), "$foo");
+Deno.test('flow — instruments a call inside a loop', () => {
+  const foo = fn(flowModule(LOOP_CALL), '$foo');
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 1);
   assertEquals(countCallsTo(foo.body, UNWIND), 1);
   assertEquals(countCallsTo(foo.body, GET_INDEX), 1);
@@ -177,26 +177,26 @@ Deno.test("flow — instruments a call inside a loop", () => {
   assertEquals(loops, 1);
 });
 
-Deno.test("flow — leaves non-instrumented (pure) functions untouched", () => {
+Deno.test('flow — leaves non-instrumented (pure) functions untouched', () => {
   const mod = flowModule(ONE_CALL);
-  const pure = fn(mod, "$pure");
+  const pure = fn(mod, '$pure');
   // pure was never flattened/flowed; its body is the original const.
   assertEquals(countCallsTo(pure.body, CHECK_INDEX), 0);
   assertEquals(countCallsTo(pure.body, GET_INDEX), 0);
 });
 
-Deno.test("flow — a state-changing local.set defers via a fake global", () => {
+Deno.test('flow — a state-changing local.set defers via a fake global', () => {
   // TWO_CALLS stores each call result; the deferred set uses a fake global.
   const mod = flowModule(TWO_CALLS);
-  const foo = fn(mod, "$foo");
+  const foo = fn(mod, '$foo');
   let fakeSets = 0;
   walkExpression(foo.body, (e) => {
     if (
       e.kind === ExpressionKind.GlobalSet &&
-      (e as { name: string }).name.startsWith("$asyncify_fake_call_global_")
+      (e as { name: string }).name.startsWith('$asyncify_fake_call_global_')
     ) {
       fakeSets++;
     }
   });
-  assert(fakeSets >= 2, "expected fake-global sets for the two call results");
+  assert(fakeSets >= 2, 'expected fake-global sets for the two call results');
 });

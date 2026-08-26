@@ -38,11 +38,11 @@ import {
   makeI32Const,
   makeI64Const,
   UnaryOp,
-} from "../ir/expressions.ts";
-import type { WasmModule } from "../ir/module.ts";
-import { ValType } from "../ir/types.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { mapExpression } from "../ir/walk.ts";
+} from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { ValType } from '../ir/types.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { mapExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -50,9 +50,9 @@ import { mapExpression } from "../ir/walk.ts";
 
 /** Peephole rewrites: algebraic identities and integer constant folding. */
 export class OptimizeInstructionsPass implements Pass {
-  readonly name = "OptimizeInstructions";
+  readonly name = 'OptimizeInstructions';
   readonly description =
-    "Algebraic identities (identity element removal, strength reduction) and integer constant folding.";
+    'Algebraic identities (identity element removal, strength reduction) and integer constant folding.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
@@ -141,7 +141,7 @@ function _isPure(expr: Expression): boolean {
     case ExpressionKind.Unary: {
       // Non-saturating float-to-int truncations can trap
       const op = expr.op as string;
-      if (op.includes("trunc") && !op.includes("sat")) return false;
+      if (op.includes('trunc') && !op.includes('sat')) return false;
       return _isPure(expr.value);
     }
     default:
@@ -154,7 +154,7 @@ function _simplifyRHS(
   left: Expression,
   rhs: Literal,
 ): Expression | null {
-  if ("i32" in rhs) {
+  if ('i32' in rhs) {
     const v = rhs.i32 as number;
     switch (op) {
       case BinaryOp.AddI32:
@@ -202,7 +202,7 @@ function _simplifyRHS(
     }
   }
 
-  if ("i64" in rhs) {
+  if ('i64' in rhs) {
     const v = rhs.i64 as bigint;
     switch (op) {
       case BinaryOp.AddI64:
@@ -258,7 +258,7 @@ function _simplifyLHS(
   lhs: Literal,
   right: Expression,
 ): Expression | null {
-  if ("i32" in lhs) {
+  if ('i32' in lhs) {
     const v = lhs.i32 as number;
     switch (op) {
       case BinaryOp.AddI32:
@@ -282,7 +282,7 @@ function _simplifyLHS(
     }
   }
 
-  if ("i64" in lhs) {
+  if ('i64' in lhs) {
     const v = lhs.i64 as bigint;
     switch (op) {
       case BinaryOp.AddI64:
@@ -333,7 +333,7 @@ function _foldBinary(
   rhs: Literal,
 ): Expression | null {
   // i32 × i32
-  if ("i32" in lhs && "i32" in rhs) {
+  if ('i32' in lhs && 'i32' in rhs) {
     const a = lhs.i32 as number;
     const b = rhs.i32 as number;
     switch (op) {
@@ -387,7 +387,7 @@ function _foldBinary(
   }
 
   // i64 × i64
-  if ("i64" in lhs && "i64" in rhs) {
+  if ('i64' in lhs && 'i64' in rhs) {
     const a = lhs.i64 as bigint;
     const b = rhs.i64 as bigint;
     switch (op) {
@@ -455,7 +455,7 @@ function _foldBinary(
 // ---------------------------------------------------------------------------
 
 function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
-  if ("i32" in val) {
+  if ('i32' in val) {
     const v = val.i32 as number;
     switch (op) {
       case UnaryOp.ClzI32:
@@ -478,7 +478,7 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
     }
   }
 
-  if ("i64" in val) {
+  if ('i64' in val) {
     const v = val.i64 as bigint;
     switch (op) {
       case UnaryOp.WrapI64:
@@ -494,7 +494,7 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
     }
   }
 
-  if ("f32" in val) {
+  if ('f32' in val) {
     const v = val.f32 as number;
     if (op === UnaryOp.ReinterpretF32) {
       const buf = new ArrayBuffer(4);
@@ -503,7 +503,7 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
     }
   }
 
-  if ("f64" in val) {
+  if ('f64' in val) {
     const v = val.f64 as number;
     if (op === UnaryOp.ReinterpretF64) {
       const buf = new ArrayBuffer(8);

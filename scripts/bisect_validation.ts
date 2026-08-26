@@ -13,29 +13,29 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
-import { parseWasm } from "../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
-import { createPass, type PassOptions } from "../src/passes/pass.ts";
-import "../src/passes/index.ts";
+import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { createPass, type PassOptions } from '../src/passes/pass.ts';
+import '../src/passes/index.ts';
 
-const ROOT = new URL("../upstream/test", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
-const TARGET = "passes/fannkuch0_dwarf.wasm"; // smallest failing case
+const TARGET = 'passes/fannkuch0_dwarf.wasm'; // smallest failing case
 
 const PASSES = [
-  "DCE",
-  "PickLoadSigns",
-  "Vacuum",
-  "RemoveUnusedBrs",
-  "RemoveUnusedNames",
-  "OptimizeInstructions",
-  "CoalesceLocals",
-  "SimplifyLocals",
-  "LocalCSE",
-  "RemoveUnusedModuleElements",
+  'DCE',
+  'PickLoadSigns',
+  'Vacuum',
+  'RemoveUnusedBrs',
+  'RemoveUnusedNames',
+  'OptimizeInstructions',
+  'CoalesceLocals',
+  'SimplifyLocals',
+  'LocalCSE',
+  'RemoveUnusedModuleElements',
 ];
 
 const OPTS: PassOptions = {
@@ -66,7 +66,7 @@ console.log();
 // Step 1: input itself validates?
 {
   const v = await validates(inputBytes);
-  console.log(`input validates? ${v.ok ? "YES" : "NO"} ${v.err ?? ""}`);
+  console.log(`input validates? ${v.ok ? 'YES' : 'NO'} ${v.err ?? ''}`);
 }
 
 // Step 2: parse + encode (no passes) — pure round-trip
@@ -75,12 +75,12 @@ console.log();
   const out = encodeWasm(mod);
   const v = await validates(out);
   console.log(
-    `parse+encode (no passes): ${v.ok ? "YES" : "NO"} bytes=${out.byteLength} ${v.err ?? ""}`,
+    `parse+encode (no passes): ${v.ok ? 'YES' : 'NO'} bytes=${out.byteLength} ${v.err ?? ''}`,
   );
 }
 
 console.log();
-console.log("## Each pass applied individually after parse:");
+console.log('## Each pass applied individually after parse:');
 for (const passName of PASSES) {
   const mod = parseWasm(inputBytes);
   const pass = createPass(passName);
@@ -105,8 +105,8 @@ for (const passName of PASSES) {
   }
   const v = await validates(out);
   console.log(
-    `${passName.padEnd(28)} ${v.ok ? "OK" : "FAIL"}  bytes=${out.byteLength}  ${
-      v.err?.slice(0, 120) ?? ""
+    `${passName.padEnd(28)} ${v.ok ? 'OK' : 'FAIL'}  bytes=${out.byteLength}  ${
+      v.err?.slice(0, 120) ?? ''
     }`,
   );
 }

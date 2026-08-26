@@ -26,4 +26,4 @@
  * @license MIT
  */
 
-export { encodeWasm, WasmEncodeError } from "./wasm-encoder.ts";
+export { encodeWasm, WasmEncodeError } from './wasm-encoder.ts';

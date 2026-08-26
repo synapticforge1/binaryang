@@ -151,10 +151,10 @@ export class BinaryenInterop {
    */
   static async create(options: BinaryenInteropOptions = {}): Promise<BinaryenInterop> {
     if (options.binaryen) {
-      _validateBinaryenLib(options.binaryen, "<options.binaryen>");
+      _validateBinaryenLib(options.binaryen, '<options.binaryen>');
       return new BinaryenInterop(options.binaryen);
     }
-    const path = options.binaryenJsPath ?? "npm:binaryen";
+    const path = options.binaryenJsPath ?? 'npm:binaryen';
     let mod: unknown;
     try {
       mod = await import(path);
@@ -183,9 +183,9 @@ export class BinaryenInterop {
    * @returns Optimized WAT text.
    */
   optimizeWat(wat: string, options: OptimizeOptions | string = {}): string {
-    const opts = typeof options === "string" ? _parseFlagShorthand(options) : options;
+    const opts = typeof options === 'string' ? _parseFlagShorthand(options) : options;
     const ref = this._binaryen.parseText(wat);
-    if (!ref) throw new Error("binaryen.js: parseText failed");
+    if (!ref) throw new Error('binaryen.js: parseText failed');
     try {
       this._runOptimization(ref, opts);
       return ref.emitText();
@@ -202,9 +202,9 @@ export class BinaryenInterop {
    * @returns Optimized `.wasm` bytes.
    */
   optimizeBinary(bytes: Uint8Array, options: OptimizeOptions | string = {}): Uint8Array {
-    const opts = typeof options === "string" ? _parseFlagShorthand(options) : options;
+    const opts = typeof options === 'string' ? _parseFlagShorthand(options) : options;
     const ref = this._binaryen.readBinary(bytes);
-    if (!ref) throw new Error("binaryen.js: readBinary failed");
+    if (!ref) throw new Error('binaryen.js: readBinary failed');
     try {
       this._runOptimization(ref, opts);
       return ref.emitBinary();
@@ -240,19 +240,19 @@ export class BinaryenInterop {
    */
   static async optimizeViaSubprocess(
     wat: string,
-    flags: string[] = ["-Oz"],
+    flags: string[] = ['-Oz'],
   ): Promise<Uint8Array> {
-    const { spawn } = await import("node:child_process");
+    const { spawn } = await import('node:child_process');
     return await new Promise((resolve, reject) => {
-      const proc = spawn("wasm-opt", [...flags, "--output=-", "-"], {
-        stdio: ["pipe", "pipe", "pipe"],
+      const proc = spawn('wasm-opt', [...flags, '--output=-', '-'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
       const stdoutChunks: Uint8Array[] = [];
       const stderrChunks: Uint8Array[] = [];
-      proc.stdout.on("data", (c: Uint8Array) => stdoutChunks.push(c));
-      proc.stderr.on("data", (c: Uint8Array) => stderrChunks.push(c));
-      proc.on("error", reject);
-      proc.on("close", (code: number | null) => {
+      proc.stdout.on('data', (c: Uint8Array) => stdoutChunks.push(c));
+      proc.stderr.on('data', (c: Uint8Array) => stderrChunks.push(c));
+      proc.on('error', reject);
+      proc.on('close', (code: number | null) => {
         if (code !== 0) {
           reject(
             new Error(
@@ -277,10 +277,10 @@ function _validateBinaryenLib(bin: unknown, source: string): asserts bin is Bina
   const b = bin as Partial<BinaryenJsLib>;
   if (
     !b ||
-    typeof b.parseText !== "function" ||
-    typeof b.readBinary !== "function" ||
-    typeof b.setOptimizeLevel !== "function" ||
-    typeof b.setShrinkLevel !== "function"
+    typeof b.parseText !== 'function' ||
+    typeof b.readBinary !== 'function' ||
+    typeof b.setOptimizeLevel !== 'function' ||
+    typeof b.setShrinkLevel !== 'function'
   ) {
     throw new Error(
       `BinaryenInterop: module loaded from "${source}" does not match the ` +
@@ -296,19 +296,19 @@ function _validateBinaryenLib(bin: unknown, source: string): asserts bin is Bina
  */
 function _parseFlagShorthand(flag: string): OptimizeOptions {
   switch (flag) {
-    case "-O0":
+    case '-O0':
       return { optimizeLevel: 0, shrinkLevel: 0 };
-    case "-O1":
+    case '-O1':
       return { optimizeLevel: 1, shrinkLevel: 0 };
-    case "-O2":
+    case '-O2':
       return { optimizeLevel: 2, shrinkLevel: 0 };
-    case "-O3":
+    case '-O3':
       return { optimizeLevel: 3, shrinkLevel: 0 };
-    case "-O4":
+    case '-O4':
       return { optimizeLevel: 4, shrinkLevel: 0 };
-    case "-Os":
+    case '-Os':
       return { optimizeLevel: 2, shrinkLevel: 1 };
-    case "-Oz":
+    case '-Oz':
       return { optimizeLevel: 2, shrinkLevel: 2 };
     default:
       throw new Error(`Unknown optimization shorthand: "${flag}"`);

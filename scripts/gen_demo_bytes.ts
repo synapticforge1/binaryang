@@ -16,20 +16,20 @@
  * @license MIT
  */
 
-import { parseWat } from "../src/parser/wat-parser.ts";
-import { encodeWasm } from "../src/encoder/wasm-encoder.ts";
+import { parseWat } from '../src/parser/wat-parser.ts';
+import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
 
-const WAT_PATH = new URL("../src/wasm/demo.wat", import.meta.url);
-const WASM_PATH = new URL("../src/wasm/demo.wasm", import.meta.url);
-const BYTES_TS_PATH = new URL("../src/wasm/demo_bytes.ts", import.meta.url);
+const WAT_PATH = new URL('../src/wasm/demo.wat', import.meta.url);
+const WASM_PATH = new URL('../src/wasm/demo.wasm', import.meta.url);
+const BYTES_TS_PATH = new URL('../src/wasm/demo_bytes.ts', import.meta.url);
 
 const wat = await Deno.readTextFile(WAT_PATH);
-const mod = parseWat(wat, "demo.wat");
+const mod = parseWat(wat, 'demo.wat');
 const bytes = encodeWasm(mod);
 
 await Deno.writeFile(WASM_PATH, bytes);
 
-const hex = Array.from(bytes, (b) => "0x" + b.toString(16).padStart(2, "0")).join(", ");
+const hex = Array.from(bytes, (b) => '0x' + b.toString(16).padStart(2, '0')).join(', ');
 const ts = `// deno-fmt-ignore-file
 /**
  * @module binaryen-ts/wasm/demo_bytes

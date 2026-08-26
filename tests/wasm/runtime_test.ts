@@ -20,17 +20,17 @@ import {
   assertNotEquals,
   assertRejects,
   assertStrictEquals,
-} from "@std/assert";
+} from '@std/assert';
 
-import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from "../../src/wasm/index.ts";
+import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from '../../src/wasm/index.ts';
 import {
   clearKernelCache,
   listLoadedKernels,
   loadKernel,
   WasmRuntimeError,
-} from "../../src/wasm-runtime.ts";
+} from '../../src/wasm-runtime.ts';
 
-const KERNEL_NAME = "demo-runtime-test";
+const KERNEL_NAME = 'demo-runtime-test';
 
 function freshSpec(): {
   name: string;
@@ -40,7 +40,7 @@ function freshSpec(): {
   return { name: KERNEL_NAME, bytes: DEMO_BYTES, exports: DEMO_KERNEL_EXPORTS };
 }
 
-Deno.test("wasm-runtime: loads demo kernel and call results match native", async () => {
+Deno.test('wasm-runtime: loads demo kernel and call results match native', async () => {
   clearKernelCache(KERNEL_NAME);
   const kernel = await loadKernel(freshSpec());
 
@@ -57,16 +57,16 @@ Deno.test("wasm-runtime: loads demo kernel and call results match native", async
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test("wasm-runtime: second loadKernel returns cached instance", async () => {
+Deno.test('wasm-runtime: second loadKernel returns cached instance', async () => {
   clearKernelCache(KERNEL_NAME);
   const a = await loadKernel(freshSpec());
   const b = await loadKernel(freshSpec());
-  assertStrictEquals(a, b, "cached loadKernel must return the same object");
-  assertStrictEquals(a.instance, b.instance, "underlying instance must be reused");
+  assertStrictEquals(a, b, 'cached loadKernel must return the same object');
+  assertStrictEquals(a.instance, b.instance, 'underlying instance must be reused');
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test("wasm-runtime: clearKernelCache reinstantiates", async () => {
+Deno.test('wasm-runtime: clearKernelCache reinstantiates', async () => {
   clearKernelCache(KERNEL_NAME);
   const first = await loadKernel(freshSpec());
   clearKernelCache(KERNEL_NAME);
@@ -74,27 +74,27 @@ Deno.test("wasm-runtime: clearKernelCache reinstantiates", async () => {
   assertNotEquals(
     first.instance,
     second.instance,
-    "clearKernelCache must drop the instance",
+    'clearKernelCache must drop the instance',
   );
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test("wasm-runtime: missing export throws WasmRuntimeError", async () => {
+Deno.test('wasm-runtime: missing export throws WasmRuntimeError', async () => {
   clearKernelCache(KERNEL_NAME);
   await assertRejects(
     () =>
       loadKernel({
         name: KERNEL_NAME,
         bytes: DEMO_BYTES,
-        exports: ["add_i32", "this_export_does_not_exist"] as const,
+        exports: ['add_i32', 'this_export_does_not_exist'] as const,
       }),
     WasmRuntimeError,
-    "missing required export",
+    'missing required export',
   );
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test("wasm-runtime: listLoadedKernels reports cached names", async () => {
+Deno.test('wasm-runtime: listLoadedKernels reports cached names', async () => {
   clearKernelCache();
   assertEquals(listLoadedKernels(), []);
   await loadKernel(freshSpec());

@@ -27,9 +27,9 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
+import { assert, assertEquals } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -44,20 +44,20 @@ import {
   makeLocalSet,
   makeRefAsNonNull,
   RefAsOp,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder } from "../../src/ir/module.ts";
-import { parseWat } from "../../src/parser/wat-parser.ts";
-import { ValType } from "../../src/ir/types.ts";
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { parseWat } from '../../src/parser/wat-parser.ts';
+import { ValType } from '../../src/ir/types.ts';
 
 /** i32 array heap type + a `() -> i32` func type, in that order. */
 function gcBuilder(): { m: ModuleBuilder; arrayType: number } {
   const m = new ModuleBuilder();
   m.enableGC();
   const arrayType = m.addHeapType({
-    kind: "array",
+    kind: 'array',
     element: { type: ValType.I32, mutable: true },
   });
-  m.addHeapType({ kind: "func", params: [], results: [ValType.I32] });
+  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
   return { m, arrayType };
 }
 
@@ -70,14 +70,14 @@ async function runRead(bytes: Uint8Array): Promise<number> {
 
 /** Encode, round-trip through the parser, and assert both builds agree. */
 async function bothAgree(
-  mod: ReturnType<ModuleBuilder["build"]>,
+  mod: ReturnType<ModuleBuilder['build']>,
   expected: number,
 ): Promise<void> {
   const direct = encodeWasm(mod);
-  assertEquals(await runRead(direct), expected, "direct encode");
+  assertEquals(await runRead(direct), expected, 'direct encode');
 
   const roundTripped = encodeWasm(parseWasm(direct));
-  assertEquals(await runRead(roundTripped), expected, "after parse->encode");
+  assertEquals(await runRead(roundTripped), expected, 'after parse->encode');
 }
 
 // `array.fill` / `array.copy` need a local typed `(ref null $t)`. `Local.type`
@@ -259,7 +259,7 @@ function gcSubops(bytes: Uint8Array): number[] {
 function findNode(root: unknown, kind: string): Record<string, unknown> | null {
   let hit: Record<string, unknown> | null = null;
   const walk = (e: unknown): void => {
-    if (hit || !e || typeof e !== "object") return;
+    if (hit || !e || typeof e !== 'object') return;
     const node = e as Record<string, unknown>;
     if (node.kind === kind) {
       hit = node;
@@ -274,44 +274,44 @@ function findNode(root: unknown, kind: string): Record<string, unknown> | null {
   return hit;
 }
 
-Deno.test("array.fill: the fixture fills the requested range, not one slot", async () => {
+Deno.test('array.fill: the fixture fills the requested range, not one slot', async () => {
   // The pre-fix decoder modelled array.fill as a one-element array.set, so a
   // fill of 3 wrote exactly one slot. Reading index 2 catches that directly.
   assertEquals(await runRead(ARRAY_FILL_MODULE), 7);
 });
 
-Deno.test("array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10", () => {
+Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10', () => {
   const mod = parseWasm(ARRAY_FILL_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayFill);
-  assert(node !== null, "array.fill did not decode to an ArrayFill node");
+  assert(node !== null, 'array.fill did not decode to an ArrayFill node');
   assertEquals(node!.typeIndex, 0);
   // ref, index, value, size all present and distinct operands.
-  for (const k of ["ref", "index", "value", "size"]) {
+  for (const k of ['ref', 'index', 'value', 'size']) {
     assert(node![k] !== undefined, `ArrayFill is missing operand "${k}"`);
   }
-  assert(gcSubops(encodeWasm(mod)).includes(0x10), "encoder did not emit array.fill");
+  assert(gcSubops(encodeWasm(mod)).includes(0x10), 'encoder did not emit array.fill');
 });
 
-Deno.test("array.copy: the fixture copies the requested range", async () => {
+Deno.test('array.copy: the fixture copies the requested range', async () => {
   assertEquals(await runRead(ARRAY_COPY_MODULE), 33);
 });
 
-Deno.test("array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11", () => {
+Deno.test('array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11', () => {
   const mod = parseWasm(ARRAY_COPY_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayCopy);
-  assert(node !== null, "array.copy did not decode to an ArrayCopy node");
-  for (const k of ["destRef", "destIndex", "srcRef", "srcIndex", "size"]) {
+  assert(node !== null, 'array.copy did not decode to an ArrayCopy node');
+  for (const k of ['destRef', 'destIndex', 'srcRef', 'srcIndex', 'size']) {
     assert(node![k] !== undefined, `ArrayCopy is missing operand "${k}"`);
   }
-  assert(gcSubops(encodeWasm(mod)).includes(0x11), "encoder did not emit array.copy");
+  assert(gcSubops(encodeWasm(mod)).includes(0x11), 'encoder did not emit array.copy');
 });
 
-Deno.test("array.fill fills the requested range via ModuleBuilder (typed-ref local)", async () => {
+Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref local)', async () => {
   // Buildable only because `Local.type` accepts a concrete `RefType` (UP-7).
   const { m, arrayType } = gcBuilder();
   const arrRef = { heap: arrayType, nullable: true };
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeBlock([
@@ -334,20 +334,20 @@ Deno.test("array.fill fills the requested range via ModuleBuilder (typed-ref loc
     ]),
     [{ type: arrRef }],
   );
-  m.addExport("read", "read");
+  m.addExport('read', 'read');
   await bothAgree(m.build(), 7);
 });
 
-Deno.test("array.copy keeps dest and src type immediates in the right order", () => {
+Deno.test('array.copy keeps dest and src type immediates in the right order', () => {
   // The binary immediate order is dest THEN src. Swapping them is invisible
   // when both are the same type, so assert the decoded node directly.
   const { m, arrayType } = gcBuilder();
   const second = m.addHeapType({
-    kind: "array",
+    kind: 'array',
     element: { type: ValType.I32, mutable: true },
   });
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeBlock([
@@ -369,20 +369,20 @@ Deno.test("array.copy keeps dest and src type immediates in the right order", ()
       makeI32Const(0),
     ]),
   );
-  m.addExport("read", "read");
+  m.addExport('read', 'read');
 
   const parsed = parseWasm(encodeWasm(m.build()));
   const node = findNode(parsed.functions[0].body, ExpressionKind.ArrayCopy);
 
-  assert(node !== null, "array.copy did not survive the round-trip");
+  assert(node !== null, 'array.copy did not survive the round-trip');
   assertEquals(node.destTypeIndex, arrayType);
   assertEquals(node.srcTypeIndex, second);
 });
 
-Deno.test("ref.as_non_null passes a non-null reference through", async () => {
+Deno.test('ref.as_non_null passes a non-null reference through', async () => {
   const { m, arrayType } = gcBuilder();
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeArrayGet(
@@ -399,14 +399,14 @@ Deno.test("ref.as_non_null passes a non-null reference through", async () => {
       false,
     ),
   );
-  m.addExport("read", "read");
+  m.addExport('read', 'read');
   await bothAgree(m.build(), 99);
 });
 
-Deno.test("ref.as_non_null decodes back to a RefAs node with the right op", () => {
+Deno.test('ref.as_non_null decodes back to a RefAs node with the right op', () => {
   const { m, arrayType } = gcBuilder();
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeArrayGet(
@@ -423,12 +423,12 @@ Deno.test("ref.as_non_null decodes back to a RefAs node with the right op", () =
       false,
     ),
   );
-  m.addExport("read", "read");
+  m.addExport('read', 'read');
 
   const parsed = parseWasm(encodeWasm(m.build()));
   const ops: string[] = [];
   const walk = (e: unknown): void => {
-    if (!e || typeof e !== "object") return;
+    if (!e || typeof e !== 'object') return;
     const node = e as { kind?: string; op?: string };
     if (node.kind === ExpressionKind.RefAs && node.op) ops.push(node.op);
     for (const v of Object.values(e as Record<string, unknown>)) {
@@ -446,7 +446,7 @@ Deno.test("ref.as_non_null decodes back to a RefAs node with the right op", () =
 // the WAT parser's unrecognized-instruction path to a bare `nop`. Every new
 // instruction gets pinned here so the same gap cannot reopen.
 
-Deno.test("WAT: the five new GC instructions parse, none fall through to nop", () => {
+Deno.test('WAT: the five new GC instructions parse, none fall through to nop', () => {
   const mod = parseWat(`
     (module
       (type $a (array (mut i32)))
@@ -461,9 +461,9 @@ Deno.test("WAT: the five new GC instructions parse, none fall through to nop", (
 
   const kinds: string[] = [];
   const walk = (e: unknown): void => {
-    if (!e || typeof e !== "object") return;
+    if (!e || typeof e !== 'object') return;
     const node = e as Record<string, unknown>;
-    if (typeof node.kind === "string") kinds.push(node.kind);
+    if (typeof node.kind === 'string') kinds.push(node.kind);
     for (const v of Object.values(node)) {
       if (Array.isArray(v)) v.forEach(walk);
       else walk(v);

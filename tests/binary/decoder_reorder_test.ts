@@ -28,10 +28,10 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/wasm-parser.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
-import type { Expression } from "../../src/ir/expressions.ts";
+import { assert, assertEquals } from '@std/assert';
+import { parseWasm } from '../../src/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import type { Expression } from '../../src/ir/expressions.ts';
 
 // Hand-assembled module (global $g mut i32 = 100):
 //   (func (export "f") (result i32)
@@ -97,17 +97,17 @@ const VALUE_ON_STACK = new Uint8Array([
 function nodes(e: Expression, out: Expression[] = []): Expression[] {
   out.push(e);
   for (const v of Object.values(e as unknown as Record<string, unknown>)) {
-    if (v && typeof v === "object" && "kind" in (v as object)) nodes(v as Expression, out);
+    if (v && typeof v === 'object' && 'kind' in (v as object)) nodes(v as Expression, out);
     else if (Array.isArray(v)) {
       for (const x of v) {
-        if (x && typeof x === "object" && "kind" in (x as object)) nodes(x as Expression, out);
+        if (x && typeof x === 'object' && 'kind' in (x as object)) nodes(x as Expression, out);
       }
     }
   }
   return out;
 }
 
-Deno.test("decoder does not reorder a stack-held value past a write of its state (spills instead)", () => {
+Deno.test('decoder does not reorder a stack-held value past a write of its state (spills instead)', () => {
   const mod = parseWasm(VALUE_ON_STACK);
   const f = mod.functions[0];
   const all = nodes(f.body);
@@ -115,26 +115,26 @@ Deno.test("decoder does not reorder a stack-held value past a write of its state
   // The reorder bug produces `global.set $g (global.get $g)` — a self-assign that
   // reads the just-overwritten value. That must NOT appear.
   const selfAssign = all.some((n) =>
-    (n as { kind: string }).kind === "global.set" &&
-    ((n as { value?: { kind?: string; name?: string } }).value?.kind === "global.get") &&
+    (n as { kind: string }).kind === 'global.set' &&
+    ((n as { value?: { kind?: string; name?: string } }).value?.kind === 'global.get') &&
     ((n as { name?: string }).name === (n as { value?: { name?: string } }).value?.name)
   );
   assert(
     !selfAssign,
-    "decoder reordered the stack-held global.get into a self-assigning global.set",
+    'decoder reordered the stack-held global.get into a self-assigning global.set',
   );
 
   // Instead it must spill the value into a temp local (added beyond the 0 the
   // binary declared) and restore via local.get.
-  assert(f.locals.length >= 1, "decoder should have added a spill local for the reordered value");
+  assert(f.locals.length >= 1, 'decoder should have added a spill local for the reordered value');
   const restoresFromLocal = all.some((n) =>
-    (n as { kind: string }).kind === "global.set" &&
-    (n as { value?: { kind?: string } }).value?.kind === "local.get"
+    (n as { kind: string }).kind === 'global.set' &&
+    (n as { value?: { kind?: string } }).value?.kind === 'local.get'
   );
-  assert(restoresFromLocal, "the restore should read the spilled local, not re-read the global");
+  assert(restoresFromLocal, 'the restore should read the spilled local, not re-read the global');
 });
 
-Deno.test("the spilled decode round-trips and executes correctly (f() === 100)", async () => {
+Deno.test('the spilled decode round-trips and executes correctly (f() === 100)', async () => {
   const mod = parseWasm(VALUE_ON_STACK);
   const bytes = encodeWasm(mod);
   const buf = new ArrayBuffer(bytes.byteLength);

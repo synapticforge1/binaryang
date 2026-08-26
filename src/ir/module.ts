@@ -23,11 +23,11 @@
  * @license MIT
  */
 
-import type { Expression } from "./expressions.ts";
-import { None, type Type, ValType } from "./types.ts";
-import type { ValueType } from "./gc-types.ts";
-import type { TypeDef } from "./gc-types.ts";
-export type { TypeDef } from "./gc-types.ts";
+import type { Expression } from './expressions.ts';
+import { None, type Type, ValType } from './types.ts';
+import type { ValueType } from './gc-types.ts';
+import type { TypeDef } from './gc-types.ts';
+export type { TypeDef } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
 // Module-level definition types
@@ -81,7 +81,7 @@ export interface WasmImport {
   /** Internal name used to reference this import within the module. */
   name: string;
   /** Which kind of entity is being imported. */
-  kind: "function" | "global" | "table" | "memory" | "tag";
+  kind: 'function' | 'global' | 'table' | 'memory' | 'tag';
   /** For function imports: parameter types. For tag imports: the tag's payload types. */
   params?: ValueType[];
   /** For function imports: result types. */
@@ -110,7 +110,7 @@ export interface WasmExport {
   /** The internal name of the exported entity. */
   value: string;
   /** Which kind of entity is being exported. */
-  kind: "function" | "global" | "table" | "memory" | "tag";
+  kind: 'function' | 'global' | 'table' | 'memory' | 'tag';
 }
 
 /**
@@ -427,7 +427,7 @@ export class ModuleBuilder {
     params: ValueType[],
     results: ValueType[],
   ): this {
-    this._imports.push({ kind: "function", name: internalName, module, base, params, results });
+    this._imports.push({ kind: 'function', name: internalName, module, base, params, results });
     return this;
   }
 
@@ -447,7 +447,7 @@ export class ModuleBuilder {
     type: ValueType,
     mutable = false,
   ): this {
-    this._imports.push({ kind: "global", name: internalName, module, base, type, mutable });
+    this._imports.push({ kind: 'global', name: internalName, module, base, type, mutable });
     return this;
   }
 
@@ -469,7 +469,7 @@ export class ModuleBuilder {
     initial = 0,
     max: number | null = null,
   ): this {
-    this._imports.push({ kind: "table", name: internalName, module, base, type, initial, max });
+    this._imports.push({ kind: 'table', name: internalName, module, base, type, initial, max });
     return this;
   }
 
@@ -494,7 +494,7 @@ export class ModuleBuilder {
     is64 = false,
   ): this {
     this._imports.push({
-      kind: "memory",
+      kind: 'memory',
       name: internalName,
       module,
       base,
@@ -520,7 +520,7 @@ export class ModuleBuilder {
   addExport(
     externalName: string,
     internalName: string,
-    kind: WasmExport["kind"] = "function",
+    kind: WasmExport['kind'] = 'function',
   ): this {
     this._exports.push({ name: externalName, value: internalName, kind });
     return this;
@@ -553,7 +553,7 @@ export class ModuleBuilder {
     base: string,
     params: ValueType[],
   ): this {
-    this._imports.push({ kind: "tag", name: internalName, module, base, params });
+    this._imports.push({ kind: 'tag', name: internalName, module, base, params });
     this._hasEH = true;
     return this;
   }

@@ -23,29 +23,29 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertThrows } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm, WasmEncodeError } from "../../src/encoder/index.ts";
+import { assert, assertEquals, assertThrows } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm, WasmEncodeError } from '../../src/encoder/index.ts';
 import {
   makeArrayGet,
   makeArrayNewFixed,
   makeI32Const,
   makeStructGet,
   makeStructNew,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder } from "../../src/ir/module.ts";
-import { ValType } from "../../src/ir/types.ts";
-import type { StorageType } from "../../src/ir/gc-types.ts";
-import { parseWat, WatParseError } from "../../src/parser/wat-parser.ts";
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import type { StorageType } from '../../src/ir/gc-types.ts';
+import { parseWat, WatParseError } from '../../src/parser/wat-parser.ts';
 
 /** A one-field mutable struct holding `value`, read back via struct.get. */
 function structModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: "struct", fields: [{ type: storage, mutable: true }] });
-  m.addHeapType({ kind: "func", params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ kind: 'struct', fields: [{ type: storage, mutable: true }] });
+  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeStructGet(
@@ -56,7 +56,7 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
       signed,
     ),
   );
-  m.addExport("read", "read");
+  m.addExport('read', 'read');
   return encodeWasm(m.build());
 }
 
@@ -64,10 +64,10 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
 function arrayModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: "array", element: { type: storage, mutable: true } });
-  m.addHeapType({ kind: "func", params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ kind: 'array', element: { type: storage, mutable: true } });
+  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeArrayGet(
@@ -78,7 +78,7 @@ function arrayModule(storage: StorageType, value: number, signed: boolean): Uint
       signed,
     ),
   );
-  m.addExport("read", "read");
+  m.addExport('read', 'read');
   return encodeWasm(m.build());
 }
 
@@ -100,46 +100,46 @@ function firstSubop(bytes: Uint8Array, candidates: number[]): number {
 const STRUCT_GETS = [0x02, 0x03, 0x04];
 const ARRAY_GETS = [0x0b, 0x0c, 0x0d];
 
-Deno.test("packed struct field: signed=false encodes struct.get_u and zero-extends", async () => {
-  const bytes = structModule("i8", 200, false);
+Deno.test('packed struct field: signed=false encodes struct.get_u and zero-extends', async () => {
+  const bytes = structModule('i8', 200, false);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x04);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test("packed struct field: signed=true encodes struct.get_s and sign-extends", async () => {
-  const bytes = structModule("i8", 200, true);
+Deno.test('packed struct field: signed=true encodes struct.get_s and sign-extends', async () => {
+  const bytes = structModule('i8', 200, true);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x03);
   assertEquals(await runRead(bytes), -56);
 });
 
-Deno.test("non-packed struct field encodes the plain struct.get", async () => {
+Deno.test('non-packed struct field encodes the plain struct.get', async () => {
   const bytes = structModule(ValType.I32, 200, false);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x02);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test("packed array element: signed=false encodes array.get_u and zero-extends", async () => {
-  const bytes = arrayModule("i8", 200, false);
+Deno.test('packed array element: signed=false encodes array.get_u and zero-extends', async () => {
+  const bytes = arrayModule('i8', 200, false);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0d);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test("packed array element: signed=true encodes array.get_s and sign-extends", async () => {
-  const bytes = arrayModule("i8", 200, true);
+Deno.test('packed array element: signed=true encodes array.get_s and sign-extends', async () => {
+  const bytes = arrayModule('i8', 200, true);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0c);
   assertEquals(await runRead(bytes), -56);
 });
 
-Deno.test("non-packed array element encodes the plain array.get", async () => {
+Deno.test('non-packed array element encodes the plain array.get', async () => {
   const bytes = arrayModule(ValType.I32, 200, false);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0b);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test("struct.get_u survives a bare parse-encode round-trip", async () => {
+Deno.test('struct.get_u survives a bare parse-encode round-trip', async () => {
   // Build the get_s form, then patch 0x03 -> 0x04 to obtain a VALID module
   // using get_u, which is what an external producer would emit.
-  const input = Uint8Array.from(structModule("i8", 200, true));
+  const input = Uint8Array.from(structModule('i8', 200, true));
   let patched = false;
   for (let i = 0; i < input.length - 1; i++) {
     if (input[i] === 0xfb && input[i + 1] === 0x03) {
@@ -148,7 +148,7 @@ Deno.test("struct.get_u survives a bare parse-encode round-trip", async () => {
       break;
     }
   }
-  assert(patched, "failed to construct the struct.get_u fixture");
+  assert(patched, 'failed to construct the struct.get_u fixture');
   assertEquals(await runRead(input), 200);
 
   const out = encodeWasm(parseWasm(input));
@@ -156,8 +156,8 @@ Deno.test("struct.get_u survives a bare parse-encode round-trip", async () => {
   assertEquals(await runRead(out), 200);
 });
 
-Deno.test("array.get_u survives a bare parse-encode round-trip", async () => {
-  const input = Uint8Array.from(arrayModule("i8", 200, true));
+Deno.test('array.get_u survives a bare parse-encode round-trip', async () => {
+  const input = Uint8Array.from(arrayModule('i8', 200, true));
   let patched = false;
   for (let i = 0; i < input.length - 1; i++) {
     if (input[i] === 0xfb && input[i + 1] === 0x0c) {
@@ -166,7 +166,7 @@ Deno.test("array.get_u survives a bare parse-encode round-trip", async () => {
       break;
     }
   }
-  assert(patched, "failed to construct the array.get_u fixture");
+  assert(patched, 'failed to construct the array.get_u fixture');
   assertEquals(await runRead(input), 200);
 
   const out = encodeWasm(parseWasm(input));
@@ -174,13 +174,13 @@ Deno.test("array.get_u survives a bare parse-encode round-trip", async () => {
   assertEquals(await runRead(out), 200);
 });
 
-Deno.test("encoder throws on an out-of-range struct.get type index", () => {
+Deno.test('encoder throws on an out-of-range struct.get type index', () => {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: "struct", fields: [{ type: "i8", mutable: true }] });
-  m.addHeapType({ kind: "func", params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ kind: 'struct', fields: [{ type: 'i8', mutable: true }] });
+  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeStructGet(
@@ -191,17 +191,17 @@ Deno.test("encoder throws on an out-of-range struct.get type index", () => {
       false,
     ),
   );
-  m.addExport("read", "read");
-  assertThrows(() => encodeWasm(m.build()), WasmEncodeError, "out of range");
+  m.addExport('read', 'read');
+  assertThrows(() => encodeWasm(m.build()), WasmEncodeError, 'out of range');
 });
 
-Deno.test("encoder throws on an out-of-range struct.get field index", () => {
+Deno.test('encoder throws on an out-of-range struct.get field index', () => {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: "struct", fields: [{ type: "i8", mutable: true }] });
-  m.addHeapType({ kind: "func", params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ kind: 'struct', fields: [{ type: 'i8', mutable: true }] });
+  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
   m.addFunction(
-    "read",
+    'read',
     [],
     [ValType.I32],
     makeStructGet(
@@ -212,8 +212,8 @@ Deno.test("encoder throws on an out-of-range struct.get field index", () => {
       false,
     ),
   );
-  m.addExport("read", "read");
-  assertThrows(() => encodeWasm(m.build()), WasmEncodeError, "field index 7 is out of range");
+  m.addExport('read', 'read');
+  assertThrows(() => encodeWasm(m.build()), WasmEncodeError, 'field index 7 is out of range');
 });
 
 // --- WAT front door -------------------------------------------------------
@@ -236,20 +236,20 @@ function packedWat(op: string): string {
   `;
 }
 
-Deno.test("WAT: struct.get on a packed field is rejected", () => {
+Deno.test('WAT: struct.get on a packed field is rejected', () => {
   assertThrows(
-    () => parseWat(packedWat("struct.get")),
+    () => parseWat(packedWat('struct.get')),
     WatParseError,
-    "use struct.get_s or struct.get_u",
+    'use struct.get_s or struct.get_u',
   );
 });
 
-Deno.test("WAT: struct.get_u on a packed field is accepted", () => {
-  const mod = parseWat(packedWat("struct.get_u"));
+Deno.test('WAT: struct.get_u on a packed field is accepted', () => {
+  const mod = parseWat(packedWat('struct.get_u'));
   assertEquals(firstSubop(encodeWasm(mod), STRUCT_GETS), 0x04);
 });
 
-Deno.test("WAT: struct.get_s on a non-packed field is rejected", () => {
+Deno.test('WAT: struct.get_s on a non-packed field is rejected', () => {
   assertThrows(
     () =>
       parseWat(`
@@ -260,6 +260,6 @@ Deno.test("WAT: struct.get_s on a non-packed field is rejected", () => {
             (struct.get_s $s 0 (struct.new $s (i32.const 200)))))
       `),
     WatParseError,
-    "use struct.get",
+    'use struct.get',
   );
 });

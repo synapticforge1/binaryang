@@ -41,11 +41,11 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, makeDrop } from "../ir/expressions.ts";
-import type { WasmFunction, WasmModule } from "../ir/module.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { mapExpression, walkExpression } from "../ir/walk.ts";
-import { buildCFG, type CFG, computeLiveness, type LivenessAction } from "./cfg.ts";
+import { type Expression, ExpressionKind, makeDrop } from '../ir/expressions.ts';
+import type { WasmFunction, WasmModule } from '../ir/module.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { buildCFG, type CFG, computeLiveness, type LivenessAction } from './cfg.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -56,9 +56,9 @@ import { buildCFG, type CFG, computeLiveness, type LivenessAction } from "./cfg.
  * slots using a CFG-based liveness analysis.
  */
 export class CoalesceLocalsPass implements Pass {
-  readonly name = "CoalesceLocals";
+  readonly name = 'CoalesceLocals';
   readonly description =
-    "Eliminates dead local writes and merges non-interfering locals into shared slots.";
+    'Eliminates dead local writes and merges non-interfering locals into shared slots.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
@@ -198,7 +198,7 @@ function _classifyActions(
   const live = new Set(liveAtEnd);
   for (let i = actions.length - 1; i >= 0; i--) {
     const a = actions[i]!; // bounded by the loop header
-    if (a.kind === "get") {
+    if (a.kind === 'get') {
       if (!live.has(a.index)) {
         endsLiveRange.add(a.origin);
         live.add(a.index);
@@ -225,7 +225,7 @@ function _markBlockInterference(
 ): void {
   const live = new Set(block.start);
   for (const a of block.actions) {
-    if (a.kind === "get") {
+    if (a.kind === 'get') {
       if (endsLiveRange.has(a.origin)) live.delete(a.index);
       continue;
     }
@@ -277,7 +277,7 @@ class _InterferenceMatrix {
 function _hasAnyIneffective(cfg: CFG, effectiveSet: ReadonlySet<Expression>): boolean {
   for (const b of cfg.blocks) {
     for (const a of b.actions) {
-      if (a.kind === "set" && !effectiveSet.has(a.origin)) return true;
+      if (a.kind === 'set' && !effectiveSet.has(a.origin)) return true;
     }
   }
   return false;
@@ -286,7 +286,7 @@ function _hasAnyIneffective(cfg: CFG, effectiveSet: ReadonlySet<Expression>): bo
 /** Symbol marker stamped on each ineffective `LocalSet` / `LocalTee` so the
  *  rewrite phase below can identify them after `mapExpression`'s bottom-up walk
  *  has spread-copied their parents. See `_rewriteBody`. */
-const _INEFFECTIVE = Symbol("binaryen-ts:CoalesceLocals:ineffective");
+const _INEFFECTIVE = Symbol('binaryen-ts:CoalesceLocals:ineffective');
 
 function _markIneffective(e: Expression): void {
   (e as unknown as { [k: symbol]: unknown })[_INEFFECTIVE] = true;

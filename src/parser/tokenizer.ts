@@ -38,24 +38,24 @@
 /** Discriminant for each WAT token kind. */
 export enum TokenKind {
   /** `(` */
-  LParen = "(",
+  LParen = '(',
   /** `)` */
-  RParen = ")",
+  RParen = ')',
   /** An integer literal: `42`, `-7`, `0xff`, `+0x1_f`. */
-  Integer = "integer",
+  Integer = 'integer',
   /** A float literal: `1.0`, `nan`, `inf`, `-inf`, `nan:0x7fc00000`. */
-  Float = "float",
+  Float = 'float',
   /** A quoted string literal: `"hello\n"`. */
-  String = "string",
+  String = 'string',
   /** An identifier: `$add`, `$0`. */
-  Id = "id",
+  Id = 'id',
   /**
    * A keyword or instruction mnemonic: `module`, `func`, `i32.add`,
    * `local.get`, `memory`, etc.
    */
-  Keyword = "keyword",
+  Keyword = 'keyword',
   /** End of input. */
-  EOF = "eof",
+  EOF = 'eof',
 }
 
 /** Source position (1-based line and column). */
@@ -97,7 +97,7 @@ export interface Token {
  * @param filename - Optional filename for error messages.
  * @throws {@link WatTokenizeError} on invalid input.
  */
-export function tokenize(source: string, filename = "<input>"): Token[] {
+export function tokenize(source: string, filename = '<input>'): Token[] {
   const t = new Tokenizer(source, filename);
   return t.tokenizeAll();
 }
@@ -110,7 +110,7 @@ export class WatTokenizeError extends Error {
     public readonly filename: string,
   ) {
     super(`${filename}:${pos.line}:${pos.col}: ${message}`);
-    this.name = "WatTokenizeError";
+    this.name = 'WatTokenizeError';
   }
 }
 
@@ -137,7 +137,7 @@ class Tokenizer {
       tokens.push(this.nextToken());
       this.skipWhitespaceAndComments();
     }
-    tokens.push({ kind: TokenKind.EOF, raw: "", pos: this.currentPos() });
+    tokens.push({ kind: TokenKind.EOF, raw: '', pos: this.currentPos() });
     return tokens;
   }
 
@@ -148,13 +148,13 @@ class Tokenizer {
   private skipWhitespaceAndComments(): void {
     while (this.pos < this.src.length) {
       const c = this.src[this.pos];
-      if (c === " " || c === "\t" || c === "\r") {
+      if (c === ' ' || c === '\t' || c === '\r') {
         this.advance();
-      } else if (c === "\n") {
+      } else if (c === '\n') {
         this.advanceNewline();
-      } else if (this.startsWith(";;")) {
+      } else if (this.startsWith(';;')) {
         this.skipLineComment();
-      } else if (this.startsWith("(;")) {
+      } else if (this.startsWith('(;')) {
         this.skipBlockComment();
       } else {
         break;
@@ -164,7 +164,7 @@ class Tokenizer {
 
   private skipLineComment(): void {
     // Consume until newline (but not the newline itself — handled next iter)
-    while (this.pos < this.src.length && this.src[this.pos] !== "\n") {
+    while (this.pos < this.src.length && this.src[this.pos] !== '\n') {
       this.advance();
     }
   }
@@ -175,22 +175,22 @@ class Tokenizer {
     this.advance(); // consume `(` `;`
     let depth = 1;
     while (this.pos < this.src.length && depth > 0) {
-      if (this.startsWith("(;")) {
+      if (this.startsWith('(;')) {
         this.advance();
         this.advance();
         depth++;
-      } else if (this.startsWith(";)")) {
+      } else if (this.startsWith(';)')) {
         this.advance();
         this.advance();
         depth--;
-      } else if (this.src[this.pos] === "\n") {
+      } else if (this.src[this.pos] === '\n') {
         this.advanceNewline();
       } else {
         this.advance();
       }
     }
     if (depth > 0) {
-      this.err("unterminated block comment");
+      this.err('unterminated block comment');
     }
   }
 
@@ -202,28 +202,28 @@ class Tokenizer {
     const pos = this.currentPos();
     const c = this.src[this.pos];
 
-    if (c === "(") {
+    if (c === '(') {
       this.advance();
-      return { kind: TokenKind.LParen, raw: "(", pos };
+      return { kind: TokenKind.LParen, raw: '(', pos };
     }
-    if (c === ")") {
+    if (c === ')') {
       this.advance();
-      return { kind: TokenKind.RParen, raw: ")", pos };
+      return { kind: TokenKind.RParen, raw: ')', pos };
     }
     if (c === '"') {
       return this.readString(pos);
     }
-    if (c === "$") {
+    if (c === '$') {
       return this.readId(pos);
     }
     // Number or keyword starting with sign
-    if (c === "+" || c === "-") {
+    if (c === '+' || c === '-') {
       const next = this.src[this.pos + 1];
-      if (next !== undefined && (isDigit(next) || next === "0")) {
+      if (next !== undefined && (isDigit(next) || next === '0')) {
         return this.readNumber(pos);
       }
       // +inf, -inf, +nan, -nan start with sign followed by letter
-      if (next === "i" || next === "n") {
+      if (next === 'i' || next === 'n') {
         return this.readKeywordOrSpecialFloat(pos);
       }
     }
@@ -244,12 +244,12 @@ class Tokenizer {
   private readString(pos: TextPos): Token {
     const start = this.pos; // absolute index of the opening `"`
     this.advance(); // consume opening `"`
-    let text = "";
+    let text = '';
     while (this.pos < this.src.length && this.src[this.pos] !== '"') {
-      if (this.src[this.pos] === "\n") {
-        this.err("unterminated string literal (newline inside string)");
+      if (this.src[this.pos] === '\n') {
+        this.err('unterminated string literal (newline inside string)');
       }
-      if (this.src[this.pos] === "\\") {
+      if (this.src[this.pos] === '\\') {
         this.advance();
         text += this.readEscape(pos);
       } else {
@@ -258,7 +258,7 @@ class Tokenizer {
       }
     }
     if (this.pos >= this.src.length) {
-      this.err("unterminated string literal");
+      this.err('unterminated string literal');
     }
     this.advance(); // consume closing `"`
     // Slice from the absolute start index. `pos.col` is a 1-based column WITHIN
@@ -272,27 +272,27 @@ class Tokenizer {
     const c = this.src[this.pos];
     this.advance();
     switch (c) {
-      case "n":
-        return "\n";
-      case "t":
-        return "\t";
-      case "r":
-        return "\r";
-      case "\\":
-        return "\\";
+      case 'n':
+        return '\n';
+      case 't':
+        return '\t';
+      case 'r':
+        return '\r';
+      case '\\':
+        return '\\';
       case '"':
         return '"';
       case "'":
         return "'";
-      case "u": {
-        if (this.src[this.pos] !== "{") this.err("expected { after \\u");
+      case 'u': {
+        if (this.src[this.pos] !== '{') this.err('expected { after \\u');
         this.advance();
-        let hex = "";
-        while (this.pos < this.src.length && this.src[this.pos] !== "}") {
+        let hex = '';
+        while (this.pos < this.src.length && this.src[this.pos] !== '}') {
           hex += this.src[this.pos];
           this.advance();
         }
-        if (this.pos >= this.src.length) this.err("unterminated \\u{...}");
+        if (this.pos >= this.src.length) this.err('unterminated \\u{...}');
         this.advance(); // consume `}`
         const cp = parseInt(hex, 16);
         if (isNaN(cp) || cp > 0x10ffff) this.err(`invalid unicode escape \\u{${hex}}`);
@@ -321,7 +321,7 @@ class Tokenizer {
       this.advance();
     }
     const raw = this.src.slice(start, this.pos);
-    if (raw.length === 1) this.err("empty identifier after `$`");
+    if (raw.length === 1) this.err('empty identifier after `$`');
     return { kind: TokenKind.Id, raw, pos };
   }
 
@@ -333,14 +333,14 @@ class Tokenizer {
     const start = this.pos;
     // Optional sign
     let sign = 1n;
-    if (this.src[this.pos] === "+") this.advance();
-    else if (this.src[this.pos] === "-") {
+    if (this.src[this.pos] === '+') this.advance();
+    else if (this.src[this.pos] === '-') {
       sign = -1n;
       this.advance();
     }
 
     // Hex?
-    if (this.src[this.pos] === "0" && this.src[this.pos + 1] === "x") {
+    if (this.src[this.pos] === '0' && this.src[this.pos + 1] === 'x') {
       this.advance();
       this.advance(); // consume `0x`
       return this.readHexNumber(start, sign, pos);
@@ -349,39 +349,39 @@ class Tokenizer {
     // Decimal: read digits
     const intStart = this.pos;
     while (
-      this.pos < this.src.length && (isDigit(this.src[this.pos]) || this.src[this.pos] === "_")
+      this.pos < this.src.length && (isDigit(this.src[this.pos]) || this.src[this.pos] === '_')
     ) {
       this.advance();
     }
 
     // Float indicators: `.`, `e`, `E`
-    const isFloat = this.src[this.pos] === "." ||
-      this.src[this.pos] === "e" ||
-      this.src[this.pos] === "E";
+    const isFloat = this.src[this.pos] === '.' ||
+      this.src[this.pos] === 'e' ||
+      this.src[this.pos] === 'E';
 
     if (isFloat) {
       // Read the rest of the float
-      if (this.src[this.pos] === ".") {
+      if (this.src[this.pos] === '.') {
         this.advance();
         while (
-          this.pos < this.src.length && (isDigit(this.src[this.pos]) || this.src[this.pos] === "_")
+          this.pos < this.src.length && (isDigit(this.src[this.pos]) || this.src[this.pos] === '_')
         ) {
           this.advance();
         }
       }
-      if (this.src[this.pos] === "e" || this.src[this.pos] === "E") {
+      if (this.src[this.pos] === 'e' || this.src[this.pos] === 'E') {
         this.advance();
-        if (this.src[this.pos] === "+" || this.src[this.pos] === "-") this.advance();
+        if (this.src[this.pos] === '+' || this.src[this.pos] === '-') this.advance();
         while (this.pos < this.src.length && isDigit(this.src[this.pos])) this.advance();
       }
       const raw = this.src.slice(start, this.pos);
-      const value = parseFloat(raw.replace(/_/g, ""));
+      const value = parseFloat(raw.replace(/_/g, ''));
       return { kind: TokenKind.Float, raw, value, pos };
     }
 
-    const digits = this.src.slice(intStart, this.pos).replace(/_/g, "");
+    const digits = this.src.slice(intStart, this.pos).replace(/_/g, '');
     const raw = this.src.slice(start, this.pos);
-    if (!digits) this.err("expected digits");
+    if (!digits) this.err('expected digits');
     const value = sign * BigInt(digits);
     // If it fits in a JS safe integer, store as number; otherwise keep bigint
     const n = Number(value);
@@ -391,28 +391,28 @@ class Tokenizer {
   private readHexNumber(start: number, sign: bigint, pos: TextPos): Token {
     const hexStart = this.pos;
     while (
-      this.pos < this.src.length && (isHexDigit(this.src[this.pos]) || this.src[this.pos] === "_")
+      this.pos < this.src.length && (isHexDigit(this.src[this.pos]) || this.src[this.pos] === '_')
     ) {
       this.advance();
     }
-    const isFloat = this.src[this.pos] === "." ||
-      this.src[this.pos] === "p" ||
-      this.src[this.pos] === "P";
+    const isFloat = this.src[this.pos] === '.' ||
+      this.src[this.pos] === 'p' ||
+      this.src[this.pos] === 'P';
 
     if (isFloat) {
       // Hex float: read fractional part and exponent
-      if (this.src[this.pos] === ".") {
+      if (this.src[this.pos] === '.') {
         this.advance();
         while (
           this.pos < this.src.length &&
-          (isHexDigit(this.src[this.pos]) || this.src[this.pos] === "_")
+          (isHexDigit(this.src[this.pos]) || this.src[this.pos] === '_')
         ) {
           this.advance();
         }
       }
-      if (this.src[this.pos] === "p" || this.src[this.pos] === "P") {
+      if (this.src[this.pos] === 'p' || this.src[this.pos] === 'P') {
         this.advance();
-        if (this.src[this.pos] === "+" || this.src[this.pos] === "-") this.advance();
+        if (this.src[this.pos] === '+' || this.src[this.pos] === '-') this.advance();
         while (this.pos < this.src.length && isDigit(this.src[this.pos])) this.advance();
       }
       const raw = this.src.slice(start, this.pos);
@@ -422,10 +422,10 @@ class Tokenizer {
       return { kind: TokenKind.Float, raw, value, pos };
     }
 
-    const hexDigits = this.src.slice(hexStart, this.pos).replace(/_/g, "");
-    if (!hexDigits) this.err("expected hex digits after 0x");
+    const hexDigits = this.src.slice(hexStart, this.pos).replace(/_/g, '');
+    if (!hexDigits) this.err('expected hex digits after 0x');
     const raw = this.src.slice(start, this.pos);
-    const value = sign * BigInt("0x" + hexDigits);
+    const value = sign * BigInt('0x' + hexDigits);
     const n = Number(value);
     return { kind: TokenKind.Integer, raw, value: Number.isSafeInteger(n) ? n : value, pos };
   }
@@ -438,7 +438,7 @@ class Tokenizer {
     const start = this.pos;
     // Consume a sign if present (for -inf, -nan)
     let hasSuffixSign = false;
-    if (this.src[this.pos] === "+" || this.src[this.pos] === "-") {
+    if (this.src[this.pos] === '+' || this.src[this.pos] === '-') {
       hasSuffixSign = true;
       this.advance();
     }
@@ -446,16 +446,16 @@ class Tokenizer {
       this.advance();
     }
     // Check for nan:0x payload
-    if (this.src[this.pos] === ":") {
+    if (this.src[this.pos] === ':') {
       const keyword = this.src.slice(start, this.pos);
-      if (keyword === "nan" || keyword === "+nan" || keyword === "-nan") {
+      if (keyword === 'nan' || keyword === '+nan' || keyword === '-nan') {
         this.advance(); // consume `:`
-        if (!this.startsWith("0x")) this.err("expected 0x after nan:");
+        if (!this.startsWith('0x')) this.err('expected 0x after nan:');
         this.advance();
         this.advance();
         while (
           this.pos < this.src.length &&
-          (isHexDigit(this.src[this.pos]) || this.src[this.pos] === "_")
+          (isHexDigit(this.src[this.pos]) || this.src[this.pos] === '_')
         ) {
           this.advance();
         }
@@ -465,12 +465,12 @@ class Tokenizer {
     }
     const raw = this.src.slice(start, this.pos);
     // Special float keywords
-    if (raw === "inf" || raw === "+inf") {
+    if (raw === 'inf' || raw === '+inf') {
       return { kind: TokenKind.Float, raw, value: Infinity, pos };
     }
-    if (raw === "-inf") return { kind: TokenKind.Float, raw, value: -Infinity, pos };
-    if (raw === "nan" || raw === "+nan") return { kind: TokenKind.Float, raw, value: NaN, pos };
-    if (raw === "-nan") return { kind: TokenKind.Float, raw, value: NaN, pos };
+    if (raw === '-inf') return { kind: TokenKind.Float, raw, value: -Infinity, pos };
+    if (raw === 'nan' || raw === '+nan') return { kind: TokenKind.Float, raw, value: NaN, pos };
+    if (raw === '-nan') return { kind: TokenKind.Float, raw, value: NaN, pos };
     if (hasSuffixSign && raw.length === 1) this.err(`unexpected character: ${JSON.stringify(raw)}`);
     return { kind: TokenKind.Keyword, raw, pos };
   }
@@ -513,12 +513,12 @@ class Tokenizer {
 // the signature is what lets `noUncheckedIndexedAccess` check the callers
 // instead of the callers pretending the index is always in bounds.
 function isDigit(c: string | undefined): boolean {
-  return c !== undefined && c >= "0" && c <= "9";
+  return c !== undefined && c >= '0' && c <= '9';
 }
 
 function isHexDigit(c: string | undefined): boolean {
   if (c === undefined) return false;
-  return (c >= "0" && c <= "9") || (c >= "a" && c <= "f") || (c >= "A" && c <= "F");
+  return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
 /**
@@ -530,7 +530,7 @@ function isIdChar(c: string | undefined): boolean {
   const code = c.charCodeAt(0);
   if (code < 0x21 || code > 0x7e) return false;
   // Excluded: `(` 0x28, `)` 0x29, `"` 0x22, `;` 0x3b, `,` 0x2c
-  return c !== "(" && c !== ")" && c !== '"' && c !== ";" && c !== ",";
+  return c !== '(' && c !== ')' && c !== '"' && c !== ';' && c !== ',';
 }
 
 /**
@@ -544,15 +544,15 @@ function isIdChar(c: string | undefined): boolean {
  * @internal
  */
 function parseHexFloat(raw: string): number {
-  const cleaned = raw.replace(/_/g, "");
+  const cleaned = raw.replace(/_/g, '');
   // [sign] 0x <int-hex> [ . <frac-hex> ] [ (p|P) [sign] <dec-exp> ]
   const m = cleaned.match(
     /^([+-]?)0x([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?(?:[pP]([+-]?\d+))?$/,
   );
   if (!m) return NaN;
-  const [, signStr, intHex = "", fracHex = "", expStr] = m;
-  if (intHex === "" && fracHex === "") return NaN; // must have at least one digit
-  const sign = signStr === "-" ? -1 : 1;
+  const [, signStr, intHex = '', fracHex = '', expStr] = m;
+  if (intHex === '' && fracHex === '') return NaN; // must have at least one digit
+  const sign = signStr === '-' ? -1 : 1;
   const exp = expStr ? parseInt(expStr, 10) : 0;
 
   let mantissa = 0;

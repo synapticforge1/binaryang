@@ -16,10 +16,10 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind } from "../ir/expressions.ts";
-import type { WasmModule } from "../ir/module.ts";
-import { Unreachable } from "../ir/types.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
+import { type Expression, ExpressionKind } from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { Unreachable } from '../ir/types.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 /**
  * Dead Code Elimination pass.
@@ -30,9 +30,9 @@ import { type Pass, type PassOptions, registerPass } from "./pass.ts";
  * tail the same way `unreachable` and `return` do.
  */
 export class DCEPass implements Pass {
-  readonly name = "DCE";
+  readonly name = 'DCE';
   readonly description =
-    "Removes dead code — expressions that follow unreachable instructions in a block.";
+    'Removes dead code — expressions that follow unreachable instructions in a block.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {

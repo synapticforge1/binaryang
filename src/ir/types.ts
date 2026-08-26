@@ -27,8 +27,8 @@
  * @license MIT
  */
 
-import { isRefType, type RefType, refTypeToString } from "./gc-types.ts";
-export type { RefType } from "./gc-types.ts";
+import { isRefType, type RefType, refTypeToString } from './gc-types.ts';
+export type { RefType } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
 // Value types (MVP + SIMD + reference types)
@@ -42,41 +42,41 @@ export type { RefType } from "./gc-types.ts";
  */
 export enum ValType {
   /** 32-bit integer */
-  I32 = "i32",
+  I32 = 'i32',
   /** 64-bit integer */
-  I64 = "i64",
+  I64 = 'i64',
   /** 32-bit float */
-  F32 = "f32",
+  F32 = 'f32',
   /** 64-bit float */
-  F64 = "f64",
+  F64 = 'f64',
   /** 128-bit SIMD vector */
-  V128 = "v128",
+  V128 = 'v128',
   /** Nullable function reference */
-  FuncRef = "funcref",
+  FuncRef = 'funcref',
   /** Nullable external (host) reference */
-  ExternRef = "externref",
+  ExternRef = 'externref',
   /** Nullable any reference (GC proposal) */
-  AnyRef = "anyref",
+  AnyRef = 'anyref',
   /** Nullable eq reference (GC proposal) */
-  EqRef = "eqref",
+  EqRef = 'eqref',
   /** Nullable i31 reference (GC proposal) */
-  I31Ref = "i31ref",
+  I31Ref = 'i31ref',
   /** Nullable struct reference (GC proposal) */
-  StructRef = "structref",
+  StructRef = 'structref',
   /** Nullable array reference (GC proposal) */
-  ArrayRef = "arrayref",
+  ArrayRef = 'arrayref',
   /** String reference (stringref proposal) */
-  StringRef = "stringref",
+  StringRef = 'stringref',
   /** Null function reference (bottom type) */
-  NullFuncRef = "nullfuncref",
+  NullFuncRef = 'nullfuncref',
   /** Null external reference (bottom type) */
-  NullExternRef = "nullexternref",
+  NullExternRef = 'nullexternref',
   /** Null any reference (bottom type) */
-  NullRef = "nullref",
+  NullRef = 'nullref',
   /** Exception reference (EH proposal) */
-  ExnRef = "exnref",
+  ExnRef = 'exnref',
   /** Null exception reference (bottom type, EH proposal) */
-  NullExnRef = "nullexnref",
+  NullExnRef = 'nullexnref',
 }
 
 // ---------------------------------------------------------------------------
@@ -84,12 +84,12 @@ export enum ValType {
 // ---------------------------------------------------------------------------
 
 /** Signals a diverging / bottom computation. Used as the type of `unreachable`. */
-export const Unreachable = "unreachable" as const;
+export const Unreachable = 'unreachable' as const;
 /** The singleton literal type for {@link Unreachable}. */
 export type Unreachable = typeof Unreachable;
 
 /** The empty type — represents a void return or the empty tuple. */
-export const None = "none" as const;
+export const None = 'none' as const;
 /** The singleton literal type for {@link None}. */
 export type None = typeof None;
 
@@ -135,13 +135,13 @@ export type Type = ValType | TupleType | None | Unreachable | RefType;
  * ```
  */
 export function typeToString(t: Type): string {
-  if (t === None) return "";
-  if (t === Unreachable) return "unreachable";
+  if (t === None) return '';
+  if (t === Unreachable) return 'unreachable';
   if (Array.isArray(t)) {
-    if (t.length === 0) return "";
+    if (t.length === 0) return '';
     const strs = t.map((e) => isRefType(e) ? refTypeToString(e) : e as string);
     if (strs.length === 1) return strs[0]!;
-    return `(${strs.join(" ")})`;
+    return `(${strs.join(' ')})`;
   }
   if (isRefType(t)) return refTypeToString(t);
   return t as string;

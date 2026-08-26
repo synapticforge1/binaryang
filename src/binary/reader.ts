@@ -19,7 +19,7 @@ export class WasmBinaryError extends Error {
    */
   constructor(message: string, public readonly offset?: number) {
     super(offset !== undefined ? `${message} (at offset 0x${offset.toString(16)})` : message);
-    this.name = "WasmBinaryError";
+    this.name = 'WasmBinaryError';
   }
 }
 
@@ -144,12 +144,12 @@ export class BinaryReader {
       // overflow u32. The `shift >= 35` guard below only catches a 6th byte, so
       // a single junk 5th byte previously slipped through and `>>> 0` masked it.
       if (shift === 28 && (byte & 0x70) !== 0) {
-        this.error("LEB128 u32 overflow (final byte sets bits beyond 32)");
+        this.error('LEB128 u32 overflow (final byte sets bits beyond 32)');
       }
       result |= (byte & 0x7f) << shift;
       if ((byte & 0x80) === 0) break;
       shift += 7;
-      if (shift >= 35) this.error("LEB128 u32 overflow");
+      if (shift >= 35) this.error('LEB128 u32 overflow');
     }
     return result >>> 0;
   }
@@ -163,12 +163,12 @@ export class BinaryReader {
       // On the 10th byte (shift 63) only bit 0 (result bit 63) is valid; bits
       // 1..6 (0x7e) would set result bits 64..69 and overflow u64.
       if (shift === 63n && (byte & 0x7en) !== 0n) {
-        this.error("LEB128 u64 overflow (final byte sets bits beyond 64)");
+        this.error('LEB128 u64 overflow (final byte sets bits beyond 64)');
       }
       result |= (byte & 0x7fn) << shift;
       if ((byte & 0x80n) === 0n) break;
       shift += 7n;
-      if (shift >= 70n) this.error("LEB128 u64 overflow");
+      if (shift >= 70n) this.error('LEB128 u64 overflow');
     }
     return result;
   }
@@ -183,7 +183,7 @@ export class BinaryReader {
       result |= (byte & 0x7f) << shift;
       shift += 7;
       if (shift > 35) {
-        this.error("LEB128 i32 overflow");
+        this.error('LEB128 i32 overflow');
         break;
       }
     } while (byte & 0x80);
@@ -201,7 +201,7 @@ export class BinaryReader {
       result |= (byte & 0x7fn) << shift;
       shift += 7n;
       if (shift > 70n) {
-        this.error("LEB128 i64 overflow");
+        this.error('LEB128 i64 overflow');
         break;
       }
     } while (byte & 0x80n);

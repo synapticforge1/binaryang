@@ -42,8 +42,8 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind } from "../ir/expressions.ts";
-import { visitChildren } from "../ir/walk.ts";
+import { type Expression, ExpressionKind } from '../ir/expressions.ts';
+import { visitChildren } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,7 +52,7 @@ import { visitChildren } from "../ir/walk.ts";
 /** A liveness-relevant operation observed at one point in a basic block. */
 export interface LivenessAction {
   /** `"get"` for `local.get`, `"set"` for `local.set` / `local.tee`. */
-  kind: "get" | "set";
+  kind: 'get' | 'set';
   /** Local index touched. */
   index: number;
   /** The originating IR node — used by CoalesceLocals to mark effective sets. */
@@ -198,7 +198,7 @@ class _CFGBuilder {
       // -------------------------------------------------------------------
       case ExpressionKind.LocalGet:
         if (this.current) {
-          this.current.actions.push({ kind: "get", index: e.index, origin: e });
+          this.current.actions.push({ kind: 'get', index: e.index, origin: e });
         }
         return;
 
@@ -206,7 +206,7 @@ class _CFGBuilder {
       case ExpressionKind.LocalTee:
         this.visit(e.value);
         if (this.current) {
-          this.current.actions.push({ kind: "set", index: e.index, origin: e });
+          this.current.actions.push({ kind: 'set', index: e.index, origin: e });
         }
         return;
 
@@ -497,7 +497,7 @@ function scanBackward(
   const live = new Set(liveAtEnd);
   for (let i = actions.length - 1; i >= 0; i--) {
     const a = actions[i]!; // bounded by the loop header
-    if (a.kind === "get") {
+    if (a.kind === 'get') {
       live.add(a.index);
     } else {
       // set / tee — kills the previous value (whatever flows in from

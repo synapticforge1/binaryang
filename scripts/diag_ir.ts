@@ -10,12 +10,12 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import { parseWasm } from "../src/binary/wasm-parser.ts";
+import * as fs from 'node:fs/promises';
+import { parseWasm } from '../src/binary/wasm-parser.ts';
 
-const ROOT = new URL("../upstream/test/", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
-const fnIdx = parseInt(Deno.args[1] ?? "0", 10);
+const fnIdx = parseInt(Deno.args[1] ?? '0', 10);
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const mod = parseWasm(orig);
 const fn = mod.functions[fnIdx];
@@ -28,22 +28,22 @@ console.log(
 // deno-lint-ignore no-explicit-any
 function dump(e: any, depth: number): void {
   if (!e) {
-    console.log("  ".repeat(depth) + "<null>");
+    console.log('  '.repeat(depth) + '<null>');
     return;
   }
-  const t = e.type !== undefined ? ` :${JSON.stringify(e.type)}` : "";
+  const t = e.type !== undefined ? ` :${JSON.stringify(e.type)}` : '';
   const extra: string[] = [];
-  for (const k of ["op", "name", "index", "label", "target"]) {
-    if (e[k] !== undefined && typeof e[k] !== "object") extra.push(`${k}=${e[k]}`);
+  for (const k of ['op', 'name', 'index', 'label', 'target']) {
+    if (e[k] !== undefined && typeof e[k] !== 'object') extra.push(`${k}=${e[k]}`);
   }
-  console.log("  ".repeat(depth) + `${e.kind}${t} ${extra.join(" ")}`);
+  console.log('  '.repeat(depth) + `${e.kind}${t} ${extra.join(' ')}`);
   // recurse into known child fields
   for (const k of Object.keys(e)) {
     const v = e[k];
-    if (v && typeof v === "object" && v.kind) dump(v, depth + 1);
+    if (v && typeof v === 'object' && v.kind) dump(v, depth + 1);
     else if (Array.isArray(v)) {
       for (const item of v) {
-        if (item && typeof item === "object" && item.kind) dump(item, depth + 1);
+        if (item && typeof item === 'object' && item.kind) dump(item, depth + 1);
       }
     }
   }

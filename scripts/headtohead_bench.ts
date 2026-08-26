@@ -33,16 +33,16 @@
  * @license MIT
  */
 
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { performance } from "node:perf_hooks";
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { performance } from 'node:perf_hooks';
 
 // Upstream binaryen (Emscripten-built C++ via npm:binaryen)
-import upstream from "npm:binaryen@^116.0.0";
+import upstream from 'npm:binaryen@^116.0.0';
 
 // Our TypeScript implementation via the compat facade
-import * as ours from "../src/api/binaryen-compat.ts";
-import { BinaryReader } from "../src/binary/reader.ts";
+import * as ours from '../src/api/binaryen-compat.ts';
+import { BinaryReader } from '../src/binary/reader.ts';
 
 /**
  * Byte size of the `code` section (id 10) of a wasm binary, and the total bytes
@@ -69,19 +69,19 @@ function sectionSizes(bytes: Uint8Array): { code: number; customBytes: number } 
   return { code, customBytes };
 }
 
-const ROOT = new URL("../upstream/test", import.meta.url).pathname.replace(/^\//, "");
+const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
 // Picked corpus subset: a mix of sizes from the parseable-after-LEB128-fix set.
 // Selected for a representative range of small/medium/large + variety of shapes
 // (DWARF-laden, EH-using, plain compute).
 const CORPUS: { label: string; rel: string }[] = [
-  { label: "tiny", rel: "passes/dce_vacuum_remove-unused-names.wasm" },
-  { label: "small-dwarf", rel: "passes/fib2_dwarf.wasm" },
-  { label: "small-eh", rel: "passes/dwarf_with_exceptions.wasm" },
-  { label: "medium-fk0", rel: "passes/fannkuch0_dwarf.wasm" },
-  { label: "medium-class", rel: "passes/class_with_dwarf_noprint.wasm" },
-  { label: "large-zlib", rel: "unit/input/dwarf/zlib.wasm" },
-  { label: "large-cube", rel: "unit/input/dwarf/cubescript.wasm" },
+  { label: 'tiny', rel: 'passes/dce_vacuum_remove-unused-names.wasm' },
+  { label: 'small-dwarf', rel: 'passes/fib2_dwarf.wasm' },
+  { label: 'small-eh', rel: 'passes/dwarf_with_exceptions.wasm' },
+  { label: 'medium-fk0', rel: 'passes/fannkuch0_dwarf.wasm' },
+  { label: 'medium-class', rel: 'passes/class_with_dwarf_noprint.wasm' },
+  { label: 'large-zlib', rel: 'unit/input/dwarf/zlib.wasm' },
+  { label: 'large-cube', rel: 'unit/input/dwarf/cubescript.wasm' },
 ];
 
 interface Result {
@@ -109,15 +109,15 @@ function runUpstream(bytes: Uint8Array): { ms: number; out: Uint8Array } {
   // upstream's typing isn't easy here — use as-any pattern same as wasic.ts does.
   const u = upstream as unknown as Record<string, unknown>;
   const t0 = performance.now();
-  const mod = (u["readBinary"] as (b: Uint8Array) => unknown)(bytes);
+  const mod = (u['readBinary'] as (b: Uint8Array) => unknown)(bytes);
   const m = mod as Record<string, unknown>;
-  const features = (u["Features"] as Record<string, number>)["All"];
-  (m["setFeatures"] as (n: number) => void)(features);
-  (u["setShrinkLevel"] as (n: number) => void)(2);
-  (u["setOptimizeLevel"] as (n: number) => void)(2);
-  (m["optimize"] as () => void)();
-  const out = (m["emitBinary"] as () => Uint8Array)();
-  (m["dispose"] as () => void)();
+  const features = (u['Features'] as Record<string, number>)['All'];
+  (m['setFeatures'] as (n: number) => void)(features);
+  (u['setShrinkLevel'] as (n: number) => void)(2);
+  (u['setOptimizeLevel'] as (n: number) => void)(2);
+  (m['optimize'] as () => void)();
+  const out = (m['emitBinary'] as () => Uint8Array)();
+  (m['dispose'] as () => void)();
   const t1 = performance.now();
   return { ms: t1 - t0, out };
 }
@@ -187,7 +187,7 @@ async function bench(label: string, rel: string): Promise<Result> {
       oursOutBytes: 0,
       oursCodeBytes: 0,
       oursValid: false,
-      oursErr: "upstream: " + (e instanceof Error ? e.message : String(e)),
+      oursErr: 'upstream: ' + (e instanceof Error ? e.message : String(e)),
     };
   }
 
@@ -206,7 +206,7 @@ async function bench(label: string, rel: string): Promise<Result> {
   } catch (e) {
     oursMs = NaN;
     oursOut = new Uint8Array(0);
-    oursErr = "ours: " + (e instanceof Error ? e.message : String(e));
+    oursErr = 'ours: ' + (e instanceof Error ? e.message : String(e));
   }
 
   return {
@@ -237,20 +237,20 @@ for (const c of CORPUS) {
 // Report
 // ---------------------------------------------------------------------------
 
-console.log("# Head-to-head: npm:binaryen vs @jrmarcum/binaryen-ts/compat");
-console.log("# Workload: wasic-style -Oz optimization");
-console.log("#");
-console.log("# NOTE on size: our parse→encode pipeline drops custom sections (DWARF .debug_*,");
-console.log("# name, producers); upstream preserves them. So total-out size is NOT an");
-console.log("# apples-to-apples optimizer comparison — `code_ratio` (code-section size, ours");
-console.log("# vs upstream) is the fair metric; `cust_drop` is the input custom-section bytes");
-console.log("# we elide (the bulk of the total-size delta on DWARF-laden modules).");
+console.log('# Head-to-head: npm:binaryen vs @jrmarcum/binaryen-ts/compat');
+console.log('# Workload: wasic-style -Oz optimization');
+console.log('#');
+console.log('# NOTE on size: our parse→encode pipeline drops custom sections (DWARF .debug_*,');
+console.log('# name, producers); upstream preserves them. So total-out size is NOT an');
+console.log('# apples-to-apples optimizer comparison — `code_ratio` (code-section size, ours');
+console.log('# vs upstream) is the fair metric; `cust_drop` is the input custom-section bytes');
+console.log('# we elide (the bulk of the total-size delta on DWARF-laden modules).');
 console.log();
 console.log(
-  "label             | input_b   | cust_drop | up_ms   | up_code  | ours_ms | ours_code | both_ok | time_ratio | code_ratio",
+  'label             | input_b   | cust_drop | up_ms   | up_code  | ours_ms | ours_code | both_ok | time_ratio | code_ratio',
 );
 console.log(
-  "----------------- | --------- | --------- | ------- | -------- | ------- | --------- | ------- | ---------- | ----------",
+  '----------------- | --------- | --------- | ------- | -------- | ------- | --------- | ------- | ---------- | ----------',
 );
 for (const r of results) {
   const timeRatio = Number.isFinite(r.upstreamMs) && Number.isFinite(r.oursMs) && r.upstreamMs > 0
@@ -267,9 +267,9 @@ for (const r of results) {
       r.oursMs.toFixed(1).padStart(7),
       r.oursCodeBytes.toString().padStart(9),
       `${r.upstreamValid && r.oursValid}`.padStart(7),
-      (Number.isFinite(timeRatio) ? timeRatio.toFixed(1) + "×" : "n/a").padStart(10),
-      (Number.isFinite(codeRatio) ? codeRatio.toFixed(2) + "×" : "n/a").padStart(10),
-    ].join(" | "),
+      (Number.isFinite(timeRatio) ? timeRatio.toFixed(1) + '×' : 'n/a').padStart(10),
+      (Number.isFinite(codeRatio) ? codeRatio.toFixed(2) + '×' : 'n/a').padStart(10),
+    ].join(' | '),
   );
   if (r.oursErr) console.log(`  err:  ${r.oursErr.slice(0, 200)}`);
   if (r.oursValidErr) console.log(`  ours-validate-err: ${r.oursValidErr.slice(0, 200)}`);
@@ -279,7 +279,7 @@ for (const r of results) {
 }
 
 console.log();
-console.log("## Aggregate");
+console.log('## Aggregate');
 const okBoth = results.filter((r) =>
   Number.isFinite(r.upstreamMs) && Number.isFinite(r.oursMs) && r.upstreamMs > 0
 );

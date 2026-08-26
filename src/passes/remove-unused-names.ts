@@ -29,10 +29,10 @@ import {
   type RethrowExpr,
   type TryExpr,
   type TryTableExpr,
-} from "../ir/expressions.ts";
-import type { WasmModule } from "../ir/module.ts";
-import { mapExpression, walkExpression } from "../ir/walk.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
+} from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -40,9 +40,9 @@ import { type Pass, type PassOptions, registerPass } from "./pass.ts";
 
 /** Removes unused block/loop names and replaces no-back-edge loops with their bodies. */
 export class RemoveUnusedNamesPass implements Pass {
-  readonly name = "RemoveUnusedNames";
+  readonly name = 'RemoveUnusedNames';
   readonly description =
-    "Remove unused block and loop names; replace back-edge-free loops with their bodies.";
+    'Remove unused block and loop names; replace back-edge-free loops with their bodies.';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {

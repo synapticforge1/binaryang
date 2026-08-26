@@ -24,5 +24,5 @@
  * @license MIT
  */
 
-export { parseWasm, WasmBinaryError } from "./wasm-parser.ts";
-export { BinaryReader } from "./reader.ts";
+export { parseWasm, WasmBinaryError } from './wasm-parser.ts';
+export { BinaryReader } from './reader.ts';

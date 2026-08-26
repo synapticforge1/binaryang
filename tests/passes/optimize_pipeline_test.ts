@@ -31,11 +31,11 @@
  * @license MIT
  */
 
-import { assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
-import { PassRunner } from "../../src/passes/pass.ts";
-import "../../src/passes/index.ts"; // side-effect: register all built-in passes
+import { assertEquals } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { PassRunner } from '../../src/passes/pass.ts';
+import '../../src/passes/index.ts'; // side-effect: register all built-in passes
 import {
   BinaryOp,
   makeBinary,
@@ -46,13 +46,13 @@ import {
   makeLocalSet,
   makeLocalTee,
   makeReturn,
-} from "../../src/ir/expressions.ts";
-import { ModuleBuilder } from "../../src/ir/module.ts";
-import { ValType } from "../../src/ir/types.ts";
+} from '../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
 
 // wabt-ts/compat@1.2.9 wasic output for 46_TemplateEscapes.ts (1543 bytes).
 const FIXTURE_B64 =
-  "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";
+  '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';
 
 function decodeB64(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -105,7 +105,7 @@ async function runWasi(bytes: Uint8Array): Promise<{ trap: boolean; out: number[
   return { trap, out: writes };
 }
 
-Deno.test("optimize pipeline: wasic 46_TemplateEscapes survives full -Oz (multi-value + LocalCSE)", async () => {
+Deno.test('optimize pipeline: wasic 46_TemplateEscapes survives full -Oz (multi-value + LocalCSE)', async () => {
   // Raw input is valid.
   await WebAssembly.compile(RAW as BufferSource);
 
@@ -118,15 +118,15 @@ Deno.test("optimize pipeline: wasic 46_TemplateEscapes survives full -Oz (multi-
   // miscompile (the itoa `-` sign). Same fd_write byte stream, no new trap.
   const a = await runWasi(RAW);
   const b = await runWasi(opt);
-  assertEquals(b.trap, a.trap, "optimized output trapped where raw did not");
+  assertEquals(b.trap, a.trap, 'optimized output trapped where raw did not');
   assertEquals(
     new TextDecoder().decode(new Uint8Array(b.out)),
     new TextDecoder().decode(new Uint8Array(a.out)),
-    "optimized output diverged from raw",
+    'optimized output diverged from raw',
   );
 });
 
-Deno.test("LocalCSE: a local.get is not substituted across a write nested in an if", async () => {
+Deno.test('LocalCSE: a local.get is not substituted across a write nested in an if', async () => {
   // f(cond, x):
   //   l2 = x                       ;; lg(x=1) occurrence #1 — CSE tee candidate
   //   if (cond) { x = x + 100 }    ;; writes local 1 from INSIDE an `if`
@@ -137,7 +137,7 @@ Deno.test("LocalCSE: a local.get is not substituted across a write nested in an 
   // entry-time tee (the pre-`if` value). f(1, 5) then returned 5 instead of 105.
   const mod = new ModuleBuilder()
     .addFunction(
-      "f",
+      'f',
       [ValType.I32, ValType.I32],
       [ValType.I32],
       makeBlock([
@@ -155,18 +155,18 @@ Deno.test("LocalCSE: a local.get is not substituted across a write nested in an 
       ], null),
       [{ type: ValType.I32 }, { type: ValType.I32 }],
     )
-    .addExport("f", "f")
+    .addExport('f', 'f')
     .build();
 
-  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add("LocalCSE").run();
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('LocalCSE').run();
 
   const { instance } = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource);
   const f = instance.exports.f as (cond: number, x: number) => number;
-  assertEquals(f(1, 5), 105, "post-if read of local 1 must see the modified value");
-  assertEquals(f(0, 5), 5, "when the if does not run, local 1 is unchanged");
+  assertEquals(f(1, 5), 105, 'post-if read of local 1 must see the modified value');
+  assertEquals(f(0, 5), 5, 'when the if does not run, local 1 is unchanged');
 });
 
-Deno.test("LocalCSE: a local.get is not substituted across a write nested earlier in the SAME expression", async () => {
+Deno.test('LocalCSE: a local.get is not substituted across a write nested earlier in the SAME expression', async () => {
   // f(x) = (x + (local0 := 99)) + local0
   //   left operand of the outer add:  (x) + (tee0 99)   -> evaluates x, then sets local0=99
   //   right operand:                  local0            -> must read the MODIFIED local0 (99)
@@ -178,7 +178,7 @@ Deno.test("LocalCSE: a local.get is not substituted across a write nested earlie
   // miscompiled `monthFromDays`/`dayFromDays` in wasmmerge-spliced modules.
   const mod = new ModuleBuilder()
     .addFunction(
-      "f",
+      'f',
       [ValType.I32],
       [ValType.I32],
       makeBlock([
@@ -196,12 +196,12 @@ Deno.test("LocalCSE: a local.get is not substituted across a write nested earlie
       ], null),
       [],
     )
-    .addExport("f", "f")
+    .addExport('f', 'f')
     .build();
 
-  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add("LocalCSE").run();
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('LocalCSE').run();
 
   const { instance } = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource);
   const f = instance.exports.f as (x: number) => number;
-  assertEquals(f(5), 203, "the second local.get 0 must read the value written by the nested tee");
+  assertEquals(f(5), 203, 'the second local.get 0 must read the value written by the nested tee');
 });

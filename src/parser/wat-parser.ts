@@ -116,9 +116,9 @@ import {
   type UnaryExpr,
   UnaryOp,
   type UnreachableExpr,
-} from "../ir/expressions.ts";
-import { type Local, ModuleBuilder, type WasmExport, type WasmModule } from "../ir/module.ts";
-import { None, type Type, Unreachable, ValType } from "../ir/types.ts";
+} from '../ir/expressions.ts';
+import { type Local, ModuleBuilder, type WasmExport, type WasmModule } from '../ir/module.ts';
+import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import {
   AbstractHeapType,
   type FieldType,
@@ -131,7 +131,7 @@ import {
   storageTypeToString,
   type TypeDef,
   type ValueType,
-} from "../ir/gc-types.ts";
+} from '../ir/gc-types.ts';
 import {
   type Atom,
   atomFloat,
@@ -146,8 +146,8 @@ import {
   type SExpr,
   sExprToString,
   type SList,
-} from "./sexpr.ts";
-import { type TextPos, tokenize } from "./tokenizer.ts";
+} from './sexpr.ts';
+import { type TextPos, tokenize } from './tokenizer.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -163,7 +163,7 @@ export class WatParseError extends Error {
     public readonly filename: string,
   ) {
     super(`${filename}:${pos.line}:${pos.col}: ${message}`);
-    this.name = "WatParseError";
+    this.name = 'WatParseError';
   }
 }
 
@@ -178,7 +178,7 @@ export class WatParseError extends Error {
  * @param filename - Optional filename used in error messages.
  * @throws {@link WatParseError} on any structural or semantic error.
  */
-export function parseWat(source: string, filename = "<input>"): WasmModule {
+export function parseWat(source: string, filename = '<input>'): WasmModule {
   const tokens = tokenize(source, filename);
   const root = buildSExpr(tokens, filename);
   return new WatModuleParser(filename).parseModule(root);
@@ -259,47 +259,47 @@ class WatModuleParser {
   // -------------------------------------------------------------------------
 
   parseModule(root: SExpr): WasmModule {
-    const list = this.expectList(root, "module");
+    const list = this.expectList(root, 'module');
     // Optional module name (ignored — modules don't have external names in IR)
     let childStart = 1;
-    if (list.children[1]?.kind === "atom" && list.children[1].token.raw.startsWith("$")) {
+    if (list.children[1]?.kind === 'atom' && list.children[1].token.raw.startsWith('$')) {
       childStart = 2;
     }
 
     // First pass: collect all type / function / import / global / memory / table declarations
     // so that forward references can be resolved.
     for (const child of listFrom(list, childStart)) {
-      if (child.kind !== "list") continue;
+      if (child.kind !== 'list') continue;
       const head = listHead(child as SList);
       switch (head) {
-        case "import":
+        case 'import':
           this.parseImport(child as SList);
           break;
-        case "func":
+        case 'func':
           this.collectFunc(child as SList);
           break;
-        case "global":
+        case 'global':
           this.collectGlobal(child as SList);
           break;
-        case "memory":
+        case 'memory':
           this.collectMemory(child as SList);
           break;
-        case "table":
+        case 'table':
           this.collectTable(child as SList);
           break;
-        case "tag":
+        case 'tag':
           this.collectTag(child as SList);
           break;
-        case "export": /* handled in second pass */
+        case 'export': /* handled in second pass */
           break;
-        case "data": /* handled in second pass */
+        case 'data': /* handled in second pass */
           break;
-        case "elem": /* handled in second pass */
+        case 'elem': /* handled in second pass */
           break;
-        case "type":
+        case 'type':
           this.collectType(child as SList);
           break;
-        case "rec": /* GC recursive types — future */
+        case 'rec': /* GC recursive types — future */
           break;
         default:
           break;
@@ -312,16 +312,16 @@ class WatModuleParser {
 
     // Second pass: build function bodies, exports, data segments, elements
     for (const child of listFrom(list, childStart)) {
-      if (child.kind !== "list") continue;
+      if (child.kind !== 'list') continue;
       const head = listHead(child as SList);
       switch (head) {
-        case "export":
+        case 'export':
           this.parseExport(child as SList);
           break;
-        case "data":
+        case 'data':
           this.parseData(child as SList);
           break;
-        case "elem":
+        case 'elem':
           this.parseElem(child as SList);
           break;
       }
@@ -342,41 +342,41 @@ class WatModuleParser {
   private parseImport(list: SList): void {
     // (import "module" "base" (func $name (param ...) (result ...)))
     const children = listChildren(list);
-    const modName = atomString(children[0]) ?? this.err("expected module name string", list.pos);
-    const baseName = atomString(children[1]) ?? this.err("expected base name string", list.pos);
+    const modName = atomString(children[0]) ?? this.err('expected module name string', list.pos);
+    const baseName = atomString(children[1]) ?? this.err('expected base name string', list.pos);
     const desc = children[2];
-    if (!desc || desc.kind !== "list") this.err("expected import descriptor list", list.pos);
+    if (!desc || desc.kind !== 'list') this.err('expected import descriptor list', list.pos);
     const descList = desc as SList;
     const head = listHead(descList);
 
-    if (head === "func") {
+    if (head === 'func') {
       const { name, params, results } = this.parseFuncType(descList);
       const internalName = name ?? `$__import_func_${this.funcNames.size}`;
       this.funcNames.set(internalName, this.funcNames.size);
       this.funcResults.set(internalName, results[0] ?? None);
       this.builder.addFunctionImport(internalName, modName, baseName, params, results);
-    } else if (head === "global") {
+    } else if (head === 'global') {
       // `(global $name <type>)` or `(global $name (mut <type>))`
       const gChildren = listChildren(descList);
       let gIdx = 0;
       let name: string | null = null;
-      if (gChildren[gIdx]?.kind === "atom" && (gChildren[gIdx] as Atom).token.raw.startsWith("$")) {
+      if (gChildren[gIdx]?.kind === 'atom' && (gChildren[gIdx] as Atom).token.raw.startsWith('$')) {
         name = (gChildren[gIdx] as Atom).token.raw;
         gIdx++;
       }
       const internalName = name ?? `$__import_global_${this.globalNames.size}`;
       this.globalNames.set(internalName, this.globalNames.size);
       const typeNode = gChildren[gIdx];
-      if (!typeNode) this.err("import (global ...): missing type", descList.pos);
+      if (!typeNode) this.err('import (global ...): missing type', descList.pos);
       const { type, mutable } = this.parseGlobalTypeNode(typeNode);
       this.globalTypes.set(internalName, type);
       this.builder.addGlobalImport(internalName, modName, baseName, type, mutable);
-    } else if (head === "memory") {
+    } else if (head === 'memory') {
       // `(memory $name <initial> [<max>] [shared])`
       const mChildren = listChildren(descList);
       let mIdx = 0;
       let name: string | null = null;
-      if (mChildren[mIdx]?.kind === "atom" && (mChildren[mIdx] as Atom).token.raw.startsWith("$")) {
+      if (mChildren[mIdx]?.kind === 'atom' && (mChildren[mIdx] as Atom).token.raw.startsWith('$')) {
         name = (mChildren[mIdx] as Atom).token.raw;
         mIdx++;
       }
@@ -385,12 +385,12 @@ class WatModuleParser {
       const initial = Number(atomInt(mChildren[mIdx]) ?? 0);
       const max = mChildren[mIdx + 1] ? (Number(atomInt(mChildren[mIdx + 1]) ?? 0) || null) : null;
       this.builder.addMemoryImport(internalName, modName, baseName, initial, max);
-    } else if (head === "table") {
+    } else if (head === 'table') {
       // `(table $name <initial> [<max>] <reftype>)`
       const tChildren = listChildren(descList);
       let tIdx = 0;
       let name: string | null = null;
-      if (tChildren[tIdx]?.kind === "atom" && (tChildren[tIdx] as Atom).token.raw.startsWith("$")) {
+      if (tChildren[tIdx]?.kind === 'atom' && (tChildren[tIdx] as Atom).token.raw.startsWith('$')) {
         name = (tChildren[tIdx] as Atom).token.raw;
         tIdx++;
       }
@@ -425,7 +425,7 @@ class WatModuleParser {
     let idx = 0;
     // Optional $name
     let name: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
@@ -454,7 +454,7 @@ class WatModuleParser {
    *  the body are ignored. */
   private _firstResultTypeOf(list: SList): Type | null {
     for (const c of listChildren(list)) {
-      if (isListWith(c, "result")) {
+      if (isListWith(c, 'result')) {
         const first = listChildren(c as SList)[0];
         return first ? this.parseValType(first) : None; // empty `(result)` = void
       }
@@ -465,7 +465,7 @@ class WatModuleParser {
   /** Name in a `(func … (type $sig) …)` signature reference, or `null`. */
   private _funcTypeRef(list: SList): string | null {
     for (const c of listChildren(list)) {
-      if (isListWith(c, "type")) return atomText(listChildren(c as SList)[0]) ?? null;
+      if (isListWith(c, 'type')) return atomText(listChildren(c as SList)[0]) ?? null;
     }
     return null;
   }
@@ -490,32 +490,32 @@ class WatModuleParser {
     let idx = 0;
 
     // Skip optional $name (already consumed in first pass)
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) idx++;
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) idx++;
 
     // Inline exports: (export "name")
     const inlineExports: string[] = [];
-    while (idx < children.length && isListWith(children[idx], "export")) {
+    while (idx < children.length && isListWith(children[idx], 'export')) {
       const exportName = atomString((children[idx] as SList).children[1]);
       if (exportName !== null) inlineExports.push(exportName);
       idx++;
     }
 
     // Inline imports (function re-export, rare — skip)
-    if (idx < children.length && isListWith(children[idx], "import")) idx++;
+    if (idx < children.length && isListWith(children[idx], 'import')) idx++;
 
     // Type annotation (optional): (type $name)
-    if (idx < children.length && isListWith(children[idx], "type")) idx++;
+    if (idx < children.length && isListWith(children[idx], 'type')) idx++;
 
     // Params and results
     const params: ValueType[] = [];
     const paramNames = new Map<string, number>();
-    while (idx < children.length && isListWith(children[idx], "param")) {
+    while (idx < children.length && isListWith(children[idx], 'param')) {
       const p = children[idx] as SList;
       const pChildren = listChildren(p);
       // (param $name type) or (param type...)
       if (
-        pChildren.length >= 2 && pChildren[0]?.kind === "atom" &&
-        (pChildren[0] as Atom).token.raw.startsWith("$")
+        pChildren.length >= 2 && pChildren[0]?.kind === 'atom' &&
+        (pChildren[0] as Atom).token.raw.startsWith('$')
       ) {
         paramNames.set((pChildren[0] as Atom).token.raw, params.length);
         params.push(this.parseValType(pChildren[1]));
@@ -526,7 +526,7 @@ class WatModuleParser {
     }
 
     const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "result")) {
+    while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
@@ -535,12 +535,12 @@ class WatModuleParser {
     const additionalLocals: Local[] = [];
     const localNames = new Map<string, number>(paramNames);
     let localIdx = params.length;
-    while (idx < children.length && isListWith(children[idx], "local")) {
+    while (idx < children.length && isListWith(children[idx], 'local')) {
       const l = children[idx] as SList;
       const lChildren = listChildren(l);
       if (
-        lChildren.length >= 2 && lChildren[0]?.kind === "atom" &&
-        (lChildren[0] as Atom).token.raw.startsWith("$")
+        lChildren.length >= 2 && lChildren[0]?.kind === 'atom' &&
+        (lChildren[0] as Atom).token.raw.startsWith('$')
       ) {
         localNames.set((lChildren[0] as Atom).token.raw, localIdx++);
         additionalLocals.push({
@@ -581,7 +581,7 @@ class WatModuleParser {
     this.builder.addFunction(raw.name, params, results, body, additionalLocals);
 
     for (const exportName of inlineExports) {
-      this.builder.addExport(exportName, raw.name, "function");
+      this.builder.addExport(exportName, raw.name, 'function');
     }
   }
 
@@ -609,13 +609,13 @@ class WatModuleParser {
     if (s === undefined) {
       return this.err(
         this._op === null
-          ? "missing operand"
+          ? 'missing operand'
           : `missing operand for "${this._op}" (stack-form WAT is not supported here; ` +
             `each operand must be a nested expression)`,
         this._opPos,
       );
     }
-    if (s.kind === "atom") {
+    if (s.kind === 'atom') {
       return this.parseAtomExpr(s as Atom, ctx);
     }
     return this.parseListExpr(s as SList, ctx);
@@ -637,21 +637,21 @@ class WatModuleParser {
   private parseAtomExpr(atom: Atom, _ctx: FuncContext): Expression {
     // Bare keyword instructions (no parens): unreachable, nop, return, etc.
     switch (atom.token.raw) {
-      case "nop":
+      case 'nop':
         return { kind: ExpressionKind.Nop, type: None } as NopExpr;
-      case "unreachable":
+      case 'unreachable':
         return { kind: ExpressionKind.Unreachable, type: Unreachable } as UnreachableExpr;
-      case "return":
+      case 'return':
         // Route through makeReturn so `return` is typed `unreachable` (a control
         // transfer never yields a value to its enclosing block). Building the
         // literal with `type: None` here re-introduced the exact mistyping the
         // factory was fixed for.
         return makeReturn();
-      case "memory.size":
+      case 'memory.size':
         return { kind: ExpressionKind.MemorySize, type: ValType.I32 } as MemorySizeExpr;
     }
     // Number literal?
-    if (atom.token.kind === "integer") {
+    if (atom.token.kind === 'integer') {
       // Standalone integers become i32.const (context-dependent in real WAT, defaulting to i32)
       return {
         kind: ExpressionKind.Const,
@@ -663,25 +663,25 @@ class WatModuleParser {
   }
 
   private _parseListExpr(list: SList, ctx: FuncContext): Expression {
-    const head = listHead(list) ?? this.err("empty list in expression position", list.pos);
+    const head = listHead(list) ?? this.err('empty list in expression position', list.pos);
     const args = listChildren(list);
 
     // -----------------------------------------------------------------------
     // Constants
     // -----------------------------------------------------------------------
-    if (head === "i32.const") {
+    if (head === 'i32.const') {
       const v = this.expectInt(args[0], head);
       return { kind: ExpressionKind.Const, type: ValType.I32, value: { i32: v } } as ConstExpr;
     }
-    if (head === "i64.const") {
+    if (head === 'i64.const') {
       const v = this.expectIntBig(args[0], head);
       return { kind: ExpressionKind.Const, type: ValType.I64, value: { i64: v } } as ConstExpr;
     }
-    if (head === "f32.const") {
+    if (head === 'f32.const') {
       const v = this.expectFloat(args[0], head);
       return { kind: ExpressionKind.Const, type: ValType.F32, value: { f32: v } } as ConstExpr;
     }
-    if (head === "f64.const") {
+    if (head === 'f64.const') {
       const v = this.expectFloat(args[0], head);
       return { kind: ExpressionKind.Const, type: ValType.F64, value: { f64: v } } as ConstExpr;
     }
@@ -689,40 +689,40 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     // Locals / globals
     // -----------------------------------------------------------------------
-    if (head === "local.get") {
+    if (head === 'local.get') {
       const { index, type } = this.resolveLocal(args[0], ctx, head);
       return { kind: ExpressionKind.LocalGet, type, index } as LocalGetExpr;
     }
-    if (head === "local.set") {
+    if (head === 'local.set') {
       const { index } = this.resolveLocal(args[0], ctx, head);
       const value = this.parseExpr(args[1], ctx);
       return { kind: ExpressionKind.LocalSet, type: None, index, value } as LocalSetExpr;
     }
-    if (head === "local.tee") {
+    if (head === 'local.tee') {
       const { index, type } = this.resolveLocal(args[0], ctx, head);
       const value = this.parseExpr(args[1], ctx);
       return { kind: ExpressionKind.LocalTee, type, index, value } as LocalTeeExpr;
     }
-    if (head === "global.get") {
+    if (head === 'global.get') {
       const name = this.resolveGlobalName(args[0], head);
       // A `$name` that resolves to no known global is malformed — fail loud
       // rather than silently typing the get i32. (A numeric ref keeps the coarse
       // i32 fallback; it's resolved by index at encode time.)
       const type = this.inferGlobalType(name) ??
-        (name.startsWith("$")
+        (name.startsWith('$')
           ? this.err(`global.get: unknown global ${name}`, list.pos)
           : ValType.I32);
       return { kind: ExpressionKind.GlobalGet, type, name } as GlobalGetExpr;
     }
-    if (head === "global.set") {
+    if (head === 'global.set') {
       const name = this.resolveGlobalName(args[0], head);
       const value = this.parseExpr(args[1], ctx);
       return { kind: ExpressionKind.GlobalSet, type: None, name, value } as GlobalSetExpr;
     }
-    if (head === "table.get") {
+    if (head === 'table.get') {
       // `(table.get [$t] <index>)` — optional table ref, then an i32 index.
       const { table, rest } = this._takeOptionalTableRef(args);
-      if (rest.length < 1) this.err("table.get: missing index operand", list.pos);
+      if (rest.length < 1) this.err('table.get: missing index operand', list.pos);
       const index = this.parseExpr(rest[0], ctx);
       return {
         kind: ExpressionKind.TableGet,
@@ -733,10 +733,10 @@ class WatModuleParser {
         index,
       };
     }
-    if (head === "table.set") {
+    if (head === 'table.set') {
       // `(table.set [$t] <index> <value>)`.
       const { table, rest } = this._takeOptionalTableRef(args);
-      if (rest.length < 2) this.err("table.set: need index and value operands", list.pos);
+      if (rest.length < 2) this.err('table.set: need index and value operands', list.pos);
       const index = this.parseExpr(rest[0], ctx);
       const value = this.parseExpr(rest[1], ctx);
       return { kind: ExpressionKind.TableSet, type: None, table, index, value };
@@ -745,21 +745,21 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     // Control flow
     // -----------------------------------------------------------------------
-    if (head === "nop") return { kind: ExpressionKind.Nop, type: None } as NopExpr;
-    if (head === "unreachable") {
+    if (head === 'nop') return { kind: ExpressionKind.Nop, type: None } as NopExpr;
+    if (head === 'unreachable') {
       return { kind: ExpressionKind.Unreachable, type: Unreachable } as UnreachableExpr;
     }
-    if (head === "return") {
+    if (head === 'return') {
       const value = args[0] ? this.parseExpr(args[0], ctx) : null;
       // makeReturn types the node `unreachable` (not the value's type); see the
       // bare-atom `return` case above for why this matters to block typing.
       return makeReturn(value);
     }
-    if (head === "drop") {
+    if (head === 'drop') {
       const value = this.parseExpr(args[0], ctx);
       return { kind: ExpressionKind.Drop, type: None, value } as DropExpr;
     }
-    if (head === "select") {
+    if (head === 'select') {
       const ifTrue = this.parseExpr(args[0], ctx);
       const ifFalse = this.parseExpr(args[1], ctx);
       const condition = this.parseExpr(args[2], ctx);
@@ -767,19 +767,19 @@ class WatModuleParser {
       // (the LUB), not a blind `ifTrue.type`.
       return makeSelect(ifTrue, ifFalse, condition);
     }
-    if (head === "block") return this.parseBlock(list, ctx);
-    if (head === "loop") return this.parseLoop(list, ctx);
-    if (head === "if") return this.parseIf(list, ctx);
-    if (head === "br") return this.parseBr(args, false, ctx, list.pos);
-    if (head === "br_if") return this.parseBr(args, true, ctx, list.pos);
-    if (head === "br_table") return this.parseBrTable(args, ctx, list.pos);
+    if (head === 'block') return this.parseBlock(list, ctx);
+    if (head === 'loop') return this.parseLoop(list, ctx);
+    if (head === 'if') return this.parseIf(list, ctx);
+    if (head === 'br') return this.parseBr(args, false, ctx, list.pos);
+    if (head === 'br_if') return this.parseBr(args, true, ctx, list.pos);
+    if (head === 'br_table') return this.parseBrTable(args, ctx, list.pos);
 
     // -----------------------------------------------------------------------
     // Calls
     // -----------------------------------------------------------------------
-    if (head === "call") {
-      const nameOrIdx = atomText(args[0]) ?? this.err("call: missing function reference", list.pos);
-      const funcName = nameOrIdx.startsWith("$") ? nameOrIdx : `$f${nameOrIdx}`;
+    if (head === 'call') {
+      const nameOrIdx = atomText(args[0]) ?? this.err('call: missing function reference', list.pos);
+      const funcName = nameOrIdx.startsWith('$') ? nameOrIdx : `$f${nameOrIdx}`;
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
       const resultType = this.inferFuncResultType(funcName) ?? None;
       return {
@@ -790,9 +790,9 @@ class WatModuleParser {
         isReturn: false,
       } as CallExpr;
     }
-    if (head === "return_call") {
-      const nameOrIdx = atomText(args[0]) ?? this.err("return_call: missing reference", list.pos);
-      const funcName = nameOrIdx.startsWith("$") ? nameOrIdx : `$f${nameOrIdx}`;
+    if (head === 'return_call') {
+      const nameOrIdx = atomText(args[0]) ?? this.err('return_call: missing reference', list.pos);
+      const funcName = nameOrIdx.startsWith('$') ? nameOrIdx : `$f${nameOrIdx}`;
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
       return {
         kind: ExpressionKind.Call,
@@ -802,30 +802,30 @@ class WatModuleParser {
         isReturn: true,
       } as CallExpr;
     }
-    if (head === "call_indirect") {
+    if (head === 'call_indirect') {
       return this.parseCallIndirect(list, args, ctx, false);
     }
-    if (head === "return_call_indirect") {
+    if (head === 'return_call_indirect') {
       return this.parseCallIndirect(list, args, ctx, true);
     }
 
     // -----------------------------------------------------------------------
     // Memory
     // -----------------------------------------------------------------------
-    if (head === "memory.size") {
+    if (head === 'memory.size') {
       return { kind: ExpressionKind.MemorySize, type: ValType.I32 } as MemorySizeExpr;
     }
-    if (head === "memory.grow") {
+    if (head === 'memory.grow') {
       const delta = this.parseExpr(args[0], ctx);
       return { kind: ExpressionKind.MemoryGrow, type: ValType.I32, delta } as MemoryGrowExpr;
     }
-    if (head === "memory.copy") {
+    if (head === 'memory.copy') {
       const dest = this.parseExpr(args[0], ctx);
       const source = this.parseExpr(args[1], ctx);
       const size = this.parseExpr(args[2], ctx);
       return { kind: ExpressionKind.MemoryCopy, type: None, dest, source, size } as MemoryCopyExpr;
     }
-    if (head === "memory.fill") {
+    if (head === 'memory.fill') {
       const dest = this.parseExpr(args[0], ctx);
       const value = this.parseExpr(args[1], ctx);
       const size = this.parseExpr(args[2], ctx);
@@ -835,12 +835,12 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     // SIMD instructions (must come before generic load/store/unary/binary)
     // -----------------------------------------------------------------------
-    if (head === "v128.const") return this.parseSIMDConst(args);
-    if (head === "i8x16.shuffle") return this.parseSIMDShuffle(args, ctx);
+    if (head === 'v128.const') return this.parseSIMDConst(args);
+    if (head === 'i8x16.shuffle') return this.parseSIMDShuffle(args, ctx);
     if (head in SIMD_EXTRACT_OPS) return this.parseSIMDExtract(head, args, ctx);
     if (head in SIMD_REPLACE_OPS) return this.parseSIMDReplace(head, args, ctx);
     if (head in SIMD_SHIFT_OPS) return this.parseSIMDShiftOp(head, args, ctx);
-    if (head === "v128.bitselect") return this.parseSIMDBitselect(args, ctx);
+    if (head === 'v128.bitselect') return this.parseSIMDBitselect(args, ctx);
     if (head in SIMD_LOAD_OPS) return this.parseSIMDLoad(head, args, ctx);
     if (head in SIMD_LANE_OPS) return this.parseSIMDLaneLdSt(head, args, ctx);
 
@@ -876,99 +876,99 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     // GC proposal instructions
     // -----------------------------------------------------------------------
-    if (head === "ref.eq") {
+    if (head === 'ref.eq') {
       const left = this.parseExpr(args[0], ctx);
       const right = this.parseExpr(args[1], ctx);
       return makeRefEq(left, right);
     }
-    if (head === "ref.null") {
+    if (head === 'ref.null') {
       // `(ref.null func)` / `(ref.null extern)` / `(ref.null $type)`. The MVP
       // reference-types abbreviations map to the corresponding null ref type;
       // a user heap-type reference is treated as a typed null (approximated to
       // the abstract funcref family, matching the binary parser's coarse model).
-      const ht = atomText(args[0]) ?? "func";
-      const vt = ht === "extern" ? ValType.ExternRef : ValType.FuncRef;
+      const ht = atomText(args[0]) ?? 'func';
+      const vt = ht === 'extern' ? ValType.ExternRef : ValType.FuncRef;
       return makeRefNull(vt);
     }
-    if (head === "ref.func") {
-      const fnRef = atomText(args[0]) ?? this.err("ref.func: missing function", list.pos);
-      const fnName = fnRef.startsWith("$") ? fnRef : `$func${fnRef}`;
+    if (head === 'ref.func') {
+      const fnRef = atomText(args[0]) ?? this.err('ref.func: missing function', list.pos);
+      const fnName = fnRef.startsWith('$') ? fnRef : `$func${fnRef}`;
       return makeRefFunc(fnName);
     }
-    if (head === "ref.is_null") {
+    if (head === 'ref.is_null') {
       return makeRefIsNull(this.parseExpr(args[0], ctx));
     }
-    if (head === "ref.as_non_null") {
+    if (head === 'ref.as_non_null') {
       const value = this.parseExpr(args[0], ctx);
       const rt = isRefType(value.type) ? { ...value.type, nullable: false } : value.type;
       return makeRefAsNonNull(value, rt);
     }
-    if (head === "ref.i31") {
+    if (head === 'ref.i31') {
       const value = this.parseExpr(args[0], ctx);
       return makeRefI31(value, { heap: AbstractHeapType.I31, nullable: false });
     }
-    if (head === "i31.get_s") {
+    if (head === 'i31.get_s') {
       return makeI31Get(this.parseExpr(args[0], ctx), true);
     }
-    if (head === "i31.get_u") {
+    if (head === 'i31.get_u') {
       return makeI31Get(this.parseExpr(args[0], ctx), false);
     }
-    if (head === "struct.new") {
+    if (head === 'struct.new') {
       const ti = this.resolveTypeIndex(args[0]);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
       return makeStructNew(ti, operands, { heap: ti, nullable: false });
     }
-    if (head === "struct.new_default") {
+    if (head === 'struct.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
       return makeStructNewDefault(ti, { heap: ti, nullable: false });
     }
-    if (head === "struct.get" || head === "struct.get_s" || head === "struct.get_u") {
+    if (head === 'struct.get' || head === 'struct.get_s' || head === 'struct.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
       const fi = Number(atomInt(args[1])) ?? 0;
       const ref = this.parseExpr(args[2], ctx);
-      const signed = head === "struct.get_s";
-      this._checkPackedGet(head, "struct", this._structFieldStorage(ti, fi));
+      const signed = head === 'struct.get_s';
+      this._checkPackedGet(head, 'struct', this._structFieldStorage(ti, fi));
       return makeStructGet(ti, fi, ref, this._structFieldType(ti, fi), signed);
     }
-    if (head === "struct.set") {
+    if (head === 'struct.set') {
       const ti = this.resolveTypeIndex(args[0]);
       const fi = Number(atomInt(args[1])) ?? 0;
       const ref = this.parseExpr(args[2], ctx);
       const value = this.parseExpr(args[3], ctx);
       return makeStructSet(ti, fi, ref, value);
     }
-    if (head === "array.new") {
+    if (head === 'array.new') {
       const ti = this.resolveTypeIndex(args[0]);
       const init = this.parseExpr(args[1], ctx);
       const length = this.parseExpr(args[2], ctx);
       return makeArrayNew(ti, init, length, { heap: ti, nullable: false });
     }
-    if (head === "array.new_default") {
+    if (head === 'array.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
       const length = this.parseExpr(args[1], ctx);
       return makeArrayNewDefault(ti, length, { heap: ti, nullable: false });
     }
-    if (head === "array.new_fixed") {
+    if (head === 'array.new_fixed') {
       const ti = this.resolveTypeIndex(args[0]);
       const values = args.slice(1).map((a) => this.parseExpr(a, ctx));
       return makeArrayNewFixed(ti, values, { heap: ti, nullable: false });
     }
-    if (head === "array.get" || head === "array.get_s" || head === "array.get_u") {
+    if (head === 'array.get' || head === 'array.get_s' || head === 'array.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
       const ref = this.parseExpr(args[1], ctx);
       const index = this.parseExpr(args[2], ctx);
-      const signed = head === "array.get_s";
-      this._checkPackedGet(head, "array", this._arrayElementStorage(ti));
+      const signed = head === 'array.get_s';
+      this._checkPackedGet(head, 'array', this._arrayElementStorage(ti));
       return makeArrayGet(ti, ref, index, this._arrayElementType(ti), signed);
     }
-    if (head === "array.set") {
+    if (head === 'array.set') {
       const ti = this.resolveTypeIndex(args[0]);
       const ref = this.parseExpr(args[1], ctx);
       const index = this.parseExpr(args[2], ctx);
       const value = this.parseExpr(args[3], ctx);
       return makeArraySet(ti, ref, index, value);
     }
-    if (head === "array.fill") {
+    if (head === 'array.fill') {
       const ti = this.resolveTypeIndex(args[0]);
       return makeArrayFill(
         ti,
@@ -978,7 +978,7 @@ class WatModuleParser {
         this.parseExpr(args[4], ctx),
       );
     }
-    if (head === "array.copy") {
+    if (head === 'array.copy') {
       const destTi = this.resolveTypeIndex(args[0]);
       const srcTi = this.resolveTypeIndex(args[1]);
       return makeArrayCopy(
@@ -991,10 +991,10 @@ class WatModuleParser {
         this.parseExpr(args[6], ctx),
       );
     }
-    if (head === "array.init_data" || head === "array.init_elem") {
+    if (head === 'array.init_data' || head === 'array.init_elem') {
       const ti = this.resolveTypeIndex(args[0]);
       const seg = Number(atomInt(args[1]));
-      const make = head === "array.init_data" ? makeArrayInitData : makeArrayInitElem;
+      const make = head === 'array.init_data' ? makeArrayInitData : makeArrayInitElem;
       return make(
         ti,
         seg,
@@ -1004,18 +1004,18 @@ class WatModuleParser {
         this.parseExpr(args[5], ctx),
       );
     }
-    if (head === "array.len") {
+    if (head === 'array.len') {
       const ref = this.parseExpr(args[0], ctx);
       return makeArrayLen(ref);
     }
-    if (head === "ref.test" || head === "ref.test_null") {
-      const nullable = head === "ref.test_null";
+    if (head === 'ref.test' || head === 'ref.test_null') {
+      const nullable = head === 'ref.test_null';
       const ht = this.parseHeapType(args[0]);
       const ref = this.parseExpr(args[1], ctx);
       return makeRefTest(ref, ht, nullable);
     }
-    if (head === "ref.cast" || head === "ref.cast_null") {
-      const nullable = head === "ref.cast_null";
+    if (head === 'ref.cast' || head === 'ref.cast_null') {
+      const nullable = head === 'ref.cast_null';
       const ht = this.parseHeapType(args[0]);
       const ref = this.parseExpr(args[1], ctx);
       const resultType: RefType = { heap: ht, nullable };
@@ -1025,25 +1025,25 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     // Exception Handling proposal
     // -----------------------------------------------------------------------
-    if (head === "throw") {
-      const tagRef = atomText(args[0]) ?? this.err("throw: missing tag reference", list.pos);
-      const tagName = tagRef.startsWith("$") ? tagRef : `$tag${tagRef}`;
+    if (head === 'throw') {
+      const tagRef = atomText(args[0]) ?? this.err('throw: missing tag reference', list.pos);
+      const tagName = tagRef.startsWith('$') ? tagRef : `$tag${tagRef}`;
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
       return makeThrow(tagName, operands);
     }
-    if (head === "throw_ref") {
+    if (head === 'throw_ref') {
       const exnref = this.parseExpr(args[0], ctx);
       return makeThrowRef(exnref);
     }
-    if (head === "rethrow") {
-      const labelRef = atomText(args[0]) ?? this.err("rethrow: missing depth", list.pos);
+    if (head === 'rethrow') {
+      const labelRef = atomText(args[0]) ?? this.err('rethrow: missing depth', list.pos);
       const target = this.resolveLabel(labelRef, ctx, list.pos);
       return makeRethrow(target);
     }
-    if (head === "try_table") {
+    if (head === 'try_table') {
       return this.parseTryTable(list, ctx);
     }
-    if (head === "try") {
+    if (head === 'try') {
       return this.parseTry(list, ctx);
     }
 
@@ -1064,13 +1064,13 @@ class WatModuleParser {
     let idx = 0;
     // Optional label
     let label: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       label = (children[idx] as Atom).token.raw;
       idx++;
     }
     // Optional result type
     const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "result")) {
+    while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
@@ -1089,7 +1089,7 @@ class WatModuleParser {
     const children = listChildren(list);
     let idx = 0;
     let label = `$loop${ctx.labelDepth}`;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       label = (children[idx] as Atom).token.raw;
       idx++;
     }
@@ -1098,7 +1098,7 @@ class WatModuleParser {
     // blocktype for a value-producing loop → invalid module, and any pass reading
     // `loop.type` saw `None`. Honor it, mirroring parseBlock.
     const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "result")) {
+    while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
@@ -1117,10 +1117,10 @@ class WatModuleParser {
     const children = listChildren(list);
     let idx = 0;
     // Optional label
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) idx++;
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) idx++;
     // Optional result type
     const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "result")) {
+    while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
@@ -1129,23 +1129,23 @@ class WatModuleParser {
     // In unfolded form: condition is already on the stack
     let condition: Expression | null = null;
     if (
-      idx < children.length && !isListWith(children[idx], "then") &&
-      !isListWith(children[idx], "else")
+      idx < children.length && !isListWith(children[idx], 'then') &&
+      !isListWith(children[idx], 'else')
     ) {
       condition = this.parseExpr(children[idx], ctx);
       idx++;
     }
-    if (!condition) this.err("if: missing condition", list.pos);
+    if (!condition) this.err('if: missing condition', list.pos);
 
     // then branch
-    if (!isListWith(children[idx], "then")) this.err("if: expected (then ...)", list.pos);
+    if (!isListWith(children[idx], 'then')) this.err('if: expected (then ...)', list.pos);
     const thenExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, ctx));
     const ifTrue: Expression = this.oneOrTypedBlock(thenExprs, this.declaredType(results, None));
     idx++;
 
     // else branch (optional)
     let ifFalse: Expression | null = null;
-    if (idx < children.length && isListWith(children[idx], "else")) {
+    if (idx < children.length && isListWith(children[idx], 'else')) {
       const elseExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, ctx));
       ifFalse = this.oneOrTypedBlock(elseExprs, this.declaredType(results, None));
     }
@@ -1167,7 +1167,7 @@ class WatModuleParser {
   }
 
   private parseBr(args: SExpr[], conditional: boolean, ctx: FuncContext, pos: TextPos): BreakExpr {
-    const labelRef = atomText(args[0]) ?? this.err("br: missing label", pos);
+    const labelRef = atomText(args[0]) ?? this.err('br: missing label', pos);
     const name = this.resolveLabel(labelRef, ctx, pos);
     const condition = conditional ? this.parseExpr(args[1], ctx) : null;
     const value = conditional && args[2] ? this.parseExpr(args[2], ctx) : null;
@@ -1192,26 +1192,26 @@ class WatModuleParser {
   private parseBrTable(args: SExpr[], ctx: FuncContext, pos: TextPos): Expression {
     // Split args into leading label atoms and trailing expression operands.
     let labelEnd = 0;
-    while (labelEnd < args.length && args[labelEnd]?.kind === "atom") {
+    while (labelEnd < args.length && args[labelEnd]?.kind === 'atom') {
       const text = (args[labelEnd] as Atom).token.raw;
       // Labels are `$name` or a plain integer literal; stop at the first list
       // (which is always an operand expression).
-      if (!text.startsWith("$") && !/^-?\d+$/.test(text)) break;
+      if (!text.startsWith('$') && !/^-?\d+$/.test(text)) break;
       labelEnd++;
     }
     if (labelEnd < 2) {
-      this.err("br_table: need at least one target plus a default label", pos);
+      this.err('br_table: need at least one target plus a default label', pos);
     }
     const labelRefs = args.slice(0, labelEnd).map((a) => atomText(a)!);
     const targets = labelRefs.slice(0, -1).map((r) => this.resolveLabel(r, ctx, pos));
     const defaultRef = labelRefs[labelRefs.length - 1] ??
-      this.err("br_table: expected at least one label", pos);
+      this.err('br_table: expected at least one label', pos);
     const defaultTarget = this.resolveLabel(defaultRef, ctx, pos);
 
     // Remaining args are operand expressions. Last is always the condition;
     // anything before it is the optional value.
     const operands = args.slice(labelEnd);
-    if (operands.length === 0) this.err("br_table: missing condition operand", pos);
+    if (operands.length === 0) this.err('br_table: missing condition operand', pos);
     const condition = this.parseExpr(operands[operands.length - 1], ctx);
     const value = operands.length > 1 ? this.parseExpr(operands[operands.length - 2], ctx) : null;
 
@@ -1223,36 +1223,36 @@ class WatModuleParser {
     let idx = 0;
     // Optional label
     let label: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       label = (children[idx] as Atom).token.raw;
       idx++;
     }
     // Optional result type
     const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "result")) {
+    while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
     // Catch clauses before body
     const catches: CatchClause[] = [];
     const innerCtx = this.pushLabel(label, ctx);
-    while (idx < children.length && children[idx]?.kind === "list") {
+    while (idx < children.length && children[idx]?.kind === 'list') {
       const clauseList = children[idx] as SList;
       const clauseHead = listHead(clauseList);
-      if (clauseHead === "catch" || clauseHead === "catch_ref") {
+      if (clauseHead === 'catch' || clauseHead === 'catch_ref') {
         const clauseArgs = listChildren(clauseList);
-        const tagRef = atomText(clauseArgs[0]) ?? this.err("catch: missing tag", list.pos);
-        const tagName = tagRef.startsWith("$") ? tagRef : `$tag${tagRef}`;
-        const destRef = atomText(clauseArgs[1]) ?? this.err("catch: missing dest label", list.pos);
+        const tagRef = atomText(clauseArgs[0]) ?? this.err('catch: missing tag', list.pos);
+        const tagName = tagRef.startsWith('$') ? tagRef : `$tag${tagRef}`;
+        const destRef = atomText(clauseArgs[1]) ?? this.err('catch: missing dest label', list.pos);
         const dest = this.resolveLabel(destRef, innerCtx, list.pos);
-        catches.push({ tag: tagName, dest, isRef: clauseHead === "catch_ref" });
+        catches.push({ tag: tagName, dest, isRef: clauseHead === 'catch_ref' });
         idx++;
-      } else if (clauseHead === "catch_all" || clauseHead === "catch_all_ref") {
+      } else if (clauseHead === 'catch_all' || clauseHead === 'catch_all_ref') {
         const clauseArgs = listChildren(clauseList);
         const destRef = atomText(clauseArgs[0]) ??
-          this.err("catch_all: missing dest label", list.pos);
+          this.err('catch_all: missing dest label', list.pos);
         const dest = this.resolveLabel(destRef, innerCtx, list.pos);
-        catches.push({ tag: null, dest, isRef: clauseHead === "catch_all_ref" });
+        catches.push({ tag: null, dest, isRef: clauseHead === 'catch_all_ref' });
         idx++;
       } else {
         break;
@@ -1274,28 +1274,28 @@ class WatModuleParser {
     let idx = 0;
     // Optional label
     let label: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       label = (children[idx] as Atom).token.raw;
       idx++;
     }
     // Optional result type
     const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "result")) {
+    while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
     const innerCtx = this.pushLabel(label, ctx);
     // Body: (do ...) block or inline instructions before any catch/catch_all/delegate clause
     let bodyExprs: Expression[] = [];
-    if (idx < children.length && isListWith(children[idx], "do")) {
+    if (idx < children.length && isListWith(children[idx], 'do')) {
       bodyExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, innerCtx));
       idx++;
     } else {
       while (idx < children.length) {
         const child = children[idx]!; // bounded by the `while` condition
-        if (child.kind === "list") {
+        if (child.kind === 'list') {
           const h = listHead(child as SList);
-          if (h === "catch" || h === "catch_all" || h === "delegate") break;
+          if (h === 'catch' || h === 'catch_all' || h === 'delegate') break;
         }
         bodyExprs.push(this.parseExpr(child, innerCtx));
         idx++;
@@ -1310,27 +1310,27 @@ class WatModuleParser {
     while (idx < children.length) {
       const clause = children[idx] as SList;
       const clauseHead = listHead(clause);
-      if (clauseHead === "catch") {
+      if (clauseHead === 'catch') {
         const clauseArgs = listChildren(clause);
-        const tagRef = atomText(clauseArgs[0]) ?? this.err("catch: missing tag", list.pos);
-        const tagName = tagRef.startsWith("$") ? tagRef : `$tag${tagRef}`;
+        const tagRef = atomText(clauseArgs[0]) ?? this.err('catch: missing tag', list.pos);
+        const tagName = tagRef.startsWith('$') ? tagRef : `$tag${tagRef}`;
         catchTags.push(tagName);
         const catchExprs = clauseArgs.slice(1).map((e) => this.parseExpr(e, innerCtx));
         catchBodies.push(
           this.oneOrTypedBlock(catchExprs, bodyType),
         );
         idx++;
-      } else if (clauseHead === "catch_all") {
-        catchTags.push("$__catch_all");
+      } else if (clauseHead === 'catch_all') {
+        catchTags.push('$__catch_all');
         const clauseArgs = listChildren(clause);
         const catchExprs = clauseArgs.map((e) => this.parseExpr(e, innerCtx));
         catchBodies.push(
           this.oneOrTypedBlock(catchExprs, bodyType),
         );
         idx++;
-      } else if (clauseHead === "delegate") {
+      } else if (clauseHead === 'delegate') {
         const clauseArgs = listChildren(clause);
-        const depthRef = atomText(clauseArgs[0]) ?? "0";
+        const depthRef = atomText(clauseArgs[0]) ?? '0';
         delegateTarget = this.resolveLabel(depthRef, innerCtx, list.pos);
         idx++;
         break;
@@ -1354,8 +1354,8 @@ class WatModuleParser {
     // map and only "worked" because the encoder fell back to index 0 on the
     // miss; now that the encoder throws on an unresolved table ref, the default
     // must resolve to the actual table.
-    let table = this.tableNames.keys().next().value ?? "$0";
-    if (args[idx]?.kind === "atom" && !(args[idx] as Atom).token.raw.startsWith("(")) {
+    let table = this.tableNames.keys().next().value ?? '$0';
+    if (args[idx]?.kind === 'atom' && !(args[idx] as Atom).token.raw.startsWith('(')) {
       const t = atomText(args[idx]);
       if (t) {
         table = t;
@@ -1368,7 +1368,7 @@ class WatModuleParser {
     // its values and ignore any redundant inline lists.
     let typeRefParams: ValueType[] | null = null;
     let typeRefResults: ValueType[] | null = null;
-    if (idx < args.length && isListWith(args[idx], "type")) {
+    if (idx < args.length && isListWith(args[idx], 'type')) {
       const tChildren = listChildren(args[idx] as SList);
       const typeRef = atomText(tChildren[0]);
       if (typeRef) {
@@ -1392,12 +1392,12 @@ class WatModuleParser {
     // resolve. Always advance `idx` past them so the operand parser is
     // aligned regardless.
     const inlineParams: ValueType[] = [];
-    while (idx < args.length && isListWith(args[idx], "param")) {
+    while (idx < args.length && isListWith(args[idx], 'param')) {
       for (const t of listChildren(args[idx] as SList)) inlineParams.push(this.parseValType(t));
       idx++;
     }
     const inlineResults: ValueType[] = [];
-    while (idx < args.length && isListWith(args[idx], "result")) {
+    while (idx < args.length && isListWith(args[idx], 'result')) {
       for (const t of listChildren(args[idx] as SList)) inlineResults.push(this.parseValType(t));
       idx++;
     }
@@ -1423,19 +1423,19 @@ class WatModuleParser {
   // -------------------------------------------------------------------------
 
   private parseLoad(head: string, _list: SList, args: SExpr[], ctx: FuncContext): LoadExpr {
-    const [valTypeStr] = head.split(".");
+    const [valTypeStr] = head.split('.');
     const type = valTypeStr as ValType;
     let offset = 0, align = 0, bytes: 1 | 2 | 4 | 8 | 16 = 4;
     let argIdx = 0;
     // offset= and align= keywords
-    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
-      if (raw.startsWith("offset=")) {
+      if (raw.startsWith('offset=')) {
         offset = parseInt(raw.slice(7));
         argIdx++;
         continue;
       }
-      if (raw.startsWith("align=")) {
+      if (raw.startsWith('align=')) {
         align = parseInt(raw.slice(6));
         argIdx++;
         continue;
@@ -1443,7 +1443,7 @@ class WatModuleParser {
       break;
     }
     bytes = loadBytes(head);
-    const signed = head.includes("_s");
+    const signed = head.includes('_s');
     const ptr = this.parseExpr(args[argIdx], ctx);
     return { kind: ExpressionKind.Load, type, bytes, signed, offset, align, ptr };
   }
@@ -1451,14 +1451,14 @@ class WatModuleParser {
   private parseStore(head: string, _list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
     let offset = 0, align = 0;
     let argIdx = 0;
-    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
-      if (raw.startsWith("offset=")) {
+      if (raw.startsWith('offset=')) {
         offset = parseInt(raw.slice(7));
         argIdx++;
         continue;
       }
-      if (raw.startsWith("align=")) {
+      if (raw.startsWith('align=')) {
         align = parseInt(raw.slice(6));
         argIdx++;
         continue;
@@ -1477,26 +1477,26 @@ class WatModuleParser {
 
   private parseSIMDConst(args: SExpr[]): ConstExpr {
     // (v128.const i8x16 b0 ... b15) or (v128.const i32x4 w0 w1 w2 w3) etc.
-    const laneType = atomText(args[0]) ?? "i8x16";
+    const laneType = atomText(args[0]) ?? 'i8x16';
     const bytes = new Uint8Array(16);
     const vals = args.slice(1).map((a) => Number(atomInt(a as Atom) ?? 0));
-    if (laneType === "i8x16") {
+    if (laneType === 'i8x16') {
       for (let i = 0; i < 16; i++) bytes[i] = (vals[i] ?? 0) & 0xff;
-    } else if (laneType === "i16x8") {
+    } else if (laneType === 'i16x8') {
       const dv = new DataView(bytes.buffer);
       for (let i = 0; i < 8; i++) dv.setInt16(i * 2, vals[i] ?? 0, true);
-    } else if (laneType === "i32x4") {
+    } else if (laneType === 'i32x4') {
       const dv = new DataView(bytes.buffer);
       for (let i = 0; i < 4; i++) dv.setInt32(i * 4, vals[i] ?? 0, true);
-    } else if (laneType === "i64x2") {
+    } else if (laneType === 'i64x2') {
       const dv = new DataView(bytes.buffer);
       for (let i = 0; i < 2; i++) {
         dv.setBigInt64(i * 8, BigInt(atomInt(args[1 + i] as Atom) ?? 0), true);
       }
-    } else if (laneType === "f32x4") {
+    } else if (laneType === 'f32x4') {
       const dv = new DataView(bytes.buffer);
       for (let i = 0; i < 4; i++) dv.setFloat32(i * 4, atomFloat(args[1 + i] as Atom) ?? 0, true);
-    } else if (laneType === "f64x2") {
+    } else if (laneType === 'f64x2') {
       const dv = new DataView(bytes.buffer);
       for (let i = 0; i < 2; i++) dv.setFloat64(i * 8, atomFloat(args[1 + i] as Atom) ?? 0, true);
     }
@@ -1508,7 +1508,7 @@ class WatModuleParser {
     // First 16 atoms are the mask bytes, then two expression operands
     const mask = new Uint8Array(16);
     let i = 0;
-    while (i < args.length && i < 16 && args[i]?.kind === "atom") {
+    while (i < args.length && i < 16 && args[i]?.kind === 'atom') {
       mask[i] = Number(atomInt(args[i] as Atom) ?? 0) & 0xff;
       i++;
     }
@@ -1550,14 +1550,14 @@ class WatModuleParser {
   private parseSIMDLoad(head: string, args: SExpr[], ctx: FuncContext): SIMDLoadExpr {
     // (v128.load8x8_s [offset=N] [align=N] <ptr>)
     let offset = 0, align = 0, argIdx = 0;
-    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
-      if (raw.startsWith("offset=")) {
+      if (raw.startsWith('offset=')) {
         offset = parseInt(raw.slice(7));
         argIdx++;
         continue;
       }
-      if (raw.startsWith("align=")) {
+      if (raw.startsWith('align=')) {
         align = parseInt(raw.slice(6));
         argIdx++;
         continue;
@@ -1574,14 +1574,14 @@ class WatModuleParser {
     // We accept lane as the first non-memarg integer, then memargs, then ptr, vec
     let offset = 0, align = 0, argIdx = 0;
     // Skip any leading memargs
-    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
-      if (raw.startsWith("offset=")) {
+      if (raw.startsWith('offset=')) {
         offset = parseInt(raw.slice(7));
         argIdx++;
         continue;
       }
-      if (raw.startsWith("align=")) {
+      if (raw.startsWith('align=')) {
         align = parseInt(raw.slice(6));
         argIdx++;
         continue;
@@ -1592,14 +1592,14 @@ class WatModuleParser {
     const lane = Number(atomInt(args[argIdx] as Atom) ?? 0);
     argIdx++;
     // Skip any trailing memargs
-    while (argIdx < args.length && args[argIdx]?.kind === "atom") {
+    while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
-      if (raw.startsWith("offset=")) {
+      if (raw.startsWith('offset=')) {
         offset = parseInt(raw.slice(7));
         argIdx++;
         continue;
       }
-      if (raw.startsWith("align=")) {
+      if (raw.startsWith('align=')) {
         align = parseInt(raw.slice(6));
         argIdx++;
         continue;
@@ -1633,7 +1633,7 @@ class WatModuleParser {
     const children = listChildren(list);
     let idx = 0;
     let name: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
@@ -1642,12 +1642,12 @@ class WatModuleParser {
     this.globalNames.set(internalName, globalIndex);
 
     const typeNode = children[idx++];
-    if (!typeNode) this.err("global: missing type", list.pos);
+    if (!typeNode) this.err('global: missing type', list.pos);
     const { type, mutable } = this.parseGlobalTypeNode(typeNode);
     this.globalTypes.set(internalName, type);
 
     const initNode = children[idx];
-    if (!initNode) this.err("global: missing init expression", list.pos);
+    if (!initNode) this.err('global: missing init expression', list.pos);
     const init = this.parseExpr(initNode, this.constExprContext());
 
     this.builder.addGlobal(internalName, type, mutable, init);
@@ -1655,9 +1655,9 @@ class WatModuleParser {
 
   /** Parses a global's type node: bare `<type>` or `(mut <type>)`. */
   private parseGlobalTypeNode(s: SExpr): { type: ValueType; mutable: boolean } {
-    if (s.kind === "list" && listHead(s as SList) === "mut") {
+    if (s.kind === 'list' && listHead(s as SList) === 'mut') {
       const inner = listChildren(s as SList)[0];
-      if (!inner) this.err("(mut ...) missing inner type", s.pos);
+      if (!inner) this.err('(mut ...) missing inner type', s.pos);
       return { type: this.parseValType(inner), mutable: true };
     }
     return { type: this.parseValType(s), mutable: false };
@@ -1679,7 +1679,7 @@ class WatModuleParser {
     const children = listChildren(list);
     let idx = 0;
     let name: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
@@ -1688,34 +1688,34 @@ class WatModuleParser {
     // Parse limits
     const initial = Number(atomInt(children[idx]) ?? 1);
     const max = children[idx + 1] ? (Number(atomInt(children[idx + 1]) ?? 0) || null) : null;
-    this.builder.addMemory(name ?? "$mem0", initial, max);
+    this.builder.addMemory(name ?? '$mem0', initial, max);
   }
 
   private collectTable(list: SList): void {
     const children = listChildren(list);
     let idx = 0;
     let name: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
     const tableIndex = this.tableNames.size;
     if (name) this.tableNames.set(name, tableIndex);
     const initial = Number(atomInt(children[idx]) ?? 0);
-    const max = children[idx + 1]?.kind === "atom"
+    const max = children[idx + 1]?.kind === 'atom'
       ? (Number(atomInt(children[idx + 1])) || null)
       : null;
     const refType = max !== null
       ? (this.tryParseValType(children[idx + 2]) ?? ValType.FuncRef)
       : (this.tryParseValType(children[idx + 1]) ?? ValType.FuncRef);
-    this.builder.addTable(name ?? "$table0", refType, initial, max);
+    this.builder.addTable(name ?? '$table0', refType, initial, max);
   }
 
   private collectTag(list: SList): void {
     const children = listChildren(list);
     let idx = 0;
     let name: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
@@ -1723,7 +1723,7 @@ class WatModuleParser {
     if (name) this.tagNames.set(name, tagIndex);
     // Parse (param ...) list for tag type
     const params: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "param")) {
+    while (idx < children.length && isListWith(children[idx], 'param')) {
       for (const t of listChildren(children[idx] as SList)) params.push(this.parseValType(t));
       idx++;
     }
@@ -1737,13 +1737,13 @@ class WatModuleParser {
   private parseExport(list: SList): void {
     const children = listChildren(list);
     const exportName = atomString(children[0]) ??
-      this.err("export: expected name string", list.pos);
-    if (children[1]?.kind !== "list") this.err("export: expected descriptor list", list.pos);
+      this.err('export: expected name string', list.pos);
+    if (children[1]?.kind !== 'list') this.err('export: expected descriptor list', list.pos);
     const desc = children[1] as SList;
     const head = listHead(desc);
     const internalRef = atomText(desc.children[1]) ??
-      this.err("export: expected internal name", list.pos);
-    if (!head) this.err("export: missing kind", list.pos);
+      this.err('export: expected internal name', list.pos);
+    if (!head) this.err('export: missing kind', list.pos);
     // The WAT descriptor keyword is `func`, but the IR (and binary parser /
     // encoder) use `function`. The other kinds (`memory` / `global` / `table` /
     // `tag`) are spelled identically in both. Without this mapping a standalone
@@ -1752,7 +1752,7 @@ class WatModuleParser {
     // match — corrupting the export section on encode and letting Inlining
     // delete the (apparently unreferenced) exported function. The inline
     // `(func (export "x") ...)` form was unaffected (it hard-codes "function").
-    const kind = (head === "func" ? "function" : head) as WasmExport["kind"];
+    const kind = (head === 'func' ? 'function' : head) as WasmExport['kind'];
     this.builder.addExport(exportName, internalRef, kind);
   }
 
@@ -1763,19 +1763,19 @@ class WatModuleParser {
   private parseData(list: SList): void {
     const children = listChildren(list);
     let idx = 0;
-    let name = `$data${this.builder["_dataSegments"]?.length ?? 0}`;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    let name = `$data${this.builder['_dataSegments']?.length ?? 0}`;
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
     // Skip optional memory ref: (memory $mem0)
-    if (idx < children.length && isListWith(children[idx], "memory")) idx++;
+    if (idx < children.length && isListWith(children[idx], 'memory')) idx++;
     // Optional offset expression: (offset ...) or (i32.const ...)
     let offset: Expression | null = null;
-    if (idx < children.length && children[idx]?.kind === "list") {
+    if (idx < children.length && children[idx]?.kind === 'list') {
       const child = children[idx] as SList;
       const head = listHead(child);
-      if (head === "offset" || head === "i32.const") {
+      if (head === 'offset' || head === 'i32.const') {
         const dummyCtx: FuncContext = {
           params: [],
           locals: [],
@@ -1784,7 +1784,7 @@ class WatModuleParser {
           labelDepth: 0,
           results: [],
         };
-        offset = head === "offset"
+        offset = head === 'offset'
           ? this.parseExpr(listChildren(child)[0], dummyCtx)
           : this.parseExpr(child, dummyCtx);
         idx++;
@@ -1824,19 +1824,19 @@ class WatModuleParser {
     const children = listChildren(list);
     let idx = 0;
     let name: string | null = null;
-    if (children[idx]?.kind === "atom" && (children[idx] as Atom).token.raw.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
     // Inline exports in import descriptor
-    while (idx < children.length && isListWith(children[idx], "export")) idx++;
+    while (idx < children.length && isListWith(children[idx], 'export')) idx++;
     const params: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "param")) {
+    while (idx < children.length && isListWith(children[idx], 'param')) {
       for (const t of listChildren(children[idx] as SList)) params.push(this.parseValType(t));
       idx++;
     }
     const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], "result")) {
+    while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
@@ -1851,32 +1851,32 @@ class WatModuleParser {
     const children = listChildren(list);
     let idx = 0;
     let name: string | null = null;
-    if (children[idx]?.kind === "atom" && atomText(children[idx])?.startsWith("$")) {
+    if (children[idx]?.kind === 'atom' && atomText(children[idx])?.startsWith('$')) {
       name = atomText(children[idx]) ?? null;
       idx++;
     }
-    if (idx >= children.length || children[idx]?.kind !== "list") return;
+    if (idx >= children.length || children[idx]?.kind !== 'list') return;
     const body = children[idx] as SList;
     const bodyHead = listHead(body);
     let def: TypeDef | null = null;
-    if (bodyHead === "struct") {
-      def = { kind: "struct", fields: this.parseStructFields(body) };
-    } else if (bodyHead === "array") {
+    if (bodyHead === 'struct') {
+      def = { kind: 'struct', fields: this.parseStructFields(body) };
+    } else if (bodyHead === 'array') {
       const element = this.parseArrayElement(body);
-      if (element) def = { kind: "array", element };
-    } else if (bodyHead === "func") {
+      if (element) def = { kind: 'array', element };
+    } else if (bodyHead === 'func') {
       // (type $sig (func (param ...) (result ...))) — module-level function
       // signature declaration. parseFuncType accepts an unnamed func-shape
       // list (the inner body here has no $name atom in position 0).
       const ft = this.parseFuncType(body);
-      def = { kind: "func", params: ft.params, results: ft.results };
+      def = { kind: 'func', params: ft.params, results: ft.results };
     }
     if (def) {
       const ti = this.builder.addHeapType(def);
       this.heapTypeDefs.set(ti, def);
       if (name) {
         this.typeNames.set(name, ti);
-        if (def.kind === "func") this.funcTypeDefs.set(name, def);
+        if (def.kind === 'func') this.funcTypeDefs.set(name, def);
       }
     }
   }
@@ -1885,14 +1885,14 @@ class WatModuleParser {
    *  type: packed `i8`/`i16` fields unpack to `i32` (the `_s`/`_u` variants
    *  select the extension), every other storage type reads back as itself. */
   private _storageResultType(storage: StorageType): ValType {
-    return storage === "i8" || storage === "i16" ? ValType.I32 : storage as ValType;
+    return storage === 'i8' || storage === 'i16' ? ValType.I32 : storage as ValType;
   }
 
   /** Declared result type of `struct.get $ti fi` (falls back to i32 if the type
    *  index isn't a known struct or the field index is out of range). */
   private _structFieldType(ti: number, fi: number): ValType {
     const def = this.heapTypeDefs.get(ti);
-    if (def?.kind === "struct" && def.fields[fi]) {
+    if (def?.kind === 'struct' && def.fields[fi]) {
       return this._storageResultType(def.fields[fi].type);
     }
     return ValType.I32;
@@ -1901,14 +1901,14 @@ class WatModuleParser {
   /** Declared storage type of `struct.get $ti $fi`, or `null` if unknown. */
   private _structFieldStorage(ti: number, fi: number): StorageType | null {
     const def = this.heapTypeDefs.get(ti);
-    if (def?.kind === "struct" && def.fields[fi]) return def.fields[fi].type;
+    if (def?.kind === 'struct' && def.fields[fi]) return def.fields[fi].type;
     return null;
   }
 
   /** Declared storage type of `array.get $ti`'s element, or `null` if unknown. */
   private _arrayElementStorage(ti: number): StorageType | null {
     const def = this.heapTypeDefs.get(ti);
-    if (def?.kind === "array") return def.element.type;
+    if (def?.kind === 'array') return def.element.type;
     return null;
   }
 
@@ -1932,7 +1932,7 @@ class WatModuleParser {
    */
   private _checkPackedGet(
     head: string,
-    family: "struct" | "array",
+    family: 'struct' | 'array',
     storage: StorageType | null,
   ): void {
     if (storage === null) return;
@@ -1955,20 +1955,20 @@ class WatModuleParser {
   /** Declared result type of `array.get $ti` (falls back to i32 if unknown). */
   private _arrayElementType(ti: number): ValType {
     const def = this.heapTypeDefs.get(ti);
-    if (def?.kind === "array") return this._storageResultType(def.element.type);
+    if (def?.kind === 'array') return this._storageResultType(def.element.type);
     return ValType.I32;
   }
 
   private parseStructFields(list: SList): FieldType[] {
     const fields: FieldType[] = [];
     for (const child of listChildren(list)) {
-      if (child.kind !== "list" || listHead(child as SList) !== "field") continue;
+      if (child.kind !== 'list' || listHead(child as SList) !== 'field') continue;
       const fChildren = listChildren(child as SList);
       let ci = 0;
       // Skip optional field name
-      if (fChildren[ci]?.kind === "atom" && atomText(fChildren[ci])?.startsWith("$")) ci++;
+      if (fChildren[ci]?.kind === 'atom' && atomText(fChildren[ci])?.startsWith('$')) ci++;
       // Check for (mut storageType)
-      if (fChildren[ci]?.kind === "list" && listHead(fChildren[ci] as SList) === "mut") {
+      if (fChildren[ci]?.kind === 'list' && listHead(fChildren[ci] as SList) === 'mut') {
         const inner = listChildren(fChildren[ci] as SList)[0];
         const type = this.parseStorageTypeSExpr(inner);
         fields.push({ type, mutable: true });
@@ -1984,7 +1984,7 @@ class WatModuleParser {
     const children = listChildren(list);
     if (children.length === 0) return null;
     // (array (mut storageType)) or (array storageType)
-    if (children[0]?.kind === "list" && listHead(children[0] as SList) === "mut") {
+    if (children[0]?.kind === 'list' && listHead(children[0] as SList) === 'mut') {
       const inner = listChildren(children[0] as SList)[0];
       return { type: this.parseStorageTypeSExpr(inner), mutable: true };
     }
@@ -1997,24 +1997,24 @@ class WatModuleParser {
     // reporting the malformed input. The signature also lied about it, claiming
     // an `SExpr` while the body tested for absence.
     if (s === undefined) {
-      return this.err("expected a storage type, found nothing", this._opPos);
+      return this.err('expected a storage type, found nothing', this._opPos);
     }
     const raw = atomText(s);
-    if (raw === "i8") return "i8";
-    if (raw === "i16") return "i16";
+    if (raw === 'i8') return 'i8';
+    if (raw === 'i16') return 'i16';
     return this.tryParseValType(s) ?? this.err(`unknown storage type: ${sExprToString(s)}`, s.pos);
   }
 
   private resolveTypeIndex(s: SExpr | undefined): number {
-    if (!s) return this.err("missing type reference");
+    if (!s) return this.err('missing type reference');
     const raw = atomText(s);
-    if (raw?.startsWith("$")) {
+    if (raw?.startsWith('$')) {
       // A silent `?? 0` here mapped an unknown `(type $name)` to type index 0 —
       // the exact wrong-signature miscompile class the hardening sweeps closed.
       return this.typeNames.get(raw) ?? this.err(`unknown type: ${raw}`, s.pos);
     }
     const n = Number(atomInt(s));
-    if (!Number.isFinite(n)) return this.err(`expected type index, got: ${raw ?? "?"}`, s.pos);
+    if (!Number.isFinite(n)) return this.err(`expected type index, got: ${raw ?? '?'}`, s.pos);
     return n;
   }
 
@@ -2022,7 +2022,7 @@ class WatModuleParser {
     if (!s) return AbstractHeapType.Any;
     const raw = atomText(s);
     if (!raw) return AbstractHeapType.Any;
-    if (raw.startsWith("$")) {
+    if (raw.startsWith('$')) {
       return this.typeNames.get(raw) ?? this.err(`unknown heap type: ${raw}`, s.pos);
     }
     const abstractMap: Record<string, AbstractHeapType> = {
@@ -2049,21 +2049,21 @@ class WatModuleParser {
   // -------------------------------------------------------------------------
 
   private parseValType(s: SExpr | undefined): ValueType {
-    if (s === undefined) return this.err("expected a value type, found nothing", this._opPos);
+    if (s === undefined) return this.err('expected a value type, found nothing', this._opPos);
     return this.tryParseValType(s) ?? this.err(`unknown value type: ${sExprToString(s)}`, s.pos);
   }
 
   private tryParseValType(s: SExpr | undefined): ValueType | null {
     if (s === undefined) return null;
     // Handle (ref ...) and (ref null ...) list forms
-    if (s.kind === "list") {
+    if (s.kind === 'list') {
       const l = s as SList;
-      if (listHead(l) === "ref") {
+      if (listHead(l) === 'ref') {
         // `(ref null $T)` / `(ref $T)`. This used to return `ValType.AnyRef`
         // from BOTH arms of a no-op ternary, discarding the heap type and the
         // nullability — the WAT-side half of UP-7. Build the real `RefType`.
         const ch = listChildren(l);
-        const nullable = atomText(ch[0]) === "null";
+        const nullable = atomText(ch[0]) === 'null';
         const heapExpr = nullable ? ch[1] : ch[0];
         if (!heapExpr) {
           this.err(`(ref ...) is missing a heap type`, l.pos);
@@ -2111,7 +2111,7 @@ class WatModuleParser {
     if (!s) this.err(`${instr}: missing local index`);
     const raw = atomText(s!);
     let index: number;
-    if (raw?.startsWith("$")) {
+    if (raw?.startsWith('$')) {
       index = ctx.localNames.get(raw) ?? this.err(`${instr}: unknown local ${raw}`, s!.pos);
     } else {
       const n = Number(atomInt(s!));
@@ -2136,19 +2136,19 @@ class WatModuleParser {
    *  the table reference; otherwise default to the first defined table.
    *  Returns the table name and the unconsumed remaining args. */
   private _takeOptionalTableRef(args: SExpr[]): { table: string; rest: SExpr[] } {
-    if (args.length > 0 && args[0]?.kind === "atom") {
+    if (args.length > 0 && args[0]?.kind === 'atom') {
       const raw = (args[0] as Atom).token.raw;
-      if (raw.startsWith("$") && this.tableNames.has(raw)) {
+      if (raw.startsWith('$') && this.tableNames.has(raw)) {
         return { table: raw, rest: args.slice(1) };
       }
     }
     // No explicit table ref — default to the first table by name.
-    const defaultTable = this.tableNames.keys().next().value ?? "$table0";
+    const defaultTable = this.tableNames.keys().next().value ?? '$table0';
     return { table: defaultTable, rest: args };
   }
 
   private resolveLabel(ref: string, ctx: FuncContext, pos: TextPos): string {
-    if (ref.startsWith("$")) {
+    if (ref.startsWith('$')) {
       if (!ctx.labels.has(ref)) this.err(`unknown label: ${ref}`, pos);
       return ref;
     }
@@ -2191,7 +2191,7 @@ class WatModuleParser {
     if (!s) this.err(`${instr}: missing integer argument`);
     const v = atomInt(s!);
     if (v === null) this.err(`${instr}: expected integer`, s!.pos);
-    return typeof v === "bigint" ? v : BigInt(v!);
+    return typeof v === 'bigint' ? v : BigInt(v!);
   }
 
   private expectFloat(s: SExpr | undefined, instr: string): number {
@@ -2208,7 +2208,7 @@ class WatModuleParser {
   // -------------------------------------------------------------------------
 
   private expectList(s: SExpr, head: string): SList {
-    if (s.kind !== "list") this.err(`expected (${head} ...) but got atom`);
+    if (s.kind !== 'list') this.err(`expected (${head} ...) but got atom`);
     if (listHead(s as SList) !== head) {
       this.err(`expected (${head} ...) but got (${listHead(s as SList)} ...)`, s.pos);
     }
@@ -2262,410 +2262,410 @@ interface RawFunc {
 
 // SIMD special-form op tables (used by parseSIMD* helpers)
 const SIMD_EXTRACT_OPS: Record<string, SIMDExtractOp> = {
-  "i8x16.extract_lane_s": SIMDExtractOp.ExtractLaneSVecI8x16,
-  "i8x16.extract_lane_u": SIMDExtractOp.ExtractLaneUVecI8x16,
-  "i16x8.extract_lane_s": SIMDExtractOp.ExtractLaneSVecI16x8,
-  "i16x8.extract_lane_u": SIMDExtractOp.ExtractLaneUVecI16x8,
-  "i32x4.extract_lane": SIMDExtractOp.ExtractLaneVecI32x4,
-  "i64x2.extract_lane": SIMDExtractOp.ExtractLaneVecI64x2,
-  "f32x4.extract_lane": SIMDExtractOp.ExtractLaneVecF32x4,
-  "f64x2.extract_lane": SIMDExtractOp.ExtractLaneVecF64x2,
+  'i8x16.extract_lane_s': SIMDExtractOp.ExtractLaneSVecI8x16,
+  'i8x16.extract_lane_u': SIMDExtractOp.ExtractLaneUVecI8x16,
+  'i16x8.extract_lane_s': SIMDExtractOp.ExtractLaneSVecI16x8,
+  'i16x8.extract_lane_u': SIMDExtractOp.ExtractLaneUVecI16x8,
+  'i32x4.extract_lane': SIMDExtractOp.ExtractLaneVecI32x4,
+  'i64x2.extract_lane': SIMDExtractOp.ExtractLaneVecI64x2,
+  'f32x4.extract_lane': SIMDExtractOp.ExtractLaneVecF32x4,
+  'f64x2.extract_lane': SIMDExtractOp.ExtractLaneVecF64x2,
 };
 const SIMD_REPLACE_OPS: Record<string, SIMDReplaceOp> = {
-  "i8x16.replace_lane": SIMDReplaceOp.ReplaceLaneVecI8x16,
-  "i16x8.replace_lane": SIMDReplaceOp.ReplaceLaneVecI16x8,
-  "i32x4.replace_lane": SIMDReplaceOp.ReplaceLaneVecI32x4,
-  "i64x2.replace_lane": SIMDReplaceOp.ReplaceLaneVecI64x2,
-  "f32x4.replace_lane": SIMDReplaceOp.ReplaceLaneVecF32x4,
-  "f64x2.replace_lane": SIMDReplaceOp.ReplaceLaneVecF64x2,
+  'i8x16.replace_lane': SIMDReplaceOp.ReplaceLaneVecI8x16,
+  'i16x8.replace_lane': SIMDReplaceOp.ReplaceLaneVecI16x8,
+  'i32x4.replace_lane': SIMDReplaceOp.ReplaceLaneVecI32x4,
+  'i64x2.replace_lane': SIMDReplaceOp.ReplaceLaneVecI64x2,
+  'f32x4.replace_lane': SIMDReplaceOp.ReplaceLaneVecF32x4,
+  'f64x2.replace_lane': SIMDReplaceOp.ReplaceLaneVecF64x2,
 };
 const SIMD_SHIFT_OPS: Record<string, SIMDShiftOp> = {
-  "i8x16.shl": SIMDShiftOp.ShlVecI8x16,
-  "i8x16.shr_s": SIMDShiftOp.ShrSVecI8x16,
-  "i8x16.shr_u": SIMDShiftOp.ShrUVecI8x16,
-  "i16x8.shl": SIMDShiftOp.ShlVecI16x8,
-  "i16x8.shr_s": SIMDShiftOp.ShrSVecI16x8,
-  "i16x8.shr_u": SIMDShiftOp.ShrUVecI16x8,
-  "i32x4.shl": SIMDShiftOp.ShlVecI32x4,
-  "i32x4.shr_s": SIMDShiftOp.ShrSVecI32x4,
-  "i32x4.shr_u": SIMDShiftOp.ShrUVecI32x4,
-  "i64x2.shl": SIMDShiftOp.ShlVecI64x2,
-  "i64x2.shr_s": SIMDShiftOp.ShrSVecI64x2,
-  "i64x2.shr_u": SIMDShiftOp.ShrUVecI64x2,
+  'i8x16.shl': SIMDShiftOp.ShlVecI8x16,
+  'i8x16.shr_s': SIMDShiftOp.ShrSVecI8x16,
+  'i8x16.shr_u': SIMDShiftOp.ShrUVecI8x16,
+  'i16x8.shl': SIMDShiftOp.ShlVecI16x8,
+  'i16x8.shr_s': SIMDShiftOp.ShrSVecI16x8,
+  'i16x8.shr_u': SIMDShiftOp.ShrUVecI16x8,
+  'i32x4.shl': SIMDShiftOp.ShlVecI32x4,
+  'i32x4.shr_s': SIMDShiftOp.ShrSVecI32x4,
+  'i32x4.shr_u': SIMDShiftOp.ShrUVecI32x4,
+  'i64x2.shl': SIMDShiftOp.ShlVecI64x2,
+  'i64x2.shr_s': SIMDShiftOp.ShrSVecI64x2,
+  'i64x2.shr_u': SIMDShiftOp.ShrUVecI64x2,
 };
 const SIMD_LOAD_OPS: Record<string, SIMDLoadOp> = {
-  "v128.load8_splat": SIMDLoadOp.Load8SplatVec128,
-  "v128.load16_splat": SIMDLoadOp.Load16SplatVec128,
-  "v128.load32_splat": SIMDLoadOp.Load32SplatVec128,
-  "v128.load64_splat": SIMDLoadOp.Load64SplatVec128,
-  "v128.load8x8_s": SIMDLoadOp.Load8x8SVec128,
-  "v128.load8x8_u": SIMDLoadOp.Load8x8UVec128,
-  "v128.load16x4_s": SIMDLoadOp.Load16x4SVec128,
-  "v128.load16x4_u": SIMDLoadOp.Load16x4UVec128,
-  "v128.load32x2_s": SIMDLoadOp.Load32x2SVec128,
-  "v128.load32x2_u": SIMDLoadOp.Load32x2UVec128,
-  "v128.load32_zero": SIMDLoadOp.Load32ZeroVec128,
-  "v128.load64_zero": SIMDLoadOp.Load64ZeroVec128,
+  'v128.load8_splat': SIMDLoadOp.Load8SplatVec128,
+  'v128.load16_splat': SIMDLoadOp.Load16SplatVec128,
+  'v128.load32_splat': SIMDLoadOp.Load32SplatVec128,
+  'v128.load64_splat': SIMDLoadOp.Load64SplatVec128,
+  'v128.load8x8_s': SIMDLoadOp.Load8x8SVec128,
+  'v128.load8x8_u': SIMDLoadOp.Load8x8UVec128,
+  'v128.load16x4_s': SIMDLoadOp.Load16x4SVec128,
+  'v128.load16x4_u': SIMDLoadOp.Load16x4UVec128,
+  'v128.load32x2_s': SIMDLoadOp.Load32x2SVec128,
+  'v128.load32x2_u': SIMDLoadOp.Load32x2UVec128,
+  'v128.load32_zero': SIMDLoadOp.Load32ZeroVec128,
+  'v128.load64_zero': SIMDLoadOp.Load64ZeroVec128,
 };
 const SIMD_LANE_OPS: Record<string, SIMDLoadStoreLaneOp> = {
-  "v128.load8_lane": SIMDLoadStoreLaneOp.Load8LaneVec128,
-  "v128.load16_lane": SIMDLoadStoreLaneOp.Load16LaneVec128,
-  "v128.load32_lane": SIMDLoadStoreLaneOp.Load32LaneVec128,
-  "v128.load64_lane": SIMDLoadStoreLaneOp.Load64LaneVec128,
-  "v128.store8_lane": SIMDLoadStoreLaneOp.Store8LaneVec128,
-  "v128.store16_lane": SIMDLoadStoreLaneOp.Store16LaneVec128,
-  "v128.store32_lane": SIMDLoadStoreLaneOp.Store32LaneVec128,
-  "v128.store64_lane": SIMDLoadStoreLaneOp.Store64LaneVec128,
+  'v128.load8_lane': SIMDLoadStoreLaneOp.Load8LaneVec128,
+  'v128.load16_lane': SIMDLoadStoreLaneOp.Load16LaneVec128,
+  'v128.load32_lane': SIMDLoadStoreLaneOp.Load32LaneVec128,
+  'v128.load64_lane': SIMDLoadStoreLaneOp.Load64LaneVec128,
+  'v128.store8_lane': SIMDLoadStoreLaneOp.Store8LaneVec128,
+  'v128.store16_lane': SIMDLoadStoreLaneOp.Store16LaneVec128,
+  'v128.store32_lane': SIMDLoadStoreLaneOp.Store32LaneVec128,
+  'v128.store64_lane': SIMDLoadStoreLaneOp.Store64LaneVec128,
 };
 
 const UNARY_OPS: Record<string, UnaryOp> = {
-  "i32.clz": UnaryOp.ClzI32,
-  "i32.ctz": UnaryOp.CtzI32,
-  "i32.popcnt": UnaryOp.PopcntI32,
-  "i32.eqz": UnaryOp.EqzI32,
-  "i64.clz": UnaryOp.ClzI64,
-  "i64.ctz": UnaryOp.CtzI64,
-  "i64.popcnt": UnaryOp.PopcntI64,
-  "i64.eqz": UnaryOp.EqzI64,
-  "f32.abs": UnaryOp.AbsF32,
-  "f32.neg": UnaryOp.NegF32,
-  "f32.ceil": UnaryOp.CeilF32,
-  "f32.floor": UnaryOp.FloorF32,
-  "f32.trunc": UnaryOp.TruncF32,
-  "f32.nearest": UnaryOp.NearestF32,
-  "f32.sqrt": UnaryOp.SqrtF32,
-  "f64.abs": UnaryOp.AbsF64,
-  "f64.neg": UnaryOp.NegF64,
-  "f64.ceil": UnaryOp.CeilF64,
-  "f64.floor": UnaryOp.FloorF64,
-  "f64.trunc": UnaryOp.TruncF64,
-  "f64.nearest": UnaryOp.NearestF64,
-  "f64.sqrt": UnaryOp.SqrtF64,
-  "i64.extend_i32_s": UnaryOp.ExtendSI32,
-  "i64.extend_i32_u": UnaryOp.ExtendUI32,
-  "i32.wrap_i64": UnaryOp.WrapI64,
-  "i32.trunc_f32_s": UnaryOp.TruncSF32ToI32,
-  "i32.trunc_f32_u": UnaryOp.TruncUF32ToI32,
-  "i32.trunc_f64_s": UnaryOp.TruncSF64ToI32,
-  "i32.trunc_f64_u": UnaryOp.TruncUF64ToI32,
-  "i64.trunc_f32_s": UnaryOp.TruncSF32ToI64,
-  "i64.trunc_f32_u": UnaryOp.TruncUF32ToI64,
-  "i64.trunc_f64_s": UnaryOp.TruncSF64ToI64,
-  "i64.trunc_f64_u": UnaryOp.TruncUF64ToI64,
-  "f64.promote_f32": UnaryOp.PromoteF32,
-  "f32.demote_f64": UnaryOp.DemoteF64,
-  "f32.convert_i32_s": UnaryOp.ConvertSI32ToF32,
-  "f32.convert_i32_u": UnaryOp.ConvertUI32ToF32,
-  "f32.convert_i64_s": UnaryOp.ConvertSI64ToF32,
-  "f32.convert_i64_u": UnaryOp.ConvertUI64ToF32,
-  "f64.convert_i32_s": UnaryOp.ConvertSI32ToF64,
-  "f64.convert_i32_u": UnaryOp.ConvertUI32ToF64,
-  "f64.convert_i64_s": UnaryOp.ConvertSI64ToF64,
-  "f64.convert_i64_u": UnaryOp.ConvertUI64ToF64,
-  "f32.reinterpret_i32": UnaryOp.ReinterpretI32,
-  "f64.reinterpret_i64": UnaryOp.ReinterpretI64,
-  "i32.reinterpret_f32": UnaryOp.ReinterpretF32,
-  "i64.reinterpret_f64": UnaryOp.ReinterpretF64,
-  "i32.extend8_s": UnaryOp.ExtendS8I32,
-  "i32.extend16_s": UnaryOp.ExtendS16I32,
-  "i64.extend8_s": UnaryOp.ExtendS8I64,
-  "i64.extend16_s": UnaryOp.ExtendS16I64,
-  "i64.extend32_s": UnaryOp.ExtendS32I64,
+  'i32.clz': UnaryOp.ClzI32,
+  'i32.ctz': UnaryOp.CtzI32,
+  'i32.popcnt': UnaryOp.PopcntI32,
+  'i32.eqz': UnaryOp.EqzI32,
+  'i64.clz': UnaryOp.ClzI64,
+  'i64.ctz': UnaryOp.CtzI64,
+  'i64.popcnt': UnaryOp.PopcntI64,
+  'i64.eqz': UnaryOp.EqzI64,
+  'f32.abs': UnaryOp.AbsF32,
+  'f32.neg': UnaryOp.NegF32,
+  'f32.ceil': UnaryOp.CeilF32,
+  'f32.floor': UnaryOp.FloorF32,
+  'f32.trunc': UnaryOp.TruncF32,
+  'f32.nearest': UnaryOp.NearestF32,
+  'f32.sqrt': UnaryOp.SqrtF32,
+  'f64.abs': UnaryOp.AbsF64,
+  'f64.neg': UnaryOp.NegF64,
+  'f64.ceil': UnaryOp.CeilF64,
+  'f64.floor': UnaryOp.FloorF64,
+  'f64.trunc': UnaryOp.TruncF64,
+  'f64.nearest': UnaryOp.NearestF64,
+  'f64.sqrt': UnaryOp.SqrtF64,
+  'i64.extend_i32_s': UnaryOp.ExtendSI32,
+  'i64.extend_i32_u': UnaryOp.ExtendUI32,
+  'i32.wrap_i64': UnaryOp.WrapI64,
+  'i32.trunc_f32_s': UnaryOp.TruncSF32ToI32,
+  'i32.trunc_f32_u': UnaryOp.TruncUF32ToI32,
+  'i32.trunc_f64_s': UnaryOp.TruncSF64ToI32,
+  'i32.trunc_f64_u': UnaryOp.TruncUF64ToI32,
+  'i64.trunc_f32_s': UnaryOp.TruncSF32ToI64,
+  'i64.trunc_f32_u': UnaryOp.TruncUF32ToI64,
+  'i64.trunc_f64_s': UnaryOp.TruncSF64ToI64,
+  'i64.trunc_f64_u': UnaryOp.TruncUF64ToI64,
+  'f64.promote_f32': UnaryOp.PromoteF32,
+  'f32.demote_f64': UnaryOp.DemoteF64,
+  'f32.convert_i32_s': UnaryOp.ConvertSI32ToF32,
+  'f32.convert_i32_u': UnaryOp.ConvertUI32ToF32,
+  'f32.convert_i64_s': UnaryOp.ConvertSI64ToF32,
+  'f32.convert_i64_u': UnaryOp.ConvertUI64ToF32,
+  'f64.convert_i32_s': UnaryOp.ConvertSI32ToF64,
+  'f64.convert_i32_u': UnaryOp.ConvertUI32ToF64,
+  'f64.convert_i64_s': UnaryOp.ConvertSI64ToF64,
+  'f64.convert_i64_u': UnaryOp.ConvertUI64ToF64,
+  'f32.reinterpret_i32': UnaryOp.ReinterpretI32,
+  'f64.reinterpret_i64': UnaryOp.ReinterpretI64,
+  'i32.reinterpret_f32': UnaryOp.ReinterpretF32,
+  'i64.reinterpret_f64': UnaryOp.ReinterpretF64,
+  'i32.extend8_s': UnaryOp.ExtendS8I32,
+  'i32.extend16_s': UnaryOp.ExtendS16I32,
+  'i64.extend8_s': UnaryOp.ExtendS8I64,
+  'i64.extend16_s': UnaryOp.ExtendS16I64,
+  'i64.extend32_s': UnaryOp.ExtendS32I64,
   // SIMD splats
-  "i8x16.splat": UnaryOp.SplatVecI8x16,
-  "i16x8.splat": UnaryOp.SplatVecI16x8,
-  "i32x4.splat": UnaryOp.SplatVecI32x4,
-  "i64x2.splat": UnaryOp.SplatVecI64x2,
-  "f32x4.splat": UnaryOp.SplatVecF32x4,
-  "f64x2.splat": UnaryOp.SplatVecF64x2,
+  'i8x16.splat': UnaryOp.SplatVecI8x16,
+  'i16x8.splat': UnaryOp.SplatVecI16x8,
+  'i32x4.splat': UnaryOp.SplatVecI32x4,
+  'i64x2.splat': UnaryOp.SplatVecI64x2,
+  'f32x4.splat': UnaryOp.SplatVecF32x4,
+  'f64x2.splat': UnaryOp.SplatVecF64x2,
   // SIMD v128 bitwise/logical
-  "v128.not": UnaryOp.NotVec128,
-  "v128.any_true": UnaryOp.AnyTrueVec128,
+  'v128.not': UnaryOp.NotVec128,
+  'v128.any_true': UnaryOp.AnyTrueVec128,
   // SIMD i8x16
-  "i8x16.abs": UnaryOp.AbsVecI8x16,
-  "i8x16.neg": UnaryOp.NegVecI8x16,
-  "i8x16.popcnt": UnaryOp.PopcntVecI8x16,
-  "i8x16.all_true": UnaryOp.AllTrueVecI8x16,
-  "i8x16.bitmask": UnaryOp.BitmaskVecI8x16,
+  'i8x16.abs': UnaryOp.AbsVecI8x16,
+  'i8x16.neg': UnaryOp.NegVecI8x16,
+  'i8x16.popcnt': UnaryOp.PopcntVecI8x16,
+  'i8x16.all_true': UnaryOp.AllTrueVecI8x16,
+  'i8x16.bitmask': UnaryOp.BitmaskVecI8x16,
   // SIMD i16x8
-  "i16x8.abs": UnaryOp.AbsVecI16x8,
-  "i16x8.neg": UnaryOp.NegVecI16x8,
-  "i16x8.all_true": UnaryOp.AllTrueVecI16x8,
-  "i16x8.bitmask": UnaryOp.BitmaskVecI16x8,
-  "i16x8.extend_low_i8x16_s": UnaryOp.ExtendLowSVecI8x16ToI16x8,
-  "i16x8.extend_high_i8x16_s": UnaryOp.ExtendHighSVecI8x16ToI16x8,
-  "i16x8.extend_low_i8x16_u": UnaryOp.ExtendLowUVecI8x16ToI16x8,
-  "i16x8.extend_high_i8x16_u": UnaryOp.ExtendHighUVecI8x16ToI16x8,
-  "i16x8.extadd_pairwise_i8x16_s": UnaryOp.ExtaddPairwiseSVecI8x16ToI16x8,
-  "i16x8.extadd_pairwise_i8x16_u": UnaryOp.ExtaddPairwiseUVecI8x16ToI16x8,
+  'i16x8.abs': UnaryOp.AbsVecI16x8,
+  'i16x8.neg': UnaryOp.NegVecI16x8,
+  'i16x8.all_true': UnaryOp.AllTrueVecI16x8,
+  'i16x8.bitmask': UnaryOp.BitmaskVecI16x8,
+  'i16x8.extend_low_i8x16_s': UnaryOp.ExtendLowSVecI8x16ToI16x8,
+  'i16x8.extend_high_i8x16_s': UnaryOp.ExtendHighSVecI8x16ToI16x8,
+  'i16x8.extend_low_i8x16_u': UnaryOp.ExtendLowUVecI8x16ToI16x8,
+  'i16x8.extend_high_i8x16_u': UnaryOp.ExtendHighUVecI8x16ToI16x8,
+  'i16x8.extadd_pairwise_i8x16_s': UnaryOp.ExtaddPairwiseSVecI8x16ToI16x8,
+  'i16x8.extadd_pairwise_i8x16_u': UnaryOp.ExtaddPairwiseUVecI8x16ToI16x8,
   // SIMD i32x4
-  "i32x4.abs": UnaryOp.AbsVecI32x4,
-  "i32x4.neg": UnaryOp.NegVecI32x4,
-  "i32x4.all_true": UnaryOp.AllTrueVecI32x4,
-  "i32x4.bitmask": UnaryOp.BitmaskVecI32x4,
-  "i32x4.extend_low_i16x8_s": UnaryOp.ExtendLowSVecI16x8ToI32x4,
-  "i32x4.extend_high_i16x8_s": UnaryOp.ExtendHighSVecI16x8ToI32x4,
-  "i32x4.extend_low_i16x8_u": UnaryOp.ExtendLowUVecI16x8ToI32x4,
-  "i32x4.extend_high_i16x8_u": UnaryOp.ExtendHighUVecI16x8ToI32x4,
-  "i32x4.extadd_pairwise_i16x8_s": UnaryOp.ExtaddPairwiseSVecI16x8ToI32x4,
-  "i32x4.extadd_pairwise_i16x8_u": UnaryOp.ExtaddPairwiseUVecI16x8ToI32x4,
+  'i32x4.abs': UnaryOp.AbsVecI32x4,
+  'i32x4.neg': UnaryOp.NegVecI32x4,
+  'i32x4.all_true': UnaryOp.AllTrueVecI32x4,
+  'i32x4.bitmask': UnaryOp.BitmaskVecI32x4,
+  'i32x4.extend_low_i16x8_s': UnaryOp.ExtendLowSVecI16x8ToI32x4,
+  'i32x4.extend_high_i16x8_s': UnaryOp.ExtendHighSVecI16x8ToI32x4,
+  'i32x4.extend_low_i16x8_u': UnaryOp.ExtendLowUVecI16x8ToI32x4,
+  'i32x4.extend_high_i16x8_u': UnaryOp.ExtendHighUVecI16x8ToI32x4,
+  'i32x4.extadd_pairwise_i16x8_s': UnaryOp.ExtaddPairwiseSVecI16x8ToI32x4,
+  'i32x4.extadd_pairwise_i16x8_u': UnaryOp.ExtaddPairwiseUVecI16x8ToI32x4,
   // SIMD i64x2
-  "i64x2.abs": UnaryOp.AbsVecI64x2,
-  "i64x2.neg": UnaryOp.NegVecI64x2,
-  "i64x2.all_true": UnaryOp.AllTrueVecI64x2,
-  "i64x2.bitmask": UnaryOp.BitmaskVecI64x2,
-  "i64x2.extend_low_i32x4_s": UnaryOp.ExtendLowSVecI32x4ToI64x2,
-  "i64x2.extend_high_i32x4_s": UnaryOp.ExtendHighSVecI32x4ToI64x2,
-  "i64x2.extend_low_i32x4_u": UnaryOp.ExtendLowUVecI32x4ToI64x2,
-  "i64x2.extend_high_i32x4_u": UnaryOp.ExtendHighUVecI32x4ToI64x2,
+  'i64x2.abs': UnaryOp.AbsVecI64x2,
+  'i64x2.neg': UnaryOp.NegVecI64x2,
+  'i64x2.all_true': UnaryOp.AllTrueVecI64x2,
+  'i64x2.bitmask': UnaryOp.BitmaskVecI64x2,
+  'i64x2.extend_low_i32x4_s': UnaryOp.ExtendLowSVecI32x4ToI64x2,
+  'i64x2.extend_high_i32x4_s': UnaryOp.ExtendHighSVecI32x4ToI64x2,
+  'i64x2.extend_low_i32x4_u': UnaryOp.ExtendLowUVecI32x4ToI64x2,
+  'i64x2.extend_high_i32x4_u': UnaryOp.ExtendHighUVecI32x4ToI64x2,
   // SIMD f32x4
-  "f32x4.abs": UnaryOp.AbsVecF32x4,
-  "f32x4.neg": UnaryOp.NegVecF32x4,
-  "f32x4.sqrt": UnaryOp.SqrtVecF32x4,
-  "f32x4.ceil": UnaryOp.CeilVecF32x4,
-  "f32x4.floor": UnaryOp.FloorVecF32x4,
-  "f32x4.trunc": UnaryOp.TruncVecF32x4,
-  "f32x4.nearest": UnaryOp.NearestVecF32x4,
-  "f32x4.convert_i32x4_s": UnaryOp.ConvertSVecI32x4ToF32x4,
-  "f32x4.convert_i32x4_u": UnaryOp.ConvertUVecI32x4ToF32x4,
-  "f32x4.demote_f64x2_zero": UnaryOp.DemoteZeroVecF64x2ToF32x4,
+  'f32x4.abs': UnaryOp.AbsVecF32x4,
+  'f32x4.neg': UnaryOp.NegVecF32x4,
+  'f32x4.sqrt': UnaryOp.SqrtVecF32x4,
+  'f32x4.ceil': UnaryOp.CeilVecF32x4,
+  'f32x4.floor': UnaryOp.FloorVecF32x4,
+  'f32x4.trunc': UnaryOp.TruncVecF32x4,
+  'f32x4.nearest': UnaryOp.NearestVecF32x4,
+  'f32x4.convert_i32x4_s': UnaryOp.ConvertSVecI32x4ToF32x4,
+  'f32x4.convert_i32x4_u': UnaryOp.ConvertUVecI32x4ToF32x4,
+  'f32x4.demote_f64x2_zero': UnaryOp.DemoteZeroVecF64x2ToF32x4,
   // SIMD f64x2
-  "f64x2.abs": UnaryOp.AbsVecF64x2,
-  "f64x2.neg": UnaryOp.NegVecF64x2,
-  "f64x2.sqrt": UnaryOp.SqrtVecF64x2,
-  "f64x2.ceil": UnaryOp.CeilVecF64x2,
-  "f64x2.floor": UnaryOp.FloorVecF64x2,
-  "f64x2.trunc": UnaryOp.TruncVecF64x2,
-  "f64x2.nearest": UnaryOp.NearestVecF64x2,
-  "f64x2.promote_low_f32x4": UnaryOp.PromoteLowVecF32x4ToF64x2,
-  "f64x2.convert_low_i32x4_s": UnaryOp.ConvertLowSVecI32x4ToF64x2,
-  "f64x2.convert_low_i32x4_u": UnaryOp.ConvertLowUVecI32x4ToF64x2,
+  'f64x2.abs': UnaryOp.AbsVecF64x2,
+  'f64x2.neg': UnaryOp.NegVecF64x2,
+  'f64x2.sqrt': UnaryOp.SqrtVecF64x2,
+  'f64x2.ceil': UnaryOp.CeilVecF64x2,
+  'f64x2.floor': UnaryOp.FloorVecF64x2,
+  'f64x2.trunc': UnaryOp.TruncVecF64x2,
+  'f64x2.nearest': UnaryOp.NearestVecF64x2,
+  'f64x2.promote_low_f32x4': UnaryOp.PromoteLowVecF32x4ToF64x2,
+  'f64x2.convert_low_i32x4_s': UnaryOp.ConvertLowSVecI32x4ToF64x2,
+  'f64x2.convert_low_i32x4_u': UnaryOp.ConvertLowUVecI32x4ToF64x2,
   // SIMD trunc_sat (conversion)
-  "i32x4.trunc_sat_f32x4_s": UnaryOp.TruncSatSVecF32x4ToI32x4,
-  "i32x4.trunc_sat_f32x4_u": UnaryOp.TruncSatUVecF32x4ToI32x4,
-  "i32x4.trunc_sat_f64x2_s_zero": UnaryOp.TruncSatSVecF64x2ToI32x4Zero,
-  "i32x4.trunc_sat_f64x2_u_zero": UnaryOp.TruncSatUVecF64x2ToI32x4Zero,
+  'i32x4.trunc_sat_f32x4_s': UnaryOp.TruncSatSVecF32x4ToI32x4,
+  'i32x4.trunc_sat_f32x4_u': UnaryOp.TruncSatUVecF32x4ToI32x4,
+  'i32x4.trunc_sat_f64x2_s_zero': UnaryOp.TruncSatSVecF64x2ToI32x4Zero,
+  'i32x4.trunc_sat_f64x2_u_zero': UnaryOp.TruncSatUVecF64x2ToI32x4Zero,
 };
 
 const BINARY_OPS: Record<string, BinaryOp> = {
-  "i32.add": BinaryOp.AddI32,
-  "i32.sub": BinaryOp.SubI32,
-  "i32.mul": BinaryOp.MulI32,
-  "i32.div_s": BinaryOp.DivSI32,
-  "i32.div_u": BinaryOp.DivUI32,
-  "i32.rem_s": BinaryOp.RemSI32,
-  "i32.rem_u": BinaryOp.RemUI32,
-  "i32.and": BinaryOp.AndI32,
-  "i32.or": BinaryOp.OrI32,
-  "i32.xor": BinaryOp.XorI32,
-  "i32.shl": BinaryOp.ShlI32,
-  "i32.shr_s": BinaryOp.ShrSI32,
-  "i32.shr_u": BinaryOp.ShrUI32,
-  "i32.rotl": BinaryOp.RotlI32,
-  "i32.rotr": BinaryOp.RotrI32,
-  "i32.eq": BinaryOp.EqI32,
-  "i32.ne": BinaryOp.NeI32,
-  "i32.lt_s": BinaryOp.LtSI32,
-  "i32.lt_u": BinaryOp.LtUI32,
-  "i32.le_s": BinaryOp.LeSI32,
-  "i32.le_u": BinaryOp.LeUI32,
-  "i32.gt_s": BinaryOp.GtSI32,
-  "i32.gt_u": BinaryOp.GtUI32,
-  "i32.ge_s": BinaryOp.GeSI32,
-  "i32.ge_u": BinaryOp.GeUI32,
-  "i64.add": BinaryOp.AddI64,
-  "i64.sub": BinaryOp.SubI64,
-  "i64.mul": BinaryOp.MulI64,
-  "i64.div_s": BinaryOp.DivSI64,
-  "i64.div_u": BinaryOp.DivUI64,
-  "i64.rem_s": BinaryOp.RemSI64,
-  "i64.rem_u": BinaryOp.RemUI64,
-  "i64.and": BinaryOp.AndI64,
-  "i64.or": BinaryOp.OrI64,
-  "i64.xor": BinaryOp.XorI64,
-  "i64.shl": BinaryOp.ShlI64,
-  "i64.shr_s": BinaryOp.ShrSI64,
-  "i64.shr_u": BinaryOp.ShrUI64,
-  "i64.rotl": BinaryOp.RotlI64,
-  "i64.rotr": BinaryOp.RotrI64,
-  "i64.eq": BinaryOp.EqI64,
-  "i64.ne": BinaryOp.NeI64,
-  "i64.lt_s": BinaryOp.LtSI64,
-  "i64.lt_u": BinaryOp.LtUI64,
-  "i64.le_s": BinaryOp.LeSI64,
-  "i64.le_u": BinaryOp.LeUI64,
-  "i64.gt_s": BinaryOp.GtSI64,
-  "i64.gt_u": BinaryOp.GtUI64,
-  "i64.ge_s": BinaryOp.GeSI64,
-  "i64.ge_u": BinaryOp.GeUI64,
-  "f32.add": BinaryOp.AddF32,
-  "f32.sub": BinaryOp.SubF32,
-  "f32.mul": BinaryOp.MulF32,
-  "f32.div": BinaryOp.DivF32,
-  "f32.copysign": BinaryOp.CopySignF32,
-  "f32.min": BinaryOp.MinF32,
-  "f32.max": BinaryOp.MaxF32,
-  "f32.eq": BinaryOp.EqF32,
-  "f32.ne": BinaryOp.NeF32,
-  "f32.lt": BinaryOp.LtF32,
-  "f32.le": BinaryOp.LeF32,
-  "f32.gt": BinaryOp.GtF32,
-  "f32.ge": BinaryOp.GeF32,
-  "f64.add": BinaryOp.AddF64,
-  "f64.sub": BinaryOp.SubF64,
-  "f64.mul": BinaryOp.MulF64,
-  "f64.div": BinaryOp.DivF64,
-  "f64.copysign": BinaryOp.CopySignF64,
-  "f64.min": BinaryOp.MinF64,
-  "f64.max": BinaryOp.MaxF64,
-  "f64.eq": BinaryOp.EqF64,
-  "f64.ne": BinaryOp.NeF64,
-  "f64.lt": BinaryOp.LtF64,
-  "f64.le": BinaryOp.LeF64,
-  "f64.gt": BinaryOp.GtF64,
-  "f64.ge": BinaryOp.GeF64,
+  'i32.add': BinaryOp.AddI32,
+  'i32.sub': BinaryOp.SubI32,
+  'i32.mul': BinaryOp.MulI32,
+  'i32.div_s': BinaryOp.DivSI32,
+  'i32.div_u': BinaryOp.DivUI32,
+  'i32.rem_s': BinaryOp.RemSI32,
+  'i32.rem_u': BinaryOp.RemUI32,
+  'i32.and': BinaryOp.AndI32,
+  'i32.or': BinaryOp.OrI32,
+  'i32.xor': BinaryOp.XorI32,
+  'i32.shl': BinaryOp.ShlI32,
+  'i32.shr_s': BinaryOp.ShrSI32,
+  'i32.shr_u': BinaryOp.ShrUI32,
+  'i32.rotl': BinaryOp.RotlI32,
+  'i32.rotr': BinaryOp.RotrI32,
+  'i32.eq': BinaryOp.EqI32,
+  'i32.ne': BinaryOp.NeI32,
+  'i32.lt_s': BinaryOp.LtSI32,
+  'i32.lt_u': BinaryOp.LtUI32,
+  'i32.le_s': BinaryOp.LeSI32,
+  'i32.le_u': BinaryOp.LeUI32,
+  'i32.gt_s': BinaryOp.GtSI32,
+  'i32.gt_u': BinaryOp.GtUI32,
+  'i32.ge_s': BinaryOp.GeSI32,
+  'i32.ge_u': BinaryOp.GeUI32,
+  'i64.add': BinaryOp.AddI64,
+  'i64.sub': BinaryOp.SubI64,
+  'i64.mul': BinaryOp.MulI64,
+  'i64.div_s': BinaryOp.DivSI64,
+  'i64.div_u': BinaryOp.DivUI64,
+  'i64.rem_s': BinaryOp.RemSI64,
+  'i64.rem_u': BinaryOp.RemUI64,
+  'i64.and': BinaryOp.AndI64,
+  'i64.or': BinaryOp.OrI64,
+  'i64.xor': BinaryOp.XorI64,
+  'i64.shl': BinaryOp.ShlI64,
+  'i64.shr_s': BinaryOp.ShrSI64,
+  'i64.shr_u': BinaryOp.ShrUI64,
+  'i64.rotl': BinaryOp.RotlI64,
+  'i64.rotr': BinaryOp.RotrI64,
+  'i64.eq': BinaryOp.EqI64,
+  'i64.ne': BinaryOp.NeI64,
+  'i64.lt_s': BinaryOp.LtSI64,
+  'i64.lt_u': BinaryOp.LtUI64,
+  'i64.le_s': BinaryOp.LeSI64,
+  'i64.le_u': BinaryOp.LeUI64,
+  'i64.gt_s': BinaryOp.GtSI64,
+  'i64.gt_u': BinaryOp.GtUI64,
+  'i64.ge_s': BinaryOp.GeSI64,
+  'i64.ge_u': BinaryOp.GeUI64,
+  'f32.add': BinaryOp.AddF32,
+  'f32.sub': BinaryOp.SubF32,
+  'f32.mul': BinaryOp.MulF32,
+  'f32.div': BinaryOp.DivF32,
+  'f32.copysign': BinaryOp.CopySignF32,
+  'f32.min': BinaryOp.MinF32,
+  'f32.max': BinaryOp.MaxF32,
+  'f32.eq': BinaryOp.EqF32,
+  'f32.ne': BinaryOp.NeF32,
+  'f32.lt': BinaryOp.LtF32,
+  'f32.le': BinaryOp.LeF32,
+  'f32.gt': BinaryOp.GtF32,
+  'f32.ge': BinaryOp.GeF32,
+  'f64.add': BinaryOp.AddF64,
+  'f64.sub': BinaryOp.SubF64,
+  'f64.mul': BinaryOp.MulF64,
+  'f64.div': BinaryOp.DivF64,
+  'f64.copysign': BinaryOp.CopySignF64,
+  'f64.min': BinaryOp.MinF64,
+  'f64.max': BinaryOp.MaxF64,
+  'f64.eq': BinaryOp.EqF64,
+  'f64.ne': BinaryOp.NeF64,
+  'f64.lt': BinaryOp.LtF64,
+  'f64.le': BinaryOp.LeF64,
+  'f64.gt': BinaryOp.GtF64,
+  'f64.ge': BinaryOp.GeF64,
   // SIMD swizzle
-  "i8x16.swizzle": BinaryOp.SwizzleVecI8x16,
+  'i8x16.swizzle': BinaryOp.SwizzleVecI8x16,
   // SIMD v128 bitwise
-  "v128.and": BinaryOp.AndVec128,
-  "v128.andnot": BinaryOp.AndNotVec128,
-  "v128.or": BinaryOp.OrVec128,
-  "v128.xor": BinaryOp.XorVec128,
+  'v128.and': BinaryOp.AndVec128,
+  'v128.andnot': BinaryOp.AndNotVec128,
+  'v128.or': BinaryOp.OrVec128,
+  'v128.xor': BinaryOp.XorVec128,
   // SIMD i8x16 binary
-  "i8x16.eq": BinaryOp.EqVecI8x16,
-  "i8x16.ne": BinaryOp.NeVecI8x16,
-  "i8x16.lt_s": BinaryOp.LtSVecI8x16,
-  "i8x16.lt_u": BinaryOp.LtUVecI8x16,
-  "i8x16.gt_s": BinaryOp.GtSVecI8x16,
-  "i8x16.gt_u": BinaryOp.GtUVecI8x16,
-  "i8x16.le_s": BinaryOp.LeSVecI8x16,
-  "i8x16.le_u": BinaryOp.LeUVecI8x16,
-  "i8x16.ge_s": BinaryOp.GeSVecI8x16,
-  "i8x16.ge_u": BinaryOp.GeUVecI8x16,
-  "i8x16.add": BinaryOp.AddVecI8x16,
-  "i8x16.sub": BinaryOp.SubVecI8x16,
-  "i8x16.add_sat_s": BinaryOp.AddSatSVecI8x16,
-  "i8x16.add_sat_u": BinaryOp.AddSatUVecI8x16,
-  "i8x16.sub_sat_s": BinaryOp.SubSatSVecI8x16,
-  "i8x16.sub_sat_u": BinaryOp.SubSatUVecI8x16,
-  "i8x16.min_s": BinaryOp.MinSVecI8x16,
-  "i8x16.min_u": BinaryOp.MinUVecI8x16,
-  "i8x16.max_s": BinaryOp.MaxSVecI8x16,
-  "i8x16.max_u": BinaryOp.MaxUVecI8x16,
-  "i8x16.avgr_u": BinaryOp.AvgrUVecI8x16,
-  "i8x16.narrow_i16x8_s": BinaryOp.NarrowSVecI16x8ToI8x16,
-  "i8x16.narrow_i16x8_u": BinaryOp.NarrowUVecI16x8ToI8x16,
+  'i8x16.eq': BinaryOp.EqVecI8x16,
+  'i8x16.ne': BinaryOp.NeVecI8x16,
+  'i8x16.lt_s': BinaryOp.LtSVecI8x16,
+  'i8x16.lt_u': BinaryOp.LtUVecI8x16,
+  'i8x16.gt_s': BinaryOp.GtSVecI8x16,
+  'i8x16.gt_u': BinaryOp.GtUVecI8x16,
+  'i8x16.le_s': BinaryOp.LeSVecI8x16,
+  'i8x16.le_u': BinaryOp.LeUVecI8x16,
+  'i8x16.ge_s': BinaryOp.GeSVecI8x16,
+  'i8x16.ge_u': BinaryOp.GeUVecI8x16,
+  'i8x16.add': BinaryOp.AddVecI8x16,
+  'i8x16.sub': BinaryOp.SubVecI8x16,
+  'i8x16.add_sat_s': BinaryOp.AddSatSVecI8x16,
+  'i8x16.add_sat_u': BinaryOp.AddSatUVecI8x16,
+  'i8x16.sub_sat_s': BinaryOp.SubSatSVecI8x16,
+  'i8x16.sub_sat_u': BinaryOp.SubSatUVecI8x16,
+  'i8x16.min_s': BinaryOp.MinSVecI8x16,
+  'i8x16.min_u': BinaryOp.MinUVecI8x16,
+  'i8x16.max_s': BinaryOp.MaxSVecI8x16,
+  'i8x16.max_u': BinaryOp.MaxUVecI8x16,
+  'i8x16.avgr_u': BinaryOp.AvgrUVecI8x16,
+  'i8x16.narrow_i16x8_s': BinaryOp.NarrowSVecI16x8ToI8x16,
+  'i8x16.narrow_i16x8_u': BinaryOp.NarrowUVecI16x8ToI8x16,
   // SIMD i16x8 binary
-  "i16x8.eq": BinaryOp.EqVecI16x8,
-  "i16x8.ne": BinaryOp.NeVecI16x8,
-  "i16x8.lt_s": BinaryOp.LtSVecI16x8,
-  "i16x8.lt_u": BinaryOp.LtUVecI16x8,
-  "i16x8.gt_s": BinaryOp.GtSVecI16x8,
-  "i16x8.gt_u": BinaryOp.GtUVecI16x8,
-  "i16x8.le_s": BinaryOp.LeSVecI16x8,
-  "i16x8.le_u": BinaryOp.LeUVecI16x8,
-  "i16x8.ge_s": BinaryOp.GeSVecI16x8,
-  "i16x8.ge_u": BinaryOp.GeUVecI16x8,
-  "i16x8.add": BinaryOp.AddVecI16x8,
-  "i16x8.sub": BinaryOp.SubVecI16x8,
-  "i16x8.mul": BinaryOp.MulVecI16x8,
-  "i16x8.add_sat_s": BinaryOp.AddSatSVecI16x8,
-  "i16x8.add_sat_u": BinaryOp.AddSatUVecI16x8,
-  "i16x8.sub_sat_s": BinaryOp.SubSatSVecI16x8,
-  "i16x8.sub_sat_u": BinaryOp.SubSatUVecI16x8,
-  "i16x8.min_s": BinaryOp.MinSVecI16x8,
-  "i16x8.min_u": BinaryOp.MinUVecI16x8,
-  "i16x8.max_s": BinaryOp.MaxSVecI16x8,
-  "i16x8.max_u": BinaryOp.MaxUVecI16x8,
-  "i16x8.avgr_u": BinaryOp.AvgrUVecI16x8,
-  "i16x8.q15mulr_sat_s": BinaryOp.Q15MulrSatSVecI16x8,
-  "i16x8.narrow_i32x4_s": BinaryOp.NarrowSVecI32x4ToI16x8,
-  "i16x8.narrow_i32x4_u": BinaryOp.NarrowUVecI32x4ToI16x8,
-  "i16x8.extmul_low_i8x16_s": BinaryOp.ExtmulLowSVecI8x16ToI16x8,
-  "i16x8.extmul_high_i8x16_s": BinaryOp.ExtmulHighSVecI8x16ToI16x8,
-  "i16x8.extmul_low_i8x16_u": BinaryOp.ExtmulLowUVecI8x16ToI16x8,
-  "i16x8.extmul_high_i8x16_u": BinaryOp.ExtmulHighUVecI8x16ToI16x8,
+  'i16x8.eq': BinaryOp.EqVecI16x8,
+  'i16x8.ne': BinaryOp.NeVecI16x8,
+  'i16x8.lt_s': BinaryOp.LtSVecI16x8,
+  'i16x8.lt_u': BinaryOp.LtUVecI16x8,
+  'i16x8.gt_s': BinaryOp.GtSVecI16x8,
+  'i16x8.gt_u': BinaryOp.GtUVecI16x8,
+  'i16x8.le_s': BinaryOp.LeSVecI16x8,
+  'i16x8.le_u': BinaryOp.LeUVecI16x8,
+  'i16x8.ge_s': BinaryOp.GeSVecI16x8,
+  'i16x8.ge_u': BinaryOp.GeUVecI16x8,
+  'i16x8.add': BinaryOp.AddVecI16x8,
+  'i16x8.sub': BinaryOp.SubVecI16x8,
+  'i16x8.mul': BinaryOp.MulVecI16x8,
+  'i16x8.add_sat_s': BinaryOp.AddSatSVecI16x8,
+  'i16x8.add_sat_u': BinaryOp.AddSatUVecI16x8,
+  'i16x8.sub_sat_s': BinaryOp.SubSatSVecI16x8,
+  'i16x8.sub_sat_u': BinaryOp.SubSatUVecI16x8,
+  'i16x8.min_s': BinaryOp.MinSVecI16x8,
+  'i16x8.min_u': BinaryOp.MinUVecI16x8,
+  'i16x8.max_s': BinaryOp.MaxSVecI16x8,
+  'i16x8.max_u': BinaryOp.MaxUVecI16x8,
+  'i16x8.avgr_u': BinaryOp.AvgrUVecI16x8,
+  'i16x8.q15mulr_sat_s': BinaryOp.Q15MulrSatSVecI16x8,
+  'i16x8.narrow_i32x4_s': BinaryOp.NarrowSVecI32x4ToI16x8,
+  'i16x8.narrow_i32x4_u': BinaryOp.NarrowUVecI32x4ToI16x8,
+  'i16x8.extmul_low_i8x16_s': BinaryOp.ExtmulLowSVecI8x16ToI16x8,
+  'i16x8.extmul_high_i8x16_s': BinaryOp.ExtmulHighSVecI8x16ToI16x8,
+  'i16x8.extmul_low_i8x16_u': BinaryOp.ExtmulLowUVecI8x16ToI16x8,
+  'i16x8.extmul_high_i8x16_u': BinaryOp.ExtmulHighUVecI8x16ToI16x8,
   // SIMD i32x4 binary
-  "i32x4.eq": BinaryOp.EqVecI32x4,
-  "i32x4.ne": BinaryOp.NeVecI32x4,
-  "i32x4.lt_s": BinaryOp.LtSVecI32x4,
-  "i32x4.lt_u": BinaryOp.LtUVecI32x4,
-  "i32x4.gt_s": BinaryOp.GtSVecI32x4,
-  "i32x4.gt_u": BinaryOp.GtUVecI32x4,
-  "i32x4.le_s": BinaryOp.LeSVecI32x4,
-  "i32x4.le_u": BinaryOp.LeUVecI32x4,
-  "i32x4.ge_s": BinaryOp.GeSVecI32x4,
-  "i32x4.ge_u": BinaryOp.GeUVecI32x4,
-  "i32x4.add": BinaryOp.AddVecI32x4,
-  "i32x4.sub": BinaryOp.SubVecI32x4,
-  "i32x4.mul": BinaryOp.MulVecI32x4,
-  "i32x4.min_s": BinaryOp.MinSVecI32x4,
-  "i32x4.min_u": BinaryOp.MinUVecI32x4,
-  "i32x4.max_s": BinaryOp.MaxSVecI32x4,
-  "i32x4.max_u": BinaryOp.MaxUVecI32x4,
-  "i32x4.dot_i16x8_s": BinaryOp.DotSVecI16x8ToI32x4,
-  "i32x4.extmul_low_i16x8_s": BinaryOp.ExtmulLowSVecI16x8ToI32x4,
-  "i32x4.extmul_high_i16x8_s": BinaryOp.ExtmulHighSVecI16x8ToI32x4,
-  "i32x4.extmul_low_i16x8_u": BinaryOp.ExtmulLowUVecI16x8ToI32x4,
-  "i32x4.extmul_high_i16x8_u": BinaryOp.ExtmulHighUVecI16x8ToI32x4,
+  'i32x4.eq': BinaryOp.EqVecI32x4,
+  'i32x4.ne': BinaryOp.NeVecI32x4,
+  'i32x4.lt_s': BinaryOp.LtSVecI32x4,
+  'i32x4.lt_u': BinaryOp.LtUVecI32x4,
+  'i32x4.gt_s': BinaryOp.GtSVecI32x4,
+  'i32x4.gt_u': BinaryOp.GtUVecI32x4,
+  'i32x4.le_s': BinaryOp.LeSVecI32x4,
+  'i32x4.le_u': BinaryOp.LeUVecI32x4,
+  'i32x4.ge_s': BinaryOp.GeSVecI32x4,
+  'i32x4.ge_u': BinaryOp.GeUVecI32x4,
+  'i32x4.add': BinaryOp.AddVecI32x4,
+  'i32x4.sub': BinaryOp.SubVecI32x4,
+  'i32x4.mul': BinaryOp.MulVecI32x4,
+  'i32x4.min_s': BinaryOp.MinSVecI32x4,
+  'i32x4.min_u': BinaryOp.MinUVecI32x4,
+  'i32x4.max_s': BinaryOp.MaxSVecI32x4,
+  'i32x4.max_u': BinaryOp.MaxUVecI32x4,
+  'i32x4.dot_i16x8_s': BinaryOp.DotSVecI16x8ToI32x4,
+  'i32x4.extmul_low_i16x8_s': BinaryOp.ExtmulLowSVecI16x8ToI32x4,
+  'i32x4.extmul_high_i16x8_s': BinaryOp.ExtmulHighSVecI16x8ToI32x4,
+  'i32x4.extmul_low_i16x8_u': BinaryOp.ExtmulLowUVecI16x8ToI32x4,
+  'i32x4.extmul_high_i16x8_u': BinaryOp.ExtmulHighUVecI16x8ToI32x4,
   // SIMD i64x2 binary
-  "i64x2.eq": BinaryOp.EqVecI64x2,
-  "i64x2.ne": BinaryOp.NeVecI64x2,
-  "i64x2.lt_s": BinaryOp.LtSVecI64x2,
-  "i64x2.gt_s": BinaryOp.GtSVecI64x2,
-  "i64x2.le_s": BinaryOp.LeSVecI64x2,
-  "i64x2.ge_s": BinaryOp.GeSVecI64x2,
-  "i64x2.add": BinaryOp.AddVecI64x2,
-  "i64x2.sub": BinaryOp.SubVecI64x2,
-  "i64x2.mul": BinaryOp.MulVecI64x2,
-  "i64x2.extmul_low_i32x4_s": BinaryOp.ExtmulLowSVecI32x4ToI64x2,
-  "i64x2.extmul_high_i32x4_s": BinaryOp.ExtmulHighSVecI32x4ToI64x2,
-  "i64x2.extmul_low_i32x4_u": BinaryOp.ExtmulLowUVecI32x4ToI64x2,
-  "i64x2.extmul_high_i32x4_u": BinaryOp.ExtmulHighUVecI32x4ToI64x2,
+  'i64x2.eq': BinaryOp.EqVecI64x2,
+  'i64x2.ne': BinaryOp.NeVecI64x2,
+  'i64x2.lt_s': BinaryOp.LtSVecI64x2,
+  'i64x2.gt_s': BinaryOp.GtSVecI64x2,
+  'i64x2.le_s': BinaryOp.LeSVecI64x2,
+  'i64x2.ge_s': BinaryOp.GeSVecI64x2,
+  'i64x2.add': BinaryOp.AddVecI64x2,
+  'i64x2.sub': BinaryOp.SubVecI64x2,
+  'i64x2.mul': BinaryOp.MulVecI64x2,
+  'i64x2.extmul_low_i32x4_s': BinaryOp.ExtmulLowSVecI32x4ToI64x2,
+  'i64x2.extmul_high_i32x4_s': BinaryOp.ExtmulHighSVecI32x4ToI64x2,
+  'i64x2.extmul_low_i32x4_u': BinaryOp.ExtmulLowUVecI32x4ToI64x2,
+  'i64x2.extmul_high_i32x4_u': BinaryOp.ExtmulHighUVecI32x4ToI64x2,
   // SIMD f32x4 binary
-  "f32x4.eq": BinaryOp.EqVecF32x4,
-  "f32x4.ne": BinaryOp.NeVecF32x4,
-  "f32x4.lt": BinaryOp.LtVecF32x4,
-  "f32x4.gt": BinaryOp.GtVecF32x4,
-  "f32x4.le": BinaryOp.LeVecF32x4,
-  "f32x4.ge": BinaryOp.GeVecF32x4,
-  "f32x4.add": BinaryOp.AddVecF32x4,
-  "f32x4.sub": BinaryOp.SubVecF32x4,
-  "f32x4.mul": BinaryOp.MulVecF32x4,
-  "f32x4.div": BinaryOp.DivVecF32x4,
-  "f32x4.min": BinaryOp.MinVecF32x4,
-  "f32x4.max": BinaryOp.MaxVecF32x4,
-  "f32x4.pmin": BinaryOp.PminVecF32x4,
-  "f32x4.pmax": BinaryOp.PmaxVecF32x4,
+  'f32x4.eq': BinaryOp.EqVecF32x4,
+  'f32x4.ne': BinaryOp.NeVecF32x4,
+  'f32x4.lt': BinaryOp.LtVecF32x4,
+  'f32x4.gt': BinaryOp.GtVecF32x4,
+  'f32x4.le': BinaryOp.LeVecF32x4,
+  'f32x4.ge': BinaryOp.GeVecF32x4,
+  'f32x4.add': BinaryOp.AddVecF32x4,
+  'f32x4.sub': BinaryOp.SubVecF32x4,
+  'f32x4.mul': BinaryOp.MulVecF32x4,
+  'f32x4.div': BinaryOp.DivVecF32x4,
+  'f32x4.min': BinaryOp.MinVecF32x4,
+  'f32x4.max': BinaryOp.MaxVecF32x4,
+  'f32x4.pmin': BinaryOp.PminVecF32x4,
+  'f32x4.pmax': BinaryOp.PmaxVecF32x4,
   // SIMD f64x2 binary
-  "f64x2.eq": BinaryOp.EqVecF64x2,
-  "f64x2.ne": BinaryOp.NeVecF64x2,
-  "f64x2.lt": BinaryOp.LtVecF64x2,
-  "f64x2.gt": BinaryOp.GtVecF64x2,
-  "f64x2.le": BinaryOp.LeVecF64x2,
-  "f64x2.ge": BinaryOp.GeVecF64x2,
-  "f64x2.add": BinaryOp.AddVecF64x2,
-  "f64x2.sub": BinaryOp.SubVecF64x2,
-  "f64x2.mul": BinaryOp.MulVecF64x2,
-  "f64x2.div": BinaryOp.DivVecF64x2,
-  "f64x2.min": BinaryOp.MinVecF64x2,
-  "f64x2.max": BinaryOp.MaxVecF64x2,
-  "f64x2.pmin": BinaryOp.PminVecF64x2,
-  "f64x2.pmax": BinaryOp.PmaxVecF64x2,
+  'f64x2.eq': BinaryOp.EqVecF64x2,
+  'f64x2.ne': BinaryOp.NeVecF64x2,
+  'f64x2.lt': BinaryOp.LtVecF64x2,
+  'f64x2.gt': BinaryOp.GtVecF64x2,
+  'f64x2.le': BinaryOp.LeVecF64x2,
+  'f64x2.ge': BinaryOp.GeVecF64x2,
+  'f64x2.add': BinaryOp.AddVecF64x2,
+  'f64x2.sub': BinaryOp.SubVecF64x2,
+  'f64x2.mul': BinaryOp.MulVecF64x2,
+  'f64x2.div': BinaryOp.DivVecF64x2,
+  'f64x2.min': BinaryOp.MinVecF64x2,
+  'f64x2.max': BinaryOp.MaxVecF64x2,
+  'f64x2.pmin': BinaryOp.PminVecF64x2,
+  'f64x2.pmax': BinaryOp.PmaxVecF64x2,
 };
 
 function inferUnaryResultType(op: string): ValType {
   // SIMD ops that return i32 (reduction ops)
-  if (op.endsWith(".all_true") || op.endsWith(".bitmask") || op === "v128.any_true") {
+  if (op.endsWith('.all_true') || op.endsWith('.bitmask') || op === 'v128.any_true') {
     return ValType.I32;
   }
   // SIMD ops — everything else returns v128
-  const simdPrefixes = ["i8x16.", "i16x8.", "i32x4.", "i64x2.", "f32x4.", "f64x2.", "v128."];
+  const simdPrefixes = ['i8x16.', 'i16x8.', 'i32x4.', 'i64x2.', 'f32x4.', 'f64x2.', 'v128.'];
   if (simdPrefixes.some((p) => op.startsWith(p))) return ValType.V128;
-  if (op.startsWith("i32") || op.startsWith("i64.eqz")) return ValType.I32;
-  if (op.startsWith("i64")) return ValType.I64;
-  if (op.startsWith("f32")) return ValType.F32;
-  if (op.startsWith("f64")) return ValType.F64;
+  if (op.startsWith('i32') || op.startsWith('i64.eqz')) return ValType.I32;
+  if (op.startsWith('i64')) return ValType.I64;
+  if (op.startsWith('f32')) return ValType.F32;
+  if (op.startsWith('f64')) return ValType.F64;
   // Conversions: result type is in the prefix
   const m = op.match(/^(i32|i64|f32|f64)\./);
   return (m?.[1] as ValType) ?? ValType.I32;
@@ -2673,50 +2673,50 @@ function inferUnaryResultType(op: string): ValType {
 
 function inferBinaryResultType(op: string): ValType {
   // SIMD ops all return v128 (including SIMD comparisons — unlike scalar comparisons!)
-  const simdPrefixes = ["i8x16.", "i16x8.", "i32x4.", "i64x2.", "f32x4.", "f64x2.", "v128."];
+  const simdPrefixes = ['i8x16.', 'i16x8.', 'i32x4.', 'i64x2.', 'f32x4.', 'f64x2.', 'v128.'];
   if (simdPrefixes.some((p) => op.startsWith(p))) return ValType.V128;
   // Scalar comparison ops return i32
   const cmpSuffixes = [
-    ".eq",
-    ".ne",
-    ".lt",
-    ".le",
-    ".gt",
-    ".ge",
-    ".lt_s",
-    ".lt_u",
-    ".le_s",
-    ".le_u",
-    ".gt_s",
-    ".gt_u",
-    ".ge_s",
-    ".ge_u",
+    '.eq',
+    '.ne',
+    '.lt',
+    '.le',
+    '.gt',
+    '.ge',
+    '.lt_s',
+    '.lt_u',
+    '.le_s',
+    '.le_u',
+    '.gt_s',
+    '.gt_u',
+    '.ge_s',
+    '.ge_u',
   ];
   if (cmpSuffixes.some((s) => op.endsWith(s))) return ValType.I32;
-  if (op.startsWith("i32")) return ValType.I32;
-  if (op.startsWith("i64")) return ValType.I64;
-  if (op.startsWith("f32")) return ValType.F32;
-  if (op.startsWith("f64")) return ValType.F64;
+  if (op.startsWith('i32')) return ValType.I32;
+  if (op.startsWith('i64')) return ValType.I64;
+  if (op.startsWith('f32')) return ValType.F32;
+  if (op.startsWith('f64')) return ValType.F64;
   return ValType.I32;
 }
 
 function loadBytes(head: string): 1 | 2 | 4 | 8 | 16 {
-  if (head.includes("load8")) return 1;
-  if (head.includes("load16")) return 2;
-  if (head.includes("load32")) return 4;
-  if (head.includes("load64")) return 8;
-  if (head.includes("v128")) return 16;
-  if (head.startsWith("i32") || head.startsWith("f32")) return 4;
-  if (head.startsWith("i64") || head.startsWith("f64")) return 8;
+  if (head.includes('load8')) return 1;
+  if (head.includes('load16')) return 2;
+  if (head.includes('load32')) return 4;
+  if (head.includes('load64')) return 8;
+  if (head.includes('v128')) return 16;
+  if (head.startsWith('i32') || head.startsWith('f32')) return 4;
+  if (head.startsWith('i64') || head.startsWith('f64')) return 8;
   return 4;
 }
 
 function storeBytes(head: string): 1 | 2 | 4 | 8 | 16 {
-  if (head.includes("store8")) return 1;
-  if (head.includes("store16")) return 2;
-  if (head.includes("store32")) return 4;
-  if (head.includes("store64")) return 8;
-  if (head.startsWith("i32") || head.startsWith("f32")) return 4;
-  if (head.startsWith("i64") || head.startsWith("f64")) return 8;
+  if (head.includes('store8')) return 1;
+  if (head.includes('store16')) return 2;
+  if (head.includes('store32')) return 4;
+  if (head.includes('store64')) return 8;
+  if (head.startsWith('i32') || head.startsWith('f32')) return 4;
+  if (head.startsWith('i64') || head.startsWith('f64')) return 8;
   return 4;
 }

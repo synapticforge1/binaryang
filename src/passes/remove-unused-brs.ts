@@ -26,11 +26,11 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, makeDrop, makeNop } from "../ir/expressions.ts";
-import type { WasmModule } from "../ir/module.ts";
-import { None } from "../ir/types.ts";
-import { type Pass, type PassOptions, registerPass } from "./pass.ts";
-import { mapExpression } from "../ir/walk.ts";
+import { type Expression, ExpressionKind, makeDrop, makeNop } from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { None } from '../ir/types.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { mapExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -38,9 +38,9 @@ import { mapExpression } from "../ir/walk.ts";
 
 /** Removes unconditional and conditional branches to the immediately-following block exit. */
 export class RemoveUnusedBrsPass implements Pass {
-  readonly name = "RemoveUnusedBrs";
+  readonly name = 'RemoveUnusedBrs';
   readonly description =
-    "Removes branches to where execution falls through anyway (tail-of-block optimisation).";
+    'Removes branches to where execution falls through anyway (tail-of-block optimisation).';
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {

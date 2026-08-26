@@ -24,7 +24,7 @@
  * @license MIT
  */
 
-import type { WasmModule } from "../ir/module.ts";
+import type { WasmModule } from '../ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Pass interface
@@ -302,23 +302,23 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
   const passes: string[] = [];
 
   if (opts.optimizeLevel >= 1) {
-    passes.push("DCE", "PickLoadSigns", "Vacuum");
+    passes.push('DCE', 'PickLoadSigns', 'Vacuum');
   }
   if (opts.optimizeLevel >= 2) {
     passes.push(
-      "RemoveUnusedBrs",
-      "RemoveUnusedNames",
-      "OptimizeInstructions",
-      "CoalesceLocals",
-      "SimplifyLocals",
-      "LocalCSE",
+      'RemoveUnusedBrs',
+      'RemoveUnusedNames',
+      'OptimizeInstructions',
+      'CoalesceLocals',
+      'SimplifyLocals',
+      'LocalCSE',
     );
   }
   if (opts.optimizeLevel >= 3) {
-    passes.push("Inlining", "OptimizeInstructions", "CoalesceLocals");
+    passes.push('Inlining', 'OptimizeInstructions', 'CoalesceLocals');
   }
   if (opts.shrinkLevel >= 1) {
-    passes.push("Vacuum", "RemoveUnusedModuleElements");
+    passes.push('Vacuum', 'RemoveUnusedModuleElements');
   }
 
   return passes;

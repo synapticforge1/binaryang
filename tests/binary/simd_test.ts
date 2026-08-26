@@ -6,9 +6,9 @@
  * @license MIT
  */
 
-import { assertEquals } from "@std/assert";
-import { parseWasm } from "../../src/binary/index.ts";
-import { encodeWasm } from "../../src/encoder/index.ts";
+import { assertEquals } from '@std/assert';
+import { parseWasm } from '../../src/binary/index.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
 import {
   type BinaryExpr,
   BinaryOp,
@@ -29,8 +29,8 @@ import {
   SIMDTernaryOp,
   type UnaryExpr,
   UnaryOp,
-} from "../../src/ir/expressions.ts";
-import { ValType } from "../../src/ir/types.ts";
+} from '../../src/ir/expressions.ts';
+import { ValType } from '../../src/ir/types.ts';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ const V128CONST_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: v128.const parsed correctly", () => {
+Deno.test('SIMD: v128.const parsed correctly', () => {
   const mod = parseWasm(V128CONST_MODULE);
   const expr = mod.functions[0].body as ConstExpr;
   assertEquals(expr.kind, ExpressionKind.Const);
@@ -127,7 +127,7 @@ const SPLAT_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: i32x4.splat parsed correctly", () => {
+Deno.test('SIMD: i32x4.splat parsed correctly', () => {
   const mod = parseWasm(SPLAT_MODULE);
   const expr = mod.functions[0].body as UnaryExpr;
   assertEquals(expr.kind, ExpressionKind.Unary);
@@ -167,7 +167,7 @@ const ADD_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: i32x4.add parsed correctly", () => {
+Deno.test('SIMD: i32x4.add parsed correctly', () => {
   const mod = parseWasm(ADD_MODULE);
   const expr = mod.functions[0].body as BinaryExpr;
   assertEquals(expr.kind, ExpressionKind.Binary);
@@ -215,7 +215,7 @@ const SHUFFLE_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: i8x16.shuffle parsed correctly", () => {
+Deno.test('SIMD: i8x16.shuffle parsed correctly', () => {
   const mod = parseWasm(SHUFFLE_MODULE);
   const expr = mod.functions[0].body as SIMDShuffleExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDShuffle);
@@ -247,7 +247,7 @@ const EXTRACT_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: i8x16.extract_lane_s parsed correctly", () => {
+Deno.test('SIMD: i8x16.extract_lane_s parsed correctly', () => {
   const mod = parseWasm(EXTRACT_MODULE);
   const expr = mod.functions[0].body as SIMDExtractExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDExtract);
@@ -281,7 +281,7 @@ const REPLACE_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: i32x4.replace_lane parsed correctly", () => {
+Deno.test('SIMD: i32x4.replace_lane parsed correctly', () => {
   const mod = parseWasm(REPLACE_MODULE);
   const expr = mod.functions[0].body as SIMDReplaceExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDReplace);
@@ -316,7 +316,7 @@ const SHIFT_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: i32x4.shl (SIMDShift) parsed correctly", () => {
+Deno.test('SIMD: i32x4.shl (SIMDShift) parsed correctly', () => {
   const mod = parseWasm(SHIFT_MODULE);
   const expr = mod.functions[0].body as SIMDShiftExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDShift);
@@ -350,7 +350,7 @@ const BITSELECT_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: v128.bitselect (SIMDTernary) parsed correctly", () => {
+Deno.test('SIMD: v128.bitselect (SIMDTernary) parsed correctly', () => {
   const mod = parseWasm(BITSELECT_MODULE);
   const expr = mod.functions[0].body as SIMDTernaryExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDTernary);
@@ -383,7 +383,7 @@ const SIMD_LOAD_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: v128.load8x8_s (SIMDLoad) parsed correctly", () => {
+Deno.test('SIMD: v128.load8x8_s (SIMDLoad) parsed correctly', () => {
   const mod = parseWasm(SIMD_LOAD_MODULE);
   const expr = mod.functions[0].body as SIMDLoadExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDLoad);
@@ -421,7 +421,7 @@ const SIMD_LANE_MODULE = module(
   ),
 );
 
-Deno.test("SIMD: v128.load8_lane (SIMDLoadStoreLane) parsed correctly", () => {
+Deno.test('SIMD: v128.load8_lane (SIMDLoadStoreLane) parsed correctly', () => {
   const mod = parseWasm(SIMD_LANE_MODULE);
   const expr = mod.functions[0].body as SIMDLoadStoreLaneExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDLoadStoreLane);
@@ -444,43 +444,43 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true;
 }
 
-Deno.test("SIMD round-trip: v128.const", () => {
+Deno.test('SIMD round-trip: v128.const', () => {
   assertEquals(bytesEqual(roundTrip(V128CONST_MODULE), V128CONST_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: i32x4.splat", () => {
+Deno.test('SIMD round-trip: i32x4.splat', () => {
   assertEquals(bytesEqual(roundTrip(SPLAT_MODULE), SPLAT_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: i32x4.add", () => {
+Deno.test('SIMD round-trip: i32x4.add', () => {
   assertEquals(bytesEqual(roundTrip(ADD_MODULE), ADD_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: i8x16.shuffle", () => {
+Deno.test('SIMD round-trip: i8x16.shuffle', () => {
   assertEquals(bytesEqual(roundTrip(SHUFFLE_MODULE), SHUFFLE_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: i8x16.extract_lane_s", () => {
+Deno.test('SIMD round-trip: i8x16.extract_lane_s', () => {
   assertEquals(bytesEqual(roundTrip(EXTRACT_MODULE), EXTRACT_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: i32x4.replace_lane", () => {
+Deno.test('SIMD round-trip: i32x4.replace_lane', () => {
   assertEquals(bytesEqual(roundTrip(REPLACE_MODULE), REPLACE_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: i32x4.shl", () => {
+Deno.test('SIMD round-trip: i32x4.shl', () => {
   assertEquals(bytesEqual(roundTrip(SHIFT_MODULE), SHIFT_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: v128.bitselect", () => {
+Deno.test('SIMD round-trip: v128.bitselect', () => {
   assertEquals(bytesEqual(roundTrip(BITSELECT_MODULE), BITSELECT_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: v128.load8x8_s", () => {
+Deno.test('SIMD round-trip: v128.load8x8_s', () => {
   assertEquals(bytesEqual(roundTrip(SIMD_LOAD_MODULE), SIMD_LOAD_MODULE), true);
 });
 
-Deno.test("SIMD round-trip: v128.load8_lane", () => {
+Deno.test('SIMD round-trip: v128.load8_lane', () => {
   assertEquals(bytesEqual(roundTrip(SIMD_LANE_MODULE), SIMD_LANE_MODULE), true);
 });
 
@@ -498,7 +498,7 @@ const V128_LOAD_MODULE = module(
   section(0x0a, 0x01, 8, 0x00, 0x20, 0x00, 0xfd, 0x00, 0x04, 0x00, 0x0b),
 );
 
-Deno.test("SIMD: plain v128.load re-encodes to 0xFD 0x00 and round-trips/validates", async () => {
+Deno.test('SIMD: plain v128.load re-encodes to 0xFD 0x00 and round-trips/validates', async () => {
   const mod = parseWasm(V128_LOAD_MODULE);
   assertEquals(mod.functions[0].body.kind, ExpressionKind.Load);
   assertEquals(mod.functions[0].body.type, ValType.V128);
@@ -516,7 +516,7 @@ const V128_STORE_MODULE = module(
   section(0x0a, 0x01, 10, 0x00, 0x20, 0x00, 0x20, 0x01, 0xfd, 0x0b, 0x04, 0x00, 0x0b),
 );
 
-Deno.test("SIMD: plain v128.store re-encodes to 0xFD 0x0b and round-trips/validates", async () => {
+Deno.test('SIMD: plain v128.store re-encodes to 0xFD 0x0b and round-trips/validates', async () => {
   const mod = parseWasm(V128_STORE_MODULE);
   assertEquals(mod.functions[0].body.kind, ExpressionKind.Store);
   const out = encodeWasm(mod);

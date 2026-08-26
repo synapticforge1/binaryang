@@ -29,7 +29,7 @@
  * @license MIT
  */
 
-import { type TextPos, type Token, TokenKind } from "./tokenizer.ts";
+import { type TextPos, type Token, TokenKind } from './tokenizer.ts';
 
 // ---------------------------------------------------------------------------
 // SExpr node types
@@ -40,7 +40,7 @@ import { type TextPos, type Token, TokenKind } from "./tokenizer.ts";
  * Atoms represent keywords, identifiers, literals, and strings.
  */
 export interface Atom {
-  readonly kind: "atom";
+  readonly kind: 'atom';
   readonly token: Token;
   readonly pos: TextPos;
 }
@@ -51,7 +51,7 @@ export interface Atom {
  * has kind {@link TokenKind.Keyword} or {@link TokenKind.Id}.
  */
 export interface SList {
-  readonly kind: "list";
+  readonly kind: 'list';
   readonly children: SExpr[];
   readonly pos: TextPos;
 }
@@ -71,7 +71,7 @@ export class WatSExprError extends Error {
     public readonly filename: string,
   ) {
     super(`${filename}:${pos.line}:${pos.col}: ${message}`);
-    this.name = "WatSExprError";
+    this.name = 'WatSExprError';
   }
 }
 
@@ -86,12 +86,12 @@ export class WatSExprError extends Error {
  * @param filename - Filename for error messages.
  * @throws {@link WatSExprError} on structural errors (unmatched parens, etc.).
  */
-export function buildSExpr(tokens: Token[], filename = "<input>"): SExpr {
+export function buildSExpr(tokens: Token[], filename = '<input>'): SExpr {
   const builder = new SExprBuilder(tokens, filename);
   const root = builder.parseOne();
   if (!builder.atEOF()) {
     const pos = builder.currentPos();
-    throw new WatSExprError("unexpected tokens after top-level form", pos, filename);
+    throw new WatSExprError('unexpected tokens after top-level form', pos, filename);
   }
   return root;
 }
@@ -103,7 +103,7 @@ export function buildSExpr(tokens: Token[], filename = "<input>"): SExpr {
  * @param tokens - Output of {@link tokenize}.
  * @param filename - Filename for error messages.
  */
-export function buildSExprList(tokens: Token[], filename = "<input>"): SExpr[] {
+export function buildSExprList(tokens: Token[], filename = '<input>'): SExpr[] {
   const builder = new SExprBuilder(tokens, filename);
   const result: SExpr[] = [];
   while (!builder.atEOF()) {
@@ -129,13 +129,13 @@ class SExprBuilder {
   parseOne(): SExpr {
     const tok = this.peek();
     if (tok.kind === TokenKind.EOF) {
-      this.err("unexpected end of input");
+      this.err('unexpected end of input');
     }
     if (tok.kind === TokenKind.LParen) {
       return this.parseList();
     }
     if (tok.kind === TokenKind.RParen) {
-      this.err("unexpected `)`");
+      this.err('unexpected `)`');
     }
     return this.parseAtom();
   }
@@ -147,7 +147,7 @@ class SExprBuilder {
     while (true) {
       const tok = this.peek();
       if (tok.kind === TokenKind.EOF) {
-        throw new WatSExprError("unclosed `(` — reached end of input", pos, this.filename);
+        throw new WatSExprError('unclosed `(` — reached end of input', pos, this.filename);
       }
       if (tok.kind === TokenKind.RParen) {
         this.consume();
@@ -155,12 +155,12 @@ class SExprBuilder {
       }
       children.push(this.parseOne());
     }
-    return { kind: "list", children, pos };
+    return { kind: 'list', children, pos };
   }
 
   private parseAtom(): Atom {
     const tok = this.consume();
-    return { kind: "atom", token: tok, pos: tok.pos };
+    return { kind: 'atom', token: tok, pos: tok.pos };
   }
 
   consume(): Token {
@@ -169,13 +169,13 @@ class SExprBuilder {
     // built by something else, not that input ran out. Synthesize EOF rather
     // than returning `undefined` typed as `Token`, matching `peek()` below.
     const tok = this.tokens[this.pos] ??
-      { kind: TokenKind.EOF, raw: "", pos: { line: 1, col: 1 } };
+      { kind: TokenKind.EOF, raw: '', pos: { line: 1, col: 1 } };
     if (tok.kind !== TokenKind.EOF) this.pos++;
     return tok;
   }
 
   peek(): Token {
-    return this.tokens[this.pos] ?? { kind: TokenKind.EOF, raw: "", pos: { line: 1, col: 1 } };
+    return this.tokens[this.pos] ?? { kind: TokenKind.EOF, raw: '', pos: { line: 1, col: 1 } };
   }
 
   atEOF(): boolean {
@@ -206,7 +206,7 @@ class SExprBuilder {
  */
 export function listHead(s: SList): string | null {
   const first = s.children[0];
-  if (!first || first.kind !== "atom") return null;
+  if (!first || first.kind !== 'atom') return null;
   return first.token.raw;
 }
 
@@ -235,7 +235,7 @@ export function listFrom(s: SList, from: number): SExpr[] {
  * type checker.
  */
 export function atomText(s: SExpr | undefined): string | null {
-  return s?.kind === "atom" ? s.token.raw : null;
+  return s?.kind === 'atom' ? s.token.raw : null;
 }
 
 /**
@@ -244,14 +244,14 @@ export function atomText(s: SExpr | undefined): string | null {
  * for why the parameter admits it.
  */
 export function isListWith(s: SExpr | undefined, keyword: string): s is SList {
-  return s?.kind === "list" && listHead(s) === keyword;
+  return s?.kind === 'list' && listHead(s) === keyword;
 }
 
 /**
  * Returns the string value of a string-literal atom, or `null`.
  */
 export function atomString(s: SExpr | undefined): string | null {
-  if (s?.kind !== "atom" || s.token.kind !== TokenKind.String) return null;
+  if (s?.kind !== 'atom' || s.token.kind !== TokenKind.String) return null;
   return s.token.text ?? null;
 }
 
@@ -259,7 +259,7 @@ export function atomString(s: SExpr | undefined): string | null {
  * Returns the integer value of an integer-literal atom, or `null`.
  */
 export function atomInt(s: SExpr | undefined): number | bigint | null {
-  if (s?.kind !== "atom" || s.token.kind !== TokenKind.Integer) return null;
+  if (s?.kind !== 'atom' || s.token.kind !== TokenKind.Integer) return null;
   return s.token.value ?? null;
 }
 
@@ -267,7 +267,7 @@ export function atomInt(s: SExpr | undefined): number | bigint | null {
  * Returns the float value of a float-literal atom, or `null`.
  */
 export function atomFloat(s: SExpr | undefined): number | null {
-  if (s?.kind !== "atom" || s.token.kind !== TokenKind.Float) return null;
+  if (s?.kind !== 'atom' || s.token.kind !== TokenKind.Float) return null;
   return (s.token.value as number) ?? null;
 }
 
@@ -275,6 +275,6 @@ export function atomFloat(s: SExpr | undefined): number | null {
  * Renders an S-expression back to a compact string (useful for debugging).
  */
 export function sExprToString(s: SExpr): string {
-  if (s.kind === "atom") return s.token.raw;
-  return `(${s.children.map(sExprToString).join(" ")})`;
+  if (s.kind === 'atom') return s.token.raw;
+  return `(${s.children.map(sExprToString).join(' ')})`;
 }

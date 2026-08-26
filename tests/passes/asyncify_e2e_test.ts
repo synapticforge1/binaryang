@@ -19,11 +19,11 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals } from '@std/assert';
 
-import { encodeWasm } from "../../src/encoder/index.ts";
-import { parseWat } from "../../src/parser/wat-parser.ts";
-import { buildCallResultTypes, flattenFunction } from "../../src/passes/flatten.ts";
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWat } from '../../src/parser/wat-parser.ts';
+import { buildCallResultTypes, flattenFunction } from '../../src/passes/flatten.ts';
 import {
   analyzeModule,
   computeRelevantLocals,
@@ -32,9 +32,9 @@ import {
   localsInstrumentFunction,
   parseAsyncifyOptions,
   synthesizeRuntimeSupport,
-} from "../../src/passes/asyncify.ts";
-import { listPasses, PassRunner } from "../../src/passes/index.ts";
-import type { WasmModule } from "../../src/ir/module.ts";
+} from '../../src/passes/asyncify.ts';
+import { listPasses, PassRunner } from '../../src/passes/index.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Full pipeline
@@ -134,23 +134,23 @@ function driveOnce(
 
   const fn = exp[exportName] as (...a: number[]) => number;
   fn(...args); // first call — unwinds, returns a dummy
-  assertEquals(exp.asyncify_get_state(), 1, "expected Unwinding state after first call");
+  assertEquals(exp.asyncify_get_state(), 1, 'expected Unwinding state after first call');
   exp.asyncify_stop_unwind();
   exp.asyncify_start_rewind(DATA_PTR);
   const result = fn(...args); // second call — rewinds + completes
-  assertEquals(exp.asyncify_get_state(), 0, "expected Normal state after completion");
+  assertEquals(exp.asyncify_get_state(), 0, 'expected Normal state after completion');
   return result;
 }
 
 function wasmOptAsyncify(wat: string): Uint8Array | null {
   try {
-    const inFile = Deno.makeTempFileSync({ suffix: ".wat" });
-    const outFile = Deno.makeTempFileSync({ suffix: ".wasm" });
+    const inFile = Deno.makeTempFileSync({ suffix: '.wat' });
+    const outFile = Deno.makeTempFileSync({ suffix: '.wasm' });
     Deno.writeTextFileSync(inFile, wat);
-    const out = new Deno.Command("wasm-opt", {
-      args: [inFile, "--asyncify", "-o", outFile],
-      stdout: "null",
-      stderr: "null",
+    const out = new Deno.Command('wasm-opt', {
+      args: [inFile, '--asyncify', '-o', outFile],
+      stdout: 'null',
+      stderr: 'null',
     }).outputSync();
     if (!out.success) return null;
     const bytes = Deno.readFileSync(outFile);
@@ -189,44 +189,44 @@ const LOOP_GET = `(module
         (br $lp)))
     (local.get $acc)))`;
 
-Deno.test("asyncify e2e — suspend/resume across an async call (x + get())", () => {
+Deno.test('asyncify e2e — suspend/resume across an async call (x + get())', () => {
   const bytes = encodeWasm(asyncify(parseWat(ADD_GET)));
   // compute(10) with get() → 42 must yield 52 across the unwind/rewind.
-  assertEquals(driveOnce(bytes, "compute", [10], "get", 42), 52);
+  assertEquals(driveOnce(bytes, 'compute', [10], 'get', 42), 52);
 });
 
-Deno.test("asyncify e2e — differential vs wasm-opt --asyncify (x + get())", () => {
+Deno.test('asyncify e2e — differential vs wasm-opt --asyncify (x + get())', () => {
   const ref = wasmOptAsyncify(ADD_GET);
   if (!ref) {
-    console.warn("  (skipped — wasm-opt not on PATH)");
+    console.warn('  (skipped — wasm-opt not on PATH)');
     return;
   }
-  assertEquals(driveOnce(ref, "compute", [10], "get", 42), 52);
+  assertEquals(driveOnce(ref, 'compute', [10], 'get', 42), 52);
 });
 
-Deno.test("asyncify e2e — locals survive a rewind (single suspend in a loop)", () => {
+Deno.test('asyncify e2e — locals survive a rewind (single suspend in a loop)', () => {
   // The loop suspends on the FIRST get(); on rewind, $i/$acc must be restored so
   // it continues. Our single-shot driver resumes once, so the loop runs to
   // completion after the first suspend (get() returns 7 on rewind and on every
   // subsequent normal call).
   const bytes = encodeWasm(asyncify(parseWat(LOOP_GET)));
   // After resume, get() returns 7 each of the 3 iterations → 21.
-  assertEquals(driveOnce(bytes, "sum", [3], "get", 7), 21);
+  assertEquals(driveOnce(bytes, 'sum', [3], 'get', 7), 21);
 });
 
-Deno.test("asyncify e2e — loop case matches wasm-opt --asyncify", () => {
+Deno.test('asyncify e2e — loop case matches wasm-opt --asyncify', () => {
   const ref = wasmOptAsyncify(LOOP_GET);
   if (!ref) {
-    console.warn("  (skipped — wasm-opt not on PATH)");
+    console.warn('  (skipped — wasm-opt not on PATH)');
     return;
   }
-  assertEquals(driveOnce(ref, "sum", [3], "get", 7), 21);
+  assertEquals(driveOnce(ref, 'sum', [3], 'get', 7), 21);
 });
 
-Deno.test("asyncify — registered as a pass, runnable via PassRunner (lowercase name)", () => {
-  assert(listPasses().includes("Asyncify"), "Asyncify should be a registered pass");
+Deno.test('asyncify — registered as a pass, runnable via PassRunner (lowercase name)', () => {
+  assert(listPasses().includes('Asyncify'), 'Asyncify should be a registered pass');
   const mod = parseWat(ADD_GET);
   // Resolve the upstream-style lowercase flag name case-insensitively.
-  new PassRunner(mod).add("asyncify").run();
-  assertEquals(driveOnce(encodeWasm(mod), "compute", [10], "get", 42), 52);
+  new PassRunner(mod).add('asyncify').run();
+  assertEquals(driveOnce(encodeWasm(mod), 'compute', [10], 'get', 42), 52);
 });
