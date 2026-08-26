@@ -11,6 +11,33 @@ reports to the wasmtk team this month.
 
 ---
 
+## A0. T13.22 — the compensating pair. CONDITION MET before the merge starts
+
+Raised by the binaryen-ts team as the first thing that must not travel into the
+merge, and they are right about why: **two errors that cancel across a
+repository boundary have no boundary left to be noticed at.** Merged first, it
+would have become invisible rather than fixed.
+
+**Already closed, 2026-08-25, before the merge begins.** Verified now, not
+recalled:
+
+| | |
+| --- | --- |
+| pin | `jsr:@jrmarcum/binaryen-ts@1.5.0`, exact |
+| bridge ordering | catch clauses built BEFORE `labelStack.push` |
+| gate | `tests/bridge/try_table_catch_scope.test.ts`, and its probe is NUMERIC |
+
+Landed as `5404946d`, released as wabt-ts v1.5.0, bridge suite 28/28. Their
+instruction — *land the fix and the pin bump before the merge starts* — was
+satisfied before the note arrived.
+
+**Keep the pin exact until the merge actually removes the dependency.** Not for
+the cancellation, which is gone, but because their encoder changes what it
+REQUIRES of callers between versions (T13.47), and an import-surface check
+cannot see that.
+
+---
+
 ## A. Product issues that SURVIVE the merge
 
 These are real defects. They do not become less real by being in one repo.
@@ -98,12 +125,55 @@ Non-colliding, so they can move as-is: `src/bridge`, `src/core`, `src/interp`,
 ### B2. 21 tracked paths collide
 
 3 workflows (`auto-tag`, `ci`, `publish`), 4 licence files, `README.md`,
-**7 `cmem/` files** — including `cmem/bridge.md`, which describes the SAME
-coupling from opposite sides — `deno.json`, `deno.lock`, and 3 release scripts
-(`bump_version`, `publish`, `version`).
+**8 `cmem/` files** (this said 7 until re-counted), `deno.json`, `deno.lock`,
+and 3 release scripts (`bump_version`, `publish`, `version`).
 
-The `cmem/` overlap needs a real decision, not a concatenation: both files are
-correct from their own vantage point and contradict each other in emphasis.
+**The `cmem/` overlap is the hard one, and it is not concatenation.** Measured:
+
+| | wabt-ts | binaryen-ts |
+| --- | --- | --- |
+| total `cmem/` lines | **14,023** | 2,296 |
+| `tasks.md` | **7,485** | (none) |
+| `design-decisions.md` | 1,183 | (none) |
+| `best-practices.md` | 2,866 | 166 |
+| `bridge.md` | 283 | 138 |
+
+`tasks.md` and `design-decisions.md` have no counterpart and move as-is. The
+eight that collide do not: **the two `bridge.md` files describe one boundary
+from opposite sides, and will contradict each other the moment that boundary
+stops existing.** Neither is wrong today; both go wrong together.
+
+The 6:1 size asymmetry matters too — a naive merge reads as wabt-ts's memory
+with binaryen-ts notes appended, quietly losing the smaller project's reasoning.
+Merge by TOPIC, deciding per file which vantage point survives; for `bridge.md`,
+most of both becomes history that the merge itself invalidates.
+
+### B2a. `exports` subpath collisions — TWO, and this audit missed them
+
+**Found by the binaryen-ts team, not by us.** This audit checked `src/`
+directories and tracked file paths and never looked at the `exports` map, which
+is a third and separate surface. Recorded as a miss because the lesson is the
+reusable part: **a package's public subpaths are not derivable from its file
+tree.**
+
+| subpath | wabt-ts | binaryen-ts |
+| --- | --- | --- |
+| `.` | `./src/index.ts` | `./main.ts` |
+| `./compat` | `./src/api/wabt-compat.ts` | `./src/api/binaryen-compat.ts` |
+
+`./compat` is the one that bites: two different facades on one subpath, and both
+are the migration surface their consumers were told to adopt. Their proposal —
+**`./compat/binaryen` and `./compat/wabt`** — is the obvious pair, and wasmtk
+already imports them under the aliases `binaryen` and `wabt`, so its migration
+is two lines in an import map.
+
+`.` needs deciding too: one root entry cannot be both.
+
+And a near-miss worth pre-empting: binaryen-ts exports `./ir`, `./encoder`,
+`./binary`, `./passes`, `./wasm`, none of which collide today because wabt-ts
+ships its IR through `.`. In a merged package `./ir` would READ as "the IR"
+while meaning only the binaryen one — the same ambiguity as the `src/ir`
+directory collision (B1), one layer up.
 
 ### B3. Two JSR packages, two version streams, one publish flow
 
@@ -174,6 +244,9 @@ single SPDX identifier and **rejects compound expressions**, so it stays `MIT`.
 
 Worth recording so the benefit is not forgotten mid-pain:
 
+- **The T13.22 class cannot recur** — but only because the instance was fixed
+  FIRST (A0). Merging with it live would have hidden it permanently, which is
+  the binaryen-ts team's point and the reason ordering matters here at all.
 - **The T13.22 class cannot recur.** Two errors that cancel across a repository
   boundary were invisible to both sides' tests for four releases. In one repo,
   one test run sees both halves.
