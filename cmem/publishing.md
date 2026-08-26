@@ -8,6 +8,21 @@ sub-version-capped-at-9 rule, and this release breaks an exported type twice, so
 minor. The import map still pins binaryen-ts at `^1.0.9` while the checkout is v1.3.5+ (the
 caret accepts it — a stale pin, not a break).
 
+## v1.5.0 SKIPS the bump rule, deliberately (2026-08-25)
+
+The sub-version-capped-at-9 rule gives **1.4.2** from 1.4.1, and `deno task bump` produces exactly
+that. **1.5.0 was set by hand** to match sibling binaryen-ts, which released 1.5.0 the same day
+with the paired T13.22 fix. The two projects already share a publish flow, a `cmem/` convention
+and this coupling, so matching numbers at the point the coupling was resolved is the reason.
+
+**Recorded so the rule does not look broken.** 1.4.2 through 1.4.9 are skipped and will never
+exist. The rule still governs everything after: 1.5.0 -> 1.5.1 -> ... -> 1.5.9 -> 1.6.0. A future
+reader finding a gap in the sequence should find this paragraph, not conclude the tooling
+misfired.
+
+**And the release itself carries nothing user-visible** — see the section below. The parity is the
+point; there is no consumer-facing change to announce.
+
 ## Unreleased on `main` after v1.4.1 — NOTHING user-visible (as of 2026-08-25)
 
 Verified rather than assumed: `git diff --stat v1.4.1..HEAD -- src/` touches **exactly one

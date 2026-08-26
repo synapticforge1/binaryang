@@ -13,8 +13,31 @@
 
 import { DENO_JSON_URL, nextVersion, readCurrentVersion } from './version.ts';
 
+// GUARD: this script MUTATES deno.json, and it read no arguments at all -- so
+// `deno task bump --dry-run` silently performed a real bump and reported it in
+// the same "1.4.1 -> 1.4.2" form a dry run would have used. That happened while
+// checking what the next version WOULD be, and only a failing assertion
+// downstream revealed the file had already moved.
+//
+// `--dry-run` now works, and anything unrecognised is refused rather than
+// ignored. A flag a mutating script does not understand must never be treated
+// as consent to mutate.
+const args = Deno.args;
+const dryRun = args.includes('--dry-run') || args.includes('-n');
+const unknown = args.filter((a) => a !== '--dry-run' && a !== '-n');
+if (unknown.length > 0) {
+  console.error(`bump: unrecognised argument(s): ${unknown.join(' ')}`);
+  console.error('Usage: deno task bump [--dry-run|-n]');
+  Deno.exit(2);
+}
+
 const current = await readCurrentVersion();
 const next = nextVersion(current);
+
+if (dryRun) {
+  console.log(`${current} -> ${next}   (dry run: deno.json NOT modified)`);
+  Deno.exit(0);
+}
 
 const text = await Deno.readTextFile(DENO_JSON_URL);
 const updated = text.replace(
