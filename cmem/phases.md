@@ -152,6 +152,16 @@ V8 panic (`Check failed: !job->compile_imports_.empty()`); a crashed run is not 
 was repeated twice — 513 passing both times — before the version was touched. See
 [testing.md](testing.md).
 
+## Next: the binaryang merge (planned 2026-08-25)
+
+binaryen-ts and wabt-ts merge into `binaryang`; wasmtk stays a consumer. Six decisions settled, the
+layout agreed, every collision measured, and T13.22 verified closed as a precondition. Full record
+in [binaryang.md](binaryang.md); the naming MUST is in [bridge.md](bridge.md).
+
+Note for whoever picks this up: `overview.md` here and in wabt-ts both still say ALL THREE projects
+merge into binaryang. That is now the stale claim — it is two, and the binaryang README is the
+authority.
+
 ## Deferred / not-yet-done
 
 - Phase 10 kernel selection (deferred until real-corpus profiling).

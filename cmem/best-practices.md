@@ -45,6 +45,13 @@ instruction decode paths — `readInitExpr` for constant expressions and the mai
 `ref.null` was wrong in both, so fixing one would have read as fixed. **When an encoding gains a
 form, grep for every site that reads that grammar.**
 
+**A package's public subpaths are not derivable from its file tree.** The exports map is a THIRD
+surface, independent of both the directory layout and the tracked paths, and a merge audit that
+checks the first two will miss it — both projects' audits did, on 2026-08-25, and the one they
+missed is the surface their only downstream consumer actually imports. Adopted from the wabt-ts
+side, who recorded it after the same miss. Check all three surfaces separately: directories, tracked
+paths, exports map.
+
 **When the IR gains a capability, grep every PRODUCER of that node — not just every reader.** The
 rule above is about readers of an encoding; this is its mirror, and it is the one that was missed.
 Multi-value landed in the binary decoder, and the WAT parser went on truncating
