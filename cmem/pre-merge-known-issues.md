@@ -44,6 +44,10 @@ These are real defects. They do not become less real by being in one repo.
 
 ### A1. The bridge's de-coarsening is INCOMPLETE — 3 measured failing shapes
 
+> **Tracked as T13.50** in [tasks.md](tasks.md), with repros, the exact call
+> sites, acceptance criteria and the gate it needs. Scheduled for AFTER the
+> merge, deliberately — see section G.
+
 T13.47 replaced `wabtTypeToValType` (coarsens `(ref $T)` → `structref`) with the
 precise `wabtTypeToValueType` at the sites the tests exercised. **24 coarsening
 call sites remain; only 5 are precise.** Confirmed still broken:
@@ -292,21 +296,56 @@ improvement is supposed to fail it — the minimal section-size fix (T13.40)
 changed every byte in the corpus. Re-baseline in the same commit as such a
 change and say why.
 
-### G2. Do the `fmt.singleQuote` reformat as its own commit, BEFORE
+### G2. `fmt.singleQuote` — RESOLVED: binaryen-ts adopts `true`
 
-Whichever side loses C2, reformat it in the source repo first. Done during the
-merge, a whole-file requote lands in the same diff as thousands of moved lines
-and makes the merge unreviewable — and this project has already been bitten
-once by a CRLF flip turning a 47/10 diff into 1649/1612 (T13.42 lineage).
+Reformat in the SOURCE repo, as its own commit, before the merge. Done during
+it, a whole-file requote lands in the same diff as thousands of moved lines and
+makes the merge unreviewable — this project has already watched a line-ending
+flip turn a 47/10 diff into 1649/1612.
 
-### G3. Settle three decisions before ANY file moves
+**Which side moves is settled by size, not preference:** binaryen-ts tracks
+**125** files against wabt-ts's **635**. Requoting the smaller tree is ~1/5 the
+churn, and wabt-ts is already internally consistent at `singleQuote: true`.
 
-Not fixes; the merge cannot be sequenced without them.
+**Execution belongs in the binaryen-ts repo**, and nothing here writes into it —
+the same boundary they kept when they drafted their handoff rather than editing
+our tree. One commit on their side: `deno fmt` after flipping the flag.
 
-- **B1** — `src/` namespacing. `src/ir` cannot mean two things.
-- **B2a** — `.` and `./compat`. `./compat/wabt` + `./compat/binaryen` is the
-  proposal on the table; wasmtk needs two import-map lines.
-- **B3** — one package, two, or both names kept for compatibility.
+### G2a. `compilerOptions` — RESOLVED: the merged repo takes wabt-ts's
+
+Measured, not preferred: binaryen-ts's full 38-file `src/` under wabt-ts's
+options produces **4 type errors**, all `exactOptionalPropertyTypes`. The
+reverse — relaxing to their config — silently discards
+`noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `noImplicitReturns` and
+`noFallthroughCasesInSwitch` across 635 files, and those four have each caught
+real defects in this project's history.
+
+Four errors is the whole price. `lib` is the one genuine merge rather than
+adoption: `dom` (theirs) vs `deno.window` (ours) — union them and re-check,
+do not pick one blind.
+
+### G3. Three decisions — RECOMMENDED, owner to confirm
+
+The merge cannot be sequenced without these. Recommendations with the reasoning,
+so confirming is cheap and disagreeing is informed.
+
+**B1 — `src/` namespacing → `src/wabt/…` and `src/binaryen/…`.**
+Five directories collide and `src/ir` is the one that matters: the bridge exists
+to translate BETWEEN those two IRs, so a single `src/ir` erases the distinction
+the project is built on. Prefixing by origin keeps every import self-describing
+and makes the eventual convergence explicit work rather than an accident.
+`src/bridge` stays where it is — it is the seam, belonging to neither side.
+
+**B2a — `./compat/wabt` + `./compat/binaryen`**, as binaryen-ts proposed.
+`.` resolves to a root that re-exports both namespaces; the two current roots
+(`src/index.ts` and `main.ts`) cannot both keep it. wasmtk already imports under
+the aliases `binaryen` and `wabt`, so its migration is two import-map lines.
+
+**B3 — publish ONE package, keep both old names as thin re-export shims.**
+A rename breaks `jsr:@jrmarcum/wabt-ts@^1.3.5/compat` (wasmtk) regardless of
+version number, and shims cost one file each. Retire them on a later major once
+consumers have moved — the shim is what makes that a choice rather than a
+deadline.
 
 ### What should NOT be fixed first
 
@@ -318,6 +357,25 @@ The repros in A1 keep it actionable.
 
 Same for **A2** (Phase 8) and **A3** (diagnostic offsets): unaffected by the
 merge in either direction.
+
+## E2. `CLAUDE.md` does NOT travel, and that is intentional
+
+The repo root carries a 1,780-line `CLAUDE.md` which is **gitignored** — machine-local, absent
+from any clone, and gone the moment the merge produces a new tree. It says so itself at the top:
+*"this file is the gitignored, machine-local ARCHIVE; `cmem/` is the committed source of truth."*
+
+Checked before writing this off: every top-level section of it maps onto `cmem/` topic files. Do
+not spend merge time reconciling it, and do not go looking for it afterwards.
+
+**One genuine gap was found and closed (2026-08-25):** the `deno fmt` CRLF verification
+technique — the `git -c core.autocrlf=false --work-tree=<scratch> checkout` recipe, why
+`git archive` cannot substitute, the index-rewrite side effect, and the rule that Python edits
+must preserve line endings — existed ONLY in machine-local memory. It is now in
+`cmem/testing.md`. Two sibling notes (exFAT `safe.directory`, the multi-pack-index repack
+failure) are genuinely MACHINE-level and correctly stay outside the repo.
+
+**The rule the merge should carry forward:** project knowledge lives in `cmem/`, which survives a
+clone. Machine-local memory holds only what is true of the machine.
 
 ## F. How to use this file after the merge
 

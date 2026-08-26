@@ -54,6 +54,38 @@ singleQuote: true`. It therefore reported every line of 81–100 characters as d
 why its output stopped being read — while missing a real 101-character line. **Two files would have
 failed CI**, hidden behind a false alarm that was itself documented and worked around.
 
+**How to see exactly what CI sees.** CI checks out on ubuntu with LF and passes; the local tree
+is CRLF because `core.autocrlf=true`. To reproduce CI's view rather than infer it:
+
+```sh
+git -c core.autocrlf=false --work-tree=<scratch> checkout HEAD -- .
+cd <scratch> && deno fmt --check
+```
+
+**`git archive` does NOT work for this** — it applies the same CRLF conversion.
+
+Two traps that follow, both paid for:
+
+- That `--work-tree` checkout **rewrites the real repo's index**. Afterwards `git status` shows
+  every file as ` M` while `git diff` shows nothing — the index holds the LF blob size, the
+  on-disk CRLF file is larger, so the stat check mismatches and the diff then normalises it away.
+  `git reset --hard HEAD` clears it, and is safe once both `git diff HEAD` and `git diff --cached`
+  are empty.
+- **A Python edit must preserve line endings**: read bytes, `.replace('
+', '
+')`, edit,
+  convert back. Writing with `io.open(..., newline='')` silently converts a CRLF file to LF,
+  which surfaces as a whole-file diff. This bit repeatedly during the T13.x work; the
+  `e = '
+' if '
+' in s else '
+'` idiom throughout these notes exists for it.
+
+_Relocated here 2026-08-25 from machine-local memory, where it was the only copy. It is PROJECT
+knowledge — it would not survive a clone, and `cmem/` is where project memory belongs. The two
+sibling notes it links (exFAT `safe.directory`, the multi-pack-index repack failure) are genuinely
+MACHINE-level and correctly stay outside._
+
 The obvious alternative, `deno fmt --check FILE`, gets the width right (it does read `deno.json`)
 but reinstates the line-ending false alarm, which is the thing this command exists to dodge. Use the
 form above, and **when you write a command to see past a known false alarm, break something on

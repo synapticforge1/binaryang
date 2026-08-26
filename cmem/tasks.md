@@ -148,6 +148,7 @@ for one, write the row.
 | T13.20 | `applyNames` walked 37 of 87 expression kinds — `resolveNames`'s sibling, never run through the same two-axis enumeration | done — **published API produced silently INCONSISTENT naming**; axis 1 is now generic and cannot miss a kind, axis 2 an explicit 55-kind table |
 | T13.21 | `constExprOperands` and `writeInstrHead` are coupled in the WAT writer and nothing said so | done — latent, not live: drift writes an operand TWICE and the output still REPARSES (T10.6's shape). Both now carry INTENT blocks and a source-enumeration gate |
 | T13.22 | The bridge resolves `try_table` catch targets AFTER pushing the try_table's own label — the T7.6 / T9.8 off-by-one in a third layer | **BLOCKED, not done** — it cancels a matching off-by-one in binaryen-ts 1.0.9, so fixing it alone turns correct bytes into wrong ones. Lands with the dependency bump |
+| T13.50 | **OPEN — post-merge.** The T13.47 de-coarsening is incomplete: 24 coarsening call sites remain against 5 precise, and 3 shapes fail today with no test | **not started, deliberately.** Fails LOUDLY (`unresolved GC function type`), so unlike T13.22 it cannot go invisible by being merged — and the fix needs both type systems visible at once, which is exactly what the merge provides. Repros, exact sites, acceptance criteria and the required gate are in the entry below and in [pre-merge-known-issues.md](pre-merge-known-issues.md) A1 |
 | T13.49 | Pre-merge audit for binaryang — record what is broken while the repos are still separate | done — [pre-merge-known-issues.md](pre-merge-known-issues.md). **The de-coarsening from T13.47 is INCOMPLETE**: 24 coarsening sites remain vs 5 precise, and 3 shapes fail today with no test covering them (imported func / tag with `(ref $T)`, global of `(ref null $T)`). Structurally, **5 `src/` directories collide with DIFFERENT contents** — `src/ir` is the wabt IR in one repo and the binaryen IR in the other. Config cost measured at **4 type errors**, not the 13 quoted earlier from a different setup |
 | T13.48 | `deno task bump` MUTATES `deno.json` and read no arguments at all, so `--dry-run` silently performed a real bump and printed the same `1.4.1 -> 1.4.2` line a dry run would | done — hit while checking what the next version WOULD be; only a failing assertion downstream revealed the file had moved. `--dry-run` now works and unrecognised args exit 2. **A flag a mutating script does not understand must never be treated as consent to mutate.** Verified both ways: dry run leaves the file byte-identical, unknown flag refuses |
 | T13.47 | binaryen-ts shipped **1.5.0** with their half of the catch-scope fix; the coupled change landed | **DONE.** Pin 1.0.9 -> 1.5.0 and the bridge fix in one merge, because either alone emits wrong bytes. The 12 bridge failures were TWO defects: our `coarsenValueType` mapping `(ref $T)` -> `structref` where their `gcFuncTypeIndex` now matches EXACTLY, and our never declaring `func` heap types — needed once ANY heap type exists, since their encoder switches the whole module onto the GC path. Bridge 16/28 -> **28/28**; conformance unmoved. Two tests updated: they pinned UP-1, an upstream defect 1.5.0 FIXED |
@@ -7483,3 +7484,81 @@ pins agreement with our own encoder, the ABSOLUTE depth (agreement alone passes
 if both encoders regress together), V8 acceptance, and — guarding the guard —
 that the two depth fixtures encode differently from each other. Verified
 sensitive: restoring the old ordering fails it.
+
+### T13.50 — OPEN, scheduled for AFTER the binaryang merge. Finish the bridge de-coarsening.
+
+Recorded in full while the evidence is fresh, because the merge will move every
+file named below and a vague entry would not survive that.
+
+#### What is wrong
+
+T13.47 introduced `wabtTypeToValueType(t, ctx)` — which keeps a concrete
+`(ref $T)` concrete — and switched **only the sites the failing tests
+exercised**. The old coarsening helper `wabtTypeToValType`, which maps
+`(ref $T)` → `structref`, still serves everything else.
+
+    24 coarsening call sites remain    5 use the precise converter
+
+binaryen-ts ≥ 1.5.0's `gcFuncTypeIndex` matches a signature EXACTLY, so any
+coarsened signature matches nothing and throws.
+
+#### Measured failing shapes (2026-08-25, binaryen-ts 1.5.0)
+
+| shape | result |
+| --- | --- |
+| imported func with a `(ref $T)` param | `unresolved GC function type: (structref) -> ()` |
+| tag with a `(ref $T)` param | `unresolved GC function type: (structref) -> ()` |
+| global of type `(ref null $T)` | `Bridge: ref.null with a user-defined heap type is not…` |
+| `call_indirect` with `(ref $T)` | **OK** — already correct |
+
+```wat
+;; repro 1 — imported func
+(module
+  (type $T (struct (field i32)))
+  (import "m" "f" (func $imp (param (ref $T))))
+  (func (export "g") (param (ref $T)) (call $imp (local.get 0))))
+
+;; repro 2 — tag
+(module
+  (type $T (struct (field i32)))
+  (tag $e (param (ref $T)))
+  (func (export "g") (result i32) (i32.const 1)))
+
+;; repro 3 — global (a DIFFERENT defect, see below)
+(module
+  (type $T (struct (field i32)))
+  (global $g (ref null $T) (ref.null $T))
+  (func (export "g") (result i32) (i32.const 1)))
+```
+
+#### The sites
+
+`addFunctionImport` (params + results), `addGlobal`, `addTag`, `addTable`
+(`elemType`), the local-decl loop, `call_indirect`'s signature, and the
+block-type / struct-field helpers. `bridgeImport` does **not** currently receive
+`ctx`, which `wabtTypeToValueType` needs — threading it is part of the work, not
+an incidental.
+
+#### Two defects, not one
+
+Row 3 is **separate** and sits next door: the bridge refuses `ref.null` with a
+user-defined heap type. Widening the de-coarsening will not fix it, and fixing
+the other two must not be reported as having fixed it.
+
+#### Acceptance
+
+- All four shapes above encode, and the bytes MATCH our own encoder — the
+  oracle, not V8. V8 accepts wrong depths and wrong signatures alike.
+- `wabtTypeToValType` remains for callers that genuinely want the abstract type;
+  the goal is not zero uses, it is zero uses where precision is available.
+- A gate covering all four shapes, in the style of
+  `tests/bridge/try_table_catch_scope.test.ts`: agreement with our encoder, plus
+  an ABSOLUTE assertion, since agreement alone passes if both sides regress.
+- `scripts/verify-baseline.ts` still reports `IDENTICAL` — the bridge is
+  dev-only, so this work must not move a single emitted corpus byte.
+
+#### Why it waits
+
+It fails LOUDLY, so unlike T13.22 it cannot be hidden by the merge. And the fix
+wants both type systems in one place, which the merge delivers. Doing it first
+means doing the harder version of the same work.
