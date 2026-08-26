@@ -259,6 +259,66 @@ Worth recording so the benefit is not forgotten mid-pain:
 
 ---
 
+## G. Do these BEFORE the merge starts
+
+The test for "before" is narrow: **does the merge make it harder, invisible, or
+unverifiable?** Everything else is cheaper afterwards and should wait.
+
+### G1. Baseline the emitted bytes — DONE
+
+`scripts/pre-merge-baseline.tsv` records, for all **421** corpus files, the
+length and hash of the `wat2wasm` output and the hash of the `wasm2wat` text.
+**1,557,602 bytes total.** Re-run after the merge:
+
+```sh
+deno run --allow-read scripts/verify-baseline.ts
+```
+
+A pure relocation of files MUST report `IDENTICAL`. Anything else is a
+behaviour change that needs a reason.
+
+**Why it had to be now:** every conformance harness this project relies on
+lives in a session scratchpad, not the repo — deliberately, because they are
+cheaper to rewrite than maintain. That trade is fine while the tree is stable
+and wrong across a move-refactor, because a harness rewritten AFTER the merge
+has nothing to compare against. The manifest is the part that had to be
+captured while "before" still existed.
+
+Verified in both directions: it reports `IDENTICAL` on the current tree and
+exits 1 naming the file when a single byte-count or hash is altered.
+
+**It is NOT a test**, deliberately. It pins output bytes, so a genuine encoder
+improvement is supposed to fail it — the minimal section-size fix (T13.40)
+changed every byte in the corpus. Re-baseline in the same commit as such a
+change and say why.
+
+### G2. Do the `fmt.singleQuote` reformat as its own commit, BEFORE
+
+Whichever side loses C2, reformat it in the source repo first. Done during the
+merge, a whole-file requote lands in the same diff as thousands of moved lines
+and makes the merge unreviewable — and this project has already been bitten
+once by a CRLF flip turning a 47/10 diff into 1649/1612 (T13.42 lineage).
+
+### G3. Settle three decisions before ANY file moves
+
+Not fixes; the merge cannot be sequenced without them.
+
+- **B1** — `src/` namespacing. `src/ir` cannot mean two things.
+- **B2a** — `.` and `./compat`. `./compat/wabt` + `./compat/binaryen` is the
+  proposal on the table; wasmtk needs two import-map lines.
+- **B3** — one package, two, or both names kept for compatibility.
+
+### What should NOT be fixed first
+
+**A1, the incomplete de-coarsening.** It is a real defect, and the merge makes
+it strictly cheaper: the fix needs both type systems visible at once, which is
+precisely what the merge provides. It also **fails loudly** — `unresolved GC
+function type` — so unlike T13.22 it cannot become invisible by being merged.
+The repros in A1 keep it actionable.
+
+Same for **A2** (Phase 8) and **A3** (diagnostic offsets): unaffected by the
+merge in either direction.
+
 ## F. How to use this file after the merge
 
 Each item above is either closed by the merge (section E) or still open. **Do
