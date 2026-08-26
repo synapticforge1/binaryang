@@ -117,6 +117,38 @@ wire depth.
     bridge as shipped (dest=$inner + old shift)  catch depth 1   correct by cancellation
     bridge with the scope fixed ALONE            catch depth 2   WRONG
 
+### v1.5.0 upgrade: surface compatibility holds, and it is NOT the blocker (2026-08-25)
+
+binaryen-ts checked their side and reported that every name our bridge imports from `/ir` still
+resolves at v1.5.0. **Independently verified here: 0 missing** — we import 72 names across
+`binaryen-bridge.ts` and `type-map.ts` (they counted 66; different de-duplication, same
+substance), against 205 exported by their v1.5.0 `/ir`. The four exports their Sweep 2 removed
+are what makes 1.5.0 a MINOR, and none is reachable from an `exports` subpath.
+
+**And it does not de-risk the upgrade, because the blocker is behavioural, not nominal.** With
+every import resolving, **12 of 28 bridge tests still fail** on v1.5.0 (28/28 pass on 1.0.9), all
+with one error:
+
+    WasmEncodeError: unresolved GC function type: (structref) -> (i32)
+
+Their `gcFuncTypeIndex` now demands an exactly-matching declared `func` heap type for any GC-typed
+signature — the UP-7 typed-ref work landing. **Our `coarsenValueType` maps `(ref $T)` to
+`structref` at the boundary, so no key can ever match.** They flagged this area as our
+`coarsenValueType` "may be doing unnecessary work"; it is stronger than that — it is now a hard
+encode failure, and removing the bridge's last lossy step is the real cost of this upgrade.
+
+**Lesson worth keeping: an import-surface diff is not an upgrade test.** Every name resolving is
+necessary and says nothing about what the callee now REQUIRES of its arguments. Only running the
+suite found it.
+
+**Also true, with one caveat for us:** `/encoder` appears in `src/` exactly once, in a doc comment
+(`binaryen-bridge.ts:12`), never imported — so it is free to change as far as the BRIDGE goes. But
+**11 test files import it**, so dropping the mapping breaks the bridge suite.
+
+**Publisher-side note they may want:** Deno refuses a JSR version younger than 24h by default
+(`minimumDependencyAge`). 1.5.0 published 22:17:43Z; consumers and their CI cannot adopt it until
+~24h later without weakening that policy project-wide.
+
 ### The coordinated sequence — and why our fix cannot land first
 
 Confirmed from BOTH sides 2026-08-25. binaryen-ts read our `bridgeExpr` and quoted it

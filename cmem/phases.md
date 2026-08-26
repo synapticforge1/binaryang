@@ -103,9 +103,9 @@ State as of 2026-08-25:
 
 | | |
 | --- | --- |
-| findings recorded | T13.1 – T13.46 |
+| findings recorded | T13.1 – T13.47 |
 | **unreleased and user-visible** | **0** — all fifteen shipped in **v1.4.1** (2026-08-25, OIDC provenance). [publishing.md](publishing.md) keeps the contents table and the command to re-derive the count |
-| deliberately unfixed | 1 (T13.22 — the bridge defect currently cancels a matching one in binaryen-ts 1.0.9; must land with the dependency bump) |
+| deliberately unfixed | 1 (T13.22 — **our half is now DONE and verified** on branch `t13.22-binaryen-1.5.0`; binaryen-ts shipped 1.5.0 with theirs. Landing is blocked on the GC func-type change, T13.47) |
 | enumeration frontier | **empty** since T13.32 — meaning the cheap axes are spent, NOT that the code is clean |
 | hardening passes | 8, findings 1 / 2 / 0 / 0 / 2 / 2 / 2 / 2 |
 

@@ -2775,3 +2775,50 @@ wrong one.
 So when a probe's oracle turns out not to hold, **the finding is the oracle**,
 and it belongs in the record with the same weight as a defect. It is the thing
 that tells the next person where to spend effort.
+
+## An import-surface diff is not an upgrade test
+
+binaryen-ts checked, before we upgraded, that every name our bridge imports from
+their `/ir` entrypoint still resolved at v1.5.0. It was careful work and it was
+correct — verified independently here, 0 of 72 missing against 205 exported.
+
+**Then 12 of 28 bridge tests failed on that version.** Every import resolved and
+the encoder threw `unresolved GC function type` for any GC-typed signature,
+because the callee now REQUIRES something of its arguments that it did not
+before (an exactly-declared `func` heap type) while our side still coarsens
+`(ref $T)` to `structref`.
+
+The lesson generalises past this dependency: **a surface diff answers "can it
+link", never "will it work".** Names resolving is necessary and says nothing
+about changed preconditions, tightened validation, or a new fail-loud path — all
+of which are exactly what a good release adds. The counter-measure is the one
+binaryen-ts themselves recommended in the same note: **run your own suite against
+the candidate before adopting it**, and treat any compatibility list — including
+one from the publisher, who knows their changes better than you do — as a
+starting hypothesis.
+
+Corollary for the publisher side: if a new fail-loud check makes a previously
+working construction illegal, the consumers who will hit it cannot be found by
+diffing exports. Only their tests find it.
+
+## A probe whose input cannot vary the mechanism proves nothing — the SECOND time
+
+Recorded once already for T13.22 (runtime results identical for both orderings
+because depths 1 and 2 were indistinguishable in that shape). The same item
+produced the same trap again on the fix.
+
+The bridge resolves a catch target that is a NAME to a name, which is
+insensitive to what is on the label stack. So a probe using `(catch $e $outer)`
+returns a clean MATCH whether the try_table's own label was pushed first or not —
+it cannot see the bug in either direction. Only a NUMERIC depth, which indexes
+the stack, discriminates. The first probe used a name, reported MATCH in a
+configuration later measured as broken, and would have licensed the merge.
+
+**Before trusting a green probe, ask which input feature carries the mechanism
+under test, and confirm the probe varies it.** Here the mechanism is stack
+INDEXING, so the input must be an index. A probe can be well-built, run cleanly,
+and still be blind because the input never engages the code path.
+
+The tell was available and ignored: the named case and the numeric case returned
+identical bytes. **Two inputs that should stress different paths returning
+identical results is evidence the probe is not reaching one of them.**
