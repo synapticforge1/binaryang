@@ -411,8 +411,21 @@ All three target runtimes, at the versions installed on this machine:
 failed, but because it was never probed. The first pass tested `import.meta.main` on Node only, and
 JSON attributes plus the `Deno` global on Node and Bun. Recorded rather than quietly filled in,
 because a blank cell in a table headed *measured, not recalled* reads as a negative result, and it
-was not one. Bun was on 1.3.14 then and 1.4.0 now; **whether 1.3.14 had it is untested and now
-untestable here**, so no claim is made about it either way.
+was not one.
+
+⚠️ **That entry then claimed the older Bun was "untested and now untestable here." Both halves were
+wrong.** scoop retains previous versions under `scoop/apps/bun/<version>/`, so 1.3.14 was on disk the
+whole time — **probed directly: `import.meta.main` is `true` there too.**
+
+**How far back it goes — Bun v0.6.0, 2023-05-16**, which introduces it in a dedicated section of the
+release notes, from [PR #2556](https://github.com/oven-sh/bun/pull/2556) merged 2023-04-04. Four
+months before Bun 1.0, which is why v1.0.3's notes reference it as already existing rather than
+announcing it. **Every Bun 1.x has it; Bun constrains the floor not at all.**
+
+The reusable part, since the same shape appeared twice in two entries: *"we can't test that"* was
+asserted rather than checked — once by not probing Bun, once by not looking for the retained install.
+A version manager keeping old versions is exactly what makes an untestability claim cheap to
+falsify, and cheaper to check than to write down.
 
 **`import.meta.main` is therefore universal across every runtime this project targets**, at current
 versions. That is a stronger result than the entry originally reached. It is not that the ban's
@@ -469,13 +482,48 @@ support thread.
 🔓 **Open for the owner:** the floor is a policy call, not a measurement. *Latest LTS and up* means
 **Node 24+**. A more conservative **Node 22+** buys the maintenance-LTS line at the cost of keeping
 the `import.meta.main` question open **for Node only** — 24 is verified, and the version that
-introduced it should be confirmed before 22 is promised. Bun and Deno carry no such question at the
-versions above. The EOL dates above should be confirmed
+introduced it should be confirmed before 22 is promised. **Bun and Deno constrain nothing** — Bun has
+had it since v0.6.0, Deno since long before 2.x. Node is the entire question. The EOL dates above should be confirmed
 against Node's published schedule too; they are stated from the release calendar and corroborated by
 GitHub's runtime deprecation, not read from it today.
 
 Whatever is chosen, it belongs in the binaryang README beside the version note, because it is the
 same kind of claim: something a consumer must know before adopting.
+
+#### 🔓 The Bun floor is a different decision from the Node one
+
+Owner direction, 2026-08-26: pin Bun to **1.4.0**, on the grounds that it is now fully Rust.
+
+✅ **The premise is correct, and worth recording because it is recent enough to be easy to get
+wrong:** [Bun 1.4](https://bun.com/blog/bun-v1.4), released **2026-08-20**, is the first release
+written in **Rust**; every prior version was Zig. Alongside it: ~5× lower idle CPU, up to 35% less
+memory, 2.5× faster Windows startup, and Node-suite compatibility at ~97% for `node:http`, `node:fs`
+and `node:stream` — that last number matters here, because this project's Node story is a published
+capability.
+
+⚠️ **But the reasoning that justifies the Node floor does not transfer, and it is worth being explicit
+about why.** Node 18 and 20 are dropped because they are **end of life** — no security fixes, nobody
+should be running them. **Bun 1.3.x is not EOL.** It is the previous stable line, current until six
+days ago. Raising the Bun floor is therefore not EOL hygiene; it is choosing to stop supporting users
+who have not upgraded yet. That may well be right, but it is a narrower promise made for a different
+reason, and filing it under the same heading as the Node decision would hide that.
+
+🔓 **Recommendation, owner to confirm — separate the two things being called "pinning":**
+
+- **CI / test matrix → 1.4.0, yes.** Test against the runtime people will actually be on.
+- **Published support floor → hold at 1.3 for one cycle.** A *complete implementation rewrite* is an
+  argument for **widening** the test matrix, not narrowing the support floor: as of six days ago
+  Bun's runtime is entirely new code, so a behavioural difference between 1.3.x and 1.4.x is far
+  likelier than between any two Zig releases. That is precisely when keeping the older line in the
+  matrix earns its keep — and it costs nothing here, since scoop already retains 1.3.14 on disk.
+
+Two things cut the other way, recorded so the decision is not made on one-sided evidence: Bun's own
+post says Claude Code had been running the Rust port for months before release, so it is not untested
+in the wild; and on the one probe this plan actually depends on, `import.meta.main`, **1.3.14 (Zig)
+and 1.4.0 (Rust) behave identically** — verified, not assumed.
+
+Whatever is chosen lands in the same README sentence as the Node floor, because it is the same kind
+of claim: something a consumer must know before adopting.
 
 ---
 
