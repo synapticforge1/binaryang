@@ -33,7 +33,7 @@
 import { ExternalKind } from '../core/binary.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
 import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
-import { CatchKind, coarsenValueType } from '../ir/ir.ts';
+import { CatchKind, coarsenValueType, isRefValueType } from '../ir/ir.ts';
 import type { ValueType } from '../ir/ir.ts';
 import type {
   ArrayGetExpr,
@@ -178,6 +178,7 @@ import type {
   HeapType,
   Local,
   Type as BType,
+  ValueType as BValueType,
   WasmModule,
 } from '@jrmarcum/binaryen-ts/ir';
 
@@ -224,6 +225,39 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
       });
       ctx.heapTypeIdx[i] = heapIdx;
     }
+  }
+
+  // Declare a `func` heap type for every function signature, but ONLY when the
+  // module already has a struct/array heap type.
+  //
+  // INTENT: binaryen-ts's encoder switches on `heapTypes.length > 0` -- once a
+  // module declares ANY heap type, EVERY function's type index is resolved by
+  // `gcFuncTypeIndex`, which searches for a declared `func` entry matching the
+  // signature exactly and throws `unresolved GC function type` when it finds
+  // none. That applies to plain `() -> ()` in a GC module too, not only to
+  // GC-typed signatures.
+  //
+  // The guard is load-bearing in the other direction: registering func types
+  // unconditionally would make `heapTypes` non-empty for EVERY module and
+  // switch non-GC modules onto the GC path as well. They must keep using
+  // `getTypeIndex`.
+  //
+  // Appended AFTER the struct/array entries on purpose, so their heap-type
+  // indices -- which instruction immediates already reference -- do not move.
+  if (Object.keys(ctx.heapTypeIdx).length > 0) {
+    const seen = new Set<string>();
+    const declare = (params: ValueType[], results: ValueType[]): void => {
+      const p = params.map((t) => wabtTypeToValueType(t, ctx));
+      const r = results.map((t) => wabtTypeToValueType(t, ctx));
+      const key = JSON.stringify([p, r]);
+      if (seen.has(key)) return;
+      seen.add(key);
+      b.addHeapType({ kind: 'func', params: p, results: r });
+    };
+    for (const imp of module.imports) {
+      if (imp.kind === ExternalKind.Func) declare(imp.func.sig.params, imp.func.sig.results);
+    }
+    for (const f of module.funcs) declare(f.sig.params, f.sig.results);
   }
 
   // Imports: walk module.imports in order, using the canonical names from
@@ -585,6 +619,28 @@ function lookupArrayElementType(typeVar: Var, ctx: BridgeCtx): ValType {
  * type names that weren't resolved by `resolveNames` throw (matching
  * `varIdx`'s fail-loud policy from Bug G).
  */
+/**
+ * Map a wabt {@link ValueType} onto binaryen-ts's, KEEPING a concrete
+ * `(ref $T)` concrete.
+ *
+ * INTENT: this is the precise counterpart of {@link wabtTypeToValType}, which
+ * coarsens. Coarsening was correct while binaryen-ts's `ValType` was flat and
+ * a typed reference had nowhere to go. Since 1.5.0 their `ValueType` is
+ * `ValType | RefType`, and their encoder REQUIRES the precision:
+ * `gcFuncTypeIndex` looks for a declared func heap type whose params and
+ * results match EXACTLY, so a signature coarsened to `structref` matches
+ * nothing and throws `unresolved GC function type` for every GC module.
+ *
+ * Use this wherever a TYPE crosses into binaryen-ts. `wabtTypeToValType`
+ * survives only for the few places that genuinely want the abstract type.
+ */
+function wabtTypeToValueType(t: ValueType, ctx: BridgeCtx): BValueType {
+  if (isRefValueType(t)) {
+    return { heap: heapTypeForBridge(t.heapType, ctx), nullable: t.nullable };
+  }
+  return wabtTypeToValType(t);
+}
+
 function heapTypeForBridge(v: Var, ctx: BridgeCtx): HeapType {
   if (v.kind === 'name') {
     switch (v.name) {
@@ -717,8 +773,8 @@ function bridgeFunc(b: ModuleBuilder, f: WabtFunc, baseCtx: BridgeCtx, name: str
 
   b.addFunction(
     name,
-    f.sig.params.map(wabtTypeToValType),
-    f.sig.results.map(wabtTypeToValType),
+    f.sig.params.map((t) => wabtTypeToValueType(t, ctx)),
+    f.sig.results.map((t) => wabtTypeToValueType(t, ctx)),
     body,
     binaryenLocals,
   );
