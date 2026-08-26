@@ -399,18 +399,33 @@ docs.
 
 #### Measured here, 2026-08-26 — not recalled
 
-| probe | Node 24.19.0 | Bun 1.3.14 |
-| --- | --- | --- |
-| `import.meta.main` | ✅ `true`, boolean | — |
-| `import(…, { with: { type: 'json' } })` | ✅ works | ✅ works |
-| `globalThis.Deno` | ❌ `undefined` | ❌ `undefined` |
+All three target runtimes, at the versions installed on this machine:
+
+| probe | Node 24.19.0 | Bun 1.4.0 | Deno 2.9.5 |
+| --- | --- | --- | --- |
+| `import.meta.main` | ✅ `true`, boolean | ✅ `true`, boolean | ✅ `true`, boolean |
+| `import(…, { with: { type: 'json' } })` | ✅ works | ✅ works | ✅ works |
+| `globalThis.Deno` | ❌ `undefined` | ❌ `undefined` | `object` |
+
+⚠️ **The Bun `import.meta.main` cell was blank in the first version of this entry** — not because it
+failed, but because it was never probed. The first pass tested `import.meta.main` on Node only, and
+JSON attributes plus the `Deno` global on Node and Bun. Recorded rather than quietly filled in,
+because a blank cell in a table headed *measured, not recalled* reads as a negative result, and it
+was not one. Bun was on 1.3.14 then and 1.4.0 now; **whether 1.3.14 had it is untested and now
+untestable here**, so no claim is made about it either way.
+
+**`import.meta.main` is therefore universal across every runtime this project targets**, at current
+versions. That is a stronger result than the entry originally reached. It is not that the ban's
+premise weakens if the Node floor moves — the premise is **expired on all three runtimes**, and the
+only thing still holding it up is the EOL Node 18/20 floor itself.
 
 #### What this changes, and what it does not
 
 **Step 4's stated rationale dies. Step 4's conclusion survives.** The brief frames the CLI
 unification as *forced* because "binaryen-ts's cross-runtime guarantee is a published capability and
-Node 18 lacks that global." On a Node 24 floor, `import.meta.main` is available and that argument is
-simply gone.
+Node 18 lacks that global." Measured above, `import.meta.main` is available on Node, Bun **and**
+Deno at current versions, so that argument is not merely weakened — there is no runtime left for it
+to be true of.
 
 **Step 4 remains forced anyway** — for the reason recorded in N3(c), which is now its *only* reason.
 The six tools use `Deno.args`, `Deno.exit`, `Deno.readFile`, `Deno.writeFile`, `Deno.writeTextFile`
@@ -453,8 +468,9 @@ support thread.
 
 🔓 **Open for the owner:** the floor is a policy call, not a measurement. *Latest LTS and up* means
 **Node 24+**. A more conservative **Node 22+** buys the maintenance-LTS line at the cost of keeping
-the `import.meta.main` question open, since I could only verify 24 on this machine — the version that
-introduced it should be confirmed before 22 is promised. The EOL dates above should be confirmed
+the `import.meta.main` question open **for Node only** — 24 is verified, and the version that
+introduced it should be confirmed before 22 is promised. Bun and Deno carry no such question at the
+versions above. The EOL dates above should be confirmed
 against Node's published schedule too; they are stated from the release calendar and corroborated by
 GitHub's runtime deprecation, not read from it today.
 
