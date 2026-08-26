@@ -103,7 +103,7 @@ State as of 2026-08-25:
 
 | | |
 | --- | --- |
-| findings recorded | T13.1 – T13.47 |
+| findings recorded | T13.1 – T13.50 |
 | **unreleased and user-visible** | **0** — all fifteen shipped in **v1.4.1** (2026-08-25, OIDC provenance). [publishing.md](publishing.md) keeps the contents table and the command to re-derive the count |
 | deliberately unfixed | **0** — T13.22 LANDED 2026-08-25 with the binaryen-ts 1.5.0 bump (T13.47) |
 | enumeration frontier | **empty** since T13.32 — meaning the cheap axes are spent, NOT that the code is clean |

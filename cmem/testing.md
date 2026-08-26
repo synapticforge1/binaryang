@@ -109,9 +109,35 @@ ignored by design — see `cli_io_errors.test.ts`) as of 2026-08-25. (It read "1
 **the same day**, five tests later. A count in prose goes stale silently, so treat any number here
 as the date it carries, not as current; `deno task test | tail -1` is the only current answer.)
 
+## Proving a refactor changed nothing: `verify-baseline.ts`
+
+The seven-plus conformance metrics live in a session scratchpad, not the repo — deliberately, on
+the grounds that they are cheaper to rewrite than maintain. **That trade breaks across a large
+move-refactor**, because a harness rewritten afterwards has nothing to compare against.
+
+`scripts/pre-merge-baseline.tsv` closes that hole. It records, for every corpus file, the byte
+length and hash of the `wat2wasm` output and the hash of the `wasm2wat` text — **421 files,
+1,557,602 bytes** as of 2026-08-25.
+
+```bash
+deno run --allow-read scripts/verify-baseline.ts   # IDENTICAL, or exit 1 naming the files
+```
+
+**It is not a test, on purpose.** It pins emitted bytes, so a genuine encoder improvement is
+SUPPOSED to fail it — T13.40's minimal section-size fix changed every byte in the corpus. Being
+in the gate would make the right answer "relax the assertion", which is how a baseline stops
+meaning anything. Re-baseline in the same commit as such a change, and say why in the message.
+
+Verified in both directions (the standing rule for any check): `IDENTICAL` on an unchanged tree,
+exit 1 naming the file when a single byte-count or hash is altered.
+
+Written for the binaryang merge — see [pre-merge-known-issues.md](pre-merge-known-issues.md) G1 —
+but it applies to any refactor that claims to move code without changing behaviour.
+
 ## The wasmtk WAT corpus
 
-`tests/wasmtk/` holds **272 real-world WAT files** emitted by wasmtk's wasic compiler. The runner at
+`tests/wasmtk/` holds **421 real-world WAT files** — 413 emitted by wasmtk's wasic compiler plus 8
+non-wasic fixtures (Rust / Zig / hand-written WAT), refreshed 2026-08-25. The runner at
 `tests/wasmtk/runner.test.ts` walks the directory and asserts each compiles cleanly through
 `wat2wasm` + `validate`, reporting failures by filename. **Adding a file = dropping it in the
 directory** — the runner picks it up automatically.
@@ -123,12 +149,19 @@ directory** — the runner picks it up automatically.
 - **`tests/wasmtk/roundtrip.test.ts`** runs the _reverse_ direction over the same corpus:
   `wat2wasm → wasm2wat → wat2wasm`, asserting the disassembly RE-COMPILES. This is the structural
   guard for the invalid-`wasm2wat`-output class (the round-5 missing-`$` bug). The plain runner only
-  checks the forward direction; this closes the loop. All 272 round-trip clean as of 2026-06-09.
+  checks the forward direction; this closes the loop. All **421** round-trip clean as of 2026-08-25.
 
-## `tests/wasmtk/` is a FROZEN SNAPSHOT — regenerate before reporting upstream
+## `tests/wasmtk/` is a SNAPSHOT — stamped and refreshed, but still a snapshot
 
-272 files here; wasmtk's live corpus emits **373**, and no source commit was recorded. Full detail
-and the refresh procedure: `tests/wasmtk/PROVENANCE.md`.
+**Refreshed 2026-08-25 from wasmtk `4600ba9`** (T13.46), verified level with `origin/main` first —
+regenerating from a stale checkout would only have manufactured a newer stale snapshot. 421 files.
+The stamp is gated: `tests/wasmtk/provenance.test.ts` fails if the source commit, the date, or the
+declared file count stops matching what is on disk.
+
+**It is still a snapshot, and the rule below still applies.** wasmtk count their live corpus at
+**373** where we generate 413 from the same checkout; that difference is deliberately unreconciled,
+because which sources constitute "the corpus" is a fact about wasmtk. Full detail and the refresh
+procedure: `tests/wasmtk/PROVENANCE.md`.
 
 **The snapshot has now cost THREE wrong reports to the wasmtk team, all caught by them rather than
 by us** — the `KNOWN_INVALID` seven, the legacy-EH scope reported as 6 when it is 10, and the

@@ -59,11 +59,20 @@ tag push to live.
 <!-- The count in this heading is DERIVED and has gone stale twice. It read "five"
      while the table held twelve, was corrected, and then read "twelve" while the
      table held fifteen. Re-derive it, never quote it:
-     `grep -cE '^\| \*{0,2}T13.*\| \*\*yes' cmem/publishing.md`
+     `grep -cE '^\| \*{0,2}T13.*\| \*\*yes' cmem/publishing.md`   -> 15
      (The first version of that command returned 0 — it skipped one table cell where
      there are two before the verdict. A documented command that silently returns
      nothing is worse than no command: run it before you write it down, and again
-     when you next rely on it.) -->
+     when you next rely on it.)
+
+     CAREFUL, 2026-08-25: that command counts the USER-VISIBLE ROWS OF THE TABLE
+     BELOW, which is now the v1.4.1 CONTENTS list. It is NOT the answer to "what is
+     unreleased?" — it was, while this section was headed UNRELEASED, and the
+     meaning changed silently when the section was retitled on release. The command
+     did not change and its output did not change; only the question it answers did.
+     For what is actually unreleased, ask git, not this file:
+         git diff --stat $(git describe --tags --abbrev=0)..HEAD -- src/
+     Empty means nothing user-visible is pending. -->
 
 T13.11, T13.14, T13.15, T13.16, T13.20, T13.26, T13.29, T13.30, T13.31, T13.33,
 T13.34, T13.40 and T13.41 changed BEHAVIOUR; T13.37 and T13.38 changed only error

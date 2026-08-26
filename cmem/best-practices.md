@@ -2864,3 +2864,31 @@ Had the count been the only instrument, the obvious move was to revert a correct
 fix and look elsewhere. **When defects stack, the failure count is the last
 thing to move and the message is the first.** Read the diagnostic before
 concluding a fix missed.
+
+## A documented command can go wrong without changing — the QUESTION moves under it
+
+`cmem/publishing.md` carried a `grep` for re-deriving how many unreleased fixes
+were waiting. It was correct, it had already been fixed once for returning 0,
+and it was verified when written.
+
+Then the section it lived in was retitled from **UNRELEASED** to **SHIPPED in
+v1.4.1** at release. The command did not change. Its output did not change — it
+still returns 15. **The question it answers changed**: from "what is waiting?"
+to "what did that release contain?" Both are useful; only one is what a reader
+running it under a heading about releases would assume.
+
+This is a third failure mode for documented commands, distinct from the two
+already recorded (a command that never worked; a command blinded by a false
+alarm). Here the command is fine and its CONTEXT rotted around it.
+
+The counter-measures are cheap:
+
+- **State what the command counts, not what you want to know.** "Counts the
+  user-visible rows of the table below" cannot drift; "counts unreleased fixes"
+  did.
+- **Prefer a command whose source of truth is the thing itself.** For "what is
+  unreleased", `git diff --stat $(git describe --tags --abbrev=0)..HEAD -- src/`
+  reads the repository. A grep over prose reads a claim ABOUT the repository,
+  and prose is what goes stale.
+- **When you retitle a section, re-read the commands inside it.** A heading
+  change is a semantic change to everything scoped under it.
