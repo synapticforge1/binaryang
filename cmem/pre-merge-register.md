@@ -15,8 +15,14 @@ moves; two views of the same merge is how things get missed twice."* That predic
 The reconciliation found four conflicts, one unexecuted pre-merge action, and five findings present
 in neither document. Two of the four conflicts are cases where a document contradicts **itself**.
 
+**Status, 2026-08-26:** both blocking items are **closed** — P1 (the requote, `2c41d3d1371`) and
+N4 (the version drift, `73ab06cb627`), each fixed in the binaryen-ts repo where they belonged.
+**Step 2 is unblocked.** Closed entries are marked, not deleted; see § 8.
+
 **Every number below was re-derived on 2026-08-26**, against `binaryen-ts@db71b066223` and
-`wabt-ts@fa9483aa3`, both trees clean. Where a re-derivation disagrees with a source document, the
+`wabt-ts@fa9483aa3`, both trees clean. binaryen-ts has since moved to `73ab06cb627`; the two commits
+in between are the P1 requote and the N4 fix, and neither changes a count here except the test
+total (513 → 514, one new sync test). Where a re-derivation disagrees with a source document, the
 source is named and the drift is explained rather than overwritten — a number that moved is
 evidence, and the direction it moved in is usually the interesting part.
 
@@ -188,20 +194,44 @@ evidence. Non-colliding and movable as-is, ✅ as both registers list them: `bri
 
 ---
 
-## 2. The unexecuted pre-merge action
+## 2. The pre-merge action that was missing from the plan
 
-### P1 ⚠️🆕 `fmt.singleQuote` — marked RESOLVED, never executed, and absent from the seven steps
+### P1 ✅ `fmt.singleQuote` — was absent from the seven steps. **CLOSED 2026-08-26, `2c41d3d1371`**
 
 wabt-ts's G2 records this as **RESOLVED: binaryen-ts adopts `true`**, to be done *in the binaryen-ts
 repo, as its own commit, before the merge*, with the reasoning that a whole-file requote landing in
 the same diff as thousands of moved lines makes the merge unreviewable.
 
-**It has not been done.** `binaryen-ts/deno.json` still reads `"singleQuote": false`, verified today.
+**Raised here because it had not been done** — `binaryen-ts/deno.json` read `"singleQuote": false`
+when this register was written, and the kickoff brief's ordered steps 0–6 did not mention it at all.
+So the one action both sides agreed had to happen before the trees move was the one action the
+execution plan omitted.
 
-And the kickoff brief's ordered steps 0–6 **do not mention it at all**. So the one action both sides
-agreed had to happen before the trees move is the one action the execution plan omits. This is
-precisely the class of miss the reconciliation was ordered to catch, and it is the reason this
-document exists.
+✅ **Closed the same day.** binaryen-ts landed `2c41d3d1371` — *style: fmt.singleQuote true, requote
+the tree*. Verified from here: `deno.json` now reads `true`, and the commit is a **pure requote —
+104 files, 4,302 insertions against 4,302 deletions, every file balanced**, source and tests, with
+nothing else riding along. That is exactly the shape G2 asked for, and the reason it asked.
+
+**Step 2 is unblocked.**
+
+#### Why this entry stays, and why it is the most useful thing in the file
+
+The omission was not wabt-ts's and not an oversight in the abstract. In the binaryen-ts author's own
+account: *the requote's absence from the kickoff brief was my omission — I built the sequence from
+our plan without reconciling their G2 register first, which is the exact failure the brief warned
+about a paragraph earlier.*
+
+That is worth more than the fix. The brief's instruction — *reconcile the two registers before any
+file moves; two views of the same merge is how things get missed twice* — was written by the person
+who then sequenced seven steps from one view. **The instruction was right and its author did not
+follow it, in the same document, one paragraph later.** Not carelessness: the plan felt complete
+because it was internally consistent, and internal consistency is precisely what a single view can
+never distinguish from completeness.
+
+So this register's existence is not procedural overhead justified by four conflicts and five
+findings. It is justified by one: the step that had to happen first was missing from the list of
+steps, and no amount of re-reading the list would have surfaced it, because the list was not where
+the information lived.
 
 **It must happen before step 2.** Not because reformatting is hard, but because after the trees move
 there is no "its own commit" left to put it in — the churn and the move share a diff, permanently.
@@ -225,7 +255,7 @@ Five. All measured today.
 
 | | convention | files |
 | --- | --- | --- |
-| binaryen-ts | `*_test.ts` | 37 |
+| binaryen-ts | `*_test.ts` | 38 |
 | wabt-ts | `*.test.ts` | 130 |
 
 Zero overlap in either direction. Deno's runner discovers both by default, so nothing breaks on day
@@ -299,16 +329,38 @@ in `wasm-opt.ts` explaining the ban. The ban is real and observed.
 **Step 4 stays where it is in the order**, and stays forced — the six tools change regardless,
 because the cross-runtime guarantee is a published capability. Only the estimate changes.
 
-### N4 🆕 `main.ts` reports the wrong version
+### N4 ✅ `main.ts` reported the wrong version. **CLOSED 2026-08-26, `73ab06cb627`**
 
 `binaryen-ts/main.ts` line 77: `const VERSION = "1.3.4"`. `deno.json`: `"version": "1.5.0"`. So
 `binaryen-ts --version` has been printing `1.3.4` for two minor releases. The comment above it says
 *"Keep in sync with `deno.json` `version` (bumped on release)"* — a convention that depends on
 someone remembering, and this is what that looks like after they didn't.
 
-Small, but it lands directly on step 4's work and on the 1.5.1 gate. Fix it while unifying the CLI,
-and take the constant from `deno.json` rather than restating it, so the class is closed and not just
-the instance.
+✅ **Fixed at the source instead**, in `73ab06cb627`, rather than absorbed into step 4. **Drop it
+from the CLI-unification list** — there is nothing left to carry.
+
+⚠️ **And the fix is better than what this register proposed.** The recommendation above was to read
+the constant from `deno.json` rather than restate it. That is wrong here, for a reason this document
+should have caught given it is the same reason step 4 exists at all: `main.ts` is the CLI entry for
+**Node 18** as well as Deno, and importing JSON needs `with { type: "json" }`, which Node 18 lacks.
+A runtime read would have traded a cosmetic bug for a real cross-runtime one — breaking the exact
+published capability the merge is reorganising the CLI to protect.
+
+What landed closes the drift from two sides without a runtime read: `deno task bump` now rewrites
+`main.ts`'s constant alongside `deno.json` and **fails loudly if it cannot find the literal**, so a
+rename cannot make the bump silently stop syncing; and `tests/version_sync_test.ts` asserts the two
+agree, which catches the case that actually produced this bug — a version set **by hand**, since
+`bump` has no minor mode and that is how 1.5.0 shipped. Teeth-verified on their side by reverting
+the constant and watching it fail with the real numbers.
+
+🔓 **Still true, and worth knowing:** the fix is on `main` and **not published**. JSR's 1.5.0 still
+reports `1.3.4`. It lands in **1.5.1, with the merge** — deliberately not worth a release of its own.
+So anyone reading `--version` from the published package during the merge window gets `1.3.4`, and
+that is expected rather than a symptom.
+
+The generalisable part, which is why this stays in the file: the original comment said *keep in sync
+with `deno.json` by hand*. A convention that depends on someone remembering is not a mechanism, and
+this is what one looks like two minor releases after they didn't.
 
 ### N5 ⚠️🆕 The licence inventory is off by one on both sides
 
@@ -444,11 +496,11 @@ part and is preserved.
 | # | step | change |
 | - | ---- | ------ |
 | **0** | Unblock the repo — `safe.directory` | ✅ **done 2026-08-26** |
-| **0.5** | **`fmt.singleQuote` → `true` in binaryen-ts, its own commit, in their repo** | ⚠️ **new — P1.** Was agreed, never executed, omitted from the brief. Must land before 1. |
+| **0.5** | **`fmt.singleQuote` → `true` in binaryen-ts, its own commit, in their repo** | ✅ **done 2026-08-26, `2c41d3d1371`** — 104 files, 4,302/4,302, pure. Was agreed, never executed, omitted from the brief (P1). |
 | **1** | Write the decisions into the binaryang README — two projects, not three | draft on disk; extend with the six decisions and 1.5.1 |
 | **2** | Merge the trees, both histories, into `src/binaryen-ts/` + `src/wabt-ts/` | preserve `tests/deno.json` as a workspace member (N2); rename `binaryen-bridge.ts` → `bridge.ts` |
 | **3** | Resolve the export map | ✅ **decided 2026-08-26** — narrow authored root, not wabt's barrel; map drafted in C2; no subpath named `./ir` |
-| **4** | Unify the CLI | ⚠️ **six extractions + a `Deno`→`node:` port, not six registrations** (N3); fix the VERSION constant (N4) |
+| **4** | Unify the CLI | ⚠️ **six extractions + a `Deno`→`node:` port, not six registrations** (N3). VERSION is no longer on this list — closed upstream (N4). |
 | **5** | Unify the harness | ⚠️ settle the `_test.ts` / `.test.ts` split first (N1) |
 | **6** | Merge `cmem` by topic | `bridge.md` has inverted; `best-practices.md` keeps both origin stories |
 
@@ -464,12 +516,16 @@ is a single entry point. 6 is last because `cmem` describes the result, and half
 
 | after | gate |
 | --- | --- |
-| 0.5 | binaryen-ts reformats in one commit, tests still green, nothing else in the diff |
-| 2 | 906 tests green · both publish dry-runs clean · **`verify-baseline.ts` reports `IDENTICAL`** |
+| 0.5 | ✅ met — one commit, 104 files, insertions equal deletions, nothing else in the diff |
+| 2 | **907** tests green · both publish dry-runs clean · **`verify-baseline.ts` reports `IDENTICAL`** |
 | 3 | every old subpath still resolves |
 | 4 | the naming check returns empty, in CI · all six tools run from `binaryang <tool>` on Deno **and Node 18** |
 | 5 | one command runs everything, across both test-file conventions |
 | before 1.5.1 | wasmtk builds green against binaryang alone |
+
+⚠️ Gate 2 was **906**; it is **907** now. binaryen-ts went 513 → 514 with `tests/version_sync_test.ts`
+(N4). That is arithmetic on each side's reported total, not a run of the merged suite — re-derive it
+after step 2 rather than trusting this line, which is the whole point of § 8.
 
 The baseline check is added to gate 2 deliberately. **An exit code is not evidence in this
 codebase** — the standing rule from `binaryen-ts/cmem/INDEX.md` § "regression gate", and the reason

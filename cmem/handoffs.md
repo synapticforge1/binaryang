@@ -13,7 +13,7 @@ down here before the trees move rather than after.
 
 ---
 
-## 1. The `fmt.singleQuote` requote (drafted 2026-08-26 — BLOCKING step 2)
+## 1. The `fmt.singleQuote` requote (drafted 2026-08-26 — ✅ **RESOLVED same day**)
 
 Context: `wabt-ts/cmem/pre-merge-known-issues.md` § G2 records this as **RESOLVED**, with execution
 assigned to the binaryen-ts repo, before the merge, as its own commit. It was never executed, and
@@ -22,6 +22,37 @@ happen before the trees move is the one action the execution plan does not menti
 [pre-merge-register.md](pre-merge-register.md) § P1.
 
 This is the only thing blocking step 2.
+
+### Outcome — both asks landed, 2026-08-26
+
+**`2c41d3d1371` — style: fmt.singleQuote true, requote the tree.** Verified from here: 104 files,
+4,302 insertions against 4,302 deletions, every file balanced, `deno.json` flipped, nothing else in
+the diff. **Step 2 is unblocked.**
+
+**`73ab06cb627` — fix(cli): --version reported 1.3.4.** Fixed at the source rather than absorbed into
+our step 4, so it comes off our list entirely.
+
+Two things came back that are worth more than the fixes:
+
+**Our recommendation on the version constant was wrong, and wrongly reasoned.** The note below
+suggests reading it from `deno.json` instead of restating it. `main.ts` is the Node 18 entry as well
+as the Deno one, and importing JSON there needs `with { type: "json" }`, which Node 18 lacks — so a
+runtime read trades a cosmetic bug for a real cross-runtime one, breaking the exact capability step 4
+exists to protect. We should have caught that; it is the same constraint we were citing three
+paragraphs earlier in the register. What they did instead closes the drift from two sides without a
+runtime read: `deno task bump` rewrites both files and fails loudly if the literal moves, and
+`tests/version_sync_test.ts` catches a hand-set version — the case that actually caused it, since
+1.5.0 was set by hand.
+
+**The omission was theirs, and they said so precisely.** In the binaryen-ts author's own account: the
+requote's absence from the kickoff brief was their omission, built from their own plan without
+reconciling wabt-ts's G2 register first — *the exact failure the brief warned about a paragraph
+earlier.* That account is recorded in [pre-merge-register.md](pre-merge-register.md) § P1 because it
+is the strongest evidence the reconcile-first instruction has: the instruction was right, and its own
+author did not follow it, in the same document. A plan can feel complete for the same reason it can
+be wrong — internal consistency is not completeness, and a single view cannot tell the two apart.
+
+Nothing is owed in reply. Left drafted below as sent.
 
 ---
 
@@ -70,7 +101,8 @@ the side that moves.
 
 Both are yours, both are ours to carry now, and neither is a request.
 
-**`main.ts` reports the wrong version.** Line 77 is `const VERSION = "1.3.4"` while `deno.json` says
+**`main.ts` reports the wrong version.** *(As sent. They fixed it themselves in `73ab06cb627`, and
+better — see the outcome above.)* Line 77 is `const VERSION = "1.3.4"` while `deno.json` says
 `1.5.0`, so `binaryen-ts --version` has printed `1.3.4` for two minor releases. The comment above it
 says to keep it in sync with `deno.json` by hand, which is what that looks like after someone
 didn't. We will fix it in binaryang while unifying the CLI, and take the constant from `deno.json`
