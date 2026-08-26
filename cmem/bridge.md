@@ -250,9 +250,9 @@ bridge, and it nearly cost them the wrong answer.
 
 ### Second handoff drafted (v1.5.0) — upgrade-compatibility facts worth keeping
 
-A follow-up note is drafted for the team now that v1.5.0 is out. It lives in a session scratchpad,
-not the repo. Two things in it were MEASURED and are worth keeping here regardless of whether the
-note itself survives:
+A follow-up note was drafted for the team once v1.5.0 shipped. **Both handoff notes now live in the
+repo at [handoffs.md](handoffs.md)** rather than in a session scratchpad. Two things in the second
+one were MEASURED and are repeated here because they answer questions that recur:
 
 - **All 66 names their bridge imports from `/ir` still resolve at v1.5.0** — checked by extracting
   the import list from `../wabt-ts/src/bridge/binaryen-bridge.ts` and diffing it against the live

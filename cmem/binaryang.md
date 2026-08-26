@@ -1,8 +1,12 @@
 # binaryang — the binaryen-ts + wabt-ts merge
 
 Planning record, 2026-08-25. The merge target repo exists (`github.com/jrmarcum/binaryang`, `main`,
-README + MIT LICENSE only). Full plan with the measured numbers:
-<https://claude.ai/code/artifact/6c49a3fa-6a44-4356-9474-48e78f6bd43a>
+README + MIT LICENSE only).
+
+**This file is the source of truth.** The same plan was also published as a page
+(<https://claude.ai/code/artifact/6c49a3fa-6a44-4356-9474-48e78f6bd43a>) for reading and sharing,
+but nothing depends on that link: everything measured or decided is recorded here, and the kickoff
+brief is in [binaryang-kickoff.md](binaryang-kickoff.md).
 
 **Scope: two projects, not three.** binaryen-ts and wabt-ts merge; wasmtk stays a consumer. Both
 `overview.md` files still say all three — that is now the stale claim, and the binaryang README is
