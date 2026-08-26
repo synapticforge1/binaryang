@@ -78,16 +78,18 @@ async function guardCleanWorkingTree(): Promise<void> {
     const status = line.slice(0, 2);
     const path = line.slice(3);
     if (status === '??') continue; // untracked — fine, won't be in the release anyway
-    if (path === 'deno.json') continue; // the one file we expect bump+publish to touch
+    // The two files `deno task bump` rewrites: the manifest, and main.ts's VERSION
+    // literal (which cannot read deno.json — see main.ts for why).
+    if (path === 'deno.json' || path === 'main.ts') continue;
     dirty.push(`  ${status} ${path}`);
   }
   if (dirty.length > 0) {
     console.error('✗ Refusing to publish: working tree has uncommitted changes');
-    console.error('  to tracked files other than deno.json.');
+    console.error('  to tracked files other than deno.json and main.ts.');
     console.error('');
     for (const d of dirty) console.error(d);
     console.error('');
-    console.error('This script stages and commits ONLY deno.json. Those changes would be');
+    console.error('This script stages and commits ONLY deno.json and main.ts. Other changes');
     console.error('silently left behind — the tag commit JSR builds from would contain');
     console.error('nothing but the version bump.');
     console.error('');

@@ -11,7 +11,7 @@
  * @license MIT
  */
 
-import { DENO_JSON_URL, nextVersion, readCurrentVersion } from './version.ts';
+import { DENO_JSON_URL, MAIN_TS_URL, nextVersion, readCurrentVersion } from './version.ts';
 
 const current = await readCurrentVersion();
 const next = nextVersion(current);
@@ -26,6 +26,21 @@ if (updated === text) {
   Deno.exit(1);
 }
 await Deno.writeTextFile(DENO_JSON_URL, updated);
+
+// `main.ts` carries the version as a literal, because it is the CLI entry for Node 18
+// as well as Deno and cannot import JSON. Rewrite it here so the two cannot drift —
+// `binaryen-ts --version` reported 1.3.4 through two minor releases when this was a
+// "keep in sync by hand" comment. `tests/version_sync_test.ts` is the backstop.
+const mainText = await Deno.readTextFile(MAIN_TS_URL);
+const mainUpdated = mainText.replace(
+  /(const VERSION = ')[^']*(')/,
+  (_match, prefix, suffix) => `${prefix}${next}${suffix}`,
+);
+if (mainUpdated === mainText) {
+  console.error('Could not locate the `VERSION` constant in main.ts to rewrite.');
+  Deno.exit(1);
+}
+await Deno.writeTextFile(MAIN_TS_URL, mainUpdated);
 
 console.log(`${current} -> ${next}`);
 console.log('');

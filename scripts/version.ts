@@ -16,6 +16,9 @@
 /** Resolves the repository's `deno.json` regardless of CWD. */
 export const DENO_JSON_URL: URL = new URL('../deno.json', import.meta.url);
 
+/** Absolute URL of `main.ts`, which carries the version as a literal (see `bump_version.ts`). */
+export const MAIN_TS_URL: URL = new URL('../main.ts', import.meta.url);
+
 /** Reads the current `version` field from `deno.json`. */
 export async function readCurrentVersion(): Promise<string> {
   const text = await Deno.readTextFile(DENO_JSON_URL);

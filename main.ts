@@ -73,8 +73,20 @@ import { main as wasmOptMain } from './src/tools/wasm-opt.ts';
 // CLI dispatch
 // ---------------------------------------------------------------------------
 
-/** Package version. Keep in sync with `deno.json` `version` (bumped on release). */
-const VERSION = '1.3.4';
+/**
+ * Package version.
+ *
+ * Kept in sync with `deno.json` MECHANICALLY, not by hand: `deno task bump` rewrites
+ * this line as well, and `tests/version_sync_test.ts` fails if the two ever disagree.
+ * The previous "keep in sync by hand" comment is what this looked like after someone
+ * did not — `--version` printed 1.3.4 through two minor releases.
+ *
+ * It is a literal rather than a read of `deno.json` because this file is the CLI
+ * entry for Node 18 as well as Deno, and importing JSON needs `with { type: 'json' }`,
+ * which Node 18 does not have. Cross-runtime support is a published capability, so
+ * the constant stays and the drift is closed by the bump script plus the test.
+ */
+const VERSION = '1.5.0';
 
 const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
   'wasm-opt': wasmOptMain,
