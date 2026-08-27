@@ -90,6 +90,83 @@ It also closed a gate mismatch: CI's dry-run ran `deno publish --dry-run --allow
 real publish ran `deno publish --allow-slow-types`, so the gate was verifying a different
 configuration from the one that ships. They now run the same command.
 
+## 1.5.1 published — the result
+
+`@jrmarcum/binaryang@1.5.1`, 2026-08-27, **provenance recorded: `rekorLogId=2618802426`**. The
+verification step confirmed it in-run rather than leaving it to be discovered later. Smoke-tested
+against the PUBLISHED artifact (not local paths): `./wat2wasm`, `./wasm2wat`, `./core/wabt-ts` and
+`./binary` in one program, round-tripping and executing correctly.
+
+### ⚠️ The first tag push produced NO workflow run at all
+
+Pushed the tag before the branch. At that moment the remote's `main` was still the initial
+README-only commit, so Actions had no `publish.yml` registered to match a tag event against — the
+event passed unmatched and silently. Pushing `main` then registered all three workflows, and
+`auto-tag` correctly no-opped because the tag already existed. Net effect: a tag, a green CI run,
+and no release.
+
+Fixed by deleting and re-pushing the tag once the workflows were registered.
+
+**This only bites on a repository's first push**, and the intended release flow avoids it entirely,
+because there the branch push always comes first. Worth writing down anyway: the symptom is not an
+error, it is an _absence_, and absence is the hardest thing to notice.
+
+### The score is 88, and provenance is not why
+
+Read from `api.jsr.io/scopes/jrmarcum/packages/binaryang/score` — **15 of 17 factors**:
+
+| factor                                                   | binaryang | siblings (18/18) |
+| -------------------------------------------------------- | --------- | ---------------- |
+| `hasProvenance`                                          | ✅ yes    | yes              |
+| `allFastCheck`                                           | ✅ yes    | yes              |
+| `hasReadme` / `hasReadmeExamples` / `allEntrypointsDocs` | ✅ yes    | yes              |
+| `percentageDocumentedSymbols`                            | 98.1%     | 98.3% / 99.7%    |
+| **`hasDescription`**                                     | ❌ **NO** | yes              |
+| **`atLeastOneRuntimeCompatible`**                        | ❌ **NO** | yes              |
+| **`multipleRuntimesCompatible`**                         | ❌ **NO** | yes              |
+
+**All three gaps are JSR-side settings, not code.** Verified: neither sibling's `deno.json` contains
+a `description` field, yet both score `hasDescription: yes` — so it is set in the JSR package
+settings UI, and the runtime-compatibility flags likewise. Set description, and tick Deno / Node /
+Bun / browser, and the score reaches parity.
+
+`allFastCheck: yes` independently confirms that removing `--allow-slow-types` was right: the package
+passes fast-check, so it ships a `.d.ts` for Node consumers.
+
+### The `unanalyzable-dynamic-import` warning is benign
+
+Publishing emits:
+
+```
+warning[unanalyzable-dynamic-import]: unable to analyze dynamic import
+  --> src/binaryen-ts/interop/binaryen-js.ts:160  mod = await import(path);
+```
+
+It affects **neither provenance nor the score** — `allFastCheck` is already `yes`. JSR's concern is
+that a dynamic import resolved through a local import map would break for consumers, because it
+cannot be rewritten at publish time.
+
+✅ That does not apply here. The default specifier is `npm:binaryen`, a **runtime** scheme rather
+than an import-map alias, and binaryang's import map contains no `binaryen` entry at all (only
+`@std/*`) — so there is nothing to rewrite and nothing that breaks. The warning is JSR correctly
+reporting that it cannot see through `await import(path)` where `path` is a parameter, which is the
+whole point of the API: callers may pass their own specifier or a pre-loaded module.
+
+🔓 One real caveat behind it, unrelated to publishing: `npm:` resolves on **Deno** only. Node and
+Bun callers must pass `binaryenJsPath` or `{ binaryen }`, which `create()`'s doc comment and its
+error hint both say. `./interop` is documented as not browser-available.
+
+### Consumers hit a 24-hour wall
+
+Deno's `minimumDependencyAge` (default 24h) refuses a version this new:
+
+> Could not find version … A newer matching version was found, but it was not used because it was
+> newer than the specified minimum dependency date
+
+Expected, not a defect — pass `--min-dep-age=0`, or wait. Worth knowing before wasmtk's migration
+(C1): binaryang's own `deno.json` sets `minimumDependencyAge: "0"`, inherited from wabt-ts, but a
+consumer's setting is the one that governs.
+
 ## The verification step was tested against both sides
 
 Not assumed to work. Its logic was run against four real published versions before being wired in:
