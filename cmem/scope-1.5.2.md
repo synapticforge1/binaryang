@@ -29,6 +29,26 @@ A tag is also the one thing that publishes from anywhere: `publish.yml` keys on 
 with no branch constraint, so pushing a `v*` tag from this branch would publish immediately. Nothing
 else reachable from a branch push can.
 
+## ✅ Status at release — what actually shipped
+
+**Released early, on purpose.** The ladder had 1.5.2 as "the break", to follow the predecessors'
+retirement. It shipped ahead of that because **wasmtk is blocked on the `-Oz` miscompile fixed
+here** and a correctness fix a downstream consumer is waiting on outranks a tidy release ordering.
+
+| item                                 | state                                                                                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§1 T13.50 / A1 — de-coarsening**   | ✅ done, and it grew: 3 reported shapes plus 3 more found by review                                                                                                     |
+| **`-Oz` try_table miscompile**       | ✅ done — not originally in scope; came in as a wasmtk bug report                                                                                                       |
+| **`compat/binaryen` pass API**       | ✅ done — `listPasses` exported, kebab-case accepted, error lists names                                                                                                 |
+| **§2.2 cmem topic merges**           | ◐ partial — `overview`, `licensing`, `bridge`, `best-practices`, `publishing` (provenance half) done; `phases` / `testing` / the rest of `publishing` still wing-scoped |
+| **§2.1 release-script unification**  | ⬚ deferred — still two sets under `scripts/{binaryen-ts,wabt-ts}/`                                                                                                      |
+| **§2.3 where the bridge lives**      | ⬚ deferred — still `src/wabt-ts/bridge/`, promotion-rule gap unresolved                                                                                                 |
+| **§3 `scripts/count-collisions.ts`** | ⬚ deferred — rule pinned in [overview.md](overview.md), not yet scripted                                                                                                |
+| **§4 phases C/D**                    | ⬚ blocked — C2 (wasmtk republish) is wasmtk's to run; D archiving follows it                                                                                            |
+
+The deferred items are recorded rather than dropped: §2.1 still blocks the `phases`/`testing`/
+`publishing` merges, because those would describe a release flow that does not exist until it lands.
+
 ## What 1.5.2 is
 
 In the retirement ladder it is **the break** — the first release where binaryang stands alone, after

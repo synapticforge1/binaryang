@@ -75,9 +75,38 @@ the reason its tests are the ones to run first after touching either IR's contro
 **Tier coverage:** ~60 expression kinds plus the module surface. `wabt-ts/bridge.md` § "Tier
 coverage" holds the enumeration.
 
-## The live defect on this seam
+## The de-coarsening — CLOSED in 1.5.2
 
-**A1 / T13.50 — de-coarsening is INCOMPLETE. Three measured failing shapes**, all still open:
+**A1 / T13.50 is fixed.** All three shapes wabt-ts measured before the merge, plus three more found
+by review of the fix itself:
+
+| shape                                  | was                                                |
+| -------------------------------------- | -------------------------------------------------- |
+| imported func with a `(ref $T)` param  | `unresolved GC function type`                      |
+| tag with a `(ref $T)` param            | `unresolved GC function type`                      |
+| tag whose signature no function shares | `unresolved GC function type` — the half-fix below |
+| imported global `(ref null $T)`        | `type mismatch in function`                        |
+| function local `(ref null $T)`         | `struct.get` type mismatch                         |
+| global `(ref null $T)` + `ref.null $T` | refused outright, then a type mismatch             |
+
+⚠️ **Two lessons worth more than the fix.**
+
+The last row was **two defects stacked**. Removing the `ref.null` refusal only MOVED the error to
+`type mismatch in function`, because the global's own type was still coarsened. The register warned
+not to assume widening the de-coarsening fixed `ref.null`; it cuts the other way too. Watching the
+error message move is what showed the second was there.
+
+The tag row was **green for the wrong reason** first time. The fix made the converter precise but
+never registered tag signatures as func heap types, so `gcFuncTypeIndex` resolved a tag only when a
+function happened to share its signature — which is exactly what the first test did. A tag with a
+unique signature still threw. Same trap wasmtk documented about their own fixture, hit here within
+the week.
+
+Gated by `tests/wabt-ts/bridge/gc_decoarsening.test.ts`, all six shapes, each seen to fail first.
+
+### Historical — the shapes as originally reported
+
+**A1 / T13.50 — de-coarsening was INCOMPLETE. Three measured failing shapes:**
 
 | shape                                 | result                                                   |
 | ------------------------------------- | -------------------------------------------------------- |
