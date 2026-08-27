@@ -31,10 +31,21 @@ import process from 'node:process';
 // Public API (stub)
 // ---------------------------------------------------------------------------
 
+/**
+ * Options for {@link wasm2ts}. `filename` is used only in diagnostics.
+ *
+ * Declared ahead of the implementation on purpose: the signature is the part of
+ * Phase 8 that is settled, and pinning it keeps the stub honest about what it
+ * will accept.
+ */
 export interface Wasm2TsOptions {
   filename?: string;
 }
 
+/**
+ * The result of {@link wasm2ts}: the emitted TypeScript, plus the `Result` and
+ * `ErrorList` every tool in this package reports through.
+ */
 export interface Wasm2TsResult {
   text: string;
   errors: ErrorList;
@@ -50,6 +61,11 @@ export function wasm2ts(_binary: Uint8Array, _opts: Wasm2TsOptions = {}): Wasm2T
 // CLI
 // ---------------------------------------------------------------------------
 
+/**
+ * CLI entry point for `wasm2ts`. **Not yet implemented** — it prints a message
+ * and exits non-zero, so the command is discoverable and honest rather than
+ * absent from the dispatcher.
+ */
 export function main(_args: string[] = process.argv.slice(2)): Promise<void> {
   console.error('wasm2ts: not yet implemented (Phase 8 — deferred pending wasmtk QA/QC)');
   process.exit(1);

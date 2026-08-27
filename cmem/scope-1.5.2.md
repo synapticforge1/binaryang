@@ -204,8 +204,21 @@ setting governs.
 
 ## 5. Smaller, cheap
 
-- **`percentageDocumentedSymbols` 98.1% → 100%.** The only score factor not at full marks; the
-  others reached parity once the JSR description and runtime flags were set.
+- ✅ **`percentageDocumentedSymbols` 98.1% → 100%.** Done 2026-08-27.
+
+  **It was exactly ten symbols, and finding them was the whole job.** `deno doc --lint` reports
+  **701** errors, which is a different metric — it counts nested interface members, and chasing it
+  would have meant several hundred filler comments. JSR's figure has a different denominator:
+  `0.98087955` is `513/523` to eight digits, so ten declarations were missing, not seven hundred.
+
+  The ten: six tool `main` entry points, `makeRefAsNonNull`, the `Func` interface, and
+  `Wasm2TsOptions` / `Wasm2TsResult`. Re-export `reference` nodes read as undocumented in the raw
+  `deno doc --json` output and are not — their originals carry the doc — which is what made the
+  first count read 36.
+
+  ⚠️ **The score was already 100 before this.** `percentageDocumentedSymbols` is *reported* by JSR
+  but `allEntrypointsDocs` is what the points key on, so this bought no score. It was worth doing on
+  its own terms; it should not be described as a score fix.
 - **Doc references I mapped on plausibility, not verification.** `binaryen-ts/parser/tokenizer`,
   `parser/wat-parser` and `wasm/demo_bytes` named subpaths that never existed in either package;
   they were pointed at `./api` and `./wasm` as the nearest real thing. Someone who knows the intent
