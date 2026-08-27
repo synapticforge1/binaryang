@@ -1,0 +1,426 @@
+// Copyright (c) 2026 Jon Marcum
+// Licensed under the MIT License. See LICENSE-MIT in the repository root.
+
+/**
+ * Regression tests for the `wat2wasm` end-to-end pipeline.
+ *
+ * Each test:
+ *   1. Compiles a small WAT module to wasm via the public `wat2wasm` entry.
+ *   2. Reads the produced binary back through wabt-ts's own decoder.
+ *   3. Validates the decoded module.
+ *
+ * If any step errors, the test fails. This catches breakage anywhere along
+ * parse → resolveNames → synthesizeTypes → writeBinaryIr → readBinaryIr →
+ * validateModule.
+ *
+ * The first two tests below pin specific bugs reported by wasmtk in the
+ * v1.0.4 migration (one missed bug per test):
+ *   - operand order in folded binary ops (caught the swapped left/right
+ *     case `(i32.sub (local.get $a) (local.get $b))`).
+ *   - missing type section when the WAT uses inline `(param ...) (result ...)`
+ *     without a separate `(type ...)` declaration.
+ */
+
+import { describe, it } from '@std/testing/bdd';
+import { assert, assertEquals } from '@std/assert';
+
+import { wat2wasm } from '../../src/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../src/reader/binary-reader.ts';
+import { validateModule } from '../../src/validator/validator.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { Result } from '../../src/core/result.ts';
+
+function compileAndValidate(wat: string): Uint8Array {
+  const { binary, errors, result } = wat2wasm(wat);
+  if (hasErrors(errors)) throw new Error(`wat2wasm:\n${formatErrors(errors)}`);
+  assertEquals(result, Result.Ok, 'wat2wasm returned Result.Ok');
+
+  const decodeErrs = makeErrorList();
+  const decoded = readBinaryIr(binary, decodeErrs);
+  if (hasErrors(decodeErrs)) {
+    throw new Error(`decode:\n${formatErrors(decodeErrs)}`);
+  }
+
+  const valErrs = makeErrorList();
+  const r = validateModule(decoded, valErrs);
+  if (hasErrors(valErrs)) {
+    throw new Error(`validate:\n${formatErrors(valErrs)}`);
+  }
+  assertEquals(r, Result.Ok, 'validateModule returned Result.Ok');
+
+  return binary;
+}
+
+describe('wat2wasm — hex-float literals (wasmtk mathlib repro)', () => {
+  // Bug: parseF32/F64LiteralBits handled LiteralType.Hexfloat with JS parseFloat(),
+  // which cannot parse WAT hex-float notation (`0x1.921fb54442d18p+2`) — it reads the
+  // leading "0", stops at "x", and returns 0. Every hex-float const (all of mathlib's
+  // polynomial coefficients, π, e, etc.) was silently encoded as 0, so merged mathlib
+  // functions returned garbage. The fix routes Hexfloat through an explicit reconstructor.
+  function instValues(wat: string, names: string[]): number[] {
+    const bin = compileAndValidate(wat);
+    const mod = new WebAssembly.Module(bin as unknown as BufferSource);
+    const inst = new WebAssembly.Instance(mod, {});
+    const exp = inst.exports as Record<string, () => number>;
+    return names.map((n) => exp[n]!());
+  }
+
+  it('parses f64 hex-float literals to their exact values', () => {
+    const vals = instValues(
+      `(module
+      (func (export "pi2")  (result f64) (f64.const 0x1.921fb54442d18p+2))
+      (func (export "one")  (result f64) (f64.const 0x1.0p+0))
+      (func (export "ln2hi")(result f64) (f64.const 0x1.62e42fefa39efp+9))
+      (func (export "neg")  (result f64) (f64.const -0x1.5555555555549p-3))
+      (func (export "zero") (result f64) (f64.const 0x0p+0)))`,
+      ['pi2', 'one', 'ln2hi', 'neg', 'zero'],
+    );
+    assertEquals(vals[0], 6.283185307179586);
+    assertEquals(vals[1], 1);
+    assertEquals(vals[2], 709.782712893384);
+    assertEquals(vals[3], -0.16666666666666632);
+    assertEquals(vals[4], 0);
+  });
+
+  it('parses f32 hex-float literals to their exact values', () => {
+    const vals = instValues(
+      `(module
+      (func (export "a") (result f32) (f32.const 0x1.5p+2))
+      (func (export "b") (result f32) (f32.const 0x1.0p+0)))`,
+      ['a', 'b'],
+    );
+    assertEquals(vals[0], 5.25);
+    assertEquals(vals[1], 1);
+  });
+
+  it('decimal floats still parse correctly (no regression)', () => {
+    const vals = instValues(
+      `(module
+      (func (export "a") (result f64) (f64.const 1.5))
+      (func (export "b") (result f64) (f64.const 3.14159))
+      (func (export "c") (result f64) (f64.const -2.5)))`,
+      ['a', 'b', 'c'],
+    );
+    assertEquals(vals[0], 1.5);
+    assertEquals(vals[1], 3.14159);
+    assertEquals(vals[2], -2.5);
+  });
+});
+
+describe('wat2wasm — end-to-end regression', () => {
+  it('synthesizes a type section for inline-declared signatures (wasmtk 1.0.4 repro)', () => {
+    // Bug: parser stored typeVar=index(0) but module.types was empty, so the
+    // function section emitted "type 0" with no type entries. binaryen
+    // reported `invalid type index 0 / 0` when reading the produced binary.
+    const bin = compileAndValidate(`(module
+      (func $add (param $a i32) (param $b i32) (result i32)
+        (i32.add (local.get $a) (local.get $b)))
+      (export "add" (func $add)))`);
+
+    // Section 1 (type) must be present and non-empty.
+    // Header (8 bytes) + section id 1 + size LEB + count + payload.
+    assert(bin[8] === 0x01, `expected type section after header; got 0x${bin[8]?.toString(16)}`);
+  });
+
+  it('preserves operand order in folded binary expressions', () => {
+    // Bug: flushStack popped in LIFO order, swapping left/right for folded
+    // operands. Commutative for i32.add (so easy to miss), but i32.sub
+    // would compute `b - a` instead of `a - b`. Round-trip + validate is
+    // sufficient: validator catches reversed operands via type checking;
+    // for arithmetic correctness we also need to compare the emitted
+    // local.get indices below.
+    const bin = compileAndValidate(`(module
+      (func $sub (param $a i32) (param $b i32) (result i32)
+        (i32.sub (local.get $a) (local.get $b)))
+      (export "sub" (func $sub)))`);
+
+    // Locate the code-section body byte sequence and confirm the operand
+    // order is `local.get 0` (= $a) then `local.get 1` (= $b) then i32.sub.
+    // The body is at the end of the binary, just before the final 0x0b.
+    // Easier: search for the three-instruction pattern 20 00 20 01 6b.
+    const sub = Array.from(bin)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ');
+    assert(
+      sub.includes('20 00 20 01 6b'),
+      `expected 'local.get 0; local.get 1; i32.sub' but binary was: ${sub}`,
+    );
+  });
+
+  it('handles the wasmtk heap-allocator pattern end-to-end', () => {
+    compileAndValidate(`(module
+      (memory 1)
+      (global $heap (mut i32) (i32.const 1024))
+      (func $alloc (param $size i32) (result i32)
+        (local $p i32)
+        (local.set $p (global.get $heap))
+        (global.set $heap (i32.add (global.get $heap) (local.get $size)))
+        (local.get $p))
+      (export "alloc" (func $alloc)))`);
+  });
+
+  it('preserves operand order across multiple non-commutative ops', () => {
+    // Three non-commutative ops in folded form; validator catches type
+    // mismatches but operand order has to be right for arithmetic correctness.
+    compileAndValidate(`(module
+      (func $f (param $a i32) (param $b i32) (result i32)
+        (i32.div_s (i32.sub (local.get $a) (local.get $b)) (i32.const 2)))
+      (export "f" (func $f)))`);
+  });
+
+  it('handles a function-import with inline signature (synthesizes type 0)', () => {
+    compileAndValidate(`(module
+      (import "env" "log" (func $log (param i32)))
+      (func $main (param i32)
+        (call $log (local.get 0)))
+      (export "main" (func $main)))`);
+  });
+
+  it('resolves call $name nested inside drop / select (wasmtk 1.0.5 repro)', () => {
+    // Bug: resolveExpr's default `return e` didn't recurse into children,
+    // so the call inside (drop ...) / (select ...) kept its name var,
+    // and the binary writer fell back to "index 0" — referencing the
+    // first import instead of the named defined func. wasmtk hit this in
+    // core_simple.wat's (select (call $__malloc ...) ...).
+    const bin = compileAndValidate(`(module
+      (import "env" "imp0" (func $imp0 (param i32)))
+      (import "env" "imp1" (func $imp1 (param i32 i32 i32 i32) (result i32)))
+      (func $malloc (param $size i32) (result i32) (local.get $size))
+      (func $realloc (param $ptr i32) (param $size i32) (result i32)
+        (select
+          (call $malloc (local.get $size))
+          (local.get $ptr)
+          (i32.eqz (local.get $ptr)))))`);
+    // $malloc is absolute index 2 (after $imp0=0, $imp1=1). The call inside
+    // the select must emit "10 02", not "10 00".
+    const hex = Array.from(bin)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ');
+    assert(
+      hex.includes('10 02'),
+      `expected 'call 2' (= $malloc) inside select; binary: ${hex}`,
+    );
+  });
+
+  it('resolves call $name nested inside drop', () => {
+    const bin = compileAndValidate(`(module
+      (import "env" "imp0" (func $imp0 (param i32)))
+      (func $defined (result i32) (i32.const 5))
+      (func $caller (drop (call $defined))))`);
+    const hex = Array.from(bin)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ');
+    // $defined is absolute index 1 (after the import).
+    assert(
+      hex.includes('10 01'),
+      `expected 'call 1' inside drop; binary: ${hex}`,
+    );
+  });
+
+  // Bug #11 (wasmtk repro 2026-05-25): f64 integer literals were stored as
+  // raw bit patterns, so `f64.const 1` encoded as 0x0000000000000001 — the
+  // smallest positive subnormal (5e-324). Every f64 program silently broke
+  // because comparisons against 1, 10, 100, ... became comparisons against
+  // tiny subnormals. The f32 path had the same bug.
+  it('f64.const integer literals are float values, not raw bit patterns', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "one")     (result f64) (f64.const 1))
+      (func (export "ten")     (result f64) (f64.const 10))
+      (func (export "hundred") (result f64) (f64.const 100))
+      (func (export "billion") (result f64) (f64.const 1000000000))
+      (func (export "neg")     (result f64) (f64.const -3.14)))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
+    assertEquals(inst.one!(), 1);
+    assertEquals(inst.ten!(), 10);
+    assertEquals(inst.hundred!(), 100);
+    assertEquals(inst.billion!(), 1_000_000_000);
+    assertEquals(inst.neg!(), -3.14);
+  });
+
+  it('f32.const integer literals are float values, not raw bit patterns', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "one")    (result f32) (f32.const 1))
+      (func (export "ten")    (result f32) (f32.const 10))
+      (func (export "minus")  (result f32) (f32.const -2.5)))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
+    assertEquals(inst.one!(), 1);
+    assertEquals(inst.ten!(), 10);
+    assertEquals(inst.minus!(), -2.5);
+  });
+
+  // Bug #12 (wasmtk repro 2026-05-25): multi-value `return` dropped all but
+  // the first value because ReturnExpr stored a single `value?: Expr` and the
+  // parser captured only operands[0]. Reproduces via both folded and unfolded
+  // explicit-return forms; the implicit-return form (stack at function end,
+  // no `return` keyword) worked because it bypasses ReturnExpr entirely.
+  it('multi-value explicit return (folded form) preserves all values', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "two_vals") (result i32 i32)
+        (return (i32.const 10) (i32.const 20))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
+    assertEquals(inst.two_vals!(), [10, 20]);
+  });
+
+  it('multi-value explicit return (unfolded form) preserves all values', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "two_vals") (result i32 i32)
+        i32.const 10
+        i32.const 20
+        return))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
+    assertEquals(inst.two_vals!(), [10, 20]);
+  });
+
+  it('multi-value return with mixed types (i32 + i64)', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "pair") (result i32 i64)
+        (return (i32.const 42) (i64.const 99))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
+    assertEquals(inst.pair!(), [42, 99n]);
+  });
+
+  it('single-value explicit return still works (regression guard)', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "one") (result i32) (return (i32.const 7))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
+    assertEquals(inst.one!(), 7);
+  });
+
+  it('void return still works (regression guard)', async () => {
+    const bin = compileAndValidate(`(module
+      (func (export "noop") (return)))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => void>;
+    inst.noop!();
+  });
+
+  // Bug #20 (wasmtk repro 2026-05-25, v1.1.3 still affected):
+  // `(i32.store (i32.const 100) (call $f))` parsed with operands
+  // swapped — address became the call result, value became 100. Memory
+  // write went to the wrong address. Caused 1_StaticGlobalInitialization,
+  // 1_recursion, 1_WasiStringBufferIntegrity failures in wasmtk's
+  // Phase 1 suite. Root cause: TokenType.Call wasn't in
+  // instrProducesValue, so nested calls were pushed to ctx.stmts
+  // instead of ctx.stack. flushStack then appended stack AFTER stmts,
+  // reversing operand order whenever a call appeared next to another
+  // sub-expr.
+  it('(i32.store (i32.const 100) (call $f)) puts address first, value second', async () => {
+    const bin = compileAndValidate(`(module
+      (memory (export "memory") 1)
+      (func $f (result i32) (i32.const 42))
+      (func (export "go") (i32.store (i32.const 100) (call $f))))`);
+    const buf = new ArrayBuffer(bin.byteLength);
+    new Uint8Array(buf).set(bin);
+    const mod = await WebAssembly.compile(buf);
+    const inst = await WebAssembly.instantiate(mod);
+    const mem = new Uint32Array((inst.exports.memory as WebAssembly.Memory).buffer);
+    (inst.exports.go as () => void)();
+    // The store wrote 42 to address 100 — read it back as mem[25] (i32
+    // index 25 = byte offset 100). If operand order were swapped, the
+    // store would have written 100 to address 42 and mem[25] would be 0.
+    assertEquals(mem[25], 42, 'mem[25] (byte 100) should be 42');
+    assertEquals(mem[10], 0, 'mem[10] (byte 40) should NOT be 100');
+  });
+
+  it('(i32.add (call $f) (i32.const 1)) keeps left=call, right=const', () => {
+    const bin = compileAndValidate(`(module
+      (func $f (result i32) (i32.const 10))
+      (func (export "g") (result i32)
+        (i32.add (call $f) (i32.const 1))))`);
+    // call is opcode 0x10, i32.const is 0x41, i32.add is 0x6a.
+    // Correct order: call $f; i32.const 1; i32.add → bytes contain
+    // `10 00 41 01 6a` somewhere in the function body. If operand order
+    // were swapped, the call would still emit first (it's the only call
+    // in the body), but `i32.add` would consume operands in the wrong
+    // order; the regression-guarding shape is that `10 00 41 01 6a`
+    // appears intact.
+    const hex = Array.from(bin).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+    assert(
+      hex.includes('10 00 41 01 6a'),
+      `expected 'call 0; i32.const 1; i32.add' sequence; binary: ${hex}`,
+    );
+  });
+
+  // Bug #13 (wasmtk repro 2026-05-25): every memory op without an explicit
+  // `align=N` keyword was being encoded with memarg.align = 0 (1-byte
+  // alignment). The binary writer treated the parser's "0 = unspecified"
+  // sentinel as if it were the LEB exponent. V8 accepted the binary, but
+  // binaryen's optimizer reads the alignment field as a hard constraint
+  // and refuses some rewrites, causing runtime corruption / OOB after
+  // optimization (1_StaticGlobalInitialization, 1_recursion, etc.).
+  it('memory ops default to natural alignment when align= is omitted', () => {
+    const bin = compileAndValidate(`(module
+      (memory 1)
+      (func (export "f") (param $a i32) (param $b i64) (param $c f32) (param $d f64)
+        (i32.store   (i32.const 0)  (local.get $a))
+        (i64.store   (i32.const 8)  (local.get $b))
+        (f32.store   (i32.const 16) (local.get $c))
+        (f64.store   (i32.const 24) (local.get $d))
+        (i32.store16 (i32.const 32) (local.get $a))
+        (i32.store8  (i32.const 34) (local.get $a))))`);
+    // memarg.align is LEB-encoded as a log2 exponent immediately after the
+    // store opcode. For default alignment we expect: i32.store=2 (4-byte),
+    // i64.store=3 (8-byte), f32.store=2, f64.store=3, i32.store16=1,
+    // i32.store8=0.
+    const expected: Record<number, [string, number]> = {
+      0x36: ['i32.store', 2],
+      0x37: ['i64.store', 3],
+      0x38: ['f32.store', 2],
+      0x39: ['f64.store', 3],
+      0x3b: ['i32.store16', 1],
+      0x3a: ['i32.store8', 0],
+    };
+    for (let i = 0; i < bin.length; i++) {
+      const op = bin[i]!;
+      const entry = expected[op];
+      if (entry === undefined) continue;
+      const [name, want] = entry;
+      assertEquals(
+        bin[i + 1]!,
+        want,
+        `${name} (opcode 0x${op.toString(16)}) at byte ${i}: expected align byte = ${want}, got ${
+          bin[i + 1]
+        }`,
+      );
+    }
+  });
+
+  it('explicit align=N keyword still log2-encodes correctly', () => {
+    const bin = compileAndValidate(`(module
+      (memory 1)
+      (func (export "f") (param $a i32)
+        (i32.store align=1 (i32.const 0) (local.get $a))
+        (i32.store align=2 (i32.const 4) (local.get $a))
+        (i32.store align=4 (i32.const 8) (local.get $a))))`);
+    // Find three i32.store opcodes (0x36) and check their align bytes
+    // are 0, 1, 2 respectively (i.e. log2 of the declared byte counts).
+    const indices: number[] = [];
+    for (let i = 0; i < bin.length; i++) {
+      if (bin[i] === 0x36) indices.push(i);
+    }
+    assertEquals(indices.length, 3, 'expected three i32.store opcodes');
+    assertEquals(bin[indices[0]! + 1]!, 0, 'align=1 → exponent 0');
+    assertEquals(bin[indices[1]! + 1]!, 1, 'align=2 → exponent 1');
+    assertEquals(bin[indices[2]! + 1]!, 2, 'align=4 → exponent 2');
+  });
+});

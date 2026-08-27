@@ -1,0 +1,1107 @@
+// Ported from WebAssembly/wabt (https://github.com/WebAssembly/wabt)
+// Original source: include/wabt/resolve-names.h, src/resolve-names.cc
+// Copyright 2016 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
+/**
+ * @module
+ * Resolve symbolic name Vars to index Vars in the IR.
+ *
+ * The WAT parser emits `{ kind: 'name' }` Vars for symbolic references
+ * (`$foo`, `$bar`). `resolveNames` walks the IR and resolves each name-based
+ * Var to an `{ kind: 'index' }` Var by looking it up in the module's name
+ * binding maps.
+ *
+ * Errors are accumulated in an {@link ErrorList} rather than thrown.
+ */
+
+import { combineResults, Result } from '../core/result.ts';
+import { ExternalKind } from '../core/binary.ts';
+import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
+import type { ErrorList, Location } from '../core/error.ts';
+import type { Expr, Func, FuncSignature, Module, TypeUse, ValueType, Var } from './ir.ts';
+import { isRefValueType, varIndex } from './ir.ts';
+import { heapTypeNameToType } from '../core/types.ts';
+
+// ---------------------------------------------------------------------------
+// Name binding map
+// ---------------------------------------------------------------------------
+
+class NameScope {
+  private readonly map = new Map<string, number>();
+
+  bind(name: string, index: number): boolean {
+    if (this.map.has(name)) return false;
+    this.map.set(name, index);
+    return true;
+  }
+
+  resolve(name: string): number | undefined {
+    return this.map.get(name);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// resolveNames — entry point
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk a {@link Module} and rewrite every name-form {@link Var}
+ * (`{ kind: 'name', name: '$foo' }`) to its index-form (`{ kind: 'index',
+ * value: N }`). The binary writer always expects index-form vars; name-form
+ * vars left behind silently encode as index 0 (Bug G regression history).
+ * Errors for unresolved names accumulate in `errors` rather than throwing.
+ */
+export function resolveNames(module: Module, errors: ErrorList = makeErrorList()): Result {
+  const ctx = new ResolveContext(module, errors);
+  return ctx.resolveModule();
+}
+
+// ---------------------------------------------------------------------------
+// ResolveContext
+// ---------------------------------------------------------------------------
+
+class ResolveContext {
+  private readonly module: Module;
+  private readonly errors: ErrorList;
+  private hadError = false;
+
+  private funcScope = new NameScope();
+  private globalScope = new NameScope();
+  private tableScope = new NameScope();
+  private memScope = new NameScope();
+  private tagScope = new NameScope();
+  private typeScope = new NameScope();
+  private elemSegScope = new NameScope();
+  private dataSegScope = new NameScope();
+
+  // Note: no per-function `localScope` field — see resolveLocalVar.
+  // wabt-ts's IR has no slot for param/local names, so resolveNames can't
+  // do anything useful with name-vars in local refs. The WAT parser
+  // resolves these at parse time; the binary reader produces only
+  // index-vars.
+  private labelStack: string[] = [];
+
+  constructor(module: Module, errors: ErrorList) {
+    this.module = module;
+    this.errors = errors;
+  }
+
+  resolveModule(): Result {
+    this.buildModuleScopes();
+    let result = Result.Ok;
+
+    for (const g of this.module.globals) {
+      result = combine(result, this.resolveExprList(g.init));
+    }
+
+    // Table initializer expressions (reference-types `(table … (init …))` /
+    // the binary 0x40 form) carry name-bearing refs (e.g. `ref.func $f`) that
+    // must be resolved, or the writer emits index 0 for them.
+    for (const t of this.module.tables) {
+      result = combine(result, this.resolveExprList(t.init));
+    }
+
+    // Concrete typed references — `(ref $T)` / `(ref null $T)` — carry a heap
+    // type var wherever a value type can appear. Nothing resolved them, so
+    // the binary writer hit its fail-loud guard on the first `$T`. Walk every
+    // value-type slot in the module.
+    this.resolveModuleValueTypes();
+
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Func) {
+        result = combine(result, this.resolveFunc(imp.func));
+      }
+    }
+    for (const func of this.module.funcs) {
+      result = combine(result, this.resolveFunc(func));
+    }
+
+    for (const seg of this.module.elemSegments) {
+      // The active-segment table reference can be a named, non-zero table
+      // (`(elem (table $t) …)`); resolve it or the writer emits index 0.
+      seg.tableVar = this.resolveTableVar(seg.tableVar);
+      result = combine(result, this.resolveExprList(seg.offset));
+      for (const elemExpr of seg.elemExprs) {
+        result = combine(result, this.resolveExprList(elemExpr));
+      }
+    }
+
+    for (const seg of this.module.dataSegments) {
+      // Likewise the active-segment memory reference (`(data (memory $m) …)`).
+      seg.memoryVar = this.resolveByKind(seg.memoryVar, ExternalKind.Memory);
+      result = combine(result, this.resolveExprList(seg.offset));
+    }
+
+    for (const exp of this.module.exports) {
+      exp.var = this.resolveByKind(exp.var, exp.kind);
+    }
+
+    if (this.module.start !== undefined) {
+      this.module.start = this.resolveFuncVar(this.module.start);
+    }
+
+    return combine(result, this.hadError ? Result.Error : Result.Ok);
+  }
+
+  private buildModuleScopes(): void {
+    for (const [i, t] of this.module.types.entries()) {
+      if (t.name) this.typeScope.bind(t.name, i);
+    }
+
+    let funcIdx = 0;
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Func) {
+        if (imp.func.name) this.funcScope.bind(imp.func.name, funcIdx);
+        funcIdx++;
+      }
+    }
+    for (const [i, f] of this.module.funcs.entries()) {
+      if (f.name) this.funcScope.bind(f.name, this.module.numFuncImports + i);
+    }
+
+    let globalIdx = 0;
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Global) {
+        if (imp.global.name) this.globalScope.bind(imp.global.name, globalIdx);
+        globalIdx++;
+      }
+    }
+    for (const [i, g] of this.module.globals.entries()) {
+      if (g.name) this.globalScope.bind(g.name, this.module.numGlobalImports + i);
+    }
+
+    let tableIdx = 0;
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Table) {
+        if (imp.table.name) this.tableScope.bind(imp.table.name, tableIdx);
+        tableIdx++;
+      }
+    }
+    for (const [i, t] of this.module.tables.entries()) {
+      if (t.name) this.tableScope.bind(t.name, this.module.numTableImports + i);
+    }
+
+    let memIdx = 0;
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Memory) {
+        if (imp.memory.name) this.memScope.bind(imp.memory.name, memIdx);
+        memIdx++;
+      }
+    }
+    for (const [i, m] of this.module.memories.entries()) {
+      if (m.name) this.memScope.bind(m.name, this.module.numMemoryImports + i);
+    }
+
+    let tagIdx = 0;
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Tag) {
+        if (imp.tag.name) this.tagScope.bind(imp.tag.name, tagIdx);
+        tagIdx++;
+      }
+    }
+    for (const [i, t] of this.module.tags.entries()) {
+      if (t.name) this.tagScope.bind(t.name, this.module.numTagImports + i);
+    }
+
+    for (const [i, s] of this.module.elemSegments.entries()) {
+      if (s.name) this.elemSegScope.bind(s.name, i);
+    }
+    for (const [i, s] of this.module.dataSegments.entries()) {
+      if (s.name) this.dataSegScope.bind(s.name, i);
+    }
+  }
+
+  /**
+   * Resolve the heap type inside every concrete typed reference in the
+   * module's value-type slots: type-section signatures and struct/array
+   * fields, function signatures and locals, globals, tables, and element
+   * segment element types.
+   */
+  private resolveModuleValueTypes(): void {
+    const vt = (t: ValueType): ValueType =>
+      isRefValueType(t) ? { ...t, heapType: this.resolveHeapTypeVar(t.heapType) } : t;
+    const sig = (s: FuncSignature): void => {
+      s.params = s.params.map(vt);
+      s.results = s.results.map(vt);
+    };
+
+    for (const t of this.module.types) {
+      if (t.kind === 'func') sig(t.sig);
+      else if (t.kind === 'struct') { for (const f of t.fields) f.type = vt(f.type); }
+      else if (t.kind === 'array') t.field.type = vt(t.field.type);
+      // `(sub $super …)` supertypes are type-index references like any other;
+      // left unresolved they hit the writer's fail-loud guard.
+      if (t.sub !== undefined) {
+        t.sub.supertypes = t.sub.supertypes.map((v) => this.resolveTypeVar(v, t.loc));
+      }
+    }
+    for (const imp of this.module.imports) {
+      if (imp.kind === ExternalKind.Func) {
+        sig(imp.func.sig);
+        // `(import … (func (type $t)))` names a type. synthesizeTypes later
+        // overwrites this with a matching index, which is why the pipeline
+        // hid it — but resolveNames' own invariant is that no name-var
+        // survives, and a caller that skips synthesizeTypes would emit 0.
+        imp.func.typeVar = this.resolveTypeVar(imp.func.typeVar, imp.func.loc);
+        this.resolveTypeUse(imp.func, imp.func.loc);
+      } else if (imp.kind === ExternalKind.Global) imp.global.type = vt(imp.global.type);
+      else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
+      else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
+    }
+    for (const f of this.module.funcs) {
+      sig(f.sig);
+      // `(func $f (type $t) …)` names a type. This used to be hidden because
+      // synthesizeTypes overwrote `typeVar` with a structurally-matched index
+      // afterwards; once that overwrite was correctly suppressed for an
+      // explicit type-use, the name-var reached the binary writer.
+      f.typeVar = this.resolveTypeVar(f.typeVar, f.loc);
+      this.resolveTypeUse(f, f.loc);
+      for (const d of f.localDecls) d.type = vt(d.type);
+    }
+    for (const t of this.module.tags) sig(t.sig);
+    for (const g of this.module.globals) g.type = vt(g.type);
+    for (const t of this.module.tables) t.elemType = vt(t.elemType);
+    for (const seg of this.module.elemSegments) seg.elemType = vt(seg.elemType);
+  }
+
+  private resolveFunc(func: Func): Result {
+    this.labelStack = [];
+    return this.resolveExprList(func.body);
+  }
+
+  private resolveExprList(exprs: Expr[]): Result {
+    let result = Result.Ok;
+    for (let i = 0; i < exprs.length; i++) {
+      const e = exprs[i];
+      if (e === undefined) continue;
+      const [r, resolved] = this.resolveExpr(e);
+      exprs[i] = resolved;
+      result = combine(result, r);
+    }
+    return result;
+  }
+
+  private resolveExpr(e: Expr): [Result, Expr] {
+    // INTENT OF EVERY ARM BELOW: this switch must be TOTAL on two independent
+    // axes, and an arm has to satisfy both.
+    //
+    //   1. every `Var`-typed field on the node is resolved;
+    //   2. every `Expr`-typed field on the node is RECURSED into.
+    //
+    // A missing var silently becomes index 0 in the writer (Bug G, the atomic
+    // `memidx`); a missing sub-expression leaves a name-var alive that the
+    // fail-loud writer then rejects, so valid WAT fails to encode (T13.11).
+    //
+    // Both axes must be checked when adding or editing an arm — the `Var`
+    // audit came back clean across all 64 interfaces while an `Expr` gap was
+    // live. And a `case` sharing a label with a genuine LEAF is the specific
+    // trap: `table.get` inherited `table.size`'s body that way and stopped
+    // walking its own operand. The mechanical form of both checks is in
+    // cmem/INDEX.md under the "look for code issues" trigger.
+    const loc = e.loc;
+
+    switch (e.kind) {
+      case 'local.get':
+        return [Result.Ok, { ...e, var: this.resolveLocalVar(e.var, loc) }];
+      case 'local.set': {
+        const [r, val] = this.resolveExpr(e.value);
+        return [r, { ...e, var: this.resolveLocalVar(e.var, loc), value: val }];
+      }
+      case 'local.tee': {
+        const [r, val] = this.resolveExpr(e.value);
+        return [r, { ...e, var: this.resolveLocalVar(e.var, loc), value: val }];
+      }
+      case 'global.get':
+        return [Result.Ok, { ...e, var: this.resolveGlobalVar(e.var, loc) }];
+      case 'global.set': {
+        const [r, val] = this.resolveExpr(e.value);
+        return [r, { ...e, var: this.resolveGlobalVar(e.var, loc), value: val }];
+      }
+      case 'call': {
+        const [r, args] = this.resolveExprArray(e.args);
+        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), args }];
+      }
+      case 'return_call': {
+        const [r, args] = this.resolveExprArray(e.args);
+        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), args }];
+      }
+      case 'call_indirect':
+      case 'return_call_indirect': {
+        const [rA, args] = this.resolveExprArray(e.args);
+        const [rC, callee] = this.resolveExpr(e.callee);
+        return [combine(rA, rC), {
+          ...e,
+          table: this.resolveTableVar(e.table, loc),
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          ...(typeof e.typeUse === 'object'
+            ? { typeUse: this.resolveTypeVar(e.typeUse, loc) }
+            : {}),
+          args,
+          callee,
+        }];
+      }
+      case 'call_ref':
+      case 'return_call_ref': {
+        // `sigType` is the function-type immediate (`(call_ref $T …)`); it must
+        // be resolved like `call_indirect`'s `typeVar`, or a named type that
+        // isn't index 0 is left unresolved and the binary writer emits index 0.
+        // The args + callee subtrees must be walked too.
+        const [rA, args] = this.resolveExprArray(e.args);
+        const [rC, callee] = this.resolveExpr(e.callee);
+        return [combine(rA, rC), {
+          ...e,
+          sigType: this.resolveTypeVar(e.sigType, loc),
+          args,
+          callee,
+        }];
+      }
+      case 'ref.func':
+        return [Result.Ok, { ...e, func: this.resolveFuncVar(e.func, loc) }];
+      case 'br': {
+        // `br`'s optional carried value can be a full sub-expression (e.g. the
+        // flat-form `br $l (call $f …)` or an operand routed here by the
+        // linear parser's br value slot). It must be name-resolved too, or any
+        // func/global/local name inside it is left unresolved and the writer
+        // emits index 0.
+        const target = this.resolveLabelVar(e.target, loc);
+        const [rv, values] = this.resolveExprArray(e.values);
+        return [rv, { ...e, target, values }];
+      }
+      case 'br_if': {
+        const [r, cond] = this.resolveExpr(e.cond);
+        const target = this.resolveLabelVar(e.target, loc);
+        // Resolve the optional carried value as well — the flat-form parser can
+        // route a real sub-expression (e.g. an `if` containing `call $f`) into
+        // `br_if.value`; leaving it unresolved made the writer emit `call 0`.
+        const [rv, values] = this.resolveExprArray(e.values);
+        return [combine(r, rv), { ...e, target, cond, values }];
+      }
+      case 'br_table': {
+        // `value` is the i32 index operand and can be any sub-expression
+        // (e.g. `(call $f)`). The visitor walks it, so the writer reaches it,
+        // but this case never recursed — leaving names inside it unresolved
+        // and the writer emitting index 0 or throwing. Same class as the
+        // br_if.value fix (Bug F).
+        const [r, value] = this.resolveExpr(e.value);
+        const [rv, values] = this.resolveExprArray(e.values);
+        return [combine(r, rv), {
+          ...e,
+          targets: e.targets.map((t) => this.resolveLabelVar(t, loc)),
+          defaultTarget: this.resolveLabelVar(e.defaultTarget, loc),
+          value,
+          values,
+        }];
+      }
+      case 'block':
+      case 'loop': {
+        this.labelStack.push(e.label);
+        const [r, body] = this.resolveExprArray(e.body);
+        this.labelStack.pop();
+        return [r, { ...e, body }];
+      }
+      case 'if': {
+        const [rC, cond] = this.resolveExpr(e.cond);
+        this.labelStack.push(e.label);
+        const [rT, then_] = this.resolveExprArray(e.then_);
+        const [rE, else_] = this.resolveExprArray(e.else_);
+        this.labelStack.pop();
+        return [combine(rC, combine(rT, rE)), { ...e, cond, then_, else_ }];
+      }
+      case 'try': {
+        this.labelStack.push(e.label);
+        const [rB, body] = this.resolveExprArray(e.body);
+        let result = rB;
+        const newCatches = [];
+        for (const c of e.catches) {
+          const [rC, catchBody] = this.resolveExprArray(c.body);
+          result = combine(result, rC);
+          // Resolve the catch's tag reference ($name → tag index); the
+          // binary writer / validator read c.tag as an index. catch_all
+          // clauses carry no tag.
+          newCatches.push(
+            c.tag === undefined
+              ? { ...c, body: catchBody }
+              : { ...c, tag: this.resolveTagVar(c.tag, loc), body: catchBody },
+          );
+        }
+        this.labelStack.pop();
+        // `delegate $target` references an outer label scope (the try's own
+        // label is not in scope for it), so resolve it after the pop.
+        if (e.delegate !== undefined) {
+          return [result, {
+            ...e,
+            body,
+            catches: newCatches,
+            delegate: this.resolveLabelVar(e.delegate, loc),
+          }];
+        }
+        return [result, { ...e, body, catches: newCatches }];
+      }
+      case 'try_table': {
+        // The catch clauses' tag and branch target were never resolved at all,
+        // so a `try_table (catch $e $l)` emitted tag 0 and label 0 — silently
+        // dispatching the wrong tag to the wrong block.
+        //
+        // Resolve the targets in the ENCLOSING scope, with the try_table's own
+        // label NOT yet pushed: `(block $h (try_table (catch $e $h) …))`
+        // encodes `$h` as depth 0. Verified against V8 by emitting depths
+        // 0/1/2 for that exact shape — only 0 is accepted. (An earlier pass
+        // here pushed first, which reads naturally from the spec's
+        // "C, label [t*] ⊢ catch*" rule but is off by one in the encoding.)
+        const catches = e.catches.map((c) => ({
+          ...c,
+          ...(c.tag === undefined ? {} : { tag: this.resolveTagVar(c.tag, loc) }),
+          target: this.resolveLabelVar(c.target, loc),
+        }));
+        this.labelStack.push(e.label);
+        const [r, body] = this.resolveExprArray(e.body);
+        this.labelStack.pop();
+        return [r, { ...e, catches, body }];
+      }
+      case 'throw': {
+        const [r, args] = this.resolveExprArray(e.args);
+        return [r, { ...e, tag: this.resolveTagVar(e.tag, loc), args }];
+      }
+      case 'memory.init': {
+        const [rD, dest] = this.resolveExpr(e.dest);
+        const [rS, src] = this.resolveExpr(e.src);
+        const [rZ, size] = this.resolveExpr(e.size);
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          segment: this.resolveDataSegVar(e.segment, loc),
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          dest,
+          src,
+          size,
+        }];
+      }
+      case 'data.drop':
+        return [Result.Ok, { ...e, segment: this.resolveDataSegVar(e.segment, loc) }];
+      case 'elem.drop':
+        return [Result.Ok, { ...e, segment: this.resolveElemSegVar(e.segment, loc) }];
+      case 'table.init': {
+        const [rD, dest] = this.resolveExpr(e.dest);
+        const [rS, src] = this.resolveExpr(e.src);
+        const [rZ, size] = this.resolveExpr(e.size);
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          segment: this.resolveElemSegVar(e.segment, loc),
+          table: this.resolveTableVar(e.table, loc),
+          dest,
+          src,
+          size,
+        }];
+      }
+      case 'table.copy': {
+        const [rD, dest] = this.resolveExpr(e.dest);
+        const [rS, srcOffset] = this.resolveExpr(e.srcOffset);
+        const [rZ, size] = this.resolveExpr(e.size);
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          dst: this.resolveTableVar(e.dst, loc),
+          src: this.resolveTableVar(e.src, loc),
+          dest,
+          srcOffset,
+          size,
+        }];
+      }
+      // --- Expression kinds with sub-expressions but no Var fields ---
+      //
+      // These previously fell through to `default: return e` unchanged,
+      // which left every nested expression's name-vars unresolved. wasmtk
+      // hit this with `(drop (call $f))` / `(select (call $f) ...)`: the
+      // inner `call $f` kept its name var, the binary writer fell back to
+      // index 0, and the produced binary called the wrong function.
+      // Surfaced 2026-05-25.
+      case 'drop': {
+        const [r, val] = this.resolveExpr(e.value);
+        return [r, { ...e, value: val }];
+      }
+      case 'select': {
+        const [r1, val1] = this.resolveExpr(e.val1);
+        const [r2, val2] = this.resolveExpr(e.val2);
+        const [r3, cond] = this.resolveExpr(e.cond);
+        // The `(result …)` annotation carries VALUE types, and a
+        // `(ref $t)` among them holds a name-var like any other.
+        // `resolveModuleValueTypes` only walks declarations, so this one was
+        // missed — invisible until the writer stopped casting the annotation
+        // to a byte and its fail-loud guard fired.
+        const resultType = e.resultType.map((t) =>
+          isRefValueType(t) ? { ...t, heapType: this.resolveHeapTypeVar(t.heapType) } : t
+        );
+        return [combine(r1, combine(r2, r3)), { ...e, val1, val2, cond, resultType }];
+      }
+      case 'return': {
+        if (e.values.length === 0) return [Result.Ok, e];
+        let result: Result = Result.Ok;
+        const values: Expr[] = [];
+        for (const v of e.values) {
+          const [r, resolved] = this.resolveExpr(v);
+          result = combine(result, r);
+          values.push(resolved);
+        }
+        return [result, { ...e, values }];
+      }
+      case 'unary':
+      case 'convert': {
+        const [r, operand] = this.resolveExpr(e.operand);
+        return [r, { ...e, operand }];
+      }
+      case 'binary':
+      case 'compare': {
+        const [rL, left] = this.resolveExpr(e.left);
+        const [rR, right] = this.resolveExpr(e.right);
+        return [combine(rL, rR), { ...e, left, right }];
+      }
+      case 'ternary': {
+        const [rA, a] = this.resolveExpr(e.a);
+        const [rB, b] = this.resolveExpr(e.b);
+        const [rC, c] = this.resolveExpr(e.c);
+        return [combine(rA, combine(rB, rC)), { ...e, a, b, c }];
+      }
+      case 'quaternary': {
+        const [rA, a] = this.resolveExpr(e.a);
+        const [rB, b] = this.resolveExpr(e.b);
+        const [rC, c] = this.resolveExpr(e.c);
+        const [rD, d] = this.resolveExpr(e.d);
+        return [combine(rA, combine(rB, combine(rC, rD))), { ...e, a, b, c, d }];
+      }
+      case 'load':
+      case 'atomic_load':
+      case 'load_splat':
+      case 'load_zero': {
+        const [r, address] = this.resolveExpr(e.address);
+        return [r, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc), address }];
+      }
+      case 'store':
+      case 'atomic_store':
+      case 'atomic_rmw': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rV, value] = this.resolveExpr(e.value);
+        return [combine(rA, rV), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          value,
+        }];
+      }
+      case 'atomic_rmw_cmpxchg': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rE, expected] = this.resolveExpr(e.expected);
+        const [rR, replacement] = this.resolveExpr(e.replacement);
+        return [combine(rA, combine(rE, rR)), {
+          ...e,
+          // `memidx`, like every other atomic memory op. Omitting it here left
+          // a named multi-memory operand unresolved, and `writeMemoryVarUnlessZero`
+          // then wrote index 0 — so the instruction silently hit the WRONG
+          // memory. Bug G's shape: a case that resolves some of its Vars.
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          expected,
+          replacement,
+        }];
+      }
+      case 'atomic_wait': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rE, expected] = this.resolveExpr(e.expected);
+        const [rT, timeout] = this.resolveExpr(e.timeout);
+        return [combine(rA, combine(rE, rT)), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          expected,
+          timeout,
+        }];
+      }
+      case 'atomic_notify': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rC, count] = this.resolveExpr(e.count);
+        return [combine(rA, rC), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          count,
+        }];
+      }
+      case 'memory.size':
+        // A leaf (no sub-expressions), so it used to fall through to the
+        // "nothing to resolve" default — but it still carries a memidx.
+        return [Result.Ok, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc) }];
+      case 'memory.grow': {
+        const [r, delta] = this.resolveExpr(e.delta);
+        return [r, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc), delta }];
+      }
+      case 'memory.copy': {
+        const [rD, dest] = this.resolveExpr(e.dest);
+        const [rS, src] = this.resolveExpr(e.src);
+        const [rZ, size] = this.resolveExpr(e.size);
+        return [combine(rD, combine(rS, rZ)), {
+          ...e,
+          destMemidx: this.resolveMemoryVar(e.destMemidx, loc),
+          srcMemidx: this.resolveMemoryVar(e.srcMemidx, loc),
+          dest,
+          src,
+          size,
+        }];
+      }
+      case 'memory.fill': {
+        const [rD, dest] = this.resolveExpr(e.dest);
+        const [rV, value] = this.resolveExpr(e.value);
+        const [rZ, size] = this.resolveExpr(e.size);
+        return [combine(rD, combine(rV, rZ)), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          dest,
+          value,
+          size,
+        }];
+      }
+      case 'table.size':
+        return [Result.Ok, { ...e, table: this.resolveTableVar(e.table, loc) }];
+      case 'table.get': {
+        // `table.get` is NOT a leaf: it carries the element `index` as a
+        // sub-expression, so grouping it with `table.size` left any name-var
+        // inside that index unresolved — `(table.get $t (global.get $g))` and
+        // `(table.get $t (call $f))` both failed to encode outright. Its
+        // sibling `table.set` two cases down resolved both of its operands;
+        // this is the same asymmetry-in-a-family shape as the atomic `memidx`
+        // gap. Invisible to every corpus: `table.get` does not appear in the
+        // wasmtk corpus at all, and no spec-testsuite module pairs it with a
+        // named operand.
+        const [r, index] = this.resolveExpr(e.index);
+        return [r, { ...e, table: this.resolveTableVar(e.table, loc), index }];
+      }
+      case 'table.set': {
+        const [rI, index] = this.resolveExpr(e.index);
+        const [rV, value] = this.resolveExpr(e.value);
+        return [combine(rI, rV), { ...e, table: this.resolveTableVar(e.table, loc), index, value }];
+      }
+      case 'table.grow': {
+        const [rI, initValue] = this.resolveExpr(e.initValue);
+        const [rD, delta] = this.resolveExpr(e.delta);
+        return [combine(rI, rD), {
+          ...e,
+          table: this.resolveTableVar(e.table, loc),
+          initValue,
+          delta,
+        }];
+      }
+      case 'table.fill': {
+        const [rS, start] = this.resolveExpr(e.start);
+        const [rV, value] = this.resolveExpr(e.value);
+        const [rN, size] = this.resolveExpr(e.size);
+        return [combine(rS, combine(rV, rN)), {
+          ...e,
+          table: this.resolveTableVar(e.table, loc),
+          start,
+          value,
+          size,
+        }];
+      }
+      case 'ref.is_null':
+      case 'ref.as_non_null':
+      case 'ref.i31':
+      case 'any.convert_extern':
+      case 'extern.convert_any': {
+        const [r, value] = this.resolveExpr(e.value);
+        return [r, { ...e, value }];
+      }
+      case 'i31.get': {
+        const [r, i31] = this.resolveExpr(e.i31);
+        return [r, { ...e, i31 }];
+      }
+      case 'ref.eq': {
+        const [rl, left] = this.resolveExpr(e.left);
+        const [rr, right] = this.resolveExpr(e.right);
+        return [combineResults(rl, rr), { ...e, left, right }];
+      }
+      case 'struct.new': {
+        const [r, operands] = this.resolveExprArray(e.operands);
+        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), operands }];
+      }
+      case 'struct.new_default':
+        return [Result.Ok, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc) }];
+      case 'struct.get': {
+        const [r, ref] = this.resolveExpr(e.ref);
+        const tv = this.resolveTypeVar(e.typeVar, loc);
+        return [r, { ...e, typeVar: tv, fieldVar: this.resolveFieldVar(tv, e.fieldVar, loc), ref }];
+      }
+      case 'struct.set': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [rv, value] = this.resolveExpr(e.value);
+        const tv = this.resolveTypeVar(e.typeVar, loc);
+        return [
+          combineResults(rr, rv),
+          { ...e, typeVar: tv, fieldVar: this.resolveFieldVar(tv, e.fieldVar, loc), ref, value },
+        ];
+      }
+      case 'array.new': {
+        const [ri, init] = this.resolveExpr(e.init);
+        const [rl, length] = this.resolveExpr(e.length);
+        return [
+          combineResults(ri, rl),
+          { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), init, length },
+        ];
+      }
+      case 'array.new_default': {
+        const [r, length] = this.resolveExpr(e.length);
+        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), length }];
+      }
+      case 'array.new_fixed': {
+        const [r, operands] = this.resolveExprArray(e.operands);
+        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), operands }];
+      }
+      case 'array.new_data': {
+        const [ro, offset] = this.resolveExpr(e.offset);
+        const [rl, length] = this.resolveExpr(e.length);
+        return [combineResults(ro, rl), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          dataVar: this.resolveDataSegVar(e.dataVar, loc),
+          offset,
+          length,
+        }];
+      }
+      case 'array.new_elem': {
+        const [ro, offset] = this.resolveExpr(e.offset);
+        const [rl, length] = this.resolveExpr(e.length);
+        return [combineResults(ro, rl), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          elemVar: this.resolveElemSegVar(e.elemVar, loc),
+          offset,
+          length,
+        }];
+      }
+      case 'array.get': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [ri, index] = this.resolveExpr(e.index);
+        return [combineResults(rr, ri), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          ref,
+          index,
+        }];
+      }
+      case 'array.set': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [ri, index] = this.resolveExpr(e.index);
+        const [rv, value] = this.resolveExpr(e.value);
+        return [combineResults(rr, combineResults(ri, rv)), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          ref,
+          index,
+          value,
+        }];
+      }
+      case 'array.fill': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [ro, offset] = this.resolveExpr(e.offset);
+        const [rv, value] = this.resolveExpr(e.value);
+        const [rs, size] = this.resolveExpr(e.size);
+        return [
+          combineResults(combineResults(rr, ro), combineResults(rv, rs)),
+          { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), ref, offset, value, size },
+        ];
+      }
+      case 'array.copy': {
+        const [r1, destRef] = this.resolveExpr(e.destRef);
+        const [r2, destOffset] = this.resolveExpr(e.destOffset);
+        const [r3, srcRef] = this.resolveExpr(e.srcRef);
+        const [r4, srcOffset] = this.resolveExpr(e.srcOffset);
+        const [r5, size] = this.resolveExpr(e.size);
+        return [
+          combineResults(combineResults(combineResults(r1, r2), combineResults(r3, r4)), r5),
+          {
+            ...e,
+            destTypeVar: this.resolveTypeVar(e.destTypeVar, loc),
+            srcTypeVar: this.resolveTypeVar(e.srcTypeVar, loc),
+            destRef,
+            destOffset,
+            srcRef,
+            srcOffset,
+            size,
+          },
+        ];
+      }
+      case 'array.init_data':
+      case 'array.init_elem': {
+        const [rr, ref] = this.resolveExpr(e.ref);
+        const [rd, destOffset] = this.resolveExpr(e.destOffset);
+        const [rs, srcOffset] = this.resolveExpr(e.srcOffset);
+        const [rz, size] = this.resolveExpr(e.size);
+        // The segment var lives in the data or elem index space depending on
+        // which instruction this is.
+        const segment = e.kind === 'array.init_data'
+          ? this.resolveDataSegVar(e.segment, loc)
+          : this.resolveElemSegVar(e.segment, loc);
+        return [
+          combineResults(combineResults(rr, rd), combineResults(rs, rz)),
+          {
+            ...e,
+            typeVar: this.resolveTypeVar(e.typeVar, loc),
+            segment,
+            ref,
+            destOffset,
+            srcOffset,
+            size,
+          },
+        ];
+      }
+      case 'array.len': {
+        const [r, ref] = this.resolveExpr(e.ref);
+        return [r, { ...e, ref }];
+      }
+      case 'ref.null':
+        // `ref.null H` carries a HEAP type, not an item reference: abstract
+        // keywords pass through for the writer to encode as a single negative
+        // byte, `$T` resolves against the type scope. Before this case existed
+        // the parser's name-var survived into the binary writer, which
+        // rejected every `ref.null` as an unresolved name-var.
+        return [Result.Ok, { ...e, refType: this.resolveHeapTypeVar(e.refType, loc) }];
+      case 'ref.test':
+      case 'ref.cast': {
+        // The heapType var either names a user-defined heap type (resolve via
+        // typeScope) or names an abstract heap type keyword ("any" / "i31" /
+        // etc.) — leave abstract keywords as-is.
+        const [r, ref] = this.resolveExpr(e.ref);
+        return [r, { ...e, heapType: this.resolveHeapTypeVar(e.heapType, loc), ref }];
+      }
+      case 'throw_ref': {
+        const [r, exnref] = this.resolveExpr(e.exnref);
+        return [r, { ...e, exnref }];
+      }
+      case 'rethrow':
+        // Legacy EH: `rethrow $label` / `rethrow N` targets an enclosing
+        // try's catch. The depth is a label reference, so resolve it the
+        // same way as a `br` target (numeric depths pass through unchanged).
+        return [Result.Ok, { ...e, depth: this.resolveLabelVar(e.depth, loc) }];
+      case 'br_on_null':
+      case 'br_on_non_null': {
+        const [r, ref] = this.resolveExpr(e.ref);
+        const [rv, values] = this.resolveExprArray(e.values);
+        return [combine(r, rv), { ...e, target: this.resolveLabelVar(e.target, loc), ref, values }];
+      }
+      case 'br_on_cast': {
+        // Three name-bearing immediates, not one: the label AND both heap
+        // types. A heap type that is an abstract keyword stays a name-var;
+        // a `$T` resolves against the type scope.
+        const [r, value] = this.resolveExpr(e.value);
+        return [r, {
+          ...e,
+          target: this.resolveLabelVar(e.target, loc),
+          from: { ...e.from, heapType: this.resolveHeapTypeVar(e.from.heapType, loc) },
+          to: { ...e.to, heapType: this.resolveHeapTypeVar(e.to.heapType, loc) },
+          value,
+        }];
+      }
+      case 'simd_lane_op': {
+        const [r, operand] = this.resolveExpr(e.operand);
+        // `value` is the replace_lane scalar (undefined for extract_lane). It
+        // can be a name-bearing sub-expr (e.g. `(global.get $g)`), so it must
+        // be resolved too — globals are NOT resolved at parse time (only
+        // locals are), so skipping it left `$g` as a name-var → index 0.
+        if (e.value === undefined) return [r, { ...e, operand }];
+        const [rv, value] = this.resolveExpr(e.value);
+        return [combine(r, rv), { ...e, operand, value }];
+      }
+      case 'simd_shuffle': {
+        const [rL, left] = this.resolveExpr(e.left);
+        const [rR, right] = this.resolveExpr(e.right);
+        return [combine(rL, rR), { ...e, left, right }];
+      }
+      case 'simd_load_lane':
+      case 'simd_store_lane': {
+        const [rA, address] = this.resolveExpr(e.address);
+        const [rV, vec] = this.resolveExpr(e.vec);
+        return [combine(rA, rV), {
+          ...e,
+          memidx: this.resolveMemoryVar(e.memidx, loc),
+          address,
+          vec,
+        }];
+      }
+      // INTENT: reached only by nodes with NO `Var` field and NO `Expr` field.
+      // That is the entry condition, not a description of what happens to land
+      // here — anything else arriving is a missing arm, and it fails silently
+      // because returning `e` unchanged is indistinguishable from correctly
+      // resolving a leaf. Do not add a node here to make a compile error go
+      // away; give it an arm above.
+      default:
+        return [Result.Ok, e];
+    }
+  }
+
+  private resolveExprArray(exprs: Expr[]): [Result, Expr[]] {
+    let result = Result.Ok;
+    const out: Expr[] = [];
+    for (const e of exprs) {
+      const [r, resolved] = this.resolveExpr(e);
+      result = combine(result, r);
+      out.push(resolved);
+    }
+    return [result, out];
+  }
+
+  // --- Var resolution helpers ---
+
+  private resolveVar(v: Var, scope: NameScope, kind: string, loc: Location): Var {
+    if (v.kind === 'index') return v;
+    const idx = scope.resolve(v.name);
+    if (idx === undefined) {
+      addError(this.errors, loc, `undefined ${kind} "${v.name}"`);
+      this.hadError = true;
+      return v;
+    }
+    return varIndex(idx);
+  }
+
+  private resolveFuncVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.funcScope, 'func', loc);
+  }
+  private resolveGlobalVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.globalScope, 'global', loc);
+  }
+  private resolveTableVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.tableScope, 'table', loc);
+  }
+  private resolveTagVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.tagScope, 'tag', loc);
+  }
+  private resolveTypeVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.typeScope, 'type', loc);
+  }
+  /**
+   * Resolve the name-var inside a {@link TypeUse}, if it holds one.
+   *
+   * `typeUse` is settled by `synthesizeTypes`, which runs after this
+   * pass — but resolveNames' own invariant is that NO name-var survives it,
+   * and the standing guard in `tests/ir/encode_correctness.test.ts` enforces
+   * that across the whole spec testsuite. Leaving it unresolved here would
+   * also mean a caller that skips synthesizeTypes silently gets index 0.
+   */
+  private resolveTypeUse(item: { typeUse?: TypeUse }, loc: Location) {
+    if (typeof item.typeUse !== 'object') return; // undefined / 'resolved' / 'inline'
+    item.typeUse = this.resolveTypeVar(item.typeUse, loc);
+  }
+
+  /**
+   * Resolve a heap-type var as used by `ref.test` / `ref.cast`. The var can
+   * be either an abstract-heap-type keyword (`"any"` / `"eq"` / `"i31"` / etc.)
+   * or a user-defined type name (`"$T"`). Abstract keywords pass through
+   * unchanged; everything else is looked up in the typeScope.
+   */
+  private resolveHeapTypeVar(v: Var, loc: Location = unknownLocation()): Var {
+    if (v.kind === 'index') return v;
+    // Abstract heap-type keywords are not names in any index space — pass
+    // them through untouched. Anything else is a user-defined `$T`.
+    if (heapTypeNameToType(v.name) !== null) return v;
+    return this.resolveTypeVar(v, loc);
+  }
+  /**
+   * Resolve a `$fieldName` within a struct type. The field's index space is
+   * scoped to the containing struct (unlike funcs / globals / etc. which are
+   * module-global). Caller must pass the already-resolved type var so we can
+   * look the struct up.
+   */
+  private resolveFieldVar(typeVar: Var, fieldVar: Var, loc: Location): Var {
+    if (fieldVar.kind === 'index') return fieldVar;
+    if (typeVar.kind !== 'index') {
+      addError(this.errors, loc, `cannot resolve field "${fieldVar.name}" on unresolved type`);
+      this.hadError = true;
+      return fieldVar;
+    }
+    const typeEntry = this.module.types[typeVar.value];
+    if (typeEntry === undefined || typeEntry.kind !== 'struct') {
+      addError(
+        this.errors,
+        loc,
+        `field "${fieldVar.name}" references non-struct type ${typeVar.value}`,
+      );
+      this.hadError = true;
+      return fieldVar;
+    }
+    for (let i = 0; i < typeEntry.fields.length; i++) {
+      if (typeEntry.fields[i]!.name === fieldVar.name) return varIndex(i);
+    }
+    addError(
+      this.errors,
+      loc,
+      `undefined field "${fieldVar.name}" on struct type ${typeVar.value}`,
+    );
+    this.hadError = true;
+    return fieldVar;
+  }
+  /**
+   * Resolves a `local.get` / `local.set` / `local.tee` var. Index-vars pass
+   * through unchanged. Name-vars produce a directive error: the IR has no
+   * slot for param/local names (FuncSignature.params is Type[], LocalDecl is
+   * { type, count }), so there's nowhere for resolveNames to look the name up.
+   * The WAT parser resolves these at parse time; the binary reader produces
+   * only index-vars. A name-var reaching here means hand-constructed IR
+   * referencing names that aren't recoverable.
+   */
+  private resolveLocalVar(v: Var, loc: Location = unknownLocation()): Var {
+    if (v.kind === 'index') return v;
+    addError(
+      this.errors,
+      loc,
+      `local "${v.name}" cannot be resolved at IR level — wabt-ts's IR has ` +
+        `no slot for param/local names. Use the WAT parser (which resolves at ` +
+        `parse time) or pass index-vars instead.`,
+    );
+    this.hadError = true;
+    return v;
+  }
+  /**
+   * Resolve a memory index immediate (`i32.load $mem`, `memory.size $mem`, …).
+   *
+   * Every memory-op IR node has carried a `memidx: Var` all along, but nothing
+   * ever resolved it — so a NAMED memory on any instruction reached the binary
+   * writer as a name-var and hit its fail-loud guard. Same Bug G class as
+   * `call_indirect`'s typeVar: an immediate that names something must be
+   * walked here, or the writer either throws or silently emits index 0.
+   */
+  private resolveMemoryVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.memScope, 'memory', loc);
+  }
+
+  private resolveElemSegVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.elemSegScope, 'elem segment', loc);
+  }
+  private resolveDataSegVar(v: Var, loc: Location = unknownLocation()): Var {
+    return this.resolveVar(v, this.dataSegScope, 'data segment', loc);
+  }
+
+  private resolveLabelVar(v: Var, loc: Location = unknownLocation()): Var {
+    if (v.kind === 'index') return v;
+    const depth = this.labelStack.lastIndexOf(v.name);
+    if (depth === -1) {
+      addError(this.errors, loc, `undefined label "${v.name}"`);
+      this.hadError = true;
+      return v;
+    }
+    return varIndex(this.labelStack.length - 1 - depth);
+  }
+
+  private resolveByKind(v: Var, kind: ExternalKind): Var {
+    switch (kind) {
+      case ExternalKind.Func:
+        return this.resolveFuncVar(v);
+      case ExternalKind.Global:
+        return this.resolveGlobalVar(v);
+      case ExternalKind.Table:
+        return this.resolveTableVar(v);
+      case ExternalKind.Memory:
+        return this.resolveVar(v, this.memScope, 'memory', unknownLocation());
+      case ExternalKind.Tag:
+        return this.resolveTagVar(v);
+    }
+  }
+}
+
+function combine(a: Result, b: Result): Result {
+  return a === Result.Error || b === Result.Error ? Result.Error : Result.Ok;
+}

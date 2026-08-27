@@ -1,0 +1,121 @@
+(module
+  (import "wasi_snapshot_preview1" "proc_exit" (func $proc_exit (param i32)))
+  (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+  (memory (export "memory") 2)
+  (global $__heap_ptr (mut i32) (i32.const 406))
+  (global $__d4s (mut i32) (i32.const 0))
+  (global $__free_list (mut i32) (i32.const 0))
+  ;; Free-list + bump allocator (auto-grows). GC Part 1+2.
+  (func $__malloc (param $size i32) (result i32)
+    (local $ptr i32)
+    (local $cur i32)
+    (local $prev i32)
+    (local.set $cur (global.get $__free_list))
+    (local.set $prev (i32.const 0))
+    (block $done
+      (loop $scan
+        (br_if $done (i32.eqz (local.get $cur)))
+        (if (i32.ge_u (i32.load (local.get $cur)) (local.get $size))
+          (then
+            (if (i32.eqz (local.get $prev))
+              (then (global.set $__free_list (i32.load offset=4 (local.get $cur))))
+              (else (i32.store offset=4 (local.get $prev) (i32.load offset=4 (local.get $cur)))))
+            (return (local.get $cur))))
+        (local.set $prev (local.get $cur))
+        (local.set $cur (i32.load offset=4 (local.get $cur)))
+        (br $scan)))
+    (local.set $ptr (global.get $__heap_ptr))
+    (global.set $__heap_ptr (i32.add (local.get $ptr) (local.get $size)))
+    (if (i32.gt_u (global.get $__heap_ptr) (i32.shl (memory.size) (i32.const 16)))
+      (then
+        (drop (memory.grow
+          (i32.shr_u
+            (i32.add
+              (i32.sub (global.get $__heap_ptr) (i32.shl (memory.size) (i32.const 16)))
+              (i32.const 65535))
+            (i32.const 16))))))
+    (local.get $ptr)
+  )
+  ;; Return a block (>= 8 bytes) to the free list. Smaller blocks are leaked (can't hold the header).
+  (func $__free (param $ptr i32) (param $size i32)
+    (if (i32.ge_u (local.get $size) (i32.const 8))
+      (then
+        (i32.store (local.get $ptr) (local.get $size))
+        (i32.store offset=4 (local.get $ptr) (global.get $__free_list))
+        (global.set $__free_list (local.get $ptr))))
+  )
+  ;; Canonical ABI allocator — fresh allocation (ptr==0) delegates to $__malloc;
+  ;; realloc requests (ptr!=0) return ptr unchanged (bump allocator has no free).
+  (func $cabi_realloc (param $ptr i32) (param $old_size i32) (param $align i32) (param $new_size i32) (result i32)
+    (select
+      (call $__malloc (local.get $new_size))
+      (local.get $ptr)
+      (i32.eqz (local.get $ptr))
+    )
+  )
+  (func $printEnvHeader (param $env i32) 
+    (local $__iface_tmp i32)
+    (local $__str_op_ptr i32)
+    (local $__str_op_len i32)
+    (if (i32.eq (local.get $env) (i32.const 3))
+      (then
+          (i32.store (i32.const 0) (i32.const 260))
+          (i32.store (i32.const 4) (i32.const 37))
+          (drop (call $fd_write
+            (i32.const 1)
+            (i32.const 0)
+            (i32.const 1)
+            (i32.const 128)))
+      )
+      (else
+      (if (i32.eq (local.get $env) (i32.const 0))
+        (then
+            (i32.store (i32.const 0) (i32.const 297))
+          (i32.store (i32.const 4) (i32.const 32))
+          (drop (call $fd_write
+            (i32.const 1)
+            (i32.const 0)
+            (i32.const 1)
+            (i32.const 128)))
+        )
+        (else
+            (i32.store (i32.const 0) (i32.const 329))
+          (i32.store (i32.const 4) (i32.const 41))
+          (drop (call $fd_write
+            (i32.const 1)
+            (i32.const 0)
+            (i32.const 1)
+            (i32.const 128)))
+        )
+      )
+      )
+    )
+  )
+
+  (func $testHeterogeneousEnums (export "testHeterogeneousEnums")  
+    (local $activeEnv i32)
+    (local $fallbackEnv i32)
+    (local $__iface_tmp i32)
+    (local $__str_op_ptr i32)
+    (local $__str_op_len i32)
+        (i32.store (i32.const 0) (i32.const 370))
+          (i32.store (i32.const 4) (i32.const 36))
+          (drop (call $fd_write
+            (i32.const 1)
+            (i32.const 0)
+            (i32.const 1)
+            (i32.const 128)))
+    (local.set $activeEnv (i32.const 3))
+    (call $printEnvHeader (local.get $activeEnv))
+    (local.set $fallbackEnv (i32.const 0))
+    (call $printEnvHeader (local.get $fallbackEnv))
+  )
+  (func $_start (export "_start")
+    (call $testHeterogeneousEnums )
+    (call $proc_exit (i32.const 0))
+  )
+  (data (i32.const 260) "\54\61\72\67\65\74\20\43\6f\6e\74\65\78\74\3a\20\4c\69\76\65\20\50\72\6f\64\75\63\74\69\6f\6e\20\4e\6f\64\65\0a")
+  (data (i32.const 297) "\54\61\72\67\65\74\20\43\6f\6e\74\65\78\74\3a\20\4c\6f\63\61\6c\20\4d\6f\63\6b\20\4e\6f\64\65\0a")
+  (data (i32.const 329) "\54\61\72\67\65\74\20\43\6f\6e\74\65\78\74\3a\20\4e\6f\6e\2d\50\72\6f\64\75\63\74\69\6f\6e\20\57\6f\72\6b\73\70\61\63\65\0a")
+  (data (i32.const 370) "\2d\2d\2d\20\54\65\73\74\20\32\3a\20\48\65\74\65\72\6f\67\65\6e\65\6f\75\73\20\45\6e\75\6d\73\20\2d\2d\2d\0a")
+)
