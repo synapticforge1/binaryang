@@ -269,16 +269,16 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   let memoryCursor = 0;
   let tagCursor = 0;
   for (const imp of module.imports) {
-    if (imp.kind === ExternalKind.Func) bridgeImport(b, imp, ctx.funcNames[funcCursor++]!);
+    if (imp.kind === ExternalKind.Func) bridgeImport(b, imp, ctx.funcNames[funcCursor++]!, ctx);
     else if (imp.kind === ExternalKind.Global) {
-      bridgeImport(b, imp, ctx.globalNames[globalCursor++]!);
+      bridgeImport(b, imp, ctx.globalNames[globalCursor++]!, ctx);
     } else if (imp.kind === ExternalKind.Table) {
-      bridgeImport(b, imp, ctx.tableNames[tableCursor++]!);
+      bridgeImport(b, imp, ctx.tableNames[tableCursor++]!, ctx);
     } else if (imp.kind === ExternalKind.Memory) {
-      bridgeImport(b, imp, ctx.memoryNames[memoryCursor++]!);
+      bridgeImport(b, imp, ctx.memoryNames[memoryCursor++]!, ctx);
     } else if (imp.kind === ExternalKind.Tag) {
-      bridgeImport(b, imp, ctx.tagNames[tagCursor++]!);
-    } else bridgeImport(b, imp, '');
+      bridgeImport(b, imp, ctx.tagNames[tagCursor++]!, ctx);
+    } else bridgeImport(b, imp, '', ctx);
   }
 
   for (let i = 0; i < module.memories.length; i++) {
@@ -301,7 +301,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   }
 
   for (let i = 0; i < module.tags.length; i++) {
-    bridgeTag(b, module.tags[i]!, ctx.tagNames[tagCursor + i]!);
+    bridgeTag(b, module.tags[i]!, ctx.tagNames[tagCursor + i]!, ctx);
   }
 
   for (let i = 0; i < module.funcs.length; i++) {
@@ -340,8 +340,11 @@ function bridgeTable(b: ModuleBuilder, t: WabtModule['tables'][number], name: st
   );
 }
 
-function bridgeTag(b: ModuleBuilder, tag: WabtTag, name: string): void {
-  b.addTag(name, tag.sig.params.map(wabtTypeToValType));
+function bridgeTag(b: ModuleBuilder, tag: WabtTag, name: string, ctx: BridgeCtx): void {
+  // T13.50: precise, not coarsening. A tag parameter of `(ref $T)` coarsened to
+  // `structref` makes the tag's signature match no declared func heap type, and
+  // the encoder throws `unresolved GC function type`.
+  b.addTag(name, tag.sig.params.map((t) => wabtTypeToValueType(t, ctx)));
 }
 
 // ---------------------------------------------------------------------------
@@ -679,15 +682,22 @@ function heapTypeForBridge(v: Var, ctx: BridgeCtx): HeapType {
 // Imports
 // ---------------------------------------------------------------------------
 
-function bridgeImport(b: ModuleBuilder, imp: WabtImport, internalName: string): void {
+function bridgeImport(
+  b: ModuleBuilder,
+  imp: WabtImport,
+  internalName: string,
+  ctx: BridgeCtx,
+): void {
   switch (imp.kind) {
     case ExternalKind.Func:
       b.addFunctionImport(
         internalName,
         imp.module,
         imp.field,
-        imp.func.sig.params.map(wabtTypeToValType),
-        imp.func.sig.results.map(wabtTypeToValType),
+        // T13.50: precise, not coarsening — see bridgeTag. An IMPORTED function's
+        // signature reaches the encoder the same way a declared one does.
+        imp.func.sig.params.map((t) => wabtTypeToValueType(t, ctx)),
+        imp.func.sig.results.map((t) => wabtTypeToValueType(t, ctx)),
       );
       return;
     case ExternalKind.Global:
@@ -743,7 +753,9 @@ function bridgeGlobal(b: ModuleBuilder, g: WabtGlobal, ctx: BridgeCtx, name: str
   if (g.init.length !== 1) {
     throw new Error(`Bridge: global ${name} has ${g.init.length} init exprs; expected 1`);
   }
-  b.addGlobal(name, wabtTypeToValType(g.type), g.mutable, bridgeExpr(g.init[0]!, ctx));
+  // T13.50: precise, not coarsening. A global declared `(ref null $T)` and
+  // coarsened to `structref` mismatches every use that kept the precise type.
+  b.addGlobal(name, wabtTypeToValueType(g.type, ctx), g.mutable, bridgeExpr(g.init[0]!, ctx));
 }
 
 // ---------------------------------------------------------------------------
@@ -1110,7 +1122,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // --- Reference types (Tier C) ----------------------------------------
     case 'ref.null': {
       const rn = e as RefNullExpr;
-      return makeRefNull(refTypeVarToValType(rn.refType));
+      return makeRefNull(refTypeVarToValType(rn.refType, ctx));
     }
     case 'ref.func': {
       const rf = e as RefFuncExpr;
@@ -1388,7 +1400,7 @@ function buildCatchClause(
  * index-vars name a user-defined heap type, which the flat `ValType` surface
  * can't express.
  */
-function refTypeVarToValType(v: Var): ValType {
+function refTypeVarToValType(v: Var, ctx: BridgeCtx): BValueType {
   if (v.kind === 'name') {
     const t = heapTypeNameToType(v.name);
     if (t === null) {
@@ -1398,9 +1410,15 @@ function refTypeVarToValType(v: Var): ValType {
     }
     return wabtTypeToValType(t);
   }
-  // Index-form refType targets a user-defined type — needs the typed-ref IR
-  // refactor before it can carry a concrete heap type through binaryen-ts.
-  throw new Error('Bridge: ref.null with a user-defined heap type is not yet supported');
+  // T13.50b: index-form refType targets a USER-DEFINED heap type. This used to
+  // throw "not yet supported", and the reason given was that it "needs the
+  // typed-ref IR refactor" — but that refactor is what T13.47 landed. Since
+  // binaryen-ts 1.5.0 a `ValueType` is `ValType | RefType`, `makeRefNull` takes a
+  // ValueType, and `resolveHeapTypeIdx` already maps a wabt type index onto the
+  // registered binaryen heap type. The limitation outlived its cause.
+  //
+  // `ref.null` is nullable by definition, so nullable is unconditionally true.
+  return { heap: resolveHeapTypeIdx(v, ctx), nullable: true };
 }
 
 /**
