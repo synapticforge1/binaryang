@@ -145,6 +145,64 @@ can be wrong: **internal consistency is not completeness, and one view cannot te
 
 ---
 
+## 🆕 Pin every environment-dependent default in the repository, not on the machine
+
+**Rule: if a tool's behaviour depends on a setting the repository does not carry, the repository is
+missing a file.** Line endings were the instance that cost the most; the rule is general.
+
+### The instance
+
+`deno fmt --check` failed locally on 32 files while CI was green on the same commit. The committed
+content was never wrong — `git add --renormalize` found nothing to change — and CI had passed
+throughout. The divergence was entirely in the **checkout**: Git on Windows defaults
+`core.autocrlf=true`, so the working tree got CRLF while the Linux runner got LF.
+
+**Fixed by `.gitattributes` carrying `* text=auto eol=lf`.** `eol=lf` governs checkout as well as
+commit, so every clone materialises the bytes CI sees regardless of local config.
+
+⚠️ **Adding the file is not enough.** Attributes apply when a file is written, and Git skips files
+whose stat information says they are already current — `git checkout-index -a -f` left all 32
+unchanged. The working tree must actually be re-materialised:
+
+```sh
+git ls-files -z | xargs -0 rm -f && git checkout -- .
+```
+
+Safe only on a clean, committed tree — check `git status` first.
+
+**Verified the hostile way, which is the only verification worth having:** a fresh clone with
+`core.autocrlf=true` *explicitly forced on* still reports `eol: lf` and passes `deno fmt --check`.
+Testing it in a repo already configured correctly would have proved nothing.
+
+### Why it kept coming back
+
+**Nothing was broken, so nothing got fixed.** The commit succeeded every time; the warning
+(`LF will be replaced by CRLF the next time Git touches it`) scrolled past as noise, and CI stayed
+green because the committed content was always correct. A defect that only wastes time, and only
+sometimes, has no moment that forces the fix. It surfaced as an hour lost mid-merge.
+
+**The other half of why it persisted: a config change fixes one machine.** `core.autocrlf=false`
+locally would have cleared it here and left it waiting for the next clone, the next contributor and
+CI's own runner image. Machine-level state is invisible to everyone but its owner, so a fix living
+there is indistinguishable from no fix at all.
+
+### The measurement trap this exposed, which is the more portable lesson
+
+Every CR count taken during the investigation was **wrong**, in the direction that confirmed the
+theory. `grep -c $''` and `od -c | grep -o ''` both match a literal `r` in a BRE — so files
+were reported as full of carriage returns when they held none, and the numbers moved plausibly
+because the letter `r` is common.
+
+**Trust the tool that is actually failing.** `deno fmt --check` going from `32 not formatted` to
+`Checked 283 files` was the only unambiguous signal in the whole episode. A hand-rolled measurement
+built to confirm a hypothesis usually will.
+
+### Applying it beyond line endings
+
+Ask of any tool whose result differs between two machines: **what setting decided that, and is it in
+the repo?** Formatter width, lint rules, TypeScript strictness, Node version, test-runner
+concurrency. Every one of them has a machine-level default that will silently disagree with CI.
+
 ## Where to go for the rest
 
 The wings hold what did not converge, and it is most of the volume:
