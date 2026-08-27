@@ -348,6 +348,8 @@ class _CFGBuilder {
         // call_indirect) transfer to THESE catch entries — pushed so the live
         // state at each throw point reaches the handler (see linkToHandlers /
         // throwingCallContinuation).
+        // Same as try_table above: the try's own label targets its end.
+        if (e.name) this.pushLabel(e.name, merge);
         this.current = bodyEntry;
         this.handlerStack.push(catchEntries);
         this.visit(e.body);
@@ -365,6 +367,7 @@ class _CFGBuilder {
           this.link(this.current, merge);
         }
 
+        if (e.name) this.popLabel();
         this.current = merge;
         return;
       }
@@ -384,6 +387,13 @@ class _CFGBuilder {
             targets.push(target);
           }
         }
+        // A try_table's own label targets its END, like a block's. Without this,
+        // `resolveLabel` misses and `Break` documents a miss as "exiting the
+        // function" — so a `br $tt` out of the body is modelled as a return and
+        // the edge to `merge` is lost. No miscompile was reproducible from it
+        // today, but an under-approximated CFG edge is a latent one: unreachable
+        // is a property of today's code, not of the defect.
+        if (e.name) this.pushLabel(e.name, merge);
         this.current = bodyEntry;
         // The entry edge alone is NOT sufficient, and that gap is the defect
         // wasmtk reported on 2026-08-27: `-Oz` dropping a pre-try store.
@@ -407,6 +417,7 @@ class _CFGBuilder {
         this.handlerStack.push(targets);
         this.visit(e.body);
         this.handlerStack.pop();
+        if (e.name) this.popLabel();
         this.link(this.current, merge);
         this.current = merge;
         return;

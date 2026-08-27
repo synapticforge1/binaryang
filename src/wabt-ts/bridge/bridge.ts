@@ -256,8 +256,16 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
     };
     for (const imp of module.imports) {
       if (imp.kind === ExternalKind.Func) declare(imp.func.sig.params, imp.func.sig.results);
+      // A TAG carries a signature too, and `addTag` resolves it through
+      // `gcFuncTypeIndex` exactly as a function does. Omitting tags made the
+      // tag path work only when some function happened to share the tag's
+      // signature — which is exactly how the first version of the T13.50 tag
+      // test passed while a tag with a UNIQUE signature still threw
+      // `unresolved GC function type`. Green for the wrong reason.
+      else if (imp.kind === ExternalKind.Tag) declare(imp.tag.sig.params, imp.tag.sig.results);
     }
     for (const f of module.funcs) declare(f.sig.params, f.sig.results);
+    for (const t of module.tags) declare(t.sig.params, t.sig.results);
   }
 
   // Imports: walk module.imports in order, using the canonical names from
@@ -705,7 +713,10 @@ function bridgeImport(
         internalName,
         imp.module,
         imp.field,
-        wabtTypeToValType(imp.global.type),
+        // T13.50: precise, like declared globals. addGlobalImport takes a
+        // ValueType, so an imported `(ref null $T)` coarsened to structref
+        // mismatches every use that kept the precise type.
+        wabtTypeToValueType(imp.global.type, ctx),
         imp.global.mutable,
       );
       return;
@@ -771,7 +782,13 @@ function bridgeFunc(b: ModuleBuilder, f: WabtFunc, baseCtx: BridgeCtx, name: str
   for (const decl of f.localDecls) {
     for (let i = 0; i < decl.count; i++) {
       locals.push(decl.type);
-      binaryenLocals.push({ type: wabtTypeToValType(decl.type) });
+      // T13.50: precise. `Local.type` is a ValueType, and the params/results
+      // alongside are already precise — a local coarsened to structref makes
+      // any struct.get/array.get through it a type mismatch.
+      // baseCtx, not ctx: this loop builds the `locals` array that ctx is
+      // constructed FROM, so ctx does not exist yet. The converter needs only
+      // the heap-type index map, which baseCtx already carries.
+      binaryenLocals.push({ type: wabtTypeToValueType(decl.type, baseCtx) });
     }
   }
 

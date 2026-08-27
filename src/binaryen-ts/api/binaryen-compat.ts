@@ -115,10 +115,9 @@ import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
 import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
 
 // ---------------------------------------------------------------------------
-// Numeric type IDs — same values as upstream binaryen.js
+// Pass registry
 // ---------------------------------------------------------------------------
 
-/** Type ID for the empty (void) result. */
 /**
  * Every registered optimisation pass name, in this project's canonical
  * PascalCase form.
@@ -132,6 +131,11 @@ export function listPasses(): string[] {
   return _listPasses();
 }
 
+// ---------------------------------------------------------------------------
+// Numeric type IDs — same values as upstream binaryen.js
+// ---------------------------------------------------------------------------
+
+/** Type ID for the empty (void) result. */
 export const none: number = 0;
 /** Type ID for an unreachable expression. */
 export const unreachable: number = 1;

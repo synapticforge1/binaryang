@@ -87,13 +87,47 @@ describe('T13.50 — typed references survive the bridge', () => {
   });
 
   // Shape 2: a TAG whose parameter is `(ref $T)`. addTag had the same problem.
-  it('a tag with a (ref $T) param', () => {
+  //
+  // ⚠️ The tag's signature is deliberately UNIQUE — `(ref $T) i32`, which no
+  // function here shares. The first version of this test gave the tag the same
+  // signature as the exported function, and it passed against a HALF fix: the
+  // converter was precise, but tag signatures were never registered as func heap
+  // types, so `gcFuncTypeIndex` resolved only by coincidence. With a unique
+  // signature it threw `unresolved GC function type` — green for the wrong
+  // reason, exactly the trap wasmtk documented about their own fixture.
+  it('a tag with a (ref $T) param and a signature no function shares', () => {
     bridgeAndValidate(`
       (module
         (type $T (struct (field i32)))
-        (tag $e (param (ref $T)))
+        (tag $e (param (ref $T) i32))
         (func (export "g") (param (ref $T))
-          (throw $e (local.get 0))))
+          (throw $e (local.get 0) (i32.const 1))))
+    `);
+  });
+
+  // Shape 4: an IMPORTED global. Declared globals were switched to the precise
+  // converter; imported ones were not, and `addGlobalImport` takes a ValueType.
+  it('an imported global of type (ref null $T)', () => {
+    bridgeAndValidate(`
+      (module
+        (type $T (struct (field i32)))
+        (import "m" "g" (global $ig (ref null $T)))
+        (func (export "f") (result (ref null $T)) (global.get $ig)))
+    `);
+  });
+
+  // Shape 5: a function LOCAL. `Local.type` is a ValueType and the params and
+  // results beside it were already precise, so a coarsened local made any
+  // struct.get through it a type mismatch — this affects essentially any GC
+  // module that puts a typed reference in a local.
+  it('a local of type (ref null $T)', () => {
+    bridgeAndValidate(`
+      (module
+        (type $T (struct (field i32)))
+        (func (export "f") (param (ref $T)) (result i32)
+          (local $l (ref null $T))
+          (local.set $l (local.get 0))
+          (struct.get $T 0 (local.get $l))))
     `);
   });
 
