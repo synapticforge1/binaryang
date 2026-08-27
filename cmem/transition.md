@@ -34,7 +34,19 @@ dependent (wasmtk), and **wasmtk itself reports 0**. There is no fan-out to disc
 
 ## Phase A — the merge (all in binaryang)
 
-Blocked by nothing. P1 and N4 are closed upstream.
+✅ **COMPLETE 2026-08-26.** All 17 items done. Gate A → B met in full:
+
+| gate                             | result                                         |
+| -------------------------------- | ---------------------------------------------- |
+| tests green                      | **908** (513 + 393 + 2 guards added during A)  |
+| publish dry-run                  | clean                                          |
+| `verify-baseline.ts`             | **IDENTICAL**, 421 files / 1,557,602 bytes     |
+| naming + portability checks      | empty, and both verified to FIRE               |
+| six tools via `binaryang <tool>` | Deno, Node 22.18+, Bun — byte-identical output |
+
+Two items ran over their stated scope and are recorded in the register: A9 was not mechanical (the
+CLI entries did not exist), and A16 left five cmem topics wing-scoped with reasons rather than
+forcing merges that would describe a release flow which does not exist yet.
 
 | #       | item                                                                                                                       | notes                                                                                                                          |
 | ------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -47,14 +59,14 @@ Blocked by nothing. P1 and N4 are closed upstream.
 | **A7**  | Drop the `jsr:@jrmarcum/binaryen-ts@1.5.0` pin from wabt-ts's imports                                                      | the dependency the merge removes; this is what closes T13.47's exact-pin rationale                                             |
 | **A8**  | Export map — narrow authored root; `./ir/{binaryen-ts,wabt-ts}`; `./compat/{binaryen,wabt}`; every other subpath preserved | **no `./ir`**, not even as an alias                                                                                            |
 | **A9**  | CLI: extract six `(args) => Promise<void>` entries from the `import.meta.main` blocks                                      | they do **not** exist yet — the exported functions are library calls                                                           |
-| **A10** | CLI: port `Deno.*` → `node:*` in those six                                                                                 | 53 occurrences on 43 lines                                                                                                     |
-| **A11** | CLI: lift the five duplicated `cliRead`/`cliWrite` into one shared cross-runtime helper                                    | do it once, not five times                                                                                                     |
-| **A12** | CLI: register in `COMMANDS`, delete the `import.meta.main` blocks                                                          | preserve `wasm-validate`'s `--enable-*` feature surface (T13.10)                                                               |
-| **A13** | Harness: one test task; settle `_test.ts` (38) vs `.test.ts` (130)                                                         | zero overlap today; any glob written for one silently covers half                                                              |
-| **A14** | CI: naming check + **both N7 portability checks**                                                                          | verified to fire: 0/0 on binaryen-ts, 43/0 on wabt-ts                                                                          |
-| **A15** | CI: runtime matrix at the floors — Node 22.18.0 + 24, Bun 1.4.0, Deno                                                      | the floors are a promise; a promise wants a job                                                                                |
-| **A16** | `cmem/` merge by topic                                                                                                     | `best-practices.md` keeps **both** origin stories; `bridge.md` has inverted (312 vs 283)                                       |
-| **A17** | README migration note — the old→new subpath mapping                                                                        | the two breaks are `./compat` and `./ir`                                                                                       |
+| **A10** | ✅ CLI: port `Deno.*` → `node:*` in those six                                                                              | 53 occurrences on 43 lines                                                                                                     |
+| **A11** | ✅ CLI: lift the five duplicated `cliRead`/`cliWrite` into one shared cross-runtime helper                                 | do it once, not five times                                                                                                     |
+| **A12** | ✅ CLI: register in `COMMANDS`, delete the `import.meta.main` blocks                                                       | preserve `wasm-validate`'s `--enable-*` feature surface (T13.10)                                                               |
+| **A13** | ✅ Harness: one test task; settle `_test.ts` (38) vs `.test.ts` (130)                                                      | zero overlap today; any glob written for one silently covers half                                                              |
+| **A14** | ✅ CI: naming check + **both N7 portability checks**                                                                       | verified to fire: 0/0 on binaryen-ts, 43/0 on wabt-ts                                                                          |
+| **A15** | ✅ CI: runtime matrix at the floors — Node 22.18.0 + 24, Bun 1.4.0, Deno                                                   | the floors are a promise; a promise wants a job                                                                                |
+| **A16** | ✅ `cmem/` merge by topic                                                                                                  | `best-practices.md` keeps **both** origin stories; `bridge.md` has inverted (312 vs 283)                                       |
+| **A17** | ✅ README migration note — the old→new subpath mapping                                                                     | the two breaks are `./compat` and `./ir`                                                                                       |
 
 ### Gate A → B
 
