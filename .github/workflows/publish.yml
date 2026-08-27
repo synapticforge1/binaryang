@@ -127,9 +127,13 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           URL="https://api.jsr.io/scopes/${SCOPE}/packages/${NAME}/versions/${VERSION}"
           echo "Checking $URL"
-          # JSR ingests asynchronously, so poll rather than reading once.
+          # JSR ingests attestation asynchronously AND caches this endpoint. A plain
+          # re-read can keep returning the pre-attestation record for minutes, so the
+          # poll MUST cache-bust or it reports a false negative on a release that did
+          # get provenance. Measured 2026-08-27: wabt-ts@1.5.1 read as null repeatedly
+          # while the cache-busted read showed rekorLogId 2618866200.
           for i in $(seq 1 12); do
-            BODY=$(curl -sf -H "Accept: application/json" "$URL" || true)
+            BODY=$(curl -sf -H "Accept: application/json" -H "Cache-Control: no-cache" "${URL}?cb=${GITHUB_RUN_ID}-${i}" || true)
             REKOR=$(printf '%s' "$BODY" | deno eval 'const t = await new Response(Deno.stdin.readable).text(); try { console.log(JSON.parse(t).rekorLogId ?? "") } catch { console.log("") }' || true)
             if [ -n "$REKOR" ]; then
               echo "Provenance recorded — Rekor log ID: $REKOR"

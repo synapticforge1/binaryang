@@ -102,7 +102,33 @@ Also learned: wasmtk's real suite is `tests/*_tests.ts` (16 files). A bare `deno
 collects corpus fixture `test.js` files instead and reports 32 failures that mean nothing. It needs
 `--no-check` too — 3 type errors in its own test files predate any of this.
 
-**B3–B6 are drafted** in [handoffs.md](handoffs.md) § 2, to send once B2 is live.
+**B2 ✅ done 2026-08-27.** `@jrmarcum/binaryang@1.5.1` published **with provenance**
+(`rekorLogId=2618802426`), GitHub release created, and smoke-tested against the published artifact.
+See [publishing.md](publishing.md) — including the first tag push that produced no workflow run at
+all, because the tag went up before the branch registered the workflows.
+
+**B3–B5 ✅ prepared 2026-08-27, committed locally, NOT pushed.** Pushing either repo's `main` is
+what publishes: `auto-tag` sees the bumped version, tags `v1.5.1`, and dispatches `publish.yml`.
+
+| repo        | commit        | signpost location                             | gates                            |
+| ----------- | ------------- | --------------------------------------------- | -------------------------------- |
+| binaryen-ts | `4bf1726f200` | `README.md` (`readmeSource: readme`)          | 514 tests, check + dry-run clean |
+| wabt-ts     | `b6d1d4354`   | **`@module` in `src/index.ts`** + `README.md` | 393 tests, check + dry-run clean |
+
+⚠️ wabt-ts's JSR page renders from **JSDoc**, so the `@module` block is the one that reaches
+consumers; the README is the GitHub half. Both were written.
+
+⚠️ **Verification note, recorded because the recipe does not work.**
+`wasmtk/cmem/design-decisions.md` says to confirm a module doc with `deno doc --json <entrypoint>` →
+`nodes[file].module_doc.doc`. Measured 2026-08-27: that returns **empty for every file tried**,
+including `binaryen-ts/main.ts`, whose module doc JSR demonstrably renders
+(`allEntrypointsDocs: yes`). So the probe is inconclusive rather than negative, and it cannot
+confirm the signpost pre-publish. What _is_ established: the block is first in the file, closes
+cleanly before the exports, and only its **content** changed — the structure JSR already reads is
+untouched. Confirm on the JSR page after publishing.
+
+**B6 remains** — the JSR `description` on both packages, which is a settings-page field rather than
+anything in the repo. Suggested: `Superseded by @jrmarcum/binaryang — final release 1.5.1`.
 
 | #      | item                                                               | owner       | notes                                                                                                                                         |
 | ------ | ------------------------------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -164,3 +190,32 @@ conservative one — provided D4 holds.
 question. Under a lifecycle rule, **nothing happens** — Node 22 stays supported because it is still
 alive. The next event that moves a floor is **Node 22's EOL on 2027-04-30**, when the floor becomes
 24. That is a calendar item, not a decision.
+
+### C1 verification — wasmtk against published binaryang, 2026-08-27
+
+Run in a scratch copy of the working tree (uncommitted changes included), so nothing in wasmtk was
+touched — and specifically so `deno` could not write to its `deno.lock`.
+
+|                            | result                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `deno check main.ts`       | clean                                                                                     |
+| suite (`tests/*_tests.ts`) | **12 passed, 0 failed**, exit 0                                                           |
+| wast conformance           | **273 passing entries, 15 pinned known-failures**                                         |
+| `br_on_cast.wast`          | `pass=23 skip=1 unbuilt-modules=0` — **identical to the B1 control** against the old pins |
+
+✅ **No regression.** The pinned known-failure counts match the pre-migration control exactly, which
+is the comparison that matters: the suite was never fully green, so "0 failed" alone would not have
+meant anything.
+
+⚠️ **One accounting artifact, and it nearly read as an improvement.** The B1 control reported
+`12 passed | 1 failed`; this run reported `12 passed | 0 failed`. That is **one outcome missing, not
+one defect fixed**. `tests/wast_tests.ts` does its work in _pre-test output_ and then calls
+`Deno.exit(0)`, terminating the isolate — so whether it is counted as a test file at all varies
+between runs. Its real verdict is the text it prints and its exit code, not the summary line.
+
+A pre-existing wasmtk harness wart, not a binaryang effect, but worth writing down: a summary that
+improves because a file stopped reporting looks exactly like a summary that improves because a bug
+was fixed.
+
+⚠️ **`minimumDependencyAge` is already handled** on wasmtk's side (`PT1M`), so the 24-hour wall this
+document flagged for C1 does not apply there.

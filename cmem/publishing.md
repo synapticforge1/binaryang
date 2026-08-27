@@ -167,6 +167,61 @@ Expected, not a defect — pass `--min-dep-age=0`, or wait. Worth knowing before
 (C1): binaryang's own `deno.json` sets `minimumDependencyAge: "0"`, inherited from wabt-ts, but a
 consumer's setting is the one that governs.
 
+## 🆕 The JSR version API is CACHED — do not read it once and believe it
+
+**The single most misleading thing found in this whole investigation.**
+
+`api.jsr.io/scopes/<scope>/packages/<pkg>/versions/<ver>` serves a cached record. Attestation is
+written asynchronously a few seconds after publish, and a plain re-read can keep returning the
+**pre-attestation** record for minutes — `rekorLogId: null`, `updatedAt == createdAt`.
+
+Measured 2026-08-27 on `wabt-ts@1.5.1`: eight consecutive plain reads over ~3 minutes all returned
+`null`; a single **cache-busted** read returned `rekorLogId: 2618866200`, written at 20:33:42, four
+seconds after publish. The release had provenance the whole time.
+
+```sh
+# WRONG — can report a false negative for minutes
+curl -s -H 'Accept: application/json' "$URL"
+# RIGHT
+curl -s -H 'Accept: application/json' -H 'Cache-Control: no-cache' "$URL?cb=$(date +%s)"
+```
+
+⚠️ **This was a live defect in our own verification step**, which polled without cache-busting and
+could therefore have failed a release that actually succeeded. Fixed.
+
+⚠️ **And it is worth passing to the wasmtk investigation**, whose verify step has the same shape. It
+does not explain wasmtk's long-term absence — a months-old version is not still cached — but any
+_immediately post-publish_ check it makes is unreliable, and a false negative there would send the
+next person hunting a problem that is not there.
+
+**The tell:** an attested version has `updatedAt` a few seconds AFTER `createdAt` — the attestation
+being recorded. `updatedAt == createdAt` means either not-yet-attested or never-attested, and only a
+cache-busted read distinguishes them.
+
+## 🔓 The auto-tag dispatch path failed; the tag-push path worked
+
+Measured 2026-08-27, publishing all three packages:
+
+| trigger                                            | outcome                                                        |
+| -------------------------------------------------- | -------------------------------------------------------------- |
+| `workflow_dispatch` (auto-tag's `gh workflow run`) | **failed at `deno publish`** — binaryen-ts and wabt-ts, 2 of 2 |
+| `push: tags` (tag pushed by a user)                | **succeeded** — all three packages, 4 of 4                     |
+
+Nothing published on the dispatch runs; they failed at the publish step with `exit code 1` and no
+recoverable log (the Actions logs endpoint is 403 unauthenticated, and the annotations carry only
+the exit code).
+
+⚠️ **State this as a correlation, not a cause.** The sample is one dispatch run per repo, both in a
+four-minute window, and at that point neither repo had the OIDC diagnostic, so there is no evidence
+of _why_. A transient JSR- or Sigstore-side failure in that window would fit the data equally well.
+
+**Why it matters anyway:** the intended release flow is _merge to main → auto-tag → dispatch →
+publish_, which is exactly the path that failed. Before relying on it, either reproduce a release
+through it, or remove the dispatch entirely — auto-tag only needs `gh workflow run` because a tag
+pushed by `GITHUB_TOKEN` cannot trigger a workflow (GitHub's recursion guard). Pushing that tag with
+a PAT or deploy key instead would trigger `publish.yml` through `push: tags`, the path that
+demonstrably works.
+
 ## The verification step was tested against both sides
 
 Not assumed to work. Its logic was run against four real published versions before being wired in:
