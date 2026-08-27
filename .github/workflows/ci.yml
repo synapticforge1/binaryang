@@ -1,8 +1,15 @@
-# Continuous integration — type-check + tests on every push and pull request.
+# Continuous integration.
 #
-# Runs on Deno (the canonical authoring runtime). The published library is
-# verified to be runtime-agnostic via `deno publish --dry-run`, which checks the
-# JSR slow-types lint and the publish manifest.
+# Two jobs, because they answer different questions:
+#
+#   gates     — is the tree correct? fmt/lint/types/tests, the two binding rules,
+#               the emitted-byte baseline, and the publish manifest.
+#   runtimes  — does the CLI actually run where we say it does? The support
+#               claim in the README is a promise, and a promise wants a job.
+#
+# An exit code is not evidence in this codebase. `deno task test` proves the
+# suites ran; `deno task baseline` proves the emitted bytes did not move, which
+# is a different and stronger claim.
 
 name: CI
 
@@ -13,10 +20,9 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Type-check + test
+  gates:
+    name: Gates
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,8 +41,85 @@ jobs:
       - name: Type-check
         run: deno task check
 
+      # BINDING (README "upstream names are reserved"). A bare upstream name may
+      # appear in a path only where upstream compatibility is the subject.
+      #
+      # The original one-liner silently stopped working at the merge: its
+      # `grep -v '(binaryen|wabt)-ts'` matches the DIRECTORY component, so once
+      # src/binaryen-ts/ and src/wabt-ts/ existed it discarded every file in both
+      # trees and returned empty on a tree that still held a violation.
+      - name: Naming rule
+        run: |
+          out=$(sh scripts/check-naming.sh)
+          if [ -n "$out" ]; then echo "$out"; echo "::error::naming rule violated"; exit 1; fi
+
+      # BINDING (README "Runtime support"). No Deno globals in shipped source;
+      # node: builtins confined to the CLI/interop layer, because they are
+      # portable across Deno/Node/Bun but not to the browser.
+      - name: Runtime portability
+        run: sh scripts/check-portability.sh
+
       - name: Test
         run: deno task test
 
+      # A pure relocation must not move a byte. This is NOT a test: it pins
+      # output bytes, so a deliberate encoder improvement is supposed to fail it
+      # — re-baseline in the same commit and say why.
+      - name: Emitted-byte baseline
+        run: deno task baseline
+
       - name: Verify publish manifest (dry run, no provenance)
         run: deno publish --dry-run --allow-dirty
+
+  runtimes:
+    name: CLI on ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Deno
+            setup: deno
+            invoke: deno run -A
+          - name: Node 22.18 (floor)
+            setup: node
+            node: '22.18'
+            invoke: node --experimental-transform-types
+          - name: Node 24 (LTS)
+            setup: node
+            node: '24'
+            invoke: node --experimental-transform-types
+          - name: Bun 1.4.0 (floor)
+            setup: bun
+            bun: '1.4.0'
+            invoke: bun
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Deno
+        if: matrix.setup == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install Node
+        if: matrix.setup == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install Bun
+        if: matrix.setup == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun }}
+
+      # Every dispatcher command, under this runtime. Prints the sha256 of the
+      # wat2wasm output so the summary shows all four legs agreeing — the same
+      # bytes on every supported runtime is the actual claim.
+      - name: CLI smoke
+        run: |
+          h=$(sh scripts/cli-smoke.sh "${{ matrix.invoke }}")
+          echo "wat2wasm output sha256: $h"
+          echo "- **${{ matrix.name }}** \`$h\`" >> "$GITHUB_STEP_SUMMARY"

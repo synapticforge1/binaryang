@@ -5,7 +5,7 @@
 # version bump on `main`.
 #
 # The publish step calls `deno publish` DIRECTLY — not `deno task publish`. The task wraps
-# `scripts/guarded_publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`.
+# `scripts/binaryen-ts/publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`.
 # That indirection breaks JSR provenance: JSR's OIDC detection runs in the workflow's primary
 # process and does not propagate cleanly into the subprocess invocation, so the published
 # version gets the "No provenance" flag. Sibling `wasmtk` likewise calls `deno publish` directly
@@ -17,7 +17,7 @@
 #   - id-token: write   → OIDC token for JSR provenance
 #   - contents: write   → checkout + create GitHub Release after publish
 #
-# JSR side: link the package (`@jrmarcum/binaryen-ts`) to this GitHub repo in the JSR UI
+# JSR side: link the package (`@jrmarcum/binaryang`) to this GitHub repo in the JSR UI
 # under "Settings → GitHub Actions". No JSR token is needed when OIDC is configured.
 
 name: Publish to JSR
@@ -81,6 +81,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            --title "binaryen-ts $GITHUB_REF_NAME" \
+            --title "binaryang $GITHUB_REF_NAME" \
             --generate-notes \
             --verify-tag
