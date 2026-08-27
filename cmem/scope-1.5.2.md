@@ -137,13 +137,19 @@ Now unblocked or near-unblocked:
 
 ### 2.3 Decide where the bridge lives
 
-The promotion rule cannot ever promote it: a module earns a common `src/` folder when nothing in
-either namespaced tree imports it across the boundary, and the bridge is cross-tree _by definition_.
-It currently sits in `src/wabt-ts/bridge/`, which is where it happened to come from.
+✅ **Decided 2026-08-27: `src/bridge/`**, tests at `tests/bridge/`, and the promotion rule now
+carries one written standing exception. Full reasoning in [overview.md](overview.md).
 
-Either move it to a common `src/bridge/` and record that the promotion rule has one standing
-exception, or leave it and record _why_. Both are defensible; the gap is that neither is written
-down.
+The short form: the rule's test is a proxy for its intent, the bridge fails the proxy by
+construction and satisfies the intent maximally, so the intent governs and the disagreement is
+recorded. The old location was not neutral — the bridge imports from wabt-ts 9 times and binaryen-ts
+3, so `src/wabt-ts/bridge/` asserted an ownership its own imports contradict.
+
+⚠️ **The question surfaced something the move does not fix: nothing ships against the bridge.** No
+file under `src/` imports it and it has no export-map entry; only tests reach it. Recorded in
+[overview.md](overview.md) rather than closed here, because exporting it is a public-API decision —
+`./bridge` would become supported surface, on the part of the tree most likely to move as
+convergence proceeds.
 
 ---
 

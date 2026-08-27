@@ -30,11 +30,11 @@
  * stack and is strictly more complex with no benefit.
  */
 
-import { ExternalKind } from '../core/binary.ts';
-import { heapTypeNameToType, Type } from '../core/types.ts';
-import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
-import { CatchKind, coarsenValueType, isRefValueType } from '../ir/ir.ts';
-import type { ValueType } from '../ir/ir.ts';
+import { ExternalKind } from '../wabt-ts/core/binary.ts';
+import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
+import { anyOpcodeName, naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
+import { CatchKind, coarsenValueType, isRefValueType } from '../wabt-ts/ir/ir.ts';
+import type { ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
   ArrayLenExpr,
@@ -104,8 +104,8 @@ import type {
   TryTableExpr,
   UnaryExpr,
   Var,
-} from '../ir/ir.ts';
-import { Opcode } from '../core/opcode.ts';
+} from '../wabt-ts/ir/ir.ts';
+import { Opcode } from '../wabt-ts/core/opcode.ts';
 
 import {
   AbstractHeapType,
@@ -176,7 +176,7 @@ import {
   SIMDReplaceOp,
   UnaryOp,
   ValType,
-} from '../../binaryen-ts/ir/index.ts';
+} from '../binaryen-ts/ir/index.ts';
 import type {
   CatchClause,
   Expression,
@@ -185,7 +185,7 @@ import type {
   Type as BType,
   ValueType as BValueType,
   WasmModule,
-} from '../../binaryen-ts/ir/index.ts';
+} from '../binaryen-ts/ir/index.ts';
 
 import { wabtTypeToValType } from './type-map.ts';
 

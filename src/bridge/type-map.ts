@@ -10,9 +10,9 @@
  * pulling in the bridge's expression walker.
  */
 
-import { Type } from '../core/types.ts';
-import { coarsenValueType, type ValueType } from '../ir/ir.ts';
-import { ValType } from '../../binaryen-ts/ir/index.ts';
+import { Type } from '../wabt-ts/core/types.ts';
+import { coarsenValueType, type ValueType } from '../wabt-ts/ir/ir.ts';
+import { ValType } from '../binaryen-ts/ir/index.ts';
 
 /**
  * Map a wabt-ts value type to the binaryen-ts string `ValType`.

@@ -50,10 +50,28 @@ either namespaced tree still imports it from the other side — the import graph
 mechanically. "It felt shared" is not the test. Without the rule, common `src/` becomes the drawer
 things go in because they felt shared.
 
-🔓 **The rule has one module it can never promote.** The bridge is cross-tree _by definition_, so it
-can never satisfy the test, while being the module that most obviously belongs to neither side. It
-currently sits in `src/wabt-ts/bridge/` because that is where it came from. Decide and record; see
-[scope-1.5.2.md](scope-1.5.2.md) § 2.3.
+🔓 **The rule has one standing exception, and it is the bridge.** Decided 2026-08-27: the bridge
+lives at **`src/bridge/`**, and the tests at `tests/bridge/`.
+
+The promotion rule's *test* — nothing in either tree imports it across the boundary — is a **proxy**
+for its *intent*, which is "this module belongs to neither side". The bridge satisfies the intent
+maximally and fails the proxy by construction, because being cross-tree is the entire job. That is
+the exception being recorded: **when the proxy and the intent disagree, the intent governs, and the
+disagreement gets written down here.** One module qualifies today. A second one would be a sign the
+rule needs rewriting, not a second exception.
+
+It sat in `src/wabt-ts/bridge/` for no reason but provenance, and the location was actively
+misleading: it imports from wabt-ts 9 times and binaryen-ts 3, so the path asserted an ownership the
+imports contradict.
+
+⚠️ **A separate finding, surfaced by asking where it belongs and NOT fixed by moving it: nothing
+ships against the bridge.** No file under `src/` imports it, and it has no export-map entry — it is
+reached only by tests. The seam between the two IRs, which is what makes "one package, two IRs" more
+than a directory arrangement, is currently unreachable by any consumer.
+
+Recorded rather than resolved, because exporting it is a public-API decision with its own cost:
+`./bridge` would be a supported subpath, and the bridge is the part of the tree most likely to
+change as convergence proceeds. Do not quietly export it to close the gap.
 
 **Two namespaced trees with a working bridge is a _stable_ arrangement** — nothing breaks if
 convergence never happens. That is what makes it safe to start this way, and exactly why it needs

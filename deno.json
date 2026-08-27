@@ -52,7 +52,7 @@
   },
   "tasks": {
     "check": "deno check src/**/*.ts main.ts tests/**/*.ts scripts/**/*.ts",
-    "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/",
+    "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/ tests/bridge/",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
     "lint": "deno lint",

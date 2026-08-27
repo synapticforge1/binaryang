@@ -40,17 +40,17 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { Result } from '../../../src/wabt-ts/core/result.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { LexerSource } from '../../src/wabt-ts/parser/lexer-source.ts';
+import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
+import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader-ir.ts';
+import { validateModule } from '../../src/wabt-ts/validator/validator.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../src/wabt-ts/core/error.ts';
+import { Result } from '../../src/wabt-ts/core/result.ts';
+import { allFeatures } from '../../src/wabt-ts/core/feature.ts';
 
-import { bridgeToBinaryen } from '../../../src/wabt-ts/bridge/bridge.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { bridgeToBinaryen } from '../../src/bridge/bridge.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
 
 /** Parse → resolve → bridge → encode → decode → validate. Throws with the stage that failed. */
 function bridgeAndValidate(wat: string): void {

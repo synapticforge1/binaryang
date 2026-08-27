@@ -32,7 +32,7 @@ import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { Result } from '../../../src/wabt-ts/core/result.ts';
-import { bridgeToBinaryen } from '../../../src/wabt-ts/bridge/bridge.ts';
+import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 
 function parseClean(wat: string): { module: ReturnType<typeof parseWatModule>['module'] } {
