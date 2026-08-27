@@ -6,6 +6,52 @@ still wing-scoped in [binaryen-ts/publishing.md](binaryen-ts/publishing.md) and
 reconciled and a merged document would describe a flow that does not exist. See
 [INDEX.md](INDEX.md).
 
+## RULE — never bump the version in the same change that merges to `main`
+
+**Merge first, unbumped. Bump as its own commit afterwards.**
+
+`auto-tag` runs on every push to `main` and asks exactly one question: does
+`refs/tags/v<deno.json version>` already exist? It does not compare versions, and it does not detect
+a change. **So a merge that carries a version bump IS a release** — the same push integrates the
+code and publishes it.
+
+### Why that is worth a rule and not a habit
+
+**One action must not do two things when only one of them is reversible.** A bad merge can be
+reverted; a bad publish cannot. JSR versions are immutable — there is no unpublish, no overwrite,
+and a yank would reach backwards into every consumer that already resolved it. Merging and releasing
+have completely different blast radii and they should not share a trigger.
+
+**It lets `main` be verified in its integrated state before anything ships.** A branch can be green
+and the merge still wrong: a bad resolution, a lost hunk, two changes that pass separately and
+conflict in behaviour. Merging first buys a real check of the thing that will actually be published,
+instead of a check of the thing that was about to be merged.
+
+**It makes the release chosen rather than inherited.** A release branch carrying a bumped version is
+**armed from birth** — every merge of it publishes, including a premature one, a partial one, or one
+made to unblock somebody. Keeping the branch on the released version means the branch is safe to
+merge at any point, and the bump is the moment somebody decides to ship.
+
+**It survives review.** A reviewer reading a merge diff sees code. One line of `deno.json` is what
+turns that diff into an irreversible public act, and it is the least conspicuous line in it. Making
+the bump a separate commit puts the decision where it cannot be skimmed past.
+
+### The sequence
+
+```
+1. merge release/X.Y.Z -> main      # version still the RELEASED one; auto-tag no-ops
+2. push main                        # CI runs on the integrated tree; nothing publishes
+3. verify main is green
+4. bump deno.json AND main.ts       # its own commit — this is the arming step
+5. push main                        # auto-tag tags vX.Y.Z and the release goes out
+```
+
+Both files, together: `tests/binaryen-ts/version_sync.test.ts` fails the publish otherwise, and
+`deno task bump` rewrites both.
+
+⚠️ Two consequences of the rule being _"tag exists"_ rather than _"version increased"_: deleting a
+tag re-arms that version, and a downgrade triggers a publish too. There is no monotonicity check.
+
 ## The one thing to understand
 
 **Provenance fails silently, and a green publish run is not proof.**

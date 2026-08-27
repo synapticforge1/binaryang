@@ -5,7 +5,12 @@ Branch `release/1.5.2`, opened 2026-08-27.
 Named `release/1.5.2` rather than `v1.5.2` on purpose: a branch and a tag sharing a name makes
 `git checkout v1.5.2` ambiguous between `refs/heads` and `refs/tags`.
 
-## ⚠️ The version bump is the LAST commit, and it is the arming step
+## ⚠️ The version bump is a SEPARATE commit ON MAIN, after the merge
+
+**Never bump in the change that merges.** See [publishing.md](publishing.md) § "RULE — never bump
+the version in the same change that merges to `main`". Merge first with the released version still
+in place, verify `main`, then bump as its own commit. A merge carrying a bump _is_ a release, and it
+makes one push do two things when only one of them is reversible.
 
 **This branch stays at `1.5.1` while the work happens.** It is therefore safe to merge to `main` at
 any point — partial work can land without releasing.
