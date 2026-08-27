@@ -232,3 +232,104 @@ anything importing values from `jsr:@jrmarcum/wabt-ts` directly needs a named su
 
 JSR `description` → `Superseded by @jrmarcum/binaryang — final release 1.5.1`. Publish 1.5.1, then
 archive JSR and GitHub, **in that order**. Do not yank.
+
+---
+
+## 3. Reply: the `-Oz` try_table miscompile is fixed (drafted 2026-08-27)
+
+Context: wasmtk's `scripts/binaryang-report.md` § "NEW BUG — 2026-08-27". Reproduced exactly here,
+bisected, fixed and gated. Their `try_table` skip in `src/wasic.ts` can be lifted once this ships —
+but not before their own acceptance gate passes, which is theirs to run.
+
+---
+
+# binaryang → wasmtk: fixed, and your first diagnosis was right
+
+## Reproduced exactly
+
+`161 bytes → exit 42` pre-`-Oz`, `151 bytes → exit 1` post. Same bytes, same exit codes, first try,
+from your fixture. Thank you for the repro — it needed no adaptation.
+
+## Retract the retraction: it IS CoalesceLocals
+
+You reported "CoalesceLocals merges a local live across a catch edge", then withdrew it as a guess
+because the compat surface would not let you bisect. **The withdrawal was unnecessary.** Running
+each `-Oz` pass individually against your fixture:
+
+```
+DCE, PickLoadSigns, Vacuum, RemoveUnusedBrs, RemoveUnusedNames,
+OptimizeInstructions, SimplifyLocals, LocalCSE, RemoveUnusedModuleElements   exit 42  safe
+CoalesceLocals                                                               exit  1  <-- this one
+```
+
+**Your proposed mechanism was also right**, almost word for word. `passes/cfg.ts` modelled
+`try_table`'s exceptional edge as `bodyEntry → handler`, established **before** walking the body. A
+throw can happen anywhere in the body, so liveness treated the body's own writes as already done by
+the time the handler was reached: the local written inside the body killed the incoming live range,
+and the initialising store before the `try_table` looked dead.
+
+Legacy `try` already handled this by pushing its catch entries onto a handler stack, so every
+throwing instruction inside the body links to them. `try_table` did not — purely because its catches
+are branch targets rather than inline handlers. **The shape differs; the liveness requirement does
+not.** The fix pushes the resolved catch targets around the body walk, exactly as `try` does.
+
+Withdrawing an unverifiable claim was the right instinct and we would rather have the retraction
+than not. But the record should say the original call was correct, so it is not distrusted next
+time.
+
+## Your API gap is closed, all three parts of it
+
+You hit a dead end: `runPasses(["coalesce-locals"])` failed with _"Run `listPasses()`"_, and
+`listPasses()` was not reachable.
+
+- **`listPasses()` is now exported from `compat/binaryen`.**
+- **kebab-case names now resolve.** `compat/binaryen` emulates `npm:binaryen`, so `coalesce-locals`
+  is exactly what someone following binaryen's own documentation writes. The existing
+  case-insensitive match missed it only because of the hyphen — our bug, not your spelling.
+- **The unknown-pass error now lists the registered names** instead of naming a function to call.
+
+You would have found this yourself in an afternoon with those three in place.
+
+## Gated here, with your warning taken literally
+
+`tests/binaryen-ts/passes/try_table_oz.test.ts` uses your fixture's shape, attributed, and carries
+your warning about why the simpler fixture was insufficient. Verified in both directions: with the
+fix reverted the two optimiser assertions fail **while the pre-`-Oz` check still passes**, so it
+distinguishes "fixture broken" from "optimiser broken" — the distinction your checker draws, and the
+one that cost you two days.
+
+**Your warning earned its keep immediately, on us.** While fixing an unrelated GC defect in the same
+session we wrote a tag test that passed against a _half_ fix, because the tag's signature happened
+to match a function's. Given a tag whose signature nothing shares, it still failed. Same trap, same
+week, different project. It is now in our test file in your words.
+
+## Five more defects the same hunt turned up
+
+Relevant to you because they are all GC-shaped, and you emit GC modules:
+
+| shape                                  | was                                                |
+| -------------------------------------- | -------------------------------------------------- |
+| imported func with a `(ref $T)` param  | `unresolved GC function type`                      |
+| tag with a `(ref $T)` param            | `unresolved GC function type`                      |
+| tag whose signature no function shares | `unresolved GC function type` (the half-fix above) |
+| imported global `(ref null $T)`        | `type mismatch in function`                        |
+| function local `(ref null $T)`         | `struct.get` type mismatch                         |
+
+Plus `ref.null` with a user-defined heap type, which used to be refused outright. That one was two
+defects stacked — removing the refusal only moved the error, because the global's own type was still
+being coarsened. Watching the message move is what showed the second was there.
+
+## What we could NOT reproduce, so you do not go looking
+
+Nothing in your report. Every claim in it reproduced first try. Two adjacent things we chased and
+cleared, in case they come up: `(call_indirect (type $sig) …)` emits the correct immediate and
+executes correctly through a round trip, and the emitted-byte corpus baseline is unchanged by every
+fix above — 421 files IDENTICAL, which is also why none of this was ever caught by it.
+
+## Before you lift the skip
+
+**Not yet published.** All of this is on `release/1.5.2`, unreleased. Point at a local checkout to
+run your gate — `check_try_table_oz.ts` **plus** `15_Exceptions` and `15_LexicalShadowing_Stress`,
+as you specified — and hold the skip in `src/wasic.ts` until you have seen those green against a
+version you can pin. Given what the last removal cost you, we would rather you re-verified than took
+this note's word for it.
