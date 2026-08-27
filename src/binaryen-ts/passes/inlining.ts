@@ -269,7 +269,13 @@ function getForwardedArgs(fn: WasmFunction): Expression[] {
 class FunctionSplitter {
   private cache = new Map<string, WasmFunction>();
 
-  constructor(private readonly module: WasmModule, private readonly opts: PassOptions) {}
+  private readonly module: WasmModule;
+  private readonly opts: PassOptions;
+
+  constructor(module: WasmModule, opts: PassOptions) {
+    this.module = module;
+    this.opts = opts;
+  }
 
   /** Classify `fn` per upstream's two patterns. Returns `"Uninlineable"` if
    *  no pattern matches or partial inlining is disabled. */

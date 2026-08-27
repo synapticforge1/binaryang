@@ -12,10 +12,10 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
 
-const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
 const targets = [
   'break-within-catch.wasm',

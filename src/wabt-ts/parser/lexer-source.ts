@@ -24,7 +24,10 @@ export class LexerSource {
   /** Current read position (byte index into data). */
   private _offset = 0;
 
-  constructor(data: Uint8Array | string, readonly filename = '<input>') {
+  readonly filename: string;
+
+  constructor(data: Uint8Array | string, filename = '<input>') {
+    this.filename = filename;
     if (typeof data === 'string') {
       this.data = TEXT_ENCODER.encode(data);
     } else {

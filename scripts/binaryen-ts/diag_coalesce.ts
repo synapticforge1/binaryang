@@ -12,13 +12,13 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { ExpressionKind } from '../src/binaryen-ts/ir/expressions.ts';
-import { createPass, PassRunner } from '../src/binaryen-ts/passes/pass.ts';
-import { walkExpression } from '../src/binaryen-ts/ir/walk.ts';
-import '../src/binaryen-ts/passes/index.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { ExpressionKind } from '../../src/binaryen-ts/ir/expressions.ts';
+import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
+import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
+import '../../src/binaryen-ts/passes/index.ts';
 
-const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const before = parseWasm(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
 const fibBefore = before.functions.find((f) => f.name === '$func5')!;
 
@@ -38,7 +38,7 @@ interface Op {
   kind: 'set' | 'tee' | 'drop' | 'get';
   index?: number;
 }
-function ops(body: import('../src/binaryen-ts/ir/expressions.ts').Expression): Op[] {
+function ops(body: import('../../src/binaryen-ts/ir/expressions.ts').Expression): Op[] {
   const out: Op[] = [];
   walkExpression(body, (e) => {
     if (e.kind === ExpressionKind.LocalSet) out.push({ kind: 'set', index: e.index });

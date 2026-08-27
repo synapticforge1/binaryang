@@ -17,10 +17,10 @@
 import * as fs from 'node:fs/promises';
 
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
 
-const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0] ?? 'fib-dbg.wasm';
 
 function emitText(bytes: Uint8Array): string {

@@ -7,8 +7,10 @@
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@std/internal@^1.0.13": "1.0.14",
     "jsr:@std/internal@^1.0.14": "1.0.14",
+    "jsr:@std/path@1": "1.1.6",
     "jsr:@std/path@^1.1.4": "1.1.6",
-    "jsr:@std/testing@1": "1.0.19"
+    "jsr:@std/testing@1": "1.0.19",
+    "npm:binaryen@116": "116.0.0"
   },
   "jsr": {
     "@std/assert@1.0.19": {
@@ -22,7 +24,7 @@
       "dependencies": [
         "jsr:@std/assert@^1.0.19",
         "jsr:@std/internal@^1.0.13",
-        "jsr:@std/path"
+        "jsr:@std/path@^1.1.4"
       ]
     },
     "@std/internal@1.0.14": {
@@ -40,6 +42,12 @@
         "jsr:@std/assert@^1.0.19",
         "jsr:@std/internal@^1.0.14"
       ]
+    }
+  },
+  "npm": {
+    "binaryen@116.0.0": {
+      "integrity": "sha512-Hp0dXC6Cb/rTwWEoUS2BRghObE7g/S9umKtxuTDt3f61G6fNTE/YVew/ezyy3IdHcLx3f17qfh6LwETgCfvWkQ==",
+      "bin": true
     }
   },
   "workspace": {

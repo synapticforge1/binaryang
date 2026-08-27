@@ -14,11 +14,11 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
-import { BinaryReader } from '../src/binaryen-ts/binary/reader.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { BinaryReader } from '../../src/binaryen-ts/binary/reader.ts';
 
-const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
 const TARGET_FN_INDEX = 5; // from validator error: function #5
 

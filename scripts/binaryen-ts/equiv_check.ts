@@ -27,12 +27,13 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import * as ours from '../src/binaryen-ts/api/binaryen-compat.ts';
-import type { WasmModule } from '../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../src/binaryen-ts/ir/types.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import * as ours from '../../src/binaryen-ts/api/binaryen-compat.ts';
+import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../src/binaryen-ts/ir/types.ts';
+import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
 
-const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 
 // Files where WT-2 showed ours producing notably different code size — the
 // highest-value targets for an equivalence check — plus a couple of controls.
@@ -208,8 +209,14 @@ async function checkFile(rel: string): Promise<FileReport> {
   let memA: WebAssembly.Memory | null, memB: WebAssembly.Memory | null;
   try {
     const ia = makeImports(mod), ib = makeImports(mod);
-    instA = new WebAssembly.Instance(new WebAssembly.Module(orig as BufferSource), ia.obj);
-    instB = new WebAssembly.Instance(new WebAssembly.Module(optimized as BufferSource), ib.obj);
+    instA = new WebAssembly.Instance(
+      new WebAssembly.Module(orig as BufferSource),
+      ia.obj as WebAssembly.Imports,
+    );
+    instB = new WebAssembly.Instance(
+      new WebAssembly.Module(optimized as BufferSource),
+      ib.obj as WebAssembly.Imports,
+    );
     memA = instanceMemory(instA, ia.mem);
     memB = instanceMemory(instB, ib.mem);
   } catch (e) {
@@ -219,7 +226,7 @@ async function checkFile(rel: string): Promise<FileReport> {
   }
 
   // Resolve export name → signature from the parsed IR.
-  const sigByName = new Map<string, { params: ValType[]; results: ValType[] }>();
+  const sigByName = new Map<string, { params: ValueType[]; results: ValueType[] }>();
   for (const fn of mod.functions) {
     sigByName.set(fn.name, { params: fn.params, results: fn.results });
   }
@@ -229,8 +236,8 @@ async function checkFile(rel: string): Promise<FileReport> {
     const sig = sigByName.get(exp.value);
     if (!sig) continue; // exported import, or unresolved
     if (sig.results.length > 1) continue;
-    if (sig.results.some((t) => !NUMERIC.has(t))) continue;
-    const vecs = argVectors(sig.params);
+    if (sig.results.some((t) => !NUMERIC.has(t as ValType))) continue;
+    const vecs = argVectors(sig.params as ValType[]);
     if (!vecs) continue;
     const fa = instA.exports[exp.name] as ((...a: Arg[]) => unknown) | undefined;
     const fb = instB.exports[exp.name] as ((...a: Arg[]) => unknown) | undefined;

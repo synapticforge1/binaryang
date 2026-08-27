@@ -37,6 +37,21 @@
 //
 // The source gate is the one that holds the line day to day; the behavioural
 // half is what proved the fix and what will catch a helper that stops working.
+//
+// ## Updated for binaryang (merge item A9-A12)
+//
+// The architecture underneath this test changed; its INTENT did not, so the
+// mechanism was re-pointed rather than the test deleted.
+//
+//   then                          now
+//   `if (import.meta.main)` block  exported `main(args)`, registered in COMMANDS
+//   helpers defined per tool       imported from `src/cli/io.ts`, one copy
+//   `deno run tool.ts <args>`      `main.ts <tool> <args>`
+//   `Deno.readFile` etc.           `node:fs/promises`, behind the same helpers
+//
+// The failure it guards is unchanged: a mistyped filename must produce a
+// one-line `tool: cannot read '<path>': ...`, never a runtime stack trace with
+// our absolute source paths in it.
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
@@ -55,16 +70,21 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
     for (const tool of TOOLS) {
       const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
       const src = await Deno.readTextFile(url);
-      const at = src.indexOf('if (import.meta.main) {');
-      assert(at !== -1, `${tool}: no import.meta.main block`);
+      const at = src.search(/export (async )?function main\(/);
+      assert(at !== -1, `${tool}: no exported main() entry`);
       scanned++;
 
       // Only the CLI block matters. The doc comments above it deliberately show
       // `await Deno.readFile(...)` as the LIBRARY usage example, and that is
       // correct — a library caller owns its own I/O.
       const main = src.slice(at);
-      for (const m of main.matchAll(/await Deno\.(readFile|writeFile|writeTextFile)\(/g)) {
-        offenders.push(`${tool}: unguarded Deno.${m[1]} in the CLI block`);
+      // Deno.* is banned tree-wide now (scripts/check-portability.sh), so the way
+      // this regresses is a direct node:fs call instead of the guarded helper.
+      for (const m of main.matchAll(/(?<![A-Za-z])(readFile|writeFile|writeTextFile)\(/g)) {
+        offenders.push(`${tool}: unguarded ${m[1]} in main()`);
+      }
+      for (const _ of main.matchAll(/(?<![A-Za-z])Deno\./g)) {
+        offenders.push(`${tool}: Deno global in main() — works on 1 of 4 runtimes`);
       }
     }
 
@@ -76,13 +96,16 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
     );
   });
 
-  it('each tool defines the guarded helpers it uses', async () => {
+  it('each tool imports the shared guarded helpers', async () => {
     for (const tool of TOOLS) {
       const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
       const src = await Deno.readTextFile(url);
+      // A11 lifted five byte-identical private copies into one shared module.
+      // The gate above passes vacuously if a tool does no I/O at all, so pin
+      // that each one still reaches for the helper.
       assert(
-        src.includes('async function cliRead('),
-        `${tool}: no cliRead helper — the gate above would pass vacuously`,
+        /import \{[^}]*cliRead[^}]*\} from '\.\.\/\.\.\/cli\/io\.ts'/.test(src),
+        `${tool}: does not import cliRead from src/cli/io.ts — the gate above would pass vacuously`,
       );
       // The message must name the tool, or the user cannot tell what failed.
       assert(
@@ -101,9 +124,11 @@ const canRun = (await Deno.permissions.query({ name: 'run' })).state === 'grante
   (await Deno.permissions.query({ name: 'write' })).state === 'granted';
 
 async function runCli(tool: string, args: string[]): Promise<{ code: number; err: string }> {
-  const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
+  // Through the unified dispatcher, which is now the only way in: the tools no
+  // longer self-execute, which is the whole point of A9-A12.
+  const entry = new URL('../../../main.ts', import.meta.url);
   const cmd = new Deno.Command(Deno.execPath(), {
-    args: ['run', '-A', '--quiet', url.pathname, ...args],
+    args: ['run', '-A', '--quiet', entry.pathname, tool, ...args],
     stdout: 'piped',
     stderr: 'piped',
   });

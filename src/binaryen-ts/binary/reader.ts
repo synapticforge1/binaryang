@@ -17,9 +17,12 @@ export class WasmBinaryError extends Error {
    *   detected, or `undefined` if not available. When provided, the offset is
    *   appended to the message in hex form.
    */
-  constructor(message: string, public readonly offset?: number) {
+  public readonly offset?: number | undefined;
+
+  constructor(message: string, offset?: number) {
     super(offset !== undefined ? `${message} (at offset 0x${offset.toString(16)})` : message);
     this.name = 'WasmBinaryError';
+    this.offset = offset;
   }
 }
 

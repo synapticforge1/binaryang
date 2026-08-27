@@ -402,7 +402,11 @@ function catchKindByte(k: CatchKind): number {
 // ---------------------------------------------------------------------------
 
 class BodyWriter implements ExprVisitorDelegate {
-  constructor(private readonly s: MemoryStream) {}
+  private readonly s: MemoryStream;
+
+  constructor(s: MemoryStream) {
+    this.s = s;
+  }
 
   onNopExpr(e: NopExpr): Result {
     // A synthesized operand slot-filler is not an instruction; see
@@ -1035,7 +1039,10 @@ class BinaryWriter {
   private readonly bodyWriter: BodyWriter;
   private readonly visitor: ExprVisitor;
 
-  constructor(private readonly m: Module) {
+  private readonly m: Module;
+
+  constructor(m: Module) {
+    this.m = m;
     this.s = new MemoryStream(4096);
     this.bodyWriter = new BodyWriter(this.s);
     this.visitor = new ExprVisitor(this.bodyWriter);

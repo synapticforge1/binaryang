@@ -19,10 +19,10 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
 
-const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
 const TARGET_FN_HINT = '5'; // function #5 per the validator error
 

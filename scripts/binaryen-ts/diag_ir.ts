@@ -11,9 +11,9 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 
-const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const fnIdx = parseInt(Deno.args[1] ?? '0', 10);
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));

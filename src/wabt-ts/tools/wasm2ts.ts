@@ -25,6 +25,7 @@
 
 import type { ErrorList } from '../core/error.ts';
 import { Result } from '../core/result.ts';
+import process from 'node:process';
 
 // ---------------------------------------------------------------------------
 // Public API (stub)
@@ -49,7 +50,7 @@ export function wasm2ts(_binary: Uint8Array, _opts: Wasm2TsOptions = {}): Wasm2T
 // CLI
 // ---------------------------------------------------------------------------
 
-if (import.meta.main) {
+export function main(_args: string[] = process.argv.slice(2)): Promise<void> {
   console.error('wasm2ts: not yet implemented (Phase 8 — deferred pending wasmtk QA/QC)');
-  Deno.exit(1);
+  process.exit(1);
 }

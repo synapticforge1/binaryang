@@ -31,7 +31,8 @@
     "@std/path": "jsr:@std/path@^1.0.0"
   },
   "workspace": [
-    "./tests/binaryen-ts"
+    "./tests/binaryen-ts",
+    "./scripts/binaryen-ts"
   ],
   "compilerOptions": {
     "strict": true,

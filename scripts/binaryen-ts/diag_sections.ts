@@ -13,9 +13,9 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
-import { BinaryReader } from '../src/binaryen-ts/binary/reader.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { BinaryReader } from '../../src/binaryen-ts/binary/reader.ts';
 
 const SECTION_NAMES: Record<number, string> = {
   0: 'custom',
@@ -53,7 +53,7 @@ function sections(bytes: Uint8Array): { id: number; label: string; size: number 
   return out;
 }
 
-const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const reenc = encodeWasm(parseWasm(orig));

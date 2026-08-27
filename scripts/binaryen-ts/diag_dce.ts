@@ -10,11 +10,11 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { createPass, PassRunner } from '../src/binaryen-ts/passes/pass.ts';
-import '../src/binaryen-ts/passes/index.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
+import '../../src/binaryen-ts/passes/index.ts';
 
-const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const orig = new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm'));
 
 // deno-lint-ignore no-explicit-any

@@ -16,12 +16,12 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
-import { createPass, type PassOptions } from '../src/binaryen-ts/passes/pass.ts';
-import '../src/binaryen-ts/passes/index.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { createPass, type PassOptions } from '../../src/binaryen-ts/passes/pass.ts';
+import '../../src/binaryen-ts/passes/index.ts';
 
-const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
 const TARGET = 'passes/fannkuch0_dwarf.wasm'; // smallest failing case
 

@@ -41,8 +41,8 @@ import { performance } from 'node:perf_hooks';
 import upstream from 'npm:binaryen@^116.0.0';
 
 // Our TypeScript implementation via the compat facade
-import * as ours from '../src/binaryen-ts/api/binaryen-compat.ts';
-import { BinaryReader } from '../src/binaryen-ts/binary/reader.ts';
+import * as ours from '../../src/binaryen-ts/api/binaryen-compat.ts';
+import { BinaryReader } from '../../src/binaryen-ts/binary/reader.ts';
 
 /**
  * Byte size of the `code` section (id 10) of a wasm binary, and the total bytes
@@ -69,7 +69,7 @@ function sectionSizes(bytes: Uint8Array): { code: number; customBytes: number } 
   return { code, customBytes };
 }
 
-const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
 // Picked corpus subset: a mix of sizes from the parseable-after-LEB128-fix set.
 // Selected for a representative range of small/medium/large + variety of shapes
@@ -92,13 +92,13 @@ interface Result {
   upstreamOutBytes: number;
   upstreamCodeBytes: number;
   upstreamValid: boolean;
-  upstreamValidErr?: string;
+  upstreamValidErr?: string | undefined;
   oursMs: number;
   oursOutBytes: number;
   oursCodeBytes: number;
   oursValid: boolean;
-  oursValidErr?: string;
-  oursErr?: string;
+  oursValidErr?: string | undefined;
+  oursErr?: string | undefined;
 }
 
 // ---------------------------------------------------------------------------

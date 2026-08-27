@@ -15,11 +15,11 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
-import { walkExpression } from '../src/binaryen-ts/ir/walk.ts';
-import type { WasmModule } from '../src/binaryen-ts/ir/module.ts';
+import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
+import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 
-const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
 async function findWasmFiles(dir: string): Promise<string[]> {
   const out: string[] = [];

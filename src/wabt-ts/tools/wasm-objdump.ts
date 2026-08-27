@@ -35,6 +35,8 @@ import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type { Module, SectionMeta } from '../ir/ir.ts';
+import { cliRead } from '../../cli/io.ts';
+import process from 'node:process';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -261,37 +263,8 @@ function extKindName(kind: ExternalKind): string {
 // CLI
 // ---------------------------------------------------------------------------
 
-/**
- * Read a file for the CLI, or exit with a one-line message.
- *
- * A bare `await Deno.readFile(path)` throws an uncaught `NotFound` /
- * `IsADirectory` on a mistyped argument, which Deno renders as a stack trace
- * naming its own internals and the absolute path of this file. That is the
- * wrong output for a user typo, and it is the same "report, do not throw" rule
- * the library side got in T13.29 — applied to the CLI layer (T13.31).
- */
-async function cliRead(tool: string, path: string): Promise<Uint8Array> {
-  try {
-    return await Deno.readFile(path);
-  } catch (e) {
-    console.error(`${tool}: cannot read '${path}': ${e instanceof Error ? e.message : String(e)}`);
-    Deno.exit(1);
-  }
-}
-
-/** Write a file for the CLI, or exit with a one-line message. See {@link cliRead}. */
-async function cliWrite(tool: string, path: string, data: Uint8Array | string): Promise<void> {
-  try {
-    if (typeof data === 'string') await Deno.writeTextFile(path, data);
-    else await Deno.writeFile(path, data);
-  } catch (e) {
-    console.error(`${tool}: cannot write '${path}': ${e instanceof Error ? e.message : String(e)}`);
-    Deno.exit(1);
-  }
-}
-
-if (import.meta.main) {
-  const args = Deno.args.slice();
+export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+  args = args.slice();
   const inputs: string[] = [];
   let details = false;
   let headers = true;
@@ -309,7 +282,7 @@ if (import.meta.main) {
 
   if (inputs.length === 0) {
     console.error('usage: wasm-objdump [-d] <input.wasm> [...]');
-    Deno.exit(1);
+    process.exit(1);
   }
 
   let anyFailed = false;
@@ -332,5 +305,5 @@ if (import.meta.main) {
     }
   }
 
-  if (anyFailed) Deno.exit(1);
+  if (anyFailed) process.exit(1);
 }
