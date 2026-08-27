@@ -146,7 +146,7 @@ anything in the repo. Suggested: `Superseded by @jrmarcum/binaryang — final re
 | #      | item                                                            | owner     | notes                                                                                            |
 | ------ | --------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
 | **C1** | Swap two import-map lines to `binaryang/compat/{binaryen,wabt}` | wasmtk    | it already aliases them as `binaryen` and `wabt`, so nothing else moves                          |
-| **C2** | Publish wasmtk                                                  | wasmtk    | **this is what actually retires the old packages** — every wasmtk user is a transitive dependent |
+| **C2** | Publish wasmtk                                                  | wasmtk    | ✅ **DONE — wasmtk 2.0.1, 2026-08-27.** See § C2 below. Verified against JSR, not reported |
 | **C3** | Confirm LeptonPad's `build:wasm` task still runs                | LeptonPad | expected: no change; it resolves wasmtk unpinned                                                 |
 
 ---
@@ -219,3 +219,47 @@ was fixed.
 
 ⚠️ **`minimumDependencyAge` is already handled** on wasmtk's side (`PT1M`), so the 24-hour wall this
 document flagged for C1 does not apply there.
+
+---
+
+## C2 verification — wasmtk 2.0.1, 2026-08-27
+
+**The predecessors are retired.** wasmtk 2.0.1's published dependency list names binaryang for both
+compat paths and neither predecessor:
+
+```
+jsr  @jrmarcum/binaryang  1.5.2  compat/binaryen
+jsr  @jrmarcum/binaryang  1.5.2  compat/wabt
+jsr  @std/cli             ^1.0.0 parse-args
+jsr  @std/path            ^1.1.2
+npm  wasm2js              ^0.2.0
+```
+
+Read from JSR's own version-dependencies endpoint, cache-busted, rather than taken from the report.
+The constraint is the exact `1.5.2`, not a range — worth knowing before any future binaryang
+release, because wasmtk will not pick it up without its own bump.
+
+### ⚠️ `dependentCount` will NOT fall to zero, and that is correct
+
+All three packages still report `dependentCount = 1`:
+
+| package | latest | dependents | archived |
+| ------- | ------ | ---------- | -------- |
+| binaryen-ts | 1.5.1 | 1 | false |
+| wabt-ts | 1.5.1 | 1 | false |
+| binaryang | 1.5.2 | 1 | false |
+
+wasmtk's 31 earlier published versions are **immutable** and still name the predecessors, so the
+count reflects history, not current usage. **Do not read a non-zero `dependentCount` as C2 having
+failed, and above all do not try to drive it to zero** — the only mechanism that would is yanking,
+which is D4, the one action that converts a safe break into a breaking one.
+
+Retirement means *no new dependents*, not *no dependents*. That distinction is the whole design of
+this ladder.
+
+### Now unblocked
+
+**D2** (`isArchived` on both JSR packages) and **D3** (archive both GitHub repos). Archiving is not
+yanking: an archived package keeps resolving for everything already pinned to it and only refuses
+new versions, which is exactly the intent. Both are console actions on jsr.io and github.com and
+are the user's to run.

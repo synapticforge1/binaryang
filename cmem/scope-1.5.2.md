@@ -190,7 +190,7 @@ These are the ladder, and they gate the release rather than the branch.
 | --------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **B3–B6** | signposts on both predecessors                                          | drafted in [handoffs.md](handoffs.md) § 2; **now unblocked**, 1.5.1 is live                                      |
 | **C1**    | wasmtk: swap two import-map lines to `binaryang/compat/{binaryen,wabt}` | verified green in B1                                                                                             |
-| **C2**    | wasmtk publishes                                                        | ⚠️ **this is what actually retires the old packages** — every wasmtk user is a transitive dependent              |
+| **C2**    | wasmtk publishes                                                        | ✅ **done — wasmtk 2.0.1**, depending on `binaryang@1.5.2` for both compat paths and on neither predecessor      |
 | **C3**    | confirm LeptonPad's `build:wasm` still runs                             | expected no-op; it resolves wasmtk unpinned                                                                      |
 | **D2**    | `isArchived` on both JSR packages                                       | **after** B3/B4 — archiving blocks publishing                                                                    |
 | **D3**    | archive both GitHub repos                                               | **after** the 1.5.1 tags — archived repos are read-only                                                          |
