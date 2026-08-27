@@ -10,7 +10,7 @@
  *
  * @example
  * ```ts
- * import { ModuleBuilder, ValType } from "@jrmarcum/binaryen-ts/ir";
+ * import { ModuleBuilder, ValType } from "@jrmarcum/binaryang/ir/binaryen-ts";
  *
  * const mod = new ModuleBuilder()
  *   .addFunction("add", [ValType.I32, ValType.I32], [ValType.I32], (b) =>
@@ -699,7 +699,7 @@ export class ModuleBuilder {
 
   /**
    * Returns a new module with the `void` (`none`) return type sentinel for convenience.
-   * @deprecated Prefer using `None` from `@jrmarcum/binaryen-ts/ir` directly.
+   * @deprecated Prefer using `None` from `@jrmarcum/binaryang/ir/binaryen-ts` directly.
    */
   static readonly Void: Type = None;
 }

@@ -3,16 +3,16 @@
 ## Runtimes
 
 **Primary: Deno.** Secondary compatibility target: **Bun.** Both run TypeScript natively — no
-compilation step for development. JSR publishes TypeScript source directly; there is **no
-build/emit step**.
+compilation step for development. JSR publishes TypeScript source directly; there is **no build/emit
+step**.
 
-| Concern | Deno | Bun |
-| --- | --- | --- |
-| Config file | `deno.json` | `package.json` |
-| Type check | `deno task check` | `deno task check` (use Deno for both) |
-| Test runner | `deno task test` (`deno test`) | `bun test` |
-| Lint / format | `deno lint` / `deno fmt` | — |
-| Consume | `deno publish` → JSR | `bunx jsr add @jrmarcum/wabt-ts` |
+| Concern       | Deno                           | Bun                                   |
+| ------------- | ------------------------------ | ------------------------------------- |
+| Config file   | `deno.json`                    | `package.json`                        |
+| Type check    | `deno task check`              | `deno task check` (use Deno for both) |
+| Test runner   | `deno task test` (`deno test`) | `bun test`                            |
+| Lint / format | `deno lint` / `deno fmt`       | —                                     |
+| Consume       | `deno publish` → JSR           | `bunx jsr add @jrmarcum/wabt-ts`      |
 
 No `tsconfig.json`, `tsconfig.build.json`, or `vitest.config.ts` — these were deleted.
 
@@ -29,49 +29,47 @@ Only the `if (import.meta.main)` CLI blocks in `src/tools/*.ts` use `Deno.args` 
 
 ## What was actually MEASURED, 2026-08-24
 
-The table above is the intent; this is the run. Prompted by "do we have issues
-with Bun?", so it is evidence rather than a claim.
+The table above is the intent; this is the run. Prompted by "do we have issues with Bun?", so it is
+evidence rather than a claim.
 
-- **Bun 1.3.14 (JavaScriptCore): the library works.** A round-trip smoke test —
-  `wat2wasm` → `wasmValidate` → `wasm2wat` → `wat2wasm`, plus instantiating and
-  calling an i64 export — produces **byte-identical output to Deno**.
-- **`bun test tests/` does NOT do what it looks like.** Bun treats the argument
-  as a path FILTER, not a directory, so it walks the sibling `binaryen-ts/` and
-  `wasmtk/` checkouts inside the repo and dies on their imports. `@std/assert`
-  also needs the import map. Neither is a defect in this code; both make a naive
-  "run the suite on Bun" read as a catastrophic failure.
-- **Node cannot run the sources directly.** `node --experimental-strip-types`
-  rejects `enum`, and `src/core/types.ts` is built on them
-  (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`). The supported Node path is the
-  published JSR package, which is transpiled — **which is why the slow-types
-  check in `deno publish --dry-run` is load-bearing for the Node claim**, not a
-  formality.
-- **Bun/JSC rejects `memory64` and `table64`** ("Memory64 is not enabled") where
-  V8 accepts them. Relevant to anyone validating our output under Bun.
+- **Bun 1.3.14 (JavaScriptCore): the library works.** A round-trip smoke test — `wat2wasm` →
+  `wasmValidate` → `wasm2wat` → `wat2wasm`, plus instantiating and calling an i64 export — produces
+  **byte-identical output to Deno**.
+- **`bun test tests/` does NOT do what it looks like.** Bun treats the argument as a path FILTER,
+  not a directory, so it walks the sibling `binaryen-ts/` and `wasmtk/` checkouts inside the repo
+  and dies on their imports. `@std/assert` also needs the import map. Neither is a defect in this
+  code; both make a naive "run the suite on Bun" read as a catastrophic failure.
+- **Node cannot run the sources directly.** `node --experimental-strip-types` rejects `enum`, and
+  `src/core/types.ts` is built on them (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`). The supported Node
+  path is the published JSR package, which is transpiled — **which is why the slow-types check in
+  `deno publish --dry-run` is load-bearing for the Node claim**, not a formality.
+- **Bun/JSC rejects `memory64` and `table64`** ("Memory64 is not enabled") where V8 accepts them.
+  Relevant to anyone validating our output under Bun.
 
 ## `Features` gates — pass the ones you mean (2026-08-24)
 
-`wasmValidate(binary, { features })` **enforces** the set as of T13.10; nine
-proposals used to be accepted regardless of the flag. If you validate a GC,
-threads, memory64, tail-call, EH, relaxed-SIMD, extended-const, typed-function-
-reference or wide-arithmetic module, enable the matching feature or it is
-rejected — with an error naming the feature.
+`wasmValidate(binary, { features })` **enforces** the set as of T13.10; nine proposals used to be
+accepted regardless of the flag. If you validate a GC, threads, memory64, tail-call, EH,
+relaxed-SIMD, extended-const, typed-function- reference or wide-arithmetic module, enable the
+matching feature or it is rejected — with an error naming the feature.
 
-`allFeatures()` is the right choice for "is this valid wasm at all", and is what
-every conformance harness here uses. `defaultFeatures()` is the ratified set,
-and now genuinely refuses the rest.
+`allFeatures()` is the right choice for "is this valid wasm at all", and is what every conformance
+harness here uses. `defaultFeatures()` is the ratified set, and now genuinely refuses the rest.
 
-The CLI matches: `wasm-validate --enable-gc mod.wasm`, `--disable-<feature>`, or
-`--enable-all`. Flag spelling is hyphenated as in wabt (`--enable-multi-memory`).
+The CLI matches: `wasm-validate --enable-gc mod.wasm`, `--disable-<feature>`, or `--enable-all`.
+Flag spelling is hyphenated as in wabt (`--enable-multi-memory`).
 
 ## The four load-bearing TS compiler rules
 
 ### `verbatimModuleSyntax: true`
+
 - Use `import type { Foo }` for type-only imports (not `import { Foo }`).
 - Import paths must include `.ts` extensions: `import { x } from './core/types.ts'`.
 
 ### `noUncheckedIndexedAccess: true`
+
 `arr[i]` returns `T | undefined`, not `T`.
+
 - Use `for...of` with `.entries()` for index-aware loops: `for (const [i, item] of arr.entries())`.
 - When iterating `module.imports` by kind (e.g. only Func imports), maintain a running index
   variable rather than filtering-then-indexing — filtering makes a new array whose indices don't
@@ -79,15 +77,18 @@ The CLI matches: `wasm-validate --enable-gc mod.wasm`, `--disable-<feature>`, or
 - Never `arr[i]` in a loop without a null/undefined guard — the compiler rejects it.
 
 ### `exactOptionalPropertyTypes: true`
+
 Optional properties (`field?: T`) cannot be explicitly assigned `undefined` in object literals —
 omit the property entirely. (`makeModule()` omits `start` rather than `start: undefined`.) Pattern
 for forwarding optionals:
+
 ```typescript
 const readOpts: ReadBinaryOptions = {};
 if (opts.filename !== undefined) readOpts.filename = opts.filename;
 ```
 
 ### `deno.json` `lib` must include `"deno.window"`
+
 `"deno.ns"` only exposes the `Deno.*` namespace; web globals like `TextEncoder`/`TextDecoder`
 require `"deno.window"`. Correct: `"lib": ["ES2022", "deno.ns", "deno.window"]`. Omitting it
 produces TS2304 on `TextEncoder`/`TextDecoder` in reader, writer, and test files.
@@ -95,8 +96,8 @@ produces TS2304 on `TextEncoder`/`TextDecoder` in reader, writer, and test files
 ## `Result` is a plain enum, not a generic wrapper
 
 `Result.Ok = 0`, `Result.Error = 1`. There is **no** `Result<T>`, no `ok()` factory, no `.value`
-field. Delegate callbacks return `Result` directly; chain with `combineResults(a, b)` (the export
-is `combineResults`, **not** `combine`).
+field. Delegate callbacks return `Result` directly; chain with `combineResults(a, b)` (the export is
+`combineResults`, **not** `combine`).
 
 **Error-propagation pattern for helpers that don't return `Result`:** when a method adds to an
 `ErrorList` but returns a plain value (e.g. `resolveVar` returns `Var`), the `combineResults()`
@@ -106,9 +107,9 @@ helper when an error is added, and fold it into the final return:
 
 ## Dependency pins — one of them is a CORRECTNESS pin (T13.23, 2026-08-25)
 
-`@jrmarcum/binaryen-ts` is named **exactly** (`@1.0.9`, no caret) in `deno.json`'s import map.
-That is not routine caution: the bridge is bug-compatible with that version's `try_table` catch
-scope, and a newer release breaks the cancellation (T13.22). **Do not restore the caret** until the
+`@jrmarcum/binaryen-ts` is named **exactly** (`@1.0.9`, no caret) in `deno.json`'s import map. That
+is not routine caution: the bridge is bug-compatible with that version's `try_table` catch scope,
+and a newer release breaks the cancellation (T13.22). **Do not restore the caret** until the
 coordinated fix lands — see the ⚠ block at the top of [bridge.md](bridge.md).
 
 The general rule it produced: a caret range plus a lockfile is a pin only until someone reloads.
@@ -118,6 +119,6 @@ can see. Everything else here (`@std/*`, `@jrmarcum/binaryen-ts` aside) is an or
 
 ## Where Deno I/O is allowed
 
-**Do not use `Deno.*` APIs in** `src/core/`, `src/ir/`, `src/reader/`, `src/writer/`,
-`src/parser/`, `src/validator/` (or `bridge/`, `api/`). Keep them runtime-agnostic. Deno-specific
-I/O belongs only in `src/tools/`.
+**Do not use `Deno.*` APIs in** `src/core/`, `src/ir/`, `src/reader/`, `src/writer/`, `src/parser/`,
+`src/validator/` (or `bridge/`, `api/`). Keep them runtime-agnostic. Deno-specific I/O belongs only
+in `src/tools/`.

@@ -14,13 +14,13 @@
  * CLI form (via `import.meta.main`):
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/wabt-ts/wasm-objdump input.wasm
+ * deno run -A jsr:@jrmarcum/binaryang/wasm-objdump input.wasm
  * ```
  *
  * Library usage:
  *
  * ```ts
- * import { wasmObjdump } from "jsr:@jrmarcum/wabt-ts/wasm-objdump";
+ * import { wasmObjdump } from "jsr:@jrmarcum/binaryang/wasm-objdump";
  *
  * const bytes = await Deno.readFile("module.wasm");
  * const { text } = wasmObjdump(bytes, { details: true });

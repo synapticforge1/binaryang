@@ -8,8 +8,8 @@
  *
  * @example
  * ```ts
- * import { encodeWasm } from "@jrmarcum/binaryen-ts/encoder";
- * import { parseWasm } from "@jrmarcum/binaryen-ts/binary";
+ * import { encodeWasm } from "@jrmarcum/binaryang/encoder";
+ * import { parseWasm } from "@jrmarcum/binaryang/binary";
  * import { readFile, writeFile } from "node:fs/promises";
  *
  * const bytes = new Uint8Array(await readFile("module.wasm"));

@@ -13,7 +13,7 @@
  *
  * @example
  * ```ts
- * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryen-ts/api";
+ * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryang/api";
  * import { writeFile } from "node:fs/promises";
  *
  * const mod = createModule((b) => {
@@ -224,7 +224,7 @@ export type ModuleBodyBuilder = (builder: ModuleBuilder, expr: ExprBuilder) => v
  *
  * @example
  * ```ts
- * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryen-ts/api";
+ * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryang/api";
  *
  * const mod = createModule((b, e) => {
  *   b.addFunction("square", [ValType.I32], [ValType.I32],

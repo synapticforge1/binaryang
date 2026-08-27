@@ -13,14 +13,14 @@
  * CLI form (via `import.meta.main`):
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/wabt-ts/wasm-validate input.wasm
+ * deno run -A jsr:@jrmarcum/binaryang/wasm-validate input.wasm
  * ```
  *
  * Library usage:
  *
  * ```ts
- * import { wasmValidate } from "jsr:@jrmarcum/wabt-ts/wasm-validate";
- * import { Result, formatErrors } from "jsr:@jrmarcum/wabt-ts";
+ * import { wasmValidate } from "jsr:@jrmarcum/binaryang/wasm-validate";
+ * import { Result, formatErrors } from "jsr:@jrmarcum/binaryang/core/wabt-ts";
  *
  * const bytes = await Deno.readFile("module.wasm");
  * const r = wasmValidate(bytes);

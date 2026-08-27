@@ -22,7 +22,7 @@
  * ## Quick start
  *
  * ```ts
- * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryen-ts/api";
+ * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryang/api";
  * import { writeFile } from "node:fs/promises";
  *
  * const mod = createModule((b, e) => {
@@ -61,11 +61,11 @@
  *
  * ```
  * binaryen-ts/ts/
- * ├── src/ir/        IR types and module builder  (@jrmarcum/binaryen-ts/ir)
- * ├── src/passes/    Optimization pass registry   (@jrmarcum/binaryen-ts/passes)
+ * ├── src/ir/        IR types and module builder  (@jrmarcum/binaryang/ir/binaryen-ts)
+ * ├── src/passes/    Optimization pass registry   (@jrmarcum/binaryang/passes)
  * ├── src/tools/     CLI tools (wasm-opt, etc.)
- * ├── src/api/       Unified high-level API       (@jrmarcum/binaryen-ts/api)
- * ├── src/interop/   Upstream binaryen.js bridge  (@jrmarcum/binaryen-ts/interop)
+ * ├── src/api/       Unified high-level API       (@jrmarcum/binaryang/api)
+ * ├── src/interop/   Upstream binaryen.js bridge  (@jrmarcum/binaryang/interop)
  * └── upstream/      Upstream Binaryen C++ source (git submodule, reference)
  * ```
  *

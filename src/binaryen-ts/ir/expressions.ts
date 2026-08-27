@@ -12,7 +12,7 @@
  *
  * @example
  * ```ts
- * import { makeBinary, makeI32Const, makeLocalGet } from "@jrmarcum/binaryen-ts/ir";
+ * import { makeBinary, makeI32Const, makeLocalGet } from "@jrmarcum/binaryang/ir/binaryen-ts";
  *
  * const expr = makeBinary(
  *   BinaryOp.AddI32,

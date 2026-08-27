@@ -13,7 +13,7 @@
  * import binaryen from "binaryen";
  *
  * // after
- * import * as binaryen from "@jrmarcum/binaryen-ts/compat";
+ * import * as binaryen from "@jrmarcum/binaryang/compat/binaryen";
  * ```
  *
  * The rest of the call sites stay the same:
@@ -1427,7 +1427,7 @@ export class Module {
    * Runs an explicit list of named passes (e.g. `["DCE", "Vacuum"]`) using the
    * current module-level optimization settings. Throws if a pass name is not
    * registered — use the binaryen-ts pass-registry names (see
-   * `listPasses()` from `@jrmarcum/binaryen-ts/passes`).
+   * `listPasses()` from `@jrmarcum/binaryang/passes`).
    */
   runPasses(passes: string[]): void {
     const runner = new PassRunner(this._inner, {

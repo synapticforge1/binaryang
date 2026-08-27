@@ -31,8 +31,8 @@
  *
  * @example
  * ```ts
- * import { loadKernel } from "@jrmarcum/binaryen-ts/wasm-runtime";
- * import { DEMO_BYTES } from "@jrmarcum/binaryen-ts/wasm/demo_bytes";
+ * import { loadKernel } from "@jrmarcum/binaryang/wasm-runtime";
+ * import { DEMO_BYTES } from "@jrmarcum/binaryang/wasm";
  *
  * const demo = await loadKernel({
  *   name: "demo",

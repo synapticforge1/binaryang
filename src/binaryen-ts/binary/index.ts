@@ -7,7 +7,7 @@
  *
  * @example
  * ```ts
- * import { parseWasm } from "@jrmarcum/binaryen-ts/binary";
+ * import { parseWasm } from "@jrmarcum/binaryang/binary";
  * import { readFile } from "node:fs/promises";
  *
  * const bytes = new Uint8Array(await readFile("module.wasm"));

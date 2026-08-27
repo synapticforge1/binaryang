@@ -12,7 +12,7 @@
  *
  * @example
  * ```ts
- * import { AbstractHeapType, type RefType } from "@jrmarcum/binaryen-ts/ir";
+ * import { AbstractHeapType, type RefType } from "@jrmarcum/binaryang/ir/binaryen-ts";
  *
  * const i31ref: RefType = { heap: AbstractHeapType.I31, nullable: true };
  * const ref0: RefType  = { heap: 0, nullable: false }; // (ref $0)

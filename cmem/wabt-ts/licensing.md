@@ -29,12 +29,13 @@ and the publish workflow fails with "license … was not recognized". Use the si
 
 ## Apache 2.0 compliance checklist (all ✅)
 
-`LICENSE-APACHE` in repo + JSR publish set · `LICENSE` references both license files ·
-`NOTICE.md` attribution redistributed · per-file headers on all ported `.ts` files.
+`LICENSE-APACHE` in repo + JSR publish set · `LICENSE` references both license files · `NOTICE.md`
+attribution redistributed · per-file headers on all ported `.ts` files.
 
 ## Per-file headers
 
 **Ported files** (derived from a C++ source in `upstream/`):
+
 ```typescript
 // Ported from WebAssembly/wabt (https://github.com/WebAssembly/wabt)
 // Original source: src/<filename>.cc / include/wabt/<filename>.h
@@ -43,6 +44,7 @@ and the publish workflow fails with "license … was not recognized". Use the si
 ```
 
 **Original files** (no C++ counterpart — e.g. `wasm2ts`, test utilities):
+
 ```typescript
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.

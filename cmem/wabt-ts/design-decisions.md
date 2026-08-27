@@ -1,8 +1,8 @@
 # Load-bearing design decisions & invariants
 
-Invariants and codegen rules that are easy to break in a refactor and must NOT be silently
-reverted. Each has a regression test; reintroducing the old shape defeats the design. The
-exhaustive line-by-line version is in the legacy `CLAUDE.md`.
+Invariants and codegen rules that are easy to break in a refactor and must NOT be silently reverted.
+Each has a regression test; reintroducing the old shape defeats the design. The exhaustive
+line-by-line version is in the legacy `CLAUDE.md`.
 
 ## Performance invariants (2026-05-25 audit — do not regress)
 
@@ -12,36 +12,35 @@ exhaustive line-by-line version is in the legacy `CLAUDE.md`.
   inside a method body in these files — reuse the file-level `TEXT_ENCODER`/`TEXT_DECODER` const.
 - **`ModuleContext` builds `funcSigsByIndex` + `tagArityByIndex` once** in its constructor
   (`src/ir/ir-util.ts`). `getFuncSig`/`getTagArity` are O(1) indexed lookups rather than a
-  `for (const imp of module.imports)` scan.
-  **CORRECTED 2026-08-25 (T13.28): the justification recorded here was wrong.** It read
-  "`getExprArity` runs for every expression during validator and writer walks", and
-  `getExprArity` has **no production caller at all** — only one test in
+  `for (const imp of module.imports)` scan. **CORRECTED 2026-08-25 (T13.28): the justification
+  recorded here was wrong.** It read "`getExprArity` runs for every expression during validator and
+  writer walks", and `getExprArity` has **no production caller at all** — only one test in
   `tests/audit/silent_corruption_fixes.test.ts`. `ModuleContext.getFuncSig` / `getTagArity` have
   none either; `binary-reader.ts` uses its own free function of the same name. Only `WatWriter`
   extends `ModuleContext`, and it never calls any of the three. So this is **not a hot path** and
   nobody should defend it as one. All three are kept because `ir-util.ts` is re-exported from
   `src/index.ts` and removing them is a breaking API change — unlike `getOpcodeNaturalAlign`
   (T13.18) and `Validator.refNullType`, which were internal and were deleted. The class's own doc
-  comment still claims it is "reused across validator, binary writer, and bridge"; that is false
-  and is the kind of stale claim T13.24's rule is about.
+  comment still claims it is "reused across validator, binary writer, and bridge"; that is false and
+  is the kind of stale claim T13.24's rule is about.
 - **`WatWriter` builds `nameIndexMap` once** in its constructor (`src/writer/wat-writer.ts`).
   `resolveVarIndex` is an O(1) `Map.get` keyed by `"kind:name"`. The previous two-pass linear scan
   grew quadratically with export count.
 - **No `const w = this;` aliasing** in `WatWriter` delegate methods (the `no-this-alias` lint blocks
   it). The arrow fns in `makeDelegate()` already capture `this`; just write `this.foo()`.
-- **`naturalAlignForOpcode(op)` in `src/core/opcode.ts` is the canonical per-opcode natural-alignment
-  lookup** (~80 entries: core loads/stores + SIMD memory + atomics). The binary writer's `writeMemArg`
-  uses it to fill the right LEB exponent when the IR carries `align = 0` (the parser's sentinel for
-  "no explicit `align=N`"). The bridge's `alignBytesToExponent` calls it too. Don't duplicate the
-  table — extend the central one. Writing `align = 0` as the exponent silently broke binaryen's
-  optimizer (it reads the field as a hard constraint and bailed on rewrites → OOB at runtime);
-  regression in `tests/tools/wat2wasm.test.ts`.
+- **`naturalAlignForOpcode(op)` in `src/core/opcode.ts` is the canonical per-opcode
+  natural-alignment lookup** (~80 entries: core loads/stores + SIMD memory + atomics). The binary
+  writer's `writeMemArg` uses it to fill the right LEB exponent when the IR carries `align = 0` (the
+  parser's sentinel for "no explicit `align=N`"). The bridge's `alignBytesToExponent` calls it too.
+  Don't duplicate the table — extend the central one. Writing `align = 0` as the exponent silently
+  broke binaryen's optimizer (it reads the field as a hard constraint and bailed on rewrites → OOB
+  at runtime); regression in `tests/tools/wat2wasm.test.ts`.
 
 ## IR-shape correctness invariants
 
-- **`ReturnExpr.values: Expr[]`, not `value?: Expr`.** A multi-value `return` pushes N values; the IR
-  captures them in stack order. The single-`value` shape silently dropped all but the first operand.
-  Parser, binary reader, expr-visitor, and bridge all walk the full array.
+- **`ReturnExpr.values: Expr[]`, not `value?: Expr`.** A multi-value `return` pushes N values; the
+  IR captures them in stack order. The single-`value` shape silently dropped all but the first
+  operand. Parser, binary reader, expr-visitor, and bridge all walk the full array.
 - **f64 const bits are `bigint`, not `number`.** Split into `parseF32Bits()` (number) and
   `parseF64Bits()` (bigint) in `src/parser/wast-parser.ts`. Reassembling f64 bits as
   `(hi * 2^32) + lo` lost precision above 2^53. Also: integer literals like `f64.const 1` must be
@@ -69,9 +68,9 @@ exhaustive line-by-line version is in the legacy `CLAUDE.md`.
   lands on `ctx.stack`. A void call at statement position is never consumed and lingered until the
   block's end-of-body `flushStack`, which appends leftovers AFTER every following statement — so
   `(call $f …) (local.set …) (return X)` sank the call past the `return` into dead code and its side
-  effect never ran. Fix: `pushStmt(ctx, expr)` drains `ctx.stack` into `ctx.stmts` (preserving order)
-  before committing each statement. ALL statement-position pushes (folded + linear plain instrs, and
-  every void block/loop/if/try/try_table) go through `pushStmt`. Regression:
+  effect never ran. Fix: `pushStmt(ctx, expr)` drains `ctx.stack` into `ctx.stmts` (preserving
+  order) before committing each statement. ALL statement-position pushes (folded + linear plain
+  instrs, and every void block/loop/if/try/try_table) go through `pushStmt`. Regression:
   `tests/parser/stmt_order.test.ts`.
 - **Empty-folded ops consume preceding stack values, but only what's available (Bug D + Bug F,
   v1.1.7).** `parseFoldedInstr` falls back to popping from `ctx.stack` when a folded plain instr has
@@ -79,17 +78,17 @@ exhaustive line-by-line version is in the legacy `CLAUDE.md`.
   the linear form. Critical for wasic's multi-value receive idiom
   `(call $two_returns) (local.set $b) (local.set $a)`. For variable-arity opcodes
   (`call`/`return`/`br`/`br_table`/`throw`) with no children, the parser drains the surrounding
-  stack. **The `available = Math.min(deficit, ctx.stack.length)` clamp is load-bearing** — without it
-  ops with optional operands (`br_if`/`br` `value`) misroute their single inline child into the
+  stack. **The `available = Math.min(deficit, ctx.stack.length)` clamp is load-bearing** — without
+  it ops with optional operands (`br_if`/`br` `value`) misroute their single inline child into the
   optional slot and pad the required slot with Nop; since `resolveNames` doesn't recurse into
   `BrIf.value`, name-vars inside silently emitted as index 0 (Bug F). Regressions:
   `tests/parser/empty_folded.test.ts`.
 - **`instrInputCount` arities must match `buildPlainExpr`'s `opN()` consumption.** The fallback
-  popping is driven by `instrInputCountForTok(tok)`; an entry that disagrees with how `buildPlainExpr`
-  reads operands drops operands (too low) or pulls bogus nops (too high). Bug D exposed pre-existing
-  mismatches: `SimdShuffleOp` listed at 3 (real 2), `SimdStoreLane` at 4 (real 2), `SimdLoadLane`
-  missing (real 2). When adding an opcode to `buildPlainExpr`, audit its `opN()` calls and add a
-  matching `instrInputCount` entry.
+  popping is driven by `instrInputCountForTok(tok)`; an entry that disagrees with how
+  `buildPlainExpr` reads operands drops operands (too low) or pulls bogus nops (too high). Bug D
+  exposed pre-existing mismatches: `SimdShuffleOp` listed at 3 (real 2), `SimdStoreLane` at 4 (real
+  2), `SimdLoadLane` missing (real 2). When adding an opcode to `buildPlainExpr`, audit its `opN()`
+  calls and add a matching `instrInputCount` entry.
 
 ## resolveNames completeness
 
@@ -108,9 +107,9 @@ exhaustive line-by-line version is in the legacy `CLAUDE.md`.
   done" body — but `table.size` has no sub-expressions and `table.get` carries the element `index`.
   So any name-var inside the index was never walked, and since `writeVar` is fail-loud now the whole
   module failed to encode: `(table.get $t (global.get $g))` and `(table.get $t (call $f))` both died
-  with `unresolved name-var`. Its sibling `table.set`, three lines below in the same switch, resolved
-  both of its operands correctly — **a sibling that does what its neighbour skips remains the
-  strongest single tell.** Regression: `tests/ir/table_get_index.test.ts`.
+  with `unresolved name-var`. Its sibling `table.set`, three lines below in the same switch,
+  resolved both of its operands correctly — **a sibling that does what its neighbour skips remains
+  the strongest single tell.** Regression: `tests/ir/table_get_index.test.ts`.
 - **`resolveNames` completeness has TWO axes, and the `Var` audit only covers one.** The standing
   rule above is about name-bearing IMMEDIATES (`Var` fields). This bug was a `Expr` field — a
   sub-expression that was never recursed into — so the `Var`-only audit came back clean while the
@@ -121,19 +120,19 @@ exhaustive line-by-line version is in the legacy `CLAUDE.md`.
 
 ## Legacy exception handling
 
-- **Legacy `(try (do body) (catch $tag handler)* (catch_all handler)? (delegate $target)?)` parses to
-  a real `TryExpr` with full dispatch (v1.2.9).** Superseded by `try_table`, but wasic still emits
-  this for every TypeScript try/catch/throw. Both the folded form and the linear
+- **Legacy `(try (do body) (catch $tag handler)* (catch_all handler)? (delegate $target)?)` parses
+  to a real `TryExpr` with full dispatch (v1.2.9).** Superseded by `try_table`, but wasic still
+  emits this for every TypeScript try/catch/throw. Both the folded form and the linear
   `try … catch … end` / `try … delegate $l` form build a `TryExpr` (`body` + `Catch[]` + optional
   `delegate`). The binary writer emits the `try`/`catch`/`catch_all`/`delegate`/`end` opcode edges.
-  `resolveNames` resolves each catch's `tag` (tag scope), the optional `delegate` (label, against the
-  **outer** scope after the try's own label is popped), and `rethrow` `depth` (label).
-  **Handler bodies emit a leading `nop` before each stack-consuming op:** a folded `(local.set $x)`
-  with no inline operand gets a `Nop` placeholder because at parse time the catch body stack is
-  empty, but the runtime's `catch` edge pushes the tag's params, so `local.set` consumes them and the
-  `nop` is harmless. Earlier code coerced the whole thing to a `BlockExpr`, merging handler instrs
-  into the body and dropping dispatch edges → V8 rejected it ("not enough arguments on the stack for
-  local.set"). A latent WAT-*writer* bug also surfaced: `writeCatch` wrote the handler body AND the
+  `resolveNames` resolves each catch's `tag` (tag scope), the optional `delegate` (label, against
+  the **outer** scope after the try's own label is popped), and `rethrow` `depth` (label). **Handler
+  bodies emit a leading `nop` before each stack-consuming op:** a folded `(local.set $x)` with no
+  inline operand gets a `Nop` placeholder because at parse time the catch body stack is empty, but
+  the runtime's `catch` edge pushes the tag's params, so `local.set` consumes them and the `nop` is
+  harmless. Earlier code coerced the whole thing to a `BlockExpr`, merging handler instrs into the
+  body and dropping dispatch edges → V8 rejected it ("not enough arguments on the stack for
+  local.set"). A latent WAT-_writer_ bug also surfaced: `writeCatch` wrote the handler body AND the
   ExprVisitor's `try` case walked `c.body` again — duplicating every handler instr in `wasm2wat`
   output; fixed by dropping the body walk from `writeCatch` (the visitor owns it). Regressions:
   `tests/parser/legacy_try.test.ts`. The linear `try_table` form is still a stub (skips catch
@@ -147,9 +146,9 @@ refactor.
 
 - **Typed-ref IR is loose: `(ref $T)` / `(ref null $T)` coarsen to `Type.StructRef`** in `Type[]`
   slots (v1.2.3+). The flat `FuncSignature.params: Type[]` can't carry a heap-type index. The parser
-  recognizes the syntax but stores `Type.StructRef` as placeholder; the writer emits structref bytes,
-  so V8 rejects binaries with typed-ref params through this path. GC Tier 2–4 tests verify binary
-  encoding rather than V8 round-trip. Proper fix: `FuncSignature.params: ValueType[]` where
+  recognizes the syntax but stores `Type.StructRef` as placeholder; the writer emits structref
+  bytes, so V8 rejects binaries with typed-ref params through this path. GC Tier 2–4 tests verify
+  binary encoding rather than V8 round-trip. Proper fix: `FuncSignature.params: ValueType[]` where
   `ValueType = Type | { kind:'ref', heapType, nullable }` — a significant cascade through validator,
   reader/writer, WAT writer, bridge.
 - **`Type.I8 = 0x7a` / `I16 = 0x79` disagree with the spec wire encoding (0x78 / 0x77).** The enum
@@ -161,27 +160,28 @@ refactor.
 - **GC opcodes split between core single-byte and `PREFIX_GC = 0xfb` (v1.1.9).** `ref.eq` is
   `Opcode.RefEq = 0xd3` — a CORE single-byte opcode (legacy from reference-types). Every other GC
   instruction (`struct.*`/`array.*`/`ref.i31`/`i31.get_*`/`ref.test`/`ref.cast`/`br_on_cast`) uses
-  the 0xfb group with sub-opcodes in `GcOpcode`. The binary reader handles `Opcode.RefEq` in the main
-  switch; everything else routes through `decodeGcOp` via the `PREFIX_GC` case. Don't move ref.eq
-  into the 0xfb path. (A latent reader bug here built a `CompareExpr` instead of `RefEqExpr`; fixed —
-  new ref-typed opcodes must not reuse `CompareExpr`.)
-- **binaryen-ts encoder collapses `struct.get_u`→0x02 and `array.get_u`→0x0b** (`signed ?
-  signed-opcode : base-opcode`), so non-packed `get` and `get_u` are indistinguishable on the wire.
-  Functionally harmless (V8 recovers signedness from the packed field type). wabt-ts's own writer is
-  spec-correct (3-way); the bridge routes via binaryen-ts so its output is 2-way. Bridge tests assert
-  what the bridge emits, not what wabt-ts standalone would.
+  the 0xfb group with sub-opcodes in `GcOpcode`. The binary reader handles `Opcode.RefEq` in the
+  main switch; everything else routes through `decodeGcOp` via the `PREFIX_GC` case. Don't move
+  ref.eq into the 0xfb path. (A latent reader bug here built a `CompareExpr` instead of `RefEqExpr`;
+  fixed — new ref-typed opcodes must not reuse `CompareExpr`.)
+- **binaryen-ts encoder collapses `struct.get_u`→0x02 and `array.get_u`→0x0b**
+  (`signed ?
+  signed-opcode : base-opcode`), so non-packed `get` and `get_u` are indistinguishable
+  on the wire. Functionally harmless (V8 recovers signedness from the packed field type). wabt-ts's
+  own writer is spec-correct (3-way); the bridge routes via binaryen-ts so its output is 2-way.
+  Bridge tests assert what the bridge emits, not what wabt-ts standalone would.
 
 ## 2026-06-09 silent-corruption audit (Critical + High fixes)
 
-A six-subsystem audit found a cluster of silent-wrong-output bugs (the fail-loud footgun class).
-All fixed with regression tests in `tests/audit/silent_corruption_fixes.test.ts`. The invariants:
+A six-subsystem audit found a cluster of silent-wrong-output bugs (the fail-loud footgun class). All
+fixed with regression tests in `tests/audit/silent_corruption_fixes.test.ts`. The invariants:
 
 - **The WAT lexer's SIMD opcode values must equal the canonical `opcode.ts` table.** A whole block
   of f32x4/f64x2 float opcodes had drifted (e.g. `f32x4.div` emitted `0xeb` instead of `0xe7`;
   `f32x4.ceil` `0xe7` instead of `0x67`), and `f64x2.pmin/pmax` collided with
-  `f64x2.convert_low_i32x4_s/u`. `opcode.ts` is the source of truth; lex values were realigned to it.
-  (Cross-check helper: parse both files and compare — the relaxed-SIMD ops 0x100–0x113 are absent
-  from `opcode.ts`'s name table, a cosmetic objdump gap, not an encoding bug.)
+  `f64x2.convert_low_i32x4_s/u`. `opcode.ts` is the source of truth; lex values were realigned to
+  it. (Cross-check helper: parse both files and compare — the relaxed-SIMD ops 0x100–0x113 are
+  absent from `opcode.ts`'s name table, a cosmetic objdump gap, not an encoding bug.)
 - **Tag type indices are resolved from the signature, never hardcoded to 0** — both the binary
   writer (`tagTypeIndex`, fail-loud if no matching `(func (param …))` type) and the validator
   (`resolveTagSig`, for imported tags too). **The binary reader's tag-IMPORT decode must consume the
@@ -190,13 +190,13 @@ All fixed with regression tests in `tests/audit/silent_corruption_fixes.test.ts`
   misaligned. The defined-tag section reader already did this correctly.
 - **SIMD memory opcodes decode by exact range:** `0x00-0x06` = loads, `0x07-0x0a` = `load_splat`
   (NOT plain `load`), `0x0b` = `v128.store` (2 pops, void — NOT `load_zero`; the zero-extending
-  loads are `0x5c`/`0x5d`). Consumers switch on the IR kind, so the kind must be right.
-  (Still-open follow-up: the reader's `0x62-0x7b` + general SIMD fallback assumes *binary* arity and
-  mis-decodes the many unary SIMD ops — popcnt/all_true/bitmask/ceil/floor/trunc/nearest/abs/neg/
+  loads are `0x5c`/`0x5d`). Consumers switch on the IR kind, so the kind must be right. (Still-open
+  follow-up: the reader's `0x62-0x7b` + general SIMD fallback assumes _binary_ arity and mis-decodes
+  the many unary SIMD ops — popcnt/all_true/bitmask/ceil/floor/trunc/nearest/abs/neg/
   sqrt/extend/convert/trunc_sat. Needs a per-opcode SIMD arity table; flagged High.)
-- **`resolveNames` resolves `call_ref` / `return_call_ref` `sigType`** (and walks their args+callee).
-  Same Bug-G class as `call_indirect.typeVar` — any name-bearing immediate left unresolved is
-  emitted as index 0.
+- **`resolveNames` resolves `call_ref` / `return_call_ref` `sigType`** (and walks their
+  args+callee). Same Bug-G class as `call_indirect.typeVar` — any name-bearing immediate left
+  unresolved is emitted as index 0.
 - **`trunc_sat` (`i*.trunc_sat_f*`, misc-prefixed `0xfc0X`) is type-validated via
   `getMiscOpcodeTypeInfo`.** `getOpcodeTypeInfo` now routes `(opcode >>> 8) === PREFIX_MISC` to it;
   previously these fell through to the SIMD `(v128,v128)→v128` default, so wrong-typed operands
@@ -213,20 +213,22 @@ All fixed with regression tests in `tests/audit/silent_corruption_fixes.test.ts`
   per-function `localNames` map isn't populated). The old code routed it through `funcNames`, so a
   local index colliding with a named func index was renamed to that function.
 - **Table initializer expressions (`(table … init …)` / the binary `0x40` form) are resolved
-  (`resolveModule` walks `table.init`) and emitted (the binary writer writes the `0x40 0x00 reftype
-  limits init_expr` shape).** The reader already decoded the form; the writer silently dropped it.
+  (`resolveModule` walks `table.init`) and emitted (the binary writer writes the
+  `0x40 0x00 reftype
+  limits init_expr` shape).** The reader already decoded the form; the writer
+  silently dropped it.
 
 ### Round 2 (second sweep) — more of the same class
 
 Regression tests in `tests/audit/silent_corruption_fixes_round2.test.ts`.
 
 - **`writeVar` is FAIL-LOUD on a name-form var** (`src/writer/binary-writer.ts`) — it throws instead
-  of emitting index 0. This is the *root* of the Bug-G family; the sibling `writeHeapType` was
+  of emitting index 0. This is the _root_ of the Bug-G family; the sibling `writeHeapType` was
   already fail-loud and its comment referenced `writeVar`'s silent fallback, which had never been
-  fixed. Consequence: every `resolveNames` gap now surfaces as a hard throw at encode time instead of
-  silently-wrong wasm — so resolveNames completeness is load-bearing (the 272-file wasmtk corpus
+  fixed. Consequence: every `resolveNames` gap now surfaces as a hard throw at encode time instead
+  of silently-wrong wasm — so resolveNames completeness is load-bearing (the 272-file wasmtk corpus
   passes, proving real modules fully resolve). NOTE: `writeMemArg` keeps its own inline `:0` for
-  `memidx` (not via `writeVar`), so a *named* non-zero memory in a load/store memarg is still a
+  `memidx` (not via `writeVar`), so a _named_ non-zero memory in a load/store memarg is still a
   latent silent-0 — exotic multi-memory only; harden if it ever surfaces.
 - **`resolveNames` walks `simd_lane_op.value`** (the replace_lane scalar) and resolves
   `elemSegment.tableVar` / `dataSegment.memoryVar` in `resolveModule`. Globals/funcs/tables are NOT
@@ -240,30 +242,30 @@ Regression tests in `tests/audit/silent_corruption_fixes_round2.test.ts`.
   bitmask/extend/extadd_pairwise/trunc_sat/convert/not/any_true/demote/promote). **Also the lane
   load/store ranges were wrong:** load_lane is `0x54-0x57`, store_lane is `0x58-0x5b` (the old code
   used `0x54-0x5b` for load — swallowing the stores — and `0x5e-0x61` for store, which are actually
-  the unary demote/promote/abs/neg). Known remaining limitation: genuinely-ternary *relaxed*-SIMD
+  the unary demote/promote/abs/neg). Known remaining limitation: genuinely-ternary _relaxed_-SIMD
   ops (`0x105-0x10c`, `0x113`) still decode as binary because the `(prefix<<8)|sub` opcode encoding
   collides for `sub >= 0x100` (flagged in `opcode.ts`).
 - **`parseLimits` detects the `i64`/`i32` index type** for the memory64 proposal (`(memory i64 N)`).
   The old code matched `TokenType.I64X2` (a SIMD shape token that can never appear there) and always
   returned `is64: false`, so memory64 from text silently lost its 64-bit flag. (Table64 from text —
   where the index type precedes the reftype — is a separate, still-open narrow gap.)
-- **The binary reader fails loud on an unknown `try_table` catch-kind byte** instead of defaulting to
-  `Catch` without reading the tag varint (which desynced the byte stream). The outer `this.ok()`
+- **The binary reader fails loud on an unknown `try_table` catch-kind byte** instead of defaulting
+  to `Catch` without reading the tag varint (which desynced the byte stream). The outer `this.ok()`
   guard halts decoding once the error is recorded.
-- **Dead code removed:** `WastParser.ok()` (unused), `TypeEntry`'s `tailcallTarget?` field (never set
-  or read), and `WatWriter`'s five unused `*Imports: Import[]` fields (the inline-import path is a
-  no-op). `Func.tailcall` and `Module.featuresUsed` are inert/write-only but kept (documented
+- **Dead code removed:** `WastParser.ok()` (unused), `TypeEntry`'s `tailcallTarget?` field (never
+  set or read), and `WatWriter`'s five unused `*Imports: Import[]` fields (the inline-import path is
+  a no-op). `Func.tailcall` and `Module.featuresUsed` are inert/write-only but kept (documented
   placeholders / plausibly-public IR surface).
 
 ### Round 3 (third sweep) — core encoding + remaining backlog
 
 Regressions in `tests/audit/silent_corruption_fixes_round3.test.ts`.
 
-- **LEB128 decoders reject out-of-range encodings** (`src/core/leb128.ts`). `decodeU32Leb128` already
-  validated its 5th byte, but `decodeU64Leb128` / `decodeS32Leb128` / `decodeS64Leb128` silently
-  truncated an over-range terminating byte via `asUintN`/`asIntN`/`| 0`. They now throw: u64 rejects a
-  10th byte with bits 1-6 set; s32/s64 require the terminating byte to be a proper sign-extension
-  (bits all-0 or all-1).
+- **LEB128 decoders reject out-of-range encodings** (`src/core/leb128.ts`). `decodeU32Leb128`
+  already validated its 5th byte, but `decodeU64Leb128` / `decodeS32Leb128` / `decodeS64Leb128`
+  silently truncated an over-range terminating byte via `asUintN`/`asIntN`/`| 0`. They now throw:
+  u64 rejects a 10th byte with bits 1-6 set; s32/s64 require the terminating byte to be a proper
+  sign-extension (bits all-0 or all-1).
 - **`parseNatText` strips ALL digit separators** (`text.replace(/_/g, '')`). The old
   `replace('_', '')` removed only the first underscore, so any literal with ≥2 separators
   (`1_000_000`) threw → `null` → callers silently defaulted to index/value **0**. The remaining
@@ -273,21 +275,22 @@ Regressions in `tests/audit/silent_corruption_fixes_round3.test.ts`.
   `payload === 0 ? '200000'` fallback re-parsed to a DIFFERENT NaN (`0x7fc00000` → `0x7fe00000`)
   because the parser re-adds the quiet bit; bare `nan` round-trips. (f64 happened to round-trip by
   coincidence; made consistent.)
-- **Binary-writer segment encoding hardened.** New `varIndexValue(v, label)` helper (fail-loud sibling
-  of `writeVar`) replaces the inline `kind === 'index' ? value : 0` fallbacks for elem `tableVar` /
-  data `memoryVar` — an unresolved name-var there silently retargeted the segment to table/memory 0.
-  Active table-0 elem segments use flags 4 (which carries **no** reftype byte) only when the element
-  type is funcref; a non-funcref (e.g. externref) segment now uses flags 6 so the reftype survives. A
-  `declared`-kind **data** segment (meaningless — declared is elem-only) now throws instead of being
-  silently re-encoded as passive.
+- **Binary-writer segment encoding hardened.** New `varIndexValue(v, label)` helper (fail-loud
+  sibling of `writeVar`) replaces the inline `kind === 'index' ? value : 0` fallbacks for elem
+  `tableVar` / data `memoryVar` — an unresolved name-var there silently retargeted the segment to
+  table/memory 0. Active table-0 elem segments use flags 4 (which carries **no** reftype byte) only
+  when the element type is funcref; a non-funcref (e.g. externref) segment now uses flags 6 so the
+  reftype survives. A `declared`-kind **data** segment (meaningless — declared is elem-only) now
+  throws instead of being silently re-encoded as passive.
 - **WAT writer atomic memargs use `naturalAlignForOpcode(e.opcode)`**, not a hardcoded `1` — so an
   atomic op at its natural alignment no longer prints a spurious `align=` (and notify uses the
   central table via its fixed opcode). Restores the central-natural-align invariant for atomics.
-- **`onTag` propagates `Result.Error`** when a tag signature has results (was adding the error to the
-  list but returning `Result.Ok`). **Bridge `replace_lane`** throws on a missing scalar `value`
-  instead of fabricating a `nop`. **`parseRefType`** drops the dead `isNull ? Type.FuncRef :
-  Type.FuncRef` ternaries (the flat `Type` enum can't carry nullability — documented typed-ref-loose
-  limitation; the ternaries implied otherwise).
+- **`onTag` propagates `Result.Error`** when a tag signature has results (was adding the error to
+  the list but returning `Result.Ok`). **Bridge `replace_lane`** throws on a missing scalar `value`
+  instead of fabricating a `nop`. **`parseRefType`** drops the dead
+  `isNull ? Type.FuncRef :
+  Type.FuncRef` ternaries (the flat `Type` enum can't carry nullability —
+  documented typed-ref-loose limitation; the ternaries implied otherwise).
 - **`applyNames` partial-recursion gap documented + `call_indirect.typeVar` rewritten.** The
   expression-var rewriter's `default` doesn't descend into every composite node, so a name-bearing
   var under an unhandled node stays index-form. This is **fidelity-only** (output stays valid as
@@ -299,10 +302,10 @@ Regressions in `tests/audit/silent_corruption_fixes_round3.test.ts`.
 **Verified clean this round:** `expr-visitor` walks every child of every variant; the bridge has no
 silent-wrong case (all gaps are fail-loud throws); tool pipelines (wat2wasm/wasm2wat/validate/strip)
 are correctly ordered; no new dead code beyond what round 2 removed. **Still-open / deferred:**
-`assert_trap (module …)` mislabeled `assert_invalid` (wast-script only; needs a command-type change);
-`wasm-objdump -h` no-op; `wabt-compat` `write_debug_names` ignored (documented); the `applyNames`
-ExprVisitor rewrite; `parseHexFloat` full-mantissa precision (lexer-level; const path uses the
-dedicated `parseF64Bits`).
+`assert_trap (module …)` mislabeled `assert_invalid` (wast-script only; needs a command-type
+change); `wasm-objdump -h` no-op; `wabt-compat` `write_debug_names` ignored (documented); the
+`applyNames` ExprVisitor rewrite; `parseHexFloat` full-mantissa precision (lexer-level; const path
+uses the dedicated `parseF64Bits`).
 
 ### Round 4 (fourth sweep) — validator soundness + lexer fail-loud
 
@@ -310,9 +313,9 @@ Targeted the less-reviewed lexer internals and deeper validator logic. Regressio
 `tests/audit/silent_corruption_fixes_round4.test.ts`.
 
 - **`return_call` / `return_call_indirect` / `return_call_ref` result-type soundness**
-  (`type-checker.ts popAndCheckReturnCall`). A tail call returns the callee's results directly to the
-  caller's caller, so the callee result types must match the ENCLOSING FUNCTION's result types — a
-  type-vector comparison against `getFuncLabel().resultTypes`, NOT a `checkSignature` peek of the
+  (`type-checker.ts popAndCheckReturnCall`). A tail call returns the callee's results directly to
+  the caller's caller, so the callee result types must match the ENCLOSING FUNCTION's result types —
+  a type-vector comparison against `getFuncLabel().resultTypes`, NOT a `checkSignature` peek of the
   operand stack (which holds only the already-popped params). The old peek let a tail call to a
   wrong-result-type function validate clean.
 - **`return_call_ref` pops the function reference** (new `TypeChecker.onReturnCallRef`, mirroring
@@ -320,16 +323,16 @@ Targeted the less-reviewed lexer internals and deeper validator logic. Regressio
   an off-by-one for every `return_call_ref`.
 - **`try_table` catch tag immediates are bounds-checked** (`onTryTableCatch` + the validator's
   `beginTryTableExpr` now walks `e.catches`). An out-of-range tag in a catch clause previously
-  validated clean. (Remaining gap: the catch branch-target *type* reconciliation against the labeled
+  validated clean. (Remaining gap: the catch branch-target _type_ reconciliation against the labeled
   block type — the flat operand model doesn't carry the tag's params into the target check.)
 - **`onAtomicFence` propagates `Result.Error`** for a non-zero consistency model (same fix family as
   `onTag` — error was recorded but the node returned Ok).
-- **Lexer fail-loud:** an unterminated string at EOF now records an error (was a silent bare EOF);
-  a bare `$` with no idchars errors as an empty identifier (was a `Var` with text `"$"`); `\u{}` with
+- **Lexer fail-loud:** an unterminated string at EOF now records an error (was a silent bare EOF); a
+  bare `$` with no idchars errors as an empty identifier (was a `Var` with text `"$"`); `\u{}` with
   no hex digits errors (was silently U+0000).
 - **Dead code removed:** `TypeChecker.typeStackSize()` / `isUnreachable()` and
-  `SharedValidator.endTryTable()` (the try_table label closes via `onEnd`). These had been flagged in
-  round 1 but not actually removed until now.
+  `SharedValidator.endTryTable()` (the try_table label closes via `onEnd`). These had been flagged
+  in round 1 but not actually removed until now.
 
 **Verified clean this round:** token classification (value-type vs refkind payloads), number/escape
 lexing aside from the gaps above, `matchStr` rewind, comment nesting, sign+inf/nan paths; validator
@@ -351,11 +354,12 @@ Targeted the least-reviewed files. One HIGH-severity bug + two related issues, a
   common case) emitted `(func f0 …)` — **invalid WAT that does not round-trip** through `wat2wasm`
   (`expected (, got <token>`). Four prior passes missed it because no test round-tripped
   `wasm2wat → wat2wasm`; round 5 added that guard. Fixed: `make()` prepends `$`.
-- **Alpha-name mode dropped the per-namespace prefix** — `indexToAlphaName(index)` alone made func 0,
-  global 0, type 0 all `a`. Now `$` + prefix + alpha (`$fa`), so namespaces don't collapse.
+- **Alpha-name mode dropped the per-namespace prefix** — `indexToAlphaName(index)` alone made func
+  0, global 0, type 0 all `a`. Now `$` + prefix + alpha (`$fa`), so namespaces don't collapse.
 - **No disambiguation against user names.** A module that names func 1 `$f0` (legal) while func 0 is
   unnamed would give two `$f0` funcs (duplicate binding / invalid WAT). `run()` now seeds a
-  per-namespace `used` set from existing names and `uniqueName()` appends `_1`, `_2`, … until unique.
+  per-namespace `used` set from existing names and `uniqueName()` appends `_1`, `_2`, … until
+  unique.
 
 The existing `generateNames` unit tests in `tests/ir/ir.test.ts` had **codified the buggy bare
 names** (`f0`/`g0`/`a`); updated to the correct `$f0`/`$g0`/`$fa`. The new round-5 test asserts the
@@ -370,11 +374,13 @@ ref.test/ref.cast opcodes + pop orders) and the bridge GC type-lookup helpers.
 ### Round 6 (sixth sweep) — structural round-trip coverage, no new bugs
 
 Rather than more static review (diminishing returns after five passes), this pass added the
-property-test coverage that surfaces the round-5 class structurally: a `wat2wasm → wasm2wat →
-wat2wasm` round-trip over all 272 wasmtk corpus modules (`tests/wasmtk/roundtrip.test.ts`) plus a
-hand battery of feature-heavy modules (SIMD unary/binary/lane/store/splat/convert, trunc_sat,
-atomics, multi-value, legacy try, memory64, tag import, v128 const). **All round-trip clean** — no
-new bugs. This is strong evidence the `wasm2wat` output path is sound after the round-5 fix.
+property-test coverage that surfaces the round-5 class structurally: a
+`wat2wasm → wasm2wat →
+wat2wasm` round-trip over all 272 wasmtk corpus modules
+(`tests/wasmtk/roundtrip.test.ts`) plus a hand battery of feature-heavy modules (SIMD
+unary/binary/lane/store/splat/convert, trunc_sat, atomics, multi-value, legacy try, memory64, tag
+import, v128 const). **All round-trip clean** — no new bugs. This is strong evidence the `wasm2wat`
+output path is sound after the round-5 fix.
 
 Lone known parser-completeness gap noted (NOT a silent-corruption bug — input is rejected, not
 mis-compiled): the `(elem (offset) <reftype> (ref.null …))` elem-with-explicit-reftype item syntax
@@ -433,9 +439,9 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   (`i64.add128` / `i64.sub128`) was the third instance after two SIMD ones. **The bytes can still be
   correct** — `pushStmt` flushes the orphaned operands in order and a placeholder emits nothing — so
   no metric catches it; what breaks is the IR TREE, which is what the bridge and `wasm2ts` read.
-- **What `wat2wasm` accepts, `wasm2wat` must be able to read back.** The lexer mapped
-  `i64.add128` / `i64.sub128` to `TokenType.Quaternary` while the binary reader had no case for
-  `0xfc 0x13` / `0x14`, so our own front end produced modules our own back end rejected with
+- **What `wat2wasm` accepts, `wasm2wat` must be able to read back.** The lexer mapped `i64.add128` /
+  `i64.sub128` to `TokenType.Quaternary` while the binary reader had no case for `0xfc 0x13` /
+  `0x14`, so our own front end produced modules our own back end rejected with
   `unknown misc opcode: 19`. When adding an instruction, walk BOTH directions of the pipeline.
 - **Every LEB encoder rejects what it cannot represent — all FOUR of them (T13.12, 2026-08-25).**
   `encodeU32Leb128` and `encodeU64Leb128` were hardened for T11/T13 and throw a `RangeError`; the
@@ -465,21 +471,21 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   ABSOLUTE PATH of our source — the wrong output for a user typo, and it leaks local paths into
   anything pasted into a bug report. All five tools did this, in both failure modes. Same rule as
   T13.29 / T13.30, one layer further out. **The doc-comment examples above each main block still
-  show bare `Deno.readFile` and should** — those illustrate LIBRARY usage, where the caller owns
-  its own I/O. Gated by `tests/tools/cli_io_errors.test.ts`, whose source half runs under the
-  suite's `--allow-read`.
+  show bare `Deno.readFile` and should** — those illustrate LIBRARY usage, where the caller owns its
+  own I/O. Gated by `tests/tools/cli_io_errors.test.ts`, whose source half runs under the suite's
+  `--allow-read`.
 
 ## `/compat` error shape (T13.30, 2026-08-25)
 
 - **Every `/compat` failure is an `Error` that NAMES the method it came from.** Its three failure
   paths must agree: `parseWat` and `readWasm` throw `new Error(formatErrors(errors))`, and
-  `toBinary` wraps the fail-loud binary writer as
-  `toBinary: the module could not be encoded: …` rather than propagating the writer's raw internal
-  string. A caller writes one `catch`; two shapes make the useful errors indistinguishable from the
-  useless ones. **A method that can fail says so in its doc comment** — `toBinary`'s did not, and it
-  is reachable with no caller mistake, because decoding does not check what encoding requires
-  (index validity is the validator's job). `/compat` is the wasmtk-facing migration surface, so this
-  matters more than the CLI equivalents. Regression: `tests/api/compat_error_shape.test.ts`.
+  `toBinary` wraps the fail-loud binary writer as `toBinary: the module could not be encoded: …`
+  rather than propagating the writer's raw internal string. A caller writes one `catch`; two shapes
+  make the useful errors indistinguishable from the useless ones. **A method that can fail says so
+  in its doc comment** — `toBinary`'s did not, and it is reachable with no caller mistake, because
+  decoding does not check what encoding requires (index validity is the validator's job). `/compat`
+  is the wasmtk-facing migration surface, so this matters more than the CLI equivalents. Regression:
+  `tests/api/compat_error_shape.test.ts`.
 
 ## The binary path never throws (T13.29, 2026-08-25)
 
@@ -506,8 +512,8 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   and it memoises so a long chain stays linear.
 - **Cycles in the SUPERTYPE graph are illegal; mutual REFERENCES between types are not.** A rec
   group whose members hold fields of each other's types is the entire point of rec groups. Do not
-  let a cycle check conflate the two — the regression test pins the legal case alongside the
-  illegal ones. Regression: `tests/validator/subtype_depth_and_cycles.test.ts`.
+  let a cycle check conflate the two — the regression test pins the legal case alongside the illegal
+  ones. Regression: `tests/validator/subtype_depth_and_cycles.test.ts`.
 
 ## A declared count must match what follows (T13.33, 2026-08-25)
 
@@ -525,12 +531,11 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 ## Decoder must not normalise (T13.26, 2026-08-25)
 
 - **A memarg alignment exponent is `2 ** alignLog2`, never `1 << alignLog2`.** JS shift operands are
-  taken mod 32, so exponent 32 wrapped to align 1 and 33 to align 2 — a *smaller* alignment than
+  taken mod 32, so exponent 32 wrapped to align 1 and 33 to align 2 — a _smaller_ alignment than
   natural, which `checkAlign` accepts. V8 and Wasmtime both reject those modules, and `wasm2wat`
   printed the result as `align=1` so re-encoding produced a VALID, different program. **That is T11
   through the decoder**: the rule "the pipeline must never turn invalid input into valid output"
-  binds the reader as much as the encoder. Regression:
-  `tests/reader/memarg_align_wrap.test.ts`.
+  binds the reader as much as the encoder. Regression: `tests/reader/memarg_align_wrap.test.ts`.
 - **When a value comes out of a bit operation, probe the OPERATION's boundaries, not the domain's.**
   Alignment reviewers think 1/2/4/8/16 and "something huge"; every one of those was either valid or
   rejected. Exponents 31 and 63 wrap NEGATIVE and were rejected by accident, so a large-value spot
@@ -546,15 +551,15 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   regex-driven, so one invisible byte narrows the population all of them measure. It happened to
   `binaryen-bridge.ts` (our own `IF_FRAME` sentinel) and cost an alignment sweep its validity.
   **Sentinel values must be visible strings** — `'<if-frame>'` is as collision-proof as `'\0if'`
-  was, since real labels always begin with `$`. Gated by `tests/audit/source_hygiene.test.ts`,
-  which also pins its own scanned-file count so a broken walk cannot pass as a clean tree.
+  was, since real labels always begin with `$`. Gated by `tests/audit/source_hygiene.test.ts`, which
+  also pins its own scanned-file count so a broken walk cannot pass as a clean tree.
 
 ## Bridge label frames (T13.24, 2026-08-25)
 
 - **Every construct that is a branch target in wasm needs a frame on `ctx.labelStack`, labeled or
   not.** `if` pushed none, so every `br` inside one resolved one frame too shallow — `br 0` silently
   retargeted the enclosing block (valid module, different answer) and `br 1` rejected valid input.
-  The case DID reject a *labeled* `if` with a comment explaining why, which is what made it read as
+  The case DID reject a _labeled_ `if` with a comment explaining why, which is what made it read as
   covered: **the comment answered the question that was asked, and nobody asked about the unlabeled
   case.** A sentinel `IF_FRAME` is now pushed after the condition is bridged (the condition is
   evaluated before the if is entered, so a `br` in it targets the enclosing scope), and
@@ -565,23 +570,23 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 
 ## try_table catch scope — the third layer (T13.22, 2026-08-25)
 
-- **`try_table` catch targets resolve in the ENCLOSING scope, in EVERY layer — and the bridge is
-  the third layer to get it wrong.** Fixed in the parser (T7.6), reintroduced in the validator
-  (T9.8), and now found in `src/bridge/binaryen-bridge.ts`, which pushes the try_table's own label
-  before resolving `tt.catches`. `resolveNames` is the reference implementation: it resolves the
-  catches, THEN pushes. **The bridge is deliberately NOT fixed yet** — its error cancels a matching
-  one in binaryen-ts 1.0.9, so applying it alone emits catch depth 2 where 1 is correct. It is
-  coupled to the dependency bump; see the ⚠ section at the top of [bridge.md](bridge.md), which is
-  the file anyone changing the pin will open.
+- **`try_table` catch targets resolve in the ENCLOSING scope, in EVERY layer — and the bridge is the
+  third layer to get it wrong.** Fixed in the parser (T7.6), reintroduced in the validator (T9.8),
+  and now found in `src/bridge/binaryen-bridge.ts`, which pushes the try_table's own label before
+  resolving `tt.catches`. `resolveNames` is the reference implementation: it resolves the catches,
+  THEN pushes. **The bridge is deliberately NOT fixed yet** — its error cancels a matching one in
+  binaryen-ts 1.0.9, so applying it alone emits catch depth 2 where 1 is correct. It is coupled to
+  the dependency bump; see the ⚠ section at the top of [bridge.md](bridge.md), which is the file
+  anyone changing the pin will open.
 - **The bridge belongs in every layer-sweep even though it ships to nobody.** No published
-  entrypoint reaches it, which is why it was skipped in both earlier sweeps of this exact rule.
-  That is an argument about fix PRIORITY, not about whether to look.
+  entrypoint reaches it, which is why it was skipped in both earlier sweeps of this exact rule. That
+  is an argument about fix PRIORITY, not about whether to look.
 
 ## Validator operand checks (T13.14, 2026-08-25)
 
-- **A GC instruction must check WHICH reference it got, not merely that it got one.**
-  `popAnyRef` in `type-checker.ts` answers "is this SOME reference" and nothing more. Used alone it
-  made `ref.test` / `ref.cast` / `array.len` accept an operand from an unrelated hierarchy —
+- **A GC instruction must check WHICH reference it got, not merely that it got one.** `popAnyRef` in
+  `type-checker.ts` answers "is this SOME reference" and nothing more. Used alone it made `ref.test`
+  / `ref.cast` / `array.len` accept an operand from an unrelated hierarchy —
   `ref.test (ref null any) (local.get $funcref)`, `array.len` on a `(ref $struct)` — all of which V8
   and Wasmtime 47.0.3 reject. `array.len` now pops against `(ref null array)`; the two cast
   instructions go through `popCastOperand`. **The rule is SHARED HIERARCHY, not subtyping**: both
@@ -598,11 +603,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 
 - **PEEKING an operand is not CHECKING it (`ref.as_non_null`).** It read `peekType(0)` to compute
   its result type and then dropped unconditionally; `nonNullable()` returns a non-reference
-  unchanged, so an i32 was popped and pushed straight back. It only ever LOOKED rejected because
-  the fixtures had a declared result type that disagreed — make the result agree with the wrong
-  operand and it validates clean. **When a probe rejects, confirm it rejected for the reason you
-  are testing**: that fixture had two reasons to fail and the check being audited was not one of
-  them.
+  unchanged, so an i32 was popped and pushed straight back. It only ever LOOKED rejected because the
+  fixtures had a declared result type that disagreed — make the result agree with the wrong operand
+  and it validates clean. **When a probe rejects, confirm it rejected for the reason you are
+  testing**: that fixture had two reasons to fail and the check being audited was not one of them.
 
 - **`struct.get` / `array.get` signedness is a TRI-STATE and is load-bearing.** `signed` is
   `undefined` for the plain spelling, `true` for `_s`, `false` for `_u` — the encoding both writers
@@ -613,70 +617,62 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   the same shape as T9.11's ten unused `offset` parameters, and **an underscore-prefixed parameter
   in one of a family of parallel handlers stays the strongest single tell.**
 
-- **A memarg handler follows the memory's INDEX TYPE, and that is a separate
-  parameter from the offset (T13.15, 2026-08-25).** `onSimdLoadLane` /
-  `onSimdStoreLane` hard-coded the address operand as i32 while declaring and
-  dropping `is64`, so on a 64-bit memory a correct i64 address was REJECTED and
-  an incorrect i32 one accepted. `onLoadSplat` / `onLoadZero` in the same file
-  get it right (`is64Memory ? _I64 : _I32`) and `SharedValidator` was already
-  passing the right value to all four. **T9.11 fixed `offset` for this same pair
-  of handlers and left `is64` behind** — the two parameters travel together and a
-  new memory op must honour BOTH. Regression:
+- **A memarg handler follows the memory's INDEX TYPE, and that is a separate parameter from the
+  offset (T13.15, 2026-08-25).** `onSimdLoadLane` / `onSimdStoreLane` hard-coded the address operand
+  as i32 while declaring and dropping `is64`, so on a 64-bit memory a correct i64 address was
+  REJECTED and an incorrect i32 one accepted. `onLoadSplat` / `onLoadZero` in the same file get it
+  right (`is64Memory ? _I64 : _I32`) and `SharedValidator` was already passing the right value to
+  all four. **T9.11 fixed `offset` for this same pair of handlers and left `is64` behind** — the two
+  parameters travel together and a new memory op must honour BOTH. Regression:
   `tests/validator/simd_lane_index_type.test.ts`.
 
-- **`rethrow N` must name a CATCH frame (T13.17, 2026-08-25).** The depth is a
-  label reference like a `br` target, but not every label is a legal target:
-  `rethrow` re-raises the exception caught by the Nth enclosing catch, so the
-  frame it names must have `labelType === LabelType.Catch`, which `onCatch`
-  already sets. Unchecked, `(func (rethrow 0))` with no `try` anywhere
-  validated. Note legacy EH cannot be cross-checked against Wasmtime or Wasmer
-  — neither will run `try` at all — so V8 is the only oracle available for this
-  family and any test here must say so. Regression:
+- **`rethrow N` must name a CATCH frame (T13.17, 2026-08-25).** The depth is a label reference like
+  a `br` target, but not every label is a legal target: `rethrow` re-raises the exception caught by
+  the Nth enclosing catch, so the frame it names must have `labelType === LabelType.Catch`, which
+  `onCatch` already sets. Unchecked, `(func (rethrow 0))` with no `try` anywhere validated. Note
+  legacy EH cannot be cross-checked against Wasmtime or Wasmer — neither will run `try` at all — so
+  V8 is the only oracle available for this family and any test here must say so. Regression:
   `tests/validator/rethrow_depth.test.ts`.
 
 ## Parser arity invariants
 
-- **`instrInputCount` must equal the number of operands `buildPlainExpr`
-  actually reads, and a zero-operand instruction grouped with one-operand
-  siblings DELETES code (T13.16, 2026-08-25).** `data.drop` / `elem.drop` are
-  `[] -> []` — the segment is an immediate — but sat in the arity-1 group beside
-  `table.get` / `ref.test` / `memory.grow`. `parseFoldedInstr`'s deficit fill
-  popped a value from the surrounding scope and `buildPlainExpr` had no slot for
-  it, so the expression was **silently discarded**: `(call $bump) (data.drop $d)`
-  emitted a module both engines accept, that runs, and that computes a different
-  answer. Same class as the v1.3.0 statement-ordering bug, same structure as
-  T13.11 (a `case` label shared with instructions that do not match).
-  **When adding an opcode to `buildPlainExpr`, count its `opN()` calls and add
-  the matching `instrInputCount` entry — and when adding one to an existing
-  `case` group, check every member of that group has the same arity.** The
-  mechanical form of this check (declared arity vs max `opN()` per case) is in
-  the audit definition in [INDEX.md](INDEX.md). Regression:
-  `tests/parser/drop_arity.test.ts`.
+- **`instrInputCount` must equal the number of operands `buildPlainExpr` actually reads, and a
+  zero-operand instruction grouped with one-operand siblings DELETES code (T13.16, 2026-08-25).**
+  `data.drop` / `elem.drop` are `[] -> []` — the segment is an immediate — but sat in the arity-1
+  group beside `table.get` / `ref.test` / `memory.grow`. `parseFoldedInstr`'s deficit fill popped a
+  value from the surrounding scope and `buildPlainExpr` had no slot for it, so the expression was
+  **silently discarded**: `(call $bump) (data.drop $d)` emitted a module both engines accept, that
+  runs, and that computes a different answer. Same class as the v1.3.0 statement-ordering bug, same
+  structure as T13.11 (a `case` label shared with instructions that do not match). **When adding an
+  opcode to `buildPlainExpr`, count its `opN()` calls and add the matching `instrInputCount` entry —
+  and when adding one to an existing `case` group, check every member of that group has the same
+  arity.** The mechanical form of this check (declared arity vs max `opN()` per case) is in the
+  audit definition in [INDEX.md](INDEX.md). Regression: `tests/parser/drop_arity.test.ts`.
 
-- **`instrInputCount` must be TOTAL over `isPlainInstr`, and `default: return 0` is a silent
-  landing pad (T13.18, 2026-08-25).** A token with no entry does not fail — it silently becomes
-  zero-arity, the linear-form parser pops nothing, and every operand becomes a placeholder. That
-  has already cost one bug (`Quaternary` / wide arithmetic: the BYTES came out right because
-  `pushStmt` flushes operands in order and a placeholder emits nothing, but the **IR TREE was
-  wrong**, which is what the bridge and `wasm2ts` read), and T13.16 was its inverse. **A deliberate
-  zero and a forgotten one must not look the same**, so `Rethrow` and `StructNewDefault` are listed
-  explicitly rather than left to fall through. `SimdLaneOp` is the one legitimate absence: its
-  arity depends on the OPCODE (extract_lane 1, replace_lane 2), which a TokenType-keyed table
-  cannot express, so `instrInputCountForTok` routes it before the table is consulted. The gate is
-  `tests/parser/instr_arity.test.ts` (T13.18), which reads `isPlainInstr`'s labels out of the
-  parser source and fails if any lacks an entry — adding an instruction without one is now red
-  immediately instead of a quietly wrong tree.
+- **`instrInputCount` must be TOTAL over `isPlainInstr`, and `default: return 0` is a silent landing
+  pad (T13.18, 2026-08-25).** A token with no entry does not fail — it silently becomes zero-arity,
+  the linear-form parser pops nothing, and every operand becomes a placeholder. That has already
+  cost one bug (`Quaternary` / wide arithmetic: the BYTES came out right because `pushStmt` flushes
+  operands in order and a placeholder emits nothing, but the **IR TREE was wrong**, which is what
+  the bridge and `wasm2ts` read), and T13.16 was its inverse. **A deliberate zero and a forgotten
+  one must not look the same**, so `Rethrow` and `StructNewDefault` are listed explicitly rather
+  than left to fall through. `SimdLaneOp` is the one legitimate absence: its arity depends on the
+  OPCODE (extract_lane 1, replace_lane 2), which a TokenType-keyed table cannot express, so
+  `instrInputCountForTok` routes it before the table is consulted. The gate is
+  `tests/parser/instr_arity.test.ts` (T13.18), which reads `isPlainInstr`'s labels out of the parser
+  source and fails if any lacks an entry — adding an instruction without one is now red immediately
+  instead of a quietly wrong tree.
 
 ## Name-pass and writer invariants (T13.20 / T13.21, 2026-08-25)
 
-- **`applyNames` is total on the same two axes as `resolveNames`, and axis 1 is GENERIC.**
-  Recursion into `Expr`-typed fields walks every field whatever the node kind, so it cannot miss
-  one — a hand-written per-kind list is what let 50 of 87 kinds go unwalked, producing WAT where a
+- **`applyNames` is total on the same two axes as `resolveNames`, and axis 1 is GENERIC.** Recursion
+  into `Expr`-typed fields walks every field whatever the node kind, so it cannot miss one — a
+  hand-written per-kind list is what let 50 of 87 kinds go unwalked, producing WAT where a
   `global.get` at statement position was named and the identical reference inside `memory.fill` was
   not. Axis 2 (rewriting `Var` immediates) stays an EXPLICIT table on purpose: which name space a
   var belongs to cannot be read off the field name — `segment` is a data index on `memory.init` and
-  an elem index on `table.init` — and inferring it would silently retarget a reference, which is
-  Bug G. **LABEL and LOCAL vars are deliberately never rewritten**: `labelNames` is per-function and
+  an elem index on `table.init` — and inferring it would silently retarget a reference, which is Bug
+  G. **LABEL and LOCAL vars are deliberately never rewritten**: `labelNames` is per-function and
   this pass has no function context, and rewriting a local index through `funcNames` is a bug this
   pass has already shipped once. Regression: `tests/ir/apply_names_total.test.ts`.
 
@@ -715,12 +711,12 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **`getOpcodeNaturalAlign`** (`validator/type-checker.ts`) — a second, parallel natural-alignment
   lookup beside the canonical `naturalAlignForOpcode` in `core/opcode.ts`, which the performance
   invariants above explicitly say must not be duplicated. Exported, never called, and **silently
-  incomplete**: it returned `0` — *"no alignment constraint"* — for all 14 SIMD splat / lane / zero
+  incomplete**: it returned `0` — _"no alignment constraint"_ — for all 14 SIMD splat / lane / zero
   memory ops that the canonical table knows. Since every live call site guards on `natAlign > 0`, a
   future caller reaching for this one would have skipped alignment checking on exactly those
   opcodes, which is the T9.6 / T9.11 gap for the third time. Verified never to CONTRADICT the
-  canonical table on a real memory opcode, and not re-exported from the package root, so removing
-  it is not an API change. Same shape and same call as `Validator.refNullType` below.
+  canonical table on a real memory opcode, and not re-exported from the package root, so removing it
+  is not an API change. Same shape and same call as `Validator.refNullType` below.
 
 ## Removed 2026-08-24
 
@@ -750,10 +746,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   instruction was silently DELETED and `wat2wasm` returned Ok. `parseInstrList` returns `Result.Ok`
   regardless of why its loop stopped, so this check is the only thing standing between a typo and a
   silently empty function body.
-- **A digit separator must sit BETWEEN digits** (`num ::= d | num '_'? d`). `readNum` /
-  `readHexNum` leave a malformed `_` UNCONSUMED so `getNumberToken`'s existing
-  trailing-id-char fallback turns the literal into a Reserved token. Consuming it unconditionally
-  made `1_`, `1__2`, `0x1_` and `1_.0` lex as valid numbers.
+- **A digit separator must sit BETWEEN digits** (`num ::= d | num '_'? d`). `readNum` / `readHexNum`
+  leave a malformed `_` UNCONSUMED so `getNumberToken`'s existing trailing-id-char fallback turns
+  the literal into a Reserved token. Consuming it unconditionally made `1_`, `1__2`, `0x1_` and
+  `1_.0` lex as valid numbers.
 - **A constant literal is RANGE-CHECKED before it is truncated or rounded (T12.1).** The legal
   integer span is the UNION of the signed and unsigned ranges — `[-2^31, 2^32)` for i32 — because
   the text format lets a 32-bit value be written either way; `BigInt.asIntN` alone silently
@@ -796,9 +792,9 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `allowNanPatterns` flag is set only inside `parseExpectedConst` and is saved/restored.
 - **An annotation is TRANSPARENT, not unparsed (T12.7).** `(@id …)` still has a grammar: the id is
   required and adjacent to the `@`, and the body is a TOKEN sequence, so only characters that can
-  appear in WAT source may appear in it. Skipping it at the character level accepted `(@)`,
-  `(@ x)`, `(@"")` and any control byte. STRINGS and COMMENTS inside an annotation stay skipped
-  whole and unchecked — annotations.wast asserts both as valid.
+  appear in WAT source may appear in it. Skipping it at the character level accepted `(@)`, `(@ x)`,
+  `(@"")` and any control byte. STRINGS and COMMENTS inside an annotation stay skipped whole and
+  unchecked — annotations.wast asserts both as valid.
 - **A repeated closing label must MATCH, and an inline signature beside a `(type $t)` must AGREE
   (T12.7).** Both were consumed and discarded, so a typo'd `end $l` named another block and
   `(func (type $sig) (result i32))` against `(type $sig (func))` emitted a signature the source
@@ -807,10 +803,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `call_indirect` type uses — a skip can see neither. `parseFuncSignature` still allows names,
   because a real `(func (param $x i32) …)` needs them.
 - **A QUOTED identifier is a name (T12.7).** `$"…"` and an annotation's quoted id obey the T12.5
-  UTF-8 rule, must be non-empty, and may not contain RAW control characters — checked on the
-  SOURCE text, not the decoded bytes, because an escaped tab is a legal spelling while a literal
-  tab byte is not. `decodeStringToken` and `STRICT_NAME_DECODER` live in `src/core/literal.ts` so
-  the lexer and parser share one rule.
+  UTF-8 rule, must be non-empty, and may not contain RAW control characters — checked on the SOURCE
+  text, not the decoded bytes, because an escaped tab is a legal spelling while a literal tab byte
+  is not. `decodeStringToken` and `STRICT_NAME_DECODER` live in `src/core/literal.ts` so the lexer
+  and parser share one rule.
 - **A binary reader must REPORT, not resynchronise (T12.8).** Skipping an unknown section id,
   realigning to `sectionEnd` when a section's contents disagreed with its declared size, and
   guarding entry loops with `this.pos < end` all produced a DIFFERENT module instead of an error —
@@ -823,17 +819,17 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **The section order is not numeric id order (T12.8).** Tag is id 13 but sits between memory and
   global; data-count is id 12 but sits between elem and code. `sectionOrderRank` in
   `src/core/binary.ts` is the single copy of that order, and `writeBinaryIr` emits the same one.
-- **The data-count section is load-bearing (T12.8).** `memory.init` and `data.drop` require it —
-  the code section is decoded before the data section, so it is the only way to know a data index
-  is in range at that point — and when present it must agree with the data section's count.
+- **The data-count section is load-bearing (T12.8).** `memory.init` and `data.drop` require it — the
+  code section is decoded before the data section, so it is the only way to know a data index is in
+  range at that point — and when present it must agree with the data section's count.
 - **An identifier is bound ONCE per index space, and the space spans imports and definitions
   (T12.9).** Name lookup scans for the first match, so a duplicate did not collide — it was
   unreachable, and the module quietly referred to the wrong item. Locals are scoped per function
   (params and locals share one space) and struct fields per type.
 - **A NaN payload must be CHECKED, not masked (T12.9).** The field is 23 bits for f32 and 52 for
   f64, and a payload of 0 is not a NaN at all: `nan:0x0` masked to a clear mantissa and emitted
-  INFINITY. Widening the mask is what the earlier 0x3fffff fix did, and it left this case open —
-  the range is `[1, 2^mantBits - 1]`.
+  INFINITY. Widening the mask is what the earlier 0x3fffff fix did, and it left this case open — the
+  range is `[1, 2^mantBits - 1]`.
 - **A token ends at the first character that cannot continue it, and a STRING can continue one
   (T12.9).** `$"l"0` and `data"a"` are each one RESERVED token. Stopping at the closing quote left
   the remainder in the stream, so `(br_table $"l"0)` gained a second target and `(data"a")` parsed
@@ -854,23 +850,23 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   `let v = value >>> 0` was the entire range check, so 2^32 encoded as 0 — which is how
   `(memory 0x1_0000_0000)` was emitted as `(memory 0)` and accepted by every engine. `wat2wasm`
   catches the throw and REPORTS it: a fail-loud encoder is right, a throw escaping a tool is not.
-- **A 64-bit memory's or table's limits are u64 on the wire (T13.2).** Writing them as u32
-  truncated every size above 2^32, so the validator's page bound never saw the value it exists to
-  reject. Fixing it exposed the converse in `onTable`, which capped elements at 2^32-1 regardless
-  of index type — the bound follows the INDEX TYPE.
+- **A 64-bit memory's or table's limits are u64 on the wire (T13.2).** Writing them as u32 truncated
+  every size above 2^32, so the validator's page bound never saw the value it exists to reject.
+  Fixing it exposed the converse in `onTable`, which capped elements at 2^32-1 regardless of index
+  type — the bound follows the INDEX TYPE.
 - **`synthesizeTypes` must not invent a type for a reference that does not resolve (T13.2).**
-  `ensureTypeFor` APPENDS a matching entry when none exists, so pointing an unresolvable type-use
-  at it produced a valid module aimed at a different type. Keep the index the source wrote and let
-  the validator report it.
+  `ensureTypeFor` APPENDS a matching entry when none exists, so pointing an unresolvable type-use at
+  it produced a valid module aimed at a different type. Keep the index the source wrote and let the
+  validator report it.
 - **An implicit type-use is its own SINGLETON rec group (T13.2).** Type identity is compared up to
   the rec group, so a `(func)` inside a multi-member `(rec …)` is a different type and must not be
   reused for an inline signature. A singleton `(rec (type …))` stays reusable — it encodes
   differently from a bare `(type …)` but denotes the same type.
-- **`Limits.initial` / `max` are `bigint` (T13.3).** They were `number`, exact only to 2^53, and
-  the field is u64 for a 64-bit memory or table — so `0xffff_ffff_ffff_ffff` was ROUNDED to 2^64 on
-  the way in and a module the spec calls valid could not be encoded at all. A BREAKING change to an
-  exported type, on purpose: a consumer reading it as a number gets a compile error at the site
-  that has to handle the wider range. The bridge converts at its own boundary (binaryen-ts takes
+- **`Limits.initial` / `max` are `bigint` (T13.3).** They were `number`, exact only to 2^53, and the
+  field is u64 for a 64-bit memory or table — so `0xffff_ffff_ffff_ffff` was ROUNDED to 2^64 on the
+  way in and a module the spec calls valid could not be encoded at all. A BREAKING change to an
+  exported type, on purpose: a consumer reading it as a number gets a compile error at the site that
+  has to handle the wider range. The bridge converts at its own boundary (binaryen-ts takes
   `number`) and REFUSES above 2^53 rather than rounding. `checkLimits`'s `number` twin is gone with
   it — one rule, one copy.
 - **A maximum of ZERO is a maximum (T13.3).** `if (limits.isShared && !limits.max)` also fired on
@@ -881,10 +877,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   which is a slow-types error; 339 passing tests and three full metric runs never saw it. Run the
   dry-run whenever a change adds or moves an EXPORTED symbol.
 - **Custom page sizes: `Limits.pageSizeLog2`, and only 1 and 65536 are legal (T13.4).** The wire
-  field is the LOG2, so the IR holds the log2 — the old `pageSize` was documented as bytes while
-  the reader and writer passed the raw value through, and the WAT writer printed `(pagesize 16)`
-  for a standard memory. **The legal set is {0, 16}, NOT every power of two**: the field is already
-  a log2, so a power-of-two test accepts the fourteen sizes between. A non-power-of-two has no log2
+  field is the LOG2, so the IR holds the log2 — the old `pageSize` was documented as bytes while the
+  reader and writer passed the raw value through, and the WAT writer printed `(pagesize 16)` for a
+  standard memory. **The legal set is {0, 16}, NOT every power of two**: the field is already a
+  log2, so a power-of-two test accepts the fourteen sizes between. A non-power-of-two has no log2
   and is MALFORMED at parse; an encodable-but-illegal one is INVALID at validation.
 - **A memory's page ceiling is `2^addr_bits / pageSize`, not a constant (T13.4).** It was 65536 —
   the quotient for 64 KiB pages, with the division already done — so a 32-bit memory with 1-byte
@@ -903,18 +899,18 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   the ENGINE unsupported regardless of input, and a whole corpus reads 0/272 as if it were our bug.
   The list now opens only the gates Wasmer can open, and its cause is read from the `╰─▶`
   continuation line rather than the "failed to validate <path>" heading.
-- **Only Wasmtime implements custom page sizes** (measured 2026-08-24). V8 has no flag,
-  Bun/JSC and wazero reject the limits byte, and Wasmer parses it with `--enable-all` and then says
-  "No backends support the required features". A byte-paged memory is a different memory TYPE, so
-  no encoding choice makes it portable; the only lever is that an explicit `(pagesize 65536)` could
-  be emitted without the flag bit, which we decline in favour of round-trip fidelity.
+- **Only Wasmtime implements custom page sizes** (measured 2026-08-24). V8 has no flag, Bun/JSC and
+  wazero reject the limits byte, and Wasmer parses it with `--enable-all` and then says "No backends
+  support the required features". A byte-paged memory is a different memory TYPE, so no encoding
+  choice makes it portable; the only lever is that an explicit `(pagesize 65536)` could be emitted
+  without the flag bit, which we decline in favour of round-trip fidelity.
 - **The page-size flag is written on PRESENCE, not on `!== 16` (T13.4).** An explicitly encoded
   `pagesize 65536` must come back out as one — Wasmtime accepts it, and collapsing it into the
   default changes the bytes. A runtime can afford that collapse; a format tool with a round-trip
   metric cannot.
 - **A tag's ATTRIBUTE byte is 0x00 and a table init form's RESERVED byte is 0x00, in the reader as
-  well as the writer (T13.5).** Both were `readU8()` with the result discarded, in three places
-  (tag section, tag import, `0x40` table form), so any value decoded to the same module. The binary
+  well as the writer (T13.5).** Both were `readU8()` with the result discarded, in three places (tag
+  section, tag import, `0x40` table form), so any value decoded to the same module. The binary
   writer already emitted 0x00 at all three and said so in a comment — a one-sided rule, which no
   metric can catch: round-trip never produces the bad byte, and the spec suite has no case for it.
 - **`instrInputCount` is verified by a folded/linear DIFFERENTIAL, not by reading it (T13.8).**
@@ -936,248 +932,216 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
   out, because a sixty-entry hand copy is what drifted for SIMD.
 - **Every `Features` flag GATES, via `SharedValidator.requireFeature` (T13.10).** Nine used to be
   inert — a caller could switch `gc` off and validate a GC module. Gate at the point of USE, never
-  from a post-hoc scan, so an imported 64-bit memory is caught like a defined one. **Three
-  proposals have no hook to hang a gate on** — relaxed SIMD and wide arithmetic are ordinary
-  arithmetic nodes distinguished only by opcode, and extended-const only by `inInitExpr` — so
-  `gateOpcode` keys on opcode range and initializer context. A new proposal needs a gate at BOTH
-  levels or it ships unrefusable.
-- **Gating requires CLI flags in the same change.** `wasm-validate` now takes
-  `--enable-<feature>` / `--disable-<feature>` / `--enable-all`; without them a gated validator
-  rejects most modern wasm with no way to opt in, which is worse than the bug.
+  from a post-hoc scan, so an imported 64-bit memory is caught like a defined one. **Three proposals
+  have no hook to hang a gate on** — relaxed SIMD and wide arithmetic are ordinary arithmetic nodes
+  distinguished only by opcode, and extended-const only by `inInitExpr` — so `gateOpcode` keys on
+  opcode range and initializer context. A new proposal needs a gate at BOTH levels or it ships
+  unrefusable.
+- **Gating requires CLI flags in the same change.** `wasm-validate` now takes `--enable-<feature>` /
+  `--disable-<feature>` / `--enable-all`; without them a gated validator rejects most modern wasm
+  with no way to opt in, which is worse than the bug.
 
 ## Decoder error messages use the SPEC's vocabulary, and the two LEB faults stay distinct
 
-Reader and `src/core/leb128.ts` diagnostics are worded to match the error texts
-the WebAssembly spec testsuite's `assert_malformed` commands expect. This is not
-cosmetic: those strings are the only oracle we have for whether we reject a
-module **for the right reason**, and they are what the eighth conformance metric
-measures (689 / 711 as of 2026-08-25, T13.37).
+Reader and `src/core/leb128.ts` diagnostics are worded to match the error texts the WebAssembly spec
+testsuite's `assert_malformed` commands expect. This is not cosmetic: those strings are the only
+oracle we have for whether we reject a module **for the right reason**, and they are what the eighth
+conformance metric measures (689 / 711 as of 2026-08-25, T13.37).
 
 Two rules that a later edit can silently undo:
 
-- **`integer too large` and `integer representation too long` are different
-  faults and must keep different messages.** The first is a terminating byte
-  carrying value bits beyond the target width; the second is an encoding that
-  runs past the maximum byte count. Each decoder — u32, u64, s32, s64 — has both
-  branches and has always had them; for four releases both threw
-  `LEB128 <w> overflow`, discarding at the point of reporting a distinction the
-  code had already made. Merging them back rejects the same inputs, moves no
-  metric, and is invisible to everything except
+- **`integer too large` and `integer representation too long` are different faults and must keep
+  different messages.** The first is a terminating byte carrying value bits beyond the target width;
+  the second is an encoding that runs past the maximum byte count. Each decoder — u32, u64, s32, s64
+  — has both branches and has always had them; for four releases both threw `LEB128 <w> overflow`,
+  discarding at the point of reporting a distinction the code had already made. Merging them back
+  rejects the same inputs, moves no metric, and is invisible to everything except
   `tests/core/leb128_diagnostics.test.ts`.
-- **Compare a header field before reading the next one.** `readModule` read the
-  magic, read the version, then compared the magic — so a 4-byte input failed on
-  the version read and was reported as `unexpected end of binary` when its magic
-  was wrong. Ordering a read before the check that guards it turns "you gave me
-  the wrong kind of file" into "your file is too short".
+- **Compare a header field before reading the next one.** `readModule` read the magic, read the
+  version, then compared the magic — so a 4-byte input failed on the version read and was reported
+  as `unexpected end of binary` when its magic was wrong. Ordering a read before the check that
+  guards it turns "you gave me the wrong kind of file" into "your file is too short".
 
-The generic truncation message is `unexpected end of section or function`, which
-contains the spec's shorter `unexpected end` as a substring so it satisfies both
-spellings. That deliberately drops the old hint about WHICH decoder failed; the
-error's byte offset already points at the LEB, so the hint was redundant, and
-the spec's wording is what a wasm developer is looking for.
+The generic truncation message is `unexpected end of section or function`, which contains the spec's
+shorter `unexpected end` as a substring so it satisfies both spellings. That deliberately drops the
+old hint about WHICH decoder failed; the error's byte offset already points at the LEB, so the hint
+was redundant, and the spec's wording is what a wasm developer is looking for.
 
 ## A type crossing into binaryen-ts uses `wabtTypeToValueType`, which keeps refs CONCRETE
 
-`wabtTypeToValType` (in `src/bridge/type-map.ts`) COARSENS: `(ref $T)` becomes
-`structref`. That was correct while binaryen-ts's `ValType` was flat and a typed
-reference had nowhere to go. Since **1.5.0 their `ValueType` is
-`ValType | RefType`**, and their encoder REQUIRES the precision —
-`gcFuncTypeIndex` matches a signature exactly, so a coarsened one matches
-nothing and throws `unresolved GC function type` for every GC module.
+`wabtTypeToValType` (in `src/bridge/type-map.ts`) COARSENS: `(ref $T)` becomes `structref`. That was
+correct while binaryen-ts's `ValType` was flat and a typed reference had nowhere to go. Since
+**1.5.0 their `ValueType` is `ValType | RefType`**, and their encoder REQUIRES the precision —
+`gcFuncTypeIndex` matches a signature exactly, so a coarsened one matches nothing and throws
+`unresolved GC function type` for every GC module.
 
-`wabtTypeToValueType(t, ctx)` in `binaryen-bridge.ts` is the precise version.
-Use it wherever a type crosses the boundary; `wabtTypeToValType` survives only
-for callers that genuinely want the abstract type.
+`wabtTypeToValueType(t, ctx)` in `binaryen-bridge.ts` is the precise version. Use it wherever a type
+crosses the boundary; `wabtTypeToValType` survives only for callers that genuinely want the abstract
+type.
 
 ## The bridge declares a `func` heap type per signature — but ONLY for GC modules
 
-binaryen-ts's encoder picks its path on `heapTypes.length > 0`. Once a module
-declares ANY heap type, EVERY function's type index is resolved through
-`gcFuncTypeIndex`, **including a plain `() -> ()`**. We registered struct and
-array heap types and never func ones, so every GC module failed on its first
-function (T13.47).
+binaryen-ts's encoder picks its path on `heapTypes.length > 0`. Once a module declares ANY heap
+type, EVERY function's type index is resolved through `gcFuncTypeIndex`, **including a plain
+`() -> ()`**. We registered struct and array heap types and never func ones, so every GC module
+failed on its first function (T13.47).
 
 Two constraints, both load-bearing:
 
-- **Append after the struct/array entries.** Instruction immediates already
-  reference those heap-type indices; inserting ahead of them moves the targets.
-- **Only when a struct/array type exists.** Declaring func types unconditionally
-  makes `heapTypes` non-empty for EVERY module and switches non-GC modules onto
-  the GC path, which they must not take.
+- **Append after the struct/array entries.** Instruction immediates already reference those
+  heap-type indices; inserting ahead of them moves the targets.
+- **Only when a struct/array type exists.** Declaring func types unconditionally makes `heapTypes`
+  non-empty for EVERY module and switches non-GC modules onto the GC path, which they must not take.
 
 ## `TokenType.Reserved` is the parser's unknown-operator signal — do not let a site swallow it
 
-The lexer emits `Reserved` for a word it does not recognise **and for no other
-reason**. That makes it a reliable oracle: a Reserved token is by definition not
-a valid anything, so naming it in a diagnostic is correct wherever it appears,
-and a site that reports something else about it is reporting the wrong thing.
+The lexer emits `Reserved` for a word it does not recognise **and for no other reason**. That makes
+it a reliable oracle: a Reserved token is by definition not a valid anything, so naming it in a
+diagnostic is correct wherever it appears, and a site that reports something else about it is
+reporting the wrong thing.
 
-`unknownOperatorText()` in `src/parser/wast-parser.ts` returns its source text —
-looking one token past a `(`, because the folded form `(i32.load32 …)` puts the
-operator there and the token the parser is sitting on is the paren.
-`reportUnexpected(fallback)` prefers it over the positional message. Three sites
-route through it: `noProgress`, the leftover-input check after a function body,
+`unknownOperatorText()` in `src/parser/wast-parser.ts` returns its source text — looking one token
+past a `(`, because the folded form `(i32.load32 …)` puts the operator there and the token the
+parser is sitting on is the paren. `reportUnexpected(fallback)` prefers it over the positional
+message. Three sites route through it: `noProgress`, the leftover-input check after a function body,
 and `expect()`.
 
-Before this (T13.38), a misspelled instruction — the most common mistake in
-hand-written WAT — produced `unexpected ( in function body` (blames a
-parenthesis), `expected ), got (` (mentions nothing relevant), or
-`unexpected Reserved in function body` (**leaks an internal token-class name to
-the author**). None named the operator.
+Before this (T13.38), a misspelled instruction — the most common mistake in hand-written WAT —
+produced `unexpected ( in function body` (blames a parenthesis), `expected ), got (` (mentions
+nothing relevant), or `unexpected Reserved in function body` (**leaks an internal token-class name
+to the author**). None named the operator.
 
 Two rules follow:
 
-- **A new error site that can face a Reserved token should call
-  `reportUnexpected`, not `this.error` directly.** The fallback string stays
-  whatever is right for the site; the helper only overrides when the offending
-  token really is an unrecognised word.
-- **The phrase `unknown operator` is load-bearing, not stylistic.** The spec
-  testsuite matches it as a substring across 400+ cases. Rewording it silently
-  drops the parser's diagnostic-wording metric.
+- **A new error site that can face a Reserved token should call `reportUnexpected`, not `this.error`
+  directly.** The fallback string stays whatever is right for the site; the helper only overrides
+  when the offending token really is an unrecognised word.
+- **The phrase `unknown operator` is load-bearing, not stylistic.** The spec testsuite matches it as
+  a substring across 400+ cases. Rewording it silently drops the parser's diagnostic-wording metric.
 
-**Do not chase that metric to 100%.** About 200 of the remaining misses are
-inputs like `(i32.const 0x)` — a malformed hex literal that the spec's reference
-implementation also calls `unknown operator`, because its lexer reserves the
-token too. We say `expected i32 constant`, which is strictly more useful. The
-metric measures agreement with the reference implementation, not quality, and
-the last stretch is bought by making messages worse.
+**Do not chase that metric to 100%.** About 200 of the remaining misses are inputs like
+`(i32.const 0x)` — a malformed hex literal that the spec's reference implementation also calls
+`unknown operator`, because its lexer reserves the token too. We say `expected i32 constant`, which
+is strictly more useful. The metric measures agreement with the reference implementation, not
+quality, and the last stretch is bought by making messages worse.
 
 ## A conformance harness calls `wat2wasm`; it does not rebuild the pipeline
 
-`wat2wasm` is **parse → resolveNames → synthesizeTypes → writeBinaryIr**, and
-`synthesizeTypes` is not optional — it back-fills the type section for every
-inline-declared signature. A harness that encodes a parsed module with
-`resolveNames` + `writeBinaryIr` emits dangling type indices for almost every
-module.
+`wat2wasm` is **parse → resolveNames → synthesizeTypes → writeBinaryIr**, and `synthesizeTypes` is
+not optional — it back-fills the type section for every inline-declared signature. A harness that
+encodes a parsed module with `resolveNames` + `writeBinaryIr` emits dangling type indices for almost
+every module.
 
-That is exactly what the scratch harnesses did until 2026-08-25 (T13.39), which
-made the validator reject nearly everything for a fault the harness had created,
-and dropped every valid module out of the denominator through a
-`catch { continue; }`. Agreement read `449 / 449` where the truth was
+That is exactly what the scratch harnesses did until 2026-08-25 (T13.39), which made the validator
+reject nearly everything for a fault the harness had created, and dropped every valid module out of
+the denominator through a `catch { continue; }`. Agreement read `449 / 449` where the truth was
 **2207 / 2207**.
 
-It survived because **the output looked right**. `assert_invalid` scores by
-counting rejections, so a harness that breaks every module scores *better*, and
-`2673 / 2678` is a plausible, publishable-looking number. Of the harnesses in
-use, only `corpus.ts` was correct — and it is the only one that called
-`wat2wasm` rather than reassembling it.
+It survived because **the output looked right**. `assert_invalid` scores by counting rejections, so
+a harness that breaks every module scores _better_, and `2673 / 2678` is a plausible,
+publishable-looking number. Of the harnesses in use, only `corpus.ts` was correct — and it is the
+only one that called `wat2wasm` rather than reassembling it.
 
 ## Section sizes are encoded MINIMALLY, and the reserve/patch pair is LIFO
 
-`reserveU32Leb` (`src/writer/stream.ts`) reserves the maximum u32 LEB width — 5
-bytes — for a size that is not known until the body has been written.
-`patchU32Leb` then writes the **minimal** encoding and `copyWithin`s the body
-down over the bytes the size did not need.
+`reserveU32Leb` (`src/writer/stream.ts`) reserves the maximum u32 LEB width — 5 bytes — for a size
+that is not known until the body has been written. `patchU32Leb` then writes the **minimal**
+encoding and `copyWithin`s the body down over the bytes the size did not need.
 
-It wrote a fixed-width 5-byte LEB and left the padding until T13.40. That is
-legal, and every engine accepts it, which is why it survived: it made every
-section header **4 bytes larger than necessary** in every binary the writer has
-produced, and it meant a minimally-encoded input could never be reproduced
-byte-for-byte. Upstream wabt canonicalises by default
-(`canonicalize_lebs = true`); this half of the port was missing. Removing the
-padding took the 272-file wasmtk WASI corpus from 628,201 to 607,845 bytes.
+It wrote a fixed-width 5-byte LEB and left the padding until T13.40. That is legal, and every engine
+accepts it, which is why it survived: it made every section header **4 bytes larger than necessary**
+in every binary the writer has produced, and it meant a minimally-encoded input could never be
+reproduced byte-for-byte. Upstream wabt canonicalises by default (`canonicalize_lebs = true`); this
+half of the port was missing. Removing the padding took the 272-file wasmtk WASI corpus from 628,201
+to 607,845 bytes.
 
-**The invariant that makes the shift legal: the pair is strictly LIFO-scoped.**
-Everything written between a `reserveU32Leb` and its `patchU32Leb` is the body
-being measured, and the patch MOVES that body. So:
+**The invariant that makes the shift legal: the pair is strictly LIFO-scoped.** Everything written
+between a `reserveU32Leb` and its `patchU32Leb` is the body being measured, and the patch MOVES that
+body. So:
 
-- **Never hold an offset taken AFTER a `reserveU32Leb` across its
-  `patchU32Leb`** — the shift invalidates it.
-- Offsets taken BEFORE the reserve are safe, because a shift only ever moves
-  bytes that come after it. This is what makes nesting work: a function body
-  patches before the code section that contains it, and the code section's own
-  `sizePos` is at a lower offset than anything the inner patch moves.
+- **Never hold an offset taken AFTER a `reserveU32Leb` across its `patchU32Leb`** — the shift
+  invalidates it.
+- Offsets taken BEFORE the reserve are safe, because a shift only ever moves bytes that come after
+  it. This is what makes nesting work: a function body patches before the code section that contains
+  it, and the code section's own `sizePos` is at a lower offset than anything the inner patch moves.
 
-Two call sites rely on this — `writeSection` in `stream.ts` and `writeFuncBody`
-in `binary-writer.ts`. A third would need the same discipline.
+Two call sites rely on this — `writeSection` in `stream.ts` and `writeFuncBody` in
+`binary-writer.ts`. A third would need the same discipline.
 
-**Do not "fix" the remaining round-trip differences against crafted binaries.**
-A `(module binary …)` blob may legally use a non-minimal LEB or the explicit
-element-segment flags where the abbreviated form means the same thing. The text
-format records neither, so a text round trip cannot restore them. Reproducing
-those bytes would mean carrying encoding trivia through the IR, and emitting
-non-minimal output again.
+**Do not "fix" the remaining round-trip differences against crafted binaries.** A
+`(module binary …)` blob may legally use a non-minimal LEB or the explicit element-segment flags
+where the abbreviated form means the same thing. The text format records neither, so a text round
+trip cannot restore them. Reproducing those bytes would mean carrying encoding trivia through the
+IR, and emitting non-minimal output again.
 
 ## Custom sections keep the position they had in the input
 
-`Custom.precedingSection` records the known section a custom section followed:
-`null` if it came before any of them, `undefined` if the position is unknown
-(IR built by hand). The binary reader stamps it; `BinaryWriter.write()` walks an
-explicit `ORDER` table and emits each anchor's customs immediately after that
-section, appending unanchored ones last.
+`Custom.precedingSection` records the known section a custom section followed: `null` if it came
+before any of them, `undefined` if the position is unknown (IR built by hand). The binary reader
+stamps it; `BinaryWriter.write()` walks an explicit `ORDER` table and emits each anchor's customs
+immediately after that section, appending unanchored ones last.
 
-Before this (T13.41) `writeCustomSections()` emitted them all in one block at
-the end. Custom sections may legally appear anywhere, so the output was valid —
-but it meant **`wasm-strip` relocated every section it was asked to keep**, and
-position is load-bearing for at least one real one: the dynamic-linking
-convention requires **`dylink.0` to be first**.
+Before this (T13.41) `writeCustomSections()` emitted them all in one block at the end. Custom
+sections may legally appear anywhere, so the output was valid — but it meant **`wasm-strip`
+relocated every section it was asked to keep**, and position is load-bearing for at least one real
+one: the dynamic-linking convention requires **`dylink.0` to be first**.
 
 Rules for anything touching this:
 
-- **A new module-level section must call `writeCustomSectionsAfter(id)` after
-  writing itself**, or customs anchored to it silently fall through to the next
-  anchor. The `ORDER` table exists so that pairing is one line and hard to
-  forget; do not go back to a bare sequence of `writeXSection()` calls.
-- **`undefined` must keep meaning "append at the end."** Hand-built IR and the
-  bridge construct `Custom` without a position, and giving them a default anchor
-  would move sections nobody asked to move — the exact defect, inverted.
-- The anchor is a SLOT, not an offset: if the anchored section is not emitted
-  (an empty type section, say), the customs still land in the right relative
-  place. `custom.wast` depends on this — it interleaves customs between ten
-  empty sections.
+- **A new module-level section must call `writeCustomSectionsAfter(id)` after writing itself**, or
+  customs anchored to it silently fall through to the next anchor. The `ORDER` table exists so that
+  pairing is one line and hard to forget; do not go back to a bare sequence of `writeXSection()`
+  calls.
+- **`undefined` must keep meaning "append at the end."** Hand-built IR and the bridge construct
+  `Custom` without a position, and giving them a default anchor would move sections nobody asked to
+  move — the exact defect, inverted.
+- The anchor is a SLOT, not an offset: if the anchored section is not emitted (an empty type
+  section, say), the customs still land in the right relative place. `custom.wast` depends on this —
+  it interleaves customs between ten empty sections.
 
 ## `wasmStrip`'s `sections` option names what to REMOVE
 
-Not what to keep. Everything else is retained, in its original position. The
-implementation's local was called `keep` and used as `!keep.has(name)`; it is
-now `remove`, with an INTENT block, because a reader trusting the old name would
-invert the condition and turn the tool into its opposite.
+Not what to keep. Everything else is retained, in its original position. The implementation's local
+was called `keep` and used as `!keep.has(name)`; it is now `remove`, with an INTENT block, because a
+reader trusting the old name would invert the condition and turn the tool into its opposite.
 
 ## The release preflight lives in `scripts/release-guard.ts`, not in `publish.ts`
 
-`scripts/publish.ts` stages, tags and pushes **at import time** — it is top-level
-script code — so importing it performs a release, and nothing can test it. That
-is why it went four releases with a documented safety contract it did not
-implement (T13.43).
+`scripts/publish.ts` stages, tags and pushes **at import time** — it is top-level script code — so
+importing it performs a release, and nothing can test it. That is why it went four releases with a
+documented safety contract it did not implement (T13.43).
 
 The decisions are therefore pure and separate:
 
-- `releaseBlockers(porcelain)` — the `git status --porcelain` lines that would
-  be LEFT OUT of the release. Everything except `deno.json`, because
-  `publish.ts` stages exactly that one file. **Untracked files count**: a new
-  source file that was never committed is absent from the tag while every local
-  check still passes, because it is sitting on disk.
-- `statusPath(line)` — the path from a porcelain line, taking the NEW name of a
-  rename.
+- `releaseBlockers(porcelain)` — the `git status --porcelain` lines that would be LEFT OUT of the
+  release. Everything except `deno.json`, because `publish.ts` stages exactly that one file.
+  **Untracked files count**: a new source file that was never committed is absent from the tag while
+  every local check still passes, because it is sitting on disk.
+- `statusPath(line)` — the path from a porcelain line, taking the NEW name of a rename.
 
 Rules:
 
-- **Keep new preflight logic in `release-guard.ts`.** Anything added directly to
-  `publish.ts` is untestable by construction, which is the exact defect.
-- **`release-guard.ts` must stay side-effect free** — no `Deno.Command`, no
-  `Deno.exit`, no top-level `await`. That is what keeps it importable by a
-  test, and it is gated: `tests/scripts/publish_preflight_wiring.test.ts`
-  fails if any of the three appears.
-- **A git subcommand added to `publish.ts` is MUTATING unless allowlisted.**
-  The same gate extracts every `['git', <sub>]` call in source order and
-  refuses anything before the guard that is not in its READ_ONLY set
-  (`status`, `ls-remote`, `rev-parse`, `diff`, `config`, `log`). Adding a
+- **Keep new preflight logic in `release-guard.ts`.** Anything added directly to `publish.ts` is
+  untestable by construction, which is the exact defect.
+- **`release-guard.ts` must stay side-effect free** — no `Deno.Command`, no `Deno.exit`, no
+  top-level `await`. That is what keeps it importable by a test, and it is gated:
+  `tests/scripts/publish_preflight_wiring.test.ts` fails if any of the three appears.
+- **A git subcommand added to `publish.ts` is MUTATING unless allowlisted.** The same gate extracts
+  every `['git', <sub>]` call in source order and refuses anything before the guard that is not in
+  its READ_ONLY set (`status`, `ls-remote`, `rev-parse`, `diff`, `config`, `log`). Adding a
   read-only call means adding it there, deliberately.
-- **The `deno.json` exclusion is an exact path match**, never a substring —
-  `deno.json.bak` and `scripts/deno.json` must still block.
-- **The guards run before any mutation.** `publish.ts` refuses and exits 1
-  having staged nothing; a guard that runs after `git add` leaves the tree in a
-  state the user did not ask for.
-- A **local** tag is still force-written on purpose (retry safety after a run
-  that died between tagging and pushing). A **remote** tag is refused: it has
-  already triggered `publish.yml`, so that version is either live on JSR —
-  immutable — or failed for a reason a re-push will not change.
+- **The `deno.json` exclusion is an exact path match**, never a substring — `deno.json.bak` and
+  `scripts/deno.json` must still block.
+- **The guards run before any mutation.** `publish.ts` refuses and exits 1 having staged nothing; a
+  guard that runs after `git add` leaves the tree in a state the user did not ask for.
+- A **local** tag is still force-written on purpose (retry safety after a run that died between
+  tagging and pushing). A **remote** tag is refused: it has already triggered `publish.yml`, so that
+  version is either live on JSR — immutable — or failed for a reason a re-push will not change.
 
 ## `scripts/` is inside the gate
 
-`deno task check`, `deno lint` and `deno fmt` all cover `src/`, `tests/` **and
-`scripts/`**. Until 2026-08-25 they listed only the first two, so the six files
-that bump versions, cut releases and generate opcode tables were type-checked by
-nothing. Markdown under `scripts/` is excluded from `fmt` — those are reports
-already sent upstream, and reformatting them creates churn in a diff someone
-else has read.
+`deno task check`, `deno lint` and `deno fmt` all cover `src/`, `tests/` **and `scripts/`**. Until
+2026-08-25 they listed only the first two, so the six files that bump versions, cut releases and
+generate opcode tables were type-checked by nothing. Markdown under `scripts/` is excluded from
+`fmt` — those are reports already sent upstream, and reformatting them creates churn in a diff
+someone else has read.

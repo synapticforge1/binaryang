@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./ir/binaryen-ts": "./src/binaryen-ts/ir/index.ts",
     "./ir/wabt-ts": "./src/wabt-ts/ir/index.ts",
+    "./core/wabt-ts": "./src/wabt-ts/core/index.ts",
     "./compat/binaryen": "./src/binaryen-ts/api/binaryen-compat.ts",
     "./compat/wabt": "./src/wabt-ts/api/wabt-compat.ts",
     "./api": "./src/binaryen-ts/api/index.ts",

@@ -13,13 +13,13 @@
  * CLI form (via `import.meta.main`):
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/wabt-ts/wasm-strip input.wasm -o stripped.wasm
+ * deno run -A jsr:@jrmarcum/binaryang/wasm-strip input.wasm -o stripped.wasm
  * ```
  *
  * Library usage:
  *
  * ```ts
- * import { wasmStrip } from "jsr:@jrmarcum/wabt-ts/wasm-strip";
+ * import { wasmStrip } from "jsr:@jrmarcum/binaryang/wasm-strip";
  *
  * const original = await Deno.readFile("module.wasm");
  * const { binary } = wasmStrip(original);

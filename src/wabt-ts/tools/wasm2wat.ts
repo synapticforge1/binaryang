@@ -12,13 +12,13 @@
  * CLI form (via `import.meta.main`):
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/wabt-ts/wasm2wat input.wasm > output.wat
+ * deno run -A jsr:@jrmarcum/binaryang wasm2wat input.wasm > output.wat
  * ```
  *
  * Library usage:
  *
  * ```ts
- * import { wasm2wat } from "jsr:@jrmarcum/wabt-ts/wasm2wat";
+ * import { wasm2wat } from "jsr:@jrmarcum/binaryang/wasm2wat";
  *
  * const bytes = await Deno.readFile("module.wasm");
  * const { text } = wasm2wat(bytes, { readDebugNames: true });

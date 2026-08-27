@@ -4,7 +4,7 @@
  * Re-exports all public IR symbols from sub-modules.
  *
  * This is the primary entry point for the IR layer. Import from
- * `@jrmarcum/binaryen-ts/ir` for access to types, expressions, and the module
+ * `@jrmarcum/binaryang/ir/binaryen-ts` for access to types, expressions, and the module
  * builder.
  *
  * @example
@@ -17,7 +17,7 @@
  *   makeLocalGet,
  *   makeBinary,
  *   makeReturn,
- * } from "@jrmarcum/binaryen-ts/ir";
+ * } from "@jrmarcum/binaryang/ir/binaryen-ts";
  *
  * const mod = new ModuleBuilder()
  *   .addFunction("add", [ValType.I32, ValType.I32], [ValType.I32],

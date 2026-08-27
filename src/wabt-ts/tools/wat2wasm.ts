@@ -13,14 +13,14 @@
  * Also runs as a CLI when imported with `import.meta.main`:
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/wabt-ts/wat2wasm input.wat -o output.wasm
+ * deno run -A jsr:@jrmarcum/binaryang wat2wasm input.wat -o output.wasm
  * ```
  *
  * Library usage:
  *
  * ```ts
- * import { wat2wasm } from "jsr:@jrmarcum/wabt-ts/wat2wasm";
- * import { Result, formatErrors } from "jsr:@jrmarcum/wabt-ts";
+ * import { wat2wasm } from "jsr:@jrmarcum/binaryang/wat2wasm";
+ * import { Result, formatErrors } from "jsr:@jrmarcum/binaryang/core/wabt-ts";
  *
  * const r = wat2wasm("(module (func (export \"f\") (result i32) (i32.const 42)))");
  * if (r.result !== Result.Ok) throw new Error(formatErrors(r.errors));

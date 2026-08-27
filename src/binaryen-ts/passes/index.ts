@@ -11,7 +11,7 @@
  *
  * @example
  * ```ts
- * import { PassRunner, listPasses } from "@jrmarcum/binaryen-ts/passes";
+ * import { PassRunner, listPasses } from "@jrmarcum/binaryang/passes";
  *
  * console.log(listPasses()); // ["CoalesceLocals", "DCE", "LocalCSE", ...]
  *

@@ -15,7 +15,7 @@
  *
  * @example
  * ```ts
- * import { ValType, Type, typeToString } from "@jrmarcum/binaryen-ts/ir";
+ * import { ValType, Type, typeToString } from "@jrmarcum/binaryang/ir/binaryen-ts";
  *
  * const t: Type = ValType.I32;
  * console.log(typeToString(t)); // "i32"

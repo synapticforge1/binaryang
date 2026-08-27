@@ -23,13 +23,13 @@
  *
  * @example Subprocess (tier 2)
  * ```ts
- * import { BinaryenInterop } from "@jrmarcum/binaryen-ts/interop";
+ * import { BinaryenInterop } from "@jrmarcum/binaryang/interop";
  * const optimized = await BinaryenInterop.optimizeViaSubprocess(watText, ["-Oz"]);
  * ```
  *
  * @example In-process (tier 3)
  * ```ts
- * import { BinaryenInterop } from "@jrmarcum/binaryen-ts/interop";
+ * import { BinaryenInterop } from "@jrmarcum/binaryang/interop";
  *
  * // Deno auto-resolves npm: specifiers.
  * const interop = await BinaryenInterop.create({ binaryenJsPath: "npm:binaryen" });

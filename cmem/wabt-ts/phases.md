@@ -2,31 +2,29 @@
 
 ## Status (deno.json at v1.4.1, published 2026-08-25; binaryen-ts pinned EXACTLY v1.0.9)
 
-> Everything through **T13.10** is RELEASED as of v1.4.0 — the 2026-06-09
-> silent-corruption audit, the whole post-v1.3.5 conformance campaign, and the
-> `try_table` named-catch fix wasmtk was blocked on. See
-> [publishing.md](publishing.md) for what the release breaks,
+> Everything through **T13.10** is RELEASED as of v1.4.0 — the 2026-06-09 silent-corruption audit,
+> the whole post-v1.3.5 conformance campaign, and the `try_table` named-catch fix wasmtk was blocked
+> on. See [publishing.md](publishing.md) for what the release breaks,
 > [design-decisions.md](design-decisions.md) and [tasks.md](tasks.md) for the detail.
 >
-> **SHIPPED in v1.4.1 (2026-08-25): T13.11, T13.12, T13.13 and twelve more.** A post-release
-> audit pass — `resolveNames` skipping `table.get`'s index (valid WAT that failed to
-> encode), the two signed LEB encoders still repairing out-of-range input, and the
-> named-reference guard gaining its second axis plus V8-validity assertions. **T13.11
-> is a user-visible bug fix**, so it wants a release; the tranche numbering continues
-> past the v1.4.0 line and "T13" no longer means "shipped".
+> **SHIPPED in v1.4.1 (2026-08-25): T13.11, T13.12, T13.13 and twelve more.** A post-release audit
+> pass — `resolveNames` skipping `table.get`'s index (valid WAT that failed to encode), the two
+> signed LEB encoders still repairing out-of-range input, and the named-reference guard gaining its
+> second axis plus V8-validity assertions. **T13.11 is a user-visible bug fix**, so it wants a
+> release; the tranche numbering continues past the v1.4.0 line and "T13" no longer means "shipped".
 
-| Phase | Scope                    | Status          | Notes                                                                           |
-| ----- | ------------------------ | --------------- | ------------------------------------------------------------------------------- |
-| 1     | Core Infrastructure      | **complete**    | types, opcodes, LEB128, literals, errors — 31 tests                             |
-| 2     | IR Layer                 | **complete**    | Expr union (50+ variants), ExprVisitor, apply/resolve/generate-names — 39 tests |
-| 3     | Binary Round-trip        | **complete**    | `readBinaryIr` + `writeBinaryIr` — 40 total                                     |
-| 4     | WAT Text Format          | **complete**    | lexer, parser, WAT printer — 86 tests; completes wat2wasm + wasm2wat            |
-| 5     | Validator                | **complete**    | type-checker, shared-validator, validator — 87 tests                            |
-| 6     | CLI Tool Wrappers        | **complete**    | wat2wasm, wasm2wat, wasm-validate, wasm-objdump, wasm-strip                     |
-| 6.1   | Pre-publish housekeeping | **complete**    | JSR/CI hardening; 71→0 lint; codec singletons + index-map caches                |
-| 6.2   | Release-flow alignment   | **complete**    | `deno task bump`; atomic commit+tag+push; first JSR publish                     |
+| Phase | Scope                    | Status                                                | Notes                                                                                                                                                                                                                                                                                                                                                    |
+| ----- | ------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Core Infrastructure      | **complete**                                          | types, opcodes, LEB128, literals, errors — 31 tests                                                                                                                                                                                                                                                                                                      |
+| 2     | IR Layer                 | **complete**                                          | Expr union (50+ variants), ExprVisitor, apply/resolve/generate-names — 39 tests                                                                                                                                                                                                                                                                          |
+| 3     | Binary Round-trip        | **complete**                                          | `readBinaryIr` + `writeBinaryIr` — 40 total                                                                                                                                                                                                                                                                                                              |
+| 4     | WAT Text Format          | **complete**                                          | lexer, parser, WAT printer — 86 tests; completes wat2wasm + wasm2wat                                                                                                                                                                                                                                                                                     |
+| 5     | Validator                | **complete**                                          | type-checker, shared-validator, validator — 87 tests                                                                                                                                                                                                                                                                                                     |
+| 6     | CLI Tool Wrappers        | **complete**                                          | wat2wasm, wasm2wat, wasm-validate, wasm-objdump, wasm-strip                                                                                                                                                                                                                                                                                              |
+| 6.1   | Pre-publish housekeeping | **complete**                                          | JSR/CI hardening; 71→0 lint; codec singletons + index-map caches                                                                                                                                                                                                                                                                                         |
+| 6.2   | Release-flow alignment   | **complete**                                          | `deno task bump`; atomic commit+tag+push; first JSR publish                                                                                                                                                                                                                                                                                              |
 | 7     | binaryen Bridge          | **in progress — pinned EXACTLY at binaryen-ts 1.5.0** | ~60 expr kinds + module surface. The T13.22 catch-scope coupling is **RESOLVED** (2026-08-25): both off-by-ones are fixed and the bridge suite is 28/28 on 1.5.0. Keep the pin exact — not for the old cancellation, but because their encoder changes what it REQUIRES of callers between versions and an import-surface check cannot see that (T13.47) |
-| 8     | wasm2ts                  | pending         | wasm→TypeScript AOT transpiler; deferred pending wasmtk QA/QC                   |
+| 8     | wasm2ts                  | pending                                               | wasm→TypeScript AOT transpiler; deferred pending wasmtk QA/QC                                                                                                                                                                                                                                                                                            |
 
 Versioning uses the **sub-version-capped-at-9 rule**: 1.0.9 → 1.1.0 → … → 1.2.9 → 1.3.0.
 
@@ -47,10 +45,10 @@ Recent release highlights:
 ## Post-v1.3.5 conformance campaign — COMPLETE 2026-08-24, SHIPPED in v1.4.0
 
 A sustained pass over the 257-file spec testsuite. **All SEVEN metrics below were exhausted at
-campaign close** (this line read "all five" over a seven-row table for some time — re-derive a
-count from its own table, do not quote it). An eighth metric was added later; see
-[overview.md](overview.md) for the current table and [tasks.md](tasks.md) for the
-tranche-by-tranche log.
+campaign close** (this line read "all five" over a seven-row table for some time — re-derive a count
+from its own table, do not quote it). An eighth metric was added later; see
+[overview.md](overview.md) for the current table and [tasks.md](tasks.md) for the tranche-by-tranche
+log.
 
 | metric                        | campaign start | at close 2026-08-24 |
 | ----------------------------- | -------------- | ------------------- |
@@ -62,9 +60,9 @@ tranche-by-tranche log.
 | wasmtk WASI corpus round-trip | 1 / 270        | **270 / 270**       |
 | execution (new)               | —              | **23,077 / 23,077** |
 
-That right-hand column is a SNAPSHOT at campaign close, not a current reading — it was headed
-"now" until 2026-08-25, which is a header that silently becomes false. `overview.md` carries the
-current figures, and the harnesses are the only real answer.
+That right-hand column is a SNAPSHOT at campaign close, not a current reading — it was headed "now"
+until 2026-08-25, which is a header that silently becomes false. `overview.md` carries the current
+figures, and the harnesses are the only real answer.
 
 Load-bearing changes: the typed-ref IR refactor (T7.4); a `pushStmt` for the binary reader that
 stopped `wasm2wat` silently REORDERING a program (T9.1); feature-gating the validator and reviving
@@ -92,34 +90,31 @@ source compiles unchanged.
 
 ## Post-v1.4.0 audit and hardening — ONGOING (2026-08-25)
 
-Not a phase. A repeating two-lens pass over code that was already green, run
-after v1.4.0 shipped: **enumeration** (*what is wrong with this code?* — walk a
-type or axis exhaustively rather than a corpus) and **hardening** (*what would
-an adversary or an accident do to this?*). Tranche T13; the tranche-by-tranche
-log, the numbering procedure and the method rules are in
-[tasks.md](tasks.md) and [best-practices.md](best-practices.md).
+Not a phase. A repeating two-lens pass over code that was already green, run after v1.4.0 shipped:
+**enumeration** (_what is wrong with this code?_ — walk a type or axis exhaustively rather than a
+corpus) and **hardening** (_what would an adversary or an accident do to this?_). Tranche T13; the
+tranche-by-tranche log, the numbering procedure and the method rules are in [tasks.md](tasks.md) and
+[best-practices.md](best-practices.md).
 
 State as of 2026-08-25:
 
-| | |
-| --- | --- |
-| findings recorded | T13.1 – T13.50 |
+|                                 |                                                                                                                                                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| findings recorded               | T13.1 – T13.50                                                                                                                                                          |
 | **unreleased and user-visible** | **0** — all fifteen shipped in **v1.4.1** (2026-08-25, OIDC provenance). [publishing.md](publishing.md) keeps the contents table and the command to re-derive the count |
-| deliberately unfixed | **0** — T13.22 LANDED 2026-08-25 with the binaryen-ts 1.5.0 bump (T13.47) |
-| enumeration frontier | **empty** since T13.32 — meaning the cheap axes are spent, NOT that the code is clean |
-| hardening passes | 8, findings 1 / 2 / 0 / 0 / 2 / 2 / 2 / 2 |
+| deliberately unfixed            | **0** — T13.22 LANDED 2026-08-25 with the binaryen-ts 1.5.0 bump (T13.47)                                                                                               |
+| enumeration frontier            | **empty** since T13.32 — meaning the cheap axes are spent, NOT that the code is clean                                                                                   |
+| hardening passes                | 8, findings 1 / 2 / 0 / 0 / 2 / 2 / 2 / 2                                                                                                                               |
 
-Two of the fifteen were the argument for cutting 1.4.1 rather than
-accumulating more: **T13.16** emitted wrong code (an instruction silently
-deleted), and **T13.26** silently repaired a malformed module into a valid,
-different one.
+Two of the fifteen were the argument for cutting 1.4.1 rather than accumulating more: **T13.16**
+emitted wrong code (an instruction silently deleted), and **T13.26** silently repaired a malformed
+module into a valid, different one.
 
-The eighth conformance metric — **diagnostic wording** — came out of this work
-(T13.37/T13.38) and now covers three populations: reader **689 / 711**,
-validator **2446 / 2683**, parser **816 / 1229**. None is at ceiling, and the
-parser's remainder is largely cases where OUR message is the better one. It grades error MESSAGES
-against the text each `assert_malformed` case expects, an answer key that had
-been sitting unread in the testsuite for the whole campaign. See
+The eighth conformance metric — **diagnostic wording** — came out of this work (T13.37/T13.38) and
+now covers three populations: reader **689 / 711**, validator **2446 / 2683**, parser **816 /
+1229**. None is at ceiling, and the parser's remainder is largely cases where OUR message is the
+better one. It grades error MESSAGES against the text each `assert_malformed` case expects, an
+answer key that had been sitting unread in the testsuite for the whole campaign. See
 [testing.md](testing.md).
 
 ## TS ↔ C++ file mapping (open the C++ alongside when porting)

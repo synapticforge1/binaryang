@@ -20,7 +20,7 @@
  *
  * @example
  * ```ts
- * import { parseWat } from "@jrmarcum/binaryen-ts/parser/wat-parser";
+ * import { parseWat } from "@jrmarcum/binaryang/api";
  *
  * const mod = parseWat(`
  *   (module

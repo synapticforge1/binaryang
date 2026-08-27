@@ -30,12 +30,12 @@ binaryang runs on **Deno, Node.js, Bun, and modern browsers** from a single sour
 tested capability, not an aspiration — it is the reason the CLI is one dispatcher rather than six
 runtime-gated entry points.
 
-| runtime | floor | why that floor |
-| ------- | ----- | -------------- |
-| **Node.js** | **22.18.0** | everything older is end of life |
-| **Bun** | **1.4.0** | the Zig → Rust rewrite; see below |
-| **Deno** | 2.x | |
-| **browsers** | modern | the library surface only, not the CLI |
+| runtime      | floor       | why that floor                        |
+| ------------ | ----------- | ------------------------------------- |
+| **Node.js**  | **22.18.0** | everything older is end of life       |
+| **Bun**      | **1.4.0**   | the Zig → Rust rewrite; see below     |
+| **Deno**     | 2.x         |                                       |
+| **browsers** | modern      | the library surface only, not the CLI |
 
 ### Node.js — the rule is "not end of life"
 
@@ -67,10 +67,10 @@ supported version of Node, Bun and Deno.
 
 The constraint that remains, and the one the layout actually answers to:
 
-| layer | may use | may not use |
-| ----- | ------- | ----------- |
+| layer                              | may use                | may not use        |
+| ---------------------------------- | ---------------------- | ------------------ |
 | **library** — the exported surface | web-standard APIs only | `Deno.*`, `node:*` |
-| **CLI and interop** | `node:*` builtins | `Deno.*` |
+| **CLI and interop**                | `node:*` builtins      | `Deno.*`           |
 
 `node:` builtins are portable across Deno, Node and Bun, which is why the CLI layer may use them.
 They are **not** portable to the browser, which is why the library layer may not. A Deno-only global
@@ -83,34 +83,85 @@ Both rules are checked mechanically in CI, beside `fmt` and `lint`.
 Agreed 2026-08-25, before the first commit of the merge. Recorded here so they are not relitigated
 in fragments.
 
-| # | decision | why |
-| - | -------- | --- |
-| 1 | **Two IRs are retained.** | They do different jobs, and wabt's round-trip fidelity is load-bearing. Convergence is gradual and open-ended, alongside ongoing work — not a merge task. |
-| 2 | **Both histories are preserved.** | `git remote add` plus `merge --allow-unrelated-histories` into subdirectories, so both logs survive and `git log --follow` keeps working. |
-| 3 | **wasmtk does not merge.** | It is the compiler, not the toolchain library. It stays a consumer. |
-| 4 | **Start at 1.5.1.** | The next version of two packages both at 1.5.0. See above — the README must say it supersedes two separate 1.5.0s, or the number implies a patch. |
-| 5 | **`./compat/binaryen` and `./compat/wabt`**, each keeping its upstream API shape. | Two different facades cannot share one `./compat` subpath, and both are the migration surface their consumers were told to adopt. |
-| 6 | **`cmem/` merges by topic** — shared core, project-specific wings. | Reassessed once convergence is further along. |
+| # | decision                                                                          | why                                                                                                                                                       |
+| - | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | **Two IRs are retained.**                                                         | They do different jobs, and wabt's round-trip fidelity is load-bearing. Convergence is gradual and open-ended, alongside ongoing work — not a merge task. |
+| 2 | **Both histories are preserved.**                                                 | `git remote add` plus `merge --allow-unrelated-histories` into subdirectories, so both logs survive and `git log --follow` keeps working.                 |
+| 3 | **wasmtk does not merge.**                                                        | It is the compiler, not the toolchain library. It stays a consumer.                                                                                       |
+| 4 | **Start at 1.5.1.**                                                               | The next version of two packages both at 1.5.0. See above — the README must say it supersedes two separate 1.5.0s, or the number implies a patch.         |
+| 5 | **`./compat/binaryen` and `./compat/wabt`**, each keeping its upstream API shape. | Two different facades cannot share one `./compat` subpath, and both are the migration surface their consumers were told to adopt.                         |
+| 6 | **`cmem/` merges by topic** — shared core, project-specific wings.                | Reassessed once convergence is further along.                                                                                                             |
 
-Old-package compatibility is a **separate mechanism** from upstream compatibility. `compat/*` carries
-the upstream API shapes; migration off the two retired packages is served by preserving their
-existing subpath names in the union, so a migrating consumer changes the package name and nothing
-else.
+Old-package compatibility is a **separate mechanism** from upstream compatibility. `compat/*`
+carries the upstream API shapes; migration off the two retired packages is served by preserving
+their existing subpath names in the union, so a migrating consumer changes the package name and
+nothing else.
 
 ## Layout
 
 One `main.ts` at the root. `src/binaryen-ts/` and `src/wabt-ts/` hold each predecessor's structure
 unchanged. Modules move into common `src/` folders as they converge.
 
-**Promotion is provable, not asserted.** A module earns a common `src/` folder when nothing in either
-namespaced tree still imports it from the other side — the import graph answers that mechanically.
-"It felt shared" is not the test. Without the rule, common `src/` becomes the drawer things go in
-because they felt shared.
+**Promotion is provable, not asserted.** A module earns a common `src/` folder when nothing in
+either namespaced tree still imports it from the other side — the import graph answers that
+mechanically. "It felt shared" is not the test. Without the rule, common `src/` becomes the drawer
+things go in because they felt shared.
 
-Two namespaced trees with a working bridge is a **stable** arrangement: nothing breaks if convergence
-never happens. That is what makes it safe to start this way, and exactly why it needs counter-pressure
-— the number to watch is the 56 exported type names that currently collide across the two trees. It
-is measurable on demand, and it only moves when convergence is real.
+Two namespaced trees with a working bridge is a **stable** arrangement: nothing breaks if
+convergence never happens. That is what makes it safe to start this way, and exactly why it needs
+counter-pressure — the number to watch is the 56 exported type names that currently collide across
+the two trees. It is measurable on demand, and it only moves when convergence is real.
+
+## Migrating from `binaryen-ts` or `wabt-ts`
+
+binaryang supersedes both. Change the package name; two subpaths also change, and everything else
+keeps its name so the rest of a migration is a find-and-replace.
+
+### The two that change
+
+| was                                          | now                                   | why                                                                             |
+| -------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
+| `@jrmarcum/binaryen-ts/compat`               | `@jrmarcum/binaryang/compat/binaryen` | two different upstream facades cannot share one subpath                         |
+| `@jrmarcum/wabt-ts/compat`                   | `@jrmarcum/binaryang/compat/wabt`     | "                                                                               |
+| `@jrmarcum/binaryen-ts/ir`                   | `@jrmarcum/binaryang/ir/binaryen-ts`  | with both IRs retained, `./ir` would read as "the IR" while meaning one of them |
+| wabt IR, previously via the package **root** | `@jrmarcum/binaryang/ir/wabt-ts`      | the root is now narrow — see below                                              |
+
+**There is deliberately no `./ir`.** Not renamed, not aliased, not deprecated — absent. An alias
+would resolve to one of the two IRs silently, which is worse than the import error a missing subpath
+gives you.
+
+### The root is narrow, and starts empty
+
+`@jrmarcum/wabt-ts` shipped its IR through the package root. binaryang's root exports only what is
+genuinely shared by both halves, and at 1.5.1 that is nothing — which is what "two IRs are retained"
+means at the export surface, not an oversight. Import from the named subpaths instead.
+
+Modules arrive at the root as convergence makes them genuinely common, which makes it the visible
+scoreboard: the narrow root and the 56 colliding type names are the same measurement from two
+directions.
+
+### Everything else keeps its name
+
+`./api` `./binary` `./encoder` `./passes` `./interop` `./wasm` `./wasm-runtime` `./tools/wasm-opt`
+(from binaryen-ts) and `./wat2wasm` `./wasm2wat` `./wasm-validate` `./wasm-objdump` `./wasm-strip`
+`./wasm2ts` (from wabt-ts).
+
+### The CLI is now one entry point
+
+```sh
+binaryang wasm-opt | wat2wasm | wasm2wat | wasm-validate | wasm-objdump | wasm-strip | wasm2ts
+```
+
+The six WABT tools were previously separate published entry points that self-executed via
+`import.meta.main`. They are now registered in one dispatcher, which is what lets them run on Node
+and Bun rather than Deno alone.
+
+### Retirement
+
+`@jrmarcum/binaryen-ts` and `@jrmarcum/wabt-ts` each get a final **1.5.1** release pointing here,
+then stop. **Already-published versions keep resolving forever** — JSR never deletes a version, and
+nothing is yanked — so pinned consumers are not stranded. Only new resolution of the old names goes
+away.
 
 ## MUST: upstream names are reserved
 
@@ -127,7 +178,7 @@ Binaryen or WABT projects, and nothing in its layout may imply otherwise. A dire
 `src/binaryen/` makes a claim about provenance that is not true, and it makes it silently, to every
 reader who never opens the file.
 
-There is a second, narrower reason. `compat/binaryen` means *the upstream `npm:binaryen` API shape*.
+There is a second, narrower reason. `compat/binaryen` means _the upstream `npm:binaryen` API shape_.
 A `src/binaryen/` holding our optimizer would put the same word on our code and on theirs a few
 directories apart, in one repository — leaving the reader no way to tell which sense is meant.
 
@@ -174,6 +225,6 @@ and cannot rot.
 ### One known violation, to fix on the way in
 
 Running the check against the two predecessors today: binaryen-ts is clean; wabt-ts has
-`src/bridge/binaryen-bridge.ts`. It is the bridge *into* the binaryen-ts IR — the qualified sense —
+`src/bridge/binaryen-bridge.ts`. It is the bridge _into_ the binaryen-ts IR — the qualified sense —
 but spelled in the bare form, in the single most load-bearing file the two projects share. Rename it
 during the merge; `bridge.ts` is sufficient, since it already lives in `bridge/`.

@@ -15,7 +15,7 @@
  *
  * @example
  * ```ts
- * import { PassRunner } from "@jrmarcum/binaryen-ts/passes";
+ * import { PassRunner } from "@jrmarcum/binaryang/passes";
  *
  * const runner = new PassRunner(module);
  * runner.add("DCE").add("InliningOptimizing").run();

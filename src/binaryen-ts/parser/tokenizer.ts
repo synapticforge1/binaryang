@@ -22,7 +22,7 @@
  *
  * @example
  * ```ts
- * import { tokenize } from "@jrmarcum/binaryen-ts/parser/tokenizer";
+ * import { tokenize } from "@jrmarcum/binaryang/api";
  *
  * const tokens = tokenize(`(module (func $add (param i32 i32) (result i32)
  *   (i32.add (local.get 0) (local.get 1))))`);

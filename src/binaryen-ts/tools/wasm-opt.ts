@@ -15,7 +15,7 @@
  *
  * **CLI usage** (runs on Deno, Node 18+, and Bun):
  * ```sh
- * deno run -A jsr:@jrmarcum/binaryen-ts wasm-opt input.wasm -o output.wasm -O2
+ * deno run -A jsr:@jrmarcum/binaryang wasm-opt input.wasm -o output.wasm -O2
  * node main.ts wasm-opt input.wasm -o output.wasm -O2
  * bun main.ts wasm-opt input.wasm -o output.wasm -O2
  * ```
@@ -160,7 +160,7 @@ export async function wasmOpt(
  *
  * @example
  * ```sh
- * deno run -A jsr:@jrmarcum/binaryen-ts wasm-opt input.wasm -o out.wasm -O2
+ * deno run -A jsr:@jrmarcum/binaryang wasm-opt input.wasm -o out.wasm -O2
  * node main.ts wasm-opt input.wasm -o out.wasm -O2
  * ```
  */

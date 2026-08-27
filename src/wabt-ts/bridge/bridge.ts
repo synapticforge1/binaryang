@@ -7,9 +7,9 @@
  *
  * `bridgeToBinaryen(module)` walks a wabt-ts {@link Module} post-order and
  * builds an equivalent binaryen-ts {@link WasmModule} via the constructor API
- * in `@jrmarcum/binaryen-ts/ir`. The output can then be optimized via
+ * in `@jrmarcum/binaryang/ir/binaryen-ts`. The output can then be optimized via
  * binaryen-ts passes or emitted as a wasm binary via
- * `encodeWasm(...)` from `@jrmarcum/binaryen-ts/encoder`.
+ * `encodeWasm(...)` from `@jrmarcum/binaryang/encoder`.
  *
  * **Scope as of this commit (MVP, expanded as expression families come up):**
  * - Imports: func, global, memory, table (no tag).

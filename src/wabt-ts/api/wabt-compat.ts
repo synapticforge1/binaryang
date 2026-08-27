@@ -15,7 +15,7 @@
  * import wabt from "wabt";
  *
  * // after — via Deno/Bun import map
- * // { "wabt": "jsr:@jrmarcum/wabt-ts/compat" }
+ * // { "wabt": "jsr:@jrmarcum/binaryang/compat/wabt" }
  * import wabt from "wabt";
  *
  * // call shapes stay identical
@@ -57,7 +57,7 @@
  *   build (heap views, manual ref counting beyond `destroy`).
  * - Spec-test parsing (no `parseWast` here — wabt-ts has `parseWastScript`
  *   on the main entry point if you need it directly).
- * - Anything binaryen-specific (use `@jrmarcum/binaryen-ts/compat` for those).
+ * - Anything binaryen-specific (use `@jrmarcum/binaryang/compat/binaryen` for those).
  */
 
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
