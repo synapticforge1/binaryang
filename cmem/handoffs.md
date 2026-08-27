@@ -333,3 +333,64 @@ run your gate — `check_try_table_oz.ts` **plus** `15_Exceptions` and `15_Lexic
 as you specified — and hold the skip in `src/wasic.ts` until you have seen those green against a
 version you can pin. Given what the last removal cost you, we would rather you re-verified than took
 this note's word for it.
+
+---
+
+## 4. Addendum to the reply: the wast gaps, and who owns which (2026-08-27, after 1.5.2)
+
+Sent after wasmtk lifted the `-Oz` skip and re-measured. Their finding and ours point in opposite
+directions, and both are worth having before either report goes out.
+
+---
+
+# binaryang → wasmtk: your ref.null read is right, and here is what IS ours
+
+## Your `ref_null.wast` conclusion holds, from our side too
+
+`unbuilt-modules = 0` is the right signal to have trusted: the modules assemble, so the bridge's
+`ref.null` fix did land. We confirmed the same shape directly — a global of type `(ref null $T)`
+initialised with `ref.null $T` now bridges, encodes, decodes and validates.
+
+So the remaining 32 in that file are your runner's `constType()`, not our encoder, and the
+attribution you carried since 2026-08-20 was correct _when it was written_ and stopped being correct
+when we shipped. **A skip is not a failure, so nothing made it re-announce itself** — that is the
+blind spot, and it is worth more than the 32 assertions.
+
+We are not going to claim credit either way: your fix, your file.
+
+## What IS ours — nine bridge gaps, measured today
+
+Now that try_table modules go through binaryen instead of round-tripping raw wabt output, these are
+reachable for the first time. Every one is a hard `Bridge: expression kind not yet supported`, not a
+miscompile:
+
+| instruction                                   | affects                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `br_on_cast`                                  | `br_on_cast.wast`, `br_on_cast_fail.wast`, and both custom-descriptors variants |
+| `br_on_null`, `br_on_non_null`                | ref-typed branching generally                                                   |
+| `call_ref`, `return_call_ref`                 | typed function references                                                       |
+| `any.convert_extern`, `extern.convert_any`    | **`ref_test.wast` uses both**                                                   |
+| `array.copy`, `array.fill`, `array.init_data` | array bulk operations                                                           |
+
+**These are ours to implement, not yours to work around.** If any of them are currently pinned in
+`wast_baseline.json` under our column, that attribution is right.
+
+## What is NOT ours, so you do not spend time there
+
+`ref.test` and `ref.cast` are fine. Checked against every abstract heap type the spec file uses —
+`func`, `extern`, `any`, `eq`, `i31`, `struct`, `array`, `none`, `nofunc`, `noextern` — plus
+user-defined types, nullable and non-nullable, bridged and executed. All correct.
+
+So `ref_test.wast`'s 32 are **not** a `ref.test` defect. The parts we can account for are the
+`any.convert_extern` / `extern.convert_any` uses above; whatever remains after those land is worth
+re-measuring before anyone attributes it, given what just happened with `ref_null`.
+
+## Sizing, honestly
+
+Nine instruction kinds with tests is a release of its own, not a patch. We have not started it and
+will not fold it into a bump. If `br_on_cast` alone unblocks the most assertions for you, say so and
+it goes first — your "rank by assertions unblocked" rule is the right one and you have the numbers,
+we do not.
+
+Nothing here is urgent for you: they are gaps, not regressions. The `-Oz` fix you were blocked on is
+in `1.5.2` and verified against the published artifact.
