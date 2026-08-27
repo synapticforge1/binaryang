@@ -6,7 +6,7 @@
  *   deno run -A scripts/gen_simd_opcode_table.ts > /tmp/simd_table.ts
  */
 
-const UPSTREAM_DEF = new URL('../upstream/include/wabt/opcode.def', import.meta.url);
+const UPSTREAM_DEF = new URL('../../upstream/include/wabt/opcode.def', import.meta.url);
 
 const src = await Deno.readTextFile(UPSTREAM_DEF);
 

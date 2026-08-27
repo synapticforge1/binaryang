@@ -14,14 +14,19 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { ExpressionKind } from '../../src/ir/expressions.ts';
-import type { BlockExpr, ThrowExpr, ThrowRefExpr, TryTableExpr } from '../../src/ir/expressions.ts';
-import { ValType } from '../../src/ir/types.ts';
-import { walkExpression } from '../../src/ir/walk.ts';
-import { PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // side-effect: register all built-in passes
+import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import type {
+  BlockExpr,
+  ThrowExpr,
+  ThrowRefExpr,
+  TryTableExpr,
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 // ---------------------------------------------------------------------------
 // Helpers

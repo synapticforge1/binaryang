@@ -14,7 +14,7 @@
  */
 
 /** Resolves the repository's `deno.json` regardless of CWD. */
-export const DENO_JSON_URL: URL = new URL('../deno.json', import.meta.url);
+export const DENO_JSON_URL: URL = new URL('../../deno.json', import.meta.url);
 
 /** Reads the current `version` field from `deno.json`. */
 export async function readCurrentVersion(): Promise<string> {

@@ -9,13 +9,18 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../src/writer/binary-writer.ts';
-import { makeModule, varIndex, varName } from '../../src/ir/ir.ts';
-import type { Func, Module } from '../../src/ir/ir.ts';
-import { formatErrors, hasErrors, makeErrorList, unknownLocation } from '../../src/core/error.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
+import { makeModule, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import type { Func, Module } from '../../../src/wabt-ts/ir/ir.ts';
+import {
+  formatErrors,
+  hasErrors,
+  makeErrorList,
+  unknownLocation,
+} from '../../../src/wabt-ts/core/error.ts';
 
 const LOC = unknownLocation();
 

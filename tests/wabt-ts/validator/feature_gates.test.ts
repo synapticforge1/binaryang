@@ -35,12 +35,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasmValidate } from '../../src/tools/wasm-validate.ts';
-import { allFeatures, defaultFeatures } from '../../src/core/feature.ts';
-import type { Features } from '../../src/core/feature.ts';
-import { Result } from '../../src/core/result.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { allFeatures, defaultFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import type { Features } from '../../../src/wabt-ts/core/feature.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** One module per proposal, using ONLY that proposal beyond the MVP. */
 const USES: [keyof Features, string][] = [

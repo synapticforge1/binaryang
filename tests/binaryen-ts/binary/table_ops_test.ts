@@ -8,15 +8,15 @@
  */
 
 import { assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   type Expression,
   ExpressionKind,
   type TableGetExpr,
   type TableSetExpr,
-} from '../../src/ir/expressions.ts';
-import { parseWat } from '../../src/parser/wat-parser.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 
 Deno.test('table.get: WAT → encode → parse round-trip preserves the op + table-index slot', () => {
   // funcref table at index 0; `f` reads element 0 and returns it.

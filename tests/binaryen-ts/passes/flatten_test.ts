@@ -24,14 +24,18 @@ import {
   makeCall,
   makeCallIndirect,
   makeI32Const,
-} from '../../src/ir/expressions.ts';
-import { mapChildrenShallow, visitChildren, walkExpression } from '../../src/ir/walk.ts';
-import { None, ValType } from '../../src/ir/types.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { parseWat } from '../../src/parser/wat-parser.ts';
-import { buildCallResultTypes, FlattenPass } from '../../src/passes/flatten.ts';
-import type { PassOptions } from '../../src/passes/pass.ts';
-import { ModuleBuilder, type WasmModule } from '../../src/ir/module.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import {
+  mapChildrenShallow,
+  visitChildren,
+  walkExpression,
+} from '../../../src/binaryen-ts/ir/walk.ts';
+import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { buildCallResultTypes, FlattenPass } from '../../../src/binaryen-ts/passes/flatten.ts';
+import type { PassOptions } from '../../../src/binaryen-ts/passes/pass.ts';
+import { ModuleBuilder, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Harness

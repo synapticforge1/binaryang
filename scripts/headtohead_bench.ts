@@ -41,8 +41,8 @@ import { performance } from 'node:perf_hooks';
 import upstream from 'npm:binaryen@^116.0.0';
 
 // Our TypeScript implementation via the compat facade
-import * as ours from '../src/api/binaryen-compat.ts';
-import { BinaryReader } from '../src/binary/reader.ts';
+import * as ours from '../src/binaryen-ts/api/binaryen-compat.ts';
+import { BinaryReader } from '../src/binaryen-ts/binary/reader.ts';
 
 /**
  * Byte size of the `code` section (id 10) of a wasm binary, and the total bytes

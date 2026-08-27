@@ -39,9 +39,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 const SHARED = '(memory $m 1 1 shared)';
 const MEM = '(memory 1)';
@@ -310,7 +310,7 @@ describe('T13.18 - the arity table is TOTAL over the instruction tokens', () => 
   // every token `isPlainInstr` accepts must have an explicit `instrInputCount`
   // entry. Adding an instruction without one turns this red immediately
   // instead of shipping a quietly wrong tree.
-  const SOURCE = new URL('../../src/parser/wast-parser.ts', import.meta.url);
+  const SOURCE = new URL('../../../src/wabt-ts/parser/wast-parser.ts', import.meta.url);
 
   /** Case labels inside a named top-level function in the parser source. */
   function caseLabels(src: string, fn: string): Set<string> {

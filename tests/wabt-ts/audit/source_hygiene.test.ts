@@ -6,13 +6,13 @@
 // This gate does not protect the product. It protects the AUDIT METHOD, which
 // is the only thing that has been finding bugs here lately.
 //
-// A `\0` sentinel got written into `src/bridge/binaryen-bridge.ts` (T13.24's
+// A `\0` sentinel got written into `src/bridge/bridge.ts` (T13.24's
 // `IF_FRAME`). Everything downstream stayed green — `deno check`, `deno lint`,
 // `deno fmt`, and the full suite all pass, because a NUL is a legal character
 // in a TypeScript string literal. What broke was silent and off to the side:
 //
 //     $ grep -rn "naturalAlignForOpcode" src/
-//     Binary file src/bridge/binaryen-bridge.ts matches
+//     Binary file src/bridge/bridge.ts matches
 //
 // grep classifies a file containing a NUL as binary and prints that line
 // INSTEAD of the matches. The bridge dropped out of an alignment-duplication
@@ -65,7 +65,7 @@ async function* walk(dir: string): AsyncGenerator<string> {
 
 describe('T13.25 — source stays greppable', () => {
   it('contains no control bytes in any file the workflow greps', async () => {
-    const base = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+    const base = new URL('../../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
     const offenders: string[] = [];
     let scanned = 0;
 

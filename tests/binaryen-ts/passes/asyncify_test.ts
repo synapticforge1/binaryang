@@ -19,11 +19,11 @@ import {
   ExpressionKind,
   type GlobalSetExpr,
   type IfExpr,
-} from '../../src/ir/expressions.ts';
-import type { WasmFunction, WasmModule } from '../../src/ir/module.ts';
-import { ValType } from '../../src/ir/types.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { parseWasm } from '../../src/binary/index.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import type { WasmFunction, WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import {
   ASYNCIFY_DATA,
   ASYNCIFY_GET_STATE,
@@ -35,7 +35,7 @@ import {
   AsyncifyPass,
   parseAsyncifyOptions,
   State,
-} from '../../src/passes/asyncify.ts';
+} from '../../../src/binaryen-ts/passes/asyncify.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -237,7 +237,7 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
     (func $park (call $su (global.get $buf)))
     (func $worker (result i32) (call $park) (i32.const 42))
     (func $main (export "main") (result i32) (call $worker)))`;
-  const { parseWat } = await import('../../src/parser/wat-parser.ts');
+  const { parseWat } = await import('../../../src/binaryen-ts/parser/wat-parser.ts');
   const m = parseWat(wat);
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,

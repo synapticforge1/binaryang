@@ -12,9 +12,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { Result } from '../../src/core/result.ts';
-import { formatErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
 
 function findV128ConstBytes(binary: Uint8Array): Uint8Array | null {
   // v128.const is encoded as 0xfd 0x0c followed by 16 raw bytes.

@@ -30,10 +30,10 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // side-effect: register all built-in passes
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
 

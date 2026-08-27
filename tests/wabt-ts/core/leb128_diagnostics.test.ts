@@ -8,7 +8,7 @@ import {
   decodeS64Leb128,
   decodeU32Leb128,
   decodeU64Leb128,
-} from '../../src/core/leb128.ts';
+} from '../../../src/wabt-ts/core/leb128.ts';
 
 // T13.37. A LEB128 decode can fail two ways that the spec names SEPARATELY:
 //

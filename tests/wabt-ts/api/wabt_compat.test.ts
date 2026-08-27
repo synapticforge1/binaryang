@@ -10,7 +10,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import wabt from '../../src/api/wabt-compat.ts';
+import wabt from '../../../src/wabt-ts/api/wabt-compat.ts';
 
 describe('wabt-ts/compat — factory + module handle shape', () => {
   it('default export is an async factory returning a WabtModule', async () => {

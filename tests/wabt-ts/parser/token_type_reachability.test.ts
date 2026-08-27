@@ -29,9 +29,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-const TOKEN_SRC = new URL('../../src/parser/token.ts', import.meta.url);
-const LEXER_SRC = new URL('../../src/parser/wast-lexer.ts', import.meta.url);
-const PARSER_SRC = new URL('../../src/parser/wast-parser.ts', import.meta.url);
+const TOKEN_SRC = new URL('../../../src/wabt-ts/parser/token.ts', import.meta.url);
+const LEXER_SRC = new URL('../../../src/wabt-ts/parser/wast-lexer.ts', import.meta.url);
+const PARSER_SRC = new URL('../../../src/wabt-ts/parser/wast-parser.ts', import.meta.url);
 
 /**
  * Members that the lexer legitimately never emits. Each needs a reason here;

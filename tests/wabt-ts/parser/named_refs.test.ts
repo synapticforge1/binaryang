@@ -35,9 +35,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /**
  * Assert an engine accepts the bytes, not merely that the encoder produced some.

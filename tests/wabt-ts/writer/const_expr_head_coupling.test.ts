@@ -34,11 +34,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
-const SOURCE = new URL('../../src/writer/wat-writer.ts', import.meta.url);
+const SOURCE = new URL('../../../src/wabt-ts/writer/wat-writer.ts', import.meta.url);
 
 /** Body text of a named function in the writer source, by brace matching. */
 function functionBody(src: string, needle: string): string {

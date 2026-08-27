@@ -7,8 +7,8 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   type BinaryExpr,
   BinaryOp,
@@ -29,8 +29,8 @@ import {
   SIMDTernaryOp,
   type UnaryExpr,
   UnaryOp,
-} from '../../src/ir/expressions.ts';
-import { ValType } from '../../src/ir/types.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

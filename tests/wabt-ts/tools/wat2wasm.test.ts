@@ -24,11 +24,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { validateModule } from '../../src/validator/validator.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
-import { Result } from '../../src/core/result.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
 
 function compileAndValidate(wat: string): Uint8Array {
   const { binary, errors, result } = wat2wasm(wat);

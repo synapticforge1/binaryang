@@ -7,12 +7,12 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWat, WatParseError } from '../../src/parser/wat-parser.ts';
-import { ExpressionKind } from '../../src/ir/expressions.ts';
-import { Unreachable, ValType } from '../../src/ir/types.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { PassRunner } from '../../src/passes/index.ts';
-import '../../src/passes/index.ts';
+import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import '../../../src/binaryen-ts/passes/index.ts';
 
 Deno.test('parseWat — empty module', () => {
   const mod = parseWat('(module)');
@@ -44,14 +44,18 @@ Deno.test('parseWat — i32.const', () => {
   const mod = parseWat(`(module (func $f (result i32) (i32.const 42)))`);
   const body = mod.functions[0].body;
   assertEquals(body.kind, ExpressionKind.Const);
-  assertEquals((body as import('../../src/ir/expressions.ts').ConstExpr).value, { i32: 42 });
+  assertEquals((body as import('../../../src/binaryen-ts/ir/expressions.ts').ConstExpr).value, {
+    i32: 42,
+  });
 });
 
 Deno.test('parseWat — f64.const', () => {
   const mod = parseWat(`(module (func $f (result f64) (f64.const 3.14)))`);
   const body = mod.functions[0].body;
   assertEquals(body.kind, ExpressionKind.Const);
-  const v = (body as import('../../src/ir/expressions.ts').ConstExpr).value as { f64: number };
+  const v = (body as import('../../../src/binaryen-ts/ir/expressions.ts').ConstExpr).value as {
+    f64: number;
+  };
   assertClose(v.f64, 3.14);
 });
 
@@ -61,8 +65,14 @@ Deno.test('parseWat — local.get and local.set', () => {
       (local.get 0)))`);
   const body = mod.functions[0].body;
   assertEquals(body.kind, ExpressionKind.LocalGet);
-  assertEquals((body as import('../../src/ir/expressions.ts').LocalGetExpr).index, 0);
-  assertEquals((body as import('../../src/ir/expressions.ts').LocalGetExpr).type, ValType.I32);
+  assertEquals(
+    (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).index,
+    0,
+  );
+  assertEquals(
+    (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).type,
+    ValType.I32,
+  );
 });
 
 Deno.test('parseWat — nop and unreachable', () => {
@@ -70,7 +80,7 @@ Deno.test('parseWat — nop and unreachable', () => {
   const fn = mod.functions[0];
   // Body is a block since there are two expressions
   assertEquals(fn.body.kind, ExpressionKind.Block);
-  const block = fn.body as import('../../src/ir/expressions.ts').BlockExpr;
+  const block = fn.body as import('../../../src/binaryen-ts/ir/expressions.ts').BlockExpr;
   assertEquals(block.children[0].kind, ExpressionKind.Nop);
   assertEquals(block.children[1].kind, ExpressionKind.Unreachable);
 });
@@ -92,7 +102,7 @@ Deno.test('parseWat — block with label', () => {
         (br $b))))`);
   const body = mod.functions[0].body;
   assertEquals(body.kind, ExpressionKind.Block);
-  const block = body as import('../../src/ir/expressions.ts').BlockExpr;
+  const block = body as import('../../../src/binaryen-ts/ir/expressions.ts').BlockExpr;
   assertEquals(block.name, '$b');
   assertEquals(block.children[0].kind, ExpressionKind.Break);
 });
@@ -113,7 +123,10 @@ Deno.test('parseWat — call', () => {
   assertEquals(mod.functions.length, 2);
   const caller = mod.functions[1];
   assertEquals(caller.body.kind, ExpressionKind.Call);
-  assertEquals((caller.body as import('../../src/ir/expressions.ts').CallExpr).target, '$callee');
+  assertEquals(
+    (caller.body as import('../../../src/binaryen-ts/ir/expressions.ts').CallExpr).target,
+    '$callee',
+  );
 });
 
 Deno.test('parseWat — export', () => {
@@ -201,7 +214,7 @@ Deno.test('parseWat — return expression', () => {
   const mod = parseWat(`(module (func $f (result i32) (return (i32.const 99))))`);
   const body = mod.functions[0].body;
   assertEquals(body.kind, ExpressionKind.Return);
-  const ret = body as import('../../src/ir/expressions.ts').ReturnExpr;
+  const ret = body as import('../../../src/binaryen-ts/ir/expressions.ts').ReturnExpr;
   assertEquals(ret.value?.kind, ExpressionKind.Const);
 });
 

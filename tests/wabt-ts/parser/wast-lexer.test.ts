@@ -3,8 +3,8 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { WastLexer } from '../../src/parser/wast-lexer.ts';
-import { LiteralType, TokenType } from '../../src/parser/token.ts';
+import { WastLexer } from '../../../src/wabt-ts/parser/wast-lexer.ts';
+import { LiteralType, TokenType } from '../../../src/wabt-ts/parser/token.ts';
 import type {
   LiteralToken,
   OpcodeToken,
@@ -12,10 +12,10 @@ import type {
   StringToken,
   Token,
   TypeToken,
-} from '../../src/parser/token.ts';
-import { Type } from '../../src/core/types.ts';
-import { PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../../src/core/opcode.ts';
-import { Opcode } from '../../src/core/opcode.ts';
+} from '../../../src/wabt-ts/parser/token.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../../../src/wabt-ts/core/opcode.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

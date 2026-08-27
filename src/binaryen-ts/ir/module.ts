@@ -66,7 +66,7 @@ export interface WasmFunction {
    * bottom of its label stack so such a branch resolves to the correct depth
    * instead of silently collapsing to the innermost frame. Optional.
    */
-  bodyFrameLabel?: string;
+  bodyFrameLabel?: string | undefined;
 }
 
 /**

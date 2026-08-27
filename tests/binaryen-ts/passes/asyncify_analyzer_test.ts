@@ -17,12 +17,12 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWat } from '../../src/parser/wat-parser.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import {
   analyzeModule,
   parseAsyncifyOptions,
   resolveAsyncifyImports,
-} from '../../src/passes/asyncify.ts';
+} from '../../../src/binaryen-ts/passes/asyncify.ts';
 
 // ---------------------------------------------------------------------------
 // Differential harness

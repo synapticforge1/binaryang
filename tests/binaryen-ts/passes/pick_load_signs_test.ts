@@ -21,7 +21,7 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { encodeWasm } from '../../src/encoder/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   BinaryOp,
   makeBinary,
@@ -32,11 +32,11 @@ import {
   makeLoad,
   makeLocalGet,
   makeLocalSet,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
-import { ValType } from '../../src/ir/types.ts';
-import { PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // side-effect: pass registration
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: pass registration
 
 /**
  * Byte 0 of memory is `0xFF`, so the narrow load reads either `-1` (signed) or

@@ -31,12 +31,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { LexerSource } from '../../src/parser/lexer-source.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
-import { applyNames, makeModuleNames } from '../../src/ir/apply-names.ts';
-import { writeWatModule } from '../../src/writer/wat-writer.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { applyNames, makeModuleNames } from '../../../src/wabt-ts/ir/apply-names.ts';
+import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** Parse + resolve, then apply the supplied names and print the result. */
 function named(wat: string, fill: (n: ReturnType<typeof makeModuleNames>) => void): string {

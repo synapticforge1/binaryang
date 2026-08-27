@@ -13,9 +13,9 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
-import { BinaryReader } from '../src/binary/reader.ts';
+import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { BinaryReader } from '../src/binaryen-ts/binary/reader.ts';
 
 const SECTION_NAMES: Record<number, string> = {
   0: 'custom',

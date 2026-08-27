@@ -28,9 +28,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { LexerSource } from '../../src/parser/lexer-source.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** The PARSER alone — deliberately not `wat2wasm`, which also runs resolveNames. */
 function parseErrors(src: string): string {

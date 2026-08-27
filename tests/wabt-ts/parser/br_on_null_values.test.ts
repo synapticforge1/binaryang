@@ -24,10 +24,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 function compile(wat: string): Uint8Array {
   const { binary, errors } = wat2wasm(wat);

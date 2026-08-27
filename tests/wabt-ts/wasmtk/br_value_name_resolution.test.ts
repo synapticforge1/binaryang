@@ -29,9 +29,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
-import { Result } from '../../src/core/result.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
 
 // A flat-form module mirroring the wasmmerge output shape: two imports (so the
 // real call targets are NOT index 0), two helper funcs called by name from

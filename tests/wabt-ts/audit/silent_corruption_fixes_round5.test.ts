@@ -11,12 +11,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { generateNames } from '../../src/ir/generate-names.ts';
-import { makeModule } from '../../src/ir/ir.ts';
-import type { Func } from '../../src/ir/ir.ts';
-import { unknownLocation } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { generateNames } from '../../../src/wabt-ts/ir/generate-names.ts';
+import { makeModule } from '../../../src/wabt-ts/ir/ir.ts';
+import type { Func } from '../../../src/wabt-ts/ir/ir.ts';
+import { unknownLocation } from '../../../src/wabt-ts/core/error.ts';
 
 const LOC = unknownLocation();
 

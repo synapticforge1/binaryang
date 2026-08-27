@@ -1,6 +1,6 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
-import { combineResults, failed, Result, succeeded } from '../../src/core/result.ts';
+import { combineResults, failed, Result, succeeded } from '../../../src/wabt-ts/core/result.ts';
 
 describe('Result', () => {
   it('Ok = 0', () => assertEquals(Result.Ok, 0));

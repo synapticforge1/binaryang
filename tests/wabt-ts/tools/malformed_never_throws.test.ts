@@ -35,13 +35,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { wasmValidate } from '../../src/tools/wasm-validate.ts';
-import { wasmObjdump } from '../../src/tools/wasm-objdump.ts';
-import { wasmStrip } from '../../src/tools/wasm-strip.ts';
-import { allFeatures } from '../../src/core/feature.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { wasmObjdump } from '../../../src/wabt-ts/tools/wasm-objdump.ts';
+import { wasmStrip } from '../../../src/wabt-ts/tools/wasm-strip.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** A module exercising most section kinds, so truncation lands everywhere. */
 function reference(): Uint8Array {

@@ -41,12 +41,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../src/ir/synthesize-types.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
-import { valueTypeName } from '../../src/ir/ir.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { valueTypeName } from '../../../src/wabt-ts/ir/ir.ts';
 
 function compile(wat: string): Uint8Array {
   const { binary, errors } = wat2wasm(wat);

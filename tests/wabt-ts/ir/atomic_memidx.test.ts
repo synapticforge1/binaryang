@@ -31,10 +31,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 /** The `memidx` var of the first expression carrying one, at any depth. */
 // deno-lint-ignore no-explicit-any

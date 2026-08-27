@@ -21,13 +21,17 @@ import {
   makeNop,
   makeReturn,
   makeUnreachable,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder, type WasmFunction, type WasmModule } from '../../src/ir/module.ts';
-import { None, ValType } from '../../src/ir/types.ts';
-import { listPasses, PassRunner } from '../../src/passes/index.ts';
-import { deepCopy, measureSize } from '../../src/passes/inlining.ts';
-import { walkExpression } from '../../src/ir/walk.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import {
+  ModuleBuilder,
+  type WasmFunction,
+  type WasmModule,
+} from '../../../src/binaryen-ts/ir/module.ts';
+import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { deepCopy, measureSize } from '../../../src/binaryen-ts/passes/inlining.ts';
+import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

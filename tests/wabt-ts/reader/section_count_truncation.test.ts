@@ -32,12 +32,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { wasmValidate } from '../../src/tools/wasm-validate.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { allFeatures } from '../../src/core/feature.ts';
-import { Result } from '../../src/core/result.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 /** A module with one section carrying `body` verbatim. */
 function withSection(sectionId: number, body: number[]): Uint8Array {

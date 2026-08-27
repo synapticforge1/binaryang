@@ -24,8 +24,8 @@ import { expect } from '@std/expect';
 // is executing a release. Same shape as `token_type_reachability.test.ts` and
 // `const_expr_head_coupling.test.ts`.
 
-const PUBLISH = await Deno.readTextFile('scripts/publish.ts');
-const GUARD = await Deno.readTextFile('scripts/release-guard.ts');
+const PUBLISH = await Deno.readTextFile('scripts/wabt-ts/publish.ts');
+const GUARD = await Deno.readTextFile('scripts/wabt-ts/release-guard.ts');
 const DENO_JSON = await Deno.readTextFile('deno.json');
 
 /** Every `git` subcommand invoked in `publish.ts`, in source order. */
@@ -110,7 +110,7 @@ describe('T13.44 — the release preflight stays wired in', () => {
   it('documents where the guards live, so the docs cannot drift silently', () => {
     // The T13.43 root cause was prose describing a guard that did not exist.
     // Naming the module in the release docs means a rewrite has to look at it.
-    return Deno.readTextFile('cmem/publishing.md').then((doc) => {
+    return Deno.readTextFile('cmem/wabt-ts/publishing.md').then((doc) => {
       expect(doc).toContain('release-guard.ts');
     });
   });

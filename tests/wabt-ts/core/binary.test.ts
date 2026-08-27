@@ -10,7 +10,7 @@ import {
   NUM_BINARY_SECTIONS,
   WASM_MAGIC,
   WASM_VERSION,
-} from '../../src/core/binary.ts';
+} from '../../../src/wabt-ts/core/binary.ts';
 
 describe('Binary format constants', () => {
   it('WASM_MAGIC is 0x6d736100', () => assertEquals(WASM_MAGIC, 0x6d736100));

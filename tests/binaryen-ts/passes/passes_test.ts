@@ -36,11 +36,15 @@ import {
   makeUnary,
   makeUnreachable,
   UnaryOp,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder, type WasmFunction, type WasmModule } from '../../src/ir/module.ts';
-import { None, ValType } from '../../src/ir/types.ts';
-import { listPasses, PassRunner } from '../../src/passes/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import {
+  ModuleBuilder,
+  type WasmFunction,
+  type WasmModule,
+} from '../../../src/binaryen-ts/ir/module.ts';
+import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -24,8 +24,8 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   BinaryOp,
   type BlockExpr,
@@ -38,10 +38,10 @@ import {
   makeNop,
   makeReturn,
   makeSwitch,
-} from '../../src/ir/expressions.ts';
-import { None, Unreachable, ValType } from '../../src/ir/types.ts';
-import { createPass, PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // side-effect: register built-in passes
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { createPass, PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register built-in passes
 
 // ---------------------------------------------------------------------------
 // Minimal wasm section-builder helpers (unsigned LEB128, length-prefixed)

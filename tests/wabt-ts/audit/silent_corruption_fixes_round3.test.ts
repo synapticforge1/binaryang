@@ -10,21 +10,25 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { decodeS32Leb128, decodeS64Leb128, decodeU64Leb128 } from '../../src/core/leb128.ts';
+import {
+  decodeS32Leb128,
+  decodeS64Leb128,
+  decodeU64Leb128,
+} from '../../../src/wabt-ts/core/leb128.ts';
 import {
   parseF32Literal,
   parseF64Literal,
   printF32Literal,
   printF64Literal,
-} from '../../src/core/literal.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { writeBinaryIr } from '../../src/writer/binary-writer.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { makeModule, varIndex, varName } from '../../src/ir/ir.ts';
-import type { DataSegment, ElemSegment } from '../../src/ir/ir.ts';
-import { Type } from '../../src/core/types.ts';
-import { Result } from '../../src/core/result.ts';
-import { hasErrors, makeErrorList, unknownLocation } from '../../src/core/error.ts';
+} from '../../../src/wabt-ts/core/literal.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { makeModule, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import type { DataSegment, ElemSegment } from '../../../src/wabt-ts/ir/ir.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { hasErrors, makeErrorList, unknownLocation } from '../../../src/wabt-ts/core/error.ts';
 
 const LOC = unknownLocation();
 

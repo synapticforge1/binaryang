@@ -17,17 +17,17 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { LexerSource } from '../../src/parser/lexer-source.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { validateModule } from '../../src/validator/validator.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
-import { Result } from '../../src/core/result.ts';
-import type { Module as WabtModule } from '../../src/ir/ir.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import type { Module as WabtModule } from '../../../src/wabt-ts/ir/ir.ts';
 
-import { bridgeToBinaryen } from '../../src/bridge/binaryen-bridge.ts';
-import { encodeWasm } from '@jrmarcum/binaryen-ts/encoder';
+import { bridgeToBinaryen } from '../../../src/wabt-ts/bridge/bridge.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 
 function bridgeAndValidate(wat: string): void {
   const ls = new LexerSource(wat, '<tier-a>');

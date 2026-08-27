@@ -27,10 +27,10 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binary/wasm-parser.ts';
-import * as ours from '../src/api/binaryen-compat.ts';
-import type { WasmModule } from '../src/ir/module.ts';
-import { ValType } from '../src/ir/types.ts';
+import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
+import * as ours from '../src/binaryen-ts/api/binaryen-compat.ts';
+import type { WasmModule } from '../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../src/binaryen-ts/ir/types.ts';
 
 const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 

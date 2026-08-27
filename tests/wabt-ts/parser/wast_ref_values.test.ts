@@ -27,10 +27,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { expectedRefHeapType, parseWastScript } from '../../src/parser/wast-parser.ts';
-import type { ExpectedConst } from '../../src/parser/wast-parser.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
-import { Type } from '../../src/core/types.ts';
+import { expectedRefHeapType, parseWastScript } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import type { ExpectedConst } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
 
 const MODULE = '(module (func (export "f")))';
 

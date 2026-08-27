@@ -1,5 +1,6 @@
 # Deno
 .deno/
+/coverage
 
 # Node / npm (if ever used alongside Deno)
 node_modules/
@@ -8,21 +9,35 @@ node_modules/
 dist/
 out/
 
-# macOS
+# OS
 .DS_Store
+Thumbs.db
 
-# VSCode
+# Editors
 .history/
 .vscode/
+.idea/
 
-# Test artifacts
+# Generated artifacts
 *.wasm
 *.wat.out
 
-# Local-only working notes (not synced via git)
+# Local-only working notes (machine-local; cmem/ is the committed source of truth)
 CLAUDE.md
 TASKS.md
 
-# Local-only reference clones (formerly git submodules; see CLAUDE.md "Repository Structure")
-upstream/
-wabt-ts/
+# Local-only reference clones, NOT part of this repo.
+#
+# These patterns are ANCHORED with a leading `/` on purpose. binaryen-ts carried
+# an unanchored `wabt-ts/` here to ignore its sibling checkout, which was correct
+# in that repo and became a trap in this one: after the merge it matched
+# src/wabt-ts/, tests/wabt-ts/, scripts/wabt-ts/ and cmem/wabt-ts/ -- half the
+# merged tree. Already-tracked files were unaffected, so nothing looked wrong,
+# but every NEW file on the wabt side would have been silently untracked, and
+# deno fmt/lint skipped those directories entirely.
+#
+# wabt-ts's own version anchored the same intent (`/binaryen-ts/`, `/upstream/`)
+# and would have survived the merge untouched. Anchor anything that names a
+# directory rather than a kind of file.
+/upstream/
+/wasmtk/

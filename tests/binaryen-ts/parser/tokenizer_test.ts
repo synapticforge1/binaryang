@@ -7,7 +7,11 @@
  */
 
 import { assertEquals, assertThrows } from '@std/assert';
-import { tokenize, TokenKind, WatTokenizeError } from '../../src/parser/tokenizer.ts';
+import {
+  tokenize,
+  TokenKind,
+  WatTokenizeError,
+} from '../../../src/binaryen-ts/parser/tokenizer.ts';
 
 Deno.test('tokenize — empty input produces only EOF', () => {
   const tokens = tokenize('');

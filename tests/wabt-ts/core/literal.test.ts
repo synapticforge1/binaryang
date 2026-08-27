@@ -9,8 +9,8 @@ import {
   parseU64Literal,
   printF32Literal,
   printF64Literal,
-} from '../../src/core/literal.ts';
-import { Result } from '../../src/core/result.ts';
+} from '../../../src/wabt-ts/core/literal.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

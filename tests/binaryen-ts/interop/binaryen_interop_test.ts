@@ -21,7 +21,7 @@ import {
   BinaryenInterop,
   type BinaryenJsLib,
   type BinaryenWrappedModule,
-} from '../../src/interop/binaryen-js.ts';
+} from '../../../src/binaryen-ts/interop/binaryen-js.ts';
 
 // ---------------------------------------------------------------------------
 // Mock binaryen.js

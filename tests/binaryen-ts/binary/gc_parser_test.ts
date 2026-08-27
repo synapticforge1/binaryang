@@ -7,11 +7,11 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { ExpressionKind } from '../../src/ir/expressions.ts';
-import { ValType } from '../../src/ir/types.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

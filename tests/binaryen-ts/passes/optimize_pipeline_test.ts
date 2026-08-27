@@ -32,10 +32,10 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // side-effect: register all built-in passes
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 import {
   BinaryOp,
   makeBinary,
@@ -46,9 +46,9 @@ import {
   makeLocalSet,
   makeLocalTee,
   makeReturn,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
-import { ValType } from '../../src/ir/types.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 
 // wabt-ts/compat@1.2.9 wasic output for 46_TemplateEscapes.ts (1543 bytes).
 const FIXTURE_B64 =

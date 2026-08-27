@@ -32,8 +32,8 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   ExpressionKind,
   makeBlock,
@@ -41,11 +41,11 @@ import {
   makeCallIndirect,
   makeI32Const,
   makeTupleMake,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
-import { ValType } from '../../src/ir/types.ts';
-import { PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // side-effect: register all built-in passes
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
 

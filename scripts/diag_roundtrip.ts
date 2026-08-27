@@ -17,8 +17,8 @@
 import * as fs from 'node:fs/promises';
 
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../src/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
 
 const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0] ?? 'fib-dbg.wasm';
@@ -55,7 +55,7 @@ try {
   reError = (e as Error).message;
 }
 
-const outDir = new URL('../scripts/_diffs/', import.meta.url).pathname.replace(/^\//, '');
+const outDir = new URL('./_diffs/', import.meta.url).pathname.replace(/^\//, '');
 await fs.mkdir(outDir, { recursive: true }).catch(() => {});
 const base = rel.replace(/[\\/]/g, '_');
 await fs.writeFile(outDir + base + '.orig.wat', origText);

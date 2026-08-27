@@ -21,9 +21,9 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { parseWat } from '../../src/parser/wat-parser.ts';
-import { buildCallResultTypes, flattenFunction } from '../../src/passes/flatten.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { buildCallResultTypes, flattenFunction } from '../../../src/binaryen-ts/passes/flatten.ts';
 import {
   analyzeModule,
   computeRelevantLocals,
@@ -32,9 +32,9 @@ import {
   localsInstrumentFunction,
   parseAsyncifyOptions,
   synthesizeRuntimeSupport,
-} from '../../src/passes/asyncify.ts';
-import { listPasses, PassRunner } from '../../src/passes/index.ts';
-import type { WasmModule } from '../../src/ir/module.ts';
+} from '../../../src/binaryen-ts/passes/asyncify.ts';
+import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Full pipeline

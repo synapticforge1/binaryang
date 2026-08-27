@@ -20,17 +20,21 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { type CallExpr, type Expression, ExpressionKind } from '../../src/ir/expressions.ts';
-import { walkExpression } from '../../src/ir/walk.ts';
-import { parseWat } from '../../src/parser/wat-parser.ts';
-import { buildCallResultTypes, flattenFunction } from '../../src/passes/flatten.ts';
+import {
+  type CallExpr,
+  type Expression,
+  ExpressionKind,
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { buildCallResultTypes, flattenFunction } from '../../../src/binaryen-ts/passes/flatten.ts';
 import {
   analyzeModule,
   type FlowCtx,
   flowInstrumentFunction,
   parseAsyncifyOptions,
-} from '../../src/passes/asyncify.ts';
-import type { WasmFunction, WasmModule } from '../../src/ir/module.ts';
+} from '../../../src/binaryen-ts/passes/asyncify.ts';
+import type { WasmFunction, WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Harness

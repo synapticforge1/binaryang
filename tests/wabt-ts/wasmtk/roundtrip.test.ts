@@ -17,10 +17,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { formatErrors } from '../../src/core/error.ts';
-import { Result } from '../../src/core/result.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
 
 const WAT_DIR = new URL('.', import.meta.url);
 

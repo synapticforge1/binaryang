@@ -53,7 +53,7 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
     let scanned = 0;
 
     for (const tool of TOOLS) {
-      const url = new URL(`../../src/tools/${tool}.ts`, import.meta.url);
+      const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
       const src = await Deno.readTextFile(url);
       const at = src.indexOf('if (import.meta.main) {');
       assert(at !== -1, `${tool}: no import.meta.main block`);
@@ -78,7 +78,7 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
 
   it('each tool defines the guarded helpers it uses', async () => {
     for (const tool of TOOLS) {
-      const url = new URL(`../../src/tools/${tool}.ts`, import.meta.url);
+      const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
       const src = await Deno.readTextFile(url);
       assert(
         src.includes('async function cliRead('),
@@ -101,7 +101,7 @@ const canRun = (await Deno.permissions.query({ name: 'run' })).state === 'grante
   (await Deno.permissions.query({ name: 'write' })).state === 'granted';
 
 async function runCli(tool: string, args: string[]): Promise<{ code: number; err: string }> {
-  const url = new URL(`../../src/tools/${tool}.ts`, import.meta.url);
+  const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
   const cmd = new Deno.Command(Deno.execPath(), {
     args: ['run', '-A', '--quiet', url.pathname, ...args],
     stdout: 'piped',

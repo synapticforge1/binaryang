@@ -32,12 +32,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { wasmValidate } from '../../src/tools/wasm-validate.ts';
-import { allFeatures } from '../../src/core/feature.ts';
-import { Result } from '../../src/core/result.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 function loadModule(instr: string, ty = 'i32'): string {
   return `(module (memory 1) (func (export "f") (result ${ty}) ${instr}))`;

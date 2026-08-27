@@ -7,7 +7,7 @@ import {
   PREFIX_MISC,
   PREFIX_SIMD,
   PREFIX_THREADS,
-} from '../../src/core/opcode.ts';
+} from '../../../src/wabt-ts/core/opcode.ts';
 
 describe('Opcode prefix constants', () => {
   it('PREFIX_MISC = 0xfc', () => assertEquals(PREFIX_MISC, 0xfc));

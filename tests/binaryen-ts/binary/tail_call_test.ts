@@ -14,15 +14,15 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   type CallExpr,
   type CallIndirectExpr,
   type Expression,
   ExpressionKind,
-} from '../../src/ir/expressions.ts';
-import { parseWat } from '../../src/parser/wat-parser.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 
 // ---------------------------------------------------------------------------
 // Hand-crafted binary fixture — module with `f(): void` whose body is

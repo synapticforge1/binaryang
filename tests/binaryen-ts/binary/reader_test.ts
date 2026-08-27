@@ -13,7 +13,7 @@
  */
 
 import { assertEquals, assertThrows } from '@std/assert';
-import { BinaryReader, WasmBinaryError } from '../../src/binary/reader.ts';
+import { BinaryReader, WasmBinaryError } from '../../../src/binaryen-ts/binary/reader.ts';
 
 // ---------------------------------------------------------------------------
 // readI32 — signed LEB128 i32

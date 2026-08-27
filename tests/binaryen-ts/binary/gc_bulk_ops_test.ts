@@ -28,8 +28,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -44,10 +44,10 @@ import {
   makeLocalSet,
   makeRefAsNonNull,
   RefAsOp,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
-import { parseWat } from '../../src/parser/wat-parser.ts';
-import { ValType } from '../../src/ir/types.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 
 /** i32 array heap type + a `() -> i32` func type, in that order. */
 function gcBuilder(): { m: ModuleBuilder; arrayType: number } {

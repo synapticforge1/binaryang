@@ -38,10 +38,15 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { anyOpcodeName, PREFIX_MISC, PREFIX_SIMD, PREFIX_THREADS } from '../../src/core/opcode.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import {
+  anyOpcodeName,
+  PREFIX_MISC,
+  PREFIX_SIMD,
+  PREFIX_THREADS,
+} from '../../../src/wabt-ts/core/opcode.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 function compile(wat: string): Uint8Array {
   const { binary, errors } = wat2wasm(wat);

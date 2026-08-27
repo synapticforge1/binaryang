@@ -30,8 +30,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWastScript } from '../../src/parser/wast-parser.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { parseWastScript } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 function commands(script: string) {
   const { script: s, errors } = parseWastScript(script);

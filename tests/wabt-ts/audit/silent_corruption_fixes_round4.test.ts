@@ -10,12 +10,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { allFeatures } from '../../src/core/feature.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../src/ir/synthesize-types.ts';
-import { validateModule } from '../../src/validator/validator.ts';
-import { hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
+import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 /** parse → resolve → synthesize → validate; true if validation found errors. */
 function validateWat(wat: string): boolean {

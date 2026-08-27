@@ -17,7 +17,7 @@ import { expect } from '@std/expect';
 // COUNT: a refresh that moves files without re-stamping is exactly the failure
 // mode, and it is the one a human is most likely to commit in a hurry.
 
-const DIR = 'tests/wasmtk';
+const DIR = 'tests/wabt-ts/wasmtk';
 const DOC = await Deno.readTextFile(`${DIR}/PROVENANCE.md`);
 
 /** The value cell of a `| Label | value |` row. */

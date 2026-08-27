@@ -11,7 +11,7 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
 
 const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];

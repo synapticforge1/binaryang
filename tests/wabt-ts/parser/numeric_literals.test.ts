@@ -22,10 +22,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWastScript } from '../../src/parser/wast-parser.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { Type } from '../../src/core/types.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { parseWastScript } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 async function callF(wat: string): Promise<number> {
   const { binary, errors } = wat2wasm(wat);

@@ -7,10 +7,15 @@
  */
 
 import { assert, assertThrows } from '@std/assert';
-import { createModule } from '../../src/api/index.ts';
-import { makeBlock, makeI32Const, makeLoop, makeNop } from '../../src/ir/expressions.ts';
-import { None, ValType } from '../../src/ir/types.ts';
-import '../../src/passes/index.ts'; // register built-in passes
+import { createModule } from '../../../src/binaryen-ts/api/index.ts';
+import {
+  makeBlock,
+  makeI32Const,
+  makeLoop,
+  makeNop,
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // register built-in passes
 
 Deno.test('toWat: unsupported expression kind throws instead of a silent (;; TODO ;) placeholder', () => {
   // The WAT serializer handles only a subset of expression kinds; `Loop` is not

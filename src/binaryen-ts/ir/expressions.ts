@@ -645,7 +645,7 @@ export interface IfExpr extends ExprBase {
    * depth; without it a `br` to the `if` from deeper nesting resolves to the
    * wrong (innermost) target. Optional — most `if`s are not branch targets.
    */
-  name?: string;
+  name?: string | undefined;
 }
 
 /** {@link LoopExpr} — see {@link makeLoop} for the factory. */
@@ -1271,13 +1271,13 @@ export interface BrOnExpr extends ExprBase {
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /** Target reference type for the cast (`br_on_cast`/`br_on_cast_fail`). */
-  castType?: HeapType;
+  castType?: HeapType | undefined;
   /** Whether the cast TARGET type is nullable (flags bit 1). */
-  castNullable?: boolean;
+  castNullable?: boolean | undefined;
   /** Source reference heap type (`br_on_cast`/`br_on_cast_fail` first immediate). */
-  srcType?: HeapType;
+  srcType?: HeapType | undefined;
   /** Whether the SOURCE type is nullable (flags bit 0). */
-  srcNullable?: boolean;
+  srcNullable?: boolean | undefined;
 }
 
 // ---------------------------------------------------------------------------

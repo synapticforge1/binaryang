@@ -26,15 +26,15 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { allFeatures } from '../../src/core/feature.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { validateModule } from '../../src/validator/validator.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
-import { Result } from '../../src/core/result.ts';
-import type { Expr, Func, TryExpr } from '../../src/ir/ir.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import type { Expr, Func, TryExpr } from '../../../src/wabt-ts/ir/ir.ts';
 
 function definedFuncs(wat: string): Func[] {
   const { module, errors } = parseWatModule(wat);

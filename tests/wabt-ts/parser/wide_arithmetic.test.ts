@@ -38,21 +38,21 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { WastLexer } from '../../src/parser/wast-lexer.ts';
-import { LexerSource } from '../../src/parser/lexer-source.ts';
-import { wasmValidate } from '../../src/tools/wasm-validate.ts';
-import { allFeatures } from '../../src/core/feature.ts';
-import { Result } from '../../src/core/result.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { WastLexer } from '../../../src/wabt-ts/parser/wast-lexer.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 /** Every opcode spelling in the lexer keyword table, with its opcode value. */
 function lexerOpcodes(): [string, number][] {
   const src = Deno.readTextFileSync(
-    new URL('../../src/parser/wast-lexer.ts', import.meta.url),
+    new URL('../../../src/wabt-ts/parser/wast-lexer.ts', import.meta.url),
   );
   const out: [string, number][] = [];
   for (const m of src.matchAll(/\['([a-z0-9_.]+)', op\(/g)) {

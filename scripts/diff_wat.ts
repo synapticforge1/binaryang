@@ -19,8 +19,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../src/binary/wasm-parser.ts';
-import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
+import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
 
 const ROOT = new URL('../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
@@ -66,7 +66,7 @@ try {
 }
 
 // Write the two WAT outputs to disk for manual diff
-const outDir = new URL('../scripts/_diffs/', import.meta.url).pathname.replace(/^\//, '');
+const outDir = new URL('./_diffs/', import.meta.url).pathname.replace(/^\//, '');
 try {
   await fs.mkdir(outDir, { recursive: true });
 } catch { /* exists */ }

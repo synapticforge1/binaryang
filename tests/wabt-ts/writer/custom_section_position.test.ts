@@ -3,13 +3,13 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasmStrip } from '../../src/tools/wasm-strip.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../src/writer/binary-writer.ts';
-import { hasErrors, makeErrorList } from '../../src/core/error.ts';
-import { encodeU32Leb128 } from '../../src/core/leb128.ts';
-import { Result } from '../../src/core/result.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasmStrip } from '../../../src/wabt-ts/tools/wasm-strip.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
+import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { encodeU32Leb128 } from '../../../src/wabt-ts/core/leb128.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
 
 // T13.41. Custom sections may legally appear anywhere between the known
 // sections, and the writer emitted them all in one block at the END. That

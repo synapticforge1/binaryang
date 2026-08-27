@@ -27,13 +27,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { WastLexer } from '../../src/parser/wast-lexer.ts';
-import { LexerSource } from '../../src/parser/lexer-source.ts';
-import { TokenType } from '../../src/parser/token.ts';
-import { anyOpcodeName, naturalAlignForOpcode } from '../../src/core/opcode.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { formatErrors, hasErrors } from '../../src/core/error.ts';
+import { WastLexer } from '../../../src/wabt-ts/parser/wast-lexer.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
+import { TokenType } from '../../../src/wabt-ts/parser/token.ts';
+import { anyOpcodeName, naturalAlignForOpcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** Lex a single keyword and return its token, or null if it is not one token. */
 function lexOne(kw: string): { tokenType: TokenType; opcode?: number } | null {

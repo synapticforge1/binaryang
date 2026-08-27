@@ -33,10 +33,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 /** Space-separated hex -> bytes, so each module reads as a dump. */
 function mod(hex: string): Uint8Array {

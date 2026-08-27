@@ -17,12 +17,12 @@
  * @license MIT
  */
 
-import { ModuleBuilder } from '../src/ir/module.ts';
-import { ValType } from '../src/ir/types.ts';
-import { makeBlock, makeBreak, makeI32Const } from '../src/ir/expressions.ts';
-import { encodeWasm } from '../src/encoder/wasm-encoder.ts';
-import { parseWat } from '../src/parser/wat-parser.ts';
-import { parseWasm } from '../src/binary/wasm-parser.ts';
+import { ModuleBuilder } from '../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../src/binaryen-ts/ir/types.ts';
+import { makeBlock, makeBreak, makeI32Const } from '../src/binaryen-ts/ir/expressions.ts';
+import { encodeWasm } from '../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { parseWat } from '../src/binaryen-ts/parser/wat-parser.ts';
+import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
 
 async function validates(bytes: Uint8Array): Promise<{ ok: boolean; err?: string }> {
   try {

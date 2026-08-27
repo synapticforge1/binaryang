@@ -22,13 +22,13 @@ import {
   assertStrictEquals,
 } from '@std/assert';
 
-import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from '../../src/wasm/index.ts';
+import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from '../../../src/binaryen-ts/wasm/index.ts';
 import {
   clearKernelCache,
   listLoadedKernels,
   loadKernel,
   WasmRuntimeError,
-} from '../../src/wasm-runtime.ts';
+} from '../../../src/binaryen-ts/wasm-runtime.ts';
 
 const KERNEL_NAME = 'demo-runtime-test';
 

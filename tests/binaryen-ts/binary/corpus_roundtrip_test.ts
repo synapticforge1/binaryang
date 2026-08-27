@@ -30,17 +30,17 @@ import { assert, assertEquals } from '@std/assert';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../../src/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/encoder/wasm-encoder.ts';
-import { walkExpression } from '../../src/ir/walk.ts';
-import type { WasmModule } from '../../src/ir/module.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
+import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
 // `path.fromFileUrl` is Deno-std; this file uses `node:path` for cross-runtime
 // parity with the rest of the tree, so convert the URL by hand (matching
 // scripts/verify_roundtrip.ts). The leading slash of a Windows file URL
 // path ("/D:/...") has to go.
 const CORPUS = decodeURIComponent(
-  new URL('../../upstream/test', import.meta.url).pathname,
+  new URL('../../../upstream/test', import.meta.url).pathname,
 ).replace(/^\/(?=[A-Za-z]:)/, '');
 
 /**

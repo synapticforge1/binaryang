@@ -171,7 +171,7 @@ import {
   SIMDReplaceOp,
   UnaryOp,
   ValType,
-} from '@jrmarcum/binaryen-ts/ir';
+} from '../../binaryen-ts/ir/index.ts';
 import type {
   CatchClause,
   Expression,
@@ -180,7 +180,7 @@ import type {
   Type as BType,
   ValueType as BValueType,
   WasmModule,
-} from '@jrmarcum/binaryen-ts/ir';
+} from '../../binaryen-ts/ir/index.ts';
 
 import { wabtTypeToValType } from './type-map.ts';
 

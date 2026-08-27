@@ -24,8 +24,8 @@
 import { assertEquals } from '@std/assert';
 
 Deno.test('version: main.ts VERSION matches deno.json', async () => {
-  const denoJsonUrl = new URL('../deno.json', import.meta.url);
-  const mainTsUrl = new URL('../main.ts', import.meta.url);
+  const denoJsonUrl = new URL('../../deno.json', import.meta.url);
+  const mainTsUrl = new URL('../../main.ts', import.meta.url);
 
   const manifest = JSON.parse(await Deno.readTextFile(denoJsonUrl)) as { version?: string };
   const declared = manifest.version;

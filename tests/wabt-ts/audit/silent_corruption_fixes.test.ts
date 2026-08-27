@@ -10,24 +10,30 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { Opcode, PREFIX_SIMD } from '../../src/core/opcode.ts';
-import { WastLexer } from '../../src/parser/wast-lexer.ts';
-import type { OpcodeToken } from '../../src/parser/token.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../src/ir/synthesize-types.ts';
-import { validateModule } from '../../src/validator/validator.ts';
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/tools/wasm2wat.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../src/writer/binary-writer.ts';
-import { ModuleContext } from '../../src/ir/ir-util.ts';
-import { applyNames, makeModuleNames } from '../../src/ir/apply-names.ts';
-import { makeModule, varIndex, varName } from '../../src/ir/ir.ts';
-import type { CallRefExpr, Func, Module, SimdLaneOpExpr, Table } from '../../src/ir/ir.ts';
-import { Type } from '../../src/core/types.ts';
-import { ExternalKind } from '../../src/core/binary.ts';
-import { hasErrors, makeErrorList, unknownLocation } from '../../src/core/error.ts';
+import { Opcode, PREFIX_SIMD } from '../../../src/wabt-ts/core/opcode.ts';
+import { WastLexer } from '../../../src/wabt-ts/parser/wast-lexer.ts';
+import type { OpcodeToken } from '../../../src/wabt-ts/parser/token.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
+import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
+import { ModuleContext } from '../../../src/wabt-ts/ir/ir-util.ts';
+import { applyNames, makeModuleNames } from '../../../src/wabt-ts/ir/apply-names.ts';
+import { makeModule, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import type {
+  CallRefExpr,
+  Func,
+  Module,
+  SimdLaneOpExpr,
+  Table,
+} from '../../../src/wabt-ts/ir/ir.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { hasErrors, makeErrorList, unknownLocation } from '../../../src/wabt-ts/core/error.ts';
 
 const LOC = unknownLocation();
 

@@ -34,10 +34,10 @@
  */
 
 import { assert } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { createPass, PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // register all built-in passes
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { createPass, PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // register all built-in passes
 import {
   BinaryOp,
   type Expression,
@@ -53,10 +53,10 @@ import {
   makeSelect,
   makeUnary,
   UnaryOp,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder, type WasmModule } from '../../src/ir/module.ts';
-import { ValType } from '../../src/ir/types.ts';
-import { mapExpression } from '../../src/ir/walk.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { mapExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Seeded PRNG (mulberry32) — deterministic so failures are reproducible.

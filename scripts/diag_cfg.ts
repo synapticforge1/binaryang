@@ -11,8 +11,8 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../src/binary/wasm-parser.ts';
-import { buildCFG, computeLiveness } from '../src/passes/cfg.ts';
+import { parseWasm } from '../src/binaryen-ts/binary/wasm-parser.ts';
+import { buildCFG, computeLiveness } from '../src/binaryen-ts/passes/cfg.ts';
 
 const ROOT = new URL('../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const mod = parseWasm(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));

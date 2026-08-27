@@ -3,9 +3,9 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { formatErrors } from '../../src/core/error.ts';
-import { LexerSource } from '../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 
 // T13.38. A misspelled or nonexistent instruction is the most common mistake in
 // hand-written WAT, and the parser reported it by naming whatever token it had

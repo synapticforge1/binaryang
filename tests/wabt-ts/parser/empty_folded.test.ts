@@ -4,9 +4,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { Result } from '../../src/core/result.ts';
-import { formatErrors } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
 
 describe('Bug D: empty-folded ops consume preceding stack values', () => {
   it('(local.set $x) after const works (multi-value receive)', async () => {

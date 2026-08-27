@@ -27,10 +27,10 @@
  * @license MIT
  */
 
-import { wasm2wat } from '../src/tools/wasm2wat.ts';
-import { wat2wasm } from '../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../src/wabt-ts/tools/wasm2wat.ts';
+import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 
-const CORPUS = new URL('../tests/wasmtk/', import.meta.url);
+const CORPUS = new URL('../../tests/wabt-ts/wasmtk/', import.meta.url);
 const MANIFEST = new URL('./pre-merge-baseline.tsv', import.meta.url);
 const TEXT_ENCODER = new TextEncoder();
 

@@ -4,11 +4,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { Type } from '../../src/core/types.ts';
-import { Opcode } from '../../src/core/opcode.ts';
-import { ExternalKind } from '../../src/core/binary.ts';
-import { hasErrors, makeErrorList, unknownLocation } from '../../src/core/error.ts';
-import type { ErrorList } from '../../src/core/error.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { hasErrors, makeErrorList, unknownLocation } from '../../../src/wabt-ts/core/error.ts';
+import type { ErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 import {
   BLOCK_TYPE_VOID,
@@ -17,7 +17,7 @@ import {
   constI32,
   makeModule,
   varIndex,
-} from '../../src/ir/ir.ts';
+} from '../../../src/wabt-ts/ir/ir.ts';
 import type {
   BinaryExpr,
   BlockExpr,
@@ -28,9 +28,9 @@ import type {
   LocalSetExpr,
   Module,
   ReturnExpr,
-} from '../../src/ir/ir.ts';
+} from '../../../src/wabt-ts/ir/ir.ts';
 
-import { validateModule } from '../../src/validator/validator.ts';
+import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

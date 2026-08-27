@@ -4,10 +4,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertStringIncludes } from '@std/assert';
 
-import { Type } from '../../src/core/types.ts';
-import { ExternalKind } from '../../src/core/binary.ts';
-import { Opcode } from '../../src/core/opcode.ts';
-import { unknownLocation } from '../../src/core/error.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { unknownLocation } from '../../../src/wabt-ts/core/error.ts';
 import {
   BLOCK_TYPE_VOID,
   constF32,
@@ -16,7 +16,7 @@ import {
   makeModule,
   varIndex,
   varName,
-} from '../../src/ir/ir.ts';
+} from '../../../src/wabt-ts/ir/ir.ts';
 import type {
   DataSegment,
   ElemSegment,
@@ -25,8 +25,8 @@ import type {
   Global,
   Memory,
   Table,
-} from '../../src/ir/ir.ts';
-import { writeWatModule } from '../../src/writer/wat-writer.ts';
+} from '../../../src/wabt-ts/ir/ir.ts';
+import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
 
 const LOC = unknownLocation();
 

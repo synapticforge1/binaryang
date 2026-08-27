@@ -43,8 +43,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 /** Space-separated hex bytes -> array, so a module reads as a hex dump. */
 function b(hex: string): number[] {

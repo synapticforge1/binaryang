@@ -1,11 +1,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertExists } from '@std/assert';
 
-import { Type } from '../../src/core/types.ts';
-import { Result } from '../../src/core/result.ts';
-import { Opcode } from '../../src/core/opcode.ts';
-import { unknownLocation } from '../../src/core/error.ts';
-import { hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { Result } from '../../../src/wabt-ts/core/result.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { unknownLocation } from '../../../src/wabt-ts/core/error.ts';
+import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 import {
   BLOCK_TYPE_VOID,
@@ -23,14 +23,18 @@ import {
   totalGlobals,
   varIndex,
   varName,
-} from '../../src/ir/ir.ts';
-import type { BinaryExpr, ConstExpr, Expr, Func } from '../../src/ir/ir.ts';
+} from '../../../src/wabt-ts/ir/ir.ts';
+import type { BinaryExpr, ConstExpr, Expr, Func } from '../../../src/wabt-ts/ir/ir.ts';
 
-import { ExprVisitor, NopDelegate } from '../../src/ir/expr-visitor.ts';
-import type { ExprVisitorDelegate } from '../../src/ir/expr-visitor.ts';
+import { ExprVisitor, NopDelegate } from '../../../src/wabt-ts/ir/expr-visitor.ts';
+import type { ExprVisitorDelegate } from '../../../src/wabt-ts/ir/expr-visitor.ts';
 
-import { generateNames, indexToAlphaName, NameOpts } from '../../src/ir/generate-names.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
+import {
+  generateNames,
+  indexToAlphaName,
+  NameOpts,
+} from '../../../src/wabt-ts/ir/generate-names.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

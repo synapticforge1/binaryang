@@ -4,9 +4,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertExists } from '@std/assert';
 
-import { Type } from '../../src/core/types.ts';
-import { ExternalKind } from '../../src/core/binary.ts';
-import { parseWastScript, parseWatModule } from '../../src/parser/wast-parser.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { parseWastScript, parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import type {
   DataSegment,
   ElemSegment,
@@ -15,7 +15,7 @@ import type {
   Import,
   Memory,
   Table,
-} from '../../src/ir/ir.ts';
+} from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -9,10 +9,10 @@
  */
 
 import { assert, assertEquals, assertInstanceOf, assertThrows } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../src/encoder/index.ts';
-import { ExpressionKind } from '../../src/ir/expressions.ts';
-import { None, Unreachable, ValType } from '../../src/ir/types.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import {
   BinaryOp,
   type Expression,
@@ -22,8 +22,8 @@ import {
   makeLocalGet,
   makeSelect,
   makeUnreachable,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Shared binary fixtures (same as parser tests)

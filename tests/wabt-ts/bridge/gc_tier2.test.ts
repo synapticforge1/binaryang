@@ -33,13 +33,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { LexerSource } from '../../src/parser/lexer-source.ts';
-import { parseWatModule } from '../../src/parser/wast-parser.ts';
-import { resolveNames } from '../../src/ir/resolve-names.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
-import { bridgeToBinaryen } from '../../src/bridge/binaryen-bridge.ts';
-import { encodeWasm } from '@jrmarcum/binaryen-ts/encoder';
+import { bridgeToBinaryen } from '../../../src/wabt-ts/bridge/bridge.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 
 function bridge(wat: string): Uint8Array {
   const ls = new LexerSource(wat, '<gc-tier2>');

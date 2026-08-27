@@ -29,9 +29,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../src/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../src/reader/binary-reader.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 const BS = String.fromCharCode(92); // a literal backslash, for WAT escapes
 

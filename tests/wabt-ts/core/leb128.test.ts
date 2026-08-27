@@ -11,7 +11,7 @@ import {
   encodeU64Leb128,
   MAX_U32_LEB128_BYTES,
   MAX_U64_LEB128_BYTES,
-} from '../../src/core/leb128.ts';
+} from '../../../src/wabt-ts/core/leb128.ts';
 
 describe('LEB128 constants', () => {
   it('MAX_U32_LEB128_BYTES is 5', () => assertEquals(MAX_U32_LEB128_BYTES, 5));

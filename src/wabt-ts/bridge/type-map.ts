@@ -12,7 +12,7 @@
 
 import { Type } from '../core/types.ts';
 import { coarsenValueType, type ValueType } from '../ir/ir.ts';
-import { ValType } from '@jrmarcum/binaryen-ts/ir';
+import { ValType } from '../../binaryen-ts/ir/index.ts';
 
 /**
  * Map a wabt-ts value type to the binaryen-ts string `ValType`.

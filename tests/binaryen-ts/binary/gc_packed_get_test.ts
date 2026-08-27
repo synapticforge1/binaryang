@@ -24,19 +24,19 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../src/encoder/index.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   makeArrayGet,
   makeArrayNewFixed,
   makeI32Const,
   makeStructGet,
   makeStructNew,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
-import { ValType } from '../../src/ir/types.ts';
-import type { StorageType } from '../../src/ir/gc-types.ts';
-import { parseWat, WatParseError } from '../../src/parser/wat-parser.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import type { StorageType } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 
 /** A one-field mutable struct holding `value`, read back via struct.get. */
 function structModule(storage: StorageType, value: number, signed: boolean): Uint8Array {

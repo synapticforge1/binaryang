@@ -7,9 +7,9 @@
  */
 
 import { assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../src/binary/index.ts';
-import { ExpressionKind } from '../../src/ir/expressions.ts';
-import { ValType } from '../../src/ir/types.ts';
+import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
+import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -7,7 +7,7 @@
  */
 
 import { assertEquals, assertThrows } from '@std/assert';
-import { tokenize } from '../../src/parser/tokenizer.ts';
+import { tokenize } from '../../../src/binaryen-ts/parser/tokenizer.ts';
 import {
   atomString,
   atomText,
@@ -19,7 +19,7 @@ import {
   type SExpr,
   sExprToString,
   WatSExprError,
-} from '../../src/parser/sexpr.ts';
+} from '../../../src/binaryen-ts/parser/sexpr.ts';
 
 function parse(src: string): SExpr {
   return buildSExpr(tokenize(src));
@@ -34,20 +34,20 @@ Deno.test('buildSExpr — atom', () => {
 Deno.test('buildSExpr — empty list', () => {
   const s = parse('()');
   assertEquals(s.kind, 'list');
-  assertEquals((s as import('../../src/parser/sexpr.ts').SList).children.length, 0);
+  assertEquals((s as import('../../../src/binaryen-ts/parser/sexpr.ts').SList).children.length, 0);
 });
 
 Deno.test('buildSExpr — single-element list', () => {
   const s = parse('(nop)');
   assertEquals(s.kind, 'list');
-  assertEquals(listHead(s as import('../../src/parser/sexpr.ts').SList), 'nop');
+  assertEquals(listHead(s as import('../../../src/binaryen-ts/parser/sexpr.ts').SList), 'nop');
 });
 
 Deno.test('buildSExpr — nested list', () => {
   const s = parse(`(module (func $f))`);
   assertEquals(s.kind, 'list');
-  assertEquals(listHead(s as import('../../src/parser/sexpr.ts').SList), 'module');
-  const children = listChildren(s as import('../../src/parser/sexpr.ts').SList);
+  assertEquals(listHead(s as import('../../../src/binaryen-ts/parser/sexpr.ts').SList), 'module');
+  const children = listChildren(s as import('../../../src/binaryen-ts/parser/sexpr.ts').SList);
   assertEquals(children.length, 1);
   assertEquals(isListWith(children[0], 'func'), true);
 });
@@ -72,8 +72,14 @@ Deno.test('buildSExpr — throws on extra tokens after top-level form', () => {
 Deno.test('buildSExprList — multiple top-level forms', () => {
   const forms = buildSExprList(tokenize('(module) (assert_return)'));
   assertEquals(forms.length, 2);
-  assertEquals(listHead(forms[0] as import('../../src/parser/sexpr.ts').SList), 'module');
-  assertEquals(listHead(forms[1] as import('../../src/parser/sexpr.ts').SList), 'assert_return');
+  assertEquals(
+    listHead(forms[0] as import('../../../src/binaryen-ts/parser/sexpr.ts').SList),
+    'module',
+  );
+  assertEquals(
+    listHead(forms[1] as import('../../../src/binaryen-ts/parser/sexpr.ts').SList),
+    'assert_return',
+  );
 });
 
 Deno.test('sExprToString — round-trips an atom', () => {

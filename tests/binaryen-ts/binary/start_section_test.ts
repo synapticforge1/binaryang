@@ -18,13 +18,13 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm } from '../../src/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../src/encoder/index.ts';
-import { makeGlobalSet, makeI32Const } from '../../src/ir/expressions.ts';
-import { ModuleBuilder } from '../../src/ir/module.ts';
-import { ValType } from '../../src/ir/types.ts';
-import { PassRunner } from '../../src/passes/pass.ts';
-import '../../src/passes/index.ts'; // side-effect: registers the pass registry
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { makeGlobalSet, makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: registers the pass registry
 
 /**
  * Hand-built module: `global $g (mut i32) = 0`, `func $init { $g = 42 }`,

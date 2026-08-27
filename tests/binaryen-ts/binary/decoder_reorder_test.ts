@@ -29,9 +29,9 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../src/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import type { Expression } from '../../src/ir/expressions.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
 
 // Hand-assembled module (global $g mut i32 = 100):
 //   (func (export "f") (result i32)

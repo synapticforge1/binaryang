@@ -1,0 +1,115 @@
+{
+  "name": "@jrmarcum/binaryang",
+  "version": "1.5.1",
+  "license": "MIT",
+  "minimumDependencyAge": "0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ir/binaryen-ts": "./src/binaryen-ts/ir/index.ts",
+    "./ir/wabt-ts": "./src/wabt-ts/ir/index.ts",
+    "./compat/binaryen": "./src/binaryen-ts/api/binaryen-compat.ts",
+    "./compat/wabt": "./src/wabt-ts/api/wabt-compat.ts",
+    "./api": "./src/binaryen-ts/api/index.ts",
+    "./binary": "./src/binaryen-ts/binary/index.ts",
+    "./encoder": "./src/binaryen-ts/encoder/index.ts",
+    "./passes": "./src/binaryen-ts/passes/index.ts",
+    "./interop": "./src/binaryen-ts/interop/binaryen-js.ts",
+    "./wasm": "./src/binaryen-ts/wasm/index.ts",
+    "./wasm-runtime": "./src/binaryen-ts/wasm-runtime.ts",
+    "./tools/wasm-opt": "./src/binaryen-ts/tools/wasm-opt.ts",
+    "./wat2wasm": "./src/wabt-ts/tools/wat2wasm.ts",
+    "./wasm2wat": "./src/wabt-ts/tools/wasm2wat.ts",
+    "./wasm-validate": "./src/wabt-ts/tools/wasm-validate.ts",
+    "./wasm-objdump": "./src/wabt-ts/tools/wasm-objdump.ts",
+    "./wasm-strip": "./src/wabt-ts/tools/wasm-strip.ts",
+    "./wasm2ts": "./src/wabt-ts/tools/wasm2ts.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1",
+    "@std/expect": "jsr:@std/expect@^1.0.0",
+    "@std/testing": "jsr:@std/testing@^1.0.0",
+    "@std/path": "jsr:@std/path@^1.0.0"
+  },
+  "workspace": [
+    "./tests/binaryen-ts"
+  ],
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "lib": [
+      "esnext",
+      "deno.ns",
+      "deno.window",
+      "dom"
+    ]
+  },
+  "tasks": {
+    "check": "deno check src/**/*.ts main.ts tests/**/*.ts scripts/**/*.ts",
+    "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/",
+    "fmt": "deno fmt",
+    "fmt:check": "deno fmt --check",
+    "lint": "deno lint",
+    "ci": "deno task check && deno task test",
+    "publish:dry": "deno publish --dry-run --allow-dirty",
+    "baseline": "deno run --allow-read scripts/wabt-ts/verify-baseline.ts"
+  },
+  "fmt": {
+    "include": [
+      "src/",
+      "tests/",
+      "scripts/",
+      "main.ts",
+      "benches/"
+    ],
+    "exclude": [
+      "scripts/**/*.md",
+      "tests/wabt-ts/wasmtk/"
+    ],
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "singleQuote": true
+  },
+  "lint": {
+    "include": [
+      "src/",
+      "tests/",
+      "scripts/",
+      "main.ts"
+    ],
+    "exclude": [
+      "tests/wabt-ts/wasmtk/"
+    ],
+    "rules": {
+      "tags": [
+        "recommended"
+      ]
+    }
+  },
+  "publish": {
+    "include": [
+      "main.ts",
+      "src/**/*.ts",
+      "README.md",
+      "LICENSE",
+      "LICENSE-MIT",
+      "LICENSE-APACHE",
+      "NOTICE.md",
+      "deno.json"
+    ],
+    "exclude": [
+      "tests/**",
+      "benches/**",
+      "scripts/**",
+      "src/**/*.test.ts"
+    ]
+  },
+  "exclude": [
+    "node_modules/",
+    "dist/"
+  ]
+}

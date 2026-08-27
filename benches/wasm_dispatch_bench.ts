@@ -26,8 +26,8 @@
  * @license MIT
  */
 
-import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from '../src/wasm/index.ts';
-import { loadKernel } from '../src/wasm-runtime.ts';
+import { DEMO_BYTES, DEMO_KERNEL_EXPORTS } from '../src/binaryen-ts/wasm/index.ts';
+import { loadKernel } from '../src/binaryen-ts/wasm-runtime.ts';
 
 const kernel = await loadKernel({
   name: 'demo-bench',

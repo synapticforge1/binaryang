@@ -28,13 +28,17 @@ import {
   makeNop,
   makeReturn,
   makeUnreachable,
-} from '../../src/ir/expressions.ts';
-import { ModuleBuilder, type WasmFunction, type WasmModule } from '../../src/ir/module.ts';
-import { None, ValType } from '../../src/ir/types.ts';
-import { encodeWasm } from '../../src/encoder/index.ts';
-import { parseWasm } from '../../src/binary/index.ts';
-import { listPasses, PassRunner } from '../../src/passes/index.ts';
-import { parseArgs, wasmOpt } from '../../src/tools/wasm-opt.ts';
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import {
+  ModuleBuilder,
+  type WasmFunction,
+  type WasmModule,
+} from '../../../src/binaryen-ts/ir/module.ts';
+import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { parseArgs, wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
