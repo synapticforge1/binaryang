@@ -427,7 +427,7 @@ has `NOTICE.md`, the copyright lines differ in both name form and year (`2026 Jo
 `2024 J.R. Marcum`), per-file attribution headers must survive relocation, and JSR takes a single
 SPDX identifier — so it stays `MIT`.
 
-### N6 🔓⚠️ The Node 18 floor is EOL, and it is the stated reason for two decisions
+### N6 ✅⚠️ The Node floor — **DECIDED 2026-08-26: current LTS, today Node 24**
 
 Raised by the owner, 2026-08-26. Both registers, the kickoff brief and every decision below it assume
 a **Node 18** floor. Node 18 reached end of life on 2025-04-30 — sixteen months before this merge —
@@ -530,13 +530,52 @@ migration note they must read to change the package name. Stating the floor once
 costs nothing. Discovering later that binaryang silently stopped working on an EOL runtime costs a
 support thread.
 
-🔓 **Open for the owner:** the floor is a policy call, not a measurement. *Latest LTS and up* means
-**Node 24+**. A more conservative **Node 22+** buys the maintenance-LTS line at the cost of keeping
-the `import.meta.main` question open **for Node only** — 24 is verified, and the version that
-introduced it should be confirmed before 22 is promised. **Bun and Deno constrain nothing** — Bun has
-had it since v0.6.0, Deno since long before 2.x. Node is the entire question. The EOL dates above should be confirmed
-against Node's published schedule too; they are stated from the release calendar and corroborated by
-GitHub's runtime deprecation, not read from it today.
+#### ✅ Decided — the floor is the current Node LTS, and it is **Node 24**
+
+Owner, 2026-08-26: **the Node floor will always be the Node LTS**, which today is 24. Node 22 is not
+promised, so the `import.meta.main` question that would have applied to it never arises — 24 is
+verified above.
+
+✅ **The EOL dates are now confirmed at the source**, closing the caveat this entry previously
+carried. Read from `nodejs/Release/schedule.json`, not from the release calendar or from memory:
+
+| line | LTS from | maintenance | end of life | status today |
+| --- | --- | --- | --- | --- |
+| v18 | 2022-10-25 | 2023-10-18 | **2025-04-30** | EOL |
+| v20 | 2023-10-24 | 2024-10-22 | **2026-04-30** | EOL |
+| v22 | 2024-10-29 | 2025-10-21 | 2027-04-30 | maintenance |
+| **v24** | 2025-10-28 | 2026-10-20 | **2028-04-30** | **Active LTS** |
+| v26 | **2026-10-28** | 2027-10-20 | 2029-04-30 | Current — **LTS in 63 days** |
+
+Both dates this register asserted are correct. Node 18 died 2025-04-30, sixteen months ago; Node 20
+followed 2026-04-30.
+
+#### ⚠️ The policy is a moving target, and it moves in 63 days
+
+**Node 26 becomes LTS on 2026-10-28** — roughly two months after binaryang 1.5.1 publishes. So
+"always the LTS" cannot be written into the README as a bare number without going stale almost
+immediately. **State it as a policy and name the current value**, e.g. *"binaryang targets the
+current Node.js LTS — Node 24 as of 2026-08"*, so the sentence stays true when 26 lands.
+
+There are two readings of what happens on that date, and they differ:
+
+- **(a) the floor rises to 26**, dropping Node 24 two months after shipping — even though Node 24 is
+  supported until **2028-04-30**.
+- **(b) the floor stays 24**, and 26 is simply included, because 24 remains an LTS line until it dies.
+
+**Recommended: (b)**, and the owner's own earlier phrasing supports it — *"the latest lts version
+**and up**."* Node 24-and-up already includes 26 the day it lands. Reading (a) would mean a breaking
+floor bump every twelve months, gaining nothing: nothing in this codebase needs a Node 26 feature,
+and dropping a still-supported LTS surprises users for no capability.
+
+Not urgent, but it wants deciding before October rather than during it.
+
+⚠️ **One consistency note, recorded once and not laboured.** The stated principle was *"it doesn't
+make sense to support versions that have met their end of life."* A **current-LTS-only** floor goes
+further than that: it also excludes **Node 22**, which is in maintenance until 2027-04-30 and is not
+EOL. Same shape as the Bun 1.3 question below. That is a legitimate policy — many projects track the
+LTS — but it is a *newer-than-EOL* policy, and the README should say what it is rather than justify
+it as EOL hygiene, because the two are different promises.
 
 Whatever is chosen, it belongs in the binaryang README beside the version note, because it is the
 same kind of claim: something a consumer must know before adopting.

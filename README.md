@@ -24,6 +24,41 @@ It is not a patch. It is the next version of **two** packages that both sat at 1
 continuous with each predecessor's; the package is not. Read `1.5.1` as "the release after both
 1.5.0s", not as a bugfix on either.
 
+## Runtime support
+
+binaryang runs on **Deno, Node.js, Bun, and modern browsers** from a single source tree. That is a
+tested capability, not an aspiration — it is the reason the CLI is one dispatcher rather than six
+runtime-gated entry points.
+
+**Node.js: the floor is the current Node LTS — Node 24 as of 2026-08.**
+
+Stated as a policy rather than a fixed number on purpose, because the number moves: Node 26 becomes
+LTS on 2026-10-28. Older lines are not supported, and the reason is that they are gone — **Node 18
+reached end of life on 2025-04-30 and Node 20 on 2026-04-30.** Neither receives security fixes.
+
+Note this is a *current-LTS* policy, not an *anything-not-EOL* policy: **Node 22 is in maintenance
+until 2027-04-30 and is still not supported here.** Said plainly so the promise is not mistaken for
+a wider one.
+
+### What that buys, and why it is in this file
+
+The floor is load-bearing rather than cosmetic. Both predecessor projects banned `import.meta.main`
+in published modules because Node 18 lacked it — a rule that shaped the CLI architecture. On the
+current floor that constraint is gone: `import.meta.main` is available on Node, Bun **and** Deno.
+
+The constraint that remains, and the one the layout actually answers to:
+
+| layer | may use | may not use |
+| ----- | ------- | ----------- |
+| **library** — the exported surface | web-standard APIs only | `Deno.*`, `node:*` |
+| **CLI and interop** | `node:*` builtins | `Deno.*` |
+
+`node:` builtins are portable across Deno, Node and Bun, which is why the CLI layer may use them.
+They are **not** portable to the browser, which is why the library layer may not. A Deno-only global
+is never permitted in shipped source: it works on exactly one of the four targets.
+
+Both rules are checked mechanically in CI, beside `fmt` and `lint`.
+
 ## The settled decisions
 
 Agreed 2026-08-25, before the first commit of the merge. Recorded here so they are not relitigated
