@@ -112,13 +112,26 @@ import {
 } from '../ir/module.ts';
 import { None, type Type, ValType } from '../ir/types.ts';
 import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
-import { createPass, PassRunner } from '../passes/index.ts';
+import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
 
 // ---------------------------------------------------------------------------
 // Numeric type IDs — same values as upstream binaryen.js
 // ---------------------------------------------------------------------------
 
 /** Type ID for the empty (void) result. */
+/**
+ * Every registered optimisation pass name, in this project's canonical
+ * PascalCase form.
+ *
+ * Exposed on the compat surface because `runPasses` rejects unknown names, and
+ * an error that names a function the caller cannot reach is a dead end — which
+ * is exactly what wasmtk hit on 2026-08-27 while trying to bisect a miscompile.
+ * `runPasses` also accepts upstream binaryen's kebab-case spellings.
+ */
+export function listPasses(): string[] {
+  return _listPasses();
+}
+
 export const none: number = 0;
 /** Type ID for an unreachable expression. */
 export const unreachable: number = 1;
@@ -1425,9 +1438,12 @@ export class Module {
 
   /**
    * Runs an explicit list of named passes (e.g. `["DCE", "Vacuum"]`) using the
-   * current module-level optimization settings. Throws if a pass name is not
-   * registered — use the binaryen-ts pass-registry names (see
-   * `listPasses()` from `@jrmarcum/binaryang/passes`).
+   * current module-level optimization settings.
+   *
+   * Names may be given in this project's PascalCase form (`"CoalesceLocals"`) or
+   * in upstream binaryen's kebab-case form (`"coalesce-locals"`); both resolve.
+   * Throws if a pass name is not registered, and the error lists the registered
+   * names. See also {@link listPasses}.
    */
   runPasses(passes: string[]): void {
     const runner = new PassRunner(this._inner, {

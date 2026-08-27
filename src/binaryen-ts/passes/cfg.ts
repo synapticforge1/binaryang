@@ -374,14 +374,39 @@ class _CFGBuilder {
         const bodyEntry = this.newBlock();
         this.link(this.current, bodyEntry);
         // Each catch clause names a destination label, so the throw edge is
-        // modelled as: bodyEntry → target-of(catch.dest). If no matching
+        // modelled as: throw-point → target-of(catch.dest). If no matching
         // catch resolves, the throw exits the function (we drop the edge).
+        const targets: BasicBlock[] = [];
         for (const cc of e.catches) {
           const target = this.resolveLabel(cc.dest);
-          if (target) this.link(bodyEntry, target);
+          if (target) {
+            this.link(bodyEntry, target); // conservative entry edge
+            targets.push(target);
+          }
         }
         this.current = bodyEntry;
+        // The entry edge alone is NOT sufficient, and that gap is the defect
+        // wasmtk reported on 2026-08-27: `-Oz` dropping a pre-try store.
+        //
+        // A throw can happen at ANY point in the body, not only at its entry.
+        // With only `bodyEntry → handler`, liveness sees the body's own writes as
+        // having already happened by the time the handler is reached, so a local
+        // written INSIDE the body kills the incoming live range and the
+        // initialising store BEFORE the try_table looks dead:
+        //
+        //   local.set $r 41                  <- eliminated, wrongly
+        //   try_table (catch $tag $h)
+        //     local.set $r (call $mayThrow)  <- never lands; the call throws
+        //   $h: ... $r is read later and must still be 41
+        //
+        // Legacy `try` already handles this by pushing its catch entries onto the
+        // handler stack, so every throwing instruction in the body links to them
+        // (see linkToHandlers). `try_table` did not — purely because its catches
+        // are branch targets rather than inline handlers. The shape differs; the
+        // liveness requirement does not.
+        this.handlerStack.push(targets);
         this.visit(e.body);
+        this.handlerStack.pop();
         this.link(this.current, merge);
         this.current = merge;
         return;

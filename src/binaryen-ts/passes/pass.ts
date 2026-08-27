@@ -186,9 +186,16 @@ export function listPasses(): string[] {
 export function createPass(name: string): Pass {
   let ctor = registry.get(name);
   if (!ctor) {
-    const lower = name.toLowerCase();
+    // Registry names are PascalCase (`CoalesceLocals`); upstream binaryen — which
+    // `compat/binaryen` emulates — names the same passes in kebab-case
+    // (`coalesce-locals`). A caller following binaryen's own documentation writes
+    // the kebab form, so normalise separators as well as case. Reported by wasmtk
+    // 2026-08-27, who could not bisect a miscompile because every pass name they
+    // tried was rejected.
+    const norm = (n: string): string => n.toLowerCase().replace(/[-_]/g, '');
+    const want = norm(name);
     for (const [key, value] of registry) {
-      if (key.toLowerCase() === lower) {
+      if (norm(key) === want) {
         ctor = value;
         break;
       }
@@ -196,7 +203,7 @@ export function createPass(name: string): Pass {
   }
   if (!ctor) {
     throw new Error(
-      `Unknown pass: "${name}". Run listPasses() to see registered passes.`,
+      `Unknown pass: "${name}". Registered passes: ${listPasses().join(', ')}.`,
     );
   }
   return new ctor();
