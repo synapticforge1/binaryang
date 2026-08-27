@@ -30,21 +30,40 @@ binaryang runs on **Deno, Node.js, Bun, and modern browsers** from a single sour
 tested capability, not an aspiration — it is the reason the CLI is one dispatcher rather than six
 runtime-gated entry points.
 
-**Node.js: the floor is the current Node LTS — Node 24 as of 2026-08.**
+| runtime | floor | why that floor |
+| ------- | ----- | -------------- |
+| **Node.js** | **22.18.0** | everything older is end of life |
+| **Bun** | **1.4.0** | the Zig → Rust rewrite; see below |
+| **Deno** | 2.x | |
+| **browsers** | modern | the library surface only, not the CLI |
 
-Stated as a policy rather than a fixed number on purpose, because the number moves: Node 26 becomes
-LTS on 2026-10-28. Older lines are not supported, and the reason is that they are gone — **Node 18
-reached end of life on 2025-04-30 and Node 20 on 2026-04-30.** Neither receives security fixes.
+### Node.js — the rule is "not end of life"
 
-Note this is a *current-LTS* policy, not an *anything-not-EOL* policy: **Node 22 is in maintenance
-until 2027-04-30 and is still not supported here.** Said plainly so the promise is not mistaken for
-a wider one.
+Every Node line older than 22 is gone: **18 ended 2025-04-30 and 20 ended 2026-04-30**, and no
+odd-numbered line survives. Node 22 is in maintenance until 2027-04-30, so it is supported.
 
-### What that buys, and why it is in this file
+**The floor is 22.18.0 rather than 22.0**, and the patch matters: `import.meta.main` was added in
+Node 24.2.0 and backported to the v22 line in **22.18.0** (2025-07-31). Node 22.0–22.17 lack it, so
+"Node 22" would be a promise this project cannot keep.
 
-The floor is load-bearing rather than cosmetic. Both predecessor projects banned `import.meta.main`
-in published modules because Node 18 lacked it — a rule that shaped the CLI architecture. On the
-current floor that constraint is gone: `import.meta.main` is available on Node, Bun **and** Deno.
+This is a lifecycle rule, not a "latest LTS" rule. When Node 26 becomes LTS on 2026-10-28 nothing
+here changes: 22 is still supported because it is still alive.
+
+### Bun — the rule is different, on purpose
+
+**Bun 1.4.0 is the first release written in Rust**; every earlier version was Zig. The floor sits on
+that boundary so binaryang never spans two different implementations of the same runtime.
+
+Bun 1.3 is **not** end of life — under the Node rule it would be supported. It is excluded anyway,
+and this is the one place where the two runtimes are governed differently. Stated plainly rather
+than buried, because an unexplained exception looks like an oversight.
+
+### What that buys, and why it is in this file### What that buys, and why it is in this file
+
+The floors are load-bearing rather than cosmetic. Both predecessor projects banned
+`import.meta.main` in published modules because Node 18 lacked it — a rule that shaped the CLI
+architecture. On these floors that constraint is gone: `import.meta.main` is available on every
+supported version of Node, Bun and Deno.
 
 The constraint that remains, and the one the layout actually answers to:
 

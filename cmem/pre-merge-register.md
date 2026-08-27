@@ -427,7 +427,7 @@ has `NOTICE.md`, the copyright lines differ in both name form and year (`2026 Jo
 `2024 J.R. Marcum`), per-file attribution headers must survive relocation, and JSR takes a single
 SPDX identifier — so it stays `MIT`.
 
-### N6 ✅⚠️ The Node floor — **DECIDED 2026-08-26: current LTS, today Node 24**
+### N6 ✅ The Node floor — **DECIDED 2026-08-26: not-EOL, which means Node 22.18.0**
 
 Raised by the owner, 2026-08-26. Both registers, the kickoff brief and every decision below it assume
 a **Node 18** floor. Node 18 reached end of life on 2025-04-30 — sixteen months before this merge —
@@ -530,57 +530,73 @@ migration note they must read to change the package name. Stating the floor once
 costs nothing. Discovering later that binaryang silently stopped working on an EOL runtime costs a
 support thread.
 
-#### ✅ Decided — the floor is the current Node LTS, and it is **Node 24**
+#### ✅ Decided — support what is not end-of-life
 
-Owner, 2026-08-26: **the Node floor will always be the Node LTS**, which today is 24. Node 22 is not
-promised, so the `import.meta.main` question that would have applied to it never arises — 24 is
-verified above.
+Owner, 2026-08-26. The first statement of this was *"the floor will always be the Node LTS"*, but
+the **intent** was *support versions that have not reached end of life* — and the register flagged
+that those are different promises. Corrected to the intent: **not-EOL is the policy.**
 
-✅ **The EOL dates are now confirmed at the source**, closing the caveat this entry previously
-carried. Read from `nodejs/Release/schedule.json`, not from the release calendar or from memory:
+Recording the correction rather than just the outcome, because the distinction is the useful part
+and it was nearly lost twice: a **current-LTS** floor and a **not-EOL** floor differ by exactly one
+live line, and that line is Node 22.
 
-| line | LTS from | maintenance | end of life | status today |
+✅ **Read from `nodejs/Release/schedule.json`, not recalled.** Every Node line still alive on
+2026-08-26:
+
+| line | LTS from | maintenance | end of life | status |
 | --- | --- | --- | --- | --- |
-| v18 | 2022-10-25 | 2023-10-18 | **2025-04-30** | EOL |
-| v20 | 2023-10-24 | 2024-10-22 | **2026-04-30** | EOL |
-| v22 | 2024-10-29 | 2025-10-21 | 2027-04-30 | maintenance |
-| **v24** | 2025-10-28 | 2026-10-20 | **2028-04-30** | **Active LTS** |
-| v26 | **2026-10-28** | 2027-10-20 | 2029-04-30 | Current — **LTS in 63 days** |
+| **v22** | 2024-10-29 | 2025-10-21 | **2027-04-30** | maintenance LTS — **the floor** |
+| v24 | 2025-10-28 | 2026-10-20 | 2028-04-30 | Active LTS |
+| v26 | 2026-10-28 | 2027-10-20 | 2029-04-30 | Current; LTS 2026-10-28 |
+| v27 | — | 2027-10-20 | 2030-04-30 | non-LTS |
 
-Both dates this register asserted are correct. Node 18 died 2025-04-30, sixteen months ago; Node 20
-followed 2026-04-30.
+**Nothing before v22 is alive.** v18 ended 2025-04-30, v20 ended 2026-04-30, and every odd line
+(v19, v21, v23, v25) is long gone. So "not EOL" and "v22 and up" name the same set today, and the
+question *"is there anything before 22 still supported?"* has a clean answer: **no.**
 
-#### ⚠️ The policy is a moving target, and it moves in 63 days
+✅ Both EOL dates this register asserted earlier are confirmed correct at the source. That caveat is
+closed.
 
-**Node 26 becomes LTS on 2026-10-28** — roughly two months after binaryang 1.5.1 publishes. So
-"always the LTS" cannot be written into the README as a bare number without going stale almost
-immediately. **State it as a policy and name the current value**, e.g. *"binaryang targets the
-current Node.js LTS — Node 24 as of 2026-08"*, so the sentence stays true when 26 lands.
+#### ⚠️ The floor is **22.18.0**, not 22 — and this nearly went wrong
 
-There are two readings of what happens on that date, and they differ:
+A v22 floor reopens the `import.meta.main` question the register had parked, and the answer is not
+the simple one. **It was implemented in [PR #57804](https://github.com/nodejs/node/pull/57804),
+released in Node 24.2.0 — and it was BACKPORTED to the v22 line.** The same commit `430e66b9b8`
+appears in `CHANGELOG_V22.md`, marked SEMVER-MINOR, under:
 
-- **(a) the floor rises to 26**, dropping Node 24 two months after shipping — even though Node 24 is
-  supported until **2028-04-30**.
-- **(b) the floor stays 24**, and 26 is simply included, because 24 remains an LTS line until it dies.
+> **2025-07-31, Version 22.18.0 'Jod' (LTS)**
 
-**Recommended: (b)**, and the owner's own earlier phrasing supports it — *"the latest lts version
-**and up**."* Node 24-and-up already includes 26 the day it lands. Reading (a) would mean a breaking
-floor bump every twelve months, gaining nothing: nothing in this codebase needs a Node 26 feature,
-and dropping a still-supported LTS surprises users for no capability.
+So:
 
-Not urgent, but it wants deciding before October rather than during it.
+| version range | `import.meta.main` |
+| --- | --- |
+| Node 22.0 – 22.17 | ❌ absent |
+| **Node ≥ 22.18.0** | ✅ present |
+| Node ≥ 24.2.0 | ✅ present |
 
-⚠️ **One consistency note, recorded once and not laboured.** The stated principle was *"it doesn't
-make sense to support versions that have met their end of life."* A **current-LTS-only** floor goes
-further than that: it also excludes **Node 22**, which is in maintenance until 2027-04-30 and is not
-EOL. Same shape as the Bun 1.3 question below. That is a legitimate policy — many projects track the
-LTS — but it is a *newer-than-EOL* policy, and the README should say what it is rather than justify
-it as EOL hygiene, because the two are different promises.
+⚠️ **"Node 22+" would therefore be wrong as written** — it admits 22.0–22.17, which lack the feature.
+The floor must carry the minor: **22.18.0**. A patch-level qualifier on a support claim looks
+pedantic until it is the difference between a promise you keep and one you don't.
 
-Whatever is chosen, it belongs in the binaryang README beside the version note, because it is the
-same kind of claim: something a consumer must know before adopting.
+Had the earlier current-LTS decision stood, this would never have surfaced; had not-EOL been adopted
+without re-checking, "Node 22+" would have shipped as a false claim. **Both readings had to be
+followed to their end to get a correct floor**, which is the argument for writing the difference
+down rather than resolving it silently.
 
-#### 🔓 The Bun floor is a different decision from the Node one
+⚠️ **One thing measured on 24 and NOT on 22:** JSON import attributes
+(`with { type: 'json' }`). Verified on Node 24.19.0, Bun and Deno; **unverified on 22.18**. It does
+not matter — N4's fix deliberately keeps a version literal and performs no runtime read, so nothing
+in the tree depends on it. Flagged because this register's table said *measured, not recalled*, and
+that claim has to stay true about its own contents.
+
+#### What survives, and what still does not
+
+**Step 4's stated rationale stays dead, and now on firmer ground.** Every supported Node line has
+`import.meta.main`, so the ban's premise is expired across all four targets — not merely relaxed.
+And step 4 stays forced for the N3(c) reason, unchanged: the six tools reach for the `Deno` global,
+absent from Node and Bun at every version.
+
+#### ✅ The Bun floor — **1.4.0**, and deliberately NOT an EOL argument
 
 Owner direction, 2026-08-26: pin Bun to **1.4.0**, on the grounds that it is now fully Rust.
 
@@ -598,22 +614,45 @@ days ago. Raising the Bun floor is therefore not EOL hygiene; it is choosing to 
 who have not upgraded yet. That may well be right, but it is a narrower promise made for a different
 reason, and filing it under the same heading as the Node decision would hide that.
 
-🔓 **Recommendation, owner to confirm — separate the two things being called "pinning":**
+#### ✅ Decided — 1.4.0, on the implementation boundary
 
-- **CI / test matrix → 1.4.0, yes.** Test against the runtime people will actually be on.
-- **Published support floor → hold at 1.3 for one cycle.** A *complete implementation rewrite* is an
-  argument for **widening** the test matrix, not narrowing the support floor: as of six days ago
-  Bun's runtime is entirely new code, so a behavioural difference between 1.3.x and 1.4.x is far
-  likelier than between any two Zig releases. That is precisely when keeping the older line in the
-  matrix earns its keep — and it costs nothing here, since scoop already retains 1.3.14 on disk.
+Owner, 2026-08-26: **the Bun floor is 1.4.0, and the reason is the Zig → Rust crossover** — not
+lifecycle. Supporting 1.3.x means supporting a Bun whose runtime is a *different implementation* from
+1.4.x's. The floor is drawn so binaryang never straddles that boundary.
 
-Two things cut the other way, recorded so the decision is not made on one-sided evidence: Bun's own
-post says Claude Code had been running the Rust port for months before release, so it is not untested
-in the wild; and on the one probe this plan actually depends on, `import.meta.main`, **1.3.14 (Zig)
-and 1.4.0 (Rust) behave identically** — verified, not assumed.
+**This is a deliberate exception to the not-EOL policy, and it is recorded as one.** Bun 1.3 is not
+end of life; it was current until 2026-08-20. Under the Node rule it would be supported. It is
+excluded anyway, for a reason that has nothing to do with lifecycle and everything to do with there
+being two implementations behind one version range. Written down explicitly so it does not later
+read as an inconsistency — an exception with its reason attached is a decision; the same exception
+without one is a bug in the policy.
 
-Whatever is chosen lands in the same README sentence as the Node floor, because it is the same kind
-of claim: something a consumer must know before adopting.
+⚠️ **This supersedes the recommendation this entry previously carried**, which was: take 1.4.0 for
+CI but hold the *published* floor at 1.3 for one cycle, on the grounds that a rewrite makes
+divergence likely and therefore argues for a wider test matrix.
+
+**That argument was answering the wrong question.** It is sound about **CI** — if you promise both
+lines, a rewrite is exactly when you must test both. But it inverts on the **promise**: supporting
+1.3 and 1.4 together means owning binaryang's behaviour on *two separate runtime implementations*,
+and every divergence between them becomes a bug this project has to absorb and work around. Widening
+the matrix is the cost of the promise, not a reason to make it.
+
+Once 1.3 is not promised, the argument dissolves rather than being overruled: CI tests 1.4.0+, there
+is no straddle, and nothing is owed to the Zig line.
+
+✅ **The premise is verified**, and recorded because it is recent enough to be easy to get wrong:
+[Bun 1.4](https://bun.com/blog/bun-v1.4), released **2026-08-20**, is the first Rust release; every
+prior version was Zig. Alongside it, ~5× lower idle CPU, up to 35% less memory, 2.5× faster Windows
+startup, and ~97% Node-suite compatibility for `node:http`, `node:fs` and `node:stream` — that last
+matters here, since the Node story is a published capability.
+
+One measurement that cuts against the floor and is kept anyway, so the record is not one-sided: on
+the single probe this plan depends on, `import.meta.main`, **1.3.14 (Zig) and 1.4.0 (Rust) behave
+identically** — verified directly, both installs on disk. The crossover is a reason to draw a line,
+not evidence that the line has already been crossed by a defect.
+
+Both floors land in the same README section, because they are the same kind of claim — something a
+consumer must know before adopting — even though they rest on different reasoning.
 
 ### N7 🔓 Runtime-portability rule — no `Deno.*` in shipped source, and `node:` is not the universal answer
 
