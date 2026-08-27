@@ -37,6 +37,7 @@ unfalsifiable once there is no repository boundary left.
 | [handoffs.md](handoffs.md)                     | Correspondence drafted here and handed over. Nothing is ever written into a sibling repo from this one.                                                                                                                                                                                                                                                                          |
 | [licensing.md](licensing.md)                   | **Merged (A16).** MIT-primary with Apache-2.0 alternative; why the merged repo inherits **both** upstreams' §4 obligations; the copyright-line divergence the merge exposed and how it was resolved; the two JSR rejection conditions both sides learned separately.                                                                                                             |
 | [bridge.md](bridge.md)                         | **Merged (A16).** The boundary between the two IRs — now an internal module rather than a package boundary — and the binding naming rule.                                                                                                                                                                                                                                        |
+| [publishing.md](publishing.md)                 | **Merged (A16), provenance only.** Why provenance fails silently, why editing the YAML is not the fix, the measured per-package history, and the verification step that is the only real evidence. The rest of the release process stays wing-scoped until the release scripts are reconciled.                                                                                   |
 | [best-practices.md](best-practices.md)         | **Merged (A16), convergent rules only.** The rules **both** projects derived independently, each with both origin stories. The full enumerations stay in the wings; see the file for why that split rather than a rewrite.                                                                                                                                                       |
 
 ## The wings
@@ -50,8 +51,8 @@ unfalsifiable once there is no repository boundary left.
 · `INDEX.md` · `best-practices.md` · `bridge.md` · `licensing.md` · `phases.md`
 
 🔓 **Still wing-scoped, deliberately.** `best-practices.md` (2,894 / 294), `testing.md` (635 / 186),
-`publishing.md` (335 / 193), `phases.md` (214 / 177) and `overview.md` (511 / 95) are not yet merged
-into single topic files.
+the **non-provenance half** of `publishing.md` (335 / 193), `phases.md` (214 / 177) and
+`overview.md` (511 / 95) are not yet merged into single topic files.
 
 Each needs a different kind of work and none of it is mechanical:
 
