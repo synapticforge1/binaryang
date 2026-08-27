@@ -1,0 +1,716 @@
+/**
+ * @module binaryen-ts/tests/parser/wat_parser
+ *
+ * Integration tests for the WAT → WasmModule IR parser.
+ *
+ * @license MIT
+ */
+
+import { assert, assertEquals, assertThrows } from '@std/assert';
+import { parseWat, WatParseError } from '../../src/parser/wat-parser.ts';
+import { ExpressionKind } from '../../src/ir/expressions.ts';
+import { Unreachable, ValType } from '../../src/ir/types.ts';
+import { encodeWasm } from '../../src/encoder/index.ts';
+import { PassRunner } from '../../src/passes/index.ts';
+import '../../src/passes/index.ts';
+
+Deno.test('parseWat — empty module', () => {
+  const mod = parseWat('(module)');
+  assertEquals(mod.functions.length, 0);
+  assertEquals(mod.exports.length, 0);
+  assertEquals(mod.imports.length, 0);
+});
+
+Deno.test('parseWat — single function, no body', () => {
+  const mod = parseWat(`(module (func $f))`);
+  assertEquals(mod.functions.length, 1);
+  assertEquals(mod.functions[0].name, '$f');
+  assertEquals(mod.functions[0].params, []);
+  assertEquals(mod.functions[0].results, []);
+});
+
+Deno.test('parseWat — function with params and result', () => {
+  const mod = parseWat(`(module
+    (func $add (param i32 i32) (result i32)
+      (i32.add (local.get 0) (local.get 1))))`);
+  const fn = mod.functions[0];
+  assertEquals(fn.name, '$add');
+  assertEquals(fn.params, [ValType.I32, ValType.I32]);
+  assertEquals(fn.results, [ValType.I32]);
+  assertEquals(fn.body.kind, ExpressionKind.Binary);
+});
+
+Deno.test('parseWat — i32.const', () => {
+  const mod = parseWat(`(module (func $f (result i32) (i32.const 42)))`);
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.Const);
+  assertEquals((body as import('../../src/ir/expressions.ts').ConstExpr).value, { i32: 42 });
+});
+
+Deno.test('parseWat — f64.const', () => {
+  const mod = parseWat(`(module (func $f (result f64) (f64.const 3.14)))`);
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.Const);
+  const v = (body as import('../../src/ir/expressions.ts').ConstExpr).value as { f64: number };
+  assertClose(v.f64, 3.14);
+});
+
+Deno.test('parseWat — local.get and local.set', () => {
+  const mod = parseWat(`(module
+    (func $f (param i32) (result i32)
+      (local.get 0)))`);
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.LocalGet);
+  assertEquals((body as import('../../src/ir/expressions.ts').LocalGetExpr).index, 0);
+  assertEquals((body as import('../../src/ir/expressions.ts').LocalGetExpr).type, ValType.I32);
+});
+
+Deno.test('parseWat — nop and unreachable', () => {
+  const mod = parseWat(`(module (func $f (nop) (unreachable)))`);
+  const fn = mod.functions[0];
+  // Body is a block since there are two expressions
+  assertEquals(fn.body.kind, ExpressionKind.Block);
+  const block = fn.body as import('../../src/ir/expressions.ts').BlockExpr;
+  assertEquals(block.children[0].kind, ExpressionKind.Nop);
+  assertEquals(block.children[1].kind, ExpressionKind.Unreachable);
+});
+
+Deno.test('parseWat — if/then/else', () => {
+  const mod = parseWat(`(module
+    (func $f (param i32) (result i32)
+      (if (result i32) (local.get 0)
+        (then (i32.const 1))
+        (else (i32.const 0)))))`);
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.If);
+});
+
+Deno.test('parseWat — block with label', () => {
+  const mod = parseWat(`(module
+    (func $f
+      (block $b
+        (br $b))))`);
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.Block);
+  const block = body as import('../../src/ir/expressions.ts').BlockExpr;
+  assertEquals(block.name, '$b');
+  assertEquals(block.children[0].kind, ExpressionKind.Break);
+});
+
+Deno.test('parseWat — loop', () => {
+  const mod = parseWat(`(module
+    (func $f
+      (loop $l
+        (br $l))))`);
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.Loop);
+});
+
+Deno.test('parseWat — call', () => {
+  const mod = parseWat(`(module
+    (func $callee (result i32) (i32.const 1))
+    (func $caller (result i32) (call $callee)))`);
+  assertEquals(mod.functions.length, 2);
+  const caller = mod.functions[1];
+  assertEquals(caller.body.kind, ExpressionKind.Call);
+  assertEquals((caller.body as import('../../src/ir/expressions.ts').CallExpr).target, '$callee');
+});
+
+Deno.test('parseWat — export', () => {
+  const mod = parseWat(`(module
+    (func $add (param i32 i32) (result i32)
+      (i32.add (local.get 0) (local.get 1)))
+    (export "add" (func $add)))`);
+  assertEquals(mod.exports.length, 1);
+  assertEquals(mod.exports[0].name, 'add');
+  assertEquals(mod.exports[0].value, '$add');
+  // The standalone export descriptor keyword is `func`, but the IR kind must be
+  // the canonical `function` (matching the binary parser / encoder / passes).
+  // Regression: it used to pass `"func"` straight through.
+  assertEquals(mod.exports[0].kind, 'function');
+});
+
+Deno.test('parseWat — standalone (export ... (func)) encodes + survives Inlining', async () => {
+  // A standalone `(export "x" (func $f))` previously produced kind `"func"`,
+  // which (a) the encoder's export-section switch did not match — corrupting
+  // the export section — and (b) the inliner's `usedGlobally` check did not
+  // match, so it deleted the (apparently unreferenced) exported function.
+  // Reported indirectly via the wasmtk team's Inlining bug report (1.2.7).
+  const mod = parseWat(`(module
+    (func $add (param i32 i32) (result i32)
+      (i32.add (local.get 0) (local.get 1)))
+    (func $caller (param i32) (result i32)
+      (call $add (local.get 0) (i32.const 5)))
+    (export "caller" (func $caller)))`);
+
+  // (1) Encodes to a binary V8 accepts, and the export is callable.
+  const inst0 = new WebAssembly.Instance(
+    await WebAssembly.compile(encodeWasm(mod) as BufferSource),
+  );
+  assertEquals((inst0.exports.caller as (x: number) => number)(10), 15);
+
+  // (2) The exported function survives the Inlining pass (was wrongly removed
+  //     because its export kind didn't match the `usedGlobally` check).
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('Inlining').run();
+  assert(
+    mod.functions.some((f) => f.name === '$caller'),
+    'exported $caller must survive Inlining',
+  );
+  const inst1 = new WebAssembly.Instance(
+    await WebAssembly.compile(encodeWasm(mod) as BufferSource),
+  );
+  assertEquals((inst1.exports.caller as (x: number) => number)(10), 15);
+});
+
+Deno.test('parseWat — inline export', () => {
+  const mod = parseWat(`(module
+    (func $f (export "f") (result i32) (i32.const 0)))`);
+  assertEquals(mod.exports.length, 1);
+  assertEquals(mod.exports[0].name, 'f');
+});
+
+Deno.test('parseWat — memory', () => {
+  const mod = parseWat(`(module (memory $mem 1 4))`);
+  assertEquals(mod.memories.length, 1);
+  assertEquals(mod.memories[0].initial, 1);
+  assertEquals(mod.memories[0].max, 4);
+});
+
+Deno.test('parseWat — function import', () => {
+  const mod = parseWat(`(module
+    (import "env" "log" (func $log (param i32))))`);
+  assertEquals(mod.imports.length, 1);
+  assertEquals(mod.imports[0].module, 'env');
+  assertEquals(mod.imports[0].base, 'log');
+  assertEquals(mod.imports[0].params, [ValType.I32]);
+});
+
+Deno.test('parseWat — full add module', () => {
+  const src = `(module
+    (func $add (export "add") (param $a i32) (param $b i32) (result i32)
+      (i32.add (local.get $a) (local.get $b))))`;
+  const mod = parseWat(src);
+  assertEquals(mod.functions.length, 1);
+  assertEquals(mod.exports.length, 1);
+  assertEquals(mod.exports[0].name, 'add');
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.Binary);
+});
+
+Deno.test('parseWat — return expression', () => {
+  const mod = parseWat(`(module (func $f (result i32) (return (i32.const 99))))`);
+  const body = mod.functions[0].body;
+  assertEquals(body.kind, ExpressionKind.Return);
+  const ret = body as import('../../src/ir/expressions.ts').ReturnExpr;
+  assertEquals(ret.value?.kind, ExpressionKind.Const);
+});
+
+Deno.test('parseWat — drop', () => {
+  const mod = parseWat(`(module (func $f (drop (i32.const 1))))`);
+  assertEquals(mod.functions[0].body.kind, ExpressionKind.Drop);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 1 — Global definitions
+// ---------------------------------------------------------------------------
+
+Deno.test('parseWat — global immutable i32 with const init', () => {
+  const mod = parseWat(`(module (global $g i32 (i32.const 42)))`);
+  assertEquals(mod.globals.length, 1);
+  const g = mod.globals[0];
+  assertEquals(g.name, '$g');
+  assertEquals(g.type, ValType.I32);
+  assertEquals(g.mutable, false);
+  assertEquals(g.init.kind, ExpressionKind.Const);
+});
+
+Deno.test('parseWat — global mutable i64', () => {
+  const mod = parseWat(`(module (global $count (mut i64) (i64.const 0)))`);
+  assertEquals(mod.globals[0].mutable, true);
+  assertEquals(mod.globals[0].type, ValType.I64);
+});
+
+Deno.test('parseWat — global with global.get init referencing imported global', () => {
+  const mod = parseWat(`(module
+    (import "env" "base" (global $base i32))
+    (global $g i32 (global.get $base)))`);
+  assertEquals(mod.imports.length, 1);
+  assertEquals(mod.imports[0].kind, 'global');
+  assertEquals(mod.globals.length, 1);
+  assertEquals(mod.globals[0].init.kind, ExpressionKind.GlobalGet);
+});
+
+Deno.test('parseWat — anonymous global gets synthesized name', () => {
+  const mod = parseWat(`(module (global f32 (f32.const 1.5)))`);
+  assertEquals(mod.globals.length, 1);
+  assertEquals(mod.globals[0].name, '$__global_0');
+  assertEquals(mod.globals[0].type, ValType.F32);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 1 — Import descriptors (global / memory / table)
+// ---------------------------------------------------------------------------
+
+Deno.test('parseWat — import global immutable', () => {
+  const mod = parseWat(`(module (import "env" "g" (global $g i32)))`);
+  const imp = mod.imports[0];
+  assertEquals(imp.kind, 'global');
+  assertEquals(imp.name, '$g');
+  assertEquals(imp.module, 'env');
+  assertEquals(imp.base, 'g');
+  assertEquals(imp.type, ValType.I32);
+  assertEquals(imp.mutable, false);
+});
+
+Deno.test('parseWat — import global mutable', () => {
+  const mod = parseWat(`(module (import "env" "c" (global $counter (mut i32))))`);
+  const imp = mod.imports[0];
+  assertEquals(imp.mutable, true);
+});
+
+Deno.test('parseWat — import memory with initial and max', () => {
+  const mod = parseWat(`(module (import "env" "mem" (memory $m 1 10)))`);
+  const imp = mod.imports[0];
+  assertEquals(imp.kind, 'memory');
+  assertEquals(imp.name, '$m');
+  assertEquals(imp.initial, 1);
+  assertEquals(imp.max, 10);
+});
+
+Deno.test('parseWat — import memory with initial only (no max)', () => {
+  const mod = parseWat(`(module (import "env" "mem" (memory 2)))`);
+  const imp = mod.imports[0];
+  assertEquals(imp.kind, 'memory');
+  assertEquals(imp.initial, 2);
+  assertEquals(imp.max, null);
+});
+
+Deno.test('parseWat — import table funcref with limits', () => {
+  const mod = parseWat(`(module (import "env" "t" (table $t 0 100 funcref)))`);
+  const imp = mod.imports[0];
+  assertEquals(imp.kind, 'table');
+  assertEquals(imp.name, '$t');
+  assertEquals(imp.initial, 0);
+  assertEquals(imp.max, 100);
+  assertEquals(imp.type, ValType.FuncRef);
+});
+
+Deno.test('parseWat — import table without explicit max', () => {
+  const mod = parseWat(`(module (import "env" "t" (table 5 externref)))`);
+  const imp = mod.imports[0];
+  assertEquals(imp.kind, 'table');
+  assertEquals(imp.initial, 5);
+  assertEquals(imp.max, null);
+  assertEquals(imp.type, ValType.ExternRef);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 1 — br_table
+// ---------------------------------------------------------------------------
+
+Deno.test('parseWat — br_table with two targets and a default', () => {
+  const mod = parseWat(`(module
+    (func $f (param i32)
+      (block $a
+        (block $b
+          (block $c
+            (br_table $a $b $c (local.get 0)))))))`);
+  const sw = findSwitch(mod.functions[0].body) as
+    | { targets: string[]; defaultTarget: string; value: unknown }
+    | null;
+  if (!sw) throw new Error('did not find Switch in body');
+  // Targets are resolved to label names: $a/$b are the explicit targets, $c is the default.
+  assertEquals(sw.targets.length, 2);
+  assertEquals(sw.value, null);
+});
+
+Deno.test('parseWat — br_table with a single target (degenerate but valid)', () => {
+  const mod = parseWat(`(module
+    (func $f (param i32)
+      (block $only
+        (br_table $only $only (local.get 0)))))`);
+  const sw = findSwitch(mod.functions[0].body) as
+    | { targets: string[]; defaultTarget: string }
+    | null;
+  if (!sw) throw new Error('did not find Switch in body');
+  assertEquals(sw.targets.length, 1);
+  if (!sw.defaultTarget) throw new Error('missing default target');
+});
+
+// ---------------------------------------------------------------------------
+// Phase 8.1a — old EH `try` with inline body (no `(do ...)` wrapper)
+// ---------------------------------------------------------------------------
+
+Deno.test('parseWat — try with inline body and catch clause', () => {
+  const mod = parseWat(`(module
+    (tag $e (param i32))
+    (func $f (result i32)
+      (try $t (result i32)
+        (i32.const 1)
+        (catch $e (i32.const 99)))))`);
+  const body = mod.functions[0].body as { kind: ExpressionKind; catchTags?: string[] };
+  assertEquals(body.kind, ExpressionKind.Try);
+  assertEquals(body.catchTags, ['$e']);
+});
+
+Deno.test('parseWat — try with inline multi-instruction body wraps into a block', () => {
+  const mod = parseWat(`(module
+    (tag $e)
+    (func $f
+      (try $t
+        (nop)
+        (nop)
+        (catch $e))))`);
+  const t = mod.functions[0].body as {
+    kind: ExpressionKind;
+    body: { kind: ExpressionKind; children?: unknown[] };
+  };
+  assertEquals(t.kind, ExpressionKind.Try);
+  // Two body items → wrapped in an anonymous block
+  assertEquals(t.body.kind, ExpressionKind.Block);
+  assertEquals((t.body.children ?? []).length, 2);
+});
+
+Deno.test('parseWat — try inline body still accepts catch_all and delegate clauses', () => {
+  const mod = parseWat(`(module
+    (tag $e)
+    (func $f
+      (try $t
+        (nop)
+        (catch $e)
+        (catch_all (nop)))))`);
+  const t = mod.functions[0].body as { kind: ExpressionKind; catchTags: string[] };
+  assertEquals(t.kind, ExpressionKind.Try);
+  // catch_all is recorded with the special placeholder tag "$__catch_all"
+  assertEquals(t.catchTags, ['$e', '$__catch_all']);
+});
+
+Deno.test('parseWat — (do ...) wrapped body still works (regression)', () => {
+  const mod = parseWat(`(module
+    (tag $e)
+    (func $f
+      (try $t
+        (do (nop))
+        (catch $e))))`);
+  const t = mod.functions[0].body as { kind: ExpressionKind; catchTags: string[] };
+  assertEquals(t.kind, ExpressionKind.Try);
+  assertEquals(t.catchTags, ['$e']);
+});
+
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+function assertClose(a: number, b: number, epsilon = 1e-10): void {
+  if (Math.abs(a - b) > epsilon) {
+    throw new Error(`Expected ${a} to be close to ${b}`);
+  }
+}
+
+/** Walks an expression tree (any composite kind) looking for a Switch node. */
+function findSwitch(e: unknown): unknown {
+  const expr = e as { kind: ExpressionKind; children?: unknown[]; body?: unknown };
+  if (expr.kind === ExpressionKind.Switch) return expr;
+  if (expr.body) {
+    const found = findSwitch(expr.body);
+    if (found) return found;
+  }
+  if (expr.children) {
+    for (const c of expr.children) {
+      const found = findSwitch(c);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+Deno.test('parseWat — ref.null / ref.func / ref.is_null are parsed (not nop)', () => {
+  // Previously these fell through to the `nop` fallback, silently corrupting
+  // any reference-types instruction in the WAT front door. Regression guard.
+  const mod = parseWat(`(module
+    (table $t 1 funcref)
+    (func $g)
+    (func $f (result i32)
+      (table.set $t (i32.const 0) (ref.func $g))
+      (ref.is_null (ref.null func))))`);
+  const fn = mod.functions.find((f) => f.name === '$f')!;
+  const body = fn.body as { kind: ExpressionKind; children?: { kind: ExpressionKind }[] };
+  const children = body.children ?? [body as { kind: ExpressionKind }];
+
+  const tableSet = children[0] as {
+    kind: ExpressionKind;
+    value: { kind: ExpressionKind; func?: string };
+  };
+  assertEquals(tableSet.kind, ExpressionKind.TableSet);
+  assertEquals(tableSet.value.kind, ExpressionKind.RefFunc);
+  assertEquals(tableSet.value.func, '$g');
+
+  const isNull = children[1] as { kind: ExpressionKind; value: { kind: ExpressionKind } };
+  assertEquals(isNull.kind, ExpressionKind.RefIsNull);
+  assertEquals(isNull.value.kind, ExpressionKind.RefNull);
+});
+
+// ---------------------------------------------------------------------------
+// Expression-typing regressions: the WAT parser used to hand-build `return`
+// and `if` literals instead of routing through the `makeReturn` / `makeIf`
+// factories, re-introducing two mistypings the factories were fixed for.
+// ---------------------------------------------------------------------------
+
+Deno.test("parseWat — folded (return x) is typed unreachable, not the value's type", () => {
+  // A `return` is a control transfer; its node type must be `unreachable` so a
+  // block ending in `(return x)` is not mistyped as `x`'s type. The parser
+  // previously set `type: value.type` here.
+  const mod = parseWat(`(module (func $f (result i32) (return (i32.const 5))))`);
+  const body = mod.functions[0].body as { kind: ExpressionKind; type: unknown };
+  assertEquals(body.kind, ExpressionKind.Return);
+  assertEquals(body.type, Unreachable);
+});
+
+Deno.test('parseWat — bare (return) atom is typed unreachable', () => {
+  const mod = parseWat(`(module (func $f (return)))`);
+  const body = mod.functions[0].body as { kind: ExpressionKind; type: unknown };
+  assertEquals(body.kind, ExpressionKind.Return);
+  assertEquals(body.type, Unreachable);
+});
+
+Deno.test('parseWat — if whose then-arm returns but else falls through survives -Oz (LUB typing)', async () => {
+  // The `then` arm ends in `(return ...)` (now correctly typed unreachable),
+  // but the `else` arm falls through, so the `if` itself is NOT unreachable and
+  // the `(i32.const 42)` after it is live. The old parser typed the `if` as
+  // `ifTrue.type` (unreachable) → DCE deleted the trailing constant and broke
+  // the function. Verified behaviorally through the full -Oz pipeline.
+  const mod = parseWat(`(module
+    (func $f (export "f") (param i32) (result i32)
+      (if (local.get 0)
+        (then (return (i32.const 1)))
+        (else (nop)))
+      (i32.const 42)))`);
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
+    .addDefaultOptimizationPasses()
+    .run();
+  const bytes = encodeWasm(mod);
+  const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes as BufferSource));
+  const f = instance.exports.f as (x: number) => number;
+  assertEquals(f(0), 42); // else taken, then fall through to 42
+  assertEquals(f(1), 1); // then returns early
+});
+
+Deno.test('parseWat — unrecognized instruction fails loudly instead of becoming a silent nop', () => {
+  // An unhandled instruction keyword used to silently return a `nop`, dropping
+  // its operands and corrupting the stack. It now throws with the keyword.
+  assertThrows(
+    () => parseWat(`(module (func $f (bogus.instruction)))`),
+    WatParseError,
+    'unsupported instruction: bogus.instruction',
+  );
+});
+
+Deno.test('parseWat — hex float literal parses to its value, not NaN', () => {
+  // 0x1.8p+1 = (1 + 8/16) × 2^1 = 1.5 × 2 = 3. The old `Number("0x1.8p+1")`
+  // fallback returned NaN for every hex float.
+  const mod = parseWat(`(module (func $f (result f64) (f64.const 0x1.8p+1)))`);
+  const body = mod.functions[0].body as { kind: ExpressionKind; value: { f64: number } };
+  assertEquals(body.kind, ExpressionKind.Const);
+  assertEquals(body.value.f64, 3);
+});
+
+// ---------------------------------------------------------------------------
+// Call / global.get result-type inference (root-cause fix — the WAT parser
+// previously typed every `(call $f)` as `None` and every `(global.get $g)` as
+// i32, because inferFuncResultType/inferGlobalType were TODO stubs returning
+// null. Mistyped calls flowed into passes: Asyncify derived a `None`-typed
+// spill local from a void-typed call, which the encoder silently emitted as
+// i32. See the encoder's valTypeByte fail-loud guard.)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseWat — (call $import) infers the callee's declared result type (not None)", () => {
+  const mod = parseWat(`(module
+    (import "e" "g" (func $g (result f64)))
+    (func $f (result f64) (call $g)))`);
+  const f = mod.functions.find((fn) => fn.name === '$f')!;
+  const call = f.body as { kind: ExpressionKind; type: string };
+  assertEquals(call.kind, ExpressionKind.Call);
+  assertEquals(call.type, ValType.F64);
+});
+
+Deno.test('parseWat — (call $defined) infers result type across a forward reference', () => {
+  // $a calls $b, which is defined AFTER $a — the first-pass funcResults map is
+  // what makes this resolvable during $a's body build.
+  const mod = parseWat(`(module
+    (func $a (result i64) (call $b))
+    (func $b (result i64) (i64.const 7)))`);
+  const a = mod.functions.find((fn) => fn.name === '$a')!;
+  const call = a.body as { kind: ExpressionKind; type: string };
+  assertEquals(call.kind, ExpressionKind.Call);
+  assertEquals(call.type, ValType.I64);
+});
+
+Deno.test("parseWat — (global.get $g) infers the global's declared type", () => {
+  const mod = parseWat(`(module
+    (global $g f64 (f64.const 1))
+    (func $f (result f64) (global.get $g)))`);
+  const f = mod.functions.find((fn) => fn.name === '$f')!;
+  const gg = f.body as { kind: ExpressionKind; type: string };
+  assertEquals(gg.kind, ExpressionKind.GlobalGet);
+  assertEquals(gg.type, ValType.F64);
+});
+
+// ---------------------------------------------------------------------------
+// Fail-loud resolution (was silent-wrong before the hardening sweep): an
+// unresolvable type / heap-type reference must throw, never silently resolve
+// to index 0 / `any`.
+// ---------------------------------------------------------------------------
+
+Deno.test('parseWat — GC struct.new with an unknown (type $x) throws instead of resolving to 0', () => {
+  // resolveTypeIndex previously returned 0 (the wrong type) on a name miss.
+  assertThrows(
+    () => parseWat(`(module (func $f (struct.new $nope)))`),
+    WatParseError,
+    'unknown type',
+  );
+});
+
+Deno.test('parseWat — ref.test with an unknown heap type throws instead of defaulting to any', () => {
+  assertThrows(
+    () => parseWat(`(module (func $f (result i32) (ref.test $nope (ref.null func))))`),
+    WatParseError,
+    'unknown heap type',
+  );
+});
+
+Deno.test('parseWat — call_indirect with an unresolved (type $x) throws instead of an empty signature', () => {
+  assertThrows(
+    () =>
+      parseWat(`(module
+        (table 1 funcref)
+        (func $f (call_indirect (type $nope) (i32.const 0))))`),
+    WatParseError,
+    'unknown type',
+  );
+});
+
+// Regression: a loop CAN produce a value. parseLoop used to skip `(result …)`
+// and hardcode `type: None`, so the encoder emitted a void blocktype for a
+// value-producing loop → invalid module.
+Deno.test('parseWat — (loop (result i32) …) is typed i32 and encodes to valid wasm', async () => {
+  const mod = parseWat(
+    `(module (func $f (export "f") (result i32) (loop $l (result i32) (i32.const 5))))`,
+  );
+  const loop = mod.functions[0].body as { kind: ExpressionKind; type: string };
+  assertEquals(loop.kind, ExpressionKind.Loop);
+  assertEquals(loop.type, ValType.I32);
+  const inst = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource, {});
+  assertEquals((inst.instance.exports as { f: () => number }).f(), 5);
+});
+
+// Regression: PickLoadSigns must NOT flip a narrow load's sign when the value
+// has an observing (non-extension) use such as a signed comparison — the flip
+// would change the comparison result. Load byte 0x80 (=128 unsigned); 128 <_s
+// 100 is false. Flipping to load8_s would make it -128 <_s 100 = true. The pass
+// must leave the value at 0.
+Deno.test('PickLoadSigns — does not flip a narrow load feeding a signed comparison', async () => {
+  const bs = String.fromCharCode(92);
+  const wat = `(module (memory 1) (data (i32.const 0) "${bs}80")
+    (func $f (export "f") (result i32) (local $v i32)
+      (local.set $v (i32.load8_u (i32.const 0)))
+      (i32.lt_s (local.get $v) (i32.const 100))))`;
+  const mod = parseWat(wat);
+  new PassRunner(mod).add('PickLoadSigns').run();
+  const inst = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource, {});
+  assertEquals((inst.instance.exports as { f: () => number }).f(), 0);
+});
+
+// Regression: struct.get / array.get result type is the field/element's declared
+// type (packed i8/i16 unpack to i32), not a hardcoded i32.
+Deno.test("parseWat — struct.get result type follows the field's declared type", () => {
+  const mod = parseWat(`(module
+    (type $p (struct (field f64) (field i8)))
+    (func $f (param (ref $p)) (result f64) (struct.get $p 0 (local.get 0)))
+    (func $g (param (ref $p)) (result i32) (struct.get_u $p 1 (local.get 0))))`);
+  const get0 = mod.functions[0].body as { kind: ExpressionKind; type: string };
+  const get1 = mod.functions[1].body as { kind: ExpressionKind; type: string };
+  assertEquals(get0.type, ValType.F64); // f64 field
+  assertEquals(get1.type, ValType.I32); // packed i8 field unpacks to i32
+});
+
+// Regression: an unknown $global / out-of-range numeric local now fails loud
+// instead of silently typing the access i32.
+Deno.test('parseWat — global.get of an undefined $global throws', () => {
+  assertThrows(
+    () => parseWat(`(module (func $f (result i32) (global.get $nope)))`),
+    WatParseError,
+    'unknown global',
+  );
+});
+
+Deno.test('parseWat — local.get of an out-of-range index throws', () => {
+  assertThrows(
+    () => parseWat(`(module (func $f (result i32) (local.get 7)))`),
+    WatParseError,
+    'out of range',
+  );
+});
+
+// Regression: a function whose signature is given ONLY as a `(type $sig)`
+// reference (no inline `(result …)`) must still type its callers correctly —
+// even when the `(type)` is declared after the func. Previously the call was
+// typed `None` (inline-result-only seeding), which mis-encoded any derived
+// spill local (the Asyncify None-local class).
+Deno.test('parseWat — (func (type $sig)) result type resolves for callers (forward type ref)', () => {
+  const mod = parseWat(`(module
+    (func $caller (result i64) (call $f))
+    (func $f (type $sig))
+    (type $sig (func (result i64))))`);
+  const call = mod.functions[0].body as { kind: ExpressionKind; type: string };
+  assertEquals(call.kind, ExpressionKind.Call);
+  assertEquals(call.type, ValType.I64);
+});
+
+// ---------------------------------------------------------------------------
+// A `(result ...)` annotation with more than one type
+//
+// The parser collected every declared result and then kept only `results[0]`,
+// so `(block (result i32 i32) ...)` produced a block typed `i32`. The encoder
+// dutifully emitted a single-result blocktype for a body pushing two values,
+// and V8 rejected a module whose WAT source was perfectly legal. The IR has
+// carried tuple types since multi-value landed; the annotation just was not
+// reaching them.
+//
+// Asserted behaviorally, not structurally: the function must actually return
+// both values.
+// ---------------------------------------------------------------------------
+
+Deno.test('WAT: a nested multi-result block keeps both results', async () => {
+  const mod = parseWat(`(module (func (export "f") (result i32 i32)
+    (block $outer (result i32 i32)
+      (block $inner (result i32 i32) (i32.const 1) (i32.const 2)))))`);
+
+  const outer = mod.functions[0].body as { type: unknown; children: { type: unknown }[] };
+  assertEquals(outer.type, [ValType.I32, ValType.I32]);
+  assertEquals(outer.children[0].type, [ValType.I32, ValType.I32]);
+
+  const out = encodeWasm(mod);
+  const buf = new ArrayBuffer(out.byteLength);
+  new Uint8Array(buf).set(out);
+  const { instance } = await WebAssembly.instantiate(buf, {});
+  assertEquals((instance.exports.f as () => unknown)(), [1, 2]);
+});
+
+// ---------------------------------------------------------------------------
+// A folded instruction that was not given the operand it reaches for
+//
+// Array indexing is unchecked (`args[1]` on a one-argument list is `undefined`
+// with no type error), so all ~70 folded handlers died on `s.kind` with a raw
+// `TypeError` and no location. Stack-form WAT hits this on every instruction
+// whose operands are on the stack rather than nested — it is genuinely
+// unsupported here (wabt-ts is the front door for user-authored WAT), so the
+// requirement is a typed error that SAYS so, per the robustness contract.
+// ---------------------------------------------------------------------------
+
+Deno.test('WAT: a missing operand is a WatParseError naming the instruction', () => {
+  assertThrows(
+    () => parseWat(`(module (func (export "f") (result i32) (i32.const 1) (i32.const 2) (drop)))`),
+    WatParseError,
+    `missing operand for "drop"`,
+  );
+});

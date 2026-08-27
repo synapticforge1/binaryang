@@ -1,0 +1,111 @@
+/**
+ * @module binaryen-ts/passes/remove-unused-names
+ *
+ * RemoveUnusedNames pass — strips block and loop labels that are never
+ * referenced by a branch instruction.
+ *
+ * A block label is unused when nothing names it as a branch target — not a
+ * `br` / `br_if` / `br_table`, and not one of the label references that are
+ * easy to forget: `br_on_*`, a `try_table` catch destination, a
+ * `try…delegate` target, or a `rethrow`. Such names are meaningless noise that the
+ * encoder still has to emit (and the decoder parse), so removing them
+ * shrinks the binary and simplifies downstream passes.
+ *
+ * An unnamed loop (no back-edge `br` to its label) executes at most once
+ * and is therefore equivalent to a straight-line sequence — the loop wrapper
+ * is replaced by its body.
+ *
+ * Reference: `upstream/src/passes/RemoveUnusedNames.cpp`
+ *
+ * @license MIT
+ */
+
+import {
+  type BlockExpr,
+  type BrOnExpr,
+  type Expression,
+  ExpressionKind,
+  type LoopExpr,
+  type RethrowExpr,
+  type TryExpr,
+  type TryTableExpr,
+} from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+
+// ---------------------------------------------------------------------------
+// Pass class
+// ---------------------------------------------------------------------------
+
+/** Removes unused block/loop names and replaces no-back-edge loops with their bodies. */
+export class RemoveUnusedNamesPass implements Pass {
+  readonly name = 'RemoveUnusedNames';
+  readonly description =
+    'Remove unused block and loop names; replace back-edge-free loops with their bodies.';
+  readonly requiresNonNullableLocalFixups = false;
+
+  run(module: WasmModule, _options: PassOptions): void {
+    for (const fn of module.functions) {
+      fn.body = _processBody(fn.body);
+    }
+  }
+}
+
+registerPass(RemoveUnusedNamesPass);
+
+// ---------------------------------------------------------------------------
+// Implementation
+// ---------------------------------------------------------------------------
+
+function _processBody(body: Expression): Expression {
+  // Pass 1: collect every branch-target name that appears in the tree.
+  const targets = new Set<string>();
+  walkExpression(body, (e) => {
+    if (e.kind === ExpressionKind.Break) {
+      targets.add(e.name);
+    } else if (e.kind === ExpressionKind.Switch) {
+      for (const t of e.targets) targets.add(t);
+      targets.add(e.defaultTarget);
+    } else if (e.kind === ExpressionKind.BrOn) {
+      // `br_on_null` / `br_on_cast` name a label exactly like `br` does.
+      targets.add((e as BrOnExpr).label);
+    } else if (e.kind === ExpressionKind.TryTable) {
+      // A catch clause branches to its `dest` when the handler fires. The
+      // label lives OUTSIDE the try_table, so it is an ordinary block label
+      // that this pass would otherwise see no reference to and strip —
+      // leaving the encoder with a dangling target it can only throw on.
+      for (const c of (e as TryTableExpr).catches) targets.add(c.dest);
+    } else if (e.kind === ExpressionKind.Try) {
+      const t = (e as TryExpr).delegateTarget;
+      if (t !== null) targets.add(t);
+    } else if (e.kind === ExpressionKind.Rethrow) {
+      targets.add((e as RethrowExpr).target);
+    }
+  });
+
+  // Pass 2: strip unused names bottom-up so inner structures are cleaned first.
+  return mapExpression(body, (expr) => _strip(expr, targets));
+}
+
+function _strip(expr: Expression, targets: Set<string>): Expression {
+  if (expr.kind === ExpressionKind.Block) {
+    const block = expr as BlockExpr;
+    if (block.name !== null && !targets.has(block.name)) {
+      return { ...block, name: null };
+    }
+    return block;
+  }
+
+  if (expr.kind === ExpressionKind.Loop) {
+    const loop = expr as LoopExpr;
+    // A loop with no back-edge br executes exactly once — replace with body.
+    // Type guard: only replace when types match (always true for valid MVP WASM).
+    if (!targets.has(loop.name) && loop.type === loop.body.type) {
+      return loop.body;
+    }
+    return loop;
+  }
+
+  return expr;
+}

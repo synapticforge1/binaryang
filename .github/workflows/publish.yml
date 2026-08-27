@@ -1,0 +1,86 @@
+# JSR publish with OIDC provenance.
+#
+# Triggered when a git tag matching `v*` is pushed (e.g. `git tag v1.0.0 && git push --tags`),
+# or dispatched on a tag ref by `.github/workflows/auto-tag.yml` after it detects a `deno.json`
+# version bump on `main`.
+#
+# The publish step calls `deno publish` DIRECTLY — not `deno task publish`. The task wraps
+# `scripts/guarded_publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`.
+# That indirection breaks JSR provenance: JSR's OIDC detection runs in the workflow's primary
+# process and does not propagate cleanly into the subprocess invocation, so the published
+# version gets the "No provenance" flag. Sibling `wasmtk` likewise calls `deno publish` directly
+# in its workflow. The guard script remains in place for local users — running
+# `deno task publish` from a dev machine still refuses with the correct release-flow
+# instructions; CI just doesn't go through it.
+#
+# Required permissions:
+#   - id-token: write   → OIDC token for JSR provenance
+#   - contents: write   → checkout + create GitHub Release after publish
+#
+# JSR side: link the package (`@jrmarcum/binaryen-ts`) to this GitHub repo in the JSR UI
+# under "Settings → GitHub Actions". No JSR token is needed when OIDC is configured.
+
+name: Publish to JSR
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify deno.json version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("deno.json")).version)')"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match deno.json version ($PKG_VERSION)"
+            exit 1
+          fi
+          echo "Versions match: $TAG_VERSION"
+
+      - name: Type-check
+        run: deno task check
+
+      - name: Test
+        run: deno task test
+
+      - name: Publish to JSR (with provenance)
+        # `--allow-slow-types` is needed for `src/interop/binaryen-js.ts`
+        # `BinaryenInterop.create`, which intentionally does `await import(path)`
+        # with a runtime-configurable specifier (default `"npm:binaryen"`, but
+        # callers can supply a custom path or runtime-resolved module). JSR
+        # cannot statically resolve types for such imports — the returned value
+        # is typed `unknown` and validated at runtime via `_validateBinaryenLib`,
+        # so the published package is still type-safe at the API boundary.
+        # Without this flag newer Deno releases (which tightened the slow-types
+        # check) reject the publish; older releases like 2.7.14 used by local
+        # `publish:dry` accept it.
+        run: deno publish --allow-slow-types
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "binaryen-ts $GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag

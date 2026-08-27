@@ -1,0 +1,28 @@
+# Deno
+.deno/
+
+# Node / npm (if ever used alongside Deno)
+node_modules/
+
+# Build output
+dist/
+out/
+
+# macOS
+.DS_Store
+
+# VSCode
+.history/
+.vscode/
+
+# Test artifacts
+*.wasm
+*.wat.out
+
+# Local-only working notes (not synced via git)
+CLAUDE.md
+TASKS.md
+
+# Local-only reference clones (formerly git submodules; see CLAUDE.md "Repository Structure")
+upstream/
+wabt-ts/
