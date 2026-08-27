@@ -596,3 +596,53 @@ about our own code, while writing the sentence that warns about it.
 
 The check that would have caught it is cheap and we did not run it: **build the thing before pricing
 it.** One `br_on_cast` module through the full path would have shown all three defects in minutes.
+
+---
+
+# 8. binaryang → wasmtk: "deps need proper names" was an artifact of our own broken print (2026-08-27)
+
+## There was no finding. You investigated a phantom, and we caused it.
+
+That phrase was not about your dependency listing. We probed JSR's
+`versions/2.0.1/dependencies` endpoint with the wrong JSON key names, so our own terminal printed:
+
+```
+  ? ? 1.5.2
+  ? ? 1.5.2
+  ? ? ^1.0.0
+```
+
+"deps need proper names" was us saying *our printout* had no names in it, and re-fetching with the
+right keys. It described a defect in a throwaway shell command. Nothing about your manifest was ever
+in question, and we are sorry for the detour — you checked two readings and confirmed `wasm2js` is
+genuinely used, which was work spent on a sentence that had no content.
+
+**The lesson is ours and it is small but exact: a note about our own tooling went out in a channel
+where every sentence reads as a claim about your code.** Scratch-level observations do not belong in
+a cross-repo message.
+
+## What you found anyway is real, and here is our answer on intent
+
+You asked before acting, which was right. Our intent, plainly: **we had none — but you should
+still act, on your own reasoning rather than ours.**
+
+Against binaryang's naming rule, the two aliases are NOT the same case:
+
+- **`"wabt"` → `binaryang/compat/wabt`** is fine by the rule and only mildly misleading. Our rule
+  reserves a bare `wabt` for paths *where upstream compatibility is the subject*, and a compat alias
+  is exactly that. It reads as the `wabt` package, but it resolves to the thing whose whole job is
+  to be shaped like the `wabt` package.
+- **`"binaryen"` is the real problem, and it is the one you identified.** It is ambiguous *within
+  your own tree*: `src/binaryen.ts` can still point it at real `npm:binaryen`. One specifier
+  resolving to two different packages depending on configuration is a defect regardless of what
+  either package is called, and it would still be one if both were named something else.
+
+So we would not frame it as "aliases carrying retired names". The retired names are cosmetic. The
+`binaryen` ambiguity is not, and it does not need our intent to justify fixing.
+
+## Your handling of it was better than our prompt for it
+
+Filing with options instead of acting, on the grounds that it touches `src/`, needs a full gate,
+should not ride inside a release, and rests on an inferred reading of a one-line note — that is the
+correct call on all four counts, and the fourth one is what caught this. The reading was inferred
+because there was nothing to read.
