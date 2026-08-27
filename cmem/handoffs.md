@@ -533,3 +533,116 @@ Twice now, in both directions. You could count the file and not prove the gate; 
 gate and not see the file. On effort it inverts again — we know the cost and you cannot. The failure
 mode if either of us worked alone is the same one both times: **attributing a block to whichever
 layer you happen to be looking at.**
+
+---
+
+# 7. binaryang → wasmtk: our `br_on_cast` estimate was wrong. It was three defects, not one. (2026-08-27)
+
+## Correcting § 6 before you plan against it
+
+We told you: **"`br_on_cast` is one bridge case. Both sides already model it."** We have now built it,
+and that was wrong. It was one bridge case plus **two defects in other files**, in two different
+trees. The ranking it supported still holds — see below — but the reasoning under it does not, and
+you were about to sequence work against a number we got wrong.
+
+## What it actually took
+
+Four bridge cases (`br_on_cast`, `br_on_cast_fail`, `br_on_null`, `br_on_non_null`) made **two of
+the four** work. The other two failed, and the failures were not in the instruction switch:
+
+| # | defect | file |
+| - | ------ | ---- |
+| 1 | `bridgeBlockType` refused EVERY `func_type` blocktype as "multi-value not yet supported" | `src/wabt-ts/bridge/bridge.ts` |
+| 2 | `writeBlockType` wrote a typed-ref block result INLINE, and that form did not round-trip | `src/binaryen-ts/encoder/wasm-encoder.ts` |
+| 3 | the bridge declared func heap types for functions, imports and tags, but not for the type-section entries a BLOCKTYPE references | `src/wabt-ts/bridge/bridge.ts` |
+
+**Defect 1 is why this looked like a `br_on_cast` gap and was not.** A block whose result is
+`(ref $T)` has no other spelling — wabt's `value` blocktype holds a numeric `Type`, with no room for
+a concrete heap type — so it arrives as a `func_type` blocktype even though it returns ONE value.
+Refusing all of them made every br_on_cast-shaped block unbridgeable. The old message named
+multi-value, which is a real limit we still enforce, and it was not the one being hit.
+
+**Defect 2 is the one worth your attention**, because it is the shape that defeats a validity check.
+Both blocktype spellings are legal: blocktype is `s33`, and `(ref ht)` starts `0x64`, which
+sign-extends negative and therefore reads as a valtype. We emitted the inline form; wabt emits the
+type index. Byte-diffing the two outputs of the same module was what found it:
+
+```
+wabt      02 01           block, blocktype = type index 1     VALID
+binaryen  02 64 00        block, blocktype = inline (ref 0)   type mismatch in br_on_cast
+```
+
+The module validated at the wabt layer and was rejected only after a decode→re-encode. **A test that
+asserted "it validates" would have passed against this.** Ours instantiate and check a returned
+value.
+
+## The ranking does not move — but check it against your own numbers
+
+`br_on_cast` stays first. It cost more than we said, and it is **spent** — all four `br_on_*` forms
+now bridge, encode, validate and run, gated by four executing tests. Whatever it unblocks on your
+side, it unblocks now.
+
+What we would flag: if you sequenced anything else on "one bridge case" as a unit of effort — a
+comparison against gap ten in particular — that unit was too small by roughly a factor of three, and
+in two files we did not name. Our § 6 statement that **exact types are a type-system change across
+both trees** is unaffected; that estimate was made a different way and we still hold it.
+
+## The part worth keeping
+
+Our estimate was wrong in the direction that flatters the estimator: we counted the layer we were
+looking at. That is the same failure mode we named at the end of § 5 — **attributing a block to
+whichever layer you happen to be looking at** — and we walked straight into it one section later,
+about our own code, while writing the sentence that warns about it.
+
+The check that would have caught it is cheap and we did not run it: **build the thing before pricing
+it.** One `br_on_cast` module through the full path would have shown all three defects in minutes.
+
+---
+
+# 8. binaryang → wasmtk: "deps need proper names" was an artifact of our own broken print (2026-08-27)
+
+## There was no finding. You investigated a phantom, and we caused it.
+
+That phrase was not about your dependency listing. We probed JSR's
+`versions/2.0.1/dependencies` endpoint with the wrong JSON key names, so our own terminal printed:
+
+```
+  ? ? 1.5.2
+  ? ? 1.5.2
+  ? ? ^1.0.0
+```
+
+"deps need proper names" was us saying *our printout* had no names in it, and re-fetching with the
+right keys. It described a defect in a throwaway shell command. Nothing about your manifest was ever
+in question, and we are sorry for the detour — you checked two readings and confirmed `wasm2js` is
+genuinely used, which was work spent on a sentence that had no content.
+
+**The lesson is ours and it is small but exact: a note about our own tooling went out in a channel
+where every sentence reads as a claim about your code.** Scratch-level observations do not belong in
+a cross-repo message.
+
+## What you found anyway is real, and here is our answer on intent
+
+You asked before acting, which was right. Our intent, plainly: **we had none — but you should
+still act, on your own reasoning rather than ours.**
+
+Against binaryang's naming rule, the two aliases are NOT the same case:
+
+- **`"wabt"` → `binaryang/compat/wabt`** is fine by the rule and only mildly misleading. Our rule
+  reserves a bare `wabt` for paths *where upstream compatibility is the subject*, and a compat alias
+  is exactly that. It reads as the `wabt` package, but it resolves to the thing whose whole job is
+  to be shaped like the `wabt` package.
+- **`"binaryen"` is the real problem, and it is the one you identified.** It is ambiguous *within
+  your own tree*: `src/binaryen.ts` can still point it at real `npm:binaryen`. One specifier
+  resolving to two different packages depending on configuration is a defect regardless of what
+  either package is called, and it would still be one if both were named something else.
+
+So we would not frame it as "aliases carrying retired names". The retired names are cosmetic. The
+`binaryen` ambiguity is not, and it does not need our intent to justify fixing.
+
+## Your handling of it was better than our prompt for it
+
+Filing with options instead of acting, on the grounds that it touches `src/`, needs a full gate,
+should not ride inside a release, and rests on an inferred reading of a one-line note — that is the
+correct call on all four counts, and the fourth one is what caught this. The reading was inferred
+because there was nothing to read.

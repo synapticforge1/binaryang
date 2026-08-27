@@ -71,6 +71,16 @@ jobs:
       - name: Verify publish manifest (dry run, no provenance)
         run: deno publish --dry-run --allow-dirty
 
+      # REPORTED, NOT GATED, on purpose. This is the convergence indicator: the
+      # number of exported type names declared in both `src/` trees. Failing on
+      # it would reward making it fall by RENAMING, which moves the number
+      # without converging anything -- the one way of moving it that means
+      # nothing. `|| true` so a change here can never redden a build.
+      - name: Convergence indicator (reported, not gated)
+        run: |
+          deno task collisions >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          deno task collisions --quiet || true
+
   runtimes:
     name: CLI on ${{ matrix.name }}
     runs-on: ubuntu-latest

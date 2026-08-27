@@ -15,25 +15,25 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+import { LexerSource } from '../../src/wabt-ts/parser/lexer-source.ts';
+import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
+import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader.ts';
+import { validateModule } from '../../src/wabt-ts/validator/validator.ts';
 import {
   formatErrors,
   hasErrors,
   makeErrorList,
   unknownLocation,
-} from '../../../src/wabt-ts/core/error.ts';
-import { Result } from '../../../src/wabt-ts/core/result.ts';
-import { Type } from '../../../src/wabt-ts/core/types.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import { makeModule, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import type { Module as WabtModule } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../src/wabt-ts/core/error.ts';
+import { Result } from '../../src/wabt-ts/core/result.ts';
+import { Type } from '../../src/wabt-ts/core/types.ts';
+import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
+import { makeModule, varIndex } from '../../src/wabt-ts/ir/ir.ts';
+import type { Module as WabtModule } from '../../src/wabt-ts/ir/ir.ts';
 
-import { bridgeToBinaryen } from '../../../src/wabt-ts/bridge/bridge.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { bridgeToBinaryen } from '../../src/bridge/bridge.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
 
 function bridgeAndValidate(wat: string): void {
   const ls = new LexerSource(wat, '<tier-b>');

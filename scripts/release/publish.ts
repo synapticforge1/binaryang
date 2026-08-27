@@ -9,7 +9,12 @@
  *
  * Typical flow:
  *   1. deno task bump        # writes the next version into deno.json
- *   2. deno task publish     # commits + tags + pushes (this script)
+ *   2. deno task release     # commits + tags + pushes (this script)
+ *
+ * Named `release`, not `publish`, deliberately: `deno task publish:dry` runs
+ * `deno publish --dry-run`, which checks the JSR manifest and is NOT a dry run
+ * of this script. Two names one keystroke apart, doing unrelated things, with
+ * only one of them irreversible.
  *   3. Watch the Actions tab — JSR publish + GitHub Release are both
  *      produced by publish.yml.
  *
@@ -20,8 +25,9 @@
  * stops at "push the tag" — `deno publish` runs only inside `publish.yml`,
  * and only there.
  *
- * Matches the shape of sibling binaryen-ts's `scripts/publish.ts` so the
- * two projects stay in lockstep.
+ * The single release path for binaryang. binaryen-ts and wabt-ts each shipped
+ * their own near-identical copy; this is the union of the two, keeping every
+ * guard either side had.
  *
  * @license MIT
  */
@@ -110,7 +116,7 @@ if (remoteTag.trim() !== '') {
 await run(['git', 'add', 'deno.json']);
 
 // 2. Commit only if there's actually something staged. `deno task bump` +
-//    `deno task publish` is the common path (deno.json is dirty), but if the
+//    `deno task release` is the common path (deno.json is dirty), but if the
 //    user already committed the bump manually, skip the no-op commit.
 const diffCheck = new Deno.Command('git', {
   args: ['diff', '--cached', '--quiet'],
@@ -133,7 +139,7 @@ await run(['git', 'tag', '-f', tag]);
 await run(['git', 'push', 'origin', 'main', tag]);
 
 console.log(`\nPushed ${tag}. publish.yml will run:`);
-console.log(`  https://github.com/jrmarcum/wabt-ts/actions`);
+console.log(`  https://github.com/jrmarcum/binaryang/actions`);
 console.log('');
 console.log('It performs: version verify -> check -> test -> deno publish (with OIDC');
 console.log('provenance) -> create GitHub Release.');

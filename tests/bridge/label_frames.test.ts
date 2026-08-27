@@ -34,14 +34,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { LexerSource } from '../../src/wabt-ts/parser/lexer-source.ts';
+import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 
-import { bridgeToBinaryen } from '../../../src/wabt-ts/bridge/bridge.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { bridgeToBinaryen } from '../../src/bridge/bridge.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
 
 function bridged(wat: string): Uint8Array {
   const { module, errors } = parseWatModule(new LexerSource(wat, '<label-frames>'));

@@ -24,8 +24,8 @@ import { expect } from '@std/expect';
 // is executing a release. Same shape as `token_type_reachability.test.ts` and
 // `const_expr_head_coupling.test.ts`.
 
-const PUBLISH = await Deno.readTextFile('scripts/wabt-ts/publish.ts');
-const GUARD = await Deno.readTextFile('scripts/wabt-ts/release-guard.ts');
+const PUBLISH = await Deno.readTextFile('scripts/release/publish.ts');
+const GUARD = await Deno.readTextFile('scripts/release/release-guard.ts');
 const DENO_JSON = await Deno.readTextFile('deno.json');
 
 /** Every `git` subcommand invoked in `publish.ts`, in source order. */

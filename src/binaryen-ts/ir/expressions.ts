@@ -1875,6 +1875,14 @@ export function makeTupleMake(operands: Expression[]): TupleMakeExpr {
   };
 }
 
+/**
+ * Creates a `ref.as_non_null` expression: asserts `value` is not null and
+ * narrows it to the non-nullable `resultType`, trapping if it is null.
+ *
+ * `resultType` is passed rather than derived because the non-nullable form of a
+ * reference type is not recoverable from `value.type` alone once a heap type is
+ * concrete.
+ */
 export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
   return { kind: ExpressionKind.RefAs, type: resultType, op: RefAsOp.RefAsNonNull, value };
 }

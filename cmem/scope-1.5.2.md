@@ -46,7 +46,7 @@ here** and a correctness fix a downstream consumer is waiting on outranks a tidy
 | **`-Oz` try_table miscompile**       | ✅ done — not originally in scope; came in as a wasmtk bug report                                                                                                       |
 | **`compat/binaryen` pass API**       | ✅ done — `listPasses` exported, kebab-case accepted, error lists names                                                                                                 |
 | **§2.2 cmem topic merges**           | ◐ partial — `overview`, `licensing`, `bridge`, `best-practices`, `publishing` (provenance half) done; `phases` / `testing` / the rest of `publishing` still wing-scoped |
-| **§2.1 release-script unification**  | ⬚ deferred — still two sets under `scripts/{binaryen-ts,wabt-ts}/`                                                                                                      |
+| **§2.1 release-script unification**  | ✅ done — one `scripts/release/`, the union of both sets; `bump` and `release` tasks wired (neither existed)                                                            |
 | **§2.3 where the bridge lives**      | ⬚ deferred — still `src/wabt-ts/bridge/`, promotion-rule gap unresolved                                                                                                 |
 | **§3 `scripts/count-collisions.ts`** | ⬚ deferred — rule pinned in [overview.md](overview.md), not yet scripted                                                                                                |
 | **§4 phases C/D**                    | ⬚ blocked — C2 (wasmtk republish) is wasmtk's to run; D archiving follows it                                                                                            |
@@ -100,19 +100,31 @@ fixes, two tests.
 
 ### 2.1 Unify the release scripts
 
-Still two of everything, from A1's deliberate deferral:
+✅ **Done 2026-08-27.** One `scripts/release/` holds `version.ts`, `bump_version.ts`, `publish.ts`
+and `release-guard.ts`. Both predecessors' copies are gone; `scripts/{binaryen-ts,wabt-ts}/` keep
+only their diagnostics, and `verify-baseline.ts` stays put because it reads
+`pre-merge-baseline.tsv` beside it and is not a release script.
 
-```
-scripts/binaryen-ts/  bump_version.ts  publish.ts  version.ts
-scripts/wabt-ts/      bump_version.ts  publish.ts  version.ts  release-guard.ts
-```
+**It is the UNION, not a pick.** Each side's copy was strictly better than the other in one place,
+so choosing either would have silently dropped a guard:
 
-One repo publishing one package should have one release flow. wabt-ts's side additionally carries
-`release-guard.ts` and its T13.43/T13.44 tests, which are the stricter of the two and should survive
-the merge rather than be replaced.
+| from | what would have been lost |
+| ---- | -------------------------- |
+| wabt-ts | `--dry-run` (a mutating script that read NO arguments, so `--dry-run` did a real bump), `release-guard.ts` and its T13.43/T13.44 tests, the remote-tag guard |
+| binaryen-ts | the `main.ts` VERSION rewrite — without it `--version` drifts, exactly as binaryen-ts's did across two minor releases |
 
-**Blocks:** the `phases` / `testing` / `publishing` cmem merges below, which describe a release
-process that does not exist until this lands.
+⚠️ **Neither task existed in binaryang.** The scripts came through the merge but `deno task bump`
+and the release task were never wired, so every document saying "`deno task bump` rewrites both"
+described a command that would have failed. Now `bump` and `release` are real tasks.
+
+**Named `release`, not `publish`**: `publish:dry` runs `deno publish --dry-run`, which checks the
+JSR manifest and is not a dry run of the release script. Two names one keystroke apart doing
+unrelated things, one of them irreversible.
+
+**Verified by inverting it:** a real `deno task bump` moved `deno.json` and `main.ts` together to
+1.5.3, `version_sync` passed, and both were reverted to 1.5.2. A `--dry-run` moved neither.
+
+**Unblocks:** the `phases` / `testing` / `publishing` cmem merges below.
 
 ### 2.2 Merge the remaining cmem topics
 
@@ -125,13 +137,19 @@ Now unblocked or near-unblocked:
 
 ### 2.3 Decide where the bridge lives
 
-The promotion rule cannot ever promote it: a module earns a common `src/` folder when nothing in
-either namespaced tree imports it across the boundary, and the bridge is cross-tree _by definition_.
-It currently sits in `src/wabt-ts/bridge/`, which is where it happened to come from.
+✅ **Decided 2026-08-27: `src/bridge/`**, tests at `tests/bridge/`, and the promotion rule now
+carries one written standing exception. Full reasoning in [overview.md](overview.md).
 
-Either move it to a common `src/bridge/` and record that the promotion rule has one standing
-exception, or leave it and record _why_. Both are defensible; the gap is that neither is written
-down.
+The short form: the rule's test is a proxy for its intent, the bridge fails the proxy by
+construction and satisfies the intent maximally, so the intent governs and the disagreement is
+recorded. The old location was not neutral — the bridge imports from wabt-ts 9 times and binaryen-ts
+3, so `src/wabt-ts/bridge/` asserted an ownership its own imports contradict.
+
+⚠️ **The question surfaced something the move does not fix: nothing ships against the bridge.** No
+file under `src/` imports it and it has no export-map entry; only tests reach it. Recorded in
+[overview.md](overview.md) rather than closed here, because exporting it is a public-API decision —
+`./bridge` would become supported surface, on the part of the tree most likely to move as
+convergence proceeds.
 
 ---
 
@@ -151,10 +169,16 @@ The number has **not moved** since the merge. But the rule was never written dow
 whose method is unpinned cannot be compared across time — the same tree yields 55, 56 or 58
 depending on what you count.
 
-**Do:** add `scripts/count-collisions.ts` pinning the rule (`type|interface|enum`, both `src/`
-trees, exported only), print the count and the names, and wire it into CI as a **reported number,
-not a gate** — it is an indicator, and gating it would create pressure to make it go down by
-renaming rather than by converging.
+✅ **Done 2026-08-27.** `scripts/count-collisions.ts`, `deno task collisions`, reported into
+`$GITHUB_STEP_SUMMARY` by CI and **explicitly ungated** (`|| true`, so it can never redden a build).
+
+It reproduces the hand count: **56**. All three variants were re-derived independently of the script
+and match the table above exactly — 55 / 56 / 58 — so the rule the script pins is the rule the
+number was always measured with, rather than a new rule that happens to land on 56.
+
+`class` is excluded with a reason, not by omission: a class is a runtime value as well as a type, so
+two same-named exported classes collide at runtime too. Zero runtime values collide today, and
+folding classes in would hide the day one does.
 
 ---
 
@@ -166,7 +190,7 @@ These are the ladder, and they gate the release rather than the branch.
 | --------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **B3–B6** | signposts on both predecessors                                          | drafted in [handoffs.md](handoffs.md) § 2; **now unblocked**, 1.5.1 is live                                      |
 | **C1**    | wasmtk: swap two import-map lines to `binaryang/compat/{binaryen,wabt}` | verified green in B1                                                                                             |
-| **C2**    | wasmtk publishes                                                        | ⚠️ **this is what actually retires the old packages** — every wasmtk user is a transitive dependent              |
+| **C2**    | wasmtk publishes                                                        | ✅ **done — wasmtk 2.0.1**, depending on `binaryang@1.5.2` for both compat paths and on neither predecessor      |
 | **C3**    | confirm LeptonPad's `build:wasm` still runs                             | expected no-op; it resolves wasmtk unpinned                                                                      |
 | **D2**    | `isArchived` on both JSR packages                                       | **after** B3/B4 — archiving blocks publishing                                                                    |
 | **D3**    | archive both GitHub repos                                               | **after** the 1.5.1 tags — archived repos are read-only                                                          |
@@ -180,8 +204,21 @@ setting governs.
 
 ## 5. Smaller, cheap
 
-- **`percentageDocumentedSymbols` 98.1% → 100%.** The only score factor not at full marks; the
-  others reached parity once the JSR description and runtime flags were set.
+- ✅ **`percentageDocumentedSymbols` 98.1% → 100%.** Done 2026-08-27.
+
+  **It was exactly ten symbols, and finding them was the whole job.** `deno doc --lint` reports
+  **701** errors, which is a different metric — it counts nested interface members, and chasing it
+  would have meant several hundred filler comments. JSR's figure has a different denominator:
+  `0.98087955` is `513/523` to eight digits, so ten declarations were missing, not seven hundred.
+
+  The ten: six tool `main` entry points, `makeRefAsNonNull`, the `Func` interface, and
+  `Wasm2TsOptions` / `Wasm2TsResult`. Re-export `reference` nodes read as undocumented in the raw
+  `deno doc --json` output and are not — their originals carry the doc — which is what made the
+  first count read 36.
+
+  ⚠️ **The score was already 100 before this.** `percentageDocumentedSymbols` is *reported* by JSR
+  but `allEntrypointsDocs` is what the points key on, so this bought no score. It was worth doing on
+  its own terms; it should not be described as a score fix.
 - **Doc references I mapped on plausibility, not verification.** `binaryen-ts/parser/tokenizer`,
   `parser/wat-parser` and `wasm/demo_bytes` named subpaths that never existed in either package;
   they were pointed at `./api` and `./wasm` as the nearest real thing. Someone who knows the intent

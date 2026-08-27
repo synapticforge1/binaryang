@@ -263,6 +263,12 @@ function extKindName(kind: ExternalKind): string {
 // CLI
 // ---------------------------------------------------------------------------
 
+/**
+ * CLI entry point for `wasm-objdump`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
 export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
   args = args.slice();
   const inputs: string[] = [];

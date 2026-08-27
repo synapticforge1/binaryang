@@ -1,10 +1,10 @@
 /**
  * @module scripts/version
  *
- * Shared version helpers for the release scripts. The binaryen-ts versioning
- * rule is: each sub-version maxes at 9 before rolling into the next greater
- * segment. So patch 9 → minor +1 (patch reset to 0), minor 9 → major +1
- * (minor + patch reset to 0).
+ * Shared version helpers for the release scripts. binaryang's versioning rule,
+ * inherited unchanged from both predecessors: each sub-version maxes at 9
+ * before rolling into the next greater segment. So patch 9 → minor +1 (patch
+ * reset to 0), minor 9 → major +1 (minor + patch reset to 0).
  *
  *   1.0.6 → 1.0.7
  *   1.0.9 → 1.1.0

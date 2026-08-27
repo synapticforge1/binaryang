@@ -1429,6 +1429,14 @@ export interface Limits {
  */
 export type TypeUse = Var | 'resolved' | 'inline';
 
+/**
+ * A function definition: its signature, its locals, and its body.
+ *
+ * Note that `sig` is the resolved signature while `typeVar` is the
+ * type-section reference it came from. Both are kept because the binary format
+ * distinguishes a signature written inline from one written as a type index,
+ * and round-trip fidelity depends on reproducing the spelling that was read.
+ */
 export interface Func {
   name: string;
   loc: Location;

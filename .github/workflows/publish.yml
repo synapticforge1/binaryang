@@ -5,7 +5,7 @@
 # version bump on `main`.
 #
 # The publish step calls `deno publish` DIRECTLY — not `deno task publish`. The task wraps
-# `scripts/binaryen-ts/publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`.
+# `scripts/release/publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`.
 # That indirection breaks JSR provenance: JSR's OIDC detection runs in the workflow's primary
 # process and does not propagate cleanly into the subprocess invocation, so the published
 # version gets the "No provenance" flag. The guard script remains in place for local users —

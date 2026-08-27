@@ -30,11 +30,11 @@
  * stack and is strictly more complex with no benefit.
  */
 
-import { ExternalKind } from '../core/binary.ts';
-import { heapTypeNameToType, Type } from '../core/types.ts';
-import { anyOpcodeName, naturalAlignForOpcode } from '../core/opcode.ts';
-import { CatchKind, coarsenValueType, isRefValueType } from '../ir/ir.ts';
-import type { ValueType } from '../ir/ir.ts';
+import { ExternalKind } from '../wabt-ts/core/binary.ts';
+import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
+import { anyOpcodeName, naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
+import { CatchKind, coarsenValueType, isRefValueType } from '../wabt-ts/ir/ir.ts';
+import type { ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
   ArrayLenExpr,
@@ -49,6 +49,9 @@ import type {
   BlockType,
   BrExpr,
   BrIfExpr,
+  BrOnCastExpr,
+  BrOnNonNullExpr,
+  BrOnNullExpr,
   BrTableExpr,
   CallExpr,
   CallIndirectExpr,
@@ -101,12 +104,13 @@ import type {
   TryTableExpr,
   UnaryExpr,
   Var,
-} from '../ir/ir.ts';
-import { Opcode } from '../core/opcode.ts';
+} from '../wabt-ts/ir/ir.ts';
+import { Opcode } from '../wabt-ts/core/opcode.ts';
 
 import {
   AbstractHeapType,
   BinaryOp,
+  BrOnOp,
   makeArrayGet,
   makeArrayLen,
   makeArrayNew,
@@ -118,6 +122,7 @@ import {
   makeBinary,
   makeBlock,
   makeBreak,
+  makeBrOn,
   makeCall,
   makeCallIndirect,
   makeDrop,
@@ -171,7 +176,7 @@ import {
   SIMDReplaceOp,
   UnaryOp,
   ValType,
-} from '../../binaryen-ts/ir/index.ts';
+} from '../binaryen-ts/ir/index.ts';
 import type {
   CatchClause,
   Expression,
@@ -180,7 +185,7 @@ import type {
   Type as BType,
   ValueType as BValueType,
   WasmModule,
-} from '../../binaryen-ts/ir/index.ts';
+} from '../binaryen-ts/ir/index.ts';
 
 import { wabtTypeToValType } from './type-map.ts';
 
@@ -266,6 +271,20 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
     }
     for (const f of module.funcs) declare(f.sig.params, f.sig.results);
     for (const t of module.tags) declare(t.sig.params, t.sig.results);
+    // A BLOCKTYPE spelled as a type index needs its func entry declared as
+    // well. A block whose result is `(ref $T)` has no other spelling -- wabt's
+    // `value` blocktype holds a numeric `Type` with no room for a concrete
+    // heap type -- so `br_on_cast`-shaped code reaches here as a `func_type`
+    // blocktype referencing a func entry that nothing else declares. Without
+    // this the encoder throws `unresolved GC function type: () -> (ref 0)`
+    // on a module whose functions and tags were all registered correctly.
+    //
+    // Every func entry in wabt's type section is declared rather than only the
+    // ones a blocktype reaches: the type section IS the module's declared
+    // types, so mirroring it needs no expression walk to stay correct.
+    for (const t of module.types) {
+      if (t.kind === 'func') declare(t.sig.params, t.sig.results);
+    }
   }
 
   // Imports: walk module.imports in order, using the canonical names from
@@ -522,14 +541,37 @@ function nameForLabel(ctx: BridgeCtx, label: string): string {
 }
 
 /** Map a wabt BlockType to a binaryen-ts result Type. */
-function bridgeBlockType(bt: BlockType): BType {
+function bridgeBlockType(bt: BlockType, ctx: BridgeCtx): BType {
   switch (bt.kind) {
     case 'void':
       return None;
     case 'value':
-      return wabtTypeToValType(bt.type);
-    case 'func_type':
-      throw new Error('Bridge: multi-value blocks (func_type BlockType) not yet supported');
+      // T13.50: precise, not coarsening — a block result of `(ref $T)` reaching
+      // binaryen as `structref` mismatches every use that kept the precise type.
+      return wabtTypeToValueType(bt.type, ctx);
+    case 'func_type': {
+      // This used to throw "multi-value blocks not yet supported" for EVERY
+      // func_type blocktype, and the message was wrong about why. A block whose
+      // result is a typed reference cannot use the `value` form at all — wabt's
+      // `value` kind holds a numeric `Type`, which has no room for `(ref $T)` —
+      // so such a block is spelled as a type index even though it returns ONE
+      // value. Refusing all of them made every `br_on_cast`-shaped block
+      // unbridgeable, which looked like a br_on_cast gap and was not.
+      //
+      // Genuine multi-value (params, or more than one result) is still refused,
+      // now saying so accurately.
+      const entry = ctx.types[bt.typeIdx];
+      if (entry === undefined || entry.kind !== 'func') {
+        throw new Error(`Bridge: block type index ${bt.typeIdx} is not a func type`);
+      }
+      const { params, results } = entry.sig;
+      if (params.length > 0 || results.length > 1) {
+        throw new Error(
+          `Bridge: multi-value block (${params.length} params, ${results.length} results) not yet supported`,
+        );
+      }
+      return results.length === 0 ? None : wabtTypeToValueType(results[0]!, ctx);
+    }
   }
 }
 
@@ -920,7 +962,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         // (last child is br / return / unreachable) that comes out as
         // "unreachable", which loses the block's declared signature.
         // Override with the declared blockType.
-        return withDeclaredType(makeBlock(children, name), bridgeBlockType(blk.blockType));
+        return withDeclaredType(makeBlock(children, name), bridgeBlockType(blk.blockType, ctx));
       } finally {
         ctx.labelStack.pop();
       }
@@ -928,7 +970,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'loop': {
       const lp = e as LoopExpr;
       const name = nameForLabel(ctx, lp.label);
-      const resultType = bridgeBlockType(lp.blockType);
+      const resultType = bridgeBlockType(lp.blockType, ctx);
       ctx.labelStack.push(name);
       try {
         const body = lp.body.length === 1
@@ -970,7 +1012,10 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           : ife.else_.length === 1
           ? bridgeExpr(ife.else_[0]!, ctx)
           : makeBlock(ife.else_.map((c) => bridgeExpr(c, ctx)));
-        return withDeclaredType(makeIf(condition, ifTrue, ifFalse), bridgeBlockType(ife.blockType));
+        return withDeclaredType(
+          makeIf(condition, ifTrue, ifFalse),
+          bridgeBlockType(ife.blockType, ctx),
+        );
       } finally {
         ctx.labelStack.pop();
       }
@@ -1302,6 +1347,57 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       );
     }
 
+    // --- Reference branching (T13.51) -------------------------------------
+    //
+    // binaryen-ts already models all four: `BrOnOp` defines Null, NonNull, Cast
+    // and CastFail, `makeBrOn` takes the cast/src heap types, and the encoder and
+    // binary reader both handle `BrOn`. Only the translation was missing, which is
+    // why these four arrive together — they are one enum's worth of cases, not
+    // four features.
+    case 'br_on_cast': {
+      const bc = e as BrOnCastExpr;
+      // rt1 is the operand's expected type (src), rt2 the type tested for (cast).
+      // `onFail` selects which of the two the branch carries; binaryen encodes
+      // that choice in the op, and keeps both types either way.
+      const src = heapTypeForBridge(bc.from.heapType, ctx);
+      const cast = heapTypeForBridge(bc.to.heapType, ctx);
+      // The node's `type` is the OPERAND's type, matching what the binary reader
+      // produces (`makeBrOn(..., ref.type, ht2, ..., ht1, ...)` in wasm-parser).
+      // Computing a fallthrough type here instead produced `type mismatch in
+      // br_on_cast` — encode and decode have to agree, and the decoder is the
+      // side that already round-trips.
+      const ref = bridgeExpr(bc.value, ctx);
+      return makeBrOn(
+        bc.onFail ? BrOnOp.CastFail : BrOnOp.Cast,
+        resolveLabel(ctx, bc.target),
+        ref,
+        ref.type,
+        cast,
+        bc.to.nullable,
+        src,
+        bc.from.nullable,
+      );
+    }
+    case 'br_on_null':
+    case 'br_on_non_null': {
+      const bn = e as BrOnNullExpr | BrOnNonNullExpr;
+      if (bn.values.length > 0) {
+        // binaryen-ts's BrOn carries only the tested reference, with no slot for
+        // additional branch operands. Refused rather than silently dropped.
+        throw new Error(
+          `Bridge: ${e.kind} with ${bn.values.length} carried value(s) not yet supported`,
+        );
+      }
+      const ref = bridgeExpr(bn.ref, ctx);
+      // Same convention as the cast forms: the node carries the operand's type.
+      return makeBrOn(
+        e.kind === 'br_on_null' ? BrOnOp.Null : BrOnOp.NonNull,
+        resolveLabel(ctx, bn.target),
+        ref,
+        ref.type,
+      );
+    }
+
     // --- SIMD (Tier C) ---------------------------------------------------
     //
     // Note: `i*x*.splat` opcodes flow through the `unary` case above —
@@ -1379,8 +1475,8 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           ? bridgeExpr(tt.body[0]!, ctx)
           : makeBlock(tt.body.map((c) => bridgeExpr(c, ctx)));
         return withDeclaredType(
-          makeTryTable(name, body, catches, bridgeBlockType(tt.blockType)),
-          bridgeBlockType(tt.blockType),
+          makeTryTable(name, body, catches, bridgeBlockType(tt.blockType, ctx)),
+          bridgeBlockType(tt.blockType, ctx),
         );
       } finally {
         ctx.labelStack.pop();

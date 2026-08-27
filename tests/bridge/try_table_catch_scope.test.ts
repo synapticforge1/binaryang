@@ -23,14 +23,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { bridgeToBinaryen } from '../../../src/wabt-ts/bridge/bridge.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { LexerSource } from '../../src/wabt-ts/parser/lexer-source.ts';
+import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../src/wabt-ts/ir/synthesize-types.ts';
+import { writeBinaryIr } from '../../src/wabt-ts/writer/binary-writer.ts';
+import { makeErrorList } from '../../src/wabt-ts/core/error.ts';
+import { bridgeToBinaryen } from '../../src/bridge/bridge.ts';
+import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
 
 /** Encode `src` twice: through our own writer, and through the bridge. */
 function bothEncoders(src: string): { ours: Uint8Array; bridged: Uint8Array } {

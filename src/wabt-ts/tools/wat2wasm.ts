@@ -113,6 +113,12 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
 // CLI
 // ---------------------------------------------------------------------------
 
+/**
+ * CLI entry point for `wat2wasm`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
 export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
   args = args.slice();
   let input: string | undefined;
