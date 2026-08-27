@@ -263,3 +263,62 @@ this ladder.
 yanking: an archived package keeps resolving for everything already pinned to it and only refuses
 new versions, which is exactly the intent. Both are console actions on jsr.io and github.com and
 are the user's to run.
+
+---
+
+## D2 / D3 — the archive runbook
+
+Verified 2026-08-27 against the live JSR and GitHub APIs, not from the register.
+
+### Prerequisites — all met
+
+| check | binaryen-ts | wabt-ts |
+| ----- | ----------- | ------- |
+| JSR latest version is the terminal 1.5.1 | ✅ | ✅ |
+| GitHub `v1.5.1` tag present | ✅ | ✅ |
+| README signpost live on `main` (B3/B4) | ✅ | ✅ |
+| wasmtk no longer depends on it (C2) | ✅ | ✅ |
+
+### ⚠️ B6 is NOT done, and it is bigger than recorded
+
+All four descriptions still present these as live projects:
+
+| where | current text |
+| ----- | ------------ |
+| JSR `binaryen-ts` | `binaryen rewritten in typescript` |
+| JSR `wabt-ts` | `rewrite of wabt in typescript` |
+| **GitHub `binaryen-ts`** | `Optimizer and compiler/toolchain library for WebAssembly` |
+| **GitHub `wabt-ts`** | `The WebAssembly Binary Toolkit` |
+
+**The two GitHub ones were on nobody's list.** B6 named only JSR. The GitHub description is what
+shows in search results and on the org page — the two places someone most likely arrives from — and
+both currently describe a live toolchain with no hint it moved.
+
+### Order matters, and it is: descriptions → JSR → GitHub
+
+**1. Set all four descriptions FIRST.** Archiving makes things read-only; editing a description
+afterwards means unarchiving and re-archiving. Suggested text:
+
+- JSR (both): `Superseded by @jrmarcum/binaryang — final release 1.5.1`
+- GitHub `binaryen-ts`: `Superseded by jrmarcum/binaryang — merged with wabt-ts. Final release 1.5.1.`
+- GitHub `wabt-ts`: `Superseded by jrmarcum/binaryang — merged with binaryen-ts. Final release 1.5.1.`
+
+**2. D2 — JSR `isArchived` on both.** Package settings on jsr.io. This blocks any future publish
+from those packages, which is the intent: 1.5.1 is terminal.
+
+**3. D3 — archive both GitHub repos, LAST.** An archived repo is read-only, so anything needing a
+commit — a README fix, a workflow tweak — must happen before this. It also stops Actions, which is
+correct once nothing more will be released.
+
+### What archiving does NOT do
+
+🚨 **Archiving is not yanking.** Every published version keeps resolving; archiving only refuses
+*new* versions. wasmtk's 31 earlier releases and LeptonPad's transitive pins are unaffected. **D4
+still stands and always will** — see the C2 section above for why `dependentCount` staying at 1 is
+correct and must not be "fixed".
+
+### Not a blocker
+
+**C3** (confirm LeptonPad's `build:wasm` still runs) is independent of archiving. It resolves wasmtk
+unpinned, and wasmtk 2.0.1 is published, so the expected result is a no-op — but it is unverified
+and should not be recorded as done.
