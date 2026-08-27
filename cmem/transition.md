@@ -322,3 +322,48 @@ correct and must not be "fixed".
 **C3** (confirm LeptonPad's `build:wasm` still runs) is independent of archiving. It resolves wasmtk
 unpinned, and wasmtk 2.0.1 is published, so the expected result is a no-op — but it is unverified
 and should not be recorded as done.
+
+### ✅ D3 done, D2 deferred — actual state 2026-08-27
+
+**Both GitHub repos are archived.** D2 (JSR `isArchived`) is deliberately deferred.
+
+The runbook above recommended descriptions → JSR → GitHub. What happened was GitHub first, so
+record the consequences rather than the plan:
+
+| | binaryen-ts | wabt-ts |
+| - | ----------- | ------- |
+| GitHub archived | ✅ | ✅ |
+| GitHub description | ⚠️ frozen as `Optimizer and compiler/toolchain library for WebAssembly` | ⚠️ frozen as `The WebAssembly Binary Toolkit` |
+| JSR archived | ⬚ deferred | ⬚ deferred |
+| JSR description | ⚠️ still `binaryen rewritten in typescript` | ⚠️ still `rewrite of wabt in typescript` |
+
+#### Deferring D2 is low-risk, and the reason is structural
+
+**Archiving the GitHub repo already removed the publish path.** Workflows do not run on an archived
+repository, so `publish.yml` cannot fire — and that was the only route that produced provenance. A
+new version of either package would now require a deliberate manual `deno publish` from a local
+clone with a token, which is not something that happens by accident.
+
+So D2 is now **a statement of intent rather than a control**. Worth doing, not urgent.
+
+#### The one thing that IS worth doing before D2
+
+**The two JSR descriptions are still editable and should be set now.** JSR is where a consumer
+actually lands — the description is the first line on `jsr.io/@jrmarcum/<pkg>` — and it is the half
+of B6 that archiving has not frozen. It does not depend on D2 and should not wait for it.
+
+#### The GitHub descriptions, and what the gap actually costs
+
+The repo **page** is fine: an archived banner plus the README signpost, which is the strongest
+signal and it is in place. What still misdescribes the projects is the **org repository list and
+GitHub search results**, which show the description and not the README.
+
+If that is worth closing: try editing "About" directly first, and if archiving has disabled it, the
+fix is unarchive → edit description → re-archive. Both operations are non-destructive and take
+seconds. This is a judgement call, not a defect — recorded so it is a choice rather than an
+oversight.
+
+#### Verified clean
+
+Nothing in binaryang references the archived repos, and the predecessor git remotes point at local
+sibling paths (`../binaryen-ts`, `../wabt-ts`), not GitHub — so archiving broke no fetch path.
