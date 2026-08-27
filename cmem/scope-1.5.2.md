@@ -163,10 +163,16 @@ The number has **not moved** since the merge. But the rule was never written dow
 whose method is unpinned cannot be compared across time — the same tree yields 55, 56 or 58
 depending on what you count.
 
-**Do:** add `scripts/count-collisions.ts` pinning the rule (`type|interface|enum`, both `src/`
-trees, exported only), print the count and the names, and wire it into CI as a **reported number,
-not a gate** — it is an indicator, and gating it would create pressure to make it go down by
-renaming rather than by converging.
+✅ **Done 2026-08-27.** `scripts/count-collisions.ts`, `deno task collisions`, reported into
+`$GITHUB_STEP_SUMMARY` by CI and **explicitly ungated** (`|| true`, so it can never redden a build).
+
+It reproduces the hand count: **56**. All three variants were re-derived independently of the script
+and match the table above exactly — 55 / 56 / 58 — so the rule the script pins is the rule the
+number was always measured with, rather than a new rule that happens to land on 56.
+
+`class` is excluded with a reason, not by omission: a class is a runtime value as well as a type, so
+two same-named exported classes collide at runtime too. Zero runtime values collide today, and
+folding classes in would hide the day one does.
 
 ---
 

@@ -29,7 +29,8 @@
     "@std/assert": "jsr:@std/assert@^1",
     "@std/expect": "jsr:@std/expect@^1.0.0",
     "@std/testing": "jsr:@std/testing@^1.0.0",
-    "@std/path": "jsr:@std/path@^1.0.0"
+    "@std/path": "jsr:@std/path@^1.0.0",
+    "@std/fs": "jsr:@std/fs@^1.0.0"
   },
   "workspace": [
     "./tests/binaryen-ts",
@@ -57,6 +58,7 @@
     "lint": "deno lint",
     "ci": "deno task check && deno task test",
     "publish:dry": "deno publish --dry-run --allow-dirty",
+    "collisions": "deno run --allow-read scripts/count-collisions.ts",
     "bump": "deno run --allow-read --allow-write scripts/release/bump_version.ts",
     "release": "deno run --allow-read --allow-write --allow-run scripts/release/publish.ts",
     "baseline": "deno run --allow-read scripts/wabt-ts/verify-baseline.ts"
