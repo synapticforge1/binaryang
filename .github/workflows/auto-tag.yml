@@ -46,11 +46,37 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0 # need full history + tags so `git rev-parse refs/tags/...` works
+          # The token checkout stores is the one `git push` later uses, and THAT is
+          # what decides whether the tag push triggers publish.yml.
+          #
+          # With GITHUB_TOKEN the push is subject to GitHub's recursion guard: the
+          # tag lands but no workflow fires, which is why the dispatch step below
+          # exists. That dispatch path has FAILED every time it has been used
+          # (0 of 3, across binaryen-ts, wabt-ts and binaryang), while a tag pushed
+          # by a user has succeeded every time (5 of 5).
+          #
+          # With RELEASE_PAT set, the tag push is attributed to that identity, fires
+          # publish.yml through `on: push: tags`, and the dispatch is skipped.
+          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Install Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+      # `secrets` is not dependably available in a step-level `if:`, so the presence
+      # of RELEASE_PAT is turned into a plain step output and gated on that instead.
+      # Only ever emits yes/no — the secret itself is never echoed.
+      - name: Detect release credential
+        id: cred
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -n "$RELEASE_PAT" ]; then
+            echo "pat=yes" >> "$GITHUB_OUTPUT"; echo "RELEASE_PAT is configured — tag push will trigger publish.yml directly."
+          else
+            echo "pat=no"  >> "$GITHUB_OUTPUT"; echo "RELEASE_PAT is not configured — will fall back to workflow_dispatch."
+          fi
 
       - name: Read version from deno.json
         id: ver
@@ -81,11 +107,18 @@ jobs:
           git push origin "$TAG"
           echo "Pushed $TAG"
 
-      - name: Dispatch publish workflow on new tag
-        if: steps.check.outputs.exists == 'false'
+      # Only reachable when RELEASE_PAT is NOT configured. Kept so the repo still
+      # attempts a release without it, but it is the known-failing path and says so.
+      - name: Dispatch publish workflow (fallback — no RELEASE_PAT)
+        if: steps.check.outputs.exists == 'false' && steps.cred.outputs.pat == 'no'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.ver.outputs.version }}"
+          echo "::warning::RELEASE_PAT is not set, so the tag was pushed by GITHUB_TOKEN and cannot trigger publish.yml. Falling back to workflow_dispatch, which has failed 0-for-3 in this scope. If the publish run fails, re-push the tag by hand: git push origin :refs/tags/$TAG && git push origin $TAG"
           gh workflow run publish.yml --ref "$TAG"
-          echo "Dispatched publish.yml on ref $TAG"
+          echo "Dispatched publish.yml on ref $TAG (fallback path)"
+
+      - name: Release triggered by tag push (RELEASE_PAT set)
+        if: steps.check.outputs.exists == 'false' && steps.cred.outputs.pat == 'yes'
+        run: echo "Tag pushed with RELEASE_PAT — publish.yml fires via push:tags, the path with a 5-of-5 record."

@@ -276,6 +276,31 @@ pushed by `GITHUB_TOKEN` cannot trigger a workflow (GitHub's recursion guard). P
 a PAT or deploy key would fire `publish.yml` through `push: tags` — the path with a 5-of-5 record —
 and delete the failing step entirely.
 
+### The fix: `RELEASE_PAT`
+
+`auto-tag` now checks out with `token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}`. The
+token checkout stores is the one `git push` later uses, and that is what decides whether the tag
+push triggers `publish.yml`.
+
+- **With `RELEASE_PAT` set** — the tag push is attributed to that identity, fires `publish.yml`
+  through `on: push: tags`, and the dispatch step is skipped entirely. That is the path with a
+  **5-of-5** record.
+- **Without it** — the dispatch fallback runs, emits a `::warning::` naming the cause, and prints
+  the two-command manual recovery. Nothing changes for the worse; the repo still behaves as it did.
+
+🔓 **Setup, one time, owner action:** create a fine-grained PAT with **Contents: read and write** on
+this repository, and add it as the repository secret `RELEASE_PAT`. Nothing else needs changing.
+
+⚠️ **Implementation note worth keeping:** the `secrets` context is not dependably available in a
+step-level `if:`, so the presence of the PAT is turned into a plain step output (`yes`/`no`) and the
+conditions gate on that. Writing `if: secrets.RELEASE_PAT != ''` looks correct and can silently
+evaluate the wrong way. The secret's value is never echoed — only its name appears, in messages.
+
+**Why a PAT and not a reusable workflow.** Converting `publish.yml` to `workflow_call` and invoking
+it from `auto-tag` would avoid the PAT, but it changes the OIDC claim shape that JSR attests against
+— and provenance can only be tested by publishing, burning a version number per attempt. The PAT
+routes the release through the exact trigger that already works, so it risks nothing.
+
 ## The verification step was tested against both sides
 
 Not assumed to work. Its logic was run against four real published versions before being wired in:

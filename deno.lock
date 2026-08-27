@@ -10,6 +10,7 @@
     "jsr:@std/path@1": "1.1.6",
     "jsr:@std/path@^1.1.4": "1.1.6",
     "jsr:@std/testing@1": "1.0.19",
+    "jsr:@std/yaml@1": "1.1.2",
     "npm:binaryen@116": "116.0.0"
   },
   "jsr": {
@@ -42,6 +43,9 @@
         "jsr:@std/assert@^1.0.19",
         "jsr:@std/internal@^1.0.14"
       ]
+    },
+    "@std/yaml@1.1.2": {
+      "integrity": "de612653c036749ba2044165e316f52412b0f0698afffb7ee80b5331d6d2abae"
     }
   },
   "npm": {
