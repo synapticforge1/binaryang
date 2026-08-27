@@ -190,3 +190,32 @@ conservative one — provided D4 holds.
 question. Under a lifecycle rule, **nothing happens** — Node 22 stays supported because it is still
 alive. The next event that moves a floor is **Node 22's EOL on 2027-04-30**, when the floor becomes
 24. That is a calendar item, not a decision.
+
+### C1 verification — wasmtk against published binaryang, 2026-08-27
+
+Run in a scratch copy of the working tree (uncommitted changes included), so nothing in wasmtk was
+touched — and specifically so `deno` could not write to its `deno.lock`.
+
+|                            | result                                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `deno check main.ts`       | clean                                                                                     |
+| suite (`tests/*_tests.ts`) | **12 passed, 0 failed**, exit 0                                                           |
+| wast conformance           | **273 passing entries, 15 pinned known-failures**                                         |
+| `br_on_cast.wast`          | `pass=23 skip=1 unbuilt-modules=0` — **identical to the B1 control** against the old pins |
+
+✅ **No regression.** The pinned known-failure counts match the pre-migration control exactly, which
+is the comparison that matters: the suite was never fully green, so "0 failed" alone would not have
+meant anything.
+
+⚠️ **One accounting artifact, and it nearly read as an improvement.** The B1 control reported
+`12 passed | 1 failed`; this run reported `12 passed | 0 failed`. That is **one outcome missing, not
+one defect fixed**. `tests/wast_tests.ts` does its work in _pre-test output_ and then calls
+`Deno.exit(0)`, terminating the isolate — so whether it is counted as a test file at all varies
+between runs. Its real verdict is the text it prints and its exit code, not the summary line.
+
+A pre-existing wasmtk harness wart, not a binaryang effect, but worth writing down: a summary that
+improves because a file stopped reporting looks exactly like a summary that improves because a bug
+was fixed.
+
+⚠️ **`minimumDependencyAge` is already handled** on wasmtk's side (`PT1M`), so the 24-hour wall this
+document flagged for C1 does not apply there.
