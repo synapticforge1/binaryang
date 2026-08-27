@@ -839,50 +839,77 @@ permanently ineligible.
 
 ---
 
-## 9. Open questions on the C3 retirement plan
+## 9. The C3 retirement plan — SETTLED 2026-08-26
 
-Two, both small, both worth settling before anything is published.
+### 9.1 ✅ Signposts, on JSR **and** GitHub — not forwarding re-exports
 
-### 9.1 🔓 What "pointing at binaryang" means in the 1.5.1 releases
+The 1.5.1 releases of `binaryen-ts` and `wabt-ts` are **signposts**: they say the project is now
+binaryang and point there. They do **not** re-export binaryang's modules.
 
-Two readings, and they are different work:
+Right for the measured situation: with the dependent set at exactly one — wasmtk, which migrates by
+editing two import-map lines — forwarding code would be written for nobody. A package that forwards
+also still reads as alive, and these are not.
 
-- **(a) Signpost only** — the 1.5.1 release changes the README to say the project is now binaryang,
-  and marks the package deprecated on JSR. No code change; the last real code stays at 1.5.0.
-- **(b) Forwarding** — 1.5.1 re-exports binaryang's modules, so old imports keep resolving to live
-  code.
+### 9.2 ✅ The version ladder — three packages at 1.5.1, then binaryang alone
 
-**Recommended: (a).** With the dependent set measured at exactly one — wasmtk, which will migrate by
-editing two import-map lines rather than by resolving a forward — the code path in (b) would be
-written for nobody. (a) is also the honest signal: a package that forwards is still alive, and this
-one is not.
+| version | binaryen-ts | wabt-ts | binaryang |
+| --- | --- | --- | --- |
+| **1.5.0** | live | live | — |
+| **1.5.1** | **signpost** | **signpost** | **first merged release** |
+| **1.5.2** | — | — | **the break: binaryang alone, from here** |
 
-One caveat that argues (a) is *sufficient* rather than merely cheaper: LeptonPad reaches both
-packages through an **unpinned** `deno run -A jsr:@jrmarcum/wasmtk`, so it follows wasmtk
-automatically the moment wasmtk publishes against binaryang. It never needs to see the notice.
+⚠️ **The objection previously recorded here dissolves, and it is worth saying why rather than just
+deleting it.** § 9.2 argued that three packages at 1.5.1 undercuts decision 4's story — *"1.5.1 is
+the next version after two 1.5.0s"* — because the predecessors would themselves be shipping a 1.5.1.
 
-### 9.2 🔓 The version ladder — three packages at 1.5.1, or a clean staircase
+That was **contingent on 9.1 going the other way.** A signpost release carries **no code**. So
+binaryang 1.5.1 remains unambiguously the next *code* release after the two 1.5.0s, and decision 4
+holds exactly as written. The two questions were not independent, and answering 9.1 answered 9.2.
 
-As stated, binaryang starts at **1.5.1** (decision 4) *and* both predecessors publish **1.5.1** as
-their terminal release. That works, but it puts three packages on the same number in the same week,
-and it undercuts decision 4's own story — "1.5.1 is the next version after two 1.5.0s" stops being
-true once the predecessors themselves ship a 1.5.1.
+The shared number is also better than the staircase alternative it replaces: all three packages at
+1.5.1 **marks** the handover rather than merely sequencing it. Read the scope at 1.5.1 and the
+transition is visible in one glance; a staircase would have hidden it in the gaps.
 
-**Alternative worth a moment:** predecessors terminate at **1.5.1**, binaryang begins at **1.5.2**.
-The numbering then tells the whole story without a footnote:
+### 9.3 🆕 JSR mechanics — measured from the API, 2026-08-26
 
-| version | state |
-| --- | --- |
-| 1.5.0 | two live packages |
-| 1.5.1 | two terminal pointers |
-| 1.5.2 | one package — binaryang |
+JSR supports what this plan needs, but the two packages are **not configured the same way**, and one
+of the two available mechanisms would actively break things.
 
-This also matches the phrasing of the decision itself, *"a clean break once binaryang 1.5.2 is
-published"* — under this ladder 1.5.2 **is** the break rather than the release after it.
+| field | level | `binaryen-ts` | `wabt-ts` |
+| --- | --- | --- | --- |
+| `isArchived` | package | `false` | `false` |
+| `yanked` | version | `false` | `false` |
+| `readmeSource` | package | **`readme`** | **`jsdoc`** |
 
-⚠️ Flagged rather than adopted: it revises **decision 4**, which is on the settled list, and settled
-decisions are not reopened here. Owner's call, and cheap either way — but cheaper before publish
-than after.
+⚠️ **The signpost goes in a different file for each package.** binaryen-ts's JSR page renders
+`README.md`. **wabt-ts's renders JSDoc** — the `@module` block at the top of `src/index.ts`. A
+signpost written only into `README.md` would appear on binaryen-ts's page and be **invisible on
+wabt-ts's**, which is the more-depended-on half of the pair. Either edit that `@module` block or
+switch `readmeSource` to `readme` first; do not assume the two repos behave alike because they look
+alike.
+
+⚠️ **Archive — do not yank.** Both mechanisms exist and they are not interchangeable:
+
+- **`isArchived`** is package-level and is the correct signpost: it marks the package as no longer
+  maintained while leaving published versions resolvable.
+- **`yanked`** is version-level and affects **resolution**. Yanking would reach backwards into all
+  **31 published wasmtk versions** that depend on these packages, and into LeptonPad, which resolves
+  `binaryen-ts@1.4.3` and `wabt-ts@1.3.5` transitively. ✅ Verified those old versions are live and
+  unyanked today. **Yanking is the one action that would convert this low-risk break into a
+  breaking one.**
+
+⚠️ **Order matters: publish 1.5.1 first, archive second.** Archiving stops new versions, so archiving
+before the signpost release is published leaves nowhere to publish it. Same for the GitHub side —
+archive the repos *after* the 1.5.1 tag, since an archived repo is read-only.
+
+`description` is a second, cheap JSR surface: it shows on the package card in search results, where
+a reader may never open the page. Worth pointing at binaryang there too.
+
+### 9.4 🔓 What is left
+
+Nothing blocking. The signpost text for both repos, and the archive actions, are **handoffs** — they
+belong to the repos that own them and are drafted here when the merge is ready to publish, not now.
+Timing is fixed by the ladder: they land with binaryang 1.5.1, and the break follows at 1.5.2.
 
 ---
 
