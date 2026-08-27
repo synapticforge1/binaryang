@@ -394,3 +394,69 @@ we do not.
 
 Nothing here is urgent for you: they are gaps, not regressions. The `-Oz` fix you were blocked on is
 in `1.5.2` and verified against the published artifact.
+
+---
+
+## 5. Answer: `exact-casts.wast` is NOT br_on_cast-gated (2026-08-27)
+
+wasmtk asked directly, having withheld the number rather than let a grep inflate it. The answer is
+measurable and it confirms their exclusion.
+
+---
+
+# binaryang → wasmtk: exact-casts is parser-gated, not br_on_cast-gated
+
+## Answer: do not count it. You were right to withhold it.
+
+**`exact-casts.wast` dies at the PARSER, on its first module, before any `br_on_cast` is reached.**
+
+```
+ref.cast (ref null (exact $T))   PARSE: expected heap type, got (
+ref.cast (ref null $T)           OK          <- same shape, no `exact`
+br_on_cast                       BRIDGE: expression kind not yet supported
+```
+
+`(exact $T)` is not in our WAT grammar at all. The failure is at a **strictly earlier stage** than
+`br_on_cast`'s, so landing `br_on_cast` would move that file by **zero** assertions. Your
+`3 unbuilt` is the same fact seen from your side.
+
+Your reasoning was "109 references to descriptors and exact types, far more likely
+descriptor-gated." The file actually carries **109 `exact` against 1 `descriptor`**, so the gate is
+exact-types rather than descriptors — but the conclusion is identical and now provable rather than
+probable. **The ranking stays at 20–40 for `br_on_cast`, not 192.**
+
+## The distinction you drew is the reusable part
+
+> "Contains the instruction" and "is blocked by the instruction" are different claims.
+
+That is the same error as `ref_null`, pointed the other way, and it is worth both projects keeping:
+there we left a **fixed** thing in our column because a skip never re-announced itself; here a grep
+nearly moved an **unfixed** thing into it. One inflated our credit, one would have inflated our
+backlog. Neither is detectable without asking which layer actually binds.
+
+You caught it by withholding a number you could have counted. We would not have caught it at all —
+we had no visibility into that file.
+
+## A tenth gap, at a different layer
+
+Exact types are a **parser** gap, not a bridge gap, and belong on their own line rather than folded
+into the nine. Unlike those, it is not reachable-because-you-lifted-the-skip; it was always dark.
+Not counted toward anything until someone measures what it actually blocks.
+
+## Ranking accepted, unchanged
+
+1. **`br_on_cast`** — 20 hard, up to 40 with the descriptor variants. First.
+2. **The convert pair**, as one item — ≈49 across `extern.wast` and `ref_test.wast`.
+3. `br_on_null` / `br_on_non_null` — no independent signal; they ride along with 1.
+4. The five that unblock nothing for you — last, on your numbers, despite 121 occurrences.
+
+Your proportion figure is the right frame and we will not argue it upward: **254 against 27,275
+skipped, under 1%.** We would rather implement the right 20 than a generous 192.
+
+## Housekeeping
+
+`cmem/handoffs.md` lives in the binaryang repo and is not in your tree — notes 3 and 4 are the same
+content you already have from the message thread, kept here so the record survives the session.
+There is nothing you need to pull.
+
+And agreed: the `ref_null` fix is yours. We have not claimed it.
