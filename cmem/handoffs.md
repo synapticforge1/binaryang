@@ -127,3 +127,108 @@ Step 2 starts: both histories merged with `--allow-unrelated-histories` into `sr
 `src/wabt-ts/`, source changes limited to import paths. Gate is 906 tests green, both publish
 dry-runs clean, and wabt-ts's `verify-baseline.ts` reporting `IDENTICAL` across all 421 corpus files
 — a pure relocation must not move a byte.
+
+---
+
+## 2. The 1.5.1 signposts (drafted 2026-08-26 — for phase B, send when binaryang 1.5.1 is live)
+
+Context: [transition.md](transition.md) B3–B6. Both predecessors get a final **1.5.1** release that
+points at binaryang, then are archived. Signposts, not forwarding re-exports — the dependency audit
+found exactly one dependent of either package (wasmtk, ours), so forwarding code would be written
+for nobody, and a package that forwards still reads as alive.
+
+**Do not send these until binaryang 1.5.1 is published**, or the signposts point at nothing.
+
+### ⚠️ The two repos need the signpost in DIFFERENT files
+
+Measured from JSR's API, and this is the whole reason these are two notes rather than one:
+
+| repo        | `readmeSource` | the signpost goes in                                 |
+| ----------- | -------------- | ---------------------------------------------------- |
+| binaryen-ts | `readme`       | `README.md`                                          |
+| **wabt-ts** | **`jsdoc`**    | **the `@module` block at the top of `src/index.ts`** |
+
+A signpost written only into wabt-ts's `README.md` would render on GitHub and be **invisible on its
+JSR page** — the surface a consumer actually lands on, and wabt-ts is the more-depended-on half of
+the pair. Do not assume the two repos behave alike because they look alike.
+
+---
+
+# binaryang → binaryen-ts: final release, then archive
+
+## What to do
+
+1. **README.md** — put the notice at the very top, above the badges:
+
+   > **This project has moved to [binaryang](https://github.com/jrmarcum/binaryang).**
+   >
+   > `@jrmarcum/binaryen-ts` is superseded by `@jrmarcum/binaryang`, which merges binaryen-ts and
+   > wabt-ts into one package. **1.5.1 is the final release of this package.**
+   >
+   > Migration is the package name plus two subpaths: `./compat` → `./compat/binaryen`, and `./ir` →
+   > `./ir/binaryen-ts`. Everything else keeps its name. See the
+   > [binaryang README](https://github.com/jrmarcum/binaryang#migrating-from-binaryen-ts-or-wabt-ts).
+   >
+   > Published versions are unaffected — nothing is yanked, and every existing pin keeps resolving.
+
+2. **JSR description** → `Superseded by @jrmarcum/binaryang — final release 1.5.1`. It shows on the
+   search card, where a reader may never open the page.
+
+3. **Publish 1.5.1**, then **archive**: set `isArchived` on JSR, and archive the GitHub repo.
+
+## ⚠️ Order, and one thing never to do
+
+**Publish before archiving, on both JSR and GitHub.** Archiving makes a package and a repo
+read-only, so doing it first leaves nowhere to publish the signpost.
+
+🚨 **Do not yank anything, ever.** `isArchived` is package-level and leaves published versions
+resolvable — that is what we want. `yanked` is version-level and affects **resolution**: it would
+reach backwards into all 31 published wasmtk versions that depend on this package, and into
+LeptonPad, which resolves `binaryen-ts@1.4.3` transitively. Verified live and unyanked today.
+Yanking is the single action that turns a safe retirement into a breaking one.
+
+## Verified before asking
+
+`deno check` and the full test suite of wasmtk run identically against binaryang and against
+`binaryen-ts@1.5.0` + `wabt-ts@1.4.1` — 12 passed, 1 failed, the failure being wasmtk's own pinned
+`br_on_cast.wast` known-failure with identical counts. There is no behavioural difference for the
+only consumer either package has.
+
+---
+
+# binaryang → wabt-ts: final release, then archive
+
+Same plan as binaryen-ts, with one difference that matters.
+
+## ⚠️ Your signpost goes in `src/index.ts`, not `README.md`
+
+JSR renders this package's page from **JSDoc** (`readmeSource: jsdoc`), so edit the `@module` block
+at the top of `src/index.ts`. A `README.md` notice alone would be invisible exactly where it needs
+to be seen. Update `README.md` too — that is the GitHub half — but the JSDoc is the one that reaches
+JSR.
+
+Suggested opening for the `@module` block, above the existing text:
+
+```
+* @module
+* **This project has moved to binaryang (`@jrmarcum/binaryang`).**
+*
+* `@jrmarcum/wabt-ts` is superseded by `@jrmarcum/binaryang`, which merges wabt-ts and binaryen-ts
+* into one package. **1.5.1 is the final release of this package.**
+*
+* Migration: `./compat` → `./compat/wabt`. The six tool subpaths keep their names
+* (`./wat2wasm`, `./wasm2wat`, `./wasm-validate`, `./wasm-objdump`, `./wasm-strip`, `./wasm2ts`).
+*
+* Two things move rather than rename. This package shipped its IR through the package ROOT;
+* binaryang's root is deliberately narrow, so the IR is now at `./ir/wabt-ts`. The core vocabulary
+* every tool's return value is expressed in — `Result`, `ErrorList`, `formatErrors` — is at
+* `./core/wabt-ts` for the same reason.
+```
+
+That last paragraph is the part a consumer cannot work out for themselves, so it is worth the words:
+anything importing values from `jsr:@jrmarcum/wabt-ts` directly needs a named subpath now.
+
+## The rest
+
+JSR `description` → `Superseded by @jrmarcum/binaryang — final release 1.5.1`. Publish 1.5.1, then
+archive JSR and GitHub, **in that order**. Do not yank.

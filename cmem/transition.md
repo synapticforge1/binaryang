@@ -83,6 +83,27 @@ forcing merges that would describe a release flow which does not exist yet.
 
 ## Phase B — 1.5.1
 
+**B1 ✅ met 2026-08-26.** wasmtk verified against binaryang in a scratch copy (its own repo
+untouched, per the boundary rule). Control-first, so a failure could be attributed: run against its
+current pins, then against binaryang.
+
+|                       | control (`binaryen-ts@1.5.0` + `wabt-ts@1.4.1`)             | binaryang           |
+| --------------------- | ----------------------------------------------------------- | ------------------- |
+| `deno check main.ts`  | clean                                                       | clean               |
+| test-file type errors | 3 (pre-existing)                                            | 3, same codes       |
+| suite                 | 12 passed, 1 failed                                         | 12 passed, 1 failed |
+| the failure           | `br_on_cast.wast` — KNOWN FAILING, pinned, `pass=23 skip=1` | identical           |
+
+Normalised full-output diff shows no substantive difference. **binaryang introduces no behavioural
+change for the only consumer either package has** — including across wasmtk's 1.4.1 → 1.5.x jump on
+the wabt side, which this document flagged as the thing to look at first if the gate failed.
+
+Also learned: wasmtk's real suite is `tests/*_tests.ts` (16 files). A bare `deno test tests/`
+collects corpus fixture `test.js` files instead and reports 32 failures that mean nothing. It needs
+`--no-check` too — 3 type errors in its own test files predate any of this.
+
+**B3–B6 are drafted** in [handoffs.md](handoffs.md) § 2, to send once B2 is live.
+
 | #      | item                                                               | owner       | notes                                                                                                                                         |
 | ------ | ------------------------------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | **B1** | Verify wasmtk builds green against binaryang **before** publishing | wasmtk      | ⚠️ it is a full minor behind on wabt (`1.4.1`), so this jumps two releases at once. **If this fails, look here before looking at the merge.** |
