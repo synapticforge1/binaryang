@@ -46,7 +46,7 @@ here** and a correctness fix a downstream consumer is waiting on outranks a tidy
 | **`-Oz` try_table miscompile**       | ✅ done — not originally in scope; came in as a wasmtk bug report                                                                                                       |
 | **`compat/binaryen` pass API**       | ✅ done — `listPasses` exported, kebab-case accepted, error lists names                                                                                                 |
 | **§2.2 cmem topic merges**           | ◐ partial — `overview`, `licensing`, `bridge`, `best-practices`, `publishing` (provenance half) done; `phases` / `testing` / the rest of `publishing` still wing-scoped |
-| **§2.1 release-script unification**  | ⬚ deferred — still two sets under `scripts/{binaryen-ts,wabt-ts}/`                                                                                                      |
+| **§2.1 release-script unification**  | ✅ done — one `scripts/release/`, the union of both sets; `bump` and `release` tasks wired (neither existed)                                                            |
 | **§2.3 where the bridge lives**      | ⬚ deferred — still `src/wabt-ts/bridge/`, promotion-rule gap unresolved                                                                                                 |
 | **§3 `scripts/count-collisions.ts`** | ⬚ deferred — rule pinned in [overview.md](overview.md), not yet scripted                                                                                                |
 | **§4 phases C/D**                    | ⬚ blocked — C2 (wasmtk republish) is wasmtk's to run; D archiving follows it                                                                                            |
@@ -100,19 +100,31 @@ fixes, two tests.
 
 ### 2.1 Unify the release scripts
 
-Still two of everything, from A1's deliberate deferral:
+✅ **Done 2026-08-27.** One `scripts/release/` holds `version.ts`, `bump_version.ts`, `publish.ts`
+and `release-guard.ts`. Both predecessors' copies are gone; `scripts/{binaryen-ts,wabt-ts}/` keep
+only their diagnostics, and `verify-baseline.ts` stays put because it reads
+`pre-merge-baseline.tsv` beside it and is not a release script.
 
-```
-scripts/binaryen-ts/  bump_version.ts  publish.ts  version.ts
-scripts/wabt-ts/      bump_version.ts  publish.ts  version.ts  release-guard.ts
-```
+**It is the UNION, not a pick.** Each side's copy was strictly better than the other in one place,
+so choosing either would have silently dropped a guard:
 
-One repo publishing one package should have one release flow. wabt-ts's side additionally carries
-`release-guard.ts` and its T13.43/T13.44 tests, which are the stricter of the two and should survive
-the merge rather than be replaced.
+| from | what would have been lost |
+| ---- | -------------------------- |
+| wabt-ts | `--dry-run` (a mutating script that read NO arguments, so `--dry-run` did a real bump), `release-guard.ts` and its T13.43/T13.44 tests, the remote-tag guard |
+| binaryen-ts | the `main.ts` VERSION rewrite — without it `--version` drifts, exactly as binaryen-ts's did across two minor releases |
 
-**Blocks:** the `phases` / `testing` / `publishing` cmem merges below, which describe a release
-process that does not exist until this lands.
+⚠️ **Neither task existed in binaryang.** The scripts came through the merge but `deno task bump`
+and the release task were never wired, so every document saying "`deno task bump` rewrites both"
+described a command that would have failed. Now `bump` and `release` are real tasks.
+
+**Named `release`, not `publish`**: `publish:dry` runs `deno publish --dry-run`, which checks the
+JSR manifest and is not a dry run of the release script. Two names one keystroke apart doing
+unrelated things, one of them irreversible.
+
+**Verified by inverting it:** a real `deno task bump` moved `deno.json` and `main.ts` together to
+1.5.3, `version_sync` passed, and both were reverted to 1.5.2. A `--dry-run` moved neither.
+
+**Unblocks:** the `phases` / `testing` / `publishing` cmem merges below.
 
 ### 2.2 Merge the remaining cmem topics
 

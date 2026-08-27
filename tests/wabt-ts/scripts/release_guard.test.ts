@@ -3,7 +3,7 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { releaseBlockers, statusPath } from '../../../scripts/wabt-ts/release-guard.ts';
+import { releaseBlockers, statusPath } from '../../../scripts/release/release-guard.ts';
 
 // T13.43. `scripts/publish.ts` stages `deno.json` and NOTHING else, then tags
 // and pushes -- and the tag is exactly what JSR publishes. So on a dirty tree
