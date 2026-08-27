@@ -1,11 +1,33 @@
 # 1.5.2 — scope
 
-Branch `release/1.5.2`, opened 2026-08-27. Merging it to `main` **publishes** — `auto-tag` sees the
-bumped version, tags `v1.5.2`, and dispatches `publish.yml`. Do not merge until this list is done or
-each open item is consciously deferred.
+Branch `release/1.5.2`, opened 2026-08-27.
 
 Named `release/1.5.2` rather than `v1.5.2` on purpose: a branch and a tag sharing a name makes
 `git checkout v1.5.2` ambiguous between `refs/heads` and `refs/tags`.
+
+## ⚠️ The version bump is the LAST commit, and it is the arming step
+
+**This branch stays at `1.5.1` while the work happens.** It is therefore safe to merge to `main` at
+any point — partial work can land without releasing.
+
+`auto-tag` does **not** compare versions or detect a change. It runs on every push to `main` and
+asks exactly one question: _does `refs/tags/v<deno.json version>` already exist?_ If yes it logs
+"nothing to do"; if no it tags, pushes, and dispatches `publish.yml`.
+
+So while `deno.json` reads `1.5.1` and `v1.5.1` exists, merging publishes nothing. **Bumping
+`deno.json` and `main.ts` to `1.5.2` is what arms the release**, and it should be the final commit
+before the merge that is meant to publish. Both files, together — `version_sync.test.ts` fails the
+publish otherwise, and `deno task bump` rewrites both.
+
+Two consequences of the rule being "tag exists" rather than "version increased":
+
+- **Deleting a tag re-arms that version.** The next merge would re-tag and attempt a republish; JSR
+  rejects it as immutable, so the job goes red rather than doing something silently wrong.
+- **A downgrade also triggers.** There is no monotonicity check.
+
+A tag is also the one thing that publishes from anywhere: `publish.yml` keys on `push: tags: [v*]`
+with no branch constraint, so pushing a `v*` tag from this branch would publish immediately. Nothing
+else reachable from a branch push can.
 
 ## What 1.5.2 is
 
