@@ -102,7 +102,33 @@ Also learned: wasmtk's real suite is `tests/*_tests.ts` (16 files). A bare `deno
 collects corpus fixture `test.js` files instead and reports 32 failures that mean nothing. It needs
 `--no-check` too — 3 type errors in its own test files predate any of this.
 
-**B3–B6 are drafted** in [handoffs.md](handoffs.md) § 2, to send once B2 is live.
+**B2 ✅ done 2026-08-27.** `@jrmarcum/binaryang@1.5.1` published **with provenance**
+(`rekorLogId=2618802426`), GitHub release created, and smoke-tested against the published artifact.
+See [publishing.md](publishing.md) — including the first tag push that produced no workflow run at
+all, because the tag went up before the branch registered the workflows.
+
+**B3–B5 ✅ prepared 2026-08-27, committed locally, NOT pushed.** Pushing either repo's `main` is
+what publishes: `auto-tag` sees the bumped version, tags `v1.5.1`, and dispatches `publish.yml`.
+
+| repo        | commit        | signpost location                             | gates                            |
+| ----------- | ------------- | --------------------------------------------- | -------------------------------- |
+| binaryen-ts | `4bf1726f200` | `README.md` (`readmeSource: readme`)          | 514 tests, check + dry-run clean |
+| wabt-ts     | `b6d1d4354`   | **`@module` in `src/index.ts`** + `README.md` | 393 tests, check + dry-run clean |
+
+⚠️ wabt-ts's JSR page renders from **JSDoc**, so the `@module` block is the one that reaches
+consumers; the README is the GitHub half. Both were written.
+
+⚠️ **Verification note, recorded because the recipe does not work.**
+`wasmtk/cmem/design-decisions.md` says to confirm a module doc with `deno doc --json <entrypoint>` →
+`nodes[file].module_doc.doc`. Measured 2026-08-27: that returns **empty for every file tried**,
+including `binaryen-ts/main.ts`, whose module doc JSR demonstrably renders
+(`allEntrypointsDocs: yes`). So the probe is inconclusive rather than negative, and it cannot
+confirm the signpost pre-publish. What _is_ established: the block is first in the file, closes
+cleanly before the exports, and only its **content** changed — the structure JSR already reads is
+untouched. Confirm on the JSR page after publishing.
+
+**B6 remains** — the JSR `description` on both packages, which is a settings-page field rather than
+anything in the repo. Suggested: `Superseded by @jrmarcum/binaryang — final release 1.5.1`.
 
 | #      | item                                                               | owner       | notes                                                                                                                                         |
 | ------ | ------------------------------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
