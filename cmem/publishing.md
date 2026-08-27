@@ -244,29 +244,37 @@ next person hunting a problem that is not there.
 being recorded. `updatedAt == createdAt` means either not-yet-attested or never-attested, and only a
 cache-busted read distinguishes them.
 
-## 🔓 The auto-tag dispatch path failed; the tag-push path worked
+## 🚨 The auto-tag dispatch path does NOT publish — 3 of 3
 
-Measured 2026-08-27, publishing all three packages:
+Measured across three releases of three packages:
 
-| trigger                                            | outcome                                                        |
-| -------------------------------------------------- | -------------------------------------------------------------- |
-| `workflow_dispatch` (auto-tag's `gh workflow run`) | **failed at `deno publish`** — binaryen-ts and wabt-ts, 2 of 2 |
-| `push: tags` (tag pushed by a user)                | **succeeded** — all three packages, 4 of 4                     |
+| trigger                                            | outcome                                                                               |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `workflow_dispatch` (auto-tag's `gh workflow run`) | **failed at `deno publish`** — binaryen-ts, wabt-ts, **and binaryang 1.5.2** — 3 of 3 |
+| `push: tags` (tag pushed by a user)                | **succeeded** — 5 of 5 across all three packages                                      |
 
-Nothing published on the dispatch runs; they failed at the publish step with `exit code 1` and no
-recoverable log (the Actions logs endpoint is 403 unauthenticated, and the annotations carry only
-the exit code).
+⚠️ **This is no longer a correlation with one plausible confound.** The first two failures were the
+same day inside a four-minute window, which a transient registry-side fault would explain. The third
+is a different package, hours later, on a workflow that had since gained an OIDC diagnostic — and
+that diagnostic emitted **no warning**, so the token was present. Nothing published on any of the
+three; each died at `deno publish` with only `exit code 1`, and the Actions logs endpoint is 403
+unauthenticated so the reason is still unrecovered.
 
-⚠️ **State this as a correlation, not a cause.** The sample is one dispatch run per repo, both in a
-four-minute window, and at that point neither repo had the OIDC diagnostic, so there is no evidence
-of _why_. A transient JSR- or Sigstore-side failure in that window would fit the data equally well.
+**Practical consequence: the documented release flow does not work.** _Merge to main → auto-tag →
+dispatch → publish_ fails at the last step, every time so far. The reliable sequence is:
 
-**Why it matters anyway:** the intended release flow is _merge to main → auto-tag → dispatch →
-publish_, which is exactly the path that failed. Before relying on it, either reproduce a release
-through it, or remove the dispatch entirely — auto-tag only needs `gh workflow run` because a tag
+```
+merge (unbumped) -> push -> verify -> bump -> push        # auto-tag creates the tag; publish FAILS
+git push origin :refs/tags/vX.Y.Z && git push origin vX.Y.Z   # re-push it; publish SUCCEEDS
+```
+
+The tag `auto-tag` creates is correct — only the dispatch fails — so deleting and re-pushing that
+same tag is enough, and costs one red run in the history.
+
+**The real fix is to remove the dispatch.** `auto-tag` only calls `gh workflow run` because a tag
 pushed by `GITHUB_TOKEN` cannot trigger a workflow (GitHub's recursion guard). Pushing that tag with
-a PAT or deploy key instead would trigger `publish.yml` through `push: tags`, the path that
-demonstrably works.
+a PAT or deploy key would fire `publish.yml` through `push: tags` — the path with a 5-of-5 record —
+and delete the failing step entirely.
 
 ## The verification step was tested against both sides
 
