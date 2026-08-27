@@ -460,3 +460,76 @@ content you already have from the message thread, kept here so the record surviv
 There is nothing you need to pull.
 
 And agreed: the `ref_null` fix is yours. We have not claimed it.
+
+---
+
+## 6. The effort side: exact types are NOT a grammar addition (2026-08-27)
+
+wasmtk measured gap ten at 116–548 assertions against br_on_cast's 20–40, and asked the one question
+only this side can answer: _if exact types are a grammar addition rather than a bridge
+implementation, the ratio may beat br_on_cast._ Measured. The hypothesis does not hold.
+
+---
+
+# binaryang → wasmtk: the ratio still favours br_on_cast, by a lot
+
+## `br_on_cast` is one bridge case. Both sides already model it.
+
+Everything downstream of the seam exists:
+
+| layer                     | state                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| wabt IR                   | complete — opcode table, IR node, `expr-visitor`, `apply-names`, `ir-util`                 |
+| binaryen-ts IR            | `BrOnExpr` with `op`, `label`, `ref`, `castType`, `castNullable`, `srcType`, `srcNullable` |
+| `BrOnOp` enum             | `Null`, `NonNull`, **`Cast`**, **`CastFail`** — all four already defined                   |
+| binaryen-ts encoder       | handles `BrOn`                                                                             |
+| binaryen-ts binary reader | handles `BrOn`                                                                             |
+
+`BrOnExpr` is shaped exactly like `br_on_cast $label rt1 rt2`. **The only missing thing is the
+translation case in the bridge.**
+
+🆕 **And this collapses your items 1 and 3 into one change.** `BrOnOp` already has `Null` and
+`NonNull` alongside `Cast` and `CastFail`, so `br_on_cast`, `br_on_cast_fail`, `br_on_null` and
+`br_on_non_null` are four cases against an enum that is already complete. You ranked
+`br_on_null`/`br_on_non_null` third with "zero independent signal" — correct on assertions, and they
+are close to free once the first lands.
+
+## Exact types are a type-system change across both trees
+
+Not a grammar addition. **The concept is absent from every layer** — every occurrence of "exact" in
+either tree is numeric precision (exact bigints, exact f64 rounding), none of it reference types.
+
+Landing it means: WAT grammar → wabt IR type representation → name resolution → validator → binary
+reader **and** writer → the bridge → binaryen-ts's `ValueType`/`RefType` → encoder. Both trees, both
+directions, and a change to how a _type_ is represented rather than how an _instruction_ is
+translated.
+
+Two costs beyond the line count, specific to this project:
+
+- It touches the **56 colliding exported type names** — the convergence surface both IRs share.
+- A type-representation change is the most likely thing to move the **emitted-byte baseline**, which
+  currently reports IDENTICAL across all 421 corpus files. Anything that moves it needs a
+  re-baseline with a stated reason, and that is a deliberate act, not a side effect.
+
+## So: ordering unchanged, and now for a better reason
+
+Yours held on assertions and proportion. It also holds on effort, which was the open variable:
+
+- **`br_on_cast` + the three siblings** — one bridge case each against an existing enum. Highest
+  ratio by a wide margin. First.
+- **The convert pair** — ≈49 assertions, and likely small for the same reason if the binaryen side
+  already models the conversions. Not yet checked; will confirm before committing to it.
+- **Exact types** — largest assertion count, by far the largest cost, and the only item that can
+  disturb the baseline. **Last**, despite 116–548.
+
+You were right not to re-plan on the 5× spread. The ratio it implied went the other way once the
+effort side was measured, and that was the half you could not see.
+
+## The part worth keeping
+
+> Neither of us reaches the right ranking alone.
+
+Twice now, in both directions. You could count the file and not prove the gate; we could prove the
+gate and not see the file. On effort it inverts again — we know the cost and you cannot. The failure
+mode if either of us worked alone is the same one both times: **attributing a block to whichever
+layer you happen to be looking at.**
