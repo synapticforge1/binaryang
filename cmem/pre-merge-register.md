@@ -164,7 +164,7 @@ audit missing the export map as a *lesson* rather than a correction. That framin
 part and it is kept here. The export map is a **third surface**, independent of both the directory
 layout and the tracked-path list, and it is the surface wasmtk actually imports.
 
-### C3 🔓 Publishing model — one package, but the shims are undecided
+### C3 ✅ Publishing model — **DECIDED 2026-08-26: clean break, no shims**
 
 wabt-ts (B3, G3) recommends **one package plus thin re-export shims** under both retired names,
 retired on a later major. binaryen-ts's decision 4 settles the version (**1.5.1**, the next version
@@ -176,11 +176,62 @@ cheap to defer and expensive to reverse: wasmtk's `@jrmarcum/wabt-ts@1.4.1/compa
 rename regardless of version number, and a shim costs one file. Deferring past first publish is what
 makes it expensive, so it wants deciding before the 1.5.1 gate, not before the trees move.
 
-⚠️ One input to that decision is now weaker than it looks. Both registers argue the shim case from
+⚠️ One input to that decision was weaker than it looked. Both registers argue the shim case from
 wasmtk's pin — but wasmtk is the one consumer that is **certainly** a two-line change anyway (see
-C2). The real question the shim answers is about JSR consumers neither repo can enumerate, which is
-a different and less answerable question. Decide it as insurance, not as ergonomics for a named
-consumer.
+C2). The real question a shim answers is about JSR consumers neither repo can enumerate.
+
+#### 🆕 The dependency audit — measured 2026-08-26, and it settles it
+
+That "less answerable question" turned out to be answerable, from JSR's own API
+(`api.jsr.io/scopes/jrmarcum/packages/<pkg>/dependents`):
+
+| package | JSR dependents |
+| --- | --- |
+| `@jrmarcum/binaryen-ts` | **`total: 1`** — `@jrmarcum/wasmtk`, across 31 of its versions |
+| `@jrmarcum/wabt-ts` | **`total: 1`** — `@jrmarcum/wasmtk`, across 31 of its versions |
+
+**There are no third-party consumers.** The only dependent of either package, anywhere on JSR, is
+wasmtk — which is the same owner's project, already planned as a consumer, and already known to be a
+two-line import-map change.
+
+Locally the picture matches, with one addition worth recording:
+
+- **Direct:** wasmtk, on `./compat` of both, exact pins (`binaryen-ts@1.5.0`, `wabt-ts@1.4.1`).
+- **Transitive:** **LeptonPad**, which never names either package — it runs
+  `deno run -A jsr:@jrmarcum/wasmtk modc …` in a build task, **unpinned**, and wasmtk carries both.
+
+⚠️ **The earlier sweep in C2 missed LeptonPad** and concluded "the only live consumer is wasmtk."
+The references live in `deno.lock`, and the sweep's include-globs covered `.json`, `.ts` and `.md`
+only — a lockfile is neither. Corrected rather than quietly amended, because the lesson is the
+reusable part: **a dependency audit that reads import maps and source is measuring declarations, not
+dependencies.** The lockfile is where the transitive truth is.
+
+🆕 **wasmtk is a redistributor, not merely a consumer.** Decision 3 says it "stays a consumer," which
+is right about the merge and understates its role in the deprecation: every wasmtk user is a
+transitive dependent of both packages. So the break is gated on wasmtk shipping a binaryang-based
+version — not on anyone reading a deprecation notice.
+
+#### The decision
+
+**Owner, 2026-08-26: a clean break, with terminal pointer releases — no permanent shims.**
+
+1. Evaluate dependents first ✅ *(done above — one, and it is ours)*
+2. Publish **binaryen-ts 1.5.1** and **wabt-ts 1.5.1**, each pointing at binaryang for future use
+3. **Clean break at binaryang 1.5.2**
+
+⚠️ **This supersedes the shim recommendation previously recorded here, and the audit is why.** The
+case for shims rested entirely on insurance against consumers nobody could enumerate. They have now
+been enumerated: there are none. Insurance against a measured-empty set is cost without cover, and
+two extra published packages to version forever is not a small cost.
+
+✅ **The break is safe because JSR is immutable.** Publishing 1.5.1 does not remove 1.5.0, and no
+version is ever deleted — so all 31 existing wasmtk releases keep resolving to the exact
+`binaryen-ts` and `wabt-ts` versions they pinned, indefinitely. A clean break strands nobody who is
+already working; it only declines to serve *future* resolution of the old names. That is the property
+that makes "clean break" the low-risk option here rather than the bold one, and it is worth stating
+because the phrase suggests the opposite.
+
+🔓 **Two things still to settle** — see § 9.
 
 ### C4 ⚠️ `src/` directory collisions — four, not five
 
@@ -785,6 +836,53 @@ Not decided here, because it is a layout decision the owner settles and it does 
 the bridge can move in under `src/wabt-ts/bridge/` and be promoted later without cost. Flagged so it
 is not discovered as a surprise the first time someone runs the promotion test and finds the seam
 permanently ineligible.
+
+---
+
+## 9. Open questions on the C3 retirement plan
+
+Two, both small, both worth settling before anything is published.
+
+### 9.1 🔓 What "pointing at binaryang" means in the 1.5.1 releases
+
+Two readings, and they are different work:
+
+- **(a) Signpost only** — the 1.5.1 release changes the README to say the project is now binaryang,
+  and marks the package deprecated on JSR. No code change; the last real code stays at 1.5.0.
+- **(b) Forwarding** — 1.5.1 re-exports binaryang's modules, so old imports keep resolving to live
+  code.
+
+**Recommended: (a).** With the dependent set measured at exactly one — wasmtk, which will migrate by
+editing two import-map lines rather than by resolving a forward — the code path in (b) would be
+written for nobody. (a) is also the honest signal: a package that forwards is still alive, and this
+one is not.
+
+One caveat that argues (a) is *sufficient* rather than merely cheaper: LeptonPad reaches both
+packages through an **unpinned** `deno run -A jsr:@jrmarcum/wasmtk`, so it follows wasmtk
+automatically the moment wasmtk publishes against binaryang. It never needs to see the notice.
+
+### 9.2 🔓 The version ladder — three packages at 1.5.1, or a clean staircase
+
+As stated, binaryang starts at **1.5.1** (decision 4) *and* both predecessors publish **1.5.1** as
+their terminal release. That works, but it puts three packages on the same number in the same week,
+and it undercuts decision 4's own story — "1.5.1 is the next version after two 1.5.0s" stops being
+true once the predecessors themselves ship a 1.5.1.
+
+**Alternative worth a moment:** predecessors terminate at **1.5.1**, binaryang begins at **1.5.2**.
+The numbering then tells the whole story without a footnote:
+
+| version | state |
+| --- | --- |
+| 1.5.0 | two live packages |
+| 1.5.1 | two terminal pointers |
+| 1.5.2 | one package — binaryang |
+
+This also matches the phrasing of the decision itself, *"a clean break once binaryang 1.5.2 is
+published"* — under this ladder 1.5.2 **is** the break rather than the release after it.
+
+⚠️ Flagged rather than adopted: it revises **decision 4**, which is on the settled list, and settled
+decisions are not reopened here. Owner's call, and cheap either way — but cheaper before publish
+than after.
 
 ---
 
