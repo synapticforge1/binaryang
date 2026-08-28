@@ -189,7 +189,9 @@ there is indistinguishable from no fix at all.
 ### The measurement trap this exposed, which is the more portable lesson
 
 Every CR count taken during the investigation was **wrong**, in the direction that confirmed the
-theory. `grep -c $''` and `od -c | grep -o ''` both match a literal `r` in a BRE — so files
+theory. `grep -c $'
+'` and `od -c | grep -o '
+'` both match a literal `r` in a BRE — so files
 were reported as full of carriage returns when they held none, and the numbers moved plausibly
 because the letter `r` is common.
 
@@ -202,6 +204,72 @@ built to confirm a hypothesis usually will.
 Ask of any tool whose result differs between two machines: **what setting decided that, and is it in
 the repo?** Formatter width, lint rules, TypeScript strictness, Node version, test-runner
 concurrency. Every one of them has a machine-level default that will silently disagree with CI.
+
+## 🆕 When two paths to the same action disagree, the difference is a FACT — look it up
+
+**Rule: a persistent difference in outcome between two routes has a cause you can read off a field
+somewhere. Enumerate what differs between them before theorising about why.** And when a failure
+hands you no error message, **obtaining the message is the work** — everything reasoned on top of a
+bare exit code is speculation wearing evidence's clothes.
+
+### The instance
+
+Two routes published the same package from the same workflow file:
+
+| route | record |
+| ----- | ------ |
+| `push: tags` | 5 successes, 0 failures |
+| `auto-tag` → `workflow_dispatch` | 0 successes, 4 failures |
+
+Three of those failures produced only `exit code 1`. Across weeks and three repositories, that
+produced a documented conclusion of *"treat this as a correlation, not a cause"* — epistemically
+correct, and it **became a resting place**. The pattern was strong enough to work around and never
+strong enough to explain, so nobody explained it.
+
+The fourth attempt surfaced the actual error:
+
+```
+Failed to publish @jrmarcum/binaryang@1.5.3
+Caused by: ... not authorized as a scope member for this scope. (actorNotScopeMember)
+```
+
+**JSR authorises the OIDC token's ACTOR.** One field on the runs API settled it:
+
+| event | actor | result |
+| ----- | ----- | ------ |
+| `workflow_dispatch` | `github-actions[bot]` | ❌ |
+| `push` | `jrmarcum` | ✅ |
+
+Full detail in [publishing.md](publishing.md).
+
+### Identity is a hidden variable in CI, and it is the one nobody lists
+
+When comparing two CI paths, the obvious variables get checked — the YAML, the permissions block,
+the runner, the tool version. **Who the run executes as** is rarely on the list, because it is not
+written in any file being compared. Here it was the *only* difference, and it was invisible in the
+diff of a workflow that never changed.
+
+Add it to the list. `actor.login` on the runs API, one request.
+
+### One controlled pair beat weeks of accumulated correlation
+
+Nine data points across three repositories and several weeks supported "dispatch is unreliable".
+**Two runs minutes apart — same commit, same workflow, same YAML, differing in one field — proved
+the mechanism.** Accumulating more observations of a confounded comparison does not converge on a
+cause; it converges on confidence in a correlation.
+
+When a pattern is stable enough to work around, that is the moment to spend twenty minutes finding
+the mechanism, not the moment to stop.
+
+### What a cause buys that a workaround does not
+
+The correlation supported *"use tag pushes"*. The mechanism additionally established that the fix
+must be a PAT **owned by a scope member** — a distinction invisible from the correlation, and one
+that would have produced a second identical failure had it been guessed. It also cleared provenance
+as a suspect entirely: the publish was rejected at authorisation, so provenance never ran.
+
+**A workaround routes around the unknown; a cause tells you which neighbouring things are also
+wrong.**
 
 ## Where to go for the rest
 
