@@ -250,7 +250,7 @@ Measured across three releases of three packages:
 
 | trigger                                            | outcome                                                                               |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `workflow_dispatch` (auto-tag's `gh workflow run`) | **failed at `deno publish`** — binaryen-ts, wabt-ts, **and binaryang 1.5.2** — 3 of 3 |
+| `workflow_dispatch` (auto-tag's `gh workflow run`) | **failed at `deno publish`** — binaryen-ts, wabt-ts, binaryang 1.5.2, **and 1.5.3** — 4 of 4. **Cause found, see below** |
 | `push: tags` (tag pushed by a user)                | **succeeded** — 5 of 5 across all three packages                                      |
 
 ⚠️ **This is no longer a correlation with one plausible confound.** The first two failures were the
@@ -313,3 +313,72 @@ Not assumed to work. Its logic was run against four real published versions befo
 | `wasmtk@2.0.0`      | FAIL — no provenance    |
 
 A check that has only ever been seen to pass is a claim, not a gate.
+
+---
+
+## 🚨 ROOT CAUSE of the `workflow_dispatch` publish failures — found 2026-08-27
+
+It was never flakiness, and it was never the YAML. The 1.5.3 attempt returned a real error instead
+of a bare `exit code 1`:
+
+```
+error: Failed to publish @jrmarcum/binaryang@1.5.3
+Caused by:
+    The actor that this request was authenticated for is not authorized as a
+    scope member for this scope. (actorNotScopeMember)
+```
+
+**JSR authorises the OIDC token's ACTOR, and on a dispatched run the actor is
+`github-actions[bot]`** — which is not a member of the `@jrmarcum` scope. Confirmed directly
+against the runs API:
+
+| workflow | event | actor | result |
+| -------- | ----- | ----- | ------ |
+| Publish to JSR (v1.5.3) | `workflow_dispatch` | **`github-actions[bot]`** | ❌ failure |
+| every other run | `push` | `jrmarcum` | ✅ success |
+
+That single column explains **5 of 5 versus 0 of 4** completely. A tag pushed by a person carries
+actor `jrmarcum`, who is a scope member; a workflow dispatched by `auto-tag` using `GITHUB_TOKEN`
+carries the bot, who is not.
+
+### What this retires
+
+The register said *"treat this as a correlation, not a cause — one dispatch run per repo, in a
+four-minute window, with no OIDC diagnostic in place."* That caution was correct at the time and is
+now **spent**: there is a mechanism, it is checkable in one API field, and it predicts every
+observation.
+
+It also retires the idea that provenance was ever the variable. Provenance never got a chance to
+fail — the publish was rejected at authorisation.
+
+### Why `RELEASE_PAT` is the fix, and not a stylistic preference
+
+`auto-tag` checks out with `token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}`. With the PAT
+present, the tag is pushed **as its owner**, so `publish.yml` fires on `push: tags` with actor
+`jrmarcum` — a scope member. Without it, the tag is pushed by `GITHUB_TOKEN`, GitHub's recursion
+guard suppresses the tag event, `auto-tag` falls back to dispatching, and the dispatch runs as the
+bot and is rejected.
+
+⚠️ **The 1.5.3 failure is proof the secret is not set.** The fallback is doing exactly what it was
+designed to do — warn and try anyway — and the attempt cannot succeed.
+
+**The PAT must belong to a JSR scope member.** A fine-grained PAT with Contents: read/write, owned
+by `jrmarcum`. A PAT from a non-member account would push the tag successfully and fail publish the
+same way.
+
+### Recovery when this happens
+
+Nothing is published, so nothing is burnt — a JSR version is only immutable once it exists. Delete
+the remote tag and re-push it from a workstation, where the pusher is a real user:
+
+```sh
+git push origin :refs/tags/vX.Y.Z
+git tag -a vX.Y.Z -m "vX.Y.Z" HEAD
+git push origin vX.Y.Z          # actor = jrmarcum -> push:tags -> publishes
+```
+
+✅ **The recovery was executed for 1.5.3 and worked, which confirms the mechanism rather than
+merely the fix.** The re-pushed tag produced `event=push`, `actor=jrmarcum`, `conclusion=success`,
+and `1.5.3` landed on JSR with provenance (`rekorLogId=2620472173`, `createdAt`→`updatedAt` four
+seconds apart). Same commit, same workflow, same YAML as the run that failed minutes earlier — only
+the actor differed.
