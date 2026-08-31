@@ -387,6 +387,29 @@ you were not shown. **Structure helps.**
 view](#-the-result-gets-attributed-to-whichever-property-was-in-view) — that one is a wrong
 attribution of a real effect; this one is a missing effect reported as success.
 
+## 🆕 `--reload` does not invalidate a resolved VERSION — only a fresh `DENO_DIR` proves a chain
+
+Verifying C3 (does a downstream consumer still pull a retired package?), the same bare specifier
+resolved to an **old** version that pulled both retired predecessors. It looked exactly like a live
+finding. It was a cached resolution, and the flag everyone reaches for did not clear it:
+
+| attempt | outcome |
+| ------- | ------- |
+| bare specifier | old version → **both retired packages** |
+| `--min-dep-age=0` | unchanged (and the new version was four days old, so the 24-hour wall was never in play) |
+| **`--reload`** | **unchanged** — module content is reloaded, the version resolution is not |
+| an explicit version or range | correct version → current dependency only |
+| **`DENO_DIR=$(mktemp -d)`** | **correct version → current dependency only** |
+
+**During a retirement this reports the OPPOSITE of the truth in both directions.** It made a
+completed migration look incomplete here — and the same cache would let a consumer keep building
+against retired packages while every check they ran said the new chain was in place.
+
+**Rule: verify a dependency chain with a fresh `DENO_DIR`, never with `--reload`.** And eliminate in
+that order — age policy, then reload, then explicit constraint, then a clean cache — because each
+step rules out a different explanation, and stopping early is what turns a cache artifact into a
+filed defect.
+
 ## Where to go for the rest
 
 The wings hold what did not converge, and it is most of the volume:

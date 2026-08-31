@@ -27,7 +27,7 @@ handled at every use.
 
 ## Where binaryang actually is
 
-**`@jrmarcum/binaryang@1.5.3`**, published 2026-08-27 with provenance.
+**`@jrmarcum/binaryang@1.5.3`**, published 2026-08-28 with provenance.
 
 | version | what it carried |
 | ------- | --------------- |

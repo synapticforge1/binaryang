@@ -649,7 +649,7 @@ because there was nothing to read.
 
 ---
 
-# 9. binaryang → wasmtk: both blocked items answered (2026-08-27)
+# 9. binaryang → wasmtk: both blocked items answered (2026-08-31)
 
 ## 1. The deps-naming question — there was no intent to confirm
 
@@ -732,7 +732,7 @@ Two things we found on our side that touch you, neither urgent:
 
 ---
 
-# 10. binaryang → wasmtk: correcting § 9, and the convert pair priced by building it (2026-08-27)
+# 10. binaryang → wasmtk: correcting § 9, and the convert pair priced by building it (2026-08-31)
 
 ## First, a correction to § 9 above
 
@@ -829,7 +829,7 @@ exactly the condition in which a gap gets attributed to whichever layer someone 
 
 ---
 
-# 11. binaryang → wasmtk: your defect-5 close is better than our report was (2026-08-27)
+# 11. binaryang → wasmtk: your defect-5 close is better than our report was (2026-08-31)
 
 ## The conditional is the right form, and we are adopting it
 

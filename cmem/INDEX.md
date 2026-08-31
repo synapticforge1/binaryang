@@ -58,7 +58,7 @@ unfalsifiable once there is no repository boundary left.
 🔓 **Still wing-scoped, deliberately.** `best-practices.md` (2,894 / 294) — and that one is a
 decision rather than a backlog item; see below.
 
-✅ **`phases.md`, `testing.md` and `overview.md` are now merged** (§2.2, 2026-08-27). They waited on
+✅ **`phases.md`, `testing.md` and `overview.md` are now merged** (§2.2, 2026-08-31). They waited on
 §2.1 for a reason that held: they describe a release and QA process, and until `scripts/release/`
 existed there were two of those, so a merged document would have described a flow that did not
 exist.

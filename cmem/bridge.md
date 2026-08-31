@@ -149,7 +149,7 @@ question — it can stay where it is and be promoted later at no cost.
 
 ## 🆕 An import alias must not collide with a package the project could resolve
 
-Adopted from wasmtk 2026-08-27, and recorded here because it is a **different vector from the rule
+Adopted from wasmtk 2026-08-31, and recorded here because it is a **different vector from the rule
 above and our gate would not have caught it.**
 
 `scripts/check-naming.sh` reserves a bare `binaryen` or `wabt` in **paths**. It never looks at an

@@ -1,7 +1,7 @@
 # 1.5.2 — scope
 
 > **Read with 1.5.3 in mind.** This file scopes 1.5.2, and the items it deferred were completed
-> and shipped in **1.5.3** (published 2026-08-27 with provenance). The status table below is
+> and shipped in **1.5.3** (published 2026-08-28 with provenance). The status table below is
 > maintained through that, so a ✅ here may have landed in either release. No separate 1.5.3 scope
 > doc was written — the work was this file's deferred list, and splitting it would have created two
 > places to look.
@@ -93,7 +93,7 @@ Three shapes fail, all measured, none covered by a test — which is why the bri
 Remaining sites: `addFunctionImport`, `addGlobal`, `addTag`, `addTable`, locals, and the block/field
 helpers.
 
-⚠️ **The tag row was described too narrowly, and it was corrected 2026-08-27 by measurement.** The
+⚠️ **The tag row was described too narrowly, and it was corrected 2026-08-31 by measurement.** The
 `(ref $T)` param is INCIDENTAL — it is how the shape was found, not what it requires. Probing with
 the fix reverted, the precondition is a conjunction and neither half mentions the tag's own types:
 
@@ -151,7 +151,7 @@ Now unblocked or near-unblocked:
 
 - **`overview.md` (95 / 478) — stale on both sides.** Each still says all _three_ projects merge.
   Neither can be promoted as-is; this needs authoring, not merging.
-- ✅ **`phases.md` (177 / 209) and `testing.md` (186 / 642) — merged 2026-08-27.**
+- ✅ **`phases.md` (177 / 209) and `testing.md` (186 / 642) — merged 2026-08-31.**
   [phases.md](phases.md) and [testing.md](testing.md).
 
   The wait on §2.1 was justified, not procedural: both describe a release and QA process, and until
@@ -169,7 +169,7 @@ Now unblocked or near-unblocked:
   obsolete. What survives the fix is flagged explicitly, because a fixed root cause does not always
   retire the habit built around it.
 
-- ✅ **The non-provenance half of `publishing.md` — merged 2026-08-27.**
+- ✅ **The non-provenance half of `publishing.md` — merged 2026-08-31.**
   [publishing.md](publishing.md) is now one document.
 
   The convergent core is a rule both projects wrote independently in nearly the same words: **never

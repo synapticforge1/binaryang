@@ -1,6 +1,6 @@
 # Open work
 
-The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-08-27; `binaryang@1.5.3` published, score 100.
+The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-08-31; `binaryang@1.5.3` published, score 100.
 
 Kept here rather than in a version scope file because most of it is not scoped to a release yet, and
 a list split across three documents is a list nobody reads. Version-specific status stays in
@@ -17,7 +17,7 @@ a list split across three documents is a list nobody reads. Version-specific sta
 
 ## Conformance gaps — the wasmtk-ranked list, restated with current status
 
-Ranking agreed in [handoffs.md](handoffs.md); status re-derived 2026-08-27.
+Ranking agreed in [handoffs.md](handoffs.md); status re-derived 2026-08-31.
 
 | rank | gap | status |
 | ---- | --- | ------ |
@@ -73,8 +73,9 @@ import-kind dispatches all carry comments about exactly this shape having bitten
 - **Nothing ships against the bridge.** No `src/` file imports it and it has no export-map entry.
   Recorded deliberately unresolved in [overview.md](overview.md) — exporting it makes `./bridge`
   supported public surface on the fastest-moving part of the tree.
-- **C3 — confirm LeptonPad's `build:wasm` still runs.** Expected no-op; unverified, and should not
-  be recorded as done.
+- ✅ **C3 — LeptonPad's `build:wasm` — VERIFIED 2026-08-31.** Runs; the artifact validates,
+  instantiates and computes correctly; resolves `wasmtk@2.0.1 → binaryang@1.5.2` with **neither
+  predecessor pulled**. Detail and the caching trap it exposed: [transition.md](transition.md).
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 

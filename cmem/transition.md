@@ -367,3 +367,54 @@ oversight.
 
 Nothing in binaryang references the archived repos, and the predecessor git remotes point at local
 sibling paths (`../binaryen-ts`, `../wabt-ts`), not GitHub — so archiving broke no fetch path.
+
+### ✅ C3 verified 2026-08-31 — LeptonPad's `build:wasm` runs, and the chain is clean
+
+Run from a scratch copy, never inside LeptonPad — `deno` writes `deno.lock` into whatever directory
+it runs in, and the boundary rule forbids that here.
+
+```
+deno run -A jsr:@jrmarcum/wasmtk modc solver.ts -n dist/solver.wasm
+  ✅ Library: dist/solver.wasm (175 bytes)
+```
+
+**The artifact was checked, not just the exit code.** It validates, instantiates, and computes:
+`rect_area(2,3) = 6`, `rect_ix(2,3) = 4.5` (that is 2·3³/12). `solve_beam_deflection` returns NaN on
+those two arguments, which is an arity/units question for LeptonPad, not a toolchain fault.
+
+`solver/solver.ts` is 12 lines with **no imports**, so nothing about running it outside the project
+changes the result.
+
+**Resolution chain, fresh:** `jsr:@jrmarcum/wasmtk` → **2.0.1** → `@jrmarcum/binaryang@1.5.2`.
+**Neither predecessor is pulled.** C3 is a genuine no-op, as expected.
+
+⚠️ Note the published wasmtk 2.0.1 pins binaryang **1.5.2**, not 1.5.3. wasmtk's working tree is on
+1.5.3; the released artifact is immutable at 1.5.2. Both facts are true and they are about different
+things.
+
+#### 🚨 The trap this exposed: a stale local resolution keeps pulling retired packages, and `--reload` does NOT clear it
+
+On this machine the same bare specifier first resolved to **wasmtk 2.0.0**, which pulls
+`binaryen-ts@1.5.0` and `wabt-ts@1.4.1` — both retired. That looked exactly like a live finding:
+*LeptonPad still depends on the predecessors.*
+
+It was not. It was a cached version resolution, and the elimination order matters:
+
+| attempt | result |
+| ------- | ------ |
+| bare specifier | 2.0.0 → **both predecessors** |
+| `--min-dep-age=0` | still 2.0.0 (and 2.0.1 was four days old, so the 24-hour wall was never the explanation) |
+| **`--reload`** | **still 2.0.0** — content is reloaded, the version resolution is not |
+| explicit `@2.0.1` / `@^2.0.0` | 2.0.1 → binaryang only |
+| **fresh `DENO_DIR`** | **2.0.1 → binaryang only** |
+
+**Only a fresh `DENO_DIR` proves a resolution.** `--reload` is the flag everyone reaches for and it
+is not sufficient — it invalidates module content, not the resolved version.
+
+**Why this matters beyond C3:** during a retirement, this failure mode reports the *opposite* of the
+truth. A cached resolution makes a completed migration look incomplete, and — worse in the other
+direction — would let a consumer keep silently building against retired packages while every check
+they run says the new chain is in place. Verify a retirement with `DENO_DIR=$(mktemp -d)`.
+
+_And it was one command away from being written up as a defect in wasmtk's release. The property in
+view was "which version resolved"; the property that governed was "whose cache answered."_

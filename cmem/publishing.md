@@ -179,7 +179,7 @@ Bun / browser, and the score reaches parity.
 ### How to find the undocumented symbols — the method, not the number
 
 The table row above is a **snapshot**; `percentageDocumentedSymbols` reached **100%** for binaryang
-on 2026-08-27. What is worth keeping is how the gap was located, because the obvious route is a dead
+on 2026-08-31. What is worth keeping is how the gap was located, because the obvious route is a dead
 end.
 
 ⚠️ **`deno doc --lint` is NOT a doc-coverage check, and its number does not track JSR's.** The two
@@ -203,7 +203,7 @@ fields, and does not move the score.**
 binaryang scored **100 while that percentage read 98.1%**, so raising it is a quality decision and
 must not be described as a score fix.
 
-_Relocated from machine-local memory 2026-08-27, where it was the only copy — the same move wabt-ts
+_Relocated from machine-local memory 2026-08-31, where it was the only copy — the same move wabt-ts
 made with its formatter notes, and for the same reason: this is PROJECT knowledge and would not
 survive a clone. Machine-level facts (`safe.directory`, the repack failure) correctly stay outside._
 
@@ -416,7 +416,7 @@ the actor differed.
 
 ---
 
-# The release process (§2.2, merged 2026-08-27)
+# The release process (§2.2, merged 2026-08-31)
 
 Everything above this line is the provenance half, merged at A16. This half waited on §2.1: it
 describes one release flow, and until `scripts/release/` existed there were two.
