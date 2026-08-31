@@ -1,5 +1,11 @@
 # 1.5.2 — scope
 
+> **Read with 1.5.3 in mind.** This file scopes 1.5.2, and the items it deferred were completed
+> and shipped in **1.5.3** (published 2026-08-27 with provenance). The status table below is
+> maintained through that, so a ✅ here may have landed in either release. No separate 1.5.3 scope
+> doc was written — the work was this file's deferred list, and splitting it would have created two
+> places to look.
+
 Branch `release/1.5.2`, opened 2026-08-27.
 
 Named `release/1.5.2` rather than `v1.5.2` on purpose: a branch and a tag sharing a name makes
@@ -45,11 +51,11 @@ here** and a correctness fix a downstream consumer is waiting on outranks a tidy
 | **§1 T13.50 / A1 — de-coarsening**   | ✅ done, and it grew: 3 reported shapes plus 3 more found by review                                                                                                     |
 | **`-Oz` try_table miscompile**       | ✅ done — not originally in scope; came in as a wasmtk bug report                                                                                                       |
 | **`compat/binaryen` pass API**       | ✅ done — `listPasses` exported, kebab-case accepted, error lists names                                                                                                 |
-| **§2.2 cmem topic merges**           | ◐ partial — `overview`, `licensing`, `bridge`, `best-practices`, `publishing` (provenance half) done; `phases` / `testing` / the rest of `publishing` still wing-scoped |
+| **§2.2 cmem topic merges** | ◐ partial — `overview`, `licensing`, `bridge`, `best-practices`, `publishing` done; `phases` / `testing` still wing-scoped |
 | **§2.1 release-script unification**  | ✅ done — one `scripts/release/`, the union of both sets; `bump` and `release` tasks wired (neither existed)                                                            |
-| **§2.3 where the bridge lives**      | ⬚ deferred — still `src/wabt-ts/bridge/`, promotion-rule gap unresolved                                                                                                 |
-| **§3 `scripts/count-collisions.ts`** | ⬚ deferred — rule pinned in [overview.md](overview.md), not yet scripted                                                                                                |
-| **§4 phases C/D**                    | ⬚ blocked — C2 (wasmtk republish) is wasmtk's to run; D archiving follows it                                                                                            |
+| **§2.3 where the bridge lives** | ✅ done — `src/bridge/`, tests at `tests/bridge/`; the promotion rule gains one written standing exception |
+| **§3 `scripts/count-collisions.ts`** | ✅ done — `deno task collisions` reproduces 56; reported into the CI summary, deliberately ungated |
+| **§4 phases C/D** | ◐ C2 done (wasmtk 2.0.1) and D3 done (both GitHub repos archived); D2 deferred by choice |
 
 The deferred items are recorded rather than dropped: §2.1 still blocks the `phases`/`testing`/
 `publishing` merges, because those would describe a release flow that does not exist until it lands.
