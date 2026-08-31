@@ -41,6 +41,8 @@ unfalsifiable once there is no repository boundary left.
 | [bridge.md](bridge.md)                         | **Merged (A16).** The boundary between the two IRs — now an internal module rather than a package boundary — and the binding naming rule.                                                                                                                                                                                                                                                              |
 | [publishing.md](publishing.md)                 | **Merged (A16).** Opens with the binding release rule — never bump the version in the change that merges to `main`. Then, provenance only: Why provenance fails silently, why editing the YAML is not the fix, the measured per-package history, and the verification step that is the only real evidence. The rest of the release process stays wing-scoped until the release scripts are reconciled. |
 | [best-practices.md](best-practices.md)         | **Merged (A16), convergent rules only.** The rules **both** projects derived independently, each with both origin stories. The full enumerations stay in the wings; see the file for why that split rather than a rewrite.                                                                                                                                                                             |
+| [phases.md](phases.md)                         | **Merged (§2.2).** Where binaryang actually is, the shared versioning rule, and the live gaps carried forward. Opens with the hazard that **"Phase N" is ambiguous in this repository** — the two projects' numbers collide, and Phase 8 is shipped EH on one side and an unimplemented stub on the other. |
+| [testing.md](testing.md)                       | **Merged (§2.2).** How binaryang is tested, and the testing philosophy both projects reached independently: three states not two, every metric's blind spot, the four tests needing neither corpus nor oracle, and why every test's held-fixed dimension is its next blind spot. |
 
 ## The wings
 
@@ -52,18 +54,22 @@ unfalsifiable once there is no repository boundary left.
 `pre-merge-known-issues.md` · `runtime-tooling.md` · `overview.md` · `publishing.md` · `testing.md`
 · `INDEX.md` · `best-practices.md` · `bridge.md` · `licensing.md` · `phases.md`
 
-🔓 **Still wing-scoped, deliberately.** `best-practices.md` (2,894 / 294), `testing.md` (635 / 186),
-the **non-provenance half** of `publishing.md` (335 / 193), `phases.md` (214 / 177) and
-`overview.md` (511 / 95) are not yet merged into single topic files.
+🔓 **Still wing-scoped, deliberately.** `best-practices.md` (2,894 / 294) and the **non-provenance
+half** of `publishing.md` (335 / 193).
 
-Each needs a different kind of work and none of it is mechanical:
+✅ **`phases.md`, `testing.md` and `overview.md` are now merged** (§2.2, 2026-08-27). They waited on
+§2.1 for a reason that held: they describe a release and QA process, and until `scripts/release/`
+existed there were two of those, so a merged document would have described a flow that did not
+exist.
 
-- **`overview.md`** — both are **stale**: each still says all three projects merge, which the
-  binaryang README has superseded. Neither should be promoted as-is.
-- **`phases.md` / `testing.md` / `publishing.md`** — describe two release and QA processes that are
-  becoming one. They want merging _after_ the release scripts are reconciled, not before, or the
-  document will describe a flow that does not exist yet.
+**The wings are historical, not stale** — a distinction worth keeping. They remain the place to look
+for per-phase scope, per-invariant test placement, the TS↔C++ porting map, and the conformance
+metric tables. What is *stale* is narrower and named: both wing `overview.md` files still say all
+three projects merge.
+
 - **`best-practices.md`** — see below.
+- **The non-provenance half of `publishing.md`** — the last piece of §2.2. Now unblocked by §2.1
+  too, and the smallest of the remaining merges.
 
 ---
 

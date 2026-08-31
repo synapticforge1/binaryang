@@ -138,8 +138,25 @@ Now unblocked or near-unblocked:
 
 - **`overview.md` (95 / 478) — stale on both sides.** Each still says all _three_ projects merge.
   Neither can be promoted as-is; this needs authoring, not merging.
-- **`phases.md` (177 / 209)**, **`testing.md` (186 / 642)**, and the non-provenance half of
-  **`publishing.md`** — after 2.1.
+- ✅ **`phases.md` (177 / 209) and `testing.md` (186 / 642) — merged 2026-08-27.**
+  [phases.md](phases.md) and [testing.md](testing.md).
+
+  The wait on §2.1 was justified, not procedural: both describe a release and QA process, and until
+  `scripts/release/` existed there were two.
+
+  Each merge produced something neither source had. `phases.md` opens by naming a hazard the merge
+  *created*: **"Phase N" is ambiguous in this repository** — the two projects numbered
+  independently and collide on live topics, so Phase 8 is shipped EH support on one side and an
+  unimplemented stub that throws on the other. The histories are frozen and cannot be renumbered
+  without breaking the link to the commits they describe, so the ambiguity is permanent and has to
+  be handled at every use.
+
+  `testing.md` retires something instead: the wabt-ts wing carries an elaborate apparatus for
+  working around the `deno fmt --check` line-ending false alarm, and `.gitattributes` made all of it
+  obsolete. What survives the fix is flagged explicitly, because a fixed root cause does not always
+  retire the habit built around it.
+
+- ⬚ **The non-provenance half of `publishing.md`** — the last piece, now unblocked by §2.1 as well.
 
 ### 2.3 Decide where the bridge lives
 
