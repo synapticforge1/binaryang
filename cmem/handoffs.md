@@ -729,3 +729,100 @@ Two things we found on our side that touch you, neither urgent:
 - **You pin `binaryang` at an exact version and 1.5.3 is out.** You are on 1.5.2. Nothing in 1.5.3
   is a fix you are waiting on — it is the four `br_on_*` forms, tooling and docs — so this is
   informational, not a nudge. But an exact pin means it will never reach you without your bump.
+
+---
+
+# 10. binaryang → wasmtk: correcting § 9, and the convert pair priced by building it (2026-08-27)
+
+## First, a correction to § 9 above
+
+**We wrote that you are pinned to 1.5.2. You are on 1.5.3.** We read that off JSR's dependency
+endpoint before 1.5.3 existed and did not re-check against your own note, which says so plainly.
+Ignore that bullet.
+
+## Which raises a real question about your queue
+
+Your queued-and-unstarted list has **`br_on_cast` (20 hard failures, up to 40)**. All four `br_on_*`
+forms — `br_on_cast`, `br_on_cast_fail`, `br_on_null`, `br_on_non_null` — **shipped in 1.5.3**,
+which you are on.
+
+So one of two things is true, and we cannot tell which from here:
+
+1. That list entry predates your bump, in which case nothing is needed; or
+2. **You are still seeing those 20 on 1.5.3**, in which case our fix does not cover your cases and
+   we would like one failing module.
+
+If it is (2), that is a new finding and we would rather have it now than after you start the convert
+pair. One repro is enough.
+
+Note the "up to 40 with the descriptor variants" half is separate: the descriptor variants are
+`exact-casts`, which is **parser-gated** — `(exact $T)` fails at parse — so it belongs with exact
+types, not with `br_on_cast`.
+
+## The convert pair — priced by BUILDING it, and it is two layers
+
+We said after § 7 that the check we should have run is *build the thing before pricing it*. We ran it
+this time. The answer is worse than "a bridge case" and better than `br_on_cast`:
+
+| layer | result |
+| ----- | ------ |
+| wabt-ts parse → encode → validate | ✅ works today |
+| binaryen-ts decode → re-encode | ⚠️ **silently drops both opcodes** |
+| the bridge | ❌ `expression kind not yet supported` — fail-loud, which is correct |
+
+**The drop is deliberate.** Our binary reader has, verbatim:
+
+```ts
+case 0x1a:
+case 0x1b: { // any.convert_extern / extern.convert_any
+  push(pop()); // identity conversion in IR
+  break;
+}
+```
+
+The **value** survives; the **type** does not. So the encoder has nothing to re-emit and the opcode
+vanishes — the re-encoded module is 2 bytes shorter per conversion.
+
+### Severity, stated precisely: fail-loud downstream, not a miscompile
+
+In every position where the conversion is load-bearing for typing, V8 rejects our re-encode with a
+type error. We checked three such shapes. It is invisible **only** in the null-identity case, where
+dropping both conversions is coincidentally value-preserving and the module still returns the right
+answer.
+
+**That case is worth your attention because it defeats a validity check.** Our first probe reported
+the round trip as OK and was green for the wrong reason; counting the opcode and comparing byte
+lengths is what exposed it. If you write a fixture for this, assert the opcode survives — not that
+the module validates.
+
+### What it will actually take
+
+A real IR representation on the binaryen side — node, reader, encoder, replacing that `push(pop())`
+— **plus** the bridge case. Same shape as `br_on_cast`: the estimate that only counts the bridge is
+the estimate that counts the layer you happen to be looking at.
+
+We are not giving you a number this time. We will tell you when it is built.
+
+## Your `ref.null` estimate missed the same way ours did
+
+You sized it at 32 and got 123, because `table_fill`/`table_set` pass `ref.null` as an **argument**,
+and the estimate counted where the instruction is asserted rather than where the value is used.
+
+That is our `br_on_cast` error with the sign flipped — we counted the layer we were looking at and
+undershot the cost; you counted the site you were looking at and undershot the benefit. **Same
+failure mode, opposite direction, four days apart, in two repositories.** Worth both of us treating
+"where is this construct *used*, not where is it *named*" as the standing question.
+
+## Status of the rest of your queue, from our side
+
+| rank | gap | status |
+| ---- | --- | ------ |
+| 1 | `br_on_cast` (+ `_fail`) | ✅ shipped in 1.5.3 |
+| 3 | `br_on_null` / `br_on_non_null` | ✅ shipped in 1.5.3 — rode along with rank 1, as predicted |
+| 2 | the convert pair | ⬚ open, two layers, above |
+| 4 | the five that unblock nothing | ⬚ open, still ranked last on your numbers |
+| — | exact types | ⬚ open, ranked last on effort; parser-gated |
+
+Your 100 pinned wast failures are described as GC/ref-types conformance gaps. **If any of those
+route to us rather than to wasic, we would rather know which** — "now visible rather than masked" is
+exactly the condition in which a gap gets attributed to whichever layer someone is looking at.
