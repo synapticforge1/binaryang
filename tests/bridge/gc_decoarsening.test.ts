@@ -95,6 +95,32 @@ describe('T13.50 — typed references survive the bridge', () => {
   // types, so `gcFuncTypeIndex` resolved only by coincidence. With a unique
   // signature it threw `unresolved GC function type` — green for the wrong
   // reason, exactly the trap wasmtk documented about their own fixture.
+  // The SAME defect with nothing GC-typed about the tag at all.
+  //
+  // Probed 2026-08-27 by reverting the tag registration: this shape fails with
+  // `unresolved GC function type: (i64, f32) -> ()`. So the `(ref $T)` param in
+  // the test below is INCIDENTAL -- it is how the shape was found, not what it
+  // requires. The real precondition is a conjunction:
+  //
+  //   1. the module contains a struct or array type, which flips the encoder
+  //      onto the GC path where every signature resolves by exact match, AND
+  //   2. no function or import shares the tag's exact signature.
+  //
+  // Neither conjunct mentions the tag's own types. A module with a tag whose
+  // params are `i64 f32` is affected as long as some unrelated struct exists.
+  // That makes the defect WIDER than it was described, which matters because a
+  // consumer checking their fixtures for `(ref $T)` tag params would conclude
+  // they were unaffected and be wrong.
+  it('a tag with a PLAIN signature no function shares, in a GC module', () => {
+    bridgeAndValidate(`
+      (module
+        (type $T (struct (field i32)))
+        (tag $e (param i64 f32))
+        (func (export "g") (param (ref $T))
+          (throw $e (i64.const 1) (f32.const 2))))
+    `);
+  });
+
   it('a tag with a (ref $T) param and a signature no function shares', () => {
     bridgeAndValidate(`
       (module

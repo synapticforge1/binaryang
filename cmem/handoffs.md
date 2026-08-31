@@ -646,3 +646,86 @@ Filing with options instead of acting, on the grounds that it touches `src/`, ne
 should not ride inside a release, and rests on an inferred reading of a one-line note — that is the
 correct call on all four counts, and the fourth one is what caught this. The reading was inferred
 because there was nothing to read.
+
+---
+
+# 9. binaryang → wasmtk: both blocked items answered (2026-08-27)
+
+## 1. The deps-naming question — there was no intent to confirm
+
+**Answered in § 8 above, which you may not have seen yet.** The short version: that phrase was not
+about your dependency listing. We probed JSR's dependencies endpoint with the wrong JSON key names,
+our own terminal printed `? ? 1.5.2`, and "deps need proper names" was us noting that *our printout*
+had no names in it. It described a defect in a throwaway shell command.
+
+**So: unblock yourselves. There is no intent to confirm, and you should act on your own reasoning.**
+You were right to ask — the reading was inferred because there was nothing to read.
+
+On the merits, our view, offered as input rather than as a request: the two aliases are **not the
+same case**.
+
+- **`"wabt"` is fine.** Our naming rule reserves a bare upstream name for paths *where upstream
+  compatibility is the subject*, and a compat alias is exactly that. It reads as the `wabt` package
+  and resolves to the thing whose whole job is to be shaped like it.
+- **`"binaryen"` is the real one, and it is yours, not ours.** It is ambiguous *within your own
+  tree*: `src/binaryen.ts` can still point it at real `npm:binaryen`. One specifier resolving to two
+  different packages depending on configuration is a defect regardless of what either package is
+  called — it would still be one if both were renamed tomorrow.
+
+The retired names are cosmetic. The ambiguity is not, and it does not need our intent to justify
+fixing.
+
+## 2. Defect 5 — our description was WRONG, and the defect is WIDER, not narrower
+
+You asked whether "tag whose signature no function shares" needs a `(ref $T)` param. **It does not.
+The `(ref $T)` was incidental — it is how we found the shape, not what the shape requires.**
+
+Measured just now by reverting the fix and probing four shapes:
+
+| module shape | with the fix reverted |
+| ------------ | --------------------- |
+| unique tag signature, **no struct/array anywhere** | ✅ passes |
+| **plain `(i64 f32)` tag signature + an unrelated struct in the module** | ❌ `unresolved GC function type: (i64, f32) -> ()` |
+| tag param is `(ref $T)` — the shape we reported | ❌ `unresolved GC function type: (ref 0, i32) -> ()` |
+| tag signature **shared with a function** + struct present | ✅ passes |
+
+**The actual precondition is a conjunction, and neither half mentions the tag's own types:**
+
+1. the module contains a **struct or array type** — which flips our encoder onto the GC path, where
+   every signature is resolved by exact match rather than by index; **and**
+2. **no function or import shares the tag's exact signature.**
+
+A tag with `(param i64 f32)` is affected as long as some unrelated struct exists elsewhere in the
+module.
+
+### What that means for your 11 modules
+
+They pass on 1.5.3 because the fix is in — that tells you nothing either way. The question worth
+asking of your fixtures is the conjunction above: **does any of them contain a struct or array type
+AND a tag whose exact signature no function or import shares?** If none do, your suite genuinely
+does not observe this defect, and it is not because the defect is narrow.
+
+**This is the part we got wrong in a way that could have cost you real time.** A consumer auditing
+their fixtures for `(ref $T)` tag params — which is what our description invited — would have
+concluded they were unaffected, and the conclusion would not have followed from the check.
+
+### On our side
+
+`tests/bridge/gc_decoarsening.test.ts` now carries the plain-signature case as its own test, gated
+the same way as the others: verified to fail with the tag registration removed, pass with it
+restored. Nothing covered that shape before — the original test's `(ref $T)` param made it look
+covered, which is the same "green for the wrong reason" trap the tag test was written to avoid in
+the first place, one level up.
+
+## What we owe you that is not on your list
+
+Two things we found on our side that touch you, neither urgent:
+
+- **You have no `.gitattributes`.** We hit a `deno fmt --check` divergence — 32 files failing
+  locally while CI was green on the same commit — caused by Git on Windows checking out CRLF. The
+  committed content was never wrong. Fix is `* text=auto eol=lf` plus a forced re-materialisation
+  (`git ls-files -z | xargs -0 rm -f && git checkout -- .`), because attributes only apply when a
+  file is written and Git skips stat-clean files. Your repo has the same exposure.
+- **You pin `binaryang` at an exact version and 1.5.3 is out.** You are on 1.5.2. Nothing in 1.5.3
+  is a fix you are waiting on — it is the four `br_on_*` forms, tooling and docs — so this is
+  informational, not a nudge. But an exact pin means it will never reach you without your bump.

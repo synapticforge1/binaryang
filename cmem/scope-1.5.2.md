@@ -93,6 +93,19 @@ Three shapes fail, all measured, none covered by a test — which is why the bri
 Remaining sites: `addFunctionImport`, `addGlobal`, `addTag`, `addTable`, locals, and the block/field
 helpers.
 
+⚠️ **The tag row was described too narrowly, and it was corrected 2026-08-27 by measurement.** The
+`(ref $T)` param is INCIDENTAL — it is how the shape was found, not what it requires. Probing with
+the fix reverted, the precondition is a conjunction and neither half mentions the tag's own types:
+
+1. the module contains a **struct or array type**, which flips the encoder onto the GC path where
+   signatures resolve by exact match; **and**
+2. **no function or import shares the tag's exact signature.**
+
+A tag with `(param i64 f32)` fails as long as some unrelated struct exists. That makes the defect
+**wider** than reported — and a consumer auditing their fixtures for `(ref $T)` tag params, which is
+what the original wording invited, would have concluded they were unaffected without that following
+from the check. `tests/bridge/gc_decoarsening.test.ts` now covers the plain-signature shape.
+
 **Acceptance:** each of the three repros passes, each gated by a test that was seen to fail first.
 Emitted-byte baseline must still report `IDENTICAL`, or the change needs a re-baseline and a reason.
 
