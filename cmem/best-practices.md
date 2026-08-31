@@ -271,6 +271,74 @@ as a suspect entirely: the publish was rejected at authorisation, so provenance 
 **A workaround routes around the unknown; a cause tells you which neighbouring things are also
 wrong.**
 
+## 🆕 Do not author file CONTENT through a shell heredoc
+
+**Rule: write files with a file-writing tool. A heredoc is for commands, not content.**
+
+Both repositories hit this in the same week, with different symptoms and one root cause: **the shell
+layer collapses backslash escapes before the content is written**, and it silently truncates long
+commands.
+
+| symptom | what actually happened |
+| ------- | ---------------------- |
+| `'\\'` in a JS string became `'\'` | the file would not parse — caught immediately, cheap |
+| `grep -c $'\r'` returned large plausible counts on LF-only files | `\r` in a BRE matches a literal `r`. **Every CR measurement taken during the line-ending investigation was wrong, in the direction that confirmed the theory** |
+| a 90-line and a 150-line heredoc both died with `unexpected EOF` | the command was truncated before the closing delimiter — nothing to do with quoting, which is where the first hour went |
+| wasmtk: `\\0asm` collapsed to `\0asm` and Python wrote a **literal NUL byte** into `.gitattributes` | git reported the file as `Bin 584 -> 2144`. The NUL landed **inside a comment about NUL-byte detection** |
+
+The last one is the instructive one: the corruption was invisible in the source that produced it,
+and the file it corrupted was the file whose job is to prevent that class of corruption.
+
+**Why it stays hidden:** every one of these produces output that looks like a *different* problem —
+a quoting error, a formatting drift, a binary file. None of them announces "your escape sequence was
+eaten."
+
+**How to work:** author content with a real file write, then use the shell only to move or append
+it. When a shell measurement disagrees with a tool's own verdict, **believe the tool** —
+`deno fmt --check` going from `32 not formatted` to `Checked 283 files` was the only unambiguous
+signal in the entire line-ending episode, and every hand-rolled measurement around it was noise.
+
+## 🆕 The result gets attributed to whichever property was in view
+
+**Four instances in one week across two repositories, and nobody caught their own.**
+
+| the claim | the property in view | what actually governed |
+| --------- | -------------------- | ---------------------- |
+| "`br_on_cast` is one bridge case" | the bridge's instruction switch | three defects in two trees — the encoder wrote typed-ref blocktypes in a form that did not round-trip |
+| "the defect is a tag with a `(ref $T)` param" | the param that happened to be in the repro | a conjunction naming neither the tag's types: a struct/array exists in the module, **and** no function shares the tag's signature |
+| wasmtk: "`ref.null` marshalling is ~32 assertions" | where the instruction is **asserted** | where the value is **used** — `table_fill`/`table_set` pass it as an argument. Delivered 123 |
+| wasmtk: "audit our fixtures for `(ref $T)` tag params" | the wording they inherited from us | the check returns no matches and cannot show what it was being asked to show. **A false clearance, one step from being recorded** |
+
+The errors run in both directions — two undershot cost, two undershot reach — so this is not
+optimism. **It is that the property you are looking at feels like the property that matters.**
+
+### The detection mechanism is the finding
+
+**Every one was caught by the other party. None by its author.** That is not a comment on care; the
+author has already decided which property is salient, which is exactly the decision under review.
+
+Two things follow, and they are cheap:
+
+- **Hand over the CHECK, not the conclusion.** "Audit for `(ref $T)` params" is unfalsifiable by its
+  recipient; "the precondition is a struct existing AND no function sharing the signature" can be
+  run and disagreed with. A conclusion travels as a claim about the world; a check travels as
+  something the other side can execute.
+- **Record a negative as a CONDITIONAL, not a clearance.** wasmtk's closing form is the model:
+  *wasic emits zero struct and zero array definitions, so conjunct (a) is never satisfied — and the
+  day it emits its first struct, both conjuncts go live together and those 11 modules become exposed
+  in the same commit.* That is a finding with a trigger attached. "Unaffected" is a finding with an
+  expiry date and no alarm.
+
+### Naming it made self-detection possible
+
+One instance **was** caught by its author, and only after the pattern had been written down: a
+convert-pair probe reported `bin-roundtrip=OK` and was green for the wrong reason — validity was the
+property in view, and the opcode count was what governed. It was checked precisely because the same
+trap had just been named twice.
+
+**That is the argument for this section existing.** The pattern is not detectable by being careful;
+it is detectable by being enumerable.
+
 ## Where to go for the rest
 
 The wings hold what did not converge, and it is most of the volume:

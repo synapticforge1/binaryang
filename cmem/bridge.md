@@ -146,3 +146,22 @@ The bridge is the one module the promotion rule can never promote: a module earn
 folder when nothing in either namespaced tree still imports it across the boundary, and the bridge
 is cross-tree _by definition_. 🔓 Where `src/wabt-ts/bridge/` finally lives is an open layout
 question — it can stay where it is and be promoted later at no cost.
+
+## 🆕 An import alias must not collide with a package the project could resolve
+
+Adopted from wasmtk 2026-08-27, and recorded here because it is a **different vector from the rule
+above and our gate would not have caught it.**
+
+`scripts/check-naming.sh` reserves a bare `binaryen` or `wabt` in **paths**. It never looks at an
+import map. wasmtk aliased `"binaryen"` to their compat facade while `src/binaryen.ts` could still
+point that same specifier at real `npm:binaryen` — **one alias resolving to two different packages
+by configuration**, which is a defect regardless of what either package is called. They renamed it
+to `binaryen-backend`; `"wabt"` stayed, because nothing there can resolve to the real `wabt`.
+
+**Does not bite binaryang today**: every alias in `deno.json` is `@std/*` scoped, so none is a bare
+name that could resolve elsewhere. Recorded before it can, since the natural aliases for this
+project are exactly the two reserved names.
+
+The general form: **the hazard is not the name, it is the ambiguity.** An alias that shadows nothing
+resolvable is fine however confusing it reads; an alias that shadows something resolvable is a
+defect however sensible it reads.
