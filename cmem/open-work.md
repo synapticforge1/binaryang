@@ -15,6 +15,27 @@ a list split across three documents is a list nobody reads. Version-specific sta
 | 3 | **GitHub descriptions on both predecessors** | Frozen by the archive — needs unarchive → edit → re-archive. Judgement call. |
 | 4 | **D2 — JSR `isArchived`** | Deferred by choice. Low-risk: archiving the GitHub repos already removed the publish path. |
 
+## ⚠️ `main` carries an UNRELEASED behaviour change
+
+`deno.json` reads **1.5.3**, which is what is published — correct, and the reason nothing has
+auto-published since. But `main` is 13 commits past the `v1.5.3` tag, and **one of them changes
+shipped behaviour**: `9b54db228`, the export-kind check found by A3. Twelve are `cmem/` only.
+
+**It is a rejection that did not previously happen.** A consumer feeding binaryang a module with an
+out-of-range export kind used to get a decoded module; now they get a diagnostic. That is the
+fail-loud contract working, and it is still a behaviour change — the same class wabt-ts recorded
+when feature-gating the validator turned silent acceptance into rejection.
+
+**The decision is whether to cut 1.5.4**, and it is not automatic:
+
+- **for** — it is a correctness fix, and a released fix nobody can consume is not a fix;
+- **against** — wasmtk pins an exact version and would need their own bump to see it either way,
+  and nothing is blocked on it.
+
+Nothing forces the choice today. **What must not happen is the bump being made incidentally**: the
+version line is what arms the release, so bumping it "to keep main tidy" publishes. See
+[publishing.md](publishing.md).
+
 ## Conformance gaps — the wasmtk-ranked list, restated with current status
 
 Ranking agreed in [handoffs.md](handoffs.md); status re-derived 2026-08-31.
