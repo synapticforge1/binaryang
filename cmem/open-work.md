@@ -125,6 +125,34 @@ differential between two spellings of the same thing*, folded versus linear, whi
 construction. Nothing tested it, so a broken round trip between two of our own CLI tools went
 unnoticed.
 
+### 🚨 Second defect, worse: the parser DROPS inline exports
+
+Found while measuring whether the IR choice costs anything in the shipped wasm. It does not — but
+the measurement could not be trusted until this was explained.
+
+`binaryen-ts/parser/wat-parser.ts` does not support the **inline export abbreviation** on non-function
+items:
+
+| form | result |
+| ---- | ------ |
+| `(memory (export "mem") 1)` | **export silently dropped — no diagnostic** |
+| `(global $g (export "g") i32 …)` | throws `unknown value type: (export "g")` |
+| `(memory 1) (export "mem" (memory 0))` | correct |
+
+Measured over 149 corpus modules: **345 exports via wabt-ts, 196 via binaryen-ts — 43% lost**, and
+`memory` in every sampled case. 148 of 149 modules lost at least one.
+
+⚠️ **This is why binaryen-ts's output looked 1.24% SMALLER.** It was not encoding better; it was
+emitting less. A size win that is actually data loss is the exact shape a byte-count comparison
+cannot distinguish — the export COUNT is what separated them, and the modules still validate,
+because a module that fails to export its memory is perfectly valid and merely useless to its host.
+
+**Inline export is the idiomatic form and is what our own `wasm2wat` emits** — `inlineExport`
+defaults to `true`. So this compounds the round-trip defect above rather than sitting beside it.
+
+**Ranking:** this outranks the linear-form gap. Linear form fails loudly; this one succeeds and
+returns a module missing its exports.
+
 ## Which answers the bridge question
 
 **The bridge is not redundant duplication. It is the MORE CAPABLE of the two WAT → binaryen routes,
