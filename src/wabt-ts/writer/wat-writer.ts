@@ -61,6 +61,20 @@ const TEXT_ENCODER = new TextEncoder();
 
 /** Options for {@link writeWatModule}. */
 export interface WriteWatOptions {
+  /**
+   * Emit folded s-expressions where possible instead of a flat instruction
+   * sequence. Default: `false` (linear).
+   *
+   * Both spellings assemble to identical bytes — folding is text-layer only —
+   * so this changes readability, not the module. Folded output is roughly 28%
+   * larger as text and ~25% slower to re-parse; linear is closer to the stack
+   * machine and is what a reader wants for inspecting execution order.
+   *
+   * Nodes that cannot be folded fall back to linear individually, so output is
+   * mixed rather than uniformly folded — which is what upstream wabt produces
+   * too.
+   */
+  fold?: boolean;
   /** Emit `(export "name")` inline inside func/global/table/memory declarations. Default: `true`. */
   inlineExport?: boolean;
   /** Emit `(import "m" "f")` inline inside declarations instead of standalone. Default: `false`. */
@@ -147,6 +161,7 @@ class WatWriter extends ModuleContext {
   constructor(module: Module, opts: WriteWatOptions) {
     super(module);
     this.opts = {
+      fold: opts.fold ?? false,
       inlineExport: opts.inlineExport ?? true,
       inlineImport: opts.inlineImport ?? false,
     };
@@ -1308,6 +1323,32 @@ class WatWriter extends ModuleContext {
   // -------------------------------------------------------------------------
 
   private writeExprList(exprs: Expr[]): void {
+    if (this.opts.fold) {
+      // Decide per TOP-LEVEL expression, and only after `canFold` has walked the
+      // whole subtree. Committing output first and discovering a decline halfway
+      // down would leave a half-written `(` behind -- which is why this asks
+      // before it writes rather than unwinding after.
+      //
+      // Falling back per expression rather than per list keeps the foldable
+      // parts folded: a body with one control-flow construct still folds its
+      // arithmetic.
+      let anyFolded = false;
+      for (const e of exprs) {
+        if (this.canFold(e)) {
+          this.writeFoldedExpr(e);
+          anyFolded = true;
+        } else {
+          this.writeExprListLinear([e]);
+        }
+      }
+      if (anyFolded) return;
+      return;
+    }
+    this.writeExprListLinear(exprs);
+  }
+
+  /** The linear (stack-machine) rendering: children before parents, one per line. */
+  private writeExprListLinear(exprs: Expr[]): void {
     const delegate = this.makeDelegate();
     const visitor = new ExprVisitor(delegate);
     visitor.visitExprList(exprs);
@@ -1359,6 +1400,171 @@ class WatWriter extends ModuleContext {
     }
     this.close(NC.Space);
     return true;
+  }
+
+  /**
+   * Folded rendering for one expression: its operands AND how to write its head,
+   * from a SINGLE switch.
+   *
+   * ⚠️ The existing const-expr folder splits these across two functions —
+   * `constExprOperands` and `writeInstrHead` — and `const_expr_head_coupling.test.ts`
+   * exists because nothing made them agree. A kind present in one and absent
+   * from the other emits its operands TWICE, and the result still reparses as a
+   * different module. That test is a guard against a hazard the shape created.
+   *
+   * This returns both halves from the same `case`, so the hazard cannot occur
+   * here rather than being tested for. Returning `null` declines, and the caller
+   * falls back to the linear renderer — which is always correct, just less
+   * folded.
+   *
+   * ⚠️ **A placeholder operand makes a node unfoldable.** `operandPlaceholder`
+   * marks "the value is already on the stack"; linear WAT spells that by writing
+   * nothing, and folded form has no way to spell it at all. Such nodes decline.
+   *
+   * Control flow (block / loop / if / try) is deliberately absent for now: it
+   * folds around a BODY rather than operands, and declining keeps the output
+   * correct while that is built.
+   */
+  private foldSpec(
+    e: Expr,
+  ): { operands: Expr[]; head: (d: ExprVisitorDelegate) => void } | null {
+    // A synthesized slot-filler means the operand is not structurally present.
+    const usable = (x: Expr | undefined): boolean =>
+      x !== undefined && !(x.kind === 'nop' && x.placeholder === true);
+
+    const spec = ((): { operands: Expr[]; head: (d: ExprVisitorDelegate) => void } | null => {
+      switch (e.kind) {
+        // ---- leaves: no operands, so the folded form is `(instr imm*)` --------
+        case 'const':
+          return { operands: [], head: (d) => void d.onConstExpr?.(e) };
+        case 'local.get':
+          return { operands: [], head: (d) => void d.onLocalGetExpr?.(e) };
+        case 'global.get':
+          return { operands: [], head: (d) => void d.onGlobalGetExpr?.(e) };
+        case 'ref.null':
+          return { operands: [], head: (d) => void d.onRefNullExpr?.(e) };
+        case 'ref.func':
+          return { operands: [], head: (d) => void d.onRefFuncExpr?.(e) };
+        case 'nop':
+          return { operands: [], head: (d) => void d.onNopExpr?.(e) };
+        case 'unreachable':
+          return { operands: [], head: (d) => void d.onUnreachableExpr?.(e) };
+        case 'memory.size':
+          return { operands: [], head: (d) => void d.onMemorySizeExpr?.(e) };
+        case 'table.size':
+          return { operands: [], head: (d) => void d.onTableSizeExpr?.(e) };
+        case 'struct.new_default':
+          return { operands: [], head: (d) => void d.onStructNewDefaultExpr?.(e) };
+        case 'data.drop':
+          return { operands: [], head: (d) => void d.onDataDropExpr?.(e) };
+
+        // ---- one operand ------------------------------------------------------
+        case 'unary':
+          return { operands: [e.operand], head: (d) => void d.onUnaryExpr?.(e) };
+        case 'convert':
+          return { operands: [e.operand], head: (d) => void d.onConvertExpr?.(e) };
+        case 'drop':
+          return { operands: [e.value], head: (d) => void d.onDropExpr?.(e) };
+        case 'local.set':
+          return { operands: [e.value], head: (d) => void d.onLocalSetExpr?.(e) };
+        case 'local.tee':
+          return { operands: [e.value], head: (d) => void d.onLocalTeeExpr?.(e) };
+        case 'global.set':
+          return { operands: [e.value], head: (d) => void d.onGlobalSetExpr?.(e) };
+        case 'load':
+          return { operands: [e.address], head: (d) => void d.onLoadExpr?.(e) };
+        case 'ref.is_null':
+          return { operands: [e.value], head: (d) => void d.onRefIsNullExpr?.(e) };
+        case 'ref.as_non_null':
+          return { operands: [e.value], head: (d) => void d.onRefAsNonNullExpr?.(e) };
+        case 'any.convert_extern':
+        case 'extern.convert_any':
+          return { operands: [e.value], head: (d) => void d.onExternConvertExpr?.(e) };
+        case 'ref.i31':
+          return { operands: [e.value], head: (d) => void d.onRefI31Expr?.(e) };
+        case 'memory.grow':
+          return { operands: [e.delta], head: (d) => void d.onMemoryGrowExpr?.(e) };
+        case 'array.len':
+          return { operands: [e.ref], head: (d) => void d.onArrayLenExpr?.(e) };
+        case 'ref.test':
+          return { operands: [e.ref], head: (d) => void d.onRefTestExpr?.(e) };
+        case 'ref.cast':
+          return { operands: [e.ref], head: (d) => void d.onRefCastExpr?.(e) };
+        case 'struct.get':
+          return { operands: [e.ref], head: (d) => void d.onStructGetExpr?.(e) };
+        case 'table.get':
+          return { operands: [e.index], head: (d) => void d.onTableGetExpr?.(e) };
+
+        // ---- two operands -----------------------------------------------------
+        case 'binary':
+          return { operands: [e.left, e.right], head: (d) => void d.onBinaryExpr?.(e) };
+        case 'compare':
+          return { operands: [e.left, e.right], head: (d) => void d.onCompareExpr?.(e) };
+        case 'store':
+          return { operands: [e.address, e.value], head: (d) => void d.onStoreExpr?.(e) };
+        case 'ref.eq':
+          return { operands: [e.left, e.right], head: (d) => void d.onRefEqExpr?.(e) };
+        case 'struct.set':
+          return { operands: [e.ref, e.value], head: (d) => void d.onStructSetExpr?.(e) };
+        case 'array.get':
+          return { operands: [e.ref, e.index], head: (d) => void d.onArrayGetExpr?.(e) };
+        case 'array.new':
+          return { operands: [e.init, e.length], head: (d) => void d.onArrayNewExpr?.(e) };
+        case 'table.set':
+          return { operands: [e.index, e.value], head: (d) => void d.onTableSetExpr?.(e) };
+
+        // ---- variadic ---------------------------------------------------------
+        case 'call':
+          return { operands: [...e.args], head: (d) => void d.onCallExpr?.(e) };
+        case 'struct.new':
+          return { operands: [...e.operands], head: (d) => void d.onStructNewExpr?.(e) };
+        case 'array.new_fixed':
+          return { operands: [...e.operands], head: (d) => void d.onArrayNewFixedExpr?.(e) };
+
+        default:
+          return null;
+      }
+    })();
+
+    if (spec === null) return null;
+    for (const op of spec.operands) if (!usable(op)) return null;
+    return spec;
+  }
+
+  /**
+   * Write `e` folded, returning false if it (or anything beneath it) declines.
+   *
+   * ⚠️ A false return may come AFTER output has been written, so the caller must
+   * not treat it as "nothing happened". `writeExprList` therefore decides
+   * foldability for the whole expression up front via {@link canFold} and only
+   * then commits — the same reason `writeFoldedConstExpr` pre-checks its
+   * operands rather than discovering the problem halfway through.
+   */
+  private writeFoldedExpr(e: Expr): boolean {
+    const spec = this.foldSpec(e);
+    if (spec === null) return false;
+    this.puts('(', NC.None);
+    this.indent += 2;
+    if (spec.operands.length === 0) {
+      // A leaf's linear rendering IS its head — nothing to interleave. Uses the
+      // LINEAR path directly: going through writeExprList would re-enter the
+      // folding branch and wrap the leaf in a second pair of parens.
+      this.writeExprListLinear([e]);
+    } else {
+      spec.head(this.makeDelegate());
+      for (const op of spec.operands) {
+        if (!this.writeFoldedExpr(op)) return false;
+      }
+    }
+    this.close(NC.Space);
+    return true;
+  }
+
+  /** Whether `e` and every descendant can be folded — checked before committing output. */
+  private canFold(e: Expr): boolean {
+    const spec = this.foldSpec(e);
+    if (spec === null) return false;
+    return spec.operands.every((op) => this.canFold(op));
   }
 
   /**

@@ -53,6 +53,15 @@ export interface Wasm2WatOptions {
   readDebugNames?: boolean;
   /** Emit inline exports. Default: `true` (passed to wat-writer). */
   inlineExport?: boolean;
+  /**
+   * Emit folded s-expressions rather than a flat instruction sequence.
+   * Default: `false` — linear, which is the canonical WAT text form.
+   *
+   * Both assemble to identical bytes; this is a readability choice. Linear
+   * shows the stack machine as it executes, which is what you want when
+   * inspecting execution order; folded shows the expression tree.
+   */
+  fold?: boolean;
 }
 
 /** Return value from {@link wasm2wat}. */
@@ -88,6 +97,7 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
 
   const text = writeWatModule(module, {
     inlineExport: opts.inlineExport !== false,
+    fold: opts.fold === true,
   });
 
   return { text, errors, result: Result.Ok };
@@ -107,23 +117,33 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;
+  let fold = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
+    } else if (arg === '--fold' || arg === '-f') {
+      fold = true;
+    } else if (arg === '--linear' || arg === '-l') {
+      // Explicit, even though it is the default: a reader inspecting stack
+      // order should be able to ASK for linear rather than rely on the default
+      // staying put.
+      fold = false;
     } else if (arg && !arg.startsWith('-')) {
       input = arg;
     }
   }
 
   if (!input) {
-    console.error('usage: wasm2wat <input.wasm> [-o <output.wat>]');
+    console.error(
+      'usage: wasm2wat <input.wasm> [-o <output.wat>] [--fold|-f] [--linear|-l]',
+    );
     process.exit(1);
   }
 
   const binary = await cliRead('wasm2wat', input);
-  const { text, errors, result } = wasm2wat(binary, { filename: input });
+  const { text, errors, result } = wasm2wat(binary, { filename: input, fold });
 
   if (errors.length > 0) {
     console.error(formatErrors(errors));
