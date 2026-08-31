@@ -418,3 +418,24 @@ they run says the new chain is in place. Verify a retirement with `DENO_DIR=$(mk
 
 _And it was one command away from being written up as a defect in wasmtk's release. The property in
 view was "which version resolved"; the property that governed was "whose cache answered."_
+
+#### Update — wasmtk 2.0.2, 2026-08-31
+
+`@jrmarcum/wasmtk@2.0.2` is published and **attested** (`rekorLogId=2666522017`; `createdAt` →
+`updatedAt` five seconds apart, the attestation tell). Its immutable dependency list names
+**`@jrmarcum/binaryang@1.5.3`** for both compat paths and neither predecessor. wasmtk's published
+artifact and working tree now agree.
+
+⚠️ **A fresh resolution still returns 2.0.1 for several minutes after publication.** Measured at
+publish + 2.5 min with a clean `DENO_DIR`, and with `--min-dep-age=0`, while `meta.json` already
+reported `latest: 2.0.2`. `deno add` wrote `^2.0.1`.
+
+That is **publication propagation**, not the caching trap above and not a defect — the two look
+identical from a single reading, which is the reason to say which one you eliminated:
+
+- the earlier 2.0.0 case was a **stale local cache**, cleared only by a fresh `DENO_DIR`;
+- this one **survives a fresh `DENO_DIR`**, so it is upstream of the client and will settle on its
+  own.
+
+`--min-dep-age` was confirmed to be a real flag before being relied on — a bogus flag errors, so the
+test was not vacuous. **C3 is unaffected either way: neither 2.0.1 nor 2.0.2 pulls a predecessor.**

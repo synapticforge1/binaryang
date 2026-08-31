@@ -84,7 +84,7 @@ import-kind dispatches all carry comments about exactly this shape having bitten
 | 7 | the `br_on_cast` estimate correction — it was three defects, not one | delivered |
 | 8 | retraction of the phantom "deps need proper names" finding | delivered |
 | 9 | defect 5 is **wider** than we described; the deps unblock; their missing `.gitattributes` | ✅ **closed by them** — they renamed `binaryen` → `binaryen-backend`, widened `.gitattributes`, and closed defect 5 with a conditional |
-| 10 | correcting § 9 (they are on **1.5.3**, not 1.5.2); the convert pair priced by building it | ⬚ **awaiting their answer on one question** |
+| 10 | correcting § 9 (they are on **1.5.3**, not 1.5.2); the convert pair priced by building it | ⬚ **awaiting their answer on one question** — though they have now SHIPPED against 1.5.3 as 2.0.2, so the `br_on_cast` queue entry is most likely stale rather than a live failure |
 | 11 | adopting their conditional-not-clearance form and their alias invariant | ⬚ outbound |
 
 ⚠️ **The one open question is in § 10 and it matters:** their queue still lists `br_on_cast` as
