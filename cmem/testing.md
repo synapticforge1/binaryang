@@ -101,10 +101,12 @@ Both projects arrived at these independently, which is why they belong here rath
 
 ### Three states, not two: clean / measured / UNMEASURED
 
-**Collapsing "unmeasured" into "clean" means nobody ever returns to it.** The live instance:
-**diagnostic offset accuracy is UNMEASURED, not clean.** The cheap oracle flagged 32 cases and every
-one examined was correct, so it was abandoned without a replacement. Do not let attrition finish
-that sentence.
+**Collapsing "unmeasured" into "clean" means nobody ever returns to it.**
+
+✅ The instance this rule was written about — **diagnostic offset accuracy** — is now MEASURED; see
+below. It is worth noting what the three states bought: the axis sat labelled UNMEASURED for months
+rather than being quietly called clean, and when someone finally built the instrument it found a
+real fail-loud defect. **A "clean" label would have closed the question permanently.**
 
 ### Every metric is blind to something — record what
 
@@ -236,6 +238,66 @@ form**, every one an unfollowable path.
 They are not wrong about *which* test pins an invariant, which is what those sections are for. They
 cannot be copy-pasted. Translate the name, and confirm the file exists before citing it — two of the
 paths in this very file were carried over from a wing and had to be corrected the same way.
+
+## ✅ A3 — diagnostic offsets are MEASURED (2026-08-31)
+
+`scripts/measure-diagnostic-offsets.ts` / `deno task offsets`. The axis was UNMEASURED, not clean,
+because T13.35's oracle was broken and no replacement was built. This is the replacement.
+
+### Why the first oracle failed, and what replaced it
+
+T13.35 asked *is the reported offset near the corrupted byte?* — and scored the right answer as
+wrong: for a malformed multi-byte construct, reporting the **start of the construct** beats
+reporting where the decoder stopped. It flagged 32 cases and every one examined was correct.
+
+The replacement **reports a distribution, not a verdict**, because what the first attempt got wrong
+was believing one number could carry the judgement. Method: flip each byte of a valid module,
+decode, and record `delta = reportedOffset - corruptedByte`.
+
+### The reading
+
+| | |
+| - | - |
+| corruptions swept | 196 across five modules |
+| rejected | **195 (99.5%)** |
+| accepted, and V8 accepts too (legal alternative encoding) | 1 |
+| accepted while V8 rejects — **missed rejections** | **0** |
+
+Of the 154 rejections carrying a *specific* diagnostic: **133 land at the construct**, 21 downstream,
+0 upstream.
+
+### Three calibrations the harness needed, each of which changed the answer
+
+1. **`pos` is the position AFTER the failing read**, so a report "at" the corrupted byte lands a
+   read-width later. Treating `delta == 0` as the only good answer is T13.35's mistake in new
+   clothes; the band is `1..4`.
+2. **Corrupting a LENGTH field makes the reader run to end-of-input**, reporting at the buffer end.
+   That delta is `length - at` — an artifact of *where* the corruption sits, carrying nothing about
+   diagnostic quality. 21 of 175 were this, and unbucketed they dominated the distribution.
+3. 🚨 **Comparing our READER against V8 is an unfair oracle.** V8 decodes *and* validates; a reader
+   that defers a semantic check to the validator is not defective. The first reading claimed
+   **twenty** missed rejections. Adding our validator stage dropped it to **five**. **Three quarters
+   of that finding was the instrument.**
+
+### What it found
+
+All five survivors were the same field: **the export section accepted any byte as an export kind.**
+`readExportSection` did `this.readU8() as ExternalKind` — a cast asserts a fact about the byte
+instead of checking it — while the import section beside it had always carried a
+`default: unknown import kind` arm. The two dispatches disagreed and only one was wrong.
+
+Fixed, with `tests/wabt-ts/reader/export_kind.test.ts` gating it (verified to fail with the check
+removed). Missed rejections **5 → 0**, and the one legal alternative encoding is still accepted.
+
+### The blind spots, stated
+
+- **Five hand-written modules**, not a corpus. It spans single-byte fields, multi-byte LEBs, nested
+  control, GC types and element segments — and it is still five.
+- **Single-byte corruption only.** Truncation, insertion and multi-byte corruption are unmeasured.
+- **`delta` is not correctness.** A negative delta is usually the better diagnostic. The 21
+  downstream cases are all body-internal corruption noticed at the section or function end, which
+  is explainable rather than obviously wrong — nobody has judged them one at a time.
+- **The accepted class outranks the offset numbers**, and the harness says so in its own output.
 
 ## Where the per-invariant detail lives
 

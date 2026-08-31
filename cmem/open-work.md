@@ -66,9 +66,10 @@ import-kind dispatches all carry comments about exactly this shape having bitten
 
 ## Repo work
 
-- **A3 — diagnostic offset accuracy is UNMEASURED, not clean.** The cheap oracle was false for every
-  multi-byte construct and no replacement was built. Needs a measurement before it needs a fix.
-  See [testing.md](testing.md) § "Three states, not two".
+- ✅ **A3 — MEASURED 2026-08-31.** `deno task offsets`: 196 corruptions, 195 rejected, **0 missed
+  rejections**, 133 of 154 specific diagnostics landing at the construct. It found and fixed a
+  fail-loud defect on the way — the export section accepted any byte as an export kind. Reading,
+  calibrations and blind spots: [testing.md](testing.md).
 - **A2 — `wasm2ts` is a stub that throws.** The long-term goal; deferred pending wasmtk QA/QC.
 - **Nothing ships against the bridge.** No `src/` file imports it and it has no export-map entry.
   Recorded deliberately unresolved in [overview.md](overview.md) — exporting it makes `./bridge`

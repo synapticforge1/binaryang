@@ -984,7 +984,26 @@ export class BinaryReader {
     for (let i = 0; i < count && this.ok(); i++) {
       if (this.pos >= end) return this.shortSection();
       const name = this.readName();
-      const kind = this.readU8() as ExternalKind;
+      const kindByte = this.readU8();
+      // The `as ExternalKind` cast this replaced asserted a fact about the byte
+      // instead of checking it, so ANY value became a valid export kind and the
+      // module was accepted. The import section beside this one has always had
+      // the equivalent `default: unknown import kind` arm -- the two dispatches
+      // disagreed, and only one of them was wrong.
+      //
+      // Found by MEASUREMENT, not review: the A3 corruption sweep
+      // (`deno task offsets`) flips each byte of a valid module and asks whether
+      // reader AND validator still accept what V8 rejects. This field was the
+      // one shape the whole pipeline waved through.
+      if (
+        kindByte !== ExternalKind.Func && kindByte !== ExternalKind.Table &&
+        kindByte !== ExternalKind.Memory && kindByte !== ExternalKind.Global &&
+        kindByte !== ExternalKind.Tag
+      ) {
+        this.err(`unknown export kind: ${kindByte}`);
+        return;
+      }
+      const kind = kindByte as ExternalKind;
       const idx = this.readU32Leb();
       m.exports.push({ name, kind, var: varIndex(idx) });
     }
