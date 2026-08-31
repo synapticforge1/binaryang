@@ -92,12 +92,69 @@ import-kind dispatches all carry comments about exactly this shape having bitten
   fail-loud defect on the way — the export section accepted any byte as an export kind. Reading,
   calibrations and blind spots: [testing.md](testing.md).
 - **A2 — `wasm2ts` is a stub that throws.** The long-term goal; deferred pending wasmtk QA/QC.
-- **Nothing ships against the bridge.** No `src/` file imports it and it has no export-map entry.
-  Recorded deliberately unresolved in [overview.md](overview.md) — exporting it makes `./bridge`
-  supported public surface on the fastest-moving part of the tree.
+- ⚠️ **Nothing ships against the bridge — and investigating why found a shipped-tool defect.** See
+  the section below; the short form is that the bridge is the MORE capable of two WAT → binaryen
+  routes and `wasm-opt` uses the other, which cannot read the WAT our own `wasm2wat` emits.
 - ✅ **C3 — LeptonPad's `build:wasm` — VERIFIED 2026-08-31.** Runs; the artifact validates,
   instantiates and computes correctly; resolves `wasmtk@2.0.1 → binaryang@1.5.2` with **neither
   predecessor pulled**. Detail and the caching trap it exposed: [transition.md](transition.md).
+
+## 🚨 `wasm-opt` cannot read the WAT `wasm2wat` writes
+
+Found 2026-08-31 while asking whether the "nothing ships against the bridge" item could be closed.
+It could — and the asking turned up a user-facing defect that outranks it.
+
+```sh
+binaryang wat2wasm  a.wat  -o a.wasm     # ok
+binaryang wasm2wat  a.wasm -o b.wat      # ok — emits LINEAR form
+binaryang wasm-opt  b.wat  -o b.wasm -Oz # ✗ uncaught exception + stack trace
+binaryang wasm-opt  a.wat  -o c.wasm -Oz # ok — the original FOLDED source
+```
+
+**Two defects, and the second is nearly free to fix:**
+
+1. **`src/binaryen-ts/parser/wat-parser.ts` handles only FOLDED s-expression form.** A bare
+   instruction sequence — `(func (result i32) i32.const 7)` — fails with
+   `unexpected atom in expression: i32.const`. Linear form is the canonical WAT text form and is
+   what **our own `wasm2wat` emits**.
+2. **`wasm-opt` does not catch the parse failure.** It surfaces as an uncaught exception with a
+   stack trace rather than a diagnostic, which violates the fail-loud contract's *readable* half.
+
+⚠️ **This is precisely the shape [testing.md](testing.md) names as needing no oracle** — *a
+differential between two spellings of the same thing*, folded versus linear, which must agree by
+construction. Nothing tested it, so a broken round trip between two of our own CLI tools went
+unnoticed.
+
+## Which answers the bridge question
+
+**The bridge is not redundant duplication. It is the MORE CAPABLE of the two WAT → binaryen routes,
+and shipped code uses the other one.**
+
+Measured over 150 corpus files:
+
+| | |
+| - | - |
+| both routes succeed | 70 — and **0 produce identical bytes** |
+| only the shipped parser (`parseWat`) | 52 — the bridge lacks `memory.copy` and the bulk-memory family |
+| only the bridge | 4 — the shipped parser cannot read linear form |
+| neither | 24 |
+
+So each route covers what the other cannot, they never agree byte-for-byte, and **no test compares
+them.**
+
+### The decision this turns into
+
+"Where does the bridge live" is settled ([overview.md](overview.md)). What is open is sharper:
+**should `wasm-opt` route `.wat` input through the bridge?** Doing so would fix defect 1 and clear
+the bridge item in one move — but it is not a drop-in, because the bridge fails on `memory.copy`,
+which the shipped parser handles.
+
+⚠️ **Do not treat "export the bridge" as the way to close this.** Exporting makes `./bridge`
+supported public surface on the fastest-moving part of the tree; it would not fix the round trip,
+and it would make the duplication permanent rather than resolved.
+
+**It depends on no other task item.** The convert pair and exact types touch the bridge but neither
+gates this.
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 
