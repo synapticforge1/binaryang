@@ -1,6 +1,6 @@
 # Open work
 
-The single list of what is outstanding, as of 2026-08-27, `binaryang@1.5.3` published.
+The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-08-27; `binaryang@1.5.3` published, score 100.
 
 Kept here rather than in a version scope file because most of it is not scoped to a release yet, and
 a list split across three documents is a list nobody reads. Version-specific status stays in
@@ -76,10 +76,25 @@ import-kind dispatches all carry comments about exactly this shape having bitten
 - **C3 — confirm LeptonPad's `build:wasm` still runs.** Expected no-op; unverified, and should not
   be recorded as done.
 
-## Outbound to wasmtk — drafted in `handoffs.md`, not yet sent
+## The wasmtk thread — `handoffs.md` §§ 7–11
 
-§ 7 (the `br_on_cast` estimate correction), § 8 (the retracted phantom finding), § 9 (defect 5 is
-wider; the deps-naming unblock; their missing `.gitattributes`).
+| § | content | state |
+| - | ------- | ----- |
+| 7 | the `br_on_cast` estimate correction — it was three defects, not one | delivered |
+| 8 | retraction of the phantom "deps need proper names" finding | delivered |
+| 9 | defect 5 is **wider** than we described; the deps unblock; their missing `.gitattributes` | ✅ **closed by them** — they renamed `binaryen` → `binaryen-backend`, widened `.gitattributes`, and closed defect 5 with a conditional |
+| 10 | correcting § 9 (they are on **1.5.3**, not 1.5.2); the convert pair priced by building it | ⬚ **awaiting their answer on one question** |
+| 11 | adopting their conditional-not-clearance form and their alias invariant | ⬚ outbound |
+
+⚠️ **The one open question is in § 10 and it matters:** their queue still lists `br_on_cast` as
+unstarted, but all four `br_on_*` forms shipped in 1.5.3, which they are on. Either that entry
+predates their bump, or **our fix does not cover their cases** — we asked for one failing module.
+Worth resolving before anyone starts the convert pair.
+
+**Also open, from their side:** their 100 pinned wast failures are described as GC/ref-types
+conformance gaps. If any route to us rather than to wasic we want to know which — "now visible
+rather than masked" is exactly the condition in which a gap gets attributed to whichever layer
+someone is looking at.
 
 ## Not tasks, by decision
 
