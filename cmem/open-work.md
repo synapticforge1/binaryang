@@ -165,15 +165,27 @@ them, plus a ~3 KB code-section difference. Both still validate in V8. **Do not 
 encoding win either** — that is the same inference that was wrong the first time, and it has not
 been checked.
 
-### ⬚ Still broken: inline IMPORTS, and they are dropped silently too
+### ✅ FIXED 2026-08-31 — inline IMPORTS, the worse half
 
-The same abbreviation family. `(memory (import "m" "a") 1)`, `(table (import …))` and
-`(func (import …))` are **silently dropped**; `(global (import …))` throws. Measured on minimal
-fixtures, not yet on the corpus.
+Same abbreviation family, all five kinds. `(memory (import "m" "a") 1)`, `(table (import …))` and
+`(func (import …))` were **silently dropped**; `(global (import …))` threw.
 
 **A dropped import is worse than a dropped export**: it removes an entry from the index space, so
-every subsequent function, memory, table or global index shifts by one. That can turn a valid module
-into a valid module that calls the wrong function.
+every later function, memory, table or global index shifts by one — a valid module that calls the
+wrong function. For `func` the failure was different and louder in hindsight: the import became a
+DEFINITION with an empty body, so a declared result had nothing to return
+(`expected 1 elements on the stack for fallthru`).
+
+Handled through the same shared helper, now `takeInlineDecorations`, consuming exports and an
+optional import in one loop because the spec permits them interleaved.
+
+**Corpus parity, 149 modules:** exports **345 / 345**, imports **250 / 250**, identical sets on
+149 of 149 for both.
+
+The regression test asserts the computed VALUE for the index-space case — if the import were lost,
+`$two` would move from index 1 to 0 and `call $two` would still be a valid module calling the wrong
+function, which no structural assertion catches. Verified by neutering the abbreviation: 6 steps
+fail.
 
 ## Which answers the bridge question
 

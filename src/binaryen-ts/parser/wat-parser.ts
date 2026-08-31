@@ -492,12 +492,32 @@ class WatModuleParser {
     // Skip optional $name (already consumed in first pass)
     if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) idx++;
 
-    // Inline exports: (export "name")
-    const inlineExports: string[] = [];
-    while (idx < children.length && isListWith(children[idx], 'export')) {
-      const exportName = atomString((children[idx] as SList).children[1]);
-      if (exportName !== null) inlineExports.push(exportName);
-      idx++;
+    // Inline exports and an optional inline import: (export "n") / (import "m" "b")
+    const decorated = this.takeInlineDecorations(children, idx);
+    const inlineExports = decorated.names;
+    idx = decorated.idx;
+
+    // `(func $id (import "m" "b") <typeuse>)` is shorthand for
+    // `(import "m" "b" (func $id <typeuse>))`. An imported function has NO body,
+    // so this returns before body building rather than falling through it.
+    //
+    // This was silently dropped: the inline-export loop did not recognise
+    // `(import ...)`, so the node stayed at `idx`, the signature parse skipped
+    // past it, and the function was built as an ordinary definition with an
+    // empty body -- an import turned into a stub returning nothing.
+    if (decorated.imp) {
+      const { params, results } = this.parseFuncType(list);
+      this.builder.addFunctionImport(
+        raw.name,
+        decorated.imp.module,
+        decorated.imp.base,
+        params,
+        results,
+      );
+      for (const exportName of inlineExports) {
+        this.builder.addExport(exportName, raw.name, 'function');
+      }
+      return;
     }
 
     // Inline imports (function re-export, rare — skip)
@@ -1645,13 +1665,50 @@ class WatModuleParser {
    * Inline export is the idiomatic form and is what our own `wasm2wat` emits.
    */
   private takeInlineExports(children: SExpr[], idx: number): { names: string[]; idx: number } {
+    const r = this.takeInlineDecorations(children, idx);
+    return { names: r.names, idx: r.idx };
+  }
+
+  /**
+   * Consume inline `(export "n")` and `(import "m" "b")` abbreviations together.
+   *
+   * `(memory (import "m" "b") 1)` is shorthand for
+   * `(import "m" "b" (memory 1))` — the item becomes an IMPORT rather than a
+   * definition, which moves it into the import index space. They may interleave
+   * with inline exports, so both are consumed in one loop rather than in two
+   * ordered passes.
+   *
+   * ⚠️ A dropped inline import is worse than a dropped export. An export that
+   * goes missing leaves a module that is merely useless to its host; a missing
+   * import REMOVES AN ENTRY FROM THE INDEX SPACE, so every later function,
+   * memory, table or global index shifts by one — turning a valid module into a
+   * valid module that references the wrong thing. Before this was implemented,
+   * memory/table/func inline imports were dropped silently and global threw.
+   */
+  private takeInlineDecorations(
+    children: SExpr[],
+    idx: number,
+  ): { names: string[]; imp: { module: string; base: string } | null; idx: number } {
     const names: string[] = [];
-    while (idx < children.length && isListWith(children[idx], 'export')) {
-      const n = atomString((children[idx] as SList).children[1]);
-      if (n !== null) names.push(n);
-      idx++;
+    let imp: { module: string; base: string } | null = null;
+    for (;;) {
+      if (idx < children.length && isListWith(children[idx], 'export')) {
+        const n = atomString((children[idx] as SList).children[1]);
+        if (n !== null) names.push(n);
+        idx++;
+        continue;
+      }
+      if (idx < children.length && isListWith(children[idx], 'import')) {
+        const kids = (children[idx] as SList).children;
+        const m = atomString(kids[1]);
+        const b = atomString(kids[2]);
+        if (m !== null && b !== null) imp = { module: m, base: b };
+        idx++;
+        continue;
+      }
+      break;
     }
-    return { names, idx };
+    return { names, imp, idx };
   }
 
   private collectGlobal(list: SList): void {
@@ -1673,7 +1730,7 @@ class WatModuleParser {
     const internalName = name ?? `$__global_${globalIndex}`;
     this.globalNames.set(internalName, globalIndex);
 
-    const inline = this.takeInlineExports(children, idx);
+    const inline = this.takeInlineDecorations(children, idx);
     idx = inline.idx;
 
     const typeNode = children[idx++];
@@ -1681,11 +1738,22 @@ class WatModuleParser {
     const { type, mutable } = this.parseGlobalTypeNode(typeNode);
     this.globalTypes.set(internalName, type);
 
-    const initNode = children[idx];
-    if (!initNode) this.err('global: missing init expression', list.pos);
-    const init = this.parseExpr(initNode, this.constExprContext());
-
-    this.builder.addGlobal(internalName, type, mutable, init);
+    // An IMPORTED global has no init expression -- the value comes from the
+    // host -- so the init is read only for a defined global.
+    if (inline.imp) {
+      this.builder.addGlobalImport(
+        internalName,
+        inline.imp.module,
+        inline.imp.base,
+        type,
+        mutable,
+      );
+    } else {
+      const initNode = children[idx];
+      if (!initNode) this.err('global: missing init expression', list.pos);
+      const init = this.parseExpr(initNode, this.constExprContext());
+      this.builder.addGlobal(internalName, type, mutable, init);
+    }
     for (const n of inline.names) this.builder.addExport(n, internalName, 'global');
   }
 
@@ -1721,13 +1789,17 @@ class WatModuleParser {
     }
     const memIndex = this.memoryNames.size;
     if (name) this.memoryNames.set(name, memIndex);
-    const inline = this.takeInlineExports(children, idx);
+    const inline = this.takeInlineDecorations(children, idx);
     idx = inline.idx;
     // Parse limits
     const initial = Number(atomInt(children[idx]) ?? 1);
     const max = children[idx + 1] ? (Number(atomInt(children[idx + 1]) ?? 0) || null) : null;
     const internalName = name ?? '$mem0';
-    this.builder.addMemory(internalName, initial, max);
+    if (inline.imp) {
+      this.builder.addMemoryImport(internalName, inline.imp.module, inline.imp.base, initial, max);
+    } else {
+      this.builder.addMemory(internalName, initial, max);
+    }
     for (const n of inline.names) this.builder.addExport(n, internalName, 'memory');
   }
 
@@ -1741,7 +1813,7 @@ class WatModuleParser {
     }
     const tableIndex = this.tableNames.size;
     if (name) this.tableNames.set(name, tableIndex);
-    const inline = this.takeInlineExports(children, idx);
+    const inline = this.takeInlineDecorations(children, idx);
     idx = inline.idx;
     const initial = Number(atomInt(children[idx]) ?? 0);
     const max = children[idx + 1]?.kind === 'atom'
@@ -1751,7 +1823,18 @@ class WatModuleParser {
       ? (this.tryParseValType(children[idx + 2]) ?? ValType.FuncRef)
       : (this.tryParseValType(children[idx + 1]) ?? ValType.FuncRef);
     const tableInternal = name ?? '$table0';
-    this.builder.addTable(tableInternal, refType, initial, max);
+    if (inline.imp) {
+      this.builder.addTableImport(
+        tableInternal,
+        inline.imp.module,
+        inline.imp.base,
+        refType,
+        initial,
+        max,
+      );
+    } else {
+      this.builder.addTable(tableInternal, refType, initial, max);
+    }
     for (const n of inline.names) this.builder.addExport(n, tableInternal, 'table');
   }
 
@@ -1765,7 +1848,7 @@ class WatModuleParser {
     }
     const tagIndex = this.tagNames.size;
     if (name) this.tagNames.set(name, tagIndex);
-    const inline = this.takeInlineExports(children, idx);
+    const inline = this.takeInlineDecorations(children, idx);
     idx = inline.idx;
     // Parse (param ...) list for tag type
     const params: ValueType[] = [];
@@ -1774,7 +1857,11 @@ class WatModuleParser {
       idx++;
     }
     const tagInternal = name ?? `$tag${tagIndex}`;
-    this.builder.addTag(tagInternal, params);
+    if (inline.imp) {
+      this.builder.addTagImport(tagInternal, inline.imp.module, inline.imp.base, params);
+    } else {
+      this.builder.addTag(tagInternal, params);
+    }
     for (const n of inline.names) this.builder.addExport(n, tagInternal, 'tag');
   }
 

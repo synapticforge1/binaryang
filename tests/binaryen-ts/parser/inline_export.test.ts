@@ -38,6 +38,12 @@ function exportsOf(bytes: Uint8Array): string[] {
   return WebAssembly.Module.exports(m).map((e) => `${e.name}:${e.kind}`).sort();
 }
 
+/** Import set, as `module.name:kind`, sorted. */
+function importsOf(bytes: Uint8Array): string[] {
+  const m = new WebAssembly.Module(bytes as BufferSource);
+  return WebAssembly.Module.imports(m).map((i) => `${i.module}.${i.name}:${i.kind}`).sort();
+}
+
 /**
  * wabt-ts is the oracle: it has always handled the abbreviation, and it is the
  * other half of this repository. Asserting against it rather than a hard-coded
@@ -46,7 +52,9 @@ function exportsOf(bytes: Uint8Array): string[] {
  */
 function assertAgrees(wat: string) {
   const ref = wat2wasm(wat, { filename: 'ref.wat' });
-  assertEquals(exportsOf(encodeWasm(parseWat(wat))), exportsOf(ref.binary));
+  const got = encodeWasm(parseWat(wat));
+  assertEquals(exportsOf(got), exportsOf(ref.binary), 'export sets must agree');
+  assertEquals(importsOf(got), importsOf(ref.binary), 'import sets must agree');
 }
 
 const FN = '(func $fn (result i32) (i32.const 1))';
@@ -101,5 +109,64 @@ describe('WAT parser — inline exports on every declaration kind', () => {
 
   it('a declaration with no inline export exports nothing', () => {
     assertEquals(exportsOf(encodeWasm(parseWat(`(module (memory 1) ${FN})`))), []);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Inline IMPORTS — the same abbreviation family, and the worse half.
+  //
+  // `(memory (import "m" "b") 1)` makes the item an IMPORT rather than a
+  // definition. Before the fix, memory/table/func were dropped silently and
+  // global threw. A dropped import is worse than a dropped export: it removes an
+  // entry from the index space, so every later index shifts by one and a valid
+  // module can end up referencing the wrong thing.
+  // ---------------------------------------------------------------------------
+
+  it('memory inline import', () => {
+    assertAgrees(`(module (memory (import "m" "a") 1) ${FN})`);
+  });
+
+  it('table inline import', () => {
+    assertAgrees(`(module (table (import "m" "a") 1 funcref) ${FN})`);
+  });
+
+  it('global inline import, immutable and mutable', () => {
+    assertAgrees(`(module (global (import "m" "a") i32) ${FN})`);
+    assertAgrees(`(module (global (import "m" "a") (mut i32)) ${FN})`);
+  });
+
+  it('func inline import, with and without a signature', () => {
+    assertAgrees(`(module (func (import "m" "a")) ${FN})`);
+    assertAgrees(`(module (func $i (import "m" "a") (param i32) (result i32)) ${FN})`);
+  });
+
+  it('inline import and inline export on the same declaration', () => {
+    assertAgrees(`(module (memory (export "e") (import "m" "a") 1) ${FN})`);
+    assertAgrees(`(module (func $i (export "e") (import "m" "a") (param i32)) ${FN})`);
+  });
+
+  it('a declaration WITHOUT an inline import is still a definition', () => {
+    const wat = `(module (memory (export "e") 1) ${FN})`;
+    assertEquals(importsOf(encodeWasm(parseWat(wat))), []);
+    assertAgrees(wat);
+  });
+
+  // The consequence that makes a dropped import worse than a dropped export.
+  // If the import were lost, `$two` would move from index 1 to index 0 and
+  // `call $two` would still be a VALID module -- calling the wrong function.
+  // So this asserts the computed VALUE, not the module's shape.
+  it('an inline import does not shift call targets', () => {
+    const wat = `(module
+      (func $imp (import "m" "a") (result i32))
+      (func $two (result i32) (i32.const 2))
+      (func (export "f") (result i32) (call $two)))`;
+    const call = (bytes: Uint8Array) => {
+      const inst = new WebAssembly.Instance(
+        new WebAssembly.Module(bytes as BufferSource),
+        { m: { a: () => 99 } },
+      );
+      return (inst.exports.f as () => number)();
+    };
+    assertEquals(call(encodeWasm(parseWat(wat))), 2);
+    assertEquals(call(wat2wasm(wat, { filename: 'ref.wat' }).binary), 2);
   });
 });
