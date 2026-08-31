@@ -51,7 +51,7 @@ here** and a correctness fix a downstream consumer is waiting on outranks a tidy
 | **§1 T13.50 / A1 — de-coarsening**   | ✅ done, and it grew: 3 reported shapes plus 3 more found by review                                                                                                     |
 | **`-Oz` try_table miscompile**       | ✅ done — not originally in scope; came in as a wasmtk bug report                                                                                                       |
 | **`compat/binaryen` pass API**       | ✅ done — `listPasses` exported, kebab-case accepted, error lists names                                                                                                 |
-| **§2.2 cmem topic merges** | ◐ partial — `overview`, `licensing`, `bridge`, `best-practices`, `publishing` done; `phases` / `testing` still wing-scoped |
+| **§2.2 cmem topic merges** | ✅ **complete** — `overview`, `licensing`, `bridge`, `phases`, `testing` and both halves of `publishing`. Only `best-practices` stays split, by decision |
 | **§2.1 release-script unification**  | ✅ done — one `scripts/release/`, the union of both sets; `bump` and `release` tasks wired (neither existed)                                                            |
 | **§2.3 where the bridge lives** | ✅ done — `src/bridge/`, tests at `tests/bridge/`; the promotion rule gains one written standing exception |
 | **§3 `scripts/count-collisions.ts`** | ✅ done — `deno task collisions` reproduces 56; reported into the CI summary, deliberately ungated |
@@ -156,7 +156,18 @@ Now unblocked or near-unblocked:
   obsolete. What survives the fix is flagged explicitly, because a fixed root cause does not always
   retire the habit built around it.
 
-- ⬚ **The non-provenance half of `publishing.md`** — the last piece, now unblocked by §2.1 as well.
+- ✅ **The non-provenance half of `publishing.md` — merged 2026-08-27.**
+  [publishing.md](publishing.md) is now one document.
+
+  The convergent core is a rule both projects wrote independently in nearly the same words: **never
+  run `deno publish` locally.** A local publish succeeds, uploads, and permanently flags that
+  version "No provenance" — unfixable on that number. binaryen-ts's first ten releases carry the
+  scar.
+
+  It also carries the two recovery recipes that each cost a broken release: a **dirty tree** ships a
+  version containing none of the work (v1.2.3 went out as v1.2.2 with a different string), and
+  **`deno task check` caches per file and lies locally** (v1.2.4 passed locally, failed in CI at the
+  publish step, leaving an orphaned tag).
 
 ### 2.3 Decide where the bridge lives
 

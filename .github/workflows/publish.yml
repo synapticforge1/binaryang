@@ -4,12 +4,12 @@
 # or dispatched on a tag ref by `.github/workflows/auto-tag.yml` after it detects a `deno.json`
 # version bump on `main`.
 #
-# The publish step calls `deno publish` DIRECTLY — not `deno task publish`. The task wraps
+# The publish step calls `deno publish` DIRECTLY — not `deno task release`. The task wraps
 # `scripts/release/publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`.
 # That indirection breaks JSR provenance: JSR's OIDC detection runs in the workflow's primary
 # process and does not propagate cleanly into the subprocess invocation, so the published
 # version gets the "No provenance" flag. The guard script remains in place for local users —
-# running `deno task publish` from a dev machine still refuses with the correct release-flow
+# running `deno task release` from a dev machine still refuses with the correct release-flow
 # instructions; CI just doesn't go through it.
 #
 # The inherited version of this comment cited sibling `wasmtk` as precedent for calling

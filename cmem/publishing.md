@@ -382,3 +382,141 @@ merely the fix.** The re-pushed tag produced `event=push`, `actor=jrmarcum`, `co
 and `1.5.3` landed on JSR with provenance (`rekorLogId=2620472173`, `createdAt`→`updatedAt` four
 seconds apart). Same commit, same workflow, same YAML as the run that failed minutes earlier — only
 the actor differed.
+
+---
+
+# The release process (§2.2, merged 2026-08-27)
+
+Everything above this line is the provenance half, merged at A16. This half waited on §2.1: it
+describes one release flow, and until `scripts/release/` existed there were two.
+
+## 🚨 Never run `deno publish` locally
+
+**Both projects wrote this rule independently, in nearly the same words.**
+
+Provenance only attaches when `deno publish` runs inside the GitHub Actions workflow, which supplies
+the OIDC token JSR fingerprints. A local `deno publish` **succeeds and uploads** — and that version
+is permanently flagged "No provenance". **It cannot be retro-fixed on that version number**; the
+only remedy is to burn another one.
+
+binaryen-ts `1.0.0`–`1.0.9` carry an empty `rekorLogId` for exactly this reason.
+
+The only safe local invocation is `deno task publish:dry` (`--allow-dirty`, never uploads).
+
+**Symptoms someone published locally:** no git tag for the version; no "Provenance" badge on JSR; a
+bumped-and-published `deno.json` with no corresponding run under the `publish.yml` workflow.
+
+The protection is **structural, not defensive**: `scripts/release/publish.ts` has no `deno publish`
+call site at all. It stages, commits, tags and pushes; the tag push is what publishes.
+
+## The flow
+
+```sh
+git add -A && git commit -m "..."   # commit ALL source changes FIRST -- see the guard below
+deno task bump                      # rewrites deno.json AND main.ts (sub-version capped at 9)
+deno task release                   # guard, commit the bump, tag, push commit + tag atomically
+```
+
+The tag push fires `publish.yml`, which verifies the tag matches `deno.json`, runs `check` and
+`test`, then calls `deno publish` **directly** — never through `deno task`, because that indirection
+spawns a subprocess and loses OIDC — and finally creates a GitHub Release.
+
+⚠️ **In practice a release currently needs a manual step**, because `RELEASE_PAT` is not set. See
+the root-cause section above.
+
+## Version rule — sub-version capped at 9
+
+`1.0.9 → 1.1.0`, `1.9.9 → 2.0.0`, major uncapped (`9.9.9 → 10.0.0`). Both projects adopted this
+independently; enforced by `deno task bump`, which rewrites **both** `deno.json` and `main.ts`
+(`version_sync.test.ts` fails the publish if they disagree) and preserves formatting by replacing
+only the version line rather than round-tripping the JSON.
+
+### ⚠️ `bump` has no minor mode — a non-patch release is typed by hand
+
+binaryen-ts set 1.5.0 by hand from 1.4.3, because a sweep had removed four dead exports. **Removing
+an exported symbol is a breaking change regardless of whether anything imported it** — you cannot
+know that nothing did.
+
+wabt-ts reached the same rule from the other direction and recorded the corollary that matters:
+**verify who the break actually reaches.** Its `Limits.initial`/`max` moving to `bigint`, and
+`pageSize` becoming `pageSizeLog2`, looked like they would hit wasmtk and did not — wasmtk consumes
+`/compat`, which exposes neither. That was established by replaying their call sites from
+`origin/main`, not assumed.
+
+**A behavioural break counts too.** Feature-gating the validator meant callers passing
+`defaultFeatures()` started getting rejections where they previously got success. That is the option
+finally working, and it is still a behaviour change that belongs in release notes.
+
+## `publish:dry` is in CI but NOT in `deno task test`
+
+It runs the **slow-types** check, which `deno task check` does not. Moving one constant into another
+file made it public API without an explicit type — a `missing-explicit-type` error that **339
+passing tests and three full metric runs never saw**.
+
+**Run it whenever a change ADDS or MOVES an exported symbol**, not only when publishing. It also
+backs the Node compatibility claim: Node cannot run the sources directly, so the supported path is
+the transpiled JSR package, and slow types are what make that transpilation possible.
+
+## Preconditions
+
+The GitHub repo must be linked under "GitHub Actions" in the JSR package settings, or OIDC
+provenance is rejected. Verify through the API rather than the settings UI, which has been
+unreachable before:
+
+```sh
+curl -s https://api.jsr.io/scopes/jrmarcum/packages/binaryang | jq .githubRepository
+```
+
+`provenance: true` is **not** a `deno.json` field — it was removed when JSR went OIDC-only. Delete
+it if you see `unknown field provenance`.
+
+**Pin actions to the major-version tag** (`actions/checkout@v6`, `denoland/setup-deno@v2`,
+`actions/setup-node@v4`, `oven-sh/setup-bun@v2`): mutable, auto-flows patches, guards the major
+boundary. Moving checkout from v4 to v6 was forced by GitHub's Node 20 runtime deprecation.
+
+## Recovery recipes
+
+### A dirty tree ships a release containing none of the work
+
+`publish.ts` stages `deno.json` and nothing else, so on a dirty tree it commits a bare version bump,
+tags that, and publishes a release with none of the code. **binaryen-ts v1.2.3 shipped as
+effectively v1.2.2 with a different version string** — two sessions of fixes sat uncommitted, and
+the wasmtk team reported "the bugs you fixed are still there", because they were.
+
+Guarded now by `scripts/release/release-guard.ts`. **Untracked files count as dirty too**: a new
+source file that was never committed is absent from the tag, so the release is missing it while
+every local check still passes, because the file is sitting on disk.
+
+### `deno task check` caches per file, and lies locally
+
+Editing file A does not re-check file B even when B's types depend on A — B's own bytes did not
+change. CI starts with no cache and catches it; local does not. **This shipped v1.2.4 broken**: a
+new member made a compat `Record` incomplete, local passed, CI failed at the publish step, leaving
+an orphaned tag with no JSR publish and no Release.
+
+**Recovery: bump and re-publish** — JSR has no record of a version whose publish failed. Guard
+against it with a cold `deno check --reload` before tagging, which is what the v1.5.0 pre-flight
+actually ran.
+
+### `would clobber existing tag`
+
+If `git fetch origin --tags` rejects with this, the local tag points at a different commit than the
+remote's. **The remote is canonical.** Fix: `git tag -d vX.Y.Z && git fetch origin --tags`.
+
+### A tag pushed before the branch produces NO workflow run at all
+
+See the provenance half above — on a repo's first push Actions has no workflow registered to match a
+tag event against, and the event passes unmatched. Push the branch first.
+
+## Repo hygiene and the memory routing rule
+
+`CLAUDE.md` and `TASKS.md` are **gitignored** — machine-local working notes. `cmem/` is
+**committed** portable memory, and supersedes the gitignored `CLAUDE.md`.
+
+**The routing rule, stated by both projects independently:** if a teammate would need to see it, it
+goes in `README.md`; if it is curated internal project memory, it goes in `cmem/`.
+
+binaryang has **no submodules** — the predecessor remotes point at local sibling paths. Both wings
+carry a submodule-remnant recovery recipe (`git rm --cached` leaves behind a `.git` file and the
+`.git/modules/<name>/` storage, worth hundreds of MB). It no longer applies here and is left in the
+wings for the history.

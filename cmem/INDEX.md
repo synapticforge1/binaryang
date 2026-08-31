@@ -39,7 +39,7 @@ unfalsifiable once there is no repository boundary left.
 | [overview.md](overview.md)                     | **Merged (A16/1.5.2), authored not merged.** The internal picture the README no longer carries: scope, the six settled decisions, the layout and promotion rule, the convergence indicator and its counting rule, and pointers to both binding rules. Both wing overviews are STALE -- each still says three projects merge.                                                                           |
 | [licensing.md](licensing.md)                   | **Merged (A16).** MIT-primary with Apache-2.0 alternative; why the merged repo inherits **both** upstreams' §4 obligations; the copyright-line divergence the merge exposed and how it was resolved; the two JSR rejection conditions both sides learned separately.                                                                                                                                   |
 | [bridge.md](bridge.md)                         | **Merged (A16).** The boundary between the two IRs — now an internal module rather than a package boundary — and the binding naming rule.                                                                                                                                                                                                                                                              |
-| [publishing.md](publishing.md)                 | **Merged (A16).** Opens with the binding release rule — never bump the version in the change that merges to `main`. Then, provenance only: Why provenance fails silently, why editing the YAML is not the fix, the measured per-package history, and the verification step that is the only real evidence. The rest of the release process stays wing-scoped until the release scripts are reconciled. |
+| [publishing.md](publishing.md)                 | **Fully merged (A16 + §2.2).** The binding release rule (never bump in the change that merges), the provenance half, the `actorNotScopeMember` root cause behind every failed dispatch publish, and now the release process itself: never publish locally, the flow, the version rule and why `bump` has no minor mode, and the recovery recipes. |
 | [best-practices.md](best-practices.md)         | **Merged (A16), convergent rules only.** The rules **both** projects derived independently, each with both origin stories. The full enumerations stay in the wings; see the file for why that split rather than a rewrite.                                                                                                                                                                             |
 | [phases.md](phases.md)                         | **Merged (§2.2).** Where binaryang actually is, the shared versioning rule, and the live gaps carried forward. Opens with the hazard that **"Phase N" is ambiguous in this repository** — the two projects' numbers collide, and Phase 8 is shipped EH on one side and an unimplemented stub on the other. |
 | [testing.md](testing.md)                       | **Merged (§2.2).** How binaryang is tested, and the testing philosophy both projects reached independently: three states not two, every metric's blind spot, the four tests needing neither corpus nor oracle, and why every test's held-fixed dimension is its next blind spot. |
@@ -54,8 +54,8 @@ unfalsifiable once there is no repository boundary left.
 `pre-merge-known-issues.md` · `runtime-tooling.md` · `overview.md` · `publishing.md` · `testing.md`
 · `INDEX.md` · `best-practices.md` · `bridge.md` · `licensing.md` · `phases.md`
 
-🔓 **Still wing-scoped, deliberately.** `best-practices.md` (2,894 / 294) and the **non-provenance
-half** of `publishing.md` (335 / 193).
+🔓 **Still wing-scoped, deliberately.** `best-practices.md` (2,894 / 294) — and that one is a
+decision rather than a backlog item; see below.
 
 ✅ **`phases.md`, `testing.md` and `overview.md` are now merged** (§2.2, 2026-08-27). They waited on
 §2.1 for a reason that held: they describe a release and QA process, and until `scripts/release/`
@@ -68,8 +68,10 @@ metric tables. What is *stale* is narrower and named: both wing `overview.md` fi
 three projects merge.
 
 - **`best-practices.md`** — see below.
-- **The non-provenance half of `publishing.md`** — the last piece of §2.2. Now unblocked by §2.1
-  too, and the smallest of the remaining merges.
+
+✅ **§2.2 is complete.** `overview`, `licensing`, `bridge`, `phases`, `testing` and both halves of
+`publishing` are merged topic files. Only `best-practices.md` stays split, and for a stated reason
+rather than for want of effort.
 
 ---
 
