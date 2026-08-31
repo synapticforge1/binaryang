@@ -176,6 +176,37 @@ a `description` field, yet both score `hasDescription: yes` — so it is set in 
 settings UI, and the runtime-compatibility flags likewise. Set description, and tick Deno / Node /
 Bun / browser, and the score reaches parity.
 
+### How to find the undocumented symbols — the method, not the number
+
+The table row above is a **snapshot**; `percentageDocumentedSymbols` reached **100%** for binaryang
+on 2026-08-27. What is worth keeping is how the gap was located, because the obvious route is a dead
+end.
+
+⚠️ **`deno doc --lint` is NOT a doc-coverage check, and its number does not track JSR's.** The two
+have different denominators: the lint counts nested interface members, JSR counts declarations.
+binaryang saw **701** lint errors against 98.1%; wasmtk saw the lint **clean on all 16 entrypoints**
+against 98.04%. The same discrepancy from opposite sides, confirmed independently in both repos.
+
+**Chasing the lint number to fix the JSR one means several hundred filler comments on struct
+fields, and does not move the score.**
+
+**Find the real gap arithmetically.** JSR's percentage is an exact fraction: `0.98087955` is
+`513/523` to eight digits, so **ten** declarations were missing — not seven hundred. Then read
+`deno doc --json`:
+
+- a symbol carries `declarations[]`, each with its own `jsDoc`; a symbol is documented if **any**
+  declaration has one;
+- entries with `kind: "reference"` are **re-exports whose originals carry the doc**. Counting them
+  is what makes a first pass overshoot — it reported 36 against a true 10.
+
+⚠️ **`percentageDocumentedSymbols` earns no points.** The score keys on `allEntrypointsDocs`.
+binaryang scored **100 while that percentage read 98.1%**, so raising it is a quality decision and
+must not be described as a score fix.
+
+_Relocated from machine-local memory 2026-08-27, where it was the only copy — the same move wabt-ts
+made with its formatter notes, and for the same reason: this is PROJECT knowledge and would not
+survive a clone. Machine-level facts (`safe.directory`, the repack failure) correctly stay outside._
+
 `allFastCheck: yes` independently confirms that removing `--allow-slow-types` was right: the package
 passes fast-check, so it ships a `.d.ts` for Node consumers.
 

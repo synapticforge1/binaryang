@@ -339,6 +339,54 @@ trap had just been named twice.
 **That is the argument for this section existing.** The pattern is not detectable by being careful;
 it is detectable by being enumerable.
 
+## 🆕 A change that silently does nothing is indistinguishable from one that worked
+
+**Rule: make every edit, gate and guard fail loudly when its target is absent.** The expensive
+defect is not the wrong change — it is the change that had no effect and reported success.
+
+Both projects hit this repeatedly, from different directions. Gathered because the instances only
+look like one class once they are next to each other:
+
+| the no-op | how it presented |
+| --------- | ---------------- |
+| a string replacement written **without asserting the target exists** | the document's summary table contradicted its own sections for hours. The asserted edits *beside* it succeeded, so the commit looked complete |
+| a workspace member **omitting** a `compilerOptions` key | the member inherits the root's value and merges over it, so omission leaves the root setting in force. Looks like it works until you check the error count |
+| `git checkout-index -a -f` after adding `.gitattributes` | attributes apply when a file is written, and Git skips stat-clean files. Zero of 32 were rewritten, with no output |
+| a mutating script that **read no arguments at all** | `--dry-run` performed a real bump and reported it in the same form a dry run would have used |
+| `deno task test` **enumerating test directories by name** | moving a suite makes it silently stop running. The whole bridge suite would have gone quiet |
+| deleting a release guard's entire block | **all twelve of its logic tests still passed.** The original defect was that the logic was *absent*, not wrong |
+| pushing a tag before the branch on a new repo | Actions has no workflow registered to match the event against; it passes unmatched. **A silent absence, not an error** |
+
+## Why this class is expensive
+
+Every one produced a **green result**, so nothing prompted a second look. Several sat next to
+changes that *did* work, which is worse than failing alone: the surrounding success is read as
+evidence for the whole.
+
+And the counter-instinct is wrong. Care does not help — you cannot notice the absence of an effect
+you were not shown. **Structure helps.**
+
+## How to apply
+
+- **Assert the precondition, always.** `assert old in s` before a replace. A replacement that finds
+  nothing must raise, never return the input unchanged. This is one line and it would have caught
+  the first two rows.
+- **Prefer "fail if absent" over "act if present."** The two are identical on the happy path and
+  opposite on the one that matters.
+- **Enumerate from the source, not by hand.** A directory list, an export list, a set of test paths
+  — any hand-maintained enumeration acquires a hole the next time something moves. If a comment
+  claims a list is complete, that claim is testable.
+- **Omission is not reset.** Wherever config merges (workspace members, layered CI, extended
+  tsconfig), write the value out explicitly.
+- **Invert the gate.** This is the detection half, already a rule elsewhere: break the thing on
+  purpose and confirm the check fires. It is the only way to tell a passing check from a blind one —
+  and note `git add --renormalize` reporting no changes was *correct* here, yet identical in
+  appearance to the broken case.
+
+**The related-but-distinct failure** is [attributing a result to whichever property was in
+view](#-the-result-gets-attributed-to-whichever-property-was-in-view) — that one is a wrong
+attribution of a real effect; this one is a missing effect reported as success.
+
 ## Where to go for the rest
 
 The wings hold what did not converge, and it is most of the volume:
