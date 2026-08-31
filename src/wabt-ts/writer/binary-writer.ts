@@ -1358,9 +1358,32 @@ class BinaryWriter {
     const sizePos = s.reserveU32Leb();
     const start = s.offset;
 
-    // Local declarations (run-length encoded)
-    s.writeU32Leb(func.localDecls.length);
+    // Local declarations, genuinely run-length encoded.
+    //
+    // The format is `vec(count, valtype)`, so N consecutive locals of one type
+    // may be written as a single `(N, type)` group. This used to emit
+    // `func.localDecls` verbatim, and the decoder produces one entry per local,
+    // so three i32 locals went out as `3 | (1,i32) (1,i32) (1,i32)` -- 7 bytes
+    // where `1 | (3,i32)` needs 3. The comment already claimed run-length
+    // encoding; only the loop did not do it.
+    //
+    // Found by tracking down a 0.90% size gap against binaryen-ts, which does
+    // coalesce. Measured over 149 corpus modules, the code sections differed by
+    // 3,073 bytes and this was the whole of it.
+    //
+    // Semantically identical: the locals are the sum of the counts, in order, so
+    // coalescing ADJACENT entries of the same type changes neither the number of
+    // locals nor their indices. Entries of different types are never merged --
+    // `i32, i64, i32` stays three groups, which is why that shape already agreed
+    // between the two writers.
+    const coalesced: { type: ValueType; count: number }[] = [];
     for (const decl of func.localDecls) {
+      const last = coalesced[coalesced.length - 1];
+      if (last !== undefined && last.type === decl.type) last.count += decl.count;
+      else coalesced.push({ type: decl.type, count: decl.count });
+    }
+    s.writeU32Leb(coalesced.length);
+    for (const decl of coalesced) {
       s.writeU32Leb(decl.count);
       writeValueType(s, decl.type);
     }

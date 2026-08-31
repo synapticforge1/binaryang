@@ -158,12 +158,27 @@ through one shared `takeInlineExports` helper, matching what `collectFunc` alway
 exports **196 → 345 of 345**, export sets identical on 149 of 149 modules, gated by
 `tests/binaryen-ts/parser/inline_export.test.ts`.
 
-⚠️ **The byte gap narrowed from −1.24% to −0.90% but did not close**, so roughly 1,344 bytes of the
-apparent "size win" was the dropped exports and **the rest is still unexplained.** A section-level
-breakdown showed binaryen-ts emitting **zero `datacount` sections** where wabt-ts emits 162 bytes of
-them, plus a ~3 KB code-section difference. Both still validate in V8. **Do not read −0.90% as an
-encoding win either** — that is the same inference that was wrong the first time, and it has not
-been checked.
+### ✅ The byte gap is fully explained (2026-08-31), and it was NOT data loss
+
+Chased to the section, then to the byte. Three components, none of them a defect:
+
+| component | cause |
+| --------- | ----- |
+| **code −3,073** | binaryen-ts run-length-compresses consecutive same-type locals; wabt-ts emitted one group per local. `vec(count, valtype)`, so three i32 locals went out as `3 \| (1,i32)(1,i32)(1,i32)` where `1 \| (3,i32)` says the same thing in 3 bytes instead of 7 |
+| **datacount −162** | the section is **optional** unless `memory.init` / `data.drop` reference the data index space. wabt emits it whenever data segments exist; binaryen-ts omits it. Both valid — and binaryen-ts rejects those two instructions outright, loudly, in both its WAT and binary readers, so it can never need the section |
+| type +70, data +66 | small, and in the other direction |
+
+**Fixed on the wabt-ts side.** The writer's comment already claimed run-length encoding; only the
+loop did not do it. Coalescing recovered **42,437 bytes (2.7%) across the 421-file corpus** —
+considerably more than the 3,073 gap that led to it, because binaryen-ts coalesces only partially,
+so the gap measured the *difference* in redundancy rather than the total.
+
+⚠️ **This moved the emitted-byte baseline on 398 files**, and came with a deliberate re-baseline in
+the same commit: 1,557,602 → 1,515,165 bytes. The baseline is not a test; it pins bytes, so a
+genuine encoder improvement is supposed to move it.
+
+⬚ **binaryen-ts could take the same fix** — it carries roughly 5,600 bytes of the same redundancy on
+this corpus. Not done; it is an optimisation, not a defect.
 
 ### ✅ FIXED 2026-08-31 — inline IMPORTS, the worse half
 
