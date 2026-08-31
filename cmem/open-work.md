@@ -125,7 +125,7 @@ differential between two spellings of the same thing*, folded versus linear, whi
 construction. Nothing tested it, so a broken round trip between two of our own CLI tools went
 unnoticed.
 
-### 🚨 Second defect, worse: the parser DROPS inline exports
+### ✅ FIXED 2026-08-31 — the parser dropped inline exports (43% of them)
 
 Found while measuring whether the IR choice costs anything in the shipped wasm. It does not — but
 the measurement could not be trusted until this was explained.
@@ -150,8 +150,30 @@ because a module that fails to export its memory is perfectly valid and merely u
 **Inline export is the idiomatic form and is what our own `wasm2wat` emits** — `inlineExport`
 defaults to `true`. So this compounds the round-trip defect above rather than sitting beside it.
 
-**Ranking:** this outranks the linear-form gap. Linear form fails loudly; this one succeeds and
-returns a module missing its exports.
+**Ranking:** this outranked the linear-form gap. Linear form fails loudly; this one succeeded and
+returned a module missing its exports.
+
+**Fixed.** All four collectors (`memory`, `table`, `tag`, `global`) now consume the abbreviation
+through one shared `takeInlineExports` helper, matching what `collectFunc` always did. Corpus
+exports **196 → 345 of 345**, export sets identical on 149 of 149 modules, gated by
+`tests/binaryen-ts/parser/inline_export.test.ts`.
+
+⚠️ **The byte gap narrowed from −1.24% to −0.90% but did not close**, so roughly 1,344 bytes of the
+apparent "size win" was the dropped exports and **the rest is still unexplained.** A section-level
+breakdown showed binaryen-ts emitting **zero `datacount` sections** where wabt-ts emits 162 bytes of
+them, plus a ~3 KB code-section difference. Both still validate in V8. **Do not read −0.90% as an
+encoding win either** — that is the same inference that was wrong the first time, and it has not
+been checked.
+
+### ⬚ Still broken: inline IMPORTS, and they are dropped silently too
+
+The same abbreviation family. `(memory (import "m" "a") 1)`, `(table (import …))` and
+`(func (import …))` are **silently dropped**; `(global (import …))` throws. Measured on minimal
+fixtures, not yet on the corpus.
+
+**A dropped import is worse than a dropped export**: it removes an entry from the index space, so
+every subsequent function, memory, table or global index shifts by one. That can turn a valid module
+into a valid module that calls the wrong function.
 
 ## Which answers the bridge question
 

@@ -1622,6 +1622,38 @@ class WatModuleParser {
   // Globals / memory / table — first pass collection
   // -------------------------------------------------------------------------
 
+  /**
+   * Consume the inline `(export "name")` abbreviations that may follow a
+   * declaration's optional `$id`, returning the names and the new index.
+   *
+   * `(memory (export "m") 1)` is shorthand for `(memory 1)` plus
+   * `(export "m" (memory 0))`. Only `collectFunc` implemented this; memory,
+   * table, tag and global did not, and the consequences differed by how each
+   * one happened to read the node that followed:
+   *
+   *   - memory/table/tag fed `(export ...)` to `atomInt`, which returns null,
+   *     so the limits silently took their defaults and **the export was lost
+   *     with no diagnostic**;
+   *   - global fed it to `parseValType`, which threw `unknown value type`.
+   *
+   * Measured over 149 corpus modules before this fix: 345 exports via wabt-ts,
+   * 196 via this parser -- 43% lost, `memory` in every sampled case. The
+   * modules still validated, because a module that fails to export its memory
+   * is valid and merely useless to its host, and the byte count read 1.24%
+   * SMALLER, which looks like an encoding win rather than data loss.
+   *
+   * Inline export is the idiomatic form and is what our own `wasm2wat` emits.
+   */
+  private takeInlineExports(children: SExpr[], idx: number): { names: string[]; idx: number } {
+    const names: string[] = [];
+    while (idx < children.length && isListWith(children[idx], 'export')) {
+      const n = atomString((children[idx] as SList).children[1]);
+      if (n !== null) names.push(n);
+      idx++;
+    }
+    return { names, idx };
+  }
+
   private collectGlobal(list: SList): void {
     // `(global $name <type> <init-expr>)`
     // `(global $name (mut <type>) <init-expr>)`
@@ -1641,6 +1673,9 @@ class WatModuleParser {
     const internalName = name ?? `$__global_${globalIndex}`;
     this.globalNames.set(internalName, globalIndex);
 
+    const inline = this.takeInlineExports(children, idx);
+    idx = inline.idx;
+
     const typeNode = children[idx++];
     if (!typeNode) this.err('global: missing type', list.pos);
     const { type, mutable } = this.parseGlobalTypeNode(typeNode);
@@ -1651,6 +1686,7 @@ class WatModuleParser {
     const init = this.parseExpr(initNode, this.constExprContext());
 
     this.builder.addGlobal(internalName, type, mutable, init);
+    for (const n of inline.names) this.builder.addExport(n, internalName, 'global');
   }
 
   /** Parses a global's type node: bare `<type>` or `(mut <type>)`. */
@@ -1685,10 +1721,14 @@ class WatModuleParser {
     }
     const memIndex = this.memoryNames.size;
     if (name) this.memoryNames.set(name, memIndex);
+    const inline = this.takeInlineExports(children, idx);
+    idx = inline.idx;
     // Parse limits
     const initial = Number(atomInt(children[idx]) ?? 1);
     const max = children[idx + 1] ? (Number(atomInt(children[idx + 1]) ?? 0) || null) : null;
-    this.builder.addMemory(name ?? '$mem0', initial, max);
+    const internalName = name ?? '$mem0';
+    this.builder.addMemory(internalName, initial, max);
+    for (const n of inline.names) this.builder.addExport(n, internalName, 'memory');
   }
 
   private collectTable(list: SList): void {
@@ -1701,6 +1741,8 @@ class WatModuleParser {
     }
     const tableIndex = this.tableNames.size;
     if (name) this.tableNames.set(name, tableIndex);
+    const inline = this.takeInlineExports(children, idx);
+    idx = inline.idx;
     const initial = Number(atomInt(children[idx]) ?? 0);
     const max = children[idx + 1]?.kind === 'atom'
       ? (Number(atomInt(children[idx + 1])) || null)
@@ -1708,7 +1750,9 @@ class WatModuleParser {
     const refType = max !== null
       ? (this.tryParseValType(children[idx + 2]) ?? ValType.FuncRef)
       : (this.tryParseValType(children[idx + 1]) ?? ValType.FuncRef);
-    this.builder.addTable(name ?? '$table0', refType, initial, max);
+    const tableInternal = name ?? '$table0';
+    this.builder.addTable(tableInternal, refType, initial, max);
+    for (const n of inline.names) this.builder.addExport(n, tableInternal, 'table');
   }
 
   private collectTag(list: SList): void {
@@ -1721,13 +1765,17 @@ class WatModuleParser {
     }
     const tagIndex = this.tagNames.size;
     if (name) this.tagNames.set(name, tagIndex);
+    const inline = this.takeInlineExports(children, idx);
+    idx = inline.idx;
     // Parse (param ...) list for tag type
     const params: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], 'param')) {
       for (const t of listChildren(children[idx] as SList)) params.push(this.parseValType(t));
       idx++;
     }
-    this.builder.addTag(name ?? `$tag${tagIndex}`, params);
+    const tagInternal = name ?? `$tag${tagIndex}`;
+    this.builder.addTag(tagInternal, params);
+    for (const n of inline.names) this.builder.addExport(n, tagInternal, 'tag');
   }
 
   // -------------------------------------------------------------------------
