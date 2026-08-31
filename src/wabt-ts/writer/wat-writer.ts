@@ -66,9 +66,16 @@ export interface WriteWatOptions {
    * sequence. Default: `false` (linear).
    *
    * Both spellings assemble to identical bytes — folding is text-layer only —
-   * so this changes readability, not the module. Folded output is roughly 28%
-   * larger as text and ~25% slower to re-parse; linear is closer to the stack
-   * machine and is what a reader wants for inspecting execution order.
+   * so this changes readability, not the module.
+   *
+   * Measured on THIS writer's output over the 421-file corpus: folded is
+   * **23.6% smaller** and ~9% slower to re-parse. (An earlier note said folded
+   * was 28% *larger* and 25% slower — that was measured on upstream wabt's
+   * rendering, whose linear form is far more compact than ours. Ours puts one
+   * instruction per line, so folding compacts it.)
+   *
+   * Linear stays the default and is what a reader wants for inspecting
+   * execution order, since it is the stack machine as written.
    *
    * Nodes that cannot be folded fall back to linear individually, so output is
    * mixed rather than uniformly folded — which is what upstream wabt produces
@@ -1541,6 +1548,9 @@ class WatWriter extends ModuleContext {
    * operands rather than discovering the problem halfway through.
    */
   private writeFoldedExpr(e: Expr): boolean {
+    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'if') {
+      return this.writeFoldedControl(e);
+    }
     const spec = this.foldSpec(e);
     if (spec === null) return false;
     this.puts('(', NC.None);
@@ -1560,8 +1570,84 @@ class WatWriter extends ModuleContext {
     return true;
   }
 
+  /**
+   * Folded rendering for the block-structured expressions.
+   *
+   * These fold around a BODY rather than around operands, so they do not fit
+   * {@link foldSpec}. The distinction matters in one useful way: a folded
+   * `(block …)` wraps an instruction SEQUENCE, so its body may itself be linear
+   * — which means block and loop always fold, whatever they contain. Only the
+   * `if` condition is an operand, and only that can force a decline.
+   *
+   * The label stack is pushed and popped exactly as the linear path does. `br`
+   * depths are resolved against it, so skipping that would silently renumber
+   * every branch inside the body — the folded form drops the `end` keyword, not
+   * the scope it delimited.
+   */
+  private writeFoldedControl(e: Expr): boolean {
+    switch (e.kind) {
+      case 'block':
+      case 'loop': {
+        const isLoop = e.kind === 'loop';
+        this.puts('(', NC.None);
+        this.putsSpace(isLoop ? 'loop' : 'block');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        this.newline(true);
+        this.beginBlock(e.label, isLoop ? LabelType.Loop : LabelType.Block, e.blockType);
+        this.indent += 2;
+        this.writeExprList(e.body);
+        this.indent -= 2;
+        this.endBlock();
+        this.close(NC.Space);
+        return true;
+      }
+      case 'if': {
+        // `(if blocktype? folded-cond (then instr*) (else instr*)?)`. The
+        // condition is an OPERAND, so a placeholder there — meaning the value is
+        // already on the stack — has no folded spelling and declines.
+        if (!this.canFold(e.cond)) return false;
+        this.puts('(', NC.None);
+        this.putsSpace('if');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        this.newline(true);
+        this.indent += 2;
+        this.writeFoldedExpr(e.cond);
+        this.beginBlock(e.label, LabelType.If, e.blockType);
+        this.newline(true);
+        this.puts('(', NC.None);
+        this.putsSpace('then');
+        this.indent += 2;
+        this.writeExprList(e.then_);
+        this.indent -= 2;
+        this.close(NC.Space);
+        if (e.else_.length > 0) {
+          this.newline(true);
+          this.puts('(', NC.None);
+          this.putsSpace('else');
+          this.indent += 2;
+          this.writeExprList(e.else_);
+          this.indent -= 2;
+          this.close(NC.Space);
+        }
+        this.endBlock();
+        this.indent -= 2;
+        this.close(NC.Space);
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
   /** Whether `e` and every descendant can be folded — checked before committing output. */
   private canFold(e: Expr): boolean {
+    // A folded block or loop wraps an instruction SEQUENCE, so its body may be
+    // linear inside — there is nothing about its contents that can prevent the
+    // wrapper. `if` is different only because its condition is an operand.
+    if (e.kind === 'block' || e.kind === 'loop') return true;
+    if (e.kind === 'if') return this.canFold(e.cond);
     const spec = this.foldSpec(e);
     if (spec === null) return false;
     return spec.operands.every((op) => this.canFold(op));

@@ -79,14 +79,80 @@ describe('wasm2wat --fold', () => {
     assertEquals((inst.exports.f as (x: number) => number)(10), 16, '10 + 2*3');
   });
 
-  // Control flow is not yet foldable, so these must come out linear and still be
-  // correct. This is the fallback doing its job, not a failure.
-  it('a construct the renderer declines falls back to linear, still correct', () => {
-    assertFormsAgree(`(module (func (export "f") (param i32) (result i32)
+  // ---------------------------------------------------------------------------
+  // Control flow folds around a BODY rather than operands.
+  //
+  // A folded `(block …)` wraps an instruction SEQUENCE, so its body may itself
+  // be linear — which is why block and loop always fold whatever they contain.
+  // Only `if` can decline, because its condition is an operand.
+  // ---------------------------------------------------------------------------
+
+  it('block and if fold, and the forms still agree', () => {
+    const src = `(module (func (export "f") (param i32) (result i32)
       (block $a (result i32)
         (if (result i32) (local.get 0)
           (then (i32.const 1))
-          (else (i32.const 2))))))`);
+          (else (i32.const 2))))))`;
+    const folded = wasm2wat(asm(src, 's.wat'), { fold: true }).text;
+    assert(
+      folded.includes('(block'),
+      `expected a folded block, got:
+${folded}`,
+    );
+    assert(folded.includes('(if'), 'if must fold');
+    assert(folded.includes('(then'), 'the then-arm is a folded clause');
+    // No backslash escapes here on purpose: the shell layer eats them, which
+    // has now corrupted three edits in this session.
+    const NL = String.fromCharCode(10);
+    assert(
+      folded.split(NL).every((l) => l.trim() !== 'end'),
+      'a folded block has no `end` keyword',
+    );
+    assertFormsAgree(src);
+  });
+
+  // The folded form drops `end`, not the SCOPE it delimited. `br` depths resolve
+  // against the label stack, so failing to push it would silently renumber every
+  // branch inside the body — valid output, wrong module.
+  it('branch depths survive folding', () => {
+    // `br_if` KEEPS its value on the stack when the branch is not taken, so the
+    // inner block must consume it — the first draft of this fixture left two
+    // values where one was declared and was rejected for being wrong WAT, not
+    // for anything to do with folding.
+    const src = `(module (func (export "f") (param i32) (result i32)
+      (block $outer (result i32)
+        (block $inner
+          (br_if $outer (i32.const 7) (local.get 0))
+          (drop))
+        (i32.const 1))))`;
+    assertFormsAgree(src);
+    const folded = wasm2wat(asm(src, 's.wat'), { fold: true }).text;
+    const run = (n: number) => {
+      const inst = new WebAssembly.Instance(
+        new WebAssembly.Module(asm(folded, 'f.wat') as BufferSource),
+      );
+      return (inst.exports.f as (x: number) => number)(n);
+    };
+    assertEquals(run(1), 7, 'branch taken must reach $outer');
+    assertEquals(run(0), 1, 'fall through');
+  });
+
+  it('a loop folds and still terminates correctly', () => {
+    assertFormsAgree(`(module (func (export "f") (result i32)
+      (local i32)
+      (loop $l
+        (local.set 0 (i32.add (local.get 0) (i32.const 1)))
+        (br_if $l (i32.lt_s (local.get 0) (i32.const 5))))
+      (local.get 0)))`);
+  });
+
+  it('nested control flow agrees', () => {
+    assertFormsAgree(`(module (func (export "f") (param i32) (result i32)
+      (block $a (result i32)
+        (loop $l (result i32)
+          (if (result i32) (local.get 0)
+            (then (block $b (result i32) (i32.const 3)))
+            (else (i32.const 4)))))))`);
   });
 
   it('memory operations fold and agree', () => {
