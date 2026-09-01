@@ -1594,6 +1594,10 @@ class WatWriter extends ModuleContext {
           return { operands: [...e.operands], head: (d) => void d.onArrayNewFixedExpr?.(e) };
         case 'throw':
           return { operands: [...e.args], head: (d) => void d.onThrowExpr?.(e) };
+        // `rethrow N` carries no operands — it re-raises the exception caught by
+        // the handler at depth N — so it folds as a leaf, `(rethrow 0)`.
+        case 'rethrow':
+          return { operands: [], head: (d) => void d.onRethrowExpr?.(e) };
         // `call_indirect`'s callee is the table index and comes LAST in the
         // operand order, after the arguments -- the same order the stack sees.
         case 'call_indirect':
@@ -1618,18 +1622,35 @@ class WatWriter extends ModuleContext {
     // emitting a bare `local.set 0`. That is equally legal WAT and equally
     // correct, but nothing downstream that reads folded input could consume it.
     //
-    // ⚠️ A MIX still declines, and deliberately. With operands `[placeholder,
-    // value]` the folded form `(i32.store (value))` gives one operand for two
-    // slots, and a reader assigns it to the FIRST — so the address would be
-    // filled with the value. Ambiguous output that still parses is worse than
-    // falling back to a linear rendering that is unambiguous. Placeholders
-    // occupy a PREFIX of the operand list (the reader fills from the top of the
-    // stack down, so the deepest slots run out first), which is exactly the case
-    // positional operands cannot express.
-    const unusable = spec.operands.filter((op) => !usable(op)).length;
-    if (unusable === 0) return spec;
-    if (unusable === spec.operands.length) return { operands: [], head: spec.head };
-    return null;
+    // A MIX folds too, so long as the placeholders form a PREFIX — which they
+    // always do, because the reader fills operands from the top of the stack
+    // down, so the DEEPEST slots are the ones that run out.
+    //
+    // 🔧 Corrected 2026-09-01. This used to decline every mix, arguing that
+    // `(i32.store (value))` gives one operand for two slots and "a reader
+    // assigns it to the FIRST", filling the address with the value. That is
+    // backwards. Folding is defined by UNFOLDING: `(instr a b)` is `a b instr`,
+    // so the written operands land in the LAST slots and the stack supplies the
+    // rest. Measured, not argued — with a non-commutative callee to make slot
+    // order observable:
+    //
+    //     (i32.const 3) (call $sub (i32.const 1))          => 2, i.e. 3 - 1
+    //     (i32.const 16) (i32.store (i32.const 42))        stores 42 AT 16
+    //
+    // Both are the very cases the old comment named as unsafe. So a prefix of
+    // stack-sourced operands is expressed by OMITTING it, and the all-stack case
+    // is just the whole list omitted rather than a rule of its own.
+    //
+    // ⚠️ A SCATTERED mix would still be inexpressible — positional operands
+    // cannot skip a hole in the middle — so that case still declines. It does
+    // not arise from our binary reader, but the guard is cheap and the failure
+    // it prevents is silent wrong bytes.
+    const firstUsable = spec.operands.findIndex((op) => usable(op));
+    if (firstUsable === -1) return { operands: [], head: spec.head };
+    if (!spec.operands.slice(firstUsable).every((op) => usable(op))) return null;
+    return firstUsable === 0
+      ? spec
+      : { operands: spec.operands.slice(firstUsable), head: spec.head };
   }
 
   /**

@@ -681,7 +681,16 @@ class WatModuleParser {
       // comes from a preceding sibling. Claim the most recent unclaimed one and
       // splice it out of the statement list, which is exactly the tree the
       // folded spelling would have produced.
-      const claimed = this._claims === 0 ? ctx.pending?.pop() : undefined;
+      // ⚠️ Only claim when NO written operand has been consumed for this
+      // instruction. Claiming SPLICES the producer out of the statement list and
+      // re-inserts it at whichever slot asked — a TRAILING one — while the stack
+      // fills the LEADING slots, so with a written operand present the two
+      // disagree. Measured: `(i32.const 16) (i32.store (i32.const 42))` stored 16
+      // at address 42, and reading address 16 gave 0; wabt-ts reads the same text
+      // as 42, correctly. With `_served > 0` we fall through to `Pop` below, which
+      // emits NOTHING and so leaves the producer where it stands, preserving stack
+      // order exactly.
+      const claimed = this._claims === 0 && this._served === 0 ? ctx.pending?.pop() : undefined;
       if (claimed !== undefined) {
         this._claims++;
         if (ctx.stmtSlots !== undefined) ctx.stmtSlots[claimed.slot] = null;
@@ -717,6 +726,10 @@ class WatModuleParser {
         this._opPos,
       );
     }
+    // A written operand. Count it BEFORE recursing: the recursion saves and
+    // restores its own counters, so this increment stays with the instruction
+    // that asked for it.
+    this._served++;
     if (s.kind === 'atom') {
       return this.parseAtomExpr(s as Atom, ctx);
     }
@@ -735,26 +748,43 @@ class WatModuleParser {
    *
    * Correcting that needs the instruction's ARITY at the point of the first
    * claim, which this parser does not have — a handler discovers its own arity
-   * by how many times it asks. Until that exists, one claim is the subset where
-   * order cannot be wrong, and it covers the shape our own writer emits:
-   * `(local.set 0)`, `(drop)`, and every other single-operand instruction whose
-   * value is on the stack.
+   * by how many times it asks.
+   *
+   * 🔧 Corrected 2026-09-01. This used to say that one claim "is the subset
+   * where order cannot be wrong". It is not. With N slots, W of them written and
+   * C claimed, the stack fills the LEADING C slots — but a claim serves whichever
+   * slot happens to ask, which is a TRAILING one whenever W > 0. The two agree
+   * only when W is zero, so {@link _served} gates the claim as well, and a single
+   * claim alongside a written operand is no longer treated as safe.
    */
   private _claims = 0;
+
+  /**
+   * How many WRITTEN operands the instruction being parsed has consumed.
+   *
+   * Zero means every slot so far came from the stack, which is the only case in
+   * which claiming a preceding sibling reproduces the right order — see the
+   * correction on {@link _claims}. Saved and restored per instruction alongside
+   * it.
+   */
+  private _served = 0;
 
   private parseListExpr(list: SList, ctx: FuncContext): Expression {
     const prevOp = this._op;
     const prevPos = this._opPos;
     const prevClaims = this._claims;
+    const prevServed = this._served;
     this._op = listHead(list) ?? prevOp;
     this._opPos = list.pos;
     this._claims = 0;
+    this._served = 0;
     try {
       return this._parseListExpr(list, ctx);
     } finally {
       this._op = prevOp;
       this._opPos = prevPos;
       this._claims = prevClaims;
+      this._served = prevServed;
     }
   }
 
@@ -1663,8 +1693,21 @@ class WatModuleParser {
       break;
     }
     const bytes = storeBytes(head);
-    const ptr = this.parseExpr(args[argIdx], ctx);
-    const value = this.parseExpr(args[argIdx + 1], ctx);
+
+    // Written operands fill the TRAILING slots; the stack supplies the leading
+    // ones. Folding is defined by unfolding — `(i32.store a b)` is `a b
+    // i32.store` — so when only ONE operand is written it is the VALUE, and the
+    // ADDRESS comes from the stack. Reading it the other way round stored the
+    // address at the value: `(i32.const 16) (i32.store (i32.const 42))` put 16
+    // at address 42, where wabt-ts (correctly) puts 42 at address 16.
+    //
+    // `Pop` stands for the stack-sourced slot. It encodes to nothing, so the
+    // emitted bytes are the written operand alone, sequenced after whatever
+    // preceding statement left the address on the stack — exactly the original
+    // linear form.
+    const written = args.length - argIdx;
+    const ptr = written >= 2 ? this.parseExpr(args[argIdx], ctx) : makePop(ValType.I32);
+    const value = this.parseExpr(args[argIdx + (written >= 2 ? 1 : 0)], ctx);
     return { kind: ExpressionKind.Store, type: None, bytes, offset, align, ptr, value };
   }
 
