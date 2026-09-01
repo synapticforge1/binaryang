@@ -263,7 +263,7 @@ which is why the first fix did not touch it.
 | # | gap | modules | state |
 | - | --- | ------- | ----- |
 | 1 | numeric branch depths + `br`/`br_if` operands | 307 | ✅ **fixed** — see below |
-| 2 | linear form, for the modules carrying placeholders | 44 | ⬚ open — **genuinely requires it**, see below |
+| 2 | stack-sourced operands, for the modules carrying placeholders | 44 | ⬚ open — scoped in [ir-convergence.md](ir-convergence.md); **the restriction is ours, not inherited** |
 | 3 | `call_indirect: unknown type N` — numeric type references | 37 | ⬚ open |
 | 4 | `label depth N exceeds enclosing blocks` | 22 | ⬚ open — a construct that does not push a label |
 | 5 | `try` folding, our side | 7 | ⬚ open |
@@ -297,9 +297,21 @@ local.set 0
 There is no folded spelling for "this call produces two values consumed by two instructions" — the
 tree has one node and two parents. Verified on both a multi-value `call` and a multi-value `block`.
 
-**This one is structural, unlike `br`/`return`.** Those were a misreading of the IR; this is a
-property of expressing a stack machine as a tree. So the 44 modules genuinely require **linear-form
-support in `binaryen-ts/parser/wat-parser.ts`** — there is no folding route to them.
+🔧 **CORRECTED again — "unfoldable" was too strong.** Multi-value CAN be spelled in folded form:
+
+```wat
+(local.set 1 (call $two))
+(local.set 0)
+```
+
+runs correctly and is accepted by wabt-ts and upstream wabt. The second consumer is a folded
+instruction with NO operand, taking its value from the stack — the same shape as a `br` carrying a
+stack value.
+
+**And upstream binaryen parses every form, including bare linear.** It spills the multi-value result
+into a synthetic local and rewrites each consumer as a `tuple.extract`. The restriction is
+binaryen-ts's own: it implemented the folded subset. Full measurement and a three-stage scope:
+[ir-convergence.md](ir-convergence.md).
 
 ### ✅ #1 fixed — round-trip went 2 → 302 of 421
 
