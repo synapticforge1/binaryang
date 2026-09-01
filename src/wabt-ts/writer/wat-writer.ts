@@ -1520,6 +1520,47 @@ class WatWriter extends ModuleContext {
         case 'table.set':
           return { operands: [e.index, e.value], head: (d) => void d.onTableSetExpr?.(e) };
 
+        // ---- br / br_if / return are DELIBERATELY absent ----------------------
+        //
+        // Tried and reverted, because the differential caught it. All three
+        // transfer a value that sits on the stack, put there by a PRECEDING
+        // SIBLING rather than held as a child — `(br $l)` is legal folded WAT,
+        // but the value it carries is not inside the parens.
+        //
+        // Folding them produced output that did not assemble at all:
+        //
+        //     (i32.const 1
+        //       br
+        //
+        // The preceding sibling's closing paren was still pending when the leaf
+        // path re-entered the linear writer for the branch. `br_if` was worse —
+        // it assembled and produced DIFFERENT BYTES, which is the failure mode
+        // that gets shipped.
+        //
+        // Reverting cost the folded form nothing it can express correctly: a
+        // stack-carried value has no folded spelling, which is the same reason
+        // `placeholder` operands decline. Corpus equivalence went 4/421 back to
+        // 421/421.
+        case 'br_table':
+          return { operands: [e.value], head: (d) => void d.onBrTableExpr?.(e) };
+
+        // ---- three operands ---------------------------------------------------
+        case 'select':
+          return {
+            operands: [e.val1, e.val2, e.cond],
+            head: (d) => void d.onSelectExpr?.(e),
+          };
+        case 'memory.copy':
+          return {
+            operands: [e.dest, e.src, e.size],
+            head: (d) => void d.onMemoryCopyExpr?.(e),
+          };
+        case 'memory.fill':
+          return {
+            operands: [e.dest, e.value, e.size],
+            head: (d) => void d.onMemoryFillExpr?.(e),
+          };
+
         // ---- variadic ---------------------------------------------------------
         case 'call':
           return { operands: [...e.args], head: (d) => void d.onCallExpr?.(e) };
@@ -1527,6 +1568,15 @@ class WatWriter extends ModuleContext {
           return { operands: [...e.operands], head: (d) => void d.onStructNewExpr?.(e) };
         case 'array.new_fixed':
           return { operands: [...e.operands], head: (d) => void d.onArrayNewFixedExpr?.(e) };
+        case 'throw':
+          return { operands: [...e.args], head: (d) => void d.onThrowExpr?.(e) };
+        // `call_indirect`'s callee is the table index and comes LAST in the
+        // operand order, after the arguments -- the same order the stack sees.
+        case 'call_indirect':
+          return {
+            operands: [...e.args, e.callee],
+            head: (d) => void d.onCallIndirectExpr?.(e),
+          };
 
         default:
           return null;
