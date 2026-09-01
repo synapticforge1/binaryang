@@ -1642,7 +1642,7 @@ class WatWriter extends ModuleContext {
    * operands rather than discovering the problem halfway through.
    */
   private writeFoldedExpr(e: Expr): boolean {
-    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'if') {
+    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'if' || e.kind === 'try') {
       return this.writeFoldedControl(e);
     }
     const spec = this.foldSpec(e);
@@ -1696,6 +1696,53 @@ class WatWriter extends ModuleContext {
         this.close(NC.Space);
         return true;
       }
+      case 'try': {
+        // `(try $l (result T) (do instr*) (catch $tag instr*) (catch_all instr*))`
+        //
+        // Unlike `block`, the arms are named CLAUSES rather than a bare
+        // sequence, so each gets its own paren. A `delegate` replaces the
+        // handlers entirely.
+        this.puts('(', NC.None);
+        this.putsSpace('try');
+        if (e.label) this.writeName(e.label, NC.Space);
+        this.writeBlockType(e.blockType);
+        this.newline(true);
+        this.beginBlock(e.label, LabelType.Try, e.blockType);
+        this.indent += 2;
+
+        this.puts('(', NC.None);
+        this.putsSpace('do');
+        this.indent += 2;
+        this.writeExprList(e.body);
+        this.indent -= 2;
+        this.close(NC.Newline);
+
+        if (e.delegate !== undefined) {
+          this.puts('(', NC.None);
+          this.putsSpace('delegate');
+          this.writeVar(e.delegate, NC.None);
+          this.close(NC.Newline);
+        } else {
+          for (const c of e.catches) {
+            this.puts('(', NC.None);
+            if (c.tag !== undefined) {
+              this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
+              this.writeVar(c.tag, NC.Space);
+            } else {
+              this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
+            }
+            this.indent += 2;
+            this.writeExprList(c.body);
+            this.indent -= 2;
+            this.close(NC.Newline);
+          }
+        }
+
+        this.indent -= 2;
+        this.endBlock();
+        this.close(NC.Space);
+        return true;
+      }
       case 'if': {
         // `(if blocktype? folded-cond (then instr*) (else instr*)?)`. The
         // condition is an OPERAND, so a placeholder there — meaning the value is
@@ -1740,7 +1787,9 @@ class WatWriter extends ModuleContext {
     // A folded block or loop wraps an instruction SEQUENCE, so its body may be
     // linear inside — there is nothing about its contents that can prevent the
     // wrapper. `if` is different only because its condition is an operand.
-    if (e.kind === 'block' || e.kind === 'loop') return true;
+    // `try` wraps CLAUSES, each holding an instruction sequence, so like block
+    // and loop nothing in its contents can prevent the wrapper.
+    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try') return true;
     if (e.kind === 'if') return this.canFold(e.cond);
     const spec = this.foldSpec(e);
     if (spec === null) return false;

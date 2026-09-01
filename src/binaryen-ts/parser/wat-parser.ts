@@ -1498,7 +1498,16 @@ class WatModuleParser {
         );
         idx++;
       } else if (clauseHead === 'catch_all') {
-        catchTags.push('$__catch_all');
+        // The ENCODER's sentinel for `catch_all` is the EMPTY STRING — it writes
+        // opcode 0x19 when `tag === ''` and otherwise resolves the name as a real
+        // tag. This pushed `'$__catch_all'`, which is not empty, so every
+        // `catch_all` took the resolve path and died with
+        // `unresolved catch tag reference: "$__catch_all"`.
+        //
+        // Two halves of one codebase disagreeing on a sentinel, with nothing
+        // naming the convention on either side. The encoder's is the one the
+        // binary format forces, so the parser moves.
+        catchTags.push('');
         const clauseArgs = listChildren(clause);
         const catchExprs = clauseArgs.map((e) => this.parseExpr(e, innerCtx));
         catchBodies.push(

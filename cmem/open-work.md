@@ -267,8 +267,8 @@ which is why the first fix did not touch it.
 | 3 | `call_indirect: unknown type N` — numeric type references | 39 | ✅ **done** — round-trip 340 → 373 |
 | 4 | `label depth N exceeds` — **an `if` pushed no label scope** | 24 | ✅ **done** — round-trip 373 → 393. The error was the benign half; the silent half was branches going to the WRONG block |
 | 5 | `unresolved throw tag reference` — a **reconstructed** tag name | 11 | ✅ **done** — round-trip 393 → 404 |
-| 6 | `try` — a bare atom; our folding side | 10 | ⬚ **open, top item** |
-| 7 | 4 stray `local.get`, 2 branch labels, 1 GC func type | 7 | ⬚ open |
+| 6 | `try` — a bare atom, plus a mismatched `catch_all` sentinel | 10 | ✅ **done** — round-trip 404 → 412 |
+| 7 | 4 `local.get`, 2 `rethrow`, 2 branch labels, 1 GC func type | 9 | ⬚ **open, top item** — the tail |
 
 ⚠️ **The counts in rows 5–7 were STALE until 2026-09-01** — they read 7 and 4, from an early
 sample rather than the full corpus, and the rows were in the opposite order. Re-derived against all

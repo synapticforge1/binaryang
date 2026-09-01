@@ -399,8 +399,28 @@ Deno.test('parseWat — try inline body still accepts catch_all and delegate cla
         (catch_all (nop)))))`);
   const t = mod.functions[0].body as { kind: ExpressionKind; catchTags: string[] };
   assertEquals(t.kind, ExpressionKind.Try);
-  // catch_all is recorded with the special placeholder tag "$__catch_all"
-  assertEquals(t.catchTags, ['$e', '$__catch_all']);
+  // CHANGED 2026-09-01: this asserted `['$e', '$__catch_all']`, pinning a
+  // sentinel the ENCODER never agreed with. The encoder writes opcode 0x19 when
+  // `tag === ''` and otherwise resolves the name as a real tag, so every
+  // `catch_all` took the resolve path and died with
+  // `unresolved catch tag reference: "$__catch_all"`.
+  //
+  // Two halves of one codebase disagreeing on a sentinel, with a TEST pinning
+  // the losing side — so the disagreement read as intended behaviour.
+  assertEquals(t.catchTags, ['$e', ''], 'catch_all is the empty tag, as the encoder requires');
+});
+
+// The assertion above is about an internal convention, which is exactly what let
+// the mismatch survive. This one checks the property that actually matters: the
+// module encodes, validates and runs the handler.
+Deno.test('parseWat — a catch_all handler actually runs', () => {
+  const wat = `(module (tag $e)
+    (func (export "f") (result i32)
+      (try (result i32) (do (throw $e)) (catch_all (i32.const 8)))))`;
+  const inst = new WebAssembly.Instance(
+    new WebAssembly.Module(encodeWasm(parseWat(wat)) as BufferSource),
+  );
+  assertEquals((inst.exports.f as () => number)(), 8);
 });
 
 Deno.test('parseWat — (do ...) wrapped body still works (regression)', () => {
