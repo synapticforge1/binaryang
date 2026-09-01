@@ -1236,8 +1236,26 @@ class WatModuleParser {
   private parseIf(list: SList, ctx: FuncContext): IfExpr {
     const children = listChildren(list);
     let idx = 0;
-    // Optional label
-    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) idx++;
+    // Optional label. This used to be SKIPPED — `idx++` with nothing captured —
+    // and no label scope was pushed for the `if` at all.
+    //
+    // An `if` introduces a branch target exactly as `block` and `loop` do: `br 0`
+    // inside a `then` targets the END OF THE IF, not the construct outside it.
+    // Without the scope every branch depth inside an `if` resolved one level too
+    // far out. `IfExpr.name` and the encoder were both already prepared for this
+    // — the encoder does `labels.push(e.name ?? '')` — so only the parser was
+    // missing.
+    //
+    // ⚠️ The visible symptom was `label depth N exceeds enclosing blocks` on 24
+    // corpus modules, but that is the benign half. The dangerous half is SILENT:
+    // where the miscounted depth still named a real block, the branch went to the
+    // WRONG ONE and the module stayed valid. Measured on a discriminating
+    // fixture, binaryen-ts returned 5 where wabt returned 99.
+    let label: string | null = null;
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
+      label = (children[idx] as Atom).token.raw;
+      idx++;
+    }
     // Optional result type
     const results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], 'result')) {
@@ -1257,16 +1275,23 @@ class WatModuleParser {
     }
     if (!condition) this.err('if: missing condition', list.pos);
 
+    // The condition is evaluated BEFORE the if is entered, so it belongs to the
+    // enclosing scope; only the arms see the if's own label.
+    const ifLabel = label ?? `$depth${ctx.labelDepth}`;
+    const innerCtx = this.pushLabel(label, ctx);
+
     // then branch
     if (!isListWith(children[idx], 'then')) this.err('if: expected (then ...)', list.pos);
-    const thenExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, ctx));
+    const thenExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, innerCtx));
     const ifTrue: Expression = this.oneOrTypedBlock(thenExprs, this.declaredType(results, None));
     idx++;
 
     // else branch (optional)
     let ifFalse: Expression | null = null;
     if (idx < children.length && isListWith(children[idx], 'else')) {
-      const elseExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, ctx));
+      const elseExprs = listChildren(children[idx] as SList).map((e) =>
+        this.parseExpr(e, innerCtx)
+      );
       ifFalse = this.oneOrTypedBlock(elseExprs, this.declaredType(results, None));
     }
 
@@ -1280,6 +1305,11 @@ class WatModuleParser {
     // when present, is honored for the value-typed case; for valid wasm it
     // equals the inferred LUB whenever neither arm is unreachable.
     const node = makeIf(condition!, ifTrue, ifFalse);
+    // Carry the branch-target label onto the node: the encoder pushes
+    // `e.name ?? ''`, so leaving it unset would put an empty name where the
+    // parser resolved branches against `ifLabel`, and every `br` into this `if`
+    // would fail to resolve.
+    node.name = ifLabel;
     if (results.length > 0 && node.type !== Unreachable) {
       node.type = this.declaredType(results, node.type);
     }

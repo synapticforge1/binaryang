@@ -265,7 +265,7 @@ which is why the first fix did not touch it.
 | 1 | numeric branch depths + `br`/`br_if` operands | 307 | ✅ **fixed** — see below |
 | 2 | stack-sourced operands, for the modules carrying placeholders | 44 | ✅ **done** — round-trip 302 → 340. Both halves landed; the two IRs met on `Pop` / `placeholder`. [ir-convergence.md](ir-convergence.md) |
 | 3 | `call_indirect: unknown type N` — numeric type references | 39 | ✅ **done** — round-trip 340 → 373 |
-| 4 | `label depth N exceeds enclosing blocks` | 24 | ⬚ **open — now the top item.** A construct that does not push a label |
+| 4 | `label depth N exceeds` — **an `if` pushed no label scope** | 24 | ✅ **done** — round-trip 373 → 393. The error was the benign half; the silent half was branches going to the WRONG block |
 | 5 | `try` folding, our side | 7 | ⬚ open |
 | 6 | `unresolved throw tag reference` | 4 | ⬚ open |
 
