@@ -1151,7 +1151,7 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     if (head === 'throw') {
       const tagRef = atomText(args[0]) ?? this.err('throw: missing tag reference', list.pos);
-      const tagName = tagRef.startsWith('$') ? tagRef : `$tag${tagRef}`;
+      const tagName = this.resolveTagRef(tagRef);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
       return makeThrow(tagName, operands);
     }
@@ -1419,7 +1419,7 @@ class WatModuleParser {
       if (clauseHead === 'catch' || clauseHead === 'catch_ref') {
         const clauseArgs = listChildren(clauseList);
         const tagRef = atomText(clauseArgs[0]) ?? this.err('catch: missing tag', list.pos);
-        const tagName = tagRef.startsWith('$') ? tagRef : `$tag${tagRef}`;
+        const tagName = this.resolveTagRef(tagRef);
         const destRef = atomText(clauseArgs[1]) ?? this.err('catch: missing dest label', list.pos);
         const dest = this.resolveLabel(destRef, innerCtx, list.pos);
         catches.push({ tag: tagName, dest, isRef: clauseHead === 'catch_ref' });
@@ -1490,7 +1490,7 @@ class WatModuleParser {
       if (clauseHead === 'catch') {
         const clauseArgs = listChildren(clause);
         const tagRef = atomText(clauseArgs[0]) ?? this.err('catch: missing tag', list.pos);
-        const tagName = tagRef.startsWith('$') ? tagRef : `$tag${tagRef}`;
+        const tagName = this.resolveTagRef(tagRef);
         catchTags.push(tagName);
         const catchExprs = clauseArgs.slice(1).map((e) => this.parseExpr(e, innerCtx));
         catchBodies.push(
@@ -2192,6 +2192,35 @@ class WatModuleParser {
    * func — a `call_indirect (type $S)` pointing at a struct is a real error and
    * must keep reaching the caller's fail-loud path, not be quietly ignored.
    */
+  /**
+   * Resolve a tag reference — `$name` or a numeric INDEX — to the internal name
+   * the tag was registered under.
+   *
+   * Three call sites used to write `ref.startsWith('$') ? ref : `$tag${ref}``,
+   * RECONSTRUCTING the name `collectTag` synthesizes for an ANONYMOUS tag. That
+   * only works when the tag has no name of its own: a `(tag $e0 …)` registers
+   * `$e0`, so `(throw 0)` looked for a `$tag0` that was never there.
+   *
+   * Our own `wasm2wat` emits exactly that combination — named tags, numeric
+   * references — so re-parsing our disassembly failed on 11 corpus modules with
+   * `unresolved throw tag reference: "$tag0"`.
+   *
+   * Identical in shape to the branch-label bug: reconstructing a name instead of
+   * looking up what is at that index. Resolving by index stays correct if the
+   * synthesized naming ever changes, and the anonymous convention remains the
+   * fallback because an unnamed tag is not in `tagNames` at all.
+   */
+  private resolveTagRef(ref: string): string {
+    if (ref.startsWith('$')) return ref;
+    const idx = Number(ref);
+    if (Number.isInteger(idx)) {
+      for (const [name, i] of this.tagNames) {
+        if (i === idx) return name;
+      }
+    }
+    return `$tag${ref}`;
+  }
+
   private funcTypeByIndex(ref: string): FuncTypeDef | null {
     if (!/^[0-9]+$/.test(ref)) return null;
     const def = this.heapTypeDefs.get(Number(ref));
