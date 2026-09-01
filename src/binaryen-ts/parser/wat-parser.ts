@@ -1229,10 +1229,11 @@ class WatModuleParser {
       idx++;
     }
     // Body
-    const innerCtx = this.pushLabel(label, ctx);
+    const blockLabel = this.labelFor(label, ctx);
+    const innerCtx = this.pushLabel(blockLabel, ctx);
     const bodyExprs = this.parseStatementList(children.slice(idx), innerCtx);
     const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
-    return { kind: ExpressionKind.Block, type, name: label, children: bodyExprs };
+    return { kind: ExpressionKind.Block, type, name: blockLabel, children: bodyExprs };
   }
 
   private parseLoop(list: SList, ctx: FuncContext): LoopExpr {
@@ -1307,8 +1308,8 @@ class WatModuleParser {
 
     // The condition is evaluated BEFORE the if is entered, so it belongs to the
     // enclosing scope; only the arms see the if's own label.
-    const ifLabel = label ?? `$depth${ctx.labelDepth}`;
-    const innerCtx = this.pushLabel(label, ctx);
+    const ifLabel = this.labelFor(label, ctx);
+    const innerCtx = this.pushLabel(ifLabel, ctx);
 
     // then branch
     if (!isListWith(children[idx], 'then')) this.err('if: expected (then ...)', list.pos);
@@ -1442,7 +1443,8 @@ class WatModuleParser {
     }
     // Catch clauses before body
     const catches: CatchClause[] = [];
-    const innerCtx = this.pushLabel(label, ctx);
+    const tryLabel = this.labelFor(label, ctx);
+    const innerCtx = this.pushLabel(tryLabel, ctx);
     while (idx < children.length && children[idx]?.kind === 'list') {
       const clauseList = children[idx] as SList;
       const clauseHead = listHead(clauseList);
@@ -1473,7 +1475,7 @@ class WatModuleParser {
     }
     const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
     const body = this.oneOrTypedBlock(bodyExprs, type);
-    return makeTryTable(label, body, catches, type);
+    return makeTryTable(tryLabel, body, catches, type);
   }
 
   private parseTry(list: SList, ctx: FuncContext): Expression {
@@ -1491,7 +1493,8 @@ class WatModuleParser {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
-    const innerCtx = this.pushLabel(label, ctx);
+    const tryLabel = this.labelFor(label, ctx);
+    const innerCtx = this.pushLabel(tryLabel, ctx);
     // Body: (do ...) block or inline instructions before any catch/catch_all/delegate clause
     let bodyExprs: Expression[] = [];
     if (idx < children.length && isListWith(children[idx], 'do')) {
@@ -1554,7 +1557,7 @@ class WatModuleParser {
         break;
       }
     }
-    return makeTry(label, body, catchTags, catchBodies, delegateTarget, bodyType);
+    return makeTry(tryLabel, body, catchTags, catchBodies, delegateTarget, bodyType);
   }
   private parseCallIndirect(
     _list: SList,
@@ -2185,6 +2188,20 @@ class WatModuleParser {
     }
     // Inline exports in import descriptor
     while (idx < children.length && isListWith(children[idx], 'export')) idx++;
+
+    // A type use is `(type N)? (param ...)* (result ...)*` — the type reference
+    // comes FIRST, and it was not being skipped. So
+    // `(import "env" "print" (func $f0 (type 0) (param i32 i32)))` — the shape
+    // our own `wasm2wat` writes, which names both — stopped the `(param ...)`
+    // loop dead and yielded NO params. The encoder then looked for the signature
+    // `() -> ()` in the type section, did not find it, and threw `unresolved GC
+    // function type` from the IMPORT section, with no source position to say so.
+    let typeRef: string | null = null;
+    if (idx < children.length && isListWith(children[idx], 'type')) {
+      typeRef = atomText(listChildren(children[idx] as SList)[0]);
+      idx++;
+    }
+
     const params: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], 'param')) {
       for (const t of listChildren(children[idx] as SList)) params.push(this.parseValType(t));
@@ -2194,6 +2211,13 @@ class WatModuleParser {
     while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
+    }
+    // With no explicit `(param ...)`/`(result ...)`, the type reference IS the
+    // signature. When both are given the explicit forms win, which is also what
+    // they must agree with per the spec.
+    if (params.length === 0 && results.length === 0 && typeRef !== null) {
+      const def = this.funcTypeByIndex(typeRef);
+      if (def !== null) return { name, params: [...def.params], results: [...def.results] };
     }
     return { name, params, results };
   }
@@ -2597,10 +2621,28 @@ class WatModuleParser {
     return this.funcResults.get(name) ?? null;
   }
 
+  /**
+   * The name a construct is known by, synthesizing one when the WAT left it
+   * anonymous.
+   *
+   * ⚠️ The synthesized name must reach the NODE, not just the label map. The
+   * encoder pushes `e.name ?? ''` onto its own label stack, so a block that
+   * registered `$depth3` here but stored `name: null` is pushed as `''` — and a
+   * numeric branch, which this parser resolves by reverse lookup to whatever
+   * name sits at that depth, then asks for `$depth3` and finds nothing.
+   * `unresolved branch label: "$depth3"`, thrown at ENCODE time with no source
+   * position, which is why it read as unrelated to the parser.
+   *
+   * `loop` never hit this because it already defaulted to `$loop{N}`; `block`,
+   * `try` and `try_table` all did.
+   */
+  private labelFor(label: string | null, ctx: FuncContext): string {
+    return label ?? `$depth${ctx.labelDepth}`;
+  }
+
   private pushLabel(label: string | null, ctx: FuncContext): FuncContext {
     const labels = new Map(ctx.labels);
-    const synth = label ?? `$depth${ctx.labelDepth}`;
-    labels.set(synth, ctx.labelDepth);
+    labels.set(this.labelFor(label, ctx), ctx.labelDepth);
     return { ...ctx, labels, labelDepth: ctx.labelDepth + 1 };
   }
 
