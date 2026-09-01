@@ -44,9 +44,20 @@ assumed for some time — that a tree IR simply *cannot* read stack form. It can
 
 ## The machinery already exists on our side
 
-**binaryen-ts has both halves and uses neither for this.**
+**binaryen-ts has the mechanism and did not use it here.**
 
-- `ExpressionKind.TupleMake` and `ExpressionKind.TupleExtract` are in the IR.
+🔧 **Corrected 2026-09-01.** This first said binaryen-ts "has both halves", listing `TupleMake` and
+`TupleExtract`. **`TupleExtract` is an enum member only** — no interface, no factory, no encoder
+case. Only `TupleMake` is implemented. Claimed from an enum listing without checking for an
+implementation.
+
+The correction turned out not to matter, because **tuples were the wrong mechanism anyway**:
+
+- `PopExpr` already exists, and the encoder emits **nothing** for it — *"Pop is a pseudo-instruction;
+  not emitted in the binary format"*. That is exactly what wabt-ts's `operandPlaceholder` means.
+  **The two IRs already had the same mechanism under different names**, which is a better
+  convergence result than adding tuple extraction to one of them.
+- `ExpressionKind.TupleMake` is in the IR and implemented.
 - `spillBlockParams` in `src/binaryen-ts/binary/wasm-parser.ts` already does exactly upstream's
   spill: pop the values, allocate a fresh local per value, emit `local.set` before the construct,
   and hand back `local.get` reads. It was written for block and loop PARAMETERS (the UP-series

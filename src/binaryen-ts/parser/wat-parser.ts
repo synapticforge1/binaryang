@@ -66,6 +66,7 @@ import {
   makeArraySet,
   makeI31Get,
   makeIf,
+  makePop,
   makeRefAsNonNull,
   makeRefCast,
   makeRefEq,
@@ -685,6 +686,28 @@ class WatModuleParser {
         this._claims++;
         if (ctx.stmtSlots !== undefined) ctx.stmtSlots[claimed.slot] = null;
         return claimed.expr;
+      }
+      // Nothing claimable, but that does not mean the WAT is wrong. A value can
+      // reach an instruction from further back than the sibling list models —
+      // most commonly a MULTI-VALUE producer, which yields N values while the
+      // tree records it as ONE node, so the second consumer finds the pending
+      // list already empty.
+      //
+      // `Pop` is exactly the right node for that: a pseudo-instruction the
+      // encoder emits NOTHING for, meaning "the value is already on the stack".
+      // It is the same mechanism wabt-ts spells as an `operandPlaceholder`, so
+      // the two IRs meet here rather than one adopting the other's shape —
+      // see `cmem/ir-convergence.md`.
+      //
+      // ⚠️ This is only reached when no nested operand and no claimable sibling
+      // exist, so it cannot mask a folded expression that was simply misparsed.
+      // It CAN mask genuinely malformed WAT — an instruction with no operand and
+      // an empty stack — which the VALIDATOR then rejects, exactly as it does
+      // for wabt-ts's placeholder. Fail-loud moves a stage later rather than
+      // being lost; `wat2wasm` has never validated.
+      if (this._claims === 0) {
+        this._claims++;
+        return makePop(Unreachable);
       }
       return this.err(
         this._op === null

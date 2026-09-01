@@ -263,7 +263,7 @@ which is why the first fix did not touch it.
 | # | gap | modules | state |
 | - | --- | ------- | ----- |
 | 1 | numeric branch depths + `br`/`br_if` operands | 307 | ✅ **fixed** — see below |
-| 2 | stack-sourced operands, for the modules carrying placeholders | 44 | ◐ **half done** — binaryen-ts accepts them (single claim); the wabt-ts writer half remains. [ir-convergence.md](ir-convergence.md) |
+| 2 | stack-sourced operands, for the modules carrying placeholders | 44 | ✅ **done** — round-trip 302 → 340. Both halves landed; the two IRs met on `Pop` / `placeholder`. [ir-convergence.md](ir-convergence.md) |
 | 3 | `call_indirect: unknown type N` — numeric type references | 37 | ⬚ open |
 | 4 | `label depth N exceeds enclosing blocks` | 22 | ⬚ open — a construct that does not push a label |
 | 5 | `try` folding, our side | 7 | ⬚ open |

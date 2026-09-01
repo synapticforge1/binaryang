@@ -11,6 +11,11 @@ import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-par
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
+import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import '../../../src/binaryen-ts/passes/index.ts';
 
@@ -736,13 +741,35 @@ Deno.test('WAT: an operand may come from a preceding sibling (stack form)', () =
   assertEquals((inst.exports.f as () => number)(), 1);
 });
 
-// The diagnostic must still fire when there is genuinely nothing to claim —
-// otherwise the claim path would mask real errors rather than widen support.
-Deno.test('WAT: a missing operand with an empty stack is still a WatParseError', () => {
+// CHANGED 2026-09-01: the fail-loud guarantee MOVED A STAGE, deliberately.
+//
+// An operand with nothing to claim is now a `Pop` — the pseudo-instruction the
+// encoder emits nothing for, meaning "the value is already on the stack". It has
+// to be, because a value can reach an instruction from further back than the
+// sibling list models: a multi-value producer yields N values while the tree
+// records ONE node, so the second consumer legitimately finds the pending list
+// empty. Refusing there would reject valid WAT.
+//
+// The cost is that genuinely malformed input now parses. That is the SAME
+// contract wabt-ts and upstream wabt already have — `wat2wasm` has never
+// validated — and the guarantee is kept where it belongs: this test asserts the
+// module is still REJECTED, by the validator and by V8, rather than asserting
+// which stage says no.
+Deno.test('WAT: a missing operand with an empty stack is caught by validation', () => {
+  const bytes = encodeWasm(
+    parseWat(`(module (func (export "f") (result i32) (drop) (i32.const 1)))`),
+  );
+
+  const errs = makeErrorList();
+  const decoded = readBinaryIr(bytes, errs);
+  if (!hasErrors(errs)) validateModule(decoded, errs, { features: allFeatures() });
+  assert(hasErrors(errs), 'the validator must reject an instruction with no operand');
+
   assertThrows(
-    () => parseWat(`(module (func (export "f") (result i32) (drop) (i32.const 1)))`),
-    WatParseError,
-    'missing operand for "drop"',
+    () => new WebAssembly.Module(bytes as BufferSource),
+    Error,
+    undefined,
+    'V8 must reject it too',
   );
 });
 
