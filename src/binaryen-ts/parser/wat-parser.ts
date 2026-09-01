@@ -1519,7 +1519,18 @@ class WatModuleParser {
       const tChildren = listChildren(args[idx] as SList);
       const typeRef = atomText(tChildren[0]);
       if (typeRef) {
-        const def = this.funcTypeDefs.get(typeRef);
+        // `funcTypeDefs` is keyed by `$name`, but a type reference may equally be
+        // a numeric INDEX — `(type 0)` is as legal as `(type $sig)`, and it is
+        // what our own `wasm2wat` emits, since an anonymous type has no name to
+        // print. An anonymous declaration never reaches `funcTypeDefs` at all:
+        // only a NAMED one is recorded there. `heapTypeDefs` is the index-keyed
+        // map and holds every declaration, named or not.
+        //
+        // Same shape as the numeric ENTITY reference fixed in the encoder's
+        // `resolveRef` — a WAT identifier always begins with `$`, so a bare
+        // integer can only be an index. Fixed there first because that error
+        // surfaced first; this one was underneath it.
+        const def = this.funcTypeDefs.get(typeRef) ?? this.funcTypeByIndex(typeRef);
         if (def) {
           // Both sides are `ValueType[]` now — no cast, and no AnyRef
           // collapse. (This used to cast through `as ValType[]`, justified by
@@ -2141,6 +2152,20 @@ class WatModuleParser {
         if (def.kind === 'func') this.funcTypeDefs.set(name, def);
       }
     }
+  }
+
+  /**
+   * Resolve a NUMERIC type reference to its func signature, or null.
+   *
+   * Returns null for a non-numeric reference so the caller's named lookup owns
+   * that case, and null for an index that names a struct/array rather than a
+   * func — a `call_indirect (type $S)` pointing at a struct is a real error and
+   * must keep reaching the caller's fail-loud path, not be quietly ignored.
+   */
+  private funcTypeByIndex(ref: string): FuncTypeDef | null {
+    if (!/^[0-9]+$/.test(ref)) return null;
+    const def = this.heapTypeDefs.get(Number(ref));
+    return def !== undefined && def.kind === 'func' ? def : null;
   }
 
   /** Result type of a `struct.get`/`array.get` given the field/element storage
