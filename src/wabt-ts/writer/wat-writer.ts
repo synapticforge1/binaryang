@@ -1608,8 +1608,28 @@ class WatWriter extends ModuleContext {
     })();
 
     if (spec === null) return null;
-    for (const op of spec.operands) if (!usable(op)) return null;
-    return spec;
+
+    // A placeholder operand means "this value is already on the stack". Folded
+    // WAT CAN say that — `(local.set 0)` with no operand is legal, and both
+    // upstream wabt and upstream binaryen accept it — so a node whose operands
+    // are ALL stack-sourced folds to its head alone rather than declining.
+    //
+    // This used to decline, dropping the whole subtree to the linear writer and
+    // emitting a bare `local.set 0`. That is equally legal WAT and equally
+    // correct, but nothing downstream that reads folded input could consume it.
+    //
+    // ⚠️ A MIX still declines, and deliberately. With operands `[placeholder,
+    // value]` the folded form `(i32.store (value))` gives one operand for two
+    // slots, and a reader assigns it to the FIRST — so the address would be
+    // filled with the value. Ambiguous output that still parses is worse than
+    // falling back to a linear rendering that is unambiguous. Placeholders
+    // occupy a PREFIX of the operand list (the reader fills from the top of the
+    // stack down, so the deepest slots run out first), which is exactly the case
+    // positional operands cannot express.
+    const unusable = spec.operands.filter((op) => !usable(op)).length;
+    if (unusable === 0) return spec;
+    if (unusable === spec.operands.length) return { operands: [], head: spec.head };
+    return null;
   }
 
   /**
