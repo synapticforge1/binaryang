@@ -11,14 +11,14 @@ syntactically connecting them. A TREE IR has no way to say that: a node has one 
 
 **All three toolchains hit this. Only one solved it.**
 
-| | how it handles a stack-sourced operand |
-| - | -------------------------------------- |
-| **upstream binaryen** | **spills to a synthetic local** and rewrites each consumer as an explicit read |
-| **binaryen-ts** | refuses at the syntax level — `missing operand … stack-form WAT is not supported here` |
-| **wabt-ts** | records a `placeholder` marker: the problem noted, not solved |
+|                       | how it handles a stack-sourced operand                                                 |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| **upstream binaryen** | **spills to a synthetic local** and rewrites each consumer as an explicit read         |
+| **binaryen-ts**       | refuses at the syntax level — `missing operand … stack-form WAT is not supported here` |
+| **wabt-ts**           | records a `placeholder` marker: the problem noted, not solved                          |
 
-Verified against upstream binaryen 132. Given
-`(local.set 1 (call $two)) (local.set 0)` — where `$two` returns two values — it emits:
+Verified against upstream binaryen 132. Given `(local.set 1 (call $two)) (local.set 0)` — where
+`$two` returns two values — it emits:
 
 ```
 (tuple.extract 2 0 (local.tee $2 (call $two)))
@@ -31,16 +31,16 @@ of WAT while ours accepts one.
 
 ### What each of ours accepts today
 
-| form | upstream binaryen | binaryen-ts | wabt-ts |
-| ---- | ----------------- | ----------- | ------- |
-| fully folded | parses | parses | parses |
-| `(local.set 0)` — parens, no operand | **parses** | rejects | parses |
-| `local.set 0` — bare | **parses** | rejects | parses |
-| fully linear | **parses** | rejects | parses |
+| form                                 | upstream binaryen | binaryen-ts | wabt-ts |
+| ------------------------------------ | ----------------- | ----------- | ------- |
+| fully folded                         | parses            | parses      | parses  |
+| `(local.set 0)` — parens, no operand | **parses**        | rejects     | parses  |
+| `local.set 0` — bare                 | **parses**        | rejects     | parses  |
+| fully linear                         | **parses**        | rejects     | parses  |
 
 ⚠️ **The restriction is OURS, not inherited.** binaryen-ts's WAT parser implemented the folded
 subset; upstream reads the whole text format. That is worth stating plainly because the reverse was
-assumed for some time — that a tree IR simply *cannot* read stack form. It can. Upstream does.
+assumed for some time — that a tree IR simply _cannot_ read stack form. It can. Upstream does.
 
 ## The machinery already exists on our side
 
@@ -53,15 +53,15 @@ implementation.
 
 The correction turned out not to matter, because **tuples were the wrong mechanism anyway**:
 
-- `PopExpr` already exists, and the encoder emits **nothing** for it — *"Pop is a pseudo-instruction;
-  not emitted in the binary format"*. That is exactly what wabt-ts's `operandPlaceholder` means.
-  **The two IRs already had the same mechanism under different names**, which is a better
-  convergence result than adding tuple extraction to one of them.
+- `PopExpr` already exists, and the encoder emits **nothing** for it — _"Pop is a
+  pseudo-instruction; not emitted in the binary format"_. That is exactly what wabt-ts's
+  `operandPlaceholder` means. **The two IRs already had the same mechanism under different names**,
+  which is a better convergence result than adding tuple extraction to one of them.
 - `ExpressionKind.TupleMake` is in the IR and implemented.
 - `spillBlockParams` in `src/binaryen-ts/binary/wasm-parser.ts` already does exactly upstream's
   spill: pop the values, allocate a fresh local per value, emit `local.set` before the construct,
-  and hand back `local.get` reads. It was written for block and loop PARAMETERS (the UP-series
-  Tier 6/7 work) and its docstring already argues the correctness case — entering a block has no
+  and hand back `local.get` reads. It was written for block and loop PARAMETERS (the UP-series Tier
+  6/7 work) and its docstring already argues the correctness case — entering a block has no
   observable effect, and spilling preserves evaluation order where relocating the expressions would
   not.
 
@@ -81,10 +81,10 @@ and is the prerequisite for `wasm-opt` reading the WAT `wasm2wat` writes.
 
 Two syntactic cases, and they fail in different places, so they are separate work:
 
-| form | current failure | where |
-| ---- | --------------- | ----- |
+| form            | current failure                   | where                                                                             |
+| --------------- | --------------------------------- | --------------------------------------------------------------------------------- |
 | `(local.set 0)` | `missing operand for "local.set"` | inside the instruction parser, which reached the instruction and found no operand |
-| `local.set 0` | `unexpected atom in expression` | the expression parser, which never accepts a bare token at all |
+| `local.set 0`   | `unexpected atom in expression`   | the expression parser, which never accepts a bare token at all                    |
 
 The first is one code path with a diagnostic that already names the exact condition — someone knew
 this case existed. The second is a second parsing mode, since every construct needs it.
@@ -98,15 +98,15 @@ marks.
 ### ✅ Done: binaryen-ts accepts a stack-sourced operand (single claim)
 
 `ce1320bf4`. A consumer whose operand is absent claims the preceding sibling that produced a value,
-and that producer is spliced out of the statement list. No spill needed for the single-consumer
-case — the producer is simply moved into the consumer, giving the tree the folded spelling would
-have produced.
+and that producer is spliced out of the statement list. No spill needed for the single-consumer case
+— the producer is simply moved into the consumer, giving the tree the folded spelling would have
+produced.
 
 Works: `(i32.const 9) (drop)`, `(local.set 0)`, `(i32.eqz)`, and the same inside a block.
 
-⚠️ **Bounded to ONE claim per instruction, and the bound is load-bearing.** Handlers request
-operands left to right while the stack yields them top first, so a two-operand claim assigns them
-backwards. Measured before the limit:
+⚠️ **Bounded to ONE claim per instruction, and gated on the instruction having no WRITTEN operand.**
+Handlers request operands left to right while the stack yields them top first, so a two-operand
+claim assigns them backwards. Measured before the limit:
 
 ```
 (i32.const 10) (i32.const 3) (i32.sub)    ->  -7   want 7
@@ -122,21 +122,34 @@ does not have one — a handler discovers its arity by how many times it asks. w
 `instrInputCount` for exactly this; porting or mirroring that table is the concrete next step, and
 it is a table, not an algorithm.
 
-### ⬚ Not done: the wabt-ts half
+🔧 **Corrected 2026-09-01 — the count was never the whole rule.** One claim is NOT "the subset where
+order cannot be wrong". With N slots, W of them written and C claimed, the stack fills the LEADING C
+slots, but a claim serves whichever slot happens to ask — a TRAILING one whenever W > 0. The two
+agree only when W is zero. Measured: `(i32.const 16) (i32.store (i32.const 42))` stored 16 at
+address 42 and read back 0, on ONE claim; wabt-ts reads the same text as 42 at 16. Claiming is now
+gated on `_served === 0` as well, and a slot that cannot be claimed becomes a `Pop` — which encodes
+to nothing, so the producer stays where it stands and stack order is preserved.
 
-**The corpus round-trip is unchanged at 302/421, and that is expected, not a disappointment.** Our
-writer emits BARE linear (`local.set 0`); binaryen-ts now accepts the PARENTHESISED form
-(`(local.set 0)`). The two halves have not met yet.
+**`call` never had the problem, and the reason generalises.** It does not ask for missing operands
+at all: it emits the written ones and lets the preceding statements supply the rest, which is simply
+stack semantics. The arity problem belongs to handlers that discover arity BY ASKING — binary ops,
+compares, stores. So the table is needed for a smaller set than this document implied.
 
-The remaining work, in order:
+### ✅ Done: the wabt-ts half, and the whole ladder behind it
 
-1. **wabt-ts writer: spell a placeholder as `(local.set 0)`** rather than a bare instruction. The
-   writer already knows exactly where these are — that is what the `placeholder` marker records. It
-   is a rendering change in the fold path only, so linear output and the emitted-byte baseline are
-   untouched.
-2. **Re-measure.** This should move the 44 `unexpected atom in expression: local.set` modules,
-   provided each needs only one claim per instruction.
-3. **Then the arity table**, if step 2 shows multi-claim instructions in the corpus.
+Both halves landed, and the ladder they gated finished on 2026-09-01: **binaryen-ts reads our folded
+output on 421 of 421 corpus modules**, with folded output still assembling to bytes identical to
+linear on all 421 and the emitted-byte baseline `IDENTICAL`.
+
+The writer spells a fully stack-sourced node as its head alone, and a PARTLY stack-sourced one by
+omitting the placeholders — they always occupy a prefix, because the reader fills from the top of
+the stack down and the deepest slots run out first. A scattered mix would be inexpressible
+positionally and still declines, though our binary reader does not produce one.
+
+⚠️ **The arity table was never needed for the corpus.** Step 3 below anticipated it; no corpus
+module required a multi-claim instruction, because the only mixed-operand nodes present were
+`call`s, which do not claim at all. The table remains the right fix for stack-form binary ops and
+stores, which is a real gap but not one this corpus exercises.
 
 ### One test was CHANGED, not fixed
 
@@ -156,8 +169,8 @@ is the shape that has no folded spelling.
 Two routes, and they are not equivalent:
 
 - **Spill on read** — mirror binaryen-ts: when the binary reader finds an empty stack, allocate a
-  temporary. ⚠️ This would change what `wasm2wat` EMITS, and the emitted-byte baseline pins that.
-  It also makes wabt-ts's IR stop mirroring the binary format, which is the property its round-trip
+  temporary. ⚠️ This would change what `wasm2wat` EMITS, and the emitted-byte baseline pins that. It
+  also makes wabt-ts's IR stop mirroring the binary format, which is the property its round-trip
   fidelity rests on. **Not obviously desirable.**
 - **Keep the marker, teach the writer to spell it** — emit `(local.set 0)` (parenthesised, no
   operand) rather than a bare instruction wherever a placeholder sits. The IR keeps its fidelity;

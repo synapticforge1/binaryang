@@ -171,7 +171,7 @@ git ls-files -z | xargs -0 rm -f && git checkout -- .
 Safe only on a clean, committed tree — check `git status` first.
 
 **Verified the hostile way, which is the only verification worth having:** a fresh clone with
-`core.autocrlf=true` *explicitly forced on* still reports `eol: lf` and passes `deno fmt --check`.
+`core.autocrlf=true` _explicitly forced on_ still reports `eol: lf` and passes `deno fmt --check`.
 Testing it in a repo already configured correctly would have proved nothing.
 
 ### Why it kept coming back
@@ -191,9 +191,9 @@ there is indistinguishable from no fix at all.
 Every CR count taken during the investigation was **wrong**, in the direction that confirmed the
 theory. `grep -c $'
 '` and `od -c | grep -o '
-'` both match a literal `r` in a BRE — so files
-were reported as full of carriage returns when they held none, and the numbers moved plausibly
-because the letter `r` is common.
+'` both match a literal `r` in a BRE — so files were
+reported as full of carriage returns when they held none, and the numbers moved plausibly because
+the letter `r` is common.
 
 **Trust the tool that is actually failing.** `deno fmt --check` going from `32 not formatted` to
 `Checked 283 files` was the only unambiguous signal in the whole episode. A hand-rolled measurement
@@ -216,13 +216,13 @@ bare exit code is speculation wearing evidence's clothes.
 
 Two routes published the same package from the same workflow file:
 
-| route | record |
-| ----- | ------ |
-| `push: tags` | 5 successes, 0 failures |
+| route                            | record                  |
+| -------------------------------- | ----------------------- |
+| `push: tags`                     | 5 successes, 0 failures |
 | `auto-tag` → `workflow_dispatch` | 0 successes, 4 failures |
 
 Three of those failures produced only `exit code 1`. Across weeks and three repositories, that
-produced a documented conclusion of *"treat this as a correlation, not a cause"* — epistemically
+produced a documented conclusion of _"treat this as a correlation, not a cause"_ — epistemically
 correct, and it **became a resting place**. The pattern was strong enough to work around and never
 strong enough to explain, so nobody explained it.
 
@@ -235,10 +235,10 @@ Caused by: ... not authorized as a scope member for this scope. (actorNotScopeMe
 
 **JSR authorises the OIDC token's ACTOR.** One field on the runs API settled it:
 
-| event | actor | result |
-| ----- | ----- | ------ |
-| `workflow_dispatch` | `github-actions[bot]` | ❌ |
-| `push` | `jrmarcum` | ✅ |
+| event               | actor                 | result |
+| ------------------- | --------------------- | ------ |
+| `workflow_dispatch` | `github-actions[bot]` | ❌     |
+| `push`              | `jrmarcum`            | ✅     |
 
 Full detail in [publishing.md](publishing.md).
 
@@ -246,7 +246,7 @@ Full detail in [publishing.md](publishing.md).
 
 When comparing two CI paths, the obvious variables get checked — the YAML, the permissions block,
 the runner, the tool version. **Who the run executes as** is rarely on the list, because it is not
-written in any file being compared. Here it was the *only* difference, and it was invisible in the
+written in any file being compared. Here it was the _only_ difference, and it was invisible in the
 diff of a workflow that never changed.
 
 Add it to the list. `actor.login` on the runs API, one request.
@@ -263,7 +263,7 @@ the mechanism, not the moment to stop.
 
 ### What a cause buys that a workaround does not
 
-The correlation supported *"use tag pushes"*. The mechanism additionally established that the fix
+The correlation supported _"use tag pushes"_. The mechanism additionally established that the fix
 must be a PAT **owned by a scope member** — a distinction invisible from the correlation, and one
 that would have produced a second identical failure had it been guessed. It also cleared provenance
 as a suspect entirely: the publish was rejected at authorisation, so provenance never ran.
@@ -279,17 +279,17 @@ Both repositories hit this in the same week, with different symptoms and one roo
 layer collapses backslash escapes before the content is written**, and it silently truncates long
 commands.
 
-| symptom | what actually happened |
-| ------- | ---------------------- |
-| `'\\'` in a JS string became `'\'` | the file would not parse — caught immediately, cheap |
-| `grep -c $'\r'` returned large plausible counts on LF-only files | `\r` in a BRE matches a literal `r`. **Every CR measurement taken during the line-ending investigation was wrong, in the direction that confirmed the theory** |
-| a 90-line and a 150-line heredoc both died with `unexpected EOF` | the command was truncated before the closing delimiter — nothing to do with quoting, which is where the first hour went |
-| wasmtk: `\\0asm` collapsed to `\0asm` and Python wrote a **literal NUL byte** into `.gitattributes` | git reported the file as `Bin 584 -> 2144`. The NUL landed **inside a comment about NUL-byte detection** |
+| symptom                                                                                             | what actually happened                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'\\'` in a JS string became `'\'`                                                                  | the file would not parse — caught immediately, cheap                                                                                                           |
+| `grep -c $'\r'` returned large plausible counts on LF-only files                                    | `\r` in a BRE matches a literal `r`. **Every CR measurement taken during the line-ending investigation was wrong, in the direction that confirmed the theory** |
+| a 90-line and a 150-line heredoc both died with `unexpected EOF`                                    | the command was truncated before the closing delimiter — nothing to do with quoting, which is where the first hour went                                        |
+| wasmtk: `\\0asm` collapsed to `\0asm` and Python wrote a **literal NUL byte** into `.gitattributes` | git reported the file as `Bin 584 -> 2144`. The NUL landed **inside a comment about NUL-byte detection**                                                       |
 
 The last one is the instructive one: the corruption was invisible in the source that produced it,
 and the file it corrupted was the file whose job is to prevent that class of corruption.
 
-**Why it stays hidden:** every one of these produces output that looks like a *different* problem —
+**Why it stays hidden:** every one of these produces output that looks like a _different_ problem —
 a quoting error, a formatting drift, a binary file. None of them announces "your escape sequence was
 eaten."
 
@@ -302,12 +302,12 @@ signal in the entire line-ending episode, and every hand-rolled measurement arou
 
 **Four instances in one week across two repositories, and nobody caught their own.**
 
-| the claim | the property in view | what actually governed |
-| --------- | -------------------- | ---------------------- |
-| "`br_on_cast` is one bridge case" | the bridge's instruction switch | three defects in two trees — the encoder wrote typed-ref blocktypes in a form that did not round-trip |
-| "the defect is a tag with a `(ref $T)` param" | the param that happened to be in the repro | a conjunction naming neither the tag's types: a struct/array exists in the module, **and** no function shares the tag's signature |
-| wasmtk: "`ref.null` marshalling is ~32 assertions" | where the instruction is **asserted** | where the value is **used** — `table_fill`/`table_set` pass it as an argument. Delivered 123 |
-| wasmtk: "audit our fixtures for `(ref $T)` tag params" | the wording they inherited from us | the check returns no matches and cannot show what it was being asked to show. **A false clearance, one step from being recorded** |
+| the claim                                              | the property in view                       | what actually governed                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| "`br_on_cast` is one bridge case"                      | the bridge's instruction switch            | three defects in two trees — the encoder wrote typed-ref blocktypes in a form that did not round-trip                             |
+| "the defect is a tag with a `(ref $T)` param"          | the param that happened to be in the repro | a conjunction naming neither the tag's types: a struct/array exists in the module, **and** no function shares the tag's signature |
+| wasmtk: "`ref.null` marshalling is ~32 assertions"     | where the instruction is **asserted**      | where the value is **used** — `table_fill`/`table_set` pass it as an argument. Delivered 123                                      |
+| wasmtk: "audit our fixtures for `(ref $T)` tag params" | the wording they inherited from us         | the check returns no matches and cannot show what it was being asked to show. **A false clearance, one step from being recorded** |
 
 The errors run in both directions — two undershot cost, two undershot reach — so this is not
 optimism. **It is that the property you are looking at feels like the property that matters.**
@@ -324,9 +324,9 @@ Two things follow, and they are cheap:
   run and disagreed with. A conclusion travels as a claim about the world; a check travels as
   something the other side can execute.
 - **Record a negative as a CONDITIONAL, not a clearance.** wasmtk's closing form is the model:
-  *wasic emits zero struct and zero array definitions, so conjunct (a) is never satisfied — and the
+  _wasic emits zero struct and zero array definitions, so conjunct (a) is never satisfied — and the
   day it emits its first struct, both conjuncts go live together and those 11 modules become exposed
-  in the same commit.* That is a finding with a trigger attached. "Unaffected" is a finding with an
+  in the same commit._ That is a finding with a trigger attached. "Unaffected" is a finding with an
   expiry date and no alarm.
 
 ### Naming it made self-detection possible
@@ -347,20 +347,20 @@ defect is not the wrong change — it is the change that had no effect and repor
 Both projects hit this repeatedly, from different directions. Gathered because the instances only
 look like one class once they are next to each other:
 
-| the no-op | how it presented |
-| --------- | ---------------- |
-| a string replacement written **without asserting the target exists** | the document's summary table contradicted its own sections for hours. The asserted edits *beside* it succeeded, so the commit looked complete |
-| a workspace member **omitting** a `compilerOptions` key | the member inherits the root's value and merges over it, so omission leaves the root setting in force. Looks like it works until you check the error count |
-| `git checkout-index -a -f` after adding `.gitattributes` | attributes apply when a file is written, and Git skips stat-clean files. Zero of 32 were rewritten, with no output |
-| a mutating script that **read no arguments at all** | `--dry-run` performed a real bump and reported it in the same form a dry run would have used |
-| `deno task test` **enumerating test directories by name** | moving a suite makes it silently stop running. The whole bridge suite would have gone quiet |
-| deleting a release guard's entire block | **all twelve of its logic tests still passed.** The original defect was that the logic was *absent*, not wrong |
-| pushing a tag before the branch on a new repo | Actions has no workflow registered to match the event against; it passes unmatched. **A silent absence, not an error** |
+| the no-op                                                            | how it presented                                                                                                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a string replacement written **without asserting the target exists** | the document's summary table contradicted its own sections for hours. The asserted edits _beside_ it succeeded, so the commit looked complete              |
+| a workspace member **omitting** a `compilerOptions` key              | the member inherits the root's value and merges over it, so omission leaves the root setting in force. Looks like it works until you check the error count |
+| `git checkout-index -a -f` after adding `.gitattributes`             | attributes apply when a file is written, and Git skips stat-clean files. Zero of 32 were rewritten, with no output                                         |
+| a mutating script that **read no arguments at all**                  | `--dry-run` performed a real bump and reported it in the same form a dry run would have used                                                               |
+| `deno task test` **enumerating test directories by name**            | moving a suite makes it silently stop running. The whole bridge suite would have gone quiet                                                                |
+| deleting a release guard's entire block                              | **all twelve of its logic tests still passed.** The original defect was that the logic was _absent_, not wrong                                             |
+| pushing a tag before the branch on a new repo                        | Actions has no workflow registered to match the event against; it passes unmatched. **A silent absence, not an error**                                     |
 
 ## Why this class is expensive
 
 Every one produced a **green result**, so nothing prompted a second look. Several sat next to
-changes that *did* work, which is worse than failing alone: the surrounding success is read as
+changes that _did_ work, which is worse than failing alone: the surrounding success is read as
 evidence for the whole.
 
 And the counter-instinct is wrong. Care does not help — you cannot notice the absence of an effect
@@ -380,10 +380,11 @@ you were not shown. **Structure helps.**
   tsconfig), write the value out explicitly.
 - **Invert the gate.** This is the detection half, already a rule elsewhere: break the thing on
   purpose and confirm the check fires. It is the only way to tell a passing check from a blind one —
-  and note `git add --renormalize` reporting no changes was *correct* here, yet identical in
+  and note `git add --renormalize` reporting no changes was _correct_ here, yet identical in
   appearance to the broken case.
 
-**The related-but-distinct failure** is [attributing a result to whichever property was in
+**The related-but-distinct failure** is
+[attributing a result to whichever property was in
 view](#-the-result-gets-attributed-to-whichever-property-was-in-view) — that one is a wrong
 attribution of a real effect; this one is a missing effect reported as success.
 
@@ -393,13 +394,13 @@ Verifying C3 (does a downstream consumer still pull a retired package?), the sam
 resolved to an **old** version that pulled both retired predecessors. It looked exactly like a live
 finding. It was a cached resolution, and the flag everyone reaches for did not clear it:
 
-| attempt | outcome |
-| ------- | ------- |
-| bare specifier | old version → **both retired packages** |
-| `--min-dep-age=0` | unchanged (and the new version was four days old, so the 24-hour wall was never in play) |
-| **`--reload`** | **unchanged** — module content is reloaded, the version resolution is not |
-| an explicit version or range | correct version → current dependency only |
-| **`DENO_DIR=$(mktemp -d)`** | **correct version → current dependency only** |
+| attempt                      | outcome                                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------------------- |
+| bare specifier               | old version → **both retired packages**                                                  |
+| `--min-dep-age=0`            | unchanged (and the new version was four days old, so the 24-hour wall was never in play) |
+| **`--reload`**               | **unchanged** — module content is reloaded, the version resolution is not                |
+| an explicit version or range | correct version → current dependency only                                                |
+| **`DENO_DIR=$(mktemp -d)`**  | **correct version → current dependency only**                                            |
 
 **During a retirement this reports the OPPOSITE of the truth in both directions.** It made a
 completed migration look incomplete here — and the same cache would let a consumer keep building
@@ -409,6 +410,53 @@ against retired packages while every check they ran said the new chain was in pl
 that order — age policy, then reload, then explicit constraint, then a clean cache — because each
 step rules out a different explanation, and stopping early is what turns a cache artifact into a
 filed defect.
+
+## 🆕 A test for a fix is not coverage until it FAILS without the fix
+
+Four fixtures for the anonymous-block label defect all passed — and all four still passed with the
+fix reverted. They went through `wasm2wat --fold` first, and the writer NAMES a block it emits a
+branch to, so the anonymous case the fix addressed never reached the parser. The fixtures exercised
+a path adjacent to the defect and nothing in the result said so.
+
+**The check is mechanical and takes one minute:** revert the fix, run the test, confirm it fails,
+restore. Do it per fix, not per file — in the same change, reverting the `try` half of the label fix
+left all 421 corpus modules passing, which is how it became clear that half had no evidence behind
+it and should not be described as a fixed defect.
+
+⚠️ **Two related traps this exposed, both about the fixture rather than the code:**
+
+- **A round trip can normalise away the input you meant to test.** If the pipeline rewrites the
+  shape before it reaches the component under test, parse the shape DIRECTLY and keep the round trip
+  as a separate integration guard.
+- **A fixture can fail for a reason unrelated to the defect.** Declaring any explicit `(type ...)`
+  puts our encoder in GC mode, where every function signature must be declared — so a fixture
+  declaring only the import's type failed with the _same diagnostic_ from a different section. The
+  first reading was that the fix had not worked.
+
+**When a test does not discriminate and cannot cheaply be made to, label it in the file as a guard
+rather than as coverage.** Two of these were kept on those terms. What must not happen is a green
+suite implying evidence that was never collected.
+
+## 🆕 A "this is unsafe" comment can be wrong about the standard and right about our code
+
+The WAT writer declined to fold any node whose operands were partly stack-sourced, and the comment
+explaining why named a specific case: `(i32.store (value))` gives one operand for two slots, and "a
+reader assigns it to the FIRST", so the address would be filled with the value.
+
+Half of that was wrong. Folding is defined by UNFOLDING — `(instr a b)` is `a b instr` — so written
+operands land in the LAST slots and the stack supplies the leading ones. wabt-ts reads it correctly.
+
+**The other half was right, about a component the comment never mentioned.** binaryen-ts's parser
+read that exact text as storing the address at the value: 0 where wabt-ts gives 42. Valid bytes,
+wrong program.
+
+**So removing a guard on the grounds that its justification is wrong requires checking every
+component the guard was protecting, not just the one the comment argued about.** Measuring the
+standard would have licensed the change; measuring our own parser is what caught the miscompile.
+
+⚠️ **Use a NON-COMMUTATIVE operation whenever operand order is what you are testing.** With
+`i32.add` every assertion here passes under the reversed reading. `i32.sub` and a 3-argument
+subtraction are what made the slots observable.
 
 ## Where to go for the rest
 

@@ -1,6 +1,7 @@
 # Open work
 
-The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-08-31; `binaryang@1.5.3` published, score 100.
+The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-08-31;
+`binaryang@1.5.3` published, score 100.
 
 Kept here rather than in a version scope file because most of it is not scoped to a release yet, and
 a list split across three documents is a list nobody reads. Version-specific status stays in
@@ -8,12 +9,12 @@ a list split across three documents is a list nobody reads. Version-specific sta
 
 ## Owner actions — nothing here is blocked on code
 
-| # | item | note |
-| - | ---- | ---- |
-| 1 | **Create `RELEASE_PAT`** | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every release needs a manual tag re-push — see [publishing.md](publishing.md) § "ROOT CAUSE". |
-| 2 | **JSR descriptions on both predecessors** | Still `binaryen rewritten in typescript` / `rewrite of wabt in typescript`. Editable now; first line a consumer sees. |
-| 3 | **GitHub descriptions on both predecessors** | Frozen by the archive — needs unarchive → edit → re-archive. Judgement call. |
-| 4 | **D2 — JSR `isArchived`** | Deferred by choice. Low-risk: archiving the GitHub repos already removed the publish path. |
+| # | item                                         | note                                                                                                                                                                               |
+| - | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | **Create `RELEASE_PAT`**                     | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every release needs a manual tag re-push — see [publishing.md](publishing.md) § "ROOT CAUSE". |
+| 2 | **JSR descriptions on both predecessors**    | Still `binaryen rewritten in typescript` / `rewrite of wabt in typescript`. Editable now; first line a consumer sees.                                                              |
+| 3 | **GitHub descriptions on both predecessors** | Frozen by the archive — needs unarchive → edit → re-archive. Judgement call.                                                                                                       |
+| 4 | **D2 — JSR `isArchived`**                    | Deferred by choice. Low-risk: archiving the GitHub repos already removed the publish path.                                                                                         |
 
 ## ⚠️ `main` carries an UNRELEASED behaviour change
 
@@ -29,8 +30,8 @@ when feature-gating the validator turned silent acceptance into rejection.
 **The decision is whether to cut 1.5.4**, and it is not automatic:
 
 - **for** — it is a correctness fix, and a released fix nobody can consume is not a fix;
-- **against** — wasmtk pins an exact version and would need their own bump to see it either way,
-  and nothing is blocked on it.
+- **against** — wasmtk pins an exact version and would need their own bump to see it either way, and
+  nothing is blocked on it.
 
 Nothing forces the choice today. **What must not happen is the bump being made incidentally**: the
 version line is what arms the release, so bumping it "to keep main tidy" publishes. See
@@ -40,29 +41,29 @@ version line is what arms the release, so bumping it "to keep main tidy" publish
 
 Ranking agreed in [handoffs.md](handoffs.md); status re-derived 2026-08-31.
 
-| rank | gap | status |
-| ---- | --- | ------ |
-| 1 | `br_on_cast` (+ `br_on_cast_fail`) | ✅ **shipped in 1.5.3** |
-| 3 | `br_on_null` / `br_on_non_null` | ✅ **shipped in 1.5.3** — they rode along with rank 1, as predicted |
-| 2 | **The convert pair** — `any.convert_extern` / `extern.convert_any`, ≈49 assertions across `extern.wast` and `ref_test.wast` | ⬚ **open, and it is TWO layers** — see below |
-| 4 | The five that unblock nothing for wasmtk | ⬚ open, ranked last on their numbers despite 121 occurrences |
-| — | **Exact types** (`(exact $T)`), 116–548 assertions | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case |
+| rank | gap                                                                                                                         | status                                                                                                                                       |
+| ---- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `br_on_cast` (+ `br_on_cast_fail`)                                                                                          | ✅ **shipped in 1.5.3**                                                                                                                      |
+| 3    | `br_on_null` / `br_on_non_null`                                                                                             | ✅ **shipped in 1.5.3** — they rode along with rank 1, as predicted                                                                          |
+| 2    | **The convert pair** — `any.convert_extern` / `extern.convert_any`, ≈49 assertions across `extern.wast` and `ref_test.wast` | ⬚ **open, and it is TWO layers** — see below                                                                                                 |
+| 4    | The five that unblock nothing for wasmtk                                                                                    | ⬚ open, ranked last on their numbers despite 121 occurrences                                                                                 |
+| —    | **Exact types** (`(exact $T)`), 116–548 assertions                                                                          | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case |
 
 ### The convert pair — measured, not estimated
 
 **Priced by building it**, per the rule the `br_on_cast` miss produced. Probed across all three
 layers:
 
-| layer | result |
-| ----- | ------ |
-| wabt-ts parse → encode → validate | ✅ works |
-| binaryen-ts decode → re-encode | ⚠️ **silently drops both opcodes** |
-| the bridge | ❌ `expression kind not yet supported` (fail-loud, correct) |
+| layer                             | result                                                      |
+| --------------------------------- | ----------------------------------------------------------- |
+| wabt-ts parse → encode → validate | ✅ works                                                    |
+| binaryen-ts decode → re-encode    | ⚠️ **silently drops both opcodes**                          |
+| the bridge                        | ❌ `expression kind not yet supported` (fail-loud, correct) |
 
 ⚠️ **The drop is deliberate, not an oversight.** `src/binaryen-ts/binary/wasm-parser.ts` case
-`0x1a`/`0x1b` reads `push(pop()); // identity conversion in IR`. The **value** survives; the **type**
-does not, so the encoder cannot re-emit the opcode and it vanishes — the re-encoded module is 2
-bytes shorter per conversion.
+`0x1a`/`0x1b` reads `push(pop()); // identity conversion in IR`. The **value** survives; the
+**type** does not, so the encoder cannot re-emit the opcode and it vanishes — the re-encoded module
+is 2 bytes shorter per conversion.
 
 **Severity: fail-loud downstream, not a miscompile.** In every position where the conversion is
 load-bearing for typing, V8 rejects the re-encode with a type error. It is invisible only in the
@@ -71,7 +72,8 @@ coincidentally value-preserving and the module still returns the right answer.
 
 ⚠️ **That case is why a validity-only check passes here.** The first probe reported
 `bin-roundtrip=OK` and was green for the wrong reason; the opcode count and the byte length are what
-exposed it. Any test written for this must assert the opcode survives, not that the module validates.
+exposed it. Any test written for this must assert the opcode survives, not that the module
+validates.
 
 **So the work is:** a real IR representation in binaryen-ts (node + reader + encoder, replacing the
 `push(pop())`) **and** a bridge case. Not "one bridge case" — the same shape as `br_on_cast`, where
@@ -79,7 +81,7 @@ the estimate counted only the layer being looked at.
 
 ### A defect in its own right, found alongside
 
-The reader errors on an unsupported GC opcode (`unsupported GC opcode: 0xFB 0x..`) but *consumes*
+The reader errors on an unsupported GC opcode (`unsupported GC opcode: 0xFB 0x..`) but _consumes_
 these two. **The fail-loud contract is not being violated by an unknown opcode — it is being
 violated by a known one that is deliberately discarded.** Worth an enumeration: are there other
 cases in this decoder that consume-and-discard rather than error? The section, export-kind and
@@ -118,10 +120,10 @@ binaryang wasm-opt  a.wat  -o c.wasm -Oz # ok — the original FOLDED source
    `unexpected atom in expression: i32.const`. Linear form is the canonical WAT text form and is
    what **our own `wasm2wat` emits**.
 2. **`wasm-opt` does not catch the parse failure.** It surfaces as an uncaught exception with a
-   stack trace rather than a diagnostic, which violates the fail-loud contract's *readable* half.
+   stack trace rather than a diagnostic, which violates the fail-loud contract's _readable_ half.
 
-⚠️ **This is precisely the shape [testing.md](testing.md) names as needing no oracle** — *a
-differential between two spellings of the same thing*, folded versus linear, which must agree by
+⚠️ **This is precisely the shape [testing.md](testing.md) names as needing no oracle** — _a
+differential between two spellings of the same thing_, folded versus linear, which must agree by
 construction. Nothing tested it, so a broken round trip between two of our own CLI tools went
 unnoticed.
 
@@ -130,14 +132,14 @@ unnoticed.
 Found while measuring whether the IR choice costs anything in the shipped wasm. It does not — but
 the measurement could not be trusted until this was explained.
 
-`binaryen-ts/parser/wat-parser.ts` does not support the **inline export abbreviation** on non-function
-items:
+`binaryen-ts/parser/wat-parser.ts` does not support the **inline export abbreviation** on
+non-function items:
 
-| form | result |
-| ---- | ------ |
-| `(memory (export "mem") 1)` | **export silently dropped — no diagnostic** |
-| `(global $g (export "g") i32 …)` | throws `unknown value type: (export "g")` |
-| `(memory 1) (export "mem" (memory 0))` | correct |
+| form                                   | result                                      |
+| -------------------------------------- | ------------------------------------------- |
+| `(memory (export "mem") 1)`            | **export silently dropped — no diagnostic** |
+| `(global $g (export "g") i32 …)`       | throws `unknown value type: (export "g")`   |
+| `(memory 1) (export "mem" (memory 0))` | correct                                     |
 
 Measured over 149 corpus modules: **345 exports via wabt-ts, 196 via binaryen-ts — 43% lost**, and
 `memory` in every sampled case. 148 of 149 modules lost at least one.
@@ -162,16 +164,16 @@ exports **196 → 345 of 345**, export sets identical on 149 of 149 modules, gat
 
 Chased to the section, then to the byte. Three components, none of them a defect:
 
-| component | cause |
-| --------- | ----- |
-| **code −3,073** | binaryen-ts run-length-compresses consecutive same-type locals; wabt-ts emitted one group per local. `vec(count, valtype)`, so three i32 locals went out as `3 \| (1,i32)(1,i32)(1,i32)` where `1 \| (3,i32)` says the same thing in 3 bytes instead of 7 |
+| component          | cause                                                                                                                                                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **code −3,073**    | binaryen-ts run-length-compresses consecutive same-type locals; wabt-ts emitted one group per local. `vec(count, valtype)`, so three i32 locals went out as `3 \| (1,i32)(1,i32)(1,i32)` where `1 \| (3,i32)` says the same thing in 3 bytes instead of 7                                                           |
 | **datacount −162** | the section is **optional** unless `memory.init` / `data.drop` reference the data index space. wabt emits it whenever data segments exist; binaryen-ts omits it. Both valid — and binaryen-ts rejects those two instructions outright, loudly, in both its WAT and binary readers, so it can never need the section |
-| type +70, data +66 | small, and in the other direction |
+| type +70, data +66 | small, and in the other direction                                                                                                                                                                                                                                                                                   |
 
 **Fixed on the wabt-ts side.** The writer's comment already claimed run-length encoding; only the
 loop did not do it. Coalescing recovered **42,437 bytes (2.7%) across the 421-file corpus** —
 considerably more than the 3,073 gap that led to it, because binaryen-ts coalesces only partially,
-so the gap measured the *difference* in redundancy rather than the total.
+so the gap measured the _difference_ in redundancy rather than the total.
 
 ⚠️ **This moved the emitted-byte baseline on 398 files**, and came with a deliberate re-baseline in
 the same commit: 1,557,602 → 1,515,165 bytes. The baseline is not a test; it pins bytes, so a
@@ -194,8 +196,8 @@ DEFINITION with an empty body, so a declared result had nothing to return
 Handled through the same shared helper, now `takeInlineDecorations`, consuming exports and an
 optional import in one loop because the spec permits them interleaved.
 
-**Corpus parity, 149 modules:** exports **345 / 345**, imports **250 / 250**, identical sets on
-149 of 149 for both.
+**Corpus parity, 149 modules:** exports **345 / 345**, imports **250 / 250**, identical sets on 149
+of 149 for both.
 
 The regression test asserts the computed VALUE for the index-space case — if the import were lost,
 `$two` would move from index 1 to 0 and `call $two` would still be a valid module calling the wrong
@@ -211,13 +213,13 @@ goal it was meant to serve is not reachable this way.
 uniformly folded — it is folded where it can be and linear where it cannot, and binaryen-ts rejects
 any linear fragment, so one is enough to fail the whole module.
 
-🔧 **CORRECTED.** This section first claimed `br`, `br_if` and `return` were structurally
-unfoldable — that a branch's value lives on the stack and cannot be a child. **That was wrong, and
-the error was in how the IR was read, not in the IR.** All four branch kinds carry
-`values: Expr[]`; the interfaces were read with `grep -A 9`, which stops inside the docstring that
-precedes that field, so it was never seen. Folding them with an empty operand list emitted the head
-while the linear writer still rendered the value — `(i32.const 1 br 0)` — and that malformed output
-was misread as evidence the concept was impossible.
+🔧 **CORRECTED.** This section first claimed `br`, `br_if` and `return` were structurally unfoldable
+— that a branch's value lives on the stack and cannot be a child. **That was wrong, and the error
+was in how the IR was read, not in the IR.** All four branch kinds carry `values: Expr[]`; the
+interfaces were read with `grep -A 9`, which stops inside the docstring that precedes that field, so
+it was never seen. Folding them with an empty operand list emitted the head while the linear writer
+still rendered the value — `(i32.const 1 br 0)` — and that malformed output was misread as evidence
+the concept was impossible.
 
 Hand-written pairs settle it: `(br $l (i32.const 1))`, `(return (i32.const 5))` and
 `(br_if $l v cond)` all assemble to **bytes identical** to their linear equivalents. The WAT was
@@ -227,10 +229,10 @@ always legal.
 
 One genuine structural blocker remains:
 
-| | why |
-| - | --- |
+|                                                           | why                                                                                                |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | **`placeholder` operands** — 2,140 nodes, ~17% of modules | "the value is already on the stack". Linear spells that by writing nothing; folded cannot spell it |
-| `try` — 15 nodes | not implemented; ordinary work, not a blocker |
+| `try` — 15 nodes                                          | not implemented; ordinary work, not a blocker                                                      |
 
 **A fully-folded module with no placeholders DOES parse in binaryen-ts** — verified. So folding
 works, and the remaining failures are elsewhere.
@@ -239,10 +241,10 @@ works, and the remaining failures are elsewhere.
 `encodeWasm(parseWat(t))` as one step hid which half was failing, and the answer was not the one the
 error text suggested:
 
-| stage | result |
-| ----- | ------ |
+| stage                           | result              |
+| ------------------------------- | ------------------- |
 | `parseWat` on our folded output | **311 / 421 (74%)** |
-| `encodeWasm` after that parse | 1 / 421 |
+| `encodeWasm` after that parse   | 1 / 421             |
 
 So the dominant failure was in the **encoder**, not the parser.
 
@@ -254,36 +256,77 @@ with `$`, so a bare integer can only be a direct index — `(export "f" (func 19
 `tests/binaryen-ts/encoder/numeric_refs.test.ts`, with the fail-loud guarantee preserved: a dangling
 **named** reference still throws.
 
-⚠️ **This is NOT the inline-export fix.** That one was about exports being *dropped at parse time*;
-this is a parsed export failing to *resolve at encode time*. Adjacent symptoms, different stages —
+⚠️ **This is NOT the inline-export fix.** That one was about exports being _dropped at parse time_;
+this is a parsed export failing to _resolve at encode time_. Adjacent symptoms, different stages —
 which is why the first fix did not touch it.
 
 ### ⬚ The remaining ladder, each revealed by fixing the one above it
 
-| # | gap | modules | state |
-| - | --- | ------- | ----- |
-| 1 | numeric branch depths + `br`/`br_if` operands | 307 | ✅ **fixed** — see below |
-| 2 | stack-sourced operands, for the modules carrying placeholders | 44 | ✅ **done** — round-trip 302 → 340. Both halves landed; the two IRs met on `Pop` / `placeholder`. [ir-convergence.md](ir-convergence.md) |
-| 3 | `call_indirect: unknown type N` — numeric type references | 39 | ✅ **done** — round-trip 340 → 373 |
-| 4 | `label depth N exceeds` — **an `if` pushed no label scope** | 24 | ✅ **done** — round-trip 373 → 393. The error was the benign half; the silent half was branches going to the WRONG block |
-| 5 | `unresolved throw tag reference` — a **reconstructed** tag name | 11 | ✅ **done** — round-trip 393 → 404 |
-| 6 | `try` — a bare atom, plus a mismatched `catch_all` sentinel | 10 | ✅ **done** — round-trip 404 → 412 |
-| 7 | 4 `local.get`, 2 `rethrow`, 2 branch labels, 1 GC func type | 9 | ⬚ **open, top item** — the tail |
+| # | gap                                                             | modules | state                                                                                                                                    |
+| - | --------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | numeric branch depths + `br`/`br_if` operands                   | 307     | ✅ **fixed** — see below                                                                                                                 |
+| 2 | stack-sourced operands, for the modules carrying placeholders   | 44      | ✅ **done** — round-trip 302 → 340. Both halves landed; the two IRs met on `Pop` / `placeholder`. [ir-convergence.md](ir-convergence.md) |
+| 3 | `call_indirect: unknown type N` — numeric type references       | 39      | ✅ **done** — round-trip 340 → 373                                                                                                       |
+| 4 | `label depth N exceeds` — **an `if` pushed no label scope**     | 24      | ✅ **done** — round-trip 373 → 393. The error was the benign half; the silent half was branches going to the WRONG block                 |
+| 5 | `unresolved throw tag reference` — a **reconstructed** tag name | 11      | ✅ **done** — round-trip 393 → 404                                                                                                       |
+| 6 | `try` — a bare atom, plus a mismatched `catch_all` sentinel     | 10      | ✅ **done** — round-trip 404 → 412                                                                                                       |
+| 7 | 4 `local.get`, 2 `rethrow`, 2 branch labels, 1 GC func type     | 9       | ✅ **done** — round-trip 412 → **421 / 421**. Four unrelated causes; see below                                                           |
 
-⚠️ **The counts in rows 5–7 were STALE until 2026-09-01** — they read 7 and 4, from an early
-sample rather than the full corpus, and the rows were in the opposite order. Re-derived against all
-421 modules. A number carried forward without re-measuring is the thing this file exists to prevent.
+**The ladder is finished: binaryen-ts reads our folded output on all 421 corpus modules**, and
+folded output still assembles to bytes identical to linear on all 421. Emitted-byte baseline
+`IDENTICAL` throughout.
+
+### ✅ #7 — the tail was four unrelated causes, `df24686ec` + `3ec5b29d6`
+
+Grouping them by "9 modules" made them look like one thing. They shared nothing but the count.
+
+| cause                                        | where              | fix                                                                                       |
+| -------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
+| `rethrow` emitted as a bare atom             | wabt-ts writer     | absent from `foldSpec`; it carries no operands, so it folds as a leaf                     |
+| partly stack-sourced operands declined       | wabt-ts writer     | placeholders occupy a PREFIX; omitting them is the correct folded spelling                |
+| an ANONYMOUS `block` had no name on the node | binaryen-ts parser | the label map got `$depth{N}`, the node got `null`, the encoder pushed `''`               |
+| an import's `(type N)` was not skipped       | binaryen-ts parser | it comes FIRST, so the `(param ...)` loop never started and the signature read `() -> ()` |
+
+⚠️ **The mixed-operand decline was justified by reasoning that was wrong about WAT and right about
+our own parser** — a combination worth remembering, because checking only the first half would have
+shipped a silent miscompile. The old comment argued that `(i32.store (value))` gives one operand for
+two slots and "a reader assigns it to the FIRST". Folding is defined by UNFOLDING, so written
+operands land in the LAST slots and the stack supplies the rest; wabt-ts reads it correctly. But
+binaryen-ts read that same text as storing the ADDRESS at the VALUE and returned 0 where wabt-ts
+returns 42 — valid bytes, wrong program. Two causes there: a claim splices the producer into
+whichever slot asked (a trailing one), and `parseStore` gave a lone written operand to the address.
+Both fixed; claims are now gated on no written operand having been consumed.
+
+🔧 **A correction this produced:** the `_claims` docstring said one claim "is the subset where order
+cannot be wrong". It is not. With N slots, W written and C claimed, the stack fills the LEADING C
+slots, so claims and written operands agree only when W is zero.
+
+**And `call` never had the problem**, for a reason worth knowing: it does not ask for missing
+operands at all. It emits fewer and lets the preceding statements supply the rest, which is just
+stack semantics working. The bound bites only where arity is discovered BY ASKING — binary ops,
+stores, compares.
+
+⚠️ **Two of the four fixes were first covered by tests that did not discriminate.** Written as a
+round trip, every anonymous-block fixture passed with the fix reverted, because `wasm2wat --fold`
+NAMES a block it emits a branch to — so the anonymous case never reached the parser. They only
+discriminate when the folded WAT is parsed DIRECTLY. Each group was then checked by reverting its
+own fix; the two that still passed are labelled in the file as guards rather than coverage. See
+[best-practices.md](best-practices.md) on verifying that a test fails without its fix.
+
+⚠️ **The counts in rows 5–7 were STALE until 2026-09-01** — they read 7 and 4, from an early sample
+rather than the full corpus, and the rows were in the opposite order. Re-derived against all 421
+modules. A number carried forward without re-measuring is the thing this file exists to prevent.
 
 ### 🔁 The same mistake in three places: RECONSTRUCTING a name instead of resolving an index
 
 Worth recording as one pattern rather than three incidents, because it recurred after being fixed
 twice:
 
-| where | reconstructed | actually needed |
-| ----- | ------------- | --------------- |
-| branch labels | `$depth{N}` | the label registered at that depth |
-| `call_indirect` types | a name lookup only | the index-keyed `heapTypeDefs` |
-| throw / catch tags | `$tag{N}` | the tag registered at that index |
+| where                 | reconstructed      | actually needed                    |
+| --------------------- | ------------------ | ---------------------------------- |
+| branch labels         | `$depth{N}`        | the label registered at that depth |
+| `call_indirect` types | a name lookup only | the index-keyed `heapTypeDefs`     |
+| throw / catch tags    | `$tag{N}`          | the tag registered at that index   |
 
 Each reconstruction is the name the parser would have SYNTHESIZED for an anonymous construct, so
 each works right up until the construct has a name of its own — and our own `wasm2wat` names
@@ -374,12 +417,12 @@ and shipped code uses the other one.**
 
 Measured over 150 corpus files:
 
-| | |
-| - | - |
-| both routes succeed | 70 — and **0 produce identical bytes** |
+|                                      |                                                                |
+| ------------------------------------ | -------------------------------------------------------------- |
+| both routes succeed                  | 70 — and **0 produce identical bytes**                         |
 | only the shipped parser (`parseWat`) | 52 — the bridge lacks `memory.copy` and the bulk-memory family |
-| only the bridge | 4 — the shipped parser cannot read linear form |
-| neither | 24 |
+| only the bridge                      | 4 — the shipped parser cannot read linear form                 |
+| neither                              | 24                                                             |
 
 So each route covers what the other cannot, they never agree byte-for-byte, and **no test compares
 them.**
@@ -400,13 +443,13 @@ gates this.
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 
-| § | content | state |
-| - | ------- | ----- |
-| 7 | the `br_on_cast` estimate correction — it was three defects, not one | delivered |
-| 8 | retraction of the phantom "deps need proper names" finding | delivered |
-| 9 | defect 5 is **wider** than we described; the deps unblock; their missing `.gitattributes` | ✅ **closed by them** — they renamed `binaryen` → `binaryen-backend`, widened `.gitattributes`, and closed defect 5 with a conditional |
+| §  | content                                                                                   | state                                                                                                                                                                              |
+| -- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7  | the `br_on_cast` estimate correction — it was three defects, not one                      | delivered                                                                                                                                                                          |
+| 8  | retraction of the phantom "deps need proper names" finding                                | delivered                                                                                                                                                                          |
+| 9  | defect 5 is **wider** than we described; the deps unblock; their missing `.gitattributes` | ✅ **closed by them** — they renamed `binaryen` → `binaryen-backend`, widened `.gitattributes`, and closed defect 5 with a conditional                                             |
 | 10 | correcting § 9 (they are on **1.5.3**, not 1.5.2); the convert pair priced by building it | ⬚ **awaiting their answer on one question** — though they have now SHIPPED against 1.5.3 as 2.0.2, so the `br_on_cast` queue entry is most likely stale rather than a live failure |
-| 11 | adopting their conditional-not-clearance form and their alias invariant | ⬚ outbound |
+| 11 | adopting their conditional-not-clearance form and their alias invariant                   | ⬚ outbound                                                                                                                                                                         |
 
 ⚠️ **The one open question is in § 10 and it matters:** their queue still lists `br_on_cast` as
 unstarted, but all four `br_on_*` forms shipped in 1.5.3, which they are on. Either that entry
