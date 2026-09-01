@@ -82,6 +82,61 @@ this case existed. The second is a second parsing mode, since every construct ne
 folded writer knows precisely where a value is stack-sourced, because that is what `placeholder`
 marks.
 
+## Stage 1 — status at pause, 2026-08-31
+
+### ✅ Done: binaryen-ts accepts a stack-sourced operand (single claim)
+
+`ce1320bf4`. A consumer whose operand is absent claims the preceding sibling that produced a value,
+and that producer is spliced out of the statement list. No spill needed for the single-consumer
+case — the producer is simply moved into the consumer, giving the tree the folded spelling would
+have produced.
+
+Works: `(i32.const 9) (drop)`, `(local.set 0)`, `(i32.eqz)`, and the same inside a block.
+
+⚠️ **Bounded to ONE claim per instruction, and the bound is load-bearing.** Handlers request
+operands left to right while the stack yields them top first, so a two-operand claim assigns them
+backwards. Measured before the limit:
+
+```
+(i32.const 10) (i32.const 3) (i32.sub)    ->  -7   want 7
+(i32.const 20) (i32.const 4) (i32.div_s)  ->   0   want 5
+stack-form i32.store                       wrote nothing
+```
+
+A second claim is **refused rather than reversed**, because wrong bytes that still validate is the
+failure mode worth avoiding.
+
+**To lift the bound**, the parser needs an instruction's ARITY at the point of the first claim. It
+does not have one — a handler discovers its arity by how many times it asks. wabt-ts has
+`instrInputCount` for exactly this; porting or mirroring that table is the concrete next step, and
+it is a table, not an algorithm.
+
+### ⬚ Not done: the wabt-ts half
+
+**The corpus round-trip is unchanged at 302/421, and that is expected, not a disappointment.** Our
+writer emits BARE linear (`local.set 0`); binaryen-ts now accepts the PARENTHESISED form
+(`(local.set 0)`). The two halves have not met yet.
+
+The remaining work, in order:
+
+1. **wabt-ts writer: spell a placeholder as `(local.set 0)`** rather than a bare instruction. The
+   writer already knows exactly where these are — that is what the `placeholder` marker records. It
+   is a rendering change in the fold path only, so linear output and the emitted-byte baseline are
+   untouched.
+2. **Re-measure.** This should move the 44 `unexpected atom in expression: local.set` modules,
+   provided each needs only one claim per instruction.
+3. **Then the arity table**, if step 2 shows multi-claim instructions in the corpus.
+
+### One test was CHANGED, not fixed
+
+`WAT: a missing operand is a WatParseError naming the instruction` asserted that stack form THROWS —
+it encoded the limitation as a contract. Replaced with the new behaviour plus two guards: the
+diagnostic must still fire when there is genuinely nothing to claim, and a two-operand stack form
+must be refused rather than reversed.
+
+**Worth noticing as a shape:** a test can pin a limitation so that removing the limitation reads as
+a regression. Nothing distinguished this one from a test pinning a requirement.
+
 ### Stage 2 — wabt-ts stops needing the marker
 
 `placeholder` is not wrong; it is honest. But it is the reason 44 modules cannot be folded, and it
