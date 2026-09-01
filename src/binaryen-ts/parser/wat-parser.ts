@@ -198,6 +198,25 @@ interface FuncContext {
   labels: Map<string, number>;
   labelDepth: number;
   results: ValueType[];
+  /**
+   * Values produced by PRECEDING SIBLINGS in the current statement list that no
+   * consumer has claimed yet — the parser's model of the operand stack.
+   *
+   * A stack machine lets one instruction's result be consumed with nothing
+   * syntactically connecting them: `(i32.const 1) (drop)` is legal WAT, and the
+   * `drop` takes its operand from the stack rather than from a nested
+   * expression. A tree IR has no place for that, which is why this parser used
+   * to refuse outright — see `ir-convergence.md`. Upstream binaryen solves it by
+   * spilling to a local; the single-consumer case, which is most of it, needs no
+   * spill at all: the producer is simply MOVED into the consumer.
+   *
+   * `slot` is the producer's index in the statement list, so claiming it can
+   * remove it from there — otherwise it would appear twice, once as a statement
+   * and once as an operand.
+   */
+  pending?: { expr: Expression; slot: number }[] | undefined;
+  /** The statement list being built, so a claimed producer can be spliced out. */
+  stmtSlots?: (Expression | null)[] | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -589,12 +608,9 @@ class WatModuleParser {
       results,
     };
 
-    // Parse body expressions
-    const bodyExprs: Expression[] = [];
-    while (idx < children.length) {
-      bodyExprs.push(this.parseExpr(children[idx], ctx));
-      idx++;
-    }
+    // Parse body expressions, tracking values left on the stack so a consumer
+    // whose operand is absent can claim the sibling that produced it.
+    const bodyExprs = this.parseStatementList(children.slice(idx), ctx);
 
     const body = this.oneOrTypedBlock(bodyExprs, this.declaredType(results, None));
 
@@ -617,6 +633,39 @@ class WatModuleParser {
   private _op: string | null = null;
   private _opPos: TextPos | undefined;
 
+  /**
+   * Parse a statement list, tracking values left on the stack.
+   *
+   * Each sibling that yields a value becomes claimable by a later sibling whose
+   * operand is missing. A claimed producer is removed from the list, so it is
+   * emitted once — nested inside its consumer — rather than twice.
+   *
+   * The pending list is SCOPED to this list: a block body cannot claim a value
+   * produced outside it, because entering a block does not move the enclosing
+   * stack into scope for arbitrary claiming, and allowing it would silently
+   * reorder evaluation across the boundary.
+   */
+  private parseStatementList(nodes: SExpr[], ctx: FuncContext): Expression[] {
+    const slots: (Expression | null)[] = [];
+    const outerPending = ctx.pending;
+    const outerSlots = ctx.stmtSlots;
+    ctx.pending = [];
+    ctx.stmtSlots = slots;
+    try {
+      for (const node of nodes) {
+        const e = this.parseExpr(node, ctx);
+        slots.push(e);
+        if (e.type !== None && e.type !== Unreachable) {
+          ctx.pending.push({ expr: e, slot: slots.length - 1 });
+        }
+      }
+    } finally {
+      ctx.pending = outerPending;
+      ctx.stmtSlots = outerSlots;
+    }
+    return slots.filter((x): x is Expression => x !== null);
+  }
+
   private parseExpr(s: SExpr | undefined, ctx: FuncContext): Expression {
     // Array indexing is unchecked here (`args[1]` on a one-argument list is
     // `undefined` with no type error), so every folded handler that reaches for
@@ -627,11 +676,21 @@ class WatModuleParser {
     // for user-authored WAT). Say so, with a position, per the contract that
     // every failure is a typed error.
     if (s === undefined) {
+      // A missing operand is not necessarily an error: in stack form the value
+      // comes from a preceding sibling. Claim the most recent unclaimed one and
+      // splice it out of the statement list, which is exactly the tree the
+      // folded spelling would have produced.
+      const claimed = this._claims === 0 ? ctx.pending?.pop() : undefined;
+      if (claimed !== undefined) {
+        this._claims++;
+        if (ctx.stmtSlots !== undefined) ctx.stmtSlots[claimed.slot] = null;
+        return claimed.expr;
+      }
       return this.err(
         this._op === null
           ? 'missing operand'
-          : `missing operand for "${this._op}" (stack-form WAT is not supported here; ` +
-            `each operand must be a nested expression)`,
+          : `missing operand for "${this._op}" (no preceding value on the stack ` +
+            `and no nested expression)`,
         this._opPos,
       );
     }
@@ -641,16 +700,38 @@ class WatModuleParser {
     return this.parseListExpr(s as SList, ctx);
   }
 
+  /**
+   * How many operands the instruction being parsed has claimed from the stack.
+   *
+   * Claims are limited to ONE per instruction, and the reason is operand ORDER.
+   * Handlers request operands left to right — `parseExpr(args[0])` then
+   * `parseExpr(args[1])` — while the stack yields them top first, so a
+   * two-operand claim assigns them backwards. Measured: `(i32.const 10)
+   * (i32.const 3) (i32.sub)` returned -7 instead of 7, and a stack-form
+   * `i32.store` wrote nothing.
+   *
+   * Correcting that needs the instruction's ARITY at the point of the first
+   * claim, which this parser does not have — a handler discovers its own arity
+   * by how many times it asks. Until that exists, one claim is the subset where
+   * order cannot be wrong, and it covers the shape our own writer emits:
+   * `(local.set 0)`, `(drop)`, and every other single-operand instruction whose
+   * value is on the stack.
+   */
+  private _claims = 0;
+
   private parseListExpr(list: SList, ctx: FuncContext): Expression {
     const prevOp = this._op;
     const prevPos = this._opPos;
+    const prevClaims = this._claims;
     this._op = listHead(list) ?? prevOp;
     this._opPos = list.pos;
+    this._claims = 0;
     try {
       return this._parseListExpr(list, ctx);
     } finally {
       this._op = prevOp;
       this._opPos = prevPos;
+      this._claims = prevClaims;
     }
   }
 
@@ -1096,11 +1177,7 @@ class WatModuleParser {
     }
     // Body
     const innerCtx = this.pushLabel(label, ctx);
-    const bodyExprs: Expression[] = [];
-    while (idx < children.length) {
-      bodyExprs.push(this.parseExpr(children[idx], innerCtx));
-      idx++;
-    }
+    const bodyExprs = this.parseStatementList(children.slice(idx), innerCtx);
     const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
     return { kind: ExpressionKind.Block, type, name: label, children: bodyExprs };
   }

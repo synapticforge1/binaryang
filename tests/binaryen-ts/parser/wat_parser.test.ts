@@ -720,10 +720,39 @@ Deno.test('WAT: a nested multi-result block keeps both results', async () => {
 // requirement is a typed error that SAYS so, per the robustness contract.
 // ---------------------------------------------------------------------------
 
-Deno.test('WAT: a missing operand is a WatParseError naming the instruction', () => {
+// CHANGED 2026-08-31: this asserted that stack-form WAT THROWS. It no longer
+// does — a consumer whose operand is absent now claims the preceding sibling
+// that produced one, which is what the text format means and what upstream
+// binaryen has always accepted. The old assertion encoded a limitation as a
+// contract; see `cmem/ir-convergence.md`.
+Deno.test('WAT: an operand may come from a preceding sibling (stack form)', () => {
+  const m = parseWat(
+    `(module (func (export "f") (result i32) (i32.const 1) (i32.const 2) (drop)))`,
+  );
+  const inst = new WebAssembly.Instance(
+    new WebAssembly.Module(encodeWasm(m) as BufferSource),
+  );
+  // `2` is dropped; `1` is left as the result.
+  assertEquals((inst.exports.f as () => number)(), 1);
+});
+
+// The diagnostic must still fire when there is genuinely nothing to claim —
+// otherwise the claim path would mask real errors rather than widen support.
+Deno.test('WAT: a missing operand with an empty stack is still a WatParseError', () => {
   assertThrows(
-    () => parseWat(`(module (func (export "f") (result i32) (i32.const 1) (i32.const 2) (drop)))`),
+    () => parseWat(`(module (func (export "f") (result i32) (drop) (i32.const 1)))`),
     WatParseError,
-    `missing operand for "drop"`,
+    'missing operand for "drop"',
+  );
+});
+
+// Claims are limited to ONE per instruction, because handlers request operands
+// left to right while the stack yields them top first — a two-operand claim
+// would assign them BACKWARDS. Measured before the limit: this returned -7.
+Deno.test('WAT: a two-operand stack form is refused rather than reversed', () => {
+  assertThrows(
+    () =>
+      parseWat(`(module (func (export "f") (result i32) (i32.const 10) (i32.const 3) (i32.sub)))`),
+    WatParseError,
   );
 });
