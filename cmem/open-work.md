@@ -202,6 +202,33 @@ The regression test asserts the computed VALUE for the index-space case — if t
 function, which no structural assertion catches. Verified by neutering the abbreviation: 6 steps
 fail.
 
+### 🚨 Folding does NOT let binaryen-ts parse our output — measured 2026-08-31
+
+The folded writer works: **421/421 corpus modules assemble identically folded or linear.** But the
+goal it was meant to serve is not reachable this way.
+
+**binaryen-ts's parser accepts our folded output on 1 of 421 modules.** Folded output is not
+uniformly folded — it is folded where it can be and linear where it cannot, and binaryen-ts rejects
+any linear fragment, so one is enough to fail the whole module.
+
+Three groups can never fold, and none is a gap in the renderer:
+
+| | why |
+| - | --- |
+| **`br`, `br_if`, `return`** — 6,405 occurrences across 150 modules | they transfer a value that sits on the STACK, put there by a preceding sibling rather than held as a child. `(br $l)` is legal folded WAT, but the value it carries is not inside the parens. Tried and reverted: folding them broke assembly outright, and `br_if` produced *different bytes* |
+| **`placeholder` operands** — 13 of 150 modules | "the value is already on the stack". Linear spells that by writing nothing; folded cannot spell it |
+| **expressions with no operand field** (`i31.get` is `{kind, signed}`) | the operand is not reachable from the node |
+
+**So folding and linear-form support are complementary, not alternatives.** The fix for
+`wasm-opt` being unable to read `wasm2wat` output is **teaching `binaryen-ts/parser/wat-parser.ts`
+linear form** — the option originally ranked third and largest. Folding cannot substitute for it,
+because WAT that mixes both forms is normal and binaryen-ts must read what it is given.
+
+⚠️ **The default was NOT flipped.** Flipping costs a re-baseline of all 421 `wasm2wat` text hashes
+and changes every consumer's output; the parsing benefit that justified it does not exist. The
+readability argument for the IR merge still stands and is a separate decision — the option is
+available today as `wasm2wat --fold`.
+
 ## Which answers the bridge question
 
 **The bridge is not redundant duplication. It is the MORE CAPABLE of the two WAT → binaryen routes,
