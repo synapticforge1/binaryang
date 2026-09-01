@@ -1189,8 +1189,35 @@ class WatModuleParser {
   private parseBr(args: SExpr[], conditional: boolean, ctx: FuncContext, pos: TextPos): BreakExpr {
     const labelRef = atomText(args[0]) ?? this.err('br: missing label', pos);
     const name = this.resolveLabel(labelRef, ctx, pos);
-    const condition = conditional ? this.parseExpr(args[1], ctx) : null;
-    const value = conditional && args[2] ? this.parseExpr(args[2], ctx) : null;
+
+    // Operand order in the folded form is `value…` then `cond`, because the
+    // CONDITION is the top of the stack and the carried value sits below it.
+    // Two defects lived in the one line this replaced:
+    //
+    //   const condition = conditional ? parse(args[1]) : null;
+    //   const value = conditional && args[2] ? parse(args[2]) : null;
+    //
+    //   1. an unconditional `br` DROPPED its value entirely — `conditional &&`
+    //      is false, so `(br $l (i32.const 7))` parsed as a bare `br` and the
+    //      enclosing block was left with nothing to return;
+    //   2. `br_if` read them backwards, taking args[1] as the condition when in
+    //      `(br_if $l value cond)` the condition is LAST.
+    //
+    // Both surfaced re-parsing our own `wasm2wat --fold` output, which emits
+    // exactly these shapes.
+    const rest = args.slice(1);
+    let condition: Expression | null = null;
+    let value: Expression | null = null;
+    if (conditional) {
+      const condNode = rest[rest.length - 1];
+      if (condNode === undefined) this.err('br_if: missing condition', pos);
+      condition = this.parseExpr(condNode, ctx);
+      const valueNode = rest.length > 1 ? rest[rest.length - 2] : undefined;
+      if (valueNode !== undefined) value = this.parseExpr(valueNode, ctx);
+    } else {
+      const valueNode = rest[0];
+      if (valueNode !== undefined) value = this.parseExpr(valueNode, ctx);
+    }
     return {
       kind: ExpressionKind.Break,
       type: conditional ? None : Unreachable,
@@ -2287,8 +2314,43 @@ class WatModuleParser {
       if (!ctx.labels.has(ref)) this.err(`unknown label: ${ref}`, pos);
       return ref;
     }
-    // Numeric label — convert to relative depth
-    return `$depth${ctx.labelDepth - Number(ref)}`;
+
+    // A numeric label is a RELATIVE DEPTH: `br 0` targets the innermost
+    // enclosing block, `br 1` the one outside it. Resolve it by looking up
+    // whichever label sits at that depth, rather than reconstructing the name
+    // `pushLabel` would have synthesized.
+    //
+    // Reconstructing is what this did — `$depth${labelDepth - N}` — and it only
+    // works when the block was ANONYMOUS, because a block with an explicit
+    // `$B0` registers that name instead and the synthetic one was never in the
+    // map. Our own `wasm2wat` emits exactly that combination: named blocks and
+    // numeric branches. Re-parsing our disassembly failed on 307 of 421 corpus
+    // modules with `unresolved branch label: "$depth1"`.
+    //
+    // The name it produced was also off by one for the anonymous case: at push
+    // time the label is recorded at the PRE-increment depth, so the innermost
+    // block sits at `labelDepth - 1`, not `labelDepth`. A reverse lookup has
+    // neither problem, and stays correct if the synthesized naming ever changes.
+    const n = Number(ref);
+    if (!Number.isInteger(n) || n < 0) this.err(`invalid label reference: ${ref}`, pos);
+    const target = ctx.labelDepth - 1 - n;
+
+    // Depth -1 is the FUNCTION FRAME — the implicit block around every body,
+    // which `br N` may legitimately target as a return. It is not in `ctx.labels`
+    // because the parser only pushes source-level blocks, but the encoder seeds
+    // its own stack with `fn.bodyFrameLabel ?? ''` at index 0, so the empty name
+    // resolves there.
+    //
+    // Treating this as out of range is what a first version did, and it rejected
+    // 279 of 421 corpus modules with `label depth 1 exceeds enclosing blocks` —
+    // a bounds check firing on the single most common branch in real code.
+    if (target === -1) return '';
+    if (target < -1) this.err(`label depth ${ref} exceeds enclosing blocks`, pos);
+
+    for (const [name, depth] of ctx.labels) {
+      if (depth === target) return name;
+    }
+    return this.err(`unresolved label depth: ${ref}`, pos);
   }
 
   private inferGlobalType(name: string): ValueType | null {

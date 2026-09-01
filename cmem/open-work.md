@@ -260,12 +260,34 @@ which is why the first fix did not touch it.
 
 ### ⬚ The remaining ladder, each revealed by fixing the one above it
 
-| # | gap | modules |
-| - | --- | ------- |
-| 1 | `unresolved branch label: "$depth1"` — numeric branch depths | 307 |
-| 2 | linear form, for the ~17% carrying placeholders | 57 |
-| 3 | `call_indirect: unknown type N` — numeric type references | 42 |
-| 4 | `try` folding, our side | 7 |
+| # | gap | modules | state |
+| - | --- | ------- | ----- |
+| 1 | numeric branch depths + `br`/`br_if` operands | 307 | ✅ **fixed** — see below |
+| 2 | linear form, for the modules carrying placeholders | 44 | ⬚ open |
+| 3 | `call_indirect: unknown type N` — numeric type references | 37 | ⬚ open |
+| 4 | `label depth N exceeds enclosing blocks` | 22 | ⬚ open — a construct that does not push a label |
+| 5 | `try` folding, our side | 7 | ⬚ open |
+| 6 | `unresolved throw tag reference` | 4 | ⬚ open |
+
+### ✅ #1 fixed — round-trip went 2 → 302 of 421
+
+**Three defects in one area, plus one the fix introduced.**
+
+1. `resolveLabel` **reconstructed** the name `pushLabel` would have synthesized (`$depth{N}`) rather
+   than looking up whichever label sits at that depth. That only works for ANONYMOUS blocks — a
+   block with an explicit `$B0` registers that name instead. Our `wasm2wat` emits named blocks and
+   numeric branches, a combination nothing in the suite produced.
+2. An unconditional `br` **dropped its value**: the guard read `conditional && args[2]`, so
+   `(br $l (i32.const 7))` parsed as a bare branch.
+3. `br_if` read its operands **backwards** — in `(br_if $l value cond)` the condition is LAST,
+   because it is the top of the stack and the value sits below it.
+
+⚠️ **And the fix's own bounds check rejected 279 modules.** Depth −1 is the FUNCTION FRAME, the
+implicit block around every body that `br N` may target as a return. It is not in the parser's label
+map, so "past every block" read as out of range — a guard firing on the single most common branch in
+real code. The encoder seeds `fn.bodyFrameLabel ?? ''`, so the empty name resolves there.
+
+**Each fix in this chain revealed the next**, and the counts moved 1 → 2 → 101 → 302.
 
 **Every fix so far has revealed the next one.** That is worth stating plainly rather than
 re-estimating each time: the count went 1 → 2 modules while removing 310 failures, because the
