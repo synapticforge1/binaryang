@@ -202,7 +202,7 @@ The regression test asserts the computed VALUE for the index-space case — if t
 function, which no structural assertion catches. Verified by neutering the abbreviation: 6 steps
 fail.
 
-### 🚨 Folding does NOT let binaryen-ts parse our output — measured 2026-08-31
+### ◐ Folding reaches 82.9% of modules; binaryen-ts's parser has SEPARATE gaps
 
 The folded writer works: **421/421 corpus modules assemble identically folded or linear.** But the
 goal it was meant to serve is not reachable this way.
@@ -211,18 +211,39 @@ goal it was meant to serve is not reachable this way.
 uniformly folded — it is folded where it can be and linear where it cannot, and binaryen-ts rejects
 any linear fragment, so one is enough to fail the whole module.
 
-Three groups can never fold, and none is a gap in the renderer:
+🔧 **CORRECTED.** This section first claimed `br`, `br_if` and `return` were structurally
+unfoldable — that a branch's value lives on the stack and cannot be a child. **That was wrong, and
+the error was in how the IR was read, not in the IR.** All four branch kinds carry
+`values: Expr[]`; the interfaces were read with `grep -A 9`, which stops inside the docstring that
+precedes that field, so it was never seen. Folding them with an empty operand list emitted the head
+while the linear writer still rendered the value — `(i32.const 1 br 0)` — and that malformed output
+was misread as evidence the concept was impossible.
+
+Hand-written pairs settle it: `(br $l (i32.const 1))`, `(return (i32.const 5))` and
+`(br_if $l v cond)` all assemble to **bytes identical** to their linear equivalents. The WAT was
+always legal.
+
+**With the real operand lists wired, fully-foldable modules went 3/421 → 349/421 (82.9%).**
+
+One genuine structural blocker remains:
 
 | | why |
 | - | --- |
-| **`br`, `br_if`, `return`** — 6,405 occurrences across 150 modules | they transfer a value that sits on the STACK, put there by a preceding sibling rather than held as a child. `(br $l)` is legal folded WAT, but the value it carries is not inside the parens. Tried and reverted: folding them broke assembly outright, and `br_if` produced *different bytes* |
-| **`placeholder` operands** — 13 of 150 modules | "the value is already on the stack". Linear spells that by writing nothing; folded cannot spell it |
-| **expressions with no operand field** (`i31.get` is `{kind, signed}`) | the operand is not reachable from the node |
+| **`placeholder` operands** — 2,140 nodes, ~17% of modules | "the value is already on the stack". Linear spells that by writing nothing; folded cannot spell it |
+| `try` — 15 nodes | not implemented; ordinary work, not a blocker |
 
-**So folding and linear-form support are complementary, not alternatives.** The fix for
-`wasm-opt` being unable to read `wasm2wat` output is **teaching `binaryen-ts/parser/wat-parser.ts`
-linear form** — the option originally ranked third and largest. Folding cannot substitute for it,
-because WAT that mixes both forms is normal and binaryen-ts must read what it is given.
+**A fully-folded module with no placeholders DOES parse in binaryen-ts** — verified. So folding
+works. But the corpus still parses at 1/421, because binaryen-ts's parser has at least three
+INDEPENDENT gaps, and only the first is about folding:
+
+| gap | frequency |
+| --- | --------- |
+| linear form (needed for the ~17% carrying placeholders) | 57 modules |
+| `unresolved exported function reference: "16"` — numeric export references | ~167 modules |
+| `call_indirect: unknown type 0` — numeric type references | 41 modules |
+
+**So folding was necessary and is not sufficient.** The remaining two gaps have nothing to do with
+folding and would block binaryen-ts on upstream wabt's output too.
 
 ⚠️ **The default was NOT flipped.** Flipping costs a re-baseline of all 421 `wasm2wat` text hashes
 and changes every consumer's output; the parsing benefit that justified it does not exist. The

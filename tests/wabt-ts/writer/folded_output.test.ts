@@ -177,4 +177,57 @@ ${folded}`,
         (drop (i32.const 9))
         (local.get 0)))`);
   });
+
+  // ---------------------------------------------------------------------------
+  // Branch and return.
+  //
+  // All four carry `values: Expr[]` — the operands pushed before the transfer —
+  // and the ones with a condition or index put THAT on top, so the folded order
+  // is `values…` then `cond`/`value`.
+  //
+  // ⚠️ These were once declared unfoldable, on the reading that a branch's value
+  // lives on the stack. That was an artefact of reading the interfaces with
+  // `grep -A 9`, which stops inside the docstring that precedes `values`. Folding
+  // them with an empty operand list emitted the head while the linear writer
+  // still rendered the value, producing `(i32.const 1 br 0)`. The fix was the
+  // field list, not the concept — the WAT was always legal.
+  // ---------------------------------------------------------------------------
+
+  it('br carries its value inside the parens', () => {
+    const src =
+      '(module (func (export "f") (result i32) (block $l (result i32) (br $l (i32.const 1)))))';
+    const folded = wasm2wat(asm(src, 's.wat'), { fold: true }).text;
+    assert(
+      folded.includes('(br'),
+      `expected a folded br, got:
+${folded}`,
+    );
+    assertFormsAgree(src);
+  });
+
+  it('return folds its value', () => {
+    assertFormsAgree('(module (func (export "f") (result i32) (return (i32.const 5))))');
+  });
+
+  it('br_if puts the condition AFTER the carried values', () => {
+    assertFormsAgree(`(module (func (export "f") (param i32) (result i32)
+      (block $l (result i32)
+        (br_if $l (i32.const 7) (local.get 0))
+        (i32.const 1))))`);
+  });
+
+  it('br_table keeps its index distinct from its carried values', () => {
+    assertFormsAgree(`(module (func (export "f") (param i32) (result i32)
+      (block $a (result i32)
+        (block $b (result i32)
+          (br_table $a $b $a (i32.const 3) (local.get 0))))))`);
+  });
+
+  // Multi-value is why `values` is a LIST: an earlier single `value?` slot
+  // dropped all but the first operand, per BrExpr's own docstring.
+  it('a multi-value branch keeps every operand', () => {
+    assertFormsAgree(`(module (func (export "f") (result i32 f64)
+      (block $l (result i32 f64)
+        (br $l (i32.const 79) (f64.const 8)))))`);
+  });
 });

@@ -1541,8 +1541,32 @@ class WatWriter extends ModuleContext {
         // stack-carried value has no folded spelling, which is the same reason
         // `placeholder` operands decline. Corpus equivalence went 4/421 back to
         // 421/421.
+        // ---- branch and return -----------------------------------------------
+        //
+        // All four carry `values: Expr[]` — the operands pushed before the
+        // transfer — and the ones with a condition or index put THAT on top of
+        // them. So the folded operand order is `values…` then `cond`/`value`,
+        // which is the order `(br_if $l v1 v2 cond)` spells.
+        //
+        // ⚠️ An earlier pass declared these unfoldable, on the reading that a
+        // branch's value lives on the stack and cannot be a child. That was
+        // wrong: it came from reading the interfaces with `grep -A 9`, which
+        // stops inside the docstrings that precede `values` — so the field was
+        // never seen. Folding them with `operands: []` then emitted the head
+        // while the linear writer still rendered the value, producing
+        // `(i32.const 1 br 0)`. The fix was the field list, not the concept.
+        //
+        // `BrTableExpr`'s own docstring records the same mistake being made
+        // once before: "the first child landed in the index slot and the real
+        // index was dropped".
+        case 'br':
+          return { operands: [...e.values], head: (d) => void d.onBrExpr?.(e) };
+        case 'return':
+          return { operands: [...e.values], head: (d) => void d.onReturnExpr?.(e) };
+        case 'br_if':
+          return { operands: [...e.values, e.cond], head: (d) => void d.onBrIfExpr?.(e) };
         case 'br_table':
-          return { operands: [e.value], head: (d) => void d.onBrTableExpr?.(e) };
+          return { operands: [...e.values, e.value], head: (d) => void d.onBrTableExpr?.(e) };
 
         // ---- three operands ---------------------------------------------------
         case 'select':
