@@ -233,17 +233,43 @@ One genuine structural blocker remains:
 | `try` — 15 nodes | not implemented; ordinary work, not a blocker |
 
 **A fully-folded module with no placeholders DOES parse in binaryen-ts** — verified. So folding
-works. But the corpus still parses at 1/421, because binaryen-ts's parser has at least three
-INDEPENDENT gaps, and only the first is about folding:
+works, and the remaining failures are elsewhere.
 
-| gap | frequency |
-| --- | --------- |
-| linear form (needed for the ~17% carrying placeholders) | 57 modules |
-| `unresolved exported function reference: "16"` — numeric export references | ~167 modules |
-| `call_indirect: unknown type 0` — numeric type references | 41 modules |
+⚠️ **Separate the PARSER from the ENCODER before attributing anything here.** Measuring
+`encodeWasm(parseWat(t))` as one step hid which half was failing, and the answer was not the one the
+error text suggested:
 
-**So folding was necessary and is not sufficient.** The remaining two gaps have nothing to do with
-folding and would block binaryen-ts on upstream wabt's output too.
+| stage | result |
+| ----- | ------ |
+| `parseWat` on our folded output | **311 / 421 (74%)** |
+| `encodeWasm` after that parse | 1 / 421 |
+
+So the dominant failure was in the **encoder**, not the parser.
+
+### ✅ Fixed: numeric entity references (310 modules)
+
+`resolveRef` looked every reference up as a NAME and threw on a miss. A WAT identifier always begins
+with `$`, so a bare integer can only be a direct index — `(export "f" (func 19))` is as legal as
+`(export "f" (func $g))`, and our own `wasm2wat` emits the numeric form. Fixed, gated by
+`tests/binaryen-ts/encoder/numeric_refs.test.ts`, with the fail-loud guarantee preserved: a dangling
+**named** reference still throws.
+
+⚠️ **This is NOT the inline-export fix.** That one was about exports being *dropped at parse time*;
+this is a parsed export failing to *resolve at encode time*. Adjacent symptoms, different stages —
+which is why the first fix did not touch it.
+
+### ⬚ The remaining ladder, each revealed by fixing the one above it
+
+| # | gap | modules |
+| - | --- | ------- |
+| 1 | `unresolved branch label: "$depth1"` — numeric branch depths | 307 |
+| 2 | linear form, for the ~17% carrying placeholders | 57 |
+| 3 | `call_indirect: unknown type N` — numeric type references | 42 |
+| 4 | `try` folding, our side | 7 |
+
+**Every fix so far has revealed the next one.** That is worth stating plainly rather than
+re-estimating each time: the count went 1 → 2 modules while removing 310 failures, because the
+failures are layered rather than parallel.
 
 ⚠️ **The default was NOT flipped.** Flipping costs a re-baseline of all 421 `wasm2wat` text hashes
 and changes every consumer's output; the parsing benefit that justified it does not exist. The

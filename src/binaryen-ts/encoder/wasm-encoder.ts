@@ -874,10 +874,28 @@ class WasmEncoder {
    */
   private resolveRef(map: Map<string, number>, name: string, kind: string): number {
     const idx = map.get(name);
-    if (idx === undefined) {
-      throw new WasmEncodeError(`unresolved ${kind} reference: "${name}"`);
+    if (idx !== undefined) return idx;
+
+    // A bare integer is an INDEX, not a name. WAT identifiers always begin with
+    // `$`, so a numeric token can only be a direct index into the entity space —
+    // `(export "f" (func 19))` is as legal as `(export "f" (func $g))`, and both
+    // wabt and the spec testsuite emit the numeric form freely.
+    //
+    // This does NOT weaken the fail-loud rule above. The dangling references that
+    // rule exists for are NAMED — a pass dropped `$g` but left a reference to it
+    // — and a named miss still throws. Only a token that cannot be a name is
+    // read as an index.
+    //
+    // Measured before this: our own `wasm2wat` emits `(export "…" (func 19))`,
+    // so re-parsing our disassembly failed on 310 of 421 corpus modules while
+    // the PARSER had already accepted them. The gap was here, not in the parser,
+    // which is why it survived the inline-export fix that looked adjacent.
+    if (/^[0-9]+$/.test(name)) {
+      const n = Number(name);
+      if (Number.isSafeInteger(n)) return n;
     }
-    return idx;
+
+    throw new WasmEncodeError(`unresolved ${kind} reference: "${name}"`);
   }
 
   /**
