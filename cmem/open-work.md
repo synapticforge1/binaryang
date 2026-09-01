@@ -266,8 +266,33 @@ which is why the first fix did not touch it.
 | 2 | stack-sourced operands, for the modules carrying placeholders | 44 | ✅ **done** — round-trip 302 → 340. Both halves landed; the two IRs met on `Pop` / `placeholder`. [ir-convergence.md](ir-convergence.md) |
 | 3 | `call_indirect: unknown type N` — numeric type references | 39 | ✅ **done** — round-trip 340 → 373 |
 | 4 | `label depth N exceeds` — **an `if` pushed no label scope** | 24 | ✅ **done** — round-trip 373 → 393. The error was the benign half; the silent half was branches going to the WRONG block |
-| 5 | `try` folding, our side | 7 | ⬚ open |
-| 6 | `unresolved throw tag reference` | 4 | ⬚ open |
+| 5 | `unresolved throw tag reference` — a **reconstructed** tag name | 11 | ✅ **done** — round-trip 393 → 404 |
+| 6 | `try` — a bare atom; our folding side | 10 | ⬚ **open, top item** |
+| 7 | 4 stray `local.get`, 2 branch labels, 1 GC func type | 7 | ⬚ open |
+
+⚠️ **The counts in rows 5–7 were STALE until 2026-09-01** — they read 7 and 4, from an early
+sample rather than the full corpus, and the rows were in the opposite order. Re-derived against all
+421 modules. A number carried forward without re-measuring is the thing this file exists to prevent.
+
+### 🔁 The same mistake in three places: RECONSTRUCTING a name instead of resolving an index
+
+Worth recording as one pattern rather than three incidents, because it recurred after being fixed
+twice:
+
+| where | reconstructed | actually needed |
+| ----- | ------------- | --------------- |
+| branch labels | `$depth{N}` | the label registered at that depth |
+| `call_indirect` types | a name lookup only | the index-keyed `heapTypeDefs` |
+| throw / catch tags | `$tag{N}` | the tag registered at that index |
+
+Each reconstruction is the name the parser would have SYNTHESIZED for an anonymous construct, so
+each works right up until the construct has a name of its own — and our own `wasm2wat` names
+everything while referencing numerically, which is why all three surfaced together and none had
+surfaced before.
+
+**A reconstruction also rots**: it silently stops matching if the synthesizing side ever changes its
+naming. A lookup does not. Prefer resolving what is AT an index over rebuilding what its name
+probably is.
 
 ### ◐ #2 — the placeholders are MULTI-VALUE, and that really is unfoldable
 
