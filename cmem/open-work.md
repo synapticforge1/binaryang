@@ -263,11 +263,43 @@ which is why the first fix did not touch it.
 | # | gap | modules | state |
 | - | --- | ------- | ----- |
 | 1 | numeric branch depths + `br`/`br_if` operands | 307 | ✅ **fixed** — see below |
-| 2 | linear form, for the modules carrying placeholders | 44 | ⬚ open |
+| 2 | linear form, for the modules carrying placeholders | 44 | ⬚ open — **genuinely requires it**, see below |
 | 3 | `call_indirect: unknown type N` — numeric type references | 37 | ⬚ open |
 | 4 | `label depth N exceeds enclosing blocks` | 22 | ⬚ open — a construct that does not push a label |
 | 5 | `try` folding, our side | 7 | ⬚ open |
 | 6 | `unresolved throw tag reference` | 4 | ⬚ open |
+
+### ◐ #2 — the placeholders are MULTI-VALUE, and that really is unfoldable
+
+Traced to the slot they fill: **2,095 of 2,140 are `local.set.value`**. Two causes, and only one of
+them was a bug.
+
+✅ **Fixed: a loop did not push its result.** A loop's blocktype means different things at its two
+ends — a BRANCH to a loop targets its start and carries its PARAMETERS, while a loop reaching its
+END produces its RESULTS. `brTargetResultCount` got the first right; the end-of-frame path forced
+`rCount = 0` for loops as well, so `(loop (result i32) …)` was flushed as a statement instead of
+pushing its value.
+
+⚠️ **That defect was invisible to every byte-level check.** The modules still round-tripped, because
+the writer spells a placeholder by emitting linear form, which reassembles to the same bytes. It was
+visible only as an IR that could not be folded. `tests/wabt-ts/reader/loop_result.test.ts` asserts
+the IR SHAPE for that reason.
+
+🚨 **The remaining placeholders are multi-value results, and those cannot fold.** A producer with N
+results pushes one node, so a second consumer finds an empty stack:
+
+```
+(call $two)      ;; results i32 i32
+local.set 1
+local.set 0
+```
+
+There is no folded spelling for "this call produces two values consumed by two instructions" — the
+tree has one node and two parents. Verified on both a multi-value `call` and a multi-value `block`.
+
+**This one is structural, unlike `br`/`return`.** Those were a misreading of the IR; this is a
+property of expressing a stack machine as a tree. So the 44 modules genuinely require **linear-form
+support in `binaryen-ts/parser/wat-parser.ts`** — there is no folding route to them.
 
 ### ✅ #1 fixed — round-trip went 2 → 302 of 421
 

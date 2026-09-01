@@ -1500,7 +1500,24 @@ export class BinaryReader {
           }
 
           if (node !== undefined) {
-            const rCount = frame.kind === 'loop' ? 0 : blockResultCount(frame.blockType, m);
+            // A loop's blocktype means different things at its two ends, and
+            // this used to force `0` for loops, conflating them:
+            //
+            //   - a BRANCH to a loop targets its START and carries its
+            //     PARAMETERS (handled by `brTargetResultCount`, which reads
+            //     `blockParamCount` for loop frames);
+            //   - a loop reaching its END falls through and produces its
+            //     RESULTS, exactly like a block.
+            //
+            // Forcing 0 here flushed `(loop (result i32) …)` as a statement
+            // instead of pushing its value, so whatever consumed it found an
+            // empty stack and took an `operandPlaceholder`. That is 2,095 of the
+            // 2,140 placeholders in the corpus, all landing in `local.set.value`.
+            //
+            // The modules still round-tripped -- the writer spells a placeholder
+            // by emitting linear form, which reassembles -- so this was invisible
+            // in bytes and visible only as an IR that could not be folded.
+            const rCount = blockResultCount(frame.blockType, m);
             if (rCount > 0) parent.stack.push(node);
             else pushStmt(parent.stack, parent.stmts, node);
           }
