@@ -39,6 +39,22 @@ stands.
 **What must not happen is the next bump being made incidentally**: the version line is what arms the
 release, so bumping it "to keep main tidy" publishes. See [publishing.md](publishing.md).
 
+## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
+
+A three-version plan: **1.5.5** code issues, **1.5.6** hardening then code again, **1.5.7** security
+then hardening then code again. Each lens repeats until a pass turns up nothing new. Lens
+definitions, method, and the per-pass findings register: [quality-passes.md](quality-passes.md).
+
+**1.5.5 pass 1 is done and did NOT converge** — three defects fixed (`e662bd099`), five findings
+still open (C1–C5 in that file). ⚠️ **The version is NOT bumped**; the bump is what arms a release,
+so it happens when the passes converge, not while they run.
+
+🔑 **The one lesson worth carrying:** greps found nothing — no live TODOs, every "impossible"
+comment self-aware. What found three real bugs was **strengthening an existing metric**: the corpus
+check asked whether binaryen-ts re-encodes _without throwing_ (421/421, green for months); asking
+whether the result _validates_ read 383/421. Look for checks whose predicate is weaker than their
+name.
+
 ## ✅ The retirement is closed
 
 **D2 and D3 are both done, verified against the live JSR API on 2026-09-02 rather than assumed:**
