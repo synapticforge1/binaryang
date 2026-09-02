@@ -1,7 +1,7 @@
 # Open work
 
-The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-08-31;
-`binaryang@1.5.3` published, score 100.
+The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-09-02;
+**`binaryang@1.5.4` published, score 100**, provenance `rekorLogId=2692137018`.
 
 Kept here rather than in a version scope file because most of it is not scoped to a release yet, and
 a list split across three documents is a list nobody reads. Version-specific status stays in
@@ -16,26 +16,28 @@ a list split across three documents is a list nobody reads. Version-specific sta
 | 3 | **GitHub descriptions on both predecessors** | Frozen by the archive — needs unarchive → edit → re-archive. Judgement call.                                                                                                       |
 | 4 | **D2 — JSR `isArchived`**                    | Deferred by choice. Low-risk: archiving the GitHub repos already removed the publish path.                                                                                         |
 
-## ⚠️ `main` carries an UNRELEASED behaviour change
+## ✅ 1.5.4 is released — the unreleased change is shipped
 
-`deno.json` reads **1.5.3**, which is what is published — correct, and the reason nothing has
-auto-published since. But `main` is 13 commits past the `v1.5.3` tag, and **one of them changes
-shipped behaviour**: `9b54db228`, the export-kind check found by A3. Twelve are `cmem/` only.
+`deno.json` and the published version both read **1.5.4**. It carries two things:
 
-**It is a rejection that did not previously happen.** A consumer feeding binaryang a module with an
-out-of-range export kind used to get a decoded module; now they get a diagnostic. That is the
-fail-loud contract working, and it is still a behaviour change — the same class wabt-ts recorded
-when feature-gating the validator turned silent acceptance into rejection.
+- **`wasm2wat` now emits FOLDED output by default**, `--linear` to opt out. The headline change.
+- **the export-kind check** (`9b54db228`, found by A3) — the behaviour change this section used to
+  weigh. It is a rejection that did not previously happen: a module with an out-of-range export kind
+  used to decode, and now yields a diagnostic. Shipped as part of 1.5.4 rather than on its own.
 
-**The decision is whether to cut 1.5.4**, and it is not automatic:
+⚠️ **The fold flip is a DEFAULT change, not a capability change**, and the distinction was measured
+before it was made: on all 421 corpus modules the emitted wasm bytes and hashes are unchanged, the
+LINEAR text is byte-for-byte identical to the old baseline, and the new default assembles to exactly
+the bytes linear does. A consumer who wants the old text passes `--linear` / `{ fold: false }`.
 
-- **for** — it is a correctness fix, and a released fix nobody can consume is not a fix;
-- **against** — wasmtk pins an exact version and would need their own bump to see it either way, and
-  nothing is blocked on it.
+✅ **The release published from the TAG PUSH, with no manual re-push.** 1.5.3 needed one, and this
+is the first evidence that the tag-push path works on its own — but it is not evidence that
+`RELEASE_PAT` is unnecessary. That secret is for the `workflow_dispatch` path, which is what failed
+with `actorNotScopeMember`; a developer tag push authenticates as the developer. Owner action 1
+stands.
 
-Nothing forces the choice today. **What must not happen is the bump being made incidentally**: the
-version line is what arms the release, so bumping it "to keep main tidy" publishes. See
-[publishing.md](publishing.md).
+**What must not happen is the next bump being made incidentally**: the version line is what arms the
+release, so bumping it "to keep main tidy" publishes. See [publishing.md](publishing.md).
 
 ## Conformance gaps — the wasmtk-ranked list, restated with current status
 
@@ -93,7 +95,9 @@ import-kind dispatches all carry comments about exactly this shape having bitten
   rejections**, 133 of 154 specific diagnostics landing at the construct. It found and fixed a
   fail-loud defect on the way — the export section accepted any byte as an export kind. Reading,
   calibrations and blind spots: [testing.md](testing.md).
-- **A2 — `wasm2ts` is a stub that throws.** The long-term goal; deferred pending wasmtk QA/QC.
+- **A2 — `wasm2ts` is a stub that throws.** The long-term goal. ⬚ **Blocked, and not close**: as of
+  2026-09-02 the wasmtk side has a long way to go before there is anything to implement against, so
+  this is not a near-term item.
 - ⚠️ **Nothing ships against the bridge — and investigating why found a shipped-tool defect.** See
   the section below; the short form is that the bridge is the MORE capable of two WAT → binaryen
   routes and `wasm-opt` uses the other, which cannot read the WAT our own `wasm2wat` emits.
