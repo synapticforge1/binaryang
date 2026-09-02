@@ -21,7 +21,7 @@
 //     so the operand is not reachable from the node to fold into it.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
@@ -55,12 +55,20 @@ describe('wasm2wat --fold', () => {
     assert(folded.includes('(i32.mul'), 'nested operands must fold too');
   });
 
-  it('linear remains the default', () => {
+  // 🔧 This asserted the opposite until 1.5.4, when folded became the default.
+  // Both spellings of "no option given" are checked, because `{}` and an omitted
+  // argument reach the default through different expressions.
+  it('FOLDED is the default', () => {
     const bin = asm(
       '(module (func (export "f") (result i32) (i32.add (i32.const 1) (i32.const 2))))',
       's.wat',
     );
-    assertEquals(wasm2wat(bin, {}).text, wasm2wat(bin, { fold: false }).text);
+    const wanted = wasm2wat(bin, { fold: true }).text;
+    assertEquals(wasm2wat(bin, {}).text, wanted, '{} must fold');
+    assertEquals(wasm2wat(bin).text, wanted, 'no options must fold');
+    // And the opt-out must still reach linear, or the flip removed a form
+    // rather than changing which one is default.
+    assertNotEquals(wasm2wat(bin, { fold: false }).text, wanted, '--linear must differ');
   });
 
   it('the two forms assemble to identical bytes', () => {

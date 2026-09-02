@@ -49,10 +49,23 @@ function toWat(binary: Uint8Array): string {
   return text;
 }
 
-/** The constant line of a single-const module, minus the `(;=…;)` comment. */
+/**
+ * The constant line of a single-const module, minus the `(;=…;)` comment and
+ * whatever brackets the surrounding form puts around it.
+ *
+ * These tests are about how a NaN LITERAL is spelled, so the wrapper is noise.
+ * Output has been FOLDED by default since 1.5.4, which put a leading `(` on the
+ * line — stripped here rather than by asking for linear output, so the tests go
+ * on checking the text users actually get.
+ */
 function constLine(wat: string): string {
   const line = wat.split('\n').find((l) => /\.const/.test(l)) ?? '';
-  return line.replace(/\(;=.*?;\)/, '').trim().replace(/\)+$/, '').trim();
+  return line
+    .replace(/\(;=.*?;\)/, '')
+    .trim()
+    .replace(/^\(+/, '')
+    .replace(/\)+$/, '')
+    .trim();
 }
 
 describe('T10.4 — a NaN payload survives a round trip unchanged', () => {

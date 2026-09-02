@@ -33,6 +33,8 @@ import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 const CORPUS = new URL('../../tests/wabt-ts/wasmtk/', import.meta.url);
 const MANIFEST = new URL('./pre-merge-baseline.tsv', import.meta.url);
 const TEXT_ENCODER = new TextEncoder();
+/** Written rather than escaped: the shell layer eats backslashes in this repo. */
+const TAB = String.fromCharCode(9);
 
 /** First 16 hex chars of the SHA-256 — enough to separate, short enough to read. */
 async function sha(bytes: Uint8Array): Promise<string> {
@@ -43,7 +45,17 @@ async function sha(bytes: Uint8Array): Promise<string> {
     .slice(0, 16);
 }
 
-/** `file -> "bytes\thash\ttextHash"` for the corpus as it stands right now. */
+/**
+ * `file -> "bytes<TAB>hash<TAB>foldedHash<TAB>linearHash"` for the corpus as it
+ * stands right now.
+ *
+ * ⚠️ BOTH text forms are recorded, and neither is taken from the default. When
+ * folded became the default in 1.5.4 a single default-sourced text column would
+ * have silently changed meaning — pinning the new default while quietly
+ * dropping all coverage of linear, which is still a supported output. Naming
+ * both explicitly makes the flip a one-time re-baseline instead of a permanent
+ * hole, and either form regressing now shows up as a differing line.
+ */
 async function current(): Promise<Map<string, string>> {
   const names: string[] = [];
   for await (const entry of Deno.readDir(CORPUS)) {
@@ -59,11 +71,15 @@ async function current(): Promise<Map<string, string>> {
       out.set(name, 'ENCODE-FAIL');
       continue;
     }
-    const text = wasm2wat(r.binary).text ?? '';
-    out.set(
-      name,
-      `${r.binary.length}\t${await sha(r.binary)}\t${await sha(TEXT_ENCODER.encode(text))}`,
-    );
+    const folded = wasm2wat(r.binary, { fold: true }).text ?? '';
+    const linear = wasm2wat(r.binary, { fold: false }).text ?? '';
+    const cols = [
+      String(r.binary.length),
+      await sha(r.binary),
+      await sha(TEXT_ENCODER.encode(folded)),
+      await sha(TEXT_ENCODER.encode(linear)),
+    ];
+    out.set(name, cols.join(TAB));
   }
   return out;
 }
@@ -80,7 +96,27 @@ async function recorded(): Promise<Map<string, string>> {
   return out;
 }
 
-const [now, then] = [await current(), await recorded()];
+const now = await current();
+
+// Re-baselining used to be an ad-hoc step described in prose, which is how a
+// manifest drifts from the thing it pins. `--write` makes it the same code path
+// that verifies, so the recorded columns cannot disagree with the checked ones.
+if (Deno.args.includes('--write')) {
+  const names = [...now.keys()].sort();
+  const totalBytes = names.reduce((sum, n) => sum + (Number(now.get(n)?.split(TAB)[0]) || 0), 0);
+  const lines = [
+    '# wabt-ts corpus output baseline',
+    `# files=${names.length} totalBytes=${totalBytes}`,
+    '# columns: file <tab> wasmBytes <tab> sha256-16(wasm) <tab> sha256-16(wasm2wat FOLDED)' +
+    ' <tab> sha256-16(wasm2wat LINEAR)',
+    ...names.map((n) => `${n}${TAB}${now.get(n)}`),
+  ];
+  await Deno.writeTextFile(MANIFEST, lines.join('\n') + '\n');
+  console.log(`re-baselined: ${names.length} files, ${totalBytes} bytes`);
+  Deno.exit(0);
+}
+
+const then = await recorded();
 const differing: string[] = [];
 const missing: string[] = [];
 const added: string[] = [];

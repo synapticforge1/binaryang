@@ -245,7 +245,13 @@ describe('writeWatModule — functions', () => {
       results: [Type.I32],
       body: [add],
     }));
-    const wat = writeWatModule(m);
+    // LINEAR explicitly. This asserts a property only the linear form has --
+    // operands emitted before their consumer, and an explicit `end` -- and
+    // output has been folded by default since 1.5.4. Folded, the same module
+    // reads `(i32.add (local.get 0) (local.get 1))` with no `end` at all, so
+    // asking for linear keeps the test meaning what it says rather than
+    // loosening the assertion until it passes either way.
+    const wat = writeWatModule(m, { fold: false });
     const idxGet0 = wat.indexOf('local.get 0');
     const idxGet1 = wat.indexOf('local.get 1');
     const idxAdd = wat.indexOf('i32.add');
@@ -277,7 +283,13 @@ describe('writeWatModule — functions', () => {
       loc: LOC,
     };
     m.funcs.push(makeFunc({ body: [block] }));
-    const wat = writeWatModule(m);
+    // LINEAR explicitly. This asserts a property only the linear form has --
+    // operands emitted before their consumer, and an explicit `end` -- and
+    // output has been folded by default since 1.5.4. Folded, the same module
+    // reads `(i32.add (local.get 0) (local.get 1))` with no `end` at all, so
+    // asking for linear keeps the test meaning what it says rather than
+    // loosening the assertion until it passes either way.
+    const wat = writeWatModule(m, { fold: false });
     assertStringIncludes(wat, 'block $blk');
     assertStringIncludes(wat, 'nop');
     assertStringIncludes(wat, 'end');
@@ -296,7 +308,13 @@ describe('writeWatModule — functions', () => {
       loc: LOC,
     };
     m.funcs.push(makeFunc({ body: [ifExpr] }));
-    const wat = writeWatModule(m);
+    // LINEAR explicitly. This asserts a property only the linear form has --
+    // operands emitted before their consumer, and an explicit `end` -- and
+    // output has been folded by default since 1.5.4. Folded, the same module
+    // reads `(i32.add (local.get 0) (local.get 1))` with no `end` at all, so
+    // asking for linear keeps the test meaning what it says rather than
+    // loosening the assertion until it passes either way.
+    const wat = writeWatModule(m, { fold: false });
     assertStringIncludes(wat, 'if');
     assertStringIncludes(wat, 'nop');
     assertStringIncludes(wat, 'end');
@@ -317,7 +335,13 @@ describe('writeWatModule — functions', () => {
       loc: LOC,
     };
     m.funcs.push(makeFunc({ params: [Type.I32], body: [ifExpr] }));
-    const wat = writeWatModule(m);
+    // LINEAR explicitly. This asserts a property only the linear form has --
+    // operands emitted before their consumer, and an explicit `end` -- and
+    // output has been folded by default since 1.5.4. Folded, the same module
+    // reads `(i32.add (local.get 0) (local.get 1))` with no `end` at all, so
+    // asking for linear keeps the test meaning what it says rather than
+    // loosening the assertion until it passes either way.
+    const wat = writeWatModule(m, { fold: false });
     assertStringIncludes(wat, 'if');
     assertStringIncludes(wat, 'else');
     assertStringIncludes(wat, 'unreachable');

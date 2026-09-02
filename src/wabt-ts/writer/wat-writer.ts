@@ -74,8 +74,11 @@ export interface WriteWatOptions {
    * rendering, whose linear form is far more compact than ours. Ours puts one
    * instruction per line, so folding compacts it.)
    *
-   * Linear stays the default and is what a reader wants for inspecting
-   * execution order, since it is the stack machine as written.
+   * 🔧 Folded became the DEFAULT in 1.5.4. Linear is the form the binary maps
+   * onto one-for-one, which is why it held the default — but it is not the form
+   * the ecosystem reads, and nothing that consumes folded WAT could consume our
+   * output. Linear remains fully supported for inspecting execution order,
+   * since it is the stack machine as written.
    *
    * Nodes that cannot be folded fall back to linear individually, so output is
    * mixed rather than uniformly folded — which is what upstream wabt produces
@@ -168,7 +171,7 @@ class WatWriter extends ModuleContext {
   constructor(module: Module, opts: WriteWatOptions) {
     super(module);
     this.opts = {
-      fold: opts.fold ?? false,
+      fold: opts.fold ?? true,
       inlineExport: opts.inlineExport ?? true,
       inlineImport: opts.inlineImport ?? false,
     };
@@ -1396,14 +1399,17 @@ class WatWriter extends ModuleContext {
 
     this.puts('(', NC.None);
     this.indent += 2;
-    if (operands.length === 0) {
-      // A leaf's linear rendering IS its head — no children to interleave.
-      this.writeExprList([e]);
-    } else {
-      this.writeInstrHead(e);
-      for (const operand of operands) {
-        if (!this.writeFoldedConstExpr(operand)) return false;
-      }
+    // A leaf is a head with zero operands, so both cases are the same write.
+    //
+    // 🔧 The leaf used to go through `writeExprList([e])`, on the reasoning that
+    // "a leaf's linear rendering IS its head". That held only while linear was
+    // the default. Once folding became the default in 1.5.4 that call emitted
+    // `(ref.func 0)` — already parenthesised — inside the parens opened here,
+    // giving `(table $T0 10 funcref ((ref.func 0)))`, which does not parse.
+    // `writeInstrHead` is what was meant: the head alone, no wrapper.
+    this.writeInstrHead(e);
+    for (const operand of operands) {
+      if (!this.writeFoldedConstExpr(operand)) return false;
     }
     this.close(NC.Space);
     return true;
@@ -1864,9 +1870,18 @@ class WatWriter extends ModuleContext {
         d.onArrayNewFixedExpr?.(e);
         return;
       default:
-        // constExprOperands returned [] for it, so the leaf path is used and
-        // this is unreachable.
-        this.writeExprList([e]);
+        // Every other constant-expression head is a LEAF — `i32.const`,
+        // `ref.func`, `ref.null`, `global.get` — and a leaf's head is exactly
+        // its linear rendering.
+        //
+        // ⚠️ This must be the LINEAR writer, not `writeExprList`. Since 1.5.4
+        // that folds by default, so it would parenthesise the head inside the
+        // parens the caller has already opened: `((ref.func 0))`, which does not
+        // parse. The old comment here called this branch unreachable, which was
+        // true only while `writeFoldedConstExpr` special-cased leaves — it no
+        // longer does, and the two mistakes cancelled out into valid output for
+        // exactly as long as linear was the default.
+        this.writeExprListLinear([e]);
     }
   }
 

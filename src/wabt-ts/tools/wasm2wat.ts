@@ -55,11 +55,20 @@ export interface Wasm2WatOptions {
   inlineExport?: boolean;
   /**
    * Emit folded s-expressions rather than a flat instruction sequence.
-   * Default: `false` — linear, which is the canonical WAT text form.
+   * Default: `true`. Pass `false` for linear.
    *
    * Both assemble to identical bytes; this is a readability choice. Linear
    * shows the stack machine as it executes, which is what you want when
    * inspecting execution order; folded shows the expression tree.
+   *
+   * 🔧 The default flipped to folded in 1.5.4. Nothing that consumes folded
+   * WAT could consume our linear output: binaryen-ts re-read 1 of 421 corpus
+   * modules, and `wasm-opt` could not read `wasm2wat` output at all. Folded,
+   * that is 421 of 421.
+   *
+   * ⚠️ The two forms assemble to IDENTICAL bytes on all 421 corpus modules,
+   * which is what makes this a default change rather than a behaviour change.
+   * Linear stays fully supported and is pinned by the same baseline.
    */
   fold?: boolean;
 }
@@ -97,7 +106,7 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
 
   const text = writeWatModule(module, {
     inlineExport: opts.inlineExport !== false,
-    fold: opts.fold === true,
+    fold: opts.fold !== false,
   });
 
   return { text, errors, result: Result.Ok };
@@ -117,18 +126,21 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;
-  let fold = false;
+  let fold = true;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
     } else if (arg === '--fold' || arg === '-f') {
+      // Explicit, even though it is the default since 1.5.4: a script that
+      // needs folded output should be able to ASK for it rather than rely
+      // on the default staying put.
       fold = true;
     } else if (arg === '--linear' || arg === '-l') {
-      // Explicit, even though it is the default: a reader inspecting stack
-      // order should be able to ASK for linear rather than rely on the default
-      // staying put.
+      // The stack-machine view: one line per instruction, in execution
+      // order. No longer the default, but its reason for existing is
+      // unchanged.
       fold = false;
     } else if (arg && !arg.startsWith('-')) {
       input = arg;
@@ -137,7 +149,10 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
 
   if (!input) {
     console.error(
-      'usage: wasm2wat <input.wasm> [-o <output.wat>] [--fold|-f] [--linear|-l]',
+      'usage: wasm2wat <input.wasm> [-o <output.wat>] [--linear|-l] [--fold|-f]',
+    );
+    console.error(
+      '  output is FOLDED by default; --linear emits the flat stack-machine form',
     );
     process.exit(1);
   }
