@@ -50,7 +50,8 @@ if (result !== Result.Ok) {
   console.log(binary.length); // 41
 
   const { text } = wasm2wat(binary, {});
-  console.log(text); // the module, back as WAT
+  console.log(text); // the module, back as WAT — folded s-expressions
+  // ...or wasm2wat(binary, { fold: false }) for the flat stack-machine form
 }
 ```
 
@@ -99,7 +100,7 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]
 | command                   | does                                                                   |
 | ------------------------- | ---------------------------------------------------------------------- |
 | `wat2wasm <in.wat>`       | assemble WAT to a WASM binary · `-o <file>`                            |
-| `wasm2wat <in.wasm>`      | disassemble to WAT · `-o <file>`                                       |
+| `wasm2wat <in.wasm>`      | disassemble to WAT · `-o <file>` · `--linear` for stack-machine form    |
 | `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>` |
 | `wasm-objdump <in.wasm>`  | dump sections                                                          |
 | `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                   |

@@ -405,10 +405,27 @@ real code. The encoder seeds `fn.bodyFrameLabel ?? ''`, so the empty name resolv
 re-estimating each time: the count went 1 → 2 modules while removing 310 failures, because the
 failures are layered rather than parallel.
 
-⚠️ **The default was NOT flipped.** Flipping costs a re-baseline of all 421 `wasm2wat` text hashes
-and changes every consumer's output; the parsing benefit that justified it does not exist. The
-readability argument for the IR merge still stands and is a separate decision — the option is
-available today as `wasm2wat --fold`.
+✅ **The default WAS flipped, in 1.5.4** (`357007307`). At the time this paragraph was written the
+parsing benefit did not exist — binaryen-ts re-read 1 of 421 modules from folded output, so folding
+bought nothing and cost a re-baseline. Finishing the ladder took that to 421 of 421, which is what
+turned the decision. Linear stays behind `wasm2wat --linear`.
+
+**Measured before re-baselining, and the reason this was safe:** emitted wasm bytes and hashes
+unchanged on 421/421; LINEAR text byte-for-byte identical to the old baseline on 421/421; default
+output assembles to linear's bytes on 421/421. The flip changed which form is default, not what the
+toolchain can emit.
+
+⚠️ **It exposed two defects that had cancelled each other out.** `writeFoldedConstExpr` treated a
+leaf as "its linear rendering IS its head" and routed it through `writeExprList`, while
+`writeInstrHead`'s default branch did the same and described itself as unreachable. Both were wrong,
+and the output was valid for exactly as long as linear was the default — then
+`(table $T0 10 funcref ((ref.func 0)))`, which does not parse. **A wrong assumption held by two
+places at once produces correct output until one of them moves.**
+
+⚠️ **The baseline pinned ONE text hash taken from the DEFAULT.** Left alone the flip would have
+silently repurposed that column — pinning folded while dropping every trace of linear coverage. It
+now records both forms by name, and `--write` makes re-baselining run the same code path that
+verifies.
 
 ## Which answers the bridge question
 
