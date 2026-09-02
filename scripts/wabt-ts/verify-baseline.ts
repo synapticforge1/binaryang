@@ -14,10 +14,16 @@
  * identical manifest; anything else is a behaviour change that needs a reason.
  *
  * ```sh
- * deno run --allow-read scripts/verify-baseline.ts
+ * deno run --allow-read scripts/verify-baseline.ts            # verify
+ * deno run --allow-read --allow-write scripts/verify-baseline.ts --write   # re-baseline
  * ```
  *
  * Exit 0 when identical, 1 on any difference (with the first 20 named).
+ *
+ * ⚠️ The `deno task baseline` shortcut deliberately does NOT carry
+ * `--allow-write`: verifying should not be able to rewrite the thing it checks
+ * against, or a failing gate can be "fixed" by rerunning it. Re-baselining is
+ * the longer command above, on purpose.
  *
  * NOT a test. It pins output bytes, so a deliberate encoder improvement — the
  * minimal section-size fix (T13.40) changed every byte in the corpus — is
