@@ -53,8 +53,8 @@ things go in because they felt shared.
 🔓 **The rule has one standing exception, and it is the bridge.** Decided 2026-08-27: the bridge
 lives at **`src/bridge/`**, and the tests at `tests/bridge/`.
 
-The promotion rule's *test* — nothing in either tree imports it across the boundary — is a **proxy**
-for its *intent*, which is "this module belongs to neither side". The bridge satisfies the intent
+The promotion rule's _test_ — nothing in either tree imports it across the boundary — is a **proxy**
+for its _intent_, which is "this module belongs to neither side". The bridge satisfies the intent
 maximally and fails the proxy by construction, because being cross-tree is the entire job. That is
 the exception being recorded: **when the proxy and the intent disagree, the intent governs, and the
 disagreement gets written down here.** One module qualifies today. A second one would be a sign the

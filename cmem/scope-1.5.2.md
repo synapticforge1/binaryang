@@ -1,10 +1,10 @@
 # 1.5.2 — scope
 
-> **Read with 1.5.3 in mind.** This file scopes 1.5.2, and the items it deferred were completed
-> and shipped in **1.5.3** (published 2026-08-28 with provenance). The status table below is
-> maintained through that, so a ✅ here may have landed in either release. No separate 1.5.3 scope
-> doc was written — the work was this file's deferred list, and splitting it would have created two
-> places to look.
+> **Read with 1.5.3 in mind.** This file scopes 1.5.2, and the items it deferred were completed and
+> shipped in **1.5.3** (published 2026-08-28 with provenance). The status table below is maintained
+> through that, so a ✅ here may have landed in either release. No separate 1.5.3 scope doc was
+> written — the work was this file's deferred list, and splitting it would have created two places
+> to look.
 
 Branch `release/1.5.2`, opened 2026-08-27.
 
@@ -46,16 +46,16 @@ else reachable from a branch push can.
 retirement. It shipped ahead of that because **wasmtk is blocked on the `-Oz` miscompile fixed
 here** and a correctness fix a downstream consumer is waiting on outranks a tidy release ordering.
 
-| item                                 | state                                                                                                                                                                   |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **§1 T13.50 / A1 — de-coarsening**   | ✅ done, and it grew: 3 reported shapes plus 3 more found by review                                                                                                     |
-| **`-Oz` try_table miscompile**       | ✅ done — not originally in scope; came in as a wasmtk bug report                                                                                                       |
-| **`compat/binaryen` pass API**       | ✅ done — `listPasses` exported, kebab-case accepted, error lists names                                                                                                 |
-| **§2.2 cmem topic merges** | ✅ **complete** — `overview`, `licensing`, `bridge`, `phases`, `testing` and both halves of `publishing`. Only `best-practices` stays split, by decision |
-| **§2.1 release-script unification**  | ✅ done — one `scripts/release/`, the union of both sets; `bump` and `release` tasks wired (neither existed)                                                            |
-| **§2.3 where the bridge lives** | ✅ done — `src/bridge/`, tests at `tests/bridge/`; the promotion rule gains one written standing exception |
-| **§3 `scripts/count-collisions.ts`** | ✅ done — `deno task collisions` reproduces 56; reported into the CI summary, deliberately ungated |
-| **§4 phases C/D** | ◐ C2 done (wasmtk 2.0.1) and D3 done (both GitHub repos archived); D2 deferred by choice |
+| item                                 | state                                                                                                                                                                                                                            |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **§1 T13.50 / A1 — de-coarsening**   | ✅ done, and it grew: 3 reported shapes plus 3 more found by review                                                                                                                                                              |
+| **`-Oz` try_table miscompile**       | ✅ done — not originally in scope; came in as a wasmtk bug report                                                                                                                                                                |
+| **`compat/binaryen` pass API**       | ✅ done — `listPasses` exported, kebab-case accepted, error lists names                                                                                                                                                          |
+| **§2.2 cmem topic merges**           | ✅ **complete** — `overview`, `licensing`, `bridge`, `phases`, `testing` and both halves of `publishing`. Only `best-practices` stays split, by decision                                                                         |
+| **§2.1 release-script unification**  | ✅ done — one `scripts/release/`, the union of both sets; `bump` and `release` tasks wired (neither existed)                                                                                                                     |
+| **§2.3 where the bridge lives**      | ✅ done — `src/bridge/`, tests at `tests/bridge/`; the promotion rule gains one written standing exception                                                                                                                       |
+| **§3 `scripts/count-collisions.ts`** | ✅ done — `deno task collisions` reproduces 56; reported into the CI summary, deliberately ungated                                                                                                                               |
+| **§4 phases C/D**                    | ✅ **complete as of 2026-09-02** — C2 done (wasmtk 2.0.1), D3 done (both GitHub repos archived 2026-08-27), D2 done (both JSR packages archived 2026-09-02, verified live). B6 descriptions CLOSED as won't-do by owner decision |
 
 The deferred items are recorded rather than dropped: §2.1 still blocks the `phases`/`testing`/
 `publishing` merges, because those would describe a release flow that does not exist until it lands.
@@ -121,16 +121,16 @@ fixes, two tests.
 
 ✅ **Done 2026-08-27.** One `scripts/release/` holds `version.ts`, `bump_version.ts`, `publish.ts`
 and `release-guard.ts`. Both predecessors' copies are gone; `scripts/{binaryen-ts,wabt-ts}/` keep
-only their diagnostics, and `verify-baseline.ts` stays put because it reads
-`pre-merge-baseline.tsv` beside it and is not a release script.
+only their diagnostics, and `verify-baseline.ts` stays put because it reads `pre-merge-baseline.tsv`
+beside it and is not a release script.
 
 **It is the UNION, not a pick.** Each side's copy was strictly better than the other in one place,
 so choosing either would have silently dropped a guard:
 
-| from | what would have been lost |
-| ---- | -------------------------- |
-| wabt-ts | `--dry-run` (a mutating script that read NO arguments, so `--dry-run` did a real bump), `release-guard.ts` and its T13.43/T13.44 tests, the remote-tag guard |
-| binaryen-ts | the `main.ts` VERSION rewrite — without it `--version` drifts, exactly as binaryen-ts's did across two minor releases |
+| from        | what would have been lost                                                                                                                                    |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| wabt-ts     | `--dry-run` (a mutating script that read NO arguments, so `--dry-run` did a real bump), `release-guard.ts` and its T13.43/T13.44 tests, the remote-tag guard |
+| binaryen-ts | the `main.ts` VERSION rewrite — without it `--version` drifts, exactly as binaryen-ts's did across two minor releases                                        |
 
 ⚠️ **Neither task existed in binaryang.** The scripts came through the merge but `deno task bump`
 and the release task were never wired, so every document saying "`deno task bump` rewrites both"
@@ -158,11 +158,11 @@ Now unblocked or near-unblocked:
   `scripts/release/` existed there were two.
 
   Each merge produced something neither source had. `phases.md` opens by naming a hazard the merge
-  *created*: **"Phase N" is ambiguous in this repository** — the two projects numbered
-  independently and collide on live topics, so Phase 8 is shipped EH support on one side and an
-  unimplemented stub that throws on the other. The histories are frozen and cannot be renumbered
-  without breaking the link to the commits they describe, so the ambiguity is permanent and has to
-  be handled at every use.
+  _created_: **"Phase N" is ambiguous in this repository** — the two projects numbered independently
+  and collide on live topics, so Phase 8 is shipped EH support on one side and an unimplemented stub
+  that throws on the other. The histories are frozen and cannot be renumbered without breaking the
+  link to the commits they describe, so the ambiguity is permanent and has to be handled at every
+  use.
 
   `testing.md` retires something instead: the wabt-ts wing carries an elaborate apparatus for
   working around the `deno fmt --check` line-ending false alarm, and `.gitattributes` made all of it
@@ -263,7 +263,7 @@ setting governs.
   `deno doc --json` output and are not — their originals carry the doc — which is what made the
   first count read 36.
 
-  ⚠️ **The score was already 100 before this.** `percentageDocumentedSymbols` is *reported* by JSR
+  ⚠️ **The score was already 100 before this.** `percentageDocumentedSymbols` is _reported_ by JSR
   but `allEntrypointsDocs` is what the points key on, so this bought no score. It was worth doing on
   its own terms; it should not be described as a score fix.
 - **Doc references I mapped on plausibility, not verification.** `binaryen-ts/parser/tokenizer`,

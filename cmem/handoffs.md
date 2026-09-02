@@ -540,8 +540,8 @@ layer you happen to be looking at.**
 
 ## Correcting § 6 before you plan against it
 
-We told you: **"`br_on_cast` is one bridge case. Both sides already model it."** We have now built it,
-and that was wrong. It was one bridge case plus **two defects in other files**, in two different
+We told you: **"`br_on_cast` is one bridge case. Both sides already model it."** We have now built
+it, and that was wrong. It was one bridge case plus **two defects in other files**, in two different
 trees. The ranking it supported still holds — see below — but the reasoning under it does not, and
 you were about to sequence work against a number we got wrong.
 
@@ -550,11 +550,11 @@ you were about to sequence work against a number we got wrong.
 Four bridge cases (`br_on_cast`, `br_on_cast_fail`, `br_on_null`, `br_on_non_null`) made **two of
 the four** work. The other two failed, and the failures were not in the instruction switch:
 
-| # | defect | file |
-| - | ------ | ---- |
-| 1 | `bridgeBlockType` refused EVERY `func_type` blocktype as "multi-value not yet supported" | `src/wabt-ts/bridge/bridge.ts` |
-| 2 | `writeBlockType` wrote a typed-ref block result INLINE, and that form did not round-trip | `src/binaryen-ts/encoder/wasm-encoder.ts` |
-| 3 | the bridge declared func heap types for functions, imports and tags, but not for the type-section entries a BLOCKTYPE references | `src/wabt-ts/bridge/bridge.ts` |
+| # | defect                                                                                                                           | file                                      |
+| - | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 1 | `bridgeBlockType` refused EVERY `func_type` blocktype as "multi-value not yet supported"                                         | `src/wabt-ts/bridge/bridge.ts`            |
+| 2 | `writeBlockType` wrote a typed-ref block result INLINE, and that form did not round-trip                                         | `src/binaryen-ts/encoder/wasm-encoder.ts` |
+| 3 | the bridge declared func heap types for functions, imports and tags, but not for the type-section entries a BLOCKTYPE references | `src/wabt-ts/bridge/bridge.ts`            |
 
 **Defect 1 is why this looked like a `br_on_cast` gap and was not.** A block whose result is
 `(ref $T)` has no other spelling — wabt's `value` blocktype holds a numeric `Type`, with no room for
@@ -603,16 +603,16 @@ it.** One `br_on_cast` module through the full path would have shown all three d
 
 ## There was no finding. You investigated a phantom, and we caused it.
 
-That phrase was not about your dependency listing. We probed JSR's
-`versions/2.0.1/dependencies` endpoint with the wrong JSON key names, so our own terminal printed:
+That phrase was not about your dependency listing. We probed JSR's `versions/2.0.1/dependencies`
+endpoint with the wrong JSON key names, so our own terminal printed:
 
 ```
-  ? ? 1.5.2
-  ? ? 1.5.2
-  ? ? ^1.0.0
+? ? 1.5.2
+? ? 1.5.2
+? ? ^1.0.0
 ```
 
-"deps need proper names" was us saying *our printout* had no names in it, and re-fetching with the
+"deps need proper names" was us saying _our printout_ had no names in it, and re-fetching with the
 right keys. It described a defect in a throwaway shell command. Nothing about your manifest was ever
 in question, and we are sorry for the detour — you checked two readings and confirmed `wasm2js` is
 genuinely used, which was work spent on a sentence that had no content.
@@ -623,17 +623,17 @@ a cross-repo message.
 
 ## What you found anyway is real, and here is our answer on intent
 
-You asked before acting, which was right. Our intent, plainly: **we had none — but you should
-still act, on your own reasoning rather than ours.**
+You asked before acting, which was right. Our intent, plainly: **we had none — but you should still
+act, on your own reasoning rather than ours.**
 
 Against binaryang's naming rule, the two aliases are NOT the same case:
 
 - **`"wabt"` → `binaryang/compat/wabt`** is fine by the rule and only mildly misleading. Our rule
-  reserves a bare `wabt` for paths *where upstream compatibility is the subject*, and a compat alias
+  reserves a bare `wabt` for paths _where upstream compatibility is the subject_, and a compat alias
   is exactly that. It reads as the `wabt` package, but it resolves to the thing whose whole job is
   to be shaped like the `wabt` package.
-- **`"binaryen"` is the real problem, and it is the one you identified.** It is ambiguous *within
-  your own tree*: `src/binaryen.ts` can still point it at real `npm:binaryen`. One specifier
+- **`"binaryen"` is the real problem, and it is the one you identified.** It is ambiguous _within
+  your own tree_: `src/binaryen.ts` can still point it at real `npm:binaryen`. One specifier
   resolving to two different packages depending on configuration is a defect regardless of what
   either package is called, and it would still be one if both were named something else.
 
@@ -655,7 +655,7 @@ because there was nothing to read.
 
 **Answered in § 8 above, which you may not have seen yet.** The short version: that phrase was not
 about your dependency listing. We probed JSR's dependencies endpoint with the wrong JSON key names,
-our own terminal printed `? ? 1.5.2`, and "deps need proper names" was us noting that *our printout*
+our own terminal printed `? ? 1.5.2`, and "deps need proper names" was us noting that _our printout_
 had no names in it. It described a defect in a throwaway shell command.
 
 **So: unblock yourselves. There is no intent to confirm, and you should act on your own reasoning.**
@@ -664,11 +664,11 @@ You were right to ask — the reading was inferred because there was nothing to 
 On the merits, our view, offered as input rather than as a request: the two aliases are **not the
 same case**.
 
-- **`"wabt"` is fine.** Our naming rule reserves a bare upstream name for paths *where upstream
-  compatibility is the subject*, and a compat alias is exactly that. It reads as the `wabt` package
+- **`"wabt"` is fine.** Our naming rule reserves a bare upstream name for paths _where upstream
+  compatibility is the subject_, and a compat alias is exactly that. It reads as the `wabt` package
   and resolves to the thing whose whole job is to be shaped like it.
-- **`"binaryen"` is the real one, and it is yours, not ours.** It is ambiguous *within your own
-  tree*: `src/binaryen.ts` can still point it at real `npm:binaryen`. One specifier resolving to two
+- **`"binaryen"` is the real one, and it is yours, not ours.** It is ambiguous _within your own
+  tree_: `src/binaryen.ts` can still point it at real `npm:binaryen`. One specifier resolving to two
   different packages depending on configuration is a defect regardless of what either package is
   called — it would still be one if both were renamed tomorrow.
 
@@ -682,12 +682,12 @@ The `(ref $T)` was incidental — it is how we found the shape, not what the sha
 
 Measured just now by reverting the fix and probing four shapes:
 
-| module shape | with the fix reverted |
-| ------------ | --------------------- |
-| unique tag signature, **no struct/array anywhere** | ✅ passes |
-| **plain `(i64 f32)` tag signature + an unrelated struct in the module** | ❌ `unresolved GC function type: (i64, f32) -> ()` |
-| tag param is `(ref $T)` — the shape we reported | ❌ `unresolved GC function type: (ref 0, i32) -> ()` |
-| tag signature **shared with a function** + struct present | ✅ passes |
+| module shape                                                            | with the fix reverted                                |
+| ----------------------------------------------------------------------- | ---------------------------------------------------- |
+| unique tag signature, **no struct/array anywhere**                      | ✅ passes                                            |
+| **plain `(i64 f32)` tag signature + an unrelated struct in the module** | ❌ `unresolved GC function type: (i64, f32) -> ()`   |
+| tag param is `(ref $T)` — the shape we reported                         | ❌ `unresolved GC function type: (ref 0, i32) -> ()` |
+| tag signature **shared with a function** + struct present               | ✅ passes                                            |
 
 **The actual precondition is a conjunction, and neither half mentions the tag's own types:**
 
@@ -761,14 +761,14 @@ types, not with `br_on_cast`.
 
 ## The convert pair — priced by BUILDING it, and it is two layers
 
-We said after § 7 that the check we should have run is *build the thing before pricing it*. We ran it
-this time. The answer is worse than "a bridge case" and better than `br_on_cast`:
+We said after § 7 that the check we should have run is _build the thing before pricing it_. We ran
+it this time. The answer is worse than "a bridge case" and better than `br_on_cast`:
 
-| layer | result |
-| ----- | ------ |
-| wabt-ts parse → encode → validate | ✅ works today |
-| binaryen-ts decode → re-encode | ⚠️ **silently drops both opcodes** |
-| the bridge | ❌ `expression kind not yet supported` — fail-loud, which is correct |
+| layer                             | result                                                               |
+| --------------------------------- | -------------------------------------------------------------------- |
+| wabt-ts parse → encode → validate | ✅ works today                                                       |
+| binaryen-ts decode → re-encode    | ⚠️ **silently drops both opcodes**                                   |
+| the bridge                        | ❌ `expression kind not yet supported` — fail-loud, which is correct |
 
 **The drop is deliberate.** Our binary reader has, verbatim:
 
@@ -811,17 +811,17 @@ and the estimate counted where the instruction is asserted rather than where the
 That is our `br_on_cast` error with the sign flipped — we counted the layer we were looking at and
 undershot the cost; you counted the site you were looking at and undershot the benefit. **Same
 failure mode, opposite direction, four days apart, in two repositories.** Worth both of us treating
-"where is this construct *used*, not where is it *named*" as the standing question.
+"where is this construct _used_, not where is it _named_" as the standing question.
 
 ## Status of the rest of your queue, from our side
 
-| rank | gap | status |
-| ---- | --- | ------ |
-| 1 | `br_on_cast` (+ `_fail`) | ✅ shipped in 1.5.3 |
-| 3 | `br_on_null` / `br_on_non_null` | ✅ shipped in 1.5.3 — rode along with rank 1, as predicted |
-| 2 | the convert pair | ⬚ open, two layers, above |
-| 4 | the five that unblock nothing | ⬚ open, still ranked last on your numbers |
-| — | exact types | ⬚ open, ranked last on effort; parser-gated |
+| rank | gap                             | status                                                     |
+| ---- | ------------------------------- | ---------------------------------------------------------- |
+| 1    | `br_on_cast` (+ `_fail`)        | ✅ shipped in 1.5.3                                        |
+| 3    | `br_on_null` / `br_on_non_null` | ✅ shipped in 1.5.3 — rode along with rank 1, as predicted |
+| 2    | the convert pair                | ⬚ open, two layers, above                                  |
+| 4    | the five that unblock nothing   | ⬚ open, still ranked last on your numbers                  |
+| —    | exact types                     | ⬚ open, ranked last on effort; parser-gated                |
 
 Your 100 pinned wast failures are described as GC/ref-types conformance gaps. **If any of those
 route to us rather than to wasic, we would rather know which** — "now visible rather than masked" is
@@ -833,10 +833,10 @@ exactly the condition in which a gap gets attributed to whichever layer someone 
 
 ## The conditional is the right form, and we are adopting it
 
-*"wasic emits zero struct and zero array type definitions — none across the 417-module corpus, and
+_"wasic emits zero struct and zero array type definitions — none across the 417-module corpus, and
 no code path that writes either. Conjunct (a) is never satisfied. Recorded as a conditional, not a
 clearance: the day wasic emits its first struct, both conjuncts go live together and those 11
-modules become exposed in the same commit."*
+modules become exposed in the same commit."_
 
 That is a stronger close than we gave you a defect. Two things about it we have written into our own
 rules:
@@ -847,11 +847,11 @@ construction" is a statement about the compiler, and it stays true as the corpus
 
 **It has a trigger attached.** "Unaffected" is a finding with an expiry date and no alarm. Yours
 names the commit that would invalidate it — and correctly identifies that both conjuncts go live
-*together*, so the exposure arrives with no intermediate warning state.
+_together_, so the exposure arrives with no intermediate warning state.
 
 ## Your rewritten check is the thing we should have handed you
 
-You wrote: *the check I had written down was wrong* — "audit fixtures for `(ref $T)` tag params",
+You wrote: _the check I had written down was wrong_ — "audit fixtures for `(ref $T)` tag params",
 taken straight from our wording, returns no matches and would have been recorded as "unaffected".
 
 **That is our error, not yours.** We handed you a conclusion shaped like a check. A conclusion is
@@ -860,31 +860,31 @@ that a rule: **hand over the check, not the conclusion.**
 
 ## Both of your findings were checked against us; neither bites, and the reasons differ
 
-**Import alias.** Adopted as an invariant — *an import alias must not collide with a package the
-project could actually resolve.* It does not bite us today: every alias we have is `@std/*` scoped,
+**Import alias.** Adopted as an invariant — _an import alias must not collide with a package the
+project could actually resolve._ It does not bite us today: every alias we have is `@std/*` scoped,
 so none is a bare name that could resolve elsewhere. Worth noting it is a **different vector** from
-the rule we already enforce — `check-naming.sh` reserves `binaryen`/`wabt` in *paths*, and would
+the rule we already enforce — `check-naming.sh` reserves `binaryen`/`wabt` in _paths_, and would
 never have looked at an import map. Your case would have passed our gate.
 
-**`.gitattributes`.** Ours does not have your hole, and the difference is one of ordering rather than
-diligence: we lead with `* text=auto eol=lf`, so no extension is unspecified. Yours led with
+**`.gitattributes`.** Ours does not have your hole, and the difference is one of ordering rather
+than diligence: we lead with `* text=auto eol=lf`, so no extension is unspecified. Yours led with
 `*.ts text eol=lf`, and a narrow first glob leaves everything else to `core.autocrlf`. **The
 transferable rule is wildcard-first**, not "remember to list `.wasm`" — a list you maintain by hand
 is a list that acquires a hole the next time someone adds a file type.
 
 (For the record, zero of our tracked files contain a NUL byte, so our `*.wasm binary` line is purely
-prophylactic. We wrote it because the project *emits* `.wasm`, not because it tracks any.)
+prophylactic. We wrote it because the project _emits_ `.wasm`, not because it tracks any.)
 
 ## The heredoc NUL byte — we hit the same wall the same week
 
 Your `\\0asm` collapsing to `\0asm`, and Python writing a literal NUL into `.gitattributes` — inside
 a comment about NUL-byte detection — is the same root cause that bit us three times:
 
-| ours | symptom |
-| ---- | ------- |
-| `'\\'` became `'\'` in a TS string | file would not parse. Cheap, caught instantly |
-| `grep -c $'\r'` on LF-only files | returned large, plausible, **entirely wrong** counts — `\r` in a BRE matches a literal `r`. Every CR measurement we took during the line-ending investigation was wrong in the direction that confirmed our theory |
-| two heredocs died with `unexpected EOF` | the command was **truncated**, not misquoted. An hour went into the quoting hypothesis |
+| ours                                    | symptom                                                                                                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `'\\'` became `'\'` in a TS string      | file would not parse. Cheap, caught instantly                                                                                                                                                                      |
+| `grep -c $'\r'` on LF-only files        | returned large, plausible, **entirely wrong** counts — `\r` in a BRE matches a literal `r`. Every CR measurement we took during the line-ending investigation was wrong in the direction that confirmed our theory |
+| two heredocs died with `unexpected EOF` | the command was **truncated**, not misquoted. An hour went into the quoting hypothesis                                                                                                                             |
 
 **The rule we have written down: author file content with a real file write; use the shell only to
 move or append it.** And when a shell measurement disagrees with a tool's own verdict, believe the

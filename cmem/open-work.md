@@ -12,9 +12,9 @@ a list split across three documents is a list nobody reads. Version-specific sta
 | # | item                                         | note                                                                                                                                                                               |
 | - | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 | **Create `RELEASE_PAT`**                     | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every release needs a manual tag re-push — see [publishing.md](publishing.md) § "ROOT CAUSE". |
-| 2 | **JSR descriptions on both predecessors**    | Still `binaryen rewritten in typescript` / `rewrite of wabt in typescript`. Editable now; first line a consumer sees.                                                              |
-| 3 | **GitHub descriptions on both predecessors** | Frozen by the archive — needs unarchive → edit → re-archive. Judgement call.                                                                                                       |
-| 4 | **D2 — JSR `isArchived`**                    | Deferred by choice. Low-risk: archiving the GitHub repos already removed the publish path.                                                                                         |
+| 2 | ~~JSR descriptions on both predecessors~~    | 🛑 **CLOSED — won't do (2026-09-02).** They stay as `binaryen rewritten in typescript` / `rewrite of wabt in typescript`.                                                          |
+| 3 | ~~GitHub descriptions on both predecessors~~ | 🛑 **CLOSED — won't do (2026-09-02).** Frozen by the archive; the unarchive → edit → re-archive route is deliberately not being taken.                                             |
+| 4 | ~~D2 — JSR `isArchived`~~                    | ✅ **DONE 2026-09-02.** Verified live: `isArchived=true` on both.                                                                                                                  |
 
 ## ✅ 1.5.4 is released — the unreleased change is shipped
 
@@ -38,6 +38,26 @@ stands.
 
 **What must not happen is the next bump being made incidentally**: the version line is what arms the
 release, so bumping it "to keep main tidy" publishes. See [publishing.md](publishing.md).
+
+## ✅ The retirement is closed
+
+**D2 and D3 are both done, verified against the live JSR API on 2026-09-02 rather than assumed:**
+`binaryen-ts` and `wabt-ts` are each `isArchived=true`, latest 1.5.1, score 100, one dependent.
+`binaryang` itself is correctly `isArchived=false` at 1.5.4.
+
+🛑 **The predecessors are FROZEN by owner decision**: _"we are not changing either the github repo
+or the jsr any further for the wabt-ts or binaryen-ts projects."_ So all four descriptions stay as
+they are, permanently, still presenting the predecessors as live projects. **That is an accepted
+cost, not an oversight — do not re-open it as an action item.** The archived banner plus the README
+signpost carry the retirement message on the pages themselves.
+
+⚠️ **The freeze covers the PREDECESSORS ONLY.** Owner action 1 (`RELEASE_PAT`) is a secret on
+binaryang's own repo, which is live and unaffected.
+
+⚠️ **`dependentCount` reads 1 on both and will never reach zero**: wasmtk's earlier published
+versions are immutable and still name them. Retirement means _no new dependents_. The only mechanism
+that would drive it down is yanking — D4, the one action that turns a safe break into a breaking
+one.
 
 ## Conformance gaps — the wasmtk-ranked list, restated with current status
 

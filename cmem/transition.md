@@ -143,11 +143,11 @@ anything in the repo. Suggested: `Superseded by @jrmarcum/binaryang — final re
 
 ## Phase C — consumer migration
 
-| #      | item                                                            | owner     | notes                                                                                            |
-| ------ | --------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------ |
-| **C1** | Swap two import-map lines to `binaryang/compat/{binaryen,wabt}` | wasmtk    | it already aliases them as `binaryen` and `wabt`, so nothing else moves                          |
+| #      | item                                                            | owner     | notes                                                                                      |
+| ------ | --------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------ |
+| **C1** | Swap two import-map lines to `binaryang/compat/{binaryen,wabt}` | wasmtk    | it already aliases them as `binaryen` and `wabt`, so nothing else moves                    |
 | **C2** | Publish wasmtk                                                  | wasmtk    | ✅ **DONE — wasmtk 2.0.1, 2026-08-27.** See § C2 below. Verified against JSR, not reported |
-| **C3** | Confirm LeptonPad's `build:wasm` task still runs                | LeptonPad | expected: no change; it resolves wasmtk unpinned                                                 |
+| **C3** | Confirm LeptonPad's `build:wasm` task still runs                | LeptonPad | expected: no change; it resolves wasmtk unpinned                                           |
 
 ---
 
@@ -156,8 +156,8 @@ anything in the repo. Suggested: `Superseded by @jrmarcum/binaryang — final re
 | #      | item                                  | notes                                                                                                                                                                                                                                                                       |
 | ------ | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **D1** | Publish **binaryang 1.5.2**           | binaryang alone from here                                                                                                                                                                                                                                                   |
-| **D2** | Set `isArchived` on both JSR packages | ⚠️ **after** B3/B4 — archiving blocks publishing                                                                                                                                                                                                                            |
-| **D3** | Archive both GitHub repos             | ⚠️ **after** the 1.5.1 tags — an archived repo is read-only                                                                                                                                                                                                                 |
+| **D2** | Set `isArchived` on both JSR packages | ✅ **done 2026-09-02** · was ⚠️ **after** B3/B4 — archiving blocks publishing                                                                                                                                                                                               |
+| **D3** | Archive both GitHub repos             | ✅ **done 2026-08-27** · was ⚠️ **after** the 1.5.1 tags — an archived repo is read-only                                                                                                                                                                                    |
 | **D4** | **Do not yank anything, ever**        | 🚨 yanking is version-level and affects **resolution**. It would reach backwards into all 31 published wasmtk versions and into LeptonPad's transitive `binaryen-ts@1.4.3` / `wabt-ts@1.3.5`. **This is the single action that converts a safe break into a breaking one.** |
 
 ### Why the break is safe
@@ -243,26 +243,26 @@ release, because wasmtk will not pick it up without its own bump.
 
 All three packages still report `dependentCount = 1`:
 
-| package | latest | dependents | archived |
-| ------- | ------ | ---------- | -------- |
-| binaryen-ts | 1.5.1 | 1 | false |
-| wabt-ts | 1.5.1 | 1 | false |
-| binaryang | 1.5.2 | 1 | false |
+| package     | latest | dependents | archived |
+| ----------- | ------ | ---------- | -------- |
+| binaryen-ts | 1.5.1  | 1          | false    |
+| wabt-ts     | 1.5.1  | 1          | false    |
+| binaryang   | 1.5.2  | 1          | false    |
 
 wasmtk's 31 earlier published versions are **immutable** and still name the predecessors, so the
 count reflects history, not current usage. **Do not read a non-zero `dependentCount` as C2 having
 failed, and above all do not try to drive it to zero** — the only mechanism that would is yanking,
 which is D4, the one action that converts a safe break into a breaking one.
 
-Retirement means *no new dependents*, not *no dependents*. That distinction is the whole design of
+Retirement means _no new dependents_, not _no dependents_. That distinction is the whole design of
 this ladder.
 
 ### Now unblocked
 
 **D2** (`isArchived` on both JSR packages) and **D3** (archive both GitHub repos). Archiving is not
 yanking: an archived package keeps resolving for everything already pinned to it and only refuses
-new versions, which is exactly the intent. Both are console actions on jsr.io and github.com and
-are the user's to run.
+new versions, which is exactly the intent. Both are console actions on jsr.io and github.com and are
+the user's to run.
 
 ---
 
@@ -272,23 +272,23 @@ Verified 2026-08-27 against the live JSR and GitHub APIs, not from the register.
 
 ### Prerequisites — all met
 
-| check | binaryen-ts | wabt-ts |
-| ----- | ----------- | ------- |
-| JSR latest version is the terminal 1.5.1 | ✅ | ✅ |
-| GitHub `v1.5.1` tag present | ✅ | ✅ |
-| README signpost live on `main` (B3/B4) | ✅ | ✅ |
-| wasmtk no longer depends on it (C2) | ✅ | ✅ |
+| check                                    | binaryen-ts | wabt-ts |
+| ---------------------------------------- | ----------- | ------- |
+| JSR latest version is the terminal 1.5.1 | ✅          | ✅      |
+| GitHub `v1.5.1` tag present              | ✅          | ✅      |
+| README signpost live on `main` (B3/B4)   | ✅          | ✅      |
+| wasmtk no longer depends on it (C2)      | ✅          | ✅      |
 
 ### ⚠️ B6 is NOT done, and it is bigger than recorded
 
 All four descriptions still present these as live projects:
 
-| where | current text |
-| ----- | ------------ |
-| JSR `binaryen-ts` | `binaryen rewritten in typescript` |
-| JSR `wabt-ts` | `rewrite of wabt in typescript` |
+| where                    | current text                                               |
+| ------------------------ | ---------------------------------------------------------- |
+| JSR `binaryen-ts`        | `binaryen rewritten in typescript`                         |
+| JSR `wabt-ts`            | `rewrite of wabt in typescript`                            |
 | **GitHub `binaryen-ts`** | `Optimizer and compiler/toolchain library for WebAssembly` |
-| **GitHub `wabt-ts`** | `The WebAssembly Binary Toolkit` |
+| **GitHub `wabt-ts`**     | `The WebAssembly Binary Toolkit`                           |
 
 **The two GitHub ones were on nobody's list.** B6 named only JSR. The GitHub description is what
 shows in search results and on the org page — the two places someone most likely arrives from — and
@@ -300,8 +300,10 @@ both currently describe a live toolchain with no hint it moved.
 afterwards means unarchiving and re-archiving. Suggested text:
 
 - JSR (both): `Superseded by @jrmarcum/binaryang — final release 1.5.1`
-- GitHub `binaryen-ts`: `Superseded by jrmarcum/binaryang — merged with wabt-ts. Final release 1.5.1.`
-- GitHub `wabt-ts`: `Superseded by jrmarcum/binaryang — merged with binaryen-ts. Final release 1.5.1.`
+- GitHub `binaryen-ts`:
+  `Superseded by jrmarcum/binaryang — merged with wabt-ts. Final release 1.5.1.`
+- GitHub `wabt-ts`:
+  `Superseded by jrmarcum/binaryang — merged with binaryen-ts. Final release 1.5.1.`
 
 **2. D2 — JSR `isArchived` on both.** Package settings on jsr.io. This blocks any future publish
 from those packages, which is the intent: 1.5.1 is terminal.
@@ -313,7 +315,7 @@ correct once nothing more will be released.
 ### What archiving does NOT do
 
 🚨 **Archiving is not yanking.** Every published version keeps resolving; archiving only refuses
-*new* versions. wasmtk's 31 earlier releases and LeptonPad's transitive pins are unaffected. **D4
+_new_ versions. wasmtk's 31 earlier releases and LeptonPad's transitive pins are unaffected. **D4
 still stands and always will** — see the C2 section above for why `dependentCount` staying at 1 is
 correct and must not be "fixed".
 
@@ -323,34 +325,40 @@ correct and must not be "fixed".
 unpinned, and wasmtk 2.0.1 is published, so the expected result is a no-op — but it is unverified
 and should not be recorded as done.
 
-### ✅ D3 done, D2 deferred — actual state 2026-08-27
+### ✅ THE RETIREMENT IS CLOSED — actual state 2026-09-02
 
-**Both GitHub repos are archived.** D2 (JSR `isArchived`) is deliberately deferred.
+**D2 and D3 are both done, and the predecessors are FROZEN by decision.** Verified against the live
+JSR API on 2026-09-02, not inferred:
 
-The runbook above recommended descriptions → JSR → GitHub. What happened was GitHub first, so
-record the consequences rather than the plan:
+|                                 | binaryen-ts                                                          | wabt-ts                                    |
+| ------------------------------- | -------------------------------------------------------------------- | ------------------------------------------ |
+| GitHub archived                 | ✅                                                                   | ✅                                         |
+| GitHub description              | frozen as `Optimizer and compiler/toolchain library for WebAssembly` | frozen as `The WebAssembly Binary Toolkit` |
+| JSR archived (**D2**)           | ✅ `isArchived=true`                                                 | ✅ `isArchived=true`                       |
+| JSR description                 | stays `binaryen rewritten in typescript`                             | stays `rewrite of wabt in typescript`      |
+| JSR latest / score / dependents | 1.5.1 / 100 / 1                                                      | 1.5.1 / 100 / 1                            |
 
-| | binaryen-ts | wabt-ts |
-| - | ----------- | ------- |
-| GitHub archived | ✅ | ✅ |
-| GitHub description | ⚠️ frozen as `Optimizer and compiler/toolchain library for WebAssembly` | ⚠️ frozen as `The WebAssembly Binary Toolkit` |
-| JSR archived | ⬚ deferred | ⬚ deferred |
-| JSR description | ⚠️ still `binaryen rewritten in typescript` | ⚠️ still `rewrite of wabt in typescript` |
+🛑 **B6 (the four descriptions) is CLOSED as WON'T DO, by owner decision 2026-09-02**: _"we are not
+changing either the github repo or the jsr any further for the wabt-ts or binaryen-ts projects."_
 
-#### Deferring D2 is low-risk, and the reason is structural
+**All four descriptions therefore stay as they are, permanently, and still present the predecessors
+as live projects.** That is an accepted cost, not an oversight — do not re-open it as an action item
+in a later pass. What carries the retirement message instead is the archived banner plus the README
+signpost on each repo, which is in place.
 
-**Archiving the GitHub repo already removed the publish path.** Workflows do not run on an archived
-repository, so `publish.yml` cannot fire — and that was the only route that produced provenance. A
-new version of either package would now require a deliberate manual `deno publish` from a local
-clone with a token, which is not something that happens by accident.
+⚠️ **The freeze covers the PREDECESSORS ONLY.** `binaryang`'s own repo and JSR package are live and
+unaffected — it is correctly `isArchived=false` at 1.5.4, and `RELEASE_PAT` remains an open owner
+action on it.
 
-So D2 is now **a statement of intent rather than a control**. Worth doing, not urgent.
+#### Why D2 was low-risk even while deferred, and why it still mattered
 
-#### The one thing that IS worth doing before D2
+**Archiving the GitHub repo had already removed the publish path.** Workflows do not run on an
+archived repository, so `publish.yml` could not fire — and that was the only route that produced
+provenance. A new version would have required a deliberate manual `deno publish` from a local clone
+with a token, which does not happen by accident.
 
-**The two JSR descriptions are still editable and should be set now.** JSR is where a consumer
-actually lands — the description is the first line on `jsr.io/@jrmarcum/<pkg>` — and it is the half
-of B6 that archiving has not frozen. It does not depend on D2 and should not wait for it.
+So D2 was a statement of intent rather than a control. Doing it makes the intent legible on the page
+a consumer actually lands on, which is worth having even though nothing depended on it.
 
 #### The GitHub descriptions, and what the gap actually costs
 
@@ -358,10 +366,11 @@ The repo **page** is fine: an archived banner plus the README signpost, which is
 signal and it is in place. What still misdescribes the projects is the **org repository list and
 GitHub search results**, which show the description and not the README.
 
-If that is worth closing: try editing "About" directly first, and if archiving has disabled it, the
-fix is unarchive → edit description → re-archive. Both operations are non-destructive and take
-seconds. This is a judgement call, not a defect — recorded so it is a choice rather than an
-oversight.
+🛑 **The judgement call was made on 2026-09-02: NOT worth closing.** The owner decided against any
+further change to either predecessor's GitHub repo or JSR package. The unarchive → edit → re-archive
+route is recorded above for completeness only; it is not a pending step. **The org list and search
+results keep the old descriptions permanently**, and the archived banner plus README signpost carry
+the message for anyone who reaches the page itself.
 
 #### Verified clean
 
@@ -396,22 +405,22 @@ things.
 
 On this machine the same bare specifier first resolved to **wasmtk 2.0.0**, which pulls
 `binaryen-ts@1.5.0` and `wabt-ts@1.4.1` — both retired. That looked exactly like a live finding:
-*LeptonPad still depends on the predecessors.*
+_LeptonPad still depends on the predecessors._
 
 It was not. It was a cached version resolution, and the elimination order matters:
 
-| attempt | result |
-| ------- | ------ |
-| bare specifier | 2.0.0 → **both predecessors** |
-| `--min-dep-age=0` | still 2.0.0 (and 2.0.1 was four days old, so the 24-hour wall was never the explanation) |
-| **`--reload`** | **still 2.0.0** — content is reloaded, the version resolution is not |
-| explicit `@2.0.1` / `@^2.0.0` | 2.0.1 → binaryang only |
-| **fresh `DENO_DIR`** | **2.0.1 → binaryang only** |
+| attempt                       | result                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| bare specifier                | 2.0.0 → **both predecessors**                                                            |
+| `--min-dep-age=0`             | still 2.0.0 (and 2.0.1 was four days old, so the 24-hour wall was never the explanation) |
+| **`--reload`**                | **still 2.0.0** — content is reloaded, the version resolution is not                     |
+| explicit `@2.0.1` / `@^2.0.0` | 2.0.1 → binaryang only                                                                   |
+| **fresh `DENO_DIR`**          | **2.0.1 → binaryang only**                                                               |
 
 **Only a fresh `DENO_DIR` proves a resolution.** `--reload` is the flag everyone reaches for and it
 is not sufficient — it invalidates module content, not the resolved version.
 
-**Why this matters beyond C3:** during a retirement, this failure mode reports the *opposite* of the
+**Why this matters beyond C3:** during a retirement, this failure mode reports the _opposite_ of the
 truth. A cached resolution makes a completed migration look incomplete, and — worse in the other
 direction — would let a consumer keep silently building against retired packages while every check
 they run says the new chain is in place. Verify a retirement with `DENO_DIR=$(mktemp -d)`.

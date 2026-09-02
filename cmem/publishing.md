@@ -187,8 +187,8 @@ have different denominators: the lint counts nested interface members, JSR count
 binaryang saw **701** lint errors against 98.1%; wasmtk saw the lint **clean on all 16 entrypoints**
 against 98.04%. The same discrepancy from opposite sides, confirmed independently in both repos.
 
-**Chasing the lint number to fix the JSR one means several hundred filler comments on struct
-fields, and does not move the score.**
+**Chasing the lint number to fix the JSR one means several hundred filler comments on struct fields,
+and does not move the score.**
 
 **Find the real gap arithmetically.** JSR's percentage is an exact fraction: `0.98087955` is
 `513/523` to eight digits, so **ten** declarations were missing — not seven hundred. Then read
@@ -279,10 +279,10 @@ cache-busted read distinguishes them.
 
 Measured across three releases of three packages:
 
-| trigger                                            | outcome                                                                               |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| trigger                                            | outcome                                                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `workflow_dispatch` (auto-tag's `gh workflow run`) | **failed at `deno publish`** — binaryen-ts, wabt-ts, binaryang 1.5.2, **and 1.5.3** — 4 of 4. **Cause found, see below** |
-| `push: tags` (tag pushed by a user)                | **succeeded** — 5 of 5 across all three packages                                      |
+| `push: tags` (tag pushed by a user)                | **succeeded** — 5 of 5 across all three packages                                                                         |
 
 ⚠️ **This is no longer a correlation with one plausible confound.** The first two failures were the
 same day inside a four-minute window, which a transient registry-side fault would explain. The third
@@ -360,13 +360,13 @@ Caused by:
 ```
 
 **JSR authorises the OIDC token's ACTOR, and on a dispatched run the actor is
-`github-actions[bot]`** — which is not a member of the `@jrmarcum` scope. Confirmed directly
-against the runs API:
+`github-actions[bot]`** — which is not a member of the `@jrmarcum` scope. Confirmed directly against
+the runs API:
 
-| workflow | event | actor | result |
-| -------- | ----- | ----- | ------ |
+| workflow                | event               | actor                     | result     |
+| ----------------------- | ------------------- | ------------------------- | ---------- |
 | Publish to JSR (v1.5.3) | `workflow_dispatch` | **`github-actions[bot]`** | ❌ failure |
-| every other run | `push` | `jrmarcum` | ✅ success |
+| every other run         | `push`              | `jrmarcum`                | ✅ success |
 
 That single column explains **5 of 5 versus 0 of 4** completely. A tag pushed by a person carries
 actor `jrmarcum`, who is a scope member; a workflow dispatched by `auto-tag` using `GITHUB_TOKEN`
@@ -374,8 +374,8 @@ carries the bot, who is not.
 
 ### What this retires
 
-The register said *"treat this as a correlation, not a cause — one dispatch run per repo, in a
-four-minute window, with no OIDC diagnostic in place."* That caution was correct at the time and is
+The register said _"treat this as a correlation, not a cause — one dispatch run per repo, in a
+four-minute window, with no OIDC diagnostic in place."_ That caution was correct at the time and is
 now **spent**: there is a mechanism, it is checkable in one API field, and it predicts every
 observation.
 
@@ -408,11 +408,11 @@ git tag -a vX.Y.Z -m "vX.Y.Z" HEAD
 git push origin vX.Y.Z          # actor = jrmarcum -> push:tags -> publishes
 ```
 
-✅ **The recovery was executed for 1.5.3 and worked, which confirms the mechanism rather than
-merely the fix.** The re-pushed tag produced `event=push`, `actor=jrmarcum`, `conclusion=success`,
-and `1.5.3` landed on JSR with provenance (`rekorLogId=2620472173`, `createdAt`→`updatedAt` four
-seconds apart). Same commit, same workflow, same YAML as the run that failed minutes earlier — only
-the actor differed.
+✅ **The recovery was executed for 1.5.3 and worked, which confirms the mechanism rather than merely
+the fix.** The re-pushed tag produced `event=push`, `actor=jrmarcum`, `conclusion=success`, and
+`1.5.3` landed on JSR with provenance (`rekorLogId=2620472173`, `createdAt`→`updatedAt` four seconds
+apart). Same commit, same workflow, same YAML as the run that failed minutes earlier — only the
+actor differed.
 
 ---
 

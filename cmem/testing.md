@@ -79,10 +79,10 @@ tree, exit 1 naming the file when one byte-count or hash is altered.
 
 ## The corpora, and what each is for
 
-| corpus                   | what                                          | state                                                                                                                              |
-| ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `upstream/test`          | binaryen's own suite, for parse→encode→parse | **gitignored and currently ABSENT.** The test SKIPS rather than fails, so it is free to keep locally and CI is unaffected           |
-| `tests/wabt-ts/wasmtk/`  | 421 real-world WAT files from wasmtk          | present; the runner picks up any file dropped in, and a reverse-direction runner asserts the disassembly re-compiles               |
+| corpus                  | what                                         | state                                                                                                                     |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `upstream/test`         | binaryen's own suite, for parse→encode→parse | **gitignored and currently ABSENT.** The test SKIPS rather than fails, so it is free to keep locally and CI is unaffected |
+| `tests/wabt-ts/wasmtk/` | 421 real-world WAT files from wasmtk         | present; the runner picks up any file dropped in, and a reverse-direction runner asserts the disassembly re-compiles      |
 
 ### The wasmtk corpus is a SNAPSHOT, and that has cost real credibility
 
@@ -231,11 +231,11 @@ type-checked by nothing.
 
 ## ⚠️ Every test-file path in the wings is DEAD
 
-The merge normalised the naming from `foo_test.ts` to `foo.test.ts`. **Zero `*_test.ts` files
-exist; all 172 are `*.test.ts`** — and the two wings between them contain **58 references to the old
+The merge normalised the naming from `foo_test.ts` to `foo.test.ts`. **Zero `*_test.ts` files exist;
+all 172 are `*.test.ts`** — and the two wings between them contain **58 references to the old
 form**, every one an unfollowable path.
 
-They are not wrong about *which* test pins an invariant, which is what those sections are for. They
+They are not wrong about _which_ test pins an invariant, which is what those sections are for. They
 cannot be copy-pasted. Translate the name, and confirm the file exists before citing it — two of the
 paths in this very file were carried over from a wing and had to be corrected the same way.
 
@@ -246,7 +246,7 @@ because T13.35's oracle was broken and no replacement was built. This is the rep
 
 ### Why the first oracle failed, and what replaced it
 
-T13.35 asked *is the reported offset near the corrupted byte?* — and scored the right answer as
+T13.35 asked _is the reported offset near the corrupted byte?_ — and scored the right answer as
 wrong: for a malformed multi-byte construct, reporting the **start of the construct** beats
 reporting where the decoder stopped. It flagged 32 cases and every one examined was correct.
 
@@ -256,15 +256,15 @@ decode, and record `delta = reportedOffset - corruptedByte`.
 
 ### The reading
 
-| | |
-| - | - |
-| corruptions swept | 196 across five modules |
-| rejected | **195 (99.5%)** |
-| accepted, and V8 accepts too (legal alternative encoding) | 1 |
-| accepted while V8 rejects — **missed rejections** | **0** |
+|                                                           |                         |
+| --------------------------------------------------------- | ----------------------- |
+| corruptions swept                                         | 196 across five modules |
+| rejected                                                  | **195 (99.5%)**         |
+| accepted, and V8 accepts too (legal alternative encoding) | 1                       |
+| accepted while V8 rejects — **missed rejections**         | **0**                   |
 
-Of the 154 rejections carrying a *specific* diagnostic: **133 land at the construct**, 21 downstream,
-0 upstream.
+Of the 154 rejections carrying a _specific_ diagnostic: **133 land at the construct**, 21
+downstream, 0 upstream.
 
 ### Three calibrations the harness needed, each of which changed the answer
 
@@ -272,9 +272,9 @@ Of the 154 rejections carrying a *specific* diagnostic: **133 land at the constr
    read-width later. Treating `delta == 0` as the only good answer is T13.35's mistake in new
    clothes; the band is `1..4`.
 2. **Corrupting a LENGTH field makes the reader run to end-of-input**, reporting at the buffer end.
-   That delta is `length - at` — an artifact of *where* the corruption sits, carrying nothing about
+   That delta is `length - at` — an artifact of _where_ the corruption sits, carrying nothing about
    diagnostic quality. 21 of 175 were this, and unbucketed they dominated the distribution.
-3. 🚨 **Comparing our READER against V8 is an unfair oracle.** V8 decodes *and* validates; a reader
+3. 🚨 **Comparing our READER against V8 is an unfair oracle.** V8 decodes _and_ validates; a reader
    that defers a semantic check to the validator is not defective. The first reading claimed
    **twenty** missed rejections. Adding our validator stage dropped it to **five**. **Three quarters
    of that finding was the instrument.**
@@ -295,8 +295,8 @@ removed). Missed rejections **5 → 0**, and the one legal alternative encoding 
   control, GC types and element segments — and it is still five.
 - **Single-byte corruption only.** Truncation, insertion and multi-byte corruption are unmeasured.
 - **`delta` is not correctness.** A negative delta is usually the better diagnostic. The 21
-  downstream cases are all body-internal corruption noticed at the section or function end, which
-  is explainable rather than obviously wrong — nobody has judged them one at a time.
+  downstream cases are all body-internal corruption noticed at the section or function end, which is
+  explainable rather than obviously wrong — nobody has judged them one at a time.
 - **The accepted class outranks the offset numbers**, and the harness says so in its own output.
 
 ## Where the per-invariant detail lives
