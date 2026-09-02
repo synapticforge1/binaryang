@@ -94,6 +94,7 @@ import {
   makeThrowRef,
   makeTry,
   makeTryTable,
+  makeTupleMake,
   makeV128Const,
   type MemoryCopyExpr,
   type MemoryFillExpr,
@@ -904,7 +905,8 @@ class WatModuleParser {
       return { kind: ExpressionKind.Unreachable, type: Unreachable } as UnreachableExpr;
     }
     if (head === 'return') {
-      const value = args[0] ? this.parseExpr(args[0], ctx) : null;
+      // EVERY operand, not just the first: a multi-value return carries N.
+      const value = this.tupleOrSingle(args.map((a) => this.parseExpr(a, ctx)));
       // makeReturn types the node `unreachable` (not the value's type); see the
       // bare-atom `return` case above for why this matters to block typing.
       return makeReturn(value);
@@ -1366,6 +1368,8 @@ class WatModuleParser {
     //
     // Both surfaced re-parsing our own `wasm2wat --fold` output, which emits
     // exactly these shapes.
+    //   3. and both arms took ONE value where a multi-value target carries N,
+    //      dropping the rest — see `tupleOrSingle`.
     const rest = args.slice(1);
     let condition: Expression | null = null;
     let value: Expression | null = null;
@@ -1373,11 +1377,9 @@ class WatModuleParser {
       const condNode = rest[rest.length - 1];
       if (condNode === undefined) this.err('br_if: missing condition', pos);
       condition = this.parseExpr(condNode, ctx);
-      const valueNode = rest.length > 1 ? rest[rest.length - 2] : undefined;
-      if (valueNode !== undefined) value = this.parseExpr(valueNode, ctx);
+      value = this.tupleOrSingle(rest.slice(0, -1).map((a) => this.parseExpr(a, ctx)));
     } else {
-      const valueNode = rest[0];
-      if (valueNode !== undefined) value = this.parseExpr(valueNode, ctx);
+      value = this.tupleOrSingle(rest.map((a) => this.parseExpr(a, ctx)));
     }
     return {
       kind: ExpressionKind.Break,
@@ -1652,10 +1654,10 @@ class WatModuleParser {
   // Load / store
   // -------------------------------------------------------------------------
 
-  private parseLoad(head: string, _list: SList, args: SExpr[], ctx: FuncContext): LoadExpr {
+  private parseLoad(head: string, list: SList, args: SExpr[], ctx: FuncContext): LoadExpr {
     const [valTypeStr] = head.split('.');
     const type = valTypeStr as ValType;
-    let offset = 0, align = 0, bytes: 1 | 2 | 4 | 8 | 16 = 4;
+    let offset = 0, alignBytes: number | null = null, bytes: 1 | 2 | 4 | 8 | 16 = 4;
     let argIdx = 0;
     // offset= and align= keywords
     while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
@@ -1666,7 +1668,7 @@ class WatModuleParser {
         continue;
       }
       if (raw.startsWith('align=')) {
-        align = parseInt(raw.slice(6));
+        alignBytes = parseInt(raw.slice(6));
         argIdx++;
         continue;
       }
@@ -1675,11 +1677,15 @@ class WatModuleParser {
     bytes = loadBytes(head);
     const signed = head.includes('_s');
     const ptr = this.parseExpr(args[argIdx], ctx);
+    // `bytes` is the natural alignment for every load form: `i64.load32_s`
+    // touches 4 bytes and is naturally 4-aligned, `i64.load` touches 8.
+    const align = this.alignExponent(alignBytes, bytes, list.pos);
     return { kind: ExpressionKind.Load, type, bytes, signed, offset, align, ptr };
   }
 
-  private parseStore(head: string, _list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
-    let offset = 0, align = 0;
+  private parseStore(head: string, list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
+    let offset = 0;
+    let alignBytes: number | null = null;
     let argIdx = 0;
     while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
@@ -1689,7 +1695,7 @@ class WatModuleParser {
         continue;
       }
       if (raw.startsWith('align=')) {
-        align = parseInt(raw.slice(6));
+        alignBytes = parseInt(raw.slice(6));
         argIdx++;
         continue;
       }
@@ -1711,6 +1717,7 @@ class WatModuleParser {
     const written = args.length - argIdx;
     const ptr = written >= 2 ? this.parseExpr(args[argIdx], ctx) : makePop(ValType.I32);
     const value = this.parseExpr(args[argIdx + (written >= 2 ? 1 : 0)], ctx);
+    const align = this.alignExponent(alignBytes, bytes, list.pos);
     return { kind: ExpressionKind.Store, type: None, bytes, offset, align, ptr, value };
   }
 
@@ -1792,7 +1799,8 @@ class WatModuleParser {
 
   private parseSIMDLoad(head: string, args: SExpr[], ctx: FuncContext): SIMDLoadExpr {
     // (v128.load8x8_s [offset=N] [align=N] <ptr>)
-    let offset = 0, align = 0, argIdx = 0;
+    let offset = 0, argIdx = 0;
+    let alignBytes: number | null = null;
     while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
       if (raw.startsWith('offset=')) {
@@ -1801,13 +1809,14 @@ class WatModuleParser {
         continue;
       }
       if (raw.startsWith('align=')) {
-        align = parseInt(raw.slice(6));
+        alignBytes = parseInt(raw.slice(6));
         argIdx++;
         continue;
       }
       break;
     }
     const ptr = this.parseExpr(args[argIdx], ctx);
+    const align = this.alignExponent(alignBytes, this.simdNaturalBytes(head));
     return makeSIMDLoad(SIMD_LOAD_OPS[head] as SIMDLoadOp, ptr, offset, align);
   }
 
@@ -1815,7 +1824,8 @@ class WatModuleParser {
     // (v128.load8_lane [offset=N] [align=N] <lane> <ptr> <vec>)
     // OR: (v128.load8_lane <lane> [offset=N] [align=N] <ptr> <vec>)
     // We accept lane as the first non-memarg integer, then memargs, then ptr, vec
-    let offset = 0, align = 0, argIdx = 0;
+    let offset = 0, argIdx = 0;
+    let alignBytes: number | null = null;
     // Skip any leading memargs
     while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
       const raw = (args[argIdx] as Atom).token.raw;
@@ -1825,7 +1835,7 @@ class WatModuleParser {
         continue;
       }
       if (raw.startsWith('align=')) {
-        align = parseInt(raw.slice(6));
+        alignBytes = parseInt(raw.slice(6));
         argIdx++;
         continue;
       }
@@ -1843,7 +1853,7 @@ class WatModuleParser {
         continue;
       }
       if (raw.startsWith('align=')) {
-        align = parseInt(raw.slice(6));
+        alignBytes = parseInt(raw.slice(6));
         argIdx++;
         continue;
       }
@@ -1851,6 +1861,7 @@ class WatModuleParser {
     }
     const ptr = this.parseExpr(args[argIdx], ctx);
     const vec = this.parseExpr(args[argIdx + 1], ctx);
+    const align = this.alignExponent(alignBytes, this.simdNaturalBytes(head));
     return makeSIMDLoadStoreLane(
       SIMD_LANE_OPS[head] as SIMDLoadStoreLaneOp,
       ptr,
@@ -2650,6 +2661,83 @@ class WatModuleParser {
   // Literal helpers
   // -------------------------------------------------------------------------
 
+  /**
+   * Collapse the value operands of a `return` or `br` into the single slot the
+   * IR gives them.
+   *
+   * ⚠️ A multi-value function returns N values, and `(return a b)` carries both.
+   * `ReturnExpr.value` and `BreakExpr.value` hold ONE expression, and both parse
+   * sites took only the first operand — so the rest were silently DROPPED. The
+   * module still encoded and no diagnostic fired; engines rejected it with
+   * *"expected 2 elements on the stack for return, found 1"*. 35 of 421 corpus
+   * modules re-encoded to something no engine would load.
+   *
+   * `TupleMake` is the right container and needs no new machinery: it has no
+   * opcode of its own, and the encoder emits its operands in order — a tuple IS
+   * its N values on the stack, which is exactly the multi-value convention. Same
+   * shape upstream binaryen uses.
+   *
+   * Zero values is a bare `return`/`br`; one stays unwrapped so the common case
+   * produces the tree it always did.
+   */
+  private tupleOrSingle(values: Expression[]): Expression | null {
+    if (values.length === 0) return null;
+    if (values.length === 1) return values[0]!;
+    return makeTupleMake(values);
+  }
+
+  /**
+   * The alignment EXPONENT for a memory access, from the optional `align=N`.
+   *
+   * ⚠️ `align=N` in the TEXT format is a BYTE COUNT; the IR field and the binary
+   * format both hold log2 of it. This parser stored the byte count raw, so
+   * `i64.store align=4` encoded an exponent of 4 — sixteen bytes — and the
+   * module was REJECTED by every engine: *"invalid alignment; expected maximum
+   * alignment is 3, actual alignment is 4"*. 3 of 421 corpus modules re-encoded
+   * to something no engine would load.
+   *
+   * ⚠️ And the DEFAULT was wrong in the other direction. Absent `align=`, WAT
+   * means the NATURAL alignment of the access, but this started at 0 — one byte.
+   * That encodes a valid module, so nothing rejected it; it just quietly emitted
+   * a weaker alignment hint than the source asked for, changing the bytes.
+   * `i32.store8` hid it by having a natural alignment of 1, which is what the
+   * wrong default happened to be.
+   *
+   * Passing `null` means the immediate was absent, which is NOT the same as
+   * `align=0` — that is malformed and rejected here.
+   */
+  private alignExponent(alignBytes: number | null, naturalBytes: number, pos?: TextPos): number {
+    const n = alignBytes ?? naturalBytes;
+    if (!Number.isInteger(n) || n <= 0 || (n & (n - 1)) !== 0) {
+      this.err(`alignment must be a positive power of two, got ${n}`, pos);
+    }
+    return Math.log2(n);
+  }
+
+  /**
+   * Natural alignment in bytes for a SIMD memory op, derived from its NAME.
+   *
+   * Derived rather than tabulated on purpose: a table here would be a second
+   * copy of a fact wabt-ts already holds in `naturalAlignForOpcode`, and the two
+   * could drift silently. The name already encodes the width, so there is
+   * nothing to keep in sync:
+   *
+   * - `v128.load` / `v128.store` — the whole vector, 16 bytes
+   * - `v128.loadNxM_s|u` — N*M bits, always 8 bytes
+   * - `v128.loadN_splat|_zero|_lane`, `v128.storeN_lane` — N bits
+   */
+  private simdNaturalBytes(head: string): number {
+    if (head === 'v128.load' || head === 'v128.store') return 16;
+    const wide = /^v128\.load(\d+)x(\d+)_(?:s|u)$/.exec(head);
+    if (wide) return (Number(wide[1]) * Number(wide[2])) / 8;
+    const narrow = /^v128\.(?:load|store)(\d+)(?:_.*)?$/.exec(head);
+    if (narrow) return Number(narrow[1]) / 8;
+    // Unknown SIMD memory op: 1 is the only always-legal alignment, and it is
+    // better than guessing a width that could exceed the real one and produce a
+    // module no engine will load.
+    return 1;
+  }
+
   private expectInt(s: SExpr | undefined, instr: string): number {
     if (!s) this.err(`${instr}: missing integer argument`);
     const v = atomInt(s!);
@@ -3186,11 +3274,22 @@ function loadBytes(head: string): 1 | 2 | 4 | 8 | 16 {
   return 4;
 }
 
+// ⚠️ Keep these two in step. `storeBytes` was missing the `v128` line its twin
+// has, so `v128.store` fell through to the catch-all 4. That was invisible while
+// the width only picked an opcode — the v128 opcode comes from the VALUE TYPE,
+// not from here — and became a wrong answer the moment the width also became the
+// natural alignment: `v128.store` encoded alignment 2 where wabt-ts writes 4.
+//
+// The `storeN`/`loadN` checks come FIRST on purpose: `v128.store8_lane` touches
+// one byte, so the lane width wins over the vector width. (Lane and widening
+// forms are routed to `simdNaturalBytes` rather than here, but the ordering has
+// to be right for anything that does reach these.)
 function storeBytes(head: string): 1 | 2 | 4 | 8 | 16 {
   if (head.includes('store8')) return 1;
   if (head.includes('store16')) return 2;
   if (head.includes('store32')) return 4;
   if (head.includes('store64')) return 8;
+  if (head.includes('v128')) return 16;
   if (head.startsWith('i32') || head.startsWith('f32')) return 4;
   if (head.startsWith('i64') || head.startsWith('f64')) return 8;
   return 4;
