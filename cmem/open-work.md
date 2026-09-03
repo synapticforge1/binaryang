@@ -45,11 +45,14 @@ A three-version plan: **1.5.5** code issues, **1.5.6** hardening then code again
 then hardening then code again. Each lens repeats until a pass turns up nothing new. Lens
 definitions, method, and the per-pass findings register: [quality-passes.md](quality-passes.md).
 
-**1.5.5 passes 1–2 are done and neither converged.** Pass 1 fixed three defects (`e662bd099`); pass
-2 fixed four more (`3e808b99b`), including an element-segment stub that silently emptied every
-function table, and an anonymous-function name collision that turned `(call 1)` into infinite
-recursion. Five findings remain (C2, C4, C6–C8). ⚠️ **The version is NOT bumped**; the bump is what
-arms a release, so it happens when the passes converge, not while they run.
+**1.5.5 passes 1–3 are done and none converged.** Pass 3's lesson: **a size delta is not a cosmetic
+finding** — both remaining "extra bytes" items turned out to be wrong output, one a silent
+miscompile (a synthetic loop wrapper shadowing the function frame) and one silent data corruption (a
+byte string UTF-8 encoded). Earlier: Pass 1 fixed three defects (`e662bd099`); pass 2 fixed four
+more (`3e808b99b`), including an element-segment stub that silently emptied every function table,
+and an anonymous-function name collision that turned `(call 1)` into infinite recursion. Five
+findings remain (C2, C4, C6–C8). ⚠️ **The version is NOT bumped**; the bump is what arms a release,
+so it happens when the passes converge, not while they run.
 
 🔑 **The one lesson worth carrying:** greps found nothing — no live TODOs, every "impossible"
 comment self-aware. What found three real bugs was **strengthening an existing metric**: the corpus

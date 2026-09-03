@@ -140,6 +140,49 @@ is not yet explained, so it stays open as C6–C8 rather than being declared ben
 interface. They are open because _unexplained_ is not the same as _benign_, and both C1 and C4 were
 found inside exactly this residue.
 
+### Pass 3 — 2026-09-02, `9588504bd` + `ff9a383d2`
+
+Chased C6–C8. **Both turned out to be correctness bugs wearing a size delta as a disguise**, which
+is the finding worth keeping from this pass.
+
+| was filed as                       | actually was                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **C6** — code section +24107 bytes | a **SILENT MISCOMPILE**. A multi-statement loop body is wrapped by `oneOrTypedBlock` in a synthetic unnamed `Block`. Encoding it emitted a real nested block, and because the wrapper is unnamed it went on the label stack as `''` — the same sentinel as the FUNCTION FRAME — and shadowed it. `(loop $l (nop) (br 1 …))` returned the fallthrough value instead of branching out. Valid module, wrong answer |
+| **C8** — data section +432 bytes   | **SILENT DATA CORRUPTION**. `parseData` UTF-8 encoded a BYTE string, so every escape above 0x7f widened into two bytes: `0` → `\c30`. Floats and packed binary in data segments came out wrong, and the module still validated because data is opaque                                                                                                                                                          |
+
+🔑 **A size delta is not a cosmetic finding.** Both of these were filed as "bytes, probably benign"
+and both were wrong output. The size was the _symptom that was easy to measure_, not the defect.
+Nothing else had noticed either one.
+
+**Two more instances of the pattern this file already names:**
+
+- C6's rule ALREADY EXISTED — `if` arms and `catch` handlers went through `encodeRegionBody`. `Loop`
+  and `try_table` called `encodeExpr` directly and the function body open-coded a third copy. **The
+  copies are what let the two omissions look normal.** All four now share the one helper.
+- Both defects had a case that hid them: a ONE-statement loop needs no wrapper, and **everything
+  ASCII round-trips through UTF-8 unchanged**. A natural fixture for either — a simple loop, a
+  readable data string — passes either way.
+
+### Results
+
+| measure                  | pass 1 start           | now              |
+| ------------------------ | ---------------------- | ---------------- |
+| re-encode validates      | 383 / 421              | **421 / 421**    |
+| byte-identical to source | 1 / 421                | **140 / 421**    |
+| total size delta         | +24107 (code alone)    | **−176 bytes**   |
+| corpus sections lost     | `datacount`, `element` | `datacount` only |
+
+### ⬚ Open after pass 3
+
+| #  | finding                                                                                                 | state                                                                                                                                                                                                                                                         |
+| -- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C2 | bulk-memory and table ops unimplemented                                                                 | ⬚ feature gap, fails loud — do with C4                                                                                                                                                                                                                        |
+| C4 | `datacount` not emitted (273 modules, −273 bytes)                                                       | ⬚ harmless until C2 lands, then required                                                                                                                                                                                                                      |
+| C7 | an **orphan type entry** is appended for a multi-value function's result type (111 modules, +643 bytes) | ⬚ characterised and benign: the entry is unreferenced, appended last so no index shifts, and the module validates and behaves identically. Wasted bytes, not wrong output — but **C6 and C8 were also filed that way**, so it is left open rather than closed |
+
+**Pass 3 did not converge either**, though what remains is now one feature gap (C2/C4) and one
+characterised inefficiency (C7), rather than unknowns.
+
 ## Where the numbers live
 
 `cmem/open-work.md` holds the release-facing list. This file holds the pass bookkeeping, because
