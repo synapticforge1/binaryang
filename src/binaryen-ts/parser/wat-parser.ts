@@ -231,6 +231,20 @@ class WatModuleParser {
 
   // Deferred name-resolution tables
   private funcNames = new Map<string, number>(); // $name → index in functions[]
+  /**
+   * Internal function names in INDEX ORDER — imports first, then definitions,
+   * which is the order the index space is built in.
+   *
+   * ⚠️ Needed because a numeric function reference is an INDEX, and the code
+   * that resolved one reconstructed the name a nameless function would have got:
+   * `$f{n}`. That is right only when the function at that index is anonymous. A
+   * module with named functions and a numeric `(call 1)` failed with
+   * `unresolved call target reference: "$f1"`.
+   *
+   * Same defect as the branch labels and the tag references had — see
+   * `cmem/open-work.md`, "RECONSTRUCTING a name instead of resolving an index".
+   */
+  private funcOrder: string[] = [];
   private globalNames = new Map<string, number>();
   private memoryNames = new Map<string, number>();
   private tableNames = new Map<string, number>();
@@ -267,6 +281,8 @@ class WatModuleParser {
   // Resolved into `funcResults` after the first pass, once every `(type …)` is
   // collected — a `(type)` decl may follow the func in source order.
   private pendingFuncTypeRefs: Array<{ name: string; sig: string }> = [];
+  /** Names anonymous element segments `$e0`, `$e1`, … as they are parsed. */
+  private elemSegmentCount = 0;
 
   // All function-level definitions collected before building
   private rawFunctions: RawFunc[] = [];
@@ -374,6 +390,7 @@ class WatModuleParser {
       const { name, params, results } = this.parseFuncType(descList);
       const internalName = name ?? `$__import_func_${this.funcNames.size}`;
       this.funcNames.set(internalName, this.funcNames.size);
+      this.funcOrder.push(internalName);
       this.funcResults.set(internalName, results[0] ?? None);
       this.builder.addFunctionImport(internalName, modName, baseName, params, results);
     } else if (head === 'global') {
@@ -450,9 +467,21 @@ class WatModuleParser {
       name = (children[idx] as Atom).token.raw;
       idx++;
     }
-    const funcIndex = this.funcNames.size;
+    // ⚠️ The index is how many functions EXIST, not how many are NAMED.
+    // `funcNames.size` counts imports and named definitions only, so with an
+    // anonymous function the counter stopped advancing and EVERY anonymous
+    // function was synthesized as `$f0`. They then collided in the encoder's
+    // index map, and a numeric `(call 1)` in an all-anonymous module resolved
+    // to the first function — which, when the caller was itself anonymous, was
+    // the CALLER: infinite recursion, from valid input, with no diagnostic.
+    //
+    // `funcOrder` counts every function in index order, imports included, so it
+    // is the right source. Calls BY NAME hid this completely, which is why a
+    // probe using named targets came back clean.
+    const funcIndex = this.funcOrder.length;
     if (name) this.funcNames.set(name, funcIndex);
     const fname = name ?? `$f${funcIndex}`;
+    this.funcOrder.push(fname);
     // Record the declared result type so forward `(call $f)` references type
     // correctly during body building. Prefer the inline `(result ...)`; when the
     // signature is given only as a `(type $sig)` reference, defer resolution
@@ -935,7 +964,7 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     if (head === 'call') {
       const nameOrIdx = atomText(args[0]) ?? this.err('call: missing function reference', list.pos);
-      const funcName = nameOrIdx.startsWith('$') ? nameOrIdx : `$f${nameOrIdx}`;
+      const funcName = this.funcRefName(nameOrIdx);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
       const resultType = this.inferFuncResultType(funcName) ?? None;
       return {
@@ -948,7 +977,7 @@ class WatModuleParser {
     }
     if (head === 'return_call') {
       const nameOrIdx = atomText(args[0]) ?? this.err('return_call: missing reference', list.pos);
-      const funcName = nameOrIdx.startsWith('$') ? nameOrIdx : `$f${nameOrIdx}`;
+      const funcName = this.funcRefName(nameOrIdx);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
       return {
         kind: ExpressionKind.Call,
@@ -2046,7 +2075,6 @@ class WatModuleParser {
       idx++;
     }
     const tableIndex = this.tableNames.size;
-    if (name) this.tableNames.set(name, tableIndex);
     const inline = this.takeInlineDecorations(children, idx);
     idx = inline.idx;
     const initial = Number(atomInt(children[idx]) ?? 0);
@@ -2056,7 +2084,20 @@ class WatModuleParser {
     const refType = max !== null
       ? (this.tryParseValType(children[idx + 2]) ?? ValType.FuncRef)
       : (this.tryParseValType(children[idx + 1]) ?? ValType.FuncRef);
-    const tableInternal = name ?? '$table0';
+    // ⚠️ Register the INTERNAL name, whether or not the source gave one. An
+    // anonymous table was added to the module as `$table0` but never entered
+    // `tableNames`, so the map stayed empty — and `call_indirect` with no
+    // explicit table fell through to its `'$0'` sentinel, which matches nothing:
+    // `unresolved call_indirect table reference: "$0"`. Every module with an
+    // anonymous table and an indirect call failed to encode.
+    //
+    // The index is in the synthesized name because `'$table0'` was a constant:
+    // a second anonymous table took the same name as the first. The encoder
+    // refuses multiple tables today, so nothing could reach that collision — but
+    // a constant that is only safe because another limit exists is worth closing
+    // while it is cheap.
+    const tableInternal = name ?? `$table${tableIndex}`;
+    this.tableNames.set(tableInternal, tableIndex);
     if (inline.imp) {
       this.builder.addTableImport(
         tableInternal,
@@ -2179,8 +2220,134 @@ class WatModuleParser {
     }
   }
 
-  private parseElem(_list: SList): void {
-    // Element segments are complex; skip for MVP
+  /**
+   * `(elem …)` — an element segment, which initialises a table.
+   *
+   * ⚠️ This was a STUB — *"Element segments are complex; skip for MVP"* — and
+   * the consequence was not a missing feature but SILENT WRONG BEHAVIOUR. Every
+   * element segment was dropped, so a module with a function table re-encoded
+   * with the table empty. It still VALIDATED, because an empty table is valid;
+   * every `call_indirect` through it then trapped at run time. 45 corpus modules
+   * lost their `element` section this way and nothing reported it.
+   *
+   * Forms accepted, which is every form the grammar allows here except the two
+   * noted below:
+   *
+   * ```
+   * (elem (i32.const 0) $f ...)                 active, implicit table
+   * (elem (offset (i32.const 0)) func 0 1)      the shape our own writer emits
+   * (elem $seg (table $t) (offset ...) func 0)  named segment, explicit table
+   * (elem (i32.const 0) (ref.func $f) ...)      element expressions
+   * (elem ... (item (ref.func $f)) ...)         the `item` wrapper
+   * ```
+   *
+   * ⬚ **Passive and declarative segments are recognised but NOT stored**, and
+   * that is a limit of the IR rather than of this parser: `ElementSegment` has
+   * `{name, table, offset, data}` with no mode field, and the encoder writes
+   * kind 0 (active, table 0) unconditionally. Storing one would silently emit it
+   * as ACTIVE — a segment that writes into the table at instantiation when the
+   * source said it must not. Dropping is wrong, but it is wrong in the direction
+   * that fails loudly downstream (`undeclared function reference`) instead of
+   * corrupting a table. Tracked as its own finding; fixing it means an IR field
+   * and an encoder case, not a parser change.
+   */
+  private parseElem(list: SList): void {
+    const children = listChildren(list);
+    let idx = 0;
+
+    let name = `$e${this.elemSegmentCount++}`;
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw.startsWith('$')) {
+      name = (children[idx] as Atom).token.raw;
+      idx++;
+    }
+
+    // `declare` and a bare (passive) segment carry no offset. Recognise them so
+    // they are not mis-read as an element list, then decline — see the note
+    // above on why storing them would be worse than dropping them.
+    let declarative = false;
+    if (children[idx]?.kind === 'atom' && (children[idx] as Atom).token.raw === 'declare') {
+      declarative = true;
+      idx++;
+    }
+
+    // Optional table reference: `(table $t)`, or a bare name/index.
+    let table: string | null = null;
+    if (idx < children.length && isListWith(children[idx], 'table')) {
+      const ref = atomText(listChildren(children[idx] as SList)[0]);
+      if (ref !== null) table = ref.startsWith('$') ? ref : `$table${ref}`;
+      idx++;
+    } else if (children[idx]?.kind === 'atom') {
+      const raw = (children[idx] as Atom).token.raw;
+      // Only consume it as a table ref if it names one; `func`/`funcref` and a
+      // bare function index both live in this position too.
+      if (raw.startsWith('$') && this.tableNames.has(raw)) {
+        table = raw;
+        idx++;
+      }
+    }
+
+    // Offset: `(offset <expr>)` or a bare folded instruction.
+    let offset: Expression | null = null;
+    if (idx < children.length && children[idx]?.kind === 'list') {
+      const child = children[idx] as SList;
+      const head = listHead(child);
+      if (head === 'offset') {
+        offset = this.parseExpr(listChildren(child)[0], this.constExprContext());
+        idx++;
+      } else if (head !== 'item' && head !== 'ref.func' && head !== 'ref.null') {
+        offset = this.parseExpr(child, this.constExprContext());
+        idx++;
+      }
+    }
+
+    // Optional element-type keyword: `func`, or a reftype such as `funcref`.
+    if (children[idx]?.kind === 'atom') {
+      const raw = (children[idx] as Atom).token.raw;
+      if (raw === 'func' || raw === 'funcref' || raw === 'externref') idx++;
+    }
+
+    // The elements themselves: bare names/indices, or element EXPRESSIONS.
+    const data: string[] = [];
+    for (; idx < children.length; idx++) {
+      const child = children[idx]!;
+      if (child.kind === 'atom') {
+        const raw = (child as Atom).token.raw;
+        data.push(this.funcRefName(raw));
+        continue;
+      }
+      // `(item (ref.func $f))` unwraps to `(ref.func $f)`.
+      let expr = child as SList;
+      if (listHead(expr) === 'item') {
+        const inner = listChildren(expr)[0];
+        if (inner === undefined || inner.kind !== 'list') continue;
+        expr = inner as SList;
+      }
+      const head = listHead(expr);
+      if (head === 'ref.func') {
+        const ref = atomText(listChildren(expr)[0]);
+        if (ref !== null) data.push(this.funcRefName(ref));
+      } // `(ref.null func)` is a legitimate hole in a table. The IR's `data` is a
+      // list of function NAMES with no way to spell "empty", so a hole would
+      // shift every later entry down one — silently rewiring the table. Refuse
+      // instead: a diagnostic is recoverable, a shifted dispatch table is not.
+      else if (head === 'ref.null') {
+        this.err(
+          'element segments containing `ref.null` are not supported: the IR has ' +
+            'no representation for an empty slot, and dropping it would shift ' +
+            'every later entry',
+          expr.pos,
+        );
+      }
+    }
+
+    if (declarative || offset === null) return;
+
+    this.builder.addElement({
+      name,
+      table: table ?? this.tableNames.keys().next().value ?? '$table0',
+      offset,
+      data,
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -2306,6 +2473,17 @@ class WatModuleParser {
       }
     }
     return `$tag${ref}`;
+  }
+
+  /**
+   * The internal name for a function reference, which may be a `$name` or an
+   * INDEX. Falls back to the `$f{n}` spelling only when the index is out of
+   * range, so an unresolvable reference still reaches the encoder's diagnostic
+   * rather than being silently swallowed here.
+   */
+  private funcRefName(ref: string): string {
+    if (ref.startsWith('$')) return ref;
+    return this.funcOrder[Number(ref)] ?? `$f${ref}`;
   }
 
   private funcTypeByIndex(ref: string): FuncTypeDef | null {
