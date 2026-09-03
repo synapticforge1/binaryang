@@ -2203,9 +2203,9 @@ class WatModuleParser {
     // Data strings
     let bytes = new Uint8Array(0);
     while (idx < children.length) {
-      const s = atomString(children[idx]);
-      if (s !== null) {
-        const encoded = new TextEncoder().encode(s);
+      const child = children[idx];
+      if (child?.kind === 'atom' && atomString(child) !== null) {
+        const encoded = this.dataStringBytes(child as Atom);
         const merged = new Uint8Array(bytes.length + encoded.length);
         merged.set(bytes);
         merged.set(encoded, bytes.length);
@@ -2251,6 +2251,91 @@ class WatModuleParser {
    * corrupting a table. Tracked as its own finding; fixing it means an IR field
    * and an encoder case, not a parser change.
    */
+  /**
+   * The BYTES a WAT string literal denotes, decoded from the raw token.
+   *
+   * ⚠️ A WAT string is a BYTE STRING, not text. This used to take the tokenizer's
+   * decoded `text` and run it through `TextEncoder`, which UTF-8 encodes it — so
+   * every escape above 0x7f was silently expanded into two bytes. `\f0` became
+   * `\c3\b0`, `\f8` became `\c3\b8`, and any data segment holding a float, a
+   * pointer, or packed binary came out CORRUPTED. The module still validated,
+   * because data segments are opaque bytes; the program just read the wrong
+   * numbers. 47 corpus modules carried mangled data and nothing reported it.
+   *
+   * Decoding from `raw` is what makes the distinction possible: an ESCAPE is one
+   * byte, while a literal non-ASCII character in the source is its UTF-8 bytes,
+   * and the decoded text has already lost which was which.
+   */
+  private dataStringBytes(atom: Atom): Uint8Array {
+    const raw = atom.token.raw;
+    // Strip the surrounding quotes if the tokenizer kept them.
+    const body = raw.startsWith('"') && raw.endsWith('"') && raw.length >= 2
+      ? raw.slice(1, -1)
+      : raw;
+
+    const out: number[] = [];
+    const utf8 = new TextEncoder();
+    for (let i = 0; i < body.length; i++) {
+      const c = body[i]!;
+      if (c !== '\\') {
+        // A literal character IS its UTF-8 bytes — ASCII stays one byte.
+        for (const b of utf8.encode(c)) out.push(b);
+        continue;
+      }
+      const n = body[++i];
+      if (n === undefined) break;
+      switch (n) {
+        case 't':
+          out.push(0x09);
+          break;
+        case 'n':
+          out.push(0x0a);
+          break;
+        case 'r':
+          out.push(0x0d);
+          break;
+        case '"':
+          out.push(0x22);
+          break;
+        case "'":
+          out.push(0x27);
+          break;
+        case '\\':
+          out.push(0x5c);
+          break;
+        case 'u': {
+          // `\u{XXXX}` is a CODE POINT, so it does expand to its UTF-8 bytes —
+          // the one escape where that is the defined meaning.
+          const open = body.indexOf('{', i);
+          const close = body.indexOf('}', i);
+          if (open === i + 1 && close > open) {
+            const cp = parseInt(body.slice(open + 1, close), 16);
+            if (Number.isFinite(cp)) {
+              for (const b of utf8.encode(String.fromCodePoint(cp))) out.push(b);
+            }
+            i = close;
+          }
+          break;
+        }
+        default: {
+          // `\XX` — two hex digits, exactly one byte. This is the case that was
+          // being widened to two.
+          const hex = n + (body[i + 1] ?? '');
+          if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+            out.push(parseInt(hex, 16));
+            i++;
+          } else {
+            // Not a recognised escape; keep the character as written rather than
+            // dropping it silently.
+            for (const b of utf8.encode(n)) out.push(b);
+          }
+          break;
+        }
+      }
+    }
+    return new Uint8Array(out);
+  }
+
   private parseElem(list: SList): void {
     const children = listChildren(list);
     let idx = 0;
