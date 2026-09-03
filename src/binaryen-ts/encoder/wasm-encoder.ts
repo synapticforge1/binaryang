@@ -1542,14 +1542,10 @@ class WasmEncoder {
     // functions that don't branch to the function frame, so the common case is
     // unchanged.
     const labels: string[] = [fn.bodyFrameLabel ?? ''];
-    const body = fn.body;
-    if (body.kind === ExpressionKind.Block && (body as BlockExpr).name === null) {
-      for (const child of (body as BlockExpr).children) {
-        this.encodeExpr(w, child, labels);
-      }
-    } else {
-      this.encodeExpr(w, body, labels);
-    }
+    // The same rule as every other region, through the same helper. This was a
+    // third open-coded copy; `Loop` and `try_table` were two places that had the
+    // rule and did NOT apply it, which is how the shadowing bug survived.
+    this.encodeRegionBody(w, fn.body, labels);
     w.writeU8(0x0b); // end
   }
 
@@ -1648,7 +1644,14 @@ class WasmEncoder {
         w.writeU8(0x03);
         writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
         labels.push(e.name);
-        this.encodeExpr(w, e.body, labels);
+        // A REGION, like the `if` arms — see `encodeRegionBody`. Encoding the
+        // body directly emitted the parser's synthetic wrapper as a real nested
+        // block, which was not merely 3 wasted bytes: the wrapper is unnamed, so
+        // it went onto the label stack as `''` — the SAME sentinel as the
+        // function frame — and shadowed it. `(loop $l (nop) (br 1 …))` then
+        // branched to the wrapper instead of out of the function, returning the
+        // fallthrough value. Valid module, wrong answer.
+        this.encodeRegionBody(w, e.body, labels);
         labels.pop();
         w.writeU8(0x0b);
         break;
@@ -2175,7 +2178,7 @@ class WasmEncoder {
           w.writeU32(this.resolveLabel(labels, c.dest));
         }
         labels.push(e.name ?? '');
-        this.encodeExpr(w, e.body, labels);
+        this.encodeRegionBody(w, e.body, labels);
         labels.pop();
         w.writeU8(0x0b);
         break;
