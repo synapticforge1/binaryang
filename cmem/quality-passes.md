@@ -87,6 +87,59 @@ Fixing C2 without C4 would produce invalid modules. Fix them together.
 **Pass 1 is NOT complete** — a pass ends when it turns up nothing new, and this one ended with five
 open findings.
 
+### Pass 2 — 2026-09-02, `3e808b99b`
+
+Worked the C1–C5 register. **Also did not converge**, but the residue is now characterised rather
+than unknown.
+
+**Fixed — C1, C3, and three neighbours the register had not seen:**
+
+| what                                                        | why it mattered                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`parseElem` was a STUB** — _"complex; skip for MVP"_      | not a missing feature but SILENT WRONG BEHAVIOUR: every element segment dropped, so a module's function table re-encoded EMPTY. It still validated — an empty table is valid — and every `call_indirect` then trapped at run time                                                                                                               |
+| an **anonymous table** was never registered in `tableNames` | `call_indirect` with no explicit table fell through to a `'$0'` sentinel matching nothing                                                                                                                                                                                                                                                       |
+| a numeric function reference rebuilt `$f{n}`                | right only when that function is anonymous. **Third occurrence** of reconstructing a name instead of resolving an index, after the branch labels and the tag references                                                                                                                                                                         |
+| `funcIndex` came from `funcNames.size`                      | which counts imports and NAMED definitions only — so **every anonymous function was synthesized as `$f0`**. They collided in the encoder's index map, and `(call 1)` in an all-anonymous module resolved to the first function, which when the caller was also anonymous was the CALLER: **infinite recursion from valid input, no diagnostic** |
+
+⚠️ **That last one was hiding behind the one above it, and a probe using NAMED targets came back
+clean.** Calls by name never touch the synthesized spelling. When testing an index path, the fixture
+has to be anonymous — the named case is the control, not the test.
+
+**A `ref.null` hole in an element segment is now REFUSED**, not dropped: the IR's `data` is a list
+of function names with no way to spell "empty", so dropping one would shift every later entry down
+and silently rewire the dispatch table.
+
+### Reclassified
+
+🔧 **C2 is a FEATURE GAP, not a code defect.** `memory.init`, `data.drop`,
+`table.init/copy/fill/size/grow` are unimplemented — but every one of them **fails loud**
+(`unsupported instruction`), which is the contract. Verified individually. `memory.copy` and
+`memory.fill` are implemented and produce correct results. The 1.5.5 lens is "wrong on valid input";
+refusing loudly is not wrong.
+
+🔧 **C4 follows C2 and is harmless today.** `datacount` is only _required_ when a bulk-memory op is
+present, and those are exactly the ops we refuse. It remains coupled: **whoever implements C2 must
+emit `datacount` in the same change.**
+
+🔧 **C5 is downgraded, not closed.** The byte differences are representational so far as measured:
+**exports and imports are identical on 421/421**, and the smallest differing module differs only in
+inline-vs-standalone export spelling, which is the same module either way. The section-size residue
+is not yet explained, so it stays open as C6–C8 rather than being declared benign.
+
+### ⬚ Open after pass 2
+
+| #  | finding                                                                                                                    | state                                    |
+| -- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| C2 | bulk-memory and table ops unimplemented                                                                                    | ⬚ feature gap, fails loud — do with C4   |
+| C4 | `datacount` not emitted                                                                                                    | ⬚ harmless until C2 lands, then required |
+| C6 | **code section is +24107 bytes across 418 modules** (~58 each) — not local-decl coalescing, which binaryen-ts already does | ⬚ unexplained                            |
+| C7 | type section +643 bytes across 111 modules                                                                                 | ⬚ unexplained, likely dedup              |
+| C8 | data section +432 bytes across 47 modules                                                                                  | ⬚ unexplained                            |
+
+⚠️ **C6–C8 are size deltas, not known defects** — the modules validate, run, and keep their whole
+interface. They are open because _unexplained_ is not the same as _benign_, and both C1 and C4 were
+found inside exactly this residue.
+
 ## Where the numbers live
 
 `cmem/open-work.md` holds the release-facing list. This file holds the pass bookkeeping, because
