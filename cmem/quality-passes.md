@@ -289,6 +289,55 @@ deliberately, not as the tail of a bug hunt.
 | total size delta    | +24107 bytes | **0 bytes**   |
 | defects fixed       | —            | **13**        |
 
+### Pass 6 — 2026-09-02, `a33c94655`
+
+**C9 closed.** It was ONE IR gap standing behind four symptoms, not four findings — `ElementSegment`
+had no mode field, so the encoder wrote kind 0 (active, table 0) unconditionally and passive and
+declarative segments could not be represented at all.
+
+Adding `ElementSegment.mode` unblocked every one of them: the WAT parser stores the non-active
+modes, the encoder writes the right kind, the BINARY parser reads all four, and `table.init` /
+`elem.drop` are implemented end to end. The binary reader also gained the six other `0xFC` ops it
+was refusing, so the loop now closes in both directions.
+
+⚠️ **A latent bug surfaced the moment the refusal was lifted.** The binary reader tested for an
+explicit table index with `flags & 2`, which would consume an index from a declarative segment
+(flags 3), which has none. That expression was correct _only while the refusal made flags 3 and 7
+unreachable_. **A guard can be holding up code behind it that has never run.** Removing one means
+re-reading what it was gating, not just deleting it.
+
+### 🔁 Four tests pinned the refusals as contracts — two written the day before
+
+`memory.init is rejected`, `a passive segment throws`, and two of my own from the previous commit.
+Each was rewritten to assert the CAPABILITY while keeping the property the refusal stood in for:
+
+- an unknown `0xFC` sub-opcode must **still** fail loudly, so that test moved to an unassigned
+  sub-opcode rather than being deleted;
+- a passive segment must **still not** populate the table at instantiation — checked by executing
+  the module and requiring the untouched slot to TRAP.
+
+🔑 **This is the third time in this project a test has pinned a limitation so that removing the
+limitation reads as a regression.** The pattern is now frequent enough to name a rule: when a test
+asserts that something is REFUSED, write down in the test what would still be true after the refusal
+is lifted. The two rewritten here could keep their guarantee precisely because the original comments
+said what the refusal was protecting against.
+
+### ⬚ Open after pass 6
+
+**Nothing from the register.** C1–C9 are all closed or reclassified.
+
+|                                   |                               |
+| --------------------------------- | ----------------------------- |
+| the one non-byte-identical module | export ORDER only — see below |
+
+⚠️ **The export-order difference is now understood** and it is not "declaration order" as an earlier
+note said. It is PHASE order: `collectMemory` adds a memory's inline export during the parser's
+FIRST pass, while `buildFunc` adds a function's during the THIRD (body building). So a function's
+inline export is always emitted after every memory/global/table/tag one, whatever the source order.
+Semantically irrelevant — exports are looked up by unique name, and the interface check passes
+421/421 — but it is the last byte difference, and it is a one-line-per-site fix (collect a
+function's inline exports when the declaration is seen, not when its body is built).
+
 ## Where the numbers live
 
 `cmem/open-work.md` holds the release-facing list. This file holds the pass bookkeeping, because
