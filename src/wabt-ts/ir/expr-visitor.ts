@@ -303,7 +303,7 @@ export class ExprVisitor {
         return this.d.onRefNullExpr?.(e) ?? Result.Ok;
       case 'ref.func':
         return this.d.onRefFuncExpr?.(e) ?? Result.Ok;
-      case 'atomic_fence':
+      case 'atomic.fence':
         return this.d.onAtomicFenceExpr?.(e) ?? Result.Ok;
       case 'data.drop':
         return this.d.onDataDropExpr?.(e) ?? Result.Ok;
@@ -553,14 +553,14 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onAtomicStoreExpr?.(e) ?? Result.Ok;
       }
-      case 'atomic_rmw': {
+      case 'atomic.rmw': {
         let r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onAtomicRmwExpr?.(e) ?? Result.Ok;
       }
-      case 'atomic_notify': {
+      case 'atomic.notify': {
         let r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         r = this.dispatch(e.count);
@@ -581,7 +581,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onTableGrowExpr?.(e) ?? Result.Ok;
       }
-      case 'simd_shuffle': {
+      case 'simd.shuffle': {
         let r = this.dispatch(e.left);
         if (r === Result.Error) return r;
         r = this.dispatch(e.right);
@@ -703,7 +703,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onTableInitExpr?.(e) ?? Result.Ok;
       }
-      case 'atomic_rmw_cmpxchg': {
+      case 'atomic.cmpxchg': {
         let r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         r = this.dispatch(e.expected);
@@ -712,7 +712,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onAtomicRmwCmpxchgExpr?.(e) ?? Result.Ok;
       }
-      case 'atomic_wait': {
+      case 'atomic.wait': {
         let r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         r = this.dispatch(e.expected);
@@ -857,6 +857,10 @@ export class ExprVisitor {
         return this.d.endTryTableExpr?.(e) ?? Result.Ok;
       }
 
+      // A leaf: it stands for a value already on the stack, so there is
+      // nothing below it to walk and no delegate hook to fire.
+      case 'pop':
+        return Result.Ok;
       default: {
         const _exhaust: never = e;
         return Result.Ok;

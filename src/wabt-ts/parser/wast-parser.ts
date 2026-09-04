@@ -4469,7 +4469,7 @@ export class WastParser {
       }
 
       case TokenType.AtomicFence:
-        return { kind: 'atomic_fence', consistencyModel: 0, loc } as AtomicFenceExpr;
+        return { kind: 'atomic.fence', consistencyModel: 0, loc } as AtomicFenceExpr;
       case TokenType.AtomicLoad: {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
@@ -4507,7 +4507,7 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         return {
-          kind: 'atomic_rmw',
+          kind: 'atomic.rmw',
           opcode: op as unknown as Opcode,
           memidx,
           offset,
@@ -4523,7 +4523,7 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         return {
-          kind: 'atomic_rmw_cmpxchg',
+          kind: 'atomic.cmpxchg',
           opcode: op as unknown as Opcode,
           memidx,
           offset,
@@ -4540,7 +4540,7 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         return {
-          kind: 'atomic_notify',
+          kind: 'atomic.notify',
           opcode: op as unknown as Opcode,
           memidx,
           offset,
@@ -4556,7 +4556,7 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         return {
-          kind: 'atomic_wait',
+          kind: 'atomic.wait',
           opcode: op as unknown as Opcode,
           memidx,
           offset,
@@ -4612,7 +4612,7 @@ export class WastParser {
           }
         }
         return {
-          kind: 'simd_shuffle',
+          kind: 'simd.shuffle',
           opcode: op as unknown as Opcode,
           lanes: laneArr,
           left: op0(),

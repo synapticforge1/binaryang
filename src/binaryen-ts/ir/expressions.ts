@@ -92,6 +92,7 @@ export enum ExpressionKind {
   SIMDReplace = 'simd.replace',
   SIMDShuffle = 'simd.shuffle',
   SIMDTernary = 'simd.ternary',
+  Quaternary = 'quaternary',
   SIMDShift = 'simd.shift',
   SIMDLoad = 'simd.load',
   SIMDLoadStoreLane = 'simd.load_store_lane',
@@ -289,6 +290,14 @@ export enum UnaryOp {
 
 /** Binary operators. Mirrors `BinaryOp` in Binaryen. */
 export enum BinaryOp {
+  /**
+   * Wide multiply: two i64 in, a 128-bit product out as TWO i64. Binary
+   * rather than quaternary because the operand count is two — the same
+   * split wabt-ts makes, where `isWideMul` special-cases the result arity
+   * inside `onBinary`.
+   */
+  MulWideSInt64 = 'i64.mul_wide_s',
+  MulWideUInt64 = 'i64.mul_wide_u',
   // i32
   AddI32 = 'i32.add',
   SubI32 = 'i32.sub',
@@ -1590,6 +1599,55 @@ export interface SIMDShuffleExpr extends ExprBase {
 }
 
 /** `v128.bitselect` and relaxed ternary SIMD ops. */
+/**
+ * Wide arithmetic: `i64.add128` (0xfc 0x13) and `i64.sub128` (0xfc 0x14).
+ *
+ * Four i64 operands — two 128-bit values as (lo, hi) pairs — and TWO i64
+ * results, so the node's type is a tuple.
+ *
+ * ⚠️ **Shaped to match wabt-ts's `quaternary`, deliberately.** wabt-ts was the
+ * only side that implemented these at all, so under the worst-condition rule its
+ * shape controls; inventing a binaryen-ts-specific node would have left S6 three
+ * shapes to reconcile instead of one. `i64.mul_wide_s`/`_u` are NOT here — they
+ * take two operands, so they are `BinaryOp` members, exactly as in wabt-ts.
+ */
+export enum QuaternaryOp {
+  Add128 = 'i64.add128',
+  Sub128 = 'i64.sub128',
+}
+
+/** Four-operand numeric node — the wide-arithmetic proposal. */
+export interface QuaternaryExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.Quaternary;
+  /** Two i64 results: the low and high halves of the 128-bit sum. */
+  type: TupleType;
+  op: QuaternaryOp;
+  a: Expression;
+  b: Expression;
+  c: Expression;
+  d: Expression;
+}
+
+/** Creates a wide-arithmetic (`i64.add128` / `i64.sub128`) expression. */
+export function makeQuaternary(
+  op: QuaternaryOp,
+  a: Expression,
+  b: Expression,
+  c: Expression,
+  d: Expression,
+): QuaternaryExpr {
+  return {
+    kind: ExpressionKind.Quaternary,
+    type: [ValType.I64, ValType.I64],
+    op,
+    a,
+    b,
+    c,
+    d,
+  };
+}
+
 export interface SIMDTernaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDTernary;
@@ -1745,6 +1803,7 @@ export type Expression =
   | SIMDReplaceExpr
   | SIMDShuffleExpr
   | SIMDTernaryExpr
+  | QuaternaryExpr
   | SIMDShiftExpr
   | SIMDLoadExpr
   | SIMDLoadStoreLaneExpr;

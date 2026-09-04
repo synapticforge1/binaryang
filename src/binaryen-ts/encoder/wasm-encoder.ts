@@ -49,6 +49,8 @@ import {
   type MemoryGrowExpr,
   type MemoryInitExpr,
   type MemorySizeExpr,
+  type QuaternaryExpr,
+  QuaternaryOp,
   type RefAsExpr,
   RefAsOp,
   type RefCastExpr,
@@ -2008,6 +2010,13 @@ class WasmEncoder {
         const e = expr as BinaryExpr;
         this.encodeExpr(w, e.left, labels);
         this.encodeExpr(w, e.right, labels);
+        // The wide-multiply pair is 0xfc-prefixed, not a single byte, so it is
+        // checked before both the SIMD table and the one-byte table.
+        if (e.op === BinaryOp.MulWideSInt64 || e.op === BinaryOp.MulWideUInt64) {
+          w.writeU8(0xfc);
+          w.writeU32(e.op === BinaryOp.MulWideSInt64 ? 21 : 22);
+          break;
+        }
         const simdSub = SIMD_BINARY_SUBOP[e.op];
         if (simdSub !== undefined) {
           w.writeU8(0xfd);
@@ -2566,6 +2575,18 @@ class WasmEncoder {
         w.writeU8(0xfd);
         w.writeU32(0x0d);
         w.writeBytes(e.mask);
+        break;
+      }
+
+      case ExpressionKind.Quaternary: {
+        const e = expr as QuaternaryExpr;
+        // Stack order matches the decoder's reverse pops: a, b, c, d.
+        this.encodeExpr(w, e.a, labels);
+        this.encodeExpr(w, e.b, labels);
+        this.encodeExpr(w, e.c, labels);
+        this.encodeExpr(w, e.d, labels);
+        w.writeU8(0xfc);
+        w.writeU32(e.op === QuaternaryOp.Add128 ? 19 : 20);
         break;
       }
 

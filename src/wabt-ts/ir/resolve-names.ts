@@ -577,7 +577,7 @@ class ResolveContext {
       }
       case 'store':
       case 'atomic_store':
-      case 'atomic_rmw': {
+      case 'atomic.rmw': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rV, value] = this.resolveExpr(e.value);
         return [combine(rA, rV), {
@@ -587,7 +587,7 @@ class ResolveContext {
           value,
         }];
       }
-      case 'atomic_rmw_cmpxchg': {
+      case 'atomic.cmpxchg': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rE, expected] = this.resolveExpr(e.expected);
         const [rR, replacement] = this.resolveExpr(e.replacement);
@@ -603,7 +603,7 @@ class ResolveContext {
           replacement,
         }];
       }
-      case 'atomic_wait': {
+      case 'atomic.wait': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rE, expected] = this.resolveExpr(e.expected);
         const [rT, timeout] = this.resolveExpr(e.timeout);
@@ -615,7 +615,7 @@ class ResolveContext {
           timeout,
         }];
       }
-      case 'atomic_notify': {
+      case 'atomic.notify': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rC, count] = this.resolveExpr(e.count);
         return [combine(rA, rC), {
@@ -908,7 +908,7 @@ class ResolveContext {
         const [rv, value] = this.resolveExpr(e.value);
         return [combine(r, rv), { ...e, operand, value }];
       }
-      case 'simd_shuffle': {
+      case 'simd.shuffle': {
         const [rL, left] = this.resolveExpr(e.left);
         const [rR, right] = this.resolveExpr(e.right);
         return [combine(rL, rR), { ...e, left, right }];

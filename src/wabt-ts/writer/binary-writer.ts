@@ -423,11 +423,10 @@ class BodyWriter implements ExprVisitorDelegate {
     return this.fidelity.get(e.nodeId)?.blockType ?? e.blockType;
   }
 
-  onNopExpr(e: NopExpr): Result {
-    // A synthesized operand slot-filler is not an instruction; see
-    // NopExpr.placeholder. Writing one is inert but grows the encoding on
-    // every round trip (T10.8).
-    if (e.placeholder) return Result.Ok;
+  onNopExpr(_e: NopExpr): Result {
+    // Every `nop` reaching here is one the source really wrote. A
+    // synthesized slot-filler is a `pop` node and never arrives here at
+    // all, which is the point of giving it its own kind (T10.8).
     this.s.writeU8(Opcode.Nop);
     return Result.Ok;
   }

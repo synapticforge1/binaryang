@@ -92,10 +92,9 @@ describe('T10.8 — a synthesized operand slot-filler is not an instruction', ()
     // The first local.set in source order takes the call; the second is left
     // with nothing, and that stand-in must say it is one.
     const starved = sets
-      .map((e) => (e as unknown as { value: { kind: string; placeholder?: boolean } }).value)
-      .find((v) => v.kind === 'nop');
+      .map((e) => (e as unknown as { value: { kind: string } }).value)
+      .find((v) => v.kind === 'pop');
     assert(starved, 'expected one starved local.set');
-    assertEquals(starved.placeholder, true);
   });
 
   it('marks the binary reader’s placeholder as one', () => {
@@ -107,10 +106,9 @@ describe('T10.8 — a synthesized operand slot-filler is not an instruction', ()
     assert(module);
     const starved = module.funcs[1]!.body
       .filter((e) => e.kind === 'local.set')
-      .map((e) => (e as unknown as { value: { kind: string; placeholder?: boolean } }).value)
-      .find((v) => v.kind === 'nop');
+      .map((e) => (e as unknown as { value: { kind: string } }).value)
+      .find((v) => v.kind === 'pop');
     assert(starved, 'expected one starved local.set');
-    assertEquals(starved.placeholder, true);
   });
 
   it('emits no padding byte for it', () => {

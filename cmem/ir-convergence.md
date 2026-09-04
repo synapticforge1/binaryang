@@ -496,37 +496,69 @@ data rather than as a kind:
 
 ⚠️ **Wide arithmetic is NOT here.** It sits under S5, which is where the note assigning it lives.
 
-### S5 — the one-sided kinds
+### S5 — the one-sided kinds 🚧 acceptance criterion met, regroupings outstanding
 
-Roughly a dozen: `pop`, `tuple.make`, `tuple.extract` one way; `return_call`,
-`return_call_indirect`, `return_call_ref`, `struct.new_default`, `array.new_default`,
-`code_metadata`, `ternary`, `quaternary` the other.
+**Landed**: wide arithmetic in binaryen-ts (all four ops, byte-identical), six kind renames, and
+`placeholder` → `pop`. One-sided kinds **41 → 27**. Baseline `IDENTICAL`, 952 tests, `operators`
+TOTAL, spec 100% on four axes.
 
-#### ▶ WIDE ARITHMETIC lands here — owner-assigned 2026-09-02
+#### 🔧 "Roughly a dozen" was 41
 
-⚠️ **Named explicitly because it is a live gap, not just a vocabulary entry.** `i64.add128`,
-`i64.sub128`, `i64.mul_wide_s`, `i64.mul_wide_u`:
+The step named eleven kinds. Recomputing the diff from source — necessary anyway, since S4 had just
+removed five kinds from one side — gave **23 only-wabt-ts and 18 only-binaryen-ts**. The list was
+not merely short; it was the wrong shape, because most entries are not capability gaps at all:
 
-|                 |                                                                              |
-| --------------- | ---------------------------------------------------------------------------- |
-| **wabt-ts**     | ✅ fully implemented — decodes, validates, writes, byte-identical round trip |
-| **binaryen-ts** | ⬚ refuses loudly: `unsupported bulk-memory/table opcode: 0xFC 0x13`          |
+| category                                           | count | example                                         |
+| -------------------------------------------------- | ----- | ----------------------------------------------- |
+| pure rename (separator only)                       | 5     | `atomic_fence` vs `atomic.fence`                |
+| rename with a different word                       | 1     | `atomic_rmw_cmpxchg` vs `atomic.cmpxchg`        |
+| regrouping — one side merges what the other splits | ~14   | `simd_lane_op` vs `simd.extract`/`simd.replace` |
+| genuine capability gap                             | ~8    | `quaternary` (wide arithmetic), `return_call*`  |
 
-wabt-ts models them as **`quaternary`** — `{opcode, a, b, c, d}` — which is already on the "only
-wabt-ts" side of the vocabulary diff, so S5 covers it structurally. What makes it worth naming: it
-is the one one-sided kind currently causing a REAL failure rather than a theoretical gap.
+⚠️ **`simd_lane_op` is COARSE on wabt-ts's side while binaryen-ts splits it.** S4's framing —
+"binaryen-ts coarser, wabt-ts finer" — is true of arithmetic and branches and **false of SIMD**. The
+grouping decision was made on the families S4 covered and does not generalise unexamined; each SIMD
+family needs the worst-condition question asked again, not the S4 answer applied.
 
-🔑 **Convergence should dissolve it rather than require separate work.** Adopting the shared tree
-means binaryen-ts gets whatever node kind carries `quaternary`, and the instruction stops being
-one-sided by construction — the same way S6 dissolves C10a. **Do not implement it separately in
-binaryen-ts first**; that would add a second copy of something the merge is about to unify.
+#### ✅ Wide arithmetic — the named acceptance criterion
 
-⚠️ **It is 4 operands and TWO results**, so it also exercises the multi-value machinery (`TupleMake`
-/ `Pop`) that Stages 1–2 already landed. That makes it a good acceptance case for S5 rather than an
-awkward one.
+`i64.add128`, `i64.sub128`, `i64.mul_wide_s`, `i64.mul_wide_u` all round-trip through binaryen-ts
+byte-identically. Previously the whole module was refused with
+`unsupported bulk-memory/table opcode:
+0xFC 0x13`.
 
-**Acceptance criterion for S5**: `i64.add128` round-trips through binaryen-ts's binary reader and
-encoder, byte-identically, the way it already does through wabt-ts.
+**Shaped as wabt-ts's, deliberately.** wabt-ts was the only implementation, so under the
+worst-condition rule its shape controls; a binaryen-ts invention would have left S6 three shapes to
+reconcile instead of one. The split follows wabt-ts too and is real rather than accidental:
+`add128`/`sub128` take FOUR operands (a new `Quaternary` node), `mul_wide_s`/`_u` take TWO (two new
+`BinaryOp` members) — exactly the division wabt-ts's type checker already encoded, special-casing
+the multiply pair's result arity inside `onBinary` via `isWideMul`.
+
+All four yield TWO i64 results, so the node's type is a tuple; they exercise the multi-value
+machinery rather than just adding an opcode. Cross-checked against **upstream wabt**, not our own
+second implementation: `wat2wasm --enable-wide-arithmetic` produces the same 40 bytes and
+`wasm-objdump` reads `fc 13` as `i64.add128`.
+
+#### ✅ `placeholder` → `pop`, inherited from S3
+
+S3 deferred this here on the grounds that the convergent form is a KIND, not metadata. Confirmed:
+binaryen-ts already had `Pop` — _"a pseudo-instruction; not emitted in the binary format"_ — so the
+two IRs had one mechanism under two spellings. wabt-ts's `nop` + `placeholder: boolean` became a
+`pop` kind, and the bridge case is now a one-liner.
+
+🔑 **The boolean was a latent hazard, not just a worse name.** It made a synthesized slot-filler
+indistinguishable from a real `nop` to anything that forgot to check it; three of the four readers
+did check, and nothing enforced that. A kind cannot be forgotten.
+
+#### Outstanding — 27 kinds, and why they are not trivial
+
+| only wabt-ts (16)                                                                                                                                                                                                                                                        | only binaryen-ts (11)                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `array.new_default`, `atomic_load`, `atomic_store`, `code_metadata`, `load_splat`, `load_zero`, `ref`, `ref.as_non_null`, `return_call`, `return_call_indirect`, `return_call_ref`, `simd_lane_op`, `simd_load_lane`, `simd_store_lane`, `struct.new_default`, `ternary` | `array.init_data`, `array.init_elem`, `ref.as`, `simd.extract`, `simd.load`, `simd.load_store_lane`, `simd.replace`, `simd.shift`, `simd.ternary`, `tuple.extract`, `tuple.make` |
+
+Each remaining one is an S4-shaped merge — a regrouping with a sub-op, or a capability one side
+lacks — not a rename. They are listed so the next step starts from the measurement rather than from
+the original eleven.
 
 ### S6 — unify the type, delete the bridge
 

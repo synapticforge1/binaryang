@@ -643,12 +643,10 @@ class WatWriter extends ModuleContext {
     const opname = (op: number) => anyOpcodeName(op);
 
     return {
-      onNopExpr: (e) => {
-        // Same rule as the binary writer: a synthesized operand slot-filler
-        // means "the value is already on the stack", which linear WAT spells
-        // by writing nothing. Printing `nop` here would re-enter the parser as
-        // a real instruction and the two writers would disagree (T10.8).
-        if (e.placeholder) return Result.Ok;
+      onNopExpr: () => {
+        // Same rule as the binary writer: only a real `nop` reaches here. A
+        // slot-filler is a `pop`, and printing `nop` for one would re-enter
+        // the parser as a real instruction (T10.8).
         this.putsNewline('nop');
         return Result.Ok;
       },
@@ -1439,8 +1437,7 @@ class WatWriter extends ModuleContext {
     e: Expr,
   ): { operands: Expr[]; head: (d: ExprVisitorDelegate) => void } | null {
     // A synthesized slot-filler means the operand is not structurally present.
-    const usable = (x: Expr | undefined): boolean =>
-      x !== undefined && !(x.kind === 'nop' && x.placeholder === true);
+    const usable = (x: Expr | undefined): boolean => x !== undefined && x.kind !== 'pop';
 
     const spec = ((): { operands: Expr[]; head: (d: ExprVisitorDelegate) => void } | null => {
       switch (e.kind) {

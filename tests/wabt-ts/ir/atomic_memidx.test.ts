@@ -8,9 +8,9 @@
 // immediate neighbours in the same switch both do it correctly:
 //
 //     case 'atomic_load':  ... memidx: this.resolveMemoryVar(e.memidx, loc)   OK
-//     case 'atomic_rmw_cmpxchg': ... { ...e, address, expected, replacement }  BUG
-//     case 'atomic_wait':        ... { ...e, address, expected, timeout }      BUG
-//     case 'atomic_notify': ... memidx: this.resolveMemoryVar(e.memidx, loc)  OK
+//     case 'atomic.cmpxchg': ... { ...e, address, expected, replacement }  BUG
+//     case 'atomic.wait':        ... { ...e, address, expected, timeout }      BUG
+//     case 'atomic.notify': ... memidx: this.resolveMemoryVar(e.memidx, loc)  OK
 //
 // So a named multi-memory operand stayed a name-var, and the binary writer's
 // `writeMemoryVarUnlessZero` saw a var it could not read as an index and wrote
@@ -64,13 +64,13 @@ function memidxAfterResolve(instr: string) {
 const NAMED_SECOND_MEMORY: [string, string][] = [
   ['atomic_load', '(drop (i32.atomic.load $m2 (i32.const 0)))'],
   ['atomic_store', '(i32.atomic.store $m2 (i32.const 0) (i32.const 1))'],
-  ['atomic_rmw', '(drop (i32.atomic.rmw.add $m2 (i32.const 0) (i32.const 1)))'],
+  ['atomic.rmw', '(drop (i32.atomic.rmw.add $m2 (i32.const 0) (i32.const 1)))'],
   [
-    'atomic_rmw_cmpxchg',
+    'atomic.cmpxchg',
     '(drop (i32.atomic.rmw.cmpxchg $m2 (i32.const 0) (i32.const 1) (i32.const 2)))',
   ],
-  ['atomic_wait', '(drop (memory.atomic.wait32 $m2 (i32.const 0) (i32.const 1) (i64.const -1)))'],
-  ['atomic_notify', '(drop (memory.atomic.notify $m2 (i32.const 0) (i32.const 1)))'],
+  ['atomic.wait', '(drop (memory.atomic.wait32 $m2 (i32.const 0) (i32.const 1) (i64.const -1)))'],
+  ['atomic.notify', '(drop (memory.atomic.notify $m2 (i32.const 0) (i32.const 1)))'],
 ];
 
 describe('resolveNames resolves memidx on EVERY atomic memory op', () => {

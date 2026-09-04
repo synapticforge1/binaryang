@@ -334,10 +334,10 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'simd_store_lane':
     case 'atomic_load':
     case 'atomic_store':
-    case 'atomic_rmw':
-    case 'atomic_rmw_cmpxchg':
-    case 'atomic_wait':
-    case 'atomic_notify':
+    case 'atomic.rmw':
+    case 'atomic.cmpxchg':
+    case 'atomic.wait':
+    case 'atomic.notify':
       return { ...e, memidx: rewriteVar(e.memidx, n.memoryNames) };
     case 'memory.copy':
       return {

@@ -177,7 +177,7 @@ export class ModuleContext {
         return { nargs: 0, nreturns: 1, unreachable: false };
       case 'ref.func':
         return { nargs: 0, nreturns: 1, unreachable: false };
-      case 'atomic_fence':
+      case 'atomic.fence':
         return { nargs: 0, nreturns: 0, unreachable: false };
       case 'data.drop':
         return { nargs: 0, nreturns: 0, unreachable: false };
@@ -217,13 +217,13 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'atomic_store':
         return { nargs: 2, nreturns: 0, unreachable: false };
-      case 'atomic_rmw':
+      case 'atomic.rmw':
         return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'atomic_rmw_cmpxchg':
+      case 'atomic.cmpxchg':
         return { nargs: 3, nreturns: 1, unreachable: false };
-      case 'atomic_wait':
+      case 'atomic.wait':
         return { nargs: 3, nreturns: 1, unreachable: false };
-      case 'atomic_notify':
+      case 'atomic.notify':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'load_splat':
         return { nargs: 1, nreturns: 1, unreachable: false };
@@ -233,7 +233,7 @@ export class ModuleContext {
         // extract_lane pops 1 (the vec); replace_lane pops 2 (vec + scalar).
         // `value` is present iff this is a replace_lane.
         return { nargs: expr.value !== undefined ? 2 : 1, nreturns: 1, unreachable: false };
-      case 'simd_shuffle':
+      case 'simd.shuffle':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd_load_lane':
         return { nargs: 2, nreturns: 1, unreachable: false };
@@ -362,6 +362,9 @@ export class ModuleContext {
       case 'ref.test':
       case 'ref.cast':
         return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'pop':
+        // Stands for a value already on the stack: takes none, yields one.
+        return { nargs: 0, nreturns: 1, unreachable: false };
       default: {
         const _exhaust: never = expr;
         return { nargs: 0, nreturns: 0, unreachable: false };
