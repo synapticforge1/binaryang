@@ -513,6 +513,24 @@ class WatModuleParser {
       if (sig) this.pendingFuncTypeRefs.push({ name: fname, sig });
       else this.funcResults.set(fname, None);
     }
+    // ⚠️ Inline exports are registered HERE, in the first pass, not when the
+    // body is built in the third.
+    //
+    // The export SECTION is a list, and its order is whatever order
+    // `addExport` was called in. Every other declaration — memory, global,
+    // table, tag — registers its inline export during this pass, while a
+    // function's used to wait for `buildFunc`. So a function's export always
+    // landed after every other kind's, whatever the source said:
+    //
+    //     (func $f1 (export "_start") …)   <- line 4 in the source
+    //     (memory $M0 (export "memory") …) <- line 5
+    //
+    // came out as `memory` then `_start`. Harmless — exports are looked up by
+    // name and names are unique — but it was the last byte difference between
+    // this encoder's output and wabt-ts's.
+    for (const exportName of this.takeInlineDecorations(children, idx).names) {
+      this.builder.addExport(exportName, fname, 'function');
+    }
     this.rawFunctions.push({ name: fname, list, funcIndex });
   }
 
@@ -582,9 +600,7 @@ class WatModuleParser {
         params,
         results,
       );
-      for (const exportName of inlineExports) {
-        this.builder.addExport(exportName, raw.name, 'function');
-      }
+      // Exports were registered in the first pass - see `collectFunc`.
       return;
     }
 
@@ -665,9 +681,7 @@ class WatModuleParser {
 
     this.builder.addFunction(raw.name, params, results, body, additionalLocals);
 
-    for (const exportName of inlineExports) {
-      this.builder.addExport(exportName, raw.name, 'function');
-    }
+    // Exports were registered in the first pass - see `collectFunc`.
   }
 
   // -------------------------------------------------------------------------
