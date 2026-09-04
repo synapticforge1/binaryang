@@ -179,12 +179,201 @@ Two routes, and they are not equivalent:
 **The second is preferred**, and it is the one that makes the two sides meet in the middle rather
 than one adopting the other's shape.
 
-### Stage 3 — the convergence this buys
+### Stage 3 — one tree, two verb sets
 
-Once both sides can express a stack-sourced operand, the two IRs differ in one remaining structural
-way: **wabt-ts's tree is partial and mirrors the binary; binaryen-ts's is total.** That is the real
-merge question, and it is a decision rather than a defect — see decision 1 in
-[overview.md](overview.md). This document exists so that decision is taken against a measurement.
+🔧 **Reframed 2026-09-02, against the project's stated goals.** This section used to say: _"the two
+IRs differ in one remaining structural way — wabt-ts's tree is partial and mirrors the binary;
+binaryen-ts's is total. That is the real merge question."_
+
+That framed it as **pick one shape**, which the goals show is the wrong question:
+
+> Round-trip fidelity through the wabt-ts part, and optimization through the binaryen-ts part.
+> Whether the WAT is hand-written or came from optimized wasm, the end result should be fidelity of
+> the WAT being converted to and from wasm.
+
+Fidelity and optimization are not two shapes competing for one tree. They are two **phases**, and
+they are never both meaningful for the same module — once a pass runs, there is no original left to
+be faithful to. So the design is:
+
+**ONE tree. Two sets of operations over it. Fidelity metadata BESIDE the tree, not inside the
+nodes.**
+
+- wabt-ts's operations read and write the side table
+- binaryen-ts's passes never touch it, and **drop** it — an optimized module has no original to be
+  faithful to
+- the tree type is shared, and passes pay nothing
+
+⚠️ **"A tree cannot be faithful" is false, and this document used to imply it.** Wasm has no `dup`:
+every value has exactly one consumer, so a program already _is_ a tree — plus a marker for the case
+where the producer must stay put rather than move into its consumer. Both IRs already have that
+marker, under two names: binaryen-ts's `Pop` (_"a pseudo-instruction; not emitted in the binary
+format"_) and wabt-ts's `placeholder` (_"the value is already on the stack"_). The hard part was
+already done.
+
+## The measurements this rests on
+
+Taken 2026-09-02. ⚠️ **Three earlier attempts were probe artifacts** — comparing enum MEMBER names
+(`I32Add` vs `AddI32`), and enumerating one of wabt-ts's four opcode spaces. Each would have
+reported an alarming false finding. The numbers below are the corrected ones.
+
+### Vocabulary
+
+|                              |                                                       |
+| ---------------------------- | ----------------------------------------------------- |
+| binaryen-ts `ExpressionKind` | 81                                                    |
+| wabt-ts kind discriminants   | 98 (some are Var/type discriminants, not expressions) |
+| shared by identical spelling | 63                                                    |
+
+The two already agree on **every structural construct**: `block`, `loop`, `if`, `try`, `try_table`,
+`br`, `br_table`, `call`, `call_indirect`, `call_ref`, and the whole `memory.*` / `table.*` /
+`struct.*` / `array.*` / `ref.*` families.
+
+### Fields — 62 shared kinds compared
+
+15 identical, 47 differing. **The differences are not arbitrary.** Most are pure renames
+(`typeIndex`/`typeVar`, `op`/`opcode`, `condition`/`cond`, `ifTrue`/`then_`, `name`/`label`,
+`children`/`body`, `operands`/`args`, `index`/`var`). What remains is one coherent set:
+
+| wabt-ts keeps AS WRITTEN                         | binaryen-ts DERIVES                  |
+| ------------------------------------------------ | ------------------------------------ |
+| `blockType` on block/loop/if/try                 | `type`, inferred from the last child |
+| `opcode` on load/store                           | `bytes` + `signed`                   |
+| `memidx` on every memory op                      | assumes memory 0                     |
+| `typeUse` / `typeVar` / `sig` on `call_indirect` | resolved `params` / `results`        |
+| `resultType` on `select`                         | inferred                             |
+| `placeholder` on `nop`                           | a separate `pop` kind                |
+| `values` (plural) on `br` / `return`             | `value` (singular)                   |
+
+🔑 **That left column IS the side table.** It was not designed; it was discovered by diffing, which
+is why it is trustworthy. `type` belongs in it too and is its most load-bearing member — declared in
+wabt-ts, inferred in binaryen-ts, and the field the bridge's `withDeclaredType` already exists to
+reconcile.
+
+### Do the passes constrain it? No.
+
+16 passes. `blockType`, `memidx`, `opcode`, `typeUse`, `typeVar` appear **zero times** across all of
+them. The passes read `kind` (70 references) and then `value`, `name`, `index`, `target`, `body`,
+`condition`, `operands`, `op` — the semantic surface, exclusively.
+
+**Moving the as-written fields into a side table requires no pass changes.** The split was already
+the one the code observes in practice.
+
+## The grouping decision — worst condition controls
+
+The remaining difference is how finely each side groups instructions: binaryen-ts coarser (one
+kind + an operator enum), wabt-ts finer (`compare` and `convert` split out, `br_if` separate from
+`br`, three `br_on_*` kinds). Decided by asking what the worst case is on each side, and letting the
+binding one control.
+
+**Fidelity side, worst condition** — an instruction the coarse grouping cannot represent, which
+breaks the round trip outright:
+
+- 128 wasm numeric opcodes → **128 representable, 0 missing**
+- 313 binaryen-ts operator values → **0 name an instruction wasm does not have**, against 556 known
+  instruction names
+
+**Does not bind.** Coarse grouping is lossless in both directions.
+
+**Optimization side, worst condition** — a pass that must treat a family uniformly, forced to
+enumerate the finer kinds, where a missed member silently does not fire:
+
+- `optimize-instructions.ts`: 6 kinds but **64 operator dispatches**
+- only 5 of 15 passes dispatch on an operator at all
+
+**Binds** — narrowly, but hard, on the one pass whose whole job is operator pattern-matching.
+
+### So binaryen-ts's coarse grouping controls
+
+|                | required by COARSE                   | required by FINE                            |
+| -------------- | ------------------------------------ | ------------------------------------------- |
+| what it needs  | a complete operator ↔ opcode mapping | splitting 64 dispatches in the hottest pass |
+| does it exist? | **yes, and it is complete**          | no — would have to be built                 |
+
+The same answer falls out for all four sub-cases — arithmetic, `br`/`br_if`, `br_on`, and the SIMD
+families. A rule that flipped per case would mean the framing was wrong.
+
+⚠️ **Coarse grouping has one exposure, and it is this codebase's known failure mode**: the operator
+enum and the opcode table are one fact in two places. They are in step today — measured — but
+nothing enforced it. `storeBytes` drifted from `loadBytes`; `constExprOperands` from
+`writeInstrHead`; `isBlockTypeCarrier` from `encodeRegionBody`. Each was found only after it
+produced wrong output.
+
+**So the decision ships with a gate:** `deno task operators` (`scripts/check-operator-mapping.ts`)
+fails if any operator names an instruction wasm does not have. It converts "complete now" into
+"stays complete", which is what makes the controlling condition safe to design against.
+
+## Scope — the path to full convergence
+
+Ordered so that each step is independently verifiable and none of them requires the next one to be
+correct. **The corpus invariants are the acceptance test at every step**: 421/421 validating,
+421/421 byte-identical, baseline `IDENTICAL`.
+
+### S1 — the gate, first ✅ done
+
+`deno task operators`. It has to exist before anything depends on the mapping being total, not
+after.
+
+### S2 — name reconciliation (mechanical, no behaviour change)
+
+Pick one convention and rename across ~25 kinds: `typeIndex`/`typeVar`, `op`/`opcode`,
+`condition`/`cond`, `ifTrue`/`then_`, `name`/`label`, `children`/`body`, `operands`/`args`,
+`index`/`var`.
+
+**Verifiable by construction**: a pure rename must leave every emitted byte unchanged, so the
+baseline is the proof. Do it as its own commit precisely because it should be provably inert.
+
+### S3 — the side table
+
+Define it, and move the as-written set into it: `blockType`, `opcode` on load/store, `memidx`,
+`typeUse`/`typeVar`/`sig`, `select.resultType`, `placeholder`, and `type`-as-declared.
+
+⚠️ **`values` vs `value` on `br`/`return` is NOT a side-table entry** — it is a real arity
+difference, already resolved in the tree by `TupleMake`. Do not sweep it in.
+
+Keyed by node identity, so a pass that rewrites a subtree simply loses the entries for what it
+replaced, which is the correct semantics.
+
+### S4 — adopt the coarse grouping
+
+Fold `compare`/`convert` into `binary`/`unary`, `br_if` into `br`+condition, and the three `br_on_*`
+into `br_on`+sub-op, on the wabt-ts side. S1's gate is what makes this safe; S2 should land first so
+the rename noise is not tangled with it.
+
+### S5 — the one-sided kinds
+
+Roughly a dozen: `pop`, `tuple.make`, `tuple.extract` one way; `return_call`,
+`return_call_indirect`, `return_call_ref`, `struct.new_default`, `array.new_default`,
+`code_metadata` the other.
+
+### S6 — unify the type, delete the bridge
+
+Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
+become unnecessary — and **C10a disappears rather than being fixed**, because the 24 modules it
+covers fail in the TRANSLATION, not in either IR. Proved: the same wabt-ts IR encodes VALID through
+wabt-ts's own writer and INVALID through the bridge.
+
+### S7 — the linear-form marker
+
+A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was
+given. Independent of S2–S6 and can land at any point.
+
+- wabt-ts already models custom sections (`Custom { name, data, loc, afterSection }`)
+- **binaryen-ts drops custom sections entirely**, so optimization strips the marker for free —
+  exactly the wanted behaviour, with no code
+- corpus sources are folded (58 of 60 sampled), so emitting the marker only for linear input leaves
+  the emitted-byte baseline untouched
+- absence means folded, so binaries produced before this exists still read right
+
+⚠️ **A whole-module flag cannot reproduce MIXED WAT** — and mixed is common in hand-written source
+(fold the arithmetic, leave the control flow flat). Version the section so per-function form can
+land later without breaking old binaries.
+
+### What is NOT in scope
+
+**Merging the two IRs into one is not the goal, and was briefly recorded as though it were.** The
+goal is one tree type with two verb sets. wabt-ts's operations and binaryen-ts's passes stay
+separate — they are different phases, and the side table is what lets them share a tree without
+sharing obligations.
 
 ## Why this was invisible until now
 

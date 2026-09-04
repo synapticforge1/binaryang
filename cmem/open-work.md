@@ -39,6 +39,37 @@ stands.
 **What must not happen is the next bump being made incidentally**: the version line is what arms the
 release, so bumping it "to keep main tidy" publishes. See [publishing.md](publishing.md).
 
+## 🔑 IR convergence — reframed, scoped, and no longer a merge
+
+**The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
+PHASES, never both meaningful for the same module — once a pass runs there is no original to be
+faithful to. So the fidelity metadata lives BESIDE the tree, and binaryen-ts's passes drop it.
+
+⚠️ **"A tree cannot be faithful" is false** and this project recorded it as though it were true.
+Wasm has no `dup`, so every value has exactly one consumer and a program already IS a tree — plus a
+marker for the producer that must stay put, which BOTH sides already have (`Pop` ≡ `placeholder`).
+
+**Measured 2026-09-02**, and the numbers are the reason this is now scoped rather than debated:
+
+|                                              |                                                                             |
+| -------------------------------------------- | --------------------------------------------------------------------------- |
+| shared expression kinds (identical spelling) | 63 of 81 / 98 — including **every** structural construct                    |
+| shared kinds whose fields differ             | 47 of 62, but almost all pure RENAMES                                       |
+| the real difference                          | one coherent set: what wabt-ts keeps AS WRITTEN vs what binaryen-ts DERIVES |
+| passes touching an as-written field          | **0 of 16** — the split is already the one the code observes                |
+| grouping: opcodes representable coarsely     | **128 / 128**, and 0 of 313 operators name a non-instruction                |
+
+**The grouping decision was taken by worst-condition analysis** — the fidelity worst case (an
+unrepresentable instruction) does NOT bind at 0/128; the optimization worst case does, on
+`optimize-instructions.ts` with its 64 operator dispatches. So binaryen-ts's coarser grouping
+controls, and it ships with a gate — `deno task operators` — because the mapping it depends on is
+one fact in two places, which is this codebase's known failure mode.
+
+**Seven ordered steps, S1–S7, in [ir-convergence.md](ir-convergence.md).** S1 (the gate) is done. ⚠️
+**S6 deletes the bridge and dissolves C10a** rather than fixing it: those 24 modules fail in the
+TRANSLATION, not in either IR — proved, since the same wabt-ts IR encodes VALID through wabt-ts's
+own writer and INVALID through the bridge.
+
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
 
 A three-version plan: **1.5.5** code issues, **1.5.6** hardening then code again, **1.5.7** security
