@@ -48,6 +48,7 @@ import {
   type MemoryFillExpr,
   type MemoryGrowExpr,
   type MemoryInitExpr,
+  type MemorySizeExpr,
   type RefAsExpr,
   RefAsOp,
   type RefCastExpr,
@@ -880,6 +881,7 @@ class WasmEncoder {
   private funcIndex = new Map<string, number>();
   private globalIndex = new Map<string, number>();
   private tableIndex = new Map<string, number>();
+  private memoryIndex = new Map<string, number>();
   private tagIndex = new Map<string, number>();
 
   private types: FuncTypeEntry[] = [];
@@ -999,7 +1001,6 @@ class WasmEncoder {
   }
 
   encode(): Uint8Array {
-    this.checkSingleMemory();
     this.checkSingleTable();
     this.buildIndices();
     this.collectTypes();
@@ -1008,7 +1009,13 @@ class WasmEncoder {
     out.writeU32Fixed(0x6d736100); // magic: \0asm
     out.writeU32Fixed(0x00000001); // version: 1
 
-    this.writeSection(out, 1, (w) => this.encodeTypeSection(w));
+    // ⚠️ Only when there is something to declare. This was unconditional, so a
+    // module with no types — `(module (memory 1))` — gained an empty type
+    // section (`01 01 00`) it did not arrive with. Legal, but a section the
+    // input never had, which is a round-trip difference for every type-less
+    // module. Found while proving multi-memory round trips byte-identically;
+    // unrelated to that, and pre-existing.
+    if (this.typeCount() > 0) this.writeSection(out, 1, (w) => this.encodeTypeSection(w));
     if (this.hasImports()) this.writeSection(out, 2, (w) => this.encodeImportSection(w));
     if (this.mod.functions.length > 0) {
       this.writeSection(out, 3, (w) => this.encodeFunctionSection(w));
@@ -1062,11 +1069,16 @@ class WasmEncoder {
     }
 
     let ti = 0;
+    let mi = 0;
     for (const imp of this.mod.imports) {
       if (imp.kind === 'table') this.tableIndex.set(imp.name, ti++);
+      if (imp.kind === 'memory') this.memoryIndex.set(imp.name, mi++);
     }
     for (const t of this.mod.tables) {
       this.tableIndex.set(t.name, ti++);
+    }
+    for (const mem of this.mod.memories) {
+      this.memoryIndex.set(mem.name, mi++);
     }
 
     let tagi = 0;
@@ -1236,14 +1248,24 @@ class WasmEncoder {
    * collide). Rather than silently emit everything against memory 0, fail
    * loudly when more than one memory is present.
    */
-  private checkSingleMemory(): void {
-    const importedMemories = this.mod.imports.filter((i) => i.kind === 'memory').length;
-    if (importedMemories + this.mod.memories.length > 1) {
-      throw new WasmEncodeError(
-        'multiple memories are not supported: memory exports, data segments, and ' +
-          'memory.* instructions are encoded against memory index 0',
-      );
+  /**
+   * Write a memarg: alignment exponent, an explicit memory index when the
+   * access does not address memory 0, then the offset.
+   *
+   * ⚠️ Bit 6 of the align field is what says "a memory index follows". Writing
+   * align straight through, as this did, could only ever produce memory-0
+   * accesses — which is why the encoder used to refuse multi-memory modules
+   * outright rather than emit wrong bytes.
+   */
+  private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: number): void {
+    const mem = memory ?? 0;
+    if (mem !== 0) {
+      w.writeU32(align | 0x40);
+      w.writeU32(mem);
+    } else {
+      w.writeU32(align);
     }
+    w.writeU32(offset);
   }
 
   /**
@@ -1252,7 +1274,7 @@ class WasmEncoder {
    * decodes `call_indirect`/`return_call_indirect` against table 0 — so a
    * segment or indirect call targeting a second table would be silently
    * misencoded against table 0 (wrong dispatch / uninitialized table). Mirrors
-   * {@link checkSingleMemory}. Remove once the element section and indirect-call
+   * the memory guard that used to sit beside it. Remove once the element section and indirect-call
    * encoders thread the real table index.
    */
   private checkSingleTable(): void {
@@ -1268,6 +1290,19 @@ class WasmEncoder {
   // ---------------------------------------------------------------------------
   // Section encoders
   // ---------------------------------------------------------------------------
+
+  /**
+   * How many entries {@link encodeTypeSection} will actually write.
+   *
+   * ⚠️ It must mirror that method's branch exactly. There are TWO lists — the
+   * GC `heapTypes` and the deduped `types` — and the section emits `heapTypes`
+   * when non-empty and `types` otherwise. Counting only `heapTypes` reported 0
+   * for every non-GC module and suppressed a section they needed, which showed
+   * up as `type index 0 is out of range` across 81 tests.
+   */
+  private typeCount(): number {
+    return this.heapTypes.length > 0 ? this.heapTypes.length : this.types.length;
+  }
 
   private encodeTypeSection(w: BinaryWriter): void {
     if (this.heapTypes.length > 0) {
@@ -1453,7 +1488,7 @@ class WasmEncoder {
         }
         case 'memory': {
           w.writeU8(0x02);
-          w.writeU32(0); // memory index 0
+          w.writeU32(this.resolveRef(this.memoryIndex, exp.value, 'exported memory'));
           break;
         }
         case 'global': {
@@ -1581,7 +1616,12 @@ class WasmEncoder {
         w.writeU32(seg.data.length);
         w.writeBytes(seg.data);
       } else {
-        w.writeU32(0); // active, memory 0
+        if (seg.memory) {
+          w.writeU32(2); // active, explicit memory index
+          w.writeU32(seg.memory);
+        } else {
+          w.writeU32(0); // active, memory 0
+        }
         this.encodeInitExpr(w, seg.offset!);
         w.writeU32(seg.data.length);
         w.writeBytes(seg.data);
@@ -2010,8 +2050,7 @@ class WasmEncoder {
         } else {
           w.writeU8(loadOpcode(e));
         }
-        w.writeU32(e.align);
-        w.writeU32(e.offset);
+        this.writeMemArg(w, e.align, e.offset, e.memory);
         break;
       }
 
@@ -2026,21 +2065,20 @@ class WasmEncoder {
         } else {
           w.writeU8(storeOpcode(e));
         }
-        w.writeU32(e.align);
-        w.writeU32(e.offset);
+        this.writeMemArg(w, e.align, e.offset, e.memory);
         break;
       }
 
       case ExpressionKind.MemorySize: {
         w.writeU8(0x3f);
-        w.writeU8(0x00);
+        w.writeU8((expr as MemorySizeExpr).memory ?? 0);
         break;
       }
       case ExpressionKind.MemoryGrow: {
         const e = expr as MemoryGrowExpr;
         this.encodeExpr(w, e.delta, labels);
         w.writeU8(0x40);
-        w.writeU8(0x00);
+        w.writeU8(e.memory ?? 0);
         break;
       }
       case ExpressionKind.TableInit: {
@@ -2073,7 +2111,7 @@ class WasmEncoder {
         w.writeU8(0xfc);
         w.writeU32(8);
         w.writeU32(this.dataSegmentIndex(e.segment));
-        w.writeU8(0x00); // memory 0
+        w.writeU8(e.memory ?? 0);
         break;
       }
 
@@ -2136,8 +2174,8 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(10);
-        w.writeU8(0x00);
-        w.writeU8(0x00);
+        w.writeU8(e.memory ?? 0);
+        w.writeU8(e.sourceMemory ?? 0);
         break;
       }
       case ExpressionKind.MemoryFill: {
@@ -2147,7 +2185,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(11);
-        w.writeU8(0x00);
+        w.writeU8(e.memory ?? 0);
         break;
       }
 
@@ -2560,8 +2598,7 @@ class WasmEncoder {
         if (sub === undefined) throw new WasmEncodeError(`unknown SIMD load opcode: ${e.op}`);
         w.writeU8(0xfd);
         w.writeU32(sub);
-        w.writeU32(e.align);
-        w.writeU32(e.offset);
+        this.writeMemArg(w, e.align, e.offset, e.memory);
         break;
       }
 
@@ -2575,8 +2612,7 @@ class WasmEncoder {
         }
         w.writeU8(0xfd);
         w.writeU32(sub);
-        w.writeU32(e.align);
-        w.writeU32(e.offset);
+        this.writeMemArg(w, e.align, e.offset, e.memory);
         w.writeU8(e.lane);
         break;
       }

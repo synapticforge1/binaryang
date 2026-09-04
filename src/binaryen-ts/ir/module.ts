@@ -135,6 +135,13 @@ export interface DataSegment {
   name: string;
   /** `true` for passive segments (not auto-applied at instantiation). */
   passive: boolean;
+  /**
+   * Memory an ACTIVE segment initialises. Omitted means 0.
+   *
+   * The binary distinguishes kind 0 (active, memory 0) from kind 2 (active,
+   * explicit memory index); the reader used to consume that index and drop it.
+   */
+  memory?: number;
   /** Offset expression (for active segments). */
   offset: Expression | null;
   /** Raw bytes copied into linear memory. */
@@ -386,8 +393,14 @@ export class ModuleBuilder {
    * @param offset - Constant offset expression (e.g. `makeI32Const(0)`).
    * @param data - Raw bytes.
    */
-  addDataSegment(name: string, offset: Expression, data: Uint8Array): this {
-    this._dataSegments.push({ name, passive: false, offset, data });
+  addDataSegment(name: string, offset: Expression, data: Uint8Array, memory = 0): this {
+    this._dataSegments.push({
+      name,
+      passive: false,
+      offset,
+      data,
+      ...(memory !== 0 ? { memory } : {}),
+    });
     return this;
   }
 

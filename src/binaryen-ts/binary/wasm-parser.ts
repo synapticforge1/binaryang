@@ -589,10 +589,26 @@ function funcTypeAt(
   return ft;
 }
 
-function readMemArg(r: BinaryReader): { align: number; offset: number } {
-  const align = r.readU32();
+/**
+ * A memarg: alignment exponent, optional memory index, offset.
+ *
+ * ⚠️ **Bit 6 of the align field means "an explicit memory index follows"**
+ * (multi-memory). Reading align and offset straight through, as this did, is a
+ * DESYNC rather than a lost operand: for `i32.load (memory 1)` — `28 42 01 00` —
+ * it returned align 0x42 (a nonsense 2^66 alignment) and offset 1, then left the
+ * real offset byte in the stream where the next decode step consumed it as an
+ * OPCODE. A `00` became a phantom `unreachable`, which makes everything after it
+ * dead code, so any pass reading that body was reading a different program.
+ *
+ * Nothing caught it: no error is raised here, and `checkSingleMemory` in the
+ * encoder only fires if the module is re-encoded. Same failure shape as the
+ * typed-ref block type in wabt-ts (`block_type_ref.test.ts`).
+ */
+function readMemArg(r: BinaryReader): { align: number; offset: number; memory: number } {
+  const flags = r.readU32();
+  const memory = (flags & 0x40) !== 0 ? r.readU32() : 0;
   const offset = r.readU32();
-  return { align, offset };
+  return { align: flags & ~0x40, offset, memory };
 }
 
 /**
@@ -1050,7 +1066,9 @@ class WasmParser {
           break;
         }
         case 0x02: // memory
-          this.builder.addExport(name, 'mem0', 'memory');
+          // Named by index, matching the names addMemory assigns. Hardcoding
+          // 'mem0' here silently re-pointed every memory export at memory 0.
+          this.builder.addExport(name, `mem${index}`, 'memory');
           break;
         case 0x03: { // global
           this.builder.addExport(name, `$global${index}`, 'global');
@@ -1221,11 +1239,11 @@ class WasmParser {
         this.builder.addPassiveDataSegment(`$data${i}`, data);
       } else {
         // active with explicit memory index (kind=2)
-        this.r.readU32(); // memory index
+        const segMemory = this.r.readU32();
         const offset = this.readInitExpr(ValType.I32);
         const dataLen = this.r.readU32();
         const data = this.r.readBytes(dataLen);
-        this.builder.addDataSegment(`$data${i}`, offset, data);
+        this.builder.addDataSegment(`$data${i}`, offset, data, segMemory);
       }
     }
   }
@@ -2140,139 +2158,140 @@ class WasmParser {
 
         // Loads
         case 0x28: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(4, false, offset, align, pop(), ValType.I32));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(4, false, offset, align, pop(), ValType.I32, memory));
           break;
         }
         case 0x29: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(8, false, offset, align, pop(), ValType.I64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(8, false, offset, align, pop(), ValType.I64, memory));
           break;
         }
         case 0x2a: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(4, false, offset, align, pop(), ValType.F32));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(4, false, offset, align, pop(), ValType.F32, memory));
           break;
         }
         case 0x2b: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(8, false, offset, align, pop(), ValType.F64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(8, false, offset, align, pop(), ValType.F64, memory));
           break;
         }
         case 0x2c: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(1, true, offset, align, pop(), ValType.I32));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(1, true, offset, align, pop(), ValType.I32, memory));
           break;
         }
         case 0x2d: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(1, false, offset, align, pop(), ValType.I32));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(1, false, offset, align, pop(), ValType.I32, memory));
           break;
         }
         case 0x2e: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(2, true, offset, align, pop(), ValType.I32));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(2, true, offset, align, pop(), ValType.I32, memory));
           break;
         }
         case 0x2f: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(2, false, offset, align, pop(), ValType.I32));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(2, false, offset, align, pop(), ValType.I32, memory));
           break;
         }
         case 0x30: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(1, true, offset, align, pop(), ValType.I64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(1, true, offset, align, pop(), ValType.I64, memory));
           break;
         }
         case 0x31: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(1, false, offset, align, pop(), ValType.I64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(1, false, offset, align, pop(), ValType.I64, memory));
           break;
         }
         case 0x32: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(2, true, offset, align, pop(), ValType.I64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(2, true, offset, align, pop(), ValType.I64, memory));
           break;
         }
         case 0x33: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(2, false, offset, align, pop(), ValType.I64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(2, false, offset, align, pop(), ValType.I64, memory));
           break;
         }
         case 0x34: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(4, true, offset, align, pop(), ValType.I64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(4, true, offset, align, pop(), ValType.I64, memory));
           break;
         }
         case 0x35: {
-          const { align, offset } = readMemArg(r);
-          push(makeLoad(4, false, offset, align, pop(), ValType.I64));
+          const { align, offset, memory } = readMemArg(r);
+          push(makeLoad(4, false, offset, align, pop(), ValType.I64, memory));
           break;
         }
         // Stores
         case 0x36: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(4, offset, align, pop(), v));
+          push(makeStore(4, offset, align, pop(), v, memory));
           break;
         }
         case 0x37: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(8, offset, align, pop(), v));
+          push(makeStore(8, offset, align, pop(), v, memory));
           break;
         }
         case 0x38: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(4, offset, align, pop(), v));
+          push(makeStore(4, offset, align, pop(), v, memory));
           break;
         }
         case 0x39: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(8, offset, align, pop(), v));
+          push(makeStore(8, offset, align, pop(), v, memory));
           break;
         }
         case 0x3a: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(1, offset, align, pop(), v));
+          push(makeStore(1, offset, align, pop(), v, memory));
           break;
         }
         case 0x3b: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(2, offset, align, pop(), v));
+          push(makeStore(2, offset, align, pop(), v, memory));
           break;
         }
         case 0x3c: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(4, offset, align, pop(), v));
+          push(makeStore(4, offset, align, pop(), v, memory));
           break;
         }
         case 0x3d: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(1, offset, align, pop(), v));
+          push(makeStore(1, offset, align, pop(), v, memory));
           break;
         }
         case 0x3e: {
-          const { align, offset } = readMemArg(r);
+          const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(2, offset, align, pop(), v));
+          push(makeStore(2, offset, align, pop(), v, memory));
           break;
         }
 
         case 0x3f:
-          r.readU8();
-          push(makeMemorySize());
+          push(makeMemorySize(r.readU8()));
           break; // memory.size
-        case 0x40:
-          r.readU8();
-          push(makeMemoryGrow(pop()));
-          break; // memory.grow
+        case 0x40: { // memory.grow
+          // The memidx byte precedes the operand, so read it first.
+          const growMem = r.readU8();
+          push(makeMemoryGrow(pop(), growMem));
+          break;
+        }
 
         case 0x41:
           push(makeI32Const(r.readI32()));
@@ -2684,20 +2703,20 @@ function decodeMiscPrefix(
       push(makeUnary(UnaryOp.TruncUF64ToI64, pop()));
       break;
     case 10: { // memory.copy
-      r.readU8();
-      r.readU8(); // dst memidx, src memidx
+      const dstMem = r.readU8();
+      const srcMem = r.readU8();
       const size = pop();
       const src = pop();
       const dst = pop();
-      push(makeMemoryCopy(dst, src, size));
+      push(makeMemoryCopy(dst, src, size, dstMem, srcMem));
       break;
     }
     case 11: { // memory.fill
-      r.readU8(); // memidx
+      const fillMem = r.readU8();
       const size = pop();
       const val = pop();
       const dst = pop();
-      push(makeMemoryFill(dst, val, size));
+      push(makeMemoryFill(dst, val, size, fillMem));
       break;
     }
     // The eight bulk-memory / table operations. Each pops its operands in
@@ -2709,11 +2728,11 @@ function decodeMiscPrefix(
     // it is retired now that the IR can represent every one of them.
     case 8: { // memory.init
       const segIdx = r.readU32();
-      r.readU8(); // memidx
+      const initMem = r.readU8();
       const size = pop();
       const offset = pop();
       const dst = pop();
-      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size));
+      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size, initMem));
       break;
     }
     case 9: { // data.drop
@@ -2808,77 +2827,65 @@ function decodeSIMDPrefix(
   switch (sub) {
     // ---- loads ----
     case 0x00: { // v128.load (16 bytes)
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeLoad(16, false, offset, align, pop(), ValType.V128));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeLoad(16, false, offset, align, pop(), ValType.V128, memory));
       break;
     }
     case 0x01: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load8x8SVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load8x8SVec128, pop(), offset, align, memory));
       break;
     }
     case 0x02: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load8x8UVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load8x8UVec128, pop(), offset, align, memory));
       break;
     }
     case 0x03: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load16x4SVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load16x4SVec128, pop(), offset, align, memory));
       break;
     }
     case 0x04: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load16x4UVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load16x4UVec128, pop(), offset, align, memory));
       break;
     }
     case 0x05: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load32x2SVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load32x2SVec128, pop(), offset, align, memory));
       break;
     }
     case 0x06: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load32x2UVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load32x2UVec128, pop(), offset, align, memory));
       break;
     }
     case 0x07: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load8SplatVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load8SplatVec128, pop(), offset, align, memory));
       break;
     }
     case 0x08: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load16SplatVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load16SplatVec128, pop(), offset, align, memory));
       break;
     }
     case 0x09: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load32SplatVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load32SplatVec128, pop(), offset, align, memory));
       break;
     }
     case 0x0a: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load64SplatVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load64SplatVec128, pop(), offset, align, memory));
       break;
     }
     case 0x0b: { // v128.store
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const value = pop();
       const ptr = pop();
-      push(makeStore(16, offset, align, ptr, value));
+      push(makeStore(16, offset, align, ptr, value, memory));
       break;
     }
     case 0x0c: { // v128.const — read 16 bytes
@@ -3244,18 +3251,24 @@ function decodeSIMDPrefix(
       break;
     // ---- load / store lane ----
     case 0x54: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
-        makeSIMDLoadStoreLane(SIMDLoadStoreLaneOp.Load8LaneVec128, pop(), vec, offset, align, lane),
+        makeSIMDLoadStoreLane(
+          SIMDLoadStoreLaneOp.Load8LaneVec128,
+          pop(),
+          vec,
+          offset,
+          align,
+          lane,
+          memory,
+        ),
       );
       break;
     }
     case 0x55: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
@@ -3266,13 +3279,13 @@ function decodeSIMDPrefix(
           offset,
           align,
           lane,
+          memory,
         ),
       );
       break;
     }
     case 0x56: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
@@ -3283,13 +3296,13 @@ function decodeSIMDPrefix(
           offset,
           align,
           lane,
+          memory,
         ),
       );
       break;
     }
     case 0x57: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
@@ -3300,13 +3313,13 @@ function decodeSIMDPrefix(
           offset,
           align,
           lane,
+          memory,
         ),
       );
       break;
     }
     case 0x58: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
@@ -3317,13 +3330,13 @@ function decodeSIMDPrefix(
           offset,
           align,
           lane,
+          memory,
         ),
       );
       break;
     }
     case 0x59: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
@@ -3334,13 +3347,13 @@ function decodeSIMDPrefix(
           offset,
           align,
           lane,
+          memory,
         ),
       );
       break;
     }
     case 0x5a: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
@@ -3351,13 +3364,13 @@ function decodeSIMDPrefix(
           offset,
           align,
           lane,
+          memory,
         ),
       );
       break;
     }
     case 0x5b: {
-      const align = r.readU32();
-      const offset = r.readU32();
+      const { align, offset, memory } = readMemArg(r);
       const lane = r.readU8();
       const vec = pop();
       push(
@@ -3368,20 +3381,19 @@ function decodeSIMDPrefix(
           offset,
           align,
           lane,
+          memory,
         ),
       );
       break;
     }
     case 0x5c: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load32ZeroVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load32ZeroVec128, pop(), offset, align, memory));
       break;
     }
     case 0x5d: {
-      const align = r.readU32();
-      const offset = r.readU32();
-      push(makeSIMDLoad(SIMDLoadOp.Load64ZeroVec128, pop(), offset, align));
+      const { align, offset, memory } = readMemArg(r);
+      push(makeSIMDLoad(SIMDLoadOp.Load64ZeroVec128, pop(), offset, align, memory));
       break;
     }
     // ---- float conversions ----
