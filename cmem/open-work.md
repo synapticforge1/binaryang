@@ -88,9 +88,29 @@ same missing heap type breaking type-checking downstream.**
 | malformed BINARY          | 711 / 711 · **100%**   |
 | malformed TEXT            | 1156 / 1156 · **100%** |
 
-⬚ **SP5 is still open** — `Features.compactImports` and `.wideArithmetic` are declared flags with no
-binary-reader support. Excluded from the prepare step rather than hidden; a feature flag is not an
-implementation.
+### ✅ SP5 closed — and the finding as first written was half wrong
+
+I recorded "`Features.compactImports` and `.wideArithmetic` are declared but the binary reader does
+not implement them". One claim covering two unrelated situations, and **I had checked neither**.
+
+- ✅ **`wideArithmetic` is FULLY implemented in wabt-ts** — `i64.add128` / `sub128` / `mul_wide_s` /
+  `mul_wide_u` decode, validate, write and round-trip byte-identically.
+- ⚠️ **`compactImports` is worse than unimplemented**: the field is declared, settable, and returned
+  `true` by `allFeatures()`, and **nothing reads it**. Enabling it changes nothing.
+
+Fixed by making the flag TRUTHFUL rather than implementing the proposal, which is not planned — V8
+needs `--experimental-wasm-compact-imports` to load such a module at all. The reader now names the
+proposal instead of `unknown import kind: 127`, and the field says plainly that setting it does
+nothing. Kept rather than removed, because `Features` is public surface.
+
+⬚ **The one real gap this surfaced**: wide arithmetic works in wabt-ts and is refused loudly by
+binaryen-ts's binary reader (`unsupported bulk-memory/table opcode: 0xFC 0x13`). Deliberate for now,
+recorded rather than silent — implementing it needs IR nodes for a 4-operand, 2-result instruction.
+
+🔑 **A feature flag is not an implementation** — the third "declared is not implemented" of the
+session, after `ExpressionKind` members with no factory and four stale `not yet supported` blockers.
+⚠️ And the lesson about the FINDING: I wrote a two-part claim from one observation. **The half I had
+evidence for was true; the half I inferred was false.**
 
 ### ⚠️ The feature set is the design, and it was wrong twice first
 
