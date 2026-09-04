@@ -22,7 +22,6 @@ import {
   type ArrayNewFixedExpr,
   type ArraySetExpr,
   type BinaryExpr,
-  BinaryOp,
   type BlockExpr,
   type BreakExpr,
   type BrOnExpr,
@@ -88,7 +87,6 @@ import {
   type TryTableExpr,
   type TupleMakeExpr,
   type UnaryExpr,
-  UnaryOp,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { None, type Type, ValType } from '../ir/types.ts';
@@ -201,399 +199,13 @@ class BinaryWriter {
 // Opcode lookup tables (inverse of wasm-parser.ts tables)
 // ---------------------------------------------------------------------------
 
-const UNARY_TO_OPCODE: Partial<Record<UnaryOp, number>> = {
-  [UnaryOp.EqzI32]: 0x45,
-  [UnaryOp.EqzI64]: 0x50,
-  [UnaryOp.ClzI32]: 0x67,
-  [UnaryOp.CtzI32]: 0x68,
-  [UnaryOp.PopcntI32]: 0x69,
-  [UnaryOp.ClzI64]: 0x79,
-  [UnaryOp.CtzI64]: 0x7a,
-  [UnaryOp.PopcntI64]: 0x7b,
-  [UnaryOp.AbsF32]: 0x8b,
-  [UnaryOp.NegF32]: 0x8c,
-  [UnaryOp.CeilF32]: 0x8d,
-  [UnaryOp.FloorF32]: 0x8e,
-  [UnaryOp.TruncF32]: 0x8f,
-  [UnaryOp.NearestF32]: 0x90,
-  [UnaryOp.SqrtF32]: 0x91,
-  [UnaryOp.AbsF64]: 0x99,
-  [UnaryOp.NegF64]: 0x9a,
-  [UnaryOp.CeilF64]: 0x9b,
-  [UnaryOp.FloorF64]: 0x9c,
-  [UnaryOp.TruncF64]: 0x9d,
-  [UnaryOp.NearestF64]: 0x9e,
-  [UnaryOp.SqrtF64]: 0x9f,
-  [UnaryOp.WrapI64]: 0xa7,
-  [UnaryOp.TruncSF32ToI32]: 0xa8,
-  [UnaryOp.TruncUF32ToI32]: 0xa9,
-  [UnaryOp.TruncSF64ToI32]: 0xaa,
-  [UnaryOp.TruncUF64ToI32]: 0xab,
-  [UnaryOp.ExtendSI32]: 0xac,
-  [UnaryOp.ExtendUI32]: 0xad,
-  [UnaryOp.TruncSF32ToI64]: 0xae,
-  [UnaryOp.TruncUF32ToI64]: 0xaf,
-  [UnaryOp.TruncSF64ToI64]: 0xb0,
-  [UnaryOp.TruncUF64ToI64]: 0xb1,
-  [UnaryOp.ConvertSI32ToF32]: 0xb2,
-  [UnaryOp.ConvertUI32ToF32]: 0xb3,
-  [UnaryOp.ConvertSI64ToF32]: 0xb4,
-  [UnaryOp.ConvertUI64ToF32]: 0xb5,
-  [UnaryOp.DemoteF64]: 0xb6,
-  [UnaryOp.ConvertSI32ToF64]: 0xb7,
-  [UnaryOp.ConvertUI32ToF64]: 0xb8,
-  [UnaryOp.ConvertSI64ToF64]: 0xb9,
-  [UnaryOp.ConvertUI64ToF64]: 0xba,
-  [UnaryOp.PromoteF32]: 0xbb,
-  [UnaryOp.ReinterpretF32]: 0xbc,
-  [UnaryOp.ReinterpretF64]: 0xbd,
-  [UnaryOp.ReinterpretI32]: 0xbe,
-  [UnaryOp.ReinterpretI64]: 0xbf,
-  [UnaryOp.ExtendS8I32]: 0xc0,
-  [UnaryOp.ExtendS16I32]: 0xc1,
-  [UnaryOp.ExtendS8I64]: 0xc2,
-  [UnaryOp.ExtendS16I64]: 0xc3,
-  [UnaryOp.ExtendS32I64]: 0xc4,
-};
-
-const BINARY_TO_OPCODE: Partial<Record<BinaryOp, number>> = {
-  [BinaryOp.EqI32]: 0x46,
-  [BinaryOp.NeI32]: 0x47,
-  [BinaryOp.LtSI32]: 0x48,
-  [BinaryOp.LtUI32]: 0x49,
-  [BinaryOp.GtSI32]: 0x4a,
-  [BinaryOp.GtUI32]: 0x4b,
-  [BinaryOp.LeSI32]: 0x4c,
-  [BinaryOp.LeUI32]: 0x4d,
-  [BinaryOp.GeSI32]: 0x4e,
-  [BinaryOp.GeUI32]: 0x4f,
-  [BinaryOp.EqI64]: 0x51,
-  [BinaryOp.NeI64]: 0x52,
-  [BinaryOp.LtSI64]: 0x53,
-  [BinaryOp.LtUI64]: 0x54,
-  [BinaryOp.GtSI64]: 0x55,
-  [BinaryOp.GtUI64]: 0x56,
-  [BinaryOp.LeSI64]: 0x57,
-  [BinaryOp.LeUI64]: 0x58,
-  [BinaryOp.GeSI64]: 0x59,
-  [BinaryOp.GeUI64]: 0x5a,
-  [BinaryOp.EqF32]: 0x5b,
-  [BinaryOp.NeF32]: 0x5c,
-  [BinaryOp.LtF32]: 0x5d,
-  [BinaryOp.GtF32]: 0x5e,
-  [BinaryOp.LeF32]: 0x5f,
-  [BinaryOp.GeF32]: 0x60,
-  [BinaryOp.EqF64]: 0x61,
-  [BinaryOp.NeF64]: 0x62,
-  [BinaryOp.LtF64]: 0x63,
-  [BinaryOp.GtF64]: 0x64,
-  [BinaryOp.LeF64]: 0x65,
-  [BinaryOp.GeF64]: 0x66,
-  [BinaryOp.AddI32]: 0x6a,
-  [BinaryOp.SubI32]: 0x6b,
-  [BinaryOp.MulI32]: 0x6c,
-  [BinaryOp.DivSI32]: 0x6d,
-  [BinaryOp.DivUI32]: 0x6e,
-  [BinaryOp.RemSI32]: 0x6f,
-  [BinaryOp.RemUI32]: 0x70,
-  [BinaryOp.AndI32]: 0x71,
-  [BinaryOp.OrI32]: 0x72,
-  [BinaryOp.XorI32]: 0x73,
-  [BinaryOp.ShlI32]: 0x74,
-  [BinaryOp.ShrSI32]: 0x75,
-  [BinaryOp.ShrUI32]: 0x76,
-  [BinaryOp.RotlI32]: 0x77,
-  [BinaryOp.RotrI32]: 0x78,
-  [BinaryOp.AddI64]: 0x7c,
-  [BinaryOp.SubI64]: 0x7d,
-  [BinaryOp.MulI64]: 0x7e,
-  [BinaryOp.DivSI64]: 0x7f,
-  [BinaryOp.DivUI64]: 0x80,
-  [BinaryOp.RemSI64]: 0x81,
-  [BinaryOp.RemUI64]: 0x82,
-  [BinaryOp.AndI64]: 0x83,
-  [BinaryOp.OrI64]: 0x84,
-  [BinaryOp.XorI64]: 0x85,
-  [BinaryOp.ShlI64]: 0x86,
-  [BinaryOp.ShrSI64]: 0x87,
-  [BinaryOp.ShrUI64]: 0x88,
-  [BinaryOp.RotlI64]: 0x89,
-  [BinaryOp.RotrI64]: 0x8a,
-  [BinaryOp.AddF32]: 0x92,
-  [BinaryOp.SubF32]: 0x93,
-  [BinaryOp.MulF32]: 0x94,
-  [BinaryOp.DivF32]: 0x95,
-  [BinaryOp.MinF32]: 0x96,
-  [BinaryOp.MaxF32]: 0x97,
-  [BinaryOp.CopySignF32]: 0x98,
-  [BinaryOp.AddF64]: 0xa0,
-  [BinaryOp.SubF64]: 0xa1,
-  [BinaryOp.MulF64]: 0xa2,
-  [BinaryOp.DivF64]: 0xa3,
-  [BinaryOp.MinF64]: 0xa4,
-  [BinaryOp.MaxF64]: 0xa5,
-  [BinaryOp.CopySignF64]: 0xa6,
-};
-
 // SIMD unary ops — 0xFD prefix + U32 sub-opcode
-const SIMD_UNARY_SUBOP: Partial<Record<UnaryOp, number>> = {
-  [UnaryOp.SplatVecI8x16]: 0x0f,
-  [UnaryOp.SplatVecI16x8]: 0x10,
-  [UnaryOp.SplatVecI32x4]: 0x11,
-  [UnaryOp.SplatVecI64x2]: 0x12,
-  [UnaryOp.SplatVecF32x4]: 0x13,
-  [UnaryOp.SplatVecF64x2]: 0x14,
-  [UnaryOp.NotVec128]: 0x4d,
-  [UnaryOp.AnyTrueVec128]: 0x53,
-  [UnaryOp.AbsVecI8x16]: 0x60,
-  [UnaryOp.NegVecI8x16]: 0x61,
-  [UnaryOp.PopcntVecI8x16]: 0x62,
-  [UnaryOp.AllTrueVecI8x16]: 0x63,
-  [UnaryOp.BitmaskVecI8x16]: 0x64,
-  [UnaryOp.CeilVecF32x4]: 0x67,
-  [UnaryOp.FloorVecF32x4]: 0x68,
-  [UnaryOp.TruncVecF32x4]: 0x69,
-  [UnaryOp.NearestVecF32x4]: 0x6a,
-  [UnaryOp.CeilVecF64x2]: 0x74,
-  [UnaryOp.FloorVecF64x2]: 0x75,
-  [UnaryOp.TruncVecF64x2]: 0x7a,
-  [UnaryOp.NearestVecF64x2]: 0x94,
-  [UnaryOp.ExtaddPairwiseSVecI8x16ToI16x8]: 0x7c,
-  [UnaryOp.ExtaddPairwiseUVecI8x16ToI16x8]: 0x7d,
-  [UnaryOp.ExtaddPairwiseSVecI16x8ToI32x4]: 0x7e,
-  [UnaryOp.ExtaddPairwiseUVecI16x8ToI32x4]: 0x7f,
-  [UnaryOp.AbsVecI16x8]: 0x80,
-  [UnaryOp.NegVecI16x8]: 0x81,
-  [UnaryOp.AllTrueVecI16x8]: 0x83,
-  [UnaryOp.BitmaskVecI16x8]: 0x84,
-  [UnaryOp.ExtendLowSVecI8x16ToI16x8]: 0x87,
-  [UnaryOp.ExtendHighSVecI8x16ToI16x8]: 0x88,
-  [UnaryOp.ExtendLowUVecI8x16ToI16x8]: 0x89,
-  [UnaryOp.ExtendHighUVecI8x16ToI16x8]: 0x8a,
-  [UnaryOp.AbsVecI32x4]: 0xa0,
-  [UnaryOp.NegVecI32x4]: 0xa1,
-  [UnaryOp.AllTrueVecI32x4]: 0xa3,
-  [UnaryOp.BitmaskVecI32x4]: 0xa4,
-  [UnaryOp.ExtendLowSVecI16x8ToI32x4]: 0xa7,
-  [UnaryOp.ExtendHighSVecI16x8ToI32x4]: 0xa8,
-  [UnaryOp.ExtendLowUVecI16x8ToI32x4]: 0xa9,
-  [UnaryOp.ExtendHighUVecI16x8ToI32x4]: 0xaa,
-  [UnaryOp.AbsVecI64x2]: 0xc0,
-  [UnaryOp.NegVecI64x2]: 0xc1,
-  [UnaryOp.AllTrueVecI64x2]: 0xc3,
-  [UnaryOp.BitmaskVecI64x2]: 0xc4,
-  [UnaryOp.ExtendLowSVecI32x4ToI64x2]: 0xc7,
-  [UnaryOp.ExtendHighSVecI32x4ToI64x2]: 0xc8,
-  [UnaryOp.ExtendLowUVecI32x4ToI64x2]: 0xc9,
-  [UnaryOp.ExtendHighUVecI32x4ToI64x2]: 0xca,
-  [UnaryOp.DemoteZeroVecF64x2ToF32x4]: 0x5e,
-  [UnaryOp.PromoteLowVecF32x4ToF64x2]: 0x5f,
-  [UnaryOp.AbsVecF32x4]: 0xe0,
-  [UnaryOp.NegVecF32x4]: 0xe1,
-  [UnaryOp.SqrtVecF32x4]: 0xe3,
-  [UnaryOp.AbsVecF64x2]: 0xec,
-  [UnaryOp.NegVecF64x2]: 0xed,
-  [UnaryOp.SqrtVecF64x2]: 0xef,
-  [UnaryOp.TruncSatSVecF32x4ToI32x4]: 0xf8,
-  [UnaryOp.TruncSatUVecF32x4ToI32x4]: 0xf9,
-  [UnaryOp.ConvertSVecI32x4ToF32x4]: 0xfa,
-  [UnaryOp.ConvertUVecI32x4ToF32x4]: 0xfb,
-  [UnaryOp.TruncSatSVecF64x2ToI32x4Zero]: 0xfc,
-  [UnaryOp.TruncSatUVecF64x2ToI32x4Zero]: 0xfd,
-  [UnaryOp.ConvertLowSVecI32x4ToF64x2]: 0xfe,
-  [UnaryOp.ConvertLowUVecI32x4ToF64x2]: 0xff,
-};
-
 // SIMD binary ops — 0xFD prefix + U32 sub-opcode
-const SIMD_BINARY_SUBOP: Partial<Record<BinaryOp, number>> = {
-  [BinaryOp.SwizzleVecI8x16]: 0x0e,
-  [BinaryOp.EqVecI8x16]: 0x23,
-  [BinaryOp.NeVecI8x16]: 0x24,
-  [BinaryOp.LtSVecI8x16]: 0x25,
-  [BinaryOp.LtUVecI8x16]: 0x26,
-  [BinaryOp.GtSVecI8x16]: 0x27,
-  [BinaryOp.GtUVecI8x16]: 0x28,
-  [BinaryOp.LeSVecI8x16]: 0x29,
-  [BinaryOp.LeUVecI8x16]: 0x2a,
-  [BinaryOp.GeSVecI8x16]: 0x2b,
-  [BinaryOp.GeUVecI8x16]: 0x2c,
-  [BinaryOp.EqVecI16x8]: 0x2d,
-  [BinaryOp.NeVecI16x8]: 0x2e,
-  [BinaryOp.LtSVecI16x8]: 0x2f,
-  [BinaryOp.LtUVecI16x8]: 0x30,
-  [BinaryOp.GtSVecI16x8]: 0x31,
-  [BinaryOp.GtUVecI16x8]: 0x32,
-  [BinaryOp.LeSVecI16x8]: 0x33,
-  [BinaryOp.LeUVecI16x8]: 0x34,
-  [BinaryOp.GeSVecI16x8]: 0x35,
-  [BinaryOp.GeUVecI16x8]: 0x36,
-  [BinaryOp.EqVecI32x4]: 0x37,
-  [BinaryOp.NeVecI32x4]: 0x38,
-  [BinaryOp.LtSVecI32x4]: 0x39,
-  [BinaryOp.LtUVecI32x4]: 0x3a,
-  [BinaryOp.GtSVecI32x4]: 0x3b,
-  [BinaryOp.GtUVecI32x4]: 0x3c,
-  [BinaryOp.LeSVecI32x4]: 0x3d,
-  [BinaryOp.LeUVecI32x4]: 0x3e,
-  [BinaryOp.GeSVecI32x4]: 0x3f,
-  [BinaryOp.GeUVecI32x4]: 0x40,
-  [BinaryOp.EqVecF32x4]: 0x41,
-  [BinaryOp.NeVecF32x4]: 0x42,
-  [BinaryOp.LtVecF32x4]: 0x43,
-  [BinaryOp.GtVecF32x4]: 0x44,
-  [BinaryOp.LeVecF32x4]: 0x45,
-  [BinaryOp.GeVecF32x4]: 0x46,
-  [BinaryOp.EqVecF64x2]: 0x47,
-  [BinaryOp.NeVecF64x2]: 0x48,
-  [BinaryOp.LtVecF64x2]: 0x49,
-  [BinaryOp.GtVecF64x2]: 0x4a,
-  [BinaryOp.LeVecF64x2]: 0x4b,
-  [BinaryOp.GeVecF64x2]: 0x4c,
-  [BinaryOp.AndVec128]: 0x4e,
-  [BinaryOp.AndNotVec128]: 0x4f,
-  [BinaryOp.OrVec128]: 0x50,
-  [BinaryOp.XorVec128]: 0x51,
-  [BinaryOp.NarrowSVecI16x8ToI8x16]: 0x65,
-  [BinaryOp.NarrowUVecI16x8ToI8x16]: 0x66,
-  [BinaryOp.AddVecI8x16]: 0x6e,
-  [BinaryOp.AddSatSVecI8x16]: 0x6f,
-  [BinaryOp.AddSatUVecI8x16]: 0x70,
-  [BinaryOp.SubVecI8x16]: 0x71,
-  [BinaryOp.SubSatSVecI8x16]: 0x72,
-  [BinaryOp.SubSatUVecI8x16]: 0x73,
-  [BinaryOp.MinSVecI8x16]: 0x76,
-  [BinaryOp.MinUVecI8x16]: 0x77,
-  [BinaryOp.MaxSVecI8x16]: 0x78,
-  [BinaryOp.MaxUVecI8x16]: 0x79,
-  [BinaryOp.AvgrUVecI8x16]: 0x7b,
-  [BinaryOp.Q15MulrSatSVecI16x8]: 0x82,
-  [BinaryOp.NarrowSVecI32x4ToI16x8]: 0x85,
-  [BinaryOp.NarrowUVecI32x4ToI16x8]: 0x86,
-  [BinaryOp.AddVecI16x8]: 0x8e,
-  [BinaryOp.AddSatSVecI16x8]: 0x8f,
-  [BinaryOp.AddSatUVecI16x8]: 0x90,
-  [BinaryOp.SubVecI16x8]: 0x91,
-  [BinaryOp.SubSatSVecI16x8]: 0x92,
-  [BinaryOp.SubSatUVecI16x8]: 0x93,
-  [BinaryOp.MulVecI16x8]: 0x95,
-  [BinaryOp.MinSVecI16x8]: 0x96,
-  [BinaryOp.MinUVecI16x8]: 0x97,
-  [BinaryOp.MaxSVecI16x8]: 0x98,
-  [BinaryOp.MaxUVecI16x8]: 0x99,
-  [BinaryOp.AvgrUVecI16x8]: 0x9b,
-  [BinaryOp.ExtmulLowSVecI8x16ToI16x8]: 0x9c,
-  [BinaryOp.ExtmulHighSVecI8x16ToI16x8]: 0x9d,
-  [BinaryOp.ExtmulLowUVecI8x16ToI16x8]: 0x9e,
-  [BinaryOp.ExtmulHighUVecI8x16ToI16x8]: 0x9f,
-  [BinaryOp.AddVecI32x4]: 0xae,
-  [BinaryOp.SubVecI32x4]: 0xb1,
-  [BinaryOp.MulVecI32x4]: 0xb5,
-  [BinaryOp.MinSVecI32x4]: 0xb6,
-  [BinaryOp.MinUVecI32x4]: 0xb7,
-  [BinaryOp.MaxSVecI32x4]: 0xb8,
-  [BinaryOp.MaxUVecI32x4]: 0xb9,
-  [BinaryOp.DotSVecI16x8ToI32x4]: 0xba,
-  [BinaryOp.ExtmulLowSVecI16x8ToI32x4]: 0xbc,
-  [BinaryOp.ExtmulHighSVecI16x8ToI32x4]: 0xbd,
-  [BinaryOp.ExtmulLowUVecI16x8ToI32x4]: 0xbe,
-  [BinaryOp.ExtmulHighUVecI16x8ToI32x4]: 0xbf,
-  [BinaryOp.AddVecI64x2]: 0xce,
-  [BinaryOp.SubVecI64x2]: 0xd1,
-  [BinaryOp.MulVecI64x2]: 0xd5,
-  [BinaryOp.EqVecI64x2]: 0xd6,
-  [BinaryOp.NeVecI64x2]: 0xd7,
-  [BinaryOp.LtSVecI64x2]: 0xd8,
-  [BinaryOp.GtSVecI64x2]: 0xd9,
-  [BinaryOp.LeSVecI64x2]: 0xda,
-  [BinaryOp.GeSVecI64x2]: 0xdb,
-  [BinaryOp.ExtmulLowSVecI32x4ToI64x2]: 0xdc,
-  [BinaryOp.ExtmulHighSVecI32x4ToI64x2]: 0xdd,
-  [BinaryOp.ExtmulLowUVecI32x4ToI64x2]: 0xde,
-  [BinaryOp.ExtmulHighUVecI32x4ToI64x2]: 0xdf,
-  [BinaryOp.AddVecF32x4]: 0xe4,
-  [BinaryOp.SubVecF32x4]: 0xe5,
-  [BinaryOp.MulVecF32x4]: 0xe6,
-  [BinaryOp.DivVecF32x4]: 0xe7,
-  [BinaryOp.MinVecF32x4]: 0xe8,
-  [BinaryOp.MaxVecF32x4]: 0xe9,
-  [BinaryOp.PminVecF32x4]: 0xea,
-  [BinaryOp.PmaxVecF32x4]: 0xeb,
-  [BinaryOp.AddVecF64x2]: 0xf0,
-  [BinaryOp.SubVecF64x2]: 0xf1,
-  [BinaryOp.MulVecF64x2]: 0xf2,
-  [BinaryOp.DivVecF64x2]: 0xf3,
-  [BinaryOp.MinVecF64x2]: 0xf4,
-  [BinaryOp.MaxVecF64x2]: 0xf5,
-  [BinaryOp.PminVecF64x2]: 0xf6,
-  [BinaryOp.PmaxVecF64x2]: 0xf7,
-};
-
 // SIMD shift op to sub-opcode
-const SIMD_SHIFT_SUBOP: Record<string, number> = {
-  'i8x16.shl': 0x6b,
-  'i8x16.shr_s': 0x6c,
-  'i8x16.shr_u': 0x6d,
-  'i16x8.shl': 0x8b,
-  'i16x8.shr_s': 0x8c,
-  'i16x8.shr_u': 0x8d,
-  'i32x4.shl': 0xab,
-  'i32x4.shr_s': 0xac,
-  'i32x4.shr_u': 0xad,
-  'i64x2.shl': 0xcb,
-  'i64x2.shr_s': 0xcc,
-  'i64x2.shr_u': 0xcd,
-};
-
 // SIMD extract op to (sub-opcode) — lane immediate follows
-const SIMD_EXTRACT_SUBOP: Record<string, number> = {
-  'i8x16.extract_lane_s': 0x15,
-  'i8x16.extract_lane_u': 0x16,
-  'i16x8.extract_lane_s': 0x18,
-  'i16x8.extract_lane_u': 0x19,
-  'i32x4.extract_lane': 0x1b,
-  'i64x2.extract_lane': 0x1d,
-  'f32x4.extract_lane': 0x1f,
-  'f64x2.extract_lane': 0x21,
-};
-
 // SIMD replace op to sub-opcode
-const SIMD_REPLACE_SUBOP: Record<string, number> = {
-  'i8x16.replace_lane': 0x17,
-  'i16x8.replace_lane': 0x1a,
-  'i32x4.replace_lane': 0x1c,
-  'i64x2.replace_lane': 0x1e,
-  'f32x4.replace_lane': 0x20,
-  'f64x2.replace_lane': 0x22,
-};
-
 // SIMD load op to sub-opcode
-const SIMD_LOAD_SUBOP: Record<string, number> = {
-  'v128.load8x8_s': 0x01,
-  'v128.load8x8_u': 0x02,
-  'v128.load16x4_s': 0x03,
-  'v128.load16x4_u': 0x04,
-  'v128.load32x2_s': 0x05,
-  'v128.load32x2_u': 0x06,
-  'v128.load8_splat': 0x07,
-  'v128.load16_splat': 0x08,
-  'v128.load32_splat': 0x09,
-  'v128.load64_splat': 0x0a,
-  'v128.load32_zero': 0x5c,
-  'v128.load64_zero': 0x5d,
-};
-
 // SIMD load/store lane op to sub-opcode
-const SIMD_LANE_SUBOP: Record<string, number> = {
-  'v128.load8_lane': 0x54,
-  'v128.load16_lane': 0x55,
-  'v128.load32_lane': 0x56,
-  'v128.load64_lane': 0x57,
-  'v128.store8_lane': 0x58,
-  'v128.store16_lane': 0x59,
-  'v128.store32_lane': 0x5a,
-  'v128.store64_lane': 0x5b,
-};
-
 // ---------------------------------------------------------------------------
 // ValType / blocktype encoding
 // ---------------------------------------------------------------------------
@@ -1259,6 +871,29 @@ class WasmEncoder {
    * accesses — which is why the encoder used to refuse multi-memory modules
    * outright rather than emit wrong bytes.
    */
+  /**
+   * Write an operator, whatever prefix space it lives in.
+   *
+   * 🔑 Replaces SEVEN lookup tables. Since S6 stage 1 the operator IS the
+   * opcode, encoded the way wabt-ts encodes it: a bare byte below 0x100, and
+   * `(prefix << 16) | sub` above. So the prefix and sub-opcode are read off the
+   * value instead of looked up, and the tables that held that mapping — 313
+   * entries of the same fact stated twice — are gone.
+   *
+   * It also generalises: the old code special-cased the SIMD prefix, so a MISC,
+   * THREADS or GC operator had nowhere to go. This handles all four, which is
+   * what lets atomics encode at all.
+   */
+  private writeOperator(w: BinaryWriter, op: number): void {
+    const prefix = op >>> 16;
+    if (prefix === 0) {
+      w.writeU8(op);
+      return;
+    }
+    w.writeU8(prefix);
+    w.writeU32(op & 0xffff);
+  }
+
   private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: number): void {
     const mem = memory ?? 0;
     if (mem !== 0) {
@@ -1989,20 +1624,7 @@ class WasmEncoder {
       case ExpressionKind.Unary: {
         const e = expr as UnaryExpr;
         this.encodeExpr(w, e.value, labels);
-        const simdSub = SIMD_UNARY_SUBOP[e.op];
-        if (simdSub !== undefined) {
-          w.writeU8(0xfd);
-          w.writeU32(simdSub);
-        } else {
-          const opcode = UNARY_TO_OPCODE[e.op];
-          if (opcode === undefined) {
-            // The operand was already emitted (pushing a value); a bare `nop`
-            // fallback would leave it dangling on the stack → invalid module.
-            // Fail loudly on an unmapped op instead.
-            throw new WasmEncodeError(`unknown unary opcode: ${e.op}`);
-          }
-          w.writeU8(opcode);
-        }
+        this.writeOperator(w, e.op);
         break;
       }
 
@@ -2010,24 +1632,9 @@ class WasmEncoder {
         const e = expr as BinaryExpr;
         this.encodeExpr(w, e.left, labels);
         this.encodeExpr(w, e.right, labels);
-        // The wide-multiply pair is 0xfc-prefixed, not a single byte, so it is
-        // checked before both the SIMD table and the one-byte table.
-        if (e.op === BinaryOp.MulWideSInt64 || e.op === BinaryOp.MulWideUInt64) {
-          w.writeU8(0xfc);
-          w.writeU32(e.op === BinaryOp.MulWideSInt64 ? 21 : 22);
-          break;
-        }
-        const simdSub = SIMD_BINARY_SUBOP[e.op];
-        if (simdSub !== undefined) {
-          w.writeU8(0xfd);
-          w.writeU32(simdSub);
-        } else {
-          const opcode = BINARY_TO_OPCODE[e.op];
-          if (opcode === undefined) {
-            throw new WasmEncodeError(`unknown binary opcode: ${e.op}`);
-          }
-          w.writeU8(opcode);
-        }
+        // No special case for the 0xfc-prefixed wide-multiply pair any more:
+        // the opcode carries its own prefix, so writeOperator handles it.
+        this.writeOperator(w, e.op);
         break;
       }
 
@@ -2548,10 +2155,7 @@ class WasmEncoder {
       case ExpressionKind.SIMDExtract: {
         const e = expr as SIMDExtractExpr;
         this.encodeExpr(w, e.vec, labels);
-        const sub = SIMD_EXTRACT_SUBOP[e.op];
-        if (sub === undefined) throw new WasmEncodeError(`unknown SIMD extract opcode: ${e.op}`);
-        w.writeU8(0xfd);
-        w.writeU32(sub);
+        this.writeOperator(w, e.op);
         w.writeU8(e.lane);
         break;
       }
@@ -2560,10 +2164,7 @@ class WasmEncoder {
         const e = expr as SIMDReplaceExpr;
         this.encodeExpr(w, e.vec, labels);
         this.encodeExpr(w, e.value, labels);
-        const sub = SIMD_REPLACE_SUBOP[e.op];
-        if (sub === undefined) throw new WasmEncodeError(`unknown SIMD replace opcode: ${e.op}`);
-        w.writeU8(0xfd);
-        w.writeU32(sub);
+        this.writeOperator(w, e.op);
         w.writeU8(e.lane);
         break;
       }
@@ -2605,20 +2206,14 @@ class WasmEncoder {
         const e = expr as SIMDShiftExpr;
         this.encodeExpr(w, e.vec, labels);
         this.encodeExpr(w, e.shift, labels);
-        const sub = SIMD_SHIFT_SUBOP[e.op];
-        if (sub === undefined) throw new WasmEncodeError(`unknown SIMD shift opcode: ${e.op}`);
-        w.writeU8(0xfd);
-        w.writeU32(sub);
+        this.writeOperator(w, e.op);
         break;
       }
 
       case ExpressionKind.SIMDLoad: {
         const e = expr as SIMDLoadExpr;
         this.encodeExpr(w, e.ptr, labels);
-        const sub = SIMD_LOAD_SUBOP[e.op];
-        if (sub === undefined) throw new WasmEncodeError(`unknown SIMD load opcode: ${e.op}`);
-        w.writeU8(0xfd);
-        w.writeU32(sub);
+        this.writeOperator(w, e.op);
         this.writeMemArg(w, e.align, e.offset, e.memory);
         break;
       }
@@ -2627,12 +2222,7 @@ class WasmEncoder {
         const e = expr as SIMDLoadStoreLaneExpr;
         this.encodeExpr(w, e.ptr, labels);
         this.encodeExpr(w, e.vec, labels);
-        const sub = SIMD_LANE_SUBOP[e.op];
-        if (sub === undefined) {
-          throw new WasmEncodeError(`unknown SIMD load/store-lane opcode: ${e.op}`);
-        }
-        w.writeU8(0xfd);
-        w.writeU32(sub);
+        this.writeOperator(w, e.op);
         this.writeMemArg(w, e.align, e.offset, e.memory);
         w.writeU8(e.lane);
         break;

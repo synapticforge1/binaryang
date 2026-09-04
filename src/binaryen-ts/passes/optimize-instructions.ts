@@ -43,6 +43,7 @@ import type { WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression } from '../ir/walk.ts';
+import { anyOpcodeName } from '../../wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -140,7 +141,8 @@ function _isPure(expr: Expression): boolean {
     }
     case ExpressionKind.Unary: {
       // Non-saturating float-to-int truncations can trap
-      const op = expr.op as string;
+      // The operator is an opcode; dispatch below is on its NAME.
+      const op = anyOpcodeName(expr.op);
       if (op.includes('trunc') && !op.includes('sat')) return false;
       return _isPure(expr.value);
     }

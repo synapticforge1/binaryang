@@ -426,10 +426,10 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right op', () =
   m.addExport('read', 'read');
 
   const parsed = parseWasm(encodeWasm(m.build()));
-  const ops: string[] = [];
+  const ops: number[] = [];
   const walk = (e: unknown): void => {
     if (!e || typeof e !== 'object') return;
-    const node = e as { kind?: string; op?: string };
+    const node = e as { kind?: string; op?: number };
     if (node.kind === ExpressionKind.RefAs && node.op) ops.push(node.op);
     for (const v of Object.values(e as Record<string, unknown>)) {
       if (Array.isArray(v)) v.forEach(walk);

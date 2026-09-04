@@ -108,7 +108,6 @@ import { Opcode } from '../wabt-ts/core/opcode.ts';
 
 import {
   AbstractHeapType,
-  BinaryOp,
   BrOnOp,
   makeArrayGet,
   makeArrayLen,
@@ -175,11 +174,7 @@ import {
   makeV128Const,
   ModuleBuilder,
   None,
-  SIMDExtractOp,
   SIMDLoadOp,
-  SIMDLoadStoreLaneOp,
-  SIMDReplaceOp,
-  UnaryOp,
   ValType,
 } from '../binaryen-ts/ir/index.ts';
 import type {
@@ -942,12 +937,12 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // --- Arithmetic / compare / convert -----------------------------------
     case 'unary': {
       const u = e as UnaryExpr;
-      return makeUnary(anyOpcodeName(u.opcode) as UnaryOp, bridgeExpr(u.operand, ctx));
+      return makeUnary(u.opcode, bridgeExpr(u.operand, ctx));
     }
     case 'binary': {
       const be = e as BinaryExpr;
       return makeBinary(
-        anyOpcodeName(be.opcode) as BinaryOp,
+        be.opcode,
         bridgeExpr(be.left, ctx),
         bridgeExpr(be.right, ctx),
       );
@@ -1138,7 +1133,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const ls = e as LoadSplatExpr;
       requireDefaultMemory(ls.memidx, 'load_splat');
       return makeSIMDLoad(
-        anyOpcodeName(ls.opcode) as SIMDLoadOp,
+        ls.opcode,
         bridgeExpr(ls.address, ctx),
         bigintOffsetToNumber(ls.offset, 'load_splat'),
         alignBytesToExponent(ls.align, naturalAlignForOpcode(ls.opcode), 'load_splat'),
@@ -1148,7 +1143,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const lz = e as LoadZeroExpr;
       requireDefaultMemory(lz.memidx, 'load_zero');
       return makeSIMDLoad(
-        anyOpcodeName(lz.opcode) as SIMDLoadOp,
+        lz.opcode,
         bridgeExpr(lz.address, ctx),
         bigintOffsetToNumber(lz.offset, 'load_zero'),
         alignBytesToExponent(lz.align, naturalAlignForOpcode(lz.opcode), 'load_zero'),
@@ -1158,7 +1153,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const sll = e as SimdLoadLaneExpr;
       requireDefaultMemory(sll.memidx, 'simd_load_lane');
       return makeSIMDLoadStoreLane(
-        anyOpcodeName(sll.opcode) as SIMDLoadStoreLaneOp,
+        sll.opcode,
         bridgeExpr(sll.address, ctx),
         bridgeExpr(sll.vec, ctx),
         bigintOffsetToNumber(sll.offset, 'simd_load_lane'),
@@ -1170,7 +1165,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const sls = e as SimdStoreLaneExpr;
       requireDefaultMemory(sls.memidx, 'simd_store_lane');
       return makeSIMDLoadStoreLane(
-        anyOpcodeName(sls.opcode) as SIMDLoadStoreLaneOp,
+        sls.opcode,
         bridgeExpr(sls.address, ctx),
         bridgeExpr(sls.vec, ctx),
         bigintOffsetToNumber(sls.offset, 'simd_store_lane'),
@@ -1412,7 +1407,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const opName = anyOpcodeName(slo.opcode);
       if (opName.includes('extract_lane')) {
         return makeSIMDExtract(
-          opName as SIMDExtractOp,
+          slo.opcode,
           bridgeExpr(slo.operand, ctx),
           slo.lane,
         );
@@ -1426,7 +1421,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           throw new Error(`Bridge: ${opName} missing scalar replacement operand`);
         }
         return makeSIMDReplace(
-          opName as SIMDReplaceOp,
+          slo.opcode,
           bridgeExpr(slo.operand, ctx),
           slo.lane,
           bridgeExpr(slo.value, ctx),
