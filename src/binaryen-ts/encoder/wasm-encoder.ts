@@ -30,6 +30,7 @@ import {
   type CallExpr,
   type CallIndirectExpr,
   type ConstExpr,
+  type DataDropExpr,
   type DropExpr,
   type Expression,
   ExpressionKind,
@@ -45,6 +46,7 @@ import {
   type MemoryCopyExpr,
   type MemoryFillExpr,
   type MemoryGrowExpr,
+  type MemoryInitExpr,
   type RefAsExpr,
   RefAsOp,
   type RefCastExpr,
@@ -69,8 +71,12 @@ import {
   type StructNewExpr,
   type StructSetExpr,
   type SwitchExpr,
+  type TableCopyExpr,
+  type TableFillExpr,
   type TableGetExpr,
+  type TableGrowExpr,
   type TableSetExpr,
+  type TableSizeExpr,
   type ThrowExpr,
   type ThrowRefExpr,
   type TryExpr,
@@ -990,6 +996,11 @@ class WasmEncoder {
     if (this.mod.elements.length > 0) {
       this.writeSection(out, 9, (w) => this.encodeElementSection(w));
     }
+    // BEFORE the code section, which is the point of it: a validator needs the
+    // segment count while type-checking `memory.init` / `data.drop`.
+    if (this.mod.dataSegments.length > 0) {
+      this.writeSection(out, 12, (w) => this.encodeDataCountSection(w));
+    }
     if (this.mod.functions.length > 0) this.writeSection(out, 10, (w) => this.encodeCodeSection(w));
     if (this.mod.dataSegments.length > 0) {
       this.writeSection(out, 11, (w) => this.encodeDataSection(w));
@@ -1591,6 +1602,66 @@ class WasmEncoder {
    * `sealFrame`, so it encodes as a correctly-typed block. They are verbose
    * rather than wrong, and are left alone.
    */
+  /**
+   * The index of a data segment, by name.
+   *
+   * Segments are held by NAME everywhere else in this IR, so a `memory.init`
+   * naming a segment that does not exist is a dangling reference — the same
+   * class as an unresolved branch label, and treated the same way. Silently
+   * emitting index 0 would copy from the WRONG segment.
+   */
+  private dataSegmentIndex(name: string): number {
+    const i = this.mod.dataSegments.findIndex((s) => s.name === name);
+    if (i < 0) throw new WasmEncodeError(`unresolved data segment reference: "${name}"`);
+    return i;
+  }
+
+  /**
+   * The index of a table, by name.
+   *
+   * ⚠️ Multiple tables are refused elsewhere in this encoder (element segments
+   * and `call_indirect` are written against table 0), so this resolves to 0 for
+   * the single table and fails loudly for a name that does not match it. It is
+   * written as a lookup rather than a hardcoded 0 so that lifting the
+   * single-table limit is a change in one place, and so a typo'd table name
+   * cannot quietly become table 0.
+   */
+  private tableRefIndex(name: string): number {
+    const defined = this.mod.tables.findIndex((t) => t.name === name);
+    if (defined >= 0) return defined + this.importedTableCount();
+    const imported = this.mod.imports.filter((i) => i.kind === 'table');
+    const ii = imported.findIndex((i) => i.name === name);
+    if (ii >= 0) return ii;
+    throw new WasmEncodeError(`unresolved table reference: "${name}"`);
+  }
+
+  private importedTableCount(): number {
+    return this.mod.imports.filter((i) => i.kind === 'table').length;
+  }
+
+  /**
+   * The data count section (id 12).
+   *
+   * ⚠️ REQUIRED whenever `memory.init` or `data.drop` appears, and it must come
+   * BEFORE the code section — a validator needs the segment count while
+   * type-checking those instructions, which is the whole reason the section
+   * exists. Emitting the ops without it produces a module every engine rejects.
+   *
+   * It was absent for as long as those two instructions were unimplemented, so
+   * nothing could reach the invalid combination. That coupling is why the two
+   * were fixed in one change rather than separately.
+   *
+   * Emitted whenever a data segment exists, not only when a bulk-memory op is
+   * present. It is optional in that wider case, but it is the rule wabt-ts's
+   * writer follows — and two tools in this repo disagreeing about the section
+   * list for the same module is its own defect. Matching also closes the last
+   * of the round-trip byte delta: 273 corpus modules carried a `datacount` that
+   * a minimal rule would have dropped.
+   */
+  private encodeDataCountSection(w: BinaryWriter): void {
+    w.writeU32(this.mod.dataSegments.length);
+  }
+
   private encodeRegionBody(w: BinaryWriter, body: Expression, labels: string[]): void {
     if (body.kind === ExpressionKind.Block && (body as BlockExpr).name === null) {
       for (const child of (body as BlockExpr).children) {
@@ -1881,6 +1952,70 @@ class WasmEncoder {
         w.writeU8(0x00);
         break;
       }
+      case ExpressionKind.MemoryInit: {
+        const e = expr as MemoryInitExpr;
+        this.encodeExpr(w, e.dest, labels);
+        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.size, labels);
+        w.writeU8(0xfc);
+        w.writeU32(8);
+        w.writeU32(this.dataSegmentIndex(e.segment));
+        w.writeU8(0x00); // memory 0
+        break;
+      }
+
+      case ExpressionKind.DataDrop: {
+        const e = expr as DataDropExpr;
+        w.writeU8(0xfc);
+        w.writeU32(9);
+        w.writeU32(this.dataSegmentIndex(e.segment));
+        break;
+      }
+
+      case ExpressionKind.TableSize: {
+        const e = expr as TableSizeExpr;
+        w.writeU8(0xfc);
+        w.writeU32(16);
+        w.writeU32(this.tableRefIndex(e.table));
+        break;
+      }
+
+      case ExpressionKind.TableGrow: {
+        const e = expr as TableGrowExpr;
+        this.encodeExpr(w, e.value, labels);
+        this.encodeExpr(w, e.delta, labels);
+        w.writeU8(0xfc);
+        w.writeU32(15);
+        w.writeU32(this.tableRefIndex(e.table));
+        break;
+      }
+
+      case ExpressionKind.TableFill: {
+        const e = expr as TableFillExpr;
+        this.encodeExpr(w, e.dest, labels);
+        this.encodeExpr(w, e.value, labels);
+        this.encodeExpr(w, e.size, labels);
+        w.writeU8(0xfc);
+        w.writeU32(17);
+        w.writeU32(this.tableRefIndex(e.table));
+        break;
+      }
+
+      case ExpressionKind.TableCopy: {
+        const e = expr as TableCopyExpr;
+        this.encodeExpr(w, e.dest, labels);
+        this.encodeExpr(w, e.source, labels);
+        this.encodeExpr(w, e.size, labels);
+        w.writeU8(0xfc);
+        w.writeU32(14);
+        // Destination table first, then source — the operand order and the
+        // immediate order agree here, unlike `memory.copy`, whose two zero
+        // immediates are memory indices rather than dst/src.
+        w.writeU32(this.tableRefIndex(e.destTable));
+        w.writeU32(this.tableRefIndex(e.sourceTable));
+        break;
+      }
+
       case ExpressionKind.MemoryCopy: {
         const e = expr as MemoryCopyExpr;
         this.encodeExpr(w, e.dest, labels);

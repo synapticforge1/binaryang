@@ -79,6 +79,8 @@ export enum ExpressionKind {
   TableGrow = 'table.grow',
   TableFill = 'table.fill',
   TableCopy = 'table.copy',
+  ElemDrop = 'elem.drop',
+  TableInit = 'table.init',
   // Atomics
   AtomicRMW = 'atomic.rmw',
   AtomicCmpxchg = 'atomic.cmpxchg',
@@ -865,6 +867,95 @@ export interface MemorySizeExpr extends ExprBase {
 }
 
 /** {@link MemoryCopyExpr} — see {@link makeMemoryCopy} for the factory. */
+/**
+ * `memory.init` — copy from a passive data segment into linear memory.
+ *
+ * The segment is held by NAME, like every other cross-section reference in this
+ * IR, and resolved to its index by the encoder.
+ */
+export interface MemoryInitExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.MemoryInit;
+  /** Result type — the value type yielded at runtime. */
+  type: None;
+  /** Name of the data segment to copy from. */
+  segment: string;
+  /** Destination address in linear memory. */
+  dest: Expression;
+  /** Byte offset within the segment. */
+  offset: Expression;
+  /** Number of bytes to copy. */
+  size: Expression;
+}
+
+/** `data.drop` — release a passive data segment's storage. */
+export interface DataDropExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.DataDrop;
+  /** Result type — the value type yielded at runtime. */
+  type: None;
+  /** Name of the data segment to drop. */
+  segment: string;
+}
+
+/** `table.size` — the current number of elements in a table. */
+export interface TableSizeExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.TableSize;
+  /** Result type — the value type yielded at runtime. */
+  type: ValType.I32;
+  /** Name of the table being measured. */
+  table: string;
+}
+
+/** `table.grow` — append `delta` copies of `value`, yielding the previous size. */
+export interface TableGrowExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.TableGrow;
+  /** Result type — the previous size, or -1 if the growth failed. */
+  type: ValType.I32;
+  /** Name of the table being grown. */
+  table: string;
+  /** The reference value to fill the new slots with. */
+  value: Expression;
+  /** How many slots to add. */
+  delta: Expression;
+}
+
+/** `table.fill` — write `value` into a range of a table. */
+export interface TableFillExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.TableFill;
+  /** Result type — the value type yielded at runtime. */
+  type: None;
+  /** Name of the table being written. */
+  table: string;
+  /** Index of the first slot to write. */
+  dest: Expression;
+  /** The reference value to write. */
+  value: Expression;
+  /** How many slots to write. */
+  size: Expression;
+}
+
+/** `table.copy` — copy a range of elements between (possibly the same) tables. */
+export interface TableCopyExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.TableCopy;
+  /** Result type — the value type yielded at runtime. */
+  type: None;
+  /** Name of the table being written. */
+  destTable: string;
+  /** Name of the table being read. */
+  sourceTable: string;
+  /** Index of the first slot to write. */
+  dest: Expression;
+  /** Index of the first slot to read. */
+  source: Expression;
+  /** How many slots to copy. */
+  size: Expression;
+}
+
 export interface MemoryCopyExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryCopy;
@@ -1491,6 +1582,12 @@ export type Expression =
   | StoreExpr
   | MemoryGrowExpr
   | MemorySizeExpr
+  | MemoryInitExpr
+  | DataDropExpr
+  | TableSizeExpr
+  | TableGrowExpr
+  | TableFillExpr
+  | TableCopyExpr
   | MemoryCopyExpr
   | MemoryFillExpr
   | CallExpr
@@ -1807,6 +1904,64 @@ export function makeMemorySize(): MemorySizeExpr {
 /** Creates a `memory.grow` expression. */
 export function makeMemoryGrow(delta: Expression): MemoryGrowExpr {
   return { kind: ExpressionKind.MemoryGrow, type: ValType.I32, delta };
+}
+
+/** Creates a `memory.init` expression. */
+export function makeMemoryInit(
+  segment: string,
+  dest: Expression,
+  offset: Expression,
+  size: Expression,
+): MemoryInitExpr {
+  return { kind: ExpressionKind.MemoryInit, type: None, segment, dest, offset, size };
+}
+
+/** Creates a `data.drop` expression. */
+export function makeDataDrop(segment: string): DataDropExpr {
+  return { kind: ExpressionKind.DataDrop, type: None, segment };
+}
+
+/** Creates a `table.size` expression. */
+export function makeTableSize(table: string): TableSizeExpr {
+  return { kind: ExpressionKind.TableSize, type: ValType.I32, table };
+}
+
+/** Creates a `table.grow` expression. */
+export function makeTableGrow(
+  table: string,
+  value: Expression,
+  delta: Expression,
+): TableGrowExpr {
+  return { kind: ExpressionKind.TableGrow, type: ValType.I32, table, value, delta };
+}
+
+/** Creates a `table.fill` expression. */
+export function makeTableFill(
+  table: string,
+  dest: Expression,
+  value: Expression,
+  size: Expression,
+): TableFillExpr {
+  return { kind: ExpressionKind.TableFill, type: None, table, dest, value, size };
+}
+
+/** Creates a `table.copy` expression. */
+export function makeTableCopy(
+  destTable: string,
+  sourceTable: string,
+  dest: Expression,
+  source: Expression,
+  size: Expression,
+): TableCopyExpr {
+  return {
+    kind: ExpressionKind.TableCopy,
+    type: None,
+    destTable,
+    sourceTable,
+    dest,
+    source,
+    size,
+  };
 }
 
 /** Creates a `memory.copy` expression. */

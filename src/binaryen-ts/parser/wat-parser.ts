@@ -64,8 +64,10 @@ import {
   makeArrayNewDefault,
   makeArrayNewFixed,
   makeArraySet,
+  makeDataDrop,
   makeI31Get,
   makeIf,
+  makeMemoryInit,
   makePop,
   makeRefAsNonNull,
   makeRefCast,
@@ -90,6 +92,10 @@ import {
   makeStructNewDefault,
   makeStructSet,
   makeSwitch,
+  makeTableCopy,
+  makeTableFill,
+  makeTableGrow,
+  makeTableSize,
   makeThrow,
   makeThrowRef,
   makeTry,
@@ -245,6 +251,8 @@ class WatModuleParser {
    * `cmem/open-work.md`, "RECONSTRUCTING a name instead of resolving an index".
    */
   private funcOrder: string[] = [];
+  /** Data segment names in INDEX order, for numeric `memory.init` references. */
+  private dataOrder: string[] = [];
   private globalNames = new Map<string, number>();
   private memoryNames = new Map<string, number>();
   private tableNames = new Map<string, number>();
@@ -1003,6 +1011,60 @@ class WatModuleParser {
     if (head === 'memory.grow') {
       const delta = this.parseExpr(args[0], ctx);
       return { kind: ExpressionKind.MemoryGrow, type: ValType.I32, delta } as MemoryGrowExpr;
+    }
+    // Bulk memory and table operations.
+    //
+    // ⚠️ `memory.init` and `data.drop` require the DATA COUNT section, which the
+    // encoder emits only when one of them is present. The two were implemented
+    // together for exactly that reason: shipping the instructions without the
+    // section produces a module every engine rejects, and the section without
+    // the instructions is dead weight.
+    if (head === 'memory.init') {
+      const segment = this.dataRefName(atomText(args[0]) ?? '0');
+      const dest = this.parseExpr(args[1], ctx);
+      const offset = this.parseExpr(args[2], ctx);
+      const size = this.parseExpr(args[3], ctx);
+      return makeMemoryInit(segment, dest, offset, size);
+    }
+    if (head === 'data.drop') {
+      return makeDataDrop(this.dataRefName(atomText(args[0]) ?? '0'));
+    }
+    if (head === 'table.size') {
+      return makeTableSize(this.tableRefName(atomText(args[0])));
+    }
+    if (head === 'table.grow') {
+      // An optional leading table reference, then value and delta.
+      const named = this.namesATable(args[0]);
+      const i = named ? 1 : 0;
+      return makeTableGrow(
+        this.tableRefName(named ? atomText(args[0]) : null),
+        this.parseExpr(args[i], ctx),
+        this.parseExpr(args[i + 1], ctx),
+      );
+    }
+    if (head === 'table.fill') {
+      const named = this.namesATable(args[0]);
+      const i = named ? 1 : 0;
+      return makeTableFill(
+        this.tableRefName(named ? atomText(args[0]) : null),
+        this.parseExpr(args[i], ctx),
+        this.parseExpr(args[i + 1], ctx),
+        this.parseExpr(args[i + 2], ctx),
+      );
+    }
+    if (head === 'table.copy') {
+      // `table.copy` takes TWO optional table references — destination then
+      // source — before its three operands.
+      let i = 0;
+      const destRef = this.namesATable(args[0]) ? atomText(args[i++]) : null;
+      const srcRef = this.namesATable(args[i]) ? atomText(args[i++]) : null;
+      return makeTableCopy(
+        this.tableRefName(destRef),
+        this.tableRefName(srcRef ?? destRef),
+        this.parseExpr(args[i], ctx),
+        this.parseExpr(args[i + 1], ctx),
+        this.parseExpr(args[i + 2], ctx),
+      );
     }
     if (head === 'memory.copy') {
       const dest = this.parseExpr(args[0], ctx);
@@ -2213,6 +2275,7 @@ class WatModuleParser {
       }
       idx++;
     }
+    this.dataOrder.push(name);
     if (offset) {
       this.builder.addDataSegment(name, offset, bytes);
     } else {
@@ -2425,7 +2488,30 @@ class WatModuleParser {
       }
     }
 
-    if (declarative || offset === null) return;
+    // ⚠️ Refuse rather than drop. A declarative segment exists so that a later
+    // `ref.func` is legal; dropping it produced a module that ENCODED and then
+    // failed validation downstream with `undeclared reference to function`. That
+    // is strictly worse than the loud refusal `table.init` and `elem.drop` give
+    // for the same underlying gap — `ElementSegment` has `{name, table, offset,
+    // data}` with no mode field, so passive and declarative segments cannot be
+    // represented, and the encoder writes kind 0 unconditionally. Storing one
+    // would emit it as ACTIVE, writing into the table at instantiation when the
+    // source said it must not.
+    if (declarative) {
+      this.err(
+        'declarative element segments are not supported: the IR has no segment ' +
+          'mode, and storing one would emit it as an ACTIVE segment',
+        list.pos,
+      );
+    }
+    // A passive segment (no offset, no `declare`) has the same limitation.
+    if (offset === null) {
+      this.err(
+        'passive element segments are not supported: the IR has no segment mode, ' +
+          'and storing one would emit it as an ACTIVE segment',
+        list.pos,
+      );
+    }
 
     this.builder.addElement({
       name,
@@ -2558,6 +2644,53 @@ class WatModuleParser {
       }
     }
     return `$tag${ref}`;
+  }
+
+  /**
+   * Whether `s` is an atom naming a table — used to tell an optional leading
+   * table reference from the first operand.
+   *
+   * ⚠️ It must NOT treat a bare integer as a table reference. `(table.fill (i32.const 0) …)`
+   * has no table reference at all, and `table.copy 0 0 …` in the numeric form
+   * has two; the difference is that a numeric table reference is a bare atom
+   * while an operand is a folded expression. So only a `$name` that is a known
+   * table, or a bare integer atom, counts — a nested list never does.
+   */
+  private namesATable(s: SExpr | undefined): boolean {
+    if (s?.kind !== 'atom') return false;
+    const raw = (s as Atom).token.raw;
+    if (raw.startsWith('$')) return this.tableNames.has(raw);
+    return /^[0-9]+$/.test(raw);
+  }
+
+  /**
+   * The internal name for a table reference, defaulting to the module's first
+   * table when the instruction gives none.
+   *
+   * Resolved by INDEX when numeric, for the same reason function references are:
+   * reconstructing `$table{n}` is only right when the table at that index is
+   * anonymous.
+   */
+  private tableRefName(ref: string | null | undefined): string {
+    const first = () => this.tableNames.keys().next().value ?? '$table0';
+    if (ref === null || ref === undefined) return first();
+    if (ref.startsWith('$')) return ref;
+    const n = Number(ref);
+    for (const [name, idx] of this.tableNames) if (idx === n) return name;
+    return first();
+  }
+
+  /**
+   * The internal name for a data segment reference, which may be a `$name` or
+   * an INDEX.
+   *
+   * Same rule as functions and tables — resolve, do not reconstruct. The
+   * encoder throws on a name that matches no segment, so an out-of-range index
+   * fails loudly rather than silently copying from segment 0.
+   */
+  private dataRefName(ref: string): string {
+    if (ref.startsWith('$')) return ref;
+    return this.dataOrder[Number(ref)] ?? `$data${ref}`;
   }
 
   /**

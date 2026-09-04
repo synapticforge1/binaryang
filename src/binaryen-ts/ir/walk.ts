@@ -200,6 +200,40 @@ function _mapChildren(
     case ExpressionKind.MemoryGrow:
       return { ...expr, delta: fn(expr.delta) };
 
+    case ExpressionKind.MemoryInit:
+      return {
+        ...expr,
+        dest: fn(expr.dest),
+        offset: fn(expr.offset),
+        size: fn(expr.size),
+      };
+
+    // `data.drop` and `table.size` carry no child expressions — only an
+    // immediate — so they are leaves here, listed rather than defaulted so that
+    // a future kind cannot land in a silent catch-all.
+    case ExpressionKind.DataDrop:
+    case ExpressionKind.TableSize:
+      return { ...expr };
+
+    case ExpressionKind.TableGrow:
+      return { ...expr, value: fn(expr.value), delta: fn(expr.delta) };
+
+    case ExpressionKind.TableFill:
+      return {
+        ...expr,
+        dest: fn(expr.dest),
+        value: fn(expr.value),
+        size: fn(expr.size),
+      };
+
+    case ExpressionKind.TableCopy:
+      return {
+        ...expr,
+        dest: fn(expr.dest),
+        source: fn(expr.source),
+        size: fn(expr.size),
+      };
+
     case ExpressionKind.MemoryCopy:
       return {
         ...expr,
@@ -491,6 +525,28 @@ function _visitChildren(
       break;
     case ExpressionKind.MemoryGrow:
       visit(expr.delta);
+      break;
+    case ExpressionKind.MemoryInit:
+      visit(expr.dest);
+      visit(expr.offset);
+      visit(expr.size);
+      break;
+    case ExpressionKind.DataDrop:
+    case ExpressionKind.TableSize:
+      break; // immediates only, no children
+    case ExpressionKind.TableGrow:
+      visit(expr.value);
+      visit(expr.delta);
+      break;
+    case ExpressionKind.TableFill:
+      visit(expr.dest);
+      visit(expr.value);
+      visit(expr.size);
+      break;
+    case ExpressionKind.TableCopy:
+      visit(expr.dest);
+      visit(expr.source);
+      visit(expr.size);
       break;
     case ExpressionKind.MemoryCopy:
       visit(expr.dest);
