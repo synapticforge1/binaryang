@@ -7,6 +7,44 @@ Kept here rather than in a version scope file because most of it is not scoped t
 a list split across three documents is a list nobody reads. Version-specific status stays in
 [scope-1.5.2.md](scope-1.5.2.md); the retirement ladder stays in [transition.md](transition.md).
 
+## ▶ TASK ONE, next session — the spec-testsuite harness
+
+**Build a harness over the official WebAssembly spec tests.** Owner-assigned 2026-09-02.
+
+`<workspace>\wasmtk\tests\module\wasm_wast\testsuite-main`
+— 257 `.wast` files. ⚠️ **READ ONLY**: it is a sibling repo, so never write there; copy to scratch
+if a tool might.
+
+🔑 **It tests an axis nothing here has EVER tested: whether we correctly REJECT.** Every invariant
+to date asks "do we accept valid input correctly". The suite contains **4,654 must-reject cases**:
+
+| assertion              | count     | what it demands                           |
+| ---------------------- | --------- | ----------------------------------------- |
+| `assert_return`        | 52,591    | the module runs and returns a given value |
+| `assert_trap`          | 4,977     | it traps                                  |
+| **`assert_invalid`**   | **2,714** | the module **must fail validation**       |
+| **`assert_malformed`** | **1,940** | the text **must fail to parse**           |
+| `assert_unlinkable`    | 200       | instantiation must fail                   |
+
+**Tools already on PATH** (owner installed them 2026-09-02, so do not re-ask):
+
+- `wast2json` 1.0.41 — splits a `.wast` into modules plus a JSON manifest of its assertions. This is
+  the way in; do not hand-parse `.wast`.
+- `wat2wasm` / `wasm2wat` / `wasm-validate` / `wasm-interp` 1.0.41 — upstream wabt
+- `wasm-opt` / `wasm-as` / `wasm-dis` 132 — upstream binaryen
+- ⬚ `gh` is NOT installed
+
+**Start from what the other two oracles already proved**, so the harness adds a new axis rather than
+repeating one:
+
+- upstream validates our binaries **421/421** and assembles both our WAT forms **421/421**
+- 511 foreign `.wasm` from the wasmtk suite: read and re-encode valid **511/511** — after the one
+  defect that run found (see `if_declared_result.test.ts`)
+
+⚠️ **Expect the must-reject cases to be where the findings are.** A tool that accepts everything
+scores perfectly on every invariant built so far. Fail-loud is a stated contract of this codebase,
+and it has never been measured against a suite designed to attack it.
+
 ## Owner actions — nothing here is blocked on code
 
 | # | item                                         | note                                                                                                                                                                               |
