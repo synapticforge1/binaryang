@@ -121,7 +121,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
           table: varIndex(0),
           sig: sigG,
           typeVar: varIndex(0),
-          args: [{ kind: 'local.get', var: varIndex(0), loc: LOC }],
+          operands: [{ kind: 'local.get', var: varIndex(0), loc: LOC }],
           callee: { kind: 'local.get', var: varIndex(1), loc: LOC },
           loc: LOC,
         },

@@ -302,7 +302,7 @@ describe('writeWatModule — functions', () => {
       kind: 'if',
       label: '',
       blockType: BLOCK_TYPE_VOID,
-      cond,
+      condition: cond,
       then_: [{ kind: 'nop', loc: LOC }],
       else_: [],
       loc: LOC,
@@ -329,7 +329,7 @@ describe('writeWatModule — functions', () => {
       kind: 'if',
       label: '',
       blockType: BLOCK_TYPE_VOID,
-      cond,
+      condition: cond,
       then_: [nop],
       else_: [unr],
       loc: LOC,
@@ -352,7 +352,7 @@ describe('writeWatModule — functions', () => {
     const m = makeModule();
     m.funcs.push(makeFunc({}));
     m.funcs.push(makeFunc({
-      body: [{ kind: 'call', func: varIndex(0), args: [], loc: LOC }],
+      body: [{ kind: 'call', func: varIndex(0), operands: [], loc: LOC }],
     }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, 'call');

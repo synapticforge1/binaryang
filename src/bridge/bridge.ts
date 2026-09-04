@@ -1007,7 +1007,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // The condition is evaluated BEFORE the if is entered, so it is bridged
       // outside the frame: a `br` inside the condition targets the enclosing
       // scope, not this `if`.
-      const condition = bridgeExpr(ife.cond, ctx);
+      const condition = bridgeExpr(ife.condition, ctx);
       // An `if` occupies a branch-target depth even with no label. Omitting
       // this frame made every `br` inside an if resolve ONE FRAME TOO SHALLOW:
       // `br 0` (branch out of the if) silently retargeted the enclosing block
@@ -1046,7 +1046,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const target = resolveLabel(ctx, brIf.target);
       return makeBreak(
         target,
-        bridgeExpr(brIf.cond, ctx),
+        bridgeExpr(brIf.condition, ctx),
         bridgeBranchValue(brIf.values, ctx, 'br_if'),
       );
     }
@@ -1066,13 +1066,13 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       if (sig === undefined) {
         throw new Error(`Bridge: call references unknown function "${target}"`);
       }
-      return makeCall(target, c.args.map((a) => bridgeExpr(a, ctx)), resultTypeForCall(sig));
+      return makeCall(target, c.operands.map((a) => bridgeExpr(a, ctx)), resultTypeForCall(sig));
     }
     case 'call_indirect': {
       const ci = e as CallIndirectExpr;
       const tableName = varName(ci.table, ctx.tableNames);
       const target = bridgeExpr(ci.callee, ctx);
-      const operands = ci.args.map((a) => bridgeExpr(a, ctx));
+      const operands = ci.operands.map((a) => bridgeExpr(a, ctx));
       // binaryen-ts's makeCallIndirect surface accepts ValType[] (single-result
       // result list). Multi-result calls fall through to the multi-value check
       // below.
@@ -1094,7 +1094,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeSelect(
         bridgeExpr(s.val1, ctx),
         bridgeExpr(s.val2, ctx),
-        bridgeExpr(s.cond, ctx),
+        bridgeExpr(s.condition, ctx),
       );
     }
 
@@ -1460,7 +1460,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const th = e as ThrowExpr;
       return makeThrow(
         varName(th.tag, ctx.tagNames),
-        th.args.map((a) => bridgeExpr(a, ctx)),
+        th.operands.map((a) => bridgeExpr(a, ctx)),
       );
     }
     case 'throw_ref': {
@@ -1510,7 +1510,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       requireDefaultMemory(mc.srcMemidx, 'memory.copy src');
       return makeMemoryCopy(
         bridgeExpr(mc.dest, ctx),
-        bridgeExpr(mc.src, ctx),
+        bridgeExpr(mc.source, ctx),
         bridgeExpr(mc.size, ctx),
       );
     }

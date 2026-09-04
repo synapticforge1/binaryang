@@ -285,7 +285,7 @@ describe('ExprVisitor', () => {
       kind: 'if',
       label: '',
       blockType: BLOCK_TYPE_VOID,
-      cond: makeConst(0),
+      condition: makeConst(0),
       then_: [makeConst(1)],
       else_: [makeConst(2)],
       loc: LOC,
@@ -389,7 +389,7 @@ describe('resolveNames', () => {
     const callExpr: Expr = {
       kind: 'call',
       func: varName('add'),
-      args: [],
+      operands: [],
       loc: LOC,
     };
     const caller = makeFuncBody([callExpr]);
@@ -413,7 +413,7 @@ describe('resolveNames', () => {
     const callExpr: Expr = {
       kind: 'call',
       func: varName('nonexistent'),
-      args: [],
+      operands: [],
       loc: LOC,
     };
     m.funcs.push(makeFuncBody([callExpr]));
@@ -431,7 +431,7 @@ describe('resolveNames', () => {
     const callExpr: Expr = {
       kind: 'call',
       func: varIndex(0),
-      args: [],
+      operands: [],
       loc: LOC,
     };
     m.funcs.push(makeFuncBody([callExpr]));

@@ -234,7 +234,7 @@ export interface SelectExpr {
   readonly kind: 'select';
   readonly val1: Expr;
   readonly val2: Expr;
-  readonly cond: Expr;
+  readonly condition: Expr;
   readonly resultType: ValueType[];
   readonly loc: Location;
 }
@@ -261,7 +261,7 @@ export interface IfExpr {
   readonly kind: 'if';
   readonly label: string;
   readonly blockType: BlockType;
-  readonly cond: Expr;
+  readonly condition: Expr;
   readonly then_: Expr[];
   readonly else_: Expr[];
   readonly loc: Location;
@@ -291,7 +291,7 @@ export interface BrIfExpr {
    * the carried values sit BELOW it, which is why it is read from the END of
    * the operand list (see the parser).
    */
-  readonly cond: Expr;
+  readonly condition: Expr;
   /** Values carried to the target label, in stack order. See {@link BrExpr.values}. */
   readonly values: Expr[];
   readonly loc: Location;
@@ -303,7 +303,7 @@ export interface BrTableExpr {
   readonly defaultTarget: Var;
   /**
    * The i32 index selecting a target. It is the TOP operand — the values
-   * carried to the target sit below it, exactly as with {@link BrIfExpr.cond}.
+   * carried to the target sit below it, exactly as with {@link BrIfExpr.condition}.
    */
   readonly value: Expr;
   /**
@@ -520,7 +520,7 @@ export interface MemoryCopyExpr {
   readonly destMemidx: Var;
   readonly srcMemidx: Var;
   readonly dest: Expr;
-  readonly src: Expr;
+  readonly source: Expr;
   readonly size: Expr;
   readonly loc: Location;
 }
@@ -539,7 +539,7 @@ export interface MemoryInitExpr {
   readonly segment: Var;
   readonly memidx: Var;
   readonly dest: Expr;
-  readonly src: Expr;
+  readonly source: Expr;
   readonly size: Expr;
   readonly loc: Location;
 }
@@ -555,7 +555,7 @@ export interface DataDropExpr {
 export interface CallExpr {
   readonly kind: 'call';
   readonly func: Var;
-  readonly args: Expr[];
+  readonly operands: Expr[];
   readonly loc: Location;
 }
 /** `call_indirect (type $T) [$table]` (0x11) — indirect call through a function table. */
@@ -566,7 +566,7 @@ export interface CallIndirectExpr {
   /** How the signature was named; see {@link TypeUse}. */
   readonly typeUse?: TypeUse;
   readonly table: Var;
-  readonly args: Expr[];
+  readonly operands: Expr[];
   readonly callee: Expr;
   readonly loc: Location;
 }
@@ -574,7 +574,7 @@ export interface CallIndirectExpr {
 export interface CallRefExpr {
   readonly kind: 'call_ref';
   readonly sigType: Var;
-  readonly args: Expr[];
+  readonly operands: Expr[];
   readonly callee: Expr;
   readonly loc: Location;
 }
@@ -582,7 +582,7 @@ export interface CallRefExpr {
 export interface ReturnCallExpr {
   readonly kind: 'return_call';
   readonly func: Var;
-  readonly args: Expr[];
+  readonly operands: Expr[];
   readonly loc: Location;
 }
 /** `return_call_indirect` (0x13) — tail-call proposal: like `call_indirect` but tail-position. */
@@ -593,7 +593,7 @@ export interface ReturnCallIndirectExpr {
   /** How the signature was named; see {@link TypeUse}. */
   readonly typeUse?: TypeUse;
   readonly table: Var;
-  readonly args: Expr[];
+  readonly operands: Expr[];
   readonly callee: Expr;
   readonly loc: Location;
 }
@@ -601,7 +601,7 @@ export interface ReturnCallIndirectExpr {
 export interface ReturnCallRefExpr {
   readonly kind: 'return_call_ref';
   readonly sigType: Var;
-  readonly args: Expr[];
+  readonly operands: Expr[];
   readonly callee: Expr;
   readonly loc: Location;
 }
@@ -898,7 +898,7 @@ export interface TableFillExpr {
 export interface TableCopyExpr {
   readonly kind: 'table.copy';
   readonly dst: Var;
-  readonly src: Var;
+  readonly source: Var;
   readonly dest: Expr;
   readonly srcOffset: Expr;
   readonly size: Expr;
@@ -910,7 +910,7 @@ export interface TableInitExpr {
   readonly segment: Var;
   readonly table: Var;
   readonly dest: Expr;
-  readonly src: Expr;
+  readonly source: Expr;
   readonly size: Expr;
   readonly loc: Location;
 }
@@ -926,7 +926,7 @@ export interface ElemDropExpr {
 export interface ThrowExpr {
   readonly kind: 'throw';
   readonly tag: Var;
-  readonly args: Expr[];
+  readonly operands: Expr[];
   readonly loc: Location;
 }
 /** `throw_ref` (0x0a) — re-throws an existing exception reference (EH proposal). */

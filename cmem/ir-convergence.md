@@ -308,19 +308,78 @@ Ordered so that each step is independently verifiable and none of them requires 
 correct. **The corpus invariants are the acceptance test at every step**: 421/421 validating,
 421/421 byte-identical, baseline `IDENTICAL`.
 
+### Release shape — settled 2026-09-04
+
+**The S series is not a breaking change for our one real consumer.** wasmtk imports exactly two
+specifiers, both compat façades:
+
+    "binaryen-backend": "jsr:@jrmarcum/binaryang@1.5.3/compat/binaryen"
+    "wabt":             "jsr:@jrmarcum/binaryang@1.5.3/compat/wabt"
+
+Four things make that safe. Neither façade re-exports anything from `../ir/`. wasmtk reads no IR
+field at all (`.op`, `.ifTrue`, `.operands`, `.typeIndex`, `.condition` — zero occurrences). It pins
+`@1.5.3`. And decisively, `binaryen-backend` is documented as interchangeable with
+`npm:binaryen@^116.0.0`, so that surface is dictated by upstream binaryen.js and _cannot_ be changed
+by this merger even if we wanted to.
+
+⚠️ **An earlier count of "wasmtk imports `/ir/binaryen-ts` in 10 places" was wrong** and nearly
+forced a needless 2.0.0. Every one of those matches was inside `wasmtk/upstream/binaryang/` — a
+vendored copy of _this_ repo — and they were help text and comments, not imports. 🔑 Grepping a
+sibling tree that vendors your own source counts your own code as the consumer's. Exclude the vendor
+directory before drawing any blast-radius conclusion.
+
+The one honest caveat: `./ir/binaryen-ts` and `./ir/wabt-ts` remain public JSR exports, so changing
+them is semver-breaking for a hypothetical consumer we do not have. Carried as the single documented
+break rather than as a reason to freeze the IR.
+
 ### S1 — the gate, first ✅ done
 
 `deno task operators`. It has to exist before anything depends on the mapping being total, not
 after.
 
-### S2 — name reconciliation (mechanical, no behaviour change)
+### S2 — name reconciliation (mechanical, no behaviour change) ✅ done
 
-Pick one convention and rename across ~25 kinds: `typeIndex`/`typeVar`, `op`/`opcode`,
-`condition`/`cond`, `ifTrue`/`then_`, `name`/`label`, `children`/`body`, `operands`/`args`,
-`index`/`var`.
+**Scoped down on contact, 2026-09-04.** The step was written as "pick one convention and rename ~25
+kinds". Checking the pairs before renaming them showed that only some are pairs at all — the rest
+are _type_ differences wearing name clothes, and no rename reconciles those:
 
-**Verifiable by construction**: a pure rename must leave every emitted byte unchanged, so the
-baseline is the proof. Do it as its own commit precisely because it should be provably inert.
+| binaryen-ts                             | wabt-ts                     | verdict                                     |
+| --------------------------------------- | --------------------------- | ------------------------------------------- |
+| `condition: Expression`                 | `cond: Expr`                | ✅ pure rename — landed                     |
+| `source: Expression`                    | `src: Expr`                 | ✅ pure rename — landed                     |
+| `operands: Expression[]`                | `args: Expr[]`              | ✅ pure rename — landed                     |
+| `ifTrue: Expression`                    | `then_: Expr[]`             | ❌ **arity differs** — scalar vs array → S6 |
+| `ifFalse: Expression \| null`           | `else_: Expr[]`             | ❌ arity differs → S6                       |
+| `typeIndex: number`                     | `typeVar: Var`              | ❌ `Var` is `index \| name` → S6            |
+| `fieldIndex: number`                    | `fieldVar: Var`             | ❌ same → S6                                |
+| `op: UnaryOp \| BinaryOp`               | `opcode: Opcode`            | ❌ different enums → S4                     |
+| `target: string` / `target: Expression` | `func: Var` / `target: Var` | ❌ `target` means three things → S6         |
+
+🔑 **Renaming `then_` to `ifTrue` would have been inert and still wrong.** It manufactures a false
+correspondence between an array and a scalar — exactly the confusion S6 exists to resolve — and it
+would have spent S2's baseline proof on a change that proof does not cover. `typeVar` → `typeIndex`
+is the same trap: a name that lies about its own type. Deferring them is not postponement, it is the
+correct home; S6 unifies the types and names them once.
+
+`children`/`body` was dropped for a different reason: `body` is also `Func.body` on both sides, so
+the rename is ambiguous rather than mechanical. It rides along with S6.
+
+**How it was done.** Rename the 14 declarations in `ir.ts`, then let `deno check` enumerate every
+consumer — 47 read sites, then the object-literal writes, then the spread shorthands. The compiler
+is the oracle because a blind substitution would have corrupted three unrelated things that share
+these names: `args` is argv in every `tools/*.ts` and a wast command's own `args`, and `src` is the
+lexer's `LexerSource`. `Frame.cond` in the binary reader renamed too — it is reader-private and
+mirrors the IR field it feeds.
+
+⚠️ **The compiler is not a complete oracle, and one test proved it.** `call_arity.test.ts` reached
+through `as unknown as { … args: unknown[] }`, a cast that defeats type checking entirely, so the
+rename typechecked clean and then failed at runtime with `Cannot read properties of undefined`. Any
+`as unknown as` cast is invisible to a type-driven refactor. The _test suite_, not `deno check`, is
+what caught it.
+
+**Verified inert**, which is the whole point of doing it as its own commit: baseline `IDENTICAL`
+(421/421, no emitted byte changed), 944 tests passing, `operators` TOTAL, spec suite 100% on all
+four axes (1955 accepted, 2422 invalid rejected, 711 malformed binary, 1156 malformed text).
 
 ### S3 — the side table
 
@@ -375,6 +434,11 @@ encoder, byte-identically, the way it already does through wabt-ts.
 
 Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
 become unnecessary.
+
+📥 **S6 also inherits the six name pairs S2 could not touch** — `ifTrue`/`then_`, `ifFalse`/`else_`,
+`typeIndex`/`typeVar`, `fieldIndex`/`fieldVar`, `target`/`func`, and `children`/`body`. They are not
+renames: each is a type or arity difference, so the name follows the unification rather than
+preceding it. See S2 for why renaming them early would have been inert and wrong.
 
 🛑 **S6 ABSORBS C10a — owner decision 2026-09-02.** The 24 modules the bridge mistranslates are not
 a separate defect to fix first; they fail in the TRANSLATION, not in either IR, and S6 deletes the

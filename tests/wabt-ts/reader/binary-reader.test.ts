@@ -473,7 +473,7 @@ describe('readBinaryIr', () => {
           kind: 'if',
           label: '',
           blockType: blockTypeValue(Type.I32),
-          cond: { kind: 'local.get', var: varIndex(0), loc: LOC },
+          condition: { kind: 'local.get', var: varIndex(0), loc: LOC },
           then_: [{ kind: 'const', value: constI32(1), loc: LOC }],
           else_: [{ kind: 'const', value: constI32(0), loc: LOC }],
           loc: LOC,
