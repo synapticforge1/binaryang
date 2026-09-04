@@ -49,9 +49,34 @@ export interface Features {
   relaxedSimd: boolean;
   /** Custom page sizes proposal. */
   customPageSizes: boolean;
-  /** Compact imports proposal. */
+  /**
+   * Compact imports proposal.
+   *
+   * ⚠️ **DECLARED BUT NOT IMPLEMENTED — setting this changes nothing.** No code
+   * reads this field, and the binary reader decodes only the standard import
+   * kinds, so a module using import kind `0x7f` is refused whatever this says.
+   *
+   * Kept rather than removed because `Features` is public surface and dropping
+   * a field is a breaking change; the reader now names the proposal in its
+   * diagnostic instead of reporting "unknown import kind: 127". The proposal is
+   * experimental — V8 needs `--experimental-wasm-compact-imports` to load such
+   * a module at all — so implementing it is not planned.
+   *
+   * 🔑 **A feature flag is not an implementation.** This one was counted as
+   * support until the spec-testsuite harness produced 58 confusing failures
+   * that traced back to it. If it is ever implemented, delete this note.
+   */
   compactImports: boolean;
-  /** Wide arithmetic proposal. */
+  /**
+   * Wide arithmetic proposal — `i64.add128`, `i64.sub128`, `i64.mul_wide_s/u`.
+   *
+   * ✅ Implemented in wabt-ts: decoded, validated, written, and byte-identical
+   * on a round trip.
+   *
+   * ⚠️ NOT implemented in binaryen-ts's binary reader, which refuses the
+   * sub-opcodes loudly (`unsupported bulk-memory/table opcode: 0xFC 0x13`).
+   * That asymmetry is deliberate for now and tracked in `cmem/open-work.md`.
+   */
   wideArithmetic: boolean;
 }
 

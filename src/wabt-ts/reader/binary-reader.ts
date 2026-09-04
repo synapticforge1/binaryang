@@ -917,6 +917,21 @@ export class BinaryReader {
           break;
         }
         default:
+          // ⚠️ `0x7f` is not a stray byte — it is the COMPACT IMPORTS proposal's
+          // import kind, and it is worth naming rather than reporting as
+          // "unknown". `Features.compactImports` exists and can be set, but
+          // nothing reads it and nothing here decodes the form, so a caller who
+          // enabled the flag and hit this got a diagnostic that pointed nowhere.
+          //
+          // Naming it is the whole fix. Implementing the proposal is not
+          // planned: V8 gates it behind `--experimental-wasm-compact-imports`,
+          // so binaries using it are not loadable by default anywhere.
+          if (kind === 0x7f) {
+            this.err(
+              `compact imports (import kind 0x7f) are not supported: the proposal is ` +
+                `experimental and this reader decodes only the standard import kinds`,
+            );
+          }
           this.err(`unknown import kind: ${kind}`);
       }
     }
