@@ -120,7 +120,7 @@ function getThreadsOpcodeTypeInfo(sub: number): OpcodeTypeInfo {
 }
 
 function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
-  // Misc-prefixed (0xfc) opcodes reach here via ConvertExpr (the saturating
+  // Misc-prefixed (0xfc) opcodes reach here via a unary node (the saturating
   // truncations `i*.trunc_sat_f*`). They are NOT SIMD and must use the misc
   // table; otherwise they fall through to the SIMD default below and get
   // type-checked as `(v128,v128)→v128`, so wrong-typed operands validate clean.
@@ -579,7 +579,7 @@ function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
   return oi(_V128, _V128, _V128, _V, 0);
 }
 
-// For MiscOpcode sat-trunc (passed via ConvertExpr.opcode when opcode < 8)
+// For MiscOpcode sat-trunc (passed via a unary node opcode when opcode < 8)
 export function getMiscOpcodeTypeInfo(misc: number): OpcodeTypeInfo {
   switch (misc) {
     case MiscOpcode.I32TruncSatF32S:

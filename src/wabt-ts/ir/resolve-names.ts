@@ -366,16 +366,11 @@ class ResolveContext {
         // emits index 0.
         const target = this.resolveLabelVar(e.target, loc);
         const [rv, values] = this.resolveExprArray(e.values);
-        return [rv, { ...e, target, values }];
-      }
-      case 'br_if': {
-        const [r, cond] = this.resolveExpr(e.condition);
-        const target = this.resolveLabelVar(e.target, loc);
-        // Resolve the optional carried value as well — the flat-form parser can
-        // route a real sub-expression (e.g. an `if` containing `call $f`) into
-        // `br_if.value`; leaving it unresolved made the writer emit `call 0`.
-        const [rv, values] = this.resolveExprArray(e.values);
-        return [combine(r, rv), { ...e, target, condition: cond, values }];
+        // A `br` carrying a condition is `br_if`; the carried value can be a
+        // real sub-expression, so both it and the condition need resolving.
+        if (e.condition === undefined) return [rv, { ...e, target, values }];
+        const [rc, condition] = this.resolveExpr(e.condition);
+        return [combine(rc, rv), { ...e, target, condition, values }];
       }
       case 'br_table': {
         // `value` is the i32 index operand and can be any sub-expression
@@ -551,13 +546,11 @@ class ResolveContext {
         }
         return [result, { ...e, values }];
       }
-      case 'unary':
-      case 'convert': {
+      case 'unary': {
         const [r, operand] = this.resolveExpr(e.operand);
         return [r, { ...e, operand }];
       }
-      case 'binary':
-      case 'compare': {
+      case 'binary': {
         const [rL, left] = this.resolveExpr(e.left);
         const [rR, right] = this.resolveExpr(e.right);
         return [combine(rL, rR), { ...e, left, right }];
@@ -886,23 +879,23 @@ class ResolveContext {
         // try's catch. The depth is a label reference, so resolve it the
         // same way as a `br` target (numeric depths pass through unchanged).
         return [Result.Ok, { ...e, depth: this.resolveLabelVar(e.depth, loc) }];
-      case 'br_on_null':
-      case 'br_on_non_null': {
+      case 'br_on': {
         const [r, ref] = this.resolveExpr(e.ref);
         const [rv, values] = this.resolveExprArray(e.values);
-        return [combine(r, rv), { ...e, target: this.resolveLabelVar(e.target, loc), ref, values }];
-      }
-      case 'br_on_cast': {
-        // Three name-bearing immediates, not one: the label AND both heap
-        // types. A heap type that is an abstract keyword stays a name-var;
-        // a `$T` resolves against the type scope.
-        const [r, value] = this.resolveExpr(e.value);
-        return [r, {
+        const target = this.resolveLabelVar(e.target, loc);
+        // The cast variants have three name-bearing immediates, not one: the
+        // label AND both heap types. An abstract keyword stays a name-var; a
+        // `$T` resolves against the type scope.
+        if (e.from === undefined || e.to === undefined) {
+          return [combine(r, rv), { ...e, target, ref, values }];
+        }
+        return [combine(r, rv), {
           ...e,
-          target: this.resolveLabelVar(e.target, loc),
+          target,
           from: { ...e.from, heapType: this.resolveHeapTypeVar(e.from.heapType, loc) },
           to: { ...e.to, heapType: this.resolveHeapTypeVar(e.to.heapType, loc) },
-          value,
+          ref,
+          values,
         }];
       }
       case 'simd_lane_op': {

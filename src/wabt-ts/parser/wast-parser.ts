@@ -43,17 +43,13 @@ import {
   type BlockType,
   blockTypeValue,
   type BrExpr,
-  type BrIfExpr,
-  type BrOnCastExpr,
-  type BrOnNonNullExpr,
-  type BrOnNullExpr,
+  type BrOnExpr,
   type BrTableExpr,
   type CallExpr,
   type CallIndirectExpr,
   type CallRefExpr,
   type Catch,
   CatchKind,
-  type CompareExpr,
   type Const,
   type ConstExpr,
   constF32,
@@ -61,7 +57,6 @@ import {
   constI32,
   constI64,
   constV128,
-  type ConvertExpr,
   type DataDropExpr,
   type DropExpr,
   type ElemDropExpr,
@@ -3822,7 +3817,7 @@ export class WastParser {
         // multi-value target takes several. A padded Nop can never be a real
         // branch value (it produces nothing), so it drops out.
         const values = operands.slice(0, -1).filter((e) => e.kind !== 'nop');
-        return { kind: 'br_if', target: v, condition: cond, values, loc } as BrIfExpr;
+        return { kind: 'br', target: v, condition: cond, values, loc } as BrExpr;
       }
       case TokenType.BrOnNull:
       case TokenType.BrOnNonNull: {
@@ -3837,12 +3832,13 @@ export class WastParser {
         const ref = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const values = operands.slice(0, -1).filter((x) => x.kind !== 'nop');
         return {
-          kind: tt === TokenType.BrOnNull ? 'br_on_null' : 'br_on_non_null',
+          kind: 'br_on',
+          op: tt === TokenType.BrOnNull ? 'br_on_null' : 'br_on_non_null',
           target: v,
           ref,
           values,
           loc,
-        } as BrOnNullExpr | BrOnNonNullExpr;
+        } as BrOnExpr;
       }
       case TokenType.BrOnCast:
       case TokenType.BrOnCastFail: {
@@ -3857,14 +3853,15 @@ export class WastParser {
         const to = this.parseRefImmediate();
         if (to === null) return null;
         return {
-          kind: 'br_on_cast',
-          onFail: tt === TokenType.BrOnCastFail,
+          kind: 'br_on',
+          op: tt === TokenType.BrOnCastFail ? 'br_on_cast_fail' : 'br_on_cast',
           target: v,
           from,
           to,
-          value: op0(),
+          ref: op0(),
+          values: [],
           loc,
-        } as BrOnCastExpr;
+        } as BrOnExpr;
       }
       case TokenType.BrTable: {
         const targets: Var[] = [];
@@ -4448,11 +4445,11 @@ export class WastParser {
       }
       case TokenType.Compare: {
         const op = (tok as OpcodeToken).opcode;
-        return { kind: 'compare', opcode: op, left: op0(), right: op1(), loc } as CompareExpr;
+        return { kind: 'binary', opcode: op, left: op0(), right: op1(), loc } as BinaryExpr;
       }
       case TokenType.Convert: {
         const op = (tok as OpcodeToken).opcode;
-        return { kind: 'convert', opcode: op, operand: op0(), loc } as ConvertExpr;
+        return { kind: 'unary', opcode: op, operand: op0(), loc } as UnaryExpr;
       }
       case TokenType.Ternary: {
         const op = (tok as OpcodeToken).opcode;
@@ -5961,25 +5958,13 @@ function checkLabelScopes(
       check(e.target, e.loc);
       return Result.Ok;
     },
-    onBrIfExpr: (e) => {
+    onBrOnExpr: (e) => {
       check(e.target, e.loc);
       return Result.Ok;
     },
     onBrTableExpr: (e) => {
       for (const t of e.targets) check(t, e.loc);
       check(e.defaultTarget, e.loc);
-      return Result.Ok;
-    },
-    onBrOnNullExpr: (e) => {
-      check(e.target, e.loc);
-      return Result.Ok;
-    },
-    onBrOnNonNullExpr: (e) => {
-      check(e.target, e.loc);
-      return Result.Ok;
-    },
-    onBrOnCastExpr: (e) => {
-      check(e.target, e.loc);
       return Result.Ok;
     },
     onRethrowExpr: (e) => {

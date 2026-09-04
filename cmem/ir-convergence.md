@@ -461,11 +461,40 @@ existed.
 only written to and never read looks correct forever. That is the argument for wiring the writers in
 the same step rather than deferring it to S6.
 
-### S4 — adopt the coarse grouping
+### S4 — adopt the coarse grouping ✅ done
 
-Fold `compare`/`convert` into `binary`/`unary`, `br_if` into `br`+condition, and the three `br_on_*`
-into `br_on`+sub-op, on the wabt-ts side. S1's gate is what makes this safe; S2 should land first so
-the rename noise is not tangled with it.
+Five expression kinds removed from wabt-ts's IR (93 → 88), five delegate hooks with them, and 17
+lines out of the bridge. Baseline `IDENTICAL`, 951 tests, `operators` TOTAL, spec 100% on four axes.
+
+| merge                                                           | result                                                                           |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `compare` → `binary`                                            | identical shape (`opcode, left, right`); the opcode was always the discriminator |
+| `convert` → `unary`                                             | identical shape (`opcode, operand`)                                              |
+| `br_if` → `br` + `condition?`                                   | matches binaryen-ts's `Break`, which already had `condition: Expression \| null` |
+| `br_on_null` / `br_on_non_null` / `br_on_cast` → `br_on` + `op` | matches binaryen-ts's `BrOn` + `BrOnOp`                                          |
+
+🔑 **The finer split was already redundant, and the type checker proves it.** `onCompare` is
+`checkOpcode2(opcode)`; `onBinary` is the same plus an `isWideMul(opcode)` branch that dispatches on
+the OPCODE and is false for every compare. `onConvert` and `onUnary` are literally the same body.
+Both writers were byte-for-byte identical across all four hooks. The kinds were a second spelling of
+a fact the opcode already carried.
+
+The bridge said so itself, in a comment predating this step: _"binaryen-ts collapses compare into
+binary (same shape, opcode name carries the semantics)"_. It was doing the merge at translation
+time; S4 moves it into the IR and deletes the translation — a preview of what S6 does wholesale.
+
+⚠️ **`br_on_cast` was already half-merged**, carrying `br_on_cast_fail` behind an `onFail` boolean.
+That is the same idea applied to two of four cases; the sub-op generalises it. `onFail` became
+`op === 'br_on_cast_fail'`, and the cast node's `value` joined the family's `ref`.
+
+**Where the sub-op earns its keep** — the merged nodes still behave differently, and now say so as
+data rather than as a kind:
+
+- arity: `br_on_null` leaves the non-null ref on the stack, `br_on_non_null` branches away with it
+- feature gates: the null pair is `functionReferences`, the cast pair is `gc` — one node, two gates
+- encoding: the null pair are single-byte opcodes, the cast pair GC-prefixed with two heap types
+
+⚠️ **Wide arithmetic is NOT here.** It sits under S5, which is where the note assigning it lives.
 
 ### S5 — the one-sided kinds
 

@@ -65,7 +65,7 @@ import {
   type BlockType,
   blockTypeFuncType,
   blockTypeValue,
-  type BrOnCastExpr,
+  type BrOnExpr,
   type Catch,
   CatchKind,
   type ConstExpr,
@@ -1594,7 +1594,7 @@ export class BinaryReader {
             values.unshift(v);
           }
           pushStmt(stack, stmts, {
-            kind: 'br_if',
+            kind: 'br',
             target: varIndex(depth),
             condition: cond_,
             values,
@@ -1923,7 +1923,7 @@ export class BinaryReader {
         case Opcode.F64Ge: {
           const right = stack.pop() ?? operandPlaceholder(loc);
           const left = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'compare', opcode: op as Opcode, left, right, loc });
+          stack.push({ kind: 'binary', opcode: op as Opcode, left, right, loc });
           break;
         }
 
@@ -2038,7 +2038,7 @@ export class BinaryReader {
         case Opcode.F32ReinterpretI32:
         case Opcode.F64ReinterpretI64: {
           const operand = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'convert', opcode: op as Opcode, operand, loc });
+          stack.push({ kind: 'unary', opcode: op as Opcode, operand, loc });
           break;
         }
 
@@ -2091,7 +2091,8 @@ export class BinaryReader {
             values.unshift(v);
           }
           const node: Expr = {
-            kind: op === Opcode.BrOnNull ? 'br_on_null' : 'br_on_non_null',
+            kind: 'br_on',
+            op: op === Opcode.BrOnNull ? 'br_on_null' : 'br_on_non_null',
             target: varIndex(depth),
             ref,
             values,
@@ -2190,7 +2191,7 @@ export class BinaryReader {
       case MiscOpcode.I64TruncSatF64U: {
         const opcode = (PREFIX_MISC << 16) | op;
         const operand = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'convert', opcode: opcode as Opcode, operand, loc });
+        stack.push({ kind: 'unary', opcode: opcode as Opcode, operand, loc });
         break;
       }
       case MiscOpcode.MemoryInit: {
@@ -3190,14 +3191,16 @@ export class BinaryReader {
         // drains pending values ahead of the next statement (T9.1) — before
         // that, a stack push here sank the branch past the rest of the block.
         stack.push({
-          kind: 'br_on_cast',
-          onFail: op === GcOpcode.BrOnCastFail,
+          kind: 'br_on',
+          op: op === GcOpcode.BrOnCastFail ? 'br_on_cast_fail' : 'br_on_cast',
           target: varIndex(depth),
           from: { heapType: fromHeap, nullable: (flags & 1) !== 0 },
           to: { heapType: toHeap, nullable: (flags & 2) !== 0 },
-          value,
+          // The cast forms join the family's `ref`; they carry no values.
+          ref: value,
+          values: [],
           loc,
-        } as BrOnCastExpr);
+        } as BrOnExpr);
         return;
       }
       case GcOpcode.RefCast:

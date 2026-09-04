@@ -434,7 +434,9 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'ref.test':
     case 'ref.cast':
       return { ...e, heapType: rewriteVar(e.heapType, n.typeNames) };
-    case 'br_on_cast':
+    case 'br_on':
+      // Only the cast variants carry types; the null pair has none.
+      if (e.from === undefined || e.to === undefined) return e;
       return {
         ...e,
         from: { ...e.from, heapType: rewriteVar(e.from.heapType, n.typeNames) },

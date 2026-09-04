@@ -42,19 +42,14 @@ import type {
   BinaryExpr,
   BlockExpr,
   BrExpr,
-  BrIfExpr,
-  BrOnCastExpr,
-  BrOnNonNullExpr,
-  BrOnNullExpr,
+  BrOnExpr,
   BrTableExpr,
   CallExpr,
   CallIndirectExpr,
   CallRefExpr,
   Catch,
   CodeMetadataExpr,
-  CompareExpr,
   ConstExpr,
-  ConvertExpr,
   DataDropExpr,
   DropExpr,
   ElemDropExpr,
@@ -145,11 +140,8 @@ export interface ExprVisitorDelegate {
   endIfExpr?(e: IfExpr): Result;
 
   onBrExpr?(e: BrExpr): Result;
-  onBrIfExpr?(e: BrIfExpr): Result;
+  onBrOnExpr?(e: BrOnExpr): Result;
   onBrTableExpr?(e: BrTableExpr): Result;
-  onBrOnNullExpr?(e: BrOnNullExpr): Result;
-  onBrOnCastExpr?(e: BrOnCastExpr): Result;
-  onBrOnNonNullExpr?(e: BrOnNonNullExpr): Result;
 
   onConstExpr?(e: ConstExpr): Result;
 
@@ -161,8 +153,6 @@ export interface ExprVisitorDelegate {
 
   onUnaryExpr?(e: UnaryExpr): Result;
   onBinaryExpr?(e: BinaryExpr): Result;
-  onCompareExpr?(e: CompareExpr): Result;
-  onConvertExpr?(e: ConvertExpr): Result;
   onTernaryExpr?(e: TernaryExpr): Result;
   onQuaternaryExpr?(e: QuaternaryExpr): Result;
 
@@ -357,11 +347,6 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onUnaryExpr?.(e) ?? Result.Ok;
       }
-      case 'convert': {
-        const r = this.dispatch(e.operand);
-        if (r === Result.Error) return r;
-        return this.d.onConvertExpr?.(e) ?? Result.Ok;
-      }
       case 'ref.is_null': {
         const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
@@ -554,13 +539,6 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onBinaryExpr?.(e) ?? Result.Ok;
       }
-      case 'compare': {
-        let r = this.dispatch(e.left);
-        if (r === Result.Error) return r;
-        r = this.dispatch(e.right);
-        if (r === Result.Error) return r;
-        return this.d.onCompareExpr?.(e) ?? Result.Ok;
-      }
       case 'store': {
         let r = this.dispatch(e.address);
         if (r === Result.Error) return r;
@@ -632,16 +610,13 @@ export class ExprVisitor {
           const r = this.dispatch(v);
           if (r === Result.Error) return r;
         }
-        return this.d.onBrExpr?.(e) ?? Result.Ok;
-      }
-      case 'br_if': {
-        for (const v of e.values) {
-          const r = this.dispatch(v);
-          if (r === Result.Error) return r;
+        // A `br` with a condition is `br_if`: the condition is pushed after
+        // the carried values, so it dispatches last.
+        if (e.condition !== undefined) {
+          const rc = this.dispatch(e.condition);
+          if (rc === Result.Error) return rc;
         }
-        const rc = this.dispatch(e.condition);
-        if (rc === Result.Error) return rc;
-        return this.d.onBrIfExpr?.(e) ?? Result.Ok;
+        return this.d.onBrExpr?.(e) ?? Result.Ok;
       }
       case 'br_table': {
         // Carried values are pushed first, then the index.
@@ -653,8 +628,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onBrTableExpr?.(e) ?? Result.Ok;
       }
-      case 'br_on_null':
-      case 'br_on_non_null': {
+      case 'br_on': {
         // Carried values are pushed first, then the ref being tested.
         for (const v of e.values) {
           const rv = this.dispatch(v);
@@ -662,14 +636,7 @@ export class ExprVisitor {
         }
         const r = this.dispatch(e.ref);
         if (r === Result.Error) return r;
-        return e.kind === 'br_on_null'
-          ? this.d.onBrOnNullExpr?.(e) ?? Result.Ok
-          : this.d.onBrOnNonNullExpr?.(e) ?? Result.Ok;
-      }
-      case 'br_on_cast': {
-        const r = this.dispatch(e.value);
-        if (r === Result.Error) return r;
-        return this.d.onBrOnCastExpr?.(e) ?? Result.Ok;
+        return this.d.onBrOnExpr?.(e) ?? Result.Ok;
       }
 
       // --- Three children ---

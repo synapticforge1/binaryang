@@ -84,7 +84,10 @@ describe('T7.12 — br_on_null carries branch values', () => {
     const callRef = ret.values[0]!;
     assert(callRef.kind === 'call_ref');
     const bon = callRef.callee;
-    assert(bon.kind === 'br_on_null', `expected br_on_null, got ${bon.kind}`);
+    // S4 folded the three `br_on_*` kinds into one node plus a sub-op, so
+    // the kind is the family and `op` is the instruction.
+    assert(bon.kind === 'br_on', `expected br_on, got ${bon.kind}`);
+    assertEquals(bon.op, 'br_on_null');
     // $r is local 1 — the ref. $n is local 0 — the carried value.
     assert(bon.ref.kind === 'local.get');
     assertEquals(bon.ref.var, { kind: 'index', value: 1 });

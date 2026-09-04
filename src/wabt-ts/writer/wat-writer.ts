@@ -704,14 +704,6 @@ class WatWriter extends ModuleContext {
         this.putsNewline(opname(e.opcode));
         return Result.Ok;
       },
-      onCompareExpr: (e) => {
-        this.putsNewline(opname(e.opcode));
-        return Result.Ok;
-      },
-      onConvertExpr: (e) => {
-        this.putsNewline(opname(e.opcode));
-        return Result.Ok;
-      },
       onTernaryExpr: (e) => {
         this.putsNewline(opname(e.opcode));
         return Result.Ok;
@@ -1037,27 +1029,17 @@ class WatWriter extends ModuleContext {
       },
 
       onBrExpr: (e) => {
-        this.putsSpace('br');
+        this.putsSpace(e.condition !== undefined ? 'br_if' : 'br');
         this.writeBrVar(e.target, NC.Newline);
         return Result.Ok;
       },
-      onBrIfExpr: (e) => {
-        this.putsSpace('br_if');
-        this.writeBrVar(e.target, NC.Newline);
-        return Result.Ok;
-      },
-      onBrOnNullExpr: (e) => {
-        this.putsSpace('br_on_null');
-        this.writeBrVar(e.target, NC.Newline);
-        return Result.Ok;
-      },
-      onBrOnNonNullExpr: (e) => {
-        this.putsSpace('br_on_non_null');
-        this.writeBrVar(e.target, NC.Newline);
-        return Result.Ok;
-      },
-      onBrOnCastExpr: (e) => {
-        this.putsSpace(e.onFail ? 'br_on_cast_fail' : 'br_on_cast');
+      onBrOnExpr: (e) => {
+        // The sub-op is the keyword, for all four.
+        this.putsSpace(e.op);
+        if (e.from === undefined || e.to === undefined) {
+          this.writeBrVar(e.target, NC.Newline);
+          return Result.Ok;
+        }
         this.writeBrVar(e.target, NC.Space);
         // Always the explicit `(ref [null] H)` spelling for both types —
         // the abbreviated `anyref` form only covers the nullable case.
@@ -1489,8 +1471,6 @@ class WatWriter extends ModuleContext {
         // ---- one operand ------------------------------------------------------
         case 'unary':
           return { operands: [e.operand], head: (d) => void d.onUnaryExpr?.(e) };
-        case 'convert':
-          return { operands: [e.operand], head: (d) => void d.onConvertExpr?.(e) };
         case 'drop':
           return { operands: [e.value], head: (d) => void d.onDropExpr?.(e) };
         case 'local.set':
@@ -1526,8 +1506,6 @@ class WatWriter extends ModuleContext {
         // ---- two operands -----------------------------------------------------
         case 'binary':
           return { operands: [e.left, e.right], head: (d) => void d.onBinaryExpr?.(e) };
-        case 'compare':
-          return { operands: [e.left, e.right], head: (d) => void d.onCompareExpr?.(e) };
         case 'store':
           return { operands: [e.address, e.value], head: (d) => void d.onStoreExpr?.(e) };
         case 'ref.eq':
@@ -1581,11 +1559,14 @@ class WatWriter extends ModuleContext {
         // once before: "the first child landed in the index slot and the real
         // index was dropped".
         case 'br':
-          return { operands: [...e.values], head: (d) => void d.onBrExpr?.(e) };
+          // The condition is the LAST operand when there is one — a folded
+          // `br_if` writes its carried values first, then the condition.
+          return {
+            operands: e.condition !== undefined ? [...e.values, e.condition] : [...e.values],
+            head: (d) => void d.onBrExpr?.(e),
+          };
         case 'return':
           return { operands: [...e.values], head: (d) => void d.onReturnExpr?.(e) };
-        case 'br_if':
-          return { operands: [...e.values, e.condition], head: (d) => void d.onBrIfExpr?.(e) };
         case 'br_table':
           return { operands: [...e.values, e.value], head: (d) => void d.onBrTableExpr?.(e) };
 
