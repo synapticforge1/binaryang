@@ -755,6 +755,83 @@ the plan's "roughly a dozen one-sided kinds" never had.
 Landed in code: `atomic_load` / `atomic_store` renamed to `atomic.load` / `atomic.store`, finishing
 the set S5 started. Verified inert — baseline `IDENTICAL`, 952 tests.
 
+#### 📋 Stage 3 — the sequence, scoped 2026-09-04
+
+Stages 2 and 3 collapsed into one change. This is that change, split into five steps that each end
+at a green gate, so any one can be reverted without unpicking the others.
+
+**⚠️ This is the first step in the whole series where the corpus invariants can genuinely break.**
+S2–S5 stayed `IDENTICAL` largely by construction — renames and regroupings that never reached the
+encoder. Step 1 changes what the encoder writes. The baseline stops being a formality and becomes
+the actual check.
+
+##### Step 1 — the operator representation becomes numeric
+
+The 1,383 call sites do **not** get rewritten. Each enum member keeps its NAME and changes its
+VALUE: `BinaryOp.EqI32 = Opcode.I32Eq` instead of `'i32.eq'`. Everything spelled `BinaryOp.EqI32`
+keeps working, and the field's type widens from the enum to `Opcode`, so an instruction with no enum
+member is still representable — which is the whole point of stage 1's decision.
+
+🔑 **The mapping already exists and the change can be GENERATED from it.** Four tables in the
+encoder hold it today: `UNARY_TO_OPCODE` (52), `BINARY_TO_OPCODE` (76), `SIMD_UNARY_SUBOP` (65),
+`SIMD_BINARY_SUBOP` (120). Coverage is total but for two members — `MulWideSInt64` /
+`MulWideUInt64`, added in S5 and handled by a 0xfc special case rather than a table entry.
+
+Those four tables then become the identity function and are **deleted**: 313 entries of "one fact in
+two places" removed, which is the hazard class this codebase has been bitten by most.
+
+|           |                                                             |
+| --------- | ----------------------------------------------------------- |
+| edits     | 11 enums, 4 tables deleted, ~6 op-as-string sites           |
+| untouched | all 1,383 `Op.Member` references                            |
+| gate      | baseline `IDENTICAL` — a single wrong mapping changes bytes |
+
+⚠️ Known consequences: `exprToWat` prints `expr.op` and needs `opName(op)`; encoder messages
+likewise; and `wasm_encoder.test.ts` passes `op: 'not.a.real.unary.op'` expecting a throw — that
+test asserts a behaviour the change removes, so it gets inverted rather than deleted.
+
+##### Step 2 — bucket A, now unblocked (18 kinds)
+
+Seven S4-shaped merges: `return_call*`→`call`+`isReturn`, `*.new_default`→`*.new`+`defaultInit`,
+`ref.as_non_null`→`ref.as`+op, `load_splat`/`load_zero`→`simd.load`+op,
+`simd_load_lane`/`simd_store_lane`→`simd.load_store_lane`, `simd_lane_op`→`simd.extract`/`replace`,
+`ternary`→`simd.ternary`.
+
+⚠️ **Direction is NOT uniform and must be asked per family.** S4's "binaryen-ts coarser" is false
+for SIMD, where wabt-ts's `simd_lane_op` merges what binaryen-ts splits. Six of the seven point at
+binaryen-ts's shape; the SIMD lane family points the other way.
+
+##### Step 3 — the node base carries `loc?` and `type?`
+
+The two bases are disjoint: 88 wabt-ts kinds carry `loc` and none carries `type`; every binaryen-ts
+node carries `type` and none mentions `loc`. Both become optional, absent meaning "derive it" — the
+rule S3 established for the fidelity table.
+
+Making `type` optional is the one change with a **silent** failure mode: 53 reads across 11 pass
+files would see `undefined` rather than a type. Each needs an explicit decision, not a `?.`.
+
+##### Step 4 — one `Expression`
+
+With steps 1–3 done the two definitions are structurally compatible; bucket B (12 kinds absent in
+binaryen-ts) and C (1 absent in wabt-ts) simply appear in the union, because a capability only one
+side has needs no merge. The bridge collapses to an identity function, which is the proof that the
+step worked.
+
+##### Step 5 — delete the bridge, and carry its type derivation forward
+
+1,923 lines plus 13 test files. ⚠️ **The bridge is also where a wabt-ts tree acquires its types
+today**; that derivation (`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified
+tree, or binaryen-ts's passes get nodes with no `type` to dispatch on.
+
+**Acceptance**: `deno task bridge` goes 397/421 → **421/421**. If it does not, C10a's diagnosis was
+wrong and this whole step rests on a mistake — which is exactly what the gate was built to be able
+to say.
+
+##### Verification at every step
+
+`deno task test` · `baseline` · `operators` · `spec` · `bridge` — and the bridge gate must never
+regress below 397 until step 5 raises it.
+
 #### Measured size of what remains
 
 |                                            |              |
