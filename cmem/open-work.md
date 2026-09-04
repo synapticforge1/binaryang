@@ -7,7 +7,7 @@ Kept here rather than in a version scope file because most of it is not scoped t
 a list split across three documents is a list nobody reads. Version-specific status stays in
 [scope-1.5.2.md](scope-1.5.2.md); the retirement ladder stays in [transition.md](transition.md).
 
-## ▶ TASK ONE, next session — the spec-testsuite harness
+## ✅ The spec-testsuite harness — BUILT, and its first findings
 
 **Build a harness over the official WebAssembly spec tests.** Owner-assigned 2026-09-02.
 
@@ -41,9 +41,54 @@ repeating one:
 - 511 foreign `.wasm` from the wasmtk suite: read and re-encode valid **511/511** — after the one
   defect that run found (see `if_declared_result.test.ts`)
 
-⚠️ **Expect the must-reject cases to be where the findings are.** A tool that accepts everything
-scores perfectly on every invariant built so far. Fail-loud is a stated contract of this codebase,
-and it has never been measured against a suite designed to attack it.
+### Built `c1c24c9d3` — `deno task spec:prepare` then `deno task spec`
+
+**The must-reject axis came out strong**, which is the real result: fail-loud holds up under a suite
+designed to attack it.
+
+| axis                           | result                 |
+| ------------------------------ | ---------------------- |
+| modules ACCEPTED (must accept) | 1951 / 1955 · 99.8%    |
+| `assert_invalid` REJECTED      | 2420 / 2422 · 99.9%    |
+| malformed BINARY rejected      | 711 / 711 · **100%**   |
+| malformed TEXT rejected        | 1156 / 1156 · **100%** |
+
+227 of 257 files; the 30 skipped are GC-proposal files `wast2json` 1.0.41 cannot split.
+
+### ⬚ Six findings, recorded not yet fixed
+
+| #   | finding                                                                                                                                 |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| SP1 | 2× a VALID module rejected — `type mismatch in br_on_non_null` (`br_on_non_null.wast:1,57`)                                             |
+| SP2 | 1× a VALID module rejected — `type mismatch in br_table` (`br_table.wast:3`)                                                            |
+| SP3 | 1× a VALID module rejected — stack-height mismatch (`local_init.wast:3`)                                                                |
+| SP4 | 2× an INVALID module **ACCEPTED** — should fail `unknown type` (`ref.wast:65,69`)                                                       |
+| SP5 | `Features.compactImports` and `.wideArithmetic` are DECLARED but the binary reader does not implement them (`unknown import kind: 127`) |
+
+⚠️ **SP4 is the one to take most seriously** — accepting something invalid is the failure mode every
+other invariant here is blind to, and it is what this harness exists to find.
+
+🔑 **SP5 is the "declared is not implemented" shape again**, after `ExpressionKind` members with no
+factory and four stale `not yet supported` blockers. **A feature flag is not an implementation.**
+
+### ⚠️ The feature set is the design, and it was wrong twice first
+
+- **`--enable-all` is wrong**: it changes what `wast2json` EMITS, not just what it permits. It
+  produced compact-imports binaries (import kind `0x7F`) that are not standard wasm — V8 rejects
+  them outright — and the harness reported **58 false "valid module REJECTED"** findings.
+- **the DEFAULT set is also wrong**: only 157 of 257 files convert, silently dropping SIMD, GC,
+  threads and tail calls. That reads as a pass because the failures never enter the corpus.
+- **the validator needs its features passed too**: the very first run used the default set and
+  reported **464 false rejections**, every one a post-MVP proposal the suite exercises on purpose.
+
+**A corpus built with the wrong flags measures the flags, not the code.** All three configurations
+are recorded in `scripts/spec-prepare.ts` so the next person does not rediscover them.
+
+### ⬚ Not yet covered
+
+`assert_return` / `assert_trap` — 55,993 behavioural assertions, skipped deliberately so the first
+pass measured the axis nothing else measures. Running them needs an invoke harness, and an engine
+already covers that ground; worth doing, but second.
 
 ## Owner actions — nothing here is blocked on code
 
