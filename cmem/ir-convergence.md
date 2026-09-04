@@ -695,6 +695,66 @@ The decision is recorded and gated; the conversion is not written. Turning binar
 string enums into numeric opcodes touches ~32 files, and doing it separately from the type
 unification would mean editing the same call sites twice. It belongs to the same change as stage 3.
 
+#### ✅ Stage 2 — the one-sided kinds, CLASSIFIED (and mostly not what they looked like)
+
+The count survived six corrections. Each one made the divergence look larger than it is, and none
+was visible in the number it produced:
+
+| # | correction                              | effect                                                                                 |
+| - | --------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1 | count only kinds binaryen-ts IMPLEMENTS | 7 phantom enum members excluded                                                        |
+| 2 | capture union-typed `kind` declarations | `array.init_data`/`_elem` and `any.convert_extern`/`extern.convert_any` were invisible |
+| 3 | `'ref'` is `RefValueType`, a TYPE       | never an expression kind at all                                                        |
+| 4 | tail calls are a FIELD                  | `isReturn: boolean` on Call/CallIndirect                                               |
+| 5 | `*.new_default` is a FIELD              | `defaultInit` / `init` on StructNew/ArrayNew                                           |
+| 6 | SIMD families regroup both ways         | wabt-ts splits what binaryen-ts merges, and vice versa                                 |
+
+🔑 **A kind-name diff cannot see a capability expressed as a field.** Corrections 4 and 5 are the
+same mistake twice: `return_call` and `array.new_default` looked one-sided and are ordinary
+capabilities behind a boolean. That is the same optional-field shape S4 adopted for `br` +
+`condition?`, so it is the codebase's own idiom being missed by the measurement.
+
+**The corrected divergence — 23 only-wabt-ts, 8 only-binaryen-ts — sorts into three buckets:**
+
+**A. Same capability, different shape (18 kinds).** Reconcilable, and _blocked on stage 1's operator
+conversion_ because both sides carry an operator field:
+
+| wabt-ts                                   | binaryen-ts                                        |
+| ----------------------------------------- | -------------------------------------------------- |
+| `return_call`, `return_call_indirect`     | `call` / `call_indirect` + `isReturn`              |
+| `array.new_default`, `struct.new_default` | `array.new` + `init`, `struct.new` + `defaultInit` |
+| `ref.as_non_null`                         | `ref.as` + `RefAsOp`                               |
+| `load_splat`, `load_zero`                 | `simd.load` + `SIMDLoadOp`                         |
+| `simd_load_lane`, `simd_store_lane`       | `simd.load_store_lane` + op                        |
+| `simd_lane_op`                            | `simd.extract` / `simd.replace` / `simd.shift`     |
+| `ternary`                                 | `simd.ternary`                                     |
+
+**B. Absent in binaryen-ts — wabt-ts's shape survives, no merge to perform (12).** All seven atomics
+(`atomic.load`, `atomic.store`, `atomic.rmw`, `atomic.cmpxchg`, `atomic.wait`, `atomic.notify`,
+`atomic.fence`), `call_ref`, `return_call_ref`, `code_metadata`, `any.convert_extern`,
+`extern.convert_any`.
+
+**C. Absent in wabt-ts (1).** `tuple.make` — though wabt-ts covers multi-value through
+`values:
+Expr[]` arity rather than a node.
+
+#### 🛑 Stage 2 has almost no independent implementation content
+
+That is the finding, not an excuse. For a one-sided kind there are only two cases, and neither is
+work that can be done _now_:
+
+- **bucket A** needs the operator representation settled in code first, or every merge is written
+  twice — exactly the double work this ordering was meant to avoid
+- **buckets B and C** have nothing to merge: when one side lacks a capability, the other side's
+  shape simply survives the unification. There is no intermediate state to build.
+
+**So stages 2 and 3 are one piece of work**, and the recorded ordering was wrong to separate them.
+What stage 2 delivers is the classification above — which is what makes stage 3 tractable, and what
+the plan's "roughly a dozen one-sided kinds" never had.
+
+Landed in code: `atomic_load` / `atomic_store` renamed to `atomic.load` / `atomic.store`, finishing
+the set S5 started. Verified inert — baseline `IDENTICAL`, 952 tests.
+
 #### Measured size of what remains
 
 |                                            |              |
@@ -710,8 +770,9 @@ independently verifiable against `deno task bridge`, the byte baseline and the s
 than attempted as one change. The natural stages, in dependency order:
 
 1. ~~settle the operator representation~~ ✅ decided above: numeric `Opcode` controls
-2. reconcile the 27 one-sided kinds (S5's remainder, done here rather than twice)
-3. make the node base carry `loc?` and `type?`
+2. ~~reconcile the one-sided kinds~~ ✅ classified above; the merges themselves belong to 3
+3. **one change**: convert the operator representation, reconcile bucket A, and give the node base
+   `loc?` and `type?` — these cannot be separated without editing the same call sites twice
 4. converge the six name pairs, which the type unification settles
 5. alias one `Expression` to the other and delete the bridge, carrying its type derivation forward
    as a pass

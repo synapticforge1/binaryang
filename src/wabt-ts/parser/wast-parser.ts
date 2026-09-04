@@ -4476,7 +4476,7 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         return {
-          kind: 'atomic_load',
+          kind: 'atomic.load',
           opcode: op as unknown as Opcode,
           memidx,
           offset,
@@ -4491,7 +4491,7 @@ export class WastParser {
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt();
         return {
-          kind: 'atomic_store',
+          kind: 'atomic.store',
           opcode: op as unknown as Opcode,
           memidx,
           offset,

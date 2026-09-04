@@ -499,7 +499,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onLoadExpr?.(e) ?? Result.Ok;
       }
-      case 'atomic_load': {
+      case 'atomic.load': {
         const r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         return this.d.onAtomicLoadExpr?.(e) ?? Result.Ok;
@@ -546,7 +546,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onStoreExpr?.(e) ?? Result.Ok;
       }
-      case 'atomic_store': {
+      case 'atomic.store': {
         let r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         r = this.dispatch(e.value);

@@ -2622,7 +2622,7 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
-        kind: 'atomic_load',
+        kind: 'atomic.load',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2639,7 +2639,7 @@ export class BinaryReader {
       const value = stack.pop() ?? operandPlaceholder(loc);
       const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
-        kind: 'atomic_store',
+        kind: 'atomic.store',
         opcode: opcode as Opcode,
         align,
         offset,

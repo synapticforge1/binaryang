@@ -1019,7 +1019,7 @@ export interface LoadZeroExpr {
 // --- Atomics ---
 /** Atomic load (`i32.atomic.load`, etc.) — sequentially-consistent read from shared memory. */
 export interface AtomicLoadExpr {
-  readonly kind: 'atomic_load';
+  readonly kind: 'atomic.load';
   readonly opcode: Opcode;
   readonly align: number;
   readonly offset: bigint;
@@ -1029,7 +1029,7 @@ export interface AtomicLoadExpr {
 }
 /** Atomic store — sequentially-consistent write to shared memory. */
 export interface AtomicStoreExpr {
-  readonly kind: 'atomic_store';
+  readonly kind: 'atomic.store';
   readonly opcode: Opcode;
   readonly align: number;
   readonly offset: bigint;
