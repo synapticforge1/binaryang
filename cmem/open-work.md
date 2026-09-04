@@ -103,9 +103,15 @@ needs `--experimental-wasm-compact-imports` to load such a module at all. The re
 proposal instead of `unknown import kind: 127`, and the field says plainly that setting it does
 nothing. Kept rather than removed, because `Features` is public surface.
 
-⬚ **The one real gap this surfaced**: wide arithmetic works in wabt-ts and is refused loudly by
-binaryen-ts's binary reader (`unsupported bulk-memory/table opcode: 0xFC 0x13`). Deliberate for now,
-recorded rather than silent — implementing it needs IR nodes for a 4-operand, 2-result instruction.
+▶ **The one real gap this surfaced is now ASSIGNED TO S5 of the convergence** (owner, 2026-09-02):
+wide arithmetic works in wabt-ts and is refused loudly by binaryen-ts's binary reader
+(`unsupported bulk-memory/table opcode: 0xFC 0x13`).
+
+wabt-ts models it as `quaternary`, already on the one-sided list S5 covers, so **convergence
+dissolves it rather than requiring separate work** — the same shape as S6 dissolving C10a. ⚠️ **Do
+not implement it separately in binaryen-ts first**: that adds a second copy of something the merge
+is about to unify. S5 now carries it as an acceptance criterion — see
+[ir-convergence.md](ir-convergence.md).
 
 🔑 **A feature flag is not an implementation** — the third "declared is not implemented" of the
 session, after `ExpressionKind` members with no factory and four stale `not yet supported` blockers.

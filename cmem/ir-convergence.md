@@ -343,7 +343,33 @@ the rename noise is not tangled with it.
 
 Roughly a dozen: `pop`, `tuple.make`, `tuple.extract` one way; `return_call`,
 `return_call_indirect`, `return_call_ref`, `struct.new_default`, `array.new_default`,
-`code_metadata` the other.
+`code_metadata`, `ternary`, `quaternary` the other.
+
+#### ▶ WIDE ARITHMETIC lands here — owner-assigned 2026-09-02
+
+⚠️ **Named explicitly because it is a live gap, not just a vocabulary entry.** `i64.add128`,
+`i64.sub128`, `i64.mul_wide_s`, `i64.mul_wide_u`:
+
+|                 |                                                                              |
+| --------------- | ---------------------------------------------------------------------------- |
+| **wabt-ts**     | ✅ fully implemented — decodes, validates, writes, byte-identical round trip |
+| **binaryen-ts** | ⬚ refuses loudly: `unsupported bulk-memory/table opcode: 0xFC 0x13`          |
+
+wabt-ts models them as **`quaternary`** — `{opcode, a, b, c, d}` — which is already on the "only
+wabt-ts" side of the vocabulary diff, so S5 covers it structurally. What makes it worth naming: it
+is the one one-sided kind currently causing a REAL failure rather than a theoretical gap.
+
+🔑 **Convergence should dissolve it rather than require separate work.** Adopting the shared tree
+means binaryen-ts gets whatever node kind carries `quaternary`, and the instruction stops being
+one-sided by construction — the same way S6 dissolves C10a. **Do not implement it separately in
+binaryen-ts first**; that would add a second copy of something the merge is about to unify.
+
+⚠️ **It is 4 operands and TWO results**, so it also exercises the multi-value machinery (`TupleMake`
+/ `Pop`) that Stages 1–2 already landed. That makes it a good acceptance case for S5 rather than an
+awkward one.
+
+**Acceptance criterion for S5**: `i64.add128` round-trips through binaryen-ts's binary reader and
+encoder, byte-identically, the way it already does through wabt-ts.
 
 ### S6 — unify the type, delete the bridge
 
