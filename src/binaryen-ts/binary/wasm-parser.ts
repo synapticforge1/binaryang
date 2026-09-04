@@ -1789,9 +1789,22 @@ class WasmParser {
             // this label at decode time) round-trips to the correct branch
             // depth on encode. Without it the encoder pushed an empty label and
             // the branch silently resolved to the wrong (innermost) frame.
+            // ⚠️ The DECLARED result type wins over the inferred one.
+            //
+            // `makeIf` infers the type from its arms, and `void resultType;`
+            // used to discard what the binary actually said. That is right up
+            // until both arms are UNREACHABLE — then there is nothing to infer
+            // from, the `if` comes out void, and the value the caller expects is
+            // simply absent: *"expected 0 elements on the stack for fallthru,
+            // found 1"*. Found by re-encoding a Go-compiled binary from the
+            // wasmtk suite, which no corpus module exercises.
+            //
+            // The binary always carries the blocktype, so the declared type is
+            // never a guess here. This is the same reconciliation the bridge
+            // does with `withDeclaredType`, and the same fact `cmem/ir-convergence.md`
+            // records as the most load-bearing member of the as-written set.
             const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label);
-            void resultType;
-            push(ifExpr);
+            push(rts.length > 0 ? { ...ifExpr, type: resultType } : ifExpr);
           } else if (frame.kind === 'loop') {
             const body = sealFrame(frame, resultType);
             push(makeLoop(frame.label, body, resultType));
