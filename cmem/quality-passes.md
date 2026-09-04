@@ -183,6 +183,57 @@ Nothing else had noticed either one.
 **Pass 3 did not converge either**, though what remains is now one feature gap (C2/C4) and one
 characterised inefficiency (C7), rather than unknowns.
 
+### Pass 4 — 2026-09-02, `c0d79b56d`
+
+**C2 and C4 done together**, which was the point of recording them as coupled.
+
+`memory.init` / `data.drop` are only valid alongside a **data count section**, and it must precede
+the code section — a single-pass validator needs the segment count while type-checking those
+instructions, which is the entire reason the section exists. Shipping either half alone produces a
+wrong module.
+
+**Implemented end to end** — IR interface, factory, encoder case, parser case, and BOTH IR walkers —
+for `memory.init`, `data.drop`, `table.size`, `table.grow`, `table.fill`, `table.copy`.
+
+⚠️ **Six of these existed as `ExpressionKind` enum members with nothing behind them** — no
+interface, no factory, no encoder case, no parser case. Exactly the shape `TupleExtract` had. **An
+enum member is not evidence of an implementation**, and this is the second time that assumption has
+cost something here.
+
+🔑 **The central walker caught every omission.** `walkExpression` and `mapExpression` throw on an
+unhandled kind rather than defaulting, so each new expression failed loudly until both were
+extended. A silent `default:` would have let the ops through with their children invisible to every
+pass.
+
+**Declarative and passive ELEMENT segments are now REFUSED rather than dropped.** `ElementSegment`
+has no mode field and the encoder writes kind 0 unconditionally, so storing one would emit it as
+ACTIVE — writing into the table at instantiation when the source forbade it. ⚠️ Dropping was **worse
+than refusing**: `elem
+declare` encoded a module that then failed validation downstream with
+`undeclared reference to function`. A refusal at the layer that knows why beats a diagnostic three
+layers later that names a symptom.
+
+`table.init` and `elem.drop` remain unimplemented and keep failing loud — same IR gap, and honest
+about it.
+
+### Results
+
+| measure                  | pass 1 start | after pass 3 | now           |
+| ------------------------ | ------------ | ------------ | ------------- |
+| re-encode validates      | 383 / 421    | 421 / 421    | **421 / 421** |
+| byte-identical to source | 1 / 421      | 140 / 421    | **309 / 421** |
+| total size delta         | +24107       | −176         | **+643**      |
+
+The remaining +643 is **exactly C7**, the orphan type entries — the only measured difference left
+between our encoder's output and wabt-ts's.
+
+### ⬚ Open after pass 4
+
+| #  | finding                                                                                     | state                                                                                             |
+| -- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| C7 | an orphan type entry appended for a multi-value function's result (111 modules, +643 bytes) | ⬚ characterised, benign, unreferenced — but still open                                            |
+| C9 | `table.init` / `elem.drop`, and declarative/passive element segments                        | ⬚ **one IR gap, not four findings**: `ElementSegment` has no mode field. All four fail loud today |
+
 ## Where the numbers live
 
 `cmem/open-work.md` holds the release-facing list. This file holds the pass bookkeeping, because
