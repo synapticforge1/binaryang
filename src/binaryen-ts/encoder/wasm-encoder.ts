@@ -641,6 +641,35 @@ function writeValType(w: BinaryWriter, t: ValType): void {
 }
 
 /**
+ * Whether an expression of this kind writes a BLOCKTYPE, and so may need a
+ * type-section entry for its result.
+ *
+ * Kept beside {@link writeBlockType} because it must list exactly the kinds
+ * that call it — the two drifting apart means either a missing type (an
+ * unresolvable blocktype index) or an orphan one.
+ */
+function isBlockTypeCarrier(expr: Expression): boolean {
+  switch (expr.kind) {
+    case ExpressionKind.Loop:
+    case ExpressionKind.If:
+    case ExpressionKind.Try:
+    case ExpressionKind.TryTable:
+      return true;
+    case ExpressionKind.Block:
+      // ⚠️ An UNNAMED block is a synthetic region wrapper — `oneOrTypedBlock`
+      // building a container for a body that holds one expression in the IR —
+      // and `encodeRegionBody` inlines it, so it never writes a blocktype. It
+      // carries the enclosing construct's type, so a multi-value FUNCTION gave
+      // its body wrapper a multi-value type and this registered an entry for it
+      // that nothing addressed. Same rule as `encodeRegionBody`, and the two
+      // must agree: inlined means no blocktype means no type entry.
+      return (expr as BlockExpr).name !== null;
+    default:
+      return false;
+  }
+}
+
+/**
  * Writes a block header's type.
  *
  * Three forms: `0x40` for void, an inline valtype byte for exactly one result,
@@ -1103,7 +1132,22 @@ class WasmEncoder {
       const e = expr as CallIndirectExpr;
       addType(e.params, e.results);
     }
-    if (Array.isArray(expr.type) && expr.type.length > 1) {
+    // ⚠️ Only a CONTROL construct needs a type-section entry for its result: it
+    // is the one that writes a blocktype, and a blocktype above the inline forms
+    // is an index into the type section. Every other expression carries its
+    // multi-value type for the IR's benefit alone.
+    //
+    // This used to register a type for ANY multi-value-typed expression. A
+    // multi-value FUNCTION's body expression is multi-value too, so a
+    // `(func (result i32 i32))` entry was appended that nothing referenced — the
+    // function itself uses its own signature, which has parameters. 111 corpus
+    // modules carried an orphan type, 643 bytes in total, and it was the last
+    // measured difference between this encoder's output and wabt-ts's.
+    //
+    // Harmless as it stood — unreferenced, appended last so no index shifted —
+    // but "emit a type in case something needs it" is a rule that cannot be
+    // checked, whereas "emit one for the constructs that address one" can.
+    if (isBlockTypeCarrier(expr) && Array.isArray(expr.type) && expr.type.length > 1) {
       addType([], expr.type as ValueType[]);
     }
     visitChildren(expr, (child) => this.collectExprTypes(child, addType));
