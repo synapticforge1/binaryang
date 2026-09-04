@@ -55,21 +55,42 @@ designed to attack it.
 
 227 of 257 files; the 30 skipped are GC-proposal files `wast2json` 1.0.41 cannot split.
 
-### ⬚ Six findings, recorded not yet fixed
+### ✅ All six findings CLOSED by ONE fix — `3445d978a`
 
-| #   | finding                                                                                                                                 |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| SP1 | 2× a VALID module rejected — `type mismatch in br_on_non_null` (`br_on_non_null.wast:1,57`)                                             |
-| SP2 | 1× a VALID module rejected — `type mismatch in br_table` (`br_table.wast:3`)                                                            |
-| SP3 | 1× a VALID module rejected — stack-height mismatch (`local_init.wast:3`)                                                                |
-| SP4 | 2× an INVALID module **ACCEPTED** — should fail `unknown type` (`ref.wast:65,69`)                                                       |
-| SP5 | `Features.compactImports` and `.wideArithmetic` are DECLARED but the binary reader does not implement them (`unknown import kind: 127`) |
+SP1–SP4 were one root cause, and SP5 remains as a separate gap.
 
-⚠️ **SP4 is the one to take most seriously** — accepting something invalid is the failure mode every
-other invariant here is blind to, and it is what this harness exists to find.
+**`BlockType`'s value case was typed `Type`** — a flat numeric enum whose values are single wire
+bytes. A typed reference does not fit: `(ref ht)` encodes as `0x64` FOLLOWED BY a heap type. The
+reader took the tag and left the heap index in the instruction stream, where the next decode step
+consumed it as an OPCODE:
 
-🔑 **SP5 is the "declared is not implemented" shape again**, after `ExpressionKind` members with no
-factory and four stale `not yet supported` blockers. **A feature flag is not an implementation.**
+```
+(block (result (ref 0)) (ref.func 0))
+  upstream : block (result (ref 0)) / ref.func 0
+  ours     : block <type 100> / UNREACHABLE / ref.func
+```
+
+🔑 **BYTE EQUALITY IS NOT SEMANTIC EQUALITY, and this is the proof.** It round-tripped
+byte-identically — the writer emitted that phantom `unreachable` as the very byte it had been
+mis-read from, so the two halves of one gap concealed each other. **The corpus round trip at 421/421
+byte-identical, the strongest signal this project had, was blind to an IR containing an instruction
+the program does not have.** A phantom `unreachable` makes everything after it dead code, so any
+pass reading that IR reasoned about a different program.
+
+The spec suite saw the same gap from the other side: a heap index never stored can never be
+range-checked, so two INVALID modules were ACCEPTED. **SP1–SP3's "type mismatch" errors were the
+same missing heap type breaking type-checking downstream.**
+
+| axis                      | after                  |
+| ------------------------- | ---------------------- |
+| modules ACCEPTED          | 1955 / 1955 · **100%** |
+| `assert_invalid` REJECTED | 2422 / 2422 · **100%** |
+| malformed BINARY          | 711 / 711 · **100%**   |
+| malformed TEXT            | 1156 / 1156 · **100%** |
+
+⬚ **SP5 is still open** — `Features.compactImports` and `.wideArithmetic` are declared flags with no
+binary-reader support. Excluded from the prepare step rather than hidden; a feature flag is not an
+implementation.
 
 ### ⚠️ The feature set is the design, and it was wrong twice first
 
