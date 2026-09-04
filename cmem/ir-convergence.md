@@ -504,12 +504,42 @@ encoder, byte-identically, the way it already does through wabt-ts.
 Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
 become unnecessary.
 
-🛑 **S6 BLOCKER, found during S3: binaryen-ts's `Load` and `Store` carry no memory index.** They are
-`{type, bytes, signed, offset, align, ptr}` and assume memory 0. wabt-ts's equivalents carry
-`memidx` on 16 kinds. This is not as-written data the side table can absorb — it is semantic content
-the unified node must hold, so **the shared load/store gains a memory index before S6 lands, or
-every multi-memory module is silently rewritten to memory 0**. Harmless today only because nothing
-routes multi-memory through binaryen-ts's tree.
+✅ **S6 BLOCKER CLEARED, 2026-09-04 — and it was a defect, not just a gap.**
+
+binaryen-ts's `Load`/`Store` were `{type, bytes, signed, offset, align, ptr}` with no memory index,
+while wabt-ts carried `memidx` on 16 kinds. The first description of this said binaryen-ts "silently
+rewrites every multi-memory module to memory 0". **Both that and the correction to it were wrong**,
+and the truth was worse than either:
+
+- `readMemArg` read align and offset straight through. **Bit 6 of the align field means an explicit
+  memory index follows**, so `i32.store (memory $b)` — `36 42 01 00` — decoded as align 0x42 (a
+  nonsense 2^66 alignment) and offset 1 (the memory INDEX), leaving the real offset byte to be
+  consumed as an OPCODE. `00` became a phantom `unreachable`, which makes the rest of the body dead
+  code. **Same failure shape as the typed-ref block type** in `block_type_ref.test.ts`.
+- SIMD open-coded a second copy of the same read, carrying the same defect.
+- Nothing caught it: no error at parse, and `checkSingleMemory` only fired on re-encode, reporting
+  the module as unsupported rather than the body as corrupt.
+- The reader also dropped the memidx for `memory.copy`/`fill`/`init`/`size`/`grow`, and named every
+  memory export `mem0` regardless of which memory it exported.
+
+🔑 **Verified against the INDEPENDENT oracle, not against ourselves.** Upstream wabt assembles the
+same source to byte-identical output, `wasm-validate` accepts ours, and upstream `wasm-objdump`
+reads the field as `i32.store 2 1 0` — align 2, memory 1, offset 0. Our two implementations agreeing
+would have proved nothing here.
+
+**Resolved in wabt-ts's favour, per the worst-condition rule.** The controlling load combination is
+multi-memory and only wabt-ts's shape carries it, so binaryen-ts's nodes gained `memory` on all nine
+memory-addressing kinds rather than wabt-ts losing `memidx`. Converging the other way would have
+REGRESSED behaviour that already worked — the outcome the rule exists to prevent. Note this is the
+first element where wabt-ts's shape controls; S4's grouping goes the other way, which is some
+evidence the rule is doing real work rather than rationalising a predetermined answer.
+
+`checkSingleMemory` is gone, and `tests/binaryen-ts/binary/multi_memory.test.ts` pins load/store,
+`memory.copy`/`fill`/`size`/`grow`, an active data segment on a second memory, and an exported
+second memory — all byte-identical round trips.
+
+⚠️ **One test was INVERTED, not deleted**: `encodeWasm: multiple memories throw` asserted the
+refusal, which was correct while the bytes would have been wrong. It now asserts the capability.
 
 📥 **S6 also inherits the six name pairs S2 could not touch** — `ifTrue`/`then_`, `ifFalse`/`else_`,
 `typeIndex`/`typeVar`, `fieldIndex`/`fieldVar`, `target`/`func`, and `children`/`body`. They are not

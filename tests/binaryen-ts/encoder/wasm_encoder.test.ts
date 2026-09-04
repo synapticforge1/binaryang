@@ -357,14 +357,21 @@ Deno.test('encodeWasm: load with a non-numeric result type throws instead of sil
   assertThrows(() => encodeWasm(mod), WasmEncodeError, 'cannot encode load');
 });
 
-Deno.test('encodeWasm: multiple memories throw (encoder hardcodes memory index 0)', () => {
-  // Memory exports, data segments, and memory.* ops are all encoded against
-  // index 0; a second memory would be silently misencoded against memory 0.
+// 🔧 **This test was INVERTED, not deleted.** It asserted that the encoder
+// throws on a second memory, which was the correct interim behaviour while
+// memory exports, data segments and memory.* ops were all hardcoded to index 0
+// — refusing beats emitting wrong bytes. The IR now carries a memory index on
+// all nine memory-addressing kinds, so the refusal is gone and the capability
+// is what needs pinning. The round-trip cases live in
+// `tests/binaryen-ts/binary/multi_memory.test.ts`; this one keeps watch on the
+// encoder entry point that used to reject.
+Deno.test('encodeWasm: multiple memories encode rather than throw', () => {
   const mod = new ModuleBuilder()
     .addMemory('a', 1, null)
     .addMemory('b', 1, null)
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'multiple memories');
+  const out = encodeWasm(mod);
+  assert(WebAssembly.validate(out as BufferSource), 'the engine must accept two memories');
 });
 
 Deno.test('encodeWasm: memory section round-trips', () => {
