@@ -381,77 +381,85 @@ what caught it.
 (421/421, no emitted byte changed), 944 tests passing, `operators` TOTAL, spec suite 100% on all
 four axes (1955 accepted, 2422 invalid rejected, 711 malformed binary, 1156 malformed text).
 
-### S3 — the side table 🚧 mechanism landed, families outstanding
+### S3 — the side table ✅ done
 
-**Landed 2026-09-04**: `src/wabt-ts/ir/fidelity.ts` (`NodeId`, `FidelityEntry`, `FidelityTable`),
-`Module.fidelity` populated by `makeModule()` so reader and parser share one table, and
-`select.resultType` recorded by the BINARY READER as the pilot family. Verified with baseline
-`IDENTICAL`, 947 tests, spec suite 100% on four axes.
+`src/wabt-ts/ir/fidelity.ts` — `NodeId`, `FidelityEntry`, `FidelityTable`. One table per module,
+created by `makeModule()` so the binary reader and the WAT parser share it. **Both producers
+populate it and both writers read it**, so the table drives the output rather than merely shadowing
+it, and the byte baseline is a proof rather than a coincidence.
 
-**Outstanding**: the WAT parser side of `select`, then `blockType`, `opcode` on load/store,
-`memidx`, `typeUse`/`typeVar`/`sig`, `placeholder`, and `type`-as-declared. Each moves the same way
-and is proven the same way, because a missing entry degrades to "derive it".
+Verified: baseline `IDENTICAL` (421/421, binary and text), 948 tests, `operators` TOTAL, spec suite
+100% on all four axes.
 
-⚠️ **The as-written set is not decorative, and that was a wrong assumption worth correcting.** Every
-candidate checked — `select.resultType` (a different opcode, `0x1c` vs `0x1b`), `typeUse` (decides
-whether `synthesizeTypes` creates a type-section entry), `memidx`, `align` — affects the emitted
-bytes or the type section. The criterion for belonging here is NOT "the tree does not need it". It
-is **"binaryen-ts can derive an equivalent, and after optimization the original is gone"**. So the
-pilot proves SURVIVAL through the pipeline, not deletion from the node; removing the node field is a
-separate, later step for each family.
+#### 🔧 The key was wrong — corrected by measurement
 
-Define it, and move the as-written set into it: `blockType`, `opcode` on load/store, `memidx`,
-`typeUse`/`typeVar`/`sig`, `select.resultType`, `placeholder`, and `type`-as-declared. 72 field
-declarations across 93 expression kinds.
-
-⚠️ **`values` vs `value` on `br`/`return` is NOT a side-table entry** — it is a real arity
-difference, already resolved in the tree by `TupleMake`. Do not sweep it in.
-
-#### 🔧 The key was wrong — corrected 2026-09-04, by measurement
-
-This step said: _"keyed by node identity, so a pass that rewrites a subtree simply loses the entries
+The step said: _"keyed by node identity, so a pass that rewrites a subtree simply loses the entries
 for what it replaced, which is the correct semantics."_ It is the correct semantics. **It is not an
-achievable key in wabt-ts**, and the reason is visible in the source rather than in theory.
+achievable key in wabt-ts.**
 
 wabt-ts's IR is immutable — 492 `readonly` fields — so its passes rebuild nodes by spread rather
 than mutating them: `resolveNames` has 75 spread rebuilds and `applyNames` 25. **A spread mints a
 new object, so it mints a new identity**, even when the pass is semantically identity-preserving.
-Resolving `$x` to `0` is the same instruction at the same place, and it lands in a different object.
-
-Measured on a five-instruction module, with a `WeakMap` standing in for the side table:
+Resolving `$x` to `0` is the same instruction at the same place, landing in a different object.
+Measured on a five-instruction module, with a `WeakMap` standing in for the table:
 
 ```
 nodes before resolveNames : 8
-nodes after               : 8
 entries that SURVIVED     : 2 / 8
 ```
 
-🔑 **An identity-keyed table would be emptied by the very pipeline that needs it.** Not by an
-optimizing pass legitimately discarding fidelity — by name resolution, which every parsed module
-goes through before it is written. The failure is also silent: entries vanish and the writer falls
-back to derived values, so the output stays valid and merely stops being faithful.
+🔑 **An identity-keyed table would be emptied by the very pipeline that needs it** — not by an
+optimizing pass legitimately discarding fidelity, but by name resolution, which every parsed module
+goes through before it is written. Silently, too: entries vanish, the writer falls back to derived
+values, and the output stays valid while quietly ceasing to be faithful.
 
-#### The key that does hold: an opaque, spread-preserved id
+**The key that holds** is an opaque `nodeId` carried on the node. A spread copies it for free, so
+all 100 rebuild sites keep working and none can forget; a pass that CONSTRUCTS a replacement gets no
+id and so no entry, which is the original intent reached from the other direction. The shared tree
+pays one optional opaque field rather than twelve semantic ones — which is the actual point, since
+after S6 binaryen-ts's passes must not have to understand wabt-ts's as-written data.
 
-`readonly nodeId?: NodeId` on the node; the table is `Map<NodeId, FidelityEntry>` beside the module.
+⚠️ Weaker than pure identity in one way: a pass that rewrites a node BY SPREAD keeps the id and so
+keeps a possibly stale entry. Tolerable only because optimization drops the whole table. If that
+ever stops being true, this key stops being sufficient.
 
-- **Spread preserves it for free.** `{ ...e, condition }` copies `nodeId` with everything else, so
-  all 100 existing rebuild sites keep working with no change and none can forget.
-- **A genuine construction mints a fresh node with no id**, so a pass that builds a replacement
-  correctly has no entry — the semantics S3 wanted, arrived at from the other direction.
-- **The shared tree pays one optional opaque field, not twelve semantic ones.** That is the actual
-  goal: after S6, binaryen-ts's passes must not have to preserve or understand wabt-ts's as-written
-  data. Ignoring one field they never read is free.
+#### 🔧 The family list was wrong too — seven became four
 
-⚠️ **This is a weaker guarantee than the plan assumed, and the difference is worth stating.** A
-binaryen-ts pass that rewrites a node BY SPREAD keeps the id and so keeps the entry, which is stale.
-That is acceptable only because the design already says optimization DROPS the whole table — an
-optimized module has no original to be faithful to. If that ever stops being true, this key stops
-being sufficient.
+The step listed `blockType`, `opcode` on load/store, `memidx`, `typeUse`/`typeVar`/`sig`,
+`select.resultType`, `placeholder`, and `type`-as-declared. Classifying each against a criterion the
+list did not have — **"binaryen-ts can derive an equivalent, and after optimization the original is
+gone"** — cut it to four:
 
-**Degradation is safe by construction**: a missing entry means the writer derives the value, which
-is what it does today for everything. So the move can be done one family at a time, each proven by
-baseline `IDENTICAL`.
+| family                           | verdict                                                                                                                                                                                                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blockType` (5 kinds)            | ✅ declared ≠ derived (a94154e21), and two legal spellings that differ in the binary                                                                                                                                                                  |
+| `select.resultType`              | ✅ `0x1b` vs `0x1c` is a written choice; the type itself is derivable from the operands                                                                                                                                                               |
+| `typeUse`/`sig` on call_indirect | ✅ `(type $t)` and an inline signature resolve to the same index                                                                                                                                                                                      |
+| `type`-as-declared on `Func`     | ✅ the interface's own doc already said fidelity depends on the spelling                                                                                                                                                                              |
+| `opcode` (19)                    | ❌ binaryen-ts's `Load` is `{type, bytes, signed, offset, align, ptr}` — the opcode is derivable. A representation difference for S4, not as-written data                                                                                             |
+| `align`, `offset` (12/15)        | ❌ memarg semantics                                                                                                                                                                                                                                   |
+| GC `typeVar` (15)                | ❌ the type operand, semantic                                                                                                                                                                                                                         |
+| `memidx` (16)                    | ❌ semantic — and see the gap below                                                                                                                                                                                                                   |
+| `placeholder`                    | ❌ converges to binaryen-ts's `Pop`, which is a KIND. It moves INTO the tree at S5, which already lists `pop`. Would also have meant threading the table through 117 `operandPlaceholder(` call sites to store one boolean a spread already preserves |
+
+🛑 **Gap found for S6: binaryen-ts's `Load` and `Store` have no memory index at all.** They assume
+memory 0. That is not as-written data the side table can hold — it is semantic content the unified
+tree is currently unable to represent, so multi-memory modules cannot survive S6 until the shared
+node carries a memory index. Not a defect today, because nothing routes multi-memory through
+binaryen-ts's tree; it becomes one the moment S6 lands.
+
+#### ⚠️ The obligation the table creates
+
+**Any wabt-ts pass that rewrites a value the table also holds must update the table.** Found the
+hard way, and only because the writers were wired to read: `resolveNames` resolves `$t` name-vars
+inside `select.resultType` on the NODE, the writer now reads the TABLE, and the stale entry handed
+the encoder an unresolved name — `writeHeapType: var "$t" not resolved`. The comment at that same
+site in `resolve-names.ts` describes an earlier version of the identical bug, from before the table
+existed.
+
+🔑 **Populating the table would not have found this; making it load-bearing did.** A table that is
+only written to and never read looks correct forever. That is the argument for wiring the writers in
+the same step rather than deferring it to S6.
 
 ### S4 — adopt the coarse grouping
 
@@ -495,6 +503,13 @@ encoder, byte-identically, the way it already does through wabt-ts.
 
 Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
 become unnecessary.
+
+🛑 **S6 BLOCKER, found during S3: binaryen-ts's `Load` and `Store` carry no memory index.** They are
+`{type, bytes, signed, offset, align, ptr}` and assume memory 0. wabt-ts's equivalents carry
+`memidx` on 16 kinds. This is not as-written data the side table can absorb — it is semantic content
+the unified node must hold, so **the shared load/store gains a memory index before S6 lands, or
+every multi-memory module is silently rewritten to memory 0**. Harmless today only because nothing
+routes multi-memory through binaryen-ts's tree.
 
 📥 **S6 also inherits the six name pairs S2 could not touch** — `ifTrue`/`then_`, `ifFalse`/`else_`,
 `typeIndex`/`typeVar`, `fieldIndex`/`fieldVar`, `target`/`func`, and `children`/`body`. They are not

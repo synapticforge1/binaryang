@@ -41,6 +41,7 @@ import type {
   TypeEntry,
   Var,
 } from '../ir/ir.ts';
+import type { NodeId } from '../ir/fidelity.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
 import { isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
@@ -167,6 +168,18 @@ class WatWriter extends ModuleContext {
   // once per inline-export check, so the previous O(imports+defs) scan grew
   // quadratic on modules with many exports.
   private readonly nameIndexMap = new Map<string, number>();
+
+  /**
+   * What was WRITTEN for this block, falling back to what the node derived.
+   *
+   * The declared type and the derived type are not always the same — an `if`
+   * may declare a result its contents would not give it (a94154e21) — and the
+   * declaration has two legal spellings that differ in the binary. Both facts
+   * live in the table; the node field is the fallback that goes away at S6.
+   */
+  private declaredBlockType(e: { nodeId?: NodeId; blockType: BlockType }): BlockType {
+    return this.module.fidelity.get(e.nodeId)?.blockType ?? e.blockType;
+  }
 
   constructor(module: Module, opts: WriteWatOptions) {
     super(module);
@@ -710,7 +723,8 @@ class WatWriter extends ModuleContext {
 
       onSelectExpr: (e) => {
         this.putsSpace('select');
-        if (e.resultType.length > 0) this.writeTypes(e.resultType, 'result');
+        const declared = this.module.fidelity.get(e.nodeId)?.selectResultType ?? e.resultType;
+        if (declared.length > 0) this.writeTypes([...declared], 'result');
         this.newline(false);
         return Result.Ok;
       },
@@ -1067,10 +1081,10 @@ class WatWriter extends ModuleContext {
       beginBlockExpr: (e) => {
         this.putsSpace('block');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Block, e.blockType);
+        this.beginBlock(e.label, LabelType.Block, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1084,10 +1098,10 @@ class WatWriter extends ModuleContext {
       beginLoopExpr: (e) => {
         this.putsSpace('loop');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Loop, e.blockType);
+        this.beginBlock(e.label, LabelType.Loop, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1101,10 +1115,10 @@ class WatWriter extends ModuleContext {
       beginIfExpr: (e) => {
         this.putsSpace('if');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.If, e.blockType);
+        this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1127,9 +1141,9 @@ class WatWriter extends ModuleContext {
       beginTryExpr: (e) => {
         this.putsSpace('try');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Try, e.blockType);
+        this.beginBlock(e.label, LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1155,14 +1169,14 @@ class WatWriter extends ModuleContext {
       beginTryTableExpr: (e) => {
         this.putsSpace('try_table');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
         this.indent += 2;
         for (const tc of e.catches) {
           this.writeTableCatch(tc);
         }
-        this.beginBlock(e.label, LabelType.TryTable, e.blockType);
+        this.beginBlock(e.label, LabelType.TryTable, this.declaredBlockType(e));
         return Result.Ok;
       },
       endTryTableExpr: () => {
@@ -1714,9 +1728,13 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace(isLoop ? 'loop' : 'block');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, isLoop ? LabelType.Loop : LabelType.Block, e.blockType);
+        this.beginBlock(
+          e.label,
+          isLoop ? LabelType.Loop : LabelType.Block,
+          this.declaredBlockType(e),
+        );
         this.indent += 2;
         this.writeExprList(e.body);
         this.indent -= 2;
@@ -1733,9 +1751,9 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace('try');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Try, e.blockType);
+        this.beginBlock(e.label, LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
 
         this.puts('(', NC.None);
@@ -1779,11 +1797,11 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace('if');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
         this.indent += 2;
         this.writeFoldedExpr(e.condition);
-        this.beginBlock(e.label, LabelType.If, e.blockType);
+        this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
         this.newline(true);
         this.puts('(', NC.None);
         this.putsSpace('then');

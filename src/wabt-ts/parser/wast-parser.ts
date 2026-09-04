@@ -144,6 +144,8 @@ import {
   varIndex,
   varName,
 } from '../ir/ir.ts';
+import { FidelityTable } from '../ir/fidelity.ts';
+import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
 import { LexerSource } from './lexer-source.ts';
 import { WastLexer } from './wast-lexer.ts';
 import {
@@ -1087,6 +1089,24 @@ export class WastParser {
    * block with params requires.
    */
   private currentModule: Module | null = null;
+
+  /**
+   * A table for nodes built with no module in scope — a fragment parsed on its
+   * own. Their entries are simply unreachable, which is correct: nothing will
+   * ask this parser about a node that belongs to no module.
+   */
+  private readonly orphanFidelity = new FidelityTable();
+
+  /**
+   * Record as-written data against the current module's fidelity table.
+   *
+   * Always returns an id rather than `undefined`, so call sites can write
+   * `nodeId: this.fid(...)` directly — `exactOptionalPropertyTypes` forbids
+   * assigning an explicit `undefined` to an optional field. See `ir/fidelity.ts`.
+   */
+  private fid(entry: FidelityEntry): NodeId {
+    return (this.currentModule?.fidelity ?? this.orphanFidelity).record(entry);
+  }
 
   /**
    * Function bodies whose parse has been DEFERRED to the end of the enclosing
@@ -2348,6 +2368,7 @@ export class WastParser {
         typeVar: typeVar ?? varIndex(0),
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
+        nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls: [],
         body: [],
         tailcall: false,
@@ -2473,6 +2494,7 @@ export class WastParser {
         typeVar: typeVar ?? varIndex(0),
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
+        nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls: [],
         body: [],
         tailcall: false,
@@ -2537,6 +2559,7 @@ export class WastParser {
         typeVar: typeVar ?? varIndex(0),
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
+        nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls,
         body,
         tailcall: false,
@@ -3213,8 +3236,22 @@ export class WastParser {
 
       const hasValue = blockType.kind !== 'void';
       const node: BlockExpr | LoopExpr = tt === TokenType.Block
-        ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
-        : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
+        ? {
+          kind: 'block',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        }
+        : {
+          kind: 'loop',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        };
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
       return Result.Ok;
@@ -3267,7 +3304,16 @@ export class WastParser {
       this.expect(TokenType.Rpar);
 
       const condExpr: Expr = cond ?? operandPlaceholder(loc);
-      const node: IfExpr = { kind: 'if', label, blockType, condition: condExpr, then_, else_, loc };
+      const node: IfExpr = {
+        kind: 'if',
+        label,
+        blockType,
+        nodeId: this.fid({ blockType }),
+        condition: condExpr,
+        then_,
+        else_,
+        loc,
+      };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3301,6 +3347,7 @@ export class WastParser {
         kind: 'try_table',
         label,
         blockType,
+        nodeId: this.fid({ blockType }),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -3369,8 +3416,25 @@ export class WastParser {
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
       const node: TryExpr = delegate === undefined
-        ? { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, loc }
-        : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
+        ? {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          loc,
+        }
+        : {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          delegate,
+          loc,
+        };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3476,8 +3540,22 @@ export class WastParser {
       this.matchClosingLabel(label);
       flushStack(bodyCtx);
       const node: BlockExpr | LoopExpr = tt === TokenType.Block
-        ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
-        : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
+        ? {
+          kind: 'block',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        }
+        : {
+          kind: 'loop',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3515,6 +3593,7 @@ export class WastParser {
         kind: 'if',
         label,
         blockType,
+        nodeId: this.fid({ blockType }),
         condition: condExpr2,
         then_,
         else_,
@@ -3565,8 +3644,25 @@ export class WastParser {
         this.matchClosingLabel(label);
       }
       const node: TryExpr = delegate === undefined
-        ? { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, loc }
-        : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
+        ? {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          loc,
+        }
+        : {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          delegate,
+          loc,
+        };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3605,6 +3701,7 @@ export class WastParser {
         kind: 'try_table',
         label,
         blockType,
+        nodeId: this.fid({ blockType }),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -3685,6 +3782,7 @@ export class WastParser {
           val2: op1(),
           condition: op2(),
           resultType,
+          nodeId: this.fid({ selectResultType: resultType }),
           loc,
         } as SelectExpr;
       }
@@ -3818,6 +3916,7 @@ export class WastParser {
         return {
           kind: 'call_indirect',
           ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
+          nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           table: tableVar,
           sig,
           typeVar: typeVar ?? varIndex(0),
@@ -3862,6 +3961,7 @@ export class WastParser {
         return {
           kind: 'return_call_indirect',
           ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
+          nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           sig,
           typeVar: typeVar ?? varIndex(0),
           table: tableVar,

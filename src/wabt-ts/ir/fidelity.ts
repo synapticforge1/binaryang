@@ -48,7 +48,7 @@
  * move across one family at a time, each step proven by the byte baseline.
  */
 
-import type { ValueType, Var } from './ir.ts';
+import type { BlockType, FuncSignature, TypeUse, ValueType } from './ir.ts';
 
 /**
  * An opaque handle identifying one expression node across immutable rebuilds.
@@ -76,11 +76,38 @@ export interface FidelityEntry {
   readonly selectResultType?: readonly ValueType[];
 
   /**
-   * The explicit `(type $t)` on a call, where the signature was also written
-   * inline. Both spellings mean the same signature; only one is what was typed.
+   * The block type AS DECLARED, which is not always the block type as derived.
+   *
+   * binaryen-ts computes a block's type from its contents. That is a correct
+   * type and often not the written one — an `if` may DECLARE a result the
+   * derived type would not give it, which is the defect fixed in a94154e21.
+   * The declaration also has two legal spellings, an inline value type and a
+   * type index, and they encode to different bytes.
    */
-  readonly typeUse?: Var;
+  readonly blockType?: BlockType;
+
+  /**
+   * The explicit `(type $t)` on a call or function, where the signature could
+   * equally have been written inline.
+   *
+   * Both spellings resolve to the same type index, so a canonical tree keeps
+   * only the index. Which one was typed is recoverable from nothing else.
+   */
+  readonly typeUse?: TypeUse;
+
+  /** The inline signature that accompanied {@link typeUse}, where one was written. */
+  readonly sig?: FuncSignature;
 }
+
+// ⚠️ `placeholder` is deliberately NOT here, though the plan listed it.
+//
+// It marks a `nop` that stands in for a value already on the stack, and the
+// convergent form of that is binaryen-ts's `Pop` — a distinct expression KIND,
+// not metadata beside one. So the distinction moves INTO the tree at S5, which
+// already lists `pop` among the one-sided kinds, rather than out of it. Putting
+// it here would also have meant threading this table through 117
+// `operandPlaceholder(` call sites to store one boolean that a spread already
+// preserves.
 
 /**
  * As-written metadata for one module, keyed by {@link NodeId}.

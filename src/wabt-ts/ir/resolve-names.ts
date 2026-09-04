@@ -530,6 +530,14 @@ class ResolveContext {
         const resultType = e.resultType.map((t) =>
           isRefValueType(t) ? { ...t, heapType: this.resolveHeapTypeVar(t.heapType) } : t
         );
+        // The side table has to move WITH the node. It records what was written,
+        // and what was written holds `$t` name-vars this pass has just resolved;
+        // the writer reads the table, so leaving it behind would hand the encoder
+        // an unresolved name. Any wabt-ts pass that rewrites a value the table
+        // also holds owes it this update.
+        if (e.nodeId !== undefined) {
+          this.module.fidelity.set(e.nodeId, { selectResultType: resultType });
+        }
         return [combine(r1, combine(r2, r3)), { ...e, val1, val2, condition: cond, resultType }];
       }
       case 'return': {

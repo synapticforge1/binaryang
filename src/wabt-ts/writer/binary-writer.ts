@@ -103,6 +103,7 @@ import type {
   ValueType,
   Var,
 } from '../ir/ir.ts';
+import type { FidelityTable, NodeId } from '../ir/fidelity.ts';
 import { isRefValueType, recGroups, valueTypeEquals, valueTypeName } from '../ir/ir.ts';
 import type { Custom, TypeEntry } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
@@ -408,9 +409,23 @@ function catchKindByte(k: CatchKind): number {
 
 class BodyWriter implements ExprVisitorDelegate {
   private readonly s: MemoryStream;
+  private readonly fidelity: FidelityTable;
 
-  constructor(s: MemoryStream) {
+  constructor(s: MemoryStream, fidelity: FidelityTable) {
     this.s = s;
+    this.fidelity = fidelity;
+  }
+
+  /**
+   * What was WRITTEN for this block, falling back to what the node derived.
+   *
+   * The table is the source of truth for as-written data; the node field is the
+   * fallback that predates it and will go away at S6. Reading through here is
+   * what makes the table load-bearing, so the byte baseline proves it correct
+   * rather than merely populated.
+   */
+  private declaredBlockType(e: { nodeId?: NodeId; blockType: BlockType }): BlockType {
+    return this.fidelity.get(e.nodeId)?.blockType ?? e.blockType;
   }
 
   onNopExpr(e: NopExpr): Result {
@@ -434,17 +449,18 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   onSelectExpr(e: SelectExpr): Result {
-    if (e.resultType.length === 0) {
+    const resultType = this.fidelity.get(e.nodeId)?.selectResultType ?? e.resultType;
+    if (resultType.length === 0) {
       this.s.writeU8(Opcode.Select);
     } else {
       this.s.writeU8(Opcode.SelectT);
-      this.s.writeU32Leb(e.resultType.length);
+      this.s.writeU32Leb(resultType.length);
       // `writeValueType`, not a raw `writeU8(t as number)` — a cast the T7.4
       // ValueType refactor left behind. A `(ref $t)` annotation is an OBJECT,
       // so the cast wrote 0x00 and `select (result (ref $t))` came back out
       // as an invalid value type. Same class as the type-key stringification
       // in T10.7.
-      for (const t of e.resultType) writeValueType(this.s, t);
+      for (const t of resultType) writeValueType(this.s, t);
     }
     return Result.Ok;
   }
@@ -452,7 +468,7 @@ class BodyWriter implements ExprVisitorDelegate {
   // --- Block structures ---
   beginBlockExpr(e: BlockExpr): Result {
     this.s.writeU8(Opcode.Block);
-    writeBlockType(this.s, e.blockType);
+    writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
   }
   endBlockExpr(_e: BlockExpr): Result {
@@ -461,7 +477,7 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   beginLoopExpr(e: LoopExpr): Result {
     this.s.writeU8(Opcode.Loop);
-    writeBlockType(this.s, e.blockType);
+    writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
   }
   endLoopExpr(_e: LoopExpr): Result {
@@ -470,7 +486,7 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   beginIfExpr(e: IfExpr): Result {
     this.s.writeU8(Opcode.If);
-    writeBlockType(this.s, e.blockType);
+    writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
   }
   afterIfTrueExpr(e: IfExpr): Result {
@@ -485,7 +501,7 @@ class BodyWriter implements ExprVisitorDelegate {
   // --- try/catch (legacy exception handling) ---
   beginTryExpr(e: TryExpr): Result {
     this.s.writeU8(Opcode.Try);
-    writeBlockType(this.s, e.blockType);
+    writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
   }
   onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
@@ -510,7 +526,7 @@ class BodyWriter implements ExprVisitorDelegate {
   // --- try_table (new exception handling) ---
   beginTryTableExpr(e: TryTableExpr): Result {
     this.s.writeU8(Opcode.TryTable);
-    writeBlockType(this.s, e.blockType);
+    writeBlockType(this.s, this.declaredBlockType(e));
     this.s.writeU32Leb(e.catches.length);
     for (const c of e.catches) {
       this.s.writeU8(catchKindByte(c.kind));
@@ -1049,7 +1065,7 @@ class BinaryWriter {
   constructor(m: Module) {
     this.m = m;
     this.s = new MemoryStream(4096);
-    this.bodyWriter = new BodyWriter(this.s);
+    this.bodyWriter = new BodyWriter(this.s, m.fidelity);
     this.visitor = new ExprVisitor(this.bodyWriter);
   }
 

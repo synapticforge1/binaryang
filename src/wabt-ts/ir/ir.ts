@@ -172,6 +172,8 @@ export interface TableCatch {
 /** `nop` (0x01) — single-byte no-op. */
 export interface NopExpr {
   readonly kind: 'nop';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly loc: Location;
   /**
    * True when this node was SYNTHESIZED to fill an operand slot, rather than
@@ -251,6 +253,8 @@ export interface SelectExpr {
 /** `block` (0x02) — a labeled scope; `br $label` exits forward. */
 export interface BlockExpr {
   readonly kind: 'block';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
   readonly body: Expr[];
@@ -259,6 +263,8 @@ export interface BlockExpr {
 /** `loop` (0x03) — a labeled scope; `br $label` jumps to the LOOP HEADER, not its exit. */
 export interface LoopExpr {
   readonly kind: 'loop';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
   readonly body: Expr[];
@@ -267,6 +273,8 @@ export interface LoopExpr {
 /** `if` / `else` / `end` (0x04 / 0x05) — conditional execution based on a non-zero `cond`. */
 export interface IfExpr {
   readonly kind: 'if';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
   readonly condition: Expr;
@@ -569,6 +577,8 @@ export interface CallExpr {
 /** `call_indirect (type $T) [$table]` (0x11) — indirect call through a function table. */
 export interface CallIndirectExpr {
   readonly kind: 'call_indirect';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly sig: FuncSignature;
   readonly typeVar: Var;
   /** How the signature was named; see {@link TypeUse}. */
@@ -596,6 +606,8 @@ export interface ReturnCallExpr {
 /** `return_call_indirect` (0x13) — tail-call proposal: like `call_indirect` but tail-position. */
 export interface ReturnCallIndirectExpr {
   readonly kind: 'return_call_indirect';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly sig: FuncSignature;
   readonly typeVar: Var;
   /** How the signature was named; see {@link TypeUse}. */
@@ -953,6 +965,8 @@ export interface RethrowExpr {
 /** `try ... (catch ...)* (delegate ...)?` (0x06) — legacy EH; superseded by `try_table`. */
 export interface TryExpr {
   readonly kind: 'try';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
   readonly body: Expr[];
@@ -963,6 +977,8 @@ export interface TryExpr {
 /** `try_table ... (catch ...)*` (0x1f) — current EH proposal; catches branch to labels. */
 export interface TryTableExpr {
   readonly kind: 'try_table';
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
+  readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
   readonly body: Expr[];
@@ -1459,6 +1475,8 @@ export type TypeUse = Var | 'resolved' | 'inline';
 export interface Func {
   name: string;
   loc: Location;
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. */
+  nodeId?: NodeId;
   /** Type-section reference (index or name). Filled during decode. */
   typeVar: Var;
   /** How the signature was named; see {@link TypeUse}. */

@@ -194,3 +194,83 @@ describe('S3 — the table survives the real pipeline, over the whole corpus', (
     assert(selects > 0, `expected selects in the corpus, found none across ${modules} modules`);
   });
 });
+
+describe('S3 — all four families, recorded and consistent across the corpus', () => {
+  // The four that survived classification. `opcode`, `align`, `offset`, `memidx`
+  // and GC `typeVar` were in the plan's list and are NOT here: they are semantic
+  // content a canonical tree must carry, not a record of what was typed.
+  // `placeholder` is not here either — it converges to binaryen-ts's `Pop`, a
+  // KIND, so it moves into the tree at S5 rather than beside it.
+  const BLOCK_LIKE = new Set(['block', 'loop', 'if', 'try', 'try_table']);
+
+  it('every block-like node records its DECLARED block type', async () => {
+    let checked = 0;
+    const bad: string[] = [];
+
+    for await (const entry of Deno.readDir(CORPUS)) {
+      if (!entry.isFile || !entry.name.endsWith('.wat')) continue;
+      const text = await Deno.readTextFile(new URL(entry.name, CORPUS));
+      const asm = wat2wasm(text, { filename: entry.name });
+      if (!asm.binary) continue;
+      const mod = readBinaryIr(asm.binary, makeErrorList());
+
+      // The pass a WeakMap could not survive.
+      resolveNames(mod);
+
+      walk(mod, (e) => {
+        if (!BLOCK_LIKE.has(e.kind)) return;
+        const node = e as unknown as { nodeId?: number; blockType: { kind: string } };
+        checked++;
+        const recorded = mod.fidelity.get(node.nodeId as never)?.blockType;
+        if (recorded === undefined) bad.push(`${entry.name}: ${e.kind} lost its entry`);
+        else if (recorded.kind !== node.blockType.kind) {
+          bad.push(`${entry.name}: ${e.kind} ${recorded.kind} != ${node.blockType.kind}`);
+        }
+      });
+    }
+
+    assertEquals(bad, [], bad.slice(0, 5).join('; '));
+    assert(checked > 0, 'expected block-like nodes in the corpus');
+  });
+
+  it('every function records the spelling of its declared type', async () => {
+    let checked = 0;
+    const bad: string[] = [];
+
+    for await (const entry of Deno.readDir(CORPUS)) {
+      if (!entry.isFile || !entry.name.endsWith('.wat')) continue;
+      const text = await Deno.readTextFile(new URL(entry.name, CORPUS));
+      const asm = wat2wasm(text, { filename: entry.name });
+      if (!asm.binary) continue;
+      const mod = readBinaryIr(asm.binary, makeErrorList());
+      resolveNames(mod);
+
+      for (const f of mod.funcs) {
+        checked++;
+        const recorded = mod.fidelity.get(f.nodeId);
+        if (recorded === undefined) bad.push(`${entry.name}: func lost its entry`);
+        else if (recorded.sig === undefined) bad.push(`${entry.name}: func recorded no sig`);
+      }
+    }
+
+    assertEquals(bad, [], bad.slice(0, 5).join('; '));
+    assert(checked > 0, 'expected functions in the corpus');
+  });
+
+  it('the WAT parser populates the table too, not only the binary reader', () => {
+    const parsed = parseWatModule(WITH_SELECTS);
+    assert(parsed.module, 'fixture must parse');
+    // Two selects and two functions, all recorded by the parser rather than by
+    // a reader — the producers have to agree or S6 could only delete the node
+    // fields for binaries.
+    assert(
+      parsed.module.fidelity.size >= 4,
+      `expected >= 4 entries, got ${parsed.module.fidelity.size}`,
+    );
+    for (const f of parsed.module.funcs) assert(f.nodeId !== undefined, 'parser must id its funcs');
+    for (const sel of selectsOf(parsed.module)) {
+      assert(sel.nodeId !== undefined, 'parser must id its selects');
+      assert(parsed.module.fidelity.get(sel.nodeId) !== undefined, 'and record an entry');
+    }
+  });
+});
