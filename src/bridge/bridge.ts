@@ -77,6 +77,8 @@ import type {
   LocalSetExpr,
   LocalTeeExpr,
   LoopExpr,
+  MemoryCopyExpr,
+  MemoryFillExpr,
   MemoryGrowExpr,
   MemorySizeExpr,
   Module as WabtModule,
@@ -87,6 +89,7 @@ import type {
   RefIsNullExpr,
   RefNullExpr,
   RefTestExpr,
+  RethrowExpr,
   ReturnExpr,
   SelectExpr,
   SimdLaneOpExpr,
@@ -101,6 +104,7 @@ import type {
   Tag as WabtTag,
   ThrowExpr,
   ThrowRefExpr,
+  TryExpr,
   TryTableExpr,
   UnaryExpr,
   Var,
@@ -139,6 +143,8 @@ import {
   makeLocalSet,
   makeLocalTee,
   makeLoop,
+  makeMemoryCopy,
+  makeMemoryFill,
   makeMemoryGrow,
   makeMemorySize,
   makeNop,
@@ -149,6 +155,7 @@ import {
   makeRefIsNull,
   makeRefNull,
   makeRefTest,
+  makeRethrow,
   makeReturn,
   makeSelect,
   makeSIMDExtract,
@@ -164,7 +171,9 @@ import {
   makeSwitch,
   makeThrow,
   makeThrowRef,
+  makeTry,
   makeTryTable,
+  makeTupleMake,
   makeUnary,
   makeUnreachable,
   makeV128Const,
@@ -942,13 +951,12 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const r = e as ReturnExpr;
       if (r.values.length === 0) return makeReturn(null);
       if (r.values.length === 1) return makeReturn(bridgeExpr(r.values[0]!, ctx));
-      // Multi-value return needs binaryen's tuple.make wrapper, which
-      // binaryen-ts exposes as an ExpressionKind but has no factory in
-      // v1.0.9. Wire this up once binaryen-ts grows makeTupleMake.
-      throw new Error(
-        `Bridge: multi-value return (${r.values.length} values) not yet supported ` +
-          `(needs binaryen-ts makeTupleMake)`,
-      );
+      // 🔧 The blocker named here — "binaryen-ts exposes TupleMake as an
+      // ExpressionKind but has no factory" — is gone: `makeTupleMake` exists,
+      // and the encoder emits a tuple as its operands in order, which IS the
+      // multi-value convention. Same container the WAT parser uses for the same
+      // shape.
+      return makeReturn(makeTupleMake(r.values.map((v) => bridgeExpr(v, ctx))));
     }
 
     // --- Block-like -------------------------------------------------------
@@ -983,14 +991,19 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'if': {
       const ife = e as IfExpr;
-      // binaryen-ts's makeIf has no label slot. If a wabt module references
-      // a labeled `if` via `br`, the encoded binary would silently lose the
-      // name. Reject conservatively.
-      if (ife.label !== '') {
-        throw new Error(
-          'Bridge: labeled `if` not yet supported (binaryen-ts has no if label slot)',
-        );
-      }
+      // 🔧 A labeled `if` used to be REJECTED, on the grounds that "binaryen-ts's
+      // makeIf has no label slot" and a `br` targeting it would silently lose
+      // the name. `IfExpr.name` exists — the encoder pushes it onto the label
+      // stack as the if's branch target — so the rejection was stale, and it was
+      // the single reason this route could not read LINEAR WAT: our writer emits
+      // labeled ifs, so 417 of 421 modules were refused here.
+      //
+      // ⚠️ Third stale "not yet supported" in this file, after tag exports and
+      // multi-value return. Each was a claim about ANOTHER component's state,
+      // and nothing rechecks such a claim when that component moves. A blocker
+      // naming a version — "binaryen-ts v1.0.9 has no…" — is a dated assertion,
+      // not an invariant.
+      const ifName = ife.label === '' ? null : nameForLabel(ctx, ife.label);
       // The condition is evaluated BEFORE the if is entered, so it is bridged
       // outside the frame: a `br` inside the condition targets the enclosing
       // scope, not this `if`.
@@ -1002,7 +1015,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // (branch past the if) died with a bogus "depth out of range". Same
       // class as T13.22's catch scope — bridge label bookkeeping diverging
       // from `resolveNames`, which does push a frame here.
-      ctx.labelStack.push(IF_FRAME);
+      ctx.labelStack.push(ifName ?? IF_FRAME);
       try {
         const ifTrue = ife.then_.length === 1
           ? bridgeExpr(ife.then_[0]!, ctx)
@@ -1012,8 +1025,9 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           : ife.else_.length === 1
           ? bridgeExpr(ife.else_[0]!, ctx)
           : makeBlock(ife.else_.map((c) => bridgeExpr(c, ctx)));
+        const built = makeIf(condition, ifTrue, ifFalse);
         return withDeclaredType(
-          makeIf(condition, ifTrue, ifFalse),
+          ifName === null ? built : { ...built, name: ifName },
           bridgeBlockType(ife.blockType, ctx),
         );
       } finally {
@@ -1483,6 +1497,72 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       }
     }
 
+    // --- Bulk memory --------------------------------------------------------
+    //
+    // binaryen-ts has had `MemoryCopy` and `MemoryFill` all along; the bridge
+    // simply never listed them, so 280 of 421 corpus modules could not cross.
+    // The multi-memory immediates are refused rather than ignored, because a
+    // non-zero memidx silently encoded against memory 0 would touch the wrong
+    // memory.
+    case 'memory.copy': {
+      const mc = e as MemoryCopyExpr;
+      requireDefaultMemory(mc.destMemidx, 'memory.copy dest');
+      requireDefaultMemory(mc.srcMemidx, 'memory.copy src');
+      return makeMemoryCopy(
+        bridgeExpr(mc.dest, ctx),
+        bridgeExpr(mc.src, ctx),
+        bridgeExpr(mc.size, ctx),
+      );
+    }
+    case 'memory.fill': {
+      const mf = e as MemoryFillExpr;
+      requireDefaultMemory(mf.memidx, 'memory.fill');
+      return makeMemoryFill(
+        bridgeExpr(mf.dest, ctx),
+        bridgeExpr(mf.value, ctx),
+        bridgeExpr(mf.size, ctx),
+      );
+    }
+
+    // --- Exception handling -------------------------------------------------
+    //
+    // binaryen-ts has had `makeTry` throughout; the bridge simply never listed
+    // the kind. A `catch_all` clause is spelled with an EMPTY tag name, which
+    // is the same sentinel the WAT parser uses -- see the `catchTags.push('')`
+    // note there. A named sentinel like `$__catch_all` was tried once and had
+    // to be reverted, because it can collide with a real tag.
+    case 'try': {
+      const tr = e as TryExpr;
+      const name = nameForLabel(ctx, tr.label);
+      const resultType = bridgeBlockType(tr.blockType, ctx);
+      ctx.labelStack.push(name);
+      try {
+        const body = makeBlock(tr.body.map((c) => bridgeExpr(c, ctx)), null);
+        const catchTags: string[] = [];
+        const catchBodies: Expression[] = [];
+        for (const c of tr.catches) {
+          if (c.isRef) {
+            // `catch_ref` / `catch_all_ref` push an exnref the handler can
+            // rethrow. binaryen-ts's Try has no slot for it, and dropping the
+            // ref would change what the handler receives.
+            throw new Error('Bridge: catch_ref / catch_all_ref not yet supported');
+          }
+          catchTags.push(c.tag === undefined ? '' : varName(c.tag, ctx.tagNames));
+          catchBodies.push(makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null));
+        }
+        const delegateTarget = tr.delegate === undefined ? null : resolveLabel(ctx, tr.delegate);
+        return makeTry(name, body, catchTags, catchBodies, delegateTarget, resultType);
+      } finally {
+        ctx.labelStack.pop();
+      }
+    }
+
+    case 'rethrow': {
+      // The depth names an enclosing TRY, and binaryen-ts holds that target by
+      // name, so it resolves through the same label stack a branch does.
+      return makeRethrow(resolveLabel(ctx, (e as RethrowExpr).depth));
+    }
+
     default:
       throw new Error(`Bridge: expression kind not yet supported: ${e.kind}`);
   }
@@ -1549,9 +1629,10 @@ function bridgeBranchValue(
 ): ReturnType<typeof bridgeExpr> | null {
   if (values.length === 0) return null;
   if (values.length === 1) return bridgeExpr(values[0]!, ctx);
-  throw new Error(
-    `Bridge: multi-value ${label} (${values.length} values) needs makeTupleMake, absent in binaryen-ts v1.0.9`,
-  );
+  // 🔧 Fourth stale blocker: `makeTupleMake` is not absent, and the version
+  // this named is several releases old. A tuple encodes as its operands in
+  // order, which is the multi-value convention.
+  return makeTupleMake(values.map((v) => bridgeExpr(v, ctx)));
 }
 
 // --- Small helpers used inside bridgeExpr ---
@@ -1585,11 +1666,18 @@ function withDeclaredType<T extends { type: BType }>(expr: T, declared: BType): 
   return declared === expr.type ? expr : { ...expr, type: declared };
 }
 
-/** Map a wabt function signature's results to the single `Type` makeCall wants. */
+/**
+ * Map a wabt function signature's results to the `Type` makeCall wants.
+ *
+ * 🔧 More than one result used to throw. binaryen-ts spells a multi-value type
+ * as an ARRAY of value types — that is what `declaredType` builds for a
+ * multi-result block, and what the encoder resolves to a type-section index — so
+ * the tuple type is simply the mapped list.
+ */
 function resultTypeForCall(sig: FuncSignature): BType {
   if (sig.results.length === 0) return None;
   if (sig.results.length === 1) return wabtTypeToValType(sig.results[0]!);
-  throw new Error('Bridge: multi-value `call` not yet supported');
+  return sig.results.map((r) => wabtTypeToValType(r)) as BType;
 }
 
 /** Reject any non-default-memory reference until the bridge handles multi-memory. */
@@ -1801,14 +1889,13 @@ function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
       b.addExport(exp.name, varName(exp.var, ctx.tableNames), 'table');
       return;
     case ExternalKind.Tag:
-      // binaryen-ts v1.0.9 WasmExport.kind is "function" | "global" |
-      // "table" | "memory" — no "tag" variant. Tag exports survive the
-      // wabt-ts WAT pipeline (wat2wasm) but cannot round-trip through the
-      // bridge until binaryen-ts widens its export kinds.
-      throw new Error(
-        'Bridge: tag exports not yet supported ' +
-          '(binaryen-ts v1.0.9 has no "tag" export kind)',
-      );
+      // 🔧 This threw, citing binaryen-ts v1.0.9 having no "tag" export kind.
+      // `WasmExport.kind` has included `'tag'` for a long time; the blocker was
+      // stale, and the version it named is several releases old. A "not yet
+      // supported" note is a claim about ANOTHER component's state, and nothing
+      // rechecks it when that component moves.
+      b.addExport(exp.name, varName(exp.var, ctx.tagNames), 'tag');
+      return;
   }
 }
 
