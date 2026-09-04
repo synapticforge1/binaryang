@@ -51,6 +51,45 @@ const OPCODE_SRC = new URL('../src/wabt-ts/core/opcode.ts', import.meta.url);
  * earlier version of this check enumerated only the base `Opcode` enum and
  * reported 185 false orphans — every one of them a real SIMD instruction.
  */
+/**
+ * ExpressionKind members with no interface behind them.
+ *
+ * ⚠️ `AtomicRMW = 'atomic.rmw'` is an enum member and nothing else — no
+ * interface, no factory, no reader case, no encoder case. It reads as atomics
+ * support to anything that scans the enum, and binaryen-ts has none: there is
+ * not even an atomic load or store KIND.
+ *
+ * Third instance of this exact shape here, after `TupleExtract` (enum member
+ * only) and the `compactImports` feature flag ("a feature flag is not an
+ * implementation"). Pinned rather than fixed, so the list cannot grow unnoticed.
+ *
+ * 🔑 This is also what settled S6 stage 1. The gate below proves every
+ * binaryen-ts operator names a real instruction; it says nothing about the
+ * instructions binaryen-ts CANNOT name, which is the direction that breaks
+ * fidelity. Measured: ~116 have no name, atomics and relaxed SIMD among them.
+ * So the unified node takes wabt-ts's numeric `Opcode`, which is the wire
+ * encoding and therefore total by construction, rather than binaryen-ts's
+ * per-family string enums, which would need every missing name authored by hand.
+ */
+function phantomKinds(exprSrc: string): string[] {
+  const block = exprSrc.match(/export enum ExpressionKind \{([\s\S]*?)\n\}/)?.[1] ?? '';
+  return [...block.matchAll(/^\s+([A-Za-z0-9_]+) = '[^']+',/gm)]
+    .map((m) => m[1]!)
+    .filter((name) => !new RegExp(`kind: ExpressionKind\\.${name};`).test(exprSrc))
+    .sort();
+}
+
+/** The seven that exist today. Any addition fails the gate. */
+const PHANTOM_BUDGET = [
+  'AtomicCmpxchg',
+  'AtomicFence',
+  'AtomicNotify',
+  'AtomicRMW',
+  'AtomicWait',
+  'CallRef',
+  'TupleExtract',
+];
+
 async function knownInstructionNames(): Promise<Set<string>> {
   const src = await Deno.readTextFile(OPCODE_SRC);
   const names = new Set<string>();
@@ -86,6 +125,22 @@ const orphans = [...operators].filter((op) => !known.has(op)).sort();
 
 console.log(`instruction names known to wabt-ts : ${known.size}`);
 console.log(`binaryen-ts operator values        : ${operators.size}`);
+
+const exprSrc = await Deno.readTextFile(
+  new URL('../src/binaryen-ts/ir/expressions.ts', import.meta.url),
+);
+const phantoms = phantomKinds(exprSrc);
+const added = phantoms.filter((p) => !PHANTOM_BUDGET.includes(p));
+if (added.length > 0) {
+  console.error(`\n${added.length} NEW declared-but-unimplemented kind(s):`);
+  for (const p of added) console.error(`  ${p}`);
+  console.error(
+    '\nA declared kind with nothing behind it reads as support in every count that ' +
+      'scans the enum. Implement it or remove it; the pinned list must not grow.',
+  );
+  Deno.exit(1);
+}
+console.log(`declared-but-unimplemented kinds   : ${phantoms.length} (pinned)`);
 
 if (orphans.length === 0) {
   console.log('TOTAL — every binaryen-ts operator names a real wasm instruction.');

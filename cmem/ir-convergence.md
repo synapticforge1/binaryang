@@ -632,6 +632,69 @@ adopted for `br` + `condition?`. So the worst-condition question has to be asked
 not answered once — S4's "binaryen-ts coarser" holds for arithmetic and branches and is false for
 SIMD.
 
+#### ✅ Stage 1 SETTLED — the unified node takes wabt-ts's numeric `Opcode`
+
+Decided by the worst-condition rule, on measurement, not on readability.
+
+**The gate proved only one direction.** `deno task operators` shows every binaryen-ts operator names
+a real instruction — the direction where a failure means a name that does not exist. The other
+direction is the one that breaks fidelity: **an instruction with no name cannot be carried at all.**
+Measured, that set is not empty:
+
+| representation                                                           | covers                                    |
+| ------------------------------------------------------------------------ | ----------------------------------------- |
+| wabt-ts `opcode: Opcode` (one numeric enum, the wire encoding, 17 kinds) | every instruction, **by construction**    |
+| binaryen-ts `op: <Family>Op` (eleven string enums, 11 kinds)             | ~116 instructions have **no name at all** |
+
+The unnameable set is family-shaped rather than scattered — **all atomics** (`i32.atomic.load16_u`,
+`i64.atomic.rmw.add`, `memory.atomic.wait32`, …) and **all relaxed SIMD** (`f32x4.relaxed_madd`,
+`i8x16.relaxed_swizzle`, …). Adopting the string enums would mean authoring ~116 names by hand: a
+second copy of a fact wasm already defines, which is the exact shape this codebase has been bitten
+by repeatedly.
+
+**So fidelity BINDS and readability does not.** Losing an instruction is a failure; losing readable
+dispatch in `optimize-instructions.ts`'s 64 cases is a cost. The binding condition controls.
+
+⚠️ Note this reverses S4's direction for a different element, and that is expected rather than
+inconsistent: S4 chose binaryen-ts's coarse GROUPING, stage 1 chooses wabt-ts's OPERATOR
+REPRESENTATION. Third element decided, third time the rule has picked a side on evidence — twice
+wabt-ts, once binaryen-ts.
+
+#### 🛑 Seven kinds are declared with nothing behind them
+
+`AtomicRMW = 'atomic.rmw'` is an enum member and **nothing else** — no interface, no factory, no
+reader case, no encoder case. It appears nowhere in binaryen-ts but that one line. The same is true
+of `AtomicCmpxchg`, `AtomicWait`, `AtomicNotify`, `AtomicFence`, `CallRef` and `TupleExtract`.
+
+🔑 **Third instance of this exact shape**, after `TupleExtract` (already recorded as "an enum member
+only") and the `compactImports` feature flag ("a feature flag is not an implementation"). It is not
+an accident of one author; it is what happens when a vocabulary is written before its implementation
+and nothing checks the difference. `deno task operators` now pins the list and fails on any addition
+— verified by injecting one.
+
+**Every count that scanned the enum was inflated.** Recomputed against implemented kinds only:
+
+|                  | by name | implemented |
+| ---------------- | ------- | ----------- |
+| shared           | 71      | **65**      |
+| only wabt-ts     | 23      | **22**      |
+| only binaryen-ts | 18      | **10**      |
+
+The six "shared" kinds that are not — `call_ref` and all five atomics — matter most: binaryen-ts
+appears to support atomics and **cannot represent them at all**, having not even an atomic load or
+store kind.
+
+⚠️ **This corrects a justification given in S5.** Six wabt-ts kinds were renamed there "to the
+instruction spelling binaryen-ts already used" — but binaryen-ts _used_ five of those names only as
+phantoms. The renames stand, because `atomic.fence` is the real wasm instruction name and that is
+reason enough, and they were verified inert. The stated reason was wrong; the change was not.
+
+#### What stage 1 does NOT do
+
+The decision is recorded and gated; the conversion is not written. Turning binaryen-ts's eleven
+string enums into numeric opcodes touches ~32 files, and doing it separately from the type
+unification would mean editing the same call sites twice. It belongs to the same change as stage 3.
+
 #### Measured size of what remains
 
 |                                            |              |
@@ -646,7 +709,7 @@ SIMD.
 independently verifiable against `deno task bridge`, the byte baseline and the spec suite — rather
 than attempted as one change. The natural stages, in dependency order:
 
-1. settle the operator representation, since it blocks even same-shape kinds like `ternary`
+1. ~~settle the operator representation~~ ✅ decided above: numeric `Opcode` controls
 2. reconcile the 27 one-sided kinds (S5's remainder, done here rather than twice)
 3. make the node base carry `loc?` and `type?`
 4. converge the six name pairs, which the type unification settles
