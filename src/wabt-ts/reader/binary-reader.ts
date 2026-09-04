@@ -602,6 +602,26 @@ export class BinaryReader {
     if ((b & 0x80) === 0) {
       this.pos++;
       if (b === 0x40) return BLOCK_TYPE_VOID;
+      // ⚠️ `0x63` / `0x64` are `(ref null ht)` / `(ref ht)` — the tag byte is
+      // FOLLOWED BY a heap type, exactly as in `readValueType`.
+      //
+      // Reading only the tag left that heap-type byte in the instruction
+      // stream, where the next decode step consumed it as an OPCODE. A
+      // `(block (result (ref 0)))` decoded as a block with a phantom
+      // `unreachable` inside it and a block type missing its heap index — and
+      // the module still round-tripped BYTE-IDENTICALLY, because the writer
+      // emitted that phantom instruction as the very byte it was mis-read from.
+      //
+      // Byte equality hid it completely. What did not hide it: the spec suite,
+      // where the same gap let two INVALID modules through (`ref.wast:65,69`)
+      // because a heap index that was never stored could never be range-checked.
+      if (b === Type.Ref || b === Type.RefNull) {
+        return blockTypeValue({
+          kind: 'ref',
+          heapType: this.readHeapTypeVar(),
+          nullable: b === Type.RefNull,
+        });
+      }
       if (b >= 0x40) return blockTypeValue(b as Type);
       return blockTypeFuncType(b);
     }

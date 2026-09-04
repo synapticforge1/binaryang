@@ -4,7 +4,7 @@
 // Licensed under the Apache License, Version 2.0
 
 import { isRefValueType } from '../ir/ir.ts';
-import type { Field, TypeEntry, ValueType } from '../ir/ir.ts';
+import type { BlockType, Field, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import {
@@ -230,6 +230,38 @@ export function validateModule(
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Every {@link BlockType} appearing anywhere in an expression list.
+ *
+ * Walks generically over child expression arrays rather than switching on kind,
+ * because the point is to miss NOTHING: a new control construct must be covered
+ * the day it is added, not the day someone remembers to extend a switch. That is
+ * the same reasoning behind `walkExpression` throwing on an unhandled kind, and
+ * the opposite of what let this check go missing in the first place.
+ */
+function blockTypesIn(exprs: readonly unknown[]): BlockType[] {
+  const out: BlockType[] = [];
+  const seen = new Set<unknown>();
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== 'object' || seen.has(node)) return;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child);
+      return;
+    }
+    const rec = node as Record<string, unknown>;
+    const bt = rec['blockType'];
+    if (bt !== undefined && bt !== null && typeof bt === 'object' && 'kind' in bt) {
+      out.push(bt as BlockType);
+    }
+    for (const value of Object.values(rec)) {
+      if (value !== null && typeof value === 'object') visit(value);
+    }
+  };
+  visit(exprs);
+  return out;
+}
+
 function varIdx(v: Var): number {
   return v.kind === 'index' ? v.value : 0;
 }
@@ -331,6 +363,21 @@ class ModuleValidator implements ExprVisitorDelegate {
       for (const p of f.sig.params) checkVt(p, 'param', f.loc);
       for (const r of f.sig.results) checkVt(r, 'result', f.loc);
       for (const d of f.localDecls) checkVt(d.type, 'local', f.loc);
+      // ⚠️ And the BLOCK TYPES inside the body, which this loop used to miss.
+      //
+      // A `(block (result (ref 1)))` in a module whose type section has one
+      // entry names a type that does not exist, and the spec requires the module
+      // to be rejected with "unknown type". Every OTHER place a value type can
+      // appear was checked — params, results, locals, globals, tables, elem
+      // segments, and the type section itself — so a `(local (ref null 1))` was
+      // correctly refused while the block form went straight through.
+      //
+      // Found by the spec testsuite (`ref.wast:65,69`), and it is the failure
+      // mode nothing else here could see: ACCEPTING something invalid. Every
+      // other invariant in this project asks only whether valid input survives.
+      for (const bt of blockTypesIn(f.body)) {
+        if (bt.kind === 'value') checkVt(bt.type, 'block result', f.loc);
+      }
     }
 
     // Imports

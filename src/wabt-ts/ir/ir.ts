@@ -65,13 +65,24 @@ export function isVarName(v: Var): v is { kind: 'name'; name: string } {
  */
 export type BlockType =
   | { readonly kind: 'void' }
-  | { readonly kind: 'value'; readonly type: Type }
+  // ⚠️ `ValueType`, not `Type`. A block result may be a TYPED REFERENCE —
+  // `(block (result (ref 0)))` — which needs a heap type alongside the tag
+  // byte, and `Type` is a plain numeric enum with nowhere to put one.
+  //
+  // While this was `Type`, the binary reader decoded the `0x64` tag and left
+  // the heap-type index in the stream, where the next decode step read it as an
+  // INSTRUCTION. A block whose result was `(ref 0)` came back as a block with a
+  // phantom `unreachable` in it, and the module still round-tripped
+  // BYTE-IDENTICALLY, because the writer emitted that phantom instruction as
+  // the very byte it had been mis-read from. Found via the spec testsuite
+  // (`ref.wast`); see `blockTypeValue`.
+  | { readonly kind: 'value'; readonly type: ValueType }
   | { readonly kind: 'func_type'; readonly typeIdx: Index };
 
 /** Pre-built singleton for the void block type. */
 export const BLOCK_TYPE_VOID: BlockType = { kind: 'void' };
 /** Construct a single-value {@link BlockType}. */
-export function blockTypeValue(type: Type): BlockType {
+export function blockTypeValue(type: ValueType): BlockType {
   return { kind: 'value', type };
 }
 /** Construct a multi-value {@link BlockType} referencing a type-section func entry. */

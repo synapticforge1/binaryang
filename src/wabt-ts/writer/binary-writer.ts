@@ -273,7 +273,12 @@ function writeBlockType(s: MemoryStream, bt: BlockType): void {
   if (bt.kind === 'void') {
     s.writeU8(0x40);
   } else if (bt.kind === 'value') {
-    s.writeU8(bt.type as number);
+    // Through `writeValueType`, not a raw `writeU8`: a block result may be a
+    // TYPED REFERENCE, which is a tag byte plus a heap type. `bt.type as number`
+    // on such a value wrote garbage — it only ever worked because the reader
+    // could not produce one in the first place, so the two halves of the same
+    // gap concealed each other.
+    writeValueType(s, bt.type);
   } else {
     s.writeS32Leb(bt.typeIdx);
   }
