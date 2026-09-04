@@ -213,9 +213,9 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'store':
         return { nargs: 2, nreturns: 0, unreachable: false };
-      case 'atomic_load':
+      case 'atomic.load':
         return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'atomic_store':
+      case 'atomic.store':
         return { nargs: 2, nreturns: 0, unreachable: false };
       case 'atomic.rmw':
         return { nargs: 2, nreturns: 1, unreachable: false };

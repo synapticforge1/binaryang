@@ -569,14 +569,14 @@ class ResolveContext {
         return [combine(rA, combine(rB, combine(rC, rD))), { ...e, a, b, c, d }];
       }
       case 'load':
-      case 'atomic_load':
+      case 'atomic.load':
       case 'load_splat':
       case 'load_zero': {
         const [r, address] = this.resolveExpr(e.address);
         return [r, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc), address }];
       }
       case 'store':
-      case 'atomic_store':
+      case 'atomic.store':
       case 'atomic.rmw': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rV, value] = this.resolveExpr(e.value);
