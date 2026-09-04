@@ -162,7 +162,7 @@ describe('#4 call_ref sigType resolution', () => {
     const callRef: CallRefExpr = {
       kind: 'call_ref',
       sigType: varName('b'),
-      args: [],
+      operands: [],
       callee: { kind: 'nop', loc: LOC },
       loc: LOC,
     };

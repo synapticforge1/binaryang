@@ -90,7 +90,7 @@ describe('writeVar fail-loud', () => {
       sig: { params: [], results: [] },
       localDecls: [],
       // call to a NAME var that was never resolved to an index
-      body: [{ kind: 'call', func: varName('ghost'), args: [], loc: LOC }],
+      body: [{ kind: 'call', func: varName('ghost'), operands: [], loc: LOC }],
       tailcall: false,
     };
     module.funcs.push(f);

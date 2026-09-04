@@ -319,16 +319,16 @@ class ResolveContext {
         return [r, { ...e, var: this.resolveGlobalVar(e.var, loc), value: val }];
       }
       case 'call': {
-        const [r, args] = this.resolveExprArray(e.args);
-        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), args }];
+        const [r, args] = this.resolveExprArray(e.operands);
+        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), operands: args }];
       }
       case 'return_call': {
-        const [r, args] = this.resolveExprArray(e.args);
-        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), args }];
+        const [r, args] = this.resolveExprArray(e.operands);
+        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), operands: args }];
       }
       case 'call_indirect':
       case 'return_call_indirect': {
-        const [rA, args] = this.resolveExprArray(e.args);
+        const [rA, args] = this.resolveExprArray(e.operands);
         const [rC, callee] = this.resolveExpr(e.callee);
         return [combine(rA, rC), {
           ...e,
@@ -337,7 +337,7 @@ class ResolveContext {
           ...(typeof e.typeUse === 'object'
             ? { typeUse: this.resolveTypeVar(e.typeUse, loc) }
             : {}),
-          args,
+          operands: args,
           callee,
         }];
       }
@@ -347,12 +347,12 @@ class ResolveContext {
         // be resolved like `call_indirect`'s `typeVar`, or a named type that
         // isn't index 0 is left unresolved and the binary writer emits index 0.
         // The args + callee subtrees must be walked too.
-        const [rA, args] = this.resolveExprArray(e.args);
+        const [rA, args] = this.resolveExprArray(e.operands);
         const [rC, callee] = this.resolveExpr(e.callee);
         return [combine(rA, rC), {
           ...e,
           sigType: this.resolveTypeVar(e.sigType, loc),
-          args,
+          operands: args,
           callee,
         }];
       }
@@ -369,13 +369,13 @@ class ResolveContext {
         return [rv, { ...e, target, values }];
       }
       case 'br_if': {
-        const [r, cond] = this.resolveExpr(e.cond);
+        const [r, cond] = this.resolveExpr(e.condition);
         const target = this.resolveLabelVar(e.target, loc);
         // Resolve the optional carried value as well — the flat-form parser can
         // route a real sub-expression (e.g. an `if` containing `call $f`) into
         // `br_if.value`; leaving it unresolved made the writer emit `call 0`.
         const [rv, values] = this.resolveExprArray(e.values);
-        return [combine(r, rv), { ...e, target, cond, values }];
+        return [combine(r, rv), { ...e, target, condition: cond, values }];
       }
       case 'br_table': {
         // `value` is the i32 index operand and can be any sub-expression
@@ -401,12 +401,12 @@ class ResolveContext {
         return [r, { ...e, body }];
       }
       case 'if': {
-        const [rC, cond] = this.resolveExpr(e.cond);
+        const [rC, cond] = this.resolveExpr(e.condition);
         this.labelStack.push(e.label);
         const [rT, then_] = this.resolveExprArray(e.then_);
         const [rE, else_] = this.resolveExprArray(e.else_);
         this.labelStack.pop();
-        return [combine(rC, combine(rT, rE)), { ...e, cond, then_, else_ }];
+        return [combine(rC, combine(rT, rE)), { ...e, condition: cond, then_, else_ }];
       }
       case 'try': {
         this.labelStack.push(e.label);
@@ -460,19 +460,19 @@ class ResolveContext {
         return [r, { ...e, catches, body }];
       }
       case 'throw': {
-        const [r, args] = this.resolveExprArray(e.args);
-        return [r, { ...e, tag: this.resolveTagVar(e.tag, loc), args }];
+        const [r, args] = this.resolveExprArray(e.operands);
+        return [r, { ...e, tag: this.resolveTagVar(e.tag, loc), operands: args }];
       }
       case 'memory.init': {
         const [rD, dest] = this.resolveExpr(e.dest);
-        const [rS, src] = this.resolveExpr(e.src);
+        const [rS, src] = this.resolveExpr(e.source);
         const [rZ, size] = this.resolveExpr(e.size);
         return [combine(rD, combine(rS, rZ)), {
           ...e,
           segment: this.resolveDataSegVar(e.segment, loc),
           memidx: this.resolveMemoryVar(e.memidx, loc),
           dest,
-          src,
+          source: src,
           size,
         }];
       }
@@ -482,14 +482,14 @@ class ResolveContext {
         return [Result.Ok, { ...e, segment: this.resolveElemSegVar(e.segment, loc) }];
       case 'table.init': {
         const [rD, dest] = this.resolveExpr(e.dest);
-        const [rS, src] = this.resolveExpr(e.src);
+        const [rS, src] = this.resolveExpr(e.source);
         const [rZ, size] = this.resolveExpr(e.size);
         return [combine(rD, combine(rS, rZ)), {
           ...e,
           segment: this.resolveElemSegVar(e.segment, loc),
           table: this.resolveTableVar(e.table, loc),
           dest,
-          src,
+          source: src,
           size,
         }];
       }
@@ -500,7 +500,7 @@ class ResolveContext {
         return [combine(rD, combine(rS, rZ)), {
           ...e,
           dst: this.resolveTableVar(e.dst, loc),
-          src: this.resolveTableVar(e.src, loc),
+          source: this.resolveTableVar(e.source, loc),
           dest,
           srcOffset,
           size,
@@ -521,7 +521,7 @@ class ResolveContext {
       case 'select': {
         const [r1, val1] = this.resolveExpr(e.val1);
         const [r2, val2] = this.resolveExpr(e.val2);
-        const [r3, cond] = this.resolveExpr(e.cond);
+        const [r3, cond] = this.resolveExpr(e.condition);
         // The `(result …)` annotation carries VALUE types, and a
         // `(ref $t)` among them holds a name-var like any other.
         // `resolveModuleValueTypes` only walks declarations, so this one was
@@ -530,7 +530,15 @@ class ResolveContext {
         const resultType = e.resultType.map((t) =>
           isRefValueType(t) ? { ...t, heapType: this.resolveHeapTypeVar(t.heapType) } : t
         );
-        return [combine(r1, combine(r2, r3)), { ...e, val1, val2, cond, resultType }];
+        // The side table has to move WITH the node. It records what was written,
+        // and what was written holds `$t` name-vars this pass has just resolved;
+        // the writer reads the table, so leaving it behind would hand the encoder
+        // an unresolved name. Any wabt-ts pass that rewrites a value the table
+        // also holds owes it this update.
+        if (e.nodeId !== undefined) {
+          this.module.fidelity.set(e.nodeId, { selectResultType: resultType });
+        }
+        return [combine(r1, combine(r2, r3)), { ...e, val1, val2, condition: cond, resultType }];
       }
       case 'return': {
         if (e.values.length === 0) return [Result.Ok, e];
@@ -634,14 +642,14 @@ class ResolveContext {
       }
       case 'memory.copy': {
         const [rD, dest] = this.resolveExpr(e.dest);
-        const [rS, src] = this.resolveExpr(e.src);
+        const [rS, src] = this.resolveExpr(e.source);
         const [rZ, size] = this.resolveExpr(e.size);
         return [combine(rD, combine(rS, rZ)), {
           ...e,
           destMemidx: this.resolveMemoryVar(e.destMemidx, loc),
           srcMemidx: this.resolveMemoryVar(e.srcMemidx, loc),
           dest,
-          src,
+          source: src,
           size,
         }];
       }

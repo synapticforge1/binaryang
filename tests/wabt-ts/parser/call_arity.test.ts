@@ -89,9 +89,9 @@ describe('T10.5 — a call takes its own arity, not the whole stack', () => {
     assertEquals(store.kind, 'store');
     // The address is the i32.const, not a Nop stand-in.
     assertEquals((store as unknown as { address: { kind: string } }).address.kind, 'const');
-    const call = (store as unknown as { value: { kind: string; args: unknown[] } }).value;
+    const call = (store as unknown as { value: { kind: string; operands: unknown[] } }).value;
     assertEquals(call.kind, 'call');
-    assertEquals(call.args.length, 2);
+    assertEquals(call.operands.length, 2);
   });
 
   it('emits no padding instruction for it', () => {

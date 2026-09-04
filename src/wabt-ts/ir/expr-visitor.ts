@@ -639,7 +639,7 @@ export class ExprVisitor {
           const r = this.dispatch(v);
           if (r === Result.Error) return r;
         }
-        const rc = this.dispatch(e.cond);
+        const rc = this.dispatch(e.condition);
         if (rc === Result.Error) return rc;
         return this.d.onBrIfExpr?.(e) ?? Result.Ok;
       }
@@ -678,14 +678,14 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.dispatch(e.val2);
         if (r === Result.Error) return r;
-        r = this.dispatch(e.cond);
+        r = this.dispatch(e.condition);
         if (r === Result.Error) return r;
         return this.d.onSelectExpr?.(e) ?? Result.Ok;
       }
       case 'memory.copy': {
         let r = this.dispatch(e.dest);
         if (r === Result.Error) return r;
-        r = this.dispatch(e.src);
+        r = this.dispatch(e.source);
         if (r === Result.Error) return r;
         r = this.dispatch(e.size);
         if (r === Result.Error) return r;
@@ -703,7 +703,7 @@ export class ExprVisitor {
       case 'memory.init': {
         let r = this.dispatch(e.dest);
         if (r === Result.Error) return r;
-        r = this.dispatch(e.src);
+        r = this.dispatch(e.source);
         if (r === Result.Error) return r;
         r = this.dispatch(e.size);
         if (r === Result.Error) return r;
@@ -730,7 +730,7 @@ export class ExprVisitor {
       case 'table.init': {
         let r = this.dispatch(e.dest);
         if (r === Result.Error) return r;
-        r = this.dispatch(e.src);
+        r = this.dispatch(e.source);
         if (r === Result.Error) return r;
         r = this.dispatch(e.size);
         if (r === Result.Error) return r;
@@ -779,14 +779,14 @@ export class ExprVisitor {
 
       // --- Calls: visit args in order, then callback ---
       case 'call': {
-        for (const arg of e.args) {
+        for (const arg of e.operands) {
           const r = this.dispatch(arg);
           if (r === Result.Error) return r;
         }
         return this.d.onCallExpr?.(e) ?? Result.Ok;
       }
       case 'call_indirect': {
-        for (const arg of e.args) {
+        for (const arg of e.operands) {
           const r = this.dispatch(arg);
           if (r === Result.Error) return r;
         }
@@ -795,7 +795,7 @@ export class ExprVisitor {
         return this.d.onCallIndirectExpr?.(e) ?? Result.Ok;
       }
       case 'call_ref': {
-        for (const arg of e.args) {
+        for (const arg of e.operands) {
           const r = this.dispatch(arg);
           if (r === Result.Error) return r;
         }
@@ -804,14 +804,14 @@ export class ExprVisitor {
         return this.d.onCallRefExpr?.(e) ?? Result.Ok;
       }
       case 'return_call': {
-        for (const arg of e.args) {
+        for (const arg of e.operands) {
           const r = this.dispatch(arg);
           if (r === Result.Error) return r;
         }
         return this.d.onReturnCallExpr?.(e) ?? Result.Ok;
       }
       case 'return_call_indirect': {
-        for (const arg of e.args) {
+        for (const arg of e.operands) {
           const r = this.dispatch(arg);
           if (r === Result.Error) return r;
         }
@@ -820,7 +820,7 @@ export class ExprVisitor {
         return this.d.onReturnCallIndirectExpr?.(e) ?? Result.Ok;
       }
       case 'return_call_ref': {
-        for (const arg of e.args) {
+        for (const arg of e.operands) {
           const r = this.dispatch(arg);
           if (r === Result.Error) return r;
         }
@@ -831,7 +831,7 @@ export class ExprVisitor {
 
       // --- Throw: visit args ---
       case 'throw': {
-        for (const arg of e.args) {
+        for (const arg of e.operands) {
           const r = this.dispatch(arg);
           if (r === Result.Error) return r;
         }
@@ -854,7 +854,7 @@ export class ExprVisitor {
         return this.d.endLoopExpr?.(e) ?? Result.Ok;
       }
       case 'if': {
-        let r = this.dispatch(e.cond);
+        let r = this.dispatch(e.condition);
         if (r === Result.Error) return r;
         r = this.d.beginIfExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;

@@ -41,6 +41,7 @@ import type {
   TypeEntry,
   Var,
 } from '../ir/ir.ts';
+import type { NodeId } from '../ir/fidelity.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
 import { isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
@@ -167,6 +168,18 @@ class WatWriter extends ModuleContext {
   // once per inline-export check, so the previous O(imports+defs) scan grew
   // quadratic on modules with many exports.
   private readonly nameIndexMap = new Map<string, number>();
+
+  /**
+   * What was WRITTEN for this block, falling back to what the node derived.
+   *
+   * The declared type and the derived type are not always the same — an `if`
+   * may declare a result its contents would not give it (a94154e21) — and the
+   * declaration has two legal spellings that differ in the binary. Both facts
+   * live in the table; the node field is the fallback that goes away at S6.
+   */
+  private declaredBlockType(e: { nodeId?: NodeId; blockType: BlockType }): BlockType {
+    return this.module.fidelity.get(e.nodeId)?.blockType ?? e.blockType;
+  }
 
   constructor(module: Module, opts: WriteWatOptions) {
     super(module);
@@ -710,7 +723,8 @@ class WatWriter extends ModuleContext {
 
       onSelectExpr: (e) => {
         this.putsSpace('select');
-        if (e.resultType.length > 0) this.writeTypes(e.resultType, 'result');
+        const declared = this.module.fidelity.get(e.nodeId)?.selectResultType ?? e.resultType;
+        if (declared.length > 0) this.writeTypes([...declared], 'result');
         this.newline(false);
         return Result.Ok;
       },
@@ -986,10 +1000,11 @@ class WatWriter extends ModuleContext {
       onTableCopyExpr: (e) => {
         this.putsSpace('table.copy');
         if (
-          e.dst.kind !== 'index' || e.dst.value !== 0 || e.src.kind !== 'index' || e.src.value !== 0
+          e.dst.kind !== 'index' || e.dst.value !== 0 || e.source.kind !== 'index' ||
+          e.source.value !== 0
         ) {
           this.writeVar(e.dst, NC.Space);
-          this.writeVar(e.src, NC.Space);
+          this.writeVar(e.source, NC.Space);
         }
         this.newline(false);
         return Result.Ok;
@@ -1066,10 +1081,10 @@ class WatWriter extends ModuleContext {
       beginBlockExpr: (e) => {
         this.putsSpace('block');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Block, e.blockType);
+        this.beginBlock(e.label, LabelType.Block, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1083,10 +1098,10 @@ class WatWriter extends ModuleContext {
       beginLoopExpr: (e) => {
         this.putsSpace('loop');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Loop, e.blockType);
+        this.beginBlock(e.label, LabelType.Loop, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1100,10 +1115,10 @@ class WatWriter extends ModuleContext {
       beginIfExpr: (e) => {
         this.putsSpace('if');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.If, e.blockType);
+        this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1126,9 +1141,9 @@ class WatWriter extends ModuleContext {
       beginTryExpr: (e) => {
         this.putsSpace('try');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Try, e.blockType);
+        this.beginBlock(e.label, LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1154,14 +1169,14 @@ class WatWriter extends ModuleContext {
       beginTryTableExpr: (e) => {
         this.putsSpace('try_table');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
         this.indent += 2;
         for (const tc of e.catches) {
           this.writeTableCatch(tc);
         }
-        this.beginBlock(e.label, LabelType.TryTable, e.blockType);
+        this.beginBlock(e.label, LabelType.TryTable, this.declaredBlockType(e));
         return Result.Ok;
       },
       endTryTableExpr: () => {
@@ -1570,19 +1585,19 @@ class WatWriter extends ModuleContext {
         case 'return':
           return { operands: [...e.values], head: (d) => void d.onReturnExpr?.(e) };
         case 'br_if':
-          return { operands: [...e.values, e.cond], head: (d) => void d.onBrIfExpr?.(e) };
+          return { operands: [...e.values, e.condition], head: (d) => void d.onBrIfExpr?.(e) };
         case 'br_table':
           return { operands: [...e.values, e.value], head: (d) => void d.onBrTableExpr?.(e) };
 
         // ---- three operands ---------------------------------------------------
         case 'select':
           return {
-            operands: [e.val1, e.val2, e.cond],
+            operands: [e.val1, e.val2, e.condition],
             head: (d) => void d.onSelectExpr?.(e),
           };
         case 'memory.copy':
           return {
-            operands: [e.dest, e.src, e.size],
+            operands: [e.dest, e.source, e.size],
             head: (d) => void d.onMemoryCopyExpr?.(e),
           };
         case 'memory.fill':
@@ -1593,13 +1608,13 @@ class WatWriter extends ModuleContext {
 
         // ---- variadic ---------------------------------------------------------
         case 'call':
-          return { operands: [...e.args], head: (d) => void d.onCallExpr?.(e) };
+          return { operands: [...e.operands], head: (d) => void d.onCallExpr?.(e) };
         case 'struct.new':
           return { operands: [...e.operands], head: (d) => void d.onStructNewExpr?.(e) };
         case 'array.new_fixed':
           return { operands: [...e.operands], head: (d) => void d.onArrayNewFixedExpr?.(e) };
         case 'throw':
-          return { operands: [...e.args], head: (d) => void d.onThrowExpr?.(e) };
+          return { operands: [...e.operands], head: (d) => void d.onThrowExpr?.(e) };
         // `rethrow N` carries no operands — it re-raises the exception caught by
         // the handler at depth N — so it folds as a leaf, `(rethrow 0)`.
         case 'rethrow':
@@ -1608,7 +1623,7 @@ class WatWriter extends ModuleContext {
         // operand order, after the arguments -- the same order the stack sees.
         case 'call_indirect':
           return {
-            operands: [...e.args, e.callee],
+            operands: [...e.operands, e.callee],
             head: (d) => void d.onCallIndirectExpr?.(e),
           };
 
@@ -1713,9 +1728,13 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace(isLoop ? 'loop' : 'block');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, isLoop ? LabelType.Loop : LabelType.Block, e.blockType);
+        this.beginBlock(
+          e.label,
+          isLoop ? LabelType.Loop : LabelType.Block,
+          this.declaredBlockType(e),
+        );
         this.indent += 2;
         this.writeExprList(e.body);
         this.indent -= 2;
@@ -1732,9 +1751,9 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace('try');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Try, e.blockType);
+        this.beginBlock(e.label, LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
 
         this.puts('(', NC.None);
@@ -1774,15 +1793,15 @@ class WatWriter extends ModuleContext {
         // `(if blocktype? folded-cond (then instr*) (else instr*)?)`. The
         // condition is an OPERAND, so a placeholder there — meaning the value is
         // already on the stack — has no folded spelling and declines.
-        if (!this.canFold(e.cond)) return false;
+        if (!this.canFold(e.condition)) return false;
         this.puts('(', NC.None);
         this.putsSpace('if');
         if (e.label) this.writeName(e.label, NC.Space);
-        this.writeBlockType(e.blockType);
+        this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
         this.indent += 2;
-        this.writeFoldedExpr(e.cond);
-        this.beginBlock(e.label, LabelType.If, e.blockType);
+        this.writeFoldedExpr(e.condition);
+        this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
         this.newline(true);
         this.puts('(', NC.None);
         this.putsSpace('then');
@@ -1817,7 +1836,7 @@ class WatWriter extends ModuleContext {
     // `try` wraps CLAUSES, each holding an instruction sequence, so like block
     // and loop nothing in its contents can prevent the wrapper.
     if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try') return true;
-    if (e.kind === 'if') return this.canFold(e.cond);
+    if (e.kind === 'if') return this.canFold(e.condition);
     const spec = this.foldSpec(e);
     if (spec === null) return false;
     return spec.operands.every((op) => this.canFold(op));

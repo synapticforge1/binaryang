@@ -270,7 +270,7 @@ describe('validateModule', () => {
         kind: 'if',
         label: '',
         blockType: blockTypeValue(Type.I32),
-        cond: makeConst32(1),
+        condition: makeConst32(1),
         then_: [makeConst32(10)],
         else_: [makeConst32(20)],
         loc: LOC,
@@ -318,7 +318,7 @@ describe('validateModule', () => {
         body: [
           {
             kind: 'drop',
-            value: { kind: 'call', func: varIndex(0), args: [], loc: LOC },
+            value: { kind: 'call', func: varIndex(0), operands: [], loc: LOC },
             loc: LOC,
           },
         ],
@@ -332,7 +332,7 @@ describe('validateModule', () => {
       const body: Expr[] = [
         {
           kind: 'drop',
-          value: { kind: 'call', func: varIndex(999), args: [], loc: LOC },
+          value: { kind: 'call', func: varIndex(999), operands: [], loc: LOC },
           loc: LOC,
         },
       ];

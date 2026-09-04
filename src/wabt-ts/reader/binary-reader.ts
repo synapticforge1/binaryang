@@ -155,7 +155,7 @@ class Frame {
   loc: Location;
 
   // if / if_else
-  cond: Expr | undefined = undefined;
+  condition: Expr | undefined = undefined;
   then_: Expr[] | undefined = undefined;
 
   // try
@@ -870,6 +870,7 @@ export class BinaryReader {
             loc,
             typeVar: varIndex(sigIdx),
             sig,
+            nodeId: m.fidelity.record({ typeUse: 'resolved', sig }),
             localDecls: [],
             body: [],
             tailcall: false,
@@ -949,6 +950,7 @@ export class BinaryReader {
         loc,
         typeVar: varIndex(sigIdx),
         sig,
+        nodeId: m.fidelity.record({ typeUse: 'resolved', sig }),
         localDecls: [],
         body: [],
         tailcall: false,
@@ -1320,7 +1322,7 @@ export class BinaryReader {
           const bt = this.readBlockType();
           const cond = stack.pop() ?? operandPlaceholder(loc);
           const f = new Frame('if_then', bt, '', loc);
-          f.cond = cond;
+          f.condition = cond;
           labelStack.push(f);
           break;
         }
@@ -1393,6 +1395,7 @@ export class BinaryReader {
             kind: 'try',
             label: frame.label,
             blockType: frame.blockType,
+            nodeId: m.fidelity.record({ blockType: frame.blockType }),
             body: tryBody,
             catches: [],
             delegate: varIndex(depth),
@@ -1465,6 +1468,7 @@ export class BinaryReader {
                 kind: 'block',
                 label: frame.label,
                 blockType: frame.blockType,
+                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 loc: frame.loc,
               };
@@ -1474,6 +1478,7 @@ export class BinaryReader {
                 kind: 'loop',
                 label: frame.label,
                 blockType: frame.blockType,
+                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 loc: frame.loc,
               };
@@ -1483,7 +1488,8 @@ export class BinaryReader {
                 kind: 'if',
                 label: frame.label,
                 blockType: frame.blockType,
-                cond: frame.cond ?? operandPlaceholder(loc),
+                nodeId: m.fidelity.record({ blockType: frame.blockType }),
+                condition: frame.condition ?? operandPlaceholder(loc),
                 then_: endBody,
                 else_: [],
                 loc: frame.loc,
@@ -1494,7 +1500,8 @@ export class BinaryReader {
                 kind: 'if',
                 label: frame.label,
                 blockType: frame.blockType,
-                cond: frame.cond ?? operandPlaceholder(loc),
+                nodeId: m.fidelity.record({ blockType: frame.blockType }),
+                condition: frame.condition ?? operandPlaceholder(loc),
                 then_: frame.then_ ?? [],
                 else_: endBody,
                 loc: frame.loc,
@@ -1516,6 +1523,7 @@ export class BinaryReader {
                 kind: 'try',
                 label: frame.label,
                 blockType: frame.blockType,
+                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: tryBody,
                 catches,
                 loc: frame.loc,
@@ -1527,6 +1535,7 @@ export class BinaryReader {
                 kind: 'try_table',
                 label: frame.label,
                 blockType: frame.blockType,
+                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 catches: frame.tableCatches ?? [],
                 loc: frame.loc,
@@ -1587,7 +1596,7 @@ export class BinaryReader {
           pushStmt(stack, stmts, {
             kind: 'br_if',
             target: varIndex(depth),
-            cond: cond_,
+            condition: cond_,
             values,
             loc,
           });
@@ -1623,7 +1632,7 @@ export class BinaryReader {
           const funcIdx = this.readU32Leb();
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
-          const callExpr: Expr = { kind: 'call', func: varIndex(funcIdx), args, loc };
+          const callExpr: Expr = { kind: 'call', func: varIndex(funcIdx), operands: args, loc };
           if (sig.results.length > 0) stack.push(callExpr);
           else pushStmt(stack, stmts, callExpr);
           break;
@@ -1641,8 +1650,9 @@ export class BinaryReader {
             kind: 'call_indirect',
             sig: sigType,
             typeVar: varIndex(typeIdx),
+            nodeId: m.fidelity.record({ typeUse: 'resolved', sig: sigType }),
             table: varIndex(tableIdx),
-            args,
+            operands: args,
             callee,
             loc,
           };
@@ -1655,7 +1665,13 @@ export class BinaryReader {
           const sig = getTypeSig(m, typeIdx);
           const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
-          const crExpr: Expr = { kind: 'call_ref', sigType: varIndex(typeIdx), args, callee, loc };
+          const crExpr: Expr = {
+            kind: 'call_ref',
+            sigType: varIndex(typeIdx),
+            operands: args,
+            callee,
+            loc,
+          };
           if (sig.results.length > 0) stack.push(crExpr);
           else pushStmt(stack, stmts, crExpr);
           break;
@@ -1665,7 +1681,12 @@ export class BinaryReader {
           const funcIdx = this.readU32Leb();
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
-          pushStmt(stack, stmts, { kind: 'return_call', func: varIndex(funcIdx), args, loc });
+          pushStmt(stack, stmts, {
+            kind: 'return_call',
+            func: varIndex(funcIdx),
+            operands: args,
+            loc,
+          });
           break;
         }
         case Opcode.ReturnCallIndirect: {
@@ -1682,8 +1703,9 @@ export class BinaryReader {
             kind: 'return_call_indirect',
             sig: sigType,
             typeVar: varIndex(typeIdx),
+            nodeId: m.fidelity.record({ typeUse: 'resolved', sig: sigType }),
             table: varIndex(tableIdx),
-            args,
+            operands: args,
             callee,
             loc,
           });
@@ -1698,7 +1720,7 @@ export class BinaryReader {
           pushStmt(stack, stmts, {
             kind: 'return_call_ref',
             sigType: varIndex(typeIdx),
-            args,
+            operands: args,
             callee,
             loc,
           });
@@ -1715,7 +1737,10 @@ export class BinaryReader {
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'select', val1, val2, cond: cond_, resultType: [], loc });
+          // A bare `select`: the as-written fact is that NO result type was
+          // spelled, which the empty list records.
+          const nodeId = m.fidelity.record({ selectResultType: [] });
+          stack.push({ kind: 'select', val1, val2, condition: cond_, resultType: [], loc, nodeId });
           break;
         }
         case Opcode.SelectT: {
@@ -1725,7 +1750,8 @@ export class BinaryReader {
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'select', val1, val2, cond: cond_, resultType, loc });
+          const nodeId = m.fidelity.record({ selectResultType: resultType });
+          stack.push({ kind: 'select', val1, val2, condition: cond_, resultType, loc, nodeId });
           break;
         }
 
@@ -2087,7 +2113,7 @@ export class BinaryReader {
           const tagIdx = this.readU32Leb();
           const sig = getTagSig(m, tagIdx);
           const args = popN(stack, sig.params.length);
-          pushStmt(stack, stmts, { kind: 'throw', tag: varIndex(tagIdx), args, loc });
+          pushStmt(stack, stmts, { kind: 'throw', tag: varIndex(tagIdx), operands: args, loc });
           break;
         }
         case Opcode.ThrowRef: {
@@ -2179,7 +2205,7 @@ export class BinaryReader {
           segment: varIndex(segIdx),
           memidx: varIndex(memIdx),
           dest,
-          src,
+          source: src,
           size,
           loc,
         });
@@ -2206,7 +2232,7 @@ export class BinaryReader {
           destMemidx: varIndex(destMemIdx),
           srcMemidx: varIndex(srcMemIdx),
           dest,
-          src,
+          source: src,
           size,
           loc,
         });
@@ -2238,7 +2264,7 @@ export class BinaryReader {
           segment: varIndex(segIdx),
           table: varIndex(tableIdx),
           dest,
-          src,
+          source: src,
           size,
           loc,
         });
@@ -2262,7 +2288,7 @@ export class BinaryReader {
         pushStmt(stack, stmts, {
           kind: 'table.copy',
           dst: varIndex(dstIdx),
-          src: varIndex(srcIdx),
+          source: varIndex(srcIdx),
           dest,
           srcOffset,
           size,

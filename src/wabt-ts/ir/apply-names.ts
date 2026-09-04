@@ -366,7 +366,7 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
       return {
         ...e,
         dst: rewriteVar(e.dst, n.tableNames),
-        src: rewriteVar(e.src, n.tableNames),
+        source: rewriteVar(e.source, n.tableNames),
       };
     case 'table.init':
       return {

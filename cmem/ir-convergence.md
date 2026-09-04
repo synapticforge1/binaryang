@@ -308,30 +308,158 @@ Ordered so that each step is independently verifiable and none of them requires 
 correct. **The corpus invariants are the acceptance test at every step**: 421/421 validating,
 421/421 byte-identical, baseline `IDENTICAL`.
 
+### Release shape — settled 2026-09-04
+
+**The S series is not a breaking change for our one real consumer.** wasmtk imports exactly two
+specifiers, both compat façades:
+
+    "binaryen-backend": "jsr:@jrmarcum/binaryang@1.5.3/compat/binaryen"
+    "wabt":             "jsr:@jrmarcum/binaryang@1.5.3/compat/wabt"
+
+Four things make that safe. Neither façade re-exports anything from `../ir/`. wasmtk reads no IR
+field at all (`.op`, `.ifTrue`, `.operands`, `.typeIndex`, `.condition` — zero occurrences). It pins
+`@1.5.3`. And decisively, `binaryen-backend` is documented as interchangeable with
+`npm:binaryen@^116.0.0`, so that surface is dictated by upstream binaryen.js and _cannot_ be changed
+by this merger even if we wanted to.
+
+⚠️ **An earlier count of "wasmtk imports `/ir/binaryen-ts` in 10 places" was wrong** and nearly
+forced a needless 2.0.0. Every one of those matches was inside `wasmtk/upstream/binaryang/` — a
+vendored copy of _this_ repo — and they were help text and comments, not imports. 🔑 Grepping a
+sibling tree that vendors your own source counts your own code as the consumer's. Exclude the vendor
+directory before drawing any blast-radius conclusion.
+
+The one honest caveat: `./ir/binaryen-ts` and `./ir/wabt-ts` remain public JSR exports, so changing
+them is semver-breaking for a hypothetical consumer we do not have. Carried as the single documented
+break rather than as a reason to freeze the IR.
+
 ### S1 — the gate, first ✅ done
 
 `deno task operators`. It has to exist before anything depends on the mapping being total, not
 after.
 
-### S2 — name reconciliation (mechanical, no behaviour change)
+### S2 — name reconciliation (mechanical, no behaviour change) ✅ done
 
-Pick one convention and rename across ~25 kinds: `typeIndex`/`typeVar`, `op`/`opcode`,
-`condition`/`cond`, `ifTrue`/`then_`, `name`/`label`, `children`/`body`, `operands`/`args`,
-`index`/`var`.
+**Scoped down on contact, 2026-09-04.** The step was written as "pick one convention and rename ~25
+kinds". Checking the pairs before renaming them showed that only some are pairs at all — the rest
+are _type_ differences wearing name clothes, and no rename reconciles those:
 
-**Verifiable by construction**: a pure rename must leave every emitted byte unchanged, so the
-baseline is the proof. Do it as its own commit precisely because it should be provably inert.
+| binaryen-ts                             | wabt-ts                     | verdict                                     |
+| --------------------------------------- | --------------------------- | ------------------------------------------- |
+| `condition: Expression`                 | `cond: Expr`                | ✅ pure rename — landed                     |
+| `source: Expression`                    | `src: Expr`                 | ✅ pure rename — landed                     |
+| `operands: Expression[]`                | `args: Expr[]`              | ✅ pure rename — landed                     |
+| `ifTrue: Expression`                    | `then_: Expr[]`             | ❌ **arity differs** — scalar vs array → S6 |
+| `ifFalse: Expression \| null`           | `else_: Expr[]`             | ❌ arity differs → S6                       |
+| `typeIndex: number`                     | `typeVar: Var`              | ❌ `Var` is `index \| name` → S6            |
+| `fieldIndex: number`                    | `fieldVar: Var`             | ❌ same → S6                                |
+| `op: UnaryOp \| BinaryOp`               | `opcode: Opcode`            | ❌ different enums → S4                     |
+| `target: string` / `target: Expression` | `func: Var` / `target: Var` | ❌ `target` means three things → S6         |
 
-### S3 — the side table
+🔑 **Renaming `then_` to `ifTrue` would have been inert and still wrong.** It manufactures a false
+correspondence between an array and a scalar — exactly the confusion S6 exists to resolve — and it
+would have spent S2's baseline proof on a change that proof does not cover. `typeVar` → `typeIndex`
+is the same trap: a name that lies about its own type. Deferring them is not postponement, it is the
+correct home; S6 unifies the types and names them once.
 
-Define it, and move the as-written set into it: `blockType`, `opcode` on load/store, `memidx`,
-`typeUse`/`typeVar`/`sig`, `select.resultType`, `placeholder`, and `type`-as-declared.
+`children`/`body` was dropped for a different reason: `body` is also `Func.body` on both sides, so
+the rename is ambiguous rather than mechanical. It rides along with S6.
 
-⚠️ **`values` vs `value` on `br`/`return` is NOT a side-table entry** — it is a real arity
-difference, already resolved in the tree by `TupleMake`. Do not sweep it in.
+**How it was done.** Rename the 14 declarations in `ir.ts`, then let `deno check` enumerate every
+consumer — 47 read sites, then the object-literal writes, then the spread shorthands. The compiler
+is the oracle because a blind substitution would have corrupted three unrelated things that share
+these names: `args` is argv in every `tools/*.ts` and a wast command's own `args`, and `src` is the
+lexer's `LexerSource`. `Frame.cond` in the binary reader renamed too — it is reader-private and
+mirrors the IR field it feeds.
 
-Keyed by node identity, so a pass that rewrites a subtree simply loses the entries for what it
-replaced, which is the correct semantics.
+⚠️ **The compiler is not a complete oracle, and one test proved it.** `call_arity.test.ts` reached
+through `as unknown as { … args: unknown[] }`, a cast that defeats type checking entirely, so the
+rename typechecked clean and then failed at runtime with `Cannot read properties of undefined`. Any
+`as unknown as` cast is invisible to a type-driven refactor. The _test suite_, not `deno check`, is
+what caught it.
+
+**Verified inert**, which is the whole point of doing it as its own commit: baseline `IDENTICAL`
+(421/421, no emitted byte changed), 944 tests passing, `operators` TOTAL, spec suite 100% on all
+four axes (1955 accepted, 2422 invalid rejected, 711 malformed binary, 1156 malformed text).
+
+### S3 — the side table ✅ done
+
+`src/wabt-ts/ir/fidelity.ts` — `NodeId`, `FidelityEntry`, `FidelityTable`. One table per module,
+created by `makeModule()` so the binary reader and the WAT parser share it. **Both producers
+populate it and both writers read it**, so the table drives the output rather than merely shadowing
+it, and the byte baseline is a proof rather than a coincidence.
+
+Verified: baseline `IDENTICAL` (421/421, binary and text), 948 tests, `operators` TOTAL, spec suite
+100% on all four axes.
+
+#### 🔧 The key was wrong — corrected by measurement
+
+The step said: _"keyed by node identity, so a pass that rewrites a subtree simply loses the entries
+for what it replaced, which is the correct semantics."_ It is the correct semantics. **It is not an
+achievable key in wabt-ts.**
+
+wabt-ts's IR is immutable — 492 `readonly` fields — so its passes rebuild nodes by spread rather
+than mutating them: `resolveNames` has 75 spread rebuilds and `applyNames` 25. **A spread mints a
+new object, so it mints a new identity**, even when the pass is semantically identity-preserving.
+Resolving `$x` to `0` is the same instruction at the same place, landing in a different object.
+Measured on a five-instruction module, with a `WeakMap` standing in for the table:
+
+```
+nodes before resolveNames : 8
+entries that SURVIVED     : 2 / 8
+```
+
+🔑 **An identity-keyed table would be emptied by the very pipeline that needs it** — not by an
+optimizing pass legitimately discarding fidelity, but by name resolution, which every parsed module
+goes through before it is written. Silently, too: entries vanish, the writer falls back to derived
+values, and the output stays valid while quietly ceasing to be faithful.
+
+**The key that holds** is an opaque `nodeId` carried on the node. A spread copies it for free, so
+all 100 rebuild sites keep working and none can forget; a pass that CONSTRUCTS a replacement gets no
+id and so no entry, which is the original intent reached from the other direction. The shared tree
+pays one optional opaque field rather than twelve semantic ones — which is the actual point, since
+after S6 binaryen-ts's passes must not have to understand wabt-ts's as-written data.
+
+⚠️ Weaker than pure identity in one way: a pass that rewrites a node BY SPREAD keeps the id and so
+keeps a possibly stale entry. Tolerable only because optimization drops the whole table. If that
+ever stops being true, this key stops being sufficient.
+
+#### 🔧 The family list was wrong too — seven became four
+
+The step listed `blockType`, `opcode` on load/store, `memidx`, `typeUse`/`typeVar`/`sig`,
+`select.resultType`, `placeholder`, and `type`-as-declared. Classifying each against a criterion the
+list did not have — **"binaryen-ts can derive an equivalent, and after optimization the original is
+gone"** — cut it to four:
+
+| family                           | verdict                                                                                                                                                                                                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blockType` (5 kinds)            | ✅ declared ≠ derived (a94154e21), and two legal spellings that differ in the binary                                                                                                                                                                  |
+| `select.resultType`              | ✅ `0x1b` vs `0x1c` is a written choice; the type itself is derivable from the operands                                                                                                                                                               |
+| `typeUse`/`sig` on call_indirect | ✅ `(type $t)` and an inline signature resolve to the same index                                                                                                                                                                                      |
+| `type`-as-declared on `Func`     | ✅ the interface's own doc already said fidelity depends on the spelling                                                                                                                                                                              |
+| `opcode` (19)                    | ❌ binaryen-ts's `Load` is `{type, bytes, signed, offset, align, ptr}` — the opcode is derivable. A representation difference for S4, not as-written data                                                                                             |
+| `align`, `offset` (12/15)        | ❌ memarg semantics                                                                                                                                                                                                                                   |
+| GC `typeVar` (15)                | ❌ the type operand, semantic                                                                                                                                                                                                                         |
+| `memidx` (16)                    | ❌ semantic — and see the gap below                                                                                                                                                                                                                   |
+| `placeholder`                    | ❌ converges to binaryen-ts's `Pop`, which is a KIND. It moves INTO the tree at S5, which already lists `pop`. Would also have meant threading the table through 117 `operandPlaceholder(` call sites to store one boolean a spread already preserves |
+
+🛑 **Gap found for S6: binaryen-ts's `Load` and `Store` have no memory index at all.** They assume
+memory 0. That is not as-written data the side table can hold — it is semantic content the unified
+tree is currently unable to represent, so multi-memory modules cannot survive S6 until the shared
+node carries a memory index. Not a defect today, because nothing routes multi-memory through
+binaryen-ts's tree; it becomes one the moment S6 lands.
+
+#### ⚠️ The obligation the table creates
+
+**Any wabt-ts pass that rewrites a value the table also holds must update the table.** Found the
+hard way, and only because the writers were wired to read: `resolveNames` resolves `$t` name-vars
+inside `select.resultType` on the NODE, the writer now reads the TABLE, and the stale entry handed
+the encoder an unresolved name — `writeHeapType: var "$t" not resolved`. The comment at that same
+site in `resolve-names.ts` describes an earlier version of the identical bug, from before the table
+existed.
+
+🔑 **Populating the table would not have found this; making it load-bearing did.** A table that is
+only written to and never read looks correct forever. That is the argument for wiring the writers in
+the same step rather than deferring it to S6.
 
 ### S4 — adopt the coarse grouping
 
@@ -375,6 +503,18 @@ encoder, byte-identically, the way it already does through wabt-ts.
 
 Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
 become unnecessary.
+
+🛑 **S6 BLOCKER, found during S3: binaryen-ts's `Load` and `Store` carry no memory index.** They are
+`{type, bytes, signed, offset, align, ptr}` and assume memory 0. wabt-ts's equivalents carry
+`memidx` on 16 kinds. This is not as-written data the side table can absorb — it is semantic content
+the unified node must hold, so **the shared load/store gains a memory index before S6 lands, or
+every multi-memory module is silently rewritten to memory 0**. Harmless today only because nothing
+routes multi-memory through binaryen-ts's tree.
+
+📥 **S6 also inherits the six name pairs S2 could not touch** — `ifTrue`/`then_`, `ifFalse`/`else_`,
+`typeIndex`/`typeVar`, `fieldIndex`/`fieldVar`, `target`/`func`, and `children`/`body`. They are not
+renames: each is a type or arity difference, so the name follows the unification rather than
+preceding it. See S2 for why renaming them early would have been inert and wrong.
 
 🛑 **S6 ABSORBS C10a — owner decision 2026-09-02.** The 24 modules the bridge mistranslates are not
 a separate defect to fix first; they fail in the TRANSLATION, not in either IR, and S6 deletes the

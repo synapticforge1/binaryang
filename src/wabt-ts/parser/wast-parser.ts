@@ -144,6 +144,8 @@ import {
   varIndex,
   varName,
 } from '../ir/ir.ts';
+import { FidelityTable } from '../ir/fidelity.ts';
+import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
 import { LexerSource } from './lexer-source.ts';
 import { WastLexer } from './wast-lexer.ts';
 import {
@@ -1087,6 +1089,24 @@ export class WastParser {
    * block with params requires.
    */
   private currentModule: Module | null = null;
+
+  /**
+   * A table for nodes built with no module in scope — a fragment parsed on its
+   * own. Their entries are simply unreachable, which is correct: nothing will
+   * ask this parser about a node that belongs to no module.
+   */
+  private readonly orphanFidelity = new FidelityTable();
+
+  /**
+   * Record as-written data against the current module's fidelity table.
+   *
+   * Always returns an id rather than `undefined`, so call sites can write
+   * `nodeId: this.fid(...)` directly — `exactOptionalPropertyTypes` forbids
+   * assigning an explicit `undefined` to an optional field. See `ir/fidelity.ts`.
+   */
+  private fid(entry: FidelityEntry): NodeId {
+    return (this.currentModule?.fidelity ?? this.orphanFidelity).record(entry);
+  }
 
   /**
    * Function bodies whose parse has been DEFERRED to the end of the enclosing
@@ -2348,6 +2368,7 @@ export class WastParser {
         typeVar: typeVar ?? varIndex(0),
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
+        nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls: [],
         body: [],
         tailcall: false,
@@ -2473,6 +2494,7 @@ export class WastParser {
         typeVar: typeVar ?? varIndex(0),
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
+        nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls: [],
         body: [],
         tailcall: false,
@@ -2537,6 +2559,7 @@ export class WastParser {
         typeVar: typeVar ?? varIndex(0),
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
+        nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls,
         body,
         tailcall: false,
@@ -3213,8 +3236,22 @@ export class WastParser {
 
       const hasValue = blockType.kind !== 'void';
       const node: BlockExpr | LoopExpr = tt === TokenType.Block
-        ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
-        : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
+        ? {
+          kind: 'block',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        }
+        : {
+          kind: 'loop',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        };
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
       return Result.Ok;
@@ -3267,7 +3304,16 @@ export class WastParser {
       this.expect(TokenType.Rpar);
 
       const condExpr: Expr = cond ?? operandPlaceholder(loc);
-      const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr, then_, else_, loc };
+      const node: IfExpr = {
+        kind: 'if',
+        label,
+        blockType,
+        nodeId: this.fid({ blockType }),
+        condition: condExpr,
+        then_,
+        else_,
+        loc,
+      };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3301,6 +3347,7 @@ export class WastParser {
         kind: 'try_table',
         label,
         blockType,
+        nodeId: this.fid({ blockType }),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -3369,8 +3416,25 @@ export class WastParser {
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
       const node: TryExpr = delegate === undefined
-        ? { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, loc }
-        : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
+        ? {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          loc,
+        }
+        : {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          delegate,
+          loc,
+        };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3476,8 +3540,22 @@ export class WastParser {
       this.matchClosingLabel(label);
       flushStack(bodyCtx);
       const node: BlockExpr | LoopExpr = tt === TokenType.Block
-        ? { kind: 'block', label, blockType, body: bodyCtx.stmts, loc }
-        : { kind: 'loop', label, blockType, body: bodyCtx.stmts, loc };
+        ? {
+          kind: 'block',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        }
+        : {
+          kind: 'loop',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          loc,
+        };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3511,7 +3589,16 @@ export class WastParser {
       this.matchClosingLabel(label);
 
       const condExpr2: Expr = cond ?? operandPlaceholder(loc);
-      const node: IfExpr = { kind: 'if', label, blockType, cond: condExpr2, then_, else_, loc };
+      const node: IfExpr = {
+        kind: 'if',
+        label,
+        blockType,
+        nodeId: this.fid({ blockType }),
+        condition: condExpr2,
+        then_,
+        else_,
+        loc,
+      };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3557,8 +3644,25 @@ export class WastParser {
         this.matchClosingLabel(label);
       }
       const node: TryExpr = delegate === undefined
-        ? { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, loc }
-        : { kind: 'try', label, blockType, body: bodyCtx.stmts, catches, delegate, loc };
+        ? {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          loc,
+        }
+        : {
+          kind: 'try',
+          label,
+          blockType,
+          nodeId: this.fid({ blockType }),
+          body: bodyCtx.stmts,
+          catches,
+          delegate,
+          loc,
+        };
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3597,6 +3701,7 @@ export class WastParser {
         kind: 'try_table',
         label,
         blockType,
+        nodeId: this.fid({ blockType }),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -3675,8 +3780,9 @@ export class WastParser {
           kind: 'select',
           val1: op0(),
           val2: op1(),
-          cond: op2(),
+          condition: op2(),
           resultType,
+          nodeId: this.fid({ selectResultType: resultType }),
           loc,
         } as SelectExpr;
       }
@@ -3716,7 +3822,7 @@ export class WastParser {
         // multi-value target takes several. A padded Nop can never be a real
         // branch value (it produces nothing), so it drops out.
         const values = operands.slice(0, -1).filter((e) => e.kind !== 'nop');
-        return { kind: 'br_if', target: v, cond, values, loc } as BrIfExpr;
+        return { kind: 'br_if', target: v, condition: cond, values, loc } as BrIfExpr;
       }
       case TokenType.BrOnNull:
       case TokenType.BrOnNonNull: {
@@ -3784,7 +3890,7 @@ export class WastParser {
       case TokenType.Call: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'call', func: v, args: operands, loc } as CallExpr;
+        return { kind: 'call', func: v, operands, loc } as CallExpr;
       }
       case TokenType.CallIndirect: {
         const tableVar = this.parseVarOpt(varIndex(0));
@@ -3810,10 +3916,11 @@ export class WastParser {
         return {
           kind: 'call_indirect',
           ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
+          nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           table: tableVar,
           sig,
           typeVar: typeVar ?? varIndex(0),
-          args,
+          operands: args,
           callee,
           loc,
         } as CallIndirectExpr;
@@ -3823,12 +3930,12 @@ export class WastParser {
         if (v === null) return null;
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
-        return { kind: 'call_ref', sigType: v, args, callee, loc } as CallRefExpr;
+        return { kind: 'call_ref', sigType: v, operands: args, callee, loc } as CallRefExpr;
       }
       case TokenType.ReturnCall: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'return_call', func: v, args: operands, loc } as ReturnCallExpr;
+        return { kind: 'return_call', func: v, operands, loc } as ReturnCallExpr;
       }
       case TokenType.ReturnCallIndirect: {
         const tableVar = this.parseVarOpt(varIndex(0));
@@ -3854,10 +3961,11 @@ export class WastParser {
         return {
           kind: 'return_call_indirect',
           ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
+          nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           sig,
           typeVar: typeVar ?? varIndex(0),
           table: tableVar,
-          args,
+          operands: args,
           callee,
           loc,
         } as ReturnCallIndirectExpr;
@@ -3867,7 +3975,13 @@ export class WastParser {
         if (v === null) return null;
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
-        return { kind: 'return_call_ref', sigType: v, args, callee, loc } as ReturnCallRefExpr;
+        return {
+          kind: 'return_call_ref',
+          sigType: v,
+          operands: args,
+          callee,
+          loc,
+        } as ReturnCallRefExpr;
       }
       case TokenType.LocalGet: {
         const v = this.parseVar();
@@ -3949,7 +4063,7 @@ export class WastParser {
           destMemidx,
           srcMemidx,
           dest: op0(),
-          src: op1(),
+          source: op1(),
           size: op2(),
           loc,
         } as MemoryCopyExpr;
@@ -3990,7 +4104,7 @@ export class WastParser {
           segment,
           memidx,
           dest: op0(),
-          src: op1(),
+          source: op1(),
           size: op2(),
           loc,
         } as MemoryInitExpr;
@@ -4045,7 +4159,7 @@ export class WastParser {
         return {
           kind: 'table.copy',
           dst,
-          src,
+          source: src,
           dest: op0(),
           srcOffset: op1(),
           size: op2(),
@@ -4070,7 +4184,7 @@ export class WastParser {
           segment,
           table,
           dest: op0(),
-          src: op1(),
+          source: op1(),
           size: op2(),
           loc,
         } as TableInitExpr;
@@ -4315,7 +4429,7 @@ export class WastParser {
 
       case TokenType.Throw: {
         const v = this.parseVar() ?? varIndex(0);
-        return { kind: 'throw', tag: v, args: operands, loc } as ThrowExpr;
+        return { kind: 'throw', tag: v, operands, loc } as ThrowExpr;
       }
       case TokenType.ThrowRef:
         return { kind: 'throw_ref', exnref: op0(), loc } as ThrowRefExpr;
