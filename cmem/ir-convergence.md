@@ -348,9 +348,20 @@ Roughly a dozen: `pop`, `tuple.make`, `tuple.extract` one way; `return_call`,
 ### S6 — unify the type, delete the bridge
 
 Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
-become unnecessary — and **C10a disappears rather than being fixed**, because the 24 modules it
-covers fail in the TRANSLATION, not in either IR. Proved: the same wabt-ts IR encodes VALID through
-wabt-ts's own writer and INVALID through the bridge.
+become unnecessary.
+
+🛑 **S6 ABSORBS C10a — owner decision 2026-09-02.** The 24 modules the bridge mistranslates are not
+a separate defect to fix first; they fail in the TRANSLATION, not in either IR, and S6 deletes the
+translator. Proved: the same wabt-ts IR encodes VALID through wabt-ts's own writer and INVALID
+through the bridge.
+
+⚠️ **So S6 carries an acceptance criterion the other steps do not**: those 24 modules must
+round-trip correctly once the type is unified. They are the regression suite for this step, not
+leftovers — if S6 lands and they still fail, the fault was never in the bridge and this diagnosis
+was wrong.
+
+⚠️ **If S6 is ever abandoned, C10a comes back with it.** The decision not to fix them is conditional
+on the step that removes them actually happening.
 
 ### S7 — the linear-form marker
 
