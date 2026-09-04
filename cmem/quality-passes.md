@@ -234,6 +234,61 @@ between our encoder's output and wabt-ts's.
 | C7 | an orphan type entry appended for a multi-value function's result (111 modules, +643 bytes) | ⬚ characterised, benign, unreferenced — but still open                                            |
 | C9 | `table.init` / `elem.drop`, and declarative/passive element segments                        | ⬚ **one IR gap, not four findings**: `ElementSegment` has no mode field. All four fail loud today |
 
+### Pass 5 — 2026-09-02, `d706fffa1`
+
+**C7 closed**, and with it the last measured difference between this encoder's output and wabt-ts's.
+
+`collectExprTypes` registered a type for ANY multi-value-typed expression. Only a CONTROL construct
+writes a blocktype, and a blocktype above the inline forms is an index into the type section — so
+everything else registered an entry nothing could reference.
+
+⚠️ **The case that fired was subtler than "any expression".** A multi-value FUNCTION's body is
+wrapped by `oneOrTypedBlock` in a synthetic unnamed `Block` carrying the function's result type.
+That wrapper IS a block by kind, but `encodeRegionBody` inlines it, so it never writes a blocktype.
+So the predicate is not "is it a block" but **"does it write a blocktype"** — and
+`isBlockTypeCarrier` now encodes the same fact `encodeRegionBody` does. They are placed to be read
+together: drifting apart gives either a missing type (an unresolvable index) or an orphan one.
+
+### The invariant battery, re-run in full
+
+| invariant                                 | result        |
+| ----------------------------------------- | ------------- |
+| our assembled bytes validate              | 421 / 421     |
+| folded text is a fixpoint                 | 421 / 421     |
+| linear text is a fixpoint                 | 421 / 421     |
+| binaryen-ts re-encode validates           | 421 / 421     |
+| exports + imports preserved               | 421 / 421     |
+| every section size matches                | 421 / 421     |
+| **re-encode is BYTE-IDENTICAL to source** | **420 / 421** |
+
+The single outlier is `1_helloWorld_wat.wat`, and it differs only in export ORDER — same length,
+same exports, every section size equal. Representational, and the interface check covers what would
+matter.
+
+### 🔑 Where 1.5.5 stands
+
+**The battery has converged: pass 5 turned up nothing that pass 4 had not already named.** That is a
+real milestone and it is NOT the same as "no code issues remain" — it means _these invariants_ no
+longer discriminate. Every defect found in passes 1–5 came from strengthening a check or inventing a
+new one, so the honest statement is:
+
+> Converged against the invariants listed above. A new probe class could still find something, and
+> three of the five passes were opened by exactly that.
+
+⬚ **C9 remains and is a DESIGN decision, not a defect**: `ElementSegment` has no mode field, so
+`table.init`, `elem.drop`, and declarative and passive element segments cannot be represented. All
+four fail loud. Adding a mode field is an IR change with an encoder change behind it — worth doing
+deliberately, not as the tail of a bug hunt.
+
+**Cumulative, passes 1–5:**
+
+| measure             | before       | after         |
+| ------------------- | ------------ | ------------- |
+| re-encode validates | 383 / 421    | **421 / 421** |
+| byte-identical      | 1 / 421      | **420 / 421** |
+| total size delta    | +24107 bytes | **0 bytes**   |
+| defects fixed       | —            | **13**        |
+
 ## Where the numbers live
 
 `cmem/open-work.md` holds the release-facing list. This file holds the pass bookkeeping, because
