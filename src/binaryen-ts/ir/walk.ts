@@ -200,6 +200,7 @@ function _mapChildren(
     case ExpressionKind.MemoryGrow:
       return { ...expr, delta: fn(expr.delta) };
 
+    case ExpressionKind.TableInit:
     case ExpressionKind.MemoryInit:
       return {
         ...expr,
@@ -526,11 +527,13 @@ function _visitChildren(
     case ExpressionKind.MemoryGrow:
       visit(expr.delta);
       break;
+    case ExpressionKind.TableInit:
     case ExpressionKind.MemoryInit:
       visit(expr.dest);
       visit(expr.offset);
       visit(expr.size);
       break;
+    case ExpressionKind.ElemDrop:
     case ExpressionKind.DataDrop:
     case ExpressionKind.TableSize:
       break; // immediates only, no children

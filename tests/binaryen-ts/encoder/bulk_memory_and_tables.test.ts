@@ -159,42 +159,70 @@ describe('encoder — table operations', () => {
   });
 });
 
-describe('parser — the segment modes the IR cannot express are REFUSED', () => {
-  // `ElementSegment` has no mode field and the encoder writes kind 0
-  // unconditionally, so storing a declarative or passive segment would emit it
-  // as ACTIVE — writing into the table at instantiation when the source said it
-  // must not.
+describe('parser — every element segment mode is representable', () => {
+  // 🔧 These asserted that declarative and passive segments were REFUSED, which
+  // was right while `ElementSegment` had no mode field: the encoder wrote kind 0
+  // unconditionally, so storing one would have emitted it as ACTIVE — writing
+  // into the table at instantiation when the source forbade it.
   //
-  // ⚠️ Dropping them silently was WORSE than refusing: `elem declare` then
-  // encoded a module that failed validation downstream with `undeclared
-  // reference to function`. Refusing here matches how `table.init` and
-  // `elem.drop` behave for the same underlying gap.
-  const refuses = (wat: string, what: string) => {
-    let threw = false;
-    try {
-      encodeWasm(parseWat(wat));
-    } catch {
-      threw = true;
-    }
-    assert(threw, `${what} must be refused, not silently mis-encoded`);
+  // The field exists now, so the refusal is retired. What the refusal was
+  // protecting is not: a segment must never be silently turned into a different
+  // KIND. That is what these check instead, by executing the module.
+  const run = (wat: string) => {
+    const ref = wat2wasm(wat, { filename: 'ref.wat' });
+    assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
+    const got = encodeWasm(parseWat(wat));
+    assertEquals(Array.from(got), Array.from(ref.binary), 'bytes must match wabt-ts');
+    return (bytes: Uint8Array) =>
+      (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+        .exports.f as () => number)();
   };
 
-  it('a declarative element segment is refused', () => {
-    refuses(
-      '(module (table 1 funcref) (func $a) (elem declare func $a) (func (export "f") (drop (ref.func $a))))',
-      'elem declare',
-    );
+  const TBL = `(table 3 funcref) (type $t (func (result i32)))
+    (func $a (result i32) (i32.const 42)) (func $b (result i32) (i32.const 7))`;
+
+  // A PASSIVE segment must NOT populate the table at instantiation — that is
+  // exactly the corruption the old refusal existed to prevent. Slot 0 is empty
+  // until `table.init` runs, so calling it beforehand traps.
+  it('a passive segment does not populate the table until table.init', () => {
+    const wat = `(module ${TBL} (elem $p func $a)
+      (func (export "f") (result i32)
+        (table.init $p (i32.const 0) (i32.const 0) (i32.const 1))
+        (call_indirect (type $t) (i32.const 0))))`;
+    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 42);
+
+    const untouched = `(module ${TBL} (elem $p func $a)
+      (func (export "f") (result i32) (call_indirect (type $t) (i32.const 0))))`;
+    const bytes = encodeWasm(parseWat(untouched));
+    let trapped = false;
+    try {
+      (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+        .exports.f as () => number)();
+    } catch {
+      trapped = true;
+    }
+    assert(trapped, 'a passive segment must leave the slot empty');
   });
 
-  it('a passive element segment is refused', () => {
-    refuses(
-      '(module (table 1 funcref) (func $a) (elem $e func $a) (func (export "f")))',
-      'a passive elem',
-    );
+  it('table.init then elem.drop', () => {
+    const wat = `(module ${TBL} (elem $p func $b)
+      (func (export "f") (result i32)
+        (table.init $p (i32.const 1) (i32.const 0) (i32.const 1))
+        (elem.drop $p)
+        (call_indirect (type $t) (i32.const 1))))`;
+    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 7);
+  });
+
+  it('a declarative segment makes ref.func legal without filling the table', () => {
+    const wat = `(module (table 1 funcref) (func $a (result i32) (i32.const 5))
+      (elem declare func $a)
+      (func (export "f") (result i32) (drop (ref.func $a)) (i32.const 9)))`;
+    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 9);
   });
 
   it('an ACTIVE segment is unaffected', () => {
-    const wat = '(module (table 1 funcref) (func $a) (elem (i32.const 0) $a) (func (export "f")))';
-    new WebAssembly.Module(encodeWasm(parseWat(wat)) as BufferSource);
+    const wat = `(module ${TBL} (elem (i32.const 0) $a)
+      (func (export "f") (result i32) (call_indirect (type $t) (i32.const 0))))`;
+    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 42);
   });
 });

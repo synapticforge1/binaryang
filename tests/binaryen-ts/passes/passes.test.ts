@@ -1126,7 +1126,13 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     makeReturn(makeBinary(BinaryOp.MulI32, makeLocalGet(0, ValType.I32), makeI32Const(2))),
   );
   b.addTable('$t0', ValType.FuncRef, 2, 2);
-  b.addElement({ name: '$e', table: '$t0', offset: makeI32Const(0), data: ['$f0', '$f1'] });
+  b.addElement({
+    name: '$e',
+    mode: 'active',
+    table: '$t0',
+    offset: makeI32Const(0),
+    data: ['$f0', '$f1'],
+  });
   // $dispatch: local 0 = param $obj, local 1 = $t
   b.addFunction(
     '$dispatch',

@@ -10,6 +10,7 @@
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import {
   type ElementSegment,
+  type ElementSegmentMode,
   type Local,
   ModuleBuilder,
   type WasmFunction,
@@ -24,7 +25,9 @@ import {
   makeBreak,
   makeCall,
   makeCallIndirect,
+  makeDataDrop,
   makeDrop,
+  makeElemDrop,
   makeF32Const,
   makeF64Const,
   makeGlobalGet,
@@ -40,6 +43,7 @@ import {
   makeMemoryCopy,
   makeMemoryFill,
   makeMemoryGrow,
+  makeMemoryInit,
   makeMemorySize,
   makeNop,
   makePop,
@@ -59,8 +63,13 @@ import {
   makeSIMDTernary,
   makeStore,
   makeSwitch,
+  makeTableCopy,
+  makeTableFill,
   makeTableGet,
+  makeTableGrow,
+  makeTableInit,
   makeTableSet,
+  makeTableSize,
   makeThrow,
   makeThrowRef,
   makeTry,
@@ -1084,26 +1093,34 @@ class WasmParser {
       // reference-types enabled emits flag 4 for `(elem (offset) func $a $b)`,
       // which the old `segKind === 0`-only reader silently dropped — leaving
       // the table unpopulated so every `call_indirect` trapped.
+      // The leading value is a BITFIELD, not an enum:
+      //   bit 0 - not active on table 0 (passive, or declarative with bit 1)
+      //   bit 1 - with bit 0: declarative; without it: an explicit table index
+      //   bit 2 - element EXPRESSIONS rather than function indices
+      //
+      // Passive and declarative segments used to be REFUSED here, because the
+      // IR modelled only active table initializers. `ElementSegment.mode` lifts
+      // that. The loss it was protecting against was real: a passive segment a
+      // `table.init` would consume, or a declarative forward declaration whose
+      // absence makes a re-encoded `ref.func` invalid.
       const flags = this.r.readU32();
-      if ((flags & 1) !== 0) {
-        // Passive (bit 0) / declarative (bit 0+1) element segment. Our IR and
-        // encoder model only ACTIVE table initializers; these forms used to be
-        // parsed-and-discarded, silently losing the segment — a passive segment
-        // a `table.init` would consume, or a declarative `ref.func`
-        // forward-declaration whose loss makes a re-encoded `ref.func` invalid
-        // ("undeclared function reference"). Fail loudly rather than drop data.
-        this.r.error(
-          `unsupported element segment flags 0x${flags.toString(16)}: only active ` +
-            `table-initializer segments are supported`,
-        );
-      }
-      const hasTableIndex = (flags & 2) !== 0;
+      const mode: ElementSegmentMode = (flags & 1) === 0
+        ? 'active'
+        : (flags & 2) !== 0
+        ? 'declarative'
+        : 'passive';
+
+      // An explicit table index is bit 1 WITHOUT bit 0. Reading it as `flags & 2`
+      // alone would consume a table index from a declarative segment, which has
+      // none - correct only while the guard above made flags 3 and 7 unreachable.
+      const hasTableIndex = (flags & 3) === 2;
       const useExpressions = (flags & 4) !== 0;
 
       let tableIdx = 0;
       if (hasTableIndex) tableIdx = this.r.readU32();
 
-      const offset = this.readInitExpr(ValType.I32);
+      // Only an active segment carries an offset.
+      const offset = mode === 'active' ? this.readInitExpr(ValType.I32) : null;
 
       // A 1-byte elemkind (non-expr forms) or reftype (expr forms) precedes the
       // vector for every flag except 0 and 4. We only support funcref tables,
@@ -1117,7 +1134,13 @@ class WasmParser {
       }
 
       const tname = this.tableNames[tableIdx] ?? this.tableNames[0] ?? '$table0';
-      const seg: ElementSegment = { name: `$elem${i}`, table: tname, offset, data: funcs };
+      const seg: ElementSegment = {
+        name: `$elem${i}`,
+        mode,
+        table: tname,
+        offset,
+        data: funcs,
+      };
       this.builder.addElement(seg);
     }
   }
@@ -2295,7 +2318,7 @@ class WasmParser {
           decodeGcPrefix(r, push, pop, ctx, frames);
           break;
         case 0xfc:
-          decodeMiscPrefix(r, push, pop);
+          decodeMiscPrefix(r, push, pop, ctx);
           break;
         case 0xfd:
           decodeSIMDPrefix(r, push, pop);
@@ -2600,10 +2623,26 @@ function decodeGcPrefix(
 // 0xFC prefix (bulk memory + saturating truncations)
 // ---------------------------------------------------------------------------
 
+/** Data segments are named by position; the binary format gives them no name. */
+function dataSegName(i: number): string {
+  return `$data${i}`;
+}
+
+/** Element segments likewise. Must match what `parseElementSection` assigns. */
+function elemSegName(i: number): string {
+  return `$elem${i}`;
+}
+
+/** A table's name, or the synthesized one when the module names no tables. */
+function tableName(ctx: DecoderCtx, i: number): string {
+  return ctx.tableNames[i] ?? `$table${i}`;
+}
+
 function decodeMiscPrefix(
   r: BinaryReader,
   push: (e: Expression) => void,
   pop: () => Expression,
+  ctx: DecoderCtx,
 ): void {
   const sub = r.readU32();
   switch (sub) {
@@ -2648,15 +2687,72 @@ function decodeMiscPrefix(
       push(makeMemoryFill(dst, val, size));
       break;
     }
-    // memory.init (8) / data.drop (9) / table.init (12) / elem.drop (13) /
-    // table.copy (14) / table.grow (15) / table.size (16) / table.fill (17),
-    // plus any future 0xFC sub-opcode. These were decoded to `nop`, silently
-    // dropping the operation — and several popped the WRONG operand count
-    // (memory.init/table.init pop 2 of 3; table.grow/size pop 0 but produce a
-    // result), so re-encoding produced a valid module that omits the op or an
-    // invalid one with a stack imbalance. Either way a silent miscompile. Until
-    // they have real IR support, fail loudly so a consumer (e.g. wasmtk) can
-    // detect the unsupported module instead of receiving garbage.
+    // The eight bulk-memory / table operations. Each pops its operands in
+    // REVERSE, because the last pushed is the last operand.
+    //
+    // 🔧 These all used to `r.error(...)` as unsupported, and before that they
+    // decoded to `nop` — silently dropping the operation, with several popping
+    // the WRONG operand count. The loud refusal was the right interim answer;
+    // it is retired now that the IR can represent every one of them.
+    case 8: { // memory.init
+      const segIdx = r.readU32();
+      r.readU8(); // memidx
+      const size = pop();
+      const offset = pop();
+      const dst = pop();
+      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size));
+      break;
+    }
+    case 9: { // data.drop
+      push(makeDataDrop(dataSegName(r.readU32())));
+      break;
+    }
+    case 12: { // table.init
+      // Segment index FIRST, then table — the reverse of `table.copy`.
+      const segIdx = r.readU32();
+      const tableIdx = r.readU32();
+      const size = pop();
+      const offset = pop();
+      const dst = pop();
+      push(makeTableInit(elemSegName(segIdx), tableName(ctx, tableIdx), dst, offset, size));
+      break;
+    }
+    case 13: { // elem.drop
+      push(makeElemDrop(elemSegName(r.readU32())));
+      break;
+    }
+    case 14: { // table.copy
+      const dstTable = r.readU32();
+      const srcTable = r.readU32();
+      const size = pop();
+      const src = pop();
+      const dst = pop();
+      push(makeTableCopy(tableName(ctx, dstTable), tableName(ctx, srcTable), dst, src, size));
+      break;
+    }
+    case 15: { // table.grow
+      const tableIdx = r.readU32();
+      const delta = pop();
+      const value = pop();
+      push(makeTableGrow(tableName(ctx, tableIdx), value, delta));
+      break;
+    }
+    case 16: { // table.size
+      push(makeTableSize(tableName(ctx, r.readU32())));
+      break;
+    }
+    case 17: { // table.fill
+      const tableIdx = r.readU32();
+      const size = pop();
+      const value = pop();
+      const dst = pop();
+      push(makeTableFill(tableName(ctx, tableIdx), dst, value, size));
+      break;
+    }
+    // Any FUTURE 0xFC sub-opcode. Kept failing loud for the reason the eight
+    // above used to: decoding an unknown op to `nop` drops it silently, and
+    // guessing its operand count corrupts the stack. A consumer can detect an
+    // unsupported module; it cannot detect garbage.
     default:
       r.error(`unsupported bulk-memory/table opcode: ${FC_SUBOP_NAME(sub)}`);
   }

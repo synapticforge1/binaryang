@@ -868,6 +868,39 @@ export interface MemorySizeExpr extends ExprBase {
 
 /** {@link MemoryCopyExpr} — see {@link makeMemoryCopy} for the factory. */
 /**
+ * `table.init` — copy from a passive element segment into a table.
+ *
+ * Both the segment and the table are held by NAME and resolved to indices by
+ * the encoder, like every other cross-section reference in this IR.
+ */
+export interface TableInitExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.TableInit;
+  /** Result type — the value type yielded at runtime. */
+  type: None;
+  /** Name of the element segment to copy from. */
+  segment: string;
+  /** Name of the table to copy into. */
+  table: string;
+  /** Index of the first table slot to write. */
+  dest: Expression;
+  /** Index of the first segment element to read. */
+  offset: Expression;
+  /** How many elements to copy. */
+  size: Expression;
+}
+
+/** `elem.drop` — release a passive element segment's storage. */
+export interface ElemDropExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.ElemDrop;
+  /** Result type — the value type yielded at runtime. */
+  type: None;
+  /** Name of the element segment to drop. */
+  segment: string;
+}
+
+/**
  * `memory.init` — copy from a passive data segment into linear memory.
  *
  * The segment is held by NAME, like every other cross-section reference in this
@@ -1582,6 +1615,8 @@ export type Expression =
   | StoreExpr
   | MemoryGrowExpr
   | MemorySizeExpr
+  | TableInitExpr
+  | ElemDropExpr
   | MemoryInitExpr
   | DataDropExpr
   | TableSizeExpr
@@ -1904,6 +1939,22 @@ export function makeMemorySize(): MemorySizeExpr {
 /** Creates a `memory.grow` expression. */
 export function makeMemoryGrow(delta: Expression): MemoryGrowExpr {
   return { kind: ExpressionKind.MemoryGrow, type: ValType.I32, delta };
+}
+
+/** Creates a `table.init` expression. */
+export function makeTableInit(
+  segment: string,
+  table: string,
+  dest: Expression,
+  offset: Expression,
+  size: Expression,
+): TableInitExpr {
+  return { kind: ExpressionKind.TableInit, type: None, segment, table, dest, offset, size };
+}
+
+/** Creates an `elem.drop` expression. */
+export function makeElemDrop(segment: string): ElemDropExpr {
+  return { kind: ExpressionKind.ElemDrop, type: None, segment };
 }
 
 /** Creates a `memory.init` expression. */

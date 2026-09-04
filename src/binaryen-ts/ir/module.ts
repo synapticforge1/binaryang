@@ -185,12 +185,37 @@ export interface WasmTag {
 /**
  * An element segment (populates a table).
  */
+/**
+ * How an element segment reaches the table — the distinction the binary format
+ * calls the segment's "kind".
+ *
+ * - `active` — copied into its table at instantiation. `offset` says where.
+ * - `passive` — sits unused until a `table.init` copies from it.
+ * - `declarative` — never copied anywhere. It exists so that a `ref.func` for
+ *   the functions it lists is legal; a module using `ref.func` outside a
+ *   function body needs one.
+ *
+ * ⚠️ This field did not exist, and the encoder wrote kind 0 (active, table 0)
+ * unconditionally. Storing a passive or declarative segment would therefore
+ * have emitted it as ACTIVE — writing into the table at instantiation when the
+ * source said it must not — so the parser refused both rather than corrupt a
+ * table. That refusal is what this field lifts.
+ */
+export type ElementSegmentMode = 'active' | 'passive' | 'declarative';
+
 export interface ElementSegment {
   /** Segment name (for WAT output). */
   name: string;
+  /** How the segment reaches its table. */
+  mode: ElementSegmentMode;
   /** Name of the target table that this segment initializes. */
   table: string;
-  /** Offset expression — index into the target table where copying begins. */
+  /**
+   * Offset expression — index into the target table where copying begins.
+   *
+   * Meaningful only when `mode` is `active`; the other two modes have nowhere
+   * to copy to, and carry `null`.
+   */
   offset: Expression | null;
   /** Names of the functions referenced by this segment, in order. */
   data: string[];

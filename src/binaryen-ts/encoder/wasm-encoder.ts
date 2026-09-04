@@ -32,6 +32,7 @@ import {
   type ConstExpr,
   type DataDropExpr,
   type DropExpr,
+  type ElemDropExpr,
   type Expression,
   ExpressionKind,
   type GlobalGetExpr,
@@ -75,6 +76,7 @@ import {
   type TableFillExpr,
   type TableGetExpr,
   type TableGrowExpr,
+  type TableInitExpr,
   type TableSetExpr,
   type TableSizeExpr,
   type ThrowExpr,
@@ -1490,16 +1492,49 @@ class WasmEncoder {
     w.writeU32(this.resolveRef(this.funcIndex, this.mod.start as string, 'start function'));
   }
 
+  /**
+   * The element section, one entry per segment.
+   *
+   * The leading `u32` is a bitfield, not an enum: bit 0 means "not active on
+   * table 0", bit 1 distinguishes passive/declarative from active-with-a-table,
+   * and bit 2 selects element EXPRESSIONS over function indices. Since
+   * `ElementSegment.data` is a list of function names, only the index forms are
+   * reachable here — kinds 0, 1, 2 and 3.
+   *
+   * ⚠️ This used to write kind 0 unconditionally, which is why the parser had to
+   * refuse passive and declarative segments outright: storing one would have
+   * emitted it as ACTIVE and written into the table at instantiation when the
+   * source forbade it. `ElementSegment.mode` is what makes them representable.
+   */
   private encodeElementSection(w: BinaryWriter): void {
     w.writeU32(this.mod.elements.length);
     for (const seg of this.mod.elements) {
-      w.writeU32(0); // kind 0: active, implicit table 0, funcref
-      if (seg.offset) this.encodeInitExpr(w, seg.offset);
-      else {
-        w.writeU8(0x41);
-        w.writeI32(0);
-        w.writeU8(0x0b);
+      const tableIdx = seg.mode === 'active' ? this.tableRefIndex(seg.table) : 0;
+      // Kind 2 (active with an explicit table index) is only needed for a table
+      // other than 0. Preferring kind 0 when we can keeps the common case one
+      // byte shorter and matches what wabt-ts emits.
+      const kind = seg.mode === 'passive'
+        ? 1
+        : seg.mode === 'declarative'
+        ? 3
+        : tableIdx === 0
+        ? 0
+        : 2;
+      w.writeU32(kind);
+
+      if (kind === 2) w.writeU32(tableIdx);
+      if (seg.mode === 'active') {
+        if (seg.offset) this.encodeInitExpr(w, seg.offset);
+        else {
+          w.writeU8(0x41);
+          w.writeI32(0);
+          w.writeU8(0x0b);
+        }
       }
+      // Kinds 1, 2 and 3 carry an elemkind byte before the vector; kind 0 does
+      // not. 0x00 is `funcref`, the only elemkind the index forms allow.
+      if (kind !== 0) w.writeU8(0x00);
+
       w.writeU32(seg.data.length);
       for (const fname of seg.data) {
         w.writeU32(this.resolveRef(this.funcIndex, fname, 'element-segment function'));
@@ -1646,6 +1681,18 @@ class WasmEncoder {
    * `sealFrame`, so it encodes as a correctly-typed block. They are verbose
    * rather than wrong, and are left alone.
    */
+  /**
+   * The index of an element segment, by name.
+   *
+   * Fails loudly on a miss, like every other cross-section reference: silently
+   * emitting index 0 would copy from the WRONG segment, which validates.
+   */
+  private elemSegmentIndex(name: string): number {
+    const i = this.mod.elements.findIndex((e) => e.name === name);
+    if (i < 0) throw new WasmEncodeError(`unresolved element segment reference: "${name}"`);
+    return i;
+  }
+
   /**
    * The index of a data segment, by name.
    *
@@ -1996,6 +2043,28 @@ class WasmEncoder {
         w.writeU8(0x00);
         break;
       }
+      case ExpressionKind.TableInit: {
+        const e = expr as TableInitExpr;
+        this.encodeExpr(w, e.dest, labels);
+        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.size, labels);
+        w.writeU8(0xfc);
+        w.writeU32(12);
+        // Segment index FIRST, then table — the reverse of `table.copy`, whose
+        // two immediates are both tables.
+        w.writeU32(this.elemSegmentIndex(e.segment));
+        w.writeU32(this.tableRefIndex(e.table));
+        break;
+      }
+
+      case ExpressionKind.ElemDrop: {
+        const e = expr as ElemDropExpr;
+        w.writeU8(0xfc);
+        w.writeU32(13);
+        w.writeU32(this.elemSegmentIndex(e.segment));
+        break;
+      }
+
       case ExpressionKind.MemoryInit: {
         const e = expr as MemoryInitExpr;
         this.encodeExpr(w, e.dest, labels);

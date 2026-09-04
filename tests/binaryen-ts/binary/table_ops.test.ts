@@ -243,10 +243,32 @@ Deno.test('element segment: a ref.null entry throws instead of silently shifting
   assertThrows(() => parseWasm(bytes), WasmBinaryError, 'ref.null');
 });
 
-Deno.test('element segment: a passive segment throws instead of being silently discarded', () => {
-  // Element section: 1 segment, flag 1 (passive). Previously parsed-and-dropped
-  // (so a table.init that consumes it found an empty table); now it fails loud.
-  const body = [0x01, 0x01];
+// 🔧 This asserted that a PASSIVE segment was REJECTED. `ElementSegment.mode`
+// now represents one, so it is read rather than refused — and the test checks
+// that it is read CORRECTLY, which is what the refusal was standing in for.
+//
+// The history is worth keeping: a passive segment was once parsed-and-dropped,
+// so a `table.init` consuming it found an empty table. Refusing was better than
+// dropping; representing it is better than refusing.
+Deno.test('element segment: a passive segment is read as passive, not as active', () => {
+  // Element section: 1 segment, flag 1 (passive), elemkind 0x00, no entries.
+  const body = [0x01, 0x01, 0x00, 0x00];
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError, 'only active table-initializer');
+  const mod = parseWasm(bytes);
+  assertEquals(mod.elements.length, 1, 'the segment must survive');
+  assertEquals(mod.elements[0]!.mode, 'passive');
+  // An active segment would have an offset; a passive one has nowhere to copy to.
+  assertEquals(mod.elements[0]!.offset, null, 'a passive segment has no offset');
+});
+
+Deno.test('element segment: a declarative segment is read as declarative', () => {
+  // Flag 3 (declarative) — bit 0 and bit 1. ⚠️ The table-index test was
+  // `flags & 2`, which would have consumed an index this segment does not have;
+  // it is `(flags & 3) === 2` now. That expression was correct only while flags
+  // 3 and 7 were unreachable.
+  const body = [0x01, 0x03, 0x00, 0x00];
+  const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
+  const mod = parseWasm(bytes);
+  assertEquals(mod.elements.length, 1);
+  assertEquals(mod.elements[0]!.mode, 'declarative');
 });

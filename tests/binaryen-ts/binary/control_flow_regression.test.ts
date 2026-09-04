@@ -655,16 +655,24 @@ Deno.test('regression: (if (result i32)) with f64-comparison condition+arms roun
 // Tier 2 — unsupported opcodes must fail loudly, not decode to a silent nop
 // ---------------------------------------------------------------------------
 
-Deno.test('regression: binary parser rejects unsupported memory.init instead of silently dropping it', () => {
-  // 0xFC 0x08 = memory.init. It used to decode to `nop`, silently dropping the
-  // operation AND popping the wrong operand count (2 of 3) — re-encoding then
-  // produced a stack-imbalanced or semantically-wrong module. Now a clear error.
+// 🔧 This asserted that `memory.init` was REJECTED. It is implemented now, so
+// the refusal is gone — but the property the test was protecting is not, and
+// that is what it checks instead: an unsupported 0xFC sub-opcode must still fail
+// loudly rather than decode to a `nop`.
+//
+// ⚠️ The original wording is worth keeping in view: `memory.init` once decoded
+// to `nop`, silently dropping the operation AND popping the wrong operand count
+// (2 of 3), so re-encoding produced a stack-imbalanced or semantically wrong
+// module. The refusal was the right interim answer; retiring it required an
+// implementation, not a deletion.
+Deno.test('regression: an UNKNOWN 0xFC sub-opcode still fails loudly, not as a nop', () => {
   const types = section(1, vec([[0x60, 0x00, 0x00]])); // () -> ()
   const funcs = section(3, vec([[0x00]])); // func 0 : type 0
-  const body = [0x00, 0xfc, 0x08, 0x00, 0x00, 0x0b]; // 0 locals; memory.init 0 0; end
+  // 0xFC 0x7f is not an assigned bulk-memory/table sub-opcode.
+  const body = [0x00, 0xfc, 0x7f, 0x0b];
   const code = section(10, vec([[...leb(body.length), ...body]]));
   const bytes = new Uint8Array([...MAGIC, ...types, ...funcs, ...code]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError, 'memory.init');
+  assertThrows(() => parseWasm(bytes), WasmBinaryError);
 });
 
 Deno.test('regression: binary parser rejects an unknown opcode instead of emitting a silent nop', () => {

@@ -65,6 +65,7 @@ import {
   makeArrayNewFixed,
   makeArraySet,
   makeDataDrop,
+  makeElemDrop,
   makeI31Get,
   makeIf,
   makeMemoryInit,
@@ -95,6 +96,7 @@ import {
   makeTableCopy,
   makeTableFill,
   makeTableGrow,
+  makeTableInit,
   makeTableSize,
   makeThrow,
   makeThrowRef,
@@ -125,7 +127,13 @@ import {
   UnaryOp,
   type UnreachableExpr,
 } from '../ir/expressions.ts';
-import { type Local, ModuleBuilder, type WasmExport, type WasmModule } from '../ir/module.ts';
+import {
+  type ElementSegmentMode,
+  type Local,
+  ModuleBuilder,
+  type WasmExport,
+  type WasmModule,
+} from '../ir/module.ts';
 import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import {
   AbstractHeapType,
@@ -253,6 +261,8 @@ class WatModuleParser {
   private funcOrder: string[] = [];
   /** Data segment names in INDEX order, for numeric `memory.init` references. */
   private dataOrder: string[] = [];
+  /** Element segment names in INDEX order, for numeric `table.init` references. */
+  private elemOrder: string[] = [];
   private globalNames = new Map<string, number>();
   private memoryNames = new Map<string, number>();
   private tableNames = new Map<string, number>();
@@ -1019,6 +1029,27 @@ class WatModuleParser {
     // together for exactly that reason: shipping the instructions without the
     // section produces a module every engine rejects, and the section without
     // the instructions is dead weight.
+    if (head === 'table.init') {
+      // `(table.init $tbl $seg dst off n)` or `(table.init $seg dst off n)` —
+      // the table reference is optional and defaults to table 0. Two leading
+      // refs mean table-then-segment; one means the segment alone.
+      let i = 0;
+      const first = this.namesATable(args[0]) || this.namesAnElem(args[0])
+        ? atomText(args[i++])
+        : null;
+      const second = this.namesAnElem(args[i]) ? atomText(args[i++]) : null;
+      const [tableRef, segRef] = second === null ? [null, first] : [first, second];
+      return makeTableInit(
+        this.elemRefName(segRef ?? '0'),
+        this.tableRefName(tableRef),
+        this.parseExpr(args[i], ctx),
+        this.parseExpr(args[i + 1], ctx),
+        this.parseExpr(args[i + 2], ctx),
+      );
+    }
+    if (head === 'elem.drop') {
+      return makeElemDrop(this.elemRefName(atomText(args[0]) ?? '0'));
+    }
     if (head === 'memory.init') {
       const segment = this.dataRefName(atomText(args[0]) ?? '0');
       const dest = this.parseExpr(args[1], ctx);
@@ -2488,37 +2519,29 @@ class WatModuleParser {
       }
     }
 
-    // ⚠️ Refuse rather than drop. A declarative segment exists so that a later
-    // `ref.func` is legal; dropping it produced a module that ENCODED and then
-    // failed validation downstream with `undeclared reference to function`. That
-    // is strictly worse than the loud refusal `table.init` and `elem.drop` give
-    // for the same underlying gap — `ElementSegment` has `{name, table, offset,
-    // data}` with no mode field, so passive and declarative segments cannot be
-    // represented, and the encoder writes kind 0 unconditionally. Storing one
-    // would emit it as ACTIVE, writing into the table at instantiation when the
-    // source said it must not.
-    if (declarative) {
-      this.err(
-        'declarative element segments are not supported: the IR has no segment ' +
-          'mode, and storing one would emit it as an ACTIVE segment',
-        list.pos,
-      );
-    }
-    // A passive segment (no offset, no `declare`) has the same limitation.
-    if (offset === null) {
-      this.err(
-        'passive element segments are not supported: the IR has no segment mode, ' +
-          'and storing one would emit it as an ACTIVE segment',
-        list.pos,
-      );
-    }
+    // The three modes the binary format distinguishes. `declare` is explicit in
+    // the text; otherwise the presence of an OFFSET separates an active segment
+    // from a passive one, because only an active segment has somewhere to copy
+    // to.
+    //
+    // 🔧 Both non-active modes were REFUSED until `ElementSegment` gained a
+    // `mode` field: the encoder wrote kind 0 unconditionally, so storing one
+    // would have emitted it as ACTIVE — writing into the table at instantiation
+    // when the source forbade it.
+    const mode: ElementSegmentMode = declarative
+      ? 'declarative'
+      : offset === null
+      ? 'passive'
+      : 'active';
 
     this.builder.addElement({
       name,
+      mode,
       table: table ?? this.tableNames.keys().next().value ?? '$table0',
       offset,
       data,
     });
+    this.elemOrder.push(name);
   }
 
   // -------------------------------------------------------------------------
@@ -2644,6 +2667,24 @@ class WatModuleParser {
       }
     }
     return `$tag${ref}`;
+  }
+
+  /** Whether `s` is an atom naming an element segment, or a bare index. */
+  private namesAnElem(s: SExpr | undefined): boolean {
+    if (s?.kind !== 'atom') return false;
+    const raw = (s as Atom).token.raw;
+    if (raw.startsWith('$')) return this.elemOrder.includes(raw);
+    return /^[0-9]+$/.test(raw);
+  }
+
+  /**
+   * The internal name for an element segment reference, which may be a `$name`
+   * or an INDEX. Resolved, not reconstructed — the same rule as functions,
+   * tables and data segments.
+   */
+  private elemRefName(ref: string): string {
+    if (ref.startsWith('$')) return ref;
+    return this.elemOrder[Number(ref)] ?? `$e${ref}`;
   }
 
   /**
