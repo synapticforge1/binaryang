@@ -199,8 +199,6 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'unary':
         return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'convert':
-        return { nargs: 1, nreturns: 1, unreachable: false };
       case 'ref.is_null':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'ref.as_non_null':
@@ -210,8 +208,6 @@ export class ModuleContext {
       case 'table.grow':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'binary':
-        return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'compare':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'load':
         return { nargs: 1, nreturns: 1, unreachable: false };
@@ -286,24 +282,31 @@ export class ModuleContext {
       case 'return':
         return { nargs: this.currentFunc?.sig.results.length ?? 0, nreturns: 0, unreachable: true };
       case 'br':
-        return { nargs: this.getBranchArity(expr.target), nreturns: 0, unreachable: true };
-      case 'br_if':
-        return {
-          nargs: this.getBranchArity(expr.target) + 1,
-          nreturns: this.getBranchArity(expr.target),
-          unreachable: false,
-        };
+        // `br_if` takes one more operand (the condition), leaves the carried
+        // values on the stack, and does NOT make the rest unreachable.
+        return expr.condition !== undefined
+          ? {
+            nargs: this.getBranchArity(expr.target) + 1,
+            nreturns: this.getBranchArity(expr.target),
+            unreachable: false,
+          }
+          : { nargs: this.getBranchArity(expr.target), nreturns: 0, unreachable: true };
       case 'br_table':
         return {
           nargs: this.getBranchArity(expr.defaultTarget) + 1,
           nreturns: 0,
           unreachable: true,
         };
-      case 'br_on_null':
-        return { nargs: 1 + expr.values.length, nreturns: 1, unreachable: false };
-      case 'br_on_non_null':
-        return { nargs: 1 + expr.values.length, nreturns: 0, unreachable: false };
-      case 'br_on_cast':
+      case 'br_on':
+        // `br_on_null` leaves the (now non-null) ref on the stack;
+        // `br_on_non_null` branches away with it. The cast pair takes just
+        // the ref.
+        if (expr.op === 'br_on_null') {
+          return { nargs: 1 + expr.values.length, nreturns: 1, unreachable: false };
+        }
+        if (expr.op === 'br_on_non_null') {
+          return { nargs: 1 + expr.values.length, nreturns: 0, unreachable: false };
+        }
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'block':
       case 'loop':

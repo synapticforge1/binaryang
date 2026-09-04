@@ -48,17 +48,12 @@ import type {
   BlockExpr,
   BlockType,
   BrExpr,
-  BrIfExpr,
-  BrOnCastExpr,
-  BrOnNonNullExpr,
-  BrOnNullExpr,
+  BrOnExpr,
   BrTableExpr,
   CallExpr,
   CallIndirectExpr,
-  CompareExpr,
   Const,
   ConstExpr,
-  ConvertExpr,
   DropExpr,
   Export as WabtExport,
   Expr,
@@ -871,6 +866,31 @@ function bridgeFuncBody(body: Expr[], ctx: BridgeCtx): Expression {
 // Expressions (post-order recursion)
 // ---------------------------------------------------------------------------
 
+/**
+ * The nullness half of `br_on`.
+ *
+ * Split out because the two halves need different things: the cast pair carries
+ * `from`/`to` heap types, the null pair carries none. One IR node, two shapes
+ * behind the sub-op.
+ */
+function bridgeBrOnNull(bn: BrOnExpr, ctx: BridgeCtx): Expression {
+  if (bn.values.length > 0) {
+    // binaryen-ts's BrOn carries only the tested reference, with no slot for
+    // additional branch operands. Refused rather than silently dropped.
+    throw new Error(
+      `Bridge: ${bn.op} with ${bn.values.length} carried value(s) not yet supported`,
+    );
+  }
+  const ref = bridgeExpr(bn.ref, ctx);
+  // Same convention as the cast forms: the node carries the operand's type.
+  return makeBrOn(
+    bn.op === 'br_on_null' ? BrOnOp.Null : BrOnOp.NonNull,
+    resolveLabel(ctx, bn.target),
+    ref,
+    ref.type,
+  );
+}
+
 function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
   switch (e.kind) {
     // --- Leaves -----------------------------------------------------------
@@ -926,20 +946,6 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bridgeExpr(be.left, ctx),
         bridgeExpr(be.right, ctx),
       );
-    }
-    case 'compare': {
-      // binaryen-ts collapses compare into binary (same shape, opcode name carries the semantics).
-      const cmp = e as CompareExpr;
-      return makeBinary(
-        anyOpcodeName(cmp.opcode) as BinaryOp,
-        bridgeExpr(cmp.left, ctx),
-        bridgeExpr(cmp.right, ctx),
-      );
-    }
-    case 'convert': {
-      // binaryen-ts collapses convert into unary.
-      const cv = e as ConvertExpr;
-      return makeUnary(anyOpcodeName(cv.opcode) as UnaryOp, bridgeExpr(cv.operand, ctx));
     }
 
     // --- Stack / value flow -----------------------------------------------
@@ -1039,15 +1045,10 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'br': {
       const br = e as BrExpr;
       const target = resolveLabel(ctx, br.target);
-      return makeBreak(target, null, bridgeBranchValue(br.values, ctx, 'br'));
-    }
-    case 'br_if': {
-      const brIf = e as BrIfExpr;
-      const target = resolveLabel(ctx, brIf.target);
       return makeBreak(
         target,
-        bridgeExpr(brIf.condition, ctx),
-        bridgeBranchValue(brIf.values, ctx, 'br_if'),
+        br.condition !== undefined ? bridgeExpr(br.condition, ctx) : null,
+        bridgeBranchValue(br.values, ctx, br.condition !== undefined ? 'br_if' : 'br'),
       );
     }
     case 'br_table': {
@@ -1368,47 +1369,29 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // binary reader both handle `BrOn`. Only the translation was missing, which is
     // why these four arrive together — they are one enum's worth of cases, not
     // four features.
-    case 'br_on_cast': {
-      const bc = e as BrOnCastExpr;
+    case 'br_on': {
+      const bc = e as BrOnExpr;
+      if (bc.op === 'br_on_null' || bc.op === 'br_on_non_null') return bridgeBrOnNull(bc, ctx);
       // rt1 is the operand's expected type (src), rt2 the type tested for (cast).
-      // `onFail` selects which of the two the branch carries; binaryen encodes
+      // The sub-op selects which of the two the branch carries; binaryen encodes
       // that choice in the op, and keeps both types either way.
-      const src = heapTypeForBridge(bc.from.heapType, ctx);
-      const cast = heapTypeForBridge(bc.to.heapType, ctx);
+      const src = heapTypeForBridge(bc.from!.heapType, ctx);
+      const cast = heapTypeForBridge(bc.to!.heapType, ctx);
       // The node's `type` is the OPERAND's type, matching what the binary reader
       // produces (`makeBrOn(..., ref.type, ht2, ..., ht1, ...)` in wasm-parser).
       // Computing a fallthrough type here instead produced `type mismatch in
       // br_on_cast` — encode and decode have to agree, and the decoder is the
       // side that already round-trips.
-      const ref = bridgeExpr(bc.value, ctx);
+      const ref = bridgeExpr(bc.ref, ctx);
       return makeBrOn(
-        bc.onFail ? BrOnOp.CastFail : BrOnOp.Cast,
+        bc.op === 'br_on_cast_fail' ? BrOnOp.CastFail : BrOnOp.Cast,
         resolveLabel(ctx, bc.target),
         ref,
         ref.type,
         cast,
-        bc.to.nullable,
+        bc.to!.nullable,
         src,
-        bc.from.nullable,
-      );
-    }
-    case 'br_on_null':
-    case 'br_on_non_null': {
-      const bn = e as BrOnNullExpr | BrOnNonNullExpr;
-      if (bn.values.length > 0) {
-        // binaryen-ts's BrOn carries only the tested reference, with no slot for
-        // additional branch operands. Refused rather than silently dropped.
-        throw new Error(
-          `Bridge: ${e.kind} with ${bn.values.length} carried value(s) not yet supported`,
-        );
-      }
-      const ref = bridgeExpr(bn.ref, ctx);
-      // Same convention as the cast forms: the node carries the operand's type.
-      return makeBrOn(
-        e.kind === 'br_on_null' ? BrOnOp.Null : BrOnOp.NonNull,
-        resolveLabel(ctx, bn.target),
-        ref,
-        ref.type,
+        bc.from!.nullable,
       );
     }
 

@@ -26,19 +26,14 @@ import type {
   BlockExpr,
   BlockType,
   BrExpr,
-  BrIfExpr,
-  BrOnCastExpr,
-  BrOnNonNullExpr,
-  BrOnNullExpr,
+  BrOnExpr,
   BrTableExpr,
   CallExpr,
   CallIndirectExpr,
   CallRefExpr,
   Catch,
   CodeMetadataExpr,
-  CompareExpr,
   ConstExpr,
-  ConvertExpr,
   DataDropExpr,
   DropExpr,
   ElemDropExpr,
@@ -542,12 +537,7 @@ class BodyWriter implements ExprVisitorDelegate {
 
   // --- Branches ---
   onBrExpr(e: BrExpr): Result {
-    this.s.writeU8(Opcode.Br);
-    writeVar(this.s, e.target);
-    return Result.Ok;
-  }
-  onBrIfExpr(e: BrIfExpr): Result {
-    this.s.writeU8(Opcode.BrIf);
+    this.s.writeU8(e.condition !== undefined ? Opcode.BrIf : Opcode.Br);
     writeVar(this.s, e.target);
     return Result.Ok;
   }
@@ -556,16 +546,6 @@ class BodyWriter implements ExprVisitorDelegate {
     this.s.writeU32Leb(e.targets.length);
     for (const t of e.targets) writeVar(this.s, t);
     writeVar(this.s, e.defaultTarget);
-    return Result.Ok;
-  }
-  onBrOnNullExpr(e: BrOnNullExpr): Result {
-    this.s.writeU8(Opcode.BrOnNull);
-    writeVar(this.s, e.target);
-    return Result.Ok;
-  }
-  onBrOnNonNullExpr(e: BrOnNonNullExpr): Result {
-    this.s.writeU8(Opcode.BrOnNonNull);
-    writeVar(this.s, e.target);
     return Result.Ok;
   }
 
@@ -625,14 +605,6 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   onBinaryExpr(e: BinaryExpr): Result {
-    writeOpcode(this.s, e.opcode as number);
-    return Result.Ok;
-  }
-  onCompareExpr(e: CompareExpr): Result {
-    writeOpcode(this.s, e.opcode as number);
-    return Result.Ok;
-  }
-  onConvertExpr(e: ConvertExpr): Result {
     writeOpcode(this.s, e.opcode as number);
     return Result.Ok;
   }
@@ -894,15 +866,22 @@ class BodyWriter implements ExprVisitorDelegate {
     writeHeapType(this.s, e.heapType);
     return Result.Ok;
   }
-  onBrOnCastExpr(e: BrOnCastExpr): Result {
+  onBrOnExpr(e: BrOnExpr): Result {
+    // The null pair are single-byte opcodes; the cast pair are GC-prefixed
+    // and carry both heap types. The sub-op says which.
+    if (e.op === 'br_on_null' || e.op === 'br_on_non_null') {
+      this.s.writeU8(e.op === 'br_on_null' ? Opcode.BrOnNull : Opcode.BrOnNonNull);
+      writeVar(this.s, e.target);
+      return Result.Ok;
+    }
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.onFail ? GcOpcode.BrOnCastFail : GcOpcode.BrOnCast);
+    this.s.writeU32Leb(e.op === 'br_on_cast_fail' ? GcOpcode.BrOnCastFail : GcOpcode.BrOnCast);
     // Nullability of BOTH reference types travels in one flags byte rather
     // than in the heap types themselves: bit 0 = rt1 nullable, bit 1 = rt2.
-    this.s.writeU8((e.from.nullable ? 1 : 0) | (e.to.nullable ? 2 : 0));
+    this.s.writeU8((e.from!.nullable ? 1 : 0) | (e.to!.nullable ? 2 : 0));
     writeVar(this.s, e.target);
-    writeHeapType(this.s, e.from.heapType);
-    writeHeapType(this.s, e.to.heapType);
+    writeHeapType(this.s, e.from!.heapType);
+    writeHeapType(this.s, e.to!.heapType);
     return Result.Ok;
   }
 

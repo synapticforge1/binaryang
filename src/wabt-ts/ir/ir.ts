@@ -287,6 +287,16 @@ export interface IfExpr {
 /** `br $label` (0x0c) — unconditional branch to the label-stack `target`. */
 export interface BrExpr {
   readonly kind: 'br';
+  /**
+   * Present iff this is a `br_if`.
+   *
+   * binaryen-ts models the same instruction pair as one `Break` with
+   * `condition: Expression | null`, and the difference really is one operand:
+   * the two branches of every writer here chose between `br` and `br_if` on the
+   * KIND, which is the same fact spelled twice. The opcode follows from the
+   * presence of this field.
+   */
+  readonly condition?: Expr;
   readonly target: Var;
   /**
    * Operands pushed before the branch, in stack order. A branch to a label
@@ -295,20 +305,6 @@ export interface BrExpr {
    * `(func (result i32 f64) (br 0 (i32.const 79) (f64.const 8)))` emitted one
    * operand and V8 rejected it. Same shape as {@link ReturnExpr.values}.
    */
-  readonly values: Expr[];
-  readonly loc: Location;
-}
-/** `br_if $label` (0x0d) — branches when `cond` is non-zero. */
-export interface BrIfExpr {
-  readonly kind: 'br_if';
-  readonly target: Var;
-  /**
-   * The i32 condition. NOTE the operand order: cond is the TOP operand and
-   * the carried values sit BELOW it, which is why it is read from the END of
-   * the operand list (see the parser).
-   */
-  readonly condition: Expr;
-  /** Values carried to the target label, in stack order. See {@link BrExpr.values}. */
   readonly values: Expr[];
   readonly loc: Location;
 }
@@ -332,68 +328,44 @@ export interface BrTableExpr {
   readonly values: Expr[];
   readonly loc: Location;
 }
+/** Which `br_on_*` this is. Mirrors binaryen-ts's `BrOnOp` exactly. */
+export type BrOnOp = 'br_on_null' | 'br_on_non_null' | 'br_on_cast' | 'br_on_cast_fail';
+
 /**
- * `br_on_null $label` (0xd5) — branches if the top ref is null (typed-refs
- * proposal).
+ * The `br_on_*` family: a conditional branch that tests the top reference.
  *
- * Operands are `[t* ref]` with the tested ref on TOP: the target may take
- * `t*` as well, so `values` carries them exactly like {@link BrIfExpr}. The
- * field is `ref`, not `value`, because a one-letter difference from `values`
- * is too easy to misread at a call site.
+ * `br_on_null` (0xd5) and `br_on_non_null` (0xd6) branch on nullness;
+ * `br_on_cast` (0xfb 0x18) and `br_on_cast_fail` (0xfb 0x19) branch on the
+ * runtime type, carrying `from` (`rt1`) and `to` (`rt2`).
+ *
+ * Operands are `[t* ref]` with the tested ref on TOP: the target may take `t*`
+ * as well, so `values` carries them below the ref. The field is `ref`, not
+ * `value`, because a one-letter difference from `values` is too easy to misread
+ * at a call site.
+ *
+ * ⚠️ **The branch carries the OPPOSITE type from the fallthrough for the cast
+ * pair**: `br_on_cast` branches with `rt2` and falls through with the difference
+ * `rt1` minus `rt2`; `br_on_cast_fail` is the other way round.
+ *
+ * These were three kinds — with the cast pair already sharing one kind behind an
+ * `onFail` boolean, which is the same idea half-applied. binaryen-ts models all
+ * four as one node plus a sub-op, and every consumer here already treated the
+ * null pair as a fallthrough pair, so the finer split bought nothing.
  */
-export interface BrOnNullExpr {
-  readonly kind: 'br_on_null';
+export interface BrOnExpr {
+  readonly kind: 'br_on';
+  readonly op: BrOnOp;
+  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. */
+  readonly nodeId?: NodeId;
   readonly target: Var;
   /** The ref being tested — the TOP operand. */
   readonly ref: Expr;
   /** Values carried to the branch target, in stack order, below the ref. */
   readonly values: Expr[];
-  readonly loc: Location;
-}
-/** `br_on_non_null $label` (0xd6) — branches if the top ref is non-null. */
-export interface BrOnNonNullExpr {
-  readonly kind: 'br_on_non_null';
-  readonly target: Var;
-  /** The ref being tested — the TOP operand. */
-  readonly ref: Expr;
-  /** Values carried to the branch target, in stack order, below the ref. */
-  readonly values: Expr[];
-  readonly loc: Location;
-}
-/**
- * `br_on_cast $label rt1 rt2` (0xfb 0x18) and `br_on_cast_fail` (0xfb 0x19).
- *
- * Pops a ref of type `rt1` and branches to `$label` when its runtime type
- * does (`br_on_cast`) or does not (`br_on_cast_fail`) match `rt2`; otherwise
- * the ref stays on the stack and execution falls through. Which of the two
- * paths carries the ref differs — see the `onFail` note below.
- *
- * The two spellings share one IR node because their immediates are
- * identical: a label plus two reference types, encoded on the wire as a
- * single flags byte (bit 0 = `rt1` nullable, bit 1 = `rt2` nullable), the
- * label index, and the two heap types. Splitting them into two kinds would
- * duplicate that immediate handling across six layers for no gain.
- *
- * `from` / `to` are `rt1` / `rt2`. Their `heapType` vars follow the same
- * convention as {@link RefCastExpr}: an abstract-heap-type keyword stays a
- * name-var through `resolveNames`, a `$T` name-var resolves against the type
- * scope.
- */
-export interface BrOnCastExpr {
-  readonly kind: 'br_on_cast';
-  /**
-   * `br_on_cast_fail` when true. Note the branch carries the OPPOSITE type
-   * from the fallthrough in each case: `br_on_cast` branches with `rt2` and
-   * falls through with `rt1
-t2`, `br_on_cast_fail` the other way round.
-   */
-  readonly onFail: boolean;
-  readonly target: Var;
-  /** `rt1` — the type the operand is expected to have. */
-  readonly from: { readonly heapType: Var; readonly nullable: boolean };
-  /** `rt2` — the type being tested for. */
-  readonly to: { readonly heapType: Var; readonly nullable: boolean };
-  readonly value: Expr;
+  /** `rt1` — the type the operand is expected to have. Cast variants only. */
+  readonly from?: { readonly heapType: Var; readonly nullable: boolean };
+  /** `rt2` — the type being tested for. Cast variants only. */
+  readonly to?: { readonly heapType: Var; readonly nullable: boolean };
   readonly loc: Location;
 }
 
@@ -456,21 +428,6 @@ export interface BinaryExpr {
   readonly opcode: Opcode;
   readonly left: Expr;
   readonly right: Expr;
-  readonly loc: Location;
-}
-/** Two-operand comparison (`i32.eq`, `f64.lt`, etc.); pushes i32 (0 / 1). */
-export interface CompareExpr {
-  readonly kind: 'compare';
-  readonly opcode: Opcode;
-  readonly left: Expr;
-  readonly right: Expr;
-  readonly loc: Location;
-}
-/** Numeric type conversion (`i32.wrap_i64`, `f32.convert_i32_s`, etc.). */
-export interface ConvertExpr {
-  readonly kind: 'convert';
-  readonly opcode: Opcode;
-  readonly operand: Expr;
   readonly loc: Location;
 }
 /** Three-operand numeric op (rare; placeholder for relaxed-SIMD ternary instructions). */
@@ -1161,11 +1118,7 @@ export type Expr =
   | LoopExpr
   | IfExpr
   | BrExpr
-  | BrIfExpr
   | BrTableExpr
-  | BrOnNullExpr
-  | BrOnCastExpr
-  | BrOnNonNullExpr
   | ConstExpr
   | LocalGetExpr
   | LocalSetExpr
@@ -1174,8 +1127,6 @@ export type Expr =
   | GlobalSetExpr
   | UnaryExpr
   | BinaryExpr
-  | CompareExpr
-  | ConvertExpr
   | TernaryExpr
   | QuaternaryExpr
   | LoadExpr
@@ -1228,6 +1179,7 @@ export type Expr =
   | ThrowExpr
   | ThrowRefExpr
   | RethrowExpr
+  | BrOnExpr
   | TryExpr
   | TryTableExpr
   | SimdLaneOpExpr

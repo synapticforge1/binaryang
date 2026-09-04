@@ -37,19 +37,14 @@ import type {
   BinaryExpr,
   BlockExpr,
   BrExpr,
-  BrIfExpr,
-  BrOnCastExpr,
-  BrOnNonNullExpr,
-  BrOnNullExpr,
+  BrOnExpr,
   BrTableExpr,
   CallExpr,
   CallIndirectExpr,
   CallRefExpr,
   Catch,
   CodeMetadataExpr,
-  CompareExpr,
   ConstExpr,
-  ConvertExpr,
   DataDropExpr,
   DropExpr,
   ElemDropExpr,
@@ -689,31 +684,34 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onBrExpr(e: BrExpr): Result {
-    return this.sv.onBr(e.loc, varIdx(e.target));
+    // A `br` carrying a condition IS `br_if`; the opcode follows the field.
+    return e.condition !== undefined
+      ? this.sv.onBrIf(e.loc, varIdx(e.target))
+      : this.sv.onBr(e.loc, varIdx(e.target));
   }
-  onBrIfExpr(e: BrIfExpr): Result {
-    return this.sv.onBrIf(e.loc, varIdx(e.target));
-  }
-  onBrOnNullExpr(e: BrOnNullExpr): Result {
-    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onBrOnNull(e.loc, varIdx(e.target));
-  }
-  onBrOnCastExpr(e: BrOnCastExpr): Result {
+  onBrOnExpr(e: BrOnExpr): Result {
+    // The null pair is typed function references; the cast pair is GC.
+    // One node, two feature gates, chosen by the sub-op.
+    if (e.op === 'br_on_null' || e.op === 'br_on_non_null') {
+      const rn = this.sv.requireFeature(
+        'functionReferences',
+        'typed function reference',
+        e.loc,
+      );
+      if (rn !== Result.Ok) this.acc(rn);
+      return e.op === 'br_on_null'
+        ? this.sv.onBrOnNull(e.loc, varIdx(e.target))
+        : this.sv.onBrOnNonNull(e.loc, varIdx(e.target));
+    }
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onBrOnCast(
       e.loc,
       varIdx(e.target),
-      e.onFail,
-      { kind: 'ref', heapType: e.from.heapType, nullable: e.from.nullable },
-      { kind: 'ref', heapType: e.to.heapType, nullable: e.to.nullable },
+      e.op === 'br_on_cast_fail',
+      { kind: 'ref', heapType: e.from!.heapType, nullable: e.from!.nullable },
+      { kind: 'ref', heapType: e.to!.heapType, nullable: e.to!.nullable },
     );
-  }
-  onBrOnNonNullExpr(e: BrOnNonNullExpr): Result {
-    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onBrOnNonNull(e.loc, varIdx(e.target));
   }
 
   onBrTableExpr(e: BrTableExpr): Result {
@@ -781,14 +779,6 @@ class ModuleValidator implements ExprVisitorDelegate {
   onBinaryExpr(e: BinaryExpr): Result {
     this.gateOpcode(e.opcode as unknown as number, e.loc);
     return this.sv.onBinary(e.loc, e.opcode);
-  }
-  onCompareExpr(e: CompareExpr): Result {
-    this.gateOpcode(e.opcode as unknown as number, e.loc);
-    return this.sv.onCompare(e.loc, e.opcode);
-  }
-  onConvertExpr(e: ConvertExpr): Result {
-    this.gateOpcode(e.opcode as unknown as number, e.loc);
-    return this.sv.onConvert(e.loc, e.opcode);
   }
   onTernaryExpr(e: TernaryExpr): Result {
     this.gateOpcode(e.opcode as unknown as number, e.loc);
