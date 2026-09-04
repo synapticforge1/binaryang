@@ -359,7 +359,7 @@ that had never run**:
 
 Also confirmed: no corpus file fails to assemble, and all 421 are engine-valid.
 
-### ⬚ C10 — we emit a form we cannot read
+### C10 — we emitted a form we could not read
 
 **`wasm2wat --linear` output is not re-readable by binaryen-ts**, on any module.
 `unexpected atom in expression` — the bare stack form.
@@ -373,16 +373,58 @@ argument that justified flipping the fold default in 1.5.4 — _"nothing that co
 could consume our output"_ — pointed the other way. `--linear` is a supported, documented option, so
 the round trip through it is a hole in our own surface.
 
-**Not started, and not small.** The parser accepts a parenthesised `(local.set 0)` and claims ONE
-stack operand; bare linear needs a second parsing mode, and lifting the single-claim bound needs an
-instruction ARITY table (wabt-ts has `instrInputCount`). Scope and staging are already written up in
-[ir-convergence.md](ir-convergence.md).
+### ✅ C10 — addressed by ROUTING, `ab90d7beb`
+
+Not by writing a second parser. Teaching binaryen-ts bare linear form directly would need an
+instruction ARITY table, an immediates table, and a structural pass to rebuild nesting from `end`
+markers — 123 distinct instruction names, all of which already exist, correct and tested, in
+wabt-ts's parser. A second implementation would be the "one fact in two places" shape at the scale
+of an entire instruction set.
+
+`parseWatAnyForm` (`src/bridge/parse-wat.ts`) tries the native folded parser first, then falls back
+to wabt-ts + the bridge. It lives in the bridge because binaryen-ts imports nothing from wabt-ts,
+and the bridge is the one place allowed to know both. **Linear input: 0/421 → 416/421 parsed, 397
+validating.** Folded is untouched at 421/421 byte-identical.
+
+Getting there meant taking the bridge from 103/421 to 421/421, and **four of the six gaps were STALE
+blockers** — claims about binaryen-ts's state that nothing rechecks when binaryen-ts moves:
+
+| blocker                                     | reality                                                      |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| "needs binaryen-ts `makeTupleMake`"         | it exists                                                    |
+| "absent in binaryen-ts v1.0.9"              | several releases stale                                       |
+| "binaryen-ts v1.0.9 has no tag export kind" | it has one                                                   |
+| "binaryen-ts has no if label slot"          | `IfExpr.name` exists — **and this alone refused 417 of 421** |
+
+🔑 **A blocker naming a version is a dated assertion, not an invariant.** Four of them sat
+unexamined long enough to make a whole route look impossible.
+
+### 🛑 C10a — the 24 remaining modules — CLOSED, merged into S6
+
+The shortfall: 5 modules fail to encode, 19 produce modules that fail validation (stack imbalance,
+operand type mismatches). Pre-existing bridge defects this work EXPOSED, not regressions — the
+bridge was barely exercised before.
+
+**Owner decision 2026-09-02: do not fix these. They merge into S6 of the IR convergence.**
+
+The reason is measured, not assumed. For a representative failing module:
+
+|                                  |                          |
+| -------------------------------- | ------------------------ |
+| wabt-ts parses the linear WAT    | 0 errors                 |
+| wabt-ts's OWN encoder on that IR | **VALID** (3693 bytes)   |
+| the SAME IR through the bridge   | **INVALID** (3683 bytes) |
+
+So the IR is sound on both sides; the fault is entirely in the TRANSLATION. **S6 deletes the
+translator** (`bridge.ts`, 1,935 lines, plus 13 test files), so these dissolve rather than being
+fixed. ⚠️ **Do not re-open C10a as a defect** — debugging a translator that a planned step removes
+is work with a deliberately short half-life. If S6 is ever abandoned, C10a comes back with it.
 
 ### Where 1.5.5 stands after pass 7
 
-**Every invariant is saturated at 421/421, including four classes that had never been run.** The
-register holds one item, C10, and it is a known capability gap with a written plan rather than
-something the hunt uncovered.
+**Every invariant is saturated at 421/421, including four classes that had never been run.** C10 is
+addressed and C10a is closed into S6, so **the register is empty** — 1.5.5's code lens has nothing
+outstanding that the hunt found.
 
 ## Where the numbers live
 
