@@ -338,6 +338,52 @@ Semantically irrelevant — exports are looked up by unique name, and the interf
 421/421 — but it is the last byte difference, and it is a one-line-per-site fix (collect a
 function's inline exports when the declaration is seen, not when its body is built).
 
+### Pass 7 — 2026-09-02, `a38febfc6`
+
+**The export-order fix took the corpus to 421/421 byte-identical, delta zero.** It was in WHEN a
+thing was recorded, not what: every declaration kind registered its inline export in the parser's
+FIRST pass, while a function's waited for `buildFunc` in the THIRD, so a function's export always
+landed after every other kind's. ⚠️ **No check that inspected exports as a SET could see it** — the
+interface comparison passed 421/421 the whole time. It took a byte comparison.
+
+Then, since the existing battery is saturated and re-running it proves nothing, **five probe classes
+that had never run**:
+
+| # | probe                                                                | result        |
+| - | -------------------------------------------------------------------- | ------------- |
+| 1 | the BINARY reader path: bytes → binaryen-ts IR → bytes               | 421 / 421 ✅  |
+| 2 | that binary round trip is a **fixpoint**                             | 421 / 421 ✅  |
+| 3 | the WAT round trip is a **fixpoint**                                 | 421 / 421 ✅  |
+| 4 | the two FRONT ENDS agree — same module read from bytes and from text | 421 / 421 ✅  |
+| 5 | **binaryen-ts re-reads our LINEAR output**                           | **0 / 421** ⬚ |
+
+Also confirmed: no corpus file fails to assemble, and all 421 are engine-valid.
+
+### ⬚ C10 — we emit a form we cannot read
+
+**`wasm2wat --linear` output is not re-readable by binaryen-ts**, on any module.
+`unexpected atom in expression` — the bare stack form.
+
+This is the gap `cmem/ir-convergence.md` scopes, and it is a **capability gap that fails loud**, not
+a silent defect — so under this file's lens rules it is the same class as C2 was. But it is worth
+stating in the sharpest form:
+
+🔑 **binaryang emits a text form that binaryang cannot read.** That asymmetry is exactly the
+argument that justified flipping the fold default in 1.5.4 — _"nothing that consumes folded WAT
+could consume our output"_ — pointed the other way. `--linear` is a supported, documented option, so
+the round trip through it is a hole in our own surface.
+
+**Not started, and not small.** The parser accepts a parenthesised `(local.set 0)` and claims ONE
+stack operand; bare linear needs a second parsing mode, and lifting the single-claim bound needs an
+instruction ARITY table (wabt-ts has `instrInputCount`). Scope and staging are already written up in
+[ir-convergence.md](ir-convergence.md).
+
+### Where 1.5.5 stands after pass 7
+
+**Every invariant is saturated at 421/421, including four classes that had never been run.** The
+register holds one item, C10, and it is a known capability gap with a written plan rather than
+something the hunt uncovered.
+
 ## Where the numbers live
 
 `cmem/open-work.md` holds the release-facing list. This file holds the pass bookkeeping, because
