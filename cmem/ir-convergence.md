@@ -609,6 +609,29 @@ other.
 wabt-ts tree acquires binaryen-ts's types today. That derivation has to survive the deletion as a
 pass over the unified tree, or binaryen-ts's passes get nodes with no `type` to dispatch on.
 
+#### 🛑 And a THIRD axis: the two sides represent an operator differently
+
+|                 |                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------- |
+| **wabt-ts**     | 17 kinds carry `opcode: Opcode` — ONE numeric enum whose values are the wire bytes |
+| **binaryen-ts** | 11 kinds carry `op: <Family>Op` — ELEVEN string enums, one per family              |
+
+So `ternary` and `simd.ternary` have the _same shape_ — `{a, b, c}` — and still cannot be one type,
+because one carries `opcode: Opcode` (a number) and the other `op: SIMDTernaryOp` (a string). That
+pattern repeats across every operator-carrying kind, and it is invisible in a kind-name diff.
+
+**Neither binds on fidelity**, which `deno task operators` already proved: 313 operator values all
+name real instructions, and 128 numeric opcodes are all representable. The trade is elsewhere —
+numeric costs readability in the 64 operator dispatches of `optimize-instructions.ts`; string costs
+a lookup on every write in wabt-ts's two writers. The gate makes either direction safe, which is
+exactly what it was built for.
+
+⚠️ **The SIMD grouping also runs the OTHER way from S4's.** wabt-ts's `simd_lane_op` merges what
+binaryen-ts splits into `simd.extract` / `simd.replace`, using the same optional-field trick S4
+adopted for `br` + `condition?`. So the worst-condition question has to be asked per family here,
+not answered once — S4's "binaryen-ts coarser" holds for arithmetic and branches and is false for
+SIMD.
+
 #### Measured size of what remains
 
 |                                            |              |
@@ -623,11 +646,13 @@ pass over the unified tree, or binaryen-ts's passes get nodes with no `type` to 
 independently verifiable against `deno task bridge`, the byte baseline and the spec suite — rather
 than attempted as one change. The natural stages, in dependency order:
 
-1. reconcile the 27 one-sided kinds (S5's remainder, done here rather than twice)
-2. make the node base carry `loc?` and `type?`
-3. converge the six name pairs, which the type unification settles
-4. alias one `Expression` to the other and delete the bridge
-5. `deno task bridge` reaches 421/421 — the acceptance criterion
+1. settle the operator representation, since it blocks even same-shape kinds like `ternary`
+2. reconcile the 27 one-sided kinds (S5's remainder, done here rather than twice)
+3. make the node base carry `loc?` and `type?`
+4. converge the six name pairs, which the type unification settles
+5. alias one `Expression` to the other and delete the bridge, carrying its type derivation forward
+   as a pass
+6. `deno task bridge` reaches 421/421 — the acceptance criterion
 
 Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
 become unnecessary.
