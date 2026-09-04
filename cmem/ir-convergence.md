@@ -560,7 +560,74 @@ Each remaining one is an S4-shaped merge — a regrouping with a sub-op, or a ca
 lacks — not a rename. They are listed so the next step starts from the measurement rather than from
 the original eleven.
 
-### S6 — unify the type, delete the bridge
+### S6 — unify the type, delete the bridge 🚧 gate built, premises verified
+
+#### 🔬 Ground truth established 2026-09-04, before any unification
+
+**The gate exists now**: `deno task bridge` (`scripts/check-bridge-corpus.ts`) runs the real
+pipeline — parse, `resolveNames`, `synthesizeTypes`, bridge, binaryen-ts encode — and uses the
+ENGINE as the oracle. Current state **397 / 421**, which reproduces C10a's recorded "5 fail to
+encode, 19 fail validation" exactly. The 24 was a remembered number; it is now a measured one.
+
+It reports the engine's actual complaint instead of a bare boolean, turning 24 opaque failures into
+three root causes:
+
+```
+17x  expected N elements on the stack for fallthru, found N
+ 5x  cannot encode store with value type: none
+ 2x  expected type fN, found local.get of type iN
+```
+
+✅ **C10a's diagnosis CHECKS OUT — against all 24, not the one module it was recorded from.**
+wabt-ts's own path produces a valid module for 24 of 24; only the bridge path fails. The fault is
+entirely in the translation, so deleting it should dissolve them.
+
+⚠️ **An earlier probe said the opposite, and it was wrong.** It omitted `synthesizeTypes`, so
+wabt-ts's own encoder appeared to fail too — which would have falsified the premise for deleting
+2,000 lines. `wat2wasm` is parse → `resolveNames` → `synthesizeTypes` → write. 🔑 A pipeline probe
+that skips a stage does not measure the pipeline; it measures a program that does not exist.
+
+#### 🛑 The plan omits the largest structural difference: the two node bases are DISJOINT
+
+|                 | `loc` (source position) | `type` (result type)          |
+| --------------- | ----------------------- | ----------------------------- |
+| **wabt-ts**     | on all 88 node kinds    | **0 nodes**                   |
+| **binaryen-ts** | **0 mentions**          | on every node, via `ExprBase` |
+
+"Only now is there one `Expression`" passes over this entirely. Neither side has the other's field,
+and each is load-bearing for its own half: `loc` is how every wabt-ts diagnostic points at source,
+and `type` is what every binaryen-ts pass dispatches on.
+
+**The resolution follows S3's precedent rather than needing a new principle.** `type` is not
+independent data — `makeBinary` calls `inferBinaryType(op)`, so it is a MEMOISED DERIVATION computed
+at construction. So the unified node carries both fields optional, each populated by the phase that
+needs it, and absent means "derive it" — exactly the rule S3 established for the fidelity table.
+Fidelity operations set and read `loc`; optimization sets and reads `type`; neither pays for the
+other.
+
+⚠️ **This means "delete the bridge" is not only deleting a translator.** The bridge is also where a
+wabt-ts tree acquires binaryen-ts's types today. That derivation has to survive the deletion as a
+pass over the unified tree, or binaryen-ts's passes get nodes with no `type` to dispatch on.
+
+#### Measured size of what remains
+
+|                                            |              |
+| ------------------------------------------ | ------------ |
+| files importing wabt-ts's `Expr`           | 25           |
+| files importing binaryen-ts's `Expression` | 32           |
+| lines in the two IR modules + bridge       | 6,346        |
+| one-sided kinds still to reconcile         | 27 (from S5) |
+| name pairs inherited from S2               | 6            |
+
+**This is larger than S2–S5 combined.** It should be staged the way they were — each stage
+independently verifiable against `deno task bridge`, the byte baseline and the spec suite — rather
+than attempted as one change. The natural stages, in dependency order:
+
+1. reconcile the 27 one-sided kinds (S5's remainder, done here rather than twice)
+2. make the node base carry `loc?` and `type?`
+3. converge the six name pairs, which the type unification settles
+4. alias one `Expression` to the other and delete the bridge
+5. `deno task bridge` reaches 421/421 — the acceptance criterion
 
 Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
 become unnecessary.
