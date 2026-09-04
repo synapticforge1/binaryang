@@ -1726,7 +1726,10 @@ export class BinaryReader {
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'select', val1, val2, condition: cond_, resultType: [], loc });
+          // A bare `select`: the as-written fact is that NO result type was
+          // spelled, which the empty list records.
+          const nodeId = m.fidelity.record({ selectResultType: [] });
+          stack.push({ kind: 'select', val1, val2, condition: cond_, resultType: [], loc, nodeId });
           break;
         }
         case Opcode.SelectT: {
@@ -1736,7 +1739,8 @@ export class BinaryReader {
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'select', val1, val2, condition: cond_, resultType, loc });
+          const nodeId = m.fidelity.record({ selectResultType: resultType });
+          stack.push({ kind: 'select', val1, val2, condition: cond_, resultType, loc, nodeId });
           break;
         }
 

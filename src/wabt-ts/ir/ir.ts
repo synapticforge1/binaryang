@@ -21,6 +21,8 @@ import { Type, typeName } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { Opcode } from '../core/opcode.ts';
+import { FidelityTable } from './fidelity.ts';
+import type { NodeId } from './fidelity.ts';
 
 // Re-export so consumers can import everything from this module.
 export { Opcode };
@@ -232,6 +234,12 @@ export interface DropExpr {
 /** `select` (0x1b / 0x1c) — picks `val1` or `val2` based on a non-zero `cond`. */
 export interface SelectExpr {
   readonly kind: 'select';
+  /**
+   * Handle into {@link Module.fidelity}, where the as-written result type is
+   * recorded. Optional: a node built by a pass has none, and no entry, which
+   * means "derive it".
+   */
+  readonly nodeId?: NodeId;
   readonly val1: Expr;
   readonly val2: Expr;
   readonly condition: Expr;
@@ -1622,6 +1630,15 @@ export interface Module {
   // Section layout metadata (byte offsets, sizes — for wasm-objdump)
   sectionMeta: SectionMeta[];
 
+  /**
+   * As-written metadata, held beside the tree rather than in its nodes.
+   *
+   * Read and written by wabt-ts's fidelity operations; dropped wholesale by
+   * binaryen-ts's passes, because an optimized module has no original to be
+   * faithful to. See `fidelity.ts`.
+   */
+  fidelity: FidelityTable;
+
   // Features used by this module (tracked during decode)
   featuresUsed: {
     simd: boolean;
@@ -1655,6 +1672,7 @@ export function makeModule(): Module {
     numGlobalImports: 0,
     numTagImports: 0,
     sectionMeta: [],
+    fidelity: new FidelityTable(),
     featuresUsed: { simd: false, exceptions: false, threads: false, tailcall: false, gc: false },
   };
 }

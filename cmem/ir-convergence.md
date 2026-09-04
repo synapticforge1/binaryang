@@ -381,16 +381,77 @@ what caught it.
 (421/421, no emitted byte changed), 944 tests passing, `operators` TOTAL, spec suite 100% on all
 four axes (1955 accepted, 2422 invalid rejected, 711 malformed binary, 1156 malformed text).
 
-### S3 — the side table
+### S3 — the side table 🚧 mechanism landed, families outstanding
+
+**Landed 2026-09-04**: `src/wabt-ts/ir/fidelity.ts` (`NodeId`, `FidelityEntry`, `FidelityTable`),
+`Module.fidelity` populated by `makeModule()` so reader and parser share one table, and
+`select.resultType` recorded by the BINARY READER as the pilot family. Verified with baseline
+`IDENTICAL`, 947 tests, spec suite 100% on four axes.
+
+**Outstanding**: the WAT parser side of `select`, then `blockType`, `opcode` on load/store,
+`memidx`, `typeUse`/`typeVar`/`sig`, `placeholder`, and `type`-as-declared. Each moves the same way
+and is proven the same way, because a missing entry degrades to "derive it".
+
+⚠️ **The as-written set is not decorative, and that was a wrong assumption worth correcting.** Every
+candidate checked — `select.resultType` (a different opcode, `0x1c` vs `0x1b`), `typeUse` (decides
+whether `synthesizeTypes` creates a type-section entry), `memidx`, `align` — affects the emitted
+bytes or the type section. The criterion for belonging here is NOT "the tree does not need it". It
+is **"binaryen-ts can derive an equivalent, and after optimization the original is gone"**. So the
+pilot proves SURVIVAL through the pipeline, not deletion from the node; removing the node field is a
+separate, later step for each family.
 
 Define it, and move the as-written set into it: `blockType`, `opcode` on load/store, `memidx`,
-`typeUse`/`typeVar`/`sig`, `select.resultType`, `placeholder`, and `type`-as-declared.
+`typeUse`/`typeVar`/`sig`, `select.resultType`, `placeholder`, and `type`-as-declared. 72 field
+declarations across 93 expression kinds.
 
 ⚠️ **`values` vs `value` on `br`/`return` is NOT a side-table entry** — it is a real arity
 difference, already resolved in the tree by `TupleMake`. Do not sweep it in.
 
-Keyed by node identity, so a pass that rewrites a subtree simply loses the entries for what it
-replaced, which is the correct semantics.
+#### 🔧 The key was wrong — corrected 2026-09-04, by measurement
+
+This step said: _"keyed by node identity, so a pass that rewrites a subtree simply loses the entries
+for what it replaced, which is the correct semantics."_ It is the correct semantics. **It is not an
+achievable key in wabt-ts**, and the reason is visible in the source rather than in theory.
+
+wabt-ts's IR is immutable — 492 `readonly` fields — so its passes rebuild nodes by spread rather
+than mutating them: `resolveNames` has 75 spread rebuilds and `applyNames` 25. **A spread mints a
+new object, so it mints a new identity**, even when the pass is semantically identity-preserving.
+Resolving `$x` to `0` is the same instruction at the same place, and it lands in a different object.
+
+Measured on a five-instruction module, with a `WeakMap` standing in for the side table:
+
+```
+nodes before resolveNames : 8
+nodes after               : 8
+entries that SURVIVED     : 2 / 8
+```
+
+🔑 **An identity-keyed table would be emptied by the very pipeline that needs it.** Not by an
+optimizing pass legitimately discarding fidelity — by name resolution, which every parsed module
+goes through before it is written. The failure is also silent: entries vanish and the writer falls
+back to derived values, so the output stays valid and merely stops being faithful.
+
+#### The key that does hold: an opaque, spread-preserved id
+
+`readonly nodeId?: NodeId` on the node; the table is `Map<NodeId, FidelityEntry>` beside the module.
+
+- **Spread preserves it for free.** `{ ...e, condition }` copies `nodeId` with everything else, so
+  all 100 existing rebuild sites keep working with no change and none can forget.
+- **A genuine construction mints a fresh node with no id**, so a pass that builds a replacement
+  correctly has no entry — the semantics S3 wanted, arrived at from the other direction.
+- **The shared tree pays one optional opaque field, not twelve semantic ones.** That is the actual
+  goal: after S6, binaryen-ts's passes must not have to preserve or understand wabt-ts's as-written
+  data. Ignoring one field they never read is free.
+
+⚠️ **This is a weaker guarantee than the plan assumed, and the difference is worth stating.** A
+binaryen-ts pass that rewrites a node BY SPREAD keeps the id and so keeps the entry, which is stale.
+That is acceptable only because the design already says optimization DROPS the whole table — an
+optimized module has no original to be faithful to. If that ever stops being true, this key stops
+being sufficient.
+
+**Degradation is safe by construction**: a missing entry means the writer derives the value, which
+is what it does today for everything. So the move can be done one family at a time, each proven by
+baseline `IDENTICAL`.
 
 ### S4 — adopt the coarse grouping
 
