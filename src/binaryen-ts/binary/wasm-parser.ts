@@ -47,6 +47,7 @@ import {
   makeMemorySize,
   makeNop,
   makePop,
+  makeQuaternary,
   makeRefAsNonNull,
   makeRefFunc,
   makeRefIsNull,
@@ -78,6 +79,7 @@ import {
   makeUnary,
   makeUnreachable,
   makeV128Const,
+  QuaternaryOp,
   SIMDExtractOp,
   SIMDLoadOp,
   SIMDLoadStoreLaneOp,
@@ -2785,6 +2787,38 @@ function decodeMiscPrefix(
     // above used to: decoding an unknown op to `nop` drops it silently, and
     // guessing its operand count corrupts the stack. A consumer can detect an
     // unsupported module; it cannot detect garbage.
+    // --- Wide arithmetic (0xfc 0x13-0x16) --------------------------------
+    //
+    // Four i64 in and two out for add128/sub128; two in and two out for the
+    // mul_wide pair. Operands pop in REVERSE, last-pushed first.
+    case 19: // i64.add128
+    case 20: { // i64.sub128
+      const d = pop();
+      const c = pop();
+      const b = pop();
+      const a = pop();
+      push(makeQuaternary(
+        sub === 19 ? QuaternaryOp.Add128 : QuaternaryOp.Sub128,
+        a,
+        b,
+        c,
+        d,
+      ));
+      break;
+    }
+    case 21: // i64.mul_wide_s
+    case 22: { // i64.mul_wide_u
+      const right = pop();
+      const left = pop();
+      // Two results, so the node's type is a tuple rather than a value type.
+      const mul = makeBinary(
+        sub === 21 ? BinaryOp.MulWideSInt64 : BinaryOp.MulWideUInt64,
+        left,
+        right,
+      );
+      push({ ...mul, type: [ValType.I64, ValType.I64] });
+      break;
+    }
     default:
       r.error(`unsupported bulk-memory/table opcode: ${FC_SUBOP_NAME(sub)}`);
   }

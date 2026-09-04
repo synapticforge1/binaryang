@@ -175,38 +175,39 @@ export interface NopExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly loc: Location;
-  /**
-   * True when this node was SYNTHESIZED to fill an operand slot, rather than
-   * decoded from a `nop` the source actually contains.
-   *
-   * Both decoders build a TREE from a stack machine, so every operand slot
-   * has to be filled with something. When the value that belongs in a slot is
-   * not on the decoder's operand stack — most often because the producer is a
-   * multi-result `call`, which is one node on that stack however many values
-   * it pushes — the slot gets one of these instead.
-   *
-   * Neither writer emits a placeholder: it stands for "the value is already
-   * on the stack", which in wasm is spelled by writing nothing. Emitting a
-   * real `nop` there is inert (a nop pushes nothing, so the consuming
-   * instruction still finds its operand) but it is a byte that was not in the
-   * input, and the next round trip adds another — the encoding grows without
-   * bound (T10.8).
-   *
-   * An explicitly written `(local.set $x (nop))` is NOT a placeholder. It is
-   * invalid wasm and must stay invalid; see the T11 rule that an encoder never
-   * repairs its input.
-   */
-  readonly placeholder?: boolean;
 }
 
 /**
- * Build the {@link NopExpr} that stands in for an operand a decoder could not
- * attribute a value to. Use this rather than a bare `{ kind: 'nop' }` — the
- * writers rely on the marker to tell a synthesized slot-filler from a `nop`
- * the source really wrote.
+ * `pop` — a value that is ALREADY on the stack, not an instruction.
+ *
+ * Both decoders build a TREE from a stack machine, so every operand slot has to
+ * be filled with something. When the value that belongs in a slot is not on the
+ * decoder's operand stack — most often because the producer is a multi-result
+ * `call`, which is one node on that stack however many values it pushes — the
+ * slot gets one of these.
+ *
+ * Neither writer emits it: "the value is already on the stack" is spelled in
+ * wasm by writing nothing.
+ *
+ * 🔑 **This was a `nop` carrying a `placeholder: boolean`, which was the same
+ * idea under a worse name.** binaryen-ts already had `Pop` — _"a
+ * pseudo-instruction; not emitted in the binary format"_ — so the two IRs had
+ * one mechanism under two spellings, and the boolean made a synthesized slot
+ * filler indistinguishable from a real `nop` to anything that forgot to check
+ * it. An explicitly written `(local.set $x (nop))` is a real `nop`: invalid
+ * wasm that must stay invalid, and now it cannot be confused for this.
  */
-export function operandPlaceholder(loc: Location): NopExpr {
-  return { kind: 'nop', loc, placeholder: true };
+export interface PopExpr {
+  readonly kind: 'pop';
+  readonly loc: Location;
+}
+
+/**
+ * Build the {@link PopExpr} that stands in for an operand a decoder could not
+ * attribute a value to.
+ */
+export function operandPlaceholder(loc: Location): PopExpr {
+  return { kind: 'pop', loc };
 }
 /** `unreachable` (0x00) — traps unconditionally. Type-stack becomes polymorphic. */
 export interface UnreachableExpr {
@@ -963,7 +964,7 @@ export interface SimdLaneOpExpr {
 }
 /** SIMD `i8x16.shuffle` — permutes 32 bytes from two v128 operands via 16 lane indices. */
 export interface SimdShuffleOpExpr {
-  readonly kind: 'simd_shuffle';
+  readonly kind: 'simd.shuffle';
   readonly opcode: Opcode;
   readonly lanes: Uint8Array; // 16 lane indices
   readonly left: Expr;
@@ -1039,7 +1040,7 @@ export interface AtomicStoreExpr {
 }
 /** Atomic read-modify-write (`i32.atomic.rmw.add`, etc.) — pops value, returns the prior memory contents. */
 export interface AtomicRmwExpr {
-  readonly kind: 'atomic_rmw';
+  readonly kind: 'atomic.rmw';
   readonly opcode: Opcode;
   readonly align: number;
   readonly offset: bigint;
@@ -1050,7 +1051,7 @@ export interface AtomicRmwExpr {
 }
 /** Atomic compare-exchange — writes `replacement` iff memory matches `expected`; returns the old value. */
 export interface AtomicRmwCmpxchgExpr {
-  readonly kind: 'atomic_rmw_cmpxchg';
+  readonly kind: 'atomic.cmpxchg';
   readonly opcode: Opcode;
   readonly align: number;
   readonly offset: bigint;
@@ -1062,7 +1063,7 @@ export interface AtomicRmwCmpxchgExpr {
 }
 /** `memory.atomic.wait{32,64}` — blocks until memory at `address` changes or timeout expires. */
 export interface AtomicWaitExpr {
-  readonly kind: 'atomic_wait';
+  readonly kind: 'atomic.wait';
   readonly opcode: Opcode;
   readonly align: number;
   readonly offset: bigint;
@@ -1074,7 +1075,7 @@ export interface AtomicWaitExpr {
 }
 /** `memory.atomic.notify` — wakes up to `count` waiters blocked on `address`. */
 export interface AtomicNotifyExpr {
-  readonly kind: 'atomic_notify';
+  readonly kind: 'atomic.notify';
   readonly align: number;
   readonly offset: bigint;
   readonly memidx: Var;
@@ -1084,7 +1085,7 @@ export interface AtomicNotifyExpr {
 }
 /** `atomic.fence` (0xfe 0x03) — memory fence; `consistencyModel` is always 0 currently. */
 export interface AtomicFenceExpr {
-  readonly kind: 'atomic_fence';
+  readonly kind: 'atomic.fence';
   readonly consistencyModel: number;
   readonly loc: Location;
 }
@@ -1110,6 +1111,7 @@ export interface CodeMetadataExpr {
  */
 export type Expr =
   | NopExpr
+  | PopExpr
   | UnreachableExpr
   | ReturnExpr
   | DropExpr

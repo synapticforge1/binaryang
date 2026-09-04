@@ -143,6 +143,7 @@ import {
   makeMemoryGrow,
   makeMemorySize,
   makeNop,
+  makePop,
   makeRefCast,
   makeRefEq,
   makeRefFunc,
@@ -898,6 +899,10 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return bridgeConst((e as ConstExpr).value);
     case 'nop':
       return makeNop();
+    case 'pop':
+      // The two IRs' shared mechanism, formerly under two names: wabt-ts's
+      // placeholder and binaryen-ts's Pop. Neither is emitted.
+      return makePop(ValType.I32);
     case 'unreachable':
       return makeUnreachable();
 
@@ -1429,7 +1434,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       }
       throw new Error(`Bridge: simd_lane_op opcode ${opName} not yet supported`);
     }
-    case 'simd_shuffle': {
+    case 'simd.shuffle': {
       const ss = e as SimdShuffleOpExpr;
       return makeSIMDShuffle(
         bridgeExpr(ss.left, ctx),

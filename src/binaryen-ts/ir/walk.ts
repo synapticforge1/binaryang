@@ -16,6 +16,7 @@
 import {
   type Expression,
   ExpressionKind,
+  type QuaternaryExpr,
   type SIMDExtractExpr,
   type SIMDLoadExpr,
   type SIMDLoadStoreLaneExpr,
@@ -408,6 +409,16 @@ function _mapChildren(
       return { ...e, left: fn(e.left), right: fn(e.right) };
     }
 
+    case ExpressionKind.Quaternary: {
+      const e = expr as QuaternaryExpr;
+      return {
+        ...e,
+        a: fn(e.a),
+        b: fn(e.b),
+        c: fn(e.c),
+        d: fn(e.d),
+      };
+    }
     case ExpressionKind.SIMDTernary: {
       const e = expr as SIMDTernaryExpr;
       return {
@@ -674,6 +685,14 @@ function _visitChildren(
       const e = expr as SIMDShuffleExpr;
       visit(e.left);
       visit(e.right);
+      break;
+    }
+    case ExpressionKind.Quaternary: {
+      const e = expr as QuaternaryExpr;
+      visit(e.a);
+      visit(e.b);
+      visit(e.c);
+      visit(e.d);
       break;
     }
     case ExpressionKind.SIMDTernary: {

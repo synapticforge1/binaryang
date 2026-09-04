@@ -91,6 +91,7 @@ import {
   type Module,
   type NopExpr,
   operandPlaceholder,
+  type PopExpr,
   type QuaternaryExpr,
   type RefCastExpr,
   type RefEqExpr,
@@ -2431,7 +2432,7 @@ export class BinaryReader {
       const lanes = this.readBytes(16);
       const right = stack.pop() ?? operandPlaceholder(loc);
       const left = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'simd_shuffle', opcode: opcode as Opcode, lanes, left, right, loc });
+      stack.push({ kind: 'simd.shuffle', opcode: opcode as Opcode, lanes, left, right, loc });
       return;
     }
 
@@ -2583,7 +2584,7 @@ export class BinaryReader {
     if (op === 0x03) {
       // atomic.fence: consistency_model byte
       const consistencyModel = this.readU8();
-      pushStmt(stack, stmts, { kind: 'atomic_fence', consistencyModel, loc } as AtomicFenceExpr);
+      pushStmt(stack, stmts, { kind: 'atomic.fence', consistencyModel, loc } as AtomicFenceExpr);
       return;
     }
 
@@ -2592,7 +2593,7 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const count = stack.pop() ?? operandPlaceholder(loc);
       const address = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'atomic_notify', align, offset, memidx, address, count, loc });
+      stack.push({ kind: 'atomic.notify', align, offset, memidx, address, count, loc });
       return;
     }
 
@@ -2603,7 +2604,7 @@ export class BinaryReader {
       const expected = stack.pop() ?? operandPlaceholder(loc);
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
-        kind: 'atomic_wait',
+        kind: 'atomic.wait',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2656,7 +2657,7 @@ export class BinaryReader {
       const value = stack.pop() ?? operandPlaceholder(loc);
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
-        kind: 'atomic_rmw',
+        kind: 'atomic.rmw',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2675,7 +2676,7 @@ export class BinaryReader {
       const expected = stack.pop() ?? operandPlaceholder(loc);
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
-        kind: 'atomic_rmw_cmpxchg',
+        kind: 'atomic.cmpxchg',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2911,7 +2912,7 @@ export class BinaryReader {
 
   private decodeGcOp(op: number, stack: Expr[], stmts: Expr[], m: Module, loc: Location): void {
     m.featuresUsed.gc = true;
-    const nop = (): NopExpr => operandPlaceholder(loc);
+    const nop = (): PopExpr => operandPlaceholder(loc);
     switch (op) {
       case GcOpcode.RefI31: {
         const value = stack.pop() ?? nop();
