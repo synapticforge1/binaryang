@@ -288,20 +288,34 @@ Deno.test('encodeWasm: unresolved call target throws instead of silently encodin
   assertThrows(() => encodeWasm(mod), WasmEncodeError, 'unresolved call target');
 });
 
-Deno.test('encodeWasm: unknown unary opcode throws instead of emitting a silent nop', () => {
-  // An op missing from the unary opcode table used to fall back to `nop` (0x01)
-  // AFTER its operand was already emitted — leaving a dangling stack value and
-  // an invalid module. It now fails loudly.
-  const bogus = {
+// 🔧 **Inverted by S6 stage 1, not deleted.** This asserted that an operator
+// missing from the unary opcode TABLE throws rather than silently falling back
+// to `nop` — which was right while operators were strings and the table was the
+// only way to reach an opcode.
+//
+// There is no such state now: the operator IS the opcode, so there is nothing to
+// look up and nothing that can be missing. The nine lookup tables that created
+// the possibility are gone with it.
+//
+// ⚠️ One guarantee is genuinely weaker, and it is worth stating rather than
+// glossing: a node built with a NONSENSE number now encodes that number instead
+// of throwing. The guard protected against an unmapped NAME, a state the type
+// system could not exclude; a bad opcode is a bad value of a numeric type, which
+// is a different and much narrower mistake.
+Deno.test('encodeWasm: an operator is written as the opcode it is', () => {
+  // `i32.eqz` is 0x45. Round-tripping the encoded module must find it again.
+  const node = {
     kind: ExpressionKind.Unary,
     type: ValType.I32,
-    op: 'not.a.real.unary.op',
+    op: 0x45,
     value: makeI32Const(0),
   } as unknown as Expression;
   const mod = new ModuleBuilder()
-    .addFunction('f', [], [ValType.I32], bogus)
+    .addFunction('f', [], [ValType.I32], node)
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'unknown unary opcode');
+  const bytes = encodeWasm(mod);
+  assert(bytes.includes(0x45), 'the opcode itself must appear in the output');
+  assert(WebAssembly.validate(bytes as BufferSource), 'and the module must be valid');
 });
 
 // ---------------------------------------------------------------------------

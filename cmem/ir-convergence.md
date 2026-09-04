@@ -765,7 +765,7 @@ S2–S5 stayed `IDENTICAL` largely by construction — renames and regroupings t
 encoder. Step 1 changes what the encoder writes. The baseline stops being a formality and becomes
 the actual check.
 
-##### Step 1 — the operator representation becomes numeric
+##### Step 1 — the operator representation becomes numeric ✅ DONE
 
 The 1,383 call sites do **not** get rewritten. Each enum member keeps its NAME and changes its
 VALUE: `BinaryOp.EqI32 = Opcode.I32Eq` instead of `'i32.eq'`. Everything spelled `BinaryOp.EqI32`
@@ -780,15 +780,40 @@ encoder hold it today: `UNARY_TO_OPCODE` (52), `BINARY_TO_OPCODE` (76), `SIMD_UN
 Those four tables then become the identity function and are **deleted**: 313 entries of "one fact in
 two places" removed, which is the hazard class this codebase has been bitten by most.
 
-|           |                                                             |
-| --------- | ----------------------------------------------------------- |
-| edits     | 11 enums, 4 tables deleted, ~6 op-as-string sites           |
-| untouched | all 1,383 `Op.Member` references                            |
-| gate      | baseline `IDENTICAL` — a single wrong mapping changes bytes |
+|           |                                                    |
+| --------- | -------------------------------------------------- |
+| edits     | 11 enums, 4 tables deleted, ~6 op-as-string sites  |
+| untouched | all 1,383 `Op.Member` references                   |
+| gate      | ⚠️ **NOT the baseline** — see the correction below |
 
 ⚠️ Known consequences: `exprToWat` prints `expr.op` and needs `opName(op)`; encoder messages
 likewise; and `wasm_encoder.test.ts` passes `op: 'not.a.real.unary.op'` expecting a throw — that
 test asserts a behaviour the change removes, so it gets inverted rather than deleted.
+
+**Landed.** 11 enums converted, 369 members, 0 call sites touched. All NINE lookup tables deleted —
+the four named above plus five more SIMD sub-opcode tables found on the way. They collapsed into one
+`writeOperator` helper that reads the prefix off the value, which also GENERALISES: the old code
+special-cased the SIMD prefix, so MISC, THREADS and GC operators had nowhere to go. That is what
+will let atomics encode at all.
+
+🔑 **The mapping was cross-checked against the copy it replaced before being applied**: 313 of 313
+members agreed, zero disagreements. It was generated from wabt-ts's opcode tables rather than
+binaryen-ts's encoder tables, because generating from the derived copy would have carried any drift
+straight into the enums.
+
+⚠️ **The plan named the wrong gate, and the correction matters.** It said "baseline `IDENTICAL` — a
+single wrong mapping changes bytes". **The baseline never touches binaryen-ts**:
+`verify-baseline.ts` runs wabt-ts's `wat2wasm` and contains zero references to the other half, so it
+could not have caught an operator-mapping error at all. The real gate here is `deno task bridge`,
+which puts 421 modules through binaryen-ts's encoder, plus the binaryen-ts tests. Both held: 397/421
+unchanged, 952 green.
+
+**The operators gate was rewritten**, because its premise changed with the representation. It used
+to ask whether each operator STRING named a real instruction; it now asks whether each operator
+VALUE is an opcode wabt-ts assigns — the same premise checked against the value, which is strictly
+stronger. It also went from 315 members across 2 enums to **369 across all 11**; the narrow version
+is why two `BrOnOp` members with no resolvable name went unnoticed until the conversion. Verified by
+injecting a bogus value and confirming exit 1.
 
 ##### Step 2 — bucket A, now unblocked (18 kinds)
 

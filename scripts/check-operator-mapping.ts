@@ -38,8 +38,6 @@
  * @license MIT
  */
 
-import { BinaryOp, UnaryOp } from '../src/binaryen-ts/ir/expressions.ts';
-
 const OPCODE_SRC = new URL('../src/wabt-ts/core/opcode.ts', import.meta.url);
 
 /**
@@ -107,6 +105,41 @@ async function knownInstructionNames(): Promise<Set<string>> {
 }
 
 const known = await knownInstructionNames();
+
+/**
+ * Every opcode VALUE wabt-ts assigns to an instruction.
+ *
+ * Read from the same tables as the names, and by the same rule: a bare number
+ * or `Opcode.X` below 0x100, or `(PREFIX << 16) | sub` above. That second form
+ * is why this cannot just scan the `Opcode` enum — SIMD, MISC, THREADS and GC
+ * instructions have no enum member at all, only a table row.
+ */
+async function knownOpcodeValues(): Promise<Set<number>> {
+  const src = await Deno.readTextFile(OPCODE_SRC);
+  const out = new Set<number>();
+  const members = new Map<string, number>();
+  const enumBody = src.match(/export enum [A-Za-z]*Opcode \{([\s\S]*?)\n\}/g) ?? [];
+  for (const blk of enumBody) {
+    for (const m of blk.matchAll(/^\s+([A-Za-z0-9_]+) = (0x[0-9a-fA-F]+|\d+),/gm)) {
+      members.set(m[1]!, Number(m[2]));
+      out.add(Number(m[2]));
+    }
+  }
+  for (const m of src.matchAll(/\((PREFIX_[A-Z]+) << 16\) \| (0x[0-9a-fA-F]+|\d+)/g)) {
+    const p =
+      { PREFIX_MISC: 0xfc, PREFIX_SIMD: 0xfd, PREFIX_THREADS: 0xfe, PREFIX_GC: 0xfb }[m[1]!];
+    if (p !== undefined) out.add((p << 16) | Number(m[2]));
+  }
+  for (const m of src.matchAll(/\((PREFIX_[A-Z]+) << 16\) \| [A-Za-z]+Opcode\.([A-Za-z0-9_]+)/g)) {
+    const p =
+      { PREFIX_MISC: 0xfc, PREFIX_SIMD: 0xfd, PREFIX_THREADS: 0xfe, PREFIX_GC: 0xfb }[m[1]!];
+    const sub = members.get(m[2]!);
+    if (p !== undefined && sub !== undefined) out.add((p << 16) | sub);
+  }
+  return out;
+}
+
+const knownOpcodes = await knownOpcodeValues();
 if (known.size < 100) {
   console.error(
     `check-operator-mapping: only ${known.size} instruction names found — the name ` +
@@ -116,19 +149,44 @@ if (known.size < 100) {
   Deno.exit(1);
 }
 
-const operators = new Set<string>([
-  ...Object.values(UnaryOp as unknown as Record<string, string>),
-  ...Object.values(BinaryOp as unknown as Record<string, string>),
-]);
-
-const orphans = [...operators].filter((op) => !known.has(op)).sort();
-
-console.log(`instruction names known to wabt-ts : ${known.size}`);
-console.log(`binaryen-ts operator values        : ${operators.size}`);
-
+// ⚠️ **The invariant changed with S6 stage 1, and so did this check.**
+//
+// Operators used to be instruction-name STRINGS, and the question was whether
+// each named a real instruction. They are now numeric OPCODES, so the question
+// is whether each equals the opcode wabt-ts assigns — which is the same premise,
+// checked against the value rather than the label, and strictly stronger: a
+// wrong number is caught where a right name with a wrong mapping was not.
+//
+// It also covers ALL ELEVEN operator enums. The previous version imported only
+// UnaryOp and BinaryOp, checking 315 of 371 members, which is why two BrOnOp
+// members with no resolvable name went unnoticed until the conversion.
 const exprSrc = await Deno.readTextFile(
   new URL('../src/binaryen-ts/ir/expressions.ts', import.meta.url),
 );
+
+/** Every operator constant, as `EnumName.Member` -> numeric value. */
+function operatorConstants(src: string): Map<string, number> {
+  const out = new Map<string, number>();
+  const enumRe = new RegExp('export const ([A-Za-z]+Op) = \\{([\\s\\S]*?)\\n\\} as const;', 'g');
+  for (const e of src.matchAll(enumRe)) {
+    for (const m of e[2]!.matchAll(/^\s+([A-Za-z0-9_]+): ([^,]+),/gm)) {
+      const expr = m[2]!.trim();
+      let v: number | null = null;
+      const pre = expr.match(/^\(0x([0-9a-f]+) << 16\) \| (0x[0-9a-f]+|\d+)$/);
+      if (pre) v = (parseInt(pre[1]!, 16) << 16) | Number(pre[2]);
+      else if (/^(0x[0-9a-fA-F]+|\d+)$/.test(expr)) v = Number(expr);
+      if (v !== null) out.set(`${e[1]}.${m[1]}`, v);
+    }
+  }
+  return out;
+}
+
+const constants = operatorConstants(exprSrc);
+const orphans = [...constants].filter(([, v]) => !knownOpcodes.has(v)).map(([k]) => k).sort();
+
+console.log(`instruction names known to wabt-ts : ${known.size}`);
+console.log(`operator constants checked         : ${constants.size} across all operator enums`);
+
 const phantoms = phantomKinds(exprSrc);
 const added = phantoms.filter((p) => !PHANTOM_BUDGET.includes(p));
 if (added.length > 0) {
@@ -143,7 +201,7 @@ if (added.length > 0) {
 console.log(`declared-but-unimplemented kinds   : ${phantoms.length} (pinned)`);
 
 if (orphans.length === 0) {
-  console.log('TOTAL — every binaryen-ts operator names a real wasm instruction.');
+  console.log('TOTAL — every operator constant is an opcode wabt-ts names.');
   Deno.exit(0);
 }
 

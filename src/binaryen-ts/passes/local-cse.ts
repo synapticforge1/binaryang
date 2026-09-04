@@ -42,6 +42,7 @@ import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { anyOpcodeName } from '../../wabt-ts/core/opcode.ts';
 
 const _VAL_TYPES = new Set<string>(Object.values(ValType) as string[]);
 
@@ -186,7 +187,8 @@ function _exprKey(expr: Expression): string | null {
       return `b:${op}(${lk},${rk})`;
     }
     case ExpressionKind.Unary: {
-      const op = expr.op as string;
+      // The operator is an opcode; dispatch below is on its NAME.
+      const op = anyOpcodeName(expr.op);
       // Exclude trapping truncations
       if (op.includes('trunc') && !op.includes('sat')) return null;
       const vk = _exprKey(expr.value);
