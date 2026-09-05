@@ -97,23 +97,23 @@ function _optimizeNode(expr: Expression): Expression {
 function _optimizeBinary(
   expr: Extract<Expression, { kind: ExpressionKind.Binary }>,
 ): Expression {
-  const { op, left, right } = expr;
+  const { opcode, left, right } = expr;
 
   // Constant folding: both operands are literal constants
   if (left.kind === ExpressionKind.Const && right.kind === ExpressionKind.Const) {
-    const folded = _foldBinary(op, left.value, right.value);
+    const folded = _foldBinary(opcode, left.value, right.value);
     if (folded !== null) return folded;
   }
 
   // Algebraic identities with a constant on the right
   if (right.kind === ExpressionKind.Const) {
-    const r = _simplifyRHS(op, left, right.value);
+    const r = _simplifyRHS(opcode, left, right.value);
     if (r !== null) return r;
   }
 
   // Algebraic identities with a constant on the left (commutative ops)
   if (left.kind === ExpressionKind.Const) {
-    const r = _simplifyLHS(op, left.value, right);
+    const r = _simplifyLHS(opcode, left.value, right);
     if (r !== null) return r;
   }
 
@@ -129,21 +129,21 @@ function _isPure(expr: Expression): boolean {
     case ExpressionKind.GlobalGet:
       return true;
     case ExpressionKind.Binary: {
-      const op = expr.op;
+      const opcode = expr.opcode;
       // Integer division and remainder can trap on zero
       if (
-        op === BinaryOp.DivSI32 || op === BinaryOp.DivUI32 ||
-        op === BinaryOp.RemSI32 || op === BinaryOp.RemUI32 ||
-        op === BinaryOp.DivSI64 || op === BinaryOp.DivUI64 ||
-        op === BinaryOp.RemSI64 || op === BinaryOp.RemUI64
+        opcode === BinaryOp.DivSI32 || opcode === BinaryOp.DivUI32 ||
+        opcode === BinaryOp.RemSI32 || opcode === BinaryOp.RemUI32 ||
+        opcode === BinaryOp.DivSI64 || opcode === BinaryOp.DivUI64 ||
+        opcode === BinaryOp.RemSI64 || opcode === BinaryOp.RemUI64
       ) return false;
       return _isPure(expr.left) && _isPure(expr.right);
     }
     case ExpressionKind.Unary: {
       // Non-saturating float-to-int truncations can trap
       // The operator is an opcode; dispatch below is on its NAME.
-      const op = anyOpcodeName(expr.op);
-      if (op.includes('trunc') && !op.includes('sat')) return false;
+      const opcode = anyOpcodeName(expr.opcode);
+      if (opcode.includes('trunc') && !opcode.includes('sat')) return false;
       return _isPure(expr.value);
     }
     default:
@@ -152,13 +152,13 @@ function _isPure(expr: Expression): boolean {
 }
 
 function _simplifyRHS(
-  op: BinaryOp,
+  opcode: BinaryOp,
   left: Expression,
   rhs: Literal,
 ): Expression | null {
   if ('i32' in rhs) {
     const v = rhs.i32 as number;
-    switch (op) {
+    switch (opcode) {
       case BinaryOp.AddI32:
         if (v === 0) return left;
         break;
@@ -196,7 +196,7 @@ function _simplifyRHS(
           return {
             kind: ExpressionKind.Unary,
             type: ValType.I32,
-            op: UnaryOp.EqzI32,
+            opcode: UnaryOp.EqzI32,
             value: left,
           };
         }
@@ -206,7 +206,7 @@ function _simplifyRHS(
 
   if ('i64' in rhs) {
     const v = rhs.i64 as bigint;
-    switch (op) {
+    switch (opcode) {
       case BinaryOp.AddI64:
         if (v === 0n) return left;
         break;
@@ -244,7 +244,7 @@ function _simplifyRHS(
           return {
             kind: ExpressionKind.Unary,
             type: ValType.I32,
-            op: UnaryOp.EqzI64,
+            opcode: UnaryOp.EqzI64,
             value: left,
           };
         }
@@ -256,13 +256,13 @@ function _simplifyRHS(
 }
 
 function _simplifyLHS(
-  op: BinaryOp,
+  opcode: BinaryOp,
   lhs: Literal,
   right: Expression,
 ): Expression | null {
   if ('i32' in lhs) {
     const v = lhs.i32 as number;
-    switch (op) {
+    switch (opcode) {
       case BinaryOp.AddI32:
         if (v === 0) return right;
         break;
@@ -286,7 +286,7 @@ function _simplifyLHS(
 
   if ('i64' in lhs) {
     const v = lhs.i64 as bigint;
-    switch (op) {
+    switch (opcode) {
       case BinaryOp.AddI64:
         if (v === 0n) return right;
         break;
@@ -319,7 +319,7 @@ function _optimizeUnary(
   expr: Extract<Expression, { kind: ExpressionKind.Unary }>,
 ): Expression {
   if (expr.value.kind === ExpressionKind.Const) {
-    const folded = _foldUnary(expr.op, expr.value.value);
+    const folded = _foldUnary(expr.opcode, expr.value.value);
     if (folded !== null) return folded;
   }
   return expr;
@@ -330,7 +330,7 @@ function _optimizeUnary(
 // ---------------------------------------------------------------------------
 
 function _foldBinary(
-  op: BinaryOp,
+  opcode: BinaryOp,
   lhs: Literal,
   rhs: Literal,
 ): Expression | null {
@@ -338,7 +338,7 @@ function _foldBinary(
   if ('i32' in lhs && 'i32' in rhs) {
     const a = lhs.i32 as number;
     const b = rhs.i32 as number;
-    switch (op) {
+    switch (opcode) {
       case BinaryOp.AddI32:
         return makeI32Const((a + b) | 0);
       case BinaryOp.SubI32:
@@ -392,7 +392,7 @@ function _foldBinary(
   if ('i64' in lhs && 'i64' in rhs) {
     const a = lhs.i64 as bigint;
     const b = rhs.i64 as bigint;
-    switch (op) {
+    switch (opcode) {
       case BinaryOp.AddI64:
         return makeI64Const(BigInt.asIntN(64, a + b));
       case BinaryOp.SubI64:
@@ -456,10 +456,10 @@ function _foldBinary(
 // Constant folding — unary
 // ---------------------------------------------------------------------------
 
-function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
+function _foldUnary(opcode: UnaryOp, val: Literal): Expression | null {
   if ('i32' in val) {
     const v = val.i32 as number;
-    switch (op) {
+    switch (opcode) {
       case UnaryOp.ClzI32:
         return makeI32Const(Math.clz32(v));
       case UnaryOp.EqzI32:
@@ -482,7 +482,7 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
 
   if ('i64' in val) {
     const v = val.i64 as bigint;
-    switch (op) {
+    switch (opcode) {
       case UnaryOp.WrapI64:
         return makeI32Const(Number(BigInt.asIntN(32, v)));
       case UnaryOp.EqzI64:
@@ -498,7 +498,7 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
 
   if ('f32' in val) {
     const v = val.f32 as number;
-    if (op === UnaryOp.ReinterpretF32) {
+    if (opcode === UnaryOp.ReinterpretF32) {
       const buf = new ArrayBuffer(4);
       new Float32Array(buf)[0]! = v;
       return makeI32Const(new Int32Array(buf)[0]!);
@@ -507,7 +507,7 @@ function _foldUnary(op: UnaryOp, val: Literal): Expression | null {
 
   if ('f64' in val) {
     const v = val.f64 as number;
-    if (op === UnaryOp.ReinterpretF64) {
+    if (opcode === UnaryOp.ReinterpretF64) {
       const buf = new ArrayBuffer(8);
       new Float64Array(buf)[0] = v;
       const lo = new Int32Array(buf)[0]!;

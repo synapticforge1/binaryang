@@ -56,14 +56,14 @@ describe('SIMD reader operand arity', () => {
   it('v128.bitselect decodes as a ternary node', () => {
     const m = roundTrip(`(module (func (param v128 v128 v128) (result v128)
       local.get 0 local.get 1 local.get 2 v128.bitselect))`);
-    assert(body(m).some((e) => e.kind === 'ternary'), 'bitselect should decode ternary');
+    assert(body(m).some((e) => e.kind === 'simd.ternary'), 'bitselect should decode ternary');
   });
 
   it('v128.store8_lane decodes as a store_lane (not load_lane)', () => {
     const m = roundTrip(`(module (memory 1) (func (param $p i32) (param $v v128)
       local.get $p local.get $v v128.store8_lane 0))`);
     assert(
-      body(m).some((e) => e.kind === 'simd_store_lane'),
+      body(m).some((e) => e.kind === 'simd.load_store_lane'),
       'store8_lane (0x58) must not decode as load_lane',
     );
   });
@@ -71,7 +71,10 @@ describe('SIMD reader operand arity', () => {
   it('v128.load8_lane still decodes as a load_lane', () => {
     const m = roundTrip(`(module (memory 1) (func (param $p i32) (param $v v128) (result v128)
       local.get $p local.get $v v128.load8_lane 0))`);
-    assert(body(m).some((e) => e.kind === 'simd_load_lane'), 'load8_lane should stay load_lane');
+    assert(
+      body(m).some((e) => e.kind === 'simd.load_store_lane'),
+      'load8_lane should stay load_lane',
+    );
   });
 });
 

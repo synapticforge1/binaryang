@@ -45,7 +45,6 @@ import type {
   IfExpr,
   LoadExpr,
   LoadSplatExpr,
-  LoadZeroExpr,
   LocalGetExpr,
   LocalSetExpr,
   LocalTeeExpr,
@@ -75,7 +74,6 @@ import type {
   SimdLaneOpExpr,
   SimdLoadLaneExpr,
   SimdShuffleOpExpr,
-  SimdStoreLaneExpr,
   StoreExpr,
   StructGetExpr,
   StructNewDefaultExpr,
@@ -967,18 +965,7 @@ class BodyWriter implements ExprVisitorDelegate {
     this.s.writeU8(e.lane);
     return Result.Ok;
   }
-  onSimdStoreLaneExpr(e: SimdStoreLaneExpr): Result {
-    writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
-    this.s.writeU8(e.lane);
-    return Result.Ok;
-  }
   onLoadSplatExpr(e: LoadSplatExpr): Result {
-    writeOpcode(this.s, e.opcode as number);
-    writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
-    return Result.Ok;
-  }
-  onLoadZeroExpr(e: LoadZeroExpr): Result {
     writeOpcode(this.s, e.opcode as number);
     writeMemArg(this.s, e.align, e.offset, e.memidx, opcodeOf(e));
     return Result.Ok;

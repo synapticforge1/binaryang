@@ -606,9 +606,9 @@ Deno.test('regression: scalar relational binary ops are typed i32, not operand t
     BinaryOp.LtSI64,
     BinaryOp.GtSI64,
   ];
-  for (const op of relational) {
-    const e = makeBinary(op, makeI32Const(0), makeI32Const(0));
-    assertEquals(e.type, ValType.I32, `${op} must yield i32`);
+  for (const opcode of relational) {
+    const e = makeBinary(opcode, makeI32Const(0), makeI32Const(0));
+    assertEquals(e.type, ValType.I32, `${opcode} must yield i32`);
   }
   // An `if` whose then-arm is an f64 comparison must itself be typed i32.
   const ifExpr = makeIf(

@@ -146,7 +146,7 @@ function _pickLoadSigns(fn: WasmFunction): void {
     // that only forgoes an optimization, never miscompiles.)
     if (
       parent.kind === ExpressionKind.Binary &&
-      parent.op === BinaryOp.AndI32 &&
+      parent.opcode === BinaryOp.AndI32 &&
       parent.right.kind === ExpressionKind.Const &&
       'i32' in parent.right.value &&
       (parent.right.value.i32 as number) === _zeroMask(info.load.bytes as number)

@@ -12,7 +12,7 @@
 // weight. Neither half is a change worth making alone.
 //
 // ⚠️ The section is emitted whenever a DATA SEGMENT exists, not only when a bulk
-// op appears. It is optional in that wider case, but it is what wabt-ts's writer
+// opcode appears. It is optional in that wider case, but it is what wabt-ts's writer
 // does, and two tools in this repo disagreeing about the section list for the
 // same module would be its own defect.
 //

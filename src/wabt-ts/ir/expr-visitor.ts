@@ -62,7 +62,6 @@ import type {
   IfExpr,
   LoadExpr,
   LoadSplatExpr,
-  LoadZeroExpr,
   LocalGetExpr,
   LocalSetExpr,
   LocalTeeExpr,
@@ -91,7 +90,6 @@ import type {
   SimdLaneOpExpr,
   SimdLoadLaneExpr,
   SimdShuffleOpExpr,
-  SimdStoreLaneExpr,
   StoreExpr,
   StructGetExpr,
   StructNewDefaultExpr,
@@ -220,9 +218,7 @@ export interface ExprVisitorDelegate {
   onSimdLaneOpExpr?(e: SimdLaneOpExpr): Result;
   onSimdShuffleOpExpr?(e: SimdShuffleOpExpr): Result;
   onSimdLoadLaneExpr?(e: SimdLoadLaneExpr): Result;
-  onSimdStoreLaneExpr?(e: SimdStoreLaneExpr): Result;
   onLoadSplatExpr?(e: LoadSplatExpr): Result;
-  onLoadZeroExpr?(e: LoadZeroExpr): Result;
 
   onAtomicLoadExpr?(e: AtomicLoadExpr): Result;
   onAtomicStoreExpr?(e: AtomicStoreExpr): Result;
@@ -504,15 +500,10 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onAtomicLoadExpr?.(e) ?? Result.Ok;
       }
-      case 'load_splat': {
+      case 'simd.load': {
         const r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         return this.d.onLoadSplatExpr?.(e) ?? Result.Ok;
-      }
-      case 'load_zero': {
-        const r = this.dispatch(e.address);
-        if (r === Result.Error) return r;
-        return this.d.onLoadZeroExpr?.(e) ?? Result.Ok;
       }
       case 'simd_lane_op': {
         const r1 = this.dispatch(e.operand);
@@ -588,19 +579,12 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onSimdShuffleOpExpr?.(e) ?? Result.Ok;
       }
-      case 'simd_load_lane': {
+      case 'simd.load_store_lane': {
         let r = this.dispatch(e.address);
         if (r === Result.Error) return r;
         r = this.dispatch(e.vec);
         if (r === Result.Error) return r;
         return this.d.onSimdLoadLaneExpr?.(e) ?? Result.Ok;
-      }
-      case 'simd_store_lane': {
-        let r = this.dispatch(e.address);
-        if (r === Result.Error) return r;
-        r = this.dispatch(e.vec);
-        if (r === Result.Error) return r;
-        return this.d.onSimdStoreLaneExpr?.(e) ?? Result.Ok;
       }
 
       // --- Branches with optional values ---
@@ -721,7 +705,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onAtomicWaitExpr?.(e) ?? Result.Ok;
       }
-      case 'ternary': {
+      case 'simd.ternary': {
         let r = this.dispatch(e.a);
         if (r === Result.Error) return r;
         r = this.dispatch(e.b);

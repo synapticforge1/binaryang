@@ -20,7 +20,7 @@
 export { DEMO_BYTES } from './demo_bytes.ts';
 
 /**
- * Spec for the Phase 10 demo kernel — three trivial single-op i32 functions.
+ * Spec for the Phase 10 demo kernel — three trivial single-opcode i32 functions.
  *
  * Used by the boundary-cost benchmark and by `tests/wasm/runtime_test.ts` to
  * exercise the {@link ../wasm-runtime.ts | runtime} end-to-end. NOT intended

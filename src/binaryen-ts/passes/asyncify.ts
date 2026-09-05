@@ -530,7 +530,7 @@ export function analyzeModule(
 
   // Validate list entries: a plain (non-wildcard) name must be a DEFINED function.
   // Naming an import is a hard error (upstream: "use the imports list for imports");
-  // a name matching nothing is a warning rather than a silent no-op.
+  // a name matching nothing is a warning rather than a silent no-opcode.
   //
   // LIMITATION: list entries are matched against the module's INTERNAL function
   // names (`func.name`). For a binary-parsed module the reader currently discards

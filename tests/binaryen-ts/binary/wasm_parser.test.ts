@@ -169,7 +169,7 @@ Deno.test("parseWasm: add function is exported as 'add'", () => {
   assertEquals(mod.exports[0].kind, 'function');
 });
 
-Deno.test('parseWasm: add function body contains binary op', () => {
+Deno.test('parseWasm: add function body contains binary opcode', () => {
   const mod = parseWasm(ADD_MODULE);
   const fn = mod.functions[0];
   // Body is a block or direct binary expression

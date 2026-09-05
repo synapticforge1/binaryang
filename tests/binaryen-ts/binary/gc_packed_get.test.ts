@@ -226,13 +226,13 @@ Deno.test('encoder throws on an out-of-range struct.get field index', () => {
 // Note the explicit `(type $f (func (result i32)))`: with GC enabled the
 // function's own signature must exist as a heap type, or the encoder throws
 // `unresolved GC function type`. See the note on `enableGC` / `addHeapType`.
-function packedWat(op: string): string {
+function packedWat(opcode: string): string {
   return `
     (module
       (type $s (struct (field (mut i8))))
       (type $f (func (result i32)))
       (func (export "read") (result i32)
-        (${op} $s 0 (struct.new $s (i32.const 200)))))
+        (${opcode} $s 0 (struct.new $s (i32.const 200)))))
   `;
 }
 

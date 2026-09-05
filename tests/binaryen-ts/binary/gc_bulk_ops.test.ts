@@ -403,7 +403,7 @@ Deno.test('ref.as_non_null passes a non-null reference through', async () => {
   await bothAgree(m.build(), 99);
 });
 
-Deno.test('ref.as_non_null decodes back to a RefAs node with the right op', () => {
+Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', () => {
   const { m, arrayType } = gcBuilder();
   m.addFunction(
     'read',
@@ -429,8 +429,8 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right op', () =
   const ops: number[] = [];
   const walk = (e: unknown): void => {
     if (!e || typeof e !== 'object') return;
-    const node = e as { kind?: string; op?: number };
-    if (node.kind === ExpressionKind.RefAs && node.op) ops.push(node.op);
+    const node = e as { kind?: string; opcode?: number };
+    if (node.kind === ExpressionKind.RefAs && node.opcode) ops.push(node.opcode);
     for (const v of Object.values(e as Record<string, unknown>)) {
       if (Array.isArray(v)) v.forEach(walk);
       else walk(v);

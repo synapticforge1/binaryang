@@ -2390,7 +2390,7 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
-        kind: 'load_splat',
+        kind: 'simd.load',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2487,7 +2487,7 @@ export class BinaryReader {
       const vec = stack.pop() ?? operandPlaceholder(loc);
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
-        kind: 'simd_load_lane',
+        kind: 'simd.load_store_lane',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2505,7 +2505,7 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
-        kind: 'load_zero',
+        kind: 'simd.load',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2523,7 +2523,7 @@ export class BinaryReader {
       const vec = stack.pop() ?? operandPlaceholder(loc);
       const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
-        kind: 'simd_store_lane',
+        kind: 'simd.load_store_lane',
         opcode: opcode as Opcode,
         align,
         offset,
@@ -2548,7 +2548,7 @@ export class BinaryReader {
       const c = stack.pop() ?? operandPlaceholder(loc);
       const b = stack.pop() ?? operandPlaceholder(loc);
       const a = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'ternary', opcode: opcode as Opcode, a, b, c, loc });
+      stack.push({ kind: 'simd.ternary', opcode: opcode as Opcode, a, b, c, loc });
       return;
     }
     if (SIMD_UNARY_OPS.has(op)) {

@@ -328,10 +328,8 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'memory.fill':
     case 'load':
     case 'store':
-    case 'load_splat':
-    case 'load_zero':
-    case 'simd_load_lane':
-    case 'simd_store_lane':
+    case 'simd.load':
+    case 'simd.load_store_lane':
     case 'atomic.load':
     case 'atomic.store':
     case 'atomic.rmw':

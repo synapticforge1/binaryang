@@ -173,27 +173,27 @@ function _exprKey(expr: Expression): string | null {
     case ExpressionKind.GlobalGet:
       return `gg:${expr.name}`;
     case ExpressionKind.Binary: {
-      const op = expr.op;
+      const opcode = expr.opcode;
       // Exclude trapping ops
       if (
-        op === BinaryOp.DivSI32 || op === BinaryOp.DivUI32 ||
-        op === BinaryOp.RemSI32 || op === BinaryOp.RemUI32 ||
-        op === BinaryOp.DivSI64 || op === BinaryOp.DivUI64 ||
-        op === BinaryOp.RemSI64 || op === BinaryOp.RemUI64
+        opcode === BinaryOp.DivSI32 || opcode === BinaryOp.DivUI32 ||
+        opcode === BinaryOp.RemSI32 || opcode === BinaryOp.RemUI32 ||
+        opcode === BinaryOp.DivSI64 || opcode === BinaryOp.DivUI64 ||
+        opcode === BinaryOp.RemSI64 || opcode === BinaryOp.RemUI64
       ) return null;
       const lk = _exprKey(expr.left);
       const rk = _exprKey(expr.right);
       if (lk === null || rk === null) return null;
-      return `b:${op}(${lk},${rk})`;
+      return `b:${opcode}(${lk},${rk})`;
     }
     case ExpressionKind.Unary: {
       // The operator is an opcode; dispatch below is on its NAME.
-      const op = anyOpcodeName(expr.op);
+      const opcode = anyOpcodeName(expr.opcode);
       // Exclude trapping truncations
-      if (op.includes('trunc') && !op.includes('sat')) return null;
+      if (opcode.includes('trunc') && !opcode.includes('sat')) return null;
       const vk = _exprKey(expr.value);
       if (vk === null) return null;
-      return `u:${op}(${vk})`;
+      return `u:${opcode}(${vk})`;
     }
     default:
       return null;

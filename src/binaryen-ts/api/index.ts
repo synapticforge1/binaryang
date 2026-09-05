@@ -102,12 +102,12 @@ export class ExprBuilder {
     return makeLocalTee(index, value, type);
   }
   /** Binary operation. */
-  binary(op: BinaryOp, left: Expression, right: Expression): Expression {
-    return makeBinary(op, left, right);
+  binary(opcode: BinaryOp, left: Expression, right: Expression): Expression {
+    return makeBinary(opcode, left, right);
   }
   /** Unary operation. */
-  unary(op: UnaryOp, value: Expression): Expression {
-    return makeUnary(op, value);
+  unary(opcode: UnaryOp, value: Expression): Expression {
+    return makeUnary(opcode, value);
   }
   /** `if` expression. */
   if(cond: Expression, then: Expression, else_?: Expression): Expression {
@@ -350,9 +350,9 @@ function exprToWat(expr: Expression, _indent: number): string {
     case ExpressionKind.GlobalSet:
       return `(global.set $${expr.name} ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Binary:
-      return `(${expr.op} ${exprToWat(expr.left, _indent)} ${exprToWat(expr.right, _indent)})`;
+      return `(${expr.opcode} ${exprToWat(expr.left, _indent)} ${exprToWat(expr.right, _indent)})`;
     case ExpressionKind.Unary:
-      return `(${expr.op} ${exprToWat(expr.value, _indent)})`;
+      return `(${expr.opcode} ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Return:
       return expr.value ? `(return ${exprToWat(expr.value, _indent)})` : '(return)';
     case ExpressionKind.Drop:
