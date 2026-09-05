@@ -195,10 +195,24 @@ unrepresentable instruction) does NOT bind at 0/128; the optimization worst case
 controls, and it ships with a gate — `deno task operators` — because the mapping it depends on is
 one fact in two places, which is this codebase's known failure mode.
 
-**Seven ordered steps, S1–S7, in [ir-convergence.md](ir-convergence.md).** S1 (the gate) is done. ⚠️
-**S6 deletes the bridge and dissolves C10a** rather than fixing it: those 24 modules fail in the
-TRANSLATION, not in either IR — proved, since the same wabt-ts IR encodes VALID through wabt-ts's
-own writer and INVALID through the bridge.
+**Seven ordered steps, S1–S7, in [ir-convergence.md](ir-convergence.md).**
+
+| step                   | state as of 2026-09-04                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------- |
+| S1 the gate            | ✅ `deno task operators`                                                              |
+| S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                   |
+| S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                |
+| S4 coarse grouping     | ✅ five kinds folded away                                                             |
+| S5 one-sided kinds     | 🚧 acceptance criterion met (wide arithmetic round-trips); regroupings merged into S6 |
+| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done, stage 2 three of seven      |
+| S7 linear-form marker  | ⬚ untouched, independent of the rest                                                  |
+
+**S6 has its own acceptance gate now: `deno task bridge`**, at **397/421**. It reproduces C10a's
+recorded shortfall exactly and must reach 421/421 when the bridge is deleted.
+
+⚠️ **S6 deletes the bridge and dissolves C10a** rather than fixing it — and that diagnosis has now
+been checked against ALL 24 rather than the one module it was recorded from: wabt-ts's own path is
+valid for 24 of 24, so the fault is entirely in the translation.
 
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
 

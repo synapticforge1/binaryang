@@ -815,7 +815,7 @@ stronger. It also went from 315 members across 2 enums to **369 across all 11**;
 is why two `BrOnOp` members with no resolvable name went unnoticed until the conversion. Verified by
 injecting a bogus value and confirming exit 1.
 
-##### Step 2 — bucket A, now unblocked (18 kinds)
+##### Step 2 — bucket A, now unblocked (18 kinds) 🚧 three of seven families done
 
 Seven S4-shaped merges: `return_call*`→`call`+`isReturn`, `*.new_default`→`*.new`+`defaultInit`,
 `ref.as_non_null`→`ref.as`+op, `load_splat`/`load_zero`→`simd.load`+op,
@@ -825,6 +825,37 @@ Seven S4-shaped merges: `return_call*`→`call`+`isReturn`, `*.new_default`→`*
 ⚠️ **Direction is NOT uniform and must be asked per family.** S4's "binaryen-ts coarser" is false
 for SIMD, where wabt-ts's `simd_lane_op` merges what binaryen-ts splits. Six of the seven point at
 binaryen-ts's shape; the SIMD lane family points the other way.
+
+**Landed 2026-09-04**: the operator FIELD name, plus three families. Shared kinds 67 → 70, wabt-ts
+kinds 91 → 89.
+
+- **field name first**, since every merge needs one settled: binaryen-ts's `op` → `opcode`, chosen
+  by cost (47 sites vs 135) and by accuracy — since step 1 the value IS an opcode. ⚠️ **Not**
+  renamed on `BrOn`, whose `op` names WHICH br_on variant: a sub-op discriminator, a different
+  concept both halves already spell the same way, and the one place the short name is right.
+- `ternary` → `simd.ternary` — a pure rename, because step 1 had already made the shapes identical.
+- `load_splat` + `load_zero` → `simd.load`; `simd_load_lane` + `simd_store_lane` →
+  `simd.load_store_lane`. Each pair's interfaces were character-for-character identical but for the
+  kind, with the opcode as the only discriminator — the S4 argument exactly.
+
+🔑 **Two consumers differed, and I assumed they did not.** Having compared the binary writer's and
+WAT writer's handler pairs and found both byte-for-byte identical, I deleted the VALIDATOR's pair
+without comparing it. It was not identical — `onSimdStoreLane` and `onSimdLoadLane` have different
+stack effects — and `v128.store8_lane` started failing type checking. **Identical handlers in one
+consumer say nothing about another.**
+
+The same bug hid a second time in `ir-util`'s arity table, where the duplicate case returned
+`nreturns: 0` for a store and `1` for a load, so after the merge every store_lane reported 1. ⚠️
+**TypeScript accepted the duplicate case silently; `deno lint`'s `no-duplicate-case` caught it.** A
+merged kind needs every consumer checked, and tsc will not do it for you.
+
+Both now dispatch on the opcode — the sub-op pattern S4 established, where the merged node still
+behaves differently and says so as data.
+
+**Remaining (4 families):** `return_call`/`return_call_indirect` → `call` + `isReturn`;
+`array.new_default`/`struct.new_default` → `*.new` + `defaultInit`; `ref.as_non_null` → `ref.as` +
+sub-op; and `simd_lane_op` → `simd.extract`/`simd.replace`, the one family whose direction runs
+AGAINST S4's (wabt-ts is the coarse side there).
 
 ##### Step 3 — the node base carries `loc?` and `type?`
 
