@@ -134,7 +134,7 @@ describe('#3 SIMD memory-op decode', () => {
       (func (result v128) i32.const 0 v128.load64_splat))`);
     const body = firstFuncBody(m);
     assert(
-      body.some((e) => e.kind === 'load_splat'),
+      body.some((e) => e.kind === 'simd.load'),
       'expected a load_splat node',
     );
   });

@@ -433,7 +433,7 @@ export interface BinaryExpr {
 }
 /** Three-operand numeric op (rare; placeholder for relaxed-SIMD ternary instructions). */
 export interface TernaryExpr {
-  readonly kind: 'ternary';
+  readonly kind: 'simd.ternary';
   readonly opcode: Opcode;
   readonly a: Expr;
   readonly b: Expr;
@@ -973,19 +973,7 @@ export interface SimdShuffleOpExpr {
 }
 /** SIMD `v128.load*_lane` — loads one lane of a v128 from memory, leaving others unchanged. */
 export interface SimdLoadLaneExpr {
-  readonly kind: 'simd_load_lane';
-  readonly opcode: Opcode;
-  readonly align: number;
-  readonly offset: bigint;
-  readonly memidx: Var;
-  readonly lane: number;
-  readonly address: Expr;
-  readonly vec: Expr;
-  readonly loc: Location;
-}
-/** SIMD `v128.store*_lane` — stores one lane of a v128 to memory. */
-export interface SimdStoreLaneExpr {
-  readonly kind: 'simd_store_lane';
+  readonly kind: 'simd.load_store_lane';
   readonly opcode: Opcode;
   readonly align: number;
   readonly offset: bigint;
@@ -997,17 +985,7 @@ export interface SimdStoreLaneExpr {
 }
 /** SIMD `v128.load*_splat` — loads a scalar and broadcasts it to every lane. */
 export interface LoadSplatExpr {
-  readonly kind: 'load_splat';
-  readonly opcode: Opcode;
-  readonly align: number;
-  readonly offset: bigint;
-  readonly memidx: Var;
-  readonly address: Expr;
-  readonly loc: Location;
-}
-/** SIMD `v128.load*_zero` — loads a scalar into the first lane, zeros the rest. */
-export interface LoadZeroExpr {
-  readonly kind: 'load_zero';
+  readonly kind: 'simd.load';
   readonly opcode: Opcode;
   readonly align: number;
   readonly offset: bigint;
@@ -1187,9 +1165,7 @@ export type Expr =
   | SimdLaneOpExpr
   | SimdShuffleOpExpr
   | SimdLoadLaneExpr
-  | SimdStoreLaneExpr
   | LoadSplatExpr
-  | LoadZeroExpr
   | AtomicLoadExpr
   | AtomicStoreExpr
   | AtomicRmwExpr

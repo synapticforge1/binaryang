@@ -227,7 +227,7 @@ function buildModule(seed: number): { mod: WasmModule; nParams: number; ir: stri
 function irToString(e: any): string {
   if (!e) return '_';
   let r = e.kind;
-  if (e.op) r += `[${e.op}]`;
+  if (e.opcode) r += `[${e.opcode}]`;
   if (e.index !== undefined) r += `#${e.index}`;
   if (e.kind === 'const') r += `=${e.value?.i32}`;
   const kids: string[] = [];

@@ -67,7 +67,6 @@ import type {
   Import as WabtImport,
   LoadExpr,
   LoadSplatExpr,
-  LoadZeroExpr,
   LocalGetExpr,
   LocalSetExpr,
   LocalTeeExpr,
@@ -90,7 +89,6 @@ import type {
   SimdLaneOpExpr,
   SimdLoadLaneExpr,
   SimdShuffleOpExpr,
-  SimdStoreLaneExpr,
   StoreExpr,
   StructGetExpr,
   StructNewDefaultExpr,
@@ -1128,49 +1126,27 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         info.resultType,
       );
     }
-    case 'load_splat': {
+    case 'simd.load': {
       // Binary-reader IR path; the WAT-parser path produces LoadExpr.
       const ls = e as LoadSplatExpr;
-      requireDefaultMemory(ls.memidx, 'load_splat');
+      requireDefaultMemory(ls.memidx, 'simd.load');
       return makeSIMDLoad(
         ls.opcode,
         bridgeExpr(ls.address, ctx),
-        bigintOffsetToNumber(ls.offset, 'load_splat'),
-        alignBytesToExponent(ls.align, naturalAlignForOpcode(ls.opcode), 'load_splat'),
+        bigintOffsetToNumber(ls.offset, 'simd.load'),
+        alignBytesToExponent(ls.align, naturalAlignForOpcode(ls.opcode), 'simd.load'),
       );
     }
-    case 'load_zero': {
-      const lz = e as LoadZeroExpr;
-      requireDefaultMemory(lz.memidx, 'load_zero');
-      return makeSIMDLoad(
-        lz.opcode,
-        bridgeExpr(lz.address, ctx),
-        bigintOffsetToNumber(lz.offset, 'load_zero'),
-        alignBytesToExponent(lz.align, naturalAlignForOpcode(lz.opcode), 'load_zero'),
-      );
-    }
-    case 'simd_load_lane': {
+    case 'simd.load_store_lane': {
       const sll = e as SimdLoadLaneExpr;
-      requireDefaultMemory(sll.memidx, 'simd_load_lane');
+      requireDefaultMemory(sll.memidx, 'simd.load_store_lane');
       return makeSIMDLoadStoreLane(
         sll.opcode,
         bridgeExpr(sll.address, ctx),
         bridgeExpr(sll.vec, ctx),
-        bigintOffsetToNumber(sll.offset, 'simd_load_lane'),
-        alignBytesToExponent(sll.align, naturalAlignForOpcode(sll.opcode), 'simd_load_lane'),
+        bigintOffsetToNumber(sll.offset, 'simd.load_store_lane'),
+        alignBytesToExponent(sll.align, naturalAlignForOpcode(sll.opcode), 'simd.load_store_lane'),
         sll.lane,
-      );
-    }
-    case 'simd_store_lane': {
-      const sls = e as SimdStoreLaneExpr;
-      requireDefaultMemory(sls.memidx, 'simd_store_lane');
-      return makeSIMDLoadStoreLane(
-        sls.opcode,
-        bridgeExpr(sls.address, ctx),
-        bridgeExpr(sls.vec, ctx),
-        bigintOffsetToNumber(sls.offset, 'simd_store_lane'),
-        alignBytesToExponent(sls.align, naturalAlignForOpcode(sls.opcode), 'simd_store_lane'),
-        sls.lane,
       );
     }
     case 'store': {

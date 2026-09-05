@@ -839,7 +839,7 @@ export interface UnaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Unary;
   /** Operator code. */
-  op: UnaryOp;
+  opcode: UnaryOp;
   /** Value expression. */
   value: Expression;
 }
@@ -849,7 +849,7 @@ export interface BinaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Binary;
   /** Operator code. */
-  op: BinaryOp;
+  opcode: BinaryOp;
   /** Left-hand operand. */
   left: Expression;
   /** Right-hand operand. */
@@ -1222,7 +1222,7 @@ export interface RefAsExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefAs;
   /** Which `ref.as_*` operation this node performs. */
-  op: RefAsOp;
+  opcode: RefAsOp;
   /** The reference operand. */
   value: Expression;
 }
@@ -1528,7 +1528,7 @@ export interface BrOnExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.BrOn;
   /** Operator code. */
-  op: BrOnOp;
+  opcode: BrOnOp;
   /** label — see the matching factory for semantics. */
   label: string;
   /** ref — see the {@link make} factory for semantics. */
@@ -1630,7 +1630,7 @@ export interface SIMDExtractExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDExtract;
   /** Operator code. */
-  op: SIMDExtractOp;
+  opcode: SIMDExtractOp;
   /** vec — see the matching factory for semantics. */
   vec: Expression;
   /** Lane index for the SIMD operation. */
@@ -1642,7 +1642,7 @@ export interface SIMDReplaceExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDReplace;
   /** Operator code. */
-  op: SIMDReplaceOp;
+  opcode: SIMDReplaceOp;
   /** vec — see the matching factory for semantics. */
   vec: Expression;
   /** Lane index for the SIMD operation. */
@@ -1693,7 +1693,7 @@ export interface QuaternaryExpr extends ExprBase {
   kind: ExpressionKind.Quaternary;
   /** Two i64 results: the low and high halves of the 128-bit sum. */
   type: TupleType;
-  op: QuaternaryOp;
+  opcode: QuaternaryOp;
   a: Expression;
   b: Expression;
   c: Expression;
@@ -1702,7 +1702,7 @@ export interface QuaternaryExpr extends ExprBase {
 
 /** Creates a wide-arithmetic (`i64.add128` / `i64.sub128`) expression. */
 export function makeQuaternary(
-  op: QuaternaryOp,
+  opcode: QuaternaryOp,
   a: Expression,
   b: Expression,
   c: Expression,
@@ -1711,7 +1711,7 @@ export function makeQuaternary(
   return {
     kind: ExpressionKind.Quaternary,
     type: [ValType.I64, ValType.I64],
-    op,
+    opcode,
     a,
     b,
     c,
@@ -1723,7 +1723,7 @@ export interface SIMDTernaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDTernary;
   /** Operator code. */
-  op: SIMDTernaryOp;
+  opcode: SIMDTernaryOp;
   /** First operand. */
   a: Expression;
   /** Second operand. */
@@ -1737,7 +1737,7 @@ export interface SIMDShiftExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDShift;
   /** Operator code. */
-  op: SIMDShiftOp;
+  opcode: SIMDShiftOp;
   /** vec — see the matching factory for semantics. */
   vec: Expression;
   /** Shift amount operand. */
@@ -1758,7 +1758,7 @@ export interface SIMDLoadExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoad;
   /** Operator code. */
-  op: SIMDLoadOp;
+  opcode: SIMDLoadOp;
   /** Address operand. */
   ptr: Expression;
   /** Static byte offset added to the address operand. */
@@ -1781,7 +1781,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoadStoreLane;
   /** Operator code. */
-  op: SIMDLoadStoreLaneOp;
+  opcode: SIMDLoadStoreLaneOp;
   /** Address operand. */
   ptr: Expression;
   /** vec — see the {@link make} factory for semantics. */
@@ -1949,15 +1949,15 @@ export function makeTableSet(
 }
 
 /** Creates a binary expression. */
-export function makeBinary(op: BinaryOp, left: Expression, right: Expression): BinaryExpr {
-  const type = inferBinaryType(op);
-  return { kind: ExpressionKind.Binary, type, op, left, right };
+export function makeBinary(opcode: BinaryOp, left: Expression, right: Expression): BinaryExpr {
+  const type = inferBinaryType(opcode);
+  return { kind: ExpressionKind.Binary, type, opcode, left, right };
 }
 
 /** Creates a unary expression. */
-export function makeUnary(op: UnaryOp, value: Expression): UnaryExpr {
-  const type = inferUnaryType(op);
-  return { kind: ExpressionKind.Unary, type, op, value };
+export function makeUnary(opcode: UnaryOp, value: Expression): UnaryExpr {
+  const type = inferUnaryType(opcode);
+  return { kind: ExpressionKind.Unary, type, opcode, value };
 }
 
 /** Creates a `return` expression. */
@@ -2359,7 +2359,7 @@ export function makeTupleMake(operands: Expression[]): TupleMakeExpr {
  * concrete.
  */
 export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
-  return { kind: ExpressionKind.RefAs, type: resultType, op: RefAsOp.RefAsNonNull, value };
+  return { kind: ExpressionKind.RefAs, type: resultType, opcode: RefAsOp.RefAsNonNull, value };
 }
 
 /** Creates a ref.eq expression. */
@@ -2607,7 +2607,7 @@ export function makeRefCast(
 
 /** Creates a br_on_null, br_on_non_null, br_on_cast, or br_on_cast_fail expression. */
 export function makeBrOn(
-  op: BrOnOp,
+  opcode: BrOnOp,
   label: string,
   ref: Expression,
   resultType: Type,
@@ -2619,7 +2619,7 @@ export function makeBrOn(
   return {
     kind: ExpressionKind.BrOn,
     type: resultType,
-    op,
+    opcode,
     label,
     ref,
     castType,
@@ -2685,19 +2685,23 @@ export function makeV128Const(bytes: Uint8Array): ConstExpr {
 }
 
 /** Creates a `*.extract_lane` SIMD expression. */
-export function makeSIMDExtract(op: SIMDExtractOp, vec: Expression, lane: number): SIMDExtractExpr {
-  const type = _simdExtractResultType(op);
-  return { kind: ExpressionKind.SIMDExtract, type, op, vec, lane };
+export function makeSIMDExtract(
+  opcode: SIMDExtractOp,
+  vec: Expression,
+  lane: number,
+): SIMDExtractExpr {
+  const type = _simdExtractResultType(opcode);
+  return { kind: ExpressionKind.SIMDExtract, type, opcode, vec, lane };
 }
 
 /** Creates a `*.replace_lane` SIMD expression. */
 export function makeSIMDReplace(
-  op: SIMDReplaceOp,
+  opcode: SIMDReplaceOp,
   vec: Expression,
   lane: number,
   value: Expression,
 ): SIMDReplaceExpr {
-  return { kind: ExpressionKind.SIMDReplace, type: ValType.V128, op, vec, lane, value };
+  return { kind: ExpressionKind.SIMDReplace, type: ValType.V128, opcode, vec, lane, value };
 }
 
 /** Creates an `i8x16.shuffle` expression. */
@@ -2711,22 +2715,26 @@ export function makeSIMDShuffle(
 
 /** Creates a `v128.bitselect` or relaxed ternary SIMD expression. */
 export function makeSIMDTernary(
-  op: SIMDTernaryOp,
+  opcode: SIMDTernaryOp,
   a: Expression,
   b: Expression,
   c: Expression,
 ): SIMDTernaryExpr {
-  return { kind: ExpressionKind.SIMDTernary, type: ValType.V128, op, a, b, c };
+  return { kind: ExpressionKind.SIMDTernary, type: ValType.V128, opcode, a, b, c };
 }
 
 /** Creates a `*.shl` / `*.shr_s` / `*.shr_u` SIMD shift expression. */
-export function makeSIMDShift(op: SIMDShiftOp, vec: Expression, shift: Expression): SIMDShiftExpr {
-  return { kind: ExpressionKind.SIMDShift, type: ValType.V128, op, vec, shift };
+export function makeSIMDShift(
+  opcode: SIMDShiftOp,
+  vec: Expression,
+  shift: Expression,
+): SIMDShiftExpr {
+  return { kind: ExpressionKind.SIMDShift, type: ValType.V128, opcode, vec, shift };
 }
 
 /** Creates a SIMD extended load expression (splat, extend, or zero-extend). */
 export function makeSIMDLoad(
-  op: SIMDLoadOp,
+  opcode: SIMDLoadOp,
   ptr: Expression,
   offset: number,
   align: number,
@@ -2735,7 +2743,7 @@ export function makeSIMDLoad(
   return {
     kind: ExpressionKind.SIMDLoad,
     type: ValType.V128,
-    op,
+    opcode,
     ptr,
     offset,
     align,
@@ -2745,7 +2753,7 @@ export function makeSIMDLoad(
 
 /** Creates a `v128.loadN_lane` or `v128.storeN_lane` expression. */
 export function makeSIMDLoadStoreLane(
-  op: SIMDLoadStoreLaneOp,
+  opcode: SIMDLoadStoreLaneOp,
   ptr: Expression,
   vec: Expression,
   offset: number,
@@ -2753,14 +2761,14 @@ export function makeSIMDLoadStoreLane(
   lane: number,
   memory = 0,
 ): SIMDLoadStoreLaneExpr {
-  const isStore = op === SIMDLoadStoreLaneOp.Store8LaneVec128 ||
-    op === SIMDLoadStoreLaneOp.Store16LaneVec128 ||
-    op === SIMDLoadStoreLaneOp.Store32LaneVec128 ||
-    op === SIMDLoadStoreLaneOp.Store64LaneVec128;
+  const isStore = opcode === SIMDLoadStoreLaneOp.Store8LaneVec128 ||
+    opcode === SIMDLoadStoreLaneOp.Store16LaneVec128 ||
+    opcode === SIMDLoadStoreLaneOp.Store32LaneVec128 ||
+    opcode === SIMDLoadStoreLaneOp.Store64LaneVec128;
   return {
     kind: ExpressionKind.SIMDLoadStoreLane,
     type: isStore ? None : ValType.V128,
-    op,
+    opcode,
     ptr,
     vec,
     offset,
@@ -2774,10 +2782,10 @@ export function makeSIMDLoadStoreLane(
 // Internal type inference helpers
 // ---------------------------------------------------------------------------
 
-function inferBinaryType(op: BinaryOp): ValType {
+function inferBinaryType(opcode: BinaryOp): ValType {
   // The operator is an OPCODE now, so the name comes from the table.
   // The tests below are unchanged.
-  const name = anyOpcodeName(op);
+  const name = anyOpcodeName(opcode);
   // SIMD ops all return v128 (including SIMD comparisons, unlike scalar comparisons)
   if (
     name.startsWith('i8x16.') || name.startsWith('i16x8.') || name.startsWith('i32x4.') ||
@@ -2798,12 +2806,12 @@ function inferBinaryType(op: BinaryOp): ValType {
   return ValType.F64;
 }
 
-function inferUnaryType(op: UnaryOp): ValType {
+function inferUnaryType(opcode: UnaryOp): ValType {
   // The operator is an OPCODE now, so the name comes from the table.
   // The tests below are unchanged.
-  const name = anyOpcodeName(op);
+  const name = anyOpcodeName(opcode);
   // SIMD reduction ops return i32
-  if (name.endsWith('.all_true') || name.endsWith('.bitmask') || op === UnaryOp.AnyTrueVec128) {
+  if (name.endsWith('.all_true') || name.endsWith('.bitmask') || opcode === UnaryOp.AnyTrueVec128) {
     return ValType.I32;
   }
   // All other SIMD ops return v128
@@ -2821,9 +2829,9 @@ function inferUnaryType(op: UnaryOp): ValType {
   return ValType.F64;
 }
 
-function _simdExtractResultType(op: SIMDExtractOp): ValType {
-  if (op === SIMDExtractOp.ExtractLaneVecI64x2) return ValType.I64;
-  if (op === SIMDExtractOp.ExtractLaneVecF32x4) return ValType.F32;
-  if (op === SIMDExtractOp.ExtractLaneVecF64x2) return ValType.F64;
+function _simdExtractResultType(opcode: SIMDExtractOp): ValType {
+  if (opcode === SIMDExtractOp.ExtractLaneVecI64x2) return ValType.I64;
+  if (opcode === SIMDExtractOp.ExtractLaneVecF32x4) return ValType.F32;
+  if (opcode === SIMDExtractOp.ExtractLaneVecF64x2) return ValType.F64;
   return ValType.I32;
 }

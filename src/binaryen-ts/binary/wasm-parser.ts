@@ -1368,7 +1368,7 @@ class WasmParser {
       // catch's pushed params dangling at the function tail. Skipping `none`
       // statements (leaving them in place so their side effects are preserved)
       // lets the consumer reach the real `Pop`. In well-formed straight-line
-      // code values are always on top, so this is a no-op there.
+      // code values are always on top, so this is a no-opcode there.
       for (let i = exprs.length - 1; i >= 0; i--) {
         if (exprs[i]!.type !== None) { // bounded by the loop header
           // A `Pop` is a stack PLACEHOLDER (a multi-value call's extra result or
@@ -1641,8 +1641,8 @@ class WasmParser {
     };
 
     decode: while (!r.eof) {
-      const op = r.readU8();
-      switch (op) {
+      const opcode = r.readU8();
+      switch (opcode) {
         case 0x00:
           push(makeUnreachable());
           break;
@@ -2359,22 +2359,22 @@ class WasmParser {
           break;
 
         default: {
-          const unary = UNARY_OPCODE[op];
+          const unary = UNARY_OPCODE[opcode];
           if (unary !== undefined) {
             push(makeUnary(unary, pop()));
             break;
           }
-          const binary = BINARY_OPCODE[op];
+          const binary = BINARY_OPCODE[opcode];
           if (binary !== undefined) {
             const rhs = pop();
             push(makeBinary(binary, pop(), rhs));
             break;
           }
           // Genuinely unknown opcode. Pushing a `nop` "to keep the stack
-          // consistent" actually corrupted it (the unknown op's stack effect is
+          // consistent" actually corrupted it (the unknown opcode's stack effect is
           // unknown) and silently dropped the instruction. Fail loudly so an
           // unsupported module is reported rather than miscompiled.
-          r.error(`unknown opcode 0x${op.toString(16)}`);
+          r.error(`unknown opcode 0x${opcode.toString(16)}`);
         }
       }
     }
@@ -2647,7 +2647,7 @@ function decodeGcPrefix(
       break;
     }
     default:
-      // Unimplemented GC sub-opcode. A `nop` here silently dropped the op and
+      // Unimplemented GC sub-opcode. A `nop` here silently dropped the opcode and
       // its operands; fail loudly instead.
       r.error(`unsupported GC opcode: 0xFB 0x${sub.toString(16)}`);
   }
@@ -2784,7 +2784,7 @@ function decodeMiscPrefix(
       break;
     }
     // Any FUTURE 0xFC sub-opcode. Kept failing loud for the reason the eight
-    // above used to: decoding an unknown op to `nop` drops it silently, and
+    // above used to: decoding an unknown opcode to `nop` drops it silently, and
     // guessing its operand count corrupts the stack. A consumer can detect an
     // unsupported module; it cannot detect garbage.
     // --- Wide arithmetic (0xfc 0x13-0x16) --------------------------------
@@ -4036,7 +4036,7 @@ function decodeSIMDPrefix(
       break;
     default:
       // Unknown / relaxed-SIMD sub-opcode. Emitting a `nop` silently dropped the
-      // op and its operands (stack imbalance / silent op loss); fail loudly,
+      // opcode and its operands (stack imbalance / silent opcode loss); fail loudly,
       // matching the GC (0xFB) and bulk-memory (0xFC) decoders.
       r.error(`unsupported SIMD opcode: 0xFD 0x${sub.toString(16)}`);
   }

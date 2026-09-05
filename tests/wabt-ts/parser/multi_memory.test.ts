@@ -194,7 +194,7 @@ describe('SIMD lane ops — memidx vs lane disambiguation', () => {
     const { module, errors } = parseWatModule(wat);
     if (hasErrors(errors)) throw new Error(formatErrors(errors));
     resolveNames(module, errors);
-    const e = module.funcs[0]!.body.find((x) => x.kind === 'simd_load_lane') as
+    const e = module.funcs[0]!.body.find((x) => x.kind === 'simd.load_store_lane') as
       | SimdLoadLaneExpr
       | undefined;
     assert(e, 'expected a simd_load_lane');

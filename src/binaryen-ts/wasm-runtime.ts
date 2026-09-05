@@ -20,10 +20,10 @@
  * ## When to use it
  *
  * WASM call overhead is roughly two orders of magnitude greater than a native
- * JS arithmetic op (~100 ns vs ~1–5 ns). A kernel only earns its boundary
+ * JS arithmetic opcode (~100 ns vs ~1–5 ns). A kernel only earns its boundary
  * cost when each call performs **substantial** work — large loops, table
  * lookups against module-resident data, batched operations over linear
- * memory. Single-op kernels regress.
+ * memory. Single-opcode kernels regress.
  *
  * See `benches/wasm_dispatch_bench.ts` for the boundary-cost measurement and
  * `CLAUDE.md` § "Phase 10 — WASM kernel runtime" for the kernel-selection

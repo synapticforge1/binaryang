@@ -555,7 +555,7 @@ class ResolveContext {
         const [rR, right] = this.resolveExpr(e.right);
         return [combine(rL, rR), { ...e, left, right }];
       }
-      case 'ternary': {
+      case 'simd.ternary': {
         const [rA, a] = this.resolveExpr(e.a);
         const [rB, b] = this.resolveExpr(e.b);
         const [rC, c] = this.resolveExpr(e.c);
@@ -570,8 +570,7 @@ class ResolveContext {
       }
       case 'load':
       case 'atomic.load':
-      case 'load_splat':
-      case 'load_zero': {
+      case 'simd.load': {
         const [r, address] = this.resolveExpr(e.address);
         return [r, { ...e, memidx: this.resolveMemoryVar(e.memidx, loc), address }];
       }
@@ -913,8 +912,7 @@ class ResolveContext {
         const [rR, right] = this.resolveExpr(e.right);
         return [combine(rL, rR), { ...e, left, right }];
       }
-      case 'simd_load_lane':
-      case 'simd_store_lane': {
+      case 'simd.load_store_lane': {
         const [rA, address] = this.resolveExpr(e.address);
         const [rV, vec] = this.resolveExpr(e.vec);
         return [combine(rA, rV), {

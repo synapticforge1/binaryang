@@ -1472,7 +1472,7 @@ export class Module {
   }
 
   /**
-   * No-op disposal. Upstream binaryen.js holds a wasm-side `Module*` pointer
+   * No-opcode disposal. Upstream binaryen.js holds a wasm-side `Module*` pointer
    * that requires explicit free; binaryen-ts owns its IR in JS-heap memory,
    * so there is nothing to release. Exposed for API parity.
    */

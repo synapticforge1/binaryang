@@ -316,7 +316,7 @@ Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data
   const check = body.children[2] as IfExpr;
   assertEquals(check.kind, ExpressionKind.If);
   assertEquals(check.condition.kind, ExpressionKind.Binary);
-  assertEquals((check.condition as { op: BinaryOp }).op, BinaryOp.GtUI32);
+  assertEquals((check.condition as { opcode: BinaryOp }).opcode, BinaryOp.GtUI32);
   const lhs = (check.condition as { left: { offset: number } }).left;
   const rhs = (check.condition as { right: { offset: number } }).right;
   assertEquals(lhs.offset, 0);

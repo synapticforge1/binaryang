@@ -1256,22 +1256,7 @@ class WatWriter extends ModuleContext {
         this.newline(false);
         return Result.Ok;
       },
-      onSimdStoreLaneExpr: (e) => {
-        const na = naturalAlignForOpcode(e.opcode);
-        this.putsSpace(opname(e.opcode));
-        this.writeMemoryVarUnlessZero(e.memidx, NC.Space);
-        if (e.offset !== 0n) this.writef(`offset=${e.offset}`);
-        if (e.align !== na) this.writef(`align=${e.align}`);
-        this.writef(`${e.lane}`);
-        this.newline(false);
-        return Result.Ok;
-      },
       onLoadSplatExpr: (e) => {
-        const na = naturalAlignForOpcode(e.opcode);
-        this.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
-        return Result.Ok;
-      },
-      onLoadZeroExpr: (e) => {
         const na = naturalAlignForOpcode(e.opcode);
         this.writeMemarg(opname(e.opcode), e.offset, e.align, na, e.memidx);
         return Result.Ok;

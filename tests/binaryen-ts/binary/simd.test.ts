@@ -131,7 +131,7 @@ Deno.test('SIMD: i32x4.splat parsed correctly', () => {
   const mod = parseWasm(SPLAT_MODULE);
   const expr = mod.functions[0].body as UnaryExpr;
   assertEquals(expr.kind, ExpressionKind.Unary);
-  assertEquals(expr.op, UnaryOp.SplatVecI32x4);
+  assertEquals(expr.opcode, UnaryOp.SplatVecI32x4);
   assertEquals(expr.type, ValType.V128);
 });
 
@@ -171,7 +171,7 @@ Deno.test('SIMD: i32x4.add parsed correctly', () => {
   const mod = parseWasm(ADD_MODULE);
   const expr = mod.functions[0].body as BinaryExpr;
   assertEquals(expr.kind, ExpressionKind.Binary);
-  assertEquals(expr.op, BinaryOp.AddVecI32x4);
+  assertEquals(expr.opcode, BinaryOp.AddVecI32x4);
   assertEquals(expr.type, ValType.V128);
 });
 
@@ -251,7 +251,7 @@ Deno.test('SIMD: i8x16.extract_lane_s parsed correctly', () => {
   const mod = parseWasm(EXTRACT_MODULE);
   const expr = mod.functions[0].body as SIMDExtractExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDExtract);
-  assertEquals(expr.op, SIMDExtractOp.ExtractLaneSVecI8x16);
+  assertEquals(expr.opcode, SIMDExtractOp.ExtractLaneSVecI8x16);
   assertEquals(expr.lane, 3);
   assertEquals(expr.type, ValType.I32);
 });
@@ -285,7 +285,7 @@ Deno.test('SIMD: i32x4.replace_lane parsed correctly', () => {
   const mod = parseWasm(REPLACE_MODULE);
   const expr = mod.functions[0].body as SIMDReplaceExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDReplace);
-  assertEquals(expr.op, SIMDReplaceOp.ReplaceLaneVecI32x4);
+  assertEquals(expr.opcode, SIMDReplaceOp.ReplaceLaneVecI32x4);
   assertEquals(expr.lane, 2);
   assertEquals(expr.type, ValType.V128);
 });
@@ -320,7 +320,7 @@ Deno.test('SIMD: i32x4.shl (SIMDShift) parsed correctly', () => {
   const mod = parseWasm(SHIFT_MODULE);
   const expr = mod.functions[0].body as SIMDShiftExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDShift);
-  assertEquals(expr.op, SIMDShiftOp.ShlVecI32x4);
+  assertEquals(expr.opcode, SIMDShiftOp.ShlVecI32x4);
   assertEquals(expr.type, ValType.V128);
 });
 
@@ -354,7 +354,7 @@ Deno.test('SIMD: v128.bitselect (SIMDTernary) parsed correctly', () => {
   const mod = parseWasm(BITSELECT_MODULE);
   const expr = mod.functions[0].body as SIMDTernaryExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDTernary);
-  assertEquals(expr.op, SIMDTernaryOp.Bitselect);
+  assertEquals(expr.opcode, SIMDTernaryOp.Bitselect);
   assertEquals(expr.type, ValType.V128);
 });
 
@@ -387,7 +387,7 @@ Deno.test('SIMD: v128.load8x8_s (SIMDLoad) parsed correctly', () => {
   const mod = parseWasm(SIMD_LOAD_MODULE);
   const expr = mod.functions[0].body as SIMDLoadExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDLoad);
-  assertEquals(expr.op, SIMDLoadOp.Load8x8SVec128);
+  assertEquals(expr.opcode, SIMDLoadOp.Load8x8SVec128);
   assertEquals(expr.align, 1);
   assertEquals(expr.offset, 0);
   assertEquals(expr.type, ValType.V128);
@@ -425,7 +425,7 @@ Deno.test('SIMD: v128.load8_lane (SIMDLoadStoreLane) parsed correctly', () => {
   const mod = parseWasm(SIMD_LANE_MODULE);
   const expr = mod.functions[0].body as SIMDLoadStoreLaneExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDLoadStoreLane);
-  assertEquals(expr.op, SIMDLoadStoreLaneOp.Load8LaneVec128);
+  assertEquals(expr.opcode, SIMDLoadStoreLaneOp.Load8LaneVec128);
   assertEquals(expr.lane, 0);
   assertEquals(expr.type, ValType.V128);
 });

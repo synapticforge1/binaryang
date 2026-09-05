@@ -201,11 +201,11 @@ class BinaryWriter {
 
 // SIMD unary ops — 0xFD prefix + U32 sub-opcode
 // SIMD binary ops — 0xFD prefix + U32 sub-opcode
-// SIMD shift op to sub-opcode
-// SIMD extract op to (sub-opcode) — lane immediate follows
-// SIMD replace op to sub-opcode
-// SIMD load op to sub-opcode
-// SIMD load/store lane op to sub-opcode
+// SIMD shift opcode to sub-opcode
+// SIMD extract opcode to (sub-opcode) — lane immediate follows
+// SIMD replace opcode to sub-opcode
+// SIMD load opcode to sub-opcode
+// SIMD load/store lane opcode to sub-opcode
 // ---------------------------------------------------------------------------
 // ValType / blocktype encoding
 // ---------------------------------------------------------------------------
@@ -884,14 +884,14 @@ class WasmEncoder {
    * THREADS or GC operator had nowhere to go. This handles all four, which is
    * what lets atomics encode at all.
    */
-  private writeOperator(w: BinaryWriter, op: number): void {
-    const prefix = op >>> 16;
+  private writeOperator(w: BinaryWriter, opcode: number): void {
+    const prefix = opcode >>> 16;
     if (prefix === 0) {
-      w.writeU8(op);
+      w.writeU8(opcode);
       return;
     }
     w.writeU8(prefix);
-    w.writeU32(op & 0xffff);
+    w.writeU32(opcode & 0xffff);
   }
 
   private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: number): void {
@@ -1419,7 +1419,7 @@ class WasmEncoder {
    * nothing could reach the invalid combination. That coupling is why the two
    * were fixed in one change rather than separately.
    *
-   * Emitted whenever a data segment exists, not only when a bulk-memory op is
+   * Emitted whenever a data segment exists, not only when a bulk-memory opcode is
    * present. It is optional in that wider case, but it is the rule wabt-ts's
    * writer follows — and two tools in this repo disagreeing about the section
    * list for the same module is its own defect. Matching also closes the last
@@ -1624,7 +1624,7 @@ class WasmEncoder {
       case ExpressionKind.Unary: {
         const e = expr as UnaryExpr;
         this.encodeExpr(w, e.value, labels);
-        this.writeOperator(w, e.op);
+        this.writeOperator(w, e.opcode);
         break;
       }
 
@@ -1634,7 +1634,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.right, labels);
         // No special case for the 0xfc-prefixed wide-multiply pair any more:
         // the opcode carries its own prefix, so writeOperator handles it.
-        this.writeOperator(w, e.op);
+        this.writeOperator(w, e.opcode);
         break;
       }
 
@@ -1807,7 +1807,7 @@ class WasmEncoder {
 
       case ExpressionKind.Call: {
         const e = expr as CallExpr;
-        for (const op of e.operands) this.encodeExpr(w, op, labels);
+        for (const opcode of e.operands) this.encodeExpr(w, opcode, labels);
         // 0x10 = call, 0x12 = return_call (tail-call proposal).
         w.writeU8(e.isReturn ? 0x12 : 0x10);
         w.writeU32(this.resolveRef(this.funcIndex, e.target, 'call target'));
@@ -1816,7 +1816,7 @@ class WasmEncoder {
 
       case ExpressionKind.CallIndirect: {
         const e = expr as CallIndirectExpr;
-        for (const op of e.operands) this.encodeExpr(w, op, labels);
+        for (const opcode of e.operands) this.encodeExpr(w, opcode, labels);
         this.encodeExpr(w, e.target, labels);
         // 0x11 = call_indirect, 0x13 = return_call_indirect (tail-call proposal).
         w.writeU8(e.isReturn ? 0x13 : 0x11);
@@ -1851,14 +1851,14 @@ class WasmEncoder {
         // No wasm opcode: a tuple IS its N values sitting on the stack, so
         // emitting the operands in order is the whole encoding.
         const e = expr as TupleMakeExpr;
-        for (const op of e.operands) this.encodeExpr(w, op, labels);
+        for (const opcode of e.operands) this.encodeExpr(w, opcode, labels);
         break;
       }
       case ExpressionKind.RefAs: {
         const e = expr as RefAsExpr;
         this.encodeExpr(w, e.value, labels);
-        if (e.op !== RefAsOp.RefAsNonNull) {
-          throw new WasmEncodeError(`unsupported ref.as operation: ${e.op}`);
+        if (e.opcode !== RefAsOp.RefAsNonNull) {
+          throw new WasmEncodeError(`unsupported ref.as operation: ${e.opcode}`);
         }
         w.writeU8(0xd4);
         break;
@@ -1893,7 +1893,7 @@ class WasmEncoder {
       }
       case ExpressionKind.StructNew: {
         const e = expr as StructNewExpr;
-        if (!e.defaultInit) { for (const op of e.operands) this.encodeExpr(w, op, labels); }
+        if (!e.defaultInit) { for (const opcode of e.operands) this.encodeExpr(w, opcode, labels); }
         w.writeU8(0xfb);
         w.writeU32(e.defaultInit ? 0x01 : 0x00);
         w.writeU32(e.typeIndex);
@@ -2040,15 +2040,15 @@ class WasmEncoder {
         const e = expr as BrOnExpr;
         this.encodeExpr(w, e.ref, labels);
         const depth = this.resolveLabel(labels, e.label);
-        if (e.op === BrOnOp.Null) {
+        if (e.opcode === BrOnOp.Null) {
           w.writeU8(0xd5);
           w.writeU32(depth);
-        } else if (e.op === BrOnOp.NonNull) {
+        } else if (e.opcode === BrOnOp.NonNull) {
           w.writeU8(0xd6);
           w.writeU32(depth);
         } else {
           w.writeU8(0xfb);
-          w.writeU32(e.op === BrOnOp.Cast ? 0x18 : 0x19);
+          w.writeU32(e.opcode === BrOnOp.Cast ? 0x18 : 0x19);
           // flags: bit 0 = source nullable, bit 1 = cast-target nullable.
           w.writeU8((e.srcNullable ? 0x01 : 0x00) | (e.castNullable ? 0x02 : 0x00));
           w.writeU32(depth);
@@ -2127,7 +2127,7 @@ class WasmEncoder {
 
       case ExpressionKind.Throw: {
         const e = expr as ThrowExpr;
-        for (const op of e.operands) this.encodeExpr(w, op, labels);
+        for (const opcode of e.operands) this.encodeExpr(w, opcode, labels);
         w.writeU8(0x08);
         w.writeU32(this.resolveRef(this.tagIndex, e.tag, 'throw tag'));
         break;
@@ -2155,7 +2155,7 @@ class WasmEncoder {
       case ExpressionKind.SIMDExtract: {
         const e = expr as SIMDExtractExpr;
         this.encodeExpr(w, e.vec, labels);
-        this.writeOperator(w, e.op);
+        this.writeOperator(w, e.opcode);
         w.writeU8(e.lane);
         break;
       }
@@ -2164,7 +2164,7 @@ class WasmEncoder {
         const e = expr as SIMDReplaceExpr;
         this.encodeExpr(w, e.vec, labels);
         this.encodeExpr(w, e.value, labels);
-        this.writeOperator(w, e.op);
+        this.writeOperator(w, e.opcode);
         w.writeU8(e.lane);
         break;
       }
@@ -2187,7 +2187,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.c, labels);
         this.encodeExpr(w, e.d, labels);
         w.writeU8(0xfc);
-        w.writeU32(e.op === QuaternaryOp.Add128 ? 19 : 20);
+        w.writeU32(e.opcode === QuaternaryOp.Add128 ? 19 : 20);
         break;
       }
 
@@ -2206,14 +2206,14 @@ class WasmEncoder {
         const e = expr as SIMDShiftExpr;
         this.encodeExpr(w, e.vec, labels);
         this.encodeExpr(w, e.shift, labels);
-        this.writeOperator(w, e.op);
+        this.writeOperator(w, e.opcode);
         break;
       }
 
       case ExpressionKind.SIMDLoad: {
         const e = expr as SIMDLoadExpr;
         this.encodeExpr(w, e.ptr, labels);
-        this.writeOperator(w, e.op);
+        this.writeOperator(w, e.opcode);
         this.writeMemArg(w, e.align, e.offset, e.memory);
         break;
       }
@@ -2222,7 +2222,7 @@ class WasmEncoder {
         const e = expr as SIMDLoadStoreLaneExpr;
         this.encodeExpr(w, e.ptr, labels);
         this.encodeExpr(w, e.vec, labels);
-        this.writeOperator(w, e.op);
+        this.writeOperator(w, e.opcode);
         this.writeMemArg(w, e.align, e.offset, e.memory);
         w.writeU8(e.lane);
         break;

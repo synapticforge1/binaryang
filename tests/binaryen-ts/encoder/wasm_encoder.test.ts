@@ -217,7 +217,7 @@ Deno.test('round-trip: add module preserves export', () => {
   assertEquals(mod2.exports[0].kind, 'function');
 });
 
-Deno.test('round-trip: add module body still contains binary op', () => {
+Deno.test('round-trip: add module body still contains binary opcode', () => {
   const mod2 = roundTrip(ADD_MODULE);
   const fn = mod2.functions[0];
   const found = walkFind(
@@ -307,7 +307,7 @@ Deno.test('encodeWasm: an operator is written as the opcode it is', () => {
   const node = {
     kind: ExpressionKind.Unary,
     type: ValType.I32,
-    op: 0x45,
+    opcode: 0x45,
     value: makeI32Const(0),
   } as unknown as Expression;
   const mod = new ModuleBuilder()

@@ -1148,21 +1148,21 @@ class WatModuleParser {
     // Unary operators
     // -----------------------------------------------------------------------
     if (head in UNARY_OPS) {
-      const op = UNARY_OPS[head];
+      const opcode = UNARY_OPS[head];
       const value = this.parseExpr(args[0], ctx);
       const type = inferUnaryResultType(head);
-      return { kind: ExpressionKind.Unary, type, op, value } as UnaryExpr;
+      return { kind: ExpressionKind.Unary, type, opcode, value } as UnaryExpr;
     }
 
     // -----------------------------------------------------------------------
     // Binary operators
     // -----------------------------------------------------------------------
     if (head in BINARY_OPS) {
-      const op = BINARY_OPS[head];
+      const opcode = BINARY_OPS[head];
       const left = this.parseExpr(args[0], ctx);
       const right = this.parseExpr(args[1], ctx);
       const type = inferBinaryResultType(head);
-      return { kind: ExpressionKind.Binary, type, op, left, right } as BinaryExpr;
+      return { kind: ExpressionKind.Binary, type, opcode, left, right } as BinaryExpr;
     }
 
     // -----------------------------------------------------------------------
@@ -1341,7 +1341,7 @@ class WatModuleParser {
 
     // Unrecognized instruction. Silently returning a `nop` here dropped the
     // instruction's operands and corrupted the operand stack — a silent
-    // miscompile (e.g. an unhandled `memory.init`/`table.fill`/atomics op would
+    // miscompile (e.g. an unhandled `memory.init`/`table.fill`/atomics opcode would
     // vanish). Fail loudly with the offending keyword instead; add a real case
     // above when the instruction is implemented.
     return this.err(`unsupported instruction: ${head}`, list.pos);
@@ -2944,7 +2944,7 @@ class WatModuleParser {
       const l = s as SList;
       if (listHead(l) === 'ref') {
         // `(ref null $T)` / `(ref $T)`. This used to return `ValType.AnyRef`
-        // from BOTH arms of a no-op ternary, discarding the heap type and the
+        // from BOTH arms of a no-opcode ternary, discarding the heap type and the
         // nullability — the WAT-side half of UP-7. Build the real `RefType`.
         const ch = listChildren(l);
         const nullable = atomText(ch[0]) === 'null';
@@ -3166,7 +3166,7 @@ class WatModuleParser {
   }
 
   /**
-   * Natural alignment in bytes for a SIMD memory op, derived from its NAME.
+   * Natural alignment in bytes for a SIMD memory opcode, derived from its NAME.
    *
    * Derived rather than tabulated on purpose: a table here would be a second
    * copy of a fact wabt-ts already holds in `naturalAlignForOpcode`, and the two
@@ -3183,7 +3183,7 @@ class WatModuleParser {
     if (wide) return (Number(wide[1]) * Number(wide[2])) / 8;
     const narrow = /^v128\.(?:load|store)(\d+)(?:_.*)?$/.exec(head);
     if (narrow) return Number(narrow[1]) / 8;
-    // Unknown SIMD memory op: 1 is the only always-legal alignment, and it is
+    // Unknown SIMD memory opcode: 1 is the only always-legal alignment, and it is
     // better than guessing a width that could exceed the real one and produce a
     // module no engine will load.
     return 1;
@@ -3274,7 +3274,7 @@ interface RawFunc {
 // Operator lookup tables
 // ---------------------------------------------------------------------------
 
-// SIMD special-form op tables (used by parseSIMD* helpers)
+// SIMD special-form opcode tables (used by parseSIMD* helpers)
 const SIMD_EXTRACT_OPS: Record<string, SIMDExtractOp> = {
   'i8x16.extract_lane_s': SIMDExtractOp.ExtractLaneSVecI8x16,
   'i8x16.extract_lane_u': SIMDExtractOp.ExtractLaneUVecI8x16,
@@ -3668,27 +3668,27 @@ const BINARY_OPS: Record<string, BinaryOp> = {
   'f64x2.pmax': BinaryOp.PmaxVecF64x2,
 };
 
-function inferUnaryResultType(op: string): ValType {
+function inferUnaryResultType(opcode: string): ValType {
   // SIMD ops that return i32 (reduction ops)
-  if (op.endsWith('.all_true') || op.endsWith('.bitmask') || op === 'v128.any_true') {
+  if (opcode.endsWith('.all_true') || opcode.endsWith('.bitmask') || opcode === 'v128.any_true') {
     return ValType.I32;
   }
   // SIMD ops — everything else returns v128
   const simdPrefixes = ['i8x16.', 'i16x8.', 'i32x4.', 'i64x2.', 'f32x4.', 'f64x2.', 'v128.'];
-  if (simdPrefixes.some((p) => op.startsWith(p))) return ValType.V128;
-  if (op.startsWith('i32') || op.startsWith('i64.eqz')) return ValType.I32;
-  if (op.startsWith('i64')) return ValType.I64;
-  if (op.startsWith('f32')) return ValType.F32;
-  if (op.startsWith('f64')) return ValType.F64;
+  if (simdPrefixes.some((p) => opcode.startsWith(p))) return ValType.V128;
+  if (opcode.startsWith('i32') || opcode.startsWith('i64.eqz')) return ValType.I32;
+  if (opcode.startsWith('i64')) return ValType.I64;
+  if (opcode.startsWith('f32')) return ValType.F32;
+  if (opcode.startsWith('f64')) return ValType.F64;
   // Conversions: result type is in the prefix
-  const m = op.match(/^(i32|i64|f32|f64)\./);
+  const m = opcode.match(/^(i32|i64|f32|f64)\./);
   return (m?.[1] as ValType) ?? ValType.I32;
 }
 
-function inferBinaryResultType(op: string): ValType {
+function inferBinaryResultType(opcode: string): ValType {
   // SIMD ops all return v128 (including SIMD comparisons — unlike scalar comparisons!)
   const simdPrefixes = ['i8x16.', 'i16x8.', 'i32x4.', 'i64x2.', 'f32x4.', 'f64x2.', 'v128.'];
-  if (simdPrefixes.some((p) => op.startsWith(p))) return ValType.V128;
+  if (simdPrefixes.some((p) => opcode.startsWith(p))) return ValType.V128;
   // Scalar comparison ops return i32
   const cmpSuffixes = [
     '.eq',
@@ -3706,11 +3706,11 @@ function inferBinaryResultType(op: string): ValType {
     '.ge_s',
     '.ge_u',
   ];
-  if (cmpSuffixes.some((s) => op.endsWith(s))) return ValType.I32;
-  if (op.startsWith('i32')) return ValType.I32;
-  if (op.startsWith('i64')) return ValType.I64;
-  if (op.startsWith('f32')) return ValType.F32;
-  if (op.startsWith('f64')) return ValType.F64;
+  if (cmpSuffixes.some((s) => opcode.endsWith(s))) return ValType.I32;
+  if (opcode.startsWith('i32')) return ValType.I32;
+  if (opcode.startsWith('i64')) return ValType.I64;
+  if (opcode.startsWith('f32')) return ValType.F32;
+  if (opcode.startsWith('f64')) return ValType.F64;
   return ValType.I32;
 }
 

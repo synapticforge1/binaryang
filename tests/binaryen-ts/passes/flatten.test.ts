@@ -104,8 +104,8 @@ function assertFlat(mod: WasmModule): void {
       }
       // Operands of value operations must be trivial.
       const checkOperands = (ops: Expression[]) => {
-        for (const op of ops) {
-          assert(TRIVIAL.has(op.kind), `non-trivial operand ${op.kind} under ${e.kind}`);
+        for (const opcode of ops) {
+          assert(TRIVIAL.has(opcode.kind), `non-trivial operand ${opcode.kind} under ${e.kind}`);
         }
       };
       switch (e.kind) {

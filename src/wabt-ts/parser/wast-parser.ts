@@ -109,7 +109,6 @@ import {
   type SimdLaneOpExpr,
   type SimdLoadLaneExpr,
   type SimdShuffleOpExpr,
-  type SimdStoreLaneExpr,
   type StoreExpr,
   type StructGetExpr,
   type StructNewDefaultExpr,
@@ -4453,7 +4452,14 @@ export class WastParser {
       }
       case TokenType.Ternary: {
         const op = (tok as OpcodeToken).opcode;
-        return { kind: 'ternary', opcode: op, a: op0(), b: op1(), c: op2(), loc } as TernaryExpr;
+        return {
+          kind: 'simd.ternary',
+          opcode: op,
+          a: op0(),
+          b: op1(),
+          c: op2(),
+          loc,
+        } as TernaryExpr;
       }
       case TokenType.Quaternary: {
         const op = (tok as OpcodeToken).opcode;
@@ -4627,7 +4633,7 @@ export class WastParser {
         const align = this.parseAlignOpt();
         const lane = this.parseSimdLane();
         return {
-          kind: 'simd_load_lane',
+          kind: 'simd.load_store_lane',
           opcode: op as unknown as Opcode,
           memidx,
           offset,
@@ -4645,7 +4651,7 @@ export class WastParser {
         const align = this.parseAlignOpt();
         const lane = this.parseSimdLane();
         return {
-          kind: 'simd_store_lane',
+          kind: 'simd.load_store_lane',
           opcode: op as unknown as Opcode,
           memidx,
           offset,
@@ -4654,7 +4660,7 @@ export class WastParser {
           address: op0(),
           vec: op1(),
           loc,
-        } as SimdStoreLaneExpr;
+        } as SimdLoadLaneExpr;
       }
 
       default:

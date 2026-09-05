@@ -10,6 +10,7 @@
  */
 
 import type { Index } from '../core/types.ts';
+import { anyOpcodeName } from '../core/opcode.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { ValueType } from './ir.ts';
 import type {
@@ -225,9 +226,7 @@ export class ModuleContext {
         return { nargs: 3, nreturns: 1, unreachable: false };
       case 'atomic.notify':
         return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'load_splat':
-        return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'load_zero':
+      case 'simd.load':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'simd_lane_op':
         // extract_lane pops 1 (the vec); replace_lane pops 2 (vec + scalar).
@@ -235,10 +234,13 @@ export class ModuleContext {
         return { nargs: expr.value !== undefined ? 2 : 1, nreturns: 1, unreachable: false };
       case 'simd.shuffle':
         return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'simd_load_lane':
-        return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'simd_store_lane':
-        return { nargs: 2, nreturns: 0, unreachable: false };
+      case 'simd.load_store_lane':
+        // One node, two stack effects: a store consumes the vector and
+        // yields nothing, a load consumes and yields one. The duplicate
+        // case this replaced was DEAD, so every store reported nreturns 1.
+        return anyOpcodeName(expr.opcode).includes('store')
+          ? { nargs: 2, nreturns: 0, unreachable: false }
+          : { nargs: 2, nreturns: 1, unreachable: false };
       case 'memory.copy':
         return { nargs: 3, nreturns: 0, unreachable: false };
       case 'memory.fill':
@@ -253,7 +255,7 @@ export class ModuleContext {
         return { nargs: 3, nreturns: 0, unreachable: false };
       case 'select':
         return { nargs: 3, nreturns: 1, unreachable: false };
-      case 'ternary':
+      case 'simd.ternary':
         return { nargs: 3, nreturns: 1, unreachable: false };
       case 'quaternary':
         return { nargs: 4, nreturns: 1, unreachable: false };

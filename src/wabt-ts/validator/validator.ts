@@ -56,7 +56,6 @@ import type {
   IfExpr,
   LoadExpr,
   LoadSplatExpr,
-  LoadZeroExpr,
   LocalGetExpr,
   LocalSetExpr,
   LocalTeeExpr,
@@ -86,7 +85,6 @@ import type {
   SimdLaneOpExpr,
   SimdLoadLaneExpr,
   SimdShuffleOpExpr,
-  SimdStoreLaneExpr,
   StoreExpr,
   StructGetExpr,
   StructNewDefaultExpr,
@@ -1068,17 +1066,26 @@ class ModuleValidator implements ExprVisitorDelegate {
   onSimdShuffleOpExpr(e: SimdShuffleOpExpr): Result {
     return this.sv.onSimdShuffleOp(e.loc, e.opcode, e.lanes);
   }
+  /**
+   * `load_lane` and `store_lane` share one node; their STACK EFFECTS differ — a
+   * store consumes the vector and pushes nothing, a load consumes and pushes.
+   *
+   * ⚠️ The two writers' handlers for this pair were byte-for-byte identical,
+   * because both only emit the opcode and the memarg. This one is not, and
+   * merging the node without noticing that made `v128.store8_lane` fail type
+   * checking. Identical handlers on one consumer say nothing about another.
+   */
   onSimdLoadLaneExpr(e: SimdLoadLaneExpr): Result {
-    return this.sv.onSimdLoadLane(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane);
+    return anyOpcodeName(e.opcode).includes('store')
+      ? this.sv.onSimdStoreLane(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane)
+      : this.sv.onSimdLoadLane(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane);
   }
-  onSimdStoreLaneExpr(e: SimdStoreLaneExpr): Result {
-    return this.sv.onSimdStoreLane(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane);
-  }
+
+  /** Same split for `load_splat` and `load_zero`, which also share a node. */
   onLoadSplatExpr(e: LoadSplatExpr): Result {
-    return this.sv.onLoadSplat(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
-  }
-  onLoadZeroExpr(e: LoadZeroExpr): Result {
-    return this.sv.onLoadZero(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return anyOpcodeName(e.opcode).includes('_zero')
+      ? this.sv.onLoadZero(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset)
+      : this.sv.onLoadSplat(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
 
   onAtomicLoadExpr(e: AtomicLoadExpr): Result {

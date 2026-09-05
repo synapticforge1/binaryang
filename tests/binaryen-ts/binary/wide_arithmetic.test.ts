@@ -62,12 +62,12 @@ function nodesOf(root: unknown): Record<string, unknown>[] {
   return out;
 }
 
-const FOUR_OPERAND = (op: string) =>
+const FOUR_OPERAND = (opcode: string) =>
   `(module (func $f (param i64 i64 i64 i64) (result i64 i64)
-     (${op} (local.get 0) (local.get 1) (local.get 2) (local.get 3))))`;
-const TWO_OPERAND = (op: string) =>
+     (${opcode} (local.get 0) (local.get 1) (local.get 2) (local.get 3))))`;
+const TWO_OPERAND = (opcode: string) =>
   `(module (func $f (param i64 i64) (result i64 i64)
-     (${op} (local.get 0) (local.get 1))))`;
+     (${opcode} (local.get 0) (local.get 1))))`;
 
 describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
   const cases: Array<[string, string]> = [
@@ -92,7 +92,7 @@ describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
       .find((n) => n['kind'] === ExpressionKind.Quaternary);
     assert(quad, 'a quaternary node must be present');
     // S6 stage 1: an operator is an opcode, not a name.
-    assertEquals(quad['op'], (0xfc << 16) | 19); // i64.add128
+    assertEquals(quad['opcode'], (0xfc << 16) | 19); // i64.add128
     // Four distinct operands, in source order — a reversed pop would swap them.
     for (const k of ['a', 'b', 'c', 'd']) assert(quad[k], `operand ${k} must be present`);
     assertEquals((quad['a'] as { index: number }).index, 0);
@@ -111,7 +111,7 @@ describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
   it('mul_wide stays BINARY — two operands, two results', () => {
     const mod = parseWasm(assemble(TWO_OPERAND('i64.mul_wide_s')));
     const bin = nodesOf(mod.functions[0]?.body)
-      .find((n) => n['op'] === ((0xfc << 16) | 21)); // i64.mul_wide_s;
+      .find((n) => n['opcode'] === ((0xfc << 16) | 21)); // i64.mul_wide_s;
     assert(bin, 'a binary node must carry the wide multiply');
     assertEquals(bin['kind'], ExpressionKind.Binary);
     assert(Array.isArray(bin['type']), 'two results means a tuple type');

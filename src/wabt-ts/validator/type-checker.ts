@@ -2013,14 +2013,14 @@ export class TypeChecker {
   // parameter for this same pair of handlers and left `is64` behind.
   onSimdLoadLane(is64: boolean): Result {
     const addrType = is64 ? _I64 : _I32;
-    const r = this.popAndCheck2Types(addrType, _V128, 'simd_load_lane');
+    const r = this.popAndCheck2Types(addrType, _V128, 'simd.load_store_lane');
     this.pushType(_V128);
     return r;
   }
 
   onSimdStoreLane(is64: boolean): Result {
     const addrType = is64 ? _I64 : _I32;
-    return this.popAndCheck2Types(addrType, _V128, 'simd_store_lane');
+    return this.popAndCheck2Types(addrType, _V128, 'simd.load_store_lane');
   }
 
   onSimdShuffleOp(): Result {

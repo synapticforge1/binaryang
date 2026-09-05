@@ -983,7 +983,7 @@ Deno.test('LocalCSE: repeated pure expression is extracted to local', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PickLoadSigns pass (no-op when no narrow loads present)
+// PickLoadSigns pass (no-opcode when no narrow loads present)
 // ---------------------------------------------------------------------------
 
 Deno.test('PickLoadSigns: no crash on empty module', () => {

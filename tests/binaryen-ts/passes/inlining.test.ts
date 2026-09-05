@@ -107,7 +107,7 @@ Deno.test('deepCopy: produces a structurally equal but distinct tree', () => {
   const copy = deepCopy(orig);
   assertEquals(copy.kind, orig.kind);
   if (copy.kind === ExpressionKind.Binary && orig.kind === ExpressionKind.Binary) {
-    assertEquals(copy.op, orig.op);
+    assertEquals(copy.opcode, orig.opcode);
     assert(copy !== orig, 'deep copy must produce a distinct object reference');
     assert(copy.left !== orig.left, 'deep copy must produce distinct child nodes');
   }

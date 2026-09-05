@@ -143,7 +143,7 @@ class _CFGBuilder {
    * The exceptional edge is added from the current block, then a fresh block is
    * started for the normal continuation — so a wrapping `local.set` lands AFTER
    * the exceptional edge and its kill of the old value can't strip a local that
-   * is live on the exceptional (handler) path. No-op outside a try body.
+   * is live on the exceptional (handler) path. No-opcode outside a try body.
    */
   private throwingCallContinuation(): void {
     if (this.handlerStack.length === 0 || this.current === null) return;
@@ -317,7 +317,7 @@ class _CFGBuilder {
       // Exception handling — see scope note in module header.
       // -------------------------------------------------------------------
       case ExpressionKind.Throw: {
-        for (const op of e.operands) this.visit(op);
+        for (const opcode of e.operands) this.visit(opcode);
         this.linkToHandlers(); // exceptional transfer to enclosing catch handler(s)
         this.current = null;
         return;
@@ -434,7 +434,7 @@ class _CFGBuilder {
       // index reads a stale slot → `call_indirect` dispatches to the wrong
       // (wrong-signature) function at runtime. Visit in true execution order.
       case ExpressionKind.CallIndirect: {
-        for (const op of e.operands) this.visit(op);
+        for (const opcode of e.operands) this.visit(opcode);
         this.visit(e.target);
         if (this.current) {
           this.current.callPoints.push({ pos: this.current.actions.length, call: e });
@@ -448,7 +448,7 @@ class _CFGBuilder {
       // to the enclosing handler plus a normal-continuation split.
       // -------------------------------------------------------------------
       case ExpressionKind.Call: {
-        for (const op of e.operands) this.visit(op);
+        for (const opcode of e.operands) this.visit(opcode);
         if (this.current) {
           this.current.callPoints.push({ pos: this.current.actions.length, call: e });
         }

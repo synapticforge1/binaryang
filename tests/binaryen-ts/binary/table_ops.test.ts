@@ -18,11 +18,11 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 
-Deno.test('table.get: WAT → encode → parse round-trip preserves the op + table-index slot', () => {
+Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode + table-index slot', () => {
   // funcref table at index 0; `f` reads element 0 and returns it.
   // Note: binary form stores tables by numeric index, so the `$t` name from
   // the WAT source is recovered as the binary parser's default `$tableN`
-  // convention after round-trip. The op kind and the index expression are
+  // convention after round-trip. The opcode kind and the index expression are
   // what matter for the round-trip contract.
   const mod = parseWat(`(module
     (table $t 1 funcref)
@@ -37,7 +37,7 @@ Deno.test('table.get: WAT → encode → parse round-trip preserves the op + tab
   assertEquals(g.index.kind, ExpressionKind.Const);
 });
 
-Deno.test('table.set: WAT → encode → parse round-trip preserves the op', () => {
+Deno.test('table.set: WAT → encode → parse round-trip preserves the opcode', () => {
   // externref table; `f` writes a null ref at index 0.
   const mod = parseWat(`(module
     (table $t 1 externref)
