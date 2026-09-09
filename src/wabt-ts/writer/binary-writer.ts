@@ -66,9 +66,6 @@ import type {
   RefNullExpr,
   RefTestExpr,
   RethrowExpr,
-  ReturnCallExpr,
-  ReturnCallIndirectExpr,
-  ReturnCallRefExpr,
   ReturnExpr,
   SelectExpr,
   SimdLaneOpExpr,
@@ -666,34 +663,18 @@ class BodyWriter implements ExprVisitorDelegate {
 
   // --- Calls ---
   onCallExpr(e: CallExpr): Result {
-    this.s.writeU8(Opcode.Call);
+    this.s.writeU8(e.isReturn ? Opcode.ReturnCall : Opcode.Call);
     writeVar(this.s, e.func);
     return Result.Ok;
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
-    this.s.writeU8(Opcode.CallIndirect);
+    this.s.writeU8(e.isReturn ? Opcode.ReturnCallIndirect : Opcode.CallIndirect);
     writeVar(this.s, e.typeVar);
     writeVar(this.s, e.table);
     return Result.Ok;
   }
   onCallRefExpr(e: CallRefExpr): Result {
-    this.s.writeU8(Opcode.CallRef);
-    writeVar(this.s, e.sigType);
-    return Result.Ok;
-  }
-  onReturnCallExpr(e: ReturnCallExpr): Result {
-    this.s.writeU8(Opcode.ReturnCall);
-    writeVar(this.s, e.func);
-    return Result.Ok;
-  }
-  onReturnCallIndirectExpr(e: ReturnCallIndirectExpr): Result {
-    this.s.writeU8(Opcode.ReturnCallIndirect);
-    writeVar(this.s, e.typeVar);
-    writeVar(this.s, e.table);
-    return Result.Ok;
-  }
-  onReturnCallRefExpr(e: ReturnCallRefExpr): Result {
-    this.s.writeU8(Opcode.ReturnCallRef);
+    this.s.writeU8(e.isReturn ? Opcode.ReturnCallRef : Opcode.CallRef);
     writeVar(this.s, e.sigType);
     return Result.Ok;
   }

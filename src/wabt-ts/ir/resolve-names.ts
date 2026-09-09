@@ -322,12 +322,7 @@ class ResolveContext {
         const [r, args] = this.resolveExprArray(e.operands);
         return [r, { ...e, func: this.resolveFuncVar(e.func, loc), operands: args }];
       }
-      case 'return_call': {
-        const [r, args] = this.resolveExprArray(e.operands);
-        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), operands: args }];
-      }
-      case 'call_indirect':
-      case 'return_call_indirect': {
+      case 'call_indirect': {
         const [rA, args] = this.resolveExprArray(e.operands);
         const [rC, callee] = this.resolveExpr(e.callee);
         return [combine(rA, rC), {
@@ -341,8 +336,7 @@ class ResolveContext {
           callee,
         }];
       }
-      case 'call_ref':
-      case 'return_call_ref': {
+      case 'call_ref': {
         // `sigType` is the function-type immediate (`(call_ref $T …)`); it must
         // be resolved like `call_indirect`'s `typeVar`, or a named type that
         // isn't index 0 is left unresolved and the binary writer emits index 0.

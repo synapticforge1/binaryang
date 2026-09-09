@@ -775,12 +775,12 @@ class WatWriter extends ModuleContext {
       },
 
       onCallExpr: (e) => {
-        this.putsSpace('call');
+        this.putsSpace(e.isReturn ? 'return_call' : 'call');
         this.writeVar(e.func, NC.Newline);
         return Result.Ok;
       },
       onCallIndirectExpr: (e) => {
-        this.putsSpace('call_indirect');
+        this.putsSpace(e.isReturn ? 'return_call_indirect' : 'call_indirect');
         this.writeVarUnlessZero(e.table, NC.Space);
         this.openSpace('type');
         this.writeVar(e.typeVar, NC.Newline);
@@ -788,30 +788,7 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onCallRefExpr: (e) => {
-        this.putsSpace('call_ref');
-        this.writeVar(e.sigType, NC.Newline);
-        return Result.Ok;
-      },
-      onReturnCallExpr: (e) => {
-        this.putsSpace('return_call');
-        this.writeVar(e.func, NC.Newline);
-        return Result.Ok;
-      },
-      onReturnCallIndirectExpr: (e) => {
-        this.putsSpace('return_call_indirect');
-        // The TABLE index, like `call_indirect` above. Omitting it did not
-        // fail to reparse — `parseVarOpt` defaults it to 0 — so every
-        // `return_call_indirect` against a table other than 0 came back
-        // pointing at table 0 instead. Still valid wasm, different program.
-        // Last of the round-trip differences (T10.4's file, a separate bug).
-        this.writeVarUnlessZero(e.table, NC.Space);
-        this.openSpace('type');
-        this.writeVar(e.typeVar, NC.Space);
-        this.closeNewline();
-        return Result.Ok;
-      },
-      onReturnCallRefExpr: (e) => {
-        this.putsSpace('return_call_ref');
+        this.putsSpace(e.isReturn ? 'return_call_ref' : 'call_ref');
         this.writeVar(e.sigType, NC.Newline);
         return Result.Ok;
       },

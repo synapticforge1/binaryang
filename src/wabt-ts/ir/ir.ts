@@ -528,6 +528,17 @@ export interface DataDropExpr {
 /** `call $func` (0x10) — direct call to a function (index space includes imports + defined). */
 export interface CallExpr {
   readonly kind: 'call';
+  /**
+   * `return_call` when true — the tail-call proposal's variant of this
+   * instruction, which replaces the current frame instead of pushing one.
+   *
+   * A modifier rather than a different instruction: the operand shape is
+   * identical, and binaryen-ts already modelled it exactly this way with
+   * `isReturn` on Call and CallIndirect. What it changes is real and lives in
+   * the consumers -- a different opcode, the `tailCall` feature gate, and the
+   * fact that a tail call makes the rest of the block unreachable.
+   */
+  readonly isReturn?: boolean;
   readonly func: Var;
   readonly operands: Expr[];
   readonly loc: Location;
@@ -535,6 +546,17 @@ export interface CallExpr {
 /** `call_indirect (type $T) [$table]` (0x11) — indirect call through a function table. */
 export interface CallIndirectExpr {
   readonly kind: 'call_indirect';
+  /**
+   * `return_call` when true — the tail-call proposal's variant of this
+   * instruction, which replaces the current frame instead of pushing one.
+   *
+   * A modifier rather than a different instruction: the operand shape is
+   * identical, and binaryen-ts already modelled it exactly this way with
+   * `isReturn` on Call and CallIndirect. What it changes is real and lives in
+   * the consumers -- a different opcode, the `tailCall` feature gate, and the
+   * fact that a tail call makes the rest of the block unreachable.
+   */
+  readonly isReturn?: boolean;
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly sig: FuncSignature;
@@ -549,35 +571,17 @@ export interface CallIndirectExpr {
 /** `call_ref $type` (0x14) — typed-function-references proposal: calls a `(ref $T)` value. */
 export interface CallRefExpr {
   readonly kind: 'call_ref';
-  readonly sigType: Var;
-  readonly operands: Expr[];
-  readonly callee: Expr;
-  readonly loc: Location;
-}
-/** `return_call $func` (0x12) — tail-call proposal: like `call` but replaces the current frame. */
-export interface ReturnCallExpr {
-  readonly kind: 'return_call';
-  readonly func: Var;
-  readonly operands: Expr[];
-  readonly loc: Location;
-}
-/** `return_call_indirect` (0x13) — tail-call proposal: like `call_indirect` but tail-position. */
-export interface ReturnCallIndirectExpr {
-  readonly kind: 'return_call_indirect';
-  /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
-  readonly nodeId?: NodeId;
-  readonly sig: FuncSignature;
-  readonly typeVar: Var;
-  /** How the signature was named; see {@link TypeUse}. */
-  readonly typeUse?: TypeUse;
-  readonly table: Var;
-  readonly operands: Expr[];
-  readonly callee: Expr;
-  readonly loc: Location;
-}
-/** `return_call_ref $type` (0x15) — tail-call proposal: like `call_ref` but tail-position. */
-export interface ReturnCallRefExpr {
-  readonly kind: 'return_call_ref';
+  /**
+   * `return_call` when true — the tail-call proposal's variant of this
+   * instruction, which replaces the current frame instead of pushing one.
+   *
+   * A modifier rather than a different instruction: the operand shape is
+   * identical, and binaryen-ts already modelled it exactly this way with
+   * `isReturn` on Call and CallIndirect. What it changes is real and lives in
+   * the consumers -- a different opcode, the `tailCall` feature gate, and the
+   * fact that a tail call makes the rest of the block unreachable.
+   */
+  readonly isReturn?: boolean;
   readonly sigType: Var;
   readonly operands: Expr[];
   readonly callee: Expr;
@@ -1120,9 +1124,6 @@ export type Expr =
   | CallExpr
   | CallIndirectExpr
   | CallRefExpr
-  | ReturnCallExpr
-  | ReturnCallIndirectExpr
-  | ReturnCallRefExpr
   | RefNullExpr
   | RefIsNullExpr
   | RefFuncExpr

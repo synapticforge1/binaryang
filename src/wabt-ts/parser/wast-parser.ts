@@ -100,9 +100,6 @@ import {
   type RefNullExpr,
   type RefTestExpr,
   type RethrowExpr,
-  type ReturnCallExpr,
-  type ReturnCallIndirectExpr,
-  type ReturnCallRefExpr,
   type ReturnExpr,
   type SelectExpr,
   sigEquals,
@@ -3931,7 +3928,7 @@ export class WastParser {
       case TokenType.ReturnCall: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'return_call', func: v, operands, loc } as ReturnCallExpr;
+        return { kind: 'call', isReturn: true, func: v, operands, loc } as CallExpr;
       }
       case TokenType.ReturnCallIndirect: {
         const tableVar = this.parseVarOpt(varIndex(0));
@@ -3955,7 +3952,8 @@ export class WastParser {
         // Before this, `typeVar` silently stayed at index 0 and the call was
         // encoded against whatever type happened to be first.
         return {
-          kind: 'return_call_indirect',
+          kind: 'call_indirect',
+          isReturn: true,
           ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
           nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           sig,
@@ -3964,7 +3962,7 @@ export class WastParser {
           operands: args,
           callee,
           loc,
-        } as ReturnCallIndirectExpr;
+        } as CallIndirectExpr;
       }
       case TokenType.ReturnCallRef: {
         const v = this.parseVar();
@@ -3972,12 +3970,13 @@ export class WastParser {
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         return {
-          kind: 'return_call_ref',
+          kind: 'call_ref',
+          isReturn: true,
           sigType: v,
           operands: args,
           callee,
           loc,
-        } as ReturnCallRefExpr;
+        } as CallRefExpr;
       }
       case TokenType.LocalGet: {
         const v = this.parseVar();

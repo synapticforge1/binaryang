@@ -1683,7 +1683,8 @@ export class BinaryReader {
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
           pushStmt(stack, stmts, {
-            kind: 'return_call',
+            kind: 'call',
+            isReturn: true,
             func: varIndex(funcIdx),
             operands: args,
             loc,
@@ -1701,7 +1702,8 @@ export class BinaryReader {
           const sigType: { params: ValueType[]; results: ValueType[] } =
             entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
           pushStmt(stack, stmts, {
-            kind: 'return_call_indirect',
+            kind: 'call_indirect',
+            isReturn: true,
             sig: sigType,
             typeVar: varIndex(typeIdx),
             nodeId: m.fidelity.record({ typeUse: 'resolved', sig: sigType }),
@@ -1719,7 +1721,8 @@ export class BinaryReader {
           const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
           pushStmt(stack, stmts, {
-            kind: 'return_call_ref',
+            kind: 'call_ref',
+            isReturn: true,
             sigType: varIndex(typeIdx),
             operands: args,
             callee,

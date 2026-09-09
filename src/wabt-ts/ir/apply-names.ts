@@ -310,18 +310,15 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'global.set':
       return { ...e, var: rewriteVar(e.var, n.globalNames) };
     case 'call':
-    case 'return_call':
     case 'ref.func':
       return { ...e, func: rewriteVar(e.func, n.funcNames) };
     case 'call_indirect':
-    case 'return_call_indirect':
       return {
         ...e,
         table: rewriteVar(e.table, n.tableNames),
         typeVar: rewriteVar(e.typeVar, n.typeNames),
       };
     case 'call_ref':
-    case 'return_call_ref':
       return { ...e, sigType: rewriteVar(e.sigType, n.typeNames) };
     case 'memory.size':
     case 'memory.grow':

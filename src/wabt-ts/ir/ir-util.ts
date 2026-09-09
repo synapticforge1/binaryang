@@ -261,26 +261,26 @@ export class ModuleContext {
         return { nargs: 4, nreturns: 1, unreachable: false };
       case 'call': {
         const sig = this.getFuncSig(expr.func);
-        return { nargs: sig.params.length, nreturns: sig.results.length, unreachable: false };
+        // A tail call replaces the frame: it yields nothing here and makes
+        // the rest of the block unreachable.
+        return expr.isReturn
+          ? { nargs: sig.params.length, nreturns: 0, unreachable: true }
+          : { nargs: sig.params.length, nreturns: sig.results.length, unreachable: false };
       }
       case 'call_indirect':
-      case 'return_call_indirect':
         return {
           nargs: expr.sig.params.length + 1,
           nreturns: expr.sig.results.length,
-          unreachable: expr.kind === 'return_call_indirect',
+          unreachable: expr.isReturn === true,
         };
-      case 'call_ref':
-      case 'return_call_ref': {
+      case 'call_ref': {
         const sig = this.getTypeSig(expr.sigType);
         return {
           nargs: sig.params.length + 1,
           nreturns: sig.results.length,
-          unreachable: expr.kind === 'return_call_ref',
+          unreachable: expr.isReturn === true,
         };
       }
-      case 'return_call':
-        return { nargs: this.getFuncSig(expr.func).params.length, nreturns: 0, unreachable: true };
       case 'return':
         return { nargs: this.currentFunc?.sig.results.length ?? 0, nreturns: 0, unreachable: true };
       case 'br':

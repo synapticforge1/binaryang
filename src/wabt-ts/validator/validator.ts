@@ -77,9 +77,6 @@ import type {
   RefNullExpr,
   RefTestExpr,
   RethrowExpr,
-  ReturnCallExpr,
-  ReturnCallIndirectExpr,
-  ReturnCallRefExpr,
   ReturnExpr,
   SelectExpr,
   SimdLaneOpExpr,
@@ -813,30 +810,30 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onDataDrop(e.loc, varIdx(e.segment));
   }
 
+  /**
+   * ⚠️ A tail call is a different instruction to the validator, not just a
+   * different opcode: it needs the `tailCall` feature and a different
+   * type-checker entry point, because it must match the FUNCTION's results
+   * rather than leaving its own on the stack.
+   */
   onCallExpr(e: CallExpr): Result {
-    return this.sv.onCall(e.loc, varIdx(e.func));
-  }
-  onCallIndirectExpr(e: CallIndirectExpr): Result {
-    return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
-  }
-  onCallRefExpr(e: CallRefExpr): Result {
-    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onCallRef(e.loc, varIdx(e.sigType));
-  }
-  onReturnCallExpr(e: ReturnCallExpr): Result {
+    if (!e.isReturn) return this.sv.onCall(e.loc, varIdx(e.func));
     const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCall(e.loc, varIdx(e.func));
   }
-  onReturnCallIndirectExpr(e: ReturnCallIndirectExpr): Result {
+  onCallIndirectExpr(e: CallIndirectExpr): Result {
+    if (!e.isReturn) return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
     const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
   }
-  onReturnCallRefExpr(e: ReturnCallRefExpr): Result {
-    const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+  onCallRefExpr(e: CallRefExpr): Result {
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
+    if (!e.isReturn) return this.sv.onCallRef(e.loc, varIdx(e.sigType));
+    const rt = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (rt !== Result.Ok) this.acc(rt);
     return this.sv.onReturnCallRef(e.loc, varIdx(e.sigType));
   }
 

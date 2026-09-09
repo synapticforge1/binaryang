@@ -82,9 +82,6 @@ import type {
   RefNullExpr,
   RefTestExpr,
   RethrowExpr,
-  ReturnCallExpr,
-  ReturnCallIndirectExpr,
-  ReturnCallRefExpr,
   ReturnExpr,
   SelectExpr,
   SimdLaneOpExpr,
@@ -166,9 +163,6 @@ export interface ExprVisitorDelegate {
   onCallExpr?(e: CallExpr): Result;
   onCallIndirectExpr?(e: CallIndirectExpr): Result;
   onCallRefExpr?(e: CallRefExpr): Result;
-  onReturnCallExpr?(e: ReturnCallExpr): Result;
-  onReturnCallIndirectExpr?(e: ReturnCallIndirectExpr): Result;
-  onReturnCallRefExpr?(e: ReturnCallRefExpr): Result;
 
   onRefNullExpr?(e: RefNullExpr): Result;
   onRefIsNullExpr?(e: RefIsNullExpr): Result;
@@ -753,31 +747,6 @@ export class ExprVisitor {
         const r = this.dispatch(e.callee);
         if (r === Result.Error) return r;
         return this.d.onCallRefExpr?.(e) ?? Result.Ok;
-      }
-      case 'return_call': {
-        for (const arg of e.operands) {
-          const r = this.dispatch(arg);
-          if (r === Result.Error) return r;
-        }
-        return this.d.onReturnCallExpr?.(e) ?? Result.Ok;
-      }
-      case 'return_call_indirect': {
-        for (const arg of e.operands) {
-          const r = this.dispatch(arg);
-          if (r === Result.Error) return r;
-        }
-        const r = this.dispatch(e.callee);
-        if (r === Result.Error) return r;
-        return this.d.onReturnCallIndirectExpr?.(e) ?? Result.Ok;
-      }
-      case 'return_call_ref': {
-        for (const arg of e.operands) {
-          const r = this.dispatch(arg);
-          if (r === Result.Error) return r;
-        }
-        const r = this.dispatch(e.callee);
-        if (r === Result.Error) return r;
-        return this.d.onReturnCallRefExpr?.(e) ?? Result.Ok;
       }
 
       // --- Throw: visit args ---
