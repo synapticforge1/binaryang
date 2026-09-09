@@ -79,7 +79,7 @@ import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { buildCFG, computeLiveness } from './cfg.ts';
 import { buildCallResultTypes, flattenFunction } from './flatten.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { requireIndex, requireName, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // ABI constants (mirror Asyncify.cpp lines 366-386)
@@ -202,7 +202,7 @@ export function parseAsyncifyOptions(passArgs: Record<string, string>): Asyncify
 
 /** i32 `global.get $__asyncify_data`. */
 function dataPtr(): Expression {
-  return makeGlobalGet(ASYNCIFY_DATA, ValType.I32);
+  return makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32);
 }
 
 /**
@@ -223,8 +223,8 @@ function makeStackOverflowCheck(): Expression {
 /** Body of `asyncify_start_unwind` / `asyncify_start_rewind` (sets state + data). */
 function makeStartBody(state: State): Expression {
   return makeBlock([
-    makeGlobalSet(ASYNCIFY_STATE, makeI32Const(state)),
-    makeGlobalSet(ASYNCIFY_DATA, makeLocalGet(varIndex(0), ValType.I32)),
+    makeGlobalSet(varName(ASYNCIFY_STATE), makeI32Const(state)),
+    makeGlobalSet(varName(ASYNCIFY_DATA), makeLocalGet(varIndex(0), ValType.I32)),
     makeStackOverflowCheck(),
   ]);
 }
@@ -232,7 +232,7 @@ function makeStartBody(state: State): Expression {
 /** Body of `asyncify_stop_unwind` / `asyncify_stop_rewind` (resets state). */
 function makeStopBody(): Expression {
   return makeBlock([
-    makeGlobalSet(ASYNCIFY_STATE, makeI32Const(State.Normal)),
+    makeGlobalSet(varName(ASYNCIFY_STATE), makeI32Const(State.Normal)),
     makeStackOverflowCheck(),
   ]);
 }
@@ -355,7 +355,7 @@ export function synthesizeRuntimeSupport(
     ASYNCIFY_GET_STATE,
     [],
     [ValType.I32],
-    makeGlobalGet(ASYNCIFY_STATE, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_STATE), ValType.I32),
     exported,
   );
 }
@@ -753,7 +753,7 @@ export interface FlowCtx {
 function makeStateCheck(state: State): Expression {
   return makeBinary(
     BinaryOp.EqI32,
-    makeGlobalGet(ASYNCIFY_STATE, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_STATE), ValType.I32),
     makeI32Const(state),
   );
 }
@@ -847,8 +847,8 @@ function makeCallSupport(curr: Expression, ctx: FlowCtx): Expression {
     const callType = ctx.func.locals[requireIndex(set.index, 'local index')]?.type ??
       typeOf(set.value);
     const fake = fakeGlobalFor(ctx, callType);
-    executed = makeGlobalSet(fake, set.value);
-    setBack = makeLocalSet(set.index, makeGlobalGet(fake, callType as ValType));
+    executed = makeGlobalSet(varName(fake), set.value);
+    setBack = makeLocalSet(set.index, makeGlobalGet(varName(fake), callType as ValType));
   }
 
   const thenSeq = makeBlock([executed, makePossibleUnwind(index, setBack)], null);
@@ -1059,7 +1059,7 @@ function makeGetStackPos(): Expression {
     false,
     STACK_POS_OFFSET,
     STACK_ALIGN_LOG2,
-    makeGlobalGet(ASYNCIFY_DATA, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
     ValType.I32,
   );
 }
@@ -1071,7 +1071,7 @@ function makeIncStackPos(by: number): Expression {
     4,
     STACK_POS_OFFSET,
     STACK_ALIGN_LOG2,
-    makeGlobalGet(ASYNCIFY_DATA, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
     makeBinary(BinaryOp.AddI32, makeGetStackPos(), makeI32Const(by)),
   );
 }
@@ -1150,11 +1150,11 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
       }
     } else if (e.kind === ExpressionKind.GlobalSet) {
       const g = e as GlobalSetExpr;
-      const type = ctx.fakeNameToType.get(g.name);
+      const type = ctx.fakeNameToType.get(requireName(g.var, 'global'));
       if (type !== undefined) return makeLocalSet(varIndex(fakeCallLocal(ctx, type)), g.value);
     } else if (e.kind === ExpressionKind.GlobalGet) {
       const g = e as GlobalGetExpr;
-      const type = ctx.fakeNameToType.get(g.name);
+      const type = ctx.fakeNameToType.get(requireName(g.var, 'global'));
       if (type !== undefined) {
         return makeLocalGet(varIndex(fakeCallLocal(ctx, type)), type as ValType);
       }

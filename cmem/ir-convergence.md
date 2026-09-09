@@ -921,7 +921,7 @@ compiler-driven and line-scoped, which left only four sites needing hands — th
 offending read sat on a different line from the error, and one where `loop.body.type` became
 `loop.typeOf(body)` because the pattern captured only the last path segment.
 
-##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (3 of 5 families done)
+##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (4 of 5 families done)
 
 ⚠️ **"Alias one to the other" understates this by a lot.** The kind sets agree on 73 kinds; the
 FIELD sets do not. Measured:
@@ -1155,6 +1155,47 @@ MIRRORING the node's field, so they follow it rather than converting at each use
 
 **Remaining (b) families:** `name` (which is really TWO families — globals, and block/loop/try
 labels), and `castType` (a decision, not a conversion — see below).
+
+###### ✅ The globals `name` family converted — 4 of 5
+
+binaryen-ts's `GlobalGetExpr.name: string` / `GlobalSetExpr.name: string` are now `var: Var`,
+matching wabt-ts's spelling. Both a rename and a retype, because `name` encoded the old type; the
+direction follows blast radius, as Group 3 says.
+
+🔑 **Renaming the field, not just retyping it, converts a SILENT break into a compile error — and
+this family proved it.** `LocalCSE` had a SECOND cache-key bug, `` `gg:${expr.name}` ``, identical
+in kind to the `` `lg:` `` one that miscompiled in the locals family. Because the field became
+`var`, the compiler reported a missing property instead of letting the object stringify to
+`[object Object]`. The `memory` family kept its field name and had no such protection.
+
+**So: when a field's type changes meaningfully, rename it too.** It is not cosmetic — it is the
+difference between the compiler finding the sites and a behavioural test finding them later.
+
+⚠️ **A name collision the compiler could not warn about.** `bridge.ts` already had a local
+`varName(v, names)` that resolves a var TO its declared string — the exact INVERSE of `ir.ts`'s
+`varName(name)`, which builds one FROM a string. The inserted calls bound silently to the local
+function. Renamed it `resolveVarName`, which also makes the two-step honest at the call site:
+resolve the wabt-ts var to its name, then rebuild a name-form Var, because binaryen-ts's encoder
+addresses globals BY NAME.
+
+⚠️ **The cast class has a second spelling.** After the locals family I swept for `as any` and found
+12. That grep missed `(getState as { name: string }).name` — a NARROW structural cast asserting the
+old shape, which kept compiling and yielded `undefined` at runtime. Sweep for `as \{ <field>:` as
+well.
+
+`requireName` and `nameOf` join `requireIndex`/`indexOf` in `ir.ts`: binaryen-ts addresses globals
+by name, and inventing a name for an index-form var is the same silent-wrong-answer failure in the
+other direction.
+
+`valueTypeEquals` hand-wrote `sameVar`'s comparison arm-by-arm with two structural casts; folded
+into `sameVar` so there is one spelling to keep agreed.
+
+**Gate**: 952 tests, baseline IDENTICAL, bridge 397/421, spec 100% four axes, lint clean.
+
+⚠️ **Block/loop/br/try LABELS are NOT part of this family**, though they also spell a reference as
+`name: string`. wabt-ts holds a `Var` that may be a relative DEPTH; binaryen-ts holds a symbolic
+label its passes rely on. That is the block family's structural question (Group 1), not the (b)
+conversion.
 
 ###### ⚠️ `castType` is NOT mechanical, and is deliberately left
 

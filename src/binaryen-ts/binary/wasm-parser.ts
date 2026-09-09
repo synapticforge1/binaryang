@@ -8,7 +8,7 @@
  */
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
-import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import {
   type ElementSegment,
   type ElementSegmentMode,
@@ -1303,7 +1303,7 @@ class WasmParser {
         break;
       case 0x23: { // global.get
         const idx = this.r.readU32();
-        expr = makeGlobalGet(`$global${idx}`, globalTypeAt(this.globalInfos, idx, this.r));
+        expr = makeGlobalGet(varName(`$global${idx}`), globalTypeAt(this.globalInfos, idx, this.r));
         break;
       }
       case 0xd0: { // ref.null
@@ -2137,12 +2137,12 @@ class WasmParser {
         }
         case 0x23: { // global.get
           const idx = r.readU32();
-          push(makeGlobalGet(`$global${idx}`, globalTypeAt(ctx.globalInfos, idx, r)));
+          push(makeGlobalGet(varName(`$global${idx}`), globalTypeAt(ctx.globalInfos, idx, r)));
           break;
         }
         case 0x24: { // global.set
           const idx = r.readU32();
-          push(makeGlobalSet(`$global${idx}`, pop()));
+          push(makeGlobalSet(varName(`$global${idx}`), pop()));
           break;
         }
 

@@ -33,7 +33,13 @@
 import { ExternalKind } from '../wabt-ts/core/binary.ts';
 import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
 import { naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
-import { CatchKind, coarsenValueType, isRefValueType, varIndex } from '../wabt-ts/ir/ir.ts';
+import {
+  CatchKind,
+  coarsenValueType,
+  isRefValueType,
+  varIndex,
+  varName,
+} from '../wabt-ts/ir/ir.ts';
 import type { ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
@@ -573,7 +579,7 @@ function bridgeBlockType(bt: BlockType, ctx: BridgeCtx): BType {
   }
 }
 
-function varName(v: Var, names: ReadonlyArray<string>): string {
+function resolveVarName(v: Var, names: ReadonlyArray<string>): string {
   if (v.kind === 'name') return v.name;
   const n = names[v.value];
   if (n === undefined || n === '') {
@@ -928,12 +934,12 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           `Bridge: global.get references unknown global (var=${JSON.stringify(gg.var)})`,
         );
       }
-      return makeGlobalGet(varName(gg.var, ctx.globalNames), wabtTypeToValType(t));
+      return makeGlobalGet(varName(resolveVarName(gg.var, ctx.globalNames)), wabtTypeToValType(t));
     }
     case 'global.set': {
       const gs = e as GlobalSetExpr;
-      const name = varName(gs.var, ctx.globalNames);
-      return makeGlobalSet(name, bridgeExpr(gs.value, ctx));
+      const name = resolveVarName(gs.var, ctx.globalNames);
+      return makeGlobalSet(varName(name), bridgeExpr(gs.value, ctx));
     }
 
     // --- Arithmetic / compare / convert -----------------------------------
@@ -1065,7 +1071,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const c = e as CallExpr;
       const idx = c.func.kind === 'index' ? c.func.value : ctx.funcNames.indexOf(c.func.name);
       const sig = ctx.funcSigs[idx];
-      const target = varName(c.func, ctx.funcNames);
+      const target = resolveVarName(c.func, ctx.funcNames);
       if (sig === undefined) {
         throw new Error(`Bridge: call references unknown function "${target}"`);
       }
@@ -1073,7 +1079,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'call_indirect': {
       const ci = e as CallIndirectExpr;
-      const tableName = varName(ci.table, ctx.tableNames);
+      const tableName = resolveVarName(ci.table, ctx.tableNames);
       const target = bridgeExpr(ci.callee, ctx);
       const operands = ci.operands.map((a) => bridgeExpr(a, ctx));
       // binaryen-ts's makeCallIndirect surface accepts ValType[] (single-result
@@ -1183,7 +1189,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'ref.func': {
       const rf = e as RefFuncExpr;
-      return makeRefFunc(varName(rf.func, ctx.funcNames), ValType.FuncRef);
+      return makeRefFunc(resolveVarName(rf.func, ctx.funcNames), ValType.FuncRef);
     }
     case 'ref.is_null': {
       const rin = e as RefIsNullExpr;
@@ -1405,7 +1411,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'throw': {
       const th = e as ThrowExpr;
       return makeThrow(
-        varName(th.tag, ctx.tagNames),
+        resolveVarName(th.tag, ctx.tagNames),
         th.operands.map((a) => bridgeExpr(a, ctx)),
       );
     }
@@ -1493,7 +1499,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
             // ref would change what the handler receives.
             throw new Error('Bridge: catch_ref / catch_all_ref not yet supported');
           }
-          catchTags.push(c.tag === undefined ? '' : varName(c.tag, ctx.tagNames));
+          catchTags.push(c.tag === undefined ? '' : resolveVarName(c.tag, ctx.tagNames));
           catchBodies.push(makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null));
         }
         const delegateTarget = tr.delegate === undefined ? null : resolveLabel(ctx, tr.delegate);
@@ -1522,9 +1528,9 @@ function buildCatchClause(
   const dest = resolveLabel(ctx, c.target);
   switch (c.kind) {
     case CatchKind.Catch:
-      return { tag: varName(c.tag!, ctx.tagNames), dest, isRef: false };
+      return { tag: resolveVarName(c.tag!, ctx.tagNames), dest, isRef: false };
     case CatchKind.CatchRef:
-      return { tag: varName(c.tag!, ctx.tagNames), dest, isRef: true };
+      return { tag: resolveVarName(c.tag!, ctx.tagNames), dest, isRef: true };
     case CatchKind.CatchAll:
       return { tag: null, dest, isRef: false };
     case CatchKind.CatchAllRef:
@@ -1822,16 +1828,16 @@ function bridgeConst(c: Const): Expression {
 function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
   switch (exp.kind) {
     case ExternalKind.Func:
-      b.addExport(exp.name, varName(exp.var, ctx.funcNames), 'function');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.funcNames), 'function');
       return;
     case ExternalKind.Global:
-      b.addExport(exp.name, varName(exp.var, ctx.globalNames), 'global');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.globalNames), 'global');
       return;
     case ExternalKind.Memory:
-      b.addExport(exp.name, varName(exp.var, ctx.memoryNames), 'memory');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.memoryNames), 'memory');
       return;
     case ExternalKind.Table:
-      b.addExport(exp.name, varName(exp.var, ctx.tableNames), 'table');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.tableNames), 'table');
       return;
     case ExternalKind.Tag:
       // 🔧 This threw, citing binaryen-ts v1.0.9 having no "tag" export kind.
@@ -1839,7 +1845,7 @@ function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
       // stale, and the version it named is several releases old. A "not yet
       // supported" note is a claim about ANOTHER component's state, and nothing
       // rechecks it when that component moves.
-      b.addExport(exp.name, varName(exp.var, ctx.tagNames), 'tag');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.tagNames), 'tag');
       return;
   }
 }

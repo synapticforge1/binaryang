@@ -867,16 +867,16 @@ export interface TableSetExpr extends ExprBase {
 export interface GlobalGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.GlobalGet;
-  /** Identifier label or symbolic name. */
-  name: string;
+  /** The global addressed. Name-form until `resolveNames`; wabt-ts calls it `var`. */
+  var: Var;
 }
 
 /** {@link GlobalSetExpr} — see {@link makeGlobalSet} for the factory. */
 export interface GlobalSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.GlobalSet;
-  /** Identifier label or symbolic name. */
-  name: string;
+  /** The global addressed. Name-form until `resolveNames`; wabt-ts calls it `var`. */
+  var: Var;
   /** Value expression. */
   value: Expression;
 }
@@ -1951,13 +1951,13 @@ export function makeF64Const(value: number): ConstExpr {
 }
 
 /** Creates a `global.get` expression. */
-export function makeGlobalGet(name: string, type: ValueType): GlobalGetExpr {
-  return { kind: ExpressionKind.GlobalGet, type, name };
+export function makeGlobalGet(v: Var, type: ValueType): GlobalGetExpr {
+  return { kind: ExpressionKind.GlobalGet, type, var: v };
 }
 
 /** Creates a `global.set` expression (result type is `none`). */
-export function makeGlobalSet(name: string, value: Expression): GlobalSetExpr {
-  return { kind: ExpressionKind.GlobalSet, type: None, name, value };
+export function makeGlobalSet(v: Var, value: Expression): GlobalSetExpr {
+  return { kind: ExpressionKind.GlobalSet, type: None, var: v, value };
 }
 
 /** Creates a `local.get` expression. */

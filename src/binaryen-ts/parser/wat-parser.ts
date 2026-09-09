@@ -165,7 +165,7 @@ import {
   type SList,
 } from './sexpr.ts';
 import { type TextPos, tokenize } from './tokenizer.ts';
-import { varIndex } from '../../wabt-ts/ir/ir.ts';
+import { varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -934,12 +934,17 @@ class WatModuleParser {
         (name.startsWith('$')
           ? this.err(`global.get: unknown global ${name}`, list.pos)
           : ValType.I32);
-      return { kind: ExpressionKind.GlobalGet, type, name } as GlobalGetExpr;
+      return { kind: ExpressionKind.GlobalGet, type, var: varName(name) } as GlobalGetExpr;
     }
     if (head === 'global.set') {
       const name = this.resolveGlobalName(args[0], head);
       const value = this.parseExpr(args[1], ctx);
-      return { kind: ExpressionKind.GlobalSet, type: None, name, value } as GlobalSetExpr;
+      return {
+        kind: ExpressionKind.GlobalSet,
+        type: None,
+        var: varName(name),
+        value,
+      } as GlobalSetExpr;
     }
     if (head === 'table.get') {
       // `(table.get [$t] <index>)` — optional table ref, then an i32 index.

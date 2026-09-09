@@ -62,7 +62,7 @@ import { None, ValType } from '../ir/types.ts';
 import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
-import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { requireIndex, requireName, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Expression builder (fluent helper passed to function body closures)
@@ -351,9 +351,11 @@ function exprToWat(expr: Expression, _indent: number): string {
         exprToWat(expr.value, _indent)
       })`;
     case ExpressionKind.GlobalGet:
-      return `(global.get $${expr.name})`;
+      return `(global.get $${requireName(expr.var, 'global.get')})`;
     case ExpressionKind.GlobalSet:
-      return `(global.set $${expr.name} ${exprToWat(expr.value, _indent)})`;
+      return `(global.set $${requireName(expr.var, 'global.set')} ${
+        exprToWat(expr.value, _indent)
+      })`;
     case ExpressionKind.Binary:
       return `(${expr.opcode} ${exprToWat(expr.left, _indent)} ${exprToWat(expr.right, _indent)})`;
     case ExpressionKind.Unary:

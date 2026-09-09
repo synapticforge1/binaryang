@@ -110,7 +110,7 @@ import {
   type TypeDef,
   type ValueType,
 } from '../ir/gc-types.ts';
-import { requireIndex, type Var } from '../../wabt-ts/ir/ir.ts';
+import { requireIndex, requireName, type Var } from '../../wabt-ts/ir/ir.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -1608,14 +1608,18 @@ class WasmEncoder {
       case ExpressionKind.GlobalGet: {
         const e = expr as GlobalGetExpr;
         w.writeU8(0x23);
-        w.writeU32(this.resolveRef(this.globalIndex, e.name, 'global.get'));
+        w.writeU32(
+          this.resolveRef(this.globalIndex, requireName(e.var, 'global.get'), 'global.get'),
+        );
         break;
       }
       case ExpressionKind.GlobalSet: {
         const e = expr as GlobalSetExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x24);
-        w.writeU32(this.resolveRef(this.globalIndex, e.name, 'global.set'));
+        w.writeU32(
+          this.resolveRef(this.globalIndex, requireName(e.var, 'global.set'), 'global.set'),
+        );
         break;
       }
 
