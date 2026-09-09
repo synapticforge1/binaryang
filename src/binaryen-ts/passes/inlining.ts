@@ -49,6 +49,7 @@ import {
   makeUnreachable,
   makeV128Const,
   type RefIsNullExpr,
+  typeOf,
   type UnaryExpr,
   UnaryOp,
 } from '../ir/expressions.ts';
@@ -401,7 +402,7 @@ class FunctionSplitter {
     // a call to the outlined function.
     const shellIf: IfExpr = {
       kind: ExpressionKind.If,
-      type: originalIf.type,
+      type: typeOf(originalIf),
       condition: makeUnary(UnaryOp.EqzI32, deepCopy(originalIf.condition)),
       ifTrue: makeCall(outlined.name, getForwardedArgs(fn), None),
       ifFalse: null,

@@ -86,6 +86,7 @@ import {
   type TryExpr,
   type TryTableExpr,
   type TupleMakeExpr,
+  typeOf,
   type UnaryExpr,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
@@ -1470,7 +1471,7 @@ class WasmEncoder {
       case ExpressionKind.Block: {
         const e = expr as BlockExpr;
         w.writeU8(0x02);
-        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
+        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
         labels.push(e.name ?? '');
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
@@ -1481,7 +1482,7 @@ class WasmEncoder {
       case ExpressionKind.Loop: {
         const e = expr as LoopExpr;
         w.writeU8(0x03);
-        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
+        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
         labels.push(e.name);
         // A REGION, like the `if` arms — see `encodeRegionBody`. Encoding the
         // body directly emitted the parser's synthetic wrapper as a real nested
@@ -1500,7 +1501,7 @@ class WasmEncoder {
         const e = expr as IfExpr;
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
-        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
+        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
         labels.push(e.name ?? ''); // the if's branch-target label (if any)
         // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
         // exits via `br` ends in an unreachable-typed child, so re-wrapping it
@@ -2063,7 +2064,7 @@ class WasmEncoder {
       case ExpressionKind.TryTable: {
         const e = expr as TryTableExpr;
         w.writeU8(0x1f); // try_table
-        writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
+        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
         w.writeU32(e.catches.length);
         // The catch clauses are resolved BEFORE the try_table label is pushed:
         // its own label is not in scope for its handlers, so depth 0 names the
@@ -2091,7 +2092,7 @@ class WasmEncoder {
         if (e.delegateTarget !== null) {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
-          writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
+          writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
           labels.push(e.name ?? '');
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
@@ -2099,7 +2100,7 @@ class WasmEncoder {
           w.writeU32(this.resolveLabel(labels, e.delegateTarget));
         } else {
           w.writeU8(0x06); // try
-          writeBlockType(w, e.type, (rs) => this.blockTypeIndex(rs));
+          writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
           labels.push(e.name ?? '');
           this.encodeRegionBody(w, e.body, labels);
           // Tags and bodies are parallel by construction. Pairing them by index

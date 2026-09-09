@@ -172,6 +172,7 @@ import {
   ModuleBuilder,
   None,
   SIMDLoadOp,
+  typeOf,
   ValType,
 } from '../binaryen-ts/ir/index.ts';
 import type {
@@ -880,7 +881,7 @@ function bridgeBrOnNull(bn: BrOnExpr, ctx: BridgeCtx): Expression {
     bn.op === 'br_on_null' ? BrOnOp.Null : BrOnOp.NonNull,
     resolveLabel(ctx, bn.target),
     ref,
-    ref.type,
+    typeOf(ref),
   );
 }
 
@@ -1360,7 +1361,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bc.op === 'br_on_cast_fail' ? BrOnOp.CastFail : BrOnOp.Cast,
         resolveLabel(ctx, bc.target),
         ref,
-        ref.type,
+        typeOf(ref),
         cast,
         bc.to!.nullable,
         src,
@@ -1607,7 +1608,7 @@ function localType(ctx: BridgeCtx, idx: number): Type {
  * `e.type` directly into the binary block_type slot, so we have to fix it
  * here before the value escapes the bridge.
  */
-function withDeclaredType<T extends { type: BType }>(expr: T, declared: BType): T {
+function withDeclaredType<T extends { type?: BType }>(expr: T, declared: BType): T {
   return declared === expr.type ? expr : { ...expr, type: declared };
 }
 

@@ -885,7 +885,7 @@ LABEL onto `case 'return_call_indirect': { … }`, so deleting the return_* bloc
 `call_indirect` depended on. Removing a case is not safe just because the label above it is the one
 being kept.
 
-##### Step 3 — the node base carries `loc?` and `type?`
+##### Step 3 — the node base carries `loc?` and `type?` ✅ DONE
 
 The two bases are disjoint: 88 wabt-ts kinds carry `loc` and none carries `type`; every binaryen-ts
 node carries `type` and none mentions `loc`. Both become optional, absent meaning "derive it" — the
@@ -893,6 +893,33 @@ rule S3 established for the fidelity table.
 
 Making `type` optional is the one change with a **silent** failure mode: 53 reads across 11 pass
 files would see `undefined` rather than a type. Each needs an explicit decision, not a `?.`.
+
+**Landed 2026-09-11.** `ExprBase` now has `type?: Type` and `loc?: Location`, and a `typeOf(e)`
+accessor that THROWS naming the node when a type is required and absent. 952 tests, baseline
+`IDENTICAL`, bridge 397/421, spec 100%.
+
+**Safe to relax today, and measured rather than assumed**: all 81 factories in `expressions.ts` set
+a type, so nothing here can produce an untyped node. One can only arrive once wabt-ts's tree flows
+in directly, which is step 4 — so the guard is in place before the thing it guards against exists.
+
+🔑 **`typeOf` rather than 53 defensive checks.** The plan called this the one change with a silent
+failure mode. A `?.` at each read would have spread the silence; one accessor that fails loud
+concentrates it. Verified by construction: an untyped node throws
+`expression of kind "i32.add" has no
+computed type`, and the same happens through a real encode
+path.
+
+⚠️ **The first attempt at routing the reads was wrong in two ways at once, and worth recording.** A
+tree-wide regex rewrote 110 reads when 38 were failing — catching `field.type` on a struct field,
+and turning the ASSIGNMENT `blk.type = resultType` into `typeOf(blk) = resultType`. The check that
+"passed" afterwards was counting `TS<number>` lines, and a SyntaxError carries no TS code, so a
+broken file reported zero errors.
+
+**Two lessons, and the second is the sharper one**: let the compiler name the sites rather than a
+pattern; and assert on a command's FAILURE, not on a string inside its output. The redo was
+compiler-driven and line-scoped, which left only four sites needing hands — three where the
+offending read sat on a different line from the error, and one where `loop.body.type` became
+`loop.typeOf(body)` because the pattern captured only the last path segment.
 
 ##### Step 4 — one `Expression`
 

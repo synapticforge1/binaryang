@@ -21,7 +21,7 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, type LocalTeeExpr } from '../ir/expressions.ts';
+import { type Expression, ExpressionKind, type LocalTeeExpr, typeOf } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression } from '../ir/walk.ts';
@@ -74,7 +74,7 @@ function _simplifyBlock(
       // Replace set+get pair with tee
       const tee: LocalTeeExpr = {
         kind: ExpressionKind.LocalTee,
-        type: next.type,
+        type: typeOf(next),
         index: curr.index,
         value: curr.value,
       };

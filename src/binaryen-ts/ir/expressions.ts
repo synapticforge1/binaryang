@@ -29,6 +29,7 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
+import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import type { HeapType, ValueType } from './gc-types.ts';
 export type { HeapType, RefType, ValueType } from './gc-types.ts';
@@ -662,8 +663,53 @@ export type SIMDTernaryOp = Opcode;
 export interface ExprBase {
   /** The WAT instruction name (discriminant). */
   kind: ExpressionKind;
-  /** The result type of this expression. */
-  type: Type;
+
+  /**
+   * The result type of this expression, where something has computed it.
+   *
+   * ⚠️ **Optional since S6 step 3, and the reason is structural.** The two node
+   * bases were DISJOINT: every wabt-ts node carries `loc` and none carries
+   * `type`; every node here carried `type` and none mentioned `loc`. One shared
+   * node needs both, and neither half can be made to populate the other's field
+   * cheaply -- wabt-ts defers typing to its validator on purpose.
+   *
+   * So both are optional, and absent means "derive it" -- the same rule S3
+   * established for the fidelity table. Relaxing it is safe today because all 81
+   * factories here set it; a node without one can only arrive once wabt-ts's
+   * tree flows in directly, at step 4.
+   *
+   * 🔑 **Read it through {@link typeOf} wherever a type is REQUIRED.** A pass
+   * that needs a type should fail at the node that lacks one, naming it, rather
+   * than propagate `undefined` into a decision.
+   */
+  type?: Type;
+
+  /**
+   * Source position, where something recorded it.
+   *
+   * Absent on everything binaryen-ts builds today: it is wabt-ts's half of the
+   * disjoint base, carried here so one shared node can hold a diagnostic's
+   * anchor. Optimization neither sets nor reads it.
+   */
+  loc?: Location;
+}
+
+/**
+ * The result type of an expression, or a loud failure.
+ *
+ * `type` became optional so one node could serve both halves; this is where that
+ * optionality is paid for. A node reaching a pass untyped names itself instead
+ * of turning into a silent `undefined` comparison.
+ */
+export function typeOf(e: ExprBase): Type {
+  if (e.type === undefined) {
+    throw new Error(
+      `expression of kind "${e.kind}" has no computed type, and reached code that ` +
+        `requires one. Types are set by every factory here; a tree built elsewhere ` +
+        `must be annotated before it reaches optimization.`,
+    );
+  }
+  return e.type;
 }
 
 /** {@link NopExpr} — see {@link makeNop} for the factory. */
@@ -2002,9 +2048,9 @@ export function makeIf(
   if (!ifFalse) {
     type = None;
   } else if (ifTrue.type === Unreachable) {
-    type = ifFalse.type;
+    type = typeOf(ifFalse);
   } else {
-    type = ifTrue.type;
+    type = typeOf(ifTrue);
   }
   return {
     kind: ExpressionKind.If,
@@ -2022,7 +2068,7 @@ export function makeBlock(
   name: string | null = null,
 ): BlockExpr {
   const last = children[children.length - 1];
-  const type: Type = last ? last.type : None;
+  const type: Type = last ? typeOf(last) : None;
   return { kind: ExpressionKind.Block, type, name, children };
 }
 
@@ -2059,7 +2105,7 @@ export function makeBreak(
   // unreachable, so no fallthrough value is required). A conditional `br_if`
   // falls through when the condition is false, so it takes the value's type
   // (or `none` when value-less).
-  const type: Type = condition === null ? Unreachable : value ? value.type : None;
+  const type: Type = condition === null ? Unreachable : value ? typeOf(value) : None;
   return { kind: ExpressionKind.Break, type, name, condition, value };
 }
 
@@ -2095,7 +2141,7 @@ export function makeSelect(
   // `ifTrue.type` blindly mistyped a select whose `ifTrue` is `unreachable`
   // (e.g. it ends in a trap/branch) even though `ifFalse` yields a real value,
   // the same hazard `makeIf` was fixed for.
-  const type: Type = ifTrue.type === Unreachable ? ifFalse.type : ifTrue.type;
+  const type: Type = typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue);
   return { kind: ExpressionKind.Select, type, ifTrue, ifFalse, condition };
 }
 

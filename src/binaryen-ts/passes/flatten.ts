@@ -56,6 +56,7 @@ import {
   makeReturn,
   makeUnreachable,
   type SwitchExpr,
+  typeOf,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { None, type Type, Unreachable, type ValType } from '../ir/types.ts';
@@ -158,7 +159,7 @@ function callEffectiveType(e: Expression, ctx: Ctx): Type {
     }
     return r[0] ?? None;
   }
-  return e.type;
+  return typeOf(e);
 }
 
 /** Allocate a fresh local of `type` and return its index. */
@@ -265,8 +266,8 @@ function flattenControlFlow(e: Expression, ctx: Ctx): Flat {
  * the block's value flows out via `local.get $temp`.
  */
 function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
-  const concrete = isConcrete(block.type);
-  const resultTemp = concrete ? allocTemp(ctx, block.type) : -1;
+  const concrete = isConcrete(typeOf(block));
+  const resultTemp = concrete ? allocTemp(ctx, typeOf(block)) : -1;
   const list: Expression[] = [];
 
   block.children.forEach((child, i) => {
@@ -297,13 +298,13 @@ function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
 /** Flatten an `if`: trivial condition + statement arms; value via a temp. */
 function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
   const cond = flattenExpr(iff.condition, ctx);
-  const concrete = isConcrete(iff.type);
-  const resultTemp = concrete ? allocTemp(ctx, iff.type) : -1;
+  const concrete = isConcrete(typeOf(iff));
+  const resultTemp = concrete ? allocTemp(ctx, typeOf(iff)) : -1;
 
   const arm = (a: Expression): Expression => {
     const f = flattenExpr(a, ctx);
     const stmts = [...f.pre];
-    if (concrete && isConcrete(a.type)) stmts.push(makeLocalSet(resultTemp, f.value));
+    if (concrete && isConcrete(typeOf(a))) stmts.push(makeLocalSet(resultTemp, f.value));
     return makeBlock(stmts, null);
   };
 
@@ -324,12 +325,12 @@ function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
 
 /** Flatten a `loop`: body becomes a statement block; value via a temp. */
 function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
-  const concrete = isConcrete(loop.type);
-  const resultTemp = concrete ? allocTemp(ctx, loop.type) : -1;
+  const concrete = isConcrete(typeOf(loop));
+  const resultTemp = concrete ? allocTemp(ctx, typeOf(loop)) : -1;
 
   const f = flattenExpr(loop.body, ctx);
   const stmts = [...f.pre];
-  if (concrete && isConcrete(loop.body.type)) stmts.push(makeLocalSet(resultTemp, f.value));
+  if (concrete && isConcrete(typeOf(loop.body))) stmts.push(makeLocalSet(resultTemp, f.value));
 
   const flatLoop: LoopExpr = {
     kind: ExpressionKind.Loop,

@@ -86,6 +86,7 @@ import {
   SIMDReplaceOp,
   SIMDShiftOp,
   SIMDTernaryOp,
+  typeOf,
   UnaryOp,
 } from '../ir/expressions.ts';
 import {
@@ -2331,20 +2332,21 @@ class WasmParser {
           // Result is the operand's own type made non-nullable; for a plain
           // ValType ref (the AnyRef-collapse shim) there is nothing to sharpen,
           // so carry the operand type through unchanged.
-          const rt = isRefType(r0.type) ? { ...r0.type, nullable: false } : r0.type;
+          const r0t = typeOf(r0);
+          const rt = isRefType(r0t) ? { ...r0t, nullable: false } : r0t;
           push(makeRefAsNonNull(r0, rt));
           break;
         }
         case 0xd5: { // br_on_null
           const depth = r.readU32();
           const ref = pop();
-          push(makeBrOn(BrOnOp.Null, resolveLabel(frames, depth), ref, ref.type));
+          push(makeBrOn(BrOnOp.Null, resolveLabel(frames, depth), ref, typeOf(ref)));
           break;
         }
         case 0xd6: { // br_on_non_null
           const depth = r.readU32();
           const ref = pop();
-          push(makeBrOn(BrOnOp.NonNull, resolveLabel(frames, depth), ref, ref.type));
+          push(makeBrOn(BrOnOp.NonNull, resolveLabel(frames, depth), ref, typeOf(ref)));
           break;
         }
 
@@ -2603,7 +2605,7 @@ function decodeGcPrefix(
         BrOnOp.Cast,
         resolveLabel(frames, depth),
         ref,
-        ref.type,
+        typeOf(ref),
         ht2,
         (flags & 0x02) !== 0,
         ht1,
@@ -2621,7 +2623,7 @@ function decodeGcPrefix(
         BrOnOp.CastFail,
         resolveLabel(frames, depth),
         ref,
-        ref.type,
+        typeOf(ref),
         ht2,
         (flags & 0x02) !== 0,
         ht1,
