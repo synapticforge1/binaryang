@@ -960,6 +960,52 @@ So the unified node holds `Var`, and binaryen-ts's consumers get an accessor —
 the same reasoning as the multi-memory decision, and the third element where wabt-ts's form
 controls.
 
+###### The 28 structural kinds, scoped 2026-09-11
+
+Each asked the worst-condition question once. **Only seven turned out to be decisions**; the rest
+are the already-settled `Var` call plus operand renames that dissolve when the types unify.
+
+⚠️ One measurement artifact caught first: the script that printed the 28 shape pairs filtered fields
+whose name STARTS WITH `type`, to hide the base `type:` field — and so hid `typeIndex`, the very
+field under study. It briefly looked as though binaryen-ts could not say which struct or array type
+a `struct.get` addressed. Eighth artifact of this class; the fix was an anchored pattern rather than
+a prefix.
+
+**Group 1 — no new decision (16 kinds).** `array.copy`, `array.fill`, `array.init_data`,
+`array.init_elem`, `array.new_data`, `array.new_elem`, `array.new_fixed`, `struct.get`,
+`struct.set`, `memory.copy`, `memory.init`, `simd.load`, `simd.load_store_lane`, `table.copy`,
+`block`, `loop`. Each differs by the `Var`-vs-resolved-index call already made, plus operand names
+(`destOffset`/`destIndex`, `address`/`ptr`, `operands`/`values`, `srcOffset`/`source`) that are pure
+renames once `Expr` and `Expression` are one type. Direction on those goes by blast radius, as S2
+did.
+
+**Group 2 — the seven that are real decisions.**
+
+| kind(s)                                     | the difference                                           | controls                               | why                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `load`, `store`, `simd.load*`               | `opcode` vs decomposed `bytes` + `signed`                | **wabt-ts**                            | S6 stage 1 already made the numeric opcode the operator representation. `bytes`/`signed` are derivable from it; the reverse needs a table. Settled by consistency, not re-litigated.                                                                                                                                                                                                                                      |
+| memarg `offset`                             | `bigint` vs `number`                                     | **wabt-ts**                            | memory64 offsets exceed 2^32. `number` cannot carry one, so **fidelity binds**: a valid module would be unrepresentable.                                                                                                                                                                                                                                                                                                  |
+| `loop`, `try`, `try_table` body             | `Expr[]` vs a single `Expression`                        | **wabt-ts**                            | A list of N instructions can only be one `Expression` inside a synthetic `Block`. That wrapper is a node the input never had, and it has already cost: `oneOrTypedBlock` creates them, `encodeRegionBody` must inline them, and `isBlockTypeCarrier` carries a comment about a multi-value function body wrapper registering a type entry nothing addressed. **Fidelity binds** and the wrapper is a known defect source. |
+| `try` catches                               | `Catch[]` vs parallel `catchTags[]` + `catchBodies[]`    | **wabt-ts**                            | The parallel arrays are documented as such in binaryen-ts. Two arrays indexed in lockstep are one fact in two places — the hazard class this codebase has been bitten by most, and the one `deno task operators` exists to police.                                                                                                                                                                                        |
+| `br` values                                 | `values: Expr[]` vs `value: Expression \| null`          | **wabt-ts**                            | A multi-value `br` carries N values. S2 flagged this as a real arity difference, not a rename. **Fidelity binds.**                                                                                                                                                                                                                                                                                                        |
+| `blockType`, `typeUse`, `select.resultType` | present on wabt-ts, absent on binaryen-ts                | **wabt-ts, and they stay on the node** | These are the as-written fields S3 put in the fidelity table. The table SHADOWS them; it does not replace them, because the encoder still needs a value when no entry exists. Keeping both is the S3 design, not a duplication.                                                                                                                                                                                           |
+| `ref.as` operator, `simd.shuffle` operator  | an operator field on a kind with exactly ONE instruction | **drop it**                            | With one variant the KIND is the operator. Neither side loses anything, and it removes a field that can disagree with the kind.                                                                                                                                                                                                                                                                                           |
+
+**Group 3 — genuine ties, decided on cost (5 kinds).** `br_on` (`from`/`to` objects vs four flat
+`castType`/`castNullable`/`srcType`/`srcNullable` fields), `select` (`val1`/`val2` vs
+`ifTrue`/`ifFalse`), `if` (`then_`/`else_` vs `ifTrue`/`ifFalse`), `call_indirect` (`sig` vs
+`params`+`results`), `ref.null` (`refType` vs carrying it in the node's `type`). Neither condition
+binds on any of them: both forms are fidelity-equivalent and no pass depends on either spelling.
+Blast radius decides, as it did in S2 and for the SIMD lane family.
+
+**So the order of work is:** the `Var` accessor first, since Group 1 cannot land without it; then
+Group 2's seven, which are structural and want their own commits; then Group 3's renames, which are
+mechanical; then the aliasing.
+
+🔑 **Six of the seven real decisions go to wabt-ts's form.** That is not a thumb on the scale — it
+is what "fidelity binds, optimization does not" keeps producing once the question is asked per
+element. S4 went the other way on grouping, and the SIMD lane family went the other way on cost.
+
 ###### What remains, honestly
 
 1. the (b) conversion — ~275 binaryen-ts read sites behind an accessor
