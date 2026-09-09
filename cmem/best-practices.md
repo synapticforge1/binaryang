@@ -458,9 +458,9 @@ standard would have licensed the change; measuring our own parser is what caught
 `i32.add` every assertion here passes under the reversed reading. `i32.sub` and a 3-argument
 subtraction are what made the slots observable.
 
-## 🆕 Changing a field's TYPE has five failure modes the compiler cannot see
+## 🆕 Changing a field has SIX failure modes the compiler cannot see
 
-**Rule: a type change is not finished when it compiles. Sweep for the five, then let a behavioural
+**Rule: a type change is not finished when it compiles. Sweep for the six, then let a behavioural
 test and a byte gate disagree with you.**
 
 Paid for across S6 step 4 (2026-09-09), converting five field families in binaryen-ts and wabt-ts to
@@ -488,6 +488,24 @@ their as-written forms. Every defect below **compiled clean**, and none was foun
   `body as { table?: string }` then `ci as { table?: Var }` errored only because the two disagreed.
   Update both to the same wrong type — or make the intermediate `unknown` — and the assertion
   compiles while comparing a string to an object forever.
+
+### A field name used as a VALUE leaves the type system entirely
+
+The sixth mode, and the one that survives even a pure rename — where the other five need a type
+change to bite.
+
+```ts
+for (const k of ['ref', 'index', 'value', 'size']) assert(node[k] !== undefined);
+```
+
+A rename cannot touch a string, so this fails at RUNTIME only. Same for a field name in a map key, a
+template, or a serialized shape.
+
+🔑 **The through-line for all six: the compiler sees a field name used as SYNTAX.** The moment the
+name becomes data, it is outside the type system, and no rename, retype or arm-widening will make it
+speak up. Sweep for `'<field>'` as a string literal in tests before believing a rename is done — and
+sweep for the PATTERN, not the failures: `wide_arithmetic.test.ts` carries the same construct,
+untouched by the rename that exposed it and waiting for the next one.
 
 ### Widening a union (adding an arm), which is worse
 
