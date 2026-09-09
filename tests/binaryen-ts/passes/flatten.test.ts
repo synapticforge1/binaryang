@@ -36,6 +36,7 @@ import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { buildCallResultTypes, FlattenPass } from '../../../src/binaryen-ts/passes/flatten.ts';
 import type { PassOptions } from '../../../src/binaryen-ts/passes/pass.ts';
 import { ModuleBuilder, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -278,7 +279,7 @@ Deno.test('flatten — two tees to the same local as sibling operands are not cl
 // interact. Assert both the map primitive and the visitor yield operand→target.
 Deno.test('walk — call_indirect visits operands before the table index', () => {
   const ci = makeCallIndirect(
-    '$t',
+    varName('$t'),
     makeI32Const(200), // target (table index) — must be visited LAST
     [makeI32Const(100)], // operand — must be visited FIRST
     [ValType.I32],
@@ -344,7 +345,7 @@ Deno.test('Flatten: a multi-result call fails loudly instead of losing values', 
       'caller',
       [],
       [ValType.I32],
-      makeBlock([makeCall('two', [], [ValType.I32, ValType.I32])]),
+      makeBlock([makeCall(varName('two'), [], [ValType.I32, ValType.I32])]),
     )
     .build();
 
@@ -361,7 +362,7 @@ Deno.test('Flatten: an unresolvable call target fails loudly instead of typing i
   // call's value — the same defect the WAT parser's `inferFuncResultType` stub
   // produced.
   const mod = new ModuleBuilder()
-    .addFunction('caller', [], [], makeBlock([makeCall('$nope', [], None)]))
+    .addFunction('caller', [], [], makeBlock([makeCall(varName('$nope'), [], None)]))
     .build();
 
   assertThrows(() => new FlattenPass().run(mod, FLATTEN_OPTS), Error, 'unresolved call target');

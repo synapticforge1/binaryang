@@ -152,11 +152,16 @@ function _collectCallTargets(
 ): void {
   walkExpression(expr, (e) => {
     if (e.kind === ExpressionKind.Call) {
-      if (!live.has(e.target) && !imported.has(e.target)) {
-        live.add(e.target);
-        queue.push(e.target);
-      } else if (!live.has(e.target)) {
-        live.add(e.target);
+      // The liveness sets are keyed by NAME, so the reference is read as one.
+      // This pass runs before any index resolution; an index-form target here
+      // would mean the module was built by a path that skipped naming, which
+      // requireName says rather than silently missing the entity.
+      const target = requireName(e.target, 'call target');
+      if (!live.has(target) && !imported.has(target)) {
+        live.add(target);
+        queue.push(target);
+      } else if (!live.has(target)) {
+        live.add(target);
       }
     }
     if (e.kind === ExpressionKind.RefFunc) {

@@ -33,6 +33,8 @@ import { deepCopy, measureSize } from '../../../src/binaryen-ts/passes/inlining.
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { nameOf } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,7 +71,7 @@ function countKind(expr: Expression, kind: ExpressionKind): number {
 function hasCall(expr: Expression, target: string): boolean {
   let found = false;
   walkExpression(expr, (e) => {
-    if (e.kind === ExpressionKind.Call && e.target === target) found = true;
+    if (e.kind === ExpressionKind.Call && nameOf(e.target) === target) found = true;
   });
   return found;
 }
@@ -135,7 +137,7 @@ Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('identity', [makeI32Const(5)], ValType.I32)),
+    body: makeReturn(makeCall(varName('identity'), [makeI32Const(5)], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -173,7 +175,7 @@ Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('add', [makeI32Const(3), makeI32Const(4)], ValType.I32)),
+    body: makeReturn(makeCall(varName('add'), [makeI32Const(3), makeI32Const(4)], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -208,7 +210,7 @@ Deno.test('Inlining: call operands become local.set in the inlined block', () =>
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('inc', [makeI32Const(10)], ValType.I32)),
+    body: makeReturn(makeCall(varName('inc'), [makeI32Const(10)], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -242,7 +244,7 @@ Deno.test('Inlining: return in callee body becomes break to wrapper block', () =
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('ret_const', [], ValType.I32)),
+    body: makeReturn(makeCall(varName('ret_const'), [], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -271,7 +273,7 @@ Deno.test('Inlining: recursive call is not inlined', () => {
       makeBinary(
         BinaryOp.MulI32,
         makeLocalGet(varIndex(0), ValType.I32),
-        makeCall('factorial', [
+        makeCall(varName('factorial'), [
           makeBinary(BinaryOp.SubI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
         ], ValType.I32),
       ),
@@ -316,7 +318,7 @@ Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (reg
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('$add', [makeI32Const(3), makeI32Const(4)], ValType.I32)),
+    body: makeReturn(makeCall(varName('$add'), [makeI32Const(3), makeI32Const(4)], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -345,7 +347,7 @@ Deno.test('Inlining: exported callee stays in module even after inlining', () =>
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('helper', [], ValType.I32)),
+    body: makeReturn(makeCall(varName('helper'), [], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -389,7 +391,7 @@ Deno.test('Inlining: large function is not inlined at optimizeLevel 2', () => {
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('big', [], ValType.I32)),
+    body: makeReturn(makeCall(varName('big'), [], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -425,7 +427,7 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('localfn', [], ValType.I32)),
+    body: makeReturn(makeCall(varName('localfn'), [], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -472,14 +474,14 @@ Deno.test('Inlining: multi-caller callee kept when inlined at multiple sites', (
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('helper', [], ValType.I32)),
+    body: makeReturn(makeCall(varName('helper'), [], ValType.I32)),
   };
   const caller2: WasmFunction = {
     name: 'f2',
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('helper', [], ValType.I32)),
+    body: makeReturn(makeCall(varName('helper'), [], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -515,7 +517,7 @@ Deno.test('Inlining: void callee inlined correctly', () => {
     results: [],
     locals: [],
     body: makeBlock([
-      makeCall('side_effect', [], None),
+      makeCall(varName('side_effect'), [], None),
       makeNop(),
     ]),
   };
@@ -549,7 +551,7 @@ Deno.test('Inlining: unreachable before call keeps body unreachable', () => {
     locals: [],
     body: makeBlock([
       makeUnreachable(),
-      makeCall('tiny', [], ValType.I32), // dead
+      makeCall(varName('tiny'), [], ValType.I32), // dead
     ]),
   };
 
@@ -581,7 +583,7 @@ Deno.test('InliningOptimizing: runs without error on simple module', () => {
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeReturn(makeCall('const_fn', [], ValType.I32)),
+    body: makeReturn(makeCall(varName('const_fn'), [], ValType.I32)),
   };
 
   const mod = emptyModule();
@@ -615,7 +617,7 @@ Deno.test('InliningOptimizing: cleans up inlined body — Binary fold', () => {
       params: [],
       results: [ValType.I32],
       locals: [],
-      body: makeReturn(makeCall('two_plus_three', [], ValType.I32)),
+      body: makeReturn(makeCall(varName('two_plus_three'), [], ValType.I32)),
     };
     return [callee, caller];
   }
@@ -660,7 +662,7 @@ Deno.test('InliningOptimizing: cleans up inlined body — Vacuum drops nop', () 
       params: [],
       results: [ValType.I32],
       locals: [],
-      body: makeReturn(makeCall('nop_then_const', [], ValType.I32)),
+      body: makeReturn(makeCall(varName('nop_then_const'), [], ValType.I32)),
     };
     const mod = emptyModule();
     mod.functions.push(caller, callee);
@@ -718,14 +720,14 @@ Deno.test('split-inlining: disabled by default — Pattern A function is untouch
     params: [],
     results: [],
     locals: [],
-    body: makeCall('early_exit', [makeI32Const(0)], None),
+    body: makeCall(varName('early_exit'), [makeI32Const(0)], None),
   };
   const caller2: WasmFunction = {
     name: 'c2',
     params: [],
     results: [],
     locals: [],
-    body: makeCall('early_exit', [makeI32Const(1)], None),
+    body: makeCall(varName('early_exit'), [makeI32Const(1)], None),
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
@@ -757,14 +759,14 @@ Deno.test('split-inlining: Pattern A — caller gets shell, outlined function ad
     params: [],
     results: [],
     locals: [],
-    body: makeCall('early_exit', [makeI32Const(0)], None),
+    body: makeCall(varName('early_exit'), [makeI32Const(0)], None),
   };
   const caller2: WasmFunction = {
     name: 'c2',
     params: [],
     results: [],
     locals: [],
-    body: makeCall('early_exit', [makeI32Const(1)], None),
+    body: makeCall(varName('early_exit'), [makeI32Const(1)], None),
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
@@ -803,14 +805,14 @@ Deno.test('split-inlining: Pattern A with simple outlined chunk collapses to Ful
     params: [],
     results: [],
     locals: [],
-    body: makeCall('tiny_early_exit', [makeI32Const(0)], None),
+    body: makeCall(varName('tiny_early_exit'), [makeI32Const(0)], None),
   };
   const caller2: WasmFunction = {
     name: 'c2',
     params: [],
     results: [],
     locals: [],
-    body: makeCall('tiny_early_exit', [makeI32Const(1)], None),
+    body: makeCall(varName('tiny_early_exit'), [makeI32Const(1)], None),
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
@@ -856,14 +858,14 @@ Deno.test('split-inlining: non-simple condition rejects Pattern A', () => {
     params: [],
     results: [],
     locals: [],
-    body: makeCall('complex_cond', [makeI32Const(0)], None),
+    body: makeCall(varName('complex_cond'), [makeI32Const(0)], None),
   };
   const caller2: WasmFunction = {
     name: 'c2',
     params: [],
     results: [],
     locals: [],
-    body: makeCall('complex_cond', [makeI32Const(1)], None),
+    body: makeCall(varName('complex_cond'), [makeI32Const(1)], None),
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
@@ -898,7 +900,7 @@ Deno.test('return-call inlining: callee return propagates as caller return (valu
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: makeCall('const42', [], ValType.I32, /* isReturn */ true),
+    body: makeCall(varName('const42'), [], ValType.I32, /* isReturn */ true),
   };
   const mod = emptyModule();
   mod.functions.push(caller, callee);
@@ -930,7 +932,7 @@ Deno.test('return-call inlining: void callee — body executes then return', () 
     params: [],
     results: [],
     locals: [],
-    body: makeCall('side_effect', [], None, /* isReturn */ true),
+    body: makeCall(varName('side_effect'), [], None, /* isReturn */ true),
   };
   const mod = emptyModule();
   mod.functions.push(caller, callee);
@@ -964,7 +966,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
       params: [],
       results: [ValType.I32],
       locals: [],
-      body: makeCall('early_42', [], ValType.I32, /* isReturn */ false),
+      body: makeCall(varName('early_42'), [], ValType.I32, /* isReturn */ false),
     };
     const mod = emptyModule();
     mod.functions.push(caller, callee);
@@ -985,7 +987,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
       params: [],
       results: [ValType.I32],
       locals: [],
-      body: makeCall('early_42', [], ValType.I32, /* isReturn */ true),
+      body: makeCall(varName('early_42'), [], ValType.I32, /* isReturn */ true),
     };
     const mod = emptyModule();
     mod.functions.push(caller, callee);
@@ -1038,14 +1040,14 @@ Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', 
     params: [],
     results: [],
     locals: [],
-    body: makeCall('two_branches', [makeI32Const(0), makeI32Const(0)], None),
+    body: makeCall(varName('two_branches'), [makeI32Const(0), makeI32Const(0)], None),
   };
   const caller2: WasmFunction = {
     name: 'c2',
     params: [],
     results: [],
     locals: [],
-    body: makeCall('two_branches', [makeI32Const(1), makeI32Const(1)], None),
+    body: makeCall(varName('two_branches'), [makeI32Const(1), makeI32Const(1)], None),
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
@@ -1101,7 +1103,11 @@ Deno.test('Inlining: callee that returns via a block-wrapped `return` yields a v
     '$caller',
     [ValType.I32],
     [ValType.I32],
-    makeCall('$callee', [makeLocalGet(varIndex(0), ValType.I32), makeI32Const(5)], ValType.I32),
+    makeCall(
+      varName('$callee'),
+      [makeLocalGet(varIndex(0), ValType.I32), makeI32Const(5)],
+      ValType.I32,
+    ),
     [],
   );
   b.addExport('caller', '$caller', 'function');

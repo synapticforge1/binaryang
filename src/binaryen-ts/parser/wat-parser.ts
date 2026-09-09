@@ -956,7 +956,7 @@ class WatModuleParser {
         // Element type defaults to funcref — the most common table type and
         // what the binary parser assumes when it can't see the table decl.
         type: ValType.FuncRef,
-        table,
+        table: varName(table),
         index,
       };
     }
@@ -966,7 +966,7 @@ class WatModuleParser {
       if (rest.length < 2) this.err('table.set: need index and value operands', list.pos);
       const index = this.parseExpr(rest[0], ctx);
       const value = this.parseExpr(rest[1], ctx);
-      return { kind: ExpressionKind.TableSet, type: None, table, index, value };
+      return { kind: ExpressionKind.TableSet, type: None, table: varName(table), index, value };
     }
 
     // -----------------------------------------------------------------------
@@ -1013,7 +1013,7 @@ class WatModuleParser {
       return {
         kind: ExpressionKind.Call,
         type: resultType,
-        target: funcName,
+        target: varName(funcName),
         operands,
         isReturn: false,
       } as CallExpr;
@@ -1025,7 +1025,7 @@ class WatModuleParser {
       return {
         kind: ExpressionKind.Call,
         type: Unreachable,
-        target: funcName,
+        target: varName(funcName),
         operands,
         isReturn: true,
       } as CallExpr;
@@ -1065,35 +1065,35 @@ class WatModuleParser {
       const second = this.namesAnElem(args[i]) ? atomText(args[i++]) : null;
       const [tableRef, segRef] = second === null ? [null, first] : [first, second];
       return makeTableInit(
-        this.elemRefName(segRef ?? '0'),
-        this.tableRefName(tableRef),
+        varName(this.elemRefName(segRef ?? '0')),
+        varName(this.tableRefName(tableRef)),
         this.parseExpr(args[i], ctx),
         this.parseExpr(args[i + 1], ctx),
         this.parseExpr(args[i + 2], ctx),
       );
     }
     if (head === 'elem.drop') {
-      return makeElemDrop(this.elemRefName(atomText(args[0]) ?? '0'));
+      return makeElemDrop(varName(this.elemRefName(atomText(args[0]) ?? '0')));
     }
     if (head === 'memory.init') {
       const segment = this.dataRefName(atomText(args[0]) ?? '0');
       const dest = this.parseExpr(args[1], ctx);
       const offset = this.parseExpr(args[2], ctx);
       const size = this.parseExpr(args[3], ctx);
-      return makeMemoryInit(segment, dest, offset, size);
+      return makeMemoryInit(varName(segment), dest, offset, size);
     }
     if (head === 'data.drop') {
-      return makeDataDrop(this.dataRefName(atomText(args[0]) ?? '0'));
+      return makeDataDrop(varName(this.dataRefName(atomText(args[0]) ?? '0')));
     }
     if (head === 'table.size') {
-      return makeTableSize(this.tableRefName(atomText(args[0])));
+      return makeTableSize(varName(this.tableRefName(atomText(args[0]))));
     }
     if (head === 'table.grow') {
       // An optional leading table reference, then value and delta.
       const named = this.namesATable(args[0]);
       const i = named ? 1 : 0;
       return makeTableGrow(
-        this.tableRefName(named ? atomText(args[0]) : null),
+        varName(this.tableRefName(named ? atomText(args[0]) : null)),
         this.parseExpr(args[i], ctx),
         this.parseExpr(args[i + 1], ctx),
       );
@@ -1102,7 +1102,7 @@ class WatModuleParser {
       const named = this.namesATable(args[0]);
       const i = named ? 1 : 0;
       return makeTableFill(
-        this.tableRefName(named ? atomText(args[0]) : null),
+        varName(this.tableRefName(named ? atomText(args[0]) : null)),
         this.parseExpr(args[i], ctx),
         this.parseExpr(args[i + 1], ctx),
         this.parseExpr(args[i + 2], ctx),
@@ -1115,8 +1115,8 @@ class WatModuleParser {
       const destRef = this.namesATable(args[0]) ? atomText(args[i++]) : null;
       const srcRef = this.namesATable(args[i]) ? atomText(args[i++]) : null;
       return makeTableCopy(
-        this.tableRefName(destRef),
-        this.tableRefName(srcRef ?? destRef),
+        varName(this.tableRefName(destRef)),
+        varName(this.tableRefName(srcRef ?? destRef)),
         this.parseExpr(args[i], ctx),
         this.parseExpr(args[i + 1], ctx),
         this.parseExpr(args[i + 2], ctx),
@@ -1301,7 +1301,7 @@ class WatModuleParser {
       const make = head === 'array.init_data' ? makeArrayInitData : makeArrayInitElem;
       return make(
         varIndex(ti),
-        seg,
+        varIndex(seg),
         this.parseExpr(args[2], ctx),
         this.parseExpr(args[3], ctx),
         this.parseExpr(args[4], ctx),
@@ -1333,7 +1333,7 @@ class WatModuleParser {
       const tagRef = atomText(args[0]) ?? this.err('throw: missing tag reference', list.pos);
       const tagName = this.resolveTagRef(tagRef);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
-      return makeThrow(tagName, operands);
+      return makeThrow(varName(tagName), operands);
     }
     if (head === 'throw_ref') {
       const exnref = this.parseExpr(args[0], ctx);
@@ -1789,7 +1789,7 @@ class WatModuleParser {
     return {
       kind: ExpressionKind.CallIndirect,
       type: isReturn ? Unreachable : (results[0] ?? None),
-      table,
+      table: varName(table),
       target,
       operands,
       params,

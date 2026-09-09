@@ -47,6 +47,24 @@ export function varName(name: string): Var {
   return { kind: 'name', name };
 }
 
+/**
+ * Build a {@link Var} from a WAT reference TOKEN: a bare integer is an index,
+ * anything else is a name.
+ *
+ * 🔑 This is where the two forms are told apart — at the TEXT boundary, once,
+ * rather than in a field that carries both meanings. A WAT identifier always
+ * begins with `$`, so the cases cannot collide.
+ *
+ * ⚠️ Not optional. `(export "f" (func 19))` is as legal as `(func $g)`, and our
+ * own `wasm2wat` emits the numeric form — before the encoder handled it,
+ * re-parsing our own disassembly failed on 310 of 421 corpus modules. Wrapping
+ * such a token with {@link varName} produces a name-form var that no name table
+ * contains, which is the same defect wearing a different hat.
+ */
+export function varFromToken(token: string): Var {
+  return /^[0-9]+$/.test(token) ? varIndex(Number(token)) : varName(token);
+}
+
 // ---------------------------------------------------------------------------
 // Heap type references
 // ---------------------------------------------------------------------------
@@ -123,9 +141,26 @@ export function sameHeap(a: HeapTypeRef, b: HeapTypeRef): boolean {
  */
 export function requireIndex(v: Var, what: string): Index {
   if (v.kind === 'index') return v.value;
+  if (v.kind !== 'name') throw notAVar(v, what);
   throw new Error(
     `${what}: var "$${v.name}" is not resolved — run resolveNames before writing. ` +
       `Defaulting it would emit a valid module addressing the wrong entity.`,
+  );
+}
+
+/**
+ * The error for a value that is not a {@link Var} at all.
+ *
+ * ⚠️ Worth its own message. A raw `0` or `'$f'` reaching an accessor means a
+ * node was BUILT with the pre-conversion shape — almost always a test fixture
+ * cast through `as any`, which the type checker cannot see. Reporting it as
+ * "not resolved" instead sends the reader looking for a missing resolveNames
+ * pass that does not exist; that misdiagnosis cost a step twice in one session.
+ */
+function notAVar(v: unknown, what: string): Error {
+  return new Error(
+    `${what}: expected a Var, got ${typeof v} ${JSON.stringify(v)}. ` +
+      `Something built this node with the old shape — check for an "as any" cast.`,
   );
 }
 
@@ -161,6 +196,7 @@ export function sameVar(a: Var, b: Var): boolean {
  */
 export function requireName(v: Var, what: string): string {
   if (v.kind === 'name') return v.name;
+  if (v.kind !== 'index') throw notAVar(v, what);
   throw new Error(
     `${what}: var is index ${v.value}, but a symbolic name is required here. ` +
       `Resolve it against the module's name table rather than inventing one.`,

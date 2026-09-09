@@ -46,6 +46,7 @@ import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -572,7 +573,7 @@ Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value liv
       makeLocalSet(varIndex(0), makeI32Const(-1)),
       makeTry(
         null,
-        makeLocalSet(varIndex(0), makeCall('mayThrow', [], ValType.I32)),
+        makeLocalSet(varIndex(0), makeCall(varName('mayThrow'), [], ValType.I32)),
         ['t'],
         [makeNop()],
         null,
@@ -611,7 +612,7 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
         null,
         makeTry(
           null,
-          makeThrow('t', [makeI32Const(200)]),
+          makeThrow(varName('t'), [makeI32Const(200)]),
           ['t'],
           // inner catch: catchE = 200; use(catchE); rethrow. The use() makes the
           // set effective (otherwise it's a dead drop and the coalesce question is moot).
@@ -891,7 +892,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
           {
             kind: ExpressionKind.Call,
             type: None,
-            target: 'helper',
+            target: varName('helper'),
             operands: [],
             isReturn: false,
           },
@@ -1071,7 +1072,7 @@ Deno.test('DCE: recurses into TryTable body — dead tail after throw is trimmed
   const mod = emptyModule();
   // try_table body = (block [throw $e, i32.const 99 /* dead */])
   const innerBlock = makeBlock([
-    makeThrow('$e', []),
+    makeThrow(varName('$e'), []),
     makeI32Const(99),
   ]);
   const tt = makeTryTable(null, innerBlock, [], None);
@@ -1090,7 +1091,7 @@ Deno.test('DCE: recurses into TryTable body — dead tail after throw is trimmed
 Deno.test('DCE: recurses into Try body — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   const innerBlock = makeBlock([
-    makeThrow('$e', []),
+    makeThrow(varName('$e'), []),
     makeI32Const(42), // dead
   ]);
   const t = makeTry(null, innerBlock, [], [], null, None);
@@ -1159,7 +1160,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     [ValType.I32],
     [ValType.I32],
     makeCallIndirect(
-      '$t0',
+      varName('$t0'),
       makeLoad(4, false, 0, 2, makeLocalGet(varIndex(1), ValType.I32), ValType.I32), // index = mem[$t]
       [makeLocalTee(varIndex(1), makeLocalGet(varIndex(0), ValType.I32), ValType.I32)], // arg = ($t := obj)
       SIG_P,
@@ -1185,7 +1186,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
 Deno.test('DCE: recurses into Try catchBodies — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   const catchBody = makeBlock([
-    makeThrow('$e', []),
+    makeThrow(varName('$e'), []),
     makeNop(), // dead
     makeI32Const(7), // dead
   ]);
@@ -1225,7 +1226,7 @@ Deno.test('StripEH: registered in pass registry', () => {
 Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => {
   const mod = emptyModule();
   // throw $e (i32.const 42)
-  mod.functions.push(makeTestFn('f', makeBlock([makeThrow('$e', [makeI32Const(42)])])));
+  mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [makeI32Const(42)])])));
   mod.tags.push({ name: '$e', params: [ValType.I32] });
   mod.hasExceptionHandling = true;
 
@@ -1242,7 +1243,7 @@ Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => 
 
 Deno.test('StripEH: throw with no operands becomes bare unreachable', () => {
   const mod = emptyModule();
-  mod.functions.push(makeTestFn('f', makeBlock([makeThrow('$e', [])])));
+  mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [])])));
   mod.tags.push({ name: '$e', params: [] });
   mod.hasExceptionHandling = true;
 

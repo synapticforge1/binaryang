@@ -1367,14 +1367,14 @@ export class Module {
   call(target: string, operands: Expression[], returnType: number | number[]): Expression {
     const resultVts = _idToValTypeArray(returnType);
     const resultType: Type = resultVts[0] ?? None;
-    return makeCall(target, operands, resultType);
+    return makeCall(varName(target), operands, resultType);
   }
 
   /** `return_call $target operands` — tail call (returns directly from caller). */
   return_call(target: string, operands: Expression[], returnType: number | number[]): Expression {
     const resultVts = _idToValTypeArray(returnType);
     const resultType: Type = resultVts[0] ?? None;
-    return makeCall(target, operands, resultType, true);
+    return makeCall(varName(target), operands, resultType, true);
   }
 
   /**
@@ -1395,7 +1395,7 @@ export class Module {
   ): Expression {
     const paramVts = _idToValTypeArray(params);
     const resultVts = _idToValTypeArray(results);
-    return makeCallIndirect(table, target, operands, paramVts, resultVts);
+    return makeCallIndirect(varName(table), target, operands, paramVts, resultVts);
   }
 
   /** `return value?` — return from the current function. */

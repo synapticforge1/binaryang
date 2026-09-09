@@ -25,6 +25,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Shared binary fixtures (same as parser tests)
@@ -284,7 +285,7 @@ Deno.test('encodeWasm: unresolved call target throws instead of silently encodin
   // WebAssembly.compile (this exact shape once made every imported-function
   // call encode as index 0). The encoder now fails loudly on the miss.
   const mod = new ModuleBuilder()
-    .addFunction('caller', [], [], makeCall('does_not_exist', [], None))
+    .addFunction('caller', [], [], makeCall(varName('does_not_exist'), [], None))
     .build();
   assertThrows(() => encodeWasm(mod), WasmEncodeError, 'unresolved call target');
 });

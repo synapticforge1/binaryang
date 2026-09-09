@@ -110,7 +110,7 @@ import {
   type TypeDef,
   type ValueType,
 } from '../ir/gc-types.ts';
-import { requireIndex, requireName, type Var } from '../../wabt-ts/ir/ir.ts';
+import { requireIndex, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -539,30 +539,25 @@ class WasmEncoder {
    * index 0 hides it behind a miscompile. Fail loudly with the offending name
    * instead.
    */
-  private resolveRef(map: Map<string, number>, name: string, kind: string): number {
-    const idx = map.get(name);
+  /**
+   * Resolve an entity reference to its index.
+   *
+   * 🔑 The two cases used to be ONE `string` parameter carrying both a `$name`
+   * and a numeric index, told apart by `/^[0-9]+$/` — with `$`-prefixing as the
+   * informal convention holding it together. That overload was not free: our
+   * own `wasm2wat` emits `(export "…" (func 19))`, and before the numeric
+   * branch existed, re-parsing our own disassembly failed on 310 of 421 corpus
+   * modules while the PARSER had already accepted them.
+   *
+   * A `Var`'s arm answers it instead, so the regex is gone. A name that is not
+   * in the map still throws: the dangling references the fail-loud rule exists
+   * for are NAMED — a pass dropped `$g` but left a reference to it.
+   */
+  private resolveRef(map: Map<string, number>, v: Var, kind: string): number {
+    if (v.kind === 'index') return v.value;
+    const idx = map.get(v.name);
     if (idx !== undefined) return idx;
-
-    // A bare integer is an INDEX, not a name. WAT identifiers always begin with
-    // `$`, so a numeric token can only be a direct index into the entity space —
-    // `(export "f" (func 19))` is as legal as `(export "f" (func $g))`, and both
-    // wabt and the spec testsuite emit the numeric form freely.
-    //
-    // This does NOT weaken the fail-loud rule above. The dangling references that
-    // rule exists for are NAMED — a pass dropped `$g` but left a reference to it
-    // — and a named miss still throws. Only a token that cannot be a name is
-    // read as an index.
-    //
-    // Measured before this: our own `wasm2wat` emits `(export "…" (func 19))`,
-    // so re-parsing our disassembly failed on 310 of 421 corpus modules while
-    // the PARSER had already accepted them. The gap was here, not in the parser,
-    // which is why it survived the inline-export fix that looked adjacent.
-    if (/^[0-9]+$/.test(name)) {
-      const n = Number(name);
-      if (Number.isSafeInteger(n)) return n;
-    }
-
-    throw new WasmEncodeError(`unresolved ${kind} reference: "${name}"`);
+    throw new WasmEncodeError(`unresolved ${kind} reference: "${v.name}"`);
   }
 
   /**
@@ -1129,22 +1124,22 @@ class WasmEncoder {
       switch (exp.kind) {
         case 'function': {
           w.writeU8(0x00);
-          w.writeU32(this.resolveRef(this.funcIndex, exp.value, 'exported function'));
+          w.writeU32(this.resolveRef(this.funcIndex, varFromToken(exp.value), 'exported function'));
           break;
         }
         case 'table': {
           w.writeU8(0x01);
-          w.writeU32(this.resolveRef(this.tableIndex, exp.value, 'exported table'));
+          w.writeU32(this.resolveRef(this.tableIndex, varFromToken(exp.value), 'exported table'));
           break;
         }
         case 'memory': {
           w.writeU8(0x02);
-          w.writeU32(this.resolveRef(this.memoryIndex, exp.value, 'exported memory'));
+          w.writeU32(this.resolveRef(this.memoryIndex, varFromToken(exp.value), 'exported memory'));
           break;
         }
         case 'global': {
           w.writeU8(0x03);
-          w.writeU32(this.resolveRef(this.globalIndex, exp.value, 'exported global'));
+          w.writeU32(this.resolveRef(this.globalIndex, varFromToken(exp.value), 'exported global'));
           break;
         }
         case 'tag': {
@@ -1154,7 +1149,7 @@ class WasmEncoder {
           // export. (The matching `case 0x04` was also missing in the
           // parser, so tag exports never survived a round-trip.)
           w.writeU8(0x04);
-          w.writeU32(this.resolveRef(this.tagIndex, exp.value, 'exported tag'));
+          w.writeU32(this.resolveRef(this.tagIndex, varFromToken(exp.value), 'exported tag'));
           break;
         }
         default: {
@@ -1175,7 +1170,9 @@ class WasmEncoder {
   }
 
   private encodeStartSection(w: BinaryWriter): void {
-    w.writeU32(this.resolveRef(this.funcIndex, this.mod.start as string, 'start function'));
+    w.writeU32(
+      this.resolveRef(this.funcIndex, varFromToken(this.mod.start as string), 'start function'),
+    );
   }
 
   /**
@@ -1195,7 +1192,7 @@ class WasmEncoder {
   private encodeElementSection(w: BinaryWriter): void {
     w.writeU32(this.mod.elements.length);
     for (const seg of this.mod.elements) {
-      const tableIdx = seg.mode === 'active' ? this.tableRefIndex(seg.table) : 0;
+      const tableIdx = seg.mode === 'active' ? this.tableRefIndex(varFromToken(seg.table)) : 0;
       // Kind 2 (active with an explicit table index) is only needed for a table
       // other than 0. Preferring kind 0 when we can keeps the common case one
       // byte shorter and matches what wabt-ts emits.
@@ -1223,7 +1220,9 @@ class WasmEncoder {
 
       w.writeU32(seg.data.length);
       for (const fname of seg.data) {
-        w.writeU32(this.resolveRef(this.funcIndex, fname, 'element-segment function'));
+        w.writeU32(
+          this.resolveRef(this.funcIndex, varFromToken(fname), 'element-segment function'),
+        );
       }
     }
   }
@@ -1378,7 +1377,9 @@ class WasmEncoder {
    * Fails loudly on a miss, like every other cross-section reference: silently
    * emitting index 0 would copy from the WRONG segment, which validates.
    */
-  private elemSegmentIndex(name: string): number {
+  private elemSegmentIndex(v: Var): number {
+    if (v.kind === 'index') return v.value;
+    const name = v.name;
     const i = this.mod.elements.findIndex((e) => e.name === name);
     if (i < 0) throw new WasmEncodeError(`unresolved element segment reference: "${name}"`);
     return i;
@@ -1392,7 +1393,9 @@ class WasmEncoder {
    * class as an unresolved branch label, and treated the same way. Silently
    * emitting index 0 would copy from the WRONG segment.
    */
-  private dataSegmentIndex(name: string): number {
+  private dataSegmentIndex(v: Var): number {
+    if (v.kind === 'index') return v.value;
+    const name = v.name;
     const i = this.mod.dataSegments.findIndex((s) => s.name === name);
     if (i < 0) throw new WasmEncodeError(`unresolved data segment reference: "${name}"`);
     return i;
@@ -1408,7 +1411,9 @@ class WasmEncoder {
    * single-table limit is a change in one place, and so a typo'd table name
    * cannot quietly become table 0.
    */
-  private tableRefIndex(name: string): number {
+  private tableRefIndex(v: Var): number {
+    if (v.kind === 'index') return v.value;
+    const name = v.name;
     const defined = this.mod.tables.findIndex((t) => t.name === name);
     if (defined >= 0) return defined + this.importedTableCount();
     const imported = this.mod.imports.filter((i) => i.kind === 'table');
@@ -1609,7 +1614,11 @@ class WasmEncoder {
         const e = expr as GlobalGetExpr;
         w.writeU8(0x23);
         w.writeU32(
-          this.resolveRef(this.globalIndex, requireName(e.var, 'global.get'), 'global.get'),
+          this.resolveRef(
+            this.globalIndex,
+            e.var,
+            'global.get',
+          ),
         );
         break;
       }
@@ -1618,7 +1627,11 @@ class WasmEncoder {
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x24);
         w.writeU32(
-          this.resolveRef(this.globalIndex, requireName(e.var, 'global.set'), 'global.set'),
+          this.resolveRef(
+            this.globalIndex,
+            e.var,
+            'global.set',
+          ),
         );
         break;
       }
@@ -1884,7 +1897,7 @@ class WasmEncoder {
       case ExpressionKind.RefFunc: {
         const e = expr as RefFuncExpr;
         w.writeU8(0xd2);
-        w.writeU32(this.resolveRef(this.funcIndex, e.func, 'ref.func'));
+        w.writeU32(this.resolveRef(this.funcIndex, varFromToken(e.func), 'ref.func'));
         break;
       }
 
@@ -2035,7 +2048,11 @@ class WasmEncoder {
         w.writeU8(0xfb);
         w.writeU32(e.kind === ExpressionKind.ArrayInitData ? 0x12 : 0x13);
         w.writeU32(requireIndex(e.typeVar, e.kind));
-        w.writeU32(e.segment);
+        w.writeU32(
+          e.kind === ExpressionKind.ArrayInitData
+            ? this.dataSegmentIndex(e.segment)
+            : this.elemSegmentIndex(e.segment),
+        );
         break;
       }
       case ExpressionKind.ArrayLen: {
@@ -2098,7 +2115,7 @@ class WasmEncoder {
         for (const c of e.catches) {
           if (c.tag !== null) {
             w.writeU8(c.isRef ? 0x01 : 0x00); // catch / catch_ref
-            w.writeU32(this.resolveRef(this.tagIndex, c.tag, 'try_table catch tag'));
+            w.writeU32(this.resolveRef(this.tagIndex, varFromToken(c.tag), 'try_table catch tag'));
           } else {
             w.writeU8(c.isRef ? 0x03 : 0x02); // catch_all / catch_all_ref
           }
@@ -2140,7 +2157,7 @@ class WasmEncoder {
               w.writeU8(0x19); // catch_all
             } else {
               w.writeU8(0x07); // catch
-              w.writeU32(this.resolveRef(this.tagIndex, tag, 'catch tag'));
+              w.writeU32(this.resolveRef(this.tagIndex, varFromToken(tag), 'catch tag'));
             }
             this.encodeRegionBody(w, e.catchBodies[i]!, labels);
           }

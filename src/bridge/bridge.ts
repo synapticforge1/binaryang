@@ -1058,7 +1058,11 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       if (sig === undefined) {
         throw new Error(`Bridge: call references unknown function "${target}"`);
       }
-      return makeCall(target, c.operands.map((a) => bridgeExpr(a, ctx)), resultTypeForCall(sig));
+      return makeCall(
+        varName(target),
+        c.operands.map((a) => bridgeExpr(a, ctx)),
+        resultTypeForCall(sig),
+      );
     }
     case 'call_indirect': {
       const ci = e as CallIndirectExpr;
@@ -1072,7 +1076,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         throw new Error('Bridge: multi-value call_indirect not yet supported');
       }
       return makeCallIndirect(
-        tableName,
+        varName(tableName),
         target,
         operands,
         ci.sig.params.map(wabtTypeToValType),
@@ -1394,7 +1398,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'throw': {
       const th = e as ThrowExpr;
       return makeThrow(
-        resolveVarName(th.tag, ctx.tagNames),
+        varName(resolveVarName(th.tag, ctx.tagNames)),
         th.operands.map((a) => bridgeExpr(a, ctx)),
       );
     }
