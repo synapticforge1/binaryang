@@ -1384,6 +1384,102 @@ which also owns the 7 label references (`name` ×5, `delegateTarget`, `Rethrow.t
 `CatchClause.tag`, all deliberately routed around during the mechanical passes so they would not be
 settled by accident.
 
+##### Group 2 — the seven real decisions 🚧 3 of 7 IMPLEMENTED
+
+The decisions themselves were made when the 28 were scoped; these are the implementations, each its
+own commit and gate.
+
+###### ✅ 1. An operator field on a kind with exactly ONE instruction — DROPPED
+
+binaryen-ts's `RefAsExpr.opcode` and `RefAsOp`; wabt-ts's `SimdShuffleOpExpr.opcode`.
+
+`RefAsOp` had one member (`RefAsNonNull: 0xd4`) but was typed `Opcode`, so the field ADMITTED every
+instruction, was always set to the one value, and the encoder THREW for anything else — three
+mechanisms enforcing what the kind already said.
+
+⚠️ **Its doc carried a live reservation** — "the extern conversions are post-MVP and would be added
+here rather than as separate expression kinds" — and dropping the field would foreclose it. Except
+wabt-ts already models them as their own kinds (`any.convert_extern` / `extern.convert_any`) and
+binaryen-ts models them not at all, so the unified IR has taken the other road. **Superseded, not
+abandoned**, and said so in a comment where the enum stood: a reader finding neither the enum nor an
+explanation would reasonably re-add it.
+
+`simd.shuffle` went the same way — the WAT writer already hardcoded `i8x16.shuffle`, which is the
+tell. Needed a named constant, `OPCODE_I8X16_SHUFFLE`, in `core/opcode.ts` beside the opcode table
+rather than inline at the writer.
+
+###### ✅ 2. Memarg `offset` is `bigint` — and memory64 ACTUALLY WORKS now
+
+The one where **fidelity binds rather than cost**: `number` cannot represent a valid memory64 module
+at all.
+
+This closed a real gap rather than only unifying a type. `writeU32` begins `n >>>= 0`, so a load at
+offset 2³²+8 re-encoded as one at offset 8 — valid wasm, wrong address, no diagnostic. The bridge
+carried the honest version of the same limitation, throwing "memory64 not supported yet". Both gone.
+
+The encoder needed a genuinely new `writeU64`: `writeU32` truncates and `writeI64` is SIGNED, so
+neither existing writer served.
+
+🛑 **The mechanical pass twice produced code that satisfied the compiler while preserving the exact
+loss the change existed to remove:**
+
+- in the bridge, `BigInt(bigintOffsetToNumber(off, 'load'))` — a bigint→number→bigint round trip
+  THROUGH the lossy check;
+- in the parser, 45 call sites wrapped as `BigInt(offset)` where `offset` came from `readU32`.
+
+The real fix each time was one line at the source (`readMemArg` uses `readU64`, which the reader
+already had). **A wrapper that satisfies the type checker is not evidence that the value survived.**
+
+###### ✅ 3. `try`'s catches are RECORDS — the highest-yield decision so far
+
+Three mechanisms existed ONLY because the parallel `catchTags[]` / `catchBodies[]` permitted an
+invalid state. All three are gone rather than merely passing:
+
+| mechanism                                        | why it existed                                                                                                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the encoder's length guard                       | its comment records the defect: "a mismatched `Try` emitted a `catch` opcode with no handler after it, corrupting the rest of the function body"                |
+| the `catch_all` SENTINEL                         | the two halves **actually disagreed** — parser wrote `$__catch_all`, encoder tested `tag === ''`, so every catch_all died with "unresolved catch tag reference" |
+| `cfg.ts`'s "same length by construction" comment | reasoning the type now carries                                                                                                                                  |
+
+Two sentinels had been tried before absence: a named one collides with a real tag, an empty one
+needs both halves to agree. **A missing field cannot be spelled two ways.**
+
+✅ **It also removed a capability gap**: `catch_ref` / `catch_all_ref` threw "not yet supported" at
+the bridge because there was no slot for the flag and dropping it would change what the handler
+receives. Four lines, because wabt-ts already had the opcodes.
+
+🔑 **The strongest evidence for the shape: binaryen-ts ALREADY modelled `try_table`'s clauses as
+records** (`CatchClause`). The same concept, two representations, in one file — and only the
+parallel one accumulated a guard, a sentinel and a bug history.
+
+⚠️ **A test had pinned the sentinel** (`['$e', '']`, "as the encoder requires") and had ALREADY been
+rewritten once for the same reason. Each version recorded an internal convention as though it were
+the requirement, which is what let the mismatch read as intended behaviour. It now pins absence.
+
+###### Two testing notes from this batch
+
+- **Do not scan a whole binary for an opcode byte.** The first version of
+  `try_catch_clauses.test.ts` collected an `0x08` from a section header and failed on a correct
+  encoding. **Diff two encodings that differ only in the property under test** — self-anchoring, and
+  a stronger claim: flipping `isRef` on the middle of three clauses moves exactly one byte.
+- `memory64_offset.test.ts` pins all three places a width loss can hide (encoder, reader, and a
+  type-widening conversion between them). Verified against the truncating encoder: **5 of 7 cases
+  fail and the two below 2³² still pass**, so it discriminates on the boundary rather than merely
+  going red.
+
+###### Remaining: 4 of 7
+
+| # | decision                                                     | note                                                                                                              |
+| - | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| 4 | `load`/`store` `opcode` vs decomposed `bytes` + `signed`     | touches the same nodes as #2                                                                                      |
+| 5 | `loop`/`try`/`try_table` body — `Expr[]` vs one `Expression` | **the largest**; changes every pass that treats a body as a single expression, and three other kinds depend on it |
+| 6 | `br` values — `Expr[]` vs a single `value`                   | a real arity difference, flagged in S2                                                                            |
+| 7 | `blockType` / `typeUse` / `select.resultType`                | stay on the node; the fidelity table SHADOWS them, it does not replace them                                       |
+
+Plus Group 3's five ties and the block/label family — which still owns the 7 label references
+(`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
+around so the mechanical passes could not settle them by accident.
+
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
 1,923 lines plus 13 test files. ⚠️ **The bridge is also where a wabt-ts tree acquires its types
