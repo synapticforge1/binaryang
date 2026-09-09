@@ -1328,6 +1328,62 @@ comparison of two independently-authored structures is never right.
 `ref.null`, `select`, `simd.load`, `simd.load_store_lane`, `simd.shuffle`, `store`, `try`,
 `try_table` — Group 2's seven decisions, Group 3's five ties, and the block/label family.
 
+###### ✅ The 8 renames — DONE. The 28 stand at 12 RESOLVED / 16 STRUCTURAL
+
+Direction decided by MEASUREMENT in every case, and the crude instrument would have been wrong
+twice.
+
+⚠️ **A repo-wide `.field` grep is the wrong instrument for a per-node question.** It reported
+`.offset` 68 vs 74 and `.memidx` 67 vs `memory` 20 — counting every memarg, every `module.memory`
+and every unrelated `.offset` in the tree. **Trial the rename and count compile errors instead**;
+that is the true blast radius.
+
+| pair                                | true cost     | direction                                             |
+| ----------------------------------- | ------------- | ----------------------------------------------------- |
+| the four `array.*` operand families | 20 vs 27      | wabt-ts's names — a real tie, decided on cost         |
+| `memory` → `memidx` (9 kinds)       | **10 vs 133** | wabt-ts's, decisively. The grep had said the opposite |
+| `table.copy`                        | —             | **binaryen-ts's, on SAFETY not cost**                 |
+
+🔑 **These operand names never appear in emitted output**, so neither fidelity nor round-trip
+readability binds and it genuinely is pure cost — which is exactly when blast radius is the right
+rule. The `memidx` asymmetry is 13× because wabt-ts's name appears in its writers, validators and
+name-resolution passes while binaryen-ts's is read almost only by its encoder. They were never
+equally entrenched; they only looked that way from outside.
+
+🛑 **`table.copy` was decided on safety.** wabt-ts had `dst` (the destination TABLE) beside `dest`
+(the destination index OPERAND) — one letter apart, different meanings. TypeScript itself kept
+offering _"Did you mean to write 'dest'?"_. binaryen-ts's `destTable`/`sourceTable` +
+`dest`/`source` is unambiguous, so cost did not get a vote.
+
+⚠️ **It needed two SEQUENCED passes.** `source` had to keep meaning the table until every table site
+was converted; only then could `srcOffset` take the name. Both at once makes every `source` site
+ambiguous — the compiler says "property does not exist" without saying which one was meant, and no
+script can choose. **When two fields swap names, sequence the passes and verify clean between
+them.**
+
+`memory.init` and `table.init` follow with `dest`/`source`. `table.init` was not in the 28 — it
+differs only by that one name — but it shares a `walk.ts` case with `memory.init` and carried the
+identical divergence for the identical role. Leaving it would have meant splitting a walk case to
+preserve an inconsistency.
+
+###### Two mechanical hazards this batch kept hitting
+
+- **`walk.ts` is where the property-key problem lives**, three times now. It is the one file that
+  rebuilds every node as a mapping literal, so a rename must touch its KEYS and its READS, and a
+  caret-anchored script only ever sees one of them. Check it explicitly.
+- **A conditional object SPREAD bypasses excess-property checking** — the seventh silent mode, and
+  the only one in this series that moved emitted bytes. See `cmem/best-practices.md`.
+
+###### What remains: 16 structural, and they are DECISIONS
+
+`block`, `br`, `br_on`, `call_indirect`, `if`, `load`, `loop`, `ref.as`, `ref.null`, `select`,
+`simd.load`, `simd.load_store_lane`, `simd.shuffle`, `store`, `try`, `try_table`.
+
+That is Group 2's seven worst-condition calls, Group 3's five ties, and the block/label family —
+which also owns the 7 label references (`name` ×5, `delegateTarget`, `Rethrow.target`) and
+`CatchClause.tag`, all deliberately routed around during the mechanical passes so they would not be
+settled by accident.
+
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
 1,923 lines plus 13 test files. ⚠️ **The bridge is also where a wabt-ts tree acquires its types
