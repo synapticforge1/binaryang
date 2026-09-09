@@ -122,6 +122,66 @@ which cost a real bug:
 - **A metric measures the population its classifier hands it.** One denominator moved from 2737 to
   2683 purely because a case stopped being misclassified.
 
+### The BYTE gates are blind to a pass that stops firing
+
+Added from S6 step 4 (2026-09-09), where it cost two full gate cycles.
+
+`deno task baseline` stayed **IDENTICAL** and `deno task bridge` stayed **397/421** while `LocalCSE`
+was actively miscompiling — it had begun folding unrelated `local.get`s together, because its cache
+key interpolated a `Var` object and every key came out `lg:[object Object]`. Neither gate exercises
+that pass on those inputs, so neither could see it. The fuzz test at seed 2 and one `-Oz` pipeline
+test were the only checks that could.
+
+**An optimization that silently stops firing, or fires too eagerly, changes no bytes on any input
+that does not reach it.** The corpus is a fixed set; the passes are conditional. That is the gap the
+behavioural tests exist to cover, and it is the argument for keeping them in the gate even though
+they are the slowest part of it.
+
+### …and the byte gate is the ONLY thing that sees a construction defect
+
+The mirror of the above, from the same day, and the reason both belong in the gate.
+
+Six sites built a heap type as `{ kind: 'name', name: 'func' }` after the type gained an `abstract`
+arm. That literal is a valid `Var`, hence a valid `HeapTypeRef`, so the compiler had nothing to
+object to — and the behavioural tests passed, because the value is only _wrong_, never malformed.
+`deno task baseline` caught it: a funcidx elem segment stopped printing its `func` shorthand.
+
+🔑 **`baseline` compares our own bytes against our own, which looks like the weakest oracle in the
+set. It is the only one that sees an IR-shape regression that changes output without changing
+behaviour.** Rank oracles by what they can see, not by how independent they sound.
+
+### When `baseline` fails, DIFF the output — a hash only says "different"
+
+The manifest holds four columns: byte length, binary hash, folded-text hash, linear-text hash. Read
+them before anything else, because they localise the fault for free:
+
+- **binary hash unchanged, text hashes moved** → the WAT writer, not the encoder. That single
+  observation cut the search to one file.
+- **byte length unchanged, binary hash moved** → an encoding swap of equal width, not a structural
+  change.
+
+Then dump one affected module's output on each branch and `diff` it. `scratchpad/dump-wat.ts` does
+this in one call, and it turned "30 modules differ" into `(elem $e0 … func 9)` vs
+`(elem $e0 … (ref func) (item (ref.func 9)))` — the actual answer — in one step. **Re-baselining
+without doing this discards the finding.**
+
+### An oracle that cannot reach the feature must be SAID to not reach it
+
+Upstream wabt is the standing third oracle for byte-level claims, and for GC heap types it is not an
+oracle at all: 1.0.41 rejects `(ref null any)` with `unexpected token "any"`, having no GC heap-type
+text support — the same limitation that makes `deno task spec:prepare` skip 30 files.
+
+Two ways that misleads if unstated:
+
+- A probe of it returns plausible REJECTIONS that look like findings about our code.
+- ⚠️ **The feature flags can manufacture the result.** A first run with `--enable-all` showed `any`
+  and `eq` rejected; the project's own `spec-prepare` notes already warn that `--enable-all` changes
+  what wabt emits. Reading the error TEXT, rather than the exit code, is what distinguished "the
+  keyword is wrong" from "this build has no GC support".
+
+When the third oracle cannot reach a feature, the spec is the authority — and the write-up has to
+say so, or the next reader assumes the usual oracle was consulted.
+
 ### A harness must call the real entry point
 
 Scratch harnesses reassembled the pipeline and skipped one step, so nearly every module was rejected

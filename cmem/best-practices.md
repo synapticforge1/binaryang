@@ -458,6 +458,132 @@ standard would have licensed the change; measuring our own parser is what caught
 `i32.add` every assertion here passes under the reversed reading. `i32.sub` and a 3-argument
 subtraction are what made the slots observable.
 
+## 🆕 Changing a field's TYPE has five failure modes the compiler cannot see
+
+**Rule: a type change is not finished when it compiles. Sweep for the five, then let a behavioural
+test and a byte gate disagree with you.**
+
+Paid for across S6 step 4 (2026-09-09), converting five field families in binaryen-ts and wabt-ts to
+their as-written forms. Every defect below **compiled clean**, and none was found by reading code.
+
+### Scalar → object (a `number` becomes a `Var`)
+
+| what breaks                                        | why the compiler is blind                                      | what caught it                                                                                              |
+| -------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `a.index === b.index` becomes REFERENCE comparison | both sides are still the same type, so the expression is valid | `SimplifyLocals` silently stopped fusing `set`+`get`→`tee`; a behavioural test                              |
+| `` `${e.index}` `` renders `[object Object]`       | **every** object stringifies — there is nothing to diagnose    | `LocalCSE` hashed every `local.get` alike and folded unrelated values. A miscompile, in two separate caches |
+| `as any` / `as { name: string }` in a fixture      | the cast is the point; it suppresses exactly this              | 8 asyncify tests, then one more that a sweep for `as any` alone had missed                                  |
+
+### Widening a union (adding an arm), which is worse
+
+Adding an arm is **not a type change to existing code at all** — the old arm stays legal, so nothing
+the compiler checks changes.
+
+| what breaks                                                          | why the compiler is blind                          | what caught it                                                                                |
+| -------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `x.kind === '<existing arm>'` silently NARROWS                       | testing an arm that still exists is still valid    | three sites, including the `(ref null func)` → one-byte `funcref` collapse. Behavioural tests |
+| `{ kind: '<existing arm>', … }` literals keep building the OLD shape | the literal is a valid member of the widened union | six sites. **Only `deno task baseline` saw one**; five were latent in validators              |
+
+⚠️ **No rename protects against the union pair.** Renaming a field converts a scalar→object silent
+break into a compile error — that is real, and it is why `typeIndex`→`typeVar` and `name`→`var` were
+cheaper than `memory`, which kept its name and got no such protection. But the arm being tested or
+built still exists under any name.
+
+### How to apply
+
+- **Grep the five patterns before running the suite**, on the changed field: `\.<field> (===|!==)`,
+  `\$\{[^}]*\.<field>\}`, `as any` / `as unknown as` / `as \{ <field>:`, `\.kind === '<arm>'`, and
+  `\{ kind: '<arm>'`.
+- **Give every union arm a CONSTRUCTOR** (`varIndex`, `varName`, `heapAbstract`) and an equality
+  helper (`sameVar`, `sameHeap`). A bare literal makes the wrong arm easy to build; a constructor
+  makes it hard. Put the failure that motivated the helper in its doc comment.
+- **Rename the field when its type changes meaningfully.** It buys the compile error for the
+  scalar→object half.
+- **Assert the invariant in a test that walks the IR**, not one that checks the sites you happened
+  to fix — then confirm it FAILS when the old shape is reintroduced. Both invariant tests written
+  here were verified that way.
+
+## 🆕 Let the COMPILER name the sites — and know exactly where it stops
+
+**Rule: for a mechanical type change, drive the edit from the compiler's own error stream rather
+than from a search. Then treat everything it cannot see as the real work.**
+
+A name-based search finds what it is looking for, not what is there. It missed a factory reached
+through a local alias —
+
+```ts
+const make = head === 'array.init_data' ? makeArrayInitData : makeArrayInitElem;
+```
+
+— because the name is not at the call site. `deno check` names every site with `file:line:col` plus
+a caret run giving the exact token width, so an edit anchored on that is anchored on the compiler's
+view instead of a guess. It found 19 test sites a search would have had to guess at.
+
+### The three traps in doing it
+
+- ⚠️ **Compare the two counts.** The first run fixed 11 of 18 and reported success on all 11: the
+  script required a `~` run and TypeScript underlines a **single-character** token with `^`. "11
+  wrapped" alone reads like a clean pass. **Always print "N of M".**
+- ⚠️ **A property assignment underlines the KEY, not the value.** `{ index: e.index }` reports at
+  `index`, so a naive wrap produces `{ requireIndex(index, …): e.index }` — a `SyntaxError`, and
+  once a file will not parse the check stops reporting anything real. Skip any token followed by
+  `:`, and say so in the output.
+- ⚠️ **Assert on the command's FAILURE, not on a string in its output.** A loop that counted `TS`
+  errors reported "0 errors" for four rounds while a file was syntactically broken.
+  `deno task test
+  | tail` likewise exits 0 from `tail`.
+
+### Where it stops
+
+`as any`, structural casts, and old-arm literals are invisible to it, as is anything the type
+checker cannot reach. **The technique converts everything the compiler can see and nothing it
+cannot** — so the sweep above is not optional cleanup, it is the other half of the method.
+
+⚠️ **When a value of the wrong shape reaches an accessor, instrument the accessor to dump the
+VALUE.** The stack names only the read site, never where the bad node was built. Dumping it returned
+`0` — a number, not a var — which pointed straight at a literal that had bypassed type checking.
+Reading more code would not have found it.
+
+## 🆕 A vocabulary must be checked against the SPEC, not against the other half of the repo
+
+**Rule: when two components each hold a copy of an external vocabulary, agreement between them is
+not evidence. Check the copy that faces the outside world against the standard.**
+
+binaryen-ts spelled two abstract heap types `ext` / `noext` — binaryen's internal C++ names, which
+are not WAT keywords. Because `heapTypeToString` returns the enum VALUE as the keyword, the defect
+ran both ways: the parser **rejected** `(ref null extern)`, the spec spelling that every other tool
+emits, and the printer **emitted** `(ref null ext)`, which no WAT parser accepts. `exn` / `noexn`
+were missing from the parser's map entirely though the enum declared them. Four of twelve broken in
+both directions, undetected for the life of the file.
+
+Nothing caught it because nothing asserted on the keyword SET: the round-trip corpus is
+binary-sourced, and `deno task baseline` compares our bytes against our own. wabt-ts had the correct
+table in `core/types.ts` the whole time, so the two halves disagreed silently — the failure mode a
+single repository invites.
+
+### How to apply
+
+- **Type the table with the vocabulary**, so a keyword added to one and not the other does not
+  compile: `ReadonlyArray<readonly [AbstractHeap, Type]>`, not `readonly [string, Type]`.
+- **Tighten the boundary functions to the union**, not `string` —
+  `typeToHeapTypeName(t):
+  AbstractHeap | null`. Then a miss means the table is short an entry
+  rather than that the caller passed something unexpected.
+- **Assert the set is reachable**: a test that every enum member has a keyword catches the
+  `exn`/`noexn` shape, where a member exists but no input can produce it.
+- ⚠️ **Say out loud when the usual oracle cannot reach the feature.** wabt 1.0.41 has no GC
+  heap-type text support (`(ref null any)` → `unexpected token "any"`), the same limitation that
+  makes `spec:prepare` skip 30 files — so the spec was the only authority here. A first probe with
+  `--enable-all` appeared to show `any` and `eq` rejected too; that was the flags, not the keywords.
+
+## 🆕 Delete the mechanism and its DOCUMENTATION in the same edit
+
+Replacing a function left its old docstring stranded above the next function — twice in one session,
+in `binary-writer.ts` and `bridge.ts`, both describing the keyword-lookup design that had just been
+removed. A stale rationale is already a rule here; this is the specific way it is created. **When an
+edit replaces a body, check what sits immediately above it**, because a docstring is not adjacent to
+the thing it documents in any way the tooling understands.
+
 ## Where to go for the rest
 
 The wings hold what did not converge, and it is most of the volume:
