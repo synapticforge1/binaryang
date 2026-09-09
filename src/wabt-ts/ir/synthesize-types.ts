@@ -109,14 +109,11 @@ export function synthesizeTypes(module: Module): void {
     (tag as { typeVar?: ReturnType<typeof varIndex> }).typeVar = varIndex(idx);
   }
 
-  // Instruction-level type-uses (`call_indirect` / `return_call_indirect`),
+  // Instruction-level type-uses on `call_indirect`, tail-call variant included
+  // (the same kind now, distinguished by `isReturn`),
   // collected from every body — including the bodies of funcs deferred above.
   const collector = new ExprVisitor({
     onCallIndirectExpr: (e) => {
-      settle(e as unknown as typeof pending[number]);
-      return Result.Ok;
-    },
-    onReturnCallIndirectExpr: (e) => {
       settle(e as unknown as typeof pending[number]);
       return Result.Ok;
     },

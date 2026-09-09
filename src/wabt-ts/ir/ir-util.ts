@@ -202,7 +202,7 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'ref.is_null':
         return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'ref.as_non_null':
+      case 'ref.as':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'table.get':
         return { nargs: 1, nreturns: 1, unreachable: false };
@@ -228,10 +228,10 @@ export class ModuleContext {
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd.load':
         return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'simd_lane_op':
-        // extract_lane pops 1 (the vec); replace_lane pops 2 (vec + scalar).
-        // `value` is present iff this is a replace_lane.
-        return { nargs: expr.value !== undefined ? 2 : 1, nreturns: 1, unreachable: false };
+      case 'simd.extract':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'simd.replace':
+        return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd.shuffle':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd.load_store_lane':
@@ -261,26 +261,26 @@ export class ModuleContext {
         return { nargs: 4, nreturns: 1, unreachable: false };
       case 'call': {
         const sig = this.getFuncSig(expr.func);
-        return { nargs: sig.params.length, nreturns: sig.results.length, unreachable: false };
+        // A tail call replaces the frame: it yields nothing here and makes
+        // the rest of the block unreachable.
+        return expr.isReturn
+          ? { nargs: sig.params.length, nreturns: 0, unreachable: true }
+          : { nargs: sig.params.length, nreturns: sig.results.length, unreachable: false };
       }
       case 'call_indirect':
-      case 'return_call_indirect':
         return {
           nargs: expr.sig.params.length + 1,
           nreturns: expr.sig.results.length,
-          unreachable: expr.kind === 'return_call_indirect',
+          unreachable: expr.isReturn === true,
         };
-      case 'call_ref':
-      case 'return_call_ref': {
+      case 'call_ref': {
         const sig = this.getTypeSig(expr.sigType);
         return {
           nargs: sig.params.length + 1,
           nreturns: sig.results.length,
-          unreachable: expr.kind === 'return_call_ref',
+          unreachable: expr.isReturn === true,
         };
       }
-      case 'return_call':
-        return { nargs: this.getFuncSig(expr.func).params.length, nreturns: 0, unreachable: true };
       case 'return':
         return { nargs: this.currentFunc?.sig.results.length ?? 0, nreturns: 0, unreachable: true };
       case 'br':
@@ -336,16 +336,13 @@ export class ModuleContext {
         // Field-count comes from the type def; we use the operand array
         // as the parser/reader already paired it with the struct's fields.
         return { nargs: expr.operands.length, nreturns: 1, unreachable: false };
-      case 'struct.new_default':
-        return { nargs: 0, nreturns: 1, unreachable: false };
       case 'struct.get':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'struct.set':
         return { nargs: 2, nreturns: 0, unreachable: false };
       case 'array.new':
-        return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'array.new_default':
-        return { nargs: 1, nreturns: 1, unreachable: false };
+        // The default form takes only the length.
+        return { nargs: expr.init === undefined ? 1 : 2, nreturns: 1, unreachable: false };
       case 'array.new_fixed':
         return { nargs: expr.operands.length, nreturns: 1, unreachable: false };
       case 'array.new_data':

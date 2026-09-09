@@ -322,12 +322,7 @@ class ResolveContext {
         const [r, args] = this.resolveExprArray(e.operands);
         return [r, { ...e, func: this.resolveFuncVar(e.func, loc), operands: args }];
       }
-      case 'return_call': {
-        const [r, args] = this.resolveExprArray(e.operands);
-        return [r, { ...e, func: this.resolveFuncVar(e.func, loc), operands: args }];
-      }
-      case 'call_indirect':
-      case 'return_call_indirect': {
+      case 'call_indirect': {
         const [rA, args] = this.resolveExprArray(e.operands);
         const [rC, callee] = this.resolveExpr(e.callee);
         return [combine(rA, rC), {
@@ -341,8 +336,7 @@ class ResolveContext {
           callee,
         }];
       }
-      case 'call_ref':
-      case 'return_call_ref': {
+      case 'call_ref': {
         // `sigType` is the function-type immediate (`(call_ref $T …)`); it must
         // be resolved like `call_indirect`'s `typeVar`, or a named type that
         // isn't index 0 is left unresolved and the binary writer emits index 0.
@@ -700,7 +694,7 @@ class ResolveContext {
         }];
       }
       case 'ref.is_null':
-      case 'ref.as_non_null':
+      case 'ref.as':
       case 'ref.i31':
       case 'any.convert_extern':
       case 'extern.convert_any': {
@@ -720,8 +714,6 @@ class ResolveContext {
         const [r, operands] = this.resolveExprArray(e.operands);
         return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), operands }];
       }
-      case 'struct.new_default':
-        return [Result.Ok, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc) }];
       case 'struct.get': {
         const [r, ref] = this.resolveExpr(e.ref);
         const tv = this.resolveTypeVar(e.typeVar, loc);
@@ -737,16 +729,13 @@ class ResolveContext {
         ];
       }
       case 'array.new': {
-        const [ri, init] = this.resolveExpr(e.init);
         const [rl, length] = this.resolveExpr(e.length);
-        return [
-          combineResults(ri, rl),
-          { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), init, length },
-        ];
-      }
-      case 'array.new_default': {
-        const [r, length] = this.resolveExpr(e.length);
-        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), length }];
+        const typeVar = this.resolveTypeVar(e.typeVar, loc);
+        // The default form has no initialiser to resolve, and must not gain one
+        // (`exactOptionalPropertyTypes` forbids an explicit undefined).
+        if (e.init === undefined) return [rl, { ...e, typeVar, length }];
+        const [ri, init] = this.resolveExpr(e.init);
+        return [combineResults(ri, rl), { ...e, typeVar, init, length }];
       }
       case 'array.new_fixed': {
         const [r, operands] = this.resolveExprArray(e.operands);
@@ -897,15 +886,17 @@ class ResolveContext {
           values,
         }];
       }
-      case 'simd_lane_op': {
-        const [r, operand] = this.resolveExpr(e.operand);
-        // `value` is the replace_lane scalar (undefined for extract_lane). It
-        // can be a name-bearing sub-expr (e.g. `(global.get $g)`), so it must
-        // be resolved too — globals are NOT resolved at parse time (only
-        // locals are), so skipping it left `$g` as a name-var → index 0.
-        if (e.value === undefined) return [r, { ...e, operand }];
+      case 'simd.extract': {
+        const [r, vec] = this.resolveExpr(e.vec);
+        return [r, { ...e, vec }];
+      }
+      case 'simd.replace': {
+        const [r, vec] = this.resolveExpr(e.vec);
+        // The replaced scalar can be a name-bearing sub-expr (`(global.get $g)`),
+        // and globals are NOT resolved at parse time -- only locals are -- so
+        // skipping it left `$g` as a name-var and the writer emitted index 0.
         const [rv, value] = this.resolveExpr(e.value);
-        return [combine(r, rv), { ...e, operand, value }];
+        return [combine(r, rv), { ...e, vec, value }];
       }
       case 'simd.shuffle': {
         const [rL, left] = this.resolveExpr(e.left);

@@ -815,7 +815,7 @@ stronger. It also went from 315 members across 2 enums to **369 across all 11**;
 is why two `BrOnOp` members with no resolvable name went unnoticed until the conversion. Verified by
 injecting a bogus value and confirming exit 1.
 
-##### Step 2 — bucket A, now unblocked (18 kinds) 🚧 three of seven families done
+##### Step 2 — bucket A, now unblocked (18 kinds) ✅ DONE, all seven families
 
 Seven S4-shaped merges: `return_call*`→`call`+`isReturn`, `*.new_default`→`*.new`+`defaultInit`,
 `ref.as_non_null`→`ref.as`+op, `load_splat`/`load_zero`→`simd.load`+op,
@@ -852,10 +852,38 @@ merged kind needs every consumer checked, and tsc will not do it for you.
 Both now dispatch on the opcode — the sub-op pattern S4 established, where the merged node still
 behaves differently and says so as data.
 
-**Remaining (4 families):** `return_call`/`return_call_indirect` → `call` + `isReturn`;
-`array.new_default`/`struct.new_default` → `*.new` + `defaultInit`; `ref.as_non_null` → `ref.as` +
-sub-op; and `simd_lane_op` → `simd.extract`/`simd.replace`, the one family whose direction runs
-AGAINST S4's (wabt-ts is the coarse side there).
+**The other four, 2026-09-11.** wabt-ts kinds 89 → 85, shared 70 → 73.
+
+- **tail calls** — `return_call`, `return_call_indirect`, `return_call_ref` fold into their base
+  kinds behind `isReturn`. binaryen-ts already modelled it that way; the three pairs of interfaces
+  were identical but for the kind name.
+- **`*.new_default`** — `struct.new` gains `defaultInit`, `array.new`'s `init` becomes optional.
+  Every consumer differs here, because the default form genuinely carries fewer operands.
+- **`ref.as_non_null` → `ref.as`** — a rename; the GC proposal has exactly one `ref.as` variant.
+- **`simd_lane_op` → `simd.extract` / `simd.replace`** — see below.
+
+🔑 **The SIMD lane family went the FINE way, against S4's coarse preference, and on evidence.** Both
+worst conditions were measured and NEITHER binds: the forms are fidelity-equivalent, and **no pass
+dispatches on this family at all** — S4's rationale was a pass forced to enumerate finer kinds, so
+with no such pass the rationale simply does not apply. With neither binding, cost decides, and it is
+4:1 — 27 sites on wabt-ts's side against 110 on binaryen-ts's. Splitting is the cheap direction.
+
+That is the rule working rather than being overridden: it names a controlling condition, and when
+none controls it says so instead of manufacturing one.
+
+⚠️ **A comparison script now precedes every merge**, after the S4-era bug where I compared two of
+four consumers, found them identical, and deleted a third that was not. It extracts every `case`
+body per pair across the tree and diffs them. It found the four consumers that genuinely differ for
+tail calls, and reported up front that ALL of them differ for `*.new_default`.
+
+⚠️ **It does not see delegate METHODS**, which is how the validator and both writers dispatch —
+those are still checked by hand. A comparison tool that silently omits a class of consumer is the
+same trap one level up.
+
+**One self-inflicted break, caught by the compiler**: `case 'call_indirect':` was a FALLTHROUGH
+LABEL onto `case 'return_call_indirect': { … }`, so deleting the return_* block took the body
+`call_indirect` depended on. Removing a case is not safe just because the label above it is the one
+being kept.
 
 ##### Step 3 — the node base carries `loc?` and `type?`
 

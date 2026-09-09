@@ -27,7 +27,6 @@ import type {
   ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -82,17 +81,14 @@ import type {
   RefNullExpr,
   RefTestExpr,
   RethrowExpr,
-  ReturnCallExpr,
-  ReturnCallIndirectExpr,
-  ReturnCallRefExpr,
   ReturnExpr,
   SelectExpr,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
   SimdLoadLaneExpr,
+  SimdReplaceExpr,
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   TableCopyExpr,
@@ -166,9 +162,6 @@ export interface ExprVisitorDelegate {
   onCallExpr?(e: CallExpr): Result;
   onCallIndirectExpr?(e: CallIndirectExpr): Result;
   onCallRefExpr?(e: CallRefExpr): Result;
-  onReturnCallExpr?(e: ReturnCallExpr): Result;
-  onReturnCallIndirectExpr?(e: ReturnCallIndirectExpr): Result;
-  onReturnCallRefExpr?(e: ReturnCallRefExpr): Result;
 
   onRefNullExpr?(e: RefNullExpr): Result;
   onRefIsNullExpr?(e: RefIsNullExpr): Result;
@@ -179,11 +172,9 @@ export interface ExprVisitorDelegate {
   onRefI31Expr?(e: RefI31Expr): Result;
   onI31GetExpr?(e: I31GetExpr): Result;
   onStructNewExpr?(e: StructNewExpr): Result;
-  onStructNewDefaultExpr?(e: StructNewDefaultExpr): Result;
   onStructGetExpr?(e: StructGetExpr): Result;
   onStructSetExpr?(e: StructSetExpr): Result;
   onArrayNewExpr?(e: ArrayNewExpr): Result;
-  onArrayNewDefaultExpr?(e: ArrayNewDefaultExpr): Result;
   onArrayNewFixedExpr?(e: ArrayNewFixedExpr): Result;
   onArrayNewDataExpr?(e: ArrayNewDataExpr): Result;
   onArrayNewElemExpr?(e: ArrayNewElemExpr): Result;
@@ -215,7 +206,8 @@ export interface ExprVisitorDelegate {
   beginTryTableExpr?(e: TryTableExpr): Result;
   endTryTableExpr?(e: TryTableExpr): Result;
 
-  onSimdLaneOpExpr?(e: SimdLaneOpExpr): Result;
+  onSimdExtractExpr?(e: SimdExtractExpr): Result;
+  onSimdReplaceExpr?(e: SimdReplaceExpr): Result;
   onSimdShuffleOpExpr?(e: SimdShuffleOpExpr): Result;
   onSimdLoadLaneExpr?(e: SimdLoadLaneExpr): Result;
   onLoadSplatExpr?(e: LoadSplatExpr): Result;
@@ -348,7 +340,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onRefIsNullExpr?.(e) ?? Result.Ok;
       }
-      case 'ref.as_non_null': {
+      case 'ref.as': {
         const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onRefAsNonNullExpr?.(e) ?? Result.Ok;
@@ -383,8 +375,6 @@ export class ExprVisitor {
         }
         return this.d.onStructNewExpr?.(e) ?? Result.Ok;
       }
-      case 'struct.new_default':
-        return this.d.onStructNewDefaultExpr?.(e) ?? Result.Ok;
       case 'struct.get': {
         const r = this.dispatch(e.ref);
         if (r === Result.Error) return r;
@@ -398,16 +388,12 @@ export class ExprVisitor {
         return this.d.onStructSetExpr?.(e) ?? Result.Ok;
       }
       case 'array.new': {
-        let r = this.dispatch(e.init);
+        // `init` is absent for the default form, which walks only the length.
+        let r = e.init === undefined ? Result.Ok : this.dispatch(e.init);
         if (r === Result.Error) return r;
         r = this.dispatch(e.length);
         if (r === Result.Error) return r;
         return this.d.onArrayNewExpr?.(e) ?? Result.Ok;
-      }
-      case 'array.new_default': {
-        const r = this.dispatch(e.length);
-        if (r === Result.Error) return r;
-        return this.d.onArrayNewDefaultExpr?.(e) ?? Result.Ok;
       }
       case 'array.new_fixed': {
         for (const op of e.operands) {
@@ -505,16 +491,17 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onLoadSplatExpr?.(e) ?? Result.Ok;
       }
-      case 'simd_lane_op': {
-        const r1 = this.dispatch(e.operand);
-        if (r1 === Result.Error) return r1;
-        // replace_lane carries a second operand (the scalar replacement);
-        // extract_lane variants leave `value` undefined.
-        if (e.value !== undefined) {
-          const r2 = this.dispatch(e.value);
-          if (r2 === Result.Error) return r2;
-        }
-        return this.d.onSimdLaneOpExpr?.(e) ?? Result.Ok;
+      case 'simd.extract': {
+        const r = this.dispatch(e.vec);
+        if (r === Result.Error) return r;
+        return this.d.onSimdExtractExpr?.(e) ?? Result.Ok;
+      }
+      case 'simd.replace': {
+        let r = this.dispatch(e.vec);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.value);
+        if (r === Result.Error) return r;
+        return this.d.onSimdReplaceExpr?.(e) ?? Result.Ok;
       }
       case 'throw_ref': {
         const r = this.dispatch(e.exnref);
@@ -753,31 +740,6 @@ export class ExprVisitor {
         const r = this.dispatch(e.callee);
         if (r === Result.Error) return r;
         return this.d.onCallRefExpr?.(e) ?? Result.Ok;
-      }
-      case 'return_call': {
-        for (const arg of e.operands) {
-          const r = this.dispatch(arg);
-          if (r === Result.Error) return r;
-        }
-        return this.d.onReturnCallExpr?.(e) ?? Result.Ok;
-      }
-      case 'return_call_indirect': {
-        for (const arg of e.operands) {
-          const r = this.dispatch(arg);
-          if (r === Result.Error) return r;
-        }
-        const r = this.dispatch(e.callee);
-        if (r === Result.Error) return r;
-        return this.d.onReturnCallIndirectExpr?.(e) ?? Result.Ok;
-      }
-      case 'return_call_ref': {
-        for (const arg of e.operands) {
-          const r = this.dispatch(arg);
-          if (r === Result.Error) return r;
-        }
-        const r = this.dispatch(e.callee);
-        if (r === Result.Error) return r;
-        return this.d.onReturnCallRefExpr?.(e) ?? Result.Ok;
       }
 
       // --- Throw: visit args ---

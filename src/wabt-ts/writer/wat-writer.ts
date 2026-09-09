@@ -775,12 +775,12 @@ class WatWriter extends ModuleContext {
       },
 
       onCallExpr: (e) => {
-        this.putsSpace('call');
+        this.putsSpace(e.isReturn ? 'return_call' : 'call');
         this.writeVar(e.func, NC.Newline);
         return Result.Ok;
       },
       onCallIndirectExpr: (e) => {
-        this.putsSpace('call_indirect');
+        this.putsSpace(e.isReturn ? 'return_call_indirect' : 'call_indirect');
         this.writeVarUnlessZero(e.table, NC.Space);
         this.openSpace('type');
         this.writeVar(e.typeVar, NC.Newline);
@@ -788,30 +788,7 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onCallRefExpr: (e) => {
-        this.putsSpace('call_ref');
-        this.writeVar(e.sigType, NC.Newline);
-        return Result.Ok;
-      },
-      onReturnCallExpr: (e) => {
-        this.putsSpace('return_call');
-        this.writeVar(e.func, NC.Newline);
-        return Result.Ok;
-      },
-      onReturnCallIndirectExpr: (e) => {
-        this.putsSpace('return_call_indirect');
-        // The TABLE index, like `call_indirect` above. Omitting it did not
-        // fail to reparse — `parseVarOpt` defaults it to 0 — so every
-        // `return_call_indirect` against a table other than 0 came back
-        // pointing at table 0 instead. Still valid wasm, different program.
-        // Last of the round-trip differences (T10.4's file, a separate bug).
-        this.writeVarUnlessZero(e.table, NC.Space);
-        this.openSpace('type');
-        this.writeVar(e.typeVar, NC.Space);
-        this.closeNewline();
-        return Result.Ok;
-      },
-      onReturnCallRefExpr: (e) => {
-        this.putsSpace('return_call_ref');
+        this.putsSpace(e.isReturn ? 'return_call_ref' : 'call_ref');
         this.writeVar(e.sigType, NC.Newline);
         return Result.Ok;
       },
@@ -861,12 +838,7 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onStructNewExpr: (e) => {
-        this.putsSpace('struct.new');
-        this.writeVar(e.typeVar, NC.Newline);
-        return Result.Ok;
-      },
-      onStructNewDefaultExpr: (e) => {
-        this.putsSpace('struct.new_default');
+        this.putsSpace(e.defaultInit ? 'struct.new_default' : 'struct.new');
         this.writeVar(e.typeVar, NC.Newline);
         return Result.Ok;
       },
@@ -885,12 +857,7 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onArrayNewExpr: (e) => {
-        this.putsSpace('array.new');
-        this.writeVar(e.typeVar, NC.Newline);
-        return Result.Ok;
-      },
-      onArrayNewDefaultExpr: (e) => {
-        this.putsSpace('array.new_default');
+        this.putsSpace(e.init === undefined ? 'array.new_default' : 'array.new');
         this.writeVar(e.typeVar, NC.Newline);
         return Result.Ok;
       },
@@ -1233,7 +1200,13 @@ class WatWriter extends ModuleContext {
       },
 
       // --- SIMD ---
-      onSimdLaneOpExpr: (e) => {
+      onSimdExtractExpr: (e) => {
+        this.putsSpace(opname(e.opcode));
+        this.writef(`${e.lane}`);
+        this.newline(false);
+        return Result.Ok;
+      },
+      onSimdReplaceExpr: (e) => {
         this.putsSpace(opname(e.opcode));
         this.writef(`${e.lane}`);
         this.newline(false);
@@ -1445,8 +1418,6 @@ class WatWriter extends ModuleContext {
           return { operands: [], head: (d) => void d.onMemorySizeExpr?.(e) };
         case 'table.size':
           return { operands: [], head: (d) => void d.onTableSizeExpr?.(e) };
-        case 'struct.new_default':
-          return { operands: [], head: (d) => void d.onStructNewDefaultExpr?.(e) };
         case 'data.drop':
           return { operands: [], head: (d) => void d.onDataDropExpr?.(e) };
 
@@ -1465,7 +1436,7 @@ class WatWriter extends ModuleContext {
           return { operands: [e.address], head: (d) => void d.onLoadExpr?.(e) };
         case 'ref.is_null':
           return { operands: [e.value], head: (d) => void d.onRefIsNullExpr?.(e) };
-        case 'ref.as_non_null':
+        case 'ref.as':
           return { operands: [e.value], head: (d) => void d.onRefAsNonNullExpr?.(e) };
         case 'any.convert_extern':
         case 'extern.convert_any':
@@ -1497,7 +1468,10 @@ class WatWriter extends ModuleContext {
         case 'array.get':
           return { operands: [e.ref, e.index], head: (d) => void d.onArrayGetExpr?.(e) };
         case 'array.new':
-          return { operands: [e.init, e.length], head: (d) => void d.onArrayNewExpr?.(e) };
+          return {
+            operands: e.init === undefined ? [e.length] : [e.init, e.length],
+            head: (d) => void d.onArrayNewExpr?.(e),
+          };
         case 'table.set':
           return { operands: [e.index, e.value], head: (d) => void d.onTableSetExpr?.(e) };
 
@@ -1844,9 +1818,6 @@ class WatWriter extends ModuleContext {
         return;
       case 'array.new':
         d.onArrayNewExpr?.(e);
-        return;
-      case 'array.new_default':
-        d.onArrayNewDefaultExpr?.(e);
         return;
       case 'array.new_fixed':
         d.onArrayNewFixedExpr?.(e);
@@ -2339,16 +2310,14 @@ function constExprOperands(e: Expr): Expr[] | null {
     case 'ref.null':
     case 'ref.func':
     case 'global.get':
-    case 'struct.new_default':
+      // struct.new's operands are its field values; the default form has none.
       return [];
     case 'ref.i31':
     case 'any.convert_extern':
     case 'extern.convert_any':
       return [e.value];
-    case 'array.new_default':
-      return [e.length];
     case 'array.new':
-      return [e.init, e.length];
+      return e.init === undefined ? [e.length] : [e.init, e.length];
     case 'binary':
       // Extended-const arithmetic: i32/i64 add, sub, mul.
       return [e.left, e.right];

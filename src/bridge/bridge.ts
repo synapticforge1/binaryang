@@ -32,14 +32,13 @@
 
 import { ExternalKind } from '../wabt-ts/core/binary.ts';
 import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
-import { anyOpcodeName, naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
+import { naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
 import { CatchKind, coarsenValueType, isRefValueType } from '../wabt-ts/ir/ir.ts';
 import type { ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -86,12 +85,12 @@ import type {
   RethrowExpr,
   ReturnExpr,
   SelectExpr,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
   SimdLoadLaneExpr,
+  SimdReplaceExpr,
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   Tag as WabtTag,
@@ -1185,7 +1184,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const rin = e as RefIsNullExpr;
       return makeRefIsNull(bridgeExpr(rin.value, ctx));
     }
-    case 'ref.as_non_null':
+    case 'ref.as':
       // binaryen-ts v1.0.9 has no makeRefAsNonNull factory; emit a clear
       // error rather than silently producing wrong output. Revisit when
       // binaryen-ts gains the factory.
@@ -1211,16 +1210,15 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'struct.new': {
       const sn = e as StructNewExpr;
       const heapIdx = resolveHeapTypeIdx(sn.typeVar, ctx);
+      // One kind, two forms: the default takes no field values at all.
+      if (sn.defaultInit) {
+        return makeStructNewDefault(heapIdx, { heap: heapIdx, nullable: false });
+      }
       return makeStructNew(
         heapIdx,
         sn.operands.map((o) => bridgeExpr(o, ctx)),
         { heap: heapIdx, nullable: false },
       );
-    }
-    case 'struct.new_default': {
-      const snd = e as StructNewDefaultExpr;
-      const heapIdx = resolveHeapTypeIdx(snd.typeVar, ctx);
-      return makeStructNewDefault(heapIdx, { heap: heapIdx, nullable: false });
     }
     case 'struct.get': {
       const sg = e as StructGetExpr;
@@ -1249,20 +1247,19 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'array.new': {
       const an = e as ArrayNewExpr;
       const heapIdx = resolveHeapTypeIdx(an.typeVar, ctx);
+      // An absent initialiser IS the default form.
+      if (an.init === undefined) {
+        return makeArrayNewDefault(heapIdx, bridgeExpr(an.length, ctx), {
+          heap: heapIdx,
+          nullable: false,
+        });
+      }
       return makeArrayNew(
         heapIdx,
         bridgeExpr(an.init, ctx),
         bridgeExpr(an.length, ctx),
         { heap: heapIdx, nullable: false },
       );
-    }
-    case 'array.new_default': {
-      const and_ = e as ArrayNewDefaultExpr;
-      const heapIdx = resolveHeapTypeIdx(and_.typeVar, ctx);
-      return makeArrayNewDefault(heapIdx, bridgeExpr(and_.length, ctx), {
-        heap: heapIdx,
-        nullable: false,
-      });
     }
     case 'array.new_fixed': {
       const anf = e as ArrayNewFixedExpr;
@@ -1378,32 +1375,21 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // happens to match binaryen-ts's `UnaryOp` enum value directly. Same
     // for SIMD lane-wise arithmetic (`i8x16.add`, `f32x4.mul`, …) via the
     // `binary` case.
-    case 'simd_lane_op': {
-      const slo = e as SimdLaneOpExpr;
-      const opName = anyOpcodeName(slo.opcode);
-      if (opName.includes('extract_lane')) {
-        return makeSIMDExtract(
-          slo.opcode,
-          bridgeExpr(slo.operand, ctx),
-          slo.lane,
-        );
-      }
-      if (opName.includes('replace_lane')) {
-        // SimdLaneOpExpr.value is the scalar half of a replace_lane and the
-        // parser/reader always populate it. A missing value is malformed IR —
-        // fail loud rather than fabricating a `nop` (which would emit a
-        // replace_lane with a wrong/garbage operand).
-        if (slo.value === undefined) {
-          throw new Error(`Bridge: ${opName} missing scalar replacement operand`);
-        }
-        return makeSIMDReplace(
-          slo.opcode,
-          bridgeExpr(slo.operand, ctx),
-          slo.lane,
-          bridgeExpr(slo.value, ctx),
-        );
-      }
-      throw new Error(`Bridge: simd_lane_op opcode ${opName} not yet supported`);
+    case 'simd.extract': {
+      // The kinds carry the distinction now, so the name-based classification
+      // this replaced -- and its "missing scalar operand" guard, which existed
+      // only because one kind held both forms -- are both gone.
+      const se = e as SimdExtractExpr;
+      return makeSIMDExtract(se.opcode, bridgeExpr(se.vec, ctx), se.lane);
+    }
+    case 'simd.replace': {
+      const sr = e as SimdReplaceExpr;
+      return makeSIMDReplace(
+        sr.opcode,
+        bridgeExpr(sr.vec, ctx),
+        sr.lane,
+        bridgeExpr(sr.value, ctx),
+      );
     }
     case 'simd.shuffle': {
       const ss = e as SimdShuffleOpExpr;

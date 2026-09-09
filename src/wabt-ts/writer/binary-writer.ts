@@ -10,7 +10,6 @@ import type {
   ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -66,17 +65,14 @@ import type {
   RefNullExpr,
   RefTestExpr,
   RethrowExpr,
-  ReturnCallExpr,
-  ReturnCallIndirectExpr,
-  ReturnCallRefExpr,
   ReturnExpr,
   SelectExpr,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
   SimdLoadLaneExpr,
+  SimdReplaceExpr,
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   TableCopyExpr,
@@ -666,34 +662,18 @@ class BodyWriter implements ExprVisitorDelegate {
 
   // --- Calls ---
   onCallExpr(e: CallExpr): Result {
-    this.s.writeU8(Opcode.Call);
+    this.s.writeU8(e.isReturn ? Opcode.ReturnCall : Opcode.Call);
     writeVar(this.s, e.func);
     return Result.Ok;
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
-    this.s.writeU8(Opcode.CallIndirect);
+    this.s.writeU8(e.isReturn ? Opcode.ReturnCallIndirect : Opcode.CallIndirect);
     writeVar(this.s, e.typeVar);
     writeVar(this.s, e.table);
     return Result.Ok;
   }
   onCallRefExpr(e: CallRefExpr): Result {
-    this.s.writeU8(Opcode.CallRef);
-    writeVar(this.s, e.sigType);
-    return Result.Ok;
-  }
-  onReturnCallExpr(e: ReturnCallExpr): Result {
-    this.s.writeU8(Opcode.ReturnCall);
-    writeVar(this.s, e.func);
-    return Result.Ok;
-  }
-  onReturnCallIndirectExpr(e: ReturnCallIndirectExpr): Result {
-    this.s.writeU8(Opcode.ReturnCallIndirect);
-    writeVar(this.s, e.typeVar);
-    writeVar(this.s, e.table);
-    return Result.Ok;
-  }
-  onReturnCallRefExpr(e: ReturnCallRefExpr): Result {
-    this.s.writeU8(Opcode.ReturnCallRef);
+    this.s.writeU8(e.isReturn ? Opcode.ReturnCallRef : Opcode.CallRef);
     writeVar(this.s, e.sigType);
     return Result.Ok;
   }
@@ -744,13 +724,7 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onStructNewExpr(e: StructNewExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.StructNew);
-    writeVar(this.s, e.typeVar);
-    return Result.Ok;
-  }
-  onStructNewDefaultExpr(e: StructNewDefaultExpr): Result {
-    this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.StructNewDefault);
+    this.s.writeU32Leb(e.defaultInit ? GcOpcode.StructNewDefault : GcOpcode.StructNew);
     writeVar(this.s, e.typeVar);
     return Result.Ok;
   }
@@ -775,13 +749,7 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onArrayNewExpr(e: ArrayNewExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.ArrayNew);
-    writeVar(this.s, e.typeVar);
-    return Result.Ok;
-  }
-  onArrayNewDefaultExpr(e: ArrayNewDefaultExpr): Result {
-    this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.ArrayNewDefault);
+    this.s.writeU32Leb(e.init === undefined ? GcOpcode.ArrayNewDefault : GcOpcode.ArrayNew);
     writeVar(this.s, e.typeVar);
     return Result.Ok;
   }
@@ -949,7 +917,12 @@ class BodyWriter implements ExprVisitorDelegate {
   }
 
   // --- SIMD ---
-  onSimdLaneOpExpr(e: SimdLaneOpExpr): Result {
+  onSimdExtractExpr(e: SimdExtractExpr): Result {
+    writeOpcode(this.s, e.opcode as number);
+    this.s.writeU8(e.lane);
+    return Result.Ok;
+  }
+  onSimdReplaceExpr(e: SimdReplaceExpr): Result {
     writeOpcode(this.s, e.opcode as number);
     this.s.writeU8(e.lane);
     return Result.Ok;

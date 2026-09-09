@@ -54,7 +54,6 @@ import {
   type ArrayGetExpr,
   type ArrayLenExpr,
   type ArrayNewDataExpr,
-  type ArrayNewDefaultExpr,
   type ArrayNewElemExpr,
   type ArrayNewExpr,
   type ArrayNewFixedExpr,
@@ -102,7 +101,6 @@ import {
   type RethrowExpr,
   type SectionMeta,
   type StructGetExpr,
-  type StructNewDefaultExpr,
   type StructNewExpr,
   type StructSetExpr,
   type Table,
@@ -1683,7 +1681,8 @@ export class BinaryReader {
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
           pushStmt(stack, stmts, {
-            kind: 'return_call',
+            kind: 'call',
+            isReturn: true,
             func: varIndex(funcIdx),
             operands: args,
             loc,
@@ -1701,7 +1700,8 @@ export class BinaryReader {
           const sigType: { params: ValueType[]; results: ValueType[] } =
             entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
           pushStmt(stack, stmts, {
-            kind: 'return_call_indirect',
+            kind: 'call_indirect',
+            isReturn: true,
             sig: sigType,
             typeVar: varIndex(typeIdx),
             nodeId: m.fidelity.record({ typeUse: 'resolved', sig: sigType }),
@@ -1719,7 +1719,8 @@ export class BinaryReader {
           const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
           pushStmt(stack, stmts, {
-            kind: 'return_call_ref',
+            kind: 'call_ref',
+            isReturn: true,
             sigType: varIndex(typeIdx),
             operands: args,
             callee,
@@ -2073,7 +2074,7 @@ export class BinaryReader {
         }
         case Opcode.RefAsNonNull: {
           const value = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'ref.as_non_null', value, loc });
+          stack.push({ kind: 'ref.as', value, loc });
           break;
         }
         case Opcode.BrOnNull:
@@ -2464,16 +2465,16 @@ export class BinaryReader {
         const value = stack.pop() ?? operandPlaceholder(loc);
         const vec = stack.pop() ?? operandPlaceholder(loc);
         stack.push({
-          kind: 'simd_lane_op',
+          kind: 'simd.replace',
           opcode: opcode as Opcode,
           lane,
-          operand: vec,
+          vec,
           value,
           loc,
         });
       } else {
-        const operand = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'simd_lane_op', opcode: opcode as Opcode, lane, operand, loc });
+        const vec = stack.pop() ?? operandPlaceholder(loc);
+        stack.push({ kind: 'simd.extract', opcode: opcode as Opcode, lane, vec, loc });
       }
       return;
     }
@@ -2956,10 +2957,12 @@ export class BinaryReader {
       case GcOpcode.StructNewDefault: {
         const typeIdx = this.readU32Leb();
         stack.push({
-          kind: 'struct.new_default',
+          kind: 'struct.new',
+          defaultInit: true,
+          operands: [],
           typeVar: varIndex(typeIdx),
           loc,
-        } as StructNewDefaultExpr);
+        } as StructNewExpr);
         return;
       }
       case GcOpcode.StructGet:
@@ -3016,11 +3019,11 @@ export class BinaryReader {
         const typeIdx = this.readU32Leb();
         const length = stack.pop() ?? nop();
         stack.push({
-          kind: 'array.new_default',
+          kind: 'array.new',
           typeVar: varIndex(typeIdx),
           length,
           loc,
-        } as ArrayNewDefaultExpr);
+        } as ArrayNewExpr);
         return;
       }
       case GcOpcode.ArrayNewFixed: {

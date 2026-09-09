@@ -25,7 +25,6 @@ import {
   type ArrayInitSegmentExpr,
   type ArrayLenExpr,
   type ArrayNewDataExpr,
-  type ArrayNewDefaultExpr,
   type ArrayNewElemExpr,
   type ArrayNewExpr,
   type ArrayNewFixedExpr,
@@ -100,18 +99,15 @@ import {
   type RefNullExpr,
   type RefTestExpr,
   type RethrowExpr,
-  type ReturnCallExpr,
-  type ReturnCallIndirectExpr,
-  type ReturnCallRefExpr,
   type ReturnExpr,
   type SelectExpr,
   sigEquals,
-  type SimdLaneOpExpr,
+  type SimdExtractExpr,
   type SimdLoadLaneExpr,
+  type SimdReplaceExpr,
   type SimdShuffleOpExpr,
   type StoreExpr,
   type StructGetExpr,
-  type StructNewDefaultExpr,
   type StructNewExpr,
   type StructSetExpr,
   type Table,
@@ -3931,7 +3927,7 @@ export class WastParser {
       case TokenType.ReturnCall: {
         const v = this.parseVar();
         if (v === null) return null;
-        return { kind: 'return_call', func: v, operands, loc } as ReturnCallExpr;
+        return { kind: 'call', isReturn: true, func: v, operands, loc } as CallExpr;
       }
       case TokenType.ReturnCallIndirect: {
         const tableVar = this.parseVarOpt(varIndex(0));
@@ -3955,7 +3951,8 @@ export class WastParser {
         // Before this, `typeVar` silently stayed at index 0 and the call was
         // encoded against whatever type happened to be first.
         return {
-          kind: 'return_call_indirect',
+          kind: 'call_indirect',
+          isReturn: true,
           ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
           nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           sig,
@@ -3964,7 +3961,7 @@ export class WastParser {
           operands: args,
           callee,
           loc,
-        } as ReturnCallIndirectExpr;
+        } as CallIndirectExpr;
       }
       case TokenType.ReturnCallRef: {
         const v = this.parseVar();
@@ -3972,12 +3969,13 @@ export class WastParser {
         const callee = operands[operands.length - 1] ?? operandPlaceholder(loc);
         const args = operands.slice(0, -1);
         return {
-          kind: 'return_call_ref',
+          kind: 'call_ref',
+          isReturn: true,
           sigType: v,
           operands: args,
           callee,
           loc,
-        } as ReturnCallRefExpr;
+        } as CallRefExpr;
       }
       case TokenType.LocalGet: {
         const v = this.parseVar();
@@ -4208,7 +4206,7 @@ export class WastParser {
         return { kind: 'ref.func', func: v, loc } as RefFuncExpr;
       }
       case TokenType.RefAsNonNull:
-        return { kind: 'ref.as_non_null', value: op0(), loc } as RefAsNonNullExpr;
+        return { kind: 'ref.as', value: op0(), loc } as RefAsNonNullExpr;
       case TokenType.RefEq:
         return { kind: 'ref.eq', left: op0(), right: op1(), loc } as RefEqExpr;
       case TokenType.RefI31:
@@ -4231,7 +4229,13 @@ export class WastParser {
       }
       case TokenType.StructNewDefault: {
         const typeVar = this.parseVar() ?? varIndex(0);
-        return { kind: 'struct.new_default', typeVar, loc } as StructNewDefaultExpr;
+        return {
+          kind: 'struct.new',
+          defaultInit: true,
+          operands: [],
+          typeVar,
+          loc,
+        } as StructNewExpr;
       }
       case TokenType.StructGet: {
         // Three lexer entries (struct.get / get_s / get_u) all route here;
@@ -4276,11 +4280,11 @@ export class WastParser {
       case TokenType.ArrayNewDefault: {
         const typeVar = this.parseVar() ?? varIndex(0);
         return {
-          kind: 'array.new_default',
+          kind: 'array.new',
           typeVar,
           length: op0(),
           loc,
-        } as ArrayNewDefaultExpr;
+        } as ArrayNewExpr;
       }
       case TokenType.ArrayNewFixed: {
         // `array.new_fixed $T N elem1 ... elemN` — N is an explicit immediate
@@ -4578,20 +4582,20 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const lane = this.parseSimdLane();
         const isReplace = isReplaceLaneOpcode(op);
-        const node: SimdLaneOpExpr = isReplace
+        const node: SimdExtractExpr | SimdReplaceExpr = isReplace
           ? {
-            kind: 'simd_lane_op',
+            kind: 'simd.replace',
             opcode: op as unknown as Opcode,
             lane,
-            operand: op0(),
+            vec: op0(),
             value: op1(),
             loc,
           }
           : {
-            kind: 'simd_lane_op',
+            kind: 'simd.extract',
             opcode: op as unknown as Opcode,
             lane,
-            operand: op0(),
+            vec: op0(),
             loc,
           };
         return node;

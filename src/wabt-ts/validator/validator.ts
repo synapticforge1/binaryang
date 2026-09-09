@@ -22,7 +22,6 @@ import type {
   ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -77,17 +76,14 @@ import type {
   RefNullExpr,
   RefTestExpr,
   RethrowExpr,
-  ReturnCallExpr,
-  ReturnCallIndirectExpr,
-  ReturnCallRefExpr,
   ReturnExpr,
   SelectExpr,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
   SimdLoadLaneExpr,
+  SimdReplaceExpr,
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   TableCopyExpr,
@@ -534,12 +530,11 @@ class ModuleValidator implements ExprVisitorDelegate {
         return this.isConstExpr(e.value);
       case 'struct.new':
       case 'array.new_fixed':
+        // The default form has no operands, so `every` is vacuously true --
+        // which is the right answer, and why it needs no separate case.
         return e.operands.every((x) => this.isConstExpr(x));
-      case 'struct.new_default':
-      case 'array.new_default':
-        return true;
       case 'array.new':
-        return this.isConstExpr(e.init) && this.isConstExpr(e.length);
+        return (e.init === undefined || this.isConstExpr(e.init)) && this.isConstExpr(e.length);
       default:
         return false;
     }
@@ -813,30 +808,30 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onDataDrop(e.loc, varIdx(e.segment));
   }
 
+  /**
+   * ⚠️ A tail call is a different instruction to the validator, not just a
+   * different opcode: it needs the `tailCall` feature and a different
+   * type-checker entry point, because it must match the FUNCTION's results
+   * rather than leaving its own on the stack.
+   */
   onCallExpr(e: CallExpr): Result {
-    return this.sv.onCall(e.loc, varIdx(e.func));
-  }
-  onCallIndirectExpr(e: CallIndirectExpr): Result {
-    return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
-  }
-  onCallRefExpr(e: CallRefExpr): Result {
-    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onCallRef(e.loc, varIdx(e.sigType));
-  }
-  onReturnCallExpr(e: ReturnCallExpr): Result {
+    if (!e.isReturn) return this.sv.onCall(e.loc, varIdx(e.func));
     const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCall(e.loc, varIdx(e.func));
   }
-  onReturnCallIndirectExpr(e: ReturnCallIndirectExpr): Result {
+  onCallIndirectExpr(e: CallIndirectExpr): Result {
+    if (!e.isReturn) return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
     const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
   }
-  onReturnCallRefExpr(e: ReturnCallRefExpr): Result {
-    const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+  onCallRefExpr(e: CallRefExpr): Result {
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
+    if (!e.isReturn) return this.sv.onCallRef(e.loc, varIdx(e.sigType));
+    const rt = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (rt !== Result.Ok) this.acc(rt);
     return this.sv.onReturnCallRef(e.loc, varIdx(e.sigType));
   }
 
@@ -879,12 +874,10 @@ class ModuleValidator implements ExprVisitorDelegate {
   onStructNewExpr(e: StructNewExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onStructNew(e.loc, varIdx(e.typeVar));
-  }
-  onStructNewDefaultExpr(e: StructNewDefaultExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onStructNewDefault(e.loc, varIdx(e.typeVar));
+    // The default form checks nothing about field values, because there are none.
+    return e.defaultInit
+      ? this.sv.onStructNewDefault(e.loc, varIdx(e.typeVar))
+      : this.sv.onStructNew(e.loc, varIdx(e.typeVar));
   }
   onStructGetExpr(e: StructGetExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
@@ -899,12 +892,9 @@ class ModuleValidator implements ExprVisitorDelegate {
   onArrayNewExpr(e: ArrayNewExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayNew(e.loc, varIdx(e.typeVar));
-  }
-  onArrayNewDefaultExpr(e: ArrayNewDefaultExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayNewDefault(e.loc, varIdx(e.typeVar));
+    return e.init === undefined
+      ? this.sv.onArrayNewDefault(e.loc, varIdx(e.typeVar))
+      : this.sv.onArrayNew(e.loc, varIdx(e.typeVar));
   }
   onArrayNewFixedExpr(e: ArrayNewFixedExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
@@ -1060,7 +1050,10 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onEnd(e.loc);
   }
 
-  onSimdLaneOpExpr(e: SimdLaneOpExpr): Result {
+  onSimdExtractExpr(e: SimdExtractExpr): Result {
+    return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
+  }
+  onSimdReplaceExpr(e: SimdReplaceExpr): Result {
     return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
   }
   onSimdShuffleOpExpr(e: SimdShuffleOpExpr): Result {
