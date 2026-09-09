@@ -36,6 +36,7 @@ import {
   parseAsyncifyOptions,
   State,
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
+import { type Var, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,7 +56,7 @@ function moduleWithImport(): WasmModule {
         name: null,
         children: [
           { kind: ExpressionKind.Call, type: 'none', target: '$sleep', operands: [] },
-          { kind: ExpressionKind.LocalGet, type: ValType.I32, index: 0 },
+          { kind: ExpressionKind.LocalGet, type: ValType.I32, index: varIndex(0) },
         ],
         // deno-lint-ignore no-explicit-any
       } as any,
@@ -304,12 +305,12 @@ Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data
   // child 0: global.set $__asyncify_state (i32.const 1)
   const setState = body.children[0] as GlobalSetExpr;
   assertEquals(setState.kind, ExpressionKind.GlobalSet);
-  assertEquals(setState.name, ASYNCIFY_STATE);
+  assertEquals(setState.var, varName(ASYNCIFY_STATE));
   assertEquals((setState.value as { value: { i32: number } }).value.i32, State.Unwinding);
 
   // child 1: global.set $__asyncify_data (local.get 0)
   const setData = body.children[1] as GlobalSetExpr;
-  assertEquals(setData.name, ASYNCIFY_DATA);
+  assertEquals(setData.var, varName(ASYNCIFY_DATA));
   assertEquals(setData.value.kind, ExpressionKind.LocalGet);
 
   // child 2: if (i32.gt_u (load off 0) (load off 4)) (unreachable)
@@ -338,7 +339,7 @@ Deno.test('Asyncify Stage 1 — get_state returns the state global; stop_* reset
 
   const getState = funcByName(m, `$${ASYNCIFY_GET_STATE}`)!.body;
   assertEquals(getState.kind, ExpressionKind.GlobalGet);
-  assertEquals((getState as { name: string }).name, ASYNCIFY_STATE);
+  assertEquals((getState as { var: Var }).var, varName(ASYNCIFY_STATE));
 
   const stop = funcByName(m, `$${ASYNCIFY_STOP_UNWIND}`)!.body as BlockExpr;
   const setState = stop.children[0] as GlobalSetExpr;

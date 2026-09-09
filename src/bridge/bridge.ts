@@ -33,7 +33,13 @@
 import { ExternalKind } from '../wabt-ts/core/binary.ts';
 import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
 import { naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
-import { CatchKind, coarsenValueType, isRefValueType } from '../wabt-ts/ir/ir.ts';
+import {
+  CatchKind,
+  coarsenValueType,
+  isRefValueType,
+  varIndex,
+  varName,
+} from '../wabt-ts/ir/ir.ts';
 import type { ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
@@ -573,7 +579,7 @@ function bridgeBlockType(bt: BlockType, ctx: BridgeCtx): BType {
   }
 }
 
-function varName(v: Var, names: ReadonlyArray<string>): string {
+function resolveVarName(v: Var, names: ReadonlyArray<string>): string {
   if (v.kind === 'name') return v.name;
   const n = names[v.value];
   if (n === undefined || n === '') {
@@ -903,17 +909,21 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'local.get': {
       const lg = e as LocalGetExpr;
       const idx = requireIndex(lg.var, 'local.get');
-      return makeLocalGet(idx, wabtTypeToValType(localType(ctx, idx)));
+      return makeLocalGet(varIndex(idx), wabtTypeToValType(localType(ctx, idx)));
     }
     case 'local.set': {
       const ls = e as LocalSetExpr;
       const idx = requireIndex(ls.var, 'local.set');
-      return makeLocalSet(idx, bridgeExpr(ls.value, ctx));
+      return makeLocalSet(varIndex(idx), bridgeExpr(ls.value, ctx));
     }
     case 'local.tee': {
       const lt = e as LocalTeeExpr;
       const idx = requireIndex(lt.var, 'local.tee');
-      return makeLocalTee(idx, bridgeExpr(lt.value, ctx), wabtTypeToValType(localType(ctx, idx)));
+      return makeLocalTee(
+        varIndex(idx),
+        bridgeExpr(lt.value, ctx),
+        wabtTypeToValType(localType(ctx, idx)),
+      );
     }
     case 'global.get': {
       const gg = e as GlobalGetExpr;
@@ -924,12 +934,12 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           `Bridge: global.get references unknown global (var=${JSON.stringify(gg.var)})`,
         );
       }
-      return makeGlobalGet(varName(gg.var, ctx.globalNames), wabtTypeToValType(t));
+      return makeGlobalGet(varName(resolveVarName(gg.var, ctx.globalNames)), wabtTypeToValType(t));
     }
     case 'global.set': {
       const gs = e as GlobalSetExpr;
-      const name = varName(gs.var, ctx.globalNames);
-      return makeGlobalSet(name, bridgeExpr(gs.value, ctx));
+      const name = resolveVarName(gs.var, ctx.globalNames);
+      return makeGlobalSet(varName(name), bridgeExpr(gs.value, ctx));
     }
 
     // --- Arithmetic / compare / convert -----------------------------------
@@ -1046,7 +1056,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeBreak(
         target,
         br.condition !== undefined ? bridgeExpr(br.condition, ctx) : null,
-        bridgeBranchValue(br.values, ctx, br.condition !== undefined ? 'br_if' : 'br'),
+        bridgeBranchValue(br.values, ctx),
       );
     }
     case 'br_table': {
@@ -1061,7 +1071,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const c = e as CallExpr;
       const idx = c.func.kind === 'index' ? c.func.value : ctx.funcNames.indexOf(c.func.name);
       const sig = ctx.funcSigs[idx];
-      const target = varName(c.func, ctx.funcNames);
+      const target = resolveVarName(c.func, ctx.funcNames);
       if (sig === undefined) {
         throw new Error(`Bridge: call references unknown function "${target}"`);
       }
@@ -1069,7 +1079,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'call_indirect': {
       const ci = e as CallIndirectExpr;
-      const tableName = varName(ci.table, ctx.tableNames);
+      const tableName = resolveVarName(ci.table, ctx.tableNames);
       const target = bridgeExpr(ci.callee, ctx);
       const operands = ci.operands.map((a) => bridgeExpr(a, ctx));
       // binaryen-ts's makeCallIndirect surface accepts ValType[] (single-result
@@ -1179,7 +1189,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'ref.func': {
       const rf = e as RefFuncExpr;
-      return makeRefFunc(varName(rf.func, ctx.funcNames), ValType.FuncRef);
+      return makeRefFunc(resolveVarName(rf.func, ctx.funcNames), ValType.FuncRef);
     }
     case 'ref.is_null': {
       const rin = e as RefIsNullExpr;
@@ -1213,20 +1223,19 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(sn.typeVar, ctx);
       // One kind, two forms: the default takes no field values at all.
       if (sn.defaultInit) {
-        return makeStructNewDefault(heapIdx, { heap: heapIdx, nullable: false });
+        return makeStructNewDefault(varIndex(heapIdx), { heap: heapIdx, nullable: false });
       }
-      return makeStructNew(
-        heapIdx,
-        sn.operands.map((o) => bridgeExpr(o, ctx)),
-        { heap: heapIdx, nullable: false },
-      );
+      return makeStructNew(varIndex(heapIdx), sn.operands.map((o) => bridgeExpr(o, ctx)), {
+        heap: heapIdx,
+        nullable: false,
+      });
     }
     case 'struct.get': {
       const sg = e as StructGetExpr;
       const heapIdx = resolveHeapTypeIdx(sg.typeVar, ctx);
       const fieldType = lookupStructFieldType(sg.typeVar, sg.fieldVar, ctx);
       return makeStructGet(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(sg.fieldVar),
         bridgeExpr(sg.ref, ctx),
         fieldType,
@@ -1237,7 +1246,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const ss = e as StructSetExpr;
       const heapIdx = resolveHeapTypeIdx(ss.typeVar, ctx);
       return makeStructSet(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(ss.fieldVar),
         bridgeExpr(ss.ref, ctx),
         bridgeExpr(ss.value, ctx),
@@ -1250,32 +1259,29 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(an.typeVar, ctx);
       // An absent initialiser IS the default form.
       if (an.init === undefined) {
-        return makeArrayNewDefault(heapIdx, bridgeExpr(an.length, ctx), {
+        return makeArrayNewDefault(varIndex(heapIdx), bridgeExpr(an.length, ctx), {
           heap: heapIdx,
           nullable: false,
         });
       }
-      return makeArrayNew(
-        heapIdx,
-        bridgeExpr(an.init, ctx),
-        bridgeExpr(an.length, ctx),
-        { heap: heapIdx, nullable: false },
-      );
+      return makeArrayNew(varIndex(heapIdx), bridgeExpr(an.init, ctx), bridgeExpr(an.length, ctx), {
+        heap: heapIdx,
+        nullable: false,
+      });
     }
     case 'array.new_fixed': {
       const anf = e as ArrayNewFixedExpr;
       const heapIdx = resolveHeapTypeIdx(anf.typeVar, ctx);
-      return makeArrayNewFixed(
-        heapIdx,
-        anf.operands.map((o) => bridgeExpr(o, ctx)),
-        { heap: heapIdx, nullable: false },
-      );
+      return makeArrayNewFixed(varIndex(heapIdx), anf.operands.map((o) => bridgeExpr(o, ctx)), {
+        heap: heapIdx,
+        nullable: false,
+      });
     }
     case 'array.new_data': {
       const and2 = e as ArrayNewDataExpr;
       const heapIdx = resolveHeapTypeIdx(and2.typeVar, ctx);
       return makeArrayNewData(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(and2.dataVar),
         bridgeExpr(and2.offset, ctx),
         bridgeExpr(and2.length, ctx),
@@ -1286,7 +1292,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const ane = e as ArrayNewElemExpr;
       const heapIdx = resolveHeapTypeIdx(ane.typeVar, ctx);
       return makeArrayNewElem(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(ane.elemVar),
         bridgeExpr(ane.offset, ctx),
         bridgeExpr(ane.length, ctx),
@@ -1298,7 +1304,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(ag.typeVar, ctx);
       const elementType = lookupArrayElementType(ag.typeVar, ctx);
       return makeArrayGet(
-        heapIdx,
+        varIndex(heapIdx),
         bridgeExpr(ag.ref, ctx),
         bridgeExpr(ag.index, ctx),
         elementType,
@@ -1309,7 +1315,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const as = e as ArraySetExpr;
       const heapIdx = resolveHeapTypeIdx(as.typeVar, ctx);
       return makeArraySet(
-        heapIdx,
+        varIndex(heapIdx),
         bridgeExpr(as.ref, ctx),
         bridgeExpr(as.index, ctx),
         bridgeExpr(as.value, ctx),
@@ -1405,7 +1411,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'throw': {
       const th = e as ThrowExpr;
       return makeThrow(
-        varName(th.tag, ctx.tagNames),
+        resolveVarName(th.tag, ctx.tagNames),
         th.operands.map((a) => bridgeExpr(a, ctx)),
       );
     }
@@ -1493,7 +1499,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
             // ref would change what the handler receives.
             throw new Error('Bridge: catch_ref / catch_all_ref not yet supported');
           }
-          catchTags.push(c.tag === undefined ? '' : varName(c.tag, ctx.tagNames));
+          catchTags.push(c.tag === undefined ? '' : resolveVarName(c.tag, ctx.tagNames));
           catchBodies.push(makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null));
         }
         const delegateTarget = tr.delegate === undefined ? null : resolveLabel(ctx, tr.delegate);
@@ -1522,9 +1528,9 @@ function buildCatchClause(
   const dest = resolveLabel(ctx, c.target);
   switch (c.kind) {
     case CatchKind.Catch:
-      return { tag: varName(c.tag!, ctx.tagNames), dest, isRef: false };
+      return { tag: resolveVarName(c.tag!, ctx.tagNames), dest, isRef: false };
     case CatchKind.CatchRef:
-      return { tag: varName(c.tag!, ctx.tagNames), dest, isRef: true };
+      return { tag: resolveVarName(c.tag!, ctx.tagNames), dest, isRef: true };
     case CatchKind.CatchAll:
       return { tag: null, dest, isRef: false };
     case CatchKind.CatchAllRef:
@@ -1571,7 +1577,6 @@ function refTypeVarToValType(v: Var, ctx: BridgeCtx): BValueType {
 function bridgeBranchValue(
   values: Expr[],
   ctx: BridgeCtx,
-  label: string,
 ): ReturnType<typeof bridgeExpr> | null {
   if (values.length === 0) return null;
   if (values.length === 1) return bridgeExpr(values[0]!, ctx);
@@ -1823,16 +1828,16 @@ function bridgeConst(c: Const): Expression {
 function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
   switch (exp.kind) {
     case ExternalKind.Func:
-      b.addExport(exp.name, varName(exp.var, ctx.funcNames), 'function');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.funcNames), 'function');
       return;
     case ExternalKind.Global:
-      b.addExport(exp.name, varName(exp.var, ctx.globalNames), 'global');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.globalNames), 'global');
       return;
     case ExternalKind.Memory:
-      b.addExport(exp.name, varName(exp.var, ctx.memoryNames), 'memory');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.memoryNames), 'memory');
       return;
     case ExternalKind.Table:
-      b.addExport(exp.name, varName(exp.var, ctx.tableNames), 'table');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.tableNames), 'table');
       return;
     case ExternalKind.Tag:
       // 🔧 This threw, citing binaryen-ts v1.0.9 having no "tag" export kind.
@@ -1840,7 +1845,7 @@ function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
       // stale, and the version it named is several releases old. A "not yet
       // supported" note is a claim about ANOTHER component's state, and nothing
       // rechecks it when that component moves.
-      b.addExport(exp.name, varName(exp.var, ctx.tagNames), 'tag');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.tagNames), 'tag');
       return;
   }
 }

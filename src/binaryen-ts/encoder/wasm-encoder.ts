@@ -110,6 +110,19 @@ import {
   type TypeDef,
   type ValueType,
 } from '../ir/gc-types.ts';
+import { requireIndex, requireName, type Var } from '../../wabt-ts/ir/ir.ts';
+
+/**
+ * The memory an instruction addresses. An ABSENT field means memory 0 — the
+ * only memory a single-memory module has, and the reason the field is optional
+ * at all.
+ *
+ * A NAME reaching the encoder is a different thing entirely, and throws:
+ * defaulting it to 0 would emit a valid module addressing the wrong memory.
+ */
+function memIndex(v: Var | undefined, what: string): number {
+  return v === undefined ? 0 : requireIndex(v, `${what} memory index`);
+}
 
 // ---------------------------------------------------------------------------
 // BinaryWriter — growable byte buffer with WASM encoding helpers
@@ -895,8 +908,8 @@ class WasmEncoder {
     w.writeU32(opcode & 0xffff);
   }
 
-  private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: number): void {
-    const mem = memory ?? 0;
+  private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: Var): void {
+    const mem = memIndex(memory, 'memarg');
     if (mem !== 0) {
       w.writeU32(align | 0x40);
       w.writeU32(mem);
@@ -1574,35 +1587,39 @@ class WasmEncoder {
       case ExpressionKind.LocalGet: {
         const e = expr as LocalGetExpr;
         w.writeU8(0x20);
-        w.writeU32(e.index);
+        w.writeU32(requireIndex(e.index, 'local index'));
         break;
       }
       case ExpressionKind.LocalSet: {
         const e = expr as LocalSetExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x21);
-        w.writeU32(e.index);
+        w.writeU32(requireIndex(e.index, 'local index'));
         break;
       }
       case ExpressionKind.LocalTee: {
         const e = expr as LocalTeeExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x22);
-        w.writeU32(e.index);
+        w.writeU32(requireIndex(e.index, 'local index'));
         break;
       }
 
       case ExpressionKind.GlobalGet: {
         const e = expr as GlobalGetExpr;
         w.writeU8(0x23);
-        w.writeU32(this.resolveRef(this.globalIndex, e.name, 'global.get'));
+        w.writeU32(
+          this.resolveRef(this.globalIndex, requireName(e.var, 'global.get'), 'global.get'),
+        );
         break;
       }
       case ExpressionKind.GlobalSet: {
         const e = expr as GlobalSetExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x24);
-        w.writeU32(this.resolveRef(this.globalIndex, e.name, 'global.set'));
+        w.writeU32(
+          this.resolveRef(this.globalIndex, requireName(e.var, 'global.set'), 'global.set'),
+        );
         break;
       }
 
@@ -1688,14 +1705,14 @@ class WasmEncoder {
 
       case ExpressionKind.MemorySize: {
         w.writeU8(0x3f);
-        w.writeU8((expr as MemorySizeExpr).memory ?? 0);
+        w.writeU8(memIndex((expr as MemorySizeExpr).memory, 'memory.size'));
         break;
       }
       case ExpressionKind.MemoryGrow: {
         const e = expr as MemoryGrowExpr;
         this.encodeExpr(w, e.delta, labels);
         w.writeU8(0x40);
-        w.writeU8(e.memory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
         break;
       }
       case ExpressionKind.TableInit: {
@@ -1728,7 +1745,7 @@ class WasmEncoder {
         w.writeU8(0xfc);
         w.writeU32(8);
         w.writeU32(this.dataSegmentIndex(e.segment));
-        w.writeU8(e.memory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
         break;
       }
 
@@ -1791,8 +1808,8 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(10);
-        w.writeU8(e.memory ?? 0);
-        w.writeU8(e.sourceMemory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
+        w.writeU8(memIndex(e.sourceMemory, e.kind));
         break;
       }
       case ExpressionKind.MemoryFill: {
@@ -1802,7 +1819,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(11);
-        w.writeU8(e.memory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
         break;
       }
 
@@ -1897,15 +1914,17 @@ class WasmEncoder {
         if (!e.defaultInit) { for (const opcode of e.operands) this.encodeExpr(w, opcode, labels); }
         w.writeU8(0xfb);
         w.writeU32(e.defaultInit ? 0x01 : 0x00);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.StructGet: {
         const e = expr as StructGetExpr;
         this.encodeExpr(w, e.ref, labels);
         w.writeU8(0xfb);
-        w.writeU32(this.packedGetSubop(e.typeIndex, e.fieldIndex, e.signed, 'struct'));
-        w.writeU32(e.typeIndex);
+        w.writeU32(
+          this.packedGetSubop(requireIndex(e.typeVar, e.kind), e.fieldIndex, e.signed, 'struct'),
+        );
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.fieldIndex);
         break;
       }
@@ -1915,7 +1934,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0xfb);
         w.writeU32(0x05);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.fieldIndex);
         break;
       }
@@ -1925,7 +1944,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.length, labels);
         w.writeU8(0xfb);
         w.writeU32(e.init === null ? 0x07 : 0x06);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayNewFixed: {
@@ -1933,7 +1952,7 @@ class WasmEncoder {
         for (const v of e.values) this.encodeExpr(w, v, labels);
         w.writeU8(0xfb);
         w.writeU32(0x08);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.values.length);
         break;
       }
@@ -1943,7 +1962,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.length, labels);
         w.writeU8(0xfb);
         w.writeU32(0x09);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.dataSegment);
         break;
       }
@@ -1953,7 +1972,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.length, labels);
         w.writeU8(0xfb);
         w.writeU32(0x0a);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.elemSegment);
         break;
       }
@@ -1962,8 +1981,8 @@ class WasmEncoder {
         this.encodeExpr(w, e.ref, labels);
         this.encodeExpr(w, e.index, labels);
         w.writeU8(0xfb);
-        w.writeU32(this.packedGetSubop(e.typeIndex, 0, e.signed, 'array'));
-        w.writeU32(e.typeIndex);
+        w.writeU32(this.packedGetSubop(requireIndex(e.typeVar, e.kind), 0, e.signed, 'array'));
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArraySet: {
@@ -1973,7 +1992,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0xfb);
         w.writeU32(0x0e);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayFill: {
@@ -1984,7 +2003,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfb);
         w.writeU32(0x10);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayCopy: {
@@ -1997,8 +2016,8 @@ class WasmEncoder {
         w.writeU8(0xfb);
         w.writeU32(0x11);
         // Immediate order is destination type THEN source type.
-        w.writeU32(e.destTypeIndex);
-        w.writeU32(e.srcTypeIndex);
+        w.writeU32(requireIndex(e.destTypeVar, e.kind));
+        w.writeU32(requireIndex(e.srcTypeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayInitData:
@@ -2010,7 +2029,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfb);
         w.writeU32(e.kind === ExpressionKind.ArrayInitData ? 0x12 : 0x13);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.segment);
         break;
       }

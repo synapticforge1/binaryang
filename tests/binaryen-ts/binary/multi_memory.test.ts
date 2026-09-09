@@ -35,6 +35,7 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /** Assemble with wabt-ts, which round-trips multi-memory correctly today. */
 function assemble(wat: string): Uint8Array {
@@ -90,7 +91,7 @@ describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
     // as the offset. Pinning all three is what makes this discriminating.
     assertEquals(store['align'], 2, 'align is the exponent with bit 6 masked off');
     assertEquals(store['offset'], 0, 'offset is the real offset, not the memory index');
-    assertEquals(store['memory'], 1, 'and the memory index is kept');
+    assertEquals(store['memory'], varIndex(1), 'and the memory index is kept');
   });
 
   it('leaves NO phantom instruction behind', () => {

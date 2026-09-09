@@ -36,6 +36,7 @@ import {
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: pass registration
 
 /**
@@ -58,7 +59,7 @@ import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: pass registra
  * -1 into 255.
  */
 function buildModule(): ReturnType<ModuleBuilder['build']> {
-  const inner = makeBlock([makeBreak('$l', null, makeLocalGet(0, ValType.I32))], '$l');
+  const inner = makeBlock([makeBreak('$l', null, makeLocalGet(varIndex(0), ValType.I32))], '$l');
   // A block whose body exits via `br` infers `unreachable`; stamp the declared
   // result type so the encoder emits an i32 blocktype.
   inner.type = ValType.I32;
@@ -71,8 +72,10 @@ function buildModule(): ReturnType<ModuleBuilder['build']> {
       [],
       [ValType.I32],
       makeBlock([
-        makeLocalSet(0, makeLoad(1, true, 0, 0, makeI32Const(0), ValType.I32)),
-        makeDrop(makeBinary(BinaryOp.AndI32, makeLocalGet(0, ValType.I32), makeI32Const(0xff))),
+        makeLocalSet(varIndex(0), makeLoad(1, true, 0, 0, makeI32Const(0), ValType.I32)),
+        makeDrop(
+          makeBinary(BinaryOp.AndI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0xff)),
+        ),
         inner,
       ]),
       [{ type: ValType.I32 }],

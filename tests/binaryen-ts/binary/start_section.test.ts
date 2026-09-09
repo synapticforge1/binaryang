@@ -24,6 +24,7 @@ import { makeGlobalSet, makeI32Const } from '../../../src/binaryen-ts/ir/express
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: registers the pass registry
 
 /**
@@ -142,7 +143,7 @@ Deno.test('start section: a non-exported start function survives full -Oz', asyn
 Deno.test('start section: absent start emits no section 8', () => {
   const mod = new ModuleBuilder()
     .addGlobal('$g', ValType.I32, true, makeI32Const(0))
-    .addFunction('$f', [], [], makeGlobalSet('$g', makeI32Const(1)))
+    .addFunction('$f', [], [], makeGlobalSet(varName('$g'), makeI32Const(1)))
     .build();
   assertEquals(mod.start, null);
   assert(!hasSection(encodeWasm(mod), 8));
@@ -151,7 +152,7 @@ Deno.test('start section: absent start emits no section 8', () => {
 Deno.test('start section: setStart with an unknown name throws at encode time', () => {
   const mod = new ModuleBuilder()
     .addGlobal('$g', ValType.I32, true, makeI32Const(0))
-    .addFunction('$f', [], [], makeGlobalSet('$g', makeI32Const(1)))
+    .addFunction('$f', [], [], makeGlobalSet(varName('$g'), makeI32Const(1)))
     .setStart('$nope')
     .build();
 

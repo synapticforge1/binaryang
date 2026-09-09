@@ -41,6 +41,7 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, visitChildren, walkExpression } from '../ir/walk.ts';
+import { requireIndex, type Var } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -82,7 +83,7 @@ function _zeroMask(bytes: number): number {
 
 interface LoadInfo {
   load: LoadExpr;
-  localIndex: number;
+  localIndex: Var;
 }
 
 interface Usage {
@@ -110,7 +111,7 @@ function _pickLoadSigns(fn: WasmFunction): void {
       if (resultType !== ValType.I32 && resultType !== ValType.I64) return;
       const maxBytes = resultType === ValType.I32 ? 4 : 8;
       if (load.bytes >= maxBytes) return; // already full-width
-      loadsByLocal.set(expr.index, { load, localIndex: expr.index });
+      loadsByLocal.set(requireIndex(expr.index, 'local index'), { load, localIndex: expr.index });
     }
   });
 
@@ -133,9 +134,9 @@ function _pickLoadSigns(fn: WasmFunction): void {
   // rewrite was itself inert; see the identity-loss note below.)
   _walkWithParent(fn.body, null, (expr, parent) => {
     if (expr.kind !== ExpressionKind.LocalGet) return;
-    const info = loadsByLocal.get(expr.index);
+    const info = loadsByLocal.get(requireIndex(expr.index, 'local index'));
     if (!info) return;
-    const usage = usages.get(expr.index)!;
+    const usage = usages.get(requireIndex(expr.index, 'local index'))!;
     usage.totalCount++;
 
     if (!parent) return; // observing use (bare get)

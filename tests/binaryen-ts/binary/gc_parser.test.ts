@@ -12,6 +12,7 @@ import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { type Var, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -195,8 +196,8 @@ Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr dire
   // Single-result function body: the body IS the struct.new (no wrapper block)
   const body = mod.functions[0].body;
   assertEquals(body.kind, ExpressionKind.StructNew);
-  const sn = body as { typeIndex: number; operands: unknown[]; defaultInit: boolean };
-  assertEquals(sn.typeIndex, 0);
+  const sn = body as { typeVar: Var; operands: unknown[]; defaultInit: boolean };
+  assertEquals(sn.typeVar, varIndex(0));
   assertEquals(sn.operands.length, 2);
   assertEquals(sn.defaultInit, false);
 });
@@ -216,8 +217,8 @@ Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init',
   const mod = parseWasm(ARRAY_MODULE);
   const body = mod.functions[0].body;
   assertEquals(body.kind, ExpressionKind.ArrayNew);
-  const an = body as { typeIndex: number; init: unknown };
-  assertEquals(an.typeIndex, 0);
+  const an = body as { typeVar: Var; init: unknown };
+  assertEquals(an.typeVar, varIndex(0));
   assertEquals(an.init, null);
 });
 
@@ -267,8 +268,8 @@ Deno.test('GC encoder: struct.new preserved after round-trip', () => {
   const mod2 = parseWasm(encodeWasm(mod));
   const body = mod2.functions[0].body;
   assertEquals(body.kind, ExpressionKind.StructNew);
-  const sn = body as { typeIndex: number; operands: unknown[] };
-  assertEquals(sn.typeIndex, 0);
+  const sn = body as { typeVar: Var; operands: unknown[] };
+  assertEquals(sn.typeVar, varIndex(0));
   assertEquals(sn.operands.length, 2);
 });
 

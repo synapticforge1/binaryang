@@ -29,6 +29,7 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
+import { indexOf, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import type { HeapType, ValueType } from './gc-types.ts';
@@ -815,7 +816,7 @@ export interface LocalGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.LocalGet;
   /** Local index. */
-  index: number;
+  index: Var;
 }
 
 /** {@link LocalSetExpr} — see {@link makeLocalSet} for the factory. */
@@ -823,7 +824,7 @@ export interface LocalSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.LocalSet;
   /** Numeric index into the relevant table. */
-  index: number;
+  index: Var;
   /** Value expression. */
   value: Expression;
 }
@@ -833,7 +834,7 @@ export interface LocalTeeExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.LocalTee;
   /** Numeric index into the relevant table. */
-  index: number;
+  index: Var;
   /** Value expression. */
   value: Expression;
 }
@@ -866,16 +867,16 @@ export interface TableSetExpr extends ExprBase {
 export interface GlobalGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.GlobalGet;
-  /** Identifier label or symbolic name. */
-  name: string;
+  /** The global addressed. Name-form until `resolveNames`; wabt-ts calls it `var`. */
+  var: Var;
 }
 
 /** {@link GlobalSetExpr} — see {@link makeGlobalSet} for the factory. */
 export interface GlobalSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.GlobalSet;
-  /** Identifier label or symbolic name. */
-  name: string;
+  /** The global addressed. Name-form until `resolveNames`; wabt-ts calls it `var`. */
+  var: Var;
   /** Value expression. */
   value: Expression;
 }
@@ -934,7 +935,7 @@ export interface LoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Load;
   /** Byte width of the memory access (1, 2, 4, 8, 16). */
@@ -959,7 +960,7 @@ export interface StoreExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Store;
   /** Width in bytes of the access. */
@@ -984,7 +985,7 @@ export interface MemoryGrowExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryGrow;
   /** Result type — the value type yielded at runtime. */
@@ -1003,7 +1004,7 @@ export interface MemorySizeExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemorySize;
   /** Result type — the value type yielded at runtime. */
@@ -1059,7 +1060,7 @@ export interface MemoryInitExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryInit;
   /** Result type — the value type yielded at runtime. */
@@ -1151,9 +1152,9 @@ export interface MemoryCopyExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Memory the COPY READS FROM. Omitted means 0. `memory` is the destination. */
-  sourceMemory?: number;
+  sourceMemory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryCopy;
   /** Result type — the value type yielded at runtime. */
@@ -1176,7 +1177,7 @@ export interface MemoryFillExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryFill;
   /** Result type — the value type yielded at runtime. */
@@ -1336,7 +1337,7 @@ export interface StructNewExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.StructNew;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** defaultInit — see the {@link make} factory for semantics. */
@@ -1348,7 +1349,7 @@ export interface StructGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.StructGet;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** Index of the struct field. */
   fieldIndex: number;
   /** ref — see the {@link make} factory for semantics. */
@@ -1364,7 +1365,7 @@ export interface StructSetExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** Index of the struct field. */
   fieldIndex: number;
   /** ref — see the matching factory for semantics. */
@@ -1378,7 +1379,7 @@ export interface ArrayNewExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.ArrayNew;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** init — see the matching factory for semantics. */
   init: Expression | null;
   /** Byte length to operate on. */
@@ -1390,7 +1391,7 @@ export interface ArrayNewFixedExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.ArrayNewFixed;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** values — see the matching factory for semantics. */
   values: Expression[];
 }
@@ -1400,7 +1401,7 @@ export interface ArrayNewDataExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.ArrayNewData;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** dataSegment — see the matching factory for semantics. */
   dataSegment: number;
   /** Static byte offset added to the address operand. */
@@ -1414,7 +1415,7 @@ export interface ArrayNewElemExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.ArrayNewElem;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** elemSegment — see the matching factory for semantics. */
   elemSegment: number;
   /** Static byte offset added to the address operand. */
@@ -1428,7 +1429,7 @@ export interface ArrayGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.ArrayGet;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** ref — see the matching factory for semantics. */
   ref: Expression;
   /** Numeric index into the relevant table. */
@@ -1444,7 +1445,7 @@ export interface ArraySetExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /** Numeric index into the relevant table. */
@@ -1460,7 +1461,7 @@ export interface ArrayFillExpr extends ExprBase {
   /** Result type — `array.fill` yields nothing. */
   type: None;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
@@ -1478,9 +1479,9 @@ export interface ArrayCopyExpr extends ExprBase {
   /** Result type — `array.copy` yields nothing. */
   type: None;
   /** Heap-type index of the DESTINATION array. */
-  destTypeIndex: number;
+  destTypeVar: Var;
   /** Heap-type index of the SOURCE array. */
-  srcTypeIndex: number;
+  srcTypeVar: Var;
   /** The destination array reference. */
   destRef: Expression;
   /** Start index within the destination. */
@@ -1500,7 +1501,7 @@ export interface ArrayInitDataExpr extends ExprBase {
   /** Result type — `array.init_data` yields nothing. */
   type: None;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** Index of the data segment read from. */
   segment: number;
   /** The array reference to write into. */
@@ -1520,7 +1521,7 @@ export interface ArrayInitElemExpr extends ExprBase {
   /** Result type — `array.init_elem` yields nothing. */
   type: None;
   /** Index into the module heap-type table. */
-  typeIndex: number;
+  typeVar: Var;
   /** Index of the element segment read from. */
   segment: number;
   /** The array reference to write into. */
@@ -1800,7 +1801,7 @@ export interface SIMDLoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoad;
   /** Operator code. */
@@ -1823,7 +1824,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoadStoreLane;
   /** Operator code. */
@@ -1950,27 +1951,27 @@ export function makeF64Const(value: number): ConstExpr {
 }
 
 /** Creates a `global.get` expression. */
-export function makeGlobalGet(name: string, type: ValueType): GlobalGetExpr {
-  return { kind: ExpressionKind.GlobalGet, type, name };
+export function makeGlobalGet(v: Var, type: ValueType): GlobalGetExpr {
+  return { kind: ExpressionKind.GlobalGet, type, var: v };
 }
 
 /** Creates a `global.set` expression (result type is `none`). */
-export function makeGlobalSet(name: string, value: Expression): GlobalSetExpr {
-  return { kind: ExpressionKind.GlobalSet, type: None, name, value };
+export function makeGlobalSet(v: Var, value: Expression): GlobalSetExpr {
+  return { kind: ExpressionKind.GlobalSet, type: None, var: v, value };
 }
 
 /** Creates a `local.get` expression. */
-export function makeLocalGet(index: number, type: ValueType): LocalGetExpr {
+export function makeLocalGet(index: Var, type: ValueType): LocalGetExpr {
   return { kind: ExpressionKind.LocalGet, type, index };
 }
 
 /** Creates a `local.set` expression (result type is `none`). */
-export function makeLocalSet(index: number, value: Expression): LocalSetExpr {
+export function makeLocalSet(index: Var, value: Expression): LocalSetExpr {
   return { kind: ExpressionKind.LocalSet, type: None, index, value };
 }
 
 /** Creates a `local.tee` expression (result type matches the value). */
-export function makeLocalTee(index: number, value: Expression, type: ValueType): LocalTeeExpr {
+export function makeLocalTee(index: Var, value: Expression, type: ValueType): LocalTeeExpr {
   return { kind: ExpressionKind.LocalTee, type, index, value };
 }
 
@@ -2175,7 +2176,7 @@ export function makeLoad(
   align: number,
   ptr: Expression,
   resultType: ValType,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): LoadExpr {
   return {
     kind: ExpressionKind.Load,
@@ -2185,7 +2186,7 @@ export function makeLoad(
     offset,
     align,
     ptr,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2196,7 +2197,7 @@ export function makeStore(
   align: number,
   ptr: Expression,
   value: Expression,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): StoreExpr {
   return {
     kind: ExpressionKind.Store,
@@ -2206,26 +2207,26 @@ export function makeStore(
     align,
     ptr,
     value,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
 /** Creates a `memory.size` expression. */
-export function makeMemorySize(memory = 0): MemorySizeExpr {
+export function makeMemorySize(memory: Var = varIndex(0)): MemorySizeExpr {
   return {
     kind: ExpressionKind.MemorySize,
     type: ValType.I32,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
 /** Creates a `memory.grow` expression. */
-export function makeMemoryGrow(delta: Expression, memory = 0): MemoryGrowExpr {
+export function makeMemoryGrow(delta: Expression, memory: Var = varIndex(0)): MemoryGrowExpr {
   return {
     kind: ExpressionKind.MemoryGrow,
     type: ValType.I32,
     delta,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2251,7 +2252,7 @@ export function makeMemoryInit(
   dest: Expression,
   offset: Expression,
   size: Expression,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): MemoryInitExpr {
   return {
     kind: ExpressionKind.MemoryInit,
@@ -2260,7 +2261,7 @@ export function makeMemoryInit(
     dest,
     offset,
     size,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2317,8 +2318,8 @@ export function makeMemoryCopy(
   dest: Expression,
   source: Expression,
   size: Expression,
-  memory = 0,
-  sourceMemory = 0,
+  memory: Var = varIndex(0),
+  sourceMemory: Var = varIndex(0),
 ): MemoryCopyExpr {
   return {
     kind: ExpressionKind.MemoryCopy,
@@ -2326,8 +2327,8 @@ export function makeMemoryCopy(
     dest,
     source,
     size,
-    ...(memory !== 0 ? { memory } : {}),
-    ...(sourceMemory !== 0 ? { sourceMemory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(sourceMemory) !== 0 ? { sourceMemory } : {}),
   };
 }
 
@@ -2336,7 +2337,7 @@ export function makeMemoryFill(
   dest: Expression,
   value: Expression,
   size: Expression,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): MemoryFillExpr {
   return {
     kind: ExpressionKind.MemoryFill,
@@ -2344,7 +2345,7 @@ export function makeMemoryFill(
     dest,
     value,
     size,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2425,25 +2426,25 @@ export function makeI31Get(i31: Expression, signed: boolean): I31GetExpr {
 
 /** Creates a struct.new expression. */
 export function makeStructNew(
-  typeIndex: number,
+  typeVar: Var,
   operands: Expression[],
   resultType: Type,
 ): StructNewExpr {
   return {
     kind: ExpressionKind.StructNew,
     type: resultType,
-    typeIndex,
+    typeVar,
     operands,
     defaultInit: false,
   };
 }
 
 /** Creates a struct.new_default expression. */
-export function makeStructNewDefault(typeIndex: number, resultType: Type): StructNewExpr {
+export function makeStructNewDefault(typeVar: Var, resultType: Type): StructNewExpr {
   return {
     kind: ExpressionKind.StructNew,
     type: resultType,
-    typeIndex,
+    typeVar,
     operands: [],
     defaultInit: true,
   };
@@ -2451,56 +2452,56 @@ export function makeStructNewDefault(typeIndex: number, resultType: Type): Struc
 
 /** Creates a struct.get expression. */
 export function makeStructGet(
-  typeIndex: number,
+  typeVar: Var,
   fieldIndex: number,
   ref: Expression,
   resultType: Type,
   signed = false,
 ): StructGetExpr {
-  return { kind: ExpressionKind.StructGet, type: resultType, typeIndex, fieldIndex, ref, signed };
+  return { kind: ExpressionKind.StructGet, type: resultType, typeVar, fieldIndex, ref, signed };
 }
 
 /** Creates a struct.set expression. */
 export function makeStructSet(
-  typeIndex: number,
+  typeVar: Var,
   fieldIndex: number,
   ref: Expression,
   value: Expression,
 ): StructSetExpr {
-  return { kind: ExpressionKind.StructSet, type: None, typeIndex, fieldIndex, ref, value };
+  return { kind: ExpressionKind.StructSet, type: None, typeVar, fieldIndex, ref, value };
 }
 
 /** Creates an array.new expression. */
 export function makeArrayNew(
-  typeIndex: number,
+  typeVar: Var,
   init: Expression,
   length: Expression,
   resultType: Type,
 ): ArrayNewExpr {
-  return { kind: ExpressionKind.ArrayNew, type: resultType, typeIndex, init, length };
+  return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, init, length };
 }
 
 /** Creates an array.new_default expression. */
 export function makeArrayNewDefault(
-  typeIndex: number,
+  typeVar: Var,
   length: Expression,
   resultType: Type,
 ): ArrayNewExpr {
-  return { kind: ExpressionKind.ArrayNew, type: resultType, typeIndex, init: null, length };
+  return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, init: null, length };
 }
 
 /** Creates an array.new_fixed expression. */
 export function makeArrayNewFixed(
-  typeIndex: number,
+  typeVar: Var,
   values: Expression[],
   resultType: Type,
 ): ArrayNewFixedExpr {
-  return { kind: ExpressionKind.ArrayNewFixed, type: resultType, typeIndex, values };
+  return { kind: ExpressionKind.ArrayNewFixed, type: resultType, typeVar, values };
 }
 
 /** Creates an array.new_data expression. */
 export function makeArrayNewData(
-  typeIndex: number,
+  typeVar: Var,
   dataSegment: number,
   offset: Expression,
   length: Expression,
@@ -2509,7 +2510,7 @@ export function makeArrayNewData(
   return {
     kind: ExpressionKind.ArrayNewData,
     type: resultType,
-    typeIndex,
+    typeVar,
     dataSegment,
     offset,
     length,
@@ -2518,7 +2519,7 @@ export function makeArrayNewData(
 
 /** Creates an array.new_elem expression. */
 export function makeArrayNewElem(
-  typeIndex: number,
+  typeVar: Var,
   elemSegment: number,
   offset: Expression,
   length: Expression,
@@ -2527,7 +2528,7 @@ export function makeArrayNewElem(
   return {
     kind: ExpressionKind.ArrayNewElem,
     type: resultType,
-    typeIndex,
+    typeVar,
     elemSegment,
     offset,
     length,
@@ -2536,40 +2537,40 @@ export function makeArrayNewElem(
 
 /** Creates an array.get expression. */
 export function makeArrayGet(
-  typeIndex: number,
+  typeVar: Var,
   ref: Expression,
   index: Expression,
   resultType: Type,
   signed = false,
 ): ArrayGetExpr {
-  return { kind: ExpressionKind.ArrayGet, type: resultType, typeIndex, ref, index, signed };
+  return { kind: ExpressionKind.ArrayGet, type: resultType, typeVar, ref, index, signed };
 }
 
 /** Creates an array.set expression. */
 export function makeArraySet(
-  typeIndex: number,
+  typeVar: Var,
   ref: Expression,
   index: Expression,
   value: Expression,
 ): ArraySetExpr {
-  return { kind: ExpressionKind.ArraySet, type: None, typeIndex, ref, index, value };
+  return { kind: ExpressionKind.ArraySet, type: None, typeVar, ref, index, value };
 }
 
 /** Creates an `array.fill $T` expression (fills `size` slots from `index`). */
 export function makeArrayFill(
-  typeIndex: number,
+  typeVar: Var,
   ref: Expression,
   index: Expression,
   value: Expression,
   size: Expression,
 ): ArrayFillExpr {
-  return { kind: ExpressionKind.ArrayFill, type: None, typeIndex, ref, index, value, size };
+  return { kind: ExpressionKind.ArrayFill, type: None, typeVar, ref, index, value, size };
 }
 
 /** Creates an `array.copy $Tdest $Tsrc` expression. */
 export function makeArrayCopy(
-  destTypeIndex: number,
-  srcTypeIndex: number,
+  destTypeVar: Var,
+  srcTypeVar: Var,
   destRef: Expression,
   destIndex: Expression,
   srcRef: Expression,
@@ -2579,8 +2580,8 @@ export function makeArrayCopy(
   return {
     kind: ExpressionKind.ArrayCopy,
     type: None,
-    destTypeIndex,
-    srcTypeIndex,
+    destTypeVar,
+    srcTypeVar,
     destRef,
     destIndex,
     srcRef,
@@ -2591,7 +2592,7 @@ export function makeArrayCopy(
 
 /** Creates an `array.init_data $T $seg` expression. */
 export function makeArrayInitData(
-  typeIndex: number,
+  typeVar: Var,
   segment: number,
   ref: Expression,
   index: Expression,
@@ -2601,7 +2602,7 @@ export function makeArrayInitData(
   return {
     kind: ExpressionKind.ArrayInitData,
     type: None,
-    typeIndex,
+    typeVar,
     segment,
     ref,
     index,
@@ -2612,7 +2613,7 @@ export function makeArrayInitData(
 
 /** Creates an `array.init_elem $T $seg` expression. */
 export function makeArrayInitElem(
-  typeIndex: number,
+  typeVar: Var,
   segment: number,
   ref: Expression,
   index: Expression,
@@ -2622,7 +2623,7 @@ export function makeArrayInitElem(
   return {
     kind: ExpressionKind.ArrayInitElem,
     type: None,
-    typeIndex,
+    typeVar,
     segment,
     ref,
     index,
@@ -2784,7 +2785,7 @@ export function makeSIMDLoad(
   ptr: Expression,
   offset: number,
   align: number,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): SIMDLoadExpr {
   return {
     kind: ExpressionKind.SIMDLoad,
@@ -2793,7 +2794,7 @@ export function makeSIMDLoad(
     ptr,
     offset,
     align,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2805,7 +2806,7 @@ export function makeSIMDLoadStoreLane(
   offset: number,
   align: number,
   lane: number,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): SIMDLoadStoreLaneExpr {
   const isStore = opcode === SIMDLoadStoreLaneOp.Store8LaneVec128 ||
     opcode === SIMDLoadStoreLaneOp.Store16LaneVec128 ||
@@ -2820,7 +2821,7 @@ export function makeSIMDLoadStoreLane(
     offset,
     align,
     lane,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 

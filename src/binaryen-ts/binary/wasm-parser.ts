@@ -8,6 +8,7 @@
  */
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
+import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import {
   type ElementSegment,
   type ElementSegmentMode,
@@ -607,9 +608,9 @@ function funcTypeAt(
  * encoder only fires if the module is re-encoded. Same failure shape as the
  * typed-ref block type in wabt-ts (`block_type_ref.test.ts`).
  */
-function readMemArg(r: BinaryReader): { align: number; offset: number; memory: number } {
+function readMemArg(r: BinaryReader): { align: number; offset: number; memory: Var } {
   const flags = r.readU32();
-  const memory = (flags & 0x40) !== 0 ? r.readU32() : 0;
+  const memory = varIndex((flags & 0x40) !== 0 ? r.readU32() : 0);
   const offset = r.readU32();
   return { align: flags & ~0x40, offset, memory };
 }
@@ -1302,7 +1303,7 @@ class WasmParser {
         break;
       case 0x23: { // global.get
         const idx = this.r.readU32();
-        expr = makeGlobalGet(`$global${idx}`, globalTypeAt(this.globalInfos, idx, this.r));
+        expr = makeGlobalGet(varName(`$global${idx}`), globalTypeAt(this.globalInfos, idx, this.r));
         break;
       }
       case 0xd0: { // ref.null
@@ -1397,8 +1398,8 @@ class WasmParser {
           const val = exprs[i]!;
           const tmp = locals.length;
           locals.push({ type: val.type as ValType });
-          exprs[i] = makeLocalSet(tmp, val);
-          return makeLocalGet(tmp, val.type as ValType);
+          exprs[i] = makeLocalSet(varIndex(tmp), val);
+          return makeLocalGet(varIndex(tmp), val.type as ValType);
         }
       }
       // No value-producing expression in this frame at all. That is legal in
@@ -1472,8 +1473,8 @@ class WasmParser {
         const tmp = locals.length;
         locals.push({ type: ptype });
         slots.push(tmp);
-        push(makeLocalSet(tmp, vals[i]!));
-        reads.push(makeLocalGet(tmp, ptype));
+        push(makeLocalSet(varIndex(tmp), vals[i]!));
+        reads.push(makeLocalGet(varIndex(tmp), ptype));
       }
       return { reads, slots };
     };
@@ -1521,7 +1522,7 @@ class WasmParser {
       }
       const vals: Expression[] = [];
       for (let i = 0; i < slots.length; i++) vals.unshift(pop());
-      for (const [i, slot] of slots.entries()) push(makeLocalSet(slot, vals[i]!));
+      for (const [i, slot] of slots.entries()) push(makeLocalSet(varIndex(slot), vals[i]!));
       if (switchTargets !== undefined) {
         // `br_table` where every target is this same loop: one set of temps,
         // then a value-less table.
@@ -1530,7 +1531,7 @@ class WasmParser {
       }
       push(makeBreak(label, cond, null));
       if (cond !== null) {
-        for (const [i, slot] of slots.entries()) push(makeLocalGet(slot, types[i]!));
+        for (const [i, slot] of slots.entries()) push(makeLocalGet(varIndex(slot), types[i]!));
       }
     };
 
@@ -1582,11 +1583,11 @@ class WasmParser {
         const tmp = locals.length;
         locals.push({ type: types[i]! });
         shared.push(tmp);
-        push(makeLocalSet(tmp, vals[i]!)); // both filled to `arity` above
+        push(makeLocalSet(varIndex(tmp), vals[i]!)); // both filled to `arity` above
       }
       const idxSlot = locals.length;
       locals.push({ type: ValType.I32 });
-      push(makeLocalSet(idxSlot, index));
+      push(makeLocalSet(varIndex(idxSlot), index));
 
       /** The branch a single case performs, in that target's own convention. */
       const caseCode = (frame: ControlFrame | undefined, label: string): Expression[] => {
@@ -1603,12 +1604,12 @@ class WasmParser {
             );
           }
           const out: Expression[] = slots.map((slot, i) =>
-            makeLocalSet(slot, makeLocalGet(shared[i]!, types[i]!))
+            makeLocalSet(varIndex(slot), makeLocalGet(varIndex(shared[i]!), types[i]!))
           );
           out.push(makeBreak(label, null, null));
           return out;
         }
-        const reads = shared.map((slot, i) => makeLocalGet(slot, types[i]!));
+        const reads = shared.map((slot, i) => makeLocalGet(varIndex(slot), types[i]!));
         const value = reads.length === 0 ? null : oneOrTuple(reads);
         return [makeBreak(label, null, value)];
       };
@@ -1621,7 +1622,7 @@ class WasmParser {
         [makeSwitch(
           caseLabels.slice(0, last),
           caseLabels[last]!,
-          makeLocalGet(idxSlot, ValType.I32),
+          makeLocalGet(varIndex(idxSlot), ValType.I32),
         )],
         caseLabels[last],
       );
@@ -1704,7 +1705,9 @@ class WasmParser {
             // FRESH reads, not the then-arm's node objects: sharing them would
             // put one expression in two tree positions.
             const ps = frame.paramSeed;
-            frame.exprs = ps ? ps.slots.map((slot, i) => makeLocalGet(slot, ps.types[i]!)) : [];
+            frame.exprs = ps
+              ? ps.slots.map((slot, i) => makeLocalGet(varIndex(slot), ps.types[i]!))
+              : [];
             frame.kind = 'else' as ControlFrameKind;
           } else {
             // `else` outside an `if` used to fall through this `if` and vanish:
@@ -2118,28 +2121,28 @@ class WasmParser {
 
         case 0x20: { // local.get
           const idx = r.readU32();
-          push(makeLocalGet(idx, localTypeAt(locals, idx, r)));
+          push(makeLocalGet(varIndex(idx), localTypeAt(locals, idx, r)));
           break;
         }
         case 0x21: { // local.set
           const idx = r.readU32();
-          push(makeLocalSet(idx, pop()));
+          push(makeLocalSet(varIndex(idx), pop()));
           break;
         }
         case 0x22: { // local.tee
           const idx = r.readU32();
           const val = pop();
-          push(makeLocalTee(idx, val, localTypeAt(locals, idx, r)));
+          push(makeLocalTee(varIndex(idx), val, localTypeAt(locals, idx, r)));
           break;
         }
         case 0x23: { // global.get
           const idx = r.readU32();
-          push(makeGlobalGet(`$global${idx}`, globalTypeAt(ctx.globalInfos, idx, r)));
+          push(makeGlobalGet(varName(`$global${idx}`), globalTypeAt(ctx.globalInfos, idx, r)));
           break;
         }
         case 0x24: { // global.set
           const idx = r.readU32();
-          push(makeGlobalSet(`$global${idx}`, pop()));
+          push(makeGlobalSet(varName(`$global${idx}`), pop()));
           break;
         }
 
@@ -2287,12 +2290,12 @@ class WasmParser {
         }
 
         case 0x3f:
-          push(makeMemorySize(r.readU8()));
+          push(makeMemorySize(varIndex(r.readU8())));
           break; // memory.size
         case 0x40: { // memory.grow
           // The memidx byte precedes the operand, so read it first.
           const growMem = r.readU8();
-          push(makeMemoryGrow(pop(), growMem));
+          push(makeMemoryGrow(pop(), varIndex(growMem)));
           break;
         }
 
@@ -2421,12 +2424,12 @@ function decodeGcPrefix(
       const n = (def?.kind === 'struct') ? def.fields.length : 0;
       const ops: Expression[] = [];
       for (let i = 0; i < n; i++) ops.unshift(pop());
-      push(makeStructNew(ti, ops, gcRefType(ti)));
+      push(makeStructNew(varIndex(ti), ops, gcRefType(ti)));
       break;
     }
     case 0x01: { // struct.new_default $T
       const ti = r.readU32();
-      push(makeStructNewDefault(ti, gcRefType(ti)));
+      push(makeStructNewDefault(varIndex(ti), gcRefType(ti)));
       break;
     }
     case 0x02: { // struct.get $T $f
@@ -2436,19 +2439,19 @@ function decodeGcPrefix(
       const def = ctx.heapTypeDefs[ti];
       const ft = (def?.kind === 'struct') ? def.fields[fi] : undefined;
       const rt: Type = ft ? (isRefType(ft.type) ? ft.type : ft.type as ValType) : ValType.I32;
-      push(makeStructGet(ti, fi, ref, rt, false));
+      push(makeStructGet(varIndex(ti), fi, ref, rt, false));
       break;
     }
     case 0x03: { // struct.get_s $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(ti, fi, pop(), ValType.I32, true));
+      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, true));
       break;
     }
     case 0x04: { // struct.get_u $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(ti, fi, pop(), ValType.I32, false));
+      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, false));
       break;
     }
     case 0x05: { // struct.set $T $f
@@ -2456,19 +2459,19 @@ function decodeGcPrefix(
       const fi = r.readU32();
       const val = pop();
       const ref = pop();
-      push(makeStructSet(ti, fi, ref, val));
+      push(makeStructSet(varIndex(ti), fi, ref, val));
       break;
     }
     case 0x06: { // array.new $T
       const ti = r.readU32();
       const len = pop();
       const init = pop();
-      push(makeArrayNew(ti, init, len, gcRefType(ti)));
+      push(makeArrayNew(varIndex(ti), init, len, gcRefType(ti)));
       break;
     }
     case 0x07: { // array.new_default $T
       const ti = r.readU32();
-      push(makeArrayNewDefault(ti, pop(), gcRefType(ti)));
+      push(makeArrayNewDefault(varIndex(ti), pop(), gcRefType(ti)));
       break;
     }
     case 0x08: { // array.new_fixed $T n
@@ -2476,7 +2479,7 @@ function decodeGcPrefix(
       const n = r.readU32();
       const vals: Expression[] = [];
       for (let i = 0; i < n; i++) vals.unshift(pop());
-      push(makeArrayNewFixed(ti, vals, gcRefType(ti)));
+      push(makeArrayNewFixed(varIndex(ti), vals, gcRefType(ti)));
       break;
     }
     case 0x09: { // array.new_data $T $d
@@ -2484,7 +2487,7 @@ function decodeGcPrefix(
       const di = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewData(ti, di, off, len, gcRefType(ti)));
+      push(makeArrayNewData(varIndex(ti), di, off, len, gcRefType(ti)));
       break;
     }
     case 0x0a: { // array.new_elem $T $e
@@ -2492,7 +2495,7 @@ function decodeGcPrefix(
       const ei = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewElem(ti, ei, off, len, gcRefType(ti)));
+      push(makeArrayNewElem(varIndex(ti), ei, off, len, gcRefType(ti)));
       break;
     }
     case 0x0b: { // array.get $T
@@ -2502,21 +2505,21 @@ function decodeGcPrefix(
       const rt: Type = eft ? (isRefType(eft.type) ? eft.type : eft.type as ValType) : ValType.I32;
       const idx = pop();
       const ref = pop();
-      push(makeArrayGet(ti, ref, idx, rt, false));
+      push(makeArrayGet(varIndex(ti), ref, idx, rt, false));
       break;
     }
     case 0x0c: { // array.get_s $T
       const ti = r.readU32();
       const idx = pop();
       const ref = pop();
-      push(makeArrayGet(ti, ref, idx, ValType.I32, true));
+      push(makeArrayGet(varIndex(ti), ref, idx, ValType.I32, true));
       break;
     }
     case 0x0d: { // array.get_u $T
       const ti = r.readU32();
       const idx = pop();
       const ref = pop();
-      push(makeArrayGet(ti, ref, idx, ValType.I32, false));
+      push(makeArrayGet(varIndex(ti), ref, idx, ValType.I32, false));
       break;
     }
     case 0x0e: { // array.set $T
@@ -2524,7 +2527,7 @@ function decodeGcPrefix(
       const val = pop();
       const idx = pop();
       const ref = pop();
-      push(makeArraySet(ti, ref, idx, val));
+      push(makeArraySet(varIndex(ti), ref, idx, val));
       break;
     }
     case 0x0f: { // array.len
@@ -2541,7 +2544,7 @@ function decodeGcPrefix(
       const value = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayFill(ti, ref, index, value, size));
+      push(makeArrayFill(varIndex(ti), ref, index, value, size));
       break;
     }
     case 0x11: { // array.copy $Tdest $Tsrc
@@ -2552,7 +2555,17 @@ function decodeGcPrefix(
       const srcRef = pop();
       const destIndex = pop();
       const destRef = pop();
-      push(makeArrayCopy(destTi, srcTi, destRef, destIndex, srcRef, srcIndex, size));
+      push(
+        makeArrayCopy(
+          varIndex(destTi),
+          varIndex(srcTi),
+          destRef,
+          destIndex,
+          srcRef,
+          srcIndex,
+          size,
+        ),
+      );
       break;
     }
     case 0x12: { // array.init_data $T $seg
@@ -2562,7 +2575,7 @@ function decodeGcPrefix(
       const offset = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayInitData(ti, seg, ref, index, offset, size));
+      push(makeArrayInitData(varIndex(ti), seg, ref, index, offset, size));
       break;
     }
     case 0x13: { // array.init_elem $T $seg
@@ -2572,7 +2585,7 @@ function decodeGcPrefix(
       const offset = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayInitElem(ti, seg, ref, index, offset, size));
+      push(makeArrayInitElem(varIndex(ti), seg, ref, index, offset, size));
       break;
     }
     case 0x14: { // ref.test $T
@@ -2712,7 +2725,7 @@ function decodeMiscPrefix(
       const size = pop();
       const src = pop();
       const dst = pop();
-      push(makeMemoryCopy(dst, src, size, dstMem, srcMem));
+      push(makeMemoryCopy(dst, src, size, varIndex(dstMem), varIndex(srcMem)));
       break;
     }
     case 11: { // memory.fill
@@ -2720,7 +2733,7 @@ function decodeMiscPrefix(
       const size = pop();
       const val = pop();
       const dst = pop();
-      push(makeMemoryFill(dst, val, size, fillMem));
+      push(makeMemoryFill(dst, val, size, varIndex(fillMem)));
       break;
     }
     // The eight bulk-memory / table operations. Each pops its operands in
@@ -2736,7 +2749,7 @@ function decodeMiscPrefix(
       const size = pop();
       const offset = pop();
       const dst = pop();
-      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size, initMem));
+      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size, varIndex(initMem)));
       break;
     }
     case 9: { // data.drop

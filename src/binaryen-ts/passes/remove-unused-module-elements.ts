@@ -33,6 +33,7 @@ import { type Expression, ExpressionKind } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { walkExpression } from '../ir/walk.ts';
+import { requireName } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -169,7 +170,7 @@ function _collectCallTargets(
 
 function _collectGlobalRefs(expr: Expression, liveGlobals: Set<string>): void {
   walkExpression(expr, (e) => {
-    if (e.kind === ExpressionKind.GlobalGet) liveGlobals.add(e.name);
-    if (e.kind === ExpressionKind.GlobalSet) liveGlobals.add(e.name);
+    if (e.kind === ExpressionKind.GlobalGet) liveGlobals.add(requireName(e.var, 'global.get'));
+    if (e.kind === ExpressionKind.GlobalSet) liveGlobals.add(requireName(e.var, 'global.set'));
   });
 }

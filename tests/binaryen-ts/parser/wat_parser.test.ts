@@ -18,6 +18,7 @@ import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import '../../../src/binaryen-ts/passes/index.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 Deno.test('parseWat — empty module', () => {
   const mod = parseWat('(module)');
@@ -72,7 +73,7 @@ Deno.test('parseWat — local.get and local.set', () => {
   assertEquals(body.kind, ExpressionKind.LocalGet);
   assertEquals(
     (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).index,
-    0,
+    varIndex(0),
   );
   assertEquals(
     (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).type,

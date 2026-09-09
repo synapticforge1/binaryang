@@ -79,6 +79,7 @@ import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { buildCFG, computeLiveness } from './cfg.ts';
 import { buildCallResultTypes, flattenFunction } from './flatten.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { requireIndex, requireName, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // ABI constants (mirror Asyncify.cpp lines 366-386)
@@ -201,7 +202,7 @@ export function parseAsyncifyOptions(passArgs: Record<string, string>): Asyncify
 
 /** i32 `global.get $__asyncify_data`. */
 function dataPtr(): Expression {
-  return makeGlobalGet(ASYNCIFY_DATA, ValType.I32);
+  return makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32);
 }
 
 /**
@@ -222,8 +223,8 @@ function makeStackOverflowCheck(): Expression {
 /** Body of `asyncify_start_unwind` / `asyncify_start_rewind` (sets state + data). */
 function makeStartBody(state: State): Expression {
   return makeBlock([
-    makeGlobalSet(ASYNCIFY_STATE, makeI32Const(state)),
-    makeGlobalSet(ASYNCIFY_DATA, makeLocalGet(0, ValType.I32)),
+    makeGlobalSet(varName(ASYNCIFY_STATE), makeI32Const(state)),
+    makeGlobalSet(varName(ASYNCIFY_DATA), makeLocalGet(varIndex(0), ValType.I32)),
     makeStackOverflowCheck(),
   ]);
 }
@@ -231,7 +232,7 @@ function makeStartBody(state: State): Expression {
 /** Body of `asyncify_stop_unwind` / `asyncify_stop_rewind` (resets state). */
 function makeStopBody(): Expression {
   return makeBlock([
-    makeGlobalSet(ASYNCIFY_STATE, makeI32Const(State.Normal)),
+    makeGlobalSet(varName(ASYNCIFY_STATE), makeI32Const(State.Normal)),
     makeStackOverflowCheck(),
   ]);
 }
@@ -354,7 +355,7 @@ export function synthesizeRuntimeSupport(
     ASYNCIFY_GET_STATE,
     [],
     [ValType.I32],
-    makeGlobalGet(ASYNCIFY_STATE, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_STATE), ValType.I32),
     exported,
   );
 }
@@ -752,7 +753,7 @@ export interface FlowCtx {
 function makeStateCheck(state: State): Expression {
   return makeBinary(
     BinaryOp.EqI32,
-    makeGlobalGet(ASYNCIFY_STATE, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_STATE), ValType.I32),
     makeI32Const(state),
   );
 }
@@ -843,10 +844,11 @@ function makeCallSupport(curr: Expression, ctx: FlowCtx): Expression {
     // declared type, not `set.value.type`: the parser leaves `Call.type === none`
     // (see flatten.ts `callEffectiveType`), whereas the local's type is always
     // concrete. Falling back to `set.value.type` only if the local is missing.
-    const callType = ctx.func.locals[set.index]?.type ?? typeOf(set.value);
+    const callType = ctx.func.locals[requireIndex(set.index, 'local index')]?.type ??
+      typeOf(set.value);
     const fake = fakeGlobalFor(ctx, callType);
-    executed = makeGlobalSet(fake, set.value);
-    setBack = makeLocalSet(set.index, makeGlobalGet(fake, callType as ValType));
+    executed = makeGlobalSet(varName(fake), set.value);
+    setBack = makeLocalSet(set.index, makeGlobalGet(varName(fake), callType as ValType));
   }
 
   const thenSeq = makeBlock([executed, makePossibleUnwind(index, setBack)], null);
@@ -904,11 +906,11 @@ function processFlow(curr: Expression, ctx: FlowCtx): Expression {
       const condTemp = ctx.func.locals.length;
       ctx.func.locals.push({ type: ValType.I32 });
       ctx.savedCondTemps?.add(condTemp);
-      const pre = makeMaybeSkip(makeLocalSet(condTemp, curr.condition));
+      const pre = makeMaybeSkip(makeLocalSet(varIndex(condTemp), curr.condition));
       const if1 = makeIf(
         makeBinary(
           BinaryOp.OrI32,
-          makeLocalGet(condTemp, ValType.I32),
+          makeLocalGet(varIndex(condTemp), ValType.I32),
           makeStateCheck(State.Rewinding),
         ),
         newIfTrue,
@@ -916,7 +918,7 @@ function processFlow(curr: Expression, ctx: FlowCtx): Expression {
       const if2 = makeIf(
         makeBinary(
           BinaryOp.OrI32,
-          makeUnary(UnaryOp.EqzI32, makeLocalGet(condTemp, ValType.I32)),
+          makeUnary(UnaryOp.EqzI32, makeLocalGet(varIndex(condTemp), ValType.I32)),
           makeStateCheck(State.Rewinding),
         ),
         newIfFalse,
@@ -1057,7 +1059,7 @@ function makeGetStackPos(): Expression {
     false,
     STACK_POS_OFFSET,
     STACK_ALIGN_LOG2,
-    makeGlobalGet(ASYNCIFY_DATA, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
     ValType.I32,
   );
 }
@@ -1069,7 +1071,7 @@ function makeIncStackPos(by: number): Expression {
     4,
     STACK_POS_OFFSET,
     STACK_ALIGN_LOG2,
-    makeGlobalGet(ASYNCIFY_DATA, ValType.I32),
+    makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
     makeBinary(BinaryOp.AddI32, makeGetStackPos(), makeI32Const(by)),
   );
 }
@@ -1133,7 +1135,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
         return makeBlock([
           makeIncStackPos(-4),
           makeLocalSet(
-            ctx.rewindIndex,
+            varIndex(ctx.rewindIndex),
             makeLoad(4, false, 0, STACK_ALIGN_LOG2, makeGetStackPos(), ValType.I32),
           ),
         ], null);
@@ -1142,18 +1144,20 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
         // Is this the call to resume into?  rewindIndex == index
         return makeBinary(
           BinaryOp.EqI32,
-          makeLocalGet(ctx.rewindIndex, ValType.I32),
+          makeLocalGet(varIndex(ctx.rewindIndex), ValType.I32),
           c.operands[0]!,
         );
       }
     } else if (e.kind === ExpressionKind.GlobalSet) {
       const g = e as GlobalSetExpr;
-      const type = ctx.fakeNameToType.get(g.name);
-      if (type !== undefined) return makeLocalSet(fakeCallLocal(ctx, type), g.value);
+      const type = ctx.fakeNameToType.get(requireName(g.var, 'global'));
+      if (type !== undefined) return makeLocalSet(varIndex(fakeCallLocal(ctx, type)), g.value);
     } else if (e.kind === ExpressionKind.GlobalGet) {
       const g = e as GlobalGetExpr;
-      const type = ctx.fakeNameToType.get(g.name);
-      if (type !== undefined) return makeLocalGet(fakeCallLocal(ctx, type), type as ValType);
+      const type = ctx.fakeNameToType.get(requireName(g.var, 'global'));
+      if (type !== undefined) {
+        return makeLocalGet(varIndex(fakeCallLocal(ctx, type)), type as ValType);
+      }
     }
     return e;
   });
@@ -1162,7 +1166,13 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
 /** `store $__asyncify_data[stackPos] = index; stackPos += 4`. */
 function makeCallIndexPush(unwindIndex: number): Expression {
   return makeBlock([
-    makeStore(4, 0, STACK_ALIGN_LOG2, makeGetStackPos(), makeLocalGet(unwindIndex, ValType.I32)),
+    makeStore(
+      4,
+      0,
+      STACK_ALIGN_LOG2,
+      makeGetStackPos(),
+      makeLocalGet(varIndex(unwindIndex), ValType.I32),
+    ),
     makeIncStackPos(4),
   ], null);
 }
@@ -1174,19 +1184,19 @@ function makeLocalLoading(func: WasmFunction, saved: number[]): Expression {
   const temp = allocLocal(func, ValType.I32);
   const list: Expression[] = [
     makeIncStackPos(-total),
-    makeLocalSet(temp, makeGetStackPos()),
+    makeLocalSet(varIndex(temp), makeGetStackPos()),
   ];
   let offset = 0;
   for (const i of saved) {
     const t = func.locals[i]!.type;
     list.push(makeLocalSet(
-      i,
+      varIndex(i),
       makeLoad(
         loadOpBytes(t),
         true,
         offset,
         STACK_ALIGN_LOG2,
-        makeLocalGet(temp, ValType.I32),
+        makeLocalGet(varIndex(temp), ValType.I32),
         t as ValType,
       ),
     ));
@@ -1199,7 +1209,7 @@ function makeLocalLoading(func: WasmFunction, saved: number[]): Expression {
 function makeLocalSaving(func: WasmFunction, saved: number[]): Expression {
   if (saved.length === 0) return makeBlock([], null);
   const temp = allocLocal(func, ValType.I32);
-  const list: Expression[] = [makeLocalSet(temp, makeGetStackPos())];
+  const list: Expression[] = [makeLocalSet(varIndex(temp), makeGetStackPos())];
   let offset = 0;
   for (const i of saved) {
     const t = func.locals[i]!.type;
@@ -1207,8 +1217,8 @@ function makeLocalSaving(func: WasmFunction, saved: number[]): Expression {
       loadOpBytes(t),
       offset,
       STACK_ALIGN_LOG2,
-      makeLocalGet(temp, ValType.I32),
-      makeLocalGet(i, t as ValType),
+      makeLocalGet(varIndex(temp), ValType.I32),
+      makeLocalGet(varIndex(i), t as ValType),
     ));
     offset += byteSize(t);
   }
@@ -1263,7 +1273,7 @@ export function localsInstrumentFunction(
 
   const newList: Expression[] = [
     makeIf(makeStateCheck(State.Rewinding), makeLocalLoading(func, saved)),
-    makeLocalSet(unwindIndex, unwindBlock),
+    makeLocalSet(varIndex(unwindIndex), unwindBlock),
     makeCallIndexPush(unwindIndex),
     makeLocalSaving(func, saved),
   ];

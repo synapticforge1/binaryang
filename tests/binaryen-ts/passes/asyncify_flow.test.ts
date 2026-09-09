@@ -35,6 +35,7 @@ import {
   parseAsyncifyOptions,
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
 import type { WasmFunction, WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { nameOf, sameVar, type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -160,7 +161,8 @@ Deno.test('flow — instruments a call inside an if arm (linearized)', () => {
   let stateReads = 0;
   walkExpression(foo.body, (e) => {
     if (
-      e.kind === ExpressionKind.GlobalGet && (e as { name: string }).name === '$__asyncify_state'
+      e.kind === ExpressionKind.GlobalGet &&
+      sameVar((e as { var: Var }).var, varName('$__asyncify_state'))
     ) {
       stateReads++;
     }
@@ -197,7 +199,7 @@ Deno.test('flow — a state-changing local.set defers via a fake global', () => 
   walkExpression(foo.body, (e) => {
     if (
       e.kind === ExpressionKind.GlobalSet &&
-      (e as { name: string }).name.startsWith('$asyncify_fake_call_global_')
+      (nameOf((e as { var: Var }).var) ?? '').startsWith('$asyncify_fake_call_global_')
     ) {
       fakeSets++;
     }

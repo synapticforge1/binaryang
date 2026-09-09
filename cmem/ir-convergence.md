@@ -921,7 +921,7 @@ compiler-driven and line-scoped, which left only four sites needing hands — th
 offending read sat on a different line from the error, and one where `loop.body.type` became
 `loop.typeOf(body)` because the pattern captured only the last path segment.
 
-##### Step 4 — one `Expression` 🚧 measured and decided, not yet written
+##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (4 of 5 families done)
 
 ⚠️ **"Alias one to the other" understates this by a lot.** The kind sets agree on 73 kinds; the
 FIELD sets do not. Measured:
@@ -1018,6 +1018,199 @@ element. S4 went the other way on grouping, and the SIMD lane family went the ot
 
 **This is the largest single piece left in S6**, and larger than the plan's one-line description of
 it. Recorded before starting so the next session begins from the measurement.
+
+###### ✅ The `typeIndex` family converted — the pilot for the other four
+
+The first of the five (b) families is done: binaryen-ts's `typeIndex` / `destTypeIndex` /
+`srcTypeIndex` are now `typeVar` / `destTypeVar` / `srcTypeVar`, holding a `Var`. 40 references
+across the node definitions, 15 factories, 44 construction sites, 15 encoder reads, 19 test call
+sites. The nodes no longer have a `typeIndex` field at all — it is gone, not shadowed.
+
+**Nothing moved**: 952 tests, baseline IDENTICAL, bridge 397/421 unchanged, spec 100% on all four
+axes with no misses. A representation change that moved a byte would have meant it was not one.
+
+🔑 **The method that made it cheap: let the compiler name the sites.** The first pass searched for
+factory names and missed a call made through a local alias —
+
+```ts
+const make = head === 'array.init_data' ? makeArrayInitData : makeArrayInitElem;
+return make(varIndex(ti), …);
+```
+
+— which no name-based scan can see, because the name is not at the call. So the remaining sites came
+from `deno check` itself: `scratchpad/wrap-from-check.ts` reads the error stream and rewrites the
+exact `file:line:col` span the compiler underlines. That found 19 test sites a search would have had
+to guess at.
+
+⚠️ **And it caught its own artifact, which is the point.** The first run fixed 11 of 18 and reported
+success on all 11 — it required a `~` run for the underline, and TypeScript marks a
+**single-character** token with `^`. Every one-letter argument (`t,`) was skipped silently. The
+count is what exposed it: 11 wrapped, 18 reported. **Always compare the two numbers**; "11 wrapped"
+alone reads like a clean pass.
+
+The test assertions changed shape as well, and are stronger for it:
+
+```ts
+assertEquals(sn.typeVar, varIndex(0)); // was: assertEquals(sn.typeIndex, 0)
+```
+
+`varIndex(0)` equals only a _resolved_ index 0, so a node carrying an unresolved name now fails. The
+old form could not tell those apart.
+
+⚠️ **The `index` family will not take the same treatment.** `index: number` (an entity reference, a
+`Var` candidate) and `index: Expression` (an operand — `table.get`'s dynamic index) share the field
+name in `expressions.ts`, four sites of the latter. The type tells them apart and the name does not,
+so that family has to be selected by TYPE. The compiler would catch a name-keyed rename that caught
+the operands — `Expression` is not `Var` — but it would catch it as a pile of errors to sort through
+rather than as one, which is how the `.type` regex went wrong: the recovery cost, not the detection,
+is what makes the wrong key expensive.
+
+**Remaining (b) families:** `index`, `name`, `memory`, `castType`.
+
+###### ✅ The `memory` family converted — 2 of 5
+
+`memory` and `sourceMemory` hold a `Var` on all nine kinds that address a memory (load, store,
+memory.size/grow/init/copy/fill, simd.load, simd.load_store_lane). **No rename**: unlike
+`typeIndex`, the name does not encode the old type, so only the type changed.
+
+🔑 **The whole family cost six edits, not fifty, because the wrap went at the SOURCE.** The first
+check reported 50 errors and every one was the same local flowing out of `readMemArg`. The binary
+form of a memarg memory index is always resolved, so `readMemArg` returns a `Var` now and the ~50
+factory calls downstream were already correct. **When the compiler reports many errors on one value,
+the fix is usually upstream of all of them.**
+
+⚠️ **"Absent means memory 0" is a real convention here and it survived intact.** The factories
+deliberately omit the field when it is zero:
+
+```ts
+...(indexOf(memory) !== 0 ? { memory } : {})   // was: memory !== 0
+```
+
+`indexOf` returns `undefined` for a NAME, so a named memory is never mistaken for memory 0 and
+dropped. The test that pins this — _records no memory field on a memory-0 access_ — passed
+unchanged, which is what makes the claim worth anything.
+
+Encoder reads go through one helper stating the convention once:
+
+```ts
+function memIndex(v: Var | undefined, what: string): number {
+  return v === undefined ? 0 : requireIndex(v, `${what} memory index`);
+}
+```
+
+`writeMemArg` needed only its parameter type: it already branched on the resolved VALUE
+(`mem !== 0`), not on the field's presence, so multi-memory encoding was never presence-dependent.
+
+**Gate**: 952 tests, baseline IDENTICAL, bridge 397/421, spec 100% on four axes. One test changed
+shape rather than fixed — `multi_memory.test.ts` asserted `store['memory'] === 1` and now asserts
+`varIndex(1)`.
+
+⚠️ **A restriction became liftable, and is NOT lifted yet.** `requireDefaultMemory` in the bridge
+rejects every non-zero and named memory index as "not yet supported". Two of its three reasons are
+gone: the encoder's `checkSingleMemory` guard no longer exists, and the bridge already carries every
+`module.memories` declaration. What is unverified is the NAME path — passing a name through would
+move the failure from bridge time to encode time, which is a worse place for it unless names are
+resolved first. None of the 24 current bridge failures are memory-related, so lifting it will not
+move 397/421; it closes a lossy path rather than fixing a break. Its own increment.
+
+**Remaining (b) families:** `index`, `name`, `castType`.
+
+###### ✅ The `index` (locals) family converted — 3 of 5, and the one that found real defects
+
+`local.get` / `local.set` / `local.tee` hold a `Var`. 202 sites, and unlike the first two families
+this one runs through the OPTIMIZATION PASSES, so the errors ran in both directions: a pass READS an
+index (`requireIndex`) and also WRITES a renumbered one (`varIndex`). Two mirrored compiler-driven
+scripts, run together each round.
+
+🛑 **Three defect classes the type checker cannot see. All three compiled clean.**
+
+| class                                        | what broke                                                                                                                                                                                              | what caught it                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `===` became REFERENCE comparison            | `SimplifyLocals` lost `set`+`get`→`tee` fusion. Two separately built vars for the same local are never `===`, so the optimization silently stopped firing                                               | `passes.test.ts`                             |
+| `` `${e.index}` `` renders `[object Object]` | `LocalCSE` keyed its cache on `` `lg:${expr.index}` `` — EVERY `local.get` hashed alike, folding unrelated values. A behavioural miscompile. Four more sites: the invalidation path, a WAT printer (×3) | the fuzz test (seed 2) and one pipeline test |
+| `as any` on a test fixture                   | `asyncify.test.ts` hand-builds a tree and casts the body `as any`, so `index: 0` was never checked and reached a pass as a raw number                                                                   | 8 asyncify tests                             |
+
+🔑 **The BYTE tests could not see any of it.** Baseline stayed IDENTICAL and bridge stayed 397/421
+while `LocalCSE` was actively miscompiling, because neither exercises that pass on those inputs.
+Only the behavioural tests could. This is the argument for keeping them in the gate.
+
+⚠️ **`as any` is the boundary of the compiler-driven method**, and it is worth stating plainly: the
+technique converts everything the compiler can see, and nothing it cannot. 12 `as any` casts remain
+in the binaryen-ts tests; each is a place a future field change will pass silently.
+
+Finding it needed instrumenting `requireIndex` to dump the offending VALUE — the stack names only
+the read site, never where the bad node was built. It came back `0`, a number rather than a var,
+which pointed straight at the literal.
+
+`sameVar(a, b)` now lives in `ir.ts` beside `requireIndex`, with the `SimplifyLocals` failure in its
+doc comment. Every remaining family will hit that class.
+
+The interesting sites, which no script should have touched: `coalesce-locals` renumbers slots and so
+needs both directions in one expression (read the current index, compare, write a wrapped one);
+`pick-load-signs`'s `LoadInfo.localIndex` and `flatten`'s structural cast are private types
+MIRRORING the node's field, so they follow it rather than converting at each use; `inlining`'s
+`varIndex(remap(requireIndex(…)))` reads resolved, renumbers, stores resolved.
+
+**Gate**: 952 tests, baseline IDENTICAL, bridge 397/421, spec 100% four axes, lint clean.
+
+**Remaining (b) families:** `name` (which is really TWO families — globals, and block/loop/try
+labels), and `castType` (a decision, not a conversion — see below).
+
+###### ✅ The globals `name` family converted — 4 of 5
+
+binaryen-ts's `GlobalGetExpr.name: string` / `GlobalSetExpr.name: string` are now `var: Var`,
+matching wabt-ts's spelling. Both a rename and a retype, because `name` encoded the old type; the
+direction follows blast radius, as Group 3 says.
+
+🔑 **Renaming the field, not just retyping it, converts a SILENT break into a compile error — and
+this family proved it.** `LocalCSE` had a SECOND cache-key bug, `` `gg:${expr.name}` ``, identical
+in kind to the `` `lg:` `` one that miscompiled in the locals family. Because the field became
+`var`, the compiler reported a missing property instead of letting the object stringify to
+`[object Object]`. The `memory` family kept its field name and had no such protection.
+
+**So: when a field's type changes meaningfully, rename it too.** It is not cosmetic — it is the
+difference between the compiler finding the sites and a behavioural test finding them later.
+
+⚠️ **A name collision the compiler could not warn about.** `bridge.ts` already had a local
+`varName(v, names)` that resolves a var TO its declared string — the exact INVERSE of `ir.ts`'s
+`varName(name)`, which builds one FROM a string. The inserted calls bound silently to the local
+function. Renamed it `resolveVarName`, which also makes the two-step honest at the call site:
+resolve the wabt-ts var to its name, then rebuild a name-form Var, because binaryen-ts's encoder
+addresses globals BY NAME.
+
+⚠️ **The cast class has a second spelling.** After the locals family I swept for `as any` and found
+12. That grep missed `(getState as { name: string }).name` — a NARROW structural cast asserting the
+old shape, which kept compiling and yielded `undefined` at runtime. Sweep for `as \{ <field>:` as
+well.
+
+`requireName` and `nameOf` join `requireIndex`/`indexOf` in `ir.ts`: binaryen-ts addresses globals
+by name, and inventing a name for an index-form var is the same silent-wrong-answer failure in the
+other direction.
+
+`valueTypeEquals` hand-wrote `sameVar`'s comparison arm-by-arm with two structural casts; folded
+into `sameVar` so there is one spelling to keep agreed.
+
+**Gate**: 952 tests, baseline IDENTICAL, bridge 397/421, spec 100% four axes, lint clean.
+
+⚠️ **Block/loop/br/try LABELS are NOT part of this family**, though they also spell a reference as
+`name: string`. wabt-ts holds a `Var` that may be a relative DEPTH; binaryen-ts holds a symbolic
+label its passes rely on. That is the block family's structural question (Group 1), not the (b)
+conversion.
+
+###### ⚠️ `castType` is NOT mechanical, and is deliberately left
+
+The (b) measurement paired `heapType`/`castType` with the other four. It does not belong there.
+
+- **wabt-ts** `heapType: Var`, where the NAME arm does double duty: `{kind:'name', name:'func'}` is
+  the ABSTRACT heap type, `{kind:'name', name:'$T'}` is an unresolved user type. `writeHeapType`
+  tells them apart by looking the string up in the keyword table.
+- **binaryen-ts** `castType: HeapType = AbstractHeapType | number` — two arms, explicitly typed.
+
+Neither dominates. **Fidelity binds toward wabt-ts** (binaryen-ts cannot carry a symbolic `$T` at
+all), but **binaryen-ts's form is better typed** — one field with two meanings distinguished by a
+string convention is the hazard class this codebase polices hardest. The form that binds both is a
+third one, `{ kind:'abstract', name: AbstractHeapType } | Var`, and introducing a new type is a
+decision to take deliberately rather than inside a mechanical pass.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 

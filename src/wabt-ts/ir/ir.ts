@@ -76,6 +76,44 @@ export function indexOf(v: Var): Index | undefined {
   return v.kind === 'index' ? v.value : undefined;
 }
 
+/**
+ * Whether two vars denote the same entity.
+ *
+ * ⚠️ A `Var` is an OBJECT, so `a === b` compares REFERENCES. Two separately
+ * built vars for the same local are never `===`, and code written when the
+ * field was a plain number keeps compiling after the change while quietly
+ * meaning something else — a comparison that stops firing rather than failing.
+ * `SimplifyLocals` lost its set+get→tee fusion exactly this way, and only a
+ * behavioural test caught it.
+ */
+export function sameVar(a: Var, b: Var): boolean {
+  return a.kind === 'index'
+    ? b.kind === 'index' && a.value === b.value
+    : b.kind === 'name' && a.name === b.name;
+}
+
+/**
+ * The symbolic name a {@link Var} holds, or a throw when it is already resolved
+ * to an index.
+ *
+ * The mirror of {@link requireIndex}, for consumers that address an entity BY
+ * NAME — binaryen-ts references globals that way. Returning a made-up name for
+ * an index-form var would silently address the wrong entity, the same failure
+ * `requireIndex` exists to prevent, in the other direction.
+ */
+export function requireName(v: Var, what: string): string {
+  if (v.kind === 'name') return v.name;
+  throw new Error(
+    `${what}: var is index ${v.value}, but a symbolic name is required here. ` +
+      `Resolve it against the module's name table rather than inventing one.`,
+  );
+}
+
+/** The name a {@link Var} holds, or `undefined` when it is an index. */
+export function nameOf(v: Var): string | undefined {
+  return v.kind === 'name' ? v.name : undefined;
+}
+
 /** Type guard for index-form {@link Var}. */
 export function isVarIndex(v: Var): v is { kind: 'index'; value: Index } {
   return v.kind === 'index';
@@ -1232,10 +1270,9 @@ export function valueTypeEquals(a: ValueType, b: ValueType): boolean {
   if (isRefValueType(a) || isRefValueType(b)) {
     if (!isRefValueType(a) || !isRefValueType(b)) return false;
     if (a.nullable !== b.nullable) return false;
-    if (a.heapType.kind !== b.heapType.kind) return false;
-    return a.heapType.kind === 'index'
-      ? a.heapType.value === (b.heapType as { value: number }).value
-      : a.heapType.name === (b.heapType as { name: string }).name;
+    // Was a hand-written arm-by-arm comparison with two structural casts —
+    // `sameVar` is that, and having one spelling is how the two stay agreed.
+    return sameVar(a.heapType, b.heapType);
   }
   return a === b;
 }

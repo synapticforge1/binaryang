@@ -57,6 +57,7 @@ import {
 import { ModuleBuilder, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { mapExpression } from '../../../src/binaryen-ts/ir/walk.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Seeded PRNG (mulberry32) — deterministic so failures are reproducible.
@@ -107,7 +108,7 @@ const clone = (e: Expression): Expression => mapExpression(e, (x) => x);
 function genPure(g: Gen, depth: number): Expression {
   if (depth <= 0 || g.r() < 0.45) {
     return g.r() < 0.7
-      ? makeLocalGet(Math.floor(g.r() * g.nLocals), ValType.I32)
+      ? makeLocalGet(varIndex(Math.floor(g.r() * g.nLocals)), ValType.I32)
       : makeI32Const(pick(g, CONSTS));
   }
   if (g.r() < 0.25) return makeUnary(pick(g, UN_OPS), genPure(g, depth - 1));
@@ -118,7 +119,7 @@ function genPure(g: Gen, depth: number): Expression {
 function genExpr(g: Gen, depth: number): Expression {
   if (depth <= 0 || g.r() < 0.35) {
     return g.r() < 0.7
-      ? makeLocalGet(Math.floor(g.r() * g.nLocals), ValType.I32)
+      ? makeLocalGet(varIndex(Math.floor(g.r() * g.nLocals)), ValType.I32)
       : makeI32Const(pick(g, CONSTS));
   }
   const choice = g.r();
@@ -130,14 +131,18 @@ function genExpr(g: Gen, depth: number): Expression {
     const k = Math.floor(g.r() * g.nLocals);
     const inner = makeBinary(
       pick(g, BIN_OPS),
-      makeLocalGet(k, ValType.I32),
-      makeLocalTee(k, genExpr(g, depth - 1), ValType.I32),
+      makeLocalGet(varIndex(k), ValType.I32),
+      makeLocalTee(varIndex(k), genExpr(g, depth - 1), ValType.I32),
     );
-    return makeBinary(pick(g, BIN_OPS), inner, makeLocalGet(k, ValType.I32));
+    return makeBinary(pick(g, BIN_OPS), inner, makeLocalGet(varIndex(k), ValType.I32));
   }
   if (choice < 0.30) {
     // local.tee — write a local mid-expression, yield the value.
-    return makeLocalTee(Math.floor(g.r() * g.nLocals), genExpr(g, depth - 1), ValType.I32);
+    return makeLocalTee(
+      varIndex(Math.floor(g.r() * g.nLocals)),
+      genExpr(g, depth - 1),
+      ValType.I32,
+    );
   }
   if (choice < 0.42) {
     // Twin: a pure subexpr duplicated → guaranteed CSE candidate, often around a tee.
@@ -168,18 +173,18 @@ function genStmt(g: Gen, depth: number): Expression {
     const k = Math.floor(g.r() * g.nLocals);
     const a = Math.floor(g.r() * g.nLocals);
     const b = Math.floor(g.r() * g.nLocals);
-    const write = makeLocalSet(k, genExpr(g, 2));
+    const write = makeLocalSet(varIndex(k), genExpr(g, 2));
     const branch = g.r() < 0.5
       ? makeIf(genExpr(g, 2), makeBlock([write], null), null)
       : makeIf(genExpr(g, 2), makeBlock([genStmt(g, depth - 1)], null), makeBlock([write], null));
     return makeBlock([
-      makeLocalSet(a, makeLocalGet(k, ValType.I32)),
+      makeLocalSet(varIndex(a), makeLocalGet(varIndex(k), ValType.I32)),
       branch,
-      makeLocalSet(b, makeLocalGet(k, ValType.I32)),
+      makeLocalSet(varIndex(b), makeLocalGet(varIndex(k), ValType.I32)),
     ], null);
   }
   if (depth <= 0 || choice < 0.50) {
-    return makeLocalSet(Math.floor(g.r() * g.nLocals), genExpr(g, 3));
+    return makeLocalSet(varIndex(Math.floor(g.r() * g.nLocals)), genExpr(g, 3));
   }
   if (choice < 0.80) {
     const cond = genExpr(g, 2);
@@ -228,7 +233,9 @@ function irToString(e: any): string {
   if (!e) return '_';
   let r = e.kind;
   if (e.opcode) r += `[${e.opcode}]`;
-  if (e.index !== undefined) r += `#${e.index}`;
+  if (e.index !== undefined) {
+    r += `#${typeof e.index === 'object' && 'kind' in e.index ? JSON.stringify(e.index) : e.index}`;
+  }
   if (e.kind === 'const') r += `=${e.value?.i32}`;
   const kids: string[] = [];
   for (const k of Object.keys(e)) {
