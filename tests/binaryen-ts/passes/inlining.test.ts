@@ -32,6 +32,7 @@ import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts
 import { deepCopy, measureSize } from '../../../src/binaryen-ts/passes/inlining.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -103,7 +104,7 @@ Deno.test('measureSize: binary counts as 3 (binary + 2 children)', () => {
 // ---------------------------------------------------------------------------
 
 Deno.test('deepCopy: produces a structurally equal but distinct tree', () => {
-  const orig = makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(1));
+  const orig = makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1));
   const copy = deepCopy(orig);
   assertEquals(copy.kind, orig.kind);
   if (copy.kind === ExpressionKind.Binary && orig.kind === ExpressionKind.Binary) {
@@ -125,7 +126,7 @@ Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
     params: [ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
-    body: makeLocalGet(0, ValType.I32),
+    body: makeLocalGet(varIndex(0), ValType.I32),
   };
 
   // caller: (func $main (result i32) (call $identity (i32.const 5)))
@@ -160,7 +161,11 @@ Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
     params: [ValType.I32, ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
-    body: makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeLocalGet(1, ValType.I32)),
+    body: makeBinary(
+      BinaryOp.AddI32,
+      makeLocalGet(varIndex(0), ValType.I32),
+      makeLocalGet(varIndex(1), ValType.I32),
+    ),
   };
 
   const caller: WasmFunction = {
@@ -195,7 +200,7 @@ Deno.test('Inlining: call operands become local.set in the inlined block', () =>
     params: [ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
-    body: makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(1)),
+    body: makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
   };
 
   const caller: WasmFunction = {
@@ -265,9 +270,9 @@ Deno.test('Inlining: recursive call is not inlined', () => {
     body: makeReturn(
       makeBinary(
         BinaryOp.MulI32,
-        makeLocalGet(0, ValType.I32),
+        makeLocalGet(varIndex(0), ValType.I32),
         makeCall('factorial', [
-          makeBinary(BinaryOp.SubI32, makeLocalGet(0, ValType.I32), makeI32Const(1)),
+          makeBinary(BinaryOp.SubI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
         ], ValType.I32),
       ),
     ),
@@ -300,7 +305,11 @@ Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (reg
     params: [ValType.I32, ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
-    body: makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeLocalGet(1, ValType.I32)),
+    body: makeBinary(
+      BinaryOp.AddI32,
+      makeLocalGet(varIndex(0), ValType.I32),
+      makeLocalGet(varIndex(1), ValType.I32),
+    ),
   };
   const caller: WasmFunction = {
     name: '$main',
@@ -406,8 +415,8 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }], // one non-param local
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(7)),
-      makeReturn(makeLocalGet(0, ValType.I32)),
+      makeLocalSet(varIndex(0), makeI32Const(7)),
+      makeReturn(makeLocalGet(varIndex(0), ValType.I32)),
     ]),
   };
 
@@ -687,7 +696,7 @@ function makePatternABody(padNops: number): Expression {
   items.push({
     kind: ExpressionKind.If,
     type: None,
-    condition: makeLocalGet(0, ValType.I32),
+    condition: makeLocalGet(varIndex(0), ValType.I32),
     ifTrue: makeReturn(null),
     ifFalse: null,
   } as Expression);
@@ -833,8 +842,8 @@ Deno.test('split-inlining: non-simple condition rejects Pattern A', () => {
         type: None,
         condition: makeBinary(
           BinaryOp.AddI32,
-          makeLocalGet(0, ValType.I32),
-          makeLocalGet(0, ValType.I32),
+          makeLocalGet(varIndex(0), ValType.I32),
+          makeLocalGet(varIndex(0), ValType.I32),
         ),
         ifTrue: makeReturn(null),
         ifFalse: null,
@@ -1011,14 +1020,14 @@ Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', 
       {
         kind: ExpressionKind.If,
         type: None,
-        condition: makeLocalGet(0, ValType.I32),
+        condition: makeLocalGet(varIndex(0), ValType.I32),
         ifTrue: makeBlock(heavy1),
         ifFalse: null,
       } as Expression,
       {
         kind: ExpressionKind.If,
         type: None,
-        condition: makeLocalGet(1, ValType.I32),
+        condition: makeLocalGet(varIndex(1), ValType.I32),
         ifTrue: makeBlock(heavy2),
         ifFalse: null,
       } as Expression,
@@ -1080,7 +1089,11 @@ Deno.test('Inlining: callee that returns via a block-wrapped `return` yields a v
   // body: (block (return (i32.add (local.get 0) (local.get 1))))  → typed unreachable
   const calleeBody = makeBlock([
     makeReturn(
-      makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeLocalGet(1, ValType.I32)),
+      makeBinary(
+        BinaryOp.AddI32,
+        makeLocalGet(varIndex(0), ValType.I32),
+        makeLocalGet(varIndex(1), ValType.I32),
+      ),
     ),
   ]);
   b.addFunction('$callee', [ValType.I32, ValType.I32], [ValType.I32], calleeBody, []);
@@ -1088,7 +1101,7 @@ Deno.test('Inlining: callee that returns via a block-wrapped `return` yields a v
     '$caller',
     [ValType.I32],
     [ValType.I32],
-    makeCall('$callee', [makeLocalGet(0, ValType.I32), makeI32Const(5)], ValType.I32),
+    makeCall('$callee', [makeLocalGet(varIndex(0), ValType.I32), makeI32Const(5)], ValType.I32),
     [],
   );
   b.addExport('caller', '$caller', 'function');

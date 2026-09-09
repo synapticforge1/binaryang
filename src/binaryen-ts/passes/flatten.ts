@@ -63,6 +63,7 @@ import { None, type Type, Unreachable, type ValType } from '../ir/types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -196,16 +197,16 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   // sibling operands) → the parent read the wrong value. Capture into a temp
   // that nothing else writes, mirroring the general-case hoist below.
   if (e.kind === ExpressionKind.LocalTee) {
-    const tee = e as { index: number; value: Expression; type: Type };
+    const tee = e as { index: Var; value: Expression; type: Type };
     const inner = flattenExpr(tee.value, ctx);
     const temp = allocTemp(ctx, tee.type);
     return {
       pre: [
         ...inner.pre,
-        makeLocalSet(temp, inner.value),
-        makeLocalSet(tee.index, makeLocalGet(temp, tee.type as ValType)),
+        makeLocalSet(varIndex(temp), inner.value),
+        makeLocalSet(tee.index, makeLocalGet(varIndex(temp), tee.type as ValType)),
       ],
-      value: makeLocalGet(temp, tee.type as ValType),
+      value: makeLocalGet(varIndex(temp), tee.type as ValType),
     };
   }
 
@@ -234,8 +235,8 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   if (isConcrete(effType)) {
     const temp = allocTemp(ctx, effType);
     return {
-      pre: [...childPre, makeLocalSet(temp, rebuilt)],
-      value: makeLocalGet(temp, effType as ValType),
+      pre: [...childPre, makeLocalSet(varIndex(temp), rebuilt)],
+      value: makeLocalGet(varIndex(temp), effType as ValType),
     };
   }
   // Void statement (store, local.set, drop, void call, br/br_if without value…).
@@ -275,7 +276,7 @@ function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
     const f = flattenExpr(child, ctx);
     list.push(...f.pre);
     if (isLast && concrete) {
-      list.push(makeLocalSet(resultTemp, f.value));
+      list.push(makeLocalSet(varIndex(resultTemp), f.value));
     } else if (child.type === Unreachable) {
       // A non-last `unreachable` (e.g. a bare `unreachable`, or the value of a
       // call to a noreturn fn) is trivial with an empty prelude, so it would
@@ -291,7 +292,7 @@ function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
 
   const flatBlock = makeBlock(list, block.name);
   return concrete
-    ? { pre: [flatBlock], value: makeLocalGet(resultTemp, block.type as ValType) }
+    ? { pre: [flatBlock], value: makeLocalGet(varIndex(resultTemp), block.type as ValType) }
     : { pre: [flatBlock], value: makeNop() };
 }
 
@@ -304,7 +305,7 @@ function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
   const arm = (a: Expression): Expression => {
     const f = flattenExpr(a, ctx);
     const stmts = [...f.pre];
-    if (concrete && isConcrete(typeOf(a))) stmts.push(makeLocalSet(resultTemp, f.value));
+    if (concrete && isConcrete(typeOf(a))) stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
     return makeBlock(stmts, null);
   };
 
@@ -319,7 +320,7 @@ function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
   };
 
   return concrete
-    ? { pre: [...cond.pre, flatIf], value: makeLocalGet(resultTemp, iff.type as ValType) }
+    ? { pre: [...cond.pre, flatIf], value: makeLocalGet(varIndex(resultTemp), iff.type as ValType) }
     : { pre: [...cond.pre, flatIf], value: makeNop() };
 }
 
@@ -330,7 +331,9 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
 
   const f = flattenExpr(loop.body, ctx);
   const stmts = [...f.pre];
-  if (concrete && isConcrete(typeOf(loop.body))) stmts.push(makeLocalSet(resultTemp, f.value));
+  if (concrete && isConcrete(typeOf(loop.body))) {
+    stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
+  }
 
   const flatLoop: LoopExpr = {
     kind: ExpressionKind.Loop,
@@ -340,7 +343,7 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
   };
 
   return concrete
-    ? { pre: [flatLoop], value: makeLocalGet(resultTemp, loop.type as ValType) }
+    ? { pre: [flatLoop], value: makeLocalGet(varIndex(resultTemp), loop.type as ValType) }
     : { pre: [flatLoop], value: makeNop() };
 }
 

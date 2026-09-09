@@ -43,6 +43,7 @@ import { ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { anyOpcodeName } from '../../wabt-ts/core/opcode.ts';
+import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 const _VAL_TYPES = new Set<string>(Object.values(ValType) as string[]);
 
@@ -169,7 +170,7 @@ function _exprKey(expr: Expression): string | null {
       return null;
     }
     case ExpressionKind.LocalGet:
-      return `lg:${expr.index}`;
+      return `lg:${requireIndex(expr.index, 'local.get')}`;
     case ExpressionKind.GlobalGet:
       return `gg:${expr.name}`;
     case ExpressionKind.Binary: {
@@ -253,7 +254,7 @@ function _invalidate(expr: Expression, cache: Map<string, number>): void {
       case ExpressionKind.LocalTee:
         // Evict all entries that depend on this local.
         for (const key of [...cache.keys()]) {
-          if (key.includes(`lg:${e.index}`)) cache.delete(key);
+          if (key.includes(`lg:${requireIndex(e.index, 'local index')}`)) cache.delete(key);
         }
         break;
       case ExpressionKind.GlobalSet:
@@ -287,7 +288,7 @@ function _rewriteExpr(
     const existing = cache.get(key);
     if (existing !== undefined) {
       // Replace with local.get
-      return makeLocalGet(existing, _exprType(expr));
+      return makeLocalGet(varIndex(existing), _exprType(expr));
     } else {
       // First occurrence: wrap in local.tee and cache the slot
       const slot = state.nextLocal++;
@@ -297,7 +298,7 @@ function _rewriteExpr(
       const tee: LocalTeeExpr = {
         kind: ExpressionKind.LocalTee,
         type: localType,
-        index: slot,
+        index: varIndex(slot),
         value: expr,
       };
       return tee;

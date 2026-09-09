@@ -317,7 +317,7 @@ Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref loc
     [ValType.I32],
     makeBlock([
       makeLocalSet(
-        0,
+        varIndex(0),
         makeArrayNew(varIndex(arrayType), makeI32Const(0), makeI32Const(3), {
           heap: arrayType,
           nullable: false,
@@ -325,7 +325,7 @@ Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref loc
       ),
       makeArrayFill(
         varIndex(arrayType),
-        makeLocalGet(0, arrRef),
+        makeLocalGet(varIndex(0), arrRef),
         makeI32Const(0),
         makeI32Const(7),
         makeI32Const(3),
@@ -333,7 +333,7 @@ Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref loc
       // index 2 is only written if the fill honoured its length
       makeArrayGet(
         varIndex(arrayType),
-        makeLocalGet(0, arrRef),
+        makeLocalGet(varIndex(0), arrRef),
         makeI32Const(2),
         ValType.I32,
         false,

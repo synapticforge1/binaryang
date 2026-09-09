@@ -37,6 +37,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { type Var, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 function assemble(wat: string): Uint8Array {
   const asm = wat2wasm(wat, { filename: 'wide.wat' });
@@ -95,8 +96,8 @@ describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
     assertEquals(quad['opcode'], (0xfc << 16) | 19); // i64.add128
     // Four distinct operands, in source order — a reversed pop would swap them.
     for (const k of ['a', 'b', 'c', 'd']) assert(quad[k], `operand ${k} must be present`);
-    assertEquals((quad['a'] as { index: number }).index, 0);
-    assertEquals((quad['d'] as { index: number }).index, 3);
+    assertEquals((quad['a'] as { index: Var }).index, varIndex(0));
+    assertEquals((quad['d'] as { index: Var }).index, varIndex(3));
   });
 
   it('the pair produces TWO results, so the node type is a tuple', () => {

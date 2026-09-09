@@ -46,6 +46,7 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { buildCFG, type CFG, computeLiveness, type LivenessAction } from './cfg.ts';
+import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -328,21 +329,24 @@ function _rewriteBody(
     if (e.kind === ExpressionKind.LocalSet) {
       // `e.value` here is already the post-rewrite (renamed) value subtree.
       if (_isIneffective(e)) return makeDrop(e.value);
-      const slot = mapping[e.index];
-      if (slot !== undefined && slot !== e.index) return { ...e, index: slot };
+      const cur = requireIndex(e.index, 'local index');
+      const slot = mapping[cur];
+      if (slot !== undefined && slot !== cur) return { ...e, index: varIndex(slot) };
       return e;
     }
     if (e.kind === ExpressionKind.LocalTee) {
       // Tee both writes and pushes the value. If the write is ineffective,
       // the tee degrades to just the (already-rewritten) value.
       if (_isIneffective(e)) return e.value;
-      const slot = mapping[e.index];
-      if (slot !== undefined && slot !== e.index) return { ...e, index: slot };
+      const cur = requireIndex(e.index, 'local index');
+      const slot = mapping[cur];
+      if (slot !== undefined && slot !== cur) return { ...e, index: varIndex(slot) };
       return e;
     }
     if (e.kind === ExpressionKind.LocalGet) {
-      const slot = mapping[e.index];
-      if (slot !== undefined && slot !== e.index) return { ...e, index: slot };
+      const cur = requireIndex(e.index, 'local index');
+      const slot = mapping[cur];
+      if (slot !== undefined && slot !== cur) return { ...e, index: varIndex(slot) };
     }
     return e;
   });

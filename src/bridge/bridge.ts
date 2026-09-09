@@ -903,17 +903,21 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'local.get': {
       const lg = e as LocalGetExpr;
       const idx = requireIndex(lg.var, 'local.get');
-      return makeLocalGet(idx, wabtTypeToValType(localType(ctx, idx)));
+      return makeLocalGet(varIndex(idx), wabtTypeToValType(localType(ctx, idx)));
     }
     case 'local.set': {
       const ls = e as LocalSetExpr;
       const idx = requireIndex(ls.var, 'local.set');
-      return makeLocalSet(idx, bridgeExpr(ls.value, ctx));
+      return makeLocalSet(varIndex(idx), bridgeExpr(ls.value, ctx));
     }
     case 'local.tee': {
       const lt = e as LocalTeeExpr;
       const idx = requireIndex(lt.var, 'local.tee');
-      return makeLocalTee(idx, bridgeExpr(lt.value, ctx), wabtTypeToValType(localType(ctx, idx)));
+      return makeLocalTee(
+        varIndex(idx),
+        bridgeExpr(lt.value, ctx),
+        wabtTypeToValType(localType(ctx, idx)),
+      );
     }
     case 'global.get': {
       const gg = e as GlobalGetExpr;

@@ -49,6 +49,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // wabt-ts/compat@1.2.9 wasic output for 46_TemplateEscapes.ts (1543 bytes).
 const FIXTURE_B64 =
@@ -141,17 +142,17 @@ Deno.test('LocalCSE: a local.get is not substituted across a write nested in an 
       [ValType.I32, ValType.I32],
       [ValType.I32],
       makeBlock([
-        makeLocalSet(2, makeLocalGet(1, ValType.I32)),
+        makeLocalSet(varIndex(2), makeLocalGet(varIndex(1), ValType.I32)),
         makeIf(
-          makeLocalGet(0, ValType.I32),
+          makeLocalGet(varIndex(0), ValType.I32),
           makeLocalSet(
-            1,
-            makeBinary(BinaryOp.AddI32, makeLocalGet(1, ValType.I32), makeI32Const(100)),
+            varIndex(1),
+            makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(1), ValType.I32), makeI32Const(100)),
           ),
           null,
         ),
-        makeLocalSet(3, makeLocalGet(1, ValType.I32)),
-        makeReturn(makeLocalGet(3, ValType.I32)),
+        makeLocalSet(varIndex(3), makeLocalGet(varIndex(1), ValType.I32)),
+        makeReturn(makeLocalGet(varIndex(3), ValType.I32)),
       ], null),
       [{ type: ValType.I32 }, { type: ValType.I32 }],
     )
@@ -187,10 +188,10 @@ Deno.test('LocalCSE: a local.get is not substituted across a write nested earlie
             BinaryOp.AddI32,
             makeBinary(
               BinaryOp.AddI32,
-              makeLocalGet(0, ValType.I32),
-              makeLocalTee(0, makeI32Const(99), ValType.I32),
+              makeLocalGet(varIndex(0), ValType.I32),
+              makeLocalTee(varIndex(0), makeI32Const(99), ValType.I32),
             ),
-            makeLocalGet(0, ValType.I32),
+            makeLocalGet(varIndex(0), ValType.I32),
           ),
         ),
       ], null),

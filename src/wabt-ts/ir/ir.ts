@@ -76,6 +76,22 @@ export function indexOf(v: Var): Index | undefined {
   return v.kind === 'index' ? v.value : undefined;
 }
 
+/**
+ * Whether two vars denote the same entity.
+ *
+ * ⚠️ A `Var` is an OBJECT, so `a === b` compares REFERENCES. Two separately
+ * built vars for the same local are never `===`, and code written when the
+ * field was a plain number keeps compiling after the change while quietly
+ * meaning something else — a comparison that stops firing rather than failing.
+ * `SimplifyLocals` lost its set+get→tee fusion exactly this way, and only a
+ * behavioural test caught it.
+ */
+export function sameVar(a: Var, b: Var): boolean {
+  return a.kind === 'index'
+    ? b.kind === 'index' && a.value === b.value
+    : b.kind === 'name' && a.name === b.name;
+}
+
 /** Type guard for index-form {@link Var}. */
 export function isVarIndex(v: Var): v is { kind: 'index'; value: Index } {
   return v.kind === 'index';

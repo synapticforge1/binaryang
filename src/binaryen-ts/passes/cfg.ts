@@ -44,6 +44,7 @@
 
 import { type Expression, ExpressionKind } from '../ir/expressions.ts';
 import { visitChildren } from '../ir/walk.ts';
+import { requireIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -198,7 +199,11 @@ class _CFGBuilder {
       // -------------------------------------------------------------------
       case ExpressionKind.LocalGet:
         if (this.current) {
-          this.current.actions.push({ kind: 'get', index: e.index, origin: e });
+          this.current.actions.push({
+            kind: 'get',
+            index: requireIndex(e.index, 'local.get'),
+            origin: e,
+          });
         }
         return;
 
@@ -206,7 +211,11 @@ class _CFGBuilder {
       case ExpressionKind.LocalTee:
         this.visit(e.value);
         if (this.current) {
-          this.current.actions.push({ kind: 'set', index: e.index, origin: e });
+          this.current.actions.push({
+            kind: 'set',
+            index: requireIndex(e.index, 'local.set'),
+            origin: e,
+          });
         }
         return;
 

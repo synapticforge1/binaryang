@@ -45,6 +45,7 @@ import {
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -153,7 +154,7 @@ Deno.test('Vacuum: drop(local.get) becomes nop', () => {
     params: [ValType.I32],
     results: [],
     locals: [{ type: ValType.I32 }],
-    body: makeBlock([makeDrop(makeLocalGet(0, ValType.I32))]),
+    body: makeBlock([makeDrop(makeLocalGet(varIndex(0), ValType.I32))]),
   };
   mod.functions.push(fn);
 
@@ -185,7 +186,9 @@ Deno.test('OptimizeInstructions: add(x, 0) → x', () => {
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
     body: makeBlock([
-      makeReturn(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(0))),
+      makeReturn(
+        makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0)),
+      ),
     ]),
   };
   mod.functions.push(fn);
@@ -209,7 +212,9 @@ Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
     params: [ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
-    body: makeReturn(makeBinary(BinaryOp.MulI32, makeLocalGet(0, ValType.I32), makeI32Const(1))),
+    body: makeReturn(
+      makeBinary(BinaryOp.MulI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
+    ),
   };
   mod.functions.push(fn);
 
@@ -282,7 +287,9 @@ Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
     params: [ValType.I32],
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
-    body: makeReturn(makeBinary(BinaryOp.AndI32, makeLocalGet(0, ValType.I32), makeI32Const(-1))),
+    body: makeReturn(
+      makeBinary(BinaryOp.AndI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(-1)),
+    ),
   };
   mod.functions.push(fn);
 
@@ -301,7 +308,9 @@ Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
     params: [ValType.I64],
     results: [ValType.I64],
     locals: [{ type: ValType.I64 }],
-    body: makeReturn(makeBinary(BinaryOp.AddI64, makeLocalGet(0, ValType.I64), makeI64Const(0n))),
+    body: makeReturn(
+      makeBinary(BinaryOp.AddI64, makeLocalGet(varIndex(0), ValType.I64), makeI64Const(0n)),
+    ),
   };
   mod.functions.push(fn);
 
@@ -368,8 +377,8 @@ Deno.test('SimplifyLocals: local.set + local.get → local.tee', () => {
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(42)),
-      makeLocalGet(0, ValType.I32),
+      makeLocalSet(varIndex(0), makeI32Const(42)),
+      makeLocalGet(varIndex(0), ValType.I32),
     ]),
   };
   mod.functions.push(fn);
@@ -394,8 +403,8 @@ Deno.test('SimplifyLocals: non-matching indices are not merged', () => {
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(1)),
-      makeLocalGet(1, ValType.I32), // different index
+      makeLocalSet(varIndex(0), makeI32Const(1)),
+      makeLocalGet(varIndex(1), ValType.I32), // different index
     ]),
   };
   mod.functions.push(fn);
@@ -422,7 +431,7 @@ Deno.test('CoalesceLocals: dead local.set becomes drop', () => {
     results: [],
     // local 0 is set but never read
     locals: [{ type: ValType.I32 }],
-    body: makeBlock([makeLocalSet(0, makeI32Const(99))]),
+    body: makeBlock([makeLocalSet(varIndex(0), makeI32Const(99))]),
   };
   mod.functions.push(fn);
 
@@ -442,8 +451,8 @@ Deno.test('CoalesceLocals: used local.set is preserved', () => {
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(5)),
-      makeLocalGet(0, ValType.I32),
+      makeLocalSet(varIndex(0), makeI32Const(5)),
+      makeLocalGet(varIndex(0), ValType.I32),
     ]),
   };
   mod.functions.push(fn);
@@ -479,10 +488,10 @@ Deno.test('CoalesceLocals: two locals with disjoint live ranges coalesce', () =>
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(1)),
-      makeDrop(makeLocalGet(0, ValType.I32)),
-      makeLocalSet(1, makeI32Const(2)),
-      makeDrop(makeLocalGet(1, ValType.I32)),
+      makeLocalSet(varIndex(0), makeI32Const(1)),
+      makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+      makeLocalSet(varIndex(1), makeI32Const(2)),
+      makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
     ]),
   };
   mod.functions.push(fn);
@@ -504,10 +513,10 @@ Deno.test('CoalesceLocals: two locals with overlapping live ranges stay distinct
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(1)),
-      makeLocalSet(1, makeI32Const(2)),
-      makeDrop(makeLocalGet(0, ValType.I32)),
-      makeDrop(makeLocalGet(1, ValType.I32)),
+      makeLocalSet(varIndex(0), makeI32Const(1)),
+      makeLocalSet(varIndex(1), makeI32Const(2)),
+      makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+      makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
     ]),
   };
   mod.functions.push(fn);
@@ -529,10 +538,10 @@ Deno.test("CoalesceLocals: single local with two value lifetimes doesn't blow up
     results: [],
     locals: [{ type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(1)),
-      makeDrop(makeLocalGet(0, ValType.I32)),
-      makeLocalSet(0, makeI32Const(2)),
-      makeDrop(makeLocalGet(0, ValType.I32)),
+      makeLocalSet(varIndex(0), makeI32Const(1)),
+      makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+      makeLocalSet(varIndex(0), makeI32Const(2)),
+      makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
     ]),
   };
   mod.functions.push(fn);
@@ -560,16 +569,16 @@ Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value liv
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }], // $r
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(-1)),
+      makeLocalSet(varIndex(0), makeI32Const(-1)),
       makeTry(
         null,
-        makeLocalSet(0, makeCall('mayThrow', [], ValType.I32)),
+        makeLocalSet(varIndex(0), makeCall('mayThrow', [], ValType.I32)),
         ['t'],
         [makeNop()],
         null,
         None,
       ),
-      makeReturn(makeLocalGet(0, ValType.I32)),
+      makeReturn(makeLocalGet(varIndex(0), ValType.I32)),
     ]),
   };
   mod.functions.push(fn);
@@ -597,7 +606,7 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }], // e, catchE, outerErr
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(100)), // e = 100
+      makeLocalSet(varIndex(0), makeI32Const(100)), // e = 100
       makeTry(
         null,
         makeTry(
@@ -607,15 +616,18 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
           // inner catch: catchE = 200; use(catchE); rethrow. The use() makes the
           // set effective (otherwise it's a dead drop and the coalesce question is moot).
           [makeBlock([
-            makeLocalSet(1, makeI32Const(200)),
-            makeDrop(makeLocalGet(1, ValType.I32)),
+            makeLocalSet(varIndex(1), makeI32Const(200)),
+            makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
             makeRethrow('0'),
           ])],
           null,
           None,
         ),
         ['t'],
-        [makeBlock([makeLocalSet(2, makeI32Const(300)), makeDrop(makeLocalGet(0, ValType.I32))])], // outer catch: outerErr = 300; use(e)
+        [makeBlock([
+          makeLocalSet(varIndex(2), makeI32Const(300)),
+          makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+        ])], // outer catch: outerErr = 300; use(e)
         null,
         None,
       ),
@@ -654,13 +666,13 @@ Deno.test('CoalesceLocals: loop-carried value interferes via back-edge', () => {
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(42)),
+      makeLocalSet(varIndex(0), makeI32Const(42)),
       makeLoop(
         'L',
         makeBlock([
-          makeDrop(makeLocalGet(0, ValType.I32)),
-          makeLocalSet(1, makeI32Const(5)),
-          makeDrop(makeLocalGet(1, ValType.I32)),
+          makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+          makeLocalSet(varIndex(1), makeI32Const(5)),
+          makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
           makeBreak('L', makeI32Const(0), null),
         ]),
       ),
@@ -691,10 +703,10 @@ Deno.test(
         makeLoop(
           'L',
           makeBlock([
-            makeLocalSet(0, makeI32Const(1)),
-            makeDrop(makeLocalGet(0, ValType.I32)),
-            makeLocalSet(1, makeI32Const(2)),
-            makeDrop(makeLocalGet(1, ValType.I32)),
+            makeLocalSet(varIndex(0), makeI32Const(1)),
+            makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+            makeLocalSet(varIndex(1), makeI32Const(2)),
+            makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
             makeBreak('L', makeI32Const(0), null),
           ]),
         ),
@@ -721,22 +733,22 @@ Deno.test('CoalesceLocals: loop counter live across back-edge stays distinct fro
     results: [],
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
-      makeLocalSet(0, makeI32Const(0)),
+      makeLocalSet(varIndex(0), makeI32Const(0)),
       makeLoop(
         'L',
         makeBlock([
           // increment counter: $i = $i + 1
           makeLocalSet(
-            0,
-            makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(1)),
+            varIndex(0),
+            makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
           ),
           // set + use a scratch value
-          makeLocalSet(1, makeI32Const(99)),
-          makeDrop(makeLocalGet(1, ValType.I32)),
+          makeLocalSet(varIndex(1), makeI32Const(99)),
+          makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
           // loop while $i < 10
           makeBreak(
             'L',
-            makeBinary(BinaryOp.LtSI32, makeLocalGet(0, ValType.I32), makeI32Const(10)),
+            makeBinary(BinaryOp.LtSI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(10)),
             null,
           ),
         ]),
@@ -765,19 +777,19 @@ Deno.test('CoalesceLocals: if-else with overlapping liveness on merge stays dist
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }],
     body: makeBlock([
       makeIf(
-        makeLocalGet(0, ValType.I32),
+        makeLocalGet(varIndex(0), ValType.I32),
         makeBlock([
-          makeLocalSet(1, makeI32Const(1)), // $A
-          makeLocalSet(2, makeI32Const(2)), // $B
+          makeLocalSet(varIndex(1), makeI32Const(1)), // $A
+          makeLocalSet(varIndex(2), makeI32Const(2)), // $B
         ]),
         makeBlock([
-          makeLocalSet(1, makeI32Const(3)), // $A again
-          makeLocalSet(2, makeI32Const(4)), // $B again
+          makeLocalSet(varIndex(1), makeI32Const(3)), // $A again
+          makeLocalSet(varIndex(2), makeI32Const(4)), // $B again
         ]),
       ),
       // After the if both $A and $B are live — they must stay separate.
-      makeDrop(makeLocalGet(1, ValType.I32)),
-      makeDrop(makeLocalGet(2, ValType.I32)),
+      makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
+      makeDrop(makeLocalGet(varIndex(2), ValType.I32)),
     ]),
   };
   mod.functions.push(fn);
@@ -802,7 +814,7 @@ Deno.test('CoalesceLocals: dead set inside loop is replaced with drop', () => {
       makeLoop(
         'L',
         makeBlock([
-          makeLocalSet(0, makeI32Const(99)),
+          makeLocalSet(varIndex(0), makeI32Const(99)),
           makeBreak('L', makeI32Const(0), null),
         ]),
       ),
@@ -969,8 +981,12 @@ Deno.test('LocalCSE: repeated pure expression is extracted to local', () => {
     results: [],
     locals: [{ type: ValType.I32 }],
     body: makeBlock([
-      makeDrop(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(1))),
-      makeDrop(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(1))),
+      makeDrop(
+        makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
+      ),
+      makeDrop(
+        makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
+      ),
     ]),
   };
   mod.functions.push(fn);
@@ -1030,7 +1046,7 @@ Deno.test('Vacuum: single-child unnamed block keeps its declared type on a concr
     kind: ExpressionKind.Block,
     type: ValType.I32,
     name: null,
-    children: [makeNop(), makeLocalSet(0, makeI32Const(0))],
+    children: [makeNop(), makeLocalSet(varIndex(0), makeI32Const(0))],
   } as unknown as Expression;
   mod.functions.push({
     name: 'f',
@@ -1117,13 +1133,17 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     '$f0',
     SIG_P,
     SIG_R,
-    makeReturn(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(100))),
+    makeReturn(
+      makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(100)),
+    ),
   );
   b.addFunction(
     '$f1',
     SIG_P,
     SIG_R,
-    makeReturn(makeBinary(BinaryOp.MulI32, makeLocalGet(0, ValType.I32), makeI32Const(2))),
+    makeReturn(
+      makeBinary(BinaryOp.MulI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(2)),
+    ),
   );
   b.addTable('$t0', ValType.FuncRef, 2, 2);
   b.addElement({
@@ -1140,8 +1160,8 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     [ValType.I32],
     makeCallIndirect(
       '$t0',
-      makeLoad(4, false, 0, 2, makeLocalGet(1, ValType.I32), ValType.I32), // index = mem[$t]
-      [makeLocalTee(1, makeLocalGet(0, ValType.I32), ValType.I32)], // arg = ($t := obj)
+      makeLoad(4, false, 0, 2, makeLocalGet(varIndex(1), ValType.I32), ValType.I32), // index = mem[$t]
+      [makeLocalTee(varIndex(1), makeLocalGet(varIndex(0), ValType.I32), ValType.I32)], // arg = ($t := obj)
       SIG_P,
       SIG_R,
     ),
@@ -1286,7 +1306,9 @@ Deno.test('ModuleBuilder + OptimizeInstructions: add(x, 0) optimized', () => {
       'identity',
       [ValType.I32],
       [ValType.I32],
-      makeReturn(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeI32Const(0))),
+      makeReturn(
+        makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0)),
+      ),
     )
     .addExport('identity', 'identity')
     .build();

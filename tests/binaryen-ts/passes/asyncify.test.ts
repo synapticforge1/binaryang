@@ -36,6 +36,7 @@ import {
   parseAsyncifyOptions,
   State,
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,7 +56,7 @@ function moduleWithImport(): WasmModule {
         name: null,
         children: [
           { kind: ExpressionKind.Call, type: 'none', target: '$sleep', operands: [] },
-          { kind: ExpressionKind.LocalGet, type: ValType.I32, index: 0 },
+          { kind: ExpressionKind.LocalGet, type: ValType.I32, index: varIndex(0) },
         ],
         // deno-lint-ignore no-explicit-any
       } as any,

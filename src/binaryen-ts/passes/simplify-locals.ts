@@ -25,6 +25,7 @@ import { type Expression, ExpressionKind, type LocalTeeExpr, typeOf } from '../i
 import type { WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression } from '../ir/walk.ts';
+import { sameVar } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -69,7 +70,7 @@ function _simplifyBlock(
       curr.kind === ExpressionKind.LocalSet &&
       next !== undefined &&
       next.kind === ExpressionKind.LocalGet &&
-      curr.index === next.index
+      sameVar(curr.index, next.index)
     ) {
       // Replace set+get pair with tee
       const tee: LocalTeeExpr = {

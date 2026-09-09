@@ -921,7 +921,7 @@ compiler-driven and line-scoped, which left only four sites needing hands — th
 offending read sat on a different line from the error, and one where `loop.body.type` became
 `loop.typeOf(body)` because the pattern captured only the last path segment.
 
-##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (2 of 5 families done)
+##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (3 of 5 families done)
 
 ⚠️ **"Alias one to the other" understates this by a lot.** The kind sets agree on 73 kinds; the
 FIELD sets do not. Measured:
@@ -1114,6 +1114,62 @@ resolved first. None of the 24 current bridge failures are memory-related, so li
 move 397/421; it closes a lossy path rather than fixing a break. Its own increment.
 
 **Remaining (b) families:** `index`, `name`, `castType`.
+
+###### ✅ The `index` (locals) family converted — 3 of 5, and the one that found real defects
+
+`local.get` / `local.set` / `local.tee` hold a `Var`. 202 sites, and unlike the first two families
+this one runs through the OPTIMIZATION PASSES, so the errors ran in both directions: a pass READS an
+index (`requireIndex`) and also WRITES a renumbered one (`varIndex`). Two mirrored compiler-driven
+scripts, run together each round.
+
+🛑 **Three defect classes the type checker cannot see. All three compiled clean.**
+
+| class                                        | what broke                                                                                                                                                                                              | what caught it                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `===` became REFERENCE comparison            | `SimplifyLocals` lost `set`+`get`→`tee` fusion. Two separately built vars for the same local are never `===`, so the optimization silently stopped firing                                               | `passes.test.ts`                             |
+| `` `${e.index}` `` renders `[object Object]` | `LocalCSE` keyed its cache on `` `lg:${expr.index}` `` — EVERY `local.get` hashed alike, folding unrelated values. A behavioural miscompile. Four more sites: the invalidation path, a WAT printer (×3) | the fuzz test (seed 2) and one pipeline test |
+| `as any` on a test fixture                   | `asyncify.test.ts` hand-builds a tree and casts the body `as any`, so `index: 0` was never checked and reached a pass as a raw number                                                                   | 8 asyncify tests                             |
+
+🔑 **The BYTE tests could not see any of it.** Baseline stayed IDENTICAL and bridge stayed 397/421
+while `LocalCSE` was actively miscompiling, because neither exercises that pass on those inputs.
+Only the behavioural tests could. This is the argument for keeping them in the gate.
+
+⚠️ **`as any` is the boundary of the compiler-driven method**, and it is worth stating plainly: the
+technique converts everything the compiler can see, and nothing it cannot. 12 `as any` casts remain
+in the binaryen-ts tests; each is a place a future field change will pass silently.
+
+Finding it needed instrumenting `requireIndex` to dump the offending VALUE — the stack names only
+the read site, never where the bad node was built. It came back `0`, a number rather than a var,
+which pointed straight at the literal.
+
+`sameVar(a, b)` now lives in `ir.ts` beside `requireIndex`, with the `SimplifyLocals` failure in its
+doc comment. Every remaining family will hit that class.
+
+The interesting sites, which no script should have touched: `coalesce-locals` renumbers slots and so
+needs both directions in one expression (read the current index, compare, write a wrapped one);
+`pick-load-signs`'s `LoadInfo.localIndex` and `flatten`'s structural cast are private types
+MIRRORING the node's field, so they follow it rather than converting at each use; `inlining`'s
+`varIndex(remap(requireIndex(…)))` reads resolved, renumbers, stores resolved.
+
+**Gate**: 952 tests, baseline IDENTICAL, bridge 397/421, spec 100% four axes, lint clean.
+
+**Remaining (b) families:** `name` (which is really TWO families — globals, and block/loop/try
+labels), and `castType` (a decision, not a conversion — see below).
+
+###### ⚠️ `castType` is NOT mechanical, and is deliberately left
+
+The (b) measurement paired `heapType`/`castType` with the other four. It does not belong there.
+
+- **wabt-ts** `heapType: Var`, where the NAME arm does double duty: `{kind:'name', name:'func'}` is
+  the ABSTRACT heap type, `{kind:'name', name:'$T'}` is an unresolved user type. `writeHeapType`
+  tells them apart by looking the string up in the keyword table.
+- **binaryen-ts** `castType: HeapType = AbstractHeapType | number` — two arms, explicitly typed.
+
+Neither dominates. **Fidelity binds toward wabt-ts** (binaryen-ts cannot carry a symbolic `$T` at
+all), but **binaryen-ts's form is better typed** — one field with two meanings distinguished by a
+string convention is the hazard class this codebase polices hardest. The form that binds both is a
+third one, `{ kind:'abstract', name: AbstractHeapType } | Var`, and introducing a new type is a
+decision to take deliberately rather than inside a mechanical pass.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 

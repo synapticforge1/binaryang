@@ -1398,8 +1398,8 @@ class WasmParser {
           const val = exprs[i]!;
           const tmp = locals.length;
           locals.push({ type: val.type as ValType });
-          exprs[i] = makeLocalSet(tmp, val);
-          return makeLocalGet(tmp, val.type as ValType);
+          exprs[i] = makeLocalSet(varIndex(tmp), val);
+          return makeLocalGet(varIndex(tmp), val.type as ValType);
         }
       }
       // No value-producing expression in this frame at all. That is legal in
@@ -1473,8 +1473,8 @@ class WasmParser {
         const tmp = locals.length;
         locals.push({ type: ptype });
         slots.push(tmp);
-        push(makeLocalSet(tmp, vals[i]!));
-        reads.push(makeLocalGet(tmp, ptype));
+        push(makeLocalSet(varIndex(tmp), vals[i]!));
+        reads.push(makeLocalGet(varIndex(tmp), ptype));
       }
       return { reads, slots };
     };
@@ -1522,7 +1522,7 @@ class WasmParser {
       }
       const vals: Expression[] = [];
       for (let i = 0; i < slots.length; i++) vals.unshift(pop());
-      for (const [i, slot] of slots.entries()) push(makeLocalSet(slot, vals[i]!));
+      for (const [i, slot] of slots.entries()) push(makeLocalSet(varIndex(slot), vals[i]!));
       if (switchTargets !== undefined) {
         // `br_table` where every target is this same loop: one set of temps,
         // then a value-less table.
@@ -1531,7 +1531,7 @@ class WasmParser {
       }
       push(makeBreak(label, cond, null));
       if (cond !== null) {
-        for (const [i, slot] of slots.entries()) push(makeLocalGet(slot, types[i]!));
+        for (const [i, slot] of slots.entries()) push(makeLocalGet(varIndex(slot), types[i]!));
       }
     };
 
@@ -1583,11 +1583,11 @@ class WasmParser {
         const tmp = locals.length;
         locals.push({ type: types[i]! });
         shared.push(tmp);
-        push(makeLocalSet(tmp, vals[i]!)); // both filled to `arity` above
+        push(makeLocalSet(varIndex(tmp), vals[i]!)); // both filled to `arity` above
       }
       const idxSlot = locals.length;
       locals.push({ type: ValType.I32 });
-      push(makeLocalSet(idxSlot, index));
+      push(makeLocalSet(varIndex(idxSlot), index));
 
       /** The branch a single case performs, in that target's own convention. */
       const caseCode = (frame: ControlFrame | undefined, label: string): Expression[] => {
@@ -1604,12 +1604,12 @@ class WasmParser {
             );
           }
           const out: Expression[] = slots.map((slot, i) =>
-            makeLocalSet(slot, makeLocalGet(shared[i]!, types[i]!))
+            makeLocalSet(varIndex(slot), makeLocalGet(varIndex(shared[i]!), types[i]!))
           );
           out.push(makeBreak(label, null, null));
           return out;
         }
-        const reads = shared.map((slot, i) => makeLocalGet(slot, types[i]!));
+        const reads = shared.map((slot, i) => makeLocalGet(varIndex(slot), types[i]!));
         const value = reads.length === 0 ? null : oneOrTuple(reads);
         return [makeBreak(label, null, value)];
       };
@@ -1622,7 +1622,7 @@ class WasmParser {
         [makeSwitch(
           caseLabels.slice(0, last),
           caseLabels[last]!,
-          makeLocalGet(idxSlot, ValType.I32),
+          makeLocalGet(varIndex(idxSlot), ValType.I32),
         )],
         caseLabels[last],
       );
@@ -1705,7 +1705,9 @@ class WasmParser {
             // FRESH reads, not the then-arm's node objects: sharing them would
             // put one expression in two tree positions.
             const ps = frame.paramSeed;
-            frame.exprs = ps ? ps.slots.map((slot, i) => makeLocalGet(slot, ps.types[i]!)) : [];
+            frame.exprs = ps
+              ? ps.slots.map((slot, i) => makeLocalGet(varIndex(slot), ps.types[i]!))
+              : [];
             frame.kind = 'else' as ControlFrameKind;
           } else {
             // `else` outside an `if` used to fall through this `if` and vanish:
@@ -2119,18 +2121,18 @@ class WasmParser {
 
         case 0x20: { // local.get
           const idx = r.readU32();
-          push(makeLocalGet(idx, localTypeAt(locals, idx, r)));
+          push(makeLocalGet(varIndex(idx), localTypeAt(locals, idx, r)));
           break;
         }
         case 0x21: { // local.set
           const idx = r.readU32();
-          push(makeLocalSet(idx, pop()));
+          push(makeLocalSet(varIndex(idx), pop()));
           break;
         }
         case 0x22: { // local.tee
           const idx = r.readU32();
           const val = pop();
-          push(makeLocalTee(idx, val, localTypeAt(locals, idx, r)));
+          push(makeLocalTee(varIndex(idx), val, localTypeAt(locals, idx, r)));
           break;
         }
         case 0x23: { // global.get

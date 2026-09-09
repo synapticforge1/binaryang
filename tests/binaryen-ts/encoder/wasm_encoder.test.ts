@@ -24,6 +24,7 @@ import {
   makeUnreachable,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Shared binary fixtures (same as parser tests)
@@ -260,8 +261,8 @@ Deno.test('round-trip: global module body contains global.get', () => {
 Deno.test('encodeWasm: ModuleBuilder add function round-trips', () => {
   const body = makeBinary(
     BinaryOp.AddI32,
-    makeLocalGet(0, ValType.I32),
-    makeLocalGet(1, ValType.I32),
+    makeLocalGet(varIndex(0), ValType.I32),
+    makeLocalGet(varIndex(1), ValType.I32),
   );
   const mod = new ModuleBuilder()
     .addFunction('add', [ValType.I32, ValType.I32], [ValType.I32], body)

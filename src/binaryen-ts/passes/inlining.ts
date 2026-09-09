@@ -34,6 +34,7 @@ import {
   type Expression,
   ExpressionKind,
   type IfExpr,
+  type LocalGetExpr,
   type LocalSetExpr,
   makeBlock,
   makeCall,
@@ -60,6 +61,7 @@ import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
+import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Size thresholds (matching upstream defaults in pass.h)
@@ -243,7 +245,9 @@ function hasReturn(e: Expression): boolean {
 /** Collects local indices written by any `LocalSet` in the subtree. */
 function collectLocalSets(e: Expression, into: Set<number>): void {
   walkExpression(e, (n) => {
-    if (n.kind === ExpressionKind.LocalSet) into.add((n as LocalSetExpr).index);
+    if (n.kind === ExpressionKind.LocalSet) {
+      into.add(requireIndex((n as LocalSetExpr).index, 'local index'));
+    }
   });
 }
 
@@ -251,7 +255,9 @@ function collectLocalSets(e: Expression, into: Set<number>): void {
 function collectLocalGets(e: Expression): number[] {
   const out: number[] = [];
   walkExpression(e, (n) => {
-    if (n.kind === ExpressionKind.LocalGet) out.push((n as { index: number }).index);
+    if (n.kind === ExpressionKind.LocalGet) {
+      out.push(requireIndex((n as LocalGetExpr).index, 'local.get'));
+    }
   });
   return out;
 }
@@ -260,7 +266,7 @@ function collectLocalGets(e: Expression): number[] {
  *  args bind the inlineable shell's params (which are identical to the original
  *  function's params) into the outlined call. */
 function getForwardedArgs(fn: WasmFunction): Expression[] {
-  return fn.params.map((type, i) => makeLocalGet(i, type));
+  return fn.params.map((type, i) => makeLocalGet(varIndex(i), type));
 }
 
 /** Per-pass cache of which functions we've split, and the inlineable templates
@@ -607,13 +613,13 @@ function substituteBody(
   return mapExpression(body, (e): Expression => {
     switch (e.kind) {
       case ExpressionKind.LocalGet:
-        return { ...e, index: remap(e.index) };
+        return { ...e, index: varIndex(remap(requireIndex(e.index, 'local index'))) };
 
       case ExpressionKind.LocalSet:
-        return { ...e, index: remap(e.index) };
+        return { ...e, index: varIndex(remap(requireIndex(e.index, 'local index'))) };
 
       case ExpressionKind.LocalTee:
-        return { ...e, index: remap(e.index) };
+        return { ...e, index: varIndex(remap(requireIndex(e.index, 'local index'))) };
 
       case ExpressionKind.Return: {
         if (!rewriteReturns) return e;
@@ -689,7 +695,7 @@ function inlineCallSite(
     const setParam: LocalSetExpr = {
       kind: ExpressionKind.LocalSet,
       type: None,
-      index: remapSlot(mapping, i),
+      index: varIndex(remapSlot(mapping, i)),
       value: operand,
     };
     children.push(setParam);
@@ -700,7 +706,7 @@ function inlineCallSite(
   for (let i = varBase; i < callee.locals.length; i++) {
     const zero = zeroForType(callee.locals[i]!.type);
     if (zero !== null) {
-      children.push(makeLocalSet(remapSlot(mapping, i), zero));
+      children.push(makeLocalSet(varIndex(remapSlot(mapping, i)), zero));
     }
   }
 

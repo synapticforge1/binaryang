@@ -62,6 +62,7 @@ import { None, ValType } from '../ir/types.ts';
 import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
+import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Expression builder (fluent helper passed to function body closures)
@@ -91,15 +92,15 @@ export class ExprBuilder {
   }
   /** `local.get` — reads local at `index`. */
   localGet(index: number, type: ValType = ValType.I32): Expression {
-    return makeLocalGet(index, type);
+    return makeLocalGet(varIndex(index), type);
   }
   /** `local.set` — writes `value` to local at `index`. */
   localSet(index: number, value: Expression): Expression {
-    return makeLocalSet(index, value);
+    return makeLocalSet(varIndex(index), value);
   }
   /** `local.tee` — writes `value` to local at `index` and forwards the value. */
   localTee(index: number, value: Expression, type: ValType): Expression {
-    return makeLocalTee(index, value, type);
+    return makeLocalTee(varIndex(index), value, type);
   }
   /** Binary operation. */
   binary(opcode: BinaryOp, left: Expression, right: Expression): Expression {
@@ -340,11 +341,15 @@ function exprToWat(expr: Expression, _indent: number): string {
       return `(f64.const ${'f64' in v ? v.f64 : 0})`;
     }
     case ExpressionKind.LocalGet:
-      return `(local.get ${expr.index})`;
+      return `(local.get ${requireIndex(expr.index, 'local.get')})`;
     case ExpressionKind.LocalSet:
-      return `(local.set ${expr.index} ${exprToWat(expr.value, _indent)})`;
+      return `(local.set ${requireIndex(expr.index, 'local.set')} ${
+        exprToWat(expr.value, _indent)
+      })`;
     case ExpressionKind.LocalTee:
-      return `(local.tee ${expr.index} ${exprToWat(expr.value, _indent)})`;
+      return `(local.tee ${requireIndex(expr.index, 'local.tee')} ${
+        exprToWat(expr.value, _indent)
+      })`;
     case ExpressionKind.GlobalGet:
       return `(global.get $${expr.name})`;
     case ExpressionKind.GlobalSet:

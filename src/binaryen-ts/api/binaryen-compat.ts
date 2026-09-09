@@ -113,6 +113,7 @@ import {
 import { None, type Type, ValType } from '../ir/types.ts';
 import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
 import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
+import { varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Pass registry
@@ -951,16 +952,16 @@ export class LocalOps {
   /** `local.get index` — returns the value of local `index`, typed as `type`. */
   get(index: number, type: number): Expression {
     const vt = _idToValTypeStrict(type);
-    return makeLocalGet(index, vt);
+    return makeLocalGet(varIndex(index), vt);
   }
   /** `local.set index value`. */
   set(index: number, value: Expression): Expression {
-    return makeLocalSet(index, value);
+    return makeLocalSet(varIndex(index), value);
   }
   /** `local.tee index value` — stores `value` to local `index` and forwards it. */
   tee(index: number, value: Expression, type: number): Expression {
     const vt = _idToValTypeStrict(type);
-    return makeLocalTee(index, value, vt);
+    return makeLocalTee(varIndex(index), value, vt);
   }
 }
 

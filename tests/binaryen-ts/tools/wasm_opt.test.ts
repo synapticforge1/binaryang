@@ -39,6 +39,7 @@ import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { parseArgs, wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,8 +76,8 @@ function buildAddWasm(): Uint8Array {
       makeReturn(
         makeBinary(
           BinaryOp.AddI32,
-          makeLocalGet(0, ValType.I32),
-          makeLocalGet(1, ValType.I32),
+          makeLocalGet(varIndex(0), ValType.I32),
+          makeLocalGet(varIndex(1), ValType.I32),
         ),
       ),
     ],
