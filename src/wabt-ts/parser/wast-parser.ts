@@ -25,7 +25,6 @@ import {
   type ArrayInitSegmentExpr,
   type ArrayLenExpr,
   type ArrayNewDataExpr,
-  type ArrayNewDefaultExpr,
   type ArrayNewElemExpr,
   type ArrayNewExpr,
   type ArrayNewFixedExpr,
@@ -108,7 +107,6 @@ import {
   type SimdShuffleOpExpr,
   type StoreExpr,
   type StructGetExpr,
-  type StructNewDefaultExpr,
   type StructNewExpr,
   type StructSetExpr,
   type Table,
@@ -4230,7 +4228,13 @@ export class WastParser {
       }
       case TokenType.StructNewDefault: {
         const typeVar = this.parseVar() ?? varIndex(0);
-        return { kind: 'struct.new_default', typeVar, loc } as StructNewDefaultExpr;
+        return {
+          kind: 'struct.new',
+          defaultInit: true,
+          operands: [],
+          typeVar,
+          loc,
+        } as StructNewExpr;
       }
       case TokenType.StructGet: {
         // Three lexer entries (struct.get / get_s / get_u) all route here;
@@ -4275,11 +4279,11 @@ export class WastParser {
       case TokenType.ArrayNewDefault: {
         const typeVar = this.parseVar() ?? varIndex(0);
         return {
-          kind: 'array.new_default',
+          kind: 'array.new',
           typeVar,
           length: op0(),
           loc,
-        } as ArrayNewDefaultExpr;
+        } as ArrayNewExpr;
       }
       case TokenType.ArrayNewFixed: {
         // `array.new_fixed $T N elem1 ... elemN` — N is an explicit immediate

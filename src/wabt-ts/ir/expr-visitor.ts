@@ -27,7 +27,6 @@ import type {
   ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -89,7 +88,6 @@ import type {
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   TableCopyExpr,
@@ -173,11 +171,9 @@ export interface ExprVisitorDelegate {
   onRefI31Expr?(e: RefI31Expr): Result;
   onI31GetExpr?(e: I31GetExpr): Result;
   onStructNewExpr?(e: StructNewExpr): Result;
-  onStructNewDefaultExpr?(e: StructNewDefaultExpr): Result;
   onStructGetExpr?(e: StructGetExpr): Result;
   onStructSetExpr?(e: StructSetExpr): Result;
   onArrayNewExpr?(e: ArrayNewExpr): Result;
-  onArrayNewDefaultExpr?(e: ArrayNewDefaultExpr): Result;
   onArrayNewFixedExpr?(e: ArrayNewFixedExpr): Result;
   onArrayNewDataExpr?(e: ArrayNewDataExpr): Result;
   onArrayNewElemExpr?(e: ArrayNewElemExpr): Result;
@@ -377,8 +373,6 @@ export class ExprVisitor {
         }
         return this.d.onStructNewExpr?.(e) ?? Result.Ok;
       }
-      case 'struct.new_default':
-        return this.d.onStructNewDefaultExpr?.(e) ?? Result.Ok;
       case 'struct.get': {
         const r = this.dispatch(e.ref);
         if (r === Result.Error) return r;
@@ -392,16 +386,12 @@ export class ExprVisitor {
         return this.d.onStructSetExpr?.(e) ?? Result.Ok;
       }
       case 'array.new': {
-        let r = this.dispatch(e.init);
+        // `init` is absent for the default form, which walks only the length.
+        let r = e.init === undefined ? Result.Ok : this.dispatch(e.init);
         if (r === Result.Error) return r;
         r = this.dispatch(e.length);
         if (r === Result.Error) return r;
         return this.d.onArrayNewExpr?.(e) ?? Result.Ok;
-      }
-      case 'array.new_default': {
-        const r = this.dispatch(e.length);
-        if (r === Result.Error) return r;
-        return this.d.onArrayNewDefaultExpr?.(e) ?? Result.Ok;
       }
       case 'array.new_fixed': {
         for (const op of e.operands) {

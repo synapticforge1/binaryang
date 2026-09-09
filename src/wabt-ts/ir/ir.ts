@@ -651,14 +651,17 @@ export interface I31GetExpr {
 /** `struct.new $type` — pops one value per field, pushes (ref $type). */
 export interface StructNewExpr {
   readonly kind: 'struct.new';
+  /**
+   * `struct.new_default` when true — every field takes its type's default and
+   * `operands` is empty.
+   *
+   * A flag rather than a kind because that is what it is: the same instruction
+   * with its field values implied. binaryen-ts already modelled it as
+   * `defaultInit`, and the operand count is what every consumer branches on.
+   */
+  readonly defaultInit?: boolean;
   readonly typeVar: Var;
   readonly operands: Expr[];
-  readonly loc: Location;
-}
-/** `struct.new_default $type` — pushes a (ref $type) with default field values. */
-export interface StructNewDefaultExpr {
-  readonly kind: 'struct.new_default';
-  readonly typeVar: Var;
   readonly loc: Location;
 }
 /**
@@ -692,14 +695,8 @@ export interface StructSetExpr {
 export interface ArrayNewExpr {
   readonly kind: 'array.new';
   readonly typeVar: Var;
-  readonly init: Expr;
-  readonly length: Expr;
-  readonly loc: Location;
-}
-/** `array.new_default $T` — pops length (i32), pushes (ref $T) zero-filled. */
-export interface ArrayNewDefaultExpr {
-  readonly kind: 'array.new_default';
-  readonly typeVar: Var;
+  /** Absent for `array.new_default`, where each element takes the type's default. */
+  readonly init?: Expr;
   readonly length: Expr;
   readonly loc: Location;
 }
@@ -1133,11 +1130,9 @@ export type Expr =
   | ExternConvertExpr
   | I31GetExpr
   | StructNewExpr
-  | StructNewDefaultExpr
   | StructGetExpr
   | StructSetExpr
   | ArrayNewExpr
-  | ArrayNewDefaultExpr
   | ArrayNewFixedExpr
   | ArrayNewDataExpr
   | ArrayNewElemExpr

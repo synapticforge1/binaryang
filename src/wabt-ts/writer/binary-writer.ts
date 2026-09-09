@@ -10,7 +10,6 @@ import type {
   ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -73,7 +72,6 @@ import type {
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   TableCopyExpr,
@@ -725,13 +723,7 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onStructNewExpr(e: StructNewExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.StructNew);
-    writeVar(this.s, e.typeVar);
-    return Result.Ok;
-  }
-  onStructNewDefaultExpr(e: StructNewDefaultExpr): Result {
-    this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.StructNewDefault);
+    this.s.writeU32Leb(e.defaultInit ? GcOpcode.StructNewDefault : GcOpcode.StructNew);
     writeVar(this.s, e.typeVar);
     return Result.Ok;
   }
@@ -756,13 +748,7 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onArrayNewExpr(e: ArrayNewExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.ArrayNew);
-    writeVar(this.s, e.typeVar);
-    return Result.Ok;
-  }
-  onArrayNewDefaultExpr(e: ArrayNewDefaultExpr): Result {
-    this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(GcOpcode.ArrayNewDefault);
+    this.s.writeU32Leb(e.init === undefined ? GcOpcode.ArrayNewDefault : GcOpcode.ArrayNew);
     writeVar(this.s, e.typeVar);
     return Result.Ok;
   }

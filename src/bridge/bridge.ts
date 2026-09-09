@@ -39,7 +39,6 @@ import type {
   ArrayGetExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -91,7 +90,6 @@ import type {
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   Tag as WabtTag,
@@ -1211,16 +1209,15 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'struct.new': {
       const sn = e as StructNewExpr;
       const heapIdx = resolveHeapTypeIdx(sn.typeVar, ctx);
+      // One kind, two forms: the default takes no field values at all.
+      if (sn.defaultInit) {
+        return makeStructNewDefault(heapIdx, { heap: heapIdx, nullable: false });
+      }
       return makeStructNew(
         heapIdx,
         sn.operands.map((o) => bridgeExpr(o, ctx)),
         { heap: heapIdx, nullable: false },
       );
-    }
-    case 'struct.new_default': {
-      const snd = e as StructNewDefaultExpr;
-      const heapIdx = resolveHeapTypeIdx(snd.typeVar, ctx);
-      return makeStructNewDefault(heapIdx, { heap: heapIdx, nullable: false });
     }
     case 'struct.get': {
       const sg = e as StructGetExpr;
@@ -1249,20 +1246,19 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'array.new': {
       const an = e as ArrayNewExpr;
       const heapIdx = resolveHeapTypeIdx(an.typeVar, ctx);
+      // An absent initialiser IS the default form.
+      if (an.init === undefined) {
+        return makeArrayNewDefault(heapIdx, bridgeExpr(an.length, ctx), {
+          heap: heapIdx,
+          nullable: false,
+        });
+      }
       return makeArrayNew(
         heapIdx,
         bridgeExpr(an.init, ctx),
         bridgeExpr(an.length, ctx),
         { heap: heapIdx, nullable: false },
       );
-    }
-    case 'array.new_default': {
-      const and_ = e as ArrayNewDefaultExpr;
-      const heapIdx = resolveHeapTypeIdx(and_.typeVar, ctx);
-      return makeArrayNewDefault(heapIdx, bridgeExpr(and_.length, ctx), {
-        heap: heapIdx,
-        nullable: false,
-      });
     }
     case 'array.new_fixed': {
       const anf = e as ArrayNewFixedExpr;

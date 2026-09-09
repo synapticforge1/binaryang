@@ -838,12 +838,7 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onStructNewExpr: (e) => {
-        this.putsSpace('struct.new');
-        this.writeVar(e.typeVar, NC.Newline);
-        return Result.Ok;
-      },
-      onStructNewDefaultExpr: (e) => {
-        this.putsSpace('struct.new_default');
+        this.putsSpace(e.defaultInit ? 'struct.new_default' : 'struct.new');
         this.writeVar(e.typeVar, NC.Newline);
         return Result.Ok;
       },
@@ -862,12 +857,7 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onArrayNewExpr: (e) => {
-        this.putsSpace('array.new');
-        this.writeVar(e.typeVar, NC.Newline);
-        return Result.Ok;
-      },
-      onArrayNewDefaultExpr: (e) => {
-        this.putsSpace('array.new_default');
+        this.putsSpace(e.init === undefined ? 'array.new_default' : 'array.new');
         this.writeVar(e.typeVar, NC.Newline);
         return Result.Ok;
       },
@@ -1422,8 +1412,6 @@ class WatWriter extends ModuleContext {
           return { operands: [], head: (d) => void d.onMemorySizeExpr?.(e) };
         case 'table.size':
           return { operands: [], head: (d) => void d.onTableSizeExpr?.(e) };
-        case 'struct.new_default':
-          return { operands: [], head: (d) => void d.onStructNewDefaultExpr?.(e) };
         case 'data.drop':
           return { operands: [], head: (d) => void d.onDataDropExpr?.(e) };
 
@@ -1474,7 +1462,10 @@ class WatWriter extends ModuleContext {
         case 'array.get':
           return { operands: [e.ref, e.index], head: (d) => void d.onArrayGetExpr?.(e) };
         case 'array.new':
-          return { operands: [e.init, e.length], head: (d) => void d.onArrayNewExpr?.(e) };
+          return {
+            operands: e.init === undefined ? [e.length] : [e.init, e.length],
+            head: (d) => void d.onArrayNewExpr?.(e),
+          };
         case 'table.set':
           return { operands: [e.index, e.value], head: (d) => void d.onTableSetExpr?.(e) };
 
@@ -1821,9 +1812,6 @@ class WatWriter extends ModuleContext {
         return;
       case 'array.new':
         d.onArrayNewExpr?.(e);
-        return;
-      case 'array.new_default':
-        d.onArrayNewDefaultExpr?.(e);
         return;
       case 'array.new_fixed':
         d.onArrayNewFixedExpr?.(e);
@@ -2316,16 +2304,14 @@ function constExprOperands(e: Expr): Expr[] | null {
     case 'ref.null':
     case 'ref.func':
     case 'global.get':
-    case 'struct.new_default':
+      // struct.new's operands are its field values; the default form has none.
       return [];
     case 'ref.i31':
     case 'any.convert_extern':
     case 'extern.convert_any':
       return [e.value];
-    case 'array.new_default':
-      return [e.length];
     case 'array.new':
-      return [e.init, e.length];
+      return e.init === undefined ? [e.length] : [e.init, e.length];
     case 'binary':
       // Extended-const arithmetic: i32/i64 add, sub, mul.
       return [e.left, e.right];

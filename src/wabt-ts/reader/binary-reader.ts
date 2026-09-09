@@ -54,7 +54,6 @@ import {
   type ArrayGetExpr,
   type ArrayLenExpr,
   type ArrayNewDataExpr,
-  type ArrayNewDefaultExpr,
   type ArrayNewElemExpr,
   type ArrayNewExpr,
   type ArrayNewFixedExpr,
@@ -102,7 +101,6 @@ import {
   type RethrowExpr,
   type SectionMeta,
   type StructGetExpr,
-  type StructNewDefaultExpr,
   type StructNewExpr,
   type StructSetExpr,
   type Table,
@@ -2959,10 +2957,12 @@ export class BinaryReader {
       case GcOpcode.StructNewDefault: {
         const typeIdx = this.readU32Leb();
         stack.push({
-          kind: 'struct.new_default',
+          kind: 'struct.new',
+          defaultInit: true,
+          operands: [],
           typeVar: varIndex(typeIdx),
           loc,
-        } as StructNewDefaultExpr);
+        } as StructNewExpr);
         return;
       }
       case GcOpcode.StructGet:
@@ -3019,11 +3019,11 @@ export class BinaryReader {
         const typeIdx = this.readU32Leb();
         const length = stack.pop() ?? nop();
         stack.push({
-          kind: 'array.new_default',
+          kind: 'array.new',
           typeVar: varIndex(typeIdx),
           length,
           loc,
-        } as ArrayNewDefaultExpr);
+        } as ArrayNewExpr);
         return;
       }
       case GcOpcode.ArrayNewFixed: {

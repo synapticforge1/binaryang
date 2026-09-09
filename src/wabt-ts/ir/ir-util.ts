@@ -336,16 +336,13 @@ export class ModuleContext {
         // Field-count comes from the type def; we use the operand array
         // as the parser/reader already paired it with the struct's fields.
         return { nargs: expr.operands.length, nreturns: 1, unreachable: false };
-      case 'struct.new_default':
-        return { nargs: 0, nreturns: 1, unreachable: false };
       case 'struct.get':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'struct.set':
         return { nargs: 2, nreturns: 0, unreachable: false };
       case 'array.new':
-        return { nargs: 2, nreturns: 1, unreachable: false };
-      case 'array.new_default':
-        return { nargs: 1, nreturns: 1, unreachable: false };
+        // The default form takes only the length.
+        return { nargs: expr.init === undefined ? 1 : 2, nreturns: 1, unreachable: false };
       case 'array.new_fixed':
         return { nargs: expr.operands.length, nreturns: 1, unreachable: false };
       case 'array.new_data':

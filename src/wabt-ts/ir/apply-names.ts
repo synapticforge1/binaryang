@@ -372,9 +372,7 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'throw':
       return { ...e, tag: rewriteVar(e.tag, n.tagNames) };
     case 'struct.new':
-    case 'struct.new_default':
     case 'array.new':
-    case 'array.new_default':
     case 'array.new_fixed':
     case 'array.get':
     case 'array.set':

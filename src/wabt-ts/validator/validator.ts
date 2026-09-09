@@ -22,7 +22,6 @@ import type {
   ArrayInitSegmentExpr,
   ArrayLenExpr,
   ArrayNewDataExpr,
-  ArrayNewDefaultExpr,
   ArrayNewElemExpr,
   ArrayNewExpr,
   ArrayNewFixedExpr,
@@ -84,7 +83,6 @@ import type {
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
-  StructNewDefaultExpr,
   StructNewExpr,
   StructSetExpr,
   TableCopyExpr,
@@ -531,12 +529,11 @@ class ModuleValidator implements ExprVisitorDelegate {
         return this.isConstExpr(e.value);
       case 'struct.new':
       case 'array.new_fixed':
+        // The default form has no operands, so `every` is vacuously true --
+        // which is the right answer, and why it needs no separate case.
         return e.operands.every((x) => this.isConstExpr(x));
-      case 'struct.new_default':
-      case 'array.new_default':
-        return true;
       case 'array.new':
-        return this.isConstExpr(e.init) && this.isConstExpr(e.length);
+        return (e.init === undefined || this.isConstExpr(e.init)) && this.isConstExpr(e.length);
       default:
         return false;
     }
@@ -876,12 +873,10 @@ class ModuleValidator implements ExprVisitorDelegate {
   onStructNewExpr(e: StructNewExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onStructNew(e.loc, varIdx(e.typeVar));
-  }
-  onStructNewDefaultExpr(e: StructNewDefaultExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onStructNewDefault(e.loc, varIdx(e.typeVar));
+    // The default form checks nothing about field values, because there are none.
+    return e.defaultInit
+      ? this.sv.onStructNewDefault(e.loc, varIdx(e.typeVar))
+      : this.sv.onStructNew(e.loc, varIdx(e.typeVar));
   }
   onStructGetExpr(e: StructGetExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
@@ -896,12 +891,9 @@ class ModuleValidator implements ExprVisitorDelegate {
   onArrayNewExpr(e: ArrayNewExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayNew(e.loc, varIdx(e.typeVar));
-  }
-  onArrayNewDefaultExpr(e: ArrayNewDefaultExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
-    if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayNewDefault(e.loc, varIdx(e.typeVar));
+    return e.init === undefined
+      ? this.sv.onArrayNewDefault(e.loc, varIdx(e.typeVar))
+      : this.sv.onArrayNew(e.loc, varIdx(e.typeVar));
   }
   onArrayNewFixedExpr(e: ArrayNewFixedExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);

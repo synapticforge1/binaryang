@@ -714,8 +714,6 @@ class ResolveContext {
         const [r, operands] = this.resolveExprArray(e.operands);
         return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), operands }];
       }
-      case 'struct.new_default':
-        return [Result.Ok, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc) }];
       case 'struct.get': {
         const [r, ref] = this.resolveExpr(e.ref);
         const tv = this.resolveTypeVar(e.typeVar, loc);
@@ -731,16 +729,13 @@ class ResolveContext {
         ];
       }
       case 'array.new': {
-        const [ri, init] = this.resolveExpr(e.init);
         const [rl, length] = this.resolveExpr(e.length);
-        return [
-          combineResults(ri, rl),
-          { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), init, length },
-        ];
-      }
-      case 'array.new_default': {
-        const [r, length] = this.resolveExpr(e.length);
-        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), length }];
+        const typeVar = this.resolveTypeVar(e.typeVar, loc);
+        // The default form has no initialiser to resolve, and must not gain one
+        // (`exactOptionalPropertyTypes` forbids an explicit undefined).
+        if (e.init === undefined) return [rl, { ...e, typeVar, length }];
+        const [ri, init] = this.resolveExpr(e.init);
+        return [combineResults(ri, rl), { ...e, typeVar, init, length }];
       }
       case 'array.new_fixed': {
         const [r, operands] = this.resolveExprArray(e.operands);
