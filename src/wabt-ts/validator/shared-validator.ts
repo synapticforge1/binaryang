@@ -16,6 +16,7 @@ import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, ValueType } from '../ir/ir.ts';
 import { CatchKind, isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
+import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public options
@@ -1464,7 +1465,11 @@ export class SharedValidator {
   private isFuncTable(t: ValueType): boolean {
     if (!isRefValueType(t)) return t === Type.FuncRef || t === Type.NullFuncRef;
     const h = t.heapType;
-    if (h.kind === 'name') return h.name === 'func' || h.name === 'nofunc';
+    if (h.kind === 'abstract') return h.name === 'func' || h.name === 'nofunc';
+    // An unresolved `$T` cannot be placed in a hierarchy without resolving it
+    // first, so it is not a func table — the same answer the old shape gave,
+    // where the keyword comparison simply failed to match.
+    if (h.kind === 'name') return false;
     return this.funcTypesMap.has(h.value);
   }
 
@@ -2121,7 +2126,7 @@ export class SharedValidator {
     if (kind === CatchKind.CatchRef || kind === CatchKind.CatchAllRef) {
       // A caught exception reference is NON-NULL — `(ref exn)`, not the
       // nullable `exnref`. There is always an exception when the clause runs.
-      params.push({ kind: 'ref', heapType: { kind: 'name', name: 'exn' }, nullable: false });
+      params.push({ kind: 'ref', heapType: heapAbstract('exn'), nullable: false });
     }
     if (depth === undefined) return Result.Ok;
     return this.tc.checkCatchTarget(depth, params);

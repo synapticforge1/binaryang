@@ -227,7 +227,29 @@ export function typeName(t: Type): string {
  * reader, binary writer, validator, and binaryen bridge all route through it.
  * Do not copy the switch into a call site; extend this table instead.
  */
-const ABSTRACT_HEAP_TYPES: ReadonlyArray<readonly [string, Type]> = [
+/**
+ * The twelve abstract heap types, spelled as the TEXT FORMAT spells them.
+ *
+ * This union is the vocabulary; the table below is the encoding. Typing the
+ * table with it means a keyword added to one and not the other does not
+ * compile — the failure mode that let binaryen-ts carry `ext`/`noext` (which
+ * are not WAT) while this table had `extern`/`noextern`.
+ */
+export type AbstractHeap =
+  | 'func'
+  | 'nofunc'
+  | 'extern'
+  | 'noextern'
+  | 'exn'
+  | 'noexn'
+  | 'any'
+  | 'eq'
+  | 'i31'
+  | 'struct'
+  | 'array'
+  | 'none';
+
+const ABSTRACT_HEAP_TYPES: ReadonlyArray<readonly [AbstractHeap, Type]> = [
   ['func', Type.FuncRef],
   ['extern', Type.ExternRef],
   ['exn', Type.ExnRef],
@@ -243,7 +265,7 @@ const ABSTRACT_HEAP_TYPES: ReadonlyArray<readonly [string, Type]> = [
 ];
 
 const HEAP_TYPE_BY_NAME: ReadonlyMap<string, Type> = new Map(ABSTRACT_HEAP_TYPES);
-const HEAP_NAME_BY_TYPE: ReadonlyMap<Type, string> = new Map(
+const HEAP_NAME_BY_TYPE: ReadonlyMap<Type, AbstractHeap> = new Map(
   ABSTRACT_HEAP_TYPES.map(([name, t]) => [t, name]),
 );
 
@@ -265,6 +287,6 @@ export function heapTypeNameToType(name: string): Type | null {
  * this also normalizes the `…ref` value-type spellings (`Type.FuncRef` →
  * `"func"`). Returns `null` for non-reference types.
  */
-export function typeToHeapTypeName(t: Type): string | null {
+export function typeToHeapTypeName(t: Type): AbstractHeap | null {
   return HEAP_NAME_BY_TYPE.get(t) ?? null;
 }

@@ -7,7 +7,7 @@
 import type { Location } from '../core/error.ts';
 import { unknownLocation } from '../core/error.ts';
 import { addError, type ErrorList } from '../core/error.ts';
-import { isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
+import { type AbstractHeap, isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
 import {
   BinarySection,
   ExternalKind,
@@ -81,6 +81,8 @@ import {
   type FuncSignature,
   type Global,
   type GlobalGetExpr,
+  heapAbstract,
+  type HeapTypeRef,
   type I31GetExpr,
   type Limits,
   type LocalGetExpr,
@@ -566,10 +568,15 @@ export class BinaryReader {
    * Read a GC-proposal heap type immediate (signed LEB128). Negative values
    * are single-byte encodings of abstract heap types (matching the wabt-ts
    * `Type.AnyRef` / `EqRef` / … enum entries); non-negative values are
-   * indices into the type section. Returns a `Var` in the same shape the
-   * WAT parser produces.
+   * indices into the type section. Returns the same {@link HeapTypeRef} shape
+   * the WAT parser produces.
+   *
+   * An UNRECOGNIZED abstract byte stays in the name arm deliberately: this
+   * reader must not throw on malformed input (`malformed_never_throws`), and
+   * the name arm is the one that already fails loudly at write time. Putting it
+   * in the abstract arm would claim it is a keyword this build knows.
    */
-  private readHeapTypeVar(): Var {
+  private readHeapTypeVar(): HeapTypeRef {
     const b = this.peekU8();
     if ((b & 0x80) === 0) {
       // Single-byte form: either an abstract heap type (high bit set in the
@@ -577,7 +584,7 @@ export class BinaryReader {
       this.pos++;
       if (b >= 0x40) {
         const name = abstractHeapTypeNameForByte(b);
-        if (name !== null) return varName(name);
+        if (name !== null) return heapAbstract(name);
         return varName(`<heaptype:0x${b.toString(16)}>`);
       }
       return varIndex(b);
@@ -590,7 +597,7 @@ export class BinaryReader {
     if (v < 0) {
       const code = (-v) & 0x7f;
       const name = abstractHeapTypeNameForByte(code);
-      if (name !== null) return varName(name);
+      if (name !== null) return heapAbstract(name);
       return varName(`<heaptype:0x${code.toString(16)}>`);
     }
     return varIndex(v);
@@ -1085,7 +1092,7 @@ export class BinaryReader {
       // Only flags 0 and 4 leave it implicit; the rest spell it out.
       let elemType: ValueType = usesExprs
         ? Type.FuncRef
-        : { kind: 'ref', heapType: { kind: 'name', name: 'func' }, nullable: false };
+        : { kind: 'ref', heapType: heapAbstract('func'), nullable: false };
       if (isPassive || hasExplicitIndex) {
         if (usesExprs) {
           elemType = this.readRefType();
@@ -3233,7 +3240,7 @@ export class BinaryReader {
  * types. Thin alias over the canonical table in `core/types.ts` — the `Type`
  * enum values ARE the heap-type byte encodings.
  */
-function abstractHeapTypeNameForByte(b: number): string | null {
+function abstractHeapTypeNameForByte(b: number): AbstractHeap | null {
   return typeToHeapTypeName(b as Type);
 }
 

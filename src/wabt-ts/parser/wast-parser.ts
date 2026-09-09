@@ -68,6 +68,8 @@ import {
   type Global,
   type GlobalGetExpr,
   type GlobalSetExpr,
+  heapAbstract,
+  type HeapTypeRef,
   type I31GetExpr,
   type IfExpr,
   type Import,
@@ -561,7 +563,7 @@ function isCommand(tt0: TokenType, tt1: TokenType): boolean {
  */
 const FUNCIDX_ELEM_TYPE: ValueType = {
   kind: 'ref',
-  heapType: { kind: 'name', name: 'func' },
+  heapType: heapAbstract('func'),
   nullable: false,
 };
 
@@ -1564,7 +1566,7 @@ export class WastParser {
       const ht = this.parseHeapTypeVar();
       if (ht === null) return null;
       this.expect(TokenType.Rpar);
-      if (ht.kind === 'name') {
+      if (ht.kind === 'abstract') {
         const abstract_ = heapTypeNameToType(ht.name);
         // `(ref null func)` is exactly `funcref`; `(ref func)` is the
         // non-nullable form and still needs the two-part encoding.
@@ -1617,7 +1619,7 @@ export class WastParser {
    * {@link Var} (name-form for keywords + user names; index-form for
    * numeric indices). Returns null on parse error.
    */
-  private parseRefImmediate(): { heapType: Var; nullable: boolean } | null {
+  private parseRefImmediate(): { heapType: HeapTypeRef; nullable: boolean } | null {
     const loc = this.loc();
     // Abbreviated spelling: `ref.cast i31ref …` instead of
     // `ref.cast (ref null i31) …`. A bare `…ref` value type IS the nullable
@@ -1629,7 +1631,7 @@ export class WastParser {
       const name = typeToHeapTypeName(tok.valueType);
       if (name !== null) {
         this.consume();
-        return { heapType: varName(name), nullable: true };
+        return { heapType: heapAbstract(name), nullable: true };
       }
     }
     if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
@@ -1662,7 +1664,7 @@ export class WastParser {
    * type (they double as composite-type and refkind keywords), which is why
    * this can't go through `parseValueType`.
    */
-  private parseHeapTypeVar(): Var | null {
+  private parseHeapTypeVar(): HeapTypeRef | null {
     const loc = this.loc();
     const tt = this.peek();
     switch (tt) {
@@ -1689,25 +1691,25 @@ export class WastParser {
           this.error(tok.loc, 'unknown heap type');
           return null;
         }
-        return varName(name);
+        return heapAbstract(name);
       }
       // Bare keywords with dedicated token types — they double as
       // composite-type / refkind keywords, so they never reach ValueType.
       case TokenType.Func:
         this.drop();
-        return varName('func');
+        return heapAbstract('func');
       case TokenType.Extern:
         this.drop();
-        return varName('extern');
+        return heapAbstract('extern');
       case TokenType.Exn:
         this.drop();
-        return varName('exn');
+        return heapAbstract('exn');
       case TokenType.Struct:
         this.drop();
-        return varName('struct');
+        return heapAbstract('struct');
       case TokenType.Array:
         this.drop();
-        return varName('array');
+        return heapAbstract('array');
       case TokenType.ValueType: {
         // `funcref` / `anyref` / `i31ref` / … — strip to the bare heap-type
         // keyword. Rejects numeric value types (`ref.null i32`).
@@ -1717,7 +1719,7 @@ export class WastParser {
           this.error(loc, `not a heap type: ${typeName(tok.valueType)}`);
           return null;
         }
-        return varName(name);
+        return heapAbstract(name);
       }
       default:
         this.error(loc, `expected heap type, got ${tokenName(tt)}`);
@@ -4197,7 +4199,7 @@ export class WastParser {
         // and nothing ever resolved the resulting name-var — so every
         // `ref.null` failed to encode.
         const ht = this.parseHeapTypeVar();
-        return { kind: 'ref.null', refType: ht ?? varName('func'), loc } as RefNullExpr;
+        return { kind: 'ref.null', refType: ht ?? heapAbstract('func'), loc } as RefNullExpr;
       }
       case TokenType.RefIsNull:
         return { kind: 'ref.is_null', value: op0(), loc } as RefIsNullExpr;
@@ -5458,7 +5460,11 @@ export class WastParser {
       // canonical table (a user-defined `$T` has no Type entry — coarsen to
       // structref, matching the loose typed-ref IR).
       const ht = this.parseHeapTypeVar();
-      const t = ht !== null && ht.kind === 'name'
+      // Only an ABSTRACT heap type has a `Type` byte; a `$T` or an index is a
+      // defined type and coarsens to structref here. That used to read "a name
+      // whose keyword lookup succeeds", which is the same test spelled as a
+      // table probe.
+      const t = ht !== null && ht.kind === 'abstract'
         ? heapTypeNameToType(ht.name) ?? Type.StructRef
         : Type.StructRef;
       this.expect(TokenType.Rpar);
