@@ -354,6 +354,18 @@ export function opcodeName(op: Opcode): string | undefined {
   return OPCODE_NAMES.get(op);
 }
 
+/**
+ * `i8x16.shuffle` — the ONE instruction the `simd.shuffle` expression kind
+ * names.
+ *
+ * Named here rather than left inline at the writer, because the kind carries no
+ * `opcode` field: with a single instruction the KIND *is* the operator, and a
+ * field that can only hold one value is a field that can disagree with the kind.
+ * The table below is keyed by the composed value, so this is the one place the
+ * constant belongs.
+ */
+export const OPCODE_I8X16_SHUFFLE: Opcode = ((PREFIX_SIMD << 16) | 0x0d) as Opcode;
+
 // Built lazily from the enum above; avoids a large switch statement.
 const OPCODE_NAMES: ReadonlyMap<Opcode, string> = new Map<Opcode, string>([
   [Opcode.Unreachable, 'unreachable'],

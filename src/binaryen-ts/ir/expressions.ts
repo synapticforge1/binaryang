@@ -1236,23 +1236,15 @@ export interface RefIsNullExpr extends ExprBase {
   value: Expression;
 }
 
-/**
- * The `ref.as_*` operations.
- *
- * Mirrors upstream's `RefAsOp`. Only `RefAsNonNull` is wired through the
- * parser/encoder today; the extern conversions are post-MVP and would be added
- * here rather than as separate expression kinds.
- */
-export const RefAsOp = {
-  /** `ref.as_non_null` — traps if the operand is null, else yields it non-null. */
-  RefAsNonNull: 0xd4, // ref.as_non_null
-} as const;
-
-/**
- * An operator is an OPCODE, so the field admits every instruction — including
- * the ~116 that have no member above. See S6 stage 1 in cmem/ir-convergence.md.
- */
-export type RefAsOp = Opcode;
+// `RefAsOp` stood here. It had one member, `RefAsNonNull: 0xd4`, and the
+// `RefAsExpr.opcode` field it typed could hold nothing else — so the kind and
+// the field said the same thing, and only the field could be wrong. S6 dropped
+// both; the encoder writes 0xd4 because `ref.as` names that instruction.
+//
+// It was reserved for the extern conversions ("would be added here rather than
+// as separate expression kinds"). The unified IR already models those as their
+// own kinds — `any.convert_extern` and `extern.convert_any` — so the reservation
+// was superseded rather than abandoned.
 
 /** {@link TupleMakeExpr} — see {@link makeTupleMake} for the factory. */
 export interface TupleMakeExpr extends ExprBase {
@@ -1269,7 +1261,6 @@ export interface RefAsExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefAs;
   /** Which `ref.as_*` operation this node performs. */
-  opcode: RefAsOp;
   /** The reference operand. */
   value: Expression;
 }
@@ -2406,7 +2397,7 @@ export function makeTupleMake(operands: Expression[]): TupleMakeExpr {
  * concrete.
  */
 export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
-  return { kind: ExpressionKind.RefAs, type: resultType, opcode: RefAsOp.RefAsNonNull, value };
+  return { kind: ExpressionKind.RefAs, type: resultType, value };
 }
 
 /** Creates a ref.eq expression. */

@@ -4603,7 +4603,6 @@ export class WastParser {
         return node;
       }
       case TokenType.SimdShuffleOp: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
         // `i8x16.shuffle` takes EXACTLY 16 lane indices, each an unsigned
         // byte. The loop used to skip any position whose token was not a
         // number, so a shuffle written with 15 lanes -- or with none at all --
@@ -4625,7 +4624,6 @@ export class WastParser {
         }
         return {
           kind: 'simd.shuffle',
-          opcode: op as unknown as Opcode,
           lanes: laneArr,
           left: op0(),
           right: op1(),

@@ -2440,7 +2440,7 @@ export class BinaryReader {
       const lanes = this.readBytes(16);
       const right = stack.pop() ?? operandPlaceholder(loc);
       const left = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'simd.shuffle', opcode: opcode as Opcode, lanes, left, right, loc });
+      stack.push({ kind: 'simd.shuffle', lanes, left, right, loc });
       return;
     }
 

@@ -51,7 +51,6 @@ import {
   type QuaternaryExpr,
   QuaternaryOp,
   type RefAsExpr,
-  RefAsOp,
   type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
@@ -1888,10 +1887,10 @@ class WasmEncoder {
       case ExpressionKind.RefAs: {
         const e = expr as RefAsExpr;
         this.encodeExpr(w, e.value, labels);
-        if (e.opcode !== RefAsOp.RefAsNonNull) {
-          throw new WasmEncodeError(`unsupported ref.as operation: ${e.opcode}`);
-        }
-        w.writeU8(0xd4);
+        // `ref.as` names exactly one instruction, so the kind IS the operator
+        // and there is nothing to reject. The guard that stood here tested a
+        // field that could only ever hold `RefAsNonNull`.
+        w.writeU8(0xd4); // ref.as_non_null
         break;
       }
       case ExpressionKind.RefFunc: {
