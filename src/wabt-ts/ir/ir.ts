@@ -1037,10 +1037,10 @@ export interface TableFillExpr {
 /** `table.copy $dst $src` (0xfc 0x0e) — copies `size` elements between tables. */
 export interface TableCopyExpr {
   readonly kind: 'table.copy';
-  readonly dst: Var;
-  readonly source: Var;
+  readonly destTable: Var;
+  readonly sourceTable: Var;
   readonly dest: Expr;
-  readonly srcOffset: Expr;
+  readonly source: Expr;
   readonly size: Expr;
   readonly loc: Location;
 }

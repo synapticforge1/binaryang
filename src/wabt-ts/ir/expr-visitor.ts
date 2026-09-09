@@ -650,7 +650,7 @@ export class ExprVisitor {
       case 'table.copy': {
         let r = this.dispatch(e.dest);
         if (r === Result.Error) return r;
-        r = this.dispatch(e.srcOffset);
+        r = this.dispatch(e.source);
         if (r === Result.Error) return r;
         r = this.dispatch(e.size);
         if (r === Result.Error) return r;

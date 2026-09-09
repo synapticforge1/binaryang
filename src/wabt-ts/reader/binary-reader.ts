@@ -2293,14 +2293,14 @@ export class BinaryReader {
         const dstIdx = this.readU32Leb();
         const srcIdx = this.readU32Leb();
         const size = stack.pop() ?? operandPlaceholder(loc);
-        const srcOffset = stack.pop() ?? operandPlaceholder(loc);
+        const source = stack.pop() ?? operandPlaceholder(loc);
         const dest = stack.pop() ?? operandPlaceholder(loc);
         pushStmt(stack, stmts, {
           kind: 'table.copy',
-          dst: varIndex(dstIdx),
-          source: varIndex(srcIdx),
+          destTable: varIndex(dstIdx),
+          sourceTable: varIndex(srcIdx),
           dest,
-          srcOffset,
+          source,
           size,
           loc,
         });

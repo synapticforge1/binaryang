@@ -1697,7 +1697,7 @@ class WasmEncoder {
         } else {
           w.writeU8(loadOpcode(e));
         }
-        this.writeMemArg(w, e.align, e.offset, e.memory);
+        this.writeMemArg(w, e.align, e.offset, e.memidx);
         break;
       }
 
@@ -1712,26 +1712,26 @@ class WasmEncoder {
         } else {
           w.writeU8(storeOpcode(e));
         }
-        this.writeMemArg(w, e.align, e.offset, e.memory);
+        this.writeMemArg(w, e.align, e.offset, e.memidx);
         break;
       }
 
       case ExpressionKind.MemorySize: {
         w.writeU8(0x3f);
-        w.writeU8(memIndex((expr as MemorySizeExpr).memory, 'memory.size'));
+        w.writeU8(memIndex((expr as MemorySizeExpr).memidx, 'memory.size'));
         break;
       }
       case ExpressionKind.MemoryGrow: {
         const e = expr as MemoryGrowExpr;
         this.encodeExpr(w, e.delta, labels);
         w.writeU8(0x40);
-        w.writeU8(memIndex(e.memory, e.kind));
+        w.writeU8(memIndex(e.memidx, e.kind));
         break;
       }
       case ExpressionKind.TableInit: {
         const e = expr as TableInitExpr;
         this.encodeExpr(w, e.dest, labels);
-        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.source, labels);
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(12);
@@ -1753,12 +1753,12 @@ class WasmEncoder {
       case ExpressionKind.MemoryInit: {
         const e = expr as MemoryInitExpr;
         this.encodeExpr(w, e.dest, labels);
-        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.source, labels);
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(8);
         w.writeU32(this.dataSegmentIndex(e.segment));
-        w.writeU8(memIndex(e.memory, e.kind));
+        w.writeU8(memIndex(e.memidx, e.kind));
         break;
       }
 
@@ -1821,8 +1821,8 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(10);
-        w.writeU8(memIndex(e.memory, e.kind));
-        w.writeU8(memIndex(e.sourceMemory, e.kind));
+        w.writeU8(memIndex(e.destMemidx, e.kind));
+        w.writeU8(memIndex(e.srcMemidx, e.kind));
         break;
       }
       case ExpressionKind.MemoryFill: {
@@ -1832,7 +1832,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(11);
-        w.writeU8(memIndex(e.memory, e.kind));
+        w.writeU8(memIndex(e.memidx, e.kind));
         break;
       }
 
@@ -1967,11 +1967,11 @@ class WasmEncoder {
       }
       case ExpressionKind.ArrayNewFixed: {
         const e = expr as ArrayNewFixedExpr;
-        for (const v of e.values) this.encodeExpr(w, v, labels);
+        for (const v of e.operands) this.encodeExpr(w, v, labels);
         w.writeU8(0xfb);
         w.writeU32(0x08);
         w.writeU32(requireIndex(e.typeVar, e.kind));
-        w.writeU32(e.values.length);
+        w.writeU32(e.operands.length);
         break;
       }
       case ExpressionKind.ArrayNewData: {
@@ -2016,7 +2016,7 @@ class WasmEncoder {
       case ExpressionKind.ArrayFill: {
         const e = expr as ArrayFillExpr;
         this.encodeExpr(w, e.ref, labels);
-        this.encodeExpr(w, e.index, labels);
+        this.encodeExpr(w, e.offset, labels);
         this.encodeExpr(w, e.value, labels);
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfb);
@@ -2027,9 +2027,9 @@ class WasmEncoder {
       case ExpressionKind.ArrayCopy: {
         const e = expr as ArrayCopyExpr;
         this.encodeExpr(w, e.destRef, labels);
-        this.encodeExpr(w, e.destIndex, labels);
+        this.encodeExpr(w, e.destOffset, labels);
         this.encodeExpr(w, e.srcRef, labels);
-        this.encodeExpr(w, e.srcIndex, labels);
+        this.encodeExpr(w, e.srcOffset, labels);
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfb);
         w.writeU32(0x11);
@@ -2042,8 +2042,8 @@ class WasmEncoder {
       case ExpressionKind.ArrayInitElem: {
         const e = expr as ArrayInitDataExpr | ArrayInitElemExpr;
         this.encodeExpr(w, e.ref, labels);
-        this.encodeExpr(w, e.index, labels);
-        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.destOffset, labels);
+        this.encodeExpr(w, e.srcOffset, labels);
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfb);
         w.writeU32(e.kind === ExpressionKind.ArrayInitData ? 0x12 : 0x13);
@@ -2256,7 +2256,7 @@ class WasmEncoder {
         const e = expr as SIMDLoadExpr;
         this.encodeExpr(w, e.ptr, labels);
         this.writeOperator(w, e.opcode);
-        this.writeMemArg(w, e.align, e.offset, e.memory);
+        this.writeMemArg(w, e.align, e.offset, e.memidx);
         break;
       }
 
@@ -2265,7 +2265,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.ptr, labels);
         this.encodeExpr(w, e.vec, labels);
         this.writeOperator(w, e.opcode);
-        this.writeMemArg(w, e.align, e.offset, e.memory);
+        this.writeMemArg(w, e.align, e.offset, e.memidx);
         w.writeU8(e.lane);
         break;
       }

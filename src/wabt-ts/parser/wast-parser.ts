@@ -4154,10 +4154,10 @@ export class WastParser {
         const src = this.parseVarOpt(varIndex(0));
         return {
           kind: 'table.copy',
-          dst,
-          source: src,
+          destTable: dst,
+          sourceTable: src,
           dest: op0(),
-          srcOffset: op1(),
+          source: op1(),
           size: op2(),
           loc,
         } as TableCopyExpr;

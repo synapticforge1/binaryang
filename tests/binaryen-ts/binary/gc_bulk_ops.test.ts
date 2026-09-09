@@ -286,8 +286,8 @@ Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10',
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayFill);
   assert(node !== null, 'array.fill did not decode to an ArrayFill node');
   assertEquals(node!.typeVar, varIndex(0));
-  // ref, index, value, size all present and distinct operands.
-  for (const k of ['ref', 'index', 'value', 'size']) {
+  // ref, offset, value, size all present and distinct operands.
+  for (const k of ['ref', 'offset', 'value', 'size']) {
     assert(node![k] !== undefined, `ArrayFill is missing operand "${k}"`);
   }
   assert(gcSubops(encodeWasm(mod)).includes(0x10), 'encoder did not emit array.fill');
@@ -301,7 +301,7 @@ Deno.test('array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11',
   const mod = parseWasm(ARRAY_COPY_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayCopy);
   assert(node !== null, 'array.copy did not decode to an ArrayCopy node');
-  for (const k of ['destRef', 'destIndex', 'srcRef', 'srcIndex', 'size']) {
+  for (const k of ['destRef', 'destOffset', 'srcRef', 'srcOffset', 'size']) {
     assert(node![k] !== undefined, `ArrayCopy is missing operand "${k}"`);
   }
   assert(gcSubops(encodeWasm(mod)).includes(0x11), 'encoder did not emit array.copy');

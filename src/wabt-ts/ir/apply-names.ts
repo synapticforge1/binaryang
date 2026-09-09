@@ -360,8 +360,8 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'table.copy':
       return {
         ...e,
-        dst: rewriteVar(e.dst, n.tableNames),
-        source: rewriteVar(e.source, n.tableNames),
+        destTable: rewriteVar(e.destTable, n.tableNames),
+        sourceTable: rewriteVar(e.sourceTable, n.tableNames),
       };
     case 'table.init':
       return {

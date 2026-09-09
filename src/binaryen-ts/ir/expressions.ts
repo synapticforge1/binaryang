@@ -935,7 +935,7 @@ export interface LoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Load;
   /** Byte width of the memory access (1, 2, 4, 8, 16). */
@@ -960,7 +960,7 @@ export interface StoreExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Store;
   /** Width in bytes of the access. */
@@ -985,7 +985,7 @@ export interface MemoryGrowExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryGrow;
   /** Result type — the value type yielded at runtime. */
@@ -1004,7 +1004,7 @@ export interface MemorySizeExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemorySize;
   /** Result type — the value type yielded at runtime. */
@@ -1030,7 +1030,7 @@ export interface TableInitExpr extends ExprBase {
   /** Index of the first table slot to write. */
   dest: Expression;
   /** Index of the first segment element to read. */
-  offset: Expression;
+  source: Expression;
   /** How many elements to copy. */
   size: Expression;
 }
@@ -1060,7 +1060,7 @@ export interface MemoryInitExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryInit;
   /** Result type — the value type yielded at runtime. */
@@ -1070,7 +1070,7 @@ export interface MemoryInitExpr extends ExprBase {
   /** Destination address in linear memory. */
   dest: Expression;
   /** Byte offset within the segment. */
-  offset: Expression;
+  source: Expression;
   /** Number of bytes to copy. */
   size: Expression;
 }
@@ -1152,9 +1152,9 @@ export interface MemoryCopyExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  destMemidx?: Var;
   /** Memory the COPY READS FROM. Omitted means 0. `memory` is the destination. */
-  sourceMemory?: Var;
+  srcMemidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryCopy;
   /** Result type — the value type yielded at runtime. */
@@ -1177,7 +1177,7 @@ export interface MemoryFillExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryFill;
   /** Result type — the value type yielded at runtime. */
@@ -1393,7 +1393,7 @@ export interface ArrayNewFixedExpr extends ExprBase {
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** values — see the matching factory for semantics. */
-  values: Expression[];
+  operands: Expression[];
 }
 
 /** {@link ArrayNewDataExpr} — see {@link makeArrayNewData} for the factory. */
@@ -1465,7 +1465,7 @@ export interface ArrayFillExpr extends ExprBase {
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
-  index: Expression;
+  offset: Expression;
   /** The value written to every filled slot. */
   value: Expression;
   /** Number of elements to fill. */
@@ -1485,11 +1485,11 @@ export interface ArrayCopyExpr extends ExprBase {
   /** The destination array reference. */
   destRef: Expression;
   /** Start index within the destination. */
-  destIndex: Expression;
+  destOffset: Expression;
   /** The source array reference. */
   srcRef: Expression;
   /** Start index within the source. */
-  srcIndex: Expression;
+  srcOffset: Expression;
   /** Number of elements to copy. */
   size: Expression;
 }
@@ -1507,9 +1507,9 @@ export interface ArrayInitDataExpr extends ExprBase {
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
-  index: Expression;
+  destOffset: Expression;
   /** Byte offset within the data segment. */
-  offset: Expression;
+  srcOffset: Expression;
   /** Number of elements to write. */
   size: Expression;
 }
@@ -1527,9 +1527,9 @@ export interface ArrayInitElemExpr extends ExprBase {
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
-  index: Expression;
+  destOffset: Expression;
   /** Offset within the element segment. */
-  offset: Expression;
+  srcOffset: Expression;
   /** Number of elements to write. */
   size: Expression;
 }
@@ -1801,7 +1801,7 @@ export interface SIMDLoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoad;
   /** Operator code. */
@@ -1824,7 +1824,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: Var;
+  memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoadStoreLane;
   /** Operator code. */
@@ -2176,7 +2176,7 @@ export function makeLoad(
   align: number,
   ptr: Expression,
   resultType: ValType,
-  memory: Var = varIndex(0),
+  memidx: Var = varIndex(0),
 ): LoadExpr {
   return {
     kind: ExpressionKind.Load,
@@ -2186,7 +2186,7 @@ export function makeLoad(
     offset,
     align,
     ptr,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
@@ -2197,7 +2197,7 @@ export function makeStore(
   align: number,
   ptr: Expression,
   value: Expression,
-  memory: Var = varIndex(0),
+  memidx: Var = varIndex(0),
 ): StoreExpr {
   return {
     kind: ExpressionKind.Store,
@@ -2207,26 +2207,26 @@ export function makeStore(
     align,
     ptr,
     value,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
 /** Creates a `memory.size` expression. */
-export function makeMemorySize(memory: Var = varIndex(0)): MemorySizeExpr {
+export function makeMemorySize(memidx: Var = varIndex(0)): MemorySizeExpr {
   return {
     kind: ExpressionKind.MemorySize,
     type: ValType.I32,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
 /** Creates a `memory.grow` expression. */
-export function makeMemoryGrow(delta: Expression, memory: Var = varIndex(0)): MemoryGrowExpr {
+export function makeMemoryGrow(delta: Expression, memidx: Var = varIndex(0)): MemoryGrowExpr {
   return {
     kind: ExpressionKind.MemoryGrow,
     type: ValType.I32,
     delta,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
@@ -2235,10 +2235,10 @@ export function makeTableInit(
   segment: Var,
   table: Var,
   dest: Expression,
-  offset: Expression,
+  source: Expression,
   size: Expression,
 ): TableInitExpr {
-  return { kind: ExpressionKind.TableInit, type: None, segment, table, dest, offset, size };
+  return { kind: ExpressionKind.TableInit, type: None, segment, table, dest, source, size };
 }
 
 /** Creates an `elem.drop` expression. */
@@ -2250,18 +2250,18 @@ export function makeElemDrop(segment: Var): ElemDropExpr {
 export function makeMemoryInit(
   segment: Var,
   dest: Expression,
-  offset: Expression,
+  source: Expression,
   size: Expression,
-  memory: Var = varIndex(0),
+  memidx: Var = varIndex(0),
 ): MemoryInitExpr {
   return {
     kind: ExpressionKind.MemoryInit,
     type: None,
     segment,
     dest,
-    offset,
+    source,
     size,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
@@ -2318,8 +2318,8 @@ export function makeMemoryCopy(
   dest: Expression,
   source: Expression,
   size: Expression,
-  memory: Var = varIndex(0),
-  sourceMemory: Var = varIndex(0),
+  destMemidx: Var = varIndex(0),
+  srcMemidx: Var = varIndex(0),
 ): MemoryCopyExpr {
   return {
     kind: ExpressionKind.MemoryCopy,
@@ -2327,8 +2327,8 @@ export function makeMemoryCopy(
     dest,
     source,
     size,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
-    ...(indexOf(sourceMemory) !== 0 ? { sourceMemory } : {}),
+    ...(indexOf(destMemidx) !== 0 ? { destMemidx } : {}),
+    ...(indexOf(srcMemidx) !== 0 ? { srcMemidx } : {}),
   };
 }
 
@@ -2337,7 +2337,7 @@ export function makeMemoryFill(
   dest: Expression,
   value: Expression,
   size: Expression,
-  memory: Var = varIndex(0),
+  memidx: Var = varIndex(0),
 ): MemoryFillExpr {
   return {
     kind: ExpressionKind.MemoryFill,
@@ -2345,7 +2345,7 @@ export function makeMemoryFill(
     dest,
     value,
     size,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
@@ -2493,10 +2493,10 @@ export function makeArrayNewDefault(
 /** Creates an array.new_fixed expression. */
 export function makeArrayNewFixed(
   typeVar: Var,
-  values: Expression[],
+  operands: Expression[],
   resultType: Type,
 ): ArrayNewFixedExpr {
-  return { kind: ExpressionKind.ArrayNewFixed, type: resultType, typeVar, values };
+  return { kind: ExpressionKind.ArrayNewFixed, type: resultType, typeVar, operands };
 }
 
 /** Creates an array.new_data expression. */
@@ -2560,11 +2560,11 @@ export function makeArraySet(
 export function makeArrayFill(
   typeVar: Var,
   ref: Expression,
-  index: Expression,
+  offset: Expression,
   value: Expression,
   size: Expression,
 ): ArrayFillExpr {
-  return { kind: ExpressionKind.ArrayFill, type: None, typeVar, ref, index, value, size };
+  return { kind: ExpressionKind.ArrayFill, type: None, typeVar, ref, offset, value, size };
 }
 
 /** Creates an `array.copy $Tdest $Tsrc` expression. */
@@ -2572,9 +2572,9 @@ export function makeArrayCopy(
   destTypeVar: Var,
   srcTypeVar: Var,
   destRef: Expression,
-  destIndex: Expression,
+  destOffset: Expression,
   srcRef: Expression,
-  srcIndex: Expression,
+  srcOffset: Expression,
   size: Expression,
 ): ArrayCopyExpr {
   return {
@@ -2583,9 +2583,9 @@ export function makeArrayCopy(
     destTypeVar,
     srcTypeVar,
     destRef,
-    destIndex,
+    destOffset,
     srcRef,
-    srcIndex,
+    srcOffset,
     size,
   };
 }
@@ -2595,8 +2595,8 @@ export function makeArrayInitData(
   typeVar: Var,
   segment: Var,
   ref: Expression,
-  index: Expression,
-  offset: Expression,
+  destOffset: Expression,
+  srcOffset: Expression,
   size: Expression,
 ): ArrayInitDataExpr {
   return {
@@ -2605,8 +2605,8 @@ export function makeArrayInitData(
     typeVar,
     segment,
     ref,
-    index,
-    offset,
+    destOffset,
+    srcOffset,
     size,
   };
 }
@@ -2616,8 +2616,8 @@ export function makeArrayInitElem(
   typeVar: Var,
   segment: Var,
   ref: Expression,
-  index: Expression,
-  offset: Expression,
+  destOffset: Expression,
+  srcOffset: Expression,
   size: Expression,
 ): ArrayInitElemExpr {
   return {
@@ -2626,8 +2626,8 @@ export function makeArrayInitElem(
     typeVar,
     segment,
     ref,
-    index,
-    offset,
+    destOffset,
+    srcOffset,
     size,
   };
 }
@@ -2785,7 +2785,7 @@ export function makeSIMDLoad(
   ptr: Expression,
   offset: number,
   align: number,
-  memory: Var = varIndex(0),
+  memidx: Var = varIndex(0),
 ): SIMDLoadExpr {
   return {
     kind: ExpressionKind.SIMDLoad,
@@ -2794,7 +2794,7 @@ export function makeSIMDLoad(
     ptr,
     offset,
     align,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
@@ -2806,7 +2806,7 @@ export function makeSIMDLoadStoreLane(
   offset: number,
   align: number,
   lane: number,
-  memory: Var = varIndex(0),
+  memidx: Var = varIndex(0),
 ): SIMDLoadStoreLaneExpr {
   const isStore = opcode === SIMDLoadStoreLaneOp.Store8LaneVec128 ||
     opcode === SIMDLoadStoreLaneOp.Store16LaneVec128 ||
@@ -2821,7 +2821,7 @@ export function makeSIMDLoadStoreLane(
     offset,
     align,
     lane,
-    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
 
