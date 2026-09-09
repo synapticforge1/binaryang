@@ -28,7 +28,7 @@
  * ```
  */
 
-import { valueTypeName } from '../ir/ir.ts';
+import { indexOf, valueTypeName } from '../ir/ir.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { Result } from '../core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
@@ -188,7 +188,7 @@ function appendDetails(lines: string[], m: Module): void {
     lines.push(`Export[${m.exports.length}]:`);
     for (const exp of m.exports) {
       const kindStr = extKindName(exp.kind);
-      const idx = exp.var.kind === 'index' ? exp.var.value : '?';
+      const idx = indexOf(exp.var) ?? '?';
       lines.push(` - ${kindStr}[${idx}] -> "${exp.name}"`);
     }
     lines.push('');

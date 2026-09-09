@@ -26,7 +26,7 @@
 import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { Expr, Func, Module, Var } from './ir.ts';
-import { varIndex, varName } from './ir.ts';
+import { indexOf, varIndex, varName } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Name maps — populated by the name-section reader
@@ -382,7 +382,7 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'struct.set': {
       // A field name lives under its OWN type, so the field map is selected by
       // the type INDEX — before that var is rewritten to a name.
-      const typeIdx = e.typeVar.kind === 'index' ? e.typeVar.value : undefined;
+      const typeIdx = indexOf(e.typeVar);
       const fieldMap = typeIdx === undefined ? undefined : n.fieldNames.get(typeIdx);
       return {
         ...e,

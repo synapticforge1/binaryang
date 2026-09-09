@@ -3,7 +3,7 @@
 // Copyright 2016 WebAssembly Community Group participants
 // Licensed under the Apache License, Version 2.0
 
-import { isRefValueType } from '../ir/ir.ts';
+import { indexOf, isRefValueType, requireIndex } from '../ir/ir.ts';
 import type { BlockType, Field, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
@@ -252,7 +252,7 @@ function blockTypesIn(exprs: readonly unknown[]): BlockType[] {
 }
 
 function varIdx(v: Var): number {
-  return v.kind === 'index' ? v.value : 0;
+  return requireIndex(v, 'validator');
 }
 
 // ---------------------------------------------------------------------------
@@ -283,8 +283,10 @@ class ModuleValidator implements ExprVisitorDelegate {
     const canon = canonicalTypeKeys(m.types);
     for (const [i, te] of m.types.entries()) {
       const supers = (te.sub?.supertypes ?? [])
-        .map((v) => (v.kind === 'index' ? v.value : -1))
-        .filter((n) => n >= 0);
+        // An unresolved supertype is SKIPPED rather than defaulted; the -1
+        // sentinel this replaces said the same thing less clearly.
+        .map(indexOf)
+        .filter((n): n is number => n !== undefined);
       const c = canon[i] ?? '';
       if (te.kind === 'func') {
         this.acc(this.sv.onFuncType(te.loc, te.sig.params, te.sig.results, i, supers, c));
