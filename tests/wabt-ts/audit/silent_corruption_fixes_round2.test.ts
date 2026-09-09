@@ -113,7 +113,8 @@ describe('resolveNames completeness (round-trip would throw if a name leaked)', 
       (global $g i32 (i32.const 5))
       (func (param v128) (result v128)
         local.get 0 global.get $g i32x4.replace_lane 0))`);
-    assert(body(m).some((e) => e.kind === 'simd_lane_op'));
+    // S6 step 2 split `simd_lane_op`; a replace_lane is its own kind now.
+    assert(body(m).some((e) => e.kind === 'simd.replace'));
   });
 
   it('resolves a named, non-zero table on an active elem segment', () => {

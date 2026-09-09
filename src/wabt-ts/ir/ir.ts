@@ -609,7 +609,7 @@ export interface RefFuncExpr {
 }
 /** `ref.as_non_null` (0xd4) — converts nullable ref to non-null (traps on null). */
 export interface RefAsNonNullExpr {
-  readonly kind: 'ref.as_non_null';
+  readonly kind: 'ref.as';
   readonly value: Expr;
   readonly loc: Location;
 }
@@ -946,21 +946,34 @@ export interface TryTableExpr {
 }
 
 // --- SIMD ---
-/** SIMD `*.extract_lane $L` / `*.replace_lane $L` — per-lane access on v128. */
-export interface SimdLaneOpExpr {
-  readonly kind: 'simd_lane_op';
+/**
+ * `i8x16.extract_lane_s` and friends — read one lane out of a vector.
+ *
+ * ⚠️ **Split from a single `simd_lane_op` kind, against S4's preference for the
+ * coarse form.** Both worst conditions were measured and neither binds: the two
+ * forms are fidelity-equivalent, and NO pass dispatches on this family at all.
+ * S4's rationale was a pass forced to enumerate finer kinds; with no such pass,
+ * that rationale does not apply, and cost decides — 27 sites here against 110 on
+ * binaryen-ts's side, which already had the split.
+ */
+export interface SimdExtractExpr {
+  readonly kind: 'simd.extract';
   readonly opcode: Opcode;
   readonly lane: number;
-  /** Vector operand. For `*.extract_lane` this is the only operand. */
-  readonly operand: Expr;
-  /**
-   * Scalar replacement value. Set for `*.replace_lane` opcodes (the i8x16 /
-   * i16x8 / i32x4 / i64x2 / f32x4 / f64x2 replace_lane family); undefined
-   * for `*.extract_lane`. Previously this slot didn't exist and the parser
-   * silently dropped the scalar half of every replace_lane, producing
-   * binaries V8 rejected as missing operands.
-   */
-  readonly value?: Expr;
+  /** The vector being read. */
+  readonly vec: Expr;
+  readonly loc: Location;
+}
+
+/** `i8x16.replace_lane` and friends — write one lane and yield the vector. */
+export interface SimdReplaceExpr {
+  readonly kind: 'simd.replace';
+  readonly opcode: Opcode;
+  readonly lane: number;
+  /** The vector being written into. */
+  readonly vec: Expr;
+  /** The scalar written into the lane. */
+  readonly value: Expr;
   readonly loc: Location;
 }
 /** SIMD `i8x16.shuffle` — permutes 32 bytes from two v128 operands via 16 lane indices. */
@@ -1158,7 +1171,8 @@ export type Expr =
   | BrOnExpr
   | TryExpr
   | TryTableExpr
-  | SimdLaneOpExpr
+  | SimdExtractExpr
+  | SimdReplaceExpr
   | SimdShuffleOpExpr
   | SimdLoadLaneExpr
   | LoadSplatExpr

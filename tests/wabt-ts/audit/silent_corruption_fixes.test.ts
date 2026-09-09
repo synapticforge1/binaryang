@@ -28,7 +28,8 @@ import type {
   CallRefExpr,
   Func,
   Module,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
+  SimdReplaceExpr,
   Table,
 } from '../../../src/wabt-ts/ir/ir.ts';
 import { Type } from '../../../src/wabt-ts/core/types.ts';
@@ -238,18 +239,21 @@ describe('#6 multi-catch body decode', () => {
 describe('#7 SIMD lane ops', () => {
   it('getExprArity reports 2 for replace_lane, 1 for extract_lane', () => {
     const ctx = new ModuleContext(makeModule());
-    const extract: SimdLaneOpExpr = {
-      kind: 'simd_lane_op',
+    // S6 step 2 split `simd_lane_op` into two kinds, so the arity now follows
+    // the KIND rather than whether `value` happens to be present. The property
+    // under test is unchanged: extract takes one operand, replace takes two.
+    const extract: SimdExtractExpr = {
+      kind: 'simd.extract',
       opcode: ((PREFIX_SIMD << 16) | 0x1b) as Opcode, // i32x4.extract_lane
       lane: 0,
-      operand: { kind: 'nop', loc: LOC },
+      vec: { kind: 'nop', loc: LOC },
       loc: LOC,
     };
-    const replace: SimdLaneOpExpr = {
-      kind: 'simd_lane_op',
+    const replace: SimdReplaceExpr = {
+      kind: 'simd.replace',
       opcode: ((PREFIX_SIMD << 16) | 0x1c) as Opcode, // i32x4.replace_lane
       lane: 0,
-      operand: { kind: 'nop', loc: LOC },
+      vec: { kind: 'nop', loc: LOC },
       value: { kind: 'nop', loc: LOC },
       loc: LOC,
     };

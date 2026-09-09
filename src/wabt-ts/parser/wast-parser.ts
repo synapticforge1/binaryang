@@ -102,8 +102,9 @@ import {
   type ReturnExpr,
   type SelectExpr,
   sigEquals,
-  type SimdLaneOpExpr,
+  type SimdExtractExpr,
   type SimdLoadLaneExpr,
+  type SimdReplaceExpr,
   type SimdShuffleOpExpr,
   type StoreExpr,
   type StructGetExpr,
@@ -4205,7 +4206,7 @@ export class WastParser {
         return { kind: 'ref.func', func: v, loc } as RefFuncExpr;
       }
       case TokenType.RefAsNonNull:
-        return { kind: 'ref.as_non_null', value: op0(), loc } as RefAsNonNullExpr;
+        return { kind: 'ref.as', value: op0(), loc } as RefAsNonNullExpr;
       case TokenType.RefEq:
         return { kind: 'ref.eq', left: op0(), right: op1(), loc } as RefEqExpr;
       case TokenType.RefI31:
@@ -4581,20 +4582,20 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const lane = this.parseSimdLane();
         const isReplace = isReplaceLaneOpcode(op);
-        const node: SimdLaneOpExpr = isReplace
+        const node: SimdExtractExpr | SimdReplaceExpr = isReplace
           ? {
-            kind: 'simd_lane_op',
+            kind: 'simd.replace',
             opcode: op as unknown as Opcode,
             lane,
-            operand: op0(),
+            vec: op0(),
             value: op1(),
             loc,
           }
           : {
-            kind: 'simd_lane_op',
+            kind: 'simd.extract',
             opcode: op as unknown as Opcode,
             lane,
-            operand: op0(),
+            vec: op0(),
             loc,
           };
         return node;

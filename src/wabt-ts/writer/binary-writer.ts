@@ -67,8 +67,9 @@ import type {
   RethrowExpr,
   ReturnExpr,
   SelectExpr,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
   SimdLoadLaneExpr,
+  SimdReplaceExpr,
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
@@ -916,7 +917,12 @@ class BodyWriter implements ExprVisitorDelegate {
   }
 
   // --- SIMD ---
-  onSimdLaneOpExpr(e: SimdLaneOpExpr): Result {
+  onSimdExtractExpr(e: SimdExtractExpr): Result {
+    writeOpcode(this.s, e.opcode as number);
+    this.s.writeU8(e.lane);
+    return Result.Ok;
+  }
+  onSimdReplaceExpr(e: SimdReplaceExpr): Result {
     writeOpcode(this.s, e.opcode as number);
     this.s.writeU8(e.lane);
     return Result.Ok;

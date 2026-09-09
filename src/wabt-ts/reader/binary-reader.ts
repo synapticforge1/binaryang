@@ -2074,7 +2074,7 @@ export class BinaryReader {
         }
         case Opcode.RefAsNonNull: {
           const value = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'ref.as_non_null', value, loc });
+          stack.push({ kind: 'ref.as', value, loc });
           break;
         }
         case Opcode.BrOnNull:
@@ -2465,16 +2465,16 @@ export class BinaryReader {
         const value = stack.pop() ?? operandPlaceholder(loc);
         const vec = stack.pop() ?? operandPlaceholder(loc);
         stack.push({
-          kind: 'simd_lane_op',
+          kind: 'simd.replace',
           opcode: opcode as Opcode,
           lane,
-          operand: vec,
+          vec,
           value,
           loc,
         });
       } else {
-        const operand = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'simd_lane_op', opcode: opcode as Opcode, lane, operand, loc });
+        const vec = stack.pop() ?? operandPlaceholder(loc);
+        stack.push({ kind: 'simd.extract', opcode: opcode as Opcode, lane, vec, loc });
       }
       return;
     }

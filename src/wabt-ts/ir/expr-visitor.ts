@@ -83,8 +83,9 @@ import type {
   RethrowExpr,
   ReturnExpr,
   SelectExpr,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
   SimdLoadLaneExpr,
+  SimdReplaceExpr,
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
@@ -205,7 +206,8 @@ export interface ExprVisitorDelegate {
   beginTryTableExpr?(e: TryTableExpr): Result;
   endTryTableExpr?(e: TryTableExpr): Result;
 
-  onSimdLaneOpExpr?(e: SimdLaneOpExpr): Result;
+  onSimdExtractExpr?(e: SimdExtractExpr): Result;
+  onSimdReplaceExpr?(e: SimdReplaceExpr): Result;
   onSimdShuffleOpExpr?(e: SimdShuffleOpExpr): Result;
   onSimdLoadLaneExpr?(e: SimdLoadLaneExpr): Result;
   onLoadSplatExpr?(e: LoadSplatExpr): Result;
@@ -338,7 +340,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onRefIsNullExpr?.(e) ?? Result.Ok;
       }
-      case 'ref.as_non_null': {
+      case 'ref.as': {
         const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onRefAsNonNullExpr?.(e) ?? Result.Ok;
@@ -489,16 +491,17 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         return this.d.onLoadSplatExpr?.(e) ?? Result.Ok;
       }
-      case 'simd_lane_op': {
-        const r1 = this.dispatch(e.operand);
-        if (r1 === Result.Error) return r1;
-        // replace_lane carries a second operand (the scalar replacement);
-        // extract_lane variants leave `value` undefined.
-        if (e.value !== undefined) {
-          const r2 = this.dispatch(e.value);
-          if (r2 === Result.Error) return r2;
-        }
-        return this.d.onSimdLaneOpExpr?.(e) ?? Result.Ok;
+      case 'simd.extract': {
+        const r = this.dispatch(e.vec);
+        if (r === Result.Error) return r;
+        return this.d.onSimdExtractExpr?.(e) ?? Result.Ok;
+      }
+      case 'simd.replace': {
+        let r = this.dispatch(e.vec);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.value);
+        if (r === Result.Error) return r;
+        return this.d.onSimdReplaceExpr?.(e) ?? Result.Ok;
       }
       case 'throw_ref': {
         const r = this.dispatch(e.exnref);

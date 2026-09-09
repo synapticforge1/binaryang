@@ -202,7 +202,7 @@ export class ModuleContext {
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'ref.is_null':
         return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'ref.as_non_null':
+      case 'ref.as':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'table.get':
         return { nargs: 1, nreturns: 1, unreachable: false };
@@ -228,10 +228,10 @@ export class ModuleContext {
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd.load':
         return { nargs: 1, nreturns: 1, unreachable: false };
-      case 'simd_lane_op':
-        // extract_lane pops 1 (the vec); replace_lane pops 2 (vec + scalar).
-        // `value` is present iff this is a replace_lane.
-        return { nargs: expr.value !== undefined ? 2 : 1, nreturns: 1, unreachable: false };
+      case 'simd.extract':
+        return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'simd.replace':
+        return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd.shuffle':
         return { nargs: 2, nreturns: 1, unreachable: false };
       case 'simd.load_store_lane':

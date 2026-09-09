@@ -1200,7 +1200,13 @@ class WatWriter extends ModuleContext {
       },
 
       // --- SIMD ---
-      onSimdLaneOpExpr: (e) => {
+      onSimdExtractExpr: (e) => {
+        this.putsSpace(opname(e.opcode));
+        this.writef(`${e.lane}`);
+        this.newline(false);
+        return Result.Ok;
+      },
+      onSimdReplaceExpr: (e) => {
         this.putsSpace(opname(e.opcode));
         this.writef(`${e.lane}`);
         this.newline(false);
@@ -1430,7 +1436,7 @@ class WatWriter extends ModuleContext {
           return { operands: [e.address], head: (d) => void d.onLoadExpr?.(e) };
         case 'ref.is_null':
           return { operands: [e.value], head: (d) => void d.onRefIsNullExpr?.(e) };
-        case 'ref.as_non_null':
+        case 'ref.as':
           return { operands: [e.value], head: (d) => void d.onRefAsNonNullExpr?.(e) };
         case 'any.convert_extern':
         case 'extern.convert_any':

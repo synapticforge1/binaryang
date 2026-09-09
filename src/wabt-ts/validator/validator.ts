@@ -78,8 +78,9 @@ import type {
   RethrowExpr,
   ReturnExpr,
   SelectExpr,
-  SimdLaneOpExpr,
+  SimdExtractExpr,
   SimdLoadLaneExpr,
+  SimdReplaceExpr,
   SimdShuffleOpExpr,
   StoreExpr,
   StructGetExpr,
@@ -1049,7 +1050,10 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onEnd(e.loc);
   }
 
-  onSimdLaneOpExpr(e: SimdLaneOpExpr): Result {
+  onSimdExtractExpr(e: SimdExtractExpr): Result {
+    return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
+  }
+  onSimdReplaceExpr(e: SimdReplaceExpr): Result {
     return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
   }
   onSimdShuffleOpExpr(e: SimdShuffleOpExpr): Result {

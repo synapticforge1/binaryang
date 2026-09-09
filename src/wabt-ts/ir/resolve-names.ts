@@ -694,7 +694,7 @@ class ResolveContext {
         }];
       }
       case 'ref.is_null':
-      case 'ref.as_non_null':
+      case 'ref.as':
       case 'ref.i31':
       case 'any.convert_extern':
       case 'extern.convert_any': {
@@ -886,15 +886,17 @@ class ResolveContext {
           values,
         }];
       }
-      case 'simd_lane_op': {
-        const [r, operand] = this.resolveExpr(e.operand);
-        // `value` is the replace_lane scalar (undefined for extract_lane). It
-        // can be a name-bearing sub-expr (e.g. `(global.get $g)`), so it must
-        // be resolved too — globals are NOT resolved at parse time (only
-        // locals are), so skipping it left `$g` as a name-var → index 0.
-        if (e.value === undefined) return [r, { ...e, operand }];
+      case 'simd.extract': {
+        const [r, vec] = this.resolveExpr(e.vec);
+        return [r, { ...e, vec }];
+      }
+      case 'simd.replace': {
+        const [r, vec] = this.resolveExpr(e.vec);
+        // The replaced scalar can be a name-bearing sub-expr (`(global.get $g)`),
+        // and globals are NOT resolved at parse time -- only locals are -- so
+        // skipping it left `$g` as a name-var and the writer emitted index 0.
         const [rv, value] = this.resolveExpr(e.value);
-        return [combine(r, rv), { ...e, operand, value }];
+        return [combine(r, rv), { ...e, vec, value }];
       }
       case 'simd.shuffle': {
         const [rL, left] = this.resolveExpr(e.left);
