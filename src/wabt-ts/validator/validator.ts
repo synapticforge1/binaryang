@@ -985,7 +985,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onTableFill(e.loc, varIdx(e.table));
   }
   onTableCopyExpr(e: TableCopyExpr): Result {
-    return this.sv.onTableCopy(e.loc, varIdx(e.dst), varIdx(e.source));
+    return this.sv.onTableCopy(e.loc, varIdx(e.destTable), varIdx(e.sourceTable));
   }
   onTableInitExpr(e: TableInitExpr): Result {
     return this.sv.onTableInit(e.loc, varIdx(e.segment), varIdx(e.table));

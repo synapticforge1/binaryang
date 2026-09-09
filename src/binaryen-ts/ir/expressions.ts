@@ -1030,7 +1030,7 @@ export interface TableInitExpr extends ExprBase {
   /** Index of the first table slot to write. */
   dest: Expression;
   /** Index of the first segment element to read. */
-  offset: Expression;
+  source: Expression;
   /** How many elements to copy. */
   size: Expression;
 }
@@ -1070,7 +1070,7 @@ export interface MemoryInitExpr extends ExprBase {
   /** Destination address in linear memory. */
   dest: Expression;
   /** Byte offset within the segment. */
-  offset: Expression;
+  source: Expression;
   /** Number of bytes to copy. */
   size: Expression;
 }
@@ -2235,10 +2235,10 @@ export function makeTableInit(
   segment: Var,
   table: Var,
   dest: Expression,
-  offset: Expression,
+  source: Expression,
   size: Expression,
 ): TableInitExpr {
-  return { kind: ExpressionKind.TableInit, type: None, segment, table, dest, offset, size };
+  return { kind: ExpressionKind.TableInit, type: None, segment, table, dest, source, size };
 }
 
 /** Creates an `elem.drop` expression. */
@@ -2250,7 +2250,7 @@ export function makeElemDrop(segment: Var): ElemDropExpr {
 export function makeMemoryInit(
   segment: Var,
   dest: Expression,
-  offset: Expression,
+  source: Expression,
   size: Expression,
   memidx: Var = varIndex(0),
 ): MemoryInitExpr {
@@ -2259,7 +2259,7 @@ export function makeMemoryInit(
     type: None,
     segment,
     dest,
-    offset,
+    source,
     size,
     ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };

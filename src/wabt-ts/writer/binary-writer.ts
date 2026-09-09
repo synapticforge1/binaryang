@@ -895,8 +895,8 @@ class BodyWriter implements ExprVisitorDelegate {
   onTableCopyExpr(e: TableCopyExpr): Result {
     this.s.writeU8(PREFIX_MISC);
     this.s.writeU32Leb(0x0e); // table.copy
-    writeVar(this.s, e.dst);
-    writeVar(this.s, e.source);
+    writeVar(this.s, e.destTable);
+    writeVar(this.s, e.sourceTable);
     return Result.Ok;
   }
   onTableInitExpr(e: TableInitExpr): Result {

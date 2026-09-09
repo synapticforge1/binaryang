@@ -492,14 +492,14 @@ class ResolveContext {
       }
       case 'table.copy': {
         const [rD, dest] = this.resolveExpr(e.dest);
-        const [rS, srcOffset] = this.resolveExpr(e.srcOffset);
+        const [rS, source] = this.resolveExpr(e.source);
         const [rZ, size] = this.resolveExpr(e.size);
         return [combine(rD, combine(rS, rZ)), {
           ...e,
-          dst: this.resolveTableVar(e.dst, loc),
-          source: this.resolveTableVar(e.source, loc),
+          destTable: this.resolveTableVar(e.destTable, loc),
+          sourceTable: this.resolveTableVar(e.sourceTable, loc),
           dest,
-          srcOffset,
+          source,
           size,
         }];
       }

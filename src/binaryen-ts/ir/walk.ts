@@ -206,7 +206,7 @@ function _mapChildren(
       return {
         ...expr,
         dest: fn(expr.dest),
-        offset: fn(expr.offset),
+        source: fn(expr.source),
         size: fn(expr.size),
       };
 
@@ -541,7 +541,7 @@ function _visitChildren(
     case ExpressionKind.TableInit:
     case ExpressionKind.MemoryInit:
       visit(expr.dest);
-      visit(expr.offset);
+      visit(expr.source);
       visit(expr.size);
       break;
     case ExpressionKind.ElemDrop:

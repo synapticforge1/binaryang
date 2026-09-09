@@ -970,11 +970,12 @@ class WatWriter extends ModuleContext {
       onTableCopyExpr: (e) => {
         this.putsSpace('table.copy');
         if (
-          e.dst.kind !== 'index' || e.dst.value !== 0 || e.source.kind !== 'index' ||
-          e.source.value !== 0
+          e.destTable.kind !== 'index' || e.destTable.value !== 0 ||
+          e.sourceTable.kind !== 'index' ||
+          e.sourceTable.value !== 0
         ) {
-          this.writeVar(e.dst, NC.Space);
-          this.writeVar(e.source, NC.Space);
+          this.writeVar(e.destTable, NC.Space);
+          this.writeVar(e.sourceTable, NC.Space);
         }
         this.newline(false);
         return Result.Ok;

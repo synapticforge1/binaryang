@@ -1731,7 +1731,7 @@ class WasmEncoder {
       case ExpressionKind.TableInit: {
         const e = expr as TableInitExpr;
         this.encodeExpr(w, e.dest, labels);
-        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.source, labels);
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(12);
@@ -1753,7 +1753,7 @@ class WasmEncoder {
       case ExpressionKind.MemoryInit: {
         const e = expr as MemoryInitExpr;
         this.encodeExpr(w, e.dest, labels);
-        this.encodeExpr(w, e.offset, labels);
+        this.encodeExpr(w, e.source, labels);
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(8);
