@@ -585,35 +585,35 @@ export class I32Ops {
   }
   /** `i32.load offset align ptr`. */
   load(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(4, true, offset, align, ptr, ValType.I32);
+    return makeLoad(4, true, BigInt(offset), align, ptr, ValType.I32);
   }
   /** `i32.load8_s offset align ptr`. */
   load8_s(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(1, true, offset, align, ptr, ValType.I32);
+    return makeLoad(1, true, BigInt(offset), align, ptr, ValType.I32);
   }
   /** `i32.load8_u offset align ptr`. */
   load8_u(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(1, false, offset, align, ptr, ValType.I32);
+    return makeLoad(1, false, BigInt(offset), align, ptr, ValType.I32);
   }
   /** `i32.load16_s offset align ptr`. */
   load16_s(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(2, true, offset, align, ptr, ValType.I32);
+    return makeLoad(2, true, BigInt(offset), align, ptr, ValType.I32);
   }
   /** `i32.load16_u offset align ptr`. */
   load16_u(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(2, false, offset, align, ptr, ValType.I32);
+    return makeLoad(2, false, BigInt(offset), align, ptr, ValType.I32);
   }
   /** `i32.store offset align ptr value`. */
   store(offset: number, align: number, ptr: Expression, value: Expression): Expression {
-    return makeStore(4, offset, align, ptr, value);
+    return makeStore(4, BigInt(offset), align, ptr, value);
   }
   /** `i32.store8 offset align ptr value`. */
   store8(offset: number, align: number, ptr: Expression, value: Expression): Expression {
-    return makeStore(1, offset, align, ptr, value);
+    return makeStore(1, BigInt(offset), align, ptr, value);
   }
   /** `i32.store16 offset align ptr value`. */
   store16(offset: number, align: number, ptr: Expression, value: Expression): Expression {
-    return makeStore(2, offset, align, ptr, value);
+    return makeStore(2, BigInt(offset), align, ptr, value);
   }
 }
 
@@ -743,11 +743,11 @@ export class I64Ops {
   }
   /** `i64.load offset align ptr`. */
   load(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(8, true, offset, align, ptr, ValType.I64);
+    return makeLoad(8, true, BigInt(offset), align, ptr, ValType.I64);
   }
   /** `i64.store offset align ptr value`. */
   store(offset: number, align: number, ptr: Expression, value: Expression): Expression {
-    return makeStore(8, offset, align, ptr, value);
+    return makeStore(8, BigInt(offset), align, ptr, value);
   }
 }
 
@@ -841,11 +841,11 @@ export class F32Ops {
   }
   /** `f32.load offset align ptr`. */
   load(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(4, false, offset, align, ptr, ValType.F32);
+    return makeLoad(4, false, BigInt(offset), align, ptr, ValType.F32);
   }
   /** `f32.store offset align ptr value`. */
   store(offset: number, align: number, ptr: Expression, value: Expression): Expression {
-    return makeStore(4, offset, align, ptr, value);
+    return makeStore(4, BigInt(offset), align, ptr, value);
   }
 }
 
@@ -939,11 +939,11 @@ export class F64Ops {
   }
   /** `f64.load offset align ptr`. */
   load(offset: number, align: number, ptr: Expression): Expression {
-    return makeLoad(8, false, offset, align, ptr, ValType.F64);
+    return makeLoad(8, false, BigInt(offset), align, ptr, ValType.F64);
   }
   /** `f64.store offset align ptr value`. */
   store(offset: number, align: number, ptr: Expression, value: Expression): Expression {
-    return makeStore(8, offset, align, ptr, value);
+    return makeStore(8, BigInt(offset), align, ptr, value);
   }
 }
 

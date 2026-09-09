@@ -1109,7 +1109,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         return makeSIMDLoad(
           simdOp,
           bridgeExpr(ld.address, ctx),
-          bigintOffsetToNumber(ld.offset, 'load'),
+          ld.offset,
           alignBytesToExponent(ld.align, naturalAlignForOpcode(ld.opcode), 'load'),
         );
       }
@@ -1117,7 +1117,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeLoad(
         info.bytes,
         info.signed,
-        bigintOffsetToNumber(ld.offset, 'load'),
+        ld.offset,
         alignBytesToExponent(ld.align, info.bytes, 'load'),
         bridgeExpr(ld.address, ctx),
         info.resultType,
@@ -1130,7 +1130,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeSIMDLoad(
         ls.opcode,
         bridgeExpr(ls.address, ctx),
-        bigintOffsetToNumber(ls.offset, 'simd.load'),
+        ls.offset,
         alignBytesToExponent(ls.align, naturalAlignForOpcode(ls.opcode), 'simd.load'),
       );
     }
@@ -1141,7 +1141,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         sll.opcode,
         bridgeExpr(sll.address, ctx),
         bridgeExpr(sll.vec, ctx),
-        bigintOffsetToNumber(sll.offset, 'simd.load_store_lane'),
+        sll.offset,
         alignBytesToExponent(sll.align, naturalAlignForOpcode(sll.opcode), 'simd.load_store_lane'),
         sll.lane,
       );
@@ -1152,7 +1152,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const bytes = storeBytes(st.opcode);
       return makeStore(
         bytes,
-        bigintOffsetToNumber(st.offset, 'store'),
+        st.offset,
         alignBytesToExponent(st.align, bytes, 'store'),
         bridgeExpr(st.address, ctx),
         bridgeExpr(st.value, ctx),
@@ -1636,19 +1636,14 @@ function requireDefaultMemory(memidx: Var, opLabel: string): void {
   }
 }
 
-/**
- * wabt-ts represents load/store offsets as `bigint` (to accommodate the
- * memory64 proposal). binaryen-ts's encoder writes the offset as a u32 LEB,
- * so it expects a `number`. Convert with a safety check.
- */
-function bigintOffsetToNumber(off: bigint, opLabel: string): number {
-  if (off > 0xffffffffn || off < 0n) {
-    throw new Error(
-      `Bridge: ${opLabel} offset ${off} out of u32 range (memory64 not supported yet)`,
-    );
-  }
-  return Number(off);
-}
+// `bigintOffsetToNumber` stood here, converting wabt-ts's bigint offset into a
+// number and throwing above the u32 range — "memory64 not supported yet". Both
+// sides carry `bigint` now and the encoder writes a u64 LEB, so the offset
+// passes straight through and that limitation is gone.
+//
+// ⚠️ The mechanical pass first produced `BigInt(bigintOffsetToNumber(off, …))`,
+// which type-checks and preserves the exact loss the change existed to remove.
+// A wrapper that satisfies the compiler is not evidence that the value survived.
 
 /**
  * Convert wabt-ts's byte-valued alignment into the wasm `memarg.align`

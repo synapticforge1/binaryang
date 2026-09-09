@@ -152,6 +152,25 @@ class BinaryWriter {
     } while (n !== 0);
   }
 
+  /**
+   * Unsigned 64-bit LEB128.
+   *
+   * Needed because a memarg offset is a u64 under memory64 and `writeU32`
+   * TRUNCATES — it starts with `n >>>= 0`, which silently discards everything
+   * above 2^32 and emits a valid instruction addressing the wrong offset.
+   * `writeI64` is signed and would set a continuation byte differently near the
+   * top of the range, so neither existing writer serves.
+   */
+  writeU64(n: bigint): void {
+    if (n < 0n) throw new WasmEncodeError(`writeU64: negative value ${n}`);
+    do {
+      let byte = Number(n & 0x7fn);
+      n >>= 7n;
+      if (n !== 0n) byte |= 0x80;
+      this.buf.push(byte);
+    } while (n !== 0n);
+  }
+
   writeI32(n: number): void {
     n = n | 0;
     let more = true;
@@ -902,7 +921,7 @@ class WasmEncoder {
     w.writeU32(opcode & 0xffff);
   }
 
-  private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: Var): void {
+  private writeMemArg(w: BinaryWriter, align: number, offset: bigint, memory?: Var): void {
     const mem = memIndex(memory, 'memarg');
     if (mem !== 0) {
       w.writeU32(align | 0x40);
@@ -910,7 +929,7 @@ class WasmEncoder {
     } else {
       w.writeU32(align);
     }
-    w.writeU32(offset);
+    w.writeU64(offset);
   }
 
   /**

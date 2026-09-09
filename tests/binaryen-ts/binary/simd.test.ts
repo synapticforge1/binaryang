@@ -389,7 +389,7 @@ Deno.test('SIMD: v128.load8x8_s (SIMDLoad) parsed correctly', () => {
   assertEquals(expr.kind, ExpressionKind.SIMDLoad);
   assertEquals(expr.opcode, SIMDLoadOp.Load8x8SVec128);
   assertEquals(expr.align, 1);
-  assertEquals(expr.offset, 0);
+  assertEquals(expr.offset, BigInt(0));
   assertEquals(expr.type, ValType.V128);
 });
 

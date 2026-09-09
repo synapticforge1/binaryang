@@ -608,10 +608,14 @@ function funcTypeAt(
  * encoder only fires if the module is re-encoded. Same failure shape as the
  * typed-ref block type in wabt-ts (`block_type_ref.test.ts`).
  */
-function readMemArg(r: BinaryReader): { align: number; offset: number; memory: Var } {
+function readMemArg(r: BinaryReader): { align: number; offset: bigint; memory: Var } {
   const flags = r.readU32();
   const memory = varIndex((flags & 0x40) !== 0 ? r.readU32() : 0);
-  const offset = r.readU32();
+  // u64, not u32: a memory64 offset exceeds 2^32 and `readU32` would truncate
+  // it, decoding a valid module into one that addresses a different address.
+  // Wrapping the result in `BigInt(...)` at each call site would widen the
+  // TYPE while keeping the loss.
+  const offset = r.readU64();
   return { align: flags & ~0x40, offset, memory };
 }
 

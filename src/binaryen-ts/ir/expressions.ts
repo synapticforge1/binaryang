@@ -943,7 +943,7 @@ export interface LoadExpr extends ExprBase {
   /** Whether the loaded integer is sign-extended. */
   signed: boolean;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
@@ -966,7 +966,7 @@ export interface StoreExpr extends ExprBase {
   /** Width in bytes of the access. */
   bytes: 1 | 2 | 4 | 8 | 16;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
@@ -1800,7 +1800,7 @@ export interface SIMDLoadExpr extends ExprBase {
   /** Address operand. */
   ptr: Expression;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
 }
@@ -1825,7 +1825,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
   /** vec — see the {@link make} factory for semantics. */
   vec: Expression;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Lane index for the SIMD operation. */
@@ -2163,7 +2163,7 @@ export function makeCallIndirect(
 export function makeLoad(
   bytes: 1 | 2 | 4 | 8 | 16,
   signed: boolean,
-  offset: number,
+  offset: bigint,
   align: number,
   ptr: Expression,
   resultType: ValType,
@@ -2184,7 +2184,7 @@ export function makeLoad(
 /** Creates a memory store expression. */
 export function makeStore(
   bytes: 1 | 2 | 4 | 8 | 16,
-  offset: number,
+  offset: bigint,
   align: number,
   ptr: Expression,
   value: Expression,
@@ -2774,7 +2774,7 @@ export function makeSIMDShift(
 export function makeSIMDLoad(
   opcode: SIMDLoadOp,
   ptr: Expression,
-  offset: number,
+  offset: bigint,
   align: number,
   memidx: Var = varIndex(0),
 ): SIMDLoadExpr {
@@ -2794,7 +2794,7 @@ export function makeSIMDLoadStoreLane(
   opcode: SIMDLoadStoreLaneOp,
   ptr: Expression,
   vec: Expression,
-  offset: number,
+  offset: bigint,
   align: number,
   lane: number,
   memidx: Var = varIndex(0),

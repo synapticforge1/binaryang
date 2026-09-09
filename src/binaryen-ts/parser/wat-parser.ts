@@ -1828,7 +1828,7 @@ class WatModuleParser {
     // `bytes` is the natural alignment for every load form: `i64.load32_s`
     // touches 4 bytes and is naturally 4-aligned, `i64.load` touches 8.
     const align = this.alignExponent(alignBytes, bytes, list.pos);
-    return { kind: ExpressionKind.Load, type, bytes, signed, offset, align, ptr };
+    return { kind: ExpressionKind.Load, type, bytes, signed, offset: BigInt(offset), align, ptr };
   }
 
   private parseStore(head: string, list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
@@ -1866,7 +1866,15 @@ class WatModuleParser {
     const ptr = written >= 2 ? this.parseExpr(args[argIdx], ctx) : makePop(ValType.I32);
     const value = this.parseExpr(args[argIdx + (written >= 2 ? 1 : 0)], ctx);
     const align = this.alignExponent(alignBytes, bytes, list.pos);
-    return { kind: ExpressionKind.Store, type: None, bytes, offset, align, ptr, value };
+    return {
+      kind: ExpressionKind.Store,
+      type: None,
+      bytes,
+      offset: BigInt(offset),
+      align,
+      ptr,
+      value,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -1965,7 +1973,7 @@ class WatModuleParser {
     }
     const ptr = this.parseExpr(args[argIdx], ctx);
     const align = this.alignExponent(alignBytes, this.simdNaturalBytes(head));
-    return makeSIMDLoad(SIMD_LOAD_OPS[head] as SIMDLoadOp, ptr, offset, align);
+    return makeSIMDLoad(SIMD_LOAD_OPS[head] as SIMDLoadOp, ptr, BigInt(offset), align);
   }
 
   private parseSIMDLaneLdSt(head: string, args: SExpr[], ctx: FuncContext): SIMDLoadStoreLaneExpr {
@@ -2014,7 +2022,7 @@ class WatModuleParser {
       SIMD_LANE_OPS[head] as SIMDLoadStoreLaneOp,
       ptr,
       vec,
-      offset,
+      BigInt(offset),
       align,
       lane,
     );

@@ -72,7 +72,7 @@ function buildModule(): ReturnType<ModuleBuilder['build']> {
       [],
       [ValType.I32],
       makeBlock([
-        makeLocalSet(varIndex(0), makeLoad(1, true, 0, 0, makeI32Const(0), ValType.I32)),
+        makeLocalSet(varIndex(0), makeLoad(1, true, BigInt(0), 0, makeI32Const(0), ValType.I32)),
         makeDrop(
           makeBinary(BinaryOp.AndI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0xff)),
         ),

@@ -1161,7 +1161,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     [ValType.I32],
     makeCallIndirect(
       varName('$t0'),
-      makeLoad(4, false, 0, 2, makeLocalGet(varIndex(1), ValType.I32), ValType.I32), // index = mem[$t]
+      makeLoad(4, false, BigInt(0), 2, makeLocalGet(varIndex(1), ValType.I32), ValType.I32), // index = mem[$t]
       [makeLocalTee(varIndex(1), makeLocalGet(varIndex(0), ValType.I32), ValType.I32)], // arg = ($t := obj)
       SIG_P,
       SIG_R,
