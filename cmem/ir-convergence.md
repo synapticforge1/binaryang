@@ -921,12 +921,57 @@ compiler-driven and line-scoped, which left only four sites needing hands — th
 offending read sat on a different line from the error, and one where `loop.body.type` became
 `loop.typeOf(body)` because the pattern captured only the last path segment.
 
-##### Step 4 — one `Expression`
+##### Step 4 — one `Expression` 🚧 measured and decided, not yet written
 
-With steps 1–3 done the two definitions are structurally compatible; bucket B (12 kinds absent in
-binaryen-ts) and C (1 absent in wabt-ts) simply appear in the union, because a capability only one
-side has needs no merge. The bridge collapses to an identity function, which is the proof that the
-step worked.
+⚠️ **"Alias one to the other" understates this by a lot.** The kind sets agree on 73 kinds; the
+FIELD sets do not. Measured:
+
+|                                     |                                       |
+| ----------------------------------- | ------------------------------------- |
+| kinds implemented on both sides     | 73                                    |
+| field sets already identical        | **23**                                |
+| differing by exactly one field pair | 22, reducing to **13 distinct pairs** |
+| needing a per-kind decision         | **28**                                |
+
+🔑 **Every one of the 13 "renames" is a type difference** — the S2 finding again, at field level.
+But they split cleanly in two, and only one half is real:
+
+- **(a) `Expr` vs `Expression`, 8 pairs** — `operand`/`value`, `start`/`dest`, `initValue`/`value`,
+  `values`/`value`, `func`/`target`, `depth`/`target`, `values`/`condition`, `source`/`offset`.
+  These differ only because the element type is one of the two types being unified. They **dissolve
+  by definition** the moment the types are one; they are renames, not decisions.
+- **(b) `Var` vs a resolved index or name, 5 pairs** — `typeVar`/`typeIndex`, `var`/`index`,
+  `var`/`name`, `memidx`/`memory`, `heapType`/`castType`. A real structural difference: wabt-ts
+  holds `Var`, the `index | name` union that exists BEFORE name resolution; binaryen-ts holds the
+  resolved form directly.
+
+###### The (b) decision: `Var` controls
+
+Cost does not decide — 210 `Var` reads in wabt-ts against 275 resolved-index reads in binaryen-ts,
+near enough even. So the worst condition does:
+
+- **fidelity BINDS.** A module whose WAT names its locals must round-trip with those names. `Var`
+  carries a name; `index: number` cannot represent `$x` at all. Losing it would regress round-trip
+  fidelity, which is the outcome the rule exists to prevent.
+- **optimization does not bind.** A pass needing an index reads it from `Var`'s index arm through an
+  accessor. That is a convenience, not a capability.
+
+So the unified node holds `Var`, and binaryen-ts's consumers get an accessor — the same shape and
+the same reasoning as the multi-memory decision, and the third element where wabt-ts's form
+controls.
+
+###### What remains, honestly
+
+1. the (b) conversion — ~275 binaryen-ts read sites behind an accessor
+2. the 28 structural kinds, each needing the worst-condition question asked once. They are not
+   uniform: `load`/`store` are wabt-ts's `opcode` against binaryen-ts's decomposed `bytes`+`signed`
+   (noted in S3); the block family is `blockType`+`label`+`body` against `name`+`children`, and
+   `blockType` already lives in the fidelity table; `select`, `br`, `br_on` and the `array.*` family
+   each differ their own way
+3. the aliasing itself, which is the small part
+
+**This is the largest single piece left in S6**, and larger than the plan's one-line description of
+it. Recorded before starting so the next session begins from the measurement.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
