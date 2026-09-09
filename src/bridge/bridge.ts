@@ -33,7 +33,7 @@
 import { ExternalKind } from '../wabt-ts/core/binary.ts';
 import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
 import { naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
-import { CatchKind, coarsenValueType, isRefValueType } from '../wabt-ts/ir/ir.ts';
+import { CatchKind, coarsenValueType, isRefValueType, varIndex } from '../wabt-ts/ir/ir.ts';
 import type { ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
@@ -1213,20 +1213,19 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(sn.typeVar, ctx);
       // One kind, two forms: the default takes no field values at all.
       if (sn.defaultInit) {
-        return makeStructNewDefault(heapIdx, { heap: heapIdx, nullable: false });
+        return makeStructNewDefault(varIndex(heapIdx), { heap: heapIdx, nullable: false });
       }
-      return makeStructNew(
-        heapIdx,
-        sn.operands.map((o) => bridgeExpr(o, ctx)),
-        { heap: heapIdx, nullable: false },
-      );
+      return makeStructNew(varIndex(heapIdx), sn.operands.map((o) => bridgeExpr(o, ctx)), {
+        heap: heapIdx,
+        nullable: false,
+      });
     }
     case 'struct.get': {
       const sg = e as StructGetExpr;
       const heapIdx = resolveHeapTypeIdx(sg.typeVar, ctx);
       const fieldType = lookupStructFieldType(sg.typeVar, sg.fieldVar, ctx);
       return makeStructGet(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(sg.fieldVar),
         bridgeExpr(sg.ref, ctx),
         fieldType,
@@ -1237,7 +1236,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const ss = e as StructSetExpr;
       const heapIdx = resolveHeapTypeIdx(ss.typeVar, ctx);
       return makeStructSet(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(ss.fieldVar),
         bridgeExpr(ss.ref, ctx),
         bridgeExpr(ss.value, ctx),
@@ -1250,32 +1249,29 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(an.typeVar, ctx);
       // An absent initialiser IS the default form.
       if (an.init === undefined) {
-        return makeArrayNewDefault(heapIdx, bridgeExpr(an.length, ctx), {
+        return makeArrayNewDefault(varIndex(heapIdx), bridgeExpr(an.length, ctx), {
           heap: heapIdx,
           nullable: false,
         });
       }
-      return makeArrayNew(
-        heapIdx,
-        bridgeExpr(an.init, ctx),
-        bridgeExpr(an.length, ctx),
-        { heap: heapIdx, nullable: false },
-      );
+      return makeArrayNew(varIndex(heapIdx), bridgeExpr(an.init, ctx), bridgeExpr(an.length, ctx), {
+        heap: heapIdx,
+        nullable: false,
+      });
     }
     case 'array.new_fixed': {
       const anf = e as ArrayNewFixedExpr;
       const heapIdx = resolveHeapTypeIdx(anf.typeVar, ctx);
-      return makeArrayNewFixed(
-        heapIdx,
-        anf.operands.map((o) => bridgeExpr(o, ctx)),
-        { heap: heapIdx, nullable: false },
-      );
+      return makeArrayNewFixed(varIndex(heapIdx), anf.operands.map((o) => bridgeExpr(o, ctx)), {
+        heap: heapIdx,
+        nullable: false,
+      });
     }
     case 'array.new_data': {
       const and2 = e as ArrayNewDataExpr;
       const heapIdx = resolveHeapTypeIdx(and2.typeVar, ctx);
       return makeArrayNewData(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(and2.dataVar),
         bridgeExpr(and2.offset, ctx),
         bridgeExpr(and2.length, ctx),
@@ -1286,7 +1282,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const ane = e as ArrayNewElemExpr;
       const heapIdx = resolveHeapTypeIdx(ane.typeVar, ctx);
       return makeArrayNewElem(
-        heapIdx,
+        varIndex(heapIdx),
         varIdx(ane.elemVar),
         bridgeExpr(ane.offset, ctx),
         bridgeExpr(ane.length, ctx),
@@ -1298,7 +1294,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(ag.typeVar, ctx);
       const elementType = lookupArrayElementType(ag.typeVar, ctx);
       return makeArrayGet(
-        heapIdx,
+        varIndex(heapIdx),
         bridgeExpr(ag.ref, ctx),
         bridgeExpr(ag.index, ctx),
         elementType,
@@ -1309,7 +1305,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const as = e as ArraySetExpr;
       const heapIdx = resolveHeapTypeIdx(as.typeVar, ctx);
       return makeArraySet(
-        heapIdx,
+        varIndex(heapIdx),
         bridgeExpr(as.ref, ctx),
         bridgeExpr(as.index, ctx),
         bridgeExpr(as.value, ctx),

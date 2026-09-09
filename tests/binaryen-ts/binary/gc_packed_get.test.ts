@@ -37,6 +37,7 @@ import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import type { StorageType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /** A one-field mutable struct holding `value`, read back via struct.get. */
 function structModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
@@ -49,9 +50,9 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
     [],
     [ValType.I32],
     makeStructGet(
-      t,
+      varIndex(t),
       0,
-      makeStructNew(t, [makeI32Const(value)], { heap: t, nullable: false }),
+      makeStructNew(varIndex(t), [makeI32Const(value)], { heap: t, nullable: false }),
       ValType.I32,
       signed,
     ),
@@ -71,8 +72,8 @@ function arrayModule(storage: StorageType, value: number, signed: boolean): Uint
     [],
     [ValType.I32],
     makeArrayGet(
-      t,
-      makeArrayNewFixed(t, [makeI32Const(value)], { heap: t, nullable: false }),
+      varIndex(t),
+      makeArrayNewFixed(varIndex(t), [makeI32Const(value)], { heap: t, nullable: false }),
       makeI32Const(0),
       ValType.I32,
       signed,
@@ -184,9 +185,9 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
     [],
     [ValType.I32],
     makeStructGet(
-      99,
+      varIndex(99),
       0,
-      makeStructNew(t, [makeI32Const(1)], { heap: t, nullable: false }),
+      makeStructNew(varIndex(t), [makeI32Const(1)], { heap: t, nullable: false }),
       ValType.I32,
       false,
     ),
@@ -205,9 +206,9 @@ Deno.test('encoder throws on an out-of-range struct.get field index', () => {
     [],
     [ValType.I32],
     makeStructGet(
-      t,
+      varIndex(t),
       7,
-      makeStructNew(t, [makeI32Const(1)], { heap: t, nullable: false }),
+      makeStructNew(varIndex(t), [makeI32Const(1)], { heap: t, nullable: false }),
       ValType.I32,
       false,
     ),

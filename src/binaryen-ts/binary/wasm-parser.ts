@@ -8,6 +8,7 @@
  */
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
+import { varIndex } from '../../wabt-ts/ir/ir.ts';
 import {
   type ElementSegment,
   type ElementSegmentMode,
@@ -2421,12 +2422,12 @@ function decodeGcPrefix(
       const n = (def?.kind === 'struct') ? def.fields.length : 0;
       const ops: Expression[] = [];
       for (let i = 0; i < n; i++) ops.unshift(pop());
-      push(makeStructNew(ti, ops, gcRefType(ti)));
+      push(makeStructNew(varIndex(ti), ops, gcRefType(ti)));
       break;
     }
     case 0x01: { // struct.new_default $T
       const ti = r.readU32();
-      push(makeStructNewDefault(ti, gcRefType(ti)));
+      push(makeStructNewDefault(varIndex(ti), gcRefType(ti)));
       break;
     }
     case 0x02: { // struct.get $T $f
@@ -2436,19 +2437,19 @@ function decodeGcPrefix(
       const def = ctx.heapTypeDefs[ti];
       const ft = (def?.kind === 'struct') ? def.fields[fi] : undefined;
       const rt: Type = ft ? (isRefType(ft.type) ? ft.type : ft.type as ValType) : ValType.I32;
-      push(makeStructGet(ti, fi, ref, rt, false));
+      push(makeStructGet(varIndex(ti), fi, ref, rt, false));
       break;
     }
     case 0x03: { // struct.get_s $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(ti, fi, pop(), ValType.I32, true));
+      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, true));
       break;
     }
     case 0x04: { // struct.get_u $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(ti, fi, pop(), ValType.I32, false));
+      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, false));
       break;
     }
     case 0x05: { // struct.set $T $f
@@ -2456,19 +2457,19 @@ function decodeGcPrefix(
       const fi = r.readU32();
       const val = pop();
       const ref = pop();
-      push(makeStructSet(ti, fi, ref, val));
+      push(makeStructSet(varIndex(ti), fi, ref, val));
       break;
     }
     case 0x06: { // array.new $T
       const ti = r.readU32();
       const len = pop();
       const init = pop();
-      push(makeArrayNew(ti, init, len, gcRefType(ti)));
+      push(makeArrayNew(varIndex(ti), init, len, gcRefType(ti)));
       break;
     }
     case 0x07: { // array.new_default $T
       const ti = r.readU32();
-      push(makeArrayNewDefault(ti, pop(), gcRefType(ti)));
+      push(makeArrayNewDefault(varIndex(ti), pop(), gcRefType(ti)));
       break;
     }
     case 0x08: { // array.new_fixed $T n
@@ -2476,7 +2477,7 @@ function decodeGcPrefix(
       const n = r.readU32();
       const vals: Expression[] = [];
       for (let i = 0; i < n; i++) vals.unshift(pop());
-      push(makeArrayNewFixed(ti, vals, gcRefType(ti)));
+      push(makeArrayNewFixed(varIndex(ti), vals, gcRefType(ti)));
       break;
     }
     case 0x09: { // array.new_data $T $d
@@ -2484,7 +2485,7 @@ function decodeGcPrefix(
       const di = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewData(ti, di, off, len, gcRefType(ti)));
+      push(makeArrayNewData(varIndex(ti), di, off, len, gcRefType(ti)));
       break;
     }
     case 0x0a: { // array.new_elem $T $e
@@ -2492,7 +2493,7 @@ function decodeGcPrefix(
       const ei = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewElem(ti, ei, off, len, gcRefType(ti)));
+      push(makeArrayNewElem(varIndex(ti), ei, off, len, gcRefType(ti)));
       break;
     }
     case 0x0b: { // array.get $T
@@ -2502,21 +2503,21 @@ function decodeGcPrefix(
       const rt: Type = eft ? (isRefType(eft.type) ? eft.type : eft.type as ValType) : ValType.I32;
       const idx = pop();
       const ref = pop();
-      push(makeArrayGet(ti, ref, idx, rt, false));
+      push(makeArrayGet(varIndex(ti), ref, idx, rt, false));
       break;
     }
     case 0x0c: { // array.get_s $T
       const ti = r.readU32();
       const idx = pop();
       const ref = pop();
-      push(makeArrayGet(ti, ref, idx, ValType.I32, true));
+      push(makeArrayGet(varIndex(ti), ref, idx, ValType.I32, true));
       break;
     }
     case 0x0d: { // array.get_u $T
       const ti = r.readU32();
       const idx = pop();
       const ref = pop();
-      push(makeArrayGet(ti, ref, idx, ValType.I32, false));
+      push(makeArrayGet(varIndex(ti), ref, idx, ValType.I32, false));
       break;
     }
     case 0x0e: { // array.set $T
@@ -2524,7 +2525,7 @@ function decodeGcPrefix(
       const val = pop();
       const idx = pop();
       const ref = pop();
-      push(makeArraySet(ti, ref, idx, val));
+      push(makeArraySet(varIndex(ti), ref, idx, val));
       break;
     }
     case 0x0f: { // array.len
@@ -2541,7 +2542,7 @@ function decodeGcPrefix(
       const value = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayFill(ti, ref, index, value, size));
+      push(makeArrayFill(varIndex(ti), ref, index, value, size));
       break;
     }
     case 0x11: { // array.copy $Tdest $Tsrc
@@ -2552,7 +2553,17 @@ function decodeGcPrefix(
       const srcRef = pop();
       const destIndex = pop();
       const destRef = pop();
-      push(makeArrayCopy(destTi, srcTi, destRef, destIndex, srcRef, srcIndex, size));
+      push(
+        makeArrayCopy(
+          varIndex(destTi),
+          varIndex(srcTi),
+          destRef,
+          destIndex,
+          srcRef,
+          srcIndex,
+          size,
+        ),
+      );
       break;
     }
     case 0x12: { // array.init_data $T $seg
@@ -2562,7 +2573,7 @@ function decodeGcPrefix(
       const offset = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayInitData(ti, seg, ref, index, offset, size));
+      push(makeArrayInitData(varIndex(ti), seg, ref, index, offset, size));
       break;
     }
     case 0x13: { // array.init_elem $T $seg
@@ -2572,7 +2583,7 @@ function decodeGcPrefix(
       const offset = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayInitElem(ti, seg, ref, index, offset, size));
+      push(makeArrayInitElem(varIndex(ti), seg, ref, index, offset, size));
       break;
     }
     case 0x14: { // ref.test $T

@@ -110,6 +110,7 @@ import {
   type TypeDef,
   type ValueType,
 } from '../ir/gc-types.ts';
+import { requireIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // BinaryWriter — growable byte buffer with WASM encoding helpers
@@ -1897,15 +1898,17 @@ class WasmEncoder {
         if (!e.defaultInit) { for (const opcode of e.operands) this.encodeExpr(w, opcode, labels); }
         w.writeU8(0xfb);
         w.writeU32(e.defaultInit ? 0x01 : 0x00);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.StructGet: {
         const e = expr as StructGetExpr;
         this.encodeExpr(w, e.ref, labels);
         w.writeU8(0xfb);
-        w.writeU32(this.packedGetSubop(e.typeIndex, e.fieldIndex, e.signed, 'struct'));
-        w.writeU32(e.typeIndex);
+        w.writeU32(
+          this.packedGetSubop(requireIndex(e.typeVar, e.kind), e.fieldIndex, e.signed, 'struct'),
+        );
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.fieldIndex);
         break;
       }
@@ -1915,7 +1918,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0xfb);
         w.writeU32(0x05);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.fieldIndex);
         break;
       }
@@ -1925,7 +1928,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.length, labels);
         w.writeU8(0xfb);
         w.writeU32(e.init === null ? 0x07 : 0x06);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayNewFixed: {
@@ -1933,7 +1936,7 @@ class WasmEncoder {
         for (const v of e.values) this.encodeExpr(w, v, labels);
         w.writeU8(0xfb);
         w.writeU32(0x08);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.values.length);
         break;
       }
@@ -1943,7 +1946,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.length, labels);
         w.writeU8(0xfb);
         w.writeU32(0x09);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.dataSegment);
         break;
       }
@@ -1953,7 +1956,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.length, labels);
         w.writeU8(0xfb);
         w.writeU32(0x0a);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.elemSegment);
         break;
       }
@@ -1962,8 +1965,8 @@ class WasmEncoder {
         this.encodeExpr(w, e.ref, labels);
         this.encodeExpr(w, e.index, labels);
         w.writeU8(0xfb);
-        w.writeU32(this.packedGetSubop(e.typeIndex, 0, e.signed, 'array'));
-        w.writeU32(e.typeIndex);
+        w.writeU32(this.packedGetSubop(requireIndex(e.typeVar, e.kind), 0, e.signed, 'array'));
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArraySet: {
@@ -1973,7 +1976,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0xfb);
         w.writeU32(0x0e);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayFill: {
@@ -1984,7 +1987,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfb);
         w.writeU32(0x10);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayCopy: {
@@ -1997,8 +2000,8 @@ class WasmEncoder {
         w.writeU8(0xfb);
         w.writeU32(0x11);
         // Immediate order is destination type THEN source type.
-        w.writeU32(e.destTypeIndex);
-        w.writeU32(e.srcTypeIndex);
+        w.writeU32(requireIndex(e.destTypeVar, e.kind));
+        w.writeU32(requireIndex(e.srcTypeVar, e.kind));
         break;
       }
       case ExpressionKind.ArrayInitData:
@@ -2010,7 +2013,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfb);
         w.writeU32(e.kind === ExpressionKind.ArrayInitData ? 0x12 : 0x13);
-        w.writeU32(e.typeIndex);
+        w.writeU32(requireIndex(e.typeVar, e.kind));
         w.writeU32(e.segment);
         break;
       }

@@ -921,7 +921,7 @@ compiler-driven and line-scoped, which left only four sites needing hands — th
 offending read sat on a different line from the error, and one where `loop.body.type` became
 `loop.typeOf(body)` because the pattern captured only the last path segment.
 
-##### Step 4 — one `Expression` 🚧 measured and decided, not yet written
+##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (1 of 5 families done)
 
 ⚠️ **"Alias one to the other" understates this by a lot.** The kind sets agree on 73 kinds; the
 FIELD sets do not. Measured:
@@ -1018,6 +1018,54 @@ element. S4 went the other way on grouping, and the SIMD lane family went the ot
 
 **This is the largest single piece left in S6**, and larger than the plan's one-line description of
 it. Recorded before starting so the next session begins from the measurement.
+
+###### ✅ The `typeIndex` family converted — the pilot for the other four
+
+The first of the five (b) families is done: binaryen-ts's `typeIndex` / `destTypeIndex` /
+`srcTypeIndex` are now `typeVar` / `destTypeVar` / `srcTypeVar`, holding a `Var`. 40 references
+across the node definitions, 15 factories, 44 construction sites, 15 encoder reads, 19 test call
+sites. The nodes no longer have a `typeIndex` field at all — it is gone, not shadowed.
+
+**Nothing moved**: 952 tests, baseline IDENTICAL, bridge 397/421 unchanged, spec 100% on all four
+axes with no misses. A representation change that moved a byte would have meant it was not one.
+
+🔑 **The method that made it cheap: let the compiler name the sites.** The first pass searched for
+factory names and missed a call made through a local alias —
+
+```ts
+const make = head === 'array.init_data' ? makeArrayInitData : makeArrayInitElem;
+return make(varIndex(ti), …);
+```
+
+— which no name-based scan can see, because the name is not at the call. So the remaining sites came
+from `deno check` itself: `scratchpad/wrap-from-check.ts` reads the error stream and rewrites the
+exact `file:line:col` span the compiler underlines. That found 19 test sites a search would have had
+to guess at.
+
+⚠️ **And it caught its own artifact, which is the point.** The first run fixed 11 of 18 and reported
+success on all 11 — it required a `~` run for the underline, and TypeScript marks a
+**single-character** token with `^`. Every one-letter argument (`t,`) was skipped silently. The
+count is what exposed it: 11 wrapped, 18 reported. **Always compare the two numbers**; "11 wrapped"
+alone reads like a clean pass.
+
+The test assertions changed shape as well, and are stronger for it:
+
+```ts
+assertEquals(sn.typeVar, varIndex(0)); // was: assertEquals(sn.typeIndex, 0)
+```
+
+`varIndex(0)` equals only a _resolved_ index 0, so a node carrying an unresolved name now fails. The
+old form could not tell those apart.
+
+⚠️ **The `index` family will not take the same treatment.** `index: number` (an entity reference, a
+`Var` candidate) and `index: Expression` (an operand — `table.get`'s dynamic index) share the field
+name in `expressions.ts`, four sites of the latter. The type tells them apart and the name does not,
+so that family has to be selected by TYPE. The compiler would catch a name-keyed rename that caught
+the operands — `Expression` is not `Var` — but it would catch it as a pile of errors to sort through
+rather than as one, which is how the `.type` regex went wrong: the recovery cost, not the detection,
+is what makes the wrong key expensive.
+
+**Remaining (b) families:** `index`, `name`, `memory`, `castType`.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 

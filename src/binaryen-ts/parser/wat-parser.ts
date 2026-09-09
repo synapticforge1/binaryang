@@ -165,6 +165,7 @@ import {
   type SList,
 } from './sexpr.ts';
 import { type TextPos, tokenize } from './tokenizer.ts';
+import { varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -1210,11 +1211,11 @@ class WatModuleParser {
     if (head === 'struct.new') {
       const ti = this.resolveTypeIndex(args[0]);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
-      return makeStructNew(ti, operands, { heap: ti, nullable: false });
+      return makeStructNew(varIndex(ti), operands, { heap: ti, nullable: false });
     }
     if (head === 'struct.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
-      return makeStructNewDefault(ti, { heap: ti, nullable: false });
+      return makeStructNewDefault(varIndex(ti), { heap: ti, nullable: false });
     }
     if (head === 'struct.get' || head === 'struct.get_s' || head === 'struct.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
@@ -1222,30 +1223,30 @@ class WatModuleParser {
       const ref = this.parseExpr(args[2], ctx);
       const signed = head === 'struct.get_s';
       this._checkPackedGet(head, 'struct', this._structFieldStorage(ti, fi));
-      return makeStructGet(ti, fi, ref, this._structFieldType(ti, fi), signed);
+      return makeStructGet(varIndex(ti), fi, ref, this._structFieldType(ti, fi), signed);
     }
     if (head === 'struct.set') {
       const ti = this.resolveTypeIndex(args[0]);
       const fi = Number(atomInt(args[1])) ?? 0;
       const ref = this.parseExpr(args[2], ctx);
       const value = this.parseExpr(args[3], ctx);
-      return makeStructSet(ti, fi, ref, value);
+      return makeStructSet(varIndex(ti), fi, ref, value);
     }
     if (head === 'array.new') {
       const ti = this.resolveTypeIndex(args[0]);
       const init = this.parseExpr(args[1], ctx);
       const length = this.parseExpr(args[2], ctx);
-      return makeArrayNew(ti, init, length, { heap: ti, nullable: false });
+      return makeArrayNew(varIndex(ti), init, length, { heap: ti, nullable: false });
     }
     if (head === 'array.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
       const length = this.parseExpr(args[1], ctx);
-      return makeArrayNewDefault(ti, length, { heap: ti, nullable: false });
+      return makeArrayNewDefault(varIndex(ti), length, { heap: ti, nullable: false });
     }
     if (head === 'array.new_fixed') {
       const ti = this.resolveTypeIndex(args[0]);
       const values = args.slice(1).map((a) => this.parseExpr(a, ctx));
-      return makeArrayNewFixed(ti, values, { heap: ti, nullable: false });
+      return makeArrayNewFixed(varIndex(ti), values, { heap: ti, nullable: false });
     }
     if (head === 'array.get' || head === 'array.get_s' || head === 'array.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
@@ -1253,19 +1254,19 @@ class WatModuleParser {
       const index = this.parseExpr(args[2], ctx);
       const signed = head === 'array.get_s';
       this._checkPackedGet(head, 'array', this._arrayElementStorage(ti));
-      return makeArrayGet(ti, ref, index, this._arrayElementType(ti), signed);
+      return makeArrayGet(varIndex(ti), ref, index, this._arrayElementType(ti), signed);
     }
     if (head === 'array.set') {
       const ti = this.resolveTypeIndex(args[0]);
       const ref = this.parseExpr(args[1], ctx);
       const index = this.parseExpr(args[2], ctx);
       const value = this.parseExpr(args[3], ctx);
-      return makeArraySet(ti, ref, index, value);
+      return makeArraySet(varIndex(ti), ref, index, value);
     }
     if (head === 'array.fill') {
       const ti = this.resolveTypeIndex(args[0]);
       return makeArrayFill(
-        ti,
+        varIndex(ti),
         this.parseExpr(args[1], ctx),
         this.parseExpr(args[2], ctx),
         this.parseExpr(args[3], ctx),
@@ -1276,8 +1277,8 @@ class WatModuleParser {
       const destTi = this.resolveTypeIndex(args[0]);
       const srcTi = this.resolveTypeIndex(args[1]);
       return makeArrayCopy(
-        destTi,
-        srcTi,
+        varIndex(destTi),
+        varIndex(srcTi),
         this.parseExpr(args[2], ctx),
         this.parseExpr(args[3], ctx),
         this.parseExpr(args[4], ctx),
@@ -1290,7 +1291,7 @@ class WatModuleParser {
       const seg = Number(atomInt(args[1]));
       const make = head === 'array.init_data' ? makeArrayInitData : makeArrayInitElem;
       return make(
-        ti,
+        varIndex(ti),
         seg,
         this.parseExpr(args[2], ctx),
         this.parseExpr(args[3], ctx),

@@ -48,6 +48,7 @@ import {
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /** i32 array heap type + a `() -> i32` func type, in that order. */
 function gcBuilder(): { m: ModuleBuilder; arrayType: number } {
@@ -284,7 +285,7 @@ Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10',
   const mod = parseWasm(ARRAY_FILL_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayFill);
   assert(node !== null, 'array.fill did not decode to an ArrayFill node');
-  assertEquals(node!.typeIndex, 0);
+  assertEquals(node!.typeVar, varIndex(0));
   // ref, index, value, size all present and distinct operands.
   for (const k of ['ref', 'index', 'value', 'size']) {
     assert(node![k] !== undefined, `ArrayFill is missing operand "${k}"`);
@@ -317,20 +318,26 @@ Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref loc
     makeBlock([
       makeLocalSet(
         0,
-        makeArrayNew(arrayType, makeI32Const(0), makeI32Const(3), {
+        makeArrayNew(varIndex(arrayType), makeI32Const(0), makeI32Const(3), {
           heap: arrayType,
           nullable: false,
         }),
       ),
       makeArrayFill(
-        arrayType,
+        varIndex(arrayType),
         makeLocalGet(0, arrRef),
         makeI32Const(0),
         makeI32Const(7),
         makeI32Const(3),
       ),
       // index 2 is only written if the fill honoured its length
-      makeArrayGet(arrayType, makeLocalGet(0, arrRef), makeI32Const(2), ValType.I32, false),
+      makeArrayGet(
+        varIndex(arrayType),
+        makeLocalGet(0, arrRef),
+        makeI32Const(2),
+        ValType.I32,
+        false,
+      ),
     ]),
     [{ type: arrRef }],
   );
@@ -352,14 +359,14 @@ Deno.test('array.copy keeps dest and src type immediates in the right order', ()
     [ValType.I32],
     makeBlock([
       makeArrayCopy(
-        arrayType,
-        second,
-        makeArrayNew(arrayType, makeI32Const(0), makeI32Const(1), {
+        varIndex(arrayType),
+        varIndex(second),
+        makeArrayNew(varIndex(arrayType), makeI32Const(0), makeI32Const(1), {
           heap: arrayType,
           nullable: false,
         }),
         makeI32Const(0),
-        makeArrayNew(second, makeI32Const(5), makeI32Const(1), {
+        makeArrayNew(varIndex(second), makeI32Const(5), makeI32Const(1), {
           heap: second,
           nullable: false,
         }),
@@ -375,8 +382,8 @@ Deno.test('array.copy keeps dest and src type immediates in the right order', ()
   const node = findNode(parsed.functions[0].body, ExpressionKind.ArrayCopy);
 
   assert(node !== null, 'array.copy did not survive the round-trip');
-  assertEquals(node.destTypeIndex, arrayType);
-  assertEquals(node.srcTypeIndex, second);
+  assertEquals(node.destTypeVar, varIndex(arrayType));
+  assertEquals(node.srcTypeVar, varIndex(second));
 });
 
 Deno.test('ref.as_non_null passes a non-null reference through', async () => {
@@ -386,9 +393,9 @@ Deno.test('ref.as_non_null passes a non-null reference through', async () => {
     [],
     [ValType.I32],
     makeArrayGet(
-      arrayType,
+      varIndex(arrayType),
       makeRefAsNonNull(
-        makeArrayNewFixed(arrayType, [makeI32Const(99)], {
+        makeArrayNewFixed(varIndex(arrayType), [makeI32Const(99)], {
           heap: arrayType,
           nullable: true,
         }),
@@ -410,9 +417,9 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', 
     [],
     [ValType.I32],
     makeArrayGet(
-      arrayType,
+      varIndex(arrayType),
       makeRefAsNonNull(
-        makeArrayNewFixed(arrayType, [makeI32Const(1)], {
+        makeArrayNewFixed(varIndex(arrayType), [makeI32Const(1)], {
           heap: arrayType,
           nullable: true,
         }),
