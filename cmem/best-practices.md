@@ -458,9 +458,9 @@ standard would have licensed the change; measuring our own parser is what caught
 `i32.add` every assertion here passes under the reversed reading. `i32.sub` and a 3-argument
 subtraction are what made the slots observable.
 
-## 🆕 Changing a field has SIX failure modes the compiler cannot see
+## 🆕 Changing a field has SEVEN failure modes the compiler cannot see
 
-**Rule: a type change is not finished when it compiles. Sweep for the six, then let a behavioural
+**Rule: a type change is not finished when it compiles. Sweep for the seven, then let a behavioural
 test and a byte gate disagree with you.**
 
 Paid for across S6 step 4 (2026-09-09), converting five field families in binaryen-ts and wabt-ts to
@@ -488,6 +488,28 @@ their as-written forms. Every defect below **compiled clean**, and none was foun
   `body as { table?: string }` then `ci as { table?: Var }` errored only because the two disagreed.
   Update both to the same wrong type — or make the intermediate `unknown` — and the assertion
   compiles while comparing a string to an object forever.
+
+### A conditional object SPREAD bypasses excess-property checking
+
+The seventh mode, the only one that corrupts a WRITE, and the only one in this list that changed
+emitted bytes.
+
+```ts
+...(indexOf(memory) !== 0 ? { memory } : {}),   // after `memory` was renamed to `memidx`
+```
+
+TypeScript checks excess properties on a plain object literal — which is why the `array.*`
+factories, built from shorthand properties, all failed loudly on their rename. It does **not** check
+them through a conditional spread. So after a rename these factories compiled clean while producing
+nodes carrying a stray `memory` key and no `memidx` at all, and the encoder read `undefined` and
+wrote memory 0.
+
+⚠️ **`deno task baseline` could not see it** — the corpus has no multi-memory modules. A behavioural
+test that round-trips `memory.copy` across two memories caught it as a byte difference. That is the
+pairing argued for above, working in the direction that is usually the other way round.
+
+**Grep for `\.\.\.\(.*\?\s*\{` in any file that constructs the renamed node.** A spread is the one
+write shape that will not tell you.
 
 ### A field name used as a VALUE leaves the type system entirely
 

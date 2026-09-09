@@ -91,7 +91,7 @@ describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
     // as the offset. Pinning all three is what makes this discriminating.
     assertEquals(store['align'], 2, 'align is the exponent with bit 6 masked off');
     assertEquals(store['offset'], 0, 'offset is the real offset, not the memory index');
-    assertEquals(store['memory'], varIndex(1), 'and the memory index is kept');
+    assertEquals(store.memidx, varIndex(1), 'and the memory index is kept');
   });
 
   it('leaves NO phantom instruction behind', () => {
@@ -167,6 +167,6 @@ describe('binaryen-ts — single-memory output is untouched', () => {
     );
     const load = nodesOf(mod.functions[0]?.body).find((n) => n['bytes'] !== undefined);
     assert(load, 'a load must be present');
-    assertEquals(load['memory'], undefined, 'memory 0 is represented by absence');
+    assertEquals(load.memidx, undefined, 'memory 0 is represented by absence');
   });
 });
