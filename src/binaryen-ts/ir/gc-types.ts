@@ -37,9 +37,9 @@ export enum AbstractHeapType {
   /** Bottom of the function reference hierarchy (null func). */
   NoFunc = 'nofunc',
   /** External (host) reference. */
-  Ext = 'ext',
+  Ext = 'extern',
   /** Bottom of the external reference hierarchy. */
-  NoExt = 'noext',
+  NoExt = 'noextern',
   /** Top of the GC reference hierarchy. */
   Any = 'any',
   /** Equatable references (structs, arrays, i31). */
