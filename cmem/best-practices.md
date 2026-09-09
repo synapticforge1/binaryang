@@ -474,6 +474,21 @@ their as-written forms. Every defect below **compiled clean**, and none was foun
 | `` `${e.index}` `` renders `[object Object]`       | **every** object stringifies — there is nothing to diagnose    | `LocalCSE` hashed every `local.get` alike and folded unrelated values. A miscompile, in two separate caches |
 | `as any` / `as { name: string }` in a fixture      | the cast is the point; it suppresses exactly this              | 8 asyncify tests, then one more that a sweep for `as any` alone had missed                                  |
 
+⚠️ **Three refinements, each learned the hard way later in the same series:**
+
+- **The silent-`===` risk is specific to SAME-TYPED operands.** `a.index === b.index` (number →
+  object, both sides) goes quiet. `e.table === '$t'` (string → object) is a type error, so all seven
+  such sites surfaced as `TS2367`. **A string-typed field is materially safer to convert than a
+  numeric one** — budget the sweep accordingly.
+- **A cast hides EVERY field in its literal, not just the one that failed.** `asyncify.test.ts` was
+  fixed once for `index: 0` inside an `as any` tree; its sibling `target: '$sleep'` sat in the same
+  literal and broke on the next conversion. When a cast surfaces one wrong field, audit the whole
+  object.
+- **A CHAIN of structural casts reports only the inconsistency between its LINKS.**
+  `body as { table?: string }` then `ci as { table?: Var }` errored only because the two disagreed.
+  Update both to the same wrong type — or make the intermediate `unknown` — and the assertion
+  compiles while comparing a string to an object forever.
+
 ### Widening a union (adding an arm), which is worse
 
 Adding an arm is **not a type change to existing code at all** — the old arm stays legal, so nothing
@@ -575,6 +590,35 @@ single repository invites.
   heap-type text support (`(ref null any)` → `unexpected token "any"`), the same limitation that
   makes `spec:prepare` skip 30 files — so the spec was the only authority here. A first probe with
   `--enable-all` appeared to show `any` and `eq` rejected too; that was the flags, not the keywords.
+
+## 🆕 A defensive branch carrying a DEFECT NUMBER is evidence — do not delete it as clutter
+
+**Rule: before removing a guard, find its second caller. A comment that names a measured failure is
+telling you the guard is load-bearing for a population you are not looking at.**
+
+The encoder's `resolveRef` took a `string` meaning either a `$name` or a numeric index, told apart
+by `/^[0-9]+$/`. Converting the node fields to `Var` made that regex look like pure legacy cost, so
+it went — and 15 tests failed, three of them named _"encoder — numeric entity references resolve as
+indices"_, written for precisely the defect being reintroduced.
+
+Its own comment had recorded the cost in advance: **310 of 421 corpus modules**, because
+`(export "f" (func 19))` is legal WAT and our own `wasm2wat` emits the numeric form. The comment was
+read, understood, and the mechanism removed anyway — the failure was not missing information.
+
+🔑 **What was actually missed is that the function served TWO populations.** Expression-node
+references had been converted and carried their arm; MODULE-level references — exports, `start`,
+element-segment functions, `ref.func`, catch tags — were still raw tokens, and a token genuinely can
+be either form.
+
+### How to apply
+
+- **"This overload is pure cost" is a claim about every caller.** Enumerate them before acting; the
+  one in front of you is not the population.
+- **Discrimination does not disappear, it MOVES.** The right destination is the text boundary, where
+  it happens once: a `varFromToken()` that reads the token and picks the arm. What was wrong was a
+  FIELD carrying both meanings, not the act of telling them apart.
+- **A defect number in a comment is a test that already ran.** Treat it as data: it says a
+  population exists that broke this before.
 
 ## 🆕 Delete the mechanism and its DOCUMENTATION in the same edit
 
