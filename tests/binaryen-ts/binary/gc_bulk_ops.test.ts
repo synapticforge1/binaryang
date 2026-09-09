@@ -10,9 +10,11 @@
  * single-element `array.set` or a bare `nop` — silent miscompiles). They now
  * have real IR nodes and round-trip.
  *
- * UP-4: `ref.as_non_null`, implemented on the existing `RefAs` placeholder kind
- * with a `RefAsOp` discriminant, matching upstream's `RefAs`/`RefAsOp` shape
- * rather than adding a parallel node.
+ * UP-4: `ref.as_non_null`, implemented on the existing `RefAs` kind. It carried
+ * a `RefAsOp` discriminant to mirror upstream's shape; S6 dropped that, because
+ * the kind names exactly one instruction and a field that can hold only one
+ * value is a field that can disagree with its kind. The extern conversions the
+ * discriminant was reserved for are separate kinds in the unified IR.
  *
  * Every test executes the result under V8 rather than only asserting bytes —
  * this project's whole bug history is valid-wasm-wrong-behaviour that byte
@@ -43,7 +45,6 @@ import {
   makeLocalGet,
   makeLocalSet,
   makeRefAsNonNull,
-  RefAsOp,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
@@ -433,18 +434,22 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', 
   m.addExport('read', 'read');
 
   const parsed = parseWasm(encodeWasm(m.build()));
-  const ops: number[] = [];
+  // `ref.as` names exactly ONE instruction, so the kind is the operator and
+  // there is no discriminant field to assert on. What this pins is that the
+  // node survived the round trip — counted, so a node that vanished and one
+  // that duplicated are both caught.
+  let refAsNodes = 0;
   const walk = (e: unknown): void => {
     if (!e || typeof e !== 'object') return;
-    const node = e as { kind?: string; opcode?: number };
-    if (node.kind === ExpressionKind.RefAs && node.opcode) ops.push(node.opcode);
+    const node = e as { kind?: string };
+    if (node.kind === ExpressionKind.RefAs) refAsNodes++;
     for (const v of Object.values(e as Record<string, unknown>)) {
       if (Array.isArray(v)) v.forEach(walk);
       else walk(v);
     }
   };
   walk(parsed.functions[0].body as Expression);
-  assertEquals(ops, [RefAsOp.RefAsNonNull]);
+  assertEquals(refAsNodes, 1);
 });
 
 // --- WAT front door -------------------------------------------------------

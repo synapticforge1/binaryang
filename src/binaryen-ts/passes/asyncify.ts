@@ -213,8 +213,8 @@ function makeStackOverflowCheck(): Expression {
   return makeIf(
     makeBinary(
       BinaryOp.GtUI32,
-      makeLoad(4, false, DataOffset.StackPos, 2, dataPtr(), ValType.I32),
-      makeLoad(4, false, DataOffset.StackEnd, 2, dataPtr(), ValType.I32),
+      makeLoad(4, false, BigInt(DataOffset.StackPos), 2, dataPtr(), ValType.I32),
+      makeLoad(4, false, BigInt(DataOffset.StackEnd), 2, dataPtr(), ValType.I32),
     ),
     makeUnreachable(),
   );
@@ -1049,7 +1049,7 @@ export function computeRelevantLocals(
 // ---------------------------------------------------------------------------
 
 /** Byte offset within `$__asyncify_data` of the current stack position. */
-const STACK_POS_OFFSET = DataOffset.StackPos;
+const STACK_POS_OFFSET = BigInt(DataOffset.StackPos);
 /** log2 alignment for i32 stack accesses (STACK_ALIGN = 4 bytes). */
 const STACK_ALIGN_LOG2 = 2;
 /** Branch label of the unwind block (breaks here to unwind out of the body). */
@@ -1139,7 +1139,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
           makeIncStackPos(-4),
           makeLocalSet(
             varIndex(ctx.rewindIndex),
-            makeLoad(4, false, 0, STACK_ALIGN_LOG2, makeGetStackPos(), ValType.I32),
+            makeLoad(4, false, BigInt(0), STACK_ALIGN_LOG2, makeGetStackPos(), ValType.I32),
           ),
         ], null);
       }
@@ -1171,7 +1171,7 @@ function makeCallIndexPush(unwindIndex: number): Expression {
   return makeBlock([
     makeStore(
       4,
-      0,
+      BigInt(0),
       STACK_ALIGN_LOG2,
       makeGetStackPos(),
       makeLocalGet(varIndex(unwindIndex), ValType.I32),
@@ -1197,7 +1197,7 @@ function makeLocalLoading(func: WasmFunction, saved: number[]): Expression {
       makeLoad(
         loadOpBytes(t),
         true,
-        offset,
+        BigInt(offset),
         STACK_ALIGN_LOG2,
         makeLocalGet(varIndex(temp), ValType.I32),
         t as ValType,
@@ -1218,7 +1218,7 @@ function makeLocalSaving(func: WasmFunction, saved: number[]): Expression {
     const t = func.locals[i]!.type;
     list.push(makeStore(
       loadOpBytes(t),
-      offset,
+      BigInt(offset),
       STACK_ALIGN_LOG2,
       makeLocalGet(varIndex(temp), ValType.I32),
       makeLocalGet(varIndex(i), t as ValType),

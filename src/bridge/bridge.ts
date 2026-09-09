@@ -177,6 +177,7 @@ import {
   ModuleBuilder,
   None,
   SIMDLoadOp,
+  type TryCatch,
   typeOf,
   ValType,
 } from '../binaryen-ts/ir/index.ts';
@@ -1109,7 +1110,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         return makeSIMDLoad(
           simdOp,
           bridgeExpr(ld.address, ctx),
-          bigintOffsetToNumber(ld.offset, 'load'),
+          ld.offset,
           alignBytesToExponent(ld.align, naturalAlignForOpcode(ld.opcode), 'load'),
         );
       }
@@ -1117,7 +1118,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeLoad(
         info.bytes,
         info.signed,
-        bigintOffsetToNumber(ld.offset, 'load'),
+        ld.offset,
         alignBytesToExponent(ld.align, info.bytes, 'load'),
         bridgeExpr(ld.address, ctx),
         info.resultType,
@@ -1130,7 +1131,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeSIMDLoad(
         ls.opcode,
         bridgeExpr(ls.address, ctx),
-        bigintOffsetToNumber(ls.offset, 'simd.load'),
+        ls.offset,
         alignBytesToExponent(ls.align, naturalAlignForOpcode(ls.opcode), 'simd.load'),
       );
     }
@@ -1141,7 +1142,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         sll.opcode,
         bridgeExpr(sll.address, ctx),
         bridgeExpr(sll.vec, ctx),
-        bigintOffsetToNumber(sll.offset, 'simd.load_store_lane'),
+        sll.offset,
         alignBytesToExponent(sll.align, naturalAlignForOpcode(sll.opcode), 'simd.load_store_lane'),
         sll.lane,
       );
@@ -1152,7 +1153,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const bytes = storeBytes(st.opcode);
       return makeStore(
         bytes,
-        bigintOffsetToNumber(st.offset, 'store'),
+        st.offset,
         alignBytesToExponent(st.align, bytes, 'store'),
         bridgeExpr(st.address, ctx),
         bridgeExpr(st.value, ctx),
@@ -1466,10 +1467,10 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // --- Exception handling -------------------------------------------------
     //
     // binaryen-ts has had `makeTry` throughout; the bridge simply never listed
-    // the kind. A `catch_all` clause is spelled with an EMPTY tag name, which
-    // is the same sentinel the WAT parser uses -- see the `catchTags.push('')`
-    // note there. A named sentinel like `$__catch_all` was tried once and had
-    // to be reverted, because it can collide with a real tag.
+    // the kind. A `catch_all` clause has NO tag and is written that way — the
+    // field is absent. Two sentinels were tried before that: `$__catch_all`,
+    // which can collide with a real tag, and `''`, which the parser and encoder
+    // then disagreed about. A value used to mean "no value" invites both.
     case 'try': {
       const tr = e as TryExpr;
       const name = nameForLabel(ctx, tr.label);
@@ -1477,20 +1478,17 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       ctx.labelStack.push(name);
       try {
         const body = makeBlock(tr.body.map((c) => bridgeExpr(c, ctx)), null);
-        const catchTags: string[] = [];
-        const catchBodies: Expression[] = [];
-        for (const c of tr.catches) {
-          if (c.isRef) {
-            // `catch_ref` / `catch_all_ref` push an exnref the handler can
-            // rethrow. binaryen-ts's Try has no slot for it, and dropping the
-            // ref would change what the handler receives.
-            throw new Error('Bridge: catch_ref / catch_all_ref not yet supported');
-          }
-          catchTags.push(c.tag === undefined ? '' : resolveVarName(c.tag, ctx.tagNames));
-          catchBodies.push(makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null));
-        }
+        // `catch_ref` / `catch_all_ref` used to throw "not yet supported" here,
+        // because binaryen-ts's Try had no slot for the flag and dropping it
+        // would change what the handler receives. The clause carries `isRef`
+        // now and the encoder writes 0x08 / 0x18 for it.
+        const catches: TryCatch[] = tr.catches.map((c) => ({
+          ...(c.tag === undefined ? {} : { tag: varName(resolveVarName(c.tag, ctx.tagNames)) }),
+          isRef: c.isRef,
+          body: makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null),
+        }));
         const delegateTarget = tr.delegate === undefined ? null : resolveLabel(ctx, tr.delegate);
-        return makeTry(name, body, catchTags, catchBodies, delegateTarget, resultType);
+        return makeTry(name, body, catches, delegateTarget, resultType);
       } finally {
         ctx.labelStack.pop();
       }
@@ -1636,19 +1634,14 @@ function requireDefaultMemory(memidx: Var, opLabel: string): void {
   }
 }
 
-/**
- * wabt-ts represents load/store offsets as `bigint` (to accommodate the
- * memory64 proposal). binaryen-ts's encoder writes the offset as a u32 LEB,
- * so it expects a `number`. Convert with a safety check.
- */
-function bigintOffsetToNumber(off: bigint, opLabel: string): number {
-  if (off > 0xffffffffn || off < 0n) {
-    throw new Error(
-      `Bridge: ${opLabel} offset ${off} out of u32 range (memory64 not supported yet)`,
-    );
-  }
-  return Number(off);
-}
+// `bigintOffsetToNumber` stood here, converting wabt-ts's bigint offset into a
+// number and throwing above the u32 range — "memory64 not supported yet". Both
+// sides carry `bigint` now and the encoder writes a u64 LEB, so the offset
+// passes straight through and that limitation is gone.
+//
+// ⚠️ The mechanical pass first produced `BigInt(bigintOffsetToNumber(off, …))`,
+// which type-checks and preserves the exact loss the change existed to remove.
+// A wrapper that satisfies the compiler is not evidence that the value survived.
 
 /**
  * Convert wabt-ts's byte-valued alignment into the wasm `memarg.align`

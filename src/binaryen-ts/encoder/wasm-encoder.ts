@@ -51,7 +51,6 @@ import {
   type QuaternaryExpr,
   QuaternaryOp,
   type RefAsExpr,
-  RefAsOp,
   type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
@@ -151,6 +150,25 @@ class BinaryWriter {
       if (n !== 0) byte |= 0x80;
       this.buf.push(byte);
     } while (n !== 0);
+  }
+
+  /**
+   * Unsigned 64-bit LEB128.
+   *
+   * Needed because a memarg offset is a u64 under memory64 and `writeU32`
+   * TRUNCATES — it starts with `n >>>= 0`, which silently discards everything
+   * above 2^32 and emits a valid instruction addressing the wrong offset.
+   * `writeI64` is signed and would set a continuation byte differently near the
+   * top of the range, so neither existing writer serves.
+   */
+  writeU64(n: bigint): void {
+    if (n < 0n) throw new WasmEncodeError(`writeU64: negative value ${n}`);
+    do {
+      let byte = Number(n & 0x7fn);
+      n >>= 7n;
+      if (n !== 0n) byte |= 0x80;
+      this.buf.push(byte);
+    } while (n !== 0n);
   }
 
   writeI32(n: number): void {
@@ -903,7 +921,7 @@ class WasmEncoder {
     w.writeU32(opcode & 0xffff);
   }
 
-  private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: Var): void {
+  private writeMemArg(w: BinaryWriter, align: number, offset: bigint, memory?: Var): void {
     const mem = memIndex(memory, 'memarg');
     if (mem !== 0) {
       w.writeU32(align | 0x40);
@@ -911,7 +929,7 @@ class WasmEncoder {
     } else {
       w.writeU32(align);
     }
-    w.writeU32(offset);
+    w.writeU64(offset);
   }
 
   /**
@@ -1888,10 +1906,10 @@ class WasmEncoder {
       case ExpressionKind.RefAs: {
         const e = expr as RefAsExpr;
         this.encodeExpr(w, e.value, labels);
-        if (e.opcode !== RefAsOp.RefAsNonNull) {
-          throw new WasmEncodeError(`unsupported ref.as operation: ${e.opcode}`);
-        }
-        w.writeU8(0xd4);
+        // `ref.as` names exactly one instruction, so the kind IS the operator
+        // and there is nothing to reject. The guard that stood here tested a
+        // field that could only ever hold `RefAsNonNull`.
+        w.writeU8(0xd4); // ref.as_non_null
         break;
       }
       case ExpressionKind.RefFunc: {
@@ -2144,22 +2162,17 @@ class WasmEncoder {
           writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
           labels.push(e.name ?? '');
           this.encodeRegionBody(w, e.body, labels);
-          // Tags and bodies are parallel by construction. Pairing them by index
-          // without checking meant a mismatched `Try` emitted a `catch` opcode
-          // with no handler after it, corrupting the rest of the function body.
-          if (e.catchTags.length !== e.catchBodies.length) {
-            throw new WasmEncodeError(
-              `try has ${e.catchTags.length} catch tags but ${e.catchBodies.length} bodies`,
-            );
-          }
-          for (const [i, tag] of e.catchTags.entries()) {
-            if (tag === '') {
-              w.writeU8(0x19); // catch_all
+          // The length guard that stood here — "try has N catch tags but M
+          // bodies" — is gone with the parallel arrays that made the mismatch
+          // representable. A clause carries its own body.
+          for (const c of e.catches) {
+            if (c.tag === undefined) {
+              w.writeU8(c.isRef ? 0x18 : 0x19); // catch_all_ref : catch_all
             } else {
-              w.writeU8(0x07); // catch
-              w.writeU32(this.resolveRef(this.tagIndex, varFromToken(tag), 'catch tag'));
+              w.writeU8(c.isRef ? 0x08 : 0x07); // catch_ref : catch
+              w.writeU32(this.resolveRef(this.tagIndex, c.tag, 'catch tag'));
             }
-            this.encodeRegionBody(w, e.catchBodies[i]!, labels);
+            this.encodeRegionBody(w, c.body, labels);
           }
           labels.pop();
           w.writeU8(0x0b);

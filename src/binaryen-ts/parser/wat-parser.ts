@@ -123,6 +123,7 @@ import {
   type SIMDTernaryExpr,
   SIMDTernaryOp,
   type StoreExpr,
+  type TryCatch,
   typeOf,
   type UnaryExpr,
   UnaryOp,
@@ -1664,8 +1665,7 @@ class WatModuleParser {
     const bodyType = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
     const body: Expression = this.oneOrTypedBlock(bodyExprs, bodyType);
     // Catch / catch_all / delegate clauses
-    const catchTags: string[] = [];
-    const catchBodies: Expression[] = [];
+    const catches: TryCatch[] = [];
     let delegateTarget: string | null = null;
     while (idx < children.length) {
       const clause = children[idx] as SList;
@@ -1674,28 +1674,28 @@ class WatModuleParser {
         const clauseArgs = listChildren(clause);
         const tagRef = atomText(clauseArgs[0]) ?? this.err('catch: missing tag', list.pos);
         const tagName = this.resolveTagRef(tagRef);
-        catchTags.push(tagName);
         const catchExprs = clauseArgs.slice(1).map((e) => this.parseExpr(e, innerCtx));
-        catchBodies.push(
-          this.oneOrTypedBlock(catchExprs, bodyType),
-        );
+        catches.push({
+          tag: varName(tagName),
+          isRef: false,
+          body: this.oneOrTypedBlock(catchExprs, bodyType),
+        });
         idx++;
       } else if (clauseHead === 'catch_all') {
-        // The ENCODER's sentinel for `catch_all` is the EMPTY STRING — it writes
-        // opcode 0x19 when `tag === ''` and otherwise resolves the name as a real
-        // tag. This pushed `'$__catch_all'`, which is not empty, so every
-        // `catch_all` took the resolve path and died with
-        // `unresolved catch tag reference: "$__catch_all"`.
+        // A `catch_all` has NO tag, and that is now how it is written: the field
+        // is absent.
         //
-        // Two halves of one codebase disagreeing on a sentinel, with nothing
-        // naming the convention on either side. The encoder's is the one the
-        // binary format forces, so the parser moves.
-        catchTags.push('');
+        // It used to need a sentinel, and the two halves of this codebase
+        // disagreed on which one. The encoder tested `tag === ''`; the parser
+        // pushed `'$__catch_all'`, which is not empty, so every `catch_all` took
+        // the resolve path and died with `unresolved catch tag reference`.
+        // Neither side named the convention. Absence cannot be disagreed with.
         const clauseArgs = listChildren(clause);
         const catchExprs = clauseArgs.map((e) => this.parseExpr(e, innerCtx));
-        catchBodies.push(
-          this.oneOrTypedBlock(catchExprs, bodyType),
-        );
+        catches.push({
+          isRef: false,
+          body: this.oneOrTypedBlock(catchExprs, bodyType),
+        });
         idx++;
       } else if (clauseHead === 'delegate') {
         const clauseArgs = listChildren(clause);
@@ -1707,7 +1707,7 @@ class WatModuleParser {
         break;
       }
     }
-    return makeTry(tryLabel, body, catchTags, catchBodies, delegateTarget, bodyType);
+    return makeTry(tryLabel, body, catches, delegateTarget, bodyType);
   }
   private parseCallIndirect(
     _list: SList,
@@ -1828,7 +1828,7 @@ class WatModuleParser {
     // `bytes` is the natural alignment for every load form: `i64.load32_s`
     // touches 4 bytes and is naturally 4-aligned, `i64.load` touches 8.
     const align = this.alignExponent(alignBytes, bytes, list.pos);
-    return { kind: ExpressionKind.Load, type, bytes, signed, offset, align, ptr };
+    return { kind: ExpressionKind.Load, type, bytes, signed, offset: BigInt(offset), align, ptr };
   }
 
   private parseStore(head: string, list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
@@ -1866,7 +1866,15 @@ class WatModuleParser {
     const ptr = written >= 2 ? this.parseExpr(args[argIdx], ctx) : makePop(ValType.I32);
     const value = this.parseExpr(args[argIdx + (written >= 2 ? 1 : 0)], ctx);
     const align = this.alignExponent(alignBytes, bytes, list.pos);
-    return { kind: ExpressionKind.Store, type: None, bytes, offset, align, ptr, value };
+    return {
+      kind: ExpressionKind.Store,
+      type: None,
+      bytes,
+      offset: BigInt(offset),
+      align,
+      ptr,
+      value,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -1965,7 +1973,7 @@ class WatModuleParser {
     }
     const ptr = this.parseExpr(args[argIdx], ctx);
     const align = this.alignExponent(alignBytes, this.simdNaturalBytes(head));
-    return makeSIMDLoad(SIMD_LOAD_OPS[head] as SIMDLoadOp, ptr, offset, align);
+    return makeSIMDLoad(SIMD_LOAD_OPS[head] as SIMDLoadOp, ptr, BigInt(offset), align);
   }
 
   private parseSIMDLaneLdSt(head: string, args: SExpr[], ctx: FuncContext): SIMDLoadStoreLaneExpr {
@@ -2014,7 +2022,7 @@ class WatModuleParser {
       SIMD_LANE_OPS[head] as SIMDLoadStoreLaneOp,
       ptr,
       vec,
-      offset,
+      BigInt(offset),
       align,
       lane,
     );

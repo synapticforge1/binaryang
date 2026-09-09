@@ -8,7 +8,7 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ExpressionKind, type TryCatch } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
@@ -368,9 +368,9 @@ Deno.test('parseWat — try with inline body and catch clause', () => {
       (try $t (result i32)
         (i32.const 1)
         (catch $e (i32.const 99)))))`);
-  const body = mod.functions[0].body as { kind: ExpressionKind; catchTags?: string[] };
+  const body = mod.functions[0].body as { kind: ExpressionKind; catches: TryCatch[] };
   assertEquals(body.kind, ExpressionKind.Try);
-  assertEquals(body.catchTags, ['$e']);
+  assertEquals(body.catches.map((c) => c.tag), [varName('$e')]);
 });
 
 Deno.test('parseWat — try with inline multi-instruction body wraps into a block', () => {
@@ -399,17 +399,22 @@ Deno.test('parseWat — try inline body still accepts catch_all and delegate cla
         (nop)
         (catch $e)
         (catch_all (nop)))))`);
-  const t = mod.functions[0].body as { kind: ExpressionKind; catchTags: string[] };
+  const t = mod.functions[0].body as { kind: ExpressionKind; catches: TryCatch[] };
   assertEquals(t.kind, ExpressionKind.Try);
-  // CHANGED 2026-09-01: this asserted `['$e', '$__catch_all']`, pinning a
-  // sentinel the ENCODER never agreed with. The encoder writes opcode 0x19 when
-  // `tag === ''` and otherwise resolves the name as a real tag, so every
-  // `catch_all` took the resolve path and died with
-  // `unresolved catch tag reference: "$__catch_all"`.
+  // ✅ There is no sentinel left to pin. A `catch_all` has NO tag, and this
+  // asserts exactly that.
   //
-  // Two halves of one codebase disagreeing on a sentinel, with a TEST pinning
-  // the losing side — so the disagreement read as intended behaviour.
-  assertEquals(t.catchTags, ['$e', ''], 'catch_all is the empty tag, as the encoder requires');
+  // This assertion has now been rewritten TWICE for the same reason. It first
+  // pinned `'$__catch_all'`, which the encoder never agreed with — it tested
+  // `tag === ''`, so every catch_all took the resolve path and died with
+  // `unresolved catch tag reference`. It was then re-pinned to `''`, the other
+  // side of the same disagreement. Both times a test recorded an internal
+  // convention as though it were the requirement, which is what let the
+  // mismatch read as intended behaviour.
+  //
+  // S6 removed the convention rather than the disagreement: `tag?: Var`, and
+  // absence means catch_all. A missing field cannot be spelled two ways.
+  assertEquals(t.catches.map((c) => c.tag), [varName('$e'), undefined]);
 });
 
 // The assertion above is about an internal convention, which is exactly what let
@@ -432,9 +437,9 @@ Deno.test('parseWat — (do ...) wrapped body still works (regression)', () => {
       (try $t
         (do (nop))
         (catch $e))))`);
-  const t = mod.functions[0].body as { kind: ExpressionKind; catchTags: string[] };
+  const t = mod.functions[0].body as { kind: ExpressionKind; catches: TryCatch[] };
   assertEquals(t.kind, ExpressionKind.Try);
-  assertEquals(t.catchTags, ['$e']);
+  assertEquals(t.catches.map((c) => c.tag), [varName('$e')]);
 });
 
 // ---------------------------------------------------------------------------

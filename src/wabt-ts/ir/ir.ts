@@ -1140,7 +1140,6 @@ export interface SimdReplaceExpr {
 /** SIMD `i8x16.shuffle` — permutes 32 bytes from two v128 operands via 16 lane indices. */
 export interface SimdShuffleOpExpr {
   readonly kind: 'simd.shuffle';
-  readonly opcode: Opcode;
   readonly lanes: Uint8Array; // 16 lane indices
   readonly left: Expr;
   readonly right: Expr;

@@ -10,6 +10,7 @@ import { ExternalKind } from '../core/binary.ts';
 import {
   anyOpcodeName,
   MiscOpcode,
+  OPCODE_I8X16_SHUFFLE,
   PREFIX_MISC,
   PREFIX_SIMD,
   PREFIX_THREADS,
@@ -1059,7 +1060,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
   }
   onSimdShuffleOpExpr(e: SimdShuffleOpExpr): Result {
-    return this.sv.onSimdShuffleOp(e.loc, e.opcode, e.lanes);
+    return this.sv.onSimdShuffleOp(e.loc, OPCODE_I8X16_SHUFFLE, e.lanes);
   }
   /**
    * `load_lane` and `store_lane` share one node; their STACK EFFECTS differ — a

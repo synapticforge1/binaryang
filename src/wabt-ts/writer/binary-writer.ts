@@ -108,6 +108,7 @@ import {
   GcOpcode,
   naturalAlignForOpcode,
   Opcode,
+  OPCODE_I8X16_SHUFFLE,
   PREFIX_GC,
   PREFIX_MISC,
   PREFIX_SIMD,
@@ -941,7 +942,7 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   onSimdShuffleOpExpr(e: SimdShuffleOpExpr): Result {
-    writeOpcode(this.s, e.opcode as number);
+    writeOpcode(this.s, OPCODE_I8X16_SHUFFLE as number);
     this.s.writeBytes(e.lanes);
     return Result.Ok;
   }

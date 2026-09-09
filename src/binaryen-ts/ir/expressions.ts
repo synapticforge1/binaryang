@@ -943,7 +943,7 @@ export interface LoadExpr extends ExprBase {
   /** Whether the loaded integer is sign-extended. */
   signed: boolean;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
@@ -966,7 +966,7 @@ export interface StoreExpr extends ExprBase {
   /** Width in bytes of the access. */
   bytes: 1 | 2 | 4 | 8 | 16;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
@@ -1236,23 +1236,15 @@ export interface RefIsNullExpr extends ExprBase {
   value: Expression;
 }
 
-/**
- * The `ref.as_*` operations.
- *
- * Mirrors upstream's `RefAsOp`. Only `RefAsNonNull` is wired through the
- * parser/encoder today; the extern conversions are post-MVP and would be added
- * here rather than as separate expression kinds.
- */
-export const RefAsOp = {
-  /** `ref.as_non_null` — traps if the operand is null, else yields it non-null. */
-  RefAsNonNull: 0xd4, // ref.as_non_null
-} as const;
-
-/**
- * An operator is an OPCODE, so the field admits every instruction — including
- * the ~116 that have no member above. See S6 stage 1 in cmem/ir-convergence.md.
- */
-export type RefAsOp = Opcode;
+// `RefAsOp` stood here. It had one member, `RefAsNonNull: 0xd4`, and the
+// `RefAsExpr.opcode` field it typed could hold nothing else — so the kind and
+// the field said the same thing, and only the field could be wrong. S6 dropped
+// both; the encoder writes 0xd4 because `ref.as` names that instruction.
+//
+// It was reserved for the extern conversions ("would be added here rather than
+// as separate expression kinds"). The unified IR already models those as their
+// own kinds — `any.convert_extern` and `extern.convert_any` — so the reservation
+// was superseded rather than abandoned.
 
 /** {@link TupleMakeExpr} — see {@link makeTupleMake} for the factory. */
 export interface TupleMakeExpr extends ExprBase {
@@ -1269,7 +1261,6 @@ export interface RefAsExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefAs;
   /** Which `ref.as_*` operation this node performs. */
-  opcode: RefAsOp;
   /** The reference operand. */
   value: Expression;
 }
@@ -1620,6 +1611,32 @@ export interface TryTableExpr extends ExprBase {
 }
 
 /** `try` expression (old/legacy EH). */
+/**
+ * One `catch` clause of an old-EH `try`.
+ *
+ * 🔑 Replaces the parallel `catchTags[]` / `catchBodies[]` arrays. Those were
+ * one fact in two places and could disagree in length — and did: the encoder
+ * carried a guard because a mismatched `Try` emitted a `catch` opcode with no
+ * handler after it, corrupting the rest of the function body. A record cannot
+ * be half-present, so that guard is gone rather than merely passing.
+ *
+ * `try_table`'s clauses were already records ({@link CatchClause}); the same
+ * concept was modelled both ways in one file.
+ */
+export interface TryCatch {
+  /**
+   * The tag caught. ABSENT means `catch_all` / `catch_all_ref`.
+   *
+   * The parallel form used `''` as that sentinel, which is a value the field
+   * could otherwise hold; absence cannot be confused with a tag.
+   */
+  tag?: Var;
+  /** `catch_ref` / `catch_all_ref` — the handler also receives an `exnref`. */
+  isRef: boolean;
+  /** The handler body. */
+  body: Expression;
+}
+
 export interface TryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Try;
@@ -1627,11 +1644,8 @@ export interface TryExpr extends ExprBase {
   name: string | null;
   /** Body expression. */
   body: Expression;
-  /** Parallel arrays: catchTags[i] is the tag for catchBodies[i].
-   *  An empty string tag signals `catch_all`. */
-  catchTags: string[];
-  /** catchBodies — see the matching factory for semantics. */
-  catchBodies: Expression[];
+  /** The catch clauses, in order. */
+  catches: TryCatch[];
   /** Set for the `delegate` variant; depth to delegate to. */
   delegateTarget: string | null;
 }
@@ -1809,7 +1823,7 @@ export interface SIMDLoadExpr extends ExprBase {
   /** Address operand. */
   ptr: Expression;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
 }
@@ -1834,7 +1848,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
   /** vec — see the {@link make} factory for semantics. */
   vec: Expression;
   /** Static byte offset added to the address operand. */
-  offset: number;
+  offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Lane index for the SIMD operation. */
@@ -2172,7 +2186,7 @@ export function makeCallIndirect(
 export function makeLoad(
   bytes: 1 | 2 | 4 | 8 | 16,
   signed: boolean,
-  offset: number,
+  offset: bigint,
   align: number,
   ptr: Expression,
   resultType: ValType,
@@ -2193,7 +2207,7 @@ export function makeLoad(
 /** Creates a memory store expression. */
 export function makeStore(
   bytes: 1 | 2 | 4 | 8 | 16,
-  offset: number,
+  offset: bigint,
   align: number,
   ptr: Expression,
   value: Expression,
@@ -2406,7 +2420,7 @@ export function makeTupleMake(operands: Expression[]): TupleMakeExpr {
  * concrete.
  */
 export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
-  return { kind: ExpressionKind.RefAs, type: resultType, opcode: RefAsOp.RefAsNonNull, value };
+  return { kind: ExpressionKind.RefAs, type: resultType, value };
 }
 
 /** Creates a ref.eq expression. */
@@ -2690,8 +2704,7 @@ export function makeTryTable(
 export function makeTry(
   name: string | null,
   body: Expression,
-  catchTags: string[],
-  catchBodies: Expression[],
+  catches: TryCatch[],
   delegateTarget: string | null,
   resultType: Type,
 ): TryExpr {
@@ -2700,10 +2713,19 @@ export function makeTry(
     type: resultType,
     name,
     body,
-    catchTags,
-    catchBodies,
+    catches,
     delegateTarget,
   };
+}
+
+/** A `catch $tag` clause. */
+export function tryCatch(tag: Var, body: Expression): TryCatch {
+  return { tag, isRef: false, body };
+}
+
+/** A `catch_all` clause — no tag, which is what absence means. */
+export function tryCatchAll(body: Expression): TryCatch {
+  return { isRef: false, body };
 }
 
 /** Creates a `throw $tag operands*` expression. */
@@ -2783,7 +2805,7 @@ export function makeSIMDShift(
 export function makeSIMDLoad(
   opcode: SIMDLoadOp,
   ptr: Expression,
-  offset: number,
+  offset: bigint,
   align: number,
   memidx: Var = varIndex(0),
 ): SIMDLoadExpr {
@@ -2803,7 +2825,7 @@ export function makeSIMDLoadStoreLane(
   opcode: SIMDLoadStoreLaneOp,
   ptr: Expression,
   vec: Expression,
-  offset: number,
+  offset: bigint,
   align: number,
   lane: number,
   memidx: Var = varIndex(0),

@@ -68,7 +68,7 @@ function eliminateDeadCode(expr: Expression): Expression {
       return {
         ...expr,
         body: eliminateDeadCode(expr.body),
-        catchBodies: expr.catchBodies.map(eliminateDeadCode),
+        catches: expr.catches.map((c) => ({ ...c, body: eliminateDeadCode(c.body) })),
       };
 
     case ExpressionKind.TryTable:
