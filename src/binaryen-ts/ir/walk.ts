@@ -310,7 +310,7 @@ function _mapChildren(
       };
 
     case ExpressionKind.ArrayNewFixed:
-      return { ...expr, values: expr.values.map((v) => fn(v)) };
+      return { ...expr, operands: expr.operands.map((v) => fn(v)) };
 
     case ExpressionKind.ArrayNewData:
     case ExpressionKind.ArrayNewElem:
@@ -339,7 +339,7 @@ function _mapChildren(
       return {
         ...expr,
         ref: fn(expr.ref),
-        index: fn(expr.index),
+        offset: fn(expr.offset),
         value: fn(expr.value),
         size: fn(expr.size),
       };
@@ -348,9 +348,9 @@ function _mapChildren(
       return {
         ...expr,
         destRef: fn(expr.destRef),
-        destIndex: fn(expr.destIndex),
+        destOffset: fn(expr.destOffset),
         srcRef: fn(expr.srcRef),
-        srcIndex: fn(expr.srcIndex),
+        srcOffset: fn(expr.srcOffset),
         size: fn(expr.size),
       };
 
@@ -359,8 +359,8 @@ function _mapChildren(
       return {
         ...expr,
         ref: fn(expr.ref),
-        index: fn(expr.index),
-        offset: fn(expr.offset),
+        destOffset: fn(expr.destOffset),
+        srcOffset: fn(expr.srcOffset),
         size: fn(expr.size),
       };
 
@@ -617,7 +617,7 @@ function _visitChildren(
       visit(expr.length);
       break;
     case ExpressionKind.ArrayNewFixed:
-      expr.values.forEach(visit);
+      expr.operands.forEach(visit);
       break;
     case ExpressionKind.ArrayNewData:
     case ExpressionKind.ArrayNewElem:
@@ -635,22 +635,22 @@ function _visitChildren(
       break;
     case ExpressionKind.ArrayFill:
       visit(expr.ref);
-      visit(expr.index);
+      visit(expr.offset);
       visit(expr.value);
       visit(expr.size);
       break;
     case ExpressionKind.ArrayCopy:
       visit(expr.destRef);
-      visit(expr.destIndex);
+      visit(expr.destOffset);
       visit(expr.srcRef);
-      visit(expr.srcIndex);
+      visit(expr.srcOffset);
       visit(expr.size);
       break;
     case ExpressionKind.ArrayInitData:
     case ExpressionKind.ArrayInitElem:
       visit(expr.ref);
-      visit(expr.index);
-      visit(expr.offset);
+      visit(expr.destOffset);
+      visit(expr.srcOffset);
       visit(expr.size);
       break;
     case ExpressionKind.ArrayLen:

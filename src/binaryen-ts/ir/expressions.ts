@@ -1393,7 +1393,7 @@ export interface ArrayNewFixedExpr extends ExprBase {
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** values — see the matching factory for semantics. */
-  values: Expression[];
+  operands: Expression[];
 }
 
 /** {@link ArrayNewDataExpr} — see {@link makeArrayNewData} for the factory. */
@@ -1465,7 +1465,7 @@ export interface ArrayFillExpr extends ExprBase {
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
-  index: Expression;
+  offset: Expression;
   /** The value written to every filled slot. */
   value: Expression;
   /** Number of elements to fill. */
@@ -1485,11 +1485,11 @@ export interface ArrayCopyExpr extends ExprBase {
   /** The destination array reference. */
   destRef: Expression;
   /** Start index within the destination. */
-  destIndex: Expression;
+  destOffset: Expression;
   /** The source array reference. */
   srcRef: Expression;
   /** Start index within the source. */
-  srcIndex: Expression;
+  srcOffset: Expression;
   /** Number of elements to copy. */
   size: Expression;
 }
@@ -1507,9 +1507,9 @@ export interface ArrayInitDataExpr extends ExprBase {
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
-  index: Expression;
+  destOffset: Expression;
   /** Byte offset within the data segment. */
-  offset: Expression;
+  srcOffset: Expression;
   /** Number of elements to write. */
   size: Expression;
 }
@@ -1527,9 +1527,9 @@ export interface ArrayInitElemExpr extends ExprBase {
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
-  index: Expression;
+  destOffset: Expression;
   /** Offset within the element segment. */
-  offset: Expression;
+  srcOffset: Expression;
   /** Number of elements to write. */
   size: Expression;
 }
@@ -2493,10 +2493,10 @@ export function makeArrayNewDefault(
 /** Creates an array.new_fixed expression. */
 export function makeArrayNewFixed(
   typeVar: Var,
-  values: Expression[],
+  operands: Expression[],
   resultType: Type,
 ): ArrayNewFixedExpr {
-  return { kind: ExpressionKind.ArrayNewFixed, type: resultType, typeVar, values };
+  return { kind: ExpressionKind.ArrayNewFixed, type: resultType, typeVar, operands };
 }
 
 /** Creates an array.new_data expression. */
@@ -2560,11 +2560,11 @@ export function makeArraySet(
 export function makeArrayFill(
   typeVar: Var,
   ref: Expression,
-  index: Expression,
+  offset: Expression,
   value: Expression,
   size: Expression,
 ): ArrayFillExpr {
-  return { kind: ExpressionKind.ArrayFill, type: None, typeVar, ref, index, value, size };
+  return { kind: ExpressionKind.ArrayFill, type: None, typeVar, ref, offset, value, size };
 }
 
 /** Creates an `array.copy $Tdest $Tsrc` expression. */
@@ -2572,9 +2572,9 @@ export function makeArrayCopy(
   destTypeVar: Var,
   srcTypeVar: Var,
   destRef: Expression,
-  destIndex: Expression,
+  destOffset: Expression,
   srcRef: Expression,
-  srcIndex: Expression,
+  srcOffset: Expression,
   size: Expression,
 ): ArrayCopyExpr {
   return {
@@ -2583,9 +2583,9 @@ export function makeArrayCopy(
     destTypeVar,
     srcTypeVar,
     destRef,
-    destIndex,
+    destOffset,
     srcRef,
-    srcIndex,
+    srcOffset,
     size,
   };
 }
@@ -2595,8 +2595,8 @@ export function makeArrayInitData(
   typeVar: Var,
   segment: Var,
   ref: Expression,
-  index: Expression,
-  offset: Expression,
+  destOffset: Expression,
+  srcOffset: Expression,
   size: Expression,
 ): ArrayInitDataExpr {
   return {
@@ -2605,8 +2605,8 @@ export function makeArrayInitData(
     typeVar,
     segment,
     ref,
-    index,
-    offset,
+    destOffset,
+    srcOffset,
     size,
   };
 }
@@ -2616,8 +2616,8 @@ export function makeArrayInitElem(
   typeVar: Var,
   segment: Var,
   ref: Expression,
-  index: Expression,
-  offset: Expression,
+  destOffset: Expression,
+  srcOffset: Expression,
   size: Expression,
 ): ArrayInitElemExpr {
   return {
@@ -2626,8 +2626,8 @@ export function makeArrayInitElem(
     typeVar,
     segment,
     ref,
-    index,
-    offset,
+    destOffset,
+    srcOffset,
     size,
   };
 }
