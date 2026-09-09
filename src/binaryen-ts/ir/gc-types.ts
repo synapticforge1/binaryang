@@ -30,33 +30,47 @@ import type { ValType } from './types.ts';
 /**
  * Abstract (built-in) heap types from the GC proposal.
  * Mirrors `HeapType::BasicHeapType` in upstream Binaryen.
+ *
+ * ⚠️ **A const object, not an `enum`, and deliberately.** TypeScript string
+ * enums are NOMINAL: `AbstractHeapType.Any` is not assignable to `'any'`, so
+ * an enum member could not be stored in the shared {@link HeapTypeRef}, whose
+ * abstract arm is the spec's keyword union. This form keeps every call site
+ * (`AbstractHeapType.Any`, `h: AbstractHeapType`, `Object.values(...)`)
+ * working while making the members ordinary string literals.
+ *
+ * The VALUES are the WAT keywords and are load-bearing: `heapTypeToString`
+ * returns them verbatim. They read `ext`/`noext` once, which is binaryen's
+ * internal C++ spelling and not WAT — see `heap_type_keywords.test.ts`.
  */
-export enum AbstractHeapType {
+export const AbstractHeapType = {
   /** Top of the function reference hierarchy. */
-  Func = 'func',
+  Func: 'func',
   /** Bottom of the function reference hierarchy (null func). */
-  NoFunc = 'nofunc',
+  NoFunc: 'nofunc',
   /** External (host) reference. */
-  Ext = 'ext',
+  Ext: 'extern',
   /** Bottom of the external reference hierarchy. */
-  NoExt = 'noext',
+  NoExt: 'noextern',
   /** Top of the GC reference hierarchy. */
-  Any = 'any',
+  Any: 'any',
   /** Equatable references (structs, arrays, i31). */
-  Eq = 'eq',
+  Eq: 'eq',
   /** 31-bit integers as references. */
-  I31 = 'i31',
+  I31: 'i31',
   /** Abstract struct type. */
-  Struct = 'struct',
+  Struct: 'struct',
   /** Abstract array type. */
-  Array = 'array',
+  Array: 'array',
   /** Bottom of the GC reference hierarchy (null ref). */
-  None = 'none',
+  None: 'none',
   /** Exception reference. */
-  Exn = 'exn',
+  Exn: 'exn',
   /** Bottom of the exception reference hierarchy. */
-  NoExn = 'noexn',
-}
+  NoExn: 'noexn',
+} as const;
+
+/** The value type of {@link AbstractHeapType} — the twelve WAT keywords. */
+export type AbstractHeapType = typeof AbstractHeapType[keyof typeof AbstractHeapType];
 
 /**
  * A heap type: either an abstract built-in or a user-defined type index.

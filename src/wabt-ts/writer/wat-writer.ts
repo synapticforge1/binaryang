@@ -44,7 +44,7 @@ import type {
 import type { NodeId } from '../ir/fidelity.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
-import { indexOf, isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
+import { type HeapTypeRef, indexOf, isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
@@ -334,6 +334,24 @@ class WatWriter extends ModuleContext {
     }
   }
 
+  /**
+   * Write a heap-type immediate: a bare abstract keyword (`func`, `i31`), a
+   * `$T` identifier, or a resolved type index.
+   *
+   * Those were two cases, not three — `name` covered both a keyword and an
+   * identifier — so every name had to be written VERBATIM and `writeName`
+   * could not be used at all, because it is `$`-aware and mangled bare
+   * keywords. With the abstract case its own arm, a `$T` goes through the
+   * quoting path like every other identifier.
+   */
+  private writeHeapType(h: HeapTypeRef, nc: NC): void {
+    if (h.kind === 'abstract') {
+      this.writef(h.name);
+      this.nextChar = nc;
+      return;
+    }
+    this.writeVar(h, nc);
+  }
   private writeVarUnlessZero(v: Var, nc: NC): void {
     if (v.kind === 'index' && v.value === 0) {
       this.nextChar = nc;
@@ -797,17 +815,10 @@ class WatWriter extends ModuleContext {
 
       onRefNullExpr: (e) => {
         this.putsSpace('ref.null');
-        if (e.refType.kind === 'name') {
-          // Either an abstract heap-type keyword (`func` / `any` / …) or a
-          // user-defined `$T`; both are written verbatim. writeName is for
-          // `$`-prefixed identifiers only, so it mangled bare keywords.
-          this.putsNewline(e.refType.name);
-        } else {
-          // A resolved type index. `ref.null 3` is valid WAT; the earlier code
-          // printed the type entry's KIND (`func` / `struct`) instead, which
-          // silently retargeted the null to the abstract supertype.
-          this.putsNewline(`${e.refType.value}`);
-        }
+        // `ref.null 3` is valid WAT; an earlier version printed the type
+        // entry's KIND (`func` / `struct`) for the index case, which silently
+        // retargeted the null to the abstract supertype.
+        this.writeHeapType(e.refType, NC.Newline);
         return Result.Ok;
       },
       onRefIsNullExpr: () => {
@@ -918,7 +929,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('ref.test');
         this.openSpace('ref');
         if (e.nullable) this.putsSpace('null');
-        this.writeVar(e.heapType, NC.None);
+        this.writeHeapType(e.heapType, NC.None);
         this.closeNewline();
         return Result.Ok;
       },
@@ -926,7 +937,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('ref.cast');
         this.openSpace('ref');
         if (e.nullable) this.putsSpace('null');
-        this.writeVar(e.heapType, NC.None);
+        this.writeHeapType(e.heapType, NC.None);
         this.closeNewline();
         return Result.Ok;
       },
@@ -1013,7 +1024,7 @@ class WatWriter extends ModuleContext {
         for (const [i, rt] of [e.from, e.to].entries()) {
           this.openSpace('ref');
           if (rt.nullable) this.putsSpace('null');
-          this.writeVar(rt.heapType, NC.None);
+          this.writeHeapType(rt.heapType, NC.None);
           if (i === 0) this.closeSpace();
           else this.closeNewline();
         }
@@ -2134,7 +2145,7 @@ class WatWriter extends ModuleContext {
     // `(ref func)`, so the declared nullability was lost in the text and the
     // re-encode came back a different segment.
     const useFuncShorthand = isRefValueType(seg.elemType) && !seg.elemType.nullable &&
-      seg.elemType.heapType.kind === 'name' && seg.elemType.heapType.name === 'func' &&
+      seg.elemType.heapType.kind === 'abstract' && seg.elemType.heapType.name === 'func' &&
       seg.elemExprs.every((ee) => ee.length === 1 && ee[0]?.kind === 'ref.func');
 
     if (useFuncShorthand) {

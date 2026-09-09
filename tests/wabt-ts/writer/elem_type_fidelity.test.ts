@@ -69,7 +69,8 @@ function toBuf(b: Uint8Array): ArrayBuffer {
 /** `(ref func)` / `funcref` / something else, as a short label. */
 function label(t: ValueType): string {
   if (!isRefValueType(t)) return `abstract:0x${(t as number).toString(16)}`;
-  const h = t.heapType.kind === 'name' ? t.heapType.name : `#${t.heapType.value}`;
+  const ht = t.heapType;
+  const h = ht.kind === 'index' ? `#${ht.value}` : ht.name;
   return t.nullable ? `(ref null ${h})` : `(ref ${h})`;
 }
 

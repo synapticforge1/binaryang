@@ -40,7 +40,7 @@ import {
   varIndex,
   varName,
 } from '../wabt-ts/ir/ir.ts';
-import type { ValueType } from '../wabt-ts/ir/ir.ts';
+import type { HeapTypeRef, ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
   ArrayLenExpr,
@@ -110,7 +110,6 @@ import type {
 import { Opcode } from '../wabt-ts/core/opcode.ts';
 
 import {
-  AbstractHeapType,
   BrOnOp,
   makeArrayGet,
   makeArrayLen,
@@ -667,16 +666,6 @@ function lookupArrayElementType(typeVar: Var, ctx: BridgeCtx): ValType {
 }
 
 /**
- * Map a wabt heap-type {@link Var} (as produced by `ref.test` / `ref.cast`'s
- * `parseRefImmediate`) to a binaryen-ts {@link HeapType}. Abstract-heap-type
- * keywords (`'any'` / `'i31'` / `'struct'` / `'func'` / …) map to the
- * corresponding {@link AbstractHeapType} enum value. Index-form vars are
- * resolved through {@link BridgeCtx.heapTypeIdx} (the same mapping used for
- * struct/array operations) to the binaryen-ts heap-type index. User-defined
- * type names that weren't resolved by `resolveNames` throw (matching
- * `varIdx`'s fail-loud policy from Bug G).
- */
-/**
  * Map a wabt {@link ValueType} onto binaryen-ts's, KEEPING a concrete
  * `(ref $T)` concrete.
  *
@@ -698,38 +687,32 @@ function wabtTypeToValueType(t: ValueType, ctx: BridgeCtx): BValueType {
   return wabtTypeToValType(t);
 }
 
-function heapTypeForBridge(v: Var, ctx: BridgeCtx): HeapType {
-  if (v.kind === 'name') {
-    switch (v.name) {
-      case 'any':
-        return AbstractHeapType.Any;
-      case 'eq':
-        return AbstractHeapType.Eq;
-      case 'i31':
-        return AbstractHeapType.I31;
-      case 'struct':
-        return AbstractHeapType.Struct;
-      case 'array':
-        return AbstractHeapType.Array;
-      case 'func':
-        return AbstractHeapType.Func;
-      case 'extern':
-        return AbstractHeapType.Ext;
-      case 'none':
-        return AbstractHeapType.None;
-      case 'nofunc':
-        return AbstractHeapType.NoFunc;
-      case 'noextern':
-        return AbstractHeapType.NoExt;
-      default:
-        throw new Error(
-          `Bridge: heap-type var "${v.name}" not resolved — run resolveNames first`,
-        );
-    }
+/**
+ * Map a wabt {@link HeapTypeRef} onto binaryen-ts's {@link HeapType}.
+ *
+ * The abstract arm passes straight through — both sides spell the twelve
+ * abstract heap types identically — and a defined type resolves through
+ * {@link BridgeCtx.heapTypeIdx}, the same mapping struct/array operations use.
+ * An unresolved `$T` throws, matching `varIdx`'s fail-loud policy.
+ */
+function heapTypeForBridge(h: HeapTypeRef, ctx: BridgeCtx): HeapType {
+  // The abstract arm's keyword IS an `AbstractHeapType` value — both sides
+  // spell the same twelve strings, and this assignment is what checks it.
+  //
+  // This was a ten-case switch translating one vocabulary into the other, and
+  // it was silently missing `exn` and `noexn`: those fell into the default and
+  // threw "not resolved" for a heap type that was perfectly resolved. A
+  // hand-written mapping between two enumerations is a place for exactly that
+  // kind of gap, which is why deleting it is worth more than its length.
+  if (h.kind === 'abstract') return h.name;
+  if (h.kind === 'name') {
+    throw new Error(
+      `Bridge: heap type "$${h.name}" is not resolved — run resolveNames first`,
+    );
   }
   // Index form — user-defined heap type; map through the up-front
   // addHeapType registration in BridgeCtx.heapTypeIdx.
-  return resolveHeapTypeIdx(v, ctx);
+  return resolveHeapTypeIdx(h, ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -1545,15 +1528,22 @@ function buildCatchClause(
  * index-vars name a user-defined heap type, which the flat `ValType` surface
  * can't express.
  */
-function refTypeVarToValType(v: Var, ctx: BridgeCtx): BValueType {
-  if (v.kind === 'name') {
-    const t = heapTypeNameToType(v.name);
+function refTypeVarToValType(h: HeapTypeRef, ctx: BridgeCtx): BValueType {
+  if (h.kind === 'abstract') {
+    const t = heapTypeNameToType(h.name);
     if (t === null) {
+      // Not a caller error any more: the arm guarantees a keyword, so a miss
+      // means the encoding table is short an entry.
       throw new Error(
-        `Bridge: ref.null with unresolved heap type "${v.name}" — run resolveNames first`,
+        `Bridge: abstract heap type "${h.name}" has no encoding — extend ABSTRACT_HEAP_TYPES`,
       );
     }
     return wabtTypeToValType(t);
+  }
+  if (h.kind === 'name') {
+    throw new Error(
+      `Bridge: ref.null with unresolved heap type "$${h.name}" — run resolveNames first`,
+    );
   }
   // T13.50b: index-form refType targets a USER-DEFINED heap type. This used to
   // throw "not yet supported", and the reason given was that it "needs the
@@ -1563,7 +1553,7 @@ function refTypeVarToValType(v: Var, ctx: BridgeCtx): BValueType {
   // registered binaryen heap type. The limitation outlived its cause.
   //
   // `ref.null` is nullable by definition, so nullable is unconditionally true.
-  return { heap: resolveHeapTypeIdx(v, ctx), nullable: true };
+  return { heap: resolveHeapTypeIdx(h, ctx), nullable: true };
 }
 
 /**

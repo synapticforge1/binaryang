@@ -18,7 +18,7 @@
 
 import type { Location } from '../core/error.ts';
 import { Type, typeName } from '../core/types.ts';
-import type { Index } from '../core/types.ts';
+import type { AbstractHeap, Index } from '../core/types.ts';
 import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { Opcode } from '../core/opcode.ts';
 import { FidelityTable } from './fidelity.ts';
@@ -45,6 +45,64 @@ export function varIndex(value: Index): Var {
 /** Construct a name-form {@link Var} (`$foo`, `$bar`) as emitted by the WAT parser. */
 export function varName(name: string): Var {
   return { kind: 'name', name };
+}
+
+// ---------------------------------------------------------------------------
+// Heap type references
+// ---------------------------------------------------------------------------
+
+/**
+ * A heap type as written: one of the twelve ABSTRACT types, or a reference to
+ * a defined type by index or by name.
+ *
+ * 🔑 **Why this is not just a {@link Var}.** It used to be one, with the name
+ * arm doing double duty: `{kind:'name', name:'func'}` meant the abstract type
+ * `func`, while `{kind:'name', name:'$T'}` meant an unresolved user type. The
+ * two were told apart by looking the string up in the keyword table — so the
+ * TYPE said "a name", and only a table lookup said which KIND of name, with
+ * `$`-prefixing as the informal convention holding it together.
+ *
+ * That is one field carrying two meanings, which is the hazard this codebase
+ * polices hardest. Making the abstract case its own arm means the discriminant
+ * answers the question, and `resolveNames` has nothing to do for an abstract
+ * type because it is not a reference to anything.
+ *
+ * The index and name arms are exactly {@link Var}, so everything that already
+ * handles a `Var` — `requireIndex`, `sameVar`, name resolution — applies to a
+ * defined-type reference unchanged.
+ */
+export type HeapTypeRef =
+  | { readonly kind: 'abstract'; readonly name: AbstractHeap }
+  | Var;
+
+/** Construct an abstract heap type (`func`, `i31`, `extern`, …). */
+export function heapAbstract(name: AbstractHeap): HeapTypeRef {
+  return { kind: 'abstract', name };
+}
+
+/** Whether a heap type is one of the twelve abstract types. */
+export function isAbstractHeap(
+  h: HeapTypeRef,
+): h is { kind: 'abstract'; name: AbstractHeap } {
+  return h.kind === 'abstract';
+}
+
+/**
+ * The {@link Var} arm of a heap type, or `undefined` for an abstract type.
+ *
+ * Callers that resolve or renumber DEFINED types use this: an abstract type is
+ * not a reference and must not be resolved, which the old shape could not say.
+ */
+export function heapVar(h: HeapTypeRef): Var | undefined {
+  return h.kind === 'abstract' ? undefined : h;
+}
+
+/** Whether two heap type references denote the same type. */
+export function sameHeap(a: HeapTypeRef, b: HeapTypeRef): boolean {
+  if (a.kind === 'abstract' || b.kind === 'abstract') {
+    return a.kind === 'abstract' && b.kind === 'abstract' && a.name === b.name;
+  }
+  return sameVar(a, b);
 }
 
 /**
@@ -431,9 +489,9 @@ export interface BrOnExpr {
   /** Values carried to the branch target, in stack order, below the ref. */
   readonly values: Expr[];
   /** `rt1` — the type the operand is expected to have. Cast variants only. */
-  readonly from?: { readonly heapType: Var; readonly nullable: boolean };
+  readonly from?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
   /** `rt2` — the type being tested for. Cast variants only. */
-  readonly to?: { readonly heapType: Var; readonly nullable: boolean };
+  readonly to?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
   readonly loc: Location;
 }
 
@@ -659,7 +717,7 @@ export interface CallRefExpr {
 /** `ref.null funcref|externref|…` (0xd0) — pushes a null ref of the given type. */
 export interface RefNullExpr {
   readonly kind: 'ref.null';
-  readonly refType: Var;
+  readonly refType: HeapTypeRef;
   readonly loc: Location;
 }
 /** `ref.is_null` (0xd1) — pops a ref, pushes i32 (1 = null, 0 otherwise). */
@@ -884,7 +942,7 @@ export interface ArrayLenExpr {
  */
 export interface RefTestExpr {
   readonly kind: 'ref.test';
-  readonly heapType: Var;
+  readonly heapType: HeapTypeRef;
   readonly nullable: boolean;
   readonly ref: Expr;
   readonly loc: Location;
@@ -895,7 +953,7 @@ export interface RefTestExpr {
  */
 export interface RefCastExpr {
   readonly kind: 'ref.cast';
-  readonly heapType: Var;
+  readonly heapType: HeapTypeRef;
   readonly nullable: boolean;
   readonly ref: Expr;
   readonly loc: Location;
@@ -1270,9 +1328,8 @@ export function valueTypeEquals(a: ValueType, b: ValueType): boolean {
   if (isRefValueType(a) || isRefValueType(b)) {
     if (!isRefValueType(a) || !isRefValueType(b)) return false;
     if (a.nullable !== b.nullable) return false;
-    // Was a hand-written arm-by-arm comparison with two structural casts —
-    // `sameVar` is that, and having one spelling is how the two stay agreed.
-    return sameVar(a.heapType, b.heapType);
+    // One spelling for heap-type equality, so the arms cannot drift apart.
+    return sameHeap(a.heapType, b.heapType);
   }
   return a === b;
 }
@@ -1306,7 +1363,7 @@ export interface LocalDecl {
 export interface RefValueType {
   readonly kind: 'ref';
   /** The heap type: a name-var for `$T`, an index-var once resolved. */
-  readonly heapType: Var;
+  readonly heapType: HeapTypeRef;
   /** `(ref null $T)` when true, `(ref $T)` when false. */
   readonly nullable: boolean;
 }

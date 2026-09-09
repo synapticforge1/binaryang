@@ -25,7 +25,7 @@
 
 import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
-import type { Expr, Func, Module, Var } from './ir.ts';
+import type { Expr, Func, HeapTypeRef, Module, Var } from './ir.ts';
 import { indexOf, varIndex, varName } from './ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -423,17 +423,17 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'ref.null':
       // A heap type is a TYPE index only in its index form; the name form is
       // an abstract keyword (`func` / `any` / …) and rewriteVar leaves it be.
-      return { ...e, refType: rewriteVar(e.refType, n.typeNames) };
+      return { ...e, refType: rewriteHeapType(e.refType, n.typeNames) };
     case 'ref.test':
     case 'ref.cast':
-      return { ...e, heapType: rewriteVar(e.heapType, n.typeNames) };
+      return { ...e, heapType: rewriteHeapType(e.heapType, n.typeNames) };
     case 'br_on':
       // Only the cast variants carry types; the null pair has none.
       if (e.from === undefined || e.to === undefined) return e;
       return {
         ...e,
-        from: { ...e.from, heapType: rewriteVar(e.from.heapType, n.typeNames) },
-        to: { ...e.to, heapType: rewriteVar(e.to.heapType, n.typeNames) },
+        from: { ...e.from, heapType: rewriteHeapType(e.from.heapType, n.typeNames) },
+        to: { ...e.to, heapType: rewriteHeapType(e.to.heapType, n.typeNames) },
       };
     default:
       // INTENT: reached only by nodes with no module-level Var immediate.
@@ -450,4 +450,15 @@ function rewriteExprVars(e: Expr, ctx: ApplyContext): Expr {
 function rewriteVar(v: Var, names: NameMap): Var {
   if (v.kind !== 'index') return v;
   return lookupName(names, v.value);
+}
+
+/**
+ * Axis-1 rewrite for a heap type. Only the INDEX arm names something in the
+ * type space; an abstract type is not a reference and a name is already a
+ * name. Separate from {@link rewriteVar} because the abstract arm is not a
+ * `Var` at all.
+ */
+function rewriteHeapType(h: HeapTypeRef, names: NameMap): HeapTypeRef {
+  if (h.kind !== 'index') return h;
+  return lookupName(names, h.value);
 }

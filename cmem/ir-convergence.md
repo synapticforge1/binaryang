@@ -921,7 +921,7 @@ compiler-driven and line-scoped, which left only four sites needing hands — th
 offending read sat on a different line from the error, and one where `loop.body.type` became
 `loop.typeOf(body)` because the pattern captured only the last path segment.
 
-##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (4 of 5 families done)
+##### Step 4 — one `Expression` ✅ the (b) conversion is DONE (5 of 5 families); the 28 structural kinds remain
 
 ⚠️ **"Alias one to the other" understates this by a lot.** The kind sets agree on 73 kinds; the
 FIELD sets do not. Measured:
@@ -1197,20 +1197,81 @@ into `sameVar` so there is one spelling to keep agreed.
 label its passes rely on. That is the block family's structural question (Group 1), not the (b)
 conversion.
 
-###### ⚠️ `castType` is NOT mechanical, and is deliberately left
+###### ✅ `castType` — the third form, and the last (b) family. Step 4 COMPLETE
 
-The (b) measurement paired `heapType`/`castType` with the other four. It does not belong there.
+Owner's call, 2026-09-09: take the third form rather than either side's.
 
-- **wabt-ts** `heapType: Var`, where the NAME arm does double duty: `{kind:'name', name:'func'}` is
-  the ABSTRACT heap type, `{kind:'name', name:'$T'}` is an unresolved user type. `writeHeapType`
-  tells them apart by looking the string up in the keyword table.
-- **binaryen-ts** `castType: HeapType = AbstractHeapType | number` — two arms, explicitly typed.
+```ts
+export type HeapTypeRef =
+  | { readonly kind: 'abstract'; readonly name: AbstractHeap }
+  | Var;
+```
 
-Neither dominates. **Fidelity binds toward wabt-ts** (binaryen-ts cannot carry a symbolic `$T` at
-all), but **binaryen-ts's form is better typed** — one field with two meanings distinguished by a
-string convention is the hazard class this codebase polices hardest. The form that binds both is a
-third one, `{ kind:'abstract', name: AbstractHeapType } | Var`, and introducing a new type is a
-decision to take deliberately rather than inside a mechanical pass.
+The index and name arms ARE `Var`, so `requireIndex`, `sameVar` and name resolution apply to a
+defined-type reference unchanged; only the abstract case is new.
+
+🔑 **It paid for itself four times over, because FOUR consumers were doing the same table lookup to
+recover a distinction the type had thrown away.** All four are gone:
+
+| site                               | what it did                                                                                                           | now                                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `binary-writer.writeHeapType`      | `abstractHeapTypeByteForName(name) !== null` to decide whether a name was a keyword                                   | switches on the arm; an unresolved `$T` is its own error rather than sharing a path with a typo |
+| `resolve-names.resolveHeapTypeVar` | `heapTypeNameToType(name) !== null` to discover "this name is not a reference"                                        | the arm says so; the file no longer imports the keyword table at all                            |
+| `wat-writer`                       | could not use its `$`-aware `writeName` for heap types, because one path wrote both keywords and identifiers verbatim | a `$T` goes through the normal quoting path                                                     |
+| `bridge.heapTypeForBridge`         | a TEN-case switch translating keyword strings into enum members                                                       | `return h.name` — and the assignment is what proves both sides spell the same twelve            |
+
+⚠️ **That switch had a latent bug**: it was missing `exn` and `noexn`, so those fell to the default
+and threw _"not resolved"_ for a heap type that was perfectly resolved. A hand-written mapping
+between two enumerations is exactly where that hides — worth more than the lines saved.
+
+🔑 **The evidence the third form was RIGHT, not merely tidier: the lexer already distinguished
+them.** `parseHeapTypeVar` switches on `TokenType.Var` for `$T` against `TokenType.HeapType` for a
+keyword. The token stream knew, the IR discarded it, and four consumers reconstructed it by table
+lookup. The parser now just says what it read.
+
+###### 🛑 Widening a union has TWO blind spots a compiler-driven conversion cannot see
+
+Both cost a full gate cycle. Neither is a type error, because **the old arm is still legal in the
+new union** — adding an arm does not invalidate code that tests or builds an existing one.
+
+1. **`h.kind === 'name'` tests silently NARROW.** They meant "keyword or `$T`" and now mean "`$T`
+   only". Three sites: the `(ref null func)` → one-byte `funcref` collapse, the funcidx-elem `func`
+   shorthand, and one downstream. Caught by the behavioural tests.
+2. **`{ kind: 'name', name: 'func' }` LITERALS silently keep building the old shape.** Six sites.
+   Caught by `deno task baseline` — one funcidx elem segment stopped printing its shorthand — and
+   the other five were latent in the two validators, where a keyword in the wrong arm makes
+   `sameHeap` compare unequal against a correctly-parsed one.
+
+**The defence is a constructor per arm** (`heapAbstract`), which makes the wrong arm hard to build
+by accident where a bare literal makes it easy. `heap_type_arms.test.ts` asserts the invariant
+directly over BOTH front ends, and is verified to fail when a literal is reintroduced.
+
+⚠️ **`deno task baseline` earned its place here** — the check comparing our own bytes against our
+own, which looks like the weakest oracle in the set, was the ONLY one that could see blind spot 2.
+The binary hashes were unchanged and only the text hashes moved, which located it to the WAT writer
+immediately; dumping one module's WAT on each branch and diffing gave the answer in one step, where
+a hash only ever says "different".
+
+###### The prerequisite: binaryen-ts had the wrong WAT keywords
+
+`AbstractHeapType.Ext`/`NoExt` were `'ext'`/`'noext'` — binaryen's internal C++ spellings, not WAT.
+Since `heapTypeToString` returns the value AS the keyword, the parser rejected `(ref null extern)`
+and the printer emitted `(ref null ext)`, which nothing accepts; `exn`/`noexn` were missing from the
+parser map entirely. Four of twelve broken in both directions, fixed in `62032c7c6` with a test
+verified to fail against the old spelling.
+
+⚠️ **Upstream wabt could not arbitrate it**: 1.0.41 has no GC heap-type text support at all
+(`(ref null any)` → `unexpected token "any"`), the same limitation that makes `spec:prepare` skip 30
+files. A first probe with `--enable-all` appeared to show `any` and `eq` rejected too — that was the
+flags, not the keywords. **When the usual third oracle cannot reach the feature, the spec is the
+oracle and that must be said out loud.**
+
+The enum became a const object + type alias so its members are assignable to the keyword union —
+TypeScript string enums are NOMINAL, so an enum member could not have been stored in the shared
+type. Every call site (`AbstractHeapType.Any`, `h: AbstractHeapType`, `Object.values(…)`) is
+unchanged, and the conversion was source-compatible on the first check.
+
+**Gate**: 954 tests, baseline IDENTICAL, bridge 397/421, spec 100% on four axes, lint clean.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 

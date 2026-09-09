@@ -100,9 +100,9 @@ import {
   valueTypeEquals,
   valueTypeName,
 } from '../ir/ir.ts';
-import type { Custom, TypeEntry } from '../ir/ir.ts';
+import type { Custom, HeapTypeRef, TypeEntry } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
-import { heapTypeNameToType, Type } from '../core/types.ts';
+import { type AbstractHeap, heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
   GcOpcode,
@@ -159,48 +159,55 @@ function varIndexValue(v: Var, label: string): number {
 }
 
 /**
- * Write a GC-proposal heap-type immediate. Index-form vars encode as a
- * positive signed-LEB128 type index; name-form vars matching an
- * abstract-heap-type keyword encode as a single negative byte (already
- * stored in {@link Type} enum entries — `Type.AnyRef` is 0x6e, etc.).
- * Name-form vars referencing a user-defined type indicate `resolveNames`
- * was skipped; throws for symmetry with {@link writeVar}'s name fallback
- * that quietly emitted 0 (Bug G).
- */
-/**
  * Can this element type hold plain function indices? True for `funcref` and
  * for `(ref [null] func)` — the funcidx element-segment form always yields
  * non-null function references, which are a subtype of all three.
  */
 function isNonNullFuncRef(t: ValueType): boolean {
-  return isRefValueType(t) && !t.nullable && t.heapType.kind === 'name' &&
+  return isRefValueType(t) && !t.nullable && t.heapType.kind === 'abstract' &&
     t.heapType.name === 'func';
 }
 
-function writeHeapType(s: MemoryStream, v: Var): void {
-  if (v.kind === 'index') {
-    // Positive type index. The field is a signed LEB128: an unsigned write is
-    // identical only while the index stays below 64 — at 64 the unsigned form
-    // is the single byte 0x40, which a decoder reads back as an abstract heap
-    // type (the sign bit is set), not as index 64.
-    s.writeS32Leb(v.value);
-    return;
+function writeHeapType(s: MemoryStream, h: HeapTypeRef): void {
+  switch (h.kind) {
+    case 'index':
+      // Positive type index. The field is a signed LEB128: an unsigned write is
+      // identical only while the index stays below 64 — at 64 the unsigned form
+      // is the single byte 0x40, which a decoder reads back as an abstract heap
+      // type (the sign bit is set), not as index 64.
+      s.writeS32Leb(h.value);
+      return;
+    case 'abstract': {
+      // The keyword table is now only an ENCODER — it no longer has to decide
+      // whether the string was a keyword at all, because the arm already said
+      // so. A missing entry here is a table gap, not a caller error.
+      const byte = abstractHeapTypeByteForName(h.name);
+      if (byte === null) {
+        throw new Error(
+          `writeHeapType: abstract heap type "${h.name}" has no binary encoding — ` +
+            `extend ABSTRACT_HEAP_TYPES in core/types.ts`,
+        );
+      }
+      s.writeU8(byte);
+      return;
+    }
+    case 'name':
+      throw new Error(
+        `writeHeapType: type "$${h.name}" is not resolved — run resolveNames before writing.`,
+      );
   }
-  const byte = abstractHeapTypeByteForName(v.name);
-  if (byte !== null) {
-    s.writeU8(byte);
-    return;
-  }
-  throw new Error(`writeHeapType: var "${v.name}" not resolved — run resolveNames first`);
 }
 
 /**
- * Map an abstract-heap-type keyword name (`"any"` / `"i31"` / `"struct"` /
- * `"func"` / etc.) to the single-byte binary encoding. Returns null for
- * unrecognized names. Thin alias over the canonical table in `core/types.ts`
- * — the `Type` enum values ARE the heap-type byte encodings.
+ * Map an abstract heap type to its single-byte binary encoding. Thin alias over
+ * the canonical table in `core/types.ts` — the `Type` enum values ARE the
+ * heap-type byte encodings.
+ *
+ * Takes an {@link AbstractHeap}, not a `string`: the caller's arm has already
+ * established that this IS a keyword, so `null` here means the table is missing
+ * an entry rather than that the caller passed something else.
  */
-function abstractHeapTypeByteForName(name: string): number | null {
+function abstractHeapTypeByteForName(name: AbstractHeap): number | null {
   return heapTypeNameToType(name);
 }
 

@@ -19,9 +19,17 @@ import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
-import type { Expr, Func, FuncSignature, Module, TypeUse, ValueType, Var } from './ir.ts';
+import type {
+  Expr,
+  Func,
+  FuncSignature,
+  HeapTypeRef,
+  Module,
+  TypeUse,
+  ValueType,
+  Var,
+} from './ir.ts';
 import { isRefValueType, varIndex } from './ir.ts';
-import { heapTypeNameToType } from '../core/types.ts';
 
 // ---------------------------------------------------------------------------
 // Name binding map
@@ -983,12 +991,15 @@ class ResolveContext {
    * or a user-defined type name (`"$T"`). Abstract keywords pass through
    * unchanged; everything else is looked up in the typeScope.
    */
-  private resolveHeapTypeVar(v: Var, loc: Location = unknownLocation()): Var {
-    if (v.kind === 'index') return v;
-    // Abstract heap-type keywords are not names in any index space — pass
-    // them through untouched. Anything else is a user-defined `$T`.
-    if (heapTypeNameToType(v.name) !== null) return v;
-    return this.resolveTypeVar(v, loc);
+  private resolveHeapTypeVar(
+    h: HeapTypeRef,
+    loc: Location = unknownLocation(),
+  ): HeapTypeRef {
+    // An abstract heap type is not a name in any index space, so there is
+    // nothing to resolve. Discovering that used to need a keyword-table
+    // lookup — the arm states it, so the table is no longer consulted here.
+    if (h.kind === 'abstract' || h.kind === 'index') return h;
+    return this.resolveTypeVar(h, loc);
   }
   /**
    * Resolve a `$fieldName` within a struct type. The field's index space is

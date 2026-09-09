@@ -2921,17 +2921,23 @@ class WatModuleParser {
     if (raw.startsWith('$')) {
       return this.typeNames.get(raw) ?? this.err(`unknown heap type: ${raw}`, s.pos);
     }
+    // The WAT keywords are `extern` / `noextern`; `ext` / `noext` are binaryen's
+    // internal spellings and are not accepted by any WAT parser, so this map
+    // used to REJECT `(ref null extern)` while accepting text nothing else
+    // reads. `exn` / `noexn` were absent entirely.
     const abstractMap: Record<string, AbstractHeapType> = {
       func: AbstractHeapType.Func,
       nofunc: AbstractHeapType.NoFunc,
-      ext: AbstractHeapType.Ext,
-      noext: AbstractHeapType.NoExt,
+      extern: AbstractHeapType.Ext,
+      noextern: AbstractHeapType.NoExt,
       any: AbstractHeapType.Any,
       eq: AbstractHeapType.Eq,
       i31: AbstractHeapType.I31,
       struct: AbstractHeapType.Struct,
       array: AbstractHeapType.Array,
       none: AbstractHeapType.None,
+      exn: AbstractHeapType.Exn,
+      noexn: AbstractHeapType.NoExn,
     };
     const abstract = abstractMap[raw];
     if (abstract !== undefined) return abstract;
