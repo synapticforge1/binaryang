@@ -47,6 +47,35 @@ export function varName(name: string): Var {
   return { kind: 'name', name };
 }
 
+/**
+ * The index a resolved {@link Var} holds, or a loud failure.
+ *
+ * ⚠️ **Nine places used to extract this by hand, with FOUR different answers for
+ * an unresolved name** — `0`, `-1`, `undefined` and `'?'`. Two of the zeros were
+ * silent wrong answers rather than defaults: `writeMemArg` turned an unresolved
+ * memory name into MEMORY 0, and the validator's `varIdx` validated an
+ * unresolved var as index 0. That is the same shape as the multi-memory defect
+ * on the other half — a wrong index that still encodes.
+ *
+ * So the policy is now explicit at each call site: this one throws, and
+ * {@link indexOf} returns `undefined` for callers that genuinely branch.
+ *
+ * @param what names the field, so the message points at the immediate rather
+ * than just saying a var was unresolved.
+ */
+export function requireIndex(v: Var, what: string): Index {
+  if (v.kind === 'index') return v.value;
+  throw new Error(
+    `${what}: var "$${v.name}" is not resolved — run resolveNames before writing. ` +
+      `Defaulting it would emit a valid module addressing the wrong entity.`,
+  );
+}
+
+/** The index a {@link Var} holds, or `undefined` when it is still a name. */
+export function indexOf(v: Var): Index | undefined {
+  return v.kind === 'index' ? v.value : undefined;
+}
+
 /** Type guard for index-form {@link Var}. */
 export function isVarIndex(v: Var): v is { kind: 'index'; value: Index } {
   return v.kind === 'index';

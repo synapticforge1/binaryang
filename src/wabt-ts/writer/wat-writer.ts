@@ -44,7 +44,7 @@ import type {
 import type { NodeId } from '../ir/fidelity.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type, typeName } from '../core/types.ts';
-import { isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
+import { indexOf, isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
@@ -762,7 +762,9 @@ class WatWriter extends ModuleContext {
         // memory re-parsed with the two indices transposed and V8 rejected it
         // ("invalid data segment index"). A zero memory index is omitted,
         // leaving the one-var form, which already means "data segment".
-        const memIdx = e.memidx.kind === 'index' ? e.memidx.value : -1;
+        // -1 means "not a plain index", which this comparison treats as
+        // non-zero and so prints the memory explicitly.
+        const memIdx = indexOf(e.memidx) ?? -1;
         if (memIdx !== 0) this.writeVar(e.memidx, NC.Space);
         this.writeVar(e.segment, NC.Space);
         this.newline(false);

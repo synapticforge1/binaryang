@@ -93,7 +93,13 @@ import type {
   Var,
 } from '../ir/ir.ts';
 import type { FidelityTable, NodeId } from '../ir/fidelity.ts';
-import { isRefValueType, recGroups, valueTypeEquals, valueTypeName } from '../ir/ir.ts';
+import {
+  isRefValueType,
+  recGroups,
+  requireIndex,
+  valueTypeEquals,
+  valueTypeName,
+} from '../ir/ir.ts';
 import type { Custom, TypeEntry } from '../ir/ir.ts';
 import { CatchKind } from '../ir/ir.ts';
 import { heapTypeNameToType, Type } from '../core/types.ts';
@@ -322,7 +328,7 @@ function writeMemArg(
   // Fix: resolve natural when align=0, then log2-encode.
   const bytes = alignBytes === 0 ? naturalAlignForOpcode(opcode) : alignBytes;
   const alignLog2 = Math.log2(bytes);
-  const idx = memidx.kind === 'index' ? memidx.value : 0;
+  const idx = requireIndex(memidx, 'memarg memory index');
   if (idx !== 0) {
     s.writeU32Leb(alignLog2 | 0x40); // bit 6 set = explicit memidx follows
     s.writeU32Leb(idx);
