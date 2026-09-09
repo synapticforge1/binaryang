@@ -70,6 +70,7 @@ import {
   makeStore,
   makeUnary,
   makeUnreachable,
+  typeOf,
   UnaryOp,
 } from '../ir/expressions.ts';
 import type { Local, WasmFunction, WasmImport, WasmModule } from '../ir/module.ts';
@@ -842,7 +843,7 @@ function makeCallSupport(curr: Expression, ctx: FlowCtx): Expression {
     // declared type, not `set.value.type`: the parser leaves `Call.type === none`
     // (see flatten.ts `callEffectiveType`), whereas the local's type is always
     // concrete. Falling back to `set.value.type` only if the local is missing.
-    const callType = ctx.func.locals[set.index]?.type ?? set.value.type;
+    const callType = ctx.func.locals[set.index]?.type ?? typeOf(set.value);
     const fake = fakeGlobalFor(ctx, callType);
     executed = makeGlobalSet(fake, set.value);
     setBack = makeLocalSet(set.index, makeGlobalGet(fake, callType as ValType));

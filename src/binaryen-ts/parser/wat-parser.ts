@@ -123,6 +123,7 @@ import {
   type SIMDTernaryExpr,
   SIMDTernaryOp,
   type StoreExpr,
+  typeOf,
   type UnaryExpr,
   UnaryOp,
   type UnreachableExpr,
@@ -1192,7 +1193,8 @@ class WatModuleParser {
     }
     if (head === 'ref.as_non_null') {
       const value = this.parseExpr(args[0], ctx);
-      const rt = isRefType(value.type) ? { ...value.type, nullable: false } : value.type;
+      const vt = typeOf(value);
+      const rt = isRefType(vt) ? { ...vt, nullable: false } : vt;
       return makeRefAsNonNull(value, rt);
     }
     if (head === 'ref.i31') {
@@ -1480,7 +1482,7 @@ class WatModuleParser {
     // would fail to resolve.
     node.name = ifLabel;
     if (results.length > 0 && node.type !== Unreachable) {
-      node.type = this.declaredType(results, node.type);
+      node.type = this.declaredType(results, typeOf(node));
     }
     return node;
   }
