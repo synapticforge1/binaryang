@@ -1232,14 +1232,14 @@ class WatModuleParser {
       const ref = this.parseExpr(args[2], ctx);
       const signed = head === 'struct.get_s';
       this._checkPackedGet(head, 'struct', this._structFieldStorage(ti, fi));
-      return makeStructGet(varIndex(ti), fi, ref, this._structFieldType(ti, fi), signed);
+      return makeStructGet(varIndex(ti), varIndex(fi), ref, this._structFieldType(ti, fi), signed);
     }
     if (head === 'struct.set') {
       const ti = this.resolveTypeIndex(args[0]);
       const fi = Number(atomInt(args[1])) ?? 0;
       const ref = this.parseExpr(args[2], ctx);
       const value = this.parseExpr(args[3], ctx);
-      return makeStructSet(varIndex(ti), fi, ref, value);
+      return makeStructSet(varIndex(ti), varIndex(fi), ref, value);
     }
     if (head === 'array.new') {
       const ti = this.resolveTypeIndex(args[0]);

@@ -51,7 +51,7 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
     [ValType.I32],
     makeStructGet(
       varIndex(t),
-      0,
+      varIndex(0),
       makeStructNew(varIndex(t), [makeI32Const(value)], { heap: t, nullable: false }),
       ValType.I32,
       signed,
@@ -186,7 +186,7 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
     [ValType.I32],
     makeStructGet(
       varIndex(99),
-      0,
+      varIndex(0),
       makeStructNew(varIndex(t), [makeI32Const(1)], { heap: t, nullable: false }),
       ValType.I32,
       false,
@@ -207,7 +207,7 @@ Deno.test('encoder throws on an out-of-range struct.get field index', () => {
     [ValType.I32],
     makeStructGet(
       varIndex(t),
-      7,
+      varIndex(7),
       makeStructNew(varIndex(t), [makeI32Const(1)], { heap: t, nullable: false }),
       ValType.I32,
       false,

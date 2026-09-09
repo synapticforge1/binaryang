@@ -1922,10 +1922,15 @@ class WasmEncoder {
         this.encodeExpr(w, e.ref, labels);
         w.writeU8(0xfb);
         w.writeU32(
-          this.packedGetSubop(requireIndex(e.typeVar, e.kind), e.fieldIndex, e.signed, 'struct'),
+          this.packedGetSubop(
+            requireIndex(e.typeVar, e.kind),
+            requireIndex(e.fieldVar, 'struct.get field'),
+            e.signed,
+            'struct',
+          ),
         );
         w.writeU32(requireIndex(e.typeVar, e.kind));
-        w.writeU32(e.fieldIndex);
+        w.writeU32(requireIndex(e.fieldVar, 'struct.get field'));
         break;
       }
       case ExpressionKind.StructSet: {
@@ -1935,7 +1940,7 @@ class WasmEncoder {
         w.writeU8(0xfb);
         w.writeU32(0x05);
         w.writeU32(requireIndex(e.typeVar, e.kind));
-        w.writeU32(e.fieldIndex);
+        w.writeU32(requireIndex(e.fieldVar, 'struct.set field'));
         break;
       }
       case ExpressionKind.ArrayNew: {
@@ -1963,7 +1968,7 @@ class WasmEncoder {
         w.writeU8(0xfb);
         w.writeU32(0x09);
         w.writeU32(requireIndex(e.typeVar, e.kind));
-        w.writeU32(e.dataSegment);
+        w.writeU32(requireIndex(e.dataVar, 'array.new_data segment'));
         break;
       }
       case ExpressionKind.ArrayNewElem: {
@@ -1973,7 +1978,7 @@ class WasmEncoder {
         w.writeU8(0xfb);
         w.writeU32(0x0a);
         w.writeU32(requireIndex(e.typeVar, e.kind));
-        w.writeU32(e.elemSegment);
+        w.writeU32(requireIndex(e.elemVar, 'array.new_elem segment'));
         break;
       }
       case ExpressionKind.ArrayGet: {

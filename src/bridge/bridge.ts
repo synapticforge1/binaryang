@@ -1219,7 +1219,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const fieldType = lookupStructFieldType(sg.typeVar, sg.fieldVar, ctx);
       return makeStructGet(
         varIndex(heapIdx),
-        varIdx(sg.fieldVar),
+        varIndex(varIdx(sg.fieldVar)),
         bridgeExpr(sg.ref, ctx),
         fieldType,
         sg.signed === true,
@@ -1230,7 +1230,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(ss.typeVar, ctx);
       return makeStructSet(
         varIndex(heapIdx),
-        varIdx(ss.fieldVar),
+        varIndex(varIdx(ss.fieldVar)),
         bridgeExpr(ss.ref, ctx),
         bridgeExpr(ss.value, ctx),
       );
@@ -1265,7 +1265,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(and2.typeVar, ctx);
       return makeArrayNewData(
         varIndex(heapIdx),
-        varIdx(and2.dataVar),
+        varIndex(varIdx(and2.dataVar)),
         bridgeExpr(and2.offset, ctx),
         bridgeExpr(and2.length, ctx),
         { heap: heapIdx, nullable: false },
@@ -1276,7 +1276,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const heapIdx = resolveHeapTypeIdx(ane.typeVar, ctx);
       return makeArrayNewElem(
         varIndex(heapIdx),
-        varIdx(ane.elemVar),
+        varIndex(varIdx(ane.elemVar)),
         bridgeExpr(ane.offset, ctx),
         bridgeExpr(ane.length, ctx),
         { heap: heapIdx, nullable: false },

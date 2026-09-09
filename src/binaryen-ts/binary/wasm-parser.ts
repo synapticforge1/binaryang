@@ -2439,19 +2439,19 @@ function decodeGcPrefix(
       const def = ctx.heapTypeDefs[ti];
       const ft = (def?.kind === 'struct') ? def.fields[fi] : undefined;
       const rt: Type = ft ? (isRefType(ft.type) ? ft.type : ft.type as ValType) : ValType.I32;
-      push(makeStructGet(varIndex(ti), fi, ref, rt, false));
+      push(makeStructGet(varIndex(ti), varIndex(fi), ref, rt, false));
       break;
     }
     case 0x03: { // struct.get_s $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, true));
+      push(makeStructGet(varIndex(ti), varIndex(fi), pop(), ValType.I32, true));
       break;
     }
     case 0x04: { // struct.get_u $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, false));
+      push(makeStructGet(varIndex(ti), varIndex(fi), pop(), ValType.I32, false));
       break;
     }
     case 0x05: { // struct.set $T $f
@@ -2459,7 +2459,7 @@ function decodeGcPrefix(
       const fi = r.readU32();
       const val = pop();
       const ref = pop();
-      push(makeStructSet(varIndex(ti), fi, ref, val));
+      push(makeStructSet(varIndex(ti), varIndex(fi), ref, val));
       break;
     }
     case 0x06: { // array.new $T
@@ -2487,7 +2487,7 @@ function decodeGcPrefix(
       const di = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewData(varIndex(ti), di, off, len, gcRefType(ti)));
+      push(makeArrayNewData(varIndex(ti), varIndex(di), off, len, gcRefType(ti)));
       break;
     }
     case 0x0a: { // array.new_elem $T $e
@@ -2495,7 +2495,7 @@ function decodeGcPrefix(
       const ei = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewElem(varIndex(ti), ei, off, len, gcRefType(ti)));
+      push(makeArrayNewElem(varIndex(ti), varIndex(ei), off, len, gcRefType(ti)));
       break;
     }
     case 0x0b: { // array.get $T

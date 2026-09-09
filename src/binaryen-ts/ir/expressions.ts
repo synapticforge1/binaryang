@@ -1350,8 +1350,8 @@ export interface StructGetExpr extends ExprBase {
   kind: ExpressionKind.StructGet;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** Index of the struct field. */
-  fieldIndex: number;
+  /** The struct field addressed. */
+  fieldVar: Var;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /** Whether the load is sign-extended (signed=true) or zero-extended. */
@@ -1366,8 +1366,8 @@ export interface StructSetExpr extends ExprBase {
   type: None;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** Index of the struct field. */
-  fieldIndex: number;
+  /** The struct field addressed. */
+  fieldVar: Var;
   /** ref — see the matching factory for semantics. */
   ref: Expression;
   /** Value expression. */
@@ -1402,8 +1402,8 @@ export interface ArrayNewDataExpr extends ExprBase {
   kind: ExpressionKind.ArrayNewData;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** dataSegment — see the matching factory for semantics. */
-  dataSegment: number;
+  /** The data segment the array is initialised from. */
+  dataVar: Var;
   /** Static byte offset added to the address operand. */
   offset: Expression;
   /** Byte length to operate on. */
@@ -1416,8 +1416,8 @@ export interface ArrayNewElemExpr extends ExprBase {
   kind: ExpressionKind.ArrayNewElem;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** elemSegment — see the matching factory for semantics. */
-  elemSegment: number;
+  /** The element segment the array is initialised from. */
+  elemVar: Var;
   /** Static byte offset added to the address operand. */
   offset: Expression;
   /** Byte length to operate on. */
@@ -2453,22 +2453,22 @@ export function makeStructNewDefault(typeVar: Var, resultType: Type): StructNewE
 /** Creates a struct.get expression. */
 export function makeStructGet(
   typeVar: Var,
-  fieldIndex: number,
+  fieldVar: Var,
   ref: Expression,
   resultType: Type,
   signed = false,
 ): StructGetExpr {
-  return { kind: ExpressionKind.StructGet, type: resultType, typeVar, fieldIndex, ref, signed };
+  return { kind: ExpressionKind.StructGet, type: resultType, typeVar, fieldVar, ref, signed };
 }
 
 /** Creates a struct.set expression. */
 export function makeStructSet(
   typeVar: Var,
-  fieldIndex: number,
+  fieldVar: Var,
   ref: Expression,
   value: Expression,
 ): StructSetExpr {
-  return { kind: ExpressionKind.StructSet, type: None, typeVar, fieldIndex, ref, value };
+  return { kind: ExpressionKind.StructSet, type: None, typeVar, fieldVar, ref, value };
 }
 
 /** Creates an array.new expression. */
@@ -2502,7 +2502,7 @@ export function makeArrayNewFixed(
 /** Creates an array.new_data expression. */
 export function makeArrayNewData(
   typeVar: Var,
-  dataSegment: number,
+  dataVar: Var,
   offset: Expression,
   length: Expression,
   resultType: Type,
@@ -2511,7 +2511,7 @@ export function makeArrayNewData(
     kind: ExpressionKind.ArrayNewData,
     type: resultType,
     typeVar,
-    dataSegment,
+    dataVar,
     offset,
     length,
   };
@@ -2520,7 +2520,7 @@ export function makeArrayNewData(
 /** Creates an array.new_elem expression. */
 export function makeArrayNewElem(
   typeVar: Var,
-  elemSegment: number,
+  elemVar: Var,
   offset: Expression,
   length: Expression,
   resultType: Type,
@@ -2529,7 +2529,7 @@ export function makeArrayNewElem(
     kind: ExpressionKind.ArrayNewElem,
     type: resultType,
     typeVar,
-    elemSegment,
+    elemVar,
     offset,
     length,
   };
