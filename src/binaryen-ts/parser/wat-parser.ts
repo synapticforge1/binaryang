@@ -582,7 +582,6 @@ class WatModuleParser {
 
     // Inline exports and an optional inline import: (export "n") / (import "m" "b")
     const decorated = this.takeInlineDecorations(children, idx);
-    const inlineExports = decorated.names;
     idx = decorated.idx;
 
     // `(func $id (import "m" "b") <typeuse>)` is shorthand for

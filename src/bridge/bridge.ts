@@ -1046,7 +1046,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeBreak(
         target,
         br.condition !== undefined ? bridgeExpr(br.condition, ctx) : null,
-        bridgeBranchValue(br.values, ctx, br.condition !== undefined ? 'br_if' : 'br'),
+        bridgeBranchValue(br.values, ctx),
       );
     }
     case 'br_table': {
@@ -1567,7 +1567,6 @@ function refTypeVarToValType(v: Var, ctx: BridgeCtx): BValueType {
 function bridgeBranchValue(
   values: Expr[],
   ctx: BridgeCtx,
-  label: string,
 ): ReturnType<typeof bridgeExpr> | null {
   if (values.length === 0) return null;
   if (values.length === 1) return bridgeExpr(values[0]!, ctx);
