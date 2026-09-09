@@ -177,6 +177,7 @@ import {
   ModuleBuilder,
   None,
   SIMDLoadOp,
+  type TryCatch,
   typeOf,
   ValType,
 } from '../binaryen-ts/ir/index.ts';
@@ -1466,10 +1467,10 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // --- Exception handling -------------------------------------------------
     //
     // binaryen-ts has had `makeTry` throughout; the bridge simply never listed
-    // the kind. A `catch_all` clause is spelled with an EMPTY tag name, which
-    // is the same sentinel the WAT parser uses -- see the `catchTags.push('')`
-    // note there. A named sentinel like `$__catch_all` was tried once and had
-    // to be reverted, because it can collide with a real tag.
+    // the kind. A `catch_all` clause has NO tag and is written that way — the
+    // field is absent. Two sentinels were tried before that: `$__catch_all`,
+    // which can collide with a real tag, and `''`, which the parser and encoder
+    // then disagreed about. A value used to mean "no value" invites both.
     case 'try': {
       const tr = e as TryExpr;
       const name = nameForLabel(ctx, tr.label);
@@ -1477,20 +1478,17 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       ctx.labelStack.push(name);
       try {
         const body = makeBlock(tr.body.map((c) => bridgeExpr(c, ctx)), null);
-        const catchTags: string[] = [];
-        const catchBodies: Expression[] = [];
-        for (const c of tr.catches) {
-          if (c.isRef) {
-            // `catch_ref` / `catch_all_ref` push an exnref the handler can
-            // rethrow. binaryen-ts's Try has no slot for it, and dropping the
-            // ref would change what the handler receives.
-            throw new Error('Bridge: catch_ref / catch_all_ref not yet supported');
-          }
-          catchTags.push(c.tag === undefined ? '' : resolveVarName(c.tag, ctx.tagNames));
-          catchBodies.push(makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null));
-        }
+        // `catch_ref` / `catch_all_ref` used to throw "not yet supported" here,
+        // because binaryen-ts's Try had no slot for the flag and dropping it
+        // would change what the handler receives. The clause carries `isRef`
+        // now and the encoder writes 0x08 / 0x18 for it.
+        const catches: TryCatch[] = tr.catches.map((c) => ({
+          ...(c.tag === undefined ? {} : { tag: varName(resolveVarName(c.tag, ctx.tagNames)) }),
+          isRef: c.isRef,
+          body: makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null),
+        }));
         const delegateTarget = tr.delegate === undefined ? null : resolveLabel(ctx, tr.delegate);
-        return makeTry(name, body, catchTags, catchBodies, delegateTarget, resultType);
+        return makeTry(name, body, catches, delegateTarget, resultType);
       } finally {
         ctx.labelStack.pop();
       }

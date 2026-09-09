@@ -350,7 +350,7 @@ class _CFGBuilder {
         this.link(this.current, bodyEntry);
 
         // Conservative entry edge: even the first action in the body could throw.
-        const catchEntries = e.catchBodies.map(() => this.newBlock());
+        const catchEntries = e.catches.map(() => this.newBlock());
         for (const ce of catchEntries) this.link(bodyEntry, ce);
 
         // While inside the body, throwing instructions (throw/rethrow, call/
@@ -368,11 +368,11 @@ class _CFGBuilder {
         // Catch bodies run with this try's scope popped — a throw inside a catch
         // transfers to the ENCLOSING handler (rethrow semantics), not back to
         // this try's own catch.
-        // `catchEntries` is built one-per-catch-body directly above, so the
-        // two are the same length by construction.
-        for (const [i, body] of e.catchBodies.entries()) {
+        // `catchEntries` is built one-per-clause directly above, so the two are
+        // the same length by construction.
+        for (const [i, c] of e.catches.entries()) {
           this.current = catchEntries[i]!;
-          this.visit(body);
+          this.visit(c.body);
           this.link(this.current, merge);
         }
 

@@ -35,6 +35,8 @@ import {
   makeTryTable,
   makeUnary,
   makeUnreachable,
+  tryCatch,
+  type TryExpr,
   UnaryOp,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import {
@@ -574,8 +576,7 @@ Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value liv
       makeTry(
         null,
         makeLocalSet(varIndex(0), makeCall(varName('mayThrow'), [], ValType.I32)),
-        ['t'],
-        [makeNop()],
+        [tryCatch(varName('t'), makeNop())],
         null,
         None,
       ),
@@ -613,22 +614,27 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
         makeTry(
           null,
           makeThrow(varName('t'), [makeI32Const(200)]),
-          ['t'],
           // inner catch: catchE = 200; use(catchE); rethrow. The use() makes the
           // set effective (otherwise it's a dead drop and the coalesce question is moot).
-          [makeBlock([
-            makeLocalSet(varIndex(1), makeI32Const(200)),
-            makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
-            makeRethrow('0'),
-          ])],
+          [tryCatch(
+            varName('t'),
+            makeBlock([
+              makeLocalSet(varIndex(1), makeI32Const(200)),
+              makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
+              makeRethrow('0'),
+            ]),
+          )],
           null,
           None,
         ),
-        ['t'],
-        [makeBlock([
-          makeLocalSet(varIndex(2), makeI32Const(300)),
-          makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
-        ])], // outer catch: outerErr = 300; use(e)
+        // outer catch: outerErr = 300; use(e)
+        [tryCatch(
+          varName('t'),
+          makeBlock([
+            makeLocalSet(varIndex(2), makeI32Const(300)),
+            makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+          ]),
+        )],
         null,
         None,
       ),
@@ -642,8 +648,8 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
   const body = mod.functions[0].body as BlockExpr;
   const outerTry = body.children[1] as Extract<Expression, { kind: ExpressionKind.Try }>;
   const innerTry = outerTry.body as Extract<Expression, { kind: ExpressionKind.Try }>;
-  const innerCatch = innerTry.catchBodies[0] as BlockExpr;
-  const outerCatch = outerTry.catchBodies[0] as BlockExpr;
+  const innerCatch = innerTry.catches[0]!.body as BlockExpr;
+  const outerCatch = outerTry.catches[0]!.body as BlockExpr;
   const innerSet = innerCatch.children[0] as Extract<Expression, { kind: ExpressionKind.LocalSet }>;
   const outerGet = (outerCatch.children[1] as Extract<Expression, { kind: ExpressionKind.Drop }>)
     .value as Extract<Expression, { kind: ExpressionKind.LocalGet }>;
@@ -1094,7 +1100,7 @@ Deno.test('DCE: recurses into Try body — dead tail after throw is trimmed', ()
     makeThrow(varName('$e'), []),
     makeI32Const(42), // dead
   ]);
-  const t = makeTry(null, innerBlock, [], [], null, None);
+  const t = makeTry(null, innerBlock, [], null, None);
   mod.functions.push(makeTestFn('f', makeBlock([t])));
 
   new PassRunner(mod).add('DCE').run();
@@ -1183,28 +1189,28 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
   assertEquals(dispatch(4), 104);
 });
 
-Deno.test('DCE: recurses into Try catchBodies — dead tail after throw is trimmed', () => {
+Deno.test('DCE: recurses into Try catch bodies — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   const catchBody = makeBlock([
     makeThrow(varName('$e'), []),
     makeNop(), // dead
     makeI32Const(7), // dead
   ]);
-  const t = makeTry(null, makeNop(), ['$e'], [catchBody], null, None);
+  const t = makeTry(null, makeNop(), [tryCatch(varName('$e'), catchBody)], null, None);
   mod.functions.push(makeTestFn('f', makeBlock([t])));
 
   new PassRunner(mod).add('DCE').run();
 
   const outer = mod.functions[0].body as BlockExpr;
-  const tOut = outer.children[0] as { catchBodies: BlockExpr[] };
-  assertEquals(tOut.catchBodies.length, 1);
-  assertEquals(tOut.catchBodies[0].children.length, 1);
-  assertEquals(tOut.catchBodies[0].children[0].kind, ExpressionKind.Throw);
+  const tOut = outer.children[0] as unknown as TryExpr;
+  assertEquals(tOut.catches.length, 1);
+  assertEquals((tOut.catches[0]!.body as BlockExpr).children.length, 1);
+  assertEquals((tOut.catches[0]!.body as BlockExpr).children[0].kind, ExpressionKind.Throw);
 });
 
 Deno.test('DCE: Try expression itself is preserved (recursion does not strip the node)', () => {
   const mod = emptyModule();
-  const t = makeTry(null, makeNop(), [], [], null, None);
+  const t = makeTry(null, makeNop(), [], null, None);
   mod.functions.push(makeTestFn('f', makeBlock([t, makeI32Const(1)])));
 
   new PassRunner(mod).add('DCE').run();
@@ -1257,7 +1263,7 @@ Deno.test('StripEH: try is replaced by its body; catch is discarded', () => {
   const mod = emptyModule();
   const tryBody = makeI32Const(1);
   const catchBody = makeI32Const(99);
-  const t = makeTry(null, tryBody, ['$e'], [catchBody], null, ValType.I32);
+  const t = makeTry(null, tryBody, [tryCatch(varName('$e'), catchBody)], null, ValType.I32);
   mod.functions.push(makeTestFn('f', makeBlock([t])));
   mod.tags.push({ name: '$e', params: [] });
   mod.hasExceptionHandling = true;

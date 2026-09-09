@@ -384,7 +384,7 @@ function _mapChildren(
       return {
         ...expr,
         body: fn(expr.body),
-        catchBodies: expr.catchBodies.map((b) => fn(b)),
+        catches: expr.catches.map((c) => ({ ...c, body: fn(c.body) })),
       };
 
     case ExpressionKind.Throw:
@@ -664,7 +664,7 @@ function _visitChildren(
       break;
     case ExpressionKind.Try:
       visit(expr.body);
-      expr.catchBodies.forEach(visit);
+      expr.catches.forEach((c) => visit(c.body));
       break;
     case ExpressionKind.Throw:
       expr.operands.forEach(visit);

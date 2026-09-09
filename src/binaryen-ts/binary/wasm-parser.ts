@@ -171,7 +171,10 @@ interface ControlFrame {
   thenExprs?: Expression[];
   // try / catch state
   tryBody?: Expression[];
-  catchTags?: string[];
+  /** Tags in arrival order; `undefined` marks a `catch_all`. Zipped with
+   *  `catchBodies` into TryCatch clauses at `end` — they accumulate separately
+   *  because the tag arrives at the `catch` opcode and the body after it. */
+  catchTags?: (Var | undefined)[];
   catchBodies?: Expression[][];
   delegateTarget?: string | null;
   /**
@@ -1761,7 +1764,7 @@ class WasmParser {
             // body's binding instructions (`local.set`, `drop`, ...) must each
             // consume a real `Pop` so the consumption survives optimization.
             frame.exprs = tagParams.map((p) => makePop(p));
-            frame.catchTags!.push(tagName);
+            frame.catchTags!.push(varName(tagName));
             frame.kind = 'catch' as ControlFrameKind;
           } else {
             // Same silent drop as `else` above: the tag index was consumed and the
@@ -1841,17 +1844,15 @@ class WasmParser {
             const tryBody = oneOrBlock(tryBodyExprs);
             const allCatchBodies = [...(frame.catchBodies ?? [])];
             if (frame.kind === 'catch') allCatchBodies.push(frame.exprs);
-            const catchBodyExprs = allCatchBodies.map(oneOrBlock);
-            push(
-              makeTry(
-                frame.label,
-                tryBody,
-                frame.catchTags ?? [],
-                catchBodyExprs,
-                null,
-                resultType,
-              ),
-            );
+            const tags = frame.catchTags ?? [];
+            // Zip here, once, where both halves are in hand. The IR holds
+            // clauses, so a tag without a body cannot leave this function.
+            const catches = allCatchBodies.map((body, i) => ({
+              ...(tags[i] === undefined ? {} : { tag: tags[i]! }),
+              isRef: false,
+              body: oneOrBlock(body),
+            }));
+            push(makeTry(frame.label, tryBody, catches, null, resultType));
           } else if (frame.kind === 'try_table') {
             const body = sealFrame(frame, resultType);
             push(makeTryTable(frame.label, body, frame.tryCatches ?? [], resultType));
@@ -2051,7 +2052,7 @@ class WasmParser {
           const rts = frame.resultTypes;
           const resultType: Type = resultTypeOf(rts);
           const tryBody = oneOrBlock(frame.exprs);
-          push(makeTry(frame.label, tryBody, [], [], resolveLabel(frames, depth), resultType));
+          push(makeTry(frame.label, tryBody, [], resolveLabel(frames, depth), resultType));
           break;
         }
         case 0x19: { // catch_all (old EH)
@@ -2063,7 +2064,7 @@ class WasmParser {
               frame.catchBodies!.push(frame.exprs);
             }
             frame.exprs = [];
-            frame.catchTags!.push(''); // empty string = catch_all
+            frame.catchTags!.push(undefined); // absence IS catch_all
             frame.kind = 'catch' as ControlFrameKind;
           } else {
             r.error(`catch_all outside a try (enclosing frame is ${frame.kind})`);

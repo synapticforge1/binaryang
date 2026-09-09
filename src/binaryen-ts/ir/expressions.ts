@@ -1611,6 +1611,32 @@ export interface TryTableExpr extends ExprBase {
 }
 
 /** `try` expression (old/legacy EH). */
+/**
+ * One `catch` clause of an old-EH `try`.
+ *
+ * 🔑 Replaces the parallel `catchTags[]` / `catchBodies[]` arrays. Those were
+ * one fact in two places and could disagree in length — and did: the encoder
+ * carried a guard because a mismatched `Try` emitted a `catch` opcode with no
+ * handler after it, corrupting the rest of the function body. A record cannot
+ * be half-present, so that guard is gone rather than merely passing.
+ *
+ * `try_table`'s clauses were already records ({@link CatchClause}); the same
+ * concept was modelled both ways in one file.
+ */
+export interface TryCatch {
+  /**
+   * The tag caught. ABSENT means `catch_all` / `catch_all_ref`.
+   *
+   * The parallel form used `''` as that sentinel, which is a value the field
+   * could otherwise hold; absence cannot be confused with a tag.
+   */
+  tag?: Var;
+  /** `catch_ref` / `catch_all_ref` — the handler also receives an `exnref`. */
+  isRef: boolean;
+  /** The handler body. */
+  body: Expression;
+}
+
 export interface TryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Try;
@@ -1618,11 +1644,8 @@ export interface TryExpr extends ExprBase {
   name: string | null;
   /** Body expression. */
   body: Expression;
-  /** Parallel arrays: catchTags[i] is the tag for catchBodies[i].
-   *  An empty string tag signals `catch_all`. */
-  catchTags: string[];
-  /** catchBodies — see the matching factory for semantics. */
-  catchBodies: Expression[];
+  /** The catch clauses, in order. */
+  catches: TryCatch[];
   /** Set for the `delegate` variant; depth to delegate to. */
   delegateTarget: string | null;
 }
@@ -2681,8 +2704,7 @@ export function makeTryTable(
 export function makeTry(
   name: string | null,
   body: Expression,
-  catchTags: string[],
-  catchBodies: Expression[],
+  catches: TryCatch[],
   delegateTarget: string | null,
   resultType: Type,
 ): TryExpr {
@@ -2691,10 +2713,19 @@ export function makeTry(
     type: resultType,
     name,
     body,
-    catchTags,
-    catchBodies,
+    catches,
     delegateTarget,
   };
+}
+
+/** A `catch $tag` clause. */
+export function tryCatch(tag: Var, body: Expression): TryCatch {
+  return { tag, isRef: false, body };
+}
+
+/** A `catch_all` clause — no tag, which is what absence means. */
+export function tryCatchAll(body: Expression): TryCatch {
+  return { isRef: false, body };
 }
 
 /** Creates a `throw $tag operands*` expression. */
