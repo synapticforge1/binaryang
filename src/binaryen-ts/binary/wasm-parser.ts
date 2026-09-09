@@ -8,7 +8,7 @@
  */
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
-import { varIndex } from '../../wabt-ts/ir/ir.ts';
+import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import {
   type ElementSegment,
   type ElementSegmentMode,
@@ -608,9 +608,9 @@ function funcTypeAt(
  * encoder only fires if the module is re-encoded. Same failure shape as the
  * typed-ref block type in wabt-ts (`block_type_ref.test.ts`).
  */
-function readMemArg(r: BinaryReader): { align: number; offset: number; memory: number } {
+function readMemArg(r: BinaryReader): { align: number; offset: number; memory: Var } {
   const flags = r.readU32();
-  const memory = (flags & 0x40) !== 0 ? r.readU32() : 0;
+  const memory = varIndex((flags & 0x40) !== 0 ? r.readU32() : 0);
   const offset = r.readU32();
   return { align: flags & ~0x40, offset, memory };
 }
@@ -2288,12 +2288,12 @@ class WasmParser {
         }
 
         case 0x3f:
-          push(makeMemorySize(r.readU8()));
+          push(makeMemorySize(varIndex(r.readU8())));
           break; // memory.size
         case 0x40: { // memory.grow
           // The memidx byte precedes the operand, so read it first.
           const growMem = r.readU8();
-          push(makeMemoryGrow(pop(), growMem));
+          push(makeMemoryGrow(pop(), varIndex(growMem)));
           break;
         }
 
@@ -2723,7 +2723,7 @@ function decodeMiscPrefix(
       const size = pop();
       const src = pop();
       const dst = pop();
-      push(makeMemoryCopy(dst, src, size, dstMem, srcMem));
+      push(makeMemoryCopy(dst, src, size, varIndex(dstMem), varIndex(srcMem)));
       break;
     }
     case 11: { // memory.fill
@@ -2731,7 +2731,7 @@ function decodeMiscPrefix(
       const size = pop();
       const val = pop();
       const dst = pop();
-      push(makeMemoryFill(dst, val, size, fillMem));
+      push(makeMemoryFill(dst, val, size, varIndex(fillMem)));
       break;
     }
     // The eight bulk-memory / table operations. Each pops its operands in
@@ -2747,7 +2747,7 @@ function decodeMiscPrefix(
       const size = pop();
       const offset = pop();
       const dst = pop();
-      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size, initMem));
+      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size, varIndex(initMem)));
       break;
     }
     case 9: { // data.drop

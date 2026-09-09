@@ -921,7 +921,7 @@ compiler-driven and line-scoped, which left only four sites needing hands — th
 offending read sat on a different line from the error, and one where `loop.body.type` became
 `loop.typeOf(body)` because the pattern captured only the last path segment.
 
-##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (1 of 5 families done)
+##### Step 4 — one `Expression` 🚧 measured and decided; conversion under way (2 of 5 families done)
 
 ⚠️ **"Alias one to the other" understates this by a lot.** The kind sets agree on 73 kinds; the
 FIELD sets do not. Measured:
@@ -1066,6 +1066,54 @@ rather than as one, which is how the `.type` regex went wrong: the recovery cost
 is what makes the wrong key expensive.
 
 **Remaining (b) families:** `index`, `name`, `memory`, `castType`.
+
+###### ✅ The `memory` family converted — 2 of 5
+
+`memory` and `sourceMemory` hold a `Var` on all nine kinds that address a memory (load, store,
+memory.size/grow/init/copy/fill, simd.load, simd.load_store_lane). **No rename**: unlike
+`typeIndex`, the name does not encode the old type, so only the type changed.
+
+🔑 **The whole family cost six edits, not fifty, because the wrap went at the SOURCE.** The first
+check reported 50 errors and every one was the same local flowing out of `readMemArg`. The binary
+form of a memarg memory index is always resolved, so `readMemArg` returns a `Var` now and the ~50
+factory calls downstream were already correct. **When the compiler reports many errors on one value,
+the fix is usually upstream of all of them.**
+
+⚠️ **"Absent means memory 0" is a real convention here and it survived intact.** The factories
+deliberately omit the field when it is zero:
+
+```ts
+...(indexOf(memory) !== 0 ? { memory } : {})   // was: memory !== 0
+```
+
+`indexOf` returns `undefined` for a NAME, so a named memory is never mistaken for memory 0 and
+dropped. The test that pins this — _records no memory field on a memory-0 access_ — passed
+unchanged, which is what makes the claim worth anything.
+
+Encoder reads go through one helper stating the convention once:
+
+```ts
+function memIndex(v: Var | undefined, what: string): number {
+  return v === undefined ? 0 : requireIndex(v, `${what} memory index`);
+}
+```
+
+`writeMemArg` needed only its parameter type: it already branched on the resolved VALUE
+(`mem !== 0`), not on the field's presence, so multi-memory encoding was never presence-dependent.
+
+**Gate**: 952 tests, baseline IDENTICAL, bridge 397/421, spec 100% on four axes. One test changed
+shape rather than fixed — `multi_memory.test.ts` asserted `store['memory'] === 1` and now asserts
+`varIndex(1)`.
+
+⚠️ **A restriction became liftable, and is NOT lifted yet.** `requireDefaultMemory` in the bridge
+rejects every non-zero and named memory index as "not yet supported". Two of its three reasons are
+gone: the encoder's `checkSingleMemory` guard no longer exists, and the bridge already carries every
+`module.memories` declaration. What is unverified is the NAME path — passing a name through would
+move the failure from bridge time to encode time, which is a worse place for it unless names are
+resolved first. None of the 24 current bridge failures are memory-related, so lifting it will not
+move 397/421; it closes a lossy path rather than fixing a break. Its own increment.
+
+**Remaining (b) families:** `index`, `name`, `castType`.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 

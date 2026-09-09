@@ -110,7 +110,19 @@ import {
   type TypeDef,
   type ValueType,
 } from '../ir/gc-types.ts';
-import { requireIndex } from '../../wabt-ts/ir/ir.ts';
+import { requireIndex, type Var } from '../../wabt-ts/ir/ir.ts';
+
+/**
+ * The memory an instruction addresses. An ABSENT field means memory 0 — the
+ * only memory a single-memory module has, and the reason the field is optional
+ * at all.
+ *
+ * A NAME reaching the encoder is a different thing entirely, and throws:
+ * defaulting it to 0 would emit a valid module addressing the wrong memory.
+ */
+function memIndex(v: Var | undefined, what: string): number {
+  return v === undefined ? 0 : requireIndex(v, `${what} memory index`);
+}
 
 // ---------------------------------------------------------------------------
 // BinaryWriter — growable byte buffer with WASM encoding helpers
@@ -896,8 +908,8 @@ class WasmEncoder {
     w.writeU32(opcode & 0xffff);
   }
 
-  private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: number): void {
-    const mem = memory ?? 0;
+  private writeMemArg(w: BinaryWriter, align: number, offset: number, memory?: Var): void {
+    const mem = memIndex(memory, 'memarg');
     if (mem !== 0) {
       w.writeU32(align | 0x40);
       w.writeU32(mem);
@@ -1689,14 +1701,14 @@ class WasmEncoder {
 
       case ExpressionKind.MemorySize: {
         w.writeU8(0x3f);
-        w.writeU8((expr as MemorySizeExpr).memory ?? 0);
+        w.writeU8(memIndex((expr as MemorySizeExpr).memory, 'memory.size'));
         break;
       }
       case ExpressionKind.MemoryGrow: {
         const e = expr as MemoryGrowExpr;
         this.encodeExpr(w, e.delta, labels);
         w.writeU8(0x40);
-        w.writeU8(e.memory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
         break;
       }
       case ExpressionKind.TableInit: {
@@ -1729,7 +1741,7 @@ class WasmEncoder {
         w.writeU8(0xfc);
         w.writeU32(8);
         w.writeU32(this.dataSegmentIndex(e.segment));
-        w.writeU8(e.memory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
         break;
       }
 
@@ -1792,8 +1804,8 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(10);
-        w.writeU8(e.memory ?? 0);
-        w.writeU8(e.sourceMemory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
+        w.writeU8(memIndex(e.sourceMemory, e.kind));
         break;
       }
       case ExpressionKind.MemoryFill: {
@@ -1803,7 +1815,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.size, labels);
         w.writeU8(0xfc);
         w.writeU32(11);
-        w.writeU8(e.memory ?? 0);
+        w.writeU8(memIndex(e.memory, e.kind));
         break;
       }
 

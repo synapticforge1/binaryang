@@ -29,7 +29,7 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
-import type { Var } from '../../wabt-ts/ir/ir.ts';
+import { indexOf, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import type { HeapType, ValueType } from './gc-types.ts';
@@ -935,7 +935,7 @@ export interface LoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Load;
   /** Byte width of the memory access (1, 2, 4, 8, 16). */
@@ -960,7 +960,7 @@ export interface StoreExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Store;
   /** Width in bytes of the access. */
@@ -985,7 +985,7 @@ export interface MemoryGrowExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryGrow;
   /** Result type — the value type yielded at runtime. */
@@ -1004,7 +1004,7 @@ export interface MemorySizeExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemorySize;
   /** Result type — the value type yielded at runtime. */
@@ -1060,7 +1060,7 @@ export interface MemoryInitExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryInit;
   /** Result type — the value type yielded at runtime. */
@@ -1152,9 +1152,9 @@ export interface MemoryCopyExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Memory the COPY READS FROM. Omitted means 0. `memory` is the destination. */
-  sourceMemory?: number;
+  sourceMemory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryCopy;
   /** Result type — the value type yielded at runtime. */
@@ -1177,7 +1177,7 @@ export interface MemoryFillExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryFill;
   /** Result type — the value type yielded at runtime. */
@@ -1801,7 +1801,7 @@ export interface SIMDLoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoad;
   /** Operator code. */
@@ -1824,7 +1824,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memory?: number;
+  memory?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoadStoreLane;
   /** Operator code. */
@@ -2176,7 +2176,7 @@ export function makeLoad(
   align: number,
   ptr: Expression,
   resultType: ValType,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): LoadExpr {
   return {
     kind: ExpressionKind.Load,
@@ -2186,7 +2186,7 @@ export function makeLoad(
     offset,
     align,
     ptr,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2197,7 +2197,7 @@ export function makeStore(
   align: number,
   ptr: Expression,
   value: Expression,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): StoreExpr {
   return {
     kind: ExpressionKind.Store,
@@ -2207,26 +2207,26 @@ export function makeStore(
     align,
     ptr,
     value,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
 /** Creates a `memory.size` expression. */
-export function makeMemorySize(memory = 0): MemorySizeExpr {
+export function makeMemorySize(memory: Var = varIndex(0)): MemorySizeExpr {
   return {
     kind: ExpressionKind.MemorySize,
     type: ValType.I32,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
 /** Creates a `memory.grow` expression. */
-export function makeMemoryGrow(delta: Expression, memory = 0): MemoryGrowExpr {
+export function makeMemoryGrow(delta: Expression, memory: Var = varIndex(0)): MemoryGrowExpr {
   return {
     kind: ExpressionKind.MemoryGrow,
     type: ValType.I32,
     delta,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2252,7 +2252,7 @@ export function makeMemoryInit(
   dest: Expression,
   offset: Expression,
   size: Expression,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): MemoryInitExpr {
   return {
     kind: ExpressionKind.MemoryInit,
@@ -2261,7 +2261,7 @@ export function makeMemoryInit(
     dest,
     offset,
     size,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2318,8 +2318,8 @@ export function makeMemoryCopy(
   dest: Expression,
   source: Expression,
   size: Expression,
-  memory = 0,
-  sourceMemory = 0,
+  memory: Var = varIndex(0),
+  sourceMemory: Var = varIndex(0),
 ): MemoryCopyExpr {
   return {
     kind: ExpressionKind.MemoryCopy,
@@ -2327,8 +2327,8 @@ export function makeMemoryCopy(
     dest,
     source,
     size,
-    ...(memory !== 0 ? { memory } : {}),
-    ...(sourceMemory !== 0 ? { sourceMemory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
+    ...(indexOf(sourceMemory) !== 0 ? { sourceMemory } : {}),
   };
 }
 
@@ -2337,7 +2337,7 @@ export function makeMemoryFill(
   dest: Expression,
   value: Expression,
   size: Expression,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): MemoryFillExpr {
   return {
     kind: ExpressionKind.MemoryFill,
@@ -2345,7 +2345,7 @@ export function makeMemoryFill(
     dest,
     value,
     size,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2785,7 +2785,7 @@ export function makeSIMDLoad(
   ptr: Expression,
   offset: number,
   align: number,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): SIMDLoadExpr {
   return {
     kind: ExpressionKind.SIMDLoad,
@@ -2794,7 +2794,7 @@ export function makeSIMDLoad(
     ptr,
     offset,
     align,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
@@ -2806,7 +2806,7 @@ export function makeSIMDLoadStoreLane(
   offset: number,
   align: number,
   lane: number,
-  memory = 0,
+  memory: Var = varIndex(0),
 ): SIMDLoadStoreLaneExpr {
   const isStore = opcode === SIMDLoadStoreLaneOp.Store8LaneVec128 ||
     opcode === SIMDLoadStoreLaneOp.Store16LaneVec128 ||
@@ -2821,7 +2821,7 @@ export function makeSIMDLoadStoreLane(
     offset,
     align,
     lane,
-    ...(memory !== 0 ? { memory } : {}),
+    ...(indexOf(memory) !== 0 ? { memory } : {}),
   };
 }
 
