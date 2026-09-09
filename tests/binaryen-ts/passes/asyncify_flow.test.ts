@@ -72,7 +72,7 @@ function fn(mod: WasmModule, name: string): WasmFunction {
 function countCallsTo(e: Expression, target: string): number {
   let n = 0;
   walkExpression(e, (x) => {
-    if (x.kind === ExpressionKind.Call && (x as CallExpr).target === target) n++;
+    if (x.kind === ExpressionKind.Call && nameOf((x as CallExpr).target) === target) n++;
   });
   return n;
 }
@@ -145,7 +145,7 @@ Deno.test('flow — each call gets a distinct index (two calls → two checks/un
   // The two check-call-index intrinsics receive indices 0 and 1.
   const indices: number[] = [];
   walkExpression(foo.body, (e) => {
-    if (e.kind === ExpressionKind.Call && (e as CallExpr).target === CHECK_INDEX) {
+    if (e.kind === ExpressionKind.Call && nameOf((e as CallExpr).target) === CHECK_INDEX) {
       const arg = (e as CallExpr).operands[0] as { value: { i32: number } };
       indices.push(arg.value.i32);
     }

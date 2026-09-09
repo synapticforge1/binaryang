@@ -1771,7 +1771,7 @@ class WasmParser {
           const tagName = ctx.tagInfos[tagIdx]?.name ?? `$tag${tagIdx}`;
           const tagParams = ctx.tagInfos[tagIdx]?.params ?? [];
           const operands = popN(tagParams.length);
-          push(makeThrow(tagName, operands));
+          push(makeThrow(varName(tagName), operands));
           break;
         }
         case 0x09: { // rethrow $depth (old EH)
@@ -1974,7 +1974,7 @@ class WasmParser {
           const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, `call ${fidx}`);
           const operands = popN(cft.params.length);
           const resultType: Type = resultTypeOf(cft.results);
-          pushMultiValueCall(makeCall(`$func${fidx}`, operands, resultType), cft.results);
+          pushMultiValueCall(makeCall(varName(`$func${fidx}`), operands, resultType), cft.results);
           break;
         }
         case 0x11: { // call_indirect
@@ -1992,7 +1992,7 @@ class WasmParser {
           const tableName = ctx.tableNames[tidx] ??
             r.error(`call_indirect table index ${tidx} is out of range`);
           pushMultiValueCall(
-            makeCallIndirect(tableName, target, operands, cft.params, cft.results),
+            makeCallIndirect(varName(tableName), target, operands, cft.params, cft.results),
             cft.results,
           );
           break;
@@ -2005,7 +2005,7 @@ class WasmParser {
           const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, `call ${fidx}`);
           const operands = popN(cft.params.length);
           const resultType: Type = resultTypeOf(cft.results);
-          push(makeCall(`$func${fidx}`, operands, resultType, /* isReturn */ true));
+          push(makeCall(varName(`$func${fidx}`), operands, resultType, /* isReturn */ true));
           break;
         }
         case 0x13: { // return_call_indirect (tail-call proposal)
@@ -2024,7 +2024,7 @@ class WasmParser {
             r.error(`call_indirect table index ${tidx} is out of range`);
           push(
             makeCallIndirect(
-              tableName,
+              varName(tableName),
               target,
               operands,
               cft.params,
@@ -2150,7 +2150,7 @@ class WasmParser {
           const tidx = r.readU32();
           const table = ctx.tableNames[tidx] ?? `$table${tidx}`;
           const indexExpr = pop();
-          push(makeTableGet(table, indexExpr));
+          push(makeTableGet(varName(table), indexExpr));
           break;
         }
         case 0x26: { // table.set $t
@@ -2158,7 +2158,7 @@ class WasmParser {
           const table = ctx.tableNames[tidx] ?? `$table${tidx}`;
           const value = pop();
           const indexExpr = pop();
-          push(makeTableSet(table, indexExpr, value));
+          push(makeTableSet(varName(table), indexExpr, value));
           break;
         }
 
@@ -2439,19 +2439,19 @@ function decodeGcPrefix(
       const def = ctx.heapTypeDefs[ti];
       const ft = (def?.kind === 'struct') ? def.fields[fi] : undefined;
       const rt: Type = ft ? (isRefType(ft.type) ? ft.type : ft.type as ValType) : ValType.I32;
-      push(makeStructGet(varIndex(ti), fi, ref, rt, false));
+      push(makeStructGet(varIndex(ti), varIndex(fi), ref, rt, false));
       break;
     }
     case 0x03: { // struct.get_s $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, true));
+      push(makeStructGet(varIndex(ti), varIndex(fi), pop(), ValType.I32, true));
       break;
     }
     case 0x04: { // struct.get_u $T $f
       const ti = r.readU32();
       const fi = r.readU32();
-      push(makeStructGet(varIndex(ti), fi, pop(), ValType.I32, false));
+      push(makeStructGet(varIndex(ti), varIndex(fi), pop(), ValType.I32, false));
       break;
     }
     case 0x05: { // struct.set $T $f
@@ -2459,7 +2459,7 @@ function decodeGcPrefix(
       const fi = r.readU32();
       const val = pop();
       const ref = pop();
-      push(makeStructSet(varIndex(ti), fi, ref, val));
+      push(makeStructSet(varIndex(ti), varIndex(fi), ref, val));
       break;
     }
     case 0x06: { // array.new $T
@@ -2487,7 +2487,7 @@ function decodeGcPrefix(
       const di = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewData(varIndex(ti), di, off, len, gcRefType(ti)));
+      push(makeArrayNewData(varIndex(ti), varIndex(di), off, len, gcRefType(ti)));
       break;
     }
     case 0x0a: { // array.new_elem $T $e
@@ -2495,7 +2495,7 @@ function decodeGcPrefix(
       const ei = r.readU32();
       const len = pop();
       const off = pop();
-      push(makeArrayNewElem(varIndex(ti), ei, off, len, gcRefType(ti)));
+      push(makeArrayNewElem(varIndex(ti), varIndex(ei), off, len, gcRefType(ti)));
       break;
     }
     case 0x0b: { // array.get $T
@@ -2575,7 +2575,7 @@ function decodeGcPrefix(
       const offset = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayInitData(varIndex(ti), seg, ref, index, offset, size));
+      push(makeArrayInitData(varIndex(ti), varIndex(seg), ref, index, offset, size));
       break;
     }
     case 0x13: { // array.init_elem $T $seg
@@ -2585,7 +2585,7 @@ function decodeGcPrefix(
       const offset = pop();
       const index = pop();
       const ref = pop();
-      push(makeArrayInitElem(varIndex(ti), seg, ref, index, offset, size));
+      push(makeArrayInitElem(varIndex(ti), varIndex(seg), ref, index, offset, size));
       break;
     }
     case 0x14: { // ref.test $T
@@ -2749,11 +2749,11 @@ function decodeMiscPrefix(
       const size = pop();
       const offset = pop();
       const dst = pop();
-      push(makeMemoryInit(dataSegName(segIdx), dst, offset, size, varIndex(initMem)));
+      push(makeMemoryInit(varName(dataSegName(segIdx)), dst, offset, size, varIndex(initMem)));
       break;
     }
     case 9: { // data.drop
-      push(makeDataDrop(dataSegName(r.readU32())));
+      push(makeDataDrop(varName(dataSegName(r.readU32()))));
       break;
     }
     case 12: { // table.init
@@ -2763,11 +2763,19 @@ function decodeMiscPrefix(
       const size = pop();
       const offset = pop();
       const dst = pop();
-      push(makeTableInit(elemSegName(segIdx), tableName(ctx, tableIdx), dst, offset, size));
+      push(
+        makeTableInit(
+          varName(elemSegName(segIdx)),
+          varName(tableName(ctx, tableIdx)),
+          dst,
+          offset,
+          size,
+        ),
+      );
       break;
     }
     case 13: { // elem.drop
-      push(makeElemDrop(elemSegName(r.readU32())));
+      push(makeElemDrop(varName(elemSegName(r.readU32()))));
       break;
     }
     case 14: { // table.copy
@@ -2776,18 +2784,26 @@ function decodeMiscPrefix(
       const size = pop();
       const src = pop();
       const dst = pop();
-      push(makeTableCopy(tableName(ctx, dstTable), tableName(ctx, srcTable), dst, src, size));
+      push(
+        makeTableCopy(
+          varName(tableName(ctx, dstTable)),
+          varName(tableName(ctx, srcTable)),
+          dst,
+          src,
+          size,
+        ),
+      );
       break;
     }
     case 15: { // table.grow
       const tableIdx = r.readU32();
       const delta = pop();
       const value = pop();
-      push(makeTableGrow(tableName(ctx, tableIdx), value, delta));
+      push(makeTableGrow(varName(tableName(ctx, tableIdx)), value, delta));
       break;
     }
     case 16: { // table.size
-      push(makeTableSize(tableName(ctx, r.readU32())));
+      push(makeTableSize(varName(tableName(ctx, r.readU32()))));
       break;
     }
     case 17: { // table.fill
@@ -2795,7 +2811,7 @@ function decodeMiscPrefix(
       const size = pop();
       const value = pop();
       const dst = pop();
-      push(makeTableFill(tableName(ctx, tableIdx), dst, value, size));
+      push(makeTableFill(varName(tableName(ctx, tableIdx)), dst, value, size));
       break;
     }
     // Any FUTURE 0xFC sub-opcode. Kept failing loud for the reason the eight

@@ -45,6 +45,7 @@ import {
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
@@ -460,7 +461,7 @@ Deno.test('type collection reaches a call_indirect carried by a tuple.make', asy
   b.addTable('$t', ValType.FuncRef, 1, null);
 
   // (block $l (result i32 i32) (br $l (tuple.make (call_indirect () -> i32) 7)))
-  const ci = makeCallIndirect('$t', makeI32Const(0), [], [], [ValType.I32]);
+  const ci = makeCallIndirect(varName('$t'), makeI32Const(0), [], [], [ValType.I32]);
   const blk = makeBlock([makeBreak('$l', null, makeTupleMake([ci, makeI32Const(7)]))], '$l');
   blk.type = [ValType.I32, ValType.I32];
 

@@ -10,6 +10,7 @@ import { assertEquals, assertThrows } from '@std/assert';
 import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -309,7 +310,7 @@ Deno.test('call_indirect keeps its table index instead of assuming table 0', () 
     ...sec(0x0a, [0x01, 0x07, 0x00, 0x41, 0x00, 0x11, 0x00, 0x01, 0x0b]),
   ]);
   const parsed = parseWasm(mod);
-  const body = parsed.functions[0].body as { children?: { table?: string }[]; table?: string };
+  const body = parsed.functions[0].body as { children?: { table?: Var }[]; table?: Var };
   const ci = body.children ? body.children[0] : body;
-  assertEquals((ci as { table?: string }).table, '$table1');
+  assertEquals(ci.table, varName('$table1'));
 });

@@ -17,6 +17,7 @@ import {
   type TableSetExpr,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode + table-index slot', () => {
   // funcref table at index 0; `f` reads element 0 and returns it.
@@ -33,7 +34,7 @@ Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode +
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableGet);
   const g = top as TableGetExpr;
-  assertEquals(g.table, '$table0');
+  assertEquals(g.table, varName('$table0'));
   assertEquals(g.index.kind, ExpressionKind.Const);
 });
 
@@ -48,7 +49,7 @@ Deno.test('table.set: WAT → encode → parse round-trip preserves the opcode',
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableSet);
   const s = top as TableSetExpr;
-  assertEquals(s.table, '$table0');
+  assertEquals(s.table, varName('$table0'));
   assertEquals(s.index.kind, ExpressionKind.Const);
 });
 
@@ -63,7 +64,7 @@ Deno.test('table.get with default table reference (no $name prefix)', () => {
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableGet);
   const g = top as TableGetExpr;
-  assertEquals(g.table, '$table0');
+  assertEquals(g.table, varName('$table0'));
 });
 
 Deno.test('element segment: flag-4 (expression-form) active funcref segment round-trips and dispatches', async () => {

@@ -13,6 +13,7 @@ import { assertEquals, assertNotEquals, assertThrows } from '@std/assert';
 import * as binaryen from '../../../src/binaryen-ts/api/binaryen-compat.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { type CallIndirectExpr, ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Fixture: same ADD_MODULE used by encoder tests — a tiny module with one
@@ -411,7 +412,7 @@ Deno.test('compat: Module.call_indirect takes table as the FIRST argument (upstr
     binaryen.none,
     binaryen.none,
   ) as CallIndirectExpr;
-  assertEquals(ci.table, '0');
+  assertEquals(ci.table, varName('0'));
   assertEquals(ci.target.kind, ExpressionKind.Const); // not the bare "0" string
 });
 

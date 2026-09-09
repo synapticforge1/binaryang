@@ -24,6 +24,7 @@ import { makeI32Const, makeThrow } from '../../../src/binaryen-ts/ir/expressions
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: registers the pass registry
 
 /**
@@ -36,7 +37,7 @@ function moduleWithImportedAndDefinedTag(): ReturnType<ModuleBuilder['build']> {
   return new ModuleBuilder()
     .addTagImport('$tag0', 'env', 'imported', [ValType.I32])
     .addTag('$tag1', [ValType.I32])
-    .addFunction('$t', [], [], makeThrow('$tag1', [makeI32Const(7)]))
+    .addFunction('$t', [], [], makeThrow(varName('$tag1'), [makeI32Const(7)]))
     .addExport('t', '$t')
     .build();
 }
@@ -96,10 +97,10 @@ Deno.test('tag import: a throw of a DEFINED tag still resolves past the import',
   const mod = parseWasm(bytes);
 
   const body = mod.functions[0].body;
-  const found: string[] = [];
+  const found: Var[] = [];
   const walk = (e: unknown): void => {
     if (!e || typeof e !== 'object') return;
-    const node = e as { kind?: string; tag?: string };
+    const node = e as { kind?: string; tag?: Var };
     if (node.kind === 'throw' && node.tag) found.push(node.tag);
     for (const v of Object.values(e as unknown as Record<string, unknown>)) {
       if (Array.isArray(v)) v.forEach(walk);
@@ -107,7 +108,7 @@ Deno.test('tag import: a throw of a DEFINED tag still resolves past the import',
     }
   };
   walk(body);
-  assertEquals(found, ['$tag1'], 'throw was retargeted to the imported tag');
+  assertEquals(found, [varName('$tag1')], 'throw was retargeted to the imported tag');
 });
 
 Deno.test('tag import: an imported tag can be re-exported', () => {

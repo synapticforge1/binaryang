@@ -26,6 +26,7 @@ import type {
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 // ---------------------------------------------------------------------------
@@ -236,7 +237,7 @@ Deno.test('EH parser: throw tag name resolved from tag section', () => {
   } else if (body.kind === ExpressionKind.Throw) {
     throwExpr = body as ThrowExpr;
   }
-  assertEquals(throwExpr!.tag, tag0);
+  assertEquals(throwExpr!.tag, varName(tag0));
 });
 
 // ---------------------------------------------------------------------------

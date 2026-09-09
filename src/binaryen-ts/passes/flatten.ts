@@ -63,7 +63,7 @@ import { None, type Type, Unreachable, type ValType } from '../ir/types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { requireName, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -137,7 +137,7 @@ interface Ctx {
  */
 function callEffectiveType(e: Expression, ctx: Ctx): Type {
   if (e.kind === ExpressionKind.Call) {
-    const target = (e as CallExpr).target;
+    const target = requireName((e as CallExpr).target, 'call target');
     const t = ctx.callResultTypes.get(target);
     if (t === undefined) {
       throw new Error(`Flatten: unresolved call target "${target}"`);

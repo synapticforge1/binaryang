@@ -19,6 +19,7 @@ import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import '../../../src/binaryen-ts/passes/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 Deno.test('parseWat — empty module', () => {
   const mod = parseWat('(module)');
@@ -131,7 +132,7 @@ Deno.test('parseWat — call', () => {
   assertEquals(caller.body.kind, ExpressionKind.Call);
   assertEquals(
     (caller.body as import('../../../src/binaryen-ts/ir/expressions.ts').CallExpr).target,
-    '$callee',
+    varName('$callee'),
   );
 });
 

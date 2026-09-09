@@ -62,6 +62,8 @@ import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
 import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { varName } from '../../wabt-ts/ir/ir.ts';
+import { requireName } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Size thresholds (matching upstream defaults in pass.h)
@@ -107,7 +109,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
       if (e.kind === ExpressionKind.Call) {
         entry.hasCalls = true;
         // Count reference to the callee.
-        const target = info.get(e.target);
+        const target = info.get(requireName(e.target, 'call target'));
         if (target) target.refs++;
       }
       if (e.kind === ExpressionKind.RefFunc) {
@@ -410,7 +412,7 @@ class FunctionSplitter {
       kind: ExpressionKind.If,
       type: typeOf(originalIf),
       condition: makeUnary(UnaryOp.EqzI32, deepCopy(originalIf.condition)),
-      ifTrue: makeCall(outlined.name, getForwardedArgs(fn), None),
+      ifTrue: makeCall(varName(outlined.name), getForwardedArgs(fn), None),
       ifFalse: null,
     };
 
@@ -449,7 +451,7 @@ class FunctionSplitter {
       this.module.functions.push(outlined);
 
       const callType = valueReturned ? (outlinedResults[0] as ValType) : None;
-      const call = makeCall(outlined.name, getForwardedArgs(fn), callType);
+      const call = makeCall(varName(outlined.name), getForwardedArgs(fn), callType);
       ifI.ifTrue = valueReturned ? makeReturn(call) : call;
     }
 
@@ -799,8 +801,8 @@ function inlineIntoFunction(
   fn.body = mapExpression(fn.body, (e): Expression => {
     if (e.kind !== ExpressionKind.Call) return e;
     const call = e as CallExpr;
-    if (call.target === fn.name) return e; // skip recursive calls
-    const callee = inlineable.get(call.target);
+    if (requireName(call.target, 'call target') === fn.name) return e; // skip recursive calls
+    const callee = inlineable.get(requireName(call.target, 'call target'));
     if (!callee) return e;
 
     changed = true;

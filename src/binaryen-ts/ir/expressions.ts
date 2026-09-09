@@ -845,7 +845,7 @@ export interface TableGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.TableGet;
   /** Internal name of the table being read. */
-  table: string;
+  table: Var;
   /** i32 index into the table. */
   index: Expression;
 }
@@ -856,7 +856,7 @@ export interface TableSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.TableSet;
   /** Internal name of the table being written. */
-  table: string;
+  table: Var;
   /** i32 index into the table. */
   index: Expression;
   /** New reference value to store. */
@@ -1024,9 +1024,9 @@ export interface TableInitExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the element segment to copy from. */
-  segment: string;
+  segment: Var;
   /** Name of the table to copy into. */
-  table: string;
+  table: Var;
   /** Index of the first table slot to write. */
   dest: Expression;
   /** Index of the first segment element to read. */
@@ -1042,7 +1042,7 @@ export interface ElemDropExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the element segment to drop. */
-  segment: string;
+  segment: Var;
 }
 
 /**
@@ -1066,7 +1066,7 @@ export interface MemoryInitExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the data segment to copy from. */
-  segment: string;
+  segment: Var;
   /** Destination address in linear memory. */
   dest: Expression;
   /** Byte offset within the segment. */
@@ -1082,7 +1082,7 @@ export interface DataDropExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the data segment to drop. */
-  segment: string;
+  segment: Var;
 }
 
 /** `table.size` — the current number of elements in a table. */
@@ -1092,7 +1092,7 @@ export interface TableSizeExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: ValType.I32;
   /** Name of the table being measured. */
-  table: string;
+  table: Var;
 }
 
 /** `table.grow` — append `delta` copies of `value`, yielding the previous size. */
@@ -1102,7 +1102,7 @@ export interface TableGrowExpr extends ExprBase {
   /** Result type — the previous size, or -1 if the growth failed. */
   type: ValType.I32;
   /** Name of the table being grown. */
-  table: string;
+  table: Var;
   /** The reference value to fill the new slots with. */
   value: Expression;
   /** How many slots to add. */
@@ -1116,7 +1116,7 @@ export interface TableFillExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the table being written. */
-  table: string;
+  table: Var;
   /** Index of the first slot to write. */
   dest: Expression;
   /** The reference value to write. */
@@ -1132,9 +1132,9 @@ export interface TableCopyExpr extends ExprBase {
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the table being written. */
-  destTable: string;
+  destTable: Var;
   /** Name of the table being read. */
-  sourceTable: string;
+  sourceTable: Var;
   /** Index of the first slot to write. */
   dest: Expression;
   /** Index of the first slot to read. */
@@ -1195,7 +1195,7 @@ export interface CallExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Call;
   /** Target label of the branch. */
-  target: string;
+  target: Var;
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** isReturn — see the {@link make} factory for semantics. */
@@ -1207,7 +1207,7 @@ export interface CallIndirectExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.CallIndirect;
   /** Table index (defaults to 0). */
-  table: string;
+  table: Var;
   /** Target label of the branch. */
   target: Expression;
   /** Argument expressions in declaration order. */
@@ -1350,8 +1350,8 @@ export interface StructGetExpr extends ExprBase {
   kind: ExpressionKind.StructGet;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** Index of the struct field. */
-  fieldIndex: number;
+  /** The struct field addressed. */
+  fieldVar: Var;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /** Whether the load is sign-extended (signed=true) or zero-extended. */
@@ -1366,8 +1366,8 @@ export interface StructSetExpr extends ExprBase {
   type: None;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** Index of the struct field. */
-  fieldIndex: number;
+  /** The struct field addressed. */
+  fieldVar: Var;
   /** ref — see the matching factory for semantics. */
   ref: Expression;
   /** Value expression. */
@@ -1402,8 +1402,8 @@ export interface ArrayNewDataExpr extends ExprBase {
   kind: ExpressionKind.ArrayNewData;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** dataSegment — see the matching factory for semantics. */
-  dataSegment: number;
+  /** The data segment the array is initialised from. */
+  dataVar: Var;
   /** Static byte offset added to the address operand. */
   offset: Expression;
   /** Byte length to operate on. */
@@ -1416,8 +1416,8 @@ export interface ArrayNewElemExpr extends ExprBase {
   kind: ExpressionKind.ArrayNewElem;
   /** Index into the module heap-type table. */
   typeVar: Var;
-  /** elemSegment — see the matching factory for semantics. */
-  elemSegment: number;
+  /** The element segment the array is initialised from. */
+  elemVar: Var;
   /** Static byte offset added to the address operand. */
   offset: Expression;
   /** Byte length to operate on. */
@@ -1503,7 +1503,7 @@ export interface ArrayInitDataExpr extends ExprBase {
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** Index of the data segment read from. */
-  segment: number;
+  segment: Var;
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
@@ -1523,7 +1523,7 @@ export interface ArrayInitElemExpr extends ExprBase {
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** Index of the element segment read from. */
-  segment: number;
+  segment: Var;
   /** The array reference to write into. */
   ref: Expression;
   /** Start index within the array. */
@@ -1641,7 +1641,7 @@ export interface ThrowExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Throw;
   /** tag — see the {@link make} factory for semantics. */
-  tag: string;
+  tag: Var;
   /** Argument expressions in declaration order. */
   operands: Expression[];
 }
@@ -1979,7 +1979,7 @@ export function makeLocalTee(index: Var, value: Expression, type: ValueType): Lo
  *  most common reference table); pass `externref` for tables holding host
  *  references. */
 export function makeTableGet(
-  table: string,
+  table: Var,
   index: Expression,
   type: ValType = ValType.FuncRef,
 ): TableGetExpr {
@@ -1988,7 +1988,7 @@ export function makeTableGet(
 
 /** Creates a `table.set` expression (result type is `none`). */
 export function makeTableSet(
-  table: string,
+  table: Var,
   index: Expression,
   value: Expression,
 ): TableSetExpr {
@@ -2020,7 +2020,7 @@ export function makeReturn(value: Expression | null = null): ReturnExpr {
 
 /** Creates a `call` expression. */
 export function makeCall(
-  target: string,
+  target: Var,
   operands: Expression[],
   resultType: Type,
   isReturn = false,
@@ -2148,7 +2148,7 @@ export function makeSelect(
 
 /** Creates a `call_indirect` expression. */
 export function makeCallIndirect(
-  table: string,
+  table: Var,
   target: Expression,
   operands: Expression[],
   params: ValueType[],
@@ -2232,8 +2232,8 @@ export function makeMemoryGrow(delta: Expression, memory: Var = varIndex(0)): Me
 
 /** Creates a `table.init` expression. */
 export function makeTableInit(
-  segment: string,
-  table: string,
+  segment: Var,
+  table: Var,
   dest: Expression,
   offset: Expression,
   size: Expression,
@@ -2242,13 +2242,13 @@ export function makeTableInit(
 }
 
 /** Creates an `elem.drop` expression. */
-export function makeElemDrop(segment: string): ElemDropExpr {
+export function makeElemDrop(segment: Var): ElemDropExpr {
   return { kind: ExpressionKind.ElemDrop, type: None, segment };
 }
 
 /** Creates a `memory.init` expression. */
 export function makeMemoryInit(
-  segment: string,
+  segment: Var,
   dest: Expression,
   offset: Expression,
   size: Expression,
@@ -2266,18 +2266,18 @@ export function makeMemoryInit(
 }
 
 /** Creates a `data.drop` expression. */
-export function makeDataDrop(segment: string): DataDropExpr {
+export function makeDataDrop(segment: Var): DataDropExpr {
   return { kind: ExpressionKind.DataDrop, type: None, segment };
 }
 
 /** Creates a `table.size` expression. */
-export function makeTableSize(table: string): TableSizeExpr {
+export function makeTableSize(table: Var): TableSizeExpr {
   return { kind: ExpressionKind.TableSize, type: ValType.I32, table };
 }
 
 /** Creates a `table.grow` expression. */
 export function makeTableGrow(
-  table: string,
+  table: Var,
   value: Expression,
   delta: Expression,
 ): TableGrowExpr {
@@ -2286,7 +2286,7 @@ export function makeTableGrow(
 
 /** Creates a `table.fill` expression. */
 export function makeTableFill(
-  table: string,
+  table: Var,
   dest: Expression,
   value: Expression,
   size: Expression,
@@ -2296,8 +2296,8 @@ export function makeTableFill(
 
 /** Creates a `table.copy` expression. */
 export function makeTableCopy(
-  destTable: string,
-  sourceTable: string,
+  destTable: Var,
+  sourceTable: Var,
   dest: Expression,
   source: Expression,
   size: Expression,
@@ -2453,22 +2453,22 @@ export function makeStructNewDefault(typeVar: Var, resultType: Type): StructNewE
 /** Creates a struct.get expression. */
 export function makeStructGet(
   typeVar: Var,
-  fieldIndex: number,
+  fieldVar: Var,
   ref: Expression,
   resultType: Type,
   signed = false,
 ): StructGetExpr {
-  return { kind: ExpressionKind.StructGet, type: resultType, typeVar, fieldIndex, ref, signed };
+  return { kind: ExpressionKind.StructGet, type: resultType, typeVar, fieldVar, ref, signed };
 }
 
 /** Creates a struct.set expression. */
 export function makeStructSet(
   typeVar: Var,
-  fieldIndex: number,
+  fieldVar: Var,
   ref: Expression,
   value: Expression,
 ): StructSetExpr {
-  return { kind: ExpressionKind.StructSet, type: None, typeVar, fieldIndex, ref, value };
+  return { kind: ExpressionKind.StructSet, type: None, typeVar, fieldVar, ref, value };
 }
 
 /** Creates an array.new expression. */
@@ -2502,7 +2502,7 @@ export function makeArrayNewFixed(
 /** Creates an array.new_data expression. */
 export function makeArrayNewData(
   typeVar: Var,
-  dataSegment: number,
+  dataVar: Var,
   offset: Expression,
   length: Expression,
   resultType: Type,
@@ -2511,7 +2511,7 @@ export function makeArrayNewData(
     kind: ExpressionKind.ArrayNewData,
     type: resultType,
     typeVar,
-    dataSegment,
+    dataVar,
     offset,
     length,
   };
@@ -2520,7 +2520,7 @@ export function makeArrayNewData(
 /** Creates an array.new_elem expression. */
 export function makeArrayNewElem(
   typeVar: Var,
-  elemSegment: number,
+  elemVar: Var,
   offset: Expression,
   length: Expression,
   resultType: Type,
@@ -2529,7 +2529,7 @@ export function makeArrayNewElem(
     kind: ExpressionKind.ArrayNewElem,
     type: resultType,
     typeVar,
-    elemSegment,
+    elemVar,
     offset,
     length,
   };
@@ -2593,7 +2593,7 @@ export function makeArrayCopy(
 /** Creates an `array.init_data $T $seg` expression. */
 export function makeArrayInitData(
   typeVar: Var,
-  segment: number,
+  segment: Var,
   ref: Expression,
   index: Expression,
   offset: Expression,
@@ -2614,7 +2614,7 @@ export function makeArrayInitData(
 /** Creates an `array.init_elem $T $seg` expression. */
 export function makeArrayInitElem(
   typeVar: Var,
-  segment: number,
+  segment: Var,
   ref: Expression,
   index: Expression,
   offset: Expression,
@@ -2707,7 +2707,7 @@ export function makeTry(
 }
 
 /** Creates a `throw $tag operands*` expression. */
-export function makeThrow(tag: string, operands: Expression[]): ThrowExpr {
+export function makeThrow(tag: Var, operands: Expression[]): ThrowExpr {
   return { kind: ExpressionKind.Throw, type: Unreachable, tag, operands };
 }
 

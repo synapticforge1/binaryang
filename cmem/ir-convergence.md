@@ -1273,6 +1273,61 @@ unchanged, and the conversion was source-compatible on the first check.
 
 **Gate**: 954 tests, baseline IDENTICAL, bridge 397/421, spec 100% on four axes, lint clean.
 
+##### The 28 structural kinds — RE-MEASURED 2026-09-09, and the scoping was stale
+
+⚠️ **Group 1 was scoped as "no new decision — differs by the `Var` call already made". The call was
+made; the CONVERSION was not.** Re-measuring before touching anything found **28 entity references
+across 11 field names** still held as a resolved scalar — because the step-4 measurement found its
+five families by looking at kinds whose field sets differed by exactly ONE pair, and that method
+cannot see a kind differing several ways at once, which is every kind in this set.
+
+Converted in two commits, split by the accessor each needs:
+
+| batch      | fields | what                                                                      |
+| ---------- | ------ | ------------------------------------------------------------------------- |
+| index-form | 4      | `fieldIndex`→`fieldVar`, `dataSegment`→`dataVar`, `elemSegment`→`elemVar` |
+| name-form  | 17     | `table` ×7, `segment` ×6, `tag`, `Call.target`, `destTable`/`sourceTable` |
+
+**NOT converted, each deliberately:** the 7 LABEL references (`name` ×5, `delegateTarget`,
+`Rethrow.target`) — wabt-ts holds a relative DEPTH, binaryen-ts a symbolic label, which is different
+modelling and belongs with the block family; `CatchClause.tag`, inside the `try_table` catch shape,
+a Group 2 decision that converting would settle by accident; and module-level references
+(`ElementSegment.table`, exports), a separate surface.
+
+###### Where the 28 stand now
+
+| bucket         | n  |                                                                                                           |
+| -------------- | -- | --------------------------------------------------------------------------------------------------------- |
+| **RESOLVED**   | 4  | `array.new_data`, `array.new_elem`, `struct.get`, `struct.set` — identical once `Expr`/`Expression` unify |
+| **RENAME**     | 8  | same field count and types, different operand names                                                       |
+| **STRUCTURAL** | 16 | a real decision remains                                                                                   |
+
+**RENAME (8):** `array.copy`, `array.fill`, `array.init_data`, `array.init_elem`, `array.new_fixed`,
+`memory.copy`, `memory.init`, `table.copy`.
+
+🛑 **`table.copy` is NOT mechanical, and a blind rename would silently swap two fields.** `source`
+exists on BOTH sides with different meanings:
+
+```
+wabt-ts : dst: Var;        source: Var;        dest: Expr; srcOffset: Expr; size: Expr
+bn      : destTable: Var;  sourceTable: Var;   dest: Expr; source: Expr;    size: Expr
+```
+
+wabt-ts's `source` is the source TABLE; binaryen-ts's `source` is the source OFFSET operand.
+Unifying on the name would hand one side a table where it expects an operand — valid types on both
+sides of the swap, and no compiler complaint. Rename `srcOffset`/`source` first, or rename the table
+reference, but never both to `source`.
+
+⚠️ **The measurement itself had an artifact, caught before it misled anything.** The classifier
+paired fields BY POSITION, so `memory.init` read as `segment/memory, memidx/segment` when the real
+mapping is segment↔segment and memidx↔memory — the field ORDER differs, which is not a rename at
+all. Fixed to report set differences. Nth artifact of this class in this project; a positional
+comparison of two independently-authored structures is never right.
+
+**STRUCTURAL (16):** `block`, `br`, `br_on`, `call_indirect`, `if`, `load`, `loop`, `ref.as`,
+`ref.null`, `select`, `simd.load`, `simd.load_store_lane`, `simd.shuffle`, `store`, `try`,
+`try_table` — Group 2's seven decisions, Group 3's five ties, and the block/label family.
+
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
 1,923 lines plus 13 test files. ⚠️ **The bridge is also where a wabt-ts tree acquires its types
