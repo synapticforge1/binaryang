@@ -437,6 +437,20 @@ it and should not be described as a fixed defect.
 rather than as coverage.** Two of these were kept on those terms. What must not happen is a green
 suite implying evidence that was never collected.
 
+### Refinement: it must fail on the BOUNDARY, not merely go red (S6, 2026-09-09)
+
+A test that fails against the reverted fix has been shown to fail — not to test the right thing. It
+could be failing on everything.
+
+`memory64_offset.test.ts` was checked against the truncating encoder: **5 of 7 cases failed, and the
+two below 2³² still passed.** That split is the evidence — it shows the test separates the values
+the defect affects from the ones it does not. A test where all seven had gone red would have proved
+only that something changed.
+
+**Include cases on BOTH sides of the boundary, and read which ones flip.** This is the same
+instruction the wabt-ts wing gives for guard tests — "check WHICH steps flip" — applied to a value
+range rather than a set of steps.
+
 ## 🆕 A "this is unsafe" comment can be wrong about the standard and right about our code
 
 The WAT writer declined to fold any node whose operands were partly stack-sourced, and the comment
@@ -667,6 +681,111 @@ in `binary-writer.ts` and `bridge.ts`, both describing the keyword-lookup design
 removed. A stale rationale is already a rule here; this is the specific way it is created. **When an
 edit replaces a body, check what sits immediately above it**, because a docstring is not adjacent to
 the thing it documents in any way the tooling understands.
+
+## 🆕 Make the defect UNREPRESENTABLE — and find where to do it by its compensating mechanism
+
+**Rule: when a representation can hold an invalid state, change the representation rather than
+guarding against the state. The places that need it announce themselves: look for the code that
+exists only to compensate.**
+
+Every structural decision in S6 Group 2 went this way, and the finding was the same each time — the
+defect had already been caught once, and the fix had been a MECHANISM around the shape rather than a
+change to it:
+
+| representation                               | compensating mechanism                                                                | what replaced both                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| parallel `catchTags[]` / `catchBodies[]`     | an encoder length guard, whose comment names the corruption it caught                 | a record per clause — a tag cannot come apart from its body |
+| `''` as the `catch_all` tag                  | none — and the parser and encoder had **disagreed** about it (`$__catch_all` vs `''`) | `tag?: Var`; absence IS catch_all                           |
+| same                                         | `cfg.ts`: "the two are the same length by construction"                               | the type carries it                                         |
+| `RefAsOp`, one member but typed `Opcode`     | an encoder `throw` for every value the type admitted and the kind forbade             | no field: the kind is the operator                          |
+| `number` memarg offset                       | the bridge's `throw 'memory64 not supported yet'`                                     | `bigint`, and a `writeU64`                                  |
+| a `Var` whose name arm meant keyword OR `$T` | four keyword-table lookups re-deriving which                                          | an `abstract` arm                                           |
+
+🔑 **Each mechanism was correct and each one was the problem.** A guard proves someone met the
+invalid state; it does not stop the next author from producing it, and it costs every reader the
+reasoning to see why it cannot fire.
+
+### The tells — grep for these
+
+- a length or count check comparing **two collections that are meant to move together**
+- a comment saying **"by construction"**, "cannot happen", or "keep indices aligned"
+- a **sentinel**: `=== ''`, `=== -1`, `'$__x'`, a well-formed value standing for "none"
+- a **`not yet supported` / `unsupported`** throw on a value the type admits
+- a field the code **always sets to the same value**, or tests only against one
+
+### ⚠️ The rule already existed, and the code violated it anyway
+
+`cmem/binaryen-ts/best-practices.md` already says it, reached independently from `funcTypes`: _"Use
+a sentinel the domain cannot produce (`null`), or throw — never a well-formed value of the same
+type… Then put the sentinel in the TYPE and let the compiler do the audit."_ The `catch_all` `''`
+violated that for the life of the file, and a test pinned the violation as a requirement.
+
+**A rule in a wing file is not enforced at the code sites it governs.** Nothing connects them except
+someone reading both. That is the argument for the grep list above: it turns a principle into a
+search that can be run.
+
+## 🆕 A wrapper that satisfies the type checker is not evidence the value survived
+
+**Rule: when a type is widened, fix the SOURCE of the value. A conversion at the use site that makes
+the compiler quiet can carry the exact loss the change existed to remove.**
+
+Converting memarg offsets from `number` to `bigint`, the compiler-driven pass produced — twice —
+code that type-checked and preserved the truncation:
+
+```ts
+BigInt(bigintOffsetToNumber(ld.offset, 'load')); // bigint → number → bigint, through a check that
+// THROWS above MAX_SAFE_INTEGER
+BigInt(offset); // ×45, where `offset` came from readU32()
+```
+
+Both were right about types and wrong about values. The real fixes were one line each, at the
+source: `readMemArg` calls `readU64` — which the reader already had — and the bridge passes the
+bigint straight through.
+
+### How to apply
+
+- **After widening, grep for round trips through the old type**: `BigInt(Number(`, `Number(BigInt(`,
+  a narrowing helper wrapped in the widening constructor, a `readU32` feeding a `bigint`.
+- **Count the wraps.** Forty-five identical wraps of one variable means the variable is wrong, not
+  the forty-five sites — the same "fix it upstream of all of them" signal as the memory-index
+  conversion, where 50 errors collapsed to one change in `readMemArg`.
+- **Prove the value, not the type**: a test that round-trips a value the OLD type could not hold.
+  `memory64_offset.test.ts` uses 2³²+8, which `number`-via-`writeU32` maps to 8.
+
+## 🆕 Measure blast radius by TRIALLING the change, not by grepping for the name
+
+**Rule: when direction is decided by cost, get the cost from the compiler. Make the change, count
+the errors, revert, and do the same the other way.**
+
+Choosing between two field names, a repo-wide `.field` count said `memory` 20 vs `memidx` 67 — keep
+`memory`. Trialling both renames said **10 sites vs 133**, the other way, a 13× difference. The grep
+had counted `module.memory`, every memarg's `.offset`, and every unrelated `.memory` in the tree.
+
+The asymmetry was real and explicable once measured: wabt-ts's `memidx` appears in its writers,
+validators and name-resolution passes; binaryen-ts's `memory` was read almost only by its encoder.
+The two names were never equally entrenched — they only looked it from outside.
+
+### Two refinements from the same work
+
+- **When two fields SWAP names, sequence the passes.** `table.copy` had `source` meaning the source
+  TABLE on one side and the source OFFSET operand on the other. Renaming both at once makes every
+  `source` site ambiguous — the compiler reports "property does not exist" without saying which was
+  meant, and no script can choose. Move one field aside, verify clean, then move the other.
+- **Cost does not always get the vote.** wabt-ts had `dst` (a table) beside `dest` (an operand), one
+  letter apart; TypeScript itself kept suggesting _"Did you mean to write 'dest'?"_ during the
+  rename. That went to the unambiguous names on SAFETY. Blast radius decides ties, and a name that
+  invites the wrong field is not a tie.
+
+## 🆕 A reservation in a comment must be checked for supersession before it is foreclosed
+
+`RefAsOp`'s doc said _"the extern conversions are post-MVP and would be added here rather than as
+separate expression kinds"_. Dropping the field foreclosed that plan — except the unified IR already
+modelled those conversions as their own kinds, so the reservation had been superseded, not merely
+left unused.
+
+**Check whether a reserved extension point has been served some other way before removing it — and
+say what served it in the comment left behind.** A reader who finds neither the mechanism nor an
+explanation will reasonably re-add it, and the reservation will outlive a second design.
 
 ## Where to go for the rest
 
