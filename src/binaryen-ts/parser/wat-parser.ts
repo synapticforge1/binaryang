@@ -64,6 +64,7 @@ import {
   makeArrayNewDefault,
   makeArrayNewFixed,
   makeArraySet,
+  makeBreak,
   makeDataDrop,
   makeElemDrop,
   makeExternConvert,
@@ -106,7 +107,6 @@ import {
   makeThrowRef,
   makeTry,
   makeTryTable,
-  makeTupleMake,
   makeV128Const,
   type MemoryCopyExpr,
   type MemoryFillExpr,
@@ -1011,11 +1011,14 @@ class WatModuleParser {
       return { kind: ExpressionKind.Unreachable, type: Unreachable } as UnreachableExpr;
     }
     if (head === 'return') {
-      // EVERY operand, not just the first: a multi-value return carries N.
-      const value = this.tupleOrSingle(args.map((a) => this.parseExpr(a, ctx)));
+      // EVERY operand, not just the first: a multi-value return carries N. This
+      // took only the first while the node held one `value` — the rest were
+      // silently DROPPED, and 35 of 421 corpus modules re-encoded to something
+      // no engine would load ("expected 2 elements on the stack for return,
+      // found 1"). A `values` list (S6 decision 6A) holds N by shape.
       // makeReturn types the node `unreachable` (not the value's type); see the
       // bare-atom `return` case above for why this matters to block typing.
-      return makeReturn(value);
+      return makeReturn(args.map((a) => this.parseExpr(a, ctx)));
     }
     if (head === 'drop') {
       const value = this.parseExpr(args[0], ctx);
@@ -1575,25 +1578,18 @@ class WatModuleParser {
     // Both surfaced re-parsing our own `wasm2wat --fold` output, which emits
     // exactly these shapes.
     //   3. and both arms took ONE value where a multi-value target carries N,
-    //      dropping the rest — see `tupleOrSingle`.
+    //      dropping the rest — the node held one `value`; it holds a `values`
+    //      list now (S6 decision 6A).
+    //   4. a `br_if` carrying a value was typed `none`: this built the node as a
+    //      literal typed `conditional ? None : Unreachable`. A `br_if` falls
+    //      through WITH its values when not taken, so it has their type —
+    //      which `makeBreak` computes, as upstream `Break::finalize` does.
     const rest = args.slice(1);
-    let condition: Expression | null = null;
-    let value: Expression | null = null;
-    if (conditional) {
-      const condNode = rest[rest.length - 1];
-      if (condNode === undefined) this.err('br_if: missing condition', pos);
-      condition = this.parseExpr(condNode, ctx);
-      value = this.tupleOrSingle(rest.slice(0, -1).map((a) => this.parseExpr(a, ctx)));
-    } else {
-      value = this.tupleOrSingle(rest.map((a) => this.parseExpr(a, ctx)));
-    }
-    return {
-      kind: ExpressionKind.Break,
-      type: conditional ? None : Unreachable,
-      name,
-      condition,
-      value,
-    };
+    if (!conditional) return makeBreak(name, null, rest.map((a) => this.parseExpr(a, ctx)));
+    const condNode = rest[rest.length - 1];
+    if (condNode === undefined) this.err('br_if: missing condition', pos);
+    const condition = this.parseExpr(condNode, ctx);
+    return makeBreak(name, condition, rest.slice(0, -1).map((a) => this.parseExpr(a, ctx)));
   }
 
   /**
@@ -1627,14 +1623,15 @@ class WatModuleParser {
     // Remaining args are operand expressions. Last is always the condition;
     // EVERYTHING before it is the carried values. This took only the one just
     // before the condition, so a multi-value `br_table` dropped the rest and
-    // V8 rejected the module — the third time this packing step dropped values
-    // (see `tupleOrSingle`: `return` and `br` did it first).
+    // V8 rejected the module — the third time the one-`value` packing step
+    // dropped values (`return` and `br` did it first). A `values` list (S6
+    // decision 6A) removed the packing step.
     const operands = args.slice(labelEnd);
     if (operands.length === 0) this.err('br_table: missing condition operand', pos);
     const condition = this.parseExpr(operands[operands.length - 1], ctx);
-    const value = this.tupleOrSingle(operands.slice(0, -1).map((a) => this.parseExpr(a, ctx)));
+    const values = operands.slice(0, -1).map((a) => this.parseExpr(a, ctx));
 
-    return makeSwitch(targets, defaultTarget, condition, value);
+    return makeSwitch(targets, defaultTarget, condition, values);
   }
 
   private parseTryTable(list: SList, ctx: FuncContext): Expression {
@@ -3183,25 +3180,6 @@ class WatModuleParser {
   // -------------------------------------------------------------------------
 
   /**
-   * Collapse the value operands of a `return` or `br` into the single slot the
-   * IR gives them.
-   *
-   * ⚠️ A multi-value function returns N values, and `(return a b)` carries both.
-   * `ReturnExpr.value` and `BreakExpr.value` hold ONE expression, and both parse
-   * sites took only the first operand — so the rest were silently DROPPED. The
-   * module still encoded and no diagnostic fired; engines rejected it with
-   * *"expected 2 elements on the stack for return, found 1"*. 35 of 421 corpus
-   * modules re-encoded to something no engine would load.
-   *
-   * `TupleMake` is the right container and needs no new machinery: it has no
-   * opcode of its own, and the encoder emits its operands in order — a tuple IS
-   * its N values on the stack, which is exactly the multi-value convention. Same
-   * shape upstream binaryen uses.
-   *
-   * Zero values is a bare `return`/`br`; one stays unwrapped so the common case
-   * produces the tree it always did.
-   */
-  /**
    * A block-like construct's type use: `(type $t)? (param …)* (result …)*`.
    *
    * Shared by block, loop, if, try and try_table, which each carried their own
@@ -3289,12 +3267,6 @@ class WatModuleParser {
       this.heapTypeDefs.set(this.builder.addHeapType(def), def);
       have.add(key);
     }
-  }
-
-  private tupleOrSingle(values: Expression[]): Expression | null {
-    if (values.length === 0) return null;
-    if (values.length === 1) return values[0]!;
-    return makeTupleMake(values);
   }
 
   /**

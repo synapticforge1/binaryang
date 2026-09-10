@@ -76,11 +76,11 @@ function buildAddWasm(): Uint8Array {
   const body = makeBlock(
     [
       makeReturn(
-        makeBinary(
+        [makeBinary(
           BinaryOp.AddI32,
           makeLocalGet(varIndex(0), ValType.I32),
           makeLocalGet(varIndex(1), ValType.I32),
-        ),
+        )],
       ),
     ],
     null,

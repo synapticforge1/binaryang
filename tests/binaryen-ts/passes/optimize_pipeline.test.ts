@@ -170,7 +170,7 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested in 
           null,
         ),
         makeLocalSet(varIndex(3), xPlus7()),
-        makeReturn(makeLocalGet(varIndex(3), ValType.I32)),
+        makeReturn([makeLocalGet(varIndex(3), ValType.I32)]),
       ], null),
       [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }],
     )
@@ -209,7 +209,7 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested ear
       [ValType.I32],
       makeBlock([
         makeReturn(
-          makeBinary(
+          [makeBinary(
             BinaryOp.AddI32,
             makeBinary(
               BinaryOp.AddI32,
@@ -217,7 +217,7 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested ear
               makeLocalTee(varIndex(0), makeI32Const(99), ValType.I32),
             ),
             x1(),
-          ),
+          )],
         ),
       ], null),
       [],

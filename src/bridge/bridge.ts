@@ -173,7 +173,6 @@ import {
   makeThrowRef,
   makeTry,
   makeTryTable,
-  makeTupleMake,
   makeUnary,
   makeUnreachable,
   makeV128Const,
@@ -958,14 +957,8 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'return': {
       const r = e as ReturnExpr;
-      if (r.values.length === 0) return makeReturn(null);
-      if (r.values.length === 1) return makeReturn(bridgeExpr(r.values[0]!, ctx));
-      // 🔧 The blocker named here — "binaryen-ts exposes TupleMake as an
-      // ExpressionKind but has no factory" — is gone: `makeTupleMake` exists,
-      // and the encoder emits a tuple as its operands in order, which IS the
-      // multi-value convention. Same container the WAT parser uses for the same
-      // shape.
-      return makeReturn(makeTupleMake(r.values.map((v) => bridgeExpr(v, ctx))));
+      // Both sides hold a `values` list now (S6 decision 6A): no packing.
+      return makeReturn(bridgeValues(r.values, ctx));
     }
 
     // --- Block-like -------------------------------------------------------
@@ -1043,14 +1036,23 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeBreak(
         target,
         br.condition !== undefined ? bridgeExpr(br.condition, ctx) : null,
-        bridgeBranchValue(br.values, ctx),
+        bridgeValues(br.values, ctx),
       );
     }
     case 'br_table': {
       const brT = e as BrTableExpr;
       const targets = brT.targets.map((t) => resolveLabel(ctx, t));
       const defaultTarget = resolveLabel(ctx, brT.defaultTarget);
-      return makeSwitch(targets, defaultTarget, bridgeExpr(brT.value, ctx), null);
+      // 🔧 Passed `null` for the values, DROPPING `brT.values` — wabt-ts holds a
+      // folded `(br_table $a $b (i32.const 7) (local.get 0))`'s carried value
+      // there. The same drop-at-packing class as every other branch value bug;
+      // found when S6 decision 6A gave `makeSwitch` a list to fill.
+      return makeSwitch(
+        targets,
+        defaultTarget,
+        bridgeExpr(brT.value, ctx),
+        bridgeValues(brT.values, ctx),
+      );
     }
 
     // --- Calls ------------------------------------------------------------
@@ -1568,23 +1570,11 @@ function refTypeVarToValType(h: HeapTypeRef, ctx: BridgeCtx): BValueType {
 }
 
 /**
- * The single value a binaryen-ts `makeBreak` can carry.
- *
- * binaryen-ts has no `makeTupleMake` factory in v1.0.9, so a branch carrying
- * SEVERAL values (a multi-value target label) has no representation here.
- * Fail loudly rather than silently emitting only the first — that silent drop
- * is the bug this IR change fixed.
+ * A branch's or return's carried values, element for element — both IRs hold a
+ * `values` list since S6 decision 6A, so nothing is packed or unpacked here.
  */
-function bridgeBranchValue(
-  values: Expr[],
-  ctx: BridgeCtx,
-): ReturnType<typeof bridgeExpr> | null {
-  if (values.length === 0) return null;
-  if (values.length === 1) return bridgeExpr(values[0]!, ctx);
-  // 🔧 Fourth stale blocker: `makeTupleMake` is not absent, and the version
-  // this named is several releases old. A tuple encodes as its operands in
-  // order, which is the multi-value convention.
-  return makeTupleMake(values.map((v) => bridgeExpr(v, ctx)));
+function bridgeValues(values: Expr[], ctx: BridgeCtx): Expression[] {
+  return values.map((v) => bridgeExpr(v, ctx));
 }
 
 // --- Small helpers used inside bridgeExpr ---

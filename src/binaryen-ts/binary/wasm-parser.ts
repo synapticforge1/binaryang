@@ -78,7 +78,6 @@ import {
   makeThrowRef,
   makeTry,
   makeTryTable,
-  makeTupleMake,
   makeUnary,
   makeUnreachable,
   makeV128Const,
@@ -678,31 +677,28 @@ function _branchValueArity(frames: ControlFrame[], depth: number): number {
 }
 
 /**
- * The value a branch to `depth` carries, or `null` when it carries none.
- *
- * Arity 0 → `null`; arity 1 → the popped value; arity N > 1 → one
- * {@link makeTupleMake} holding all N, popped in reverse (the last operand is
- * on top of the stack). `BreakExpr.value` is a single expression, so a tuple is
- * how N values reach it.
+ * Pops `n` values into a list in STACK order — the first-pushed first, since
+ * the last operand is on top of the stack.
  *
  * @internal
  */
-function _branchValue(
+function _popValues(n: number, pop: () => Expression): Expression[] {
+  const vals: Expression[] = [];
+  for (let i = 0; i < n; i++) vals.unshift(pop());
+  return vals;
+}
+
+/**
+ * The values a branch to `depth` carries — as many as the target consumes.
+ *
+ * @internal
+ */
+function _branchValues(
   frames: ControlFrame[],
   depth: number,
   pop: () => Expression,
-): Expression | null {
-  const arity = _branchValueArity(frames, depth);
-  if (arity === 0) return null;
-  if (arity === 1) return pop();
-  const vals: Expression[] = [];
-  for (let i = 0; i < arity; i++) vals.unshift(pop());
-  return makeTupleMake(vals);
-}
-
-/** A branch VALUE from a list: one expression, or a `tuple.make`. */
-function oneOrTuple(exprs: Expression[]): Expression {
-  return exprs.length === 1 ? exprs[0]! : makeTupleMake(exprs);
+): Expression[] {
+  return _popValues(_branchValueArity(frames, depth), pop);
 }
 
 /**
@@ -1517,10 +1513,10 @@ class WasmParser {
       if (switchTargets !== undefined) {
         // `br_table` where every target is this same loop: one set of temps,
         // then a value-less table.
-        push(makeSwitch(switchTargets, label, switchIndex!, null));
+        push(makeSwitch(switchTargets, label, switchIndex!));
         return;
       }
-      push(makeBreak(label, cond, null));
+      push(makeBreak(label, cond));
       if (cond !== null) {
         for (const [i, slot] of slots.entries()) push(makeLocalGet(varIndex(slot), types[i]!));
       }
@@ -1597,12 +1593,11 @@ class WasmParser {
           const out: Expression[] = slots.map((slot, i) =>
             makeLocalSet(varIndex(slot), makeLocalGet(varIndex(shared[i]!), types[i]!))
           );
-          out.push(makeBreak(label, null, null));
+          out.push(makeBreak(label));
           return out;
         }
         const reads = shared.map((slot, i) => makeLocalGet(varIndex(slot), types[i]!));
-        const value = reads.length === 0 ? null : oneOrTuple(reads);
-        return [makeBreak(label, null, value)];
+        return [makeBreak(label, null, reads)];
       };
 
       // One wrapper block per case; `caseLabels[j]` is exited to reach case j.
@@ -1871,8 +1866,7 @@ class WasmParser {
           // stack. For a `loop`, branching jumps to the loop entry (and in
           // MVP loops have no inputs, so nothing is consumed). For
           // `block`/`if`/`try`/etc., it consumes the target's result types.
-          // A branch to a multi-result target carries N values. `BreakExpr.value`
-          // is a single expression, so N > 1 is delivered as one `tuple.make`.
+          // A branch to a multi-result target carries N values, held as a list.
           // This used to pop NOTHING for N > 1 and emit a value-less break,
           // silently discarding every value the branch carried.
           const brTarget = branchTarget(depth);
@@ -1880,8 +1874,8 @@ class WasmParser {
             rewriteLoopBranch(brTarget, resolveLabel(frames, depth), null);
             break;
           }
-          const value = _branchValue(frames, depth, pop);
-          push(makeBreak(resolveLabel(frames, depth), null, value));
+          const values = _branchValues(frames, depth, pop);
+          push(makeBreak(resolveLabel(frames, depth), null, values));
           break;
         }
         case 0x0d: { // br_if
@@ -1893,8 +1887,8 @@ class WasmParser {
             rewriteLoopBranch(brIfTarget, resolveLabel(frames, depth), cond);
             break;
           }
-          const value = _branchValue(frames, depth, pop);
-          push(makeBreak(resolveLabel(frames, depth), cond, value));
+          const values = _branchValues(frames, depth, pop);
+          push(makeBreak(resolveLabel(frames, depth), cond, values));
           break;
         }
         case 0x0e: { // br_table
@@ -1905,21 +1899,19 @@ class WasmParser {
           // br_table stack order: ..., value, index. Pop index first, then
           // value if any target has results (all targets must share arity).
           const cond = pop();
-          // A `br_table` picks its target at RUNTIME, so a parametrised loop
-          // among the targets cannot be rewritten: the `local.set`s would have
-          // to name whichever loop's temps the index selects, and distinct
-          // loops have distinct slots. Emitting one loop's sets and jumping to
-          // another would corrupt both. Rare enough to reject outright.
           // `br_table` picks its target at RUNTIME, so a parametrised loop among
-          // the targets can only be rewritten when EVERY target is that same
-          // loop — then there is one unambiguous set of temps to write.
+          // the targets can be rewritten in place only when EVERY target is that
+          // same loop — then there is one unambiguous set of temps to write.
           //
           // Mixed targets cannot be served by a single table once the loop's
           // parameters have become locals: the loop now consumes 0 stack values
           // while a block/function target still consumes its own arity, so no
-          // one instruction satisfies both. Untangling that needs a per-target
-          // dispatch trampoline — a different control-flow shape, not a
-          // rewrite — so it is rejected rather than approximated.
+          // one instruction satisfies both. They get a per-target dispatch
+          // trampoline instead (`buildBrTableTrampoline`).
+          //
+          // 🔧 This comment used to open by saying such tables were "rare enough
+          // to reject outright", and to close with "rejected rather than
+          // approximated" — both from before the trampoline existed.
           const tableTargets = [...depths, defaultDepth].map(branchTarget);
           const paramLoopTargets = tableTargets.filter((t) => t?.paramLocals?.length);
           if (paramLoopTargets.length > 0) {
@@ -1944,15 +1936,20 @@ class WasmParser {
             buildBrTableTrampoline(tableTargets, labels, cond, tTypes.length, tTypes);
             break;
           }
-          const value = _branchValue(frames, defaultDepth, pop);
+          const values = _branchValues(frames, defaultDepth, pop);
           const targets = depths.map((d) => resolveLabel(frames, d));
           const defaultTarget = resolveLabel(frames, defaultDepth);
-          push(makeSwitch(targets, defaultTarget, cond, value));
+          push(makeSwitch(targets, defaultTarget, cond, values));
           break;
         }
         case 0x0f: { // return
-          const hasVal = ft.results.length > 0;
-          push(makeReturn(hasVal ? pop() : null));
+          // 🔧 Pops one value PER RESULT. It popped exactly one whenever the
+          // function had any result, so a multi-value `return` left the other
+          // values behind as loose statements beside it (`[const 1,
+          // return(const 2)]`). The bytes re-encoded identically, which is why
+          // no round trip saw it; any pass free to move or drop a loose value
+          // could have broken it.
+          push(makeReturn(_popValues(ft.results.length, pop)));
           break;
         }
         case 0x10: { // call

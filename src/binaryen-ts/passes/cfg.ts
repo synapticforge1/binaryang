@@ -292,7 +292,7 @@ class _CFGBuilder {
       // Branches — wasm spec evaluation order is value, then condition.
       // -------------------------------------------------------------------
       case ExpressionKind.Break: {
-        if (e.value) this.visit(e.value);
+        for (const v of e.values) this.visit(v);
         if (e.condition) this.visit(e.condition);
         const target = this.resolveLabel(e.name);
         if (target) this.link(this.current, target);
@@ -309,7 +309,7 @@ class _CFGBuilder {
       }
 
       case ExpressionKind.Switch: {
-        if (e.value) this.visit(e.value);
+        for (const v of e.values) this.visit(v);
         this.visit(e.condition);
         const seen = new Set<string>();
         for (const name of [...e.targets, e.defaultTarget]) {
@@ -323,7 +323,7 @@ class _CFGBuilder {
       }
 
       case ExpressionKind.Return: {
-        if (e.value) this.visit(e.value);
+        for (const v of e.values) this.visit(v);
         this.current = null;
         return;
       }

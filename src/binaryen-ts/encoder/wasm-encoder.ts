@@ -85,7 +85,6 @@ import {
   type ThrowRefExpr,
   type TryExpr,
   type TryTableExpr,
-  type TupleMakeExpr,
   typeOf,
   type UnaryExpr,
 } from '../ir/expressions.ts';
@@ -93,8 +92,9 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { isRef, None, type Type, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
-// it did not list, and it did not list `TupleMake` — so a `call_indirect` (or a
-// multi-result block) carried by a multi-value `br` was invisible to type
+// it did not list, and it did not list `TupleMake` (the container multi-value
+// branches used before S6 decision 6A gave them a `values` list) — so a
+// `call_indirect` (or a multi-result block) carried by a multi-value `br` was invisible to type
 // collection and the encode failed with "unresolved function type" on a legal
 // module. `visitChildren` throws on an unhandled kind, so a future node cannot
 // go missing the same way.
@@ -1518,7 +1518,7 @@ class WasmEncoder {
 
       case ExpressionKind.Break: {
         const e = expr as BreakExpr;
-        if (e.value) this.encodeExpr(w, e.value, labels);
+        for (const v of e.values) this.encodeExpr(w, v, labels);
         if (e.condition) {
           this.encodeExpr(w, e.condition, labels);
           w.writeU8(0x0d); // br_if
@@ -1531,7 +1531,7 @@ class WasmEncoder {
 
       case ExpressionKind.Switch: {
         const e = expr as SwitchExpr;
-        if (e.value) this.encodeExpr(w, e.value, labels);
+        for (const v of e.values) this.encodeExpr(w, v, labels);
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x0e); // br_table
         w.writeU32(e.targets.length);
@@ -1542,7 +1542,7 @@ class WasmEncoder {
 
       case ExpressionKind.Return: {
         const e = expr as ReturnExpr;
-        if (e.value) this.encodeExpr(w, e.value, labels);
+        for (const v of e.values) this.encodeExpr(w, v, labels);
         w.writeU8(0x0f);
         break;
       }
@@ -1859,13 +1859,6 @@ class WasmEncoder {
         const e = expr as RefIsNullExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0xd1);
-        break;
-      }
-      case ExpressionKind.TupleMake: {
-        // No wasm opcode: a tuple IS its N values sitting on the stack, so
-        // emitting the operands in order is the whole encoding.
-        const e = expr as TupleMakeExpr;
-        for (const opcode of e.operands) this.encodeExpr(w, opcode, labels);
         break;
       }
       case ExpressionKind.RefAs: {

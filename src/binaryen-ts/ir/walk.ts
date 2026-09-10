@@ -141,25 +141,25 @@ function _mapChildren(
     case ExpressionKind.Loop:
       return { ...expr, body: slot(expr.body) };
 
+    // ⚠️ Condition is mapped BEFORE the values, the reverse of wasm's evaluation
+    // order (values are pushed first). Kept as it was when `value` became
+    // `values` (S6 decision 6A) so that change moved no bytes; see open-work.
     case ExpressionKind.Break:
       return {
         ...expr,
         condition: expr.condition ? fn(expr.condition) : null,
-        value: expr.value ? fn(expr.value) : null,
+        values: expr.values.map(fn),
       };
 
     case ExpressionKind.Switch:
       return {
         ...expr,
         condition: fn(expr.condition),
-        value: expr.value ? fn(expr.value) : null,
+        values: expr.values.map(fn),
       };
 
     case ExpressionKind.Return:
-      return {
-        ...expr,
-        value: expr.value ? fn(expr.value) : null,
-      };
+      return { ...expr, values: expr.values.map(fn) };
 
     case ExpressionKind.LocalSet:
       return { ...expr, value: fn(expr.value) };
@@ -285,9 +285,6 @@ function _mapChildren(
 
     case ExpressionKind.RefAs:
       return { ...expr, value: fn(expr.value) };
-
-    case ExpressionKind.TupleMake:
-      return { ...expr, operands: expr.operands.map(fn) };
 
     case ExpressionKind.RefEq:
       return {
@@ -504,16 +501,17 @@ function _visitChildren(
     case ExpressionKind.Loop:
       visit(expr.body);
       break;
+    // ⚠️ Condition before values — see the same note in `mapExpression`.
     case ExpressionKind.Break:
       if (expr.condition) visit(expr.condition);
-      if (expr.value) visit(expr.value);
+      expr.values.forEach(visit);
       break;
     case ExpressionKind.Switch:
       visit(expr.condition);
-      if (expr.value) visit(expr.value);
+      expr.values.forEach(visit);
       break;
     case ExpressionKind.Return:
-      if (expr.value) visit(expr.value);
+      expr.values.forEach(visit);
       break;
     case ExpressionKind.LocalSet:
     case ExpressionKind.LocalTee:
@@ -602,10 +600,6 @@ function _visitChildren(
 
     case ExpressionKind.RefAs:
       visit(expr.value);
-      break;
-
-    case ExpressionKind.TupleMake:
-      expr.operands.forEach(visit);
       break;
 
     case ExpressionKind.RefEq:

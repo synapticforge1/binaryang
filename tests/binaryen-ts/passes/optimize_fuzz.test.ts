@@ -211,7 +211,7 @@ function buildModule(seed: number): { mod: WasmModule; nParams: number; ir: stri
   const body = makeBlock(
     [
       ...Array.from({ length: nStmts }, () => genStmt(g, 3)),
-      makeReturn(genExpr(g, 4)),
+      makeReturn([genExpr(g, 4)]),
     ],
     null,
   );

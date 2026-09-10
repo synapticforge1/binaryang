@@ -120,7 +120,7 @@ export class ExprBuilder {
   }
   /** `return` expression. */
   return(value?: Expression): Expression {
-    return makeReturn(value ?? null);
+    return makeReturn(value ? [value] : []);
   }
   /** `drop` — discard a value. */
   drop(value: Expression): Expression {
@@ -361,7 +361,7 @@ function exprToWat(expr: Expression, _indent: number): string {
     case ExpressionKind.Unary:
       return `(${expr.opcode} ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Return:
-      return expr.value ? `(return ${exprToWat(expr.value, _indent)})` : '(return)';
+      return `(return${expr.values.map((v) => ` ${exprToWat(v, _indent)}`).join('')})`;
     case ExpressionKind.Drop:
       return `(drop ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Block: {

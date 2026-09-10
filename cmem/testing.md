@@ -307,6 +307,13 @@ block's type, so it would have PASSED while reading the wrong node, and its next
 `$outer` where it meant `$inner`. When a node's position changes, convert every read of it, not just
 the ones the compiler flags.
 
+The same cast also survives a FIELD RENAME.
+`findSwitch(…) as { targets; defaultTarget; value:
+unknown }` kept compiling after decision 6A
+renamed `value` to `values`; it failed only because the assertion happened to compare `undefined`
+with `null`. Had it asserted `!sw.value`, it would have passed forever. **Cast to the real node
+type** (`as SwitchExpr`) and the compiler checks the field names for you.
+
 ### A replaced test must say it REPLACED, and why
 
 `wasm_encoder.test.ts` asserted "load with a non-numeric result type throws" — a guard that existed

@@ -32,7 +32,7 @@ import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 
 /** `br` to the function frame, carrying 1. */
-const exitFunctionWith1 = () => makeBreak('', null, makeI32Const(1));
+const exitFunctionWith1 = () => makeBreak('', null, [makeI32Const(1)]);
 
 /** func (result i32): drop(<inner>); i32.const 2 — exported as `f`, then run. */
 function run(inner: Expression): number {
