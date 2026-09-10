@@ -84,6 +84,13 @@ describe('decode → encode keeps a body exactly as written', () => {
     assertEquals(bodyOf(encodeWasm(parseWasm(input))), body);
   });
 
+  it('an EMPTY `(else)` in TEXT is no else — as upstream wat2wasm and wabt-ts write it', () => {
+    // upstream wat2wasm 1.0.41: `(if (i32.const 1) (then (nop)) (else))` →
+    // `41 01 04 40 01 0b` (no 0x05). The binaryen-ts WAT path emitted the else.
+    const out = encodeWasm(parseWat('(module (func (if (i32.const 1) (then (nop)) (else))))'));
+    assertEquals(bodyOf(out), [0x00, 0x41, 0x01, 0x04, 0x40, 0x01, 0x0b, 0x0b]);
+  });
+
   it('an if with no else still has none', () => {
     const body = [0x00, 0x41, 0x01, 0x04, 0x40, 0x01, 0x0b, 0x0b]; // if nop end
     assertEquals(bodyOf(encodeWasm(parseWasm(moduleWith(body)))), body);

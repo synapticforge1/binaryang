@@ -1527,7 +1527,11 @@ class WatModuleParser {
       const elseExprs = listChildren(children[idx] as SList).map((e) =>
         this.parseExpr(e, innerCtx)
       );
-      ifFalse = this.region(elseExprs);
+      // An EMPTY `(else)` in TEXT is no else at all — upstream wat2wasm and
+      // wabt-ts both omit the `else` opcode for it, and this emitted one. (A
+      // BINARY that carries an explicit empty else is kept by the decoder: that
+      // is the as-written form there — see cmem/divergences.md.)
+      if (elseExprs.length > 0) ifFalse = this.region(elseExprs);
     }
 
     // Route through makeIf so the result type is the LUB of the reachable
