@@ -2275,22 +2275,27 @@ class WasmParser {
           push(makeStore(2, offset, align, pop(), v, memory));
           break;
         }
-        case 0x3c: {
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(4, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x3d: {
+        // 🛑 These three were ROTATED to match the encoder's rotated table —
+        // 0x3c decoded as width 4, 0x3d as 1, 0x3e as 2. The two errors
+        // cancelled across the round trip, which is why they survived: see the
+        // encoder's `storeOpcode` and narrow_store_width.test.ts. Fixed together,
+        // because correcting either half alone makes the other visible.
+        case 0x3c: { // i64.store8
           const { align, offset, memory } = readMemArg(r);
           const v = pop();
           push(makeStore(1, offset, align, pop(), v, memory));
           break;
         }
-        case 0x3e: {
+        case 0x3d: { // i64.store16
           const { align, offset, memory } = readMemArg(r);
           const v = pop();
           push(makeStore(2, offset, align, pop(), v, memory));
+          break;
+        }
+        case 0x3e: { // i64.store32
+          const { align, offset, memory } = readMemArg(r);
+          const v = pop();
+          push(makeStore(4, offset, align, pop(), v, memory));
           break;
         }
 
