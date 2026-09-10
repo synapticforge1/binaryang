@@ -994,12 +994,28 @@ class WatModuleParser {
       return { kind: ExpressionKind.Drop, type: None, value } as DropExpr;
     }
     if (head === 'select') {
-      const ifTrue = this.parseExpr(args[0], ctx);
-      const ifFalse = this.parseExpr(args[1], ctx);
-      const condition = this.parseExpr(args[2], ctx);
+      // `(select (result t) a b c)` — the typed form. Its `(result …)` was
+      // parsed as the first OPERAND and rejected ("unsupported instruction:
+      // result"), so no select over references could be written in WAT.
+      let idx = 0;
+      const results: ValueType[] = [];
+      while (idx < args.length && isListWith(args[idx], 'result')) {
+        for (const t of listChildren(args[idx] as SList)) results.push(this.parseValType(t));
+        idx++;
+      }
+      if (idx > 0 && results.length !== 1) {
+        this.err(
+          `select: a typed select declares exactly one result, got ${results.length}`,
+          list.pos,
+        );
+      }
+      const ifTrue = this.parseExpr(args[idx], ctx);
+      const ifFalse = this.parseExpr(args[idx + 1], ctx);
+      const condition = this.parseExpr(args[idx + 2], ctx);
       // Route through makeSelect so the result type is the reachable arm's type
-      // (the LUB), not a blind `ifTrue.type`.
-      return makeSelect(ifTrue, ifFalse, condition);
+      // (the LUB), not a blind `ifTrue.type` — unless declared, which wins.
+      const sel = makeSelect(ifTrue, ifFalse, condition);
+      return results.length === 1 ? { ...sel, type: results[0]! } : sel;
     }
     if (head === 'block') return this.parseBlock(list, ctx);
     if (head === 'loop') return this.parseLoop(list, ctx);

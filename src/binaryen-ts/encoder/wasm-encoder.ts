@@ -90,7 +90,7 @@ import {
   type UnaryExpr,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
-import { None, type Type, ValType } from '../ir/types.ts';
+import { isRef, None, type Type, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
 // it did not list, and it did not list `TupleMake` — so a `call_indirect` (or a
@@ -1668,7 +1668,18 @@ class WasmEncoder {
         this.encodeExpr(w, e.ifTrue, labels);
         this.encodeExpr(w, e.ifFalse, labels);
         this.encodeExpr(w, e.condition, labels);
-        w.writeU8(0x1b);
+        // The untyped form (0x1b) is legal only over numeric and vector types;
+        // a select over references MUST be the typed form (0x1c) and carry its
+        // type. Upstream binaryen's rule. A numeric select written typed comes
+        // back untyped — valid, but the form is lost; S6 decision 7 keeps it.
+        const t = e.type;
+        if (t !== undefined && isRef(t)) {
+          w.writeU8(0x1c);
+          w.writeU32(1);
+          writeValueType(w, t as ValType | RefType);
+        } else {
+          w.writeU8(0x1b);
+        }
         break;
       }
 
