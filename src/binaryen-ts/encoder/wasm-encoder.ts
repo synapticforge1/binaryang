@@ -1898,6 +1898,13 @@ class WasmEncoder {
         w.writeU32(0x1c);
         break;
       }
+      case ExpressionKind.AnyConvertExtern:
+      case ExpressionKind.ExternConvertAny: {
+        this.encodeExpr(w, expr.value, labels);
+        w.writeU8(0xfb);
+        w.writeU32(expr.kind === ExpressionKind.AnyConvertExtern ? 0x1a : 0x1b);
+        break;
+      }
       case ExpressionKind.I31Get: {
         const e = expr as I31GetExpr;
         this.encodeExpr(w, e.i31, labels);

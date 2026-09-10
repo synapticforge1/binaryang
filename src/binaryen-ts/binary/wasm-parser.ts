@@ -105,6 +105,7 @@ import {
 } from '../ir/gc-types.ts';
 import {
   BrOnOp,
+  ExpressionKind,
   makeArrayCopy,
   makeArrayFill,
   makeArrayGet,
@@ -118,6 +119,7 @@ import {
   makeArrayNewFixed,
   makeArraySet,
   makeBrOn,
+  makeExternConvert,
   makeI31Get,
   makeRefCast,
   makeRefEq,
@@ -2556,9 +2558,15 @@ function decodeGcPrefix(
       ));
       break;
     }
-    case 0x1a:
-    case 0x1b: { // any.convert_extern / extern.convert_any
-      push(pop()); // identity conversion in IR
+    case 0x1a: // any.convert_extern
+    case 0x1b: { // extern.convert_any
+      // This was `push(pop()); // identity conversion in IR`. The value
+      // survived and the TYPE did not, so the opcode vanished on re-encode —
+      // V8 rejected the result wherever the conversion was load-bearing.
+      push(makeExternConvert(
+        sub === 0x1a ? ExpressionKind.AnyConvertExtern : ExpressionKind.ExternConvertAny,
+        pop(),
+      ));
       break;
     }
     case 0x1c: { // ref.i31

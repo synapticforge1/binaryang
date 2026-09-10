@@ -66,6 +66,7 @@ import {
   makeArraySet,
   makeDataDrop,
   makeElemDrop,
+  makeExternConvert,
   makeI31Get,
   makeIf,
   makeLoad,
@@ -1263,6 +1264,12 @@ class WatModuleParser {
     if (head === 'ref.i31') {
       const value = this.parseExpr(args[0], ctx);
       return makeRefI31(value, { heap: AbstractHeapType.I31, nullable: false });
+    }
+    if (head === 'any.convert_extern' || head === 'extern.convert_any') {
+      const kind = head === 'any.convert_extern'
+        ? ExpressionKind.AnyConvertExtern
+        : ExpressionKind.ExternConvertAny;
+      return makeExternConvert(kind, this.parseExpr(args[0], ctx));
     }
     if (head === 'i31.get_s') {
       return makeI31Get(this.parseExpr(args[0], ctx), true);

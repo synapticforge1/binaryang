@@ -39,7 +39,7 @@ import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
 import { indexOf, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
-import type { HeapType, ValueType } from './gc-types.ts';
+import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
 import { loadShape, storeShape } from './memory-access.ts';
 export type { HeapType, RefType, ValueType } from './gc-types.ts';
 
@@ -119,6 +119,8 @@ export enum ExpressionKind {
   RefFunc = 'ref.func',
   RefEq = 'ref.eq',
   RefI31 = 'ref.i31',
+  AnyConvertExtern = 'any.convert_extern',
+  ExternConvertAny = 'extern.convert_any',
   I31Get = 'i31.get',
   RefTest = 'ref.test',
   RefCast = 'ref.cast',
@@ -1291,9 +1293,31 @@ export interface RefIsNullExpr extends ExprBase {
 // both; the encoder writes 0xd4 because `ref.as` names that instruction.
 //
 // It was reserved for the extern conversions ("would be added here rather than
-// as separate expression kinds"). The unified IR already models those as their
-// own kinds — `any.convert_extern` and `extern.convert_any` — so the reservation
-// was superseded rather than abandoned.
+// as separate expression kinds"). They are their own kinds instead —
+// {@link ExternConvertExpr}, named as wabt-ts names them — so the reservation
+// was superseded rather than abandoned. (This note once said the unified IR
+// "already models" them; that was true of wabt-ts only. binaryen-ts's decoder
+// dropped both opcodes until the kinds existed here too.)
+
+/**
+ * `any.convert_extern` (0xfb 0x1a) / `extern.convert_any` (0xfb 0x1b) — the GC
+ * proposal's conversions between the `extern` and `any` hierarchies. One
+ * operand; the result keeps the operand's nullability.
+ *
+ * 🛑 The binary decoder used to read these as `push(pop())` — "identity
+ * conversion in IR". The VALUE survived; the TYPE did not, so the opcode
+ * vanished on re-encode: V8 rejected the module wherever the conversion was
+ * load-bearing for typing, and it was silently absent where it was not.
+ *
+ * Same shape as wabt-ts's `ExternConvertExpr`: one node, the direction in the
+ * kind.
+ */
+export interface ExternConvertExpr extends ExprBase {
+  /** Discriminant — also the direction of the conversion. */
+  kind: ExpressionKind.AnyConvertExtern | ExpressionKind.ExternConvertAny;
+  /** The reference being converted. */
+  value: Expression;
+}
 
 /** {@link TupleMakeExpr} — see {@link makeTupleMake} for the factory. */
 export interface TupleMakeExpr extends ExprBase {
@@ -1957,6 +1981,7 @@ export type Expression =
   | RefFuncExpr
   | RefEqExpr
   | RefI31Expr
+  | ExternConvertExpr
   | I31GetExpr
   | StructNewExpr
   | StructGetExpr
@@ -2575,6 +2600,23 @@ export function makeRefEq(left: Expression, right: Expression): RefEqExpr {
 /** Creates a ref.i31 expression. */
 export function makeRefI31(value: Expression, resultType: Type): RefI31Expr {
   return { kind: ExpressionKind.RefI31, type: resultType, value };
+}
+
+/**
+ * Creates `any.convert_extern` or `extern.convert_any`. The result is `(ref
+ * null? any)` / `(ref null? extern)` with the OPERAND's nullability — the spec's
+ * typing: `[(ref null? extern)] -> [(ref null? any)]` and back.
+ */
+export function makeExternConvert(
+  kind: ExpressionKind.AnyConvertExtern | ExpressionKind.ExternConvertAny,
+  value: Expression,
+): ExternConvertExpr {
+  const t = value.type;
+  const nullable = t !== undefined && isRefType(t) ? t.nullable : true;
+  const heap = kind === ExpressionKind.AnyConvertExtern
+    ? AbstractHeapType.Any
+    : AbstractHeapType.Ext;
+  return { kind, type: { heap, nullable }, value };
 }
 
 /** Creates an i31.get_s or i31.get_u expression. */

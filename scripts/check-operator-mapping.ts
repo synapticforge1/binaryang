@@ -71,9 +71,21 @@ const OPCODE_SRC = new URL('../src/wabt-ts/core/opcode.ts', import.meta.url);
  */
 function phantomKinds(exprSrc: string): string[] {
   const block = exprSrc.match(/export enum ExpressionKind \{([\s\S]*?)\n\}/)?.[1] ?? '';
+  // A kind is backed when some interface declares it — alone
+  // (`kind: ExpressionKind.X;`) OR as one arm of a union
+  // (`kind: ExpressionKind.A | ExpressionKind.X;`). The single-literal form was
+  // the only one recognised, so the extern conversions — one node, the
+  // direction in the kind, exactly wabt-ts's shape — were reported as phantoms
+  // while fully implemented. A union-typed `kind` was already a recorded blind
+  // spot of the kind counts in cmem/ir-convergence.md.
+  const arm = String.raw`ExpressionKind\.[A-Za-z0-9_]+`;
   return [...block.matchAll(/^\s+([A-Za-z0-9_]+) = '[^']+',/gm)]
     .map((m) => m[1]!)
-    .filter((name) => !new RegExp(`kind: ExpressionKind\\.${name};`).test(exprSrc))
+    .filter((name) =>
+      !new RegExp(
+        String.raw`kind:\s*(?:${arm}\s*\|\s*)*ExpressionKind\.${name}\s*(?:\|\s*${arm}\s*)*;`,
+      ).test(exprSrc)
+    )
     .sort();
 }
 
