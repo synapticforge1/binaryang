@@ -207,8 +207,11 @@ one fact in two places, which is this codebase's known failure mode.
 | S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done, stage 2 three of seven      |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest                                                  |
 
-**S6 has its own acceptance gate now: `deno task bridge`**, at **397/421**. It reproduces C10a's
-recorded shortfall exactly and must reach 421/421 when the bridge is deleted.
+**S6 has its own acceptance gate now: `deno task bridge`**, at **401/421** (2026-09-10; it stood at
+397 — C10a's recorded "5 fail to encode, 19 fail validation" exactly — until Group 2 decision 4).
+Decision 4 removed the whole encode class: the store opcode had been derived from an operand the
+bridge leaves untyped. Four of those five now round-trip; one was masking a validation failure. All
+20 remaining fail VALIDATION. It must reach 421/421 when the bridge is deleted.
 
 ⚠️ **S6 deletes the bridge and dissolves C10a** rather than fixing it — and that diagnosis has now
 been checked against ALL 24 rather than the one module it was recorded from: wabt-ts's own path is
