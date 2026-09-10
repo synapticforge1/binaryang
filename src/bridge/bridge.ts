@@ -107,7 +107,6 @@ import type {
   UnaryExpr,
   Var,
 } from '../wabt-ts/ir/ir.ts';
-import { Opcode } from '../wabt-ts/core/opcode.ts';
 
 import {
   BrOnOp,
@@ -192,6 +191,7 @@ import type {
 } from '../binaryen-ts/ir/index.ts';
 
 import { wabtTypeToValType } from './type-map.ts';
+import { loadShape, storeShape } from '../binaryen-ts/ir/memory-access.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -1104,7 +1104,8 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // parser-sourced module sends them all through here as LoadExpr.
       // (The binary reader's IR path uses LoadSplatExpr / LoadZeroExpr —
       // those have their own cases below.) Route SIMD-prefix opcodes to
-      // makeSIMDLoad; plain v128.load is a 16-byte makeLoad.
+      // makeSIMDLoad; everything else — plain `v128.load` included — is a
+      // plain Load, and both IRs now hold the same opcode, so it passes through.
       const simdOp = simdLoadOpForOpcode(ld.opcode);
       if (simdOp !== null) {
         return makeSIMDLoad(
@@ -1114,14 +1115,11 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           alignBytesToExponent(ld.align, naturalAlignForOpcode(ld.opcode), 'load'),
         );
       }
-      const info = loadInfo(ld.opcode);
       return makeLoad(
-        info.bytes,
-        info.signed,
+        ld.opcode,
         ld.offset,
-        alignBytesToExponent(ld.align, info.bytes, 'load'),
+        alignBytesToExponent(ld.align, loadShape(ld.opcode).bytes, 'load'),
         bridgeExpr(ld.address, ctx),
-        info.resultType,
       );
     }
     case 'simd.load': {
@@ -1150,11 +1148,10 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'store': {
       const st = e as StoreExpr;
       requireDefaultMemory(st.memidx, 'store');
-      const bytes = storeBytes(st.opcode);
       return makeStore(
-        bytes,
+        st.opcode,
         st.offset,
-        alignBytesToExponent(st.align, bytes, 'store'),
+        alignBytesToExponent(st.align, storeShape(st.opcode).bytes, 'store'),
         bridgeExpr(st.address, ctx),
         bridgeExpr(st.value, ctx),
       );
@@ -1667,56 +1664,6 @@ function alignBytesToExponent(
   return Math.log2(bytes);
 }
 
-interface LoadInfo {
-  bytes: 1 | 2 | 4 | 8 | 16;
-  signed: boolean;
-  resultType: ValType;
-}
-
-/**
- * Decode a load opcode into the (bytes, signed, resultType) triple binaryen-ts
- * wants. Centralized here because binaryen-ts's `makeLoad` is signature-driven
- * while wabt-ts's opcode encodes all three.
- */
-function loadInfo(opcode: number): LoadInfo {
-  switch (opcode) {
-    case Opcode.I32Load:
-      return { bytes: 4, signed: false, resultType: ValType.I32 };
-    case Opcode.I64Load:
-      return { bytes: 8, signed: false, resultType: ValType.I64 };
-    case Opcode.F32Load:
-      return { bytes: 4, signed: false, resultType: ValType.F32 };
-    case Opcode.F64Load:
-      return { bytes: 8, signed: false, resultType: ValType.F64 };
-    case Opcode.I32Load8S:
-      return { bytes: 1, signed: true, resultType: ValType.I32 };
-    case Opcode.I32Load8U:
-      return { bytes: 1, signed: false, resultType: ValType.I32 };
-    case Opcode.I32Load16S:
-      return { bytes: 2, signed: true, resultType: ValType.I32 };
-    case Opcode.I32Load16U:
-      return { bytes: 2, signed: false, resultType: ValType.I32 };
-    case Opcode.I64Load8S:
-      return { bytes: 1, signed: true, resultType: ValType.I64 };
-    case Opcode.I64Load8U:
-      return { bytes: 1, signed: false, resultType: ValType.I64 };
-    case Opcode.I64Load16S:
-      return { bytes: 2, signed: true, resultType: ValType.I64 };
-    case Opcode.I64Load16U:
-      return { bytes: 2, signed: false, resultType: ValType.I64 };
-    case Opcode.I64Load32S:
-      return { bytes: 4, signed: true, resultType: ValType.I64 };
-    case Opcode.I64Load32U:
-      return { bytes: 4, signed: false, resultType: ValType.I64 };
-    // Plain `v128.load` (0xfd 0x00) is not handled here. binaryen-ts v1.0.9's
-    // encoder loadOpcode() has no ValType.V128 branch, so makeLoad(16, …, V128)
-    // silently emits i64.load. Reroute via a dedicated factory once binaryen-ts
-    // grows one (or extend the bridge to write the SIMD prefix directly).
-    default:
-      throw new Error(`Bridge: unsupported load opcode 0x${opcode.toString(16)}`);
-  }
-}
-
 /**
  * Classify a 0xfd-prefixed SIMD load opcode against binaryen-ts's
  * `SIMDLoadOp` enum. Returns `null` for any non-SIMD-load opcode
@@ -1757,26 +1704,6 @@ function simdLoadOpForOpcode(opcode: number): SIMDLoadOp | null {
       return SIMDLoadOp.Load64ZeroVec128;
     default:
       return null; // includes plain v128.load (0x00) → caller uses makeLoad
-  }
-}
-
-function storeBytes(opcode: number): 1 | 2 | 4 | 8 {
-  switch (opcode) {
-    case Opcode.I32Store8:
-    case Opcode.I64Store8:
-      return 1;
-    case Opcode.I32Store16:
-    case Opcode.I64Store16:
-      return 2;
-    case Opcode.I32Store:
-    case Opcode.F32Store:
-    case Opcode.I64Store32:
-      return 4;
-    case Opcode.I64Store:
-    case Opcode.F64Store:
-      return 8;
-    default:
-      throw new Error(`Bridge: unsupported store opcode 0x${opcode.toString(16)}`);
   }
 }
 

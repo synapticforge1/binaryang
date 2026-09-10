@@ -9,6 +9,7 @@
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
 import {
   type ElementSegment,
   type ElementSegmentMode,
@@ -2167,135 +2168,41 @@ class WasmParser {
           break;
         }
 
-        // Loads
-        case 0x28: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(4, false, offset, align, pop(), ValType.I32, memory));
-          break;
-        }
-        case 0x29: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(8, false, offset, align, pop(), ValType.I64, memory));
-          break;
-        }
-        case 0x2a: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(4, false, offset, align, pop(), ValType.F32, memory));
-          break;
-        }
-        case 0x2b: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(8, false, offset, align, pop(), ValType.F64, memory));
-          break;
-        }
-        case 0x2c: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(1, true, offset, align, pop(), ValType.I32, memory));
-          break;
-        }
-        case 0x2d: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(1, false, offset, align, pop(), ValType.I32, memory));
-          break;
-        }
-        case 0x2e: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(2, true, offset, align, pop(), ValType.I32, memory));
-          break;
-        }
-        case 0x2f: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(2, false, offset, align, pop(), ValType.I32, memory));
-          break;
-        }
-        case 0x30: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(1, true, offset, align, pop(), ValType.I64, memory));
-          break;
-        }
-        case 0x31: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(1, false, offset, align, pop(), ValType.I64, memory));
-          break;
-        }
-        case 0x32: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(2, true, offset, align, pop(), ValType.I64, memory));
-          break;
-        }
-        case 0x33: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(2, false, offset, align, pop(), ValType.I64, memory));
-          break;
-        }
-        case 0x34: {
-          const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(4, true, offset, align, pop(), ValType.I64, memory));
-          break;
-        }
+        // Loads (0x28..0x35) and stores (0x36..0x3e). The byte just read IS the
+        // node's opcode, so it is passed through rather than re-described as a
+        // width/sign/type triple. That re-description is where the i64 narrow
+        // stores used to be rotated — decoded as the wrong width, and cancelled
+        // by the encoder's inverse rotation (narrow_store_width.test.ts).
+        case 0x28:
+        case 0x29:
+        case 0x2a:
+        case 0x2b:
+        case 0x2c:
+        case 0x2d:
+        case 0x2e:
+        case 0x2f:
+        case 0x30:
+        case 0x31:
+        case 0x32:
+        case 0x33:
+        case 0x34:
         case 0x35: {
           const { align, offset, memory } = readMemArg(r);
-          push(makeLoad(4, false, offset, align, pop(), ValType.I64, memory));
+          push(makeLoad(opcode as Opcode, offset, align, pop(), memory));
           break;
         }
-        // Stores
-        case 0x36: {
+        case 0x36:
+        case 0x37:
+        case 0x38:
+        case 0x39:
+        case 0x3a:
+        case 0x3b:
+        case 0x3c:
+        case 0x3d:
+        case 0x3e: {
           const { align, offset, memory } = readMemArg(r);
           const v = pop();
-          push(makeStore(4, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x37: {
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(8, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x38: {
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(4, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x39: {
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(8, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x3a: {
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(1, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x3b: {
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(2, offset, align, pop(), v, memory));
-          break;
-        }
-        // 🛑 These three were ROTATED to match the encoder's rotated table —
-        // 0x3c decoded as width 4, 0x3d as 1, 0x3e as 2. The two errors
-        // cancelled across the round trip, which is why they survived: see the
-        // encoder's `storeOpcode` and narrow_store_width.test.ts. Fixed together,
-        // because correcting either half alone makes the other visible.
-        case 0x3c: { // i64.store8
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(1, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x3d: { // i64.store16
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(2, offset, align, pop(), v, memory));
-          break;
-        }
-        case 0x3e: { // i64.store32
-          const { align, offset, memory } = readMemArg(r);
-          const v = pop();
-          push(makeStore(4, offset, align, pop(), v, memory));
+          push(makeStore(opcode as Opcode, offset, align, pop(), v, memory));
           break;
         }
 
@@ -2903,7 +2810,7 @@ function decodeSIMDPrefix(
     // ---- loads ----
     case 0x00: { // v128.load (16 bytes)
       const { align, offset, memory } = readMemArg(r);
-      push(makeLoad(16, false, offset, align, pop(), ValType.V128, memory));
+      push(makeLoad(OPCODE_V128_LOAD, offset, align, pop(), memory));
       break;
     }
     case 0x01: {
@@ -2960,7 +2867,7 @@ function decodeSIMDPrefix(
       const { align, offset, memory } = readMemArg(r);
       const value = pop();
       const ptr = pop();
-      push(makeStore(16, offset, align, ptr, value, memory));
+      push(makeStore(OPCODE_V128_STORE, offset, align, ptr, value, memory));
       break;
     }
     case 0x0c: { // v128.const — read 16 bytes

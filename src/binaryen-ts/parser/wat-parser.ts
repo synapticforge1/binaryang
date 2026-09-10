@@ -68,6 +68,7 @@ import {
   makeElemDrop,
   makeI31Get,
   makeIf,
+  makeLoad,
   makeMemoryInit,
   makePop,
   makeRefAsNonNull,
@@ -88,6 +89,7 @@ import {
   makeSIMDShift,
   makeSIMDShuffle,
   makeSIMDTernary,
+  makeStore,
   makeStructGet,
   makeStructNew,
   makeStructNewDefault,
@@ -137,6 +139,7 @@ import {
   type WasmModule,
 } from '../ir/module.ts';
 import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
+import { loadByName, type LoadShape, storeByName, type StoreShape } from '../ir/memory-access.ts';
 import {
   AbstractHeapType,
   type FieldType,
@@ -1148,13 +1151,17 @@ class WatModuleParser {
     if (head in SIMD_LOAD_OPS) return this.parseSIMDLoad(head, args, ctx);
     if (head in SIMD_LANE_OPS) return this.parseSIMDLaneLdSt(head, args, ctx);
 
-    // Load instructions (v128.load = regular 16-byte load via LoadExpr)
-    const loadMatch = head.match(/^(i32|i64|f32|f64|v128)\.(load(?:8_[su]|16_[su]|32_[su]|64)?)$/);
-    if (loadMatch) return this.parseLoad(head, list, args, ctx);
-
-    // Store instructions (v128.store = regular 16-byte store via StoreExpr)
-    const storeMatch = head.match(/^(i32|i64|f32|f64|v128)\.(store(?:8|16|32|64)?)$/);
-    if (storeMatch) return this.parseStore(head, list, args, ctx);
+    // Plain loads and stores, `v128.load`/`v128.store` included. Looked up by
+    // exact name in the one table, NOT matched by pattern: the pattern this
+    // replaced admitted names no instruction has — `f32.load8_s`, `i32.load32_s`,
+    // `f64.store8`, `i32.store64` — and the width/sign/type the old node was
+    // built from turned them into a DIFFERENT, real instruction (`f32.load8_s`
+    // encoded as `f32.load`). Upstream wat2wasm rejects all of them; so does
+    // this now, by falling through to the unknown-instruction path.
+    const loadOp = loadByName(head);
+    if (loadOp) return this.parseLoad(loadOp, list, args, ctx);
+    const storeOp = storeByName(head);
+    if (storeOp) return this.parseStore(storeOp, list, args, ctx);
 
     // -----------------------------------------------------------------------
     // Unary operators
@@ -1802,10 +1809,8 @@ class WatModuleParser {
   // Load / store
   // -------------------------------------------------------------------------
 
-  private parseLoad(head: string, list: SList, args: SExpr[], ctx: FuncContext): LoadExpr {
-    const [valTypeStr] = head.split('.');
-    const type = valTypeStr as ValType;
-    let offset = 0, alignBytes: number | null = null, bytes: 1 | 2 | 4 | 8 | 16 = 4;
+  private parseLoad(shape: LoadShape, list: SList, args: SExpr[], ctx: FuncContext): LoadExpr {
+    let offset = 0, alignBytes: number | null = null;
     let argIdx = 0;
     // offset= and align= keywords
     while (argIdx < args.length && args[argIdx]?.kind === 'atom') {
@@ -1822,16 +1827,14 @@ class WatModuleParser {
       }
       break;
     }
-    bytes = loadBytes(head);
-    const signed = head.includes('_s');
     const ptr = this.parseExpr(args[argIdx], ctx);
-    // `bytes` is the natural alignment for every load form: `i64.load32_s`
-    // touches 4 bytes and is naturally 4-aligned, `i64.load` touches 8.
-    const align = this.alignExponent(alignBytes, bytes, list.pos);
-    return { kind: ExpressionKind.Load, type, bytes, signed, offset: BigInt(offset), align, ptr };
+    // The access width is the natural alignment for every load form:
+    // `i64.load32_s` touches 4 bytes and is naturally 4-aligned, `i64.load` 8.
+    const align = this.alignExponent(alignBytes, shape.bytes, list.pos);
+    return makeLoad(shape.opcode, BigInt(offset), align, ptr);
   }
 
-  private parseStore(head: string, list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
+  private parseStore(shape: StoreShape, list: SList, args: SExpr[], ctx: FuncContext): StoreExpr {
     let offset = 0;
     let alignBytes: number | null = null;
     let argIdx = 0;
@@ -1849,7 +1852,6 @@ class WatModuleParser {
       }
       break;
     }
-    const bytes = storeBytes(head);
 
     // Written operands fill the TRAILING slots; the stack supplies the leading
     // ones. Folding is defined by unfolding — `(i32.store a b)` is `a b
@@ -1865,16 +1867,8 @@ class WatModuleParser {
     const written = args.length - argIdx;
     const ptr = written >= 2 ? this.parseExpr(args[argIdx], ctx) : makePop(ValType.I32);
     const value = this.parseExpr(args[argIdx + (written >= 2 ? 1 : 0)], ctx);
-    const align = this.alignExponent(alignBytes, bytes, list.pos);
-    return {
-      kind: ExpressionKind.Store,
-      type: None,
-      bytes,
-      offset: BigInt(offset),
-      align,
-      ptr,
-      value,
-    };
+    const align = this.alignExponent(alignBytes, shape.bytes, list.pos);
+    return makeStore(shape.opcode, BigInt(offset), align, ptr, value);
   }
 
   // -------------------------------------------------------------------------
@@ -3760,36 +3754,4 @@ function inferBinaryResultType(opcode: string): ValType {
   if (opcode.startsWith('f32')) return ValType.F32;
   if (opcode.startsWith('f64')) return ValType.F64;
   return ValType.I32;
-}
-
-function loadBytes(head: string): 1 | 2 | 4 | 8 | 16 {
-  if (head.includes('load8')) return 1;
-  if (head.includes('load16')) return 2;
-  if (head.includes('load32')) return 4;
-  if (head.includes('load64')) return 8;
-  if (head.includes('v128')) return 16;
-  if (head.startsWith('i32') || head.startsWith('f32')) return 4;
-  if (head.startsWith('i64') || head.startsWith('f64')) return 8;
-  return 4;
-}
-
-// ⚠️ Keep these two in step. `storeBytes` was missing the `v128` line its twin
-// has, so `v128.store` fell through to the catch-all 4. That was invisible while
-// the width only picked an opcode — the v128 opcode comes from the VALUE TYPE,
-// not from here — and became a wrong answer the moment the width also became the
-// natural alignment: `v128.store` encoded alignment 2 where wabt-ts writes 4.
-//
-// The `storeN`/`loadN` checks come FIRST on purpose: `v128.store8_lane` touches
-// one byte, so the lane width wins over the vector width. (Lane and widening
-// forms are routed to `simdNaturalBytes` rather than here, but the ordering has
-// to be right for anything that does reach these.)
-function storeBytes(head: string): 1 | 2 | 4 | 8 | 16 {
-  if (head.includes('store8')) return 1;
-  if (head.includes('store16')) return 2;
-  if (head.includes('store32')) return 4;
-  if (head.includes('store64')) return 8;
-  if (head.includes('v128')) return 16;
-  if (head.startsWith('i32') || head.startsWith('f32')) return 4;
-  if (head.startsWith('i64') || head.startsWith('f64')) return 8;
-  return 4;
 }

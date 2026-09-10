@@ -36,6 +36,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 
 /** Assemble with wabt-ts, which round-trips multi-memory correctly today. */
 function assemble(wat: string): Uint8Array {
@@ -85,7 +86,10 @@ describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
     const mod = parseWasm(assemble(LOAD_STORE));
     const nodes = nodesOf(mod.functions[0]?.body);
 
-    const store = nodes.find((n) => n['bytes'] !== undefined && n['value'] !== undefined);
+    // Found by DISCRIMINANT. This matched on the field name `'bytes'` — a string
+    // no compiler checks — so when Load/Store stopped carrying `bytes` it
+    // matched nothing, and only the `assert` below kept that from being silent.
+    const store = nodes.find((n) => n['kind'] === ExpressionKind.Store);
     assert(store, 'a store must be present');
     // The defect returned align 0x42 (66) and offset 1 — the memory index read
     // as the offset. Pinning all three is what makes this discriminating.
@@ -165,7 +169,7 @@ describe('binaryen-ts — single-memory output is untouched', () => {
     const mod = parseWasm(
       assemble('(module (memory 1) (func $f (result i32) (i32.load (i32.const 0))))'),
     );
-    const load = nodesOf(mod.functions[0]?.body).find((n) => n['bytes'] !== undefined);
+    const load = nodesOf(mod.functions[0]?.body).find((n) => n['kind'] === ExpressionKind.Load);
     assert(load, 'a load must be present');
     assertEquals(load.memidx, undefined, 'memory 0 is represented by absence');
   });

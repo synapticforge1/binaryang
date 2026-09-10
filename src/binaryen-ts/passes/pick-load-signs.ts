@@ -39,6 +39,7 @@
 import { BinaryOp, type Expression, ExpressionKind, type LoadExpr } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
+import { loadShape, withSigned } from '../ir/memory-access.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, visitChildren, walkExpression } from '../ir/walk.ts';
 import { requireIndex, type Var } from '../../wabt-ts/ir/ir.ts';
@@ -106,11 +107,12 @@ function _pickLoadSigns(fn: WasmFunction): void {
       expr.value.kind === ExpressionKind.Load
     ) {
       const load = expr.value as LoadExpr;
-      // Only narrow loads need attention
-      const resultType = load.type;
-      if (resultType !== ValType.I32 && resultType !== ValType.I64) return;
-      const maxBytes = resultType === ValType.I32 ? 4 : 8;
-      if (load.bytes >= maxBytes) return; // already full-width
+      // Only narrow loads need attention. Width and type come from the opcode,
+      // not `load.type`, which a refinalize can turn to `unreachable`.
+      const shape = loadShape(load.opcode);
+      if (shape.type !== ValType.I32 && shape.type !== ValType.I64) return;
+      const maxBytes = shape.type === ValType.I32 ? 4 : 8;
+      if (shape.bytes >= maxBytes) return; // already full-width
       loadsByLocal.set(requireIndex(expr.index, 'local index'), { load, localIndex: expr.index });
     }
   });
@@ -150,7 +152,7 @@ function _pickLoadSigns(fn: WasmFunction): void {
       parent.opcode === BinaryOp.AndI32 &&
       parent.right.kind === ExpressionKind.Const &&
       'i32' in parent.right.value &&
-      (parent.right.value.i32 as number) === _zeroMask(info.load.bytes as number)
+      (parent.right.value.i32 as number) === _zeroMask(loadShape(info.load.opcode).bytes)
     ) {
       usage.unsignedCount++;
     }
@@ -165,10 +167,11 @@ function _pickLoadSigns(fn: WasmFunction): void {
     // observing use makes the sign visible and the flip unsafe.
     if (usage.totalCount === 0) continue;
     if (usage.signedCount + usage.unsignedCount !== usage.totalCount) continue;
-    if (usage.unsignedCount > 0 && usage.signedCount === 0 && info.load.signed) {
+    const signed = loadShape(info.load.opcode).signed;
+    if (usage.unsignedCount > 0 && usage.signedCount === 0 && signed) {
       (info.load as unknown as Record<symbol, boolean>)[_PICK_SIGN] = false;
       toFlip.push(info.load);
-    } else if (usage.signedCount > 0 && usage.unsignedCount === 0 && !info.load.signed) {
+    } else if (usage.signedCount > 0 && usage.unsignedCount === 0 && !signed) {
       (info.load as unknown as Record<symbol, boolean>)[_PICK_SIGN] = true;
       toFlip.push(info.load);
     }
@@ -183,10 +186,12 @@ function _pickLoadSigns(fn: WasmFunction): void {
     if (expr.kind === ExpressionKind.Load && _PICK_SIGN in expr) {
       const rec = expr as unknown as Record<symbol, boolean>;
       // The marker is written by the analysis pass above, so it is always a
-      // boolean here; `?? expr.signed` keeps the load's existing sign rather
-      // than silently flipping it to `undefined` if that ever stops holding.
-      const signed = rec[_PICK_SIGN] ?? expr.signed;
-      const cleaned = { ...expr, signed };
+      // boolean here; the `??` keeps the load's existing sign rather than
+      // silently flipping it if that ever stops holding. `withSigned` moves
+      // between the `_s`/`_u` pair of ONE width and throws on a full-width load,
+      // so the rewrite cannot produce a load that is not a real instruction.
+      const signed = rec[_PICK_SIGN] ?? loadShape(expr.opcode).signed;
+      const cleaned = { ...expr, opcode: withSigned(expr.opcode, signed) };
       delete (cleaned as unknown as Record<symbol, boolean>)[_PICK_SIGN];
       return cleaned;
     }

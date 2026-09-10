@@ -33,4 +33,5 @@
 export * from './gc-types.ts';
 export * from './types.ts';
 export * from './expressions.ts';
+export * from './memory-access.ts';
 export * from './module.ts';

@@ -443,56 +443,6 @@ function writeValueType(w: BinaryWriter, t: ValType | RefType): void {
 }
 
 // ---------------------------------------------------------------------------
-// Load / store opcode resolution
-// ---------------------------------------------------------------------------
-
-function loadOpcode(expr: LoadExpr): number {
-  const t = expr.type as ValType;
-  if (t === ValType.F32) return 0x2a;
-  if (t === ValType.F64) return 0x2b;
-  if (t === ValType.I32) {
-    if (expr.bytes === 1) return expr.signed ? 0x2c : 0x2d;
-    if (expr.bytes === 2) return expr.signed ? 0x2e : 0x2f;
-    return 0x28;
-  }
-  if (t === ValType.I64) {
-    if (expr.bytes === 1) return expr.signed ? 0x30 : 0x31;
-    if (expr.bytes === 2) return expr.signed ? 0x32 : 0x33;
-    if (expr.bytes === 4) return expr.signed ? 0x34 : 0x35;
-    return 0x29;
-  }
-  // The previous code treated ANY non-f32/f64/i32 type as i64 — so a load whose
-  // result type was unexpectedly `unreachable` (or anything else) silently
-  // emitted an i64 opcode of the wrong width. A load result must be a numeric
-  // scalar; fail loudly otherwise.
-  throw new WasmEncodeError(`cannot encode load with result type: ${t}`);
-}
-
-function storeOpcode(expr: StoreExpr): number {
-  const vt = expr.value.type as ValType;
-  if (vt === ValType.F32) return 0x38;
-  if (vt === ValType.F64) return 0x39;
-  if (vt === ValType.I32) {
-    if (expr.bytes === 1) return 0x3a;
-    if (expr.bytes === 2) return 0x3b;
-    return 0x36;
-  }
-  if (vt === ValType.I64) {
-    // 🛑 These three were ROTATED — width 1/2/4 emitted 0x3d/0x3e/0x3c, i.e.
-    // i64.store16 / i64.store32 / i64.store8. Executed, `i64.store8` wrote two
-    // bytes and `i64.store16` wrote four: valid wasm, silent corruption of
-    // adjacent memory. The binary decoder carried the exact inverse rotation,
-    // so every round trip was byte-identical and no byte gate could see it.
-    // Pinned per half, independently, by narrow_store_width.test.ts.
-    if (expr.bytes === 1) return 0x3c; // i64.store8
-    if (expr.bytes === 2) return 0x3d; // i64.store16
-    if (expr.bytes === 4) return 0x3e; // i64.store32
-    return 0x37;
-  }
-  throw new WasmEncodeError(`cannot encode store with value type: ${vt}`);
-}
-
-// ---------------------------------------------------------------------------
 // FuncType key for deduplication
 // ---------------------------------------------------------------------------
 
@@ -1712,15 +1662,10 @@ class WasmEncoder {
       case ExpressionKind.Load: {
         const e = expr as LoadExpr;
         this.encodeExpr(w, e.ptr, labels);
-        if ((e.type as ValType) === ValType.V128) {
-          // Plain `v128.load` is the two-byte SIMD form `0xFD 0x00`, not a
-          // single-byte scalar load opcode. The decoder models it as a generic
-          // 16-byte Load, so the encoder must re-emit the SIMD prefix.
-          w.writeU8(0xfd);
-          w.writeU32(0x00);
-        } else {
-          w.writeU8(loadOpcode(e));
-        }
+        // The node holds the opcode it was written with — `v128.load`'s
+        // `0xFD 0x00` included — so nothing is recomputed from width, sign or
+        // result type here (see memory-access.ts for what that used to cost).
+        this.writeOperator(w, e.opcode);
         this.writeMemArg(w, e.align, e.offset, e.memidx);
         break;
       }
@@ -1729,13 +1674,9 @@ class WasmEncoder {
         const e = expr as StoreExpr;
         this.encodeExpr(w, e.ptr, labels);
         this.encodeExpr(w, e.value, labels);
-        if ((e.value.type as ValType) === ValType.V128) {
-          // Plain `v128.store` is the two-byte SIMD form `0xFD 0x0b`.
-          w.writeU8(0xfd);
-          w.writeU32(0x0b);
-        } else {
-          w.writeU8(storeOpcode(e));
-        }
+        // Not derived from `e.value.type`: a store whose operand is untyped
+        // (unreachable, or not yet finalized) is still a well-formed store.
+        this.writeOperator(w, e.opcode);
         this.writeMemArg(w, e.align, e.offset, e.memidx);
         break;
       }
