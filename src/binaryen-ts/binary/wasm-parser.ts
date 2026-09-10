@@ -105,6 +105,7 @@ import {
 } from '../ir/gc-types.ts';
 import {
   BrOnOp,
+  ExpressionKind,
   makeArrayCopy,
   makeArrayFill,
   makeArrayGet,
@@ -118,6 +119,7 @@ import {
   makeArrayNewFixed,
   makeArraySet,
   makeBrOn,
+  makeExternConvert,
   makeI31Get,
   makeRefCast,
   makeRefEq,
@@ -2105,6 +2107,20 @@ class WasmParser {
           push(makeSelect(a, b, cond));
           break;
         }
+        case 0x1c: { // select t* — typed select
+          // Was not decoded at all ("unknown opcode 0x1c"): a standard
+          // instruction since reference types, and the ONLY legal select over
+          // references. The declared type wins over the arms' inferred one — a
+          // `ref.null` arm infers a narrower type than the select declares.
+          const count = r.readU32();
+          if (count !== 1) r.error(`typed select must declare exactly one type, got ${count}`);
+          const declared = readValueType(r);
+          const cond = pop();
+          const b = pop();
+          const a = pop();
+          push({ ...makeSelect(a, b, cond), type: declared });
+          break;
+        }
 
         case 0x20: { // local.get
           const idx = r.readU32();
@@ -2542,9 +2558,15 @@ function decodeGcPrefix(
       ));
       break;
     }
-    case 0x1a:
-    case 0x1b: { // any.convert_extern / extern.convert_any
-      push(pop()); // identity conversion in IR
+    case 0x1a: // any.convert_extern
+    case 0x1b: { // extern.convert_any
+      // This was `push(pop()); // identity conversion in IR`. The value
+      // survived and the TYPE did not, so the opcode vanished on re-encode —
+      // V8 rejected the result wherever the conversion was load-bearing.
+      push(makeExternConvert(
+        sub === 0x1a ? ExpressionKind.AnyConvertExtern : ExpressionKind.ExternConvertAny,
+        pop(),
+      ));
       break;
     }
     case 0x1c: { // ref.i31

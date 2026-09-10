@@ -90,7 +90,7 @@ import {
   type UnaryExpr,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
-import { None, type Type, ValType } from '../ir/types.ts';
+import { isRef, None, type Type, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
 // it did not list, and it did not list `TupleMake` — so a `call_indirect` (or a
@@ -102,6 +102,7 @@ import { visitChildren } from '../ir/walk.ts';
 import {
   AbstractHeapType,
   type FieldType,
+  funcTypeKey,
   type HeapType,
   isPackedType,
   isRefType,
@@ -109,6 +110,7 @@ import {
   type StorageType,
   type TypeDef,
   type ValueType,
+  valueTypeKey,
 } from '../ir/gc-types.ts';
 import { requireIndex, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
 
@@ -455,25 +457,10 @@ function writeValueType(w: BinaryWriter, t: ValType | RefType): void {
 }
 
 // ---------------------------------------------------------------------------
-// FuncType key for deduplication
+// FuncType key for deduplication — `funcTypeKey` / `valueTypeKey` live in
+// `ir/gc-types.ts`, shared with the WAT parser, which must match signatures
+// EXACTLY as `gcFuncTypeIndex` below does.
 // ---------------------------------------------------------------------------
-
-/**
- * Stable string form of one value type, for map keys and diagnostics.
- *
- * `RefType` is an object, so `String(t)` / `join(",")` would render every
- * concrete typed reference as `[object Object]` — collapsing `(ref $A)` and
- * `(ref null $B)` onto the same key and silently deduping two distinct
- * signatures into one type-section entry.
- */
-function valueTypeKey(t: ValueType): string {
-  if (!isRefType(t)) return t;
-  return `ref${t.nullable ? ' null' : ''} ${typeof t.heap === 'number' ? t.heap : t.heap}`;
-}
-
-function funcTypeKey(params: ValueType[], results: ValueType[]): string {
-  return params.map(valueTypeKey).join(',') + '->' + results.map(valueTypeKey).join(',');
-}
 
 /** Human-readable `(a, b) -> (c)` rendering for error messages. */
 function funcSigString(params: ValueType[], results: ValueType[]): string {
@@ -1668,7 +1655,18 @@ class WasmEncoder {
         this.encodeExpr(w, e.ifTrue, labels);
         this.encodeExpr(w, e.ifFalse, labels);
         this.encodeExpr(w, e.condition, labels);
-        w.writeU8(0x1b);
+        // The untyped form (0x1b) is legal only over numeric and vector types;
+        // a select over references MUST be the typed form (0x1c) and carry its
+        // type. Upstream binaryen's rule. A numeric select written typed comes
+        // back untyped — valid, but the form is lost; S6 decision 7 keeps it.
+        const t = e.type;
+        if (t !== undefined && isRef(t)) {
+          w.writeU8(0x1c);
+          w.writeU32(1);
+          writeValueType(w, t as ValType | RefType);
+        } else {
+          w.writeU8(0x1b);
+        }
         break;
       }
 
@@ -1898,6 +1896,13 @@ class WasmEncoder {
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0xfb);
         w.writeU32(0x1c);
+        break;
+      }
+      case ExpressionKind.AnyConvertExtern:
+      case ExpressionKind.ExternConvertAny: {
+        this.encodeExpr(w, expr.value, labels);
+        w.writeU8(0xfb);
+        w.writeU32(expr.kind === ExpressionKind.AnyConvertExtern ? 0x1a : 0x1b);
         break;
       }
       case ExpressionKind.I31Get: {

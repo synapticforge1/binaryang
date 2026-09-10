@@ -372,14 +372,19 @@ Deno.test('regression: LocalCSE invalidates cache after a child that writes the 
   //   (local i32 i32)
   //   (local.set 1 (local.get 0))                            ;; $1 = $0
   //   (local.set 1 (i32.add (local.get 1) (i32.const 1)))   ;; $1 = $1 + 1
-  //   (local.set 2 (i32.add (local.get 1) (i32.const 10)))  ;; $2 = NEW $1 + 10
+  //   (local.set 2 (i32.add (local.get 1) (i32.const 1)))   ;; $2 = NEW $1 + 1
   //   (local.get 2))                                          ;; return $2
-  // For input 5 the right answer is 5+1+10 = 16. Before the post-invalidate
-  // fix, LocalCSE wrapped the first `(local.get 1)` in a tee that captured
-  // the PRE-set-1 value, then substituted the second `(local.get 1)` with
+  // For input 5 the right answer is 5+1+1 = 7. Before the post-invalidate
+  // fix, LocalCSE wrapped the first occurrence in a tee that captured the
+  // value computed from the PRE-set-1 local, then substituted the second with
   // the tee's local — silently reading the old value across the intervening
-  // `local.set 1` and producing 15. (Same root cause as `_fib(7)=fib(8)=34`
+  // `local.set 1` and producing 6. (Same root cause as `_fib(7)=fib(8)=34`
   // observed in `-Oz` on the corpus.)
+  //
+  // 🔧 The repeated expression was a bare `(local.get 1)` (the adds differed:
+  // `+ 1`, `+ 10`). Once LocalCSE followed upstream's `isRelevant`, which never
+  // caches a bare local.get, CSE stopped firing and this passed while testing
+  // nothing. The adds now match; verified to FAIL with invalidation disabled.
   const types = section(1, vec([[0x60, 0x01, I32, 0x01, I32]]));
   const funcs = section(3, vec([[0x00]]));
   const exports = section(7, vec([[0x03, 0x72, 0x75, 0x6e, 0x00, 0x00]]));
@@ -401,10 +406,10 @@ Deno.test('regression: LocalCSE invalidates cache after a child that writes the 
     0x20,
     0x01,
     0x41,
-    0x0a,
+    0x01,
     0x6a,
     0x21,
-    0x02, // lg1; const 10; add; set 2
+    0x02, // lg1; const 1; add; set 2
     0x20,
     0x02, // local.get 2
     0x0b, // end
@@ -419,7 +424,7 @@ Deno.test('regression: LocalCSE invalidates cache after a child that writes the 
     new WebAssembly.Module(encodeWasm(mod) as BufferSource),
   );
   const run = inst.exports.run as (n: number) => number;
-  assertEquals(run(5), 16);
+  assertEquals(run(5), 7);
 });
 
 Deno.test('regression: single-arm (if cond (then BODY)) round-trips without inverting the test', () => {

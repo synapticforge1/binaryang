@@ -297,6 +297,8 @@ function _mapChildren(
       };
 
     case ExpressionKind.RefI31:
+    case ExpressionKind.AnyConvertExtern:
+    case ExpressionKind.ExternConvertAny:
       return { ...expr, value: fn(expr.value) };
 
     case ExpressionKind.I31Get:
@@ -611,6 +613,8 @@ function _visitChildren(
       visit(expr.right);
       break;
     case ExpressionKind.RefI31:
+    case ExpressionKind.AnyConvertExtern:
+    case ExpressionKind.ExternConvertAny:
       visit(expr.value);
       break;
     case ExpressionKind.I31Get:

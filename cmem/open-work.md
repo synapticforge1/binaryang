@@ -217,26 +217,23 @@ bridge leaves untyped. Four of those five now round-trip; one was masking a vali
 been checked against ALL 24 rather than the one module it was recorded from: wabt-ts's own path is
 valid for 24 of 24, so the fault is entirely in the translation.
 
-**Group 2 is at 5 of 7** (decision 5, region bodies, `365e9277c`). Two findings from it are OPEN and
-belong to neither S6 step — each is pre-existing, and each wants its own measured commit:
+**Group 2 is at 5 of 7** (decision 5, region bodies, `365e9277c`). The owner chose 6A and 7b(i) on
+2026-09-10 with **"fix any bugs first"** — so the defects found probing 5, 6 and 7 were cleared on
+`s6-prefix-bugfixes` BEFORE either decision starts. Every one is a row in
+[divergences.md](divergences.md), closed with its commit and pin:
 
-- ⬚ **LocalCSE CSEs a bare `local.get` and constants.** Upstream's `isRelevant` excludes both
-  (`binaryen-ts/upstream/src/passes/LocalCSE.cpp:356`) — CSE-ing either can only add a local and
-  bytes. Live on multi-statement bodies all along; decision 5 made it reach single-instruction ones
-  too (+128 bytes net over 28 `-Oz` corpus modules). Fixing it moves `-Oz` output broadly, so it
-  needs its own before/after corpus diff.
-- ⬚ **binaryen-ts's WAT parser drops a value from a multi-value `br_table`** — V8 rejects the
-  output. Found re-checking decision 6's premise; decision 6 may dissolve it (see ir-convergence).
-- ⬚ **binaryen-ts's binary decoder rejects typed `select` (`0x1c`)** — "unknown opcode". Standard
-  since reference types, and the only legal form for a reference-typed select. Decision 7 territory.
-- ⬚ **binaryen-ts's WAT path, once any `(type …)` is declared**, throws for a function whose
-  signature is not declared, and ignores `(func (type $a))`'s own type use. It also rejects block
-  `(type $t)` / `(param …)` and `(select (result …))`.
-- ⬚ **binaryen-ts's IR has no block params** (lowered to locals on decode) and loses which of two
-  identical type indices a `call_indirect` named. Fidelity, decision 7.
-- ⬚ **The binaryen-ts WAT parser emits an `else` for `(else)` with no instructions**, which upstream
-  wat2wasm omits. Valid either way; a byte divergence the spec harness cannot see (it drives the
-  wabt-ts parser).
+| fixed                                                                                     | commit      |
+| ----------------------------------------------------------------------------------------- | ----------- |
+| WAT `br_table` dropped values from a multi-value branch (V8 rejected)                     | `87e5766c3` |
+| decoder rejected typed `select` (`0x1c`); no reference-typed select could be emitted      | `b64b2e144` |
+| WAT type uses: `(func (type $a))` ignored, undeclared signatures threw, block `(type $t)` | `152d0ed76` |
+| decoder DROPPED the convert pair — now real nodes, with a bridge case                     | `9d5c886be` |
+| WAT emitted an `else` for an empty `(else)`                                               | `ce77680de` |
+| LocalCSE cached a bare `local.get` / constant (−3.9% `-Oz`, 0 of 421 modules grew)        | `5b0cf25c6` |
+
+**Left for the decisions themselves**, deliberately: block PARAMETERS (B1, decision 7b(i) — WAT now
+fails loudly with "not supported yet"), and the two FORM losses S1 (numeric typed select) and T1
+(`call_indirect`'s identical type index), decision 7c.
 
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
 
@@ -295,11 +292,16 @@ Ranking agreed in [handoffs.md](handoffs.md); status re-derived 2026-08-31.
 | ---- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1    | `br_on_cast` (+ `br_on_cast_fail`)                                                                                          | ✅ **shipped in 1.5.3**                                                                                                                      |
 | 3    | `br_on_null` / `br_on_non_null`                                                                                             | ✅ **shipped in 1.5.3** — they rode along with rank 1, as predicted                                                                          |
-| 2    | **The convert pair** — `any.convert_extern` / `extern.convert_any`, ≈49 assertions across `extern.wast` and `ref_test.wast` | ⬚ **open, and it is TWO layers** — see below                                                                                                 |
+| 2    | **The convert pair** — `any.convert_extern` / `extern.convert_any`, ≈49 assertions across `extern.wast` and `ref_test.wast` | ✅ **both layers fixed**, `9d5c886be` (2026-09-10): real binaryen-ts nodes + a bridge case. Unreleased                                       |
 | 4    | The five that unblock nothing for wasmtk                                                                                    | ⬚ open, ranked last on their numbers despite 121 occurrences                                                                                 |
 | —    | **Exact types** (`(exact $T)`), 116–548 assertions                                                                          | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case |
 
 ### The convert pair — measured, not estimated
+
+✅ **Closed by `9d5c886be`** — `ExternConvertExpr` (`makeExternConvert` keeps the operand's
+nullability), decoded from `0xfb 0x1a/0x1b` and re-emitted, plus a bridge case;
+`extern_convert.test.ts` asserts the OPCODES survive, as the paragraph below demands. The record of
+how it was priced stays as written.
 
 **Priced by building it**, per the rule the `br_on_cast` miss produced. Probed across all three
 layers:

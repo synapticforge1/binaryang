@@ -62,6 +62,7 @@ import type {
   DropExpr,
   Export as WabtExport,
   Expr,
+  ExternConvertExpr,
   Func as WabtFunc,
   FuncSignature,
   Global as WabtGlobal,
@@ -110,6 +111,7 @@ import type {
 
 import {
   BrOnOp,
+  ExpressionKind,
   makeArrayGet,
   makeArrayLen,
   makeArrayNew,
@@ -125,6 +127,7 @@ import {
   makeCall,
   makeCallIndirect,
   makeDrop,
+  makeExternConvert,
   makeF32Const,
   makeF64Const,
   makeGlobalGet,
@@ -1190,6 +1193,17 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'ref.eq': {
       const re = e as RefEqExpr;
       return makeRefEq(bridgeExpr(re.left, ctx), bridgeExpr(re.right, ctx));
+    }
+    case 'any.convert_extern':
+    case 'extern.convert_any': {
+      // Both IRs model the pair as one node with the direction in the kind.
+      const ce = e as ExternConvertExpr;
+      return makeExternConvert(
+        ce.kind === 'any.convert_extern'
+          ? ExpressionKind.AnyConvertExtern
+          : ExpressionKind.ExternConvertAny,
+        bridgeExpr(ce.value, ctx),
+      );
     }
     case 'ref.i31': {
       const ri = e as RefI31Expr;

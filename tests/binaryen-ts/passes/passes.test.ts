@@ -11,7 +11,6 @@ import { assertEquals, assertNotEquals } from '@std/assert';
 import {
   asRegion,
   BinaryOp,
-  type BlockExpr,
   type ConstExpr,
   type Expression,
   ExpressionKind,
@@ -973,6 +972,40 @@ Deno.test('LocalCSE: repeated pure expression is extracted to local', () => {
 
   // A new local should have been introduced for the CSE
   assertEquals(mod.functions[0].locals.length > originalLocalCount, true);
+});
+
+Deno.test("LocalCSE: caches only what upstream's isRelevant would (divergence C1)", () => {
+  // Upstream LocalCSE.cpp `isRelevant`: never a local.get or a constant; then
+  // size >= 3 when shrinking, size >= 2 when not. The port cached a bare
+  // local.get and a constant too — teeing a read only to read the tee back —
+  // which is what grew -Oz output once regions exposed single-instruction bodies.
+  const newLocals = (repeated: () => Expression, shrinkLevel: 0 | 2): number => {
+    const mod = emptyModule();
+    mod.functions.push({
+      name: 'f',
+      params: [ValType.I32],
+      results: [],
+      locals: [],
+      body: asRegion(makeBlock([makeDrop(repeated()), makeDrop(repeated()), makeDrop(repeated())])),
+    });
+    new PassRunner(mod, { optimizeLevel: 2, shrinkLevel }).add('LocalCSE').run();
+    return mod.functions[0]!.locals.length;
+  };
+  const get = () => makeLocalGet(varIndex(0), ValType.I32);
+  const eqz = () => makeUnary(UnaryOp.EqzI32, get()); // size 2
+  const add = () => makeBinary(BinaryOp.AddI32, get(), makeI32Const(1)); // size 3
+
+  for (const shrink of [0, 2] as const) {
+    assertEquals(newLocals(get, shrink), 0, `a bare local.get is never cached (shrink ${shrink})`);
+    assertEquals(
+      newLocals(() => makeI32Const(7), shrink),
+      0,
+      `a constant is never cached (shrink ${shrink})`,
+    );
+    assertEquals(newLocals(add, shrink), 1, `size 3 is cached (shrink ${shrink})`);
+  }
+  assertEquals(newLocals(eqz, 0), 1, 'size 2 is cached when not shrinking');
+  assertEquals(newLocals(eqz, 2), 0, 'size 2 is not cached when shrinking');
 });
 
 // ---------------------------------------------------------------------------

@@ -22,6 +22,13 @@
  *    (`-1` printed as `1`). Fixed by walking the whole child subtree in
  *    `_invalidate`.
  *
+ *    ⚠️ The FIXTURE no longer reaches bug 2. The cached expression was a bare
+ *    `local.get` (the itoa pointer), and LocalCSE now follows upstream's
+ *    `isRelevant`, which never caches one — with invalidation disabled the
+ *    fixture test still passes. The synthetic `LocalCSE:` tests below carry
+ *    the invalidation coverage (they FAIL with it disabled); the fixture stays
+ *    for bug 1 and as an end-to-end -Oz behaviour check.
+ *
  * The fixture is the byte-for-byte `wabt-ts/compat@1.2.9` output of `wasic` on
  * `46_TemplateEscapes.ts` (sha256
  * 200bcda18c784b948172abac0885e49db6b7024af3f5393b9ff0d07ae352156d). It both
@@ -31,7 +38,7 @@
  * @license MIT
  */
 
-import { assertEquals } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
@@ -127,22 +134,33 @@ Deno.test('optimize pipeline: wasic 46_TemplateEscapes survives full -Oz (multi-
   );
 });
 
-Deno.test('LocalCSE: a local.get is not substituted across a write nested in an if', async () => {
+/** `x + 7` — a CSE candidate under upstream's rule (size 3), unlike a bare `local.get`. */
+const xPlus7 = () =>
+  makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(1), ValType.I32), makeI32Const(7));
+
+Deno.test('LocalCSE: a cached value is not substituted across a write nested in an if', async () => {
   // f(cond, x):
-  //   l2 = x                       ;; lg(x=1) occurrence #1 — CSE tee candidate
+  //   l2 = x + 7                   ;; occurrence #1 — CSE tees it
+  //   l4 = x + 7                   ;; occurrence #2 — rewritten to the tee (CSE IS active)
   //   if (cond) { x = x + 100 }    ;; writes local 1 from INSIDE an `if`
-  //   l3 = x                       ;; lg(x=1) occurrence #2 — must read the MODIFIED x
+  //   l3 = x + 7                   ;; occurrence #3 — must read the MODIFIED x
   //   return l3
   // With the pre-fix `_invalidate` (top-level kind only), the `if` did not
-  // evict the cached `lg:1` entry, so `l3 = x` was rewritten to read the
-  // entry-time tee (the pre-`if` value). f(1, 5) then returned 5 instead of 105.
+  // evict the cached entry, so `l3` was rewritten to read the entry-time tee.
+  //
+  // 🔧 This used a bare `local.get 1` as the repeated expression. Once LocalCSE
+  // followed upstream's `isRelevant` — which never caches a bare local.get —
+  // CSE stopped firing here and the test passed while testing nothing. A
+  // compound containing the local keeps the hazard; verified to FAIL with
+  // invalidation disabled.
   const mod = new ModuleBuilder()
     .addFunction(
       'f',
       [ValType.I32, ValType.I32],
       [ValType.I32],
       makeBlock([
-        makeLocalSet(varIndex(2), makeLocalGet(varIndex(1), ValType.I32)),
+        makeLocalSet(varIndex(2), xPlus7()),
+        makeLocalSet(varIndex(4), xPlus7()),
         makeIf(
           makeLocalGet(varIndex(0), ValType.I32),
           makeLocalSet(
@@ -151,32 +169,39 @@ Deno.test('LocalCSE: a local.get is not substituted across a write nested in an 
           ),
           null,
         ),
-        makeLocalSet(varIndex(3), makeLocalGet(varIndex(1), ValType.I32)),
+        makeLocalSet(varIndex(3), xPlus7()),
         makeReturn(makeLocalGet(varIndex(3), ValType.I32)),
       ], null),
-      [{ type: ValType.I32 }, { type: ValType.I32 }],
+      [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }],
     )
     .addExport('f', 'f')
     .build();
+  const localsBefore = mod.functions[0]!.locals.length;
 
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('LocalCSE').run();
 
+  assert(mod.functions[0]!.locals.length > localsBefore, 'CSE must have fired (a tee local)');
   const { instance } = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource);
   const f = instance.exports.f as (cond: number, x: number) => number;
-  assertEquals(f(1, 5), 105, 'post-if read of local 1 must see the modified value');
-  assertEquals(f(0, 5), 5, 'when the if does not run, local 1 is unchanged');
+  assertEquals(f(1, 5), 112, 'post-if x + 7 must see the modified x');
+  assertEquals(f(0, 5), 12, 'when the if does not run, x is unchanged');
 });
 
-Deno.test('LocalCSE: a local.get is not substituted across a write nested earlier in the SAME expression', async () => {
-  // f(x) = (x + (local0 := 99)) + local0
-  //   left operand of the outer add:  (x) + (tee0 99)   -> evaluates x, then sets local0=99
-  //   right operand:                  local0            -> must read the MODIFIED local0 (99)
-  // `local.get 0` appears twice, so LocalCSE tees the first occurrence. The
-  // `local.tee 0` that mutates local0 is nested in the outer add's LEFT operand
-  // (evaluated first); the RIGHT operand's `local.get 0` must NOT be rewritten
-  // to the entry-time tee. Correct: (5+99)+99 = 203. Buggy: (5+99)+5 = 109.
+Deno.test('LocalCSE: a cached value is not substituted across a write nested earlier in the SAME expression', async () => {
+  // f(x) = ((x + 1) + (x := 99)) + (x + 1)
+  //   left operand of the outer add:  (x + 1) + (tee0 99)  -> evaluates x + 1, then sets x = 99
+  //   right operand:                  x + 1                 -> must read the MODIFIED x (100)
+  // `x + 1` appears twice, so LocalCSE tees the first occurrence. The tee that
+  // mutates x is nested in the outer add's LEFT operand (evaluated first); the
+  // RIGHT operand's `x + 1` must NOT be rewritten to the entry-time tee.
+  // Correct: (6 + 99) + 100 = 205. Buggy: (6 + 99) + 6 = 111.
   // This is the within-expression analogue of the cross-`if` bug above — it
   // miscompiled `monthFromDays`/`dayFromDays` in wasmmerge-spliced modules.
+  //
+  // 🔧 Rewritten from a bare `local.get 0` for the same reason as the test
+  // above; verified to FAIL with the within-expression invalidation disabled.
+  const x1 = () =>
+    makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1));
   const mod = new ModuleBuilder()
     .addFunction(
       'f',
@@ -188,10 +213,10 @@ Deno.test('LocalCSE: a local.get is not substituted across a write nested earlie
             BinaryOp.AddI32,
             makeBinary(
               BinaryOp.AddI32,
-              makeLocalGet(varIndex(0), ValType.I32),
+              x1(),
               makeLocalTee(varIndex(0), makeI32Const(99), ValType.I32),
             ),
-            makeLocalGet(varIndex(0), ValType.I32),
+            x1(),
           ),
         ),
       ], null),
@@ -204,5 +229,5 @@ Deno.test('LocalCSE: a local.get is not substituted across a write nested earlie
 
   const { instance } = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource);
   const f = instance.exports.f as (x: number) => number;
-  assertEquals(f(5), 203, 'the second local.get 0 must read the value written by the nested tee');
+  assertEquals(f(5), 205, 'the second x + 1 must read the value written by the nested tee');
 });

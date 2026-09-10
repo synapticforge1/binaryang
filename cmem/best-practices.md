@@ -451,6 +451,19 @@ only that something changed.
 instruction the wabt-ts wing gives for guard tests — "check WHICH steps flip" — applied to a value
 range rather than a set of steps.
 
+### Refinement: a fix that NARROWS what a component acts on can make its OLD tests vacuous (S6, 2026-09-10)
+
+A test proven to fail once stays proven only while its input still reaches the logic it guards.
+Aligning LocalCSE with upstream's `isRelevant` meant a bare `local.get` is no longer cached — and
+**three of its four invalidation regression tests, plus the -Oz fixture test, were built around a
+repeated bare `local.get`.** All stayed green, because CSE no longer fired on them at all. With
+invalidation disabled outright they STILL passed.
+
+**After narrowing a pass, a parser, or a matcher, re-invert every regression test of that
+component** — not just the new one. Here it took one env-guarded early `return` and one run. The
+three were rebuilt around a relevant compound and re-verified to fail; the fixture was labelled in
+its doc as no longer covering that bug, per the guard-not-coverage rule above.
+
 ## 🆕 A "this is unsafe" comment can be wrong about the standard and right about our code
 
 The WAT writer declined to fold any node whose operands were partly stack-sourced, and the comment
@@ -885,6 +898,10 @@ worktree — not by assuming.
   then `operators · spec · bridge`.
 - **An unpushed branch is not a tested branch.** The longer `main` runs ahead of `origin`, the more
   a CI-only step is worth running locally.
+- **Run it on the tree you COMMIT, after the last edit.** Decision 5 (`365e9277c`) merged with
+  `deno lint` red — the region helpers replaced the last `as BlockExpr` cast in `passes.test.ts`
+  after the gate had run, and the import stayed. Found a day later by the next gate. If an edit
+  follows the gate, the gate has not run.
 
 ## 🆕 A node COUNT is behaviour — a representation that adds nodes moves every threshold on it
 
@@ -908,6 +925,19 @@ body and dropped an explicit empty `else`.
 
 **A recorded reason is a hypothesis until a probe agrees with it.** The probe costs minutes; acting
 on a false reason costs the design.
+
+### Refinement: there are TWO upstreams — probe both before attributing a difference (2026-09-10)
+
+The empty-`else` fix was recorded as a divergence "vs wabt". Probing both later: **upstream
+`wasm2wat`/`wat2wasm` DROP an explicit empty `else`; upstream `wasm-opt` KEEPS it.** So the
+pre-region decoder matched wabt and differed from binaryen, and keeping it is a fidelity choice
+(divergence E1), not a return to "what upstream does". Likewise `wasm-opt --vacuum` leaves one `nop`
+in an all-nop body, which settled R2 as a real difference rather than an assumed one.
+
+**A divergence row names WHICH upstream, from a probe of each.** The binaryen half is cheap: wrap
+the body bytes in a one-function `() -> ()` module, run `wasm-opt in.wasm [flags] -o out.wasm` (no
+flags = read → write), and compare the code-section body. Note that `-Oz` deletes an unexported
+function outright — export it, or probe a single pass.
 
 ## 🆕 A fixed failure can UNMASK another — predict from counts, then check per file
 
