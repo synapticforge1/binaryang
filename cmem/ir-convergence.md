@@ -1606,23 +1606,28 @@ leave the wrapper mechanism alive.
 
 **Implemented 2026-09-10 — what the implementation found that the plan did not:**
 
-| found                                                                                                     | how                                         | disposition                                     |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------- |
-| an emitted unnamed block/if/try shadowed the FUNCTION frame (`''` meant both) — V8-valid, wrong value     | probed while designing; C6 had one instance | fixed first, `2f519bde7`                        |
-| the decoder invented a `nop` for an EMPTY body (`03 40 0b` → `03 40 01 0b`)                               | probe vs upstream                           | fixed by the region                             |
-| the decoder dropped an explicit EMPTY `else` from a valid binary                                          | hand-assembled binary                       | fixed by the region                             |
-| 5 passes' private switches handled `Block` and defaulted past `Region` — every body silently unoptimized  | the switch sweep                            | Region added to each                            |
-| 5 places put a body where a STATEMENT goes (StripEH, remove-unused-names, asyncify ×2, inlining, flatten) | grep for body/arm fields used as values     | `asStatement`                                   |
-| inlining's size thresholds counted nodes — regions would have moved them                                  | reading the counter                         | `countsTowardSize`, exact                       |
-| ~a dozen VACUOUS guarded assertions in tests; structural casts that accept a region                       | the conversion                              | `region_helpers.ts`                             |
-| LocalCSE CSEs bare `local.get` and constants; upstream's `isRelevant` excludes both (LocalCSE.cpp:356)    | classifying the `-Oz` byte diff             | **OPEN** — pre-existing, now reaching more code |
-| the WAT path emits an `else` for `(else)` with no instructions; upstream wat2wasm omits it                | the empty-region probe                      | **OPEN** — pre-existing, unchanged by this      |
+| found                                                                                                     | how                                         | disposition                          |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------ |
+| an emitted unnamed block/if/try shadowed the FUNCTION frame (`''` meant both) — V8-valid, wrong value     | probed while designing; C6 had one instance | fixed first, `2f519bde7`             |
+| the decoder invented a `nop` for an EMPTY body (`03 40 0b` → `03 40 01 0b`)                               | probe vs upstream                           | fixed by the region                  |
+| the decoder dropped an explicit EMPTY `else` from a valid binary                                          | hand-assembled binary                       | fixed by the region                  |
+| 5 passes' private switches handled `Block` and defaulted past `Region` — every body silently unoptimized  | the switch sweep                            | Region added to each                 |
+| 5 places put a body where a STATEMENT goes (StripEH, remove-unused-names, asyncify ×2, inlining, flatten) | grep for body/arm fields used as values     | `asStatement`                        |
+| inlining's size thresholds counted nodes — regions would have moved them                                  | reading the counter                         | `countsTowardSize`, exact            |
+| ~a dozen VACUOUS guarded assertions in tests; structural casts that accept a region                       | the conversion                              | `region_helpers.ts`                  |
+| LocalCSE CSEs bare `local.get` and constants; upstream's `isRelevant` excludes both (LocalCSE.cpp:356)    | classifying the `-Oz` byte diff             | ✅ fixed `5b0cf25c6` (divergence C1) |
+| the WAT path emits an `else` for `(else)` with no instructions; upstream wat2wasm omits it                | the empty-region probe                      | ✅ fixed `ce77680de` (divergence W1) |
 
 **Measured against `main`, 421 corpus modules:** parse→encode **421/421 byte-identical**; `-O1` 2
 differ (−2 each); `-Oz` 28 differ, net **+128 bytes**, all V8-valid, every one classified — an
 all-nop body now encodes as nothing instead of `nop`, and LocalCSE reaching single-instruction
 bodies (the OPEN divergence above; it was already live on multi-statement bodies). Bridge held at
 401/421; baseline IDENTICAL; spec 100% on four axes.
+
+✅ **The LocalCSE half is gone** (`5b0cf25c6`): once CSE follows upstream's relevance rule, `-Oz` is
+**−37,262 bytes** (−3.9%) against the pre-fix tree — 339 modules smaller, 0 larger, 421/421 valid.
+The +128 was never regions' cost; it was a pass defect that regions exposed. The all-nop half is
+divergence R2 (DESIGN): `wasm-opt --vacuum` leaves one `nop` where we leave nothing.
 
 ⚠️ **A region's TYPE is its contents' type**, not the construct's. The wrapper stamped the declared
 type because it wrote a blocktype; a region never does, so the declared type stays on the construct.

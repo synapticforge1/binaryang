@@ -38,14 +38,10 @@ class. "Valid either way" is not a class.
 | G2 | wabt     | `wast2json` 1.0.41 cannot split 30 GC-proposal spec files; `deno task spec` skips them                                                      | ORACLE GAP | those 30 files are untested by the harness — say so in any claim covering them            |
 | G3 | wabt     | any GC-typed WAT probe: upstream rejects with "unexpected token" — a missing feature, not a verdict                                         | ORACLE GAP | read the error TEXT; use V8 for behaviour, our wabt-ts for assembly                       |
 | R1 | binaryen | body representation: a `RegionExpr` in every region slot (upstream: `Expression*`, often an unnamed `Block`)                                | DESIGN     | S6 decision 5, `7f3ec1d6e`. Passes see one slot; a region is never a branch target        |
-| R2 | binaryen | an all-nop body vacuums to an EMPTY region and encodes as nothing; the pre-region port emitted `nop`                                        | DESIGN     | consequence of R1. ⬚ upstream `wasm-opt`'s own output for this case not yet compared      |
+| R2 | binaryen | an all-nop body vacuums to an EMPTY region (`00 0b`); upstream `wasm-opt --vacuum` leaves one `nop` (`00 01 0b`) — probed 2026-09-10        | DESIGN     | consequence of R1; the spec allows an empty body, and ours is a byte smaller              |
+| E1 | wabt     | a binary `if` with an explicit EMPTY `else` (`04 40 … 05 0b`) keeps the `else` through binaryen-ts; wabt's text path drops it               | DESIGN     | fidelity — upstream `wasm-opt` keeps it too (probed). ⬚ wabt-ts drops it: unify in S6     |
 | B1 | binaryen | block PARAMETERS stay on the node through the fidelity phase; lowered to locals only when optimization starts. Upstream lowers at read time | DESIGN     | S6 decision 7b(i), owner-decided 2026-09-10; ⬚ not yet implemented                        |
 | V1 | binaryen | branch/return values held as a LIST (`values: Expression[]`); upstream uses one `value` + `tuple.make`                                      | DESIGN     | S6 decision 6A, owner-decided 2026-09-10; ⬚ not yet implemented                           |
-| C1 | binaryen | LocalCSE CSEs a bare `local.get` and constants; upstream's `isRelevant` excludes both (`LocalCSE.cpp:356`)                                  | DEFECT     | ⬚ open — in the pre-6/7 bug queue                                                         |
-| W1 | wabt     | binaryen-ts's WAT path emits an `else` for `(else)` with no instructions; upstream omits it                                                 | DEFECT     | ⬚ open — in the pre-6/7 bug queue                                                         |
-| W2 | wabt     | binaryen-ts's WAT path ignores `(func (type $a))` and throws for undeclared signatures once any `(type …)` exists                           | DEFECT     | ⬚ open — in the pre-6/7 bug queue                                                         |
-| W3 | wabt     | binaryen-ts's WAT path rejects `(type $t)` on block / loop / if                                                                             | DEFECT     | ⬚ open — pre-6/7 queue for parameter-less types; with parameters it is B1                 |
-| X1 | both     | binaryen-ts's decoder DROPS `any.convert_extern` / `extern.convert_any` (`push(pop())`); V8 rejects where the conversion is load-bearing    | DEFECT     | ⬚ open — in the pre-6/7 bug queue; a real node is needed, not a bridge case               |
 | S1 | wabt     | a NUMERIC select written typed (`0x1c`) re-encodes untyped (`0x1b`) through binaryen-ts                                                     | DEFECT     | ⬚ form only (valid, same behaviour); S6 decision 7c. Reference-typed select is fixed      |
 | T1 | wabt     | `call_indirect (type $b)` re-encodes naming an identical `$a` (first structural match) through binaryen-ts                                  | DEFECT     | ⬚ form only — probed: behaviour preserved even with non-final/final GC types; decision 7c |
 
@@ -58,14 +54,25 @@ Each is pinned by a test whose expected output is upstream's (or V8's, where ups
 | wabt     | binaryen-ts WAT accepted nonexistent memory mnemonics (`f32.load8_s` → `f32.load`, …)       | `006326af7` | `memory_mnemonics.test.ts`   |
 | wabt     | binaryen-ts WAT wrapped out-of-range `i32.const`, rejected unsigned-range `i64.const`       | `a73daee32` | `int_literal_range.test.ts`  |
 | binaryen | i64 narrow stores encoded at the wrong width (cancelled by an inverse decoder rotation)     | `b8b3150db` | `narrow_store_width.test.ts` |
-| wabt     | binary round trip invented a `nop` in an empty body; dropped an explicit empty `else`       | `365e9277c` | `region_fidelity.test.ts`    |
+| both     | binary round trip invented a `nop` in an empty body (both upstreams keep it empty)          | `365e9277c` | `region_fidelity.test.ts`    |
+| binaryen | binary round trip dropped an explicit empty `else` (`wasm-opt` keeps it; see E1)            | `365e9277c` | `region_fidelity.test.ts`    |
 | wabt     | binaryen-ts WAT dropped values from a multi-value `br_table` (V8 rejected)                  | `87e5766c3` | `branch_values.test.ts`      |
 | wabt     | binaryen-ts did not decode typed select `0x1c`, and could not emit a reference-typed select | `b64b2e144` | `typed_select.test.ts`       |
+| wabt     | W2: binaryen-ts WAT ignored `(func (type $a))`; threw for undeclared signatures             | `152d0ed76` | `type_use.test.ts`           |
+| wabt     | W3: binaryen-ts WAT rejected `(type $t)` on block / loop / if (with params it is now B1)    | `152d0ed76` | `type_use.test.ts`           |
+| both     | X1: decoder DROPPED `any.convert_extern` / `extern.convert_any`; V8 rejected the output     | `9d5c886be` | `extern_convert.test.ts`     |
+| wabt     | W1: binaryen-ts WAT emitted an `else` for an empty `(else)`; `wat2wasm` omits it            | `ce77680de` | `region_fidelity.test.ts`    |
+| binaryen | C1: LocalCSE cached a bare `local.get` / constant; upstream `isRelevant` excludes both      | `5b0cf25c6` | `passes.test.ts` (-Oz −3.9%) |
+
+W3 with block PARAMETERS is not closed — it now fails with a clear "not supported yet (S6 decision
+7b)" error and becomes B1's work. C1's pin is upstream's rule, not upstream's bytes: the test FAILS
+against the pre-fix pass, and the three invalidation tests it had made vacuous were rebuilt and
+verified to FAIL with invalidation disabled.
 
 ## When refactoring or optimizing — the checklist
 
-1. **Before porting or re-porting an upstream pass**, read the DESIGN rows it touches (R1, B1, V1):
-   upstream's code assumes its own IR, and a faithful port of it can silently undo ours.
+1. **Before porting or re-porting an upstream pass**, read the DESIGN rows it touches (R1, R2, E1,
+   B1, V1): upstream's code assumes its own IR, and a faithful port of it can silently undo ours.
 2. **Before "matching upstream" to shave bytes or simplify**, check the row is not DESIGN or
    FEATURE.
 3. **Before claiming "byte-identical to upstream"**, check the ORACLE GAP rows — for GC it cannot
