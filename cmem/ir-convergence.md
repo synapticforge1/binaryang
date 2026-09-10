@@ -1385,7 +1385,7 @@ which also owns the 7 label references (`name` ×5, `delegateTarget`, `Rethrow.t
 `CatchClause.tag`, all deliberately routed around during the mechanical passes so they would not be
 settled by accident.
 
-##### Group 2 — the seven real decisions 🚧 5 of 7 IMPLEMENTED
+##### Group 2 — the seven real decisions 🚧 6 of 7 IMPLEMENTED
 
 The decisions themselves were made when the 28 were scoped; these are the implementations, each its
 own commit and gate.
@@ -1498,12 +1498,51 @@ eighth silent mode in [best-practices.md](best-practices.md).
 API-visible: `LoadExpr`/`StoreExpr` and both factory signatures via `./ir/binaryen-ts`, which now
 also exports the table (`loadShape`, `storeShape`, `withSigned`, …) for anyone who read `.bytes`.
 
-###### Remaining: 2 of 7
+###### ✅ 6. Branch and return values are a LIST — option A, owner-decided (`2b5850a8a`)
 
-| # | decision                                      | note                                                                        |
-| - | --------------------------------------------- | --------------------------------------------------------------------------- |
-| 6 | `br` values — `Expr[]` vs a single `value`    | a real arity difference, flagged in S2                                      |
-| 7 | `blockType` / `typeUse` / `select.resultType` | stay on the node; the fidelity table SHADOWS them, it does not replace them |
+Owner, 2026-09-10: **"go with 6A … and fix any bugs first"** — so the bug queue the premise probes
+found was cleared and merged first (`31ec7cc86`), and 6A started from a clean `main`.
+
+`Break`, `Switch` and `Return` hold `values: Expression[]` in stack order, as wabt-ts's nodes do.
+`tuple.make` — built only to pack 2+ values into the one `value` slot, emitted as its operands — is
+deleted, and so is the phantom `tuple.extract`. Divergence V1 in [divergences.md](divergences.md).
+The premise probe had already shown fidelity does not bind here; what decided it is that **the
+packing step is where both halves dropped values**, four times between them.
+
+The trial predicted ~26 src + 12 test sites; the compiler named 76 src error lines (several per
+site) and 63 in tests. The test sites were rewritten by a Deno script with a balanced-paren scanner
+that skips strings and comments, its per-file counts checked against the compiler's (8 of 8 files
+matched), never `String.replace`.
+
+| found                                                                                                       | how                                                       | disposition                                   |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------- |
+| decoder `return` popped ONE value in any function with results — the rest left as loose statements          | reading the call site the compiler flagged                | fixed; latent (no pass disturbed it — probed) |
+| the bridge's `br_table` passed `null` for its values, dropping wabt-ts's `BrTableExpr.values`               | the new `values` argument made the omission visible       | fixed; V8 rejected folded input               |
+| the WAT parser built `br_if` as a literal typed `none` even when carrying values                            | a literal construction beside a factory that did it right | fixed; latent (probed: no output changed)     |
+| the operators gate stayed green with `TupleExtract` still pinned after its deletion                         | the phantom count moved 7 → 6 and nothing complained      | the budget is now a RATCHET                   |
+| a test's structural cast `{ …; value: unknown }` compiled after the rename                                  | the suite: `undefined !== null`                           | the real `SwitchExpr` type                    |
+| a `br_table` comment calling mixed tables "rejected" beside the trampoline that serves them; two more stale | editing in place                                          | corrected                                     |
+
+**Measured against `main`, 421 corpus modules: parse→encode, `-O1` and `-Oz` all 421/421
+byte-identical.** Bridge 401/421, unchanged — the corpus reaches the bridge through the binary
+reader, where branch values are linear statements, not `values`. Two things were kept exactly as
+they were so that would hold, and are open:
+
+- ⬚ **walk order**: `mapExpression` / `walkExpression` visit a `Break`'s condition BEFORE its values
+  — the reverse of wasm's evaluation order (the CFG builder has it right). Harmless for pure
+  visitors; wrong for any order-sensitive one.
+- ⬚ **LocalCSE and multi-value `return`**: left opaque, as the `tuple.make` was. Rewriting several
+  values needs the between-operand invalidation `Binary` already does.
+
+⚠️ **`values.length` is not always the arity.** An entry that itself leaves several values — a
+multi-value `call` or `block`, or flatten's `return` of a whole multi-result body — stands for all
+of them. `valuesType` flattens such entries; nothing should count `values` to find the arity.
+
+###### Remaining: 1 of 7
+
+| # | decision                                      | note                                                                                                                                                                 |
+| - | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7 | `blockType` / `typeUse` / `select.resultType` | owner 2026-09-10: 7a select `resultType` on the node; **7b(i)** block PARAMS on the node, lowered to locals only when optimization starts; 7c FORM in the side table |
 
 Plus Group 3's five ties and the block/label family — which still owns the 7 label references
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed

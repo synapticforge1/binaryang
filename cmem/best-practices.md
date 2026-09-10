@@ -939,6 +939,28 @@ the body bytes in a one-function `() -> ()` module, run `wasm-opt in.wasm [flags
 flags = read → write), and compare the code-section body. Note that `-Oz` deletes an unexported
 function outright — export it, or probe a single pass.
 
+## 🆕 A pinned list must be a RATCHET, not a ceiling (S6 decision 6A, 2026-09-10)
+
+The operators gate pinned seven phantom kinds and failed on any ADDITION. Decision 6A deleted one,
+`TupleExtract` — and the gate stayed green with it still pinned. A ceiling-only budget goes stale
+the moment something is fixed, and a stale entry is a hole: that same phantom could come back and
+the gate would accept it as "already known".
+
+**Every budget, allowlist, or pinned-failure list fails in BOTH directions** — on an entry that
+appears and on an entry that no longer applies. Verify the second check fires by running it once
+against the stale list before cleaning the list.
+
+## 🆕 A node LITERAL beside its factory is a second copy of the factory's rules
+
+The WAT parser built `br_if` as `{ kind: Break, type: conditional ? None : Unreachable, … }` while
+`makeBreak` — used by the binary decoder for the same instruction — computed the type from the
+values. The literal was wrong for every `br_if` that carries a value; the factory never was. It
+surfaced only because decision 6A changed the node's fields and the literal stopped compiling.
+
+**The tell is grep-able: `kind: ExpressionKind\.X,` outside `ir/expressions.ts`.** 43 such literals
+exist. Each hand-computes a type the factory computes; each is a place the two can disagree. Prefer
+the factory; where a literal must stay, the factory's rule is the one to match.
+
 ## 🆕 A fixed failure can UNMASK another — predict from counts, then check per file
 
 Decision 4 removed a failure class accounting for 5 of the bridge's 24 failures, and the bridge went

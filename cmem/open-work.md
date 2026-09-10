@@ -204,7 +204,7 @@ one fact in two places, which is this codebase's known failure mode.
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                |
 | S4 coarse grouping     | ✅ five kinds folded away                                                             |
 | S5 one-sided kinds     | 🚧 acceptance criterion met (wide arithmetic round-trips); regroupings merged into S6 |
-| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2 at 5 of 7 (09-10)   |
+| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2 at 6 of 7 (09-10)   |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest                                                  |
 
 **S6 has its own acceptance gate now: `deno task bridge`**, at **401/421** (2026-09-10; it stood at
@@ -217,10 +217,10 @@ bridge leaves untyped. Four of those five now round-trip; one was masking a vali
 been checked against ALL 24 rather than the one module it was recorded from: wabt-ts's own path is
 valid for 24 of 24, so the fault is entirely in the translation.
 
-**Group 2 is at 5 of 7** (decision 5, region bodies, `365e9277c`). The owner chose 6A and 7b(i) on
-2026-09-10 with **"fix any bugs first"** — so the defects found probing 5, 6 and 7 were cleared on
-`s6-prefix-bugfixes` BEFORE either decision starts. Every one is a row in
-[divergences.md](divergences.md), closed with its commit and pin:
+**Group 2 is at 6 of 7** (decision 5, region bodies, `365e9277c`; decision 6A, value lists,
+`2b5850a8a`). The owner chose 6A and 7b(i) on 2026-09-10 with **"fix any bugs first"** — so the
+defects found probing 5, 6 and 7 were cleared on `s6-prefix-bugfixes` BEFORE either decision starts.
+Every one is a row in [divergences.md](divergences.md), closed with its commit and pin:
 
 | fixed                                                                                     | commit      |
 | ----------------------------------------------------------------------------------------- | ----------- |
@@ -234,6 +234,22 @@ valid for 24 of 24, so the fault is entirely in the translation.
 **Left for the decisions themselves**, deliberately: block PARAMETERS (B1, decision 7b(i) — WAT now
 fails loudly with "not supported yet"), and the two FORM losses S1 (numeric typed select) and T1
 (`call_indirect`'s identical type index), decision 7c.
+
+✅ **Decision 6A is implemented** (`2b5850a8a`): branch and return values are a `values` list,
+`tuple.make` is gone, corpus byte-identical on all three paths. It surfaced three more defects
+(decoder multi-value `return`, the bridge dropping `br_table` values, the WAT `br_if` typed `none`)
+and made the operators gate a ratchet. Two follow-ups kept deliberately behaviour-neutral:
+
+- ⬚ `mapExpression` / `walkExpression` visit a branch's condition before its values — the reverse of
+  wasm's evaluation order. Fixing it may move `-Oz` bytes, so it wants its own measured commit.
+- ⬚ LocalCSE treats a multi-value `return` as opaque (as it did the `tuple.make`).
+- ⬚ **43 node LITERALS in `src/` bypass their factory** and hand-compute its `type` — 29 in the WAT
+  parser, 7 in inlining. The `br_if` one was wrong. Counted with `grep "kind: ExpressionKind\.X,"`
+  outside `ir/expressions.ts`. Block / Loop / If / Select literals are decision 7's sites, so those
+  convert to factories as 7's first step; the rest want a sweep that compares each literal's type to
+  the factory's.
+
+**Next: decision 7** — 7a, 7b(i), 7c.
 
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
 
