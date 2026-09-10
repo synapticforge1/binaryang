@@ -285,6 +285,20 @@ function valTypeByte(t: ValType): number {
   }
 }
 
+/**
+ * The encoder's label stack, innermost last. A frame with no label is `null`.
+ *
+ * 🛑 It was `string[]`, with an unlabelled frame pushed as `''` — the same string
+ * the function frame is seeded with, and the name the WAT path gives a `br` that
+ * exits the function. So an unnamed block, `if` or `try` that was actually
+ * EMITTED shadowed the function frame: `drop (block (result i32) (br '' 1))`
+ * exited the block instead of the function and returned the wrong value, in a
+ * module every engine accepts. C6 fixed one instance (region wrappers stopped
+ * being emitted); this removes the cause. `null` equals no name, so a frame
+ * without a label can never be a branch target by accident.
+ */
+type LabelStack = (string | null)[];
+
 function writeValType(w: BinaryWriter, t: ValType): void {
   w.writeU8(valTypeByte(t));
 }
@@ -1295,7 +1309,7 @@ class WasmEncoder {
     // phantom — no `block` opcode is emitted for it — and is never resolved for
     // functions that don't branch to the function frame, so the common case is
     // unchanged.
-    const labels: string[] = [fn.bodyFrameLabel ?? ''];
+    const labels: LabelStack = [fn.bodyFrameLabel ?? ''];
     // The same rule as every other region, through the same helper. This was a
     // third open-coded copy; `Loop` and `try_table` were two places that had the
     // rule and did NOT apply it, which is how the shadowing bug survived.
@@ -1423,7 +1437,7 @@ class WasmEncoder {
     w.writeU32(this.mod.dataSegments.length);
   }
 
-  private encodeRegionBody(w: BinaryWriter, body: Expression, labels: string[]): void {
+  private encodeRegionBody(w: BinaryWriter, body: Expression, labels: LabelStack): void {
     if (body.kind === ExpressionKind.Block && (body as BlockExpr).name === null) {
       for (const child of (body as BlockExpr).children) {
         this.encodeExpr(w, child, labels);
@@ -1437,7 +1451,7 @@ class WasmEncoder {
   // Expression encoder (recursive, stack-machine order)
   // ---------------------------------------------------------------------------
 
-  private resolveLabel(labels: string[], name: string): number {
+  private resolveLabel(labels: LabelStack, name: string): number {
     for (let i = labels.length - 1; i >= 0; i--) {
       if (labels[i] === name) return labels.length - 1 - i;
     }
@@ -1449,7 +1463,7 @@ class WasmEncoder {
     throw new WasmEncodeError(`unresolved branch label: "${name}"`);
   }
 
-  private encodeExpr(w: BinaryWriter, expr: Expression, labels: string[]): void {
+  private encodeExpr(w: BinaryWriter, expr: Expression, labels: LabelStack): void {
     switch (expr.kind) {
       case ExpressionKind.Nop: {
         w.writeU8(0x01);
@@ -1464,7 +1478,7 @@ class WasmEncoder {
         const e = expr as BlockExpr;
         w.writeU8(0x02);
         writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-        labels.push(e.name ?? '');
+        labels.push(e.name ?? null);
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -1494,7 +1508,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
         writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-        labels.push(e.name ?? ''); // the if's branch-target label (if any)
+        labels.push(e.name ?? null); // the if's branch-target label (if any)
         // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
         // exits via `br` ends in an unreachable-typed child, so re-wrapping it
         // emitted a void blocktype that absorbed the unreachability and yielded
@@ -2086,7 +2100,7 @@ class WasmEncoder {
           }
           w.writeU32(this.resolveLabel(labels, c.dest));
         }
-        labels.push(e.name ?? '');
+        labels.push(e.name ?? null);
         this.encodeRegionBody(w, e.body, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -2099,7 +2113,7 @@ class WasmEncoder {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
           writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-          labels.push(e.name ?? '');
+          labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
           w.writeU8(0x18); // delegate
@@ -2107,7 +2121,7 @@ class WasmEncoder {
         } else {
           w.writeU8(0x06); // try
           writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-          labels.push(e.name ?? '');
+          labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           // The length guard that stood here — "try has N catch tags but M
           // bodies" — is gone with the parallel arrays that made the mismatch
