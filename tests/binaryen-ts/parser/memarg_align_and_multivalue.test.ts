@@ -22,12 +22,11 @@
 //      happened to be — so any test using only byte-width accesses would have
 //      passed throughout.
 //
-//   2. MULTI-VALUE — `ReturnExpr.value` and `BreakExpr.value` hold ONE
+//   2. MULTI-VALUE — `ReturnExpr.value` and `BreakExpr.value` held ONE
 //      expression, and both parse sites took only the first operand. The rest
 //      were silently dropped: *"expected 2 elements on the stack for return,
-//      found 1"*. `TupleMake` is the container, and it needed no new machinery —
-//      it has no opcode, and the encoder emits its operands in order, which IS
-//      the multi-value convention.
+//      found 1"*. First fixed by packing N values into a `tuple.make`; since S6
+//      decision 6A both nodes hold a `values` list and there is no packing.
 //
 // Every assertion below is BYTE EQUALITY against wabt-ts's assembly of the same
 // source, not just validity. Both bugs had valid-but-different states that a

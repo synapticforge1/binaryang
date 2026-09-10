@@ -11,12 +11,13 @@
  * | multi-result FUNCTION               | worked        | works         |
  * | multi-result CALL (WT-2i)           | worked        | works         |
  * | multi-result BLOCK (p=0, r>1)       | threw         | **supported** |
- * | block WITH INPUTS (p>=1)            | threw         | still throws  |
+ * | block WITH INPUTS (p>=1)            | threw         | lowered       |
  *
- * Blocks with inputs stay rejected on purpose: `BlockExpr` cannot model
- * consuming values from the enclosing operand stack, so accepting one would
- * mean silently dropping its parameters. That is an IR-shape change, not
- * plumbing, and the pipeline's rule is to fail loudly rather than corrupt.
+ * 🔧 This table said blocks with inputs "still throw", and gave the reason:
+ * `BlockExpr` cannot model consuming values from the enclosing stack. The
+ * reason still holds, but the decoder has since LOWERED them — the inputs are
+ * spilled to locals before the block and read back inside it (the "WITH
+ * INPUTS" tests below). S6 decision 7b(i) keeps them on the node instead.
  *
  * The load-bearing part of enabling multi-result blocks was NOT the blocktype
  * itself but the two places that would otherwise lose values silently:
@@ -26,7 +27,8 @@
  *  - `br` / `br_if` / `br_table` to a multi-result target used to do
  *    `arity === 1 ? pop() : null` — for N > 1 it popped NOTHING and emitted a
  *    value-less break, discarding every value the branch carried. Those N
- *    values now travel as one `tuple.make`.
+ *    values travelled as one `tuple.make`; since S6 decision 6A they are the
+ *    branch's own `values` list.
  *
  * @license MIT
  */
@@ -35,12 +37,13 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
+  type BreakExpr,
   ExpressionKind,
   makeBlock,
   makeBreak,
   makeCallIndirect,
   makeI32Const,
-  makeTupleMake,
+  type ReturnExpr,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
@@ -86,6 +89,21 @@ function kinds(root: unknown, out: string[] = []): string[] {
     else kinds(v, out);
   }
   return out;
+}
+
+/** The first node of `kind`, pre-order — same traversal as {@link kinds}. */
+function findKind(root: unknown, kind: string): unknown {
+  if (!root || typeof root !== 'object') return undefined;
+  const n = root as Record<string, unknown>;
+  if (n.kind === kind) return n;
+  for (const [k, v] of Object.entries(n)) {
+    if (k === 'kind' || k === 'type') continue;
+    for (const c of Array.isArray(v) ? v : [v]) {
+      const hit = findKind(c, kind);
+      if (hit !== undefined) return hit;
+    }
+  }
+  return undefined;
 }
 
 // --- fixtures -------------------------------------------------------------
@@ -158,13 +176,39 @@ Deno.test('multi-value br: carries both values, not none', async () => {
   assertEquals(await run(out), [7, 9], 'values were dropped across the round-trip');
 });
 
-Deno.test('multi-value br: the branch value decodes to a tuple.make', () => {
-  const mod = parseWasm(MULTI_VALUE_BR);
-  const seen = kinds(mod.functions[0].body);
-  assert(
-    seen.includes(ExpressionKind.TupleMake),
-    `expected a tuple.make carrying the branch values, got: ${seen.join(', ')}`,
-  );
+Deno.test('multi-value br: the branch decodes holding BOTH values in its list', () => {
+  // Was "decodes to a tuple.make" — the container S6 decision 6A removed.
+  const br = findKind(parseWasm(MULTI_VALUE_BR).functions[0].body, ExpressionKind.Break) as
+    | BreakExpr
+    | undefined;
+  assert(br, 'no br decoded');
+  assertEquals(br.values.map((v) => v.kind), [ExpressionKind.Const, ExpressionKind.Const]);
+});
+
+/**
+ * A multi-value `return`: `(func (result i32 i32) i32.const 1; i32.const 2; return)`.
+ *
+ * The decoder popped ONE value for any `return` in a function with results, so
+ * the first value was left as a loose statement BESIDE the return —
+ * `[const 1, return(const 2)]`. The bytes re-encoded identically, which is why
+ * no round trip caught it; the tree was wrong for any pass free to move or drop
+ * a loose value.
+ */
+const MULTI_VALUE_RETURN = Uint8Array.from([
+  ...HDR,
+  ...sec(1, vecOf([[0x60, 0x00, 0x02, 0x7f, 0x7f]])),
+  ...sec(3, vecOf([[0x00]])),
+  ...sec(7, vecOf([[0x01, 0x66, 0x00, 0x00]])),
+  ...sec(10, vecOf([fnBody([0x00, 0x41, 0x01, 0x41, 0x02, 0x0f, 0x0b])])),
+]);
+
+Deno.test('multi-value return: decodes holding EVERY value, none left loose', async () => {
+  assertEquals(await run(MULTI_VALUE_RETURN), [1, 2]);
+  const body = parseWasm(MULTI_VALUE_RETURN).functions[0].body;
+  assertEquals(body.children.map((c) => c.kind), [ExpressionKind.Return]);
+  const ret = body.children[0] as ReturnExpr;
+  assertEquals(ret.values.map((v) => v.kind), [ExpressionKind.Const, ExpressionKind.Const]);
+  assertEquals(await run(encodeWasm(parseWasm(MULTI_VALUE_RETURN))), [1, 2]);
 });
 
 Deno.test('multi-result block: round-trip is a fixed point', () => {
@@ -456,13 +500,16 @@ Deno.test('multi-result block: type-index ordering survives the full -Oz pipelin
 // the same way.
 // ---------------------------------------------------------------------------
 
-Deno.test('type collection reaches a call_indirect carried by a tuple.make', async () => {
+Deno.test('type collection reaches a call_indirect carried as a multi-value branch value', async () => {
   const b = new ModuleBuilder();
   b.addTable('$t', ValType.FuncRef, 1, null);
 
-  // (block $l (result i32 i32) (br $l (tuple.make (call_indirect () -> i32) 7)))
+  // (block $l (result i32 i32) (br $l (call_indirect () -> i32) (i32.const 7)))
+  // The values sat in a `tuple.make` when this was found; since S6 decision 6A
+  // they are the branch's own `values` list — the enumeration must reach them
+  // there just the same.
   const ci = makeCallIndirect(varName('$t'), makeI32Const(0), [], [], [ValType.I32]);
-  const blk = makeBlock([makeBreak('$l', null, makeTupleMake([ci, makeI32Const(7)]))], '$l');
+  const blk = makeBlock([makeBreak('$l', null, [ci, makeI32Const(7)])], '$l');
   blk.type = [ValType.I32, ValType.I32];
 
   b.addFunction('$f', [], [ValType.I32, ValType.I32], blk, []);

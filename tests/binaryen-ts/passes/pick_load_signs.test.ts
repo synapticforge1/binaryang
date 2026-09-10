@@ -60,7 +60,7 @@ import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: pass registra
  * -1 into 255.
  */
 function buildModule(): ReturnType<ModuleBuilder['build']> {
-  const inner = makeBlock([makeBreak('$l', null, makeLocalGet(varIndex(0), ValType.I32))], '$l');
+  const inner = makeBlock([makeBreak('$l', null, [makeLocalGet(varIndex(0), ValType.I32)])], '$l');
   // A block whose body exits via `br` infers `unreachable`; stamp the declared
   // result type so the encoder emits an i32 blocktype.
   inner.type = ValType.I32;

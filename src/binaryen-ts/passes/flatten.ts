@@ -215,10 +215,10 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   }
 
   // Value-carrying branches need break-target temps — not yet supported.
-  if (e.kind === ExpressionKind.Break && (e as BreakExpr).value) {
+  if (e.kind === ExpressionKind.Break && (e as BreakExpr).values.length > 0) {
     throw new Error('flatten: value-carrying br/br_if is not yet supported by this port.');
   }
-  if (e.kind === ExpressionKind.Switch && (e as SwitchExpr).value) {
+  if (e.kind === ExpressionKind.Switch && (e as SwitchExpr).values.length > 0) {
     throw new Error('flatten: value-carrying br_table is not yet supported by this port.');
   }
 
@@ -405,7 +405,7 @@ export function flattenFunction(
   // cannot be — and `makeReturn(region)` type-checks, since a region is an
   // Expression.
   const body = asStatement(func.body);
-  const source = bodyIsValue ? makeReturn(body) : body;
+  const source = bodyIsValue ? makeReturn([body]) : body;
 
   const f = flattenExpr(source, ctx);
   const list = [...f.pre];

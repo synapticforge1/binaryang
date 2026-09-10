@@ -148,9 +148,10 @@ export enum ExpressionKind {
   ThrowRef = 'throw_ref',
   Rethrow = 'rethrow',
   Pop = 'pop',
-  // Multi-value
-  TupleMake = 'tuple.make',
-  TupleExtract = 'tuple.extract',
+  // 🔧 No `tuple.make` / `tuple.extract` (S6 decision 6A). `tuple.make` existed
+  // only to pack a multi-value branch or return operand into one `value` slot;
+  // those nodes now hold `values: Expression[]`. `tuple.extract` was declared
+  // and never built. Neither is a wasm instruction.
 }
 
 // ---------------------------------------------------------------------------
@@ -813,7 +814,20 @@ export interface LoopExpr extends ExprBase {
   body: RegionExpr;
 }
 
-/** {@link BreakExpr} — see {@link makeBreak} for the factory. */
+/**
+ * {@link BreakExpr} — see {@link makeBreak} for the factory.
+ *
+ * The values a branch carries are a LIST in stack order (S6 decision 6A,
+ * divergence V1). Upstream binaryen holds one `value` and packs two or more
+ * into a `tuple.make`; this port did too, and a packing step is where BOTH
+ * halves of binaryang dropped values — wabt-ts's single `value?` "silently
+ * dropped all but the first", and binaryen-ts's WAT `br_table` built one of
+ * two. With a list there is no packing step to get wrong.
+ *
+ * ⚠️ Normally one entry per value. An entry that itself leaves several on the
+ * stack — a multi-value `call` or `block` — stands for all of them, so
+ * `values.length` is not always the target's arity.
+ */
 export interface BreakExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Break;
@@ -821,11 +835,11 @@ export interface BreakExpr extends ExprBase {
   name: string;
   /** Optional condition — when present this is a `br_if`. */
   condition: Expression | null;
-  /** Optional forwarded value. */
-  value: Expression | null;
+  /** The forwarded values, in stack order — empty for a value-less branch. */
+  values: Expression[];
 }
 
-/** {@link SwitchExpr} — see {@link makeSwitch} for the factory. */
+/** {@link SwitchExpr} — see {@link makeSwitch} for the factory. Values as {@link BreakExpr}. */
 export interface SwitchExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Switch;
@@ -835,16 +849,16 @@ export interface SwitchExpr extends ExprBase {
   defaultTarget: string;
   /** Condition expression (typed as i32). */
   condition: Expression;
-  /** Value expression. */
-  value: Expression | null;
+  /** The forwarded values, in stack order — empty for a value-less branch. */
+  values: Expression[];
 }
 
-/** {@link ReturnExpr} — see {@link makeReturn} for the factory. */
+/** {@link ReturnExpr} — see {@link makeReturn} for the factory. Values as {@link BreakExpr}. */
 export interface ReturnExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Return;
-  /** Value expression. */
-  value: Expression | null;
+  /** The returned values, in stack order — normally one per function result. */
+  values: Expression[];
 }
 
 /** {@link ConstExpr} — see {@link makeI32Const}, {@link makeI64Const}, {@link makeF32Const}, {@link makeF64Const} for factories. */
@@ -1317,16 +1331,6 @@ export interface ExternConvertExpr extends ExprBase {
   kind: ExpressionKind.AnyConvertExtern | ExpressionKind.ExternConvertAny;
   /** The reference being converted. */
   value: Expression;
-}
-
-/** {@link TupleMakeExpr} — see {@link makeTupleMake} for the factory. */
-export interface TupleMakeExpr extends ExprBase {
-  /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TupleMake;
-  /** The tuple's component types, in order. */
-  type: TupleType;
-  /** The operands, evaluated left to right, one per component. */
-  operands: Expression[];
 }
 
 /** {@link RefAsExpr} — see {@link makeRefAsNonNull} for the factory. */
@@ -1977,7 +1981,6 @@ export type Expression =
   | RefNullExpr
   | RefIsNullExpr
   | RefAsExpr
-  | TupleMakeExpr
   | RefFuncExpr
   | RefEqExpr
   | RefI31Expr
@@ -2096,15 +2099,36 @@ export function makeUnary(opcode: UnaryOp, value: Expression): UnaryExpr {
   return { kind: ExpressionKind.Unary, type, opcode, value };
 }
 
-/** Creates a `return` expression. */
-export function makeReturn(value: Expression | null = null): ReturnExpr {
+/**
+ * The type a list of values denotes together — what a `br_if` carrying them
+ * falls through with: `none` for none, the value's own type for one, else the
+ * {@link TupleType} of every component. An entry that is itself multi-valued
+ * contributes all its components; an `unreachable` entry makes the whole
+ * unreachable, as upstream `Break::finalize` does for its one value.
+ */
+export function valuesType(values: readonly Expression[]): Type {
+  if (values.length === 0) return None;
+  // The value's own type object, exactly as the one-`value` node had it.
+  if (values.length === 1) return typeOf(values[0]!);
+  const parts: TupleType = [];
+  for (const v of values) {
+    const t = typeOf(v);
+    if (t === Unreachable) return Unreachable;
+    if (Array.isArray(t)) parts.push(...t);
+    else if (t !== None) parts.push(t);
+  }
+  return parts.length === 1 ? parts[0]! : parts;
+}
+
+/** Creates a `return` expression carrying `values` (normally one per function result). */
+export function makeReturn(values: Expression[] = []): ReturnExpr {
   // A `return` is a control-flow transfer, not a value producer: it never
   // yields a value to its enclosing block, so its type is always `unreachable`
   // (matches upstream `Return() { type = Type::unreachable; }` in wasm.h). The
-  // returned *value's* type lives on `value.type`; the node's own type must not
+  // returned values' types live on the values; the node's own type must not
   // leak into block type-inference, or a block ending in `(return x)` would be
   // mistyped as `x`'s type instead of `unreachable`.
-  return { kind: ExpressionKind.Return, type: Unreachable, value };
+  return { kind: ExpressionKind.Return, type: Unreachable, values };
 }
 
 /** Creates a `call` expression. */
@@ -2275,29 +2299,29 @@ export function makeLoop(name: string, body: RegionInput, resultType: Type = Non
   return { kind: ExpressionKind.Loop, type: resultType, name, body: asRegion(body) };
 }
 
-/** Creates a `br` or `br_if` expression. */
+/** Creates a `br` or `br_if` expression carrying `values`. */
 export function makeBreak(
   name: string,
   condition: Expression | null = null,
-  value: Expression | null = null,
+  values: Expression[] = [],
 ): BreakExpr {
   // Mirrors upstream `Break::finalize`: an UNCONDITIONAL `br` always transfers
   // control, so its type is `unreachable` — a block ending in `(br $l)` is
   // therefore unreachable at its end, which is exactly what lets a result-typed
   // loop/block whose body exits via a back-edge validate (the implicit end is
   // unreachable, so no fallthrough value is required). A conditional `br_if`
-  // falls through when the condition is false, so it takes the value's type
-  // (or `none` when value-less).
-  const type: Type = condition === null ? Unreachable : value ? typeOf(value) : None;
-  return { kind: ExpressionKind.Break, type, name, condition, value };
+  // falls through when the condition is false, so it takes its values' type
+  // (`none` when value-less).
+  const type: Type = condition === null ? Unreachable : valuesType(values);
+  return { kind: ExpressionKind.Break, type, name, condition, values };
 }
 
-/** Creates a `br_table` expression. */
+/** Creates a `br_table` expression carrying `values`. */
 export function makeSwitch(
   targets: string[],
   defaultTarget: string,
   condition: Expression,
-  value: Expression | null = null,
+  values: Expression[] = [],
 ): SwitchExpr {
   // `br_table` always branches (it is unconditional — the operand only selects
   // WHICH target), so it is `unreachable`, matching upstream `Switch() { type =
@@ -2309,7 +2333,7 @@ export function makeSwitch(
     targets,
     defaultTarget,
     condition,
-    value,
+    values,
   };
 }
 
@@ -2553,40 +2577,12 @@ export function makeRefIsNull(value: Expression): RefIsNullExpr {
 }
 
 /**
- * Creates a `ref.as_non_null` expression.
- *
- * Traps at runtime if `value` is null; otherwise yields the same reference
- * with a non-nullable type. `resultType` should be the operand's heap type
- * with `nullable: false`.
- */
-/**
- * Creates a `tuple.make` expression — N values delivered as one operand.
- *
- * There is no `tuple.make` opcode in wasm. It is how the IR names "these N
- * expressions, left to right, leaving N values on the stack", which is what a
- * multi-value `br` / `br_if` / `br_table` / `return` carries and what a
- * multi-result block falls through with. The encoder therefore emits the
- * operands in order and nothing else.
- *
- * Its type is the {@link TupleType} of the operand types, so a single-valued
- * consumer that mistakes it for a scalar is caught by the type rather than
- * silently taking only the first component.
- */
-export function makeTupleMake(operands: Expression[]): TupleMakeExpr {
-  return {
-    kind: ExpressionKind.TupleMake,
-    type: operands.map((o) => o.type) as TupleType,
-    operands,
-  };
-}
-
-/**
  * Creates a `ref.as_non_null` expression: asserts `value` is not null and
  * narrows it to the non-nullable `resultType`, trapping if it is null.
  *
- * `resultType` is passed rather than derived because the non-nullable form of a
- * reference type is not recoverable from `value.type` alone once a heap type is
- * concrete.
+ * `resultType` should be the operand's heap type with `nullable: false`. It is
+ * passed rather than derived because the non-nullable form of a reference type
+ * is not recoverable from `value.type` alone once a heap type is concrete.
  */
 export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
   return { kind: ExpressionKind.RefAs, type: resultType, value };

@@ -189,7 +189,7 @@ Deno.test('OptimizeInstructions: add(x, 0) → x', () => {
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeReturn(
-        makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0)),
+        [makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0))],
       ),
     ])),
   };
@@ -199,7 +199,7 @@ Deno.test('OptimizeInstructions: add(x, 0) → x', () => {
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
   // The return's value should now be local.get(0), not a binary
-  assertEquals(ret.value?.kind, ExpressionKind.LocalGet);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });
 
 Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
@@ -210,7 +210,7 @@ Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeReturn(
-      makeBinary(BinaryOp.MulI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
+      [makeBinary(BinaryOp.MulI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1))],
     )),
   };
   mod.functions.push(fn);
@@ -218,7 +218,7 @@ Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
   new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
-  assertEquals(ret.value?.kind, ExpressionKind.LocalGet);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });
 
 Deno.test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
@@ -228,14 +228,14 @@ Deno.test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: asRegion(makeReturn(makeBinary(BinaryOp.AddI32, makeI32Const(3), makeI32Const(4)))),
+    body: asRegion(makeReturn([makeBinary(BinaryOp.AddI32, makeI32Const(3), makeI32Const(4))])),
   });
 
   new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
-  assertEquals(ret.value?.kind, ExpressionKind.Const);
-  assertEquals(((ret.value as ConstExpr).value as { i32: number }).i32, 7);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.Const);
+  assertEquals(((ret.values[0] as ConstExpr).value as { i32: number }).i32, 7);
 });
 
 Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
@@ -245,14 +245,14 @@ Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: asRegion(makeReturn(makeBinary(BinaryOp.MulI32, makeI32Const(6), makeI32Const(7)))),
+    body: asRegion(makeReturn([makeBinary(BinaryOp.MulI32, makeI32Const(6), makeI32Const(7))])),
   });
 
   new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
-  assertEquals(ret.value?.kind, ExpressionKind.Const);
-  assertEquals(((ret.value as ConstExpr).value as { i32: number }).i32, 42);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.Const);
+  assertEquals(((ret.values[0] as ConstExpr).value as { i32: number }).i32, 42);
 });
 
 Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
@@ -262,14 +262,14 @@ Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
     params: [],
     results: [ValType.I32],
     locals: [],
-    body: asRegion(makeReturn(makeUnary(UnaryOp.EqzI32, makeI32Const(0)))),
+    body: asRegion(makeReturn([makeUnary(UnaryOp.EqzI32, makeI32Const(0))])),
   });
 
   new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
-  assertEquals(ret.value?.kind, ExpressionKind.Const);
-  assertEquals(((ret.value as ConstExpr).value as { i32: number }).i32, 1);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.Const);
+  assertEquals(((ret.values[0] as ConstExpr).value as { i32: number }).i32, 1);
 });
 
 Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
@@ -280,7 +280,7 @@ Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
     results: [ValType.I32],
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeReturn(
-      makeBinary(BinaryOp.AndI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(-1)),
+      [makeBinary(BinaryOp.AndI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(-1))],
     )),
   };
   mod.functions.push(fn);
@@ -288,7 +288,7 @@ Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
   new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
-  assertEquals(ret.value?.kind, ExpressionKind.LocalGet);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });
 
 Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
@@ -299,7 +299,7 @@ Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
     results: [ValType.I64],
     locals: [{ type: ValType.I64 }],
     body: asRegion(makeReturn(
-      makeBinary(BinaryOp.AddI64, makeLocalGet(varIndex(0), ValType.I64), makeI64Const(0n)),
+      [makeBinary(BinaryOp.AddI64, makeLocalGet(varIndex(0), ValType.I64), makeI64Const(0n))],
     )),
   };
   mod.functions.push(fn);
@@ -307,7 +307,7 @@ Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
   new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
-  assertEquals(ret.value?.kind, ExpressionKind.LocalGet);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });
 
 // ---------------------------------------------------------------------------
@@ -548,7 +548,7 @@ Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value liv
         null,
         None,
       ),
-      makeReturn(makeLocalGet(varIndex(0), ValType.I32)),
+      makeReturn([makeLocalGet(varIndex(0), ValType.I32)]),
     ])),
   };
   mod.functions.push(fn);
@@ -647,7 +647,7 @@ Deno.test('CoalesceLocals: loop-carried value interferes via back-edge', () => {
           makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
           makeLocalSet(varIndex(1), makeI32Const(5)),
           makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
-          makeBreak('L', makeI32Const(0), null),
+          makeBreak('L', makeI32Const(0)),
         ]),
       ),
     ])),
@@ -681,7 +681,7 @@ Deno.test(
             makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
             makeLocalSet(varIndex(1), makeI32Const(2)),
             makeDrop(makeLocalGet(varIndex(1), ValType.I32)),
-            makeBreak('L', makeI32Const(0), null),
+            makeBreak('L', makeI32Const(0)),
           ]),
         ),
       ])),
@@ -723,7 +723,6 @@ Deno.test('CoalesceLocals: loop counter live across back-edge stays distinct fro
           makeBreak(
             'L',
             makeBinary(BinaryOp.LtSI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(10)),
-            null,
           ),
         ]),
       ),
@@ -789,7 +788,7 @@ Deno.test('CoalesceLocals: dead set inside loop is replaced with drop', () => {
         'L',
         makeBlock([
           makeLocalSet(varIndex(0), makeI32Const(99)),
-          makeBreak('L', makeI32Const(0), null),
+          makeBreak('L', makeI32Const(0)),
         ]),
       ),
     ])),
@@ -1143,7 +1142,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     SIG_P,
     SIG_R,
     makeReturn(
-      makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(100)),
+      [makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(100))],
     ),
   );
   b.addFunction(
@@ -1151,7 +1150,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     SIG_P,
     SIG_R,
     makeReturn(
-      makeBinary(BinaryOp.MulI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(2)),
+      [makeBinary(BinaryOp.MulI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(2))],
     ),
   );
   b.addTable('$t0', ValType.FuncRef, 2, 2);
@@ -1315,7 +1314,7 @@ Deno.test('ModuleBuilder + OptimizeInstructions: add(x, 0) optimized', () => {
       [ValType.I32],
       [ValType.I32],
       makeReturn(
-        makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0)),
+        [makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0))],
       ),
     )
     .addExport('identity', 'identity')
@@ -1324,5 +1323,5 @@ Deno.test('ModuleBuilder + OptimizeInstructions: add(x, 0) optimized', () => {
   new PassRunner(mod).add('OptimizeInstructions').run();
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
-  assertEquals(ret.value?.kind, ExpressionKind.LocalGet);
+  assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });

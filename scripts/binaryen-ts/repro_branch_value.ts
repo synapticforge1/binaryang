@@ -41,8 +41,8 @@ console.log('## (a) hand-built IR: (block (result i32) (br $L (i32.const 42)))')
 
 const body = makeBlock(
   [
-    // makeBreak(name, condition, value) — value is 3rd arg
-    makeBreak('$L', /* condition */ null, /* value */ makeI32Const(42)),
+    // makeBreak(name, condition, values) — the carried values are the 3rd arg
+    makeBreak('$L', /* condition */ null, /* values */ [makeI32Const(42)]),
   ],
   '$L',
 );

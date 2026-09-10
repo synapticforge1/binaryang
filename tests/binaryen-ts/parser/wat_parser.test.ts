@@ -8,7 +8,11 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { ExpressionKind, type TryCatch } from '../../../src/binaryen-ts/ir/expressions.ts';
+import {
+  ExpressionKind,
+  type SwitchExpr,
+  type TryCatch,
+} from '../../../src/binaryen-ts/ir/expressions.ts';
 import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
@@ -224,7 +228,7 @@ Deno.test('parseWat — return expression', () => {
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Return);
   const ret = body as import('../../../src/binaryen-ts/ir/expressions.ts').ReturnExpr;
-  assertEquals(ret.value?.kind, ExpressionKind.Const);
+  assertEquals(ret.values.map((v) => v.kind), [ExpressionKind.Const]);
 });
 
 Deno.test('parseWat — drop', () => {
@@ -337,13 +341,14 @@ Deno.test('parseWat — br_table with two targets and a default', () => {
         (block $b
           (block $c
             (br_table $a $b $c (local.get 0)))))))`);
-  const sw = findSwitch(mod.functions[0].body) as
-    | { targets: string[]; defaultTarget: string; value: unknown }
-    | null;
+  // The real node type, not a structural `{ …; value: unknown }` cast: that cast
+  // kept compiling after S6 decision 6A renamed `value` to `values`, and only the
+  // assertion's `undefined !== null` caught it.
+  const sw = findSwitch(mod.functions[0].body) as SwitchExpr | null;
   if (!sw) throw new Error('did not find Switch in body');
   // Targets are resolved to label names: $a/$b are the explicit targets, $c is the default.
   assertEquals(sw.targets.length, 2);
-  assertEquals(sw.value, null);
+  assertEquals(sw.values, []);
 });
 
 Deno.test('parseWat — br_table with a single target (degenerate but valid)', () => {
@@ -351,9 +356,7 @@ Deno.test('parseWat — br_table with a single target (degenerate but valid)', (
     (func $f (param i32)
       (block $only
         (br_table $only $only (local.get 0)))))`);
-  const sw = findSwitch(mod.functions[0].body) as
-    | { targets: string[]; defaultTarget: string }
-    | null;
+  const sw = findSwitch(mod.functions[0].body) as SwitchExpr | null;
   if (!sw) throw new Error('did not find Switch in body');
   assertEquals(sw.targets.length, 1);
   if (!sw.defaultTarget) throw new Error('missing default target');

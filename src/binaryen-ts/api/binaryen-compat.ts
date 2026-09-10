@@ -251,6 +251,15 @@ function _idToValTypeStrict(id: number): ValType {
 }
 
 /**
+ * The binaryen.js API's optional single branch / return value, as the IR's
+ * `values` list (S6 decision 6A). The facade takes ONE value, as upstream's
+ * does; it has never offered `tuple.make`, so it never carried more.
+ */
+function _oneValue(value: Expression | null | undefined): Expression[] {
+  return value ? [value] : [];
+}
+
+/**
  * Flattens a tuple type ID to an array of primitive types for use in
  * `addFunction` etc. Accepts either a single packed ID (the common case) or
  * an already-array tuple (binaryen-ts native shape).
@@ -1349,12 +1358,12 @@ export class Module {
    * Pass a `value` to forward to the branch target.
    */
   br(label: string, cond?: Expression | null, value?: Expression | null): Expression {
-    return makeBreak(label, cond ?? null, value ?? null);
+    return makeBreak(label, cond ?? null, _oneValue(value));
   }
 
   /** `br_if label cond` — convenience for a conditional break. */
   br_if(label: string, cond: Expression, value?: Expression | null): Expression {
-    return makeBreak(label, cond, value ?? null);
+    return makeBreak(label, cond, _oneValue(value));
   }
 
   /** `br_table` expression. */
@@ -1364,7 +1373,7 @@ export class Module {
     cond: Expression,
     value?: Expression | null,
   ): Expression {
-    return makeSwitch(targets, defaultTarget, cond, value ?? null);
+    return makeSwitch(targets, defaultTarget, cond, _oneValue(value));
   }
 
   /** `call $target operands` — direct call. */
@@ -1404,7 +1413,7 @@ export class Module {
 
   /** `return value?` — return from the current function. */
   return(value?: Expression | null): Expression {
-    return makeReturn(value ?? null);
+    return makeReturn(_oneValue(value));
   }
 
   /** `nop` — no-operation. */

@@ -243,7 +243,8 @@ function _countKeys(
       _countKeys(expr.value, counts, reps);
       break;
     case ExpressionKind.Return:
-      if (expr.value) _countKeys(expr.value, counts, reps);
+      // One value only; a multi-value return is opaque (see `_rewriteExpr`).
+      if (expr.values.length === 1) _countKeys(expr.values[0]!, counts, reps);
       break;
     case ExpressionKind.Call:
       expr.operands.forEach((o) => _countKeys(o, counts, reps));
@@ -380,12 +381,17 @@ function _rewriteExpr(
         ...expr,
         value: _rewriteExpr(expr.value, candidates, cache, state),
       };
-    case ExpressionKind.Return:
-      if (expr.value) {
-        const v = _rewriteExpr(expr.value, candidates, cache, state);
-        return v === expr.value ? expr : { ...expr, value: v };
-      }
-      return expr;
+    case ExpressionKind.Return: {
+      // ⚠️ A multi-value return is left OPAQUE, as it was when its values sat
+      // in a `tuple.make` this pass had no case for (S6 decision 6A kept that
+      // behaviour). Rewriting several values needs the same between-operand
+      // invalidation `Binary` does above — an earlier value may write a local
+      // a later one reads.
+      if (expr.values.length !== 1) return expr;
+      const only = expr.values[0]!;
+      const v = _rewriteExpr(only, candidates, cache, state);
+      return v === only ? expr : { ...expr, values: [v] };
+    }
     default:
       return expr;
   }

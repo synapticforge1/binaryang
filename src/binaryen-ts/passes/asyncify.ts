@@ -1177,7 +1177,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
       const c = e as CallExpr;
       if (requireName(c.target, 'call target') === ASYNCIFY_UNWIND) {
         // Break out of the body to the unwind block, carrying the call index.
-        return makeBreak(ASYNCIFY_UNWIND_LABEL, null, c.operands[0]);
+        return makeBreak(ASYNCIFY_UNWIND_LABEL, null, c.operands.slice(0, 1));
       }
       if (requireName(c.target, 'call target') === ASYNCIFY_GET_CALL_INDEX) {
         // Pop the next index off the stack into $rewindIndex.

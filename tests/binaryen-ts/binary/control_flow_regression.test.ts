@@ -198,8 +198,8 @@ Deno.test('regression: void block ending in return inside i32 function validates
 // ---------------------------------------------------------------------------
 
 Deno.test('makeReturn is always typed unreachable', () => {
-  assertEquals(makeReturn(makeI32Const(1)).type, Unreachable);
-  assertEquals(makeReturn(null).type, Unreachable);
+  assertEquals(makeReturn([makeI32Const(1)]).type, Unreachable);
+  assertEquals(makeReturn().type, Unreachable);
 });
 
 Deno.test('makeBreak: unconditional br is unreachable; br_if follows fallthrough', () => {
@@ -208,7 +208,7 @@ Deno.test('makeBreak: unconditional br is unreachable; br_if follows fallthrough
   // Conditional br_if without value falls through with nothing -> none.
   assertEquals(makeBreak('$l', makeI32Const(1)).type, None);
   // Conditional br_if with value passes the value through on fallthrough.
-  assertEquals(makeBreak('$l', makeI32Const(1), makeI32Const(2)).type, ValType.I32);
+  assertEquals(makeBreak('$l', makeI32Const(1), [makeI32Const(2)]).type, ValType.I32);
 });
 
 Deno.test('makeSwitch (br_table) is always unreachable', () => {
@@ -218,7 +218,7 @@ Deno.test('makeSwitch (br_table) is always unreachable', () => {
       ['$a'],
       '$d',
       makeI32Const(0),
-      makeBinary(BinaryOp.AddI32, makeI32Const(1), makeI32Const(2)),
+      [makeBinary(BinaryOp.AddI32, makeI32Const(1), makeI32Const(2))],
     ).type,
     Unreachable,
   );
@@ -232,16 +232,16 @@ Deno.test("makeIf type is the reachable arm's type (LUB), not blindly the then-a
   // then unreachable (ends in return), else falls through (none) -> if is none.
   // The old code took ifTrue.type (unreachable), which made DCE delete the live
   // code after such an `if` (silently breaking loops — `_fib` returned 0).
-  assertEquals(makeIf(makeI32Const(1), makeReturn(makeI32Const(1)), makeNop()).type, None);
+  assertEquals(makeIf(makeI32Const(1), makeReturn([makeI32Const(1)]), makeNop()).type, None);
   // then concrete, else unreachable -> take the then (i32).
   assertEquals(
-    makeIf(makeI32Const(1), makeI32Const(7), makeReturn(makeI32Const(1))).type,
+    makeIf(makeI32Const(1), makeI32Const(7), makeReturn([makeI32Const(1)])).type,
     ValType.I32,
   );
   // both arms concrete & equal -> that type.
   assertEquals(makeIf(makeI32Const(1), makeI32Const(7), makeI32Const(8)).type, ValType.I32);
   // no else -> none (the then may be skipped).
-  assertEquals(makeIf(makeI32Const(1), makeReturn(makeI32Const(1))).type, None);
+  assertEquals(makeIf(makeI32Const(1), makeReturn([makeI32Const(1)])).type, None);
 });
 
 Deno.test('regression: element segments + call_indirect survive round-trip and execute', async () => {

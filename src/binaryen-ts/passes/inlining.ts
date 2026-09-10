@@ -466,7 +466,7 @@ class FunctionSplitter {
 
       const callType = valueReturned ? (outlinedResults[0] as ValType) : None;
       const call = makeCall(varName(outlined.name), getForwardedArgs(fn), callType);
-      ifI.ifTrue = asRegion(valueReturned ? makeReturn(call) : call);
+      ifI.ifTrue = asRegion(valueReturned ? makeReturn([call]) : call);
     }
 
     return {
@@ -648,7 +648,7 @@ function substituteBody(
           type: Unreachable,
           name: returnLabel,
           condition: null,
-          value: e.value ?? null,
+          values: e.values,
         };
         return br;
       }
@@ -788,9 +788,9 @@ function inlineCallSite(
   // caller as the caller's own return — matching tail-call semantics.
   if (call.isReturn) {
     if (retType === None) {
-      return makeBlock([block, { kind: ExpressionKind.Return, type: Unreachable, value: null }]);
+      return makeBlock([block, { kind: ExpressionKind.Return, type: Unreachable, values: [] }]);
     }
-    return { kind: ExpressionKind.Return, type: Unreachable, value: block };
+    return { kind: ExpressionKind.Return, type: Unreachable, values: [block] };
   }
 
   return block;

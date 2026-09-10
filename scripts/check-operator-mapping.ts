@@ -58,8 +58,9 @@ const OPCODE_SRC = new URL('../src/wabt-ts/core/opcode.ts', import.meta.url);
  * not even an atomic load or store KIND.
  *
  * Third instance of this exact shape here, after `TupleExtract` (enum member
- * only) and the `compactImports` feature flag ("a feature flag is not an
- * implementation"). Pinned rather than fixed, so the list cannot grow unnoticed.
+ * only — since deleted, S6 decision 6A) and the `compactImports` feature flag
+ * ("a feature flag is not an implementation"). Pinned rather than fixed, so the
+ * list cannot grow unnoticed.
  *
  * 🔑 This is also what settled S6 stage 1. The gate below proves every
  * binaryen-ts operator names a real instruction; it says nothing about the
@@ -89,7 +90,11 @@ function phantomKinds(exprSrc: string): string[] {
     .sort();
 }
 
-/** The seven that exist today. Any addition fails the gate. */
+/**
+ * The six that exist today. Any addition fails the gate, and so does a pinned
+ * name that stops being a phantom (see `retired` below). `TupleExtract` left
+ * with S6 decision 6A, deleted rather than implemented — nothing built it.
+ */
 const PHANTOM_BUDGET = [
   'AtomicCmpxchg',
   'AtomicFence',
@@ -97,7 +102,6 @@ const PHANTOM_BUDGET = [
   'AtomicRMW',
   'AtomicWait',
   'CallRef',
-  'TupleExtract',
 ];
 
 async function knownInstructionNames(): Promise<Set<string>> {
@@ -208,6 +212,17 @@ if (added.length > 0) {
     '\nA declared kind with nothing behind it reads as support in every count that ' +
       'scans the enum. Implement it or remove it; the pinned list must not grow.',
   );
+  Deno.exit(1);
+}
+// A RATCHET, not only a ceiling: a pinned name that is no longer a phantom must
+// leave the list, or it would let that same phantom come back unnoticed. Found
+// when S6 decision 6A deleted `TupleExtract` and the gate stayed green with it
+// still pinned.
+const retired = PHANTOM_BUDGET.filter((p) => !phantoms.includes(p));
+if (retired.length > 0) {
+  console.error(`\n${retired.length} pinned kind(s) no longer declared-but-unimplemented:`);
+  for (const p of retired) console.error(`  ${p}`);
+  console.error('\nRemove them from PHANTOM_BUDGET so the list only ever shrinks.');
   Deno.exit(1);
 }
 console.log(`declared-but-unimplemented kinds   : ${phantoms.length} (pinned)`);
