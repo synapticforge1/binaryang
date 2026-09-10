@@ -225,6 +225,15 @@ belong to neither S6 step — each is pre-existing, and each wants its own measu
   bytes. Live on multi-statement bodies all along; decision 5 made it reach single-instruction ones
   too (+128 bytes net over 28 `-Oz` corpus modules). Fixing it moves `-Oz` output broadly, so it
   needs its own before/after corpus diff.
+- ⬚ **binaryen-ts's WAT parser drops a value from a multi-value `br_table`** — V8 rejects the
+  output. Found re-checking decision 6's premise; decision 6 may dissolve it (see ir-convergence).
+- ⬚ **binaryen-ts's binary decoder rejects typed `select` (`0x1c`)** — "unknown opcode". Standard
+  since reference types, and the only legal form for a reference-typed select. Decision 7 territory.
+- ⬚ **binaryen-ts's WAT path, once any `(type …)` is declared**, throws for a function whose
+  signature is not declared, and ignores `(func (type $a))`'s own type use. It also rejects block
+  `(type $t)` / `(param …)` and `(select (result …))`.
+- ⬚ **binaryen-ts's IR has no block params** (lowered to locals on decode) and loses which of two
+  identical type indices a `call_indirect` named. Fidelity, decision 7.
 - ⬚ **The binaryen-ts WAT parser emits an `else` for `(else)` with no instructions**, which upstream
   wat2wasm omits. Valid either way; a byte divergence the spec harness cannot see (it drives the
   wabt-ts parser).
