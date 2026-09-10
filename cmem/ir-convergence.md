@@ -1509,6 +1509,49 @@ Plus Group 3's five ties and the block/label family — which still owns the 7 l
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
 around so the mechanical passes could not settle them by accident.
 
+###### 🔬 Premises of 6 and 7 re-checked 2026-09-10, BEFORE either is implemented
+
+Decision 5's recorded reason turned out false, so both remaining rows were probed against upstream
+wat2wasm 1.0.41 — binaryen-ts's binary round trip and its WAT path, code and type sections compared.
+
+**Decision 6 is wider than its row, and its reason does not hold.** It covers FOUR instructions —
+`br`, `br_if` (binaryen-ts's one `Break`), `br_table` (`Switch`) and `return`. wabt-ts gives all
+four `values: Expr[]`; binaryen-ts gives them `value: Expression | null` and packs 2+ values in a
+`tuple.make` — which is purely a synthetic container here (built only for branch operands; the
+encoder emits its operands inline; `TupleExtract` is declared and never built). The same one-slot-
+or-wrapper shape decision 5 removed. Probed: multi-value `br`, `br_if`, `return` round-trip
+byte-identically on BOTH paths, so **fidelity does not bind** — the representation holds them. But:
+
+- 🛑 **binaryen-ts's WAT parser drops a value from a multi-value `br_table`** — V8 rejects the
+  result (probe 6c). The representation could hold both; the parser built one. **wabt-ts hit the
+  same class and fixed it by moving to lists** (its `BrExpr.values` doc: the single `value?` slot
+  "silently dropped all but the first"). Both sides have now dropped values at the packing step.
+- Trials: lists win → 26 src sites (9 in passes, 12 in ir) + 12 tests; single wins → 27 src (10 in
+  the bridge step 5 deletes, so ~17) + 4 tests. Roughly even.
+
+**Decision 7's reason is CONFIRMED — and understated.** binaryen-ts cannot represent the as-written
+forms at all, and one gap is a validity gap, not only fidelity:
+
+| probe                                         | binary round trip                                  | WAT path                       |
+| --------------------------------------------- | -------------------------------------------------- | ------------------------------ |
+| `select (result i32)` (opcode `0x1c`)         | 🛑 **decoder rejects `0x1c`: "unknown opcode"**    | rejects `(result …)`           |
+| block with `(param i32)`                      | rewritten to `local.set`/`local.get` + a new local | rejects `(param …)`            |
+| `call_indirect (type $b)`, identical `$a` too | re-encoded as type index 0, not 1                  | throws (next row)              |
+| block `(type $t)`, one result                 | same as upstream (both write the inline valtype)   | rejects `(type $t)` on a block |
+| `block (result i32 i32)`                      | same                                               | same                           |
+
+🛑 **Found in passing, WAT path:** once ANY `(type …)` is declared, a function whose signature is
+not among the declared types throws `unresolved GC function type`, and `(func (type $a))` reports
+`() -> ()` — the function's own type use is IGNORED. Loud, not silent; neither the corpus (it
+reaches binaryen-ts through wabt-ts's wat2wasm) nor the spec harness (it drives wabt-ts) reaches
+this path.
+
+🔑 **What decision 7 actually is:** not "which side's fields win" — binaryen-ts has no fields to
+lose. It is whether the unified node carries the SEMANTICS binaryen-ts lacks (block params; a typed
+select's result type, which validity needs for reference types) and where the FORM lives (inline
+valtype vs type index; which of two identical type indices). A candidate split: semantics on the
+node, form in the fidelity side table — which is what "the table SHADOWS them" was reaching for.
+
 ###### ✅ 5. Region bodies — neither form: a `RegionExpr` in every region slot (`365e9277c`)
 
 🔧 **The Group 2 table's reason for this row was OVERSTATED.** It says "fidelity binds" because a
