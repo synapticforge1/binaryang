@@ -151,6 +151,7 @@ import {
   makeRefIsNull,
   makeRefNull,
   makeRefTest,
+  makeRegion,
   makeRethrow,
   makeReturn,
   makeSelect,
@@ -185,6 +186,7 @@ import type {
   Expression,
   HeapType,
   Local,
+  RegionExpr,
   Type as BType,
   ValueType as BValueType,
   WasmModule,
@@ -839,11 +841,17 @@ function bridgeFunc(b: ModuleBuilder, f: WabtFunc, baseCtx: BridgeCtx, name: str
   );
 }
 
-function bridgeFuncBody(body: Expr[], ctx: BridgeCtx): Expression {
-  if (body.length === 1) return bridgeExpr(body[0]!, ctx);
-  // Multi-statement: wrap in an unnamed block. binaryen-ts infers the block's
-  // result type from the last child.
-  return makeBlock(body.map((e) => bridgeExpr(e, ctx)));
+/**
+ * A wabt-ts instruction list as the binaryen-ts region it is. Both sides hold a
+ * region as a list now, so this is a map, not the one-or-wrapper-block choice
+ * it used to be at every region.
+ */
+function bridgeRegion(body: Expr[], ctx: BridgeCtx): RegionExpr {
+  return makeRegion(body.map((e) => bridgeExpr(e, ctx)));
+}
+
+function bridgeFuncBody(body: Expr[], ctx: BridgeCtx): RegionExpr {
+  return bridgeRegion(body, ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -979,10 +987,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const resultType = bridgeBlockType(lp.blockType, ctx);
       ctx.labelStack.push(name);
       try {
-        const body = lp.body.length === 1
-          ? bridgeExpr(lp.body[0]!, ctx)
-          : makeBlock(lp.body.map((c) => bridgeExpr(c, ctx)));
-        return makeLoop(name, body, resultType);
+        return makeLoop(name, bridgeRegion(lp.body, ctx), resultType);
       } finally {
         ctx.labelStack.pop();
       }
@@ -1015,14 +1020,9 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // from `resolveNames`, which does push a frame here.
       ctx.labelStack.push(ifName ?? IF_FRAME);
       try {
-        const ifTrue = ife.then_.length === 1
-          ? bridgeExpr(ife.then_[0]!, ctx)
-          : makeBlock(ife.then_.map((c) => bridgeExpr(c, ctx)));
-        const ifFalse = ife.else_.length === 0
-          ? null
-          : ife.else_.length === 1
-          ? bridgeExpr(ife.else_[0]!, ctx)
-          : makeBlock(ife.else_.map((c) => bridgeExpr(c, ctx)));
+        const ifTrue = bridgeRegion(ife.then_, ctx);
+        // wabt-ts holds an absent else and an empty one alike (`else_: []`).
+        const ifFalse = ife.else_.length === 0 ? null : bridgeRegion(ife.else_, ctx);
         const built = makeIf(condition, ifTrue, ifFalse);
         return withDeclaredType(
           ifName === null ? built : { ...built, name: ifName },
@@ -1422,9 +1422,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const catches: CatchClause[] = tt.catches.map((c) => buildCatchClause(c, ctx));
       ctx.labelStack.push(name);
       try {
-        const body = tt.body.length === 1
-          ? bridgeExpr(tt.body[0]!, ctx)
-          : makeBlock(tt.body.map((c) => bridgeExpr(c, ctx)));
+        const body = bridgeRegion(tt.body, ctx);
         return withDeclaredType(
           makeTryTable(name, body, catches, bridgeBlockType(tt.blockType, ctx)),
           bridgeBlockType(tt.blockType, ctx),
@@ -1474,7 +1472,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const resultType = bridgeBlockType(tr.blockType, ctx);
       ctx.labelStack.push(name);
       try {
-        const body = makeBlock(tr.body.map((c) => bridgeExpr(c, ctx)), null);
+        const body = bridgeRegion(tr.body, ctx);
         // `catch_ref` / `catch_all_ref` used to throw "not yet supported" here,
         // because binaryen-ts's Try had no slot for the flag and dropping it
         // would change what the handler receives. The clause carries `isRef`
@@ -1482,7 +1480,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         const catches: TryCatch[] = tr.catches.map((c) => ({
           ...(c.tag === undefined ? {} : { tag: varName(resolveVarName(c.tag, ctx.tagNames)) }),
           isRef: c.isRef,
-          body: makeBlock(c.body.map((x) => bridgeExpr(x, ctx)), null),
+          body: bridgeRegion(c.body, ctx),
         }));
         const delegateTarget = tr.delegate === undefined ? null : resolveLabel(ctx, tr.delegate);
         return makeTry(name, body, catches, delegateTarget, resultType);

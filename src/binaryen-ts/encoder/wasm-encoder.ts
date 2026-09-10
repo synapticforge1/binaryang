@@ -58,6 +58,7 @@ import {
   type RefIsNullExpr,
   type RefNullExpr,
   type RefTestExpr,
+  type RegionExpr,
   type RethrowExpr,
   type ReturnExpr,
   type SelectExpr,
@@ -313,20 +314,17 @@ function writeValType(w: BinaryWriter, t: ValType): void {
  */
 function isBlockTypeCarrier(expr: Expression): boolean {
   switch (expr.kind) {
+    case ExpressionKind.Block:
     case ExpressionKind.Loop:
     case ExpressionKind.If:
     case ExpressionKind.Try:
     case ExpressionKind.TryTable:
       return true;
-    case ExpressionKind.Block:
-      // ⚠️ An UNNAMED block is a synthetic region wrapper — `oneOrTypedBlock`
-      // building a container for a body that holds one expression in the IR —
-      // and `encodeRegionBody` inlines it, so it never writes a blocktype. It
-      // carries the enclosing construct's type, so a multi-value FUNCTION gave
-      // its body wrapper a multi-value type and this registered an entry for it
-      // that nothing addressed. Same rule as `encodeRegionBody`, and the two
-      // must agree: inlined means no blocktype means no type entry.
-      return (expr as BlockExpr).name !== null;
+    // A Region never writes a blocktype — the construct that owns it does. This
+    // used to be an exception for UNNAMED blocks, which had to agree with
+    // `encodeRegionBody`'s rule for inlining them: a multi-value function's body
+    // wrapper once registered a type entry nothing addressed. Being a region is
+    // a kind now, so there is no rule to keep in step.
     default:
       return false;
   }
@@ -1437,14 +1435,14 @@ class WasmEncoder {
     w.writeU32(this.mod.dataSegments.length);
   }
 
-  private encodeRegionBody(w: BinaryWriter, body: Expression, labels: LabelStack): void {
-    if (body.kind === ExpressionKind.Block && (body as BlockExpr).name === null) {
-      for (const child of (body as BlockExpr).children) {
-        this.encodeExpr(w, child, labels);
-      }
-    } else {
-      this.encodeExpr(w, body, labels);
-    }
+  /**
+   * A region's instructions, with no header or `end` of its own — the owning
+   * construct writes those. It used to inline any UNNAMED block found here, on
+   * the convention that only a synthetic wrapper was unnamed; a region is a kind
+   * now, and every `Block` is emitted as the block it is.
+   */
+  private encodeRegionBody(w: BinaryWriter, body: RegionExpr, labels: LabelStack): void {
+    for (const child of body.children) this.encodeExpr(w, child, labels);
   }
 
   // ---------------------------------------------------------------------------
@@ -1469,6 +1467,14 @@ class WasmEncoder {
         w.writeU8(0x01);
         break;
       }
+
+      case ExpressionKind.Region:
+        // Regions are reached only through `encodeRegionBody`, from the slot
+        // that owns them. One here is sitting in an operand or statement
+        // position, which the type admits (a Region is an Expression) and the IR
+        // forbids — emitting its children inline would silently change what the
+        // surrounding code consumes.
+        throw new WasmEncodeError('a region outside a region slot');
       case ExpressionKind.Unreachable: {
         w.writeU8(0x00);
         break;

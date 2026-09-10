@@ -234,6 +234,16 @@ class _CFGBuilder {
       }
 
       // -------------------------------------------------------------------
+      // Region — a body's instructions, in order. No label, so nothing can
+      // branch to its end and it needs no merge block. (The `default` arm
+      // would visit the children the same way; this is explicit so a change
+      // there cannot quietly change how every body is modelled.)
+      // -------------------------------------------------------------------
+      case ExpressionKind.Region:
+        for (const child of e.children) this.visit(child);
+        return;
+
+      // -------------------------------------------------------------------
       // Loop — labelled body. A `br $name` inside loops back to the top.
       // Control falls through the loop body once otherwise.
       // -------------------------------------------------------------------

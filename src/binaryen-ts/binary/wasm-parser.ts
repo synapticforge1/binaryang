@@ -54,6 +54,7 @@ import {
   makeRefFunc,
   makeRefIsNull,
   makeRefNull,
+  makeRegion,
   makeRethrow,
   makeReturn,
   makeSelect,
@@ -82,6 +83,7 @@ import {
   makeUnreachable,
   makeV128Const,
   QuaternaryOp,
+  type RegionExpr,
   SIMDExtractOp,
   SIMDLoadOp,
   SIMDLoadStoreLaneOp,
@@ -696,21 +698,9 @@ function _branchValue(
   return makeTupleMake(vals);
 }
 
-/**
- * One expression from a body list: the single expression when there is exactly
- * one, an anonymous block otherwise.
- *
- * This ternary was written out a dozen times across the decoder before it had a
- * name. The `!` is safe and stays legible because the length check that
- * guarantees it is the condition of the same expression.
- */
-/** { oneOrBlock} for a branch VALUE: one expression, or a `tuple.make`. */
+/** A branch VALUE from a list: one expression, or a `tuple.make`. */
 function oneOrTuple(exprs: Expression[]): Expression {
   return exprs.length === 1 ? exprs[0]! : makeTupleMake(exprs);
-}
-
-function oneOrBlock(exprs: Expression[]): Expression {
-  return exprs.length === 1 ? exprs[0]! : makeBlock(exprs, null);
 }
 
 /**
@@ -722,29 +712,20 @@ function resultTypeOf(results: ValueType[]): Type {
   return results.length === 1 ? results[0]! : results;
 }
 
-function sealFrame(frame: ControlFrame, resultType: Type): Expression {
-  if (frame.exprs.length === 0) return makeNop();
-  if (frame.exprs.length === 1) return frame.exprs[0]!;
-  // The wrapper block is an artificial container for a multi-expression body;
-  // it must be ANONYMOUS. Callers (`loop`, `try_table`) re-apply `frame.label`
-  // to the enclosing construct (`makeLoop(frame.label, body, ...)`), so reusing
-  // it here too produced two nested constructs with the same label —
-  // `(loop $L (block $L ...))`. The encoder resolves a branch by innermost
-  // matching label, so a loop back-edge `br $L` then targeted the wrapper block
-  // (a forward exit) instead of the loop (a continue), silently changing
-  // control flow and leaving the loop's declared result value unproduced.
-  const blk = makeBlock(frame.exprs, null);
-  // The wrapper IS the construct's body, so it must carry the construct's
-  // declared result type — NOT the type `makeBlock` infers from the last child.
-  // When the body exits via a back-edge `br` (last child unreachable), inference
-  // would type the wrapper `unreachable`, which the encoder can only emit as a
-  // void blocktype; the void wrapper then "absorbs" the unreachability and
-  // yields 0 values to the enclosing result-typed loop, tripping the validator
-  // ("expected 1 elements for fallthru, found 0"). Stamping the declared type
-  // makes the encoder emit `(block (result T) ... br)`, which validates
-  // polymorphically and yields T. Mirrors the `block`-frame handling below.
-  blk.type = resultType;
-  return blk;
+/**
+ * A frame's instructions as the region they are — exactly as decoded, 0, 1 or
+ * N of them.
+ *
+ * 🔧 This built a WRAPPER, and the wrapper's history is the case for a region:
+ * an empty body became a `nop` the binary never held; a reused label made a
+ * back-edge `br $L` target the wrapper, turning a `continue` into an exit; and
+ * a wrapper typed by inference came out `unreachable`, was emitted with a void
+ * blocktype, and absorbed the value a result-typed loop owed. A region has no
+ * label, never writes a blocktype, and holds what was there — so its type is
+ * simply its contents' type; the declared one stays on the construct.
+ */
+function sealFrame(frame: ControlFrame): RegionExpr {
+  return makeRegion(frame.exprs);
 }
 
 // ---------------------------------------------------------------------------
@@ -1815,8 +1796,8 @@ class WasmParser {
             // checks, null guards).
             const thenExprs = frame.kind === 'if' ? frame.exprs : (frame.thenExprs ?? []);
             const elseExprs = frame.kind === 'if' ? [] : frame.exprs;
-            const thenExpr = oneOrBlock(thenExprs);
-            const elseExpr = elseExprs.length > 0 ? oneOrBlock(elseExprs) : null;
+            const thenExpr = makeRegion(thenExprs);
+            const elseExpr = frame.kind === 'else' ? makeRegion(elseExprs) : null;
             // Pass `frame.label` so a `br` that targets this `if` (resolved to
             // this label at decode time) round-trips to the correct branch
             // depth on encode. Without it the encoder pushed an empty label and
@@ -1838,11 +1819,11 @@ class WasmParser {
             const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label);
             push(rts.length > 0 ? { ...ifExpr, type: resultType } : ifExpr);
           } else if (frame.kind === 'loop') {
-            const body = sealFrame(frame, resultType);
+            const body = sealFrame(frame);
             push(makeLoop(frame.label, body, resultType));
           } else if (frame.kind === 'try' || frame.kind === 'catch') {
             const tryBodyExprs = frame.kind === 'try' ? frame.exprs : (frame.tryBody ?? []);
-            const tryBody = oneOrBlock(tryBodyExprs);
+            const tryBody = makeRegion(tryBodyExprs);
             const allCatchBodies = [...(frame.catchBodies ?? [])];
             if (frame.kind === 'catch') allCatchBodies.push(frame.exprs);
             const tags = frame.catchTags ?? [];
@@ -1851,11 +1832,11 @@ class WasmParser {
             const catches = allCatchBodies.map((body, i) => ({
               ...(tags[i] === undefined ? {} : { tag: tags[i]! }),
               isRef: false,
-              body: oneOrBlock(body),
+              body: makeRegion(body),
             }));
             push(makeTry(frame.label, tryBody, catches, null, resultType));
           } else if (frame.kind === 'try_table') {
-            const body = sealFrame(frame, resultType);
+            const body = sealFrame(frame);
             push(makeTryTable(frame.label, body, frame.tryCatches ?? [], resultType));
           } else {
             // block (only remaining kind here — func/if/else/loop/try*
@@ -2052,7 +2033,7 @@ class WasmParser {
           }
           const rts = frame.resultTypes;
           const resultType: Type = resultTypeOf(rts);
-          const tryBody = oneOrBlock(frame.exprs);
+          const tryBody = makeRegion(frame.exprs);
           push(makeTry(frame.label, tryBody, [], resolveLabel(frames, depth), resultType));
           break;
         }
@@ -2302,13 +2283,13 @@ class WasmParser {
     }
 
     const funcFrame = frames[0] ?? { exprs: [], label: undefined };
-    const body = oneOrBlock(funcFrame.exprs);
+    const body = makeRegion(funcFrame.exprs);
 
     return {
       name: `$func${funcIdx}`,
       // The function-frame label is the target of a `br` that exits the whole
-      // function. It is dropped from `body` (a null-named container), so record
-      // it here for the encoder to seed; otherwise such a branch mis-resolves.
+      // function. A region carries no label, so record it here for the encoder
+      // to seed; otherwise such a branch mis-resolves.
       bodyFrameLabel: funcFrame.label,
       params: ft.params,
       results: ft.results,

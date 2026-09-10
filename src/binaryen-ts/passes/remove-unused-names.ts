@@ -21,6 +21,8 @@
  */
 
 import {
+  asRegion,
+  asStatement,
   type BlockExpr,
   type BrOnExpr,
   type Expression,
@@ -47,7 +49,7 @@ export class RemoveUnusedNamesPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
-      fn.body = _processBody(fn.body);
+      fn.body = asRegion(_processBody(fn.body));
     }
   }
 }
@@ -102,7 +104,9 @@ function _strip(expr: Expression, targets: Set<string>): Expression {
     // A loop with no back-edge br executes exactly once — replace with body.
     // Type guard: only replace when types match (always true for valid MVP WASM).
     if (!targets.has(loop.name) && loop.type === loop.body.type) {
-      return loop.body;
+      // The body takes the LOOP's place — a statement or operand position,
+      // which a region cannot occupy and which `Expression` would not refuse.
+      return asStatement(loop.body);
     }
     return loop;
   }

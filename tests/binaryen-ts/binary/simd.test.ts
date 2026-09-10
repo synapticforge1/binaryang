@@ -31,6 +31,7 @@ import {
   UnaryOp,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { soleInstr } from '../region_helpers.ts';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -91,7 +92,7 @@ const V128CONST_MODULE = module(
 
 Deno.test('SIMD: v128.const parsed correctly', () => {
   const mod = parseWasm(V128CONST_MODULE);
-  const expr = mod.functions[0].body as ConstExpr;
+  const expr = soleInstr(mod.functions[0].body) as ConstExpr;
   assertEquals(expr.kind, ExpressionKind.Const);
   assertEquals(expr.type, ValType.V128);
   const v128 = (expr.value as { v128: Uint8Array }).v128;
@@ -129,7 +130,7 @@ const SPLAT_MODULE = module(
 
 Deno.test('SIMD: i32x4.splat parsed correctly', () => {
   const mod = parseWasm(SPLAT_MODULE);
-  const expr = mod.functions[0].body as UnaryExpr;
+  const expr = soleInstr(mod.functions[0].body) as UnaryExpr;
   assertEquals(expr.kind, ExpressionKind.Unary);
   assertEquals(expr.opcode, UnaryOp.SplatVecI32x4);
   assertEquals(expr.type, ValType.V128);
@@ -169,7 +170,7 @@ const ADD_MODULE = module(
 
 Deno.test('SIMD: i32x4.add parsed correctly', () => {
   const mod = parseWasm(ADD_MODULE);
-  const expr = mod.functions[0].body as BinaryExpr;
+  const expr = soleInstr(mod.functions[0].body) as BinaryExpr;
   assertEquals(expr.kind, ExpressionKind.Binary);
   assertEquals(expr.opcode, BinaryOp.AddVecI32x4);
   assertEquals(expr.type, ValType.V128);
@@ -217,7 +218,7 @@ const SHUFFLE_MODULE = module(
 
 Deno.test('SIMD: i8x16.shuffle parsed correctly', () => {
   const mod = parseWasm(SHUFFLE_MODULE);
-  const expr = mod.functions[0].body as SIMDShuffleExpr;
+  const expr = soleInstr(mod.functions[0].body) as SIMDShuffleExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDShuffle);
   assertEquals(expr.type, ValType.V128);
   assertEquals(expr.mask.length, 16);
@@ -249,7 +250,7 @@ const EXTRACT_MODULE = module(
 
 Deno.test('SIMD: i8x16.extract_lane_s parsed correctly', () => {
   const mod = parseWasm(EXTRACT_MODULE);
-  const expr = mod.functions[0].body as SIMDExtractExpr;
+  const expr = soleInstr(mod.functions[0].body) as SIMDExtractExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDExtract);
   assertEquals(expr.opcode, SIMDExtractOp.ExtractLaneSVecI8x16);
   assertEquals(expr.lane, 3);
@@ -283,7 +284,7 @@ const REPLACE_MODULE = module(
 
 Deno.test('SIMD: i32x4.replace_lane parsed correctly', () => {
   const mod = parseWasm(REPLACE_MODULE);
-  const expr = mod.functions[0].body as SIMDReplaceExpr;
+  const expr = soleInstr(mod.functions[0].body) as SIMDReplaceExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDReplace);
   assertEquals(expr.opcode, SIMDReplaceOp.ReplaceLaneVecI32x4);
   assertEquals(expr.lane, 2);
@@ -318,7 +319,7 @@ const SHIFT_MODULE = module(
 
 Deno.test('SIMD: i32x4.shl (SIMDShift) parsed correctly', () => {
   const mod = parseWasm(SHIFT_MODULE);
-  const expr = mod.functions[0].body as SIMDShiftExpr;
+  const expr = soleInstr(mod.functions[0].body) as SIMDShiftExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDShift);
   assertEquals(expr.opcode, SIMDShiftOp.ShlVecI32x4);
   assertEquals(expr.type, ValType.V128);
@@ -352,7 +353,7 @@ const BITSELECT_MODULE = module(
 
 Deno.test('SIMD: v128.bitselect (SIMDTernary) parsed correctly', () => {
   const mod = parseWasm(BITSELECT_MODULE);
-  const expr = mod.functions[0].body as SIMDTernaryExpr;
+  const expr = soleInstr(mod.functions[0].body) as SIMDTernaryExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDTernary);
   assertEquals(expr.opcode, SIMDTernaryOp.Bitselect);
   assertEquals(expr.type, ValType.V128);
@@ -385,7 +386,7 @@ const SIMD_LOAD_MODULE = module(
 
 Deno.test('SIMD: v128.load8x8_s (SIMDLoad) parsed correctly', () => {
   const mod = parseWasm(SIMD_LOAD_MODULE);
-  const expr = mod.functions[0].body as SIMDLoadExpr;
+  const expr = soleInstr(mod.functions[0].body) as SIMDLoadExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDLoad);
   assertEquals(expr.opcode, SIMDLoadOp.Load8x8SVec128);
   assertEquals(expr.align, 1);
@@ -423,7 +424,7 @@ const SIMD_LANE_MODULE = module(
 
 Deno.test('SIMD: v128.load8_lane (SIMDLoadStoreLane) parsed correctly', () => {
   const mod = parseWasm(SIMD_LANE_MODULE);
-  const expr = mod.functions[0].body as SIMDLoadStoreLaneExpr;
+  const expr = soleInstr(mod.functions[0].body) as SIMDLoadStoreLaneExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDLoadStoreLane);
   assertEquals(expr.opcode, SIMDLoadStoreLaneOp.Load8LaneVec128);
   assertEquals(expr.lane, 0);
@@ -500,13 +501,13 @@ const V128_LOAD_MODULE = module(
 
 Deno.test('SIMD: plain v128.load re-encodes to 0xFD 0x00 and round-trips/validates', async () => {
   const mod = parseWasm(V128_LOAD_MODULE);
-  assertEquals(mod.functions[0].body.kind, ExpressionKind.Load);
-  assertEquals(mod.functions[0].body.type, ValType.V128);
+  assertEquals(soleInstr(mod.functions[0].body).kind, ExpressionKind.Load);
+  assertEquals(soleInstr(mod.functions[0].body).type, ValType.V128);
   const out = encodeWasm(mod); // previously threw "cannot encode load ... v128"
   await WebAssembly.compile(out as BufferSource);
   const reparsed = parseWasm(out);
-  assertEquals(reparsed.functions[0].body.kind, ExpressionKind.Load);
-  assertEquals(reparsed.functions[0].body.type, ValType.V128);
+  assertEquals(soleInstr(reparsed.functions[0].body).kind, ExpressionKind.Load);
+  assertEquals(soleInstr(reparsed.functions[0].body).type, ValType.V128);
 });
 
 const V128_STORE_MODULE = module(
@@ -518,9 +519,9 @@ const V128_STORE_MODULE = module(
 
 Deno.test('SIMD: plain v128.store re-encodes to 0xFD 0x0b and round-trips/validates', async () => {
   const mod = parseWasm(V128_STORE_MODULE);
-  assertEquals(mod.functions[0].body.kind, ExpressionKind.Store);
+  assertEquals(soleInstr(mod.functions[0].body).kind, ExpressionKind.Store);
   const out = encodeWasm(mod);
   await WebAssembly.compile(out as BufferSource);
   const reparsed = parseWasm(out);
-  assertEquals(reparsed.functions[0].body.kind, ExpressionKind.Store);
+  assertEquals(soleInstr(reparsed.functions[0].body).kind, ExpressionKind.Store);
 });

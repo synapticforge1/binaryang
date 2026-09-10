@@ -370,6 +370,11 @@ function exprToWat(expr: Expression, _indent: number): string {
       const body = expr.children.map((c) => `  ${exprToWat(c, _indent + 2)}`).join('\n');
       return `(block${label}${result}\n${body}\n)`;
     }
+    case ExpressionKind.Region:
+      // A region is its instructions in sequence — exactly what a function body
+      // or an `(then …)` holds in WAT. It printed as a `(block …)` while it was a
+      // synthetic wrapper, which described a nesting the module does not have.
+      return expr.children.map((c) => exprToWat(c, _indent)).join(`\n${' '.repeat(_indent)}`);
     case ExpressionKind.If: {
       const result = expr.type !== None ? ` (result ${expr.type})` : '';
       const then = `(then ${exprToWat(expr.ifTrue, _indent)})`;

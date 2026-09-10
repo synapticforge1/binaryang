@@ -79,6 +79,7 @@ import {
   makeRefIsNull,
   makeRefNull,
   makeRefTest,
+  makeRegion,
   makeRethrow,
   makeReturn,
   makeSelect,
@@ -111,6 +112,7 @@ import {
   type MemoryGrowExpr,
   type MemorySizeExpr,
   type NopExpr,
+  type RegionExpr,
   type SIMDExtractExpr,
   SIMDExtractOp,
   type SIMDLoadExpr,
@@ -682,7 +684,7 @@ class WatModuleParser {
     // whose operand is absent can claim the sibling that produced it.
     const bodyExprs = this.parseStatementList(children.slice(idx), ctx);
 
-    const body = this.oneOrTypedBlock(bodyExprs, this.declaredType(results, None));
+    const body = this.region(bodyExprs);
 
     this.builder.addFunction(raw.name, params, results, body, additionalLocals);
 
@@ -1418,7 +1420,7 @@ class WatModuleParser {
       idx++;
     }
     const type = this.declaredType(results, None);
-    const body = this.oneOrTypedBlock(bodyExprs, type);
+    const body = this.region(bodyExprs);
     return { kind: ExpressionKind.Loop, type, name: label, body };
   }
 
@@ -1472,16 +1474,16 @@ class WatModuleParser {
     // then branch
     if (!isListWith(children[idx], 'then')) this.err('if: expected (then ...)', list.pos);
     const thenExprs = listChildren(children[idx] as SList).map((e) => this.parseExpr(e, innerCtx));
-    const ifTrue: Expression = this.oneOrTypedBlock(thenExprs, this.declaredType(results, None));
+    const ifTrue = this.region(thenExprs);
     idx++;
 
     // else branch (optional)
-    let ifFalse: Expression | null = null;
+    let ifFalse: RegionExpr | null = null;
     if (idx < children.length && isListWith(children[idx], 'else')) {
       const elseExprs = listChildren(children[idx] as SList).map((e) =>
         this.parseExpr(e, innerCtx)
       );
-      ifFalse = this.oneOrTypedBlock(elseExprs, this.declaredType(results, None));
+      ifFalse = this.region(elseExprs);
     }
 
     // Route through makeIf so the result type is the LUB of the reachable
@@ -1632,7 +1634,7 @@ class WatModuleParser {
       idx++;
     }
     const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
-    const body = this.oneOrTypedBlock(bodyExprs, type);
+    const body = this.region(bodyExprs);
     return makeTryTable(tryLabel, body, catches, type);
   }
 
@@ -1670,7 +1672,7 @@ class WatModuleParser {
       }
     }
     const bodyType = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
-    const body: Expression = this.oneOrTypedBlock(bodyExprs, bodyType);
+    const body = this.region(bodyExprs);
     // Catch / catch_all / delegate clauses
     const catches: TryCatch[] = [];
     let delegateTarget: string | null = null;
@@ -1685,7 +1687,7 @@ class WatModuleParser {
         catches.push({
           tag: varName(tagName),
           isRef: false,
-          body: this.oneOrTypedBlock(catchExprs, bodyType),
+          body: this.region(catchExprs),
         });
         idx++;
       } else if (clauseHead === 'catch_all') {
@@ -1701,7 +1703,7 @@ class WatModuleParser {
         const catchExprs = clauseArgs.map((e) => this.parseExpr(e, innerCtx));
         catches.push({
           isRef: false,
-          body: this.oneOrTypedBlock(catchExprs, bodyType),
+          body: this.region(catchExprs),
         });
         idx++;
       } else if (clauseHead === 'delegate') {
@@ -3282,14 +3284,18 @@ class WatModuleParser {
    * multi-result annotation becomes the array.
    */
   /**
-   * One expression from a body list: the single expression when there is
-   * exactly one, an anonymous block of the declared type otherwise. The WAT
-   * side needs the type stamped explicitly (the decoder's `oneOrBlock` lets
-   * `makeBlock` infer it), which is why this is a separate helper.
+   * A region from a body list, exactly as written. Its type is its CONTENTS'
+   * type, inferred as {@link makeBlock} does; the construct's declared type
+   * lives on the construct, which is also what writes the blocktype.
+   *
+   * 🔧 This was `oneOrTypedBlock`, which returned the lone expression for a
+   * one-instruction body and a synthetic unnamed `Block` otherwise — so a body
+   * had two spellings, and a real unlabeled block had to be given a name for
+   * the wrapper to be told apart from it. It stamped the DECLARED type on the
+   * wrapper because the wrapper wrote a blocktype; a region never does.
    */
-  private oneOrTypedBlock(exprs: Expression[], type: Type): Expression {
-    if (exprs.length === 1) return exprs[0]!;
-    return { kind: ExpressionKind.Block, type, name: null, children: exprs } as BlockExpr;
+  private region(exprs: Expression[]): RegionExpr {
+    return makeRegion(exprs);
   }
 
   private declaredType(results: ValueType[], fallback: Type): Type {

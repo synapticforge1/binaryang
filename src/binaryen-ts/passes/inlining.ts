@@ -28,6 +28,8 @@
  */
 
 import {
+  asRegion,
+  asStatement,
   type BlockExpr,
   type BreakExpr,
   type CallExpr,
@@ -104,7 +106,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
   for (const fn of module.functions) {
     const entry = info.get(fn.name)!;
     walkExpression(fn.body, (e) => {
-      entry.size++;
+      if (countsTowardSize(e)) entry.size++;
       if (e.kind === ExpressionKind.Loop) entry.hasLoops = true;
       if (e.kind === ExpressionKind.Call) {
         entry.hasCalls = true;
@@ -291,7 +293,12 @@ class FunctionSplitter {
   getSplitMode(fn: WasmFunction, info: FunctionInfo): SplitMode {
     if (this.opts.partialInliningIfs <= 0) return 'Uninlineable';
 
-    const body = fn.body;
+    // The split patterns are upstream's, written against a body that is one
+    // item or a block of items (`getItem`). `asStatement` gives exactly that
+    // shape, so the pattern logic below reads the body as it always did.
+    // `doSplitA` / `doSplitB` must read it the same way — they re-find the ifs
+    // this found.
+    const body = asStatement(fn.body);
 
     // A block with a self-targeted break can't be safely outlined.
     if (body.kind === ExpressionKind.Block) {
@@ -304,7 +311,10 @@ class FunctionSplitter {
     if (!isSimple(iff.condition)) return 'Uninlineable';
 
     // ---- Pattern A: `if (simple) return; ...rest` ----
-    if (!iff.ifFalse && fn.results.length === 0 && iff.ifTrue.kind === ExpressionKind.Return) {
+    if (
+      !iff.ifFalse && fn.results.length === 0 &&
+      asStatement(iff.ifTrue).kind === ExpressionKind.Return
+    ) {
       // Must be a block — otherwise the whole function is just the if and the
       // normal inliner would have taken it already.
       if (body.kind !== ExpressionKind.Block) return 'Uninlineable';
@@ -389,14 +399,16 @@ class FunctionSplitter {
    *  shell preserve the original early-exit semantics — the call to outlined
    *  happens only when the original would have continued past the `return`. */
   private doSplitA(fn: WasmFunction): WasmFunction {
-    const body = fn.body as BlockExpr;
+    // A block by construction: `getSplitMode` returns SplitPatternA only when
+    // this same view of the body is one.
+    const body = asStatement(fn.body) as BlockExpr;
     const originalIf = getIf(body)!;
 
     // Outlined function: body minus the first if.
-    const outlinedBody = makeBlock(
+    const outlinedBody = asRegion(makeBlock(
       body.children.slice(1).map((c) => deepCopy(c)),
       body.name,
-    );
+    ));
     const outlined: WasmFunction = {
       name: `byn-split-outlined-A$${fn.name}`,
       params: fn.params.slice(),
@@ -412,7 +424,7 @@ class FunctionSplitter {
       kind: ExpressionKind.If,
       type: typeOf(originalIf),
       condition: makeUnary(UnaryOp.EqzI32, deepCopy(originalIf.condition)),
-      ifTrue: makeCall(varName(outlined.name), getForwardedArgs(fn), None),
+      ifTrue: asRegion(makeCall(varName(outlined.name), getForwardedArgs(fn), None)),
       ifFalse: null,
     };
 
@@ -421,7 +433,7 @@ class FunctionSplitter {
       params: fn.params.slice(),
       results: fn.results.slice(),
       locals: copyLocals(fn.locals),
-      body: shellIf,
+      body: asRegion(shellIf),
     };
   }
 
@@ -431,7 +443,9 @@ class FunctionSplitter {
    *  value matching the original's result type). */
   private doSplitB(fn: WasmFunction): WasmFunction {
     const maxIfs = this.opts.partialInliningIfs;
-    const inlineableBody = deepCopy(fn.body);
+    // Read the body the way `getSplitMode` did, or the ifs it counted are not
+    // the ones found here.
+    const inlineableBody = deepCopy(asStatement(fn.body));
 
     for (let i = 0; i < maxIfs; i++) {
       const ifI = getIf(inlineableBody, i);
@@ -452,7 +466,7 @@ class FunctionSplitter {
 
       const callType = valueReturned ? (outlinedResults[0] as ValType) : None;
       const call = makeCall(varName(outlined.name), getForwardedArgs(fn), callType);
-      ifI.ifTrue = valueReturned ? makeReturn(call) : call;
+      ifI.ifTrue = asRegion(valueReturned ? makeReturn(call) : call);
     }
 
     return {
@@ -460,7 +474,7 @@ class FunctionSplitter {
       params: fn.params.slice(),
       results: fn.results.slice(),
       locals: copyLocals(fn.locals),
-      body: inlineableBody,
+      body: asRegion(inlineableBody),
     };
   }
 }
@@ -716,7 +730,9 @@ function inlineCallSite(
   // calls, rewrite `return` → `br $wrapperLabel`). For tail calls we leave
   // returns alone so they propagate out as the caller's returns.
   const bodyCopy = deepCopy(callee.body);
-  const substituted = substituteBody(bodyCopy, mapping, label, !call.isReturn);
+  // The callee's body becomes a STATEMENT of the wrapper block, which a region
+  // cannot be; `children` is `Expression[]`, so only the encoder would object.
+  const substituted = asStatement(substituteBody(bodyCopy, mapping, label, !call.isReturn));
   children.push(substituted);
 
   // 4. Result type of the wrapper block.
@@ -996,6 +1012,24 @@ export { deepCopy, measureSize };
 /** Counts instruction nodes in an expression tree. */
 function measureSize(expr: Expression): number {
   let n = 0;
-  walkExpression(expr, () => n++);
+  walkExpression(expr, (e) => {
+    if (countsTowardSize(e)) n++;
+  });
   return n;
+}
+
+/**
+ * Whether `e` counts toward a size. A region of ONE instruction does not; any
+ * other region does.
+ *
+ * ⚠️ The inlining thresholds (≤2 always, ≤10 one caller, ≤20 flexible) are node
+ * COUNTS, calibrated against upstream's IR — where a one-instruction body is
+ * the instruction itself and a longer one is a block. Counting every region
+ * would add a node to every such body and to each `if` arm, and quietly move
+ * which functions inline. This rule gives exactly the count the pre-region IR
+ * gave: a lone expression (0 extra), a wrapper block or an empty body's
+ * block / `nop` (1).
+ */
+function countsTowardSize(e: Expression): boolean {
+  return e.kind !== ExpressionKind.Region || e.children.length !== 1;
 }

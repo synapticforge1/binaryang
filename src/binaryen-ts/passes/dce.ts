@@ -16,7 +16,12 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind } from '../ir/expressions.ts';
+import {
+  type BlockExpr,
+  type Expression,
+  ExpressionKind,
+  type RegionExpr,
+} from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
@@ -37,7 +42,7 @@ export class DCEPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
-      fn.body = eliminateDeadCode(fn.body);
+      fn.body = eliminateDeadList(fn.body);
     }
   }
 }
@@ -50,38 +55,43 @@ registerPass(DCEPass);
 
 function eliminateDeadCode(expr: Expression): Expression {
   switch (expr.kind) {
+    // ⚠️ Region and Block are the same operation on the same field. Region MUST
+    // be listed: every loop / if / try / function body is one, and before
+    // regions were a kind those bodies were unnamed Blocks and got trimmed here.
+    // With only `Block` listed, `default` below returned them untouched — DCE
+    // would have quietly stopped working on every region, and nothing typed
+    // would have said so.
     case ExpressionKind.Block:
-      return eliminateDeadBlock(expr);
+    case ExpressionKind.Region:
+      return eliminateDeadList(expr);
 
     case ExpressionKind.If:
       return {
         ...expr,
         condition: eliminateDeadCode(expr.condition),
-        ifTrue: eliminateDeadCode(expr.ifTrue),
-        ifFalse: expr.ifFalse ? eliminateDeadCode(expr.ifFalse) : null,
+        ifTrue: eliminateDeadList(expr.ifTrue),
+        ifFalse: expr.ifFalse ? eliminateDeadList(expr.ifFalse) : null,
       };
 
     case ExpressionKind.Loop:
-      return { ...expr, body: eliminateDeadCode(expr.body) };
+      return { ...expr, body: eliminateDeadList(expr.body) };
 
     case ExpressionKind.Try:
       return {
         ...expr,
-        body: eliminateDeadCode(expr.body),
-        catches: expr.catches.map((c) => ({ ...c, body: eliminateDeadCode(c.body) })),
+        body: eliminateDeadList(expr.body),
+        catches: expr.catches.map((c) => ({ ...c, body: eliminateDeadList(c.body) })),
       };
 
     case ExpressionKind.TryTable:
-      return { ...expr, body: eliminateDeadCode(expr.body) };
+      return { ...expr, body: eliminateDeadList(expr.body) };
 
     default:
       return expr;
   }
 }
 
-function eliminateDeadBlock(
-  block: Extract<Expression, { kind: ExpressionKind.Block }>,
-): Expression {
+function eliminateDeadList<T extends BlockExpr | RegionExpr>(block: T): T {
   const newChildren: Expression[] = [];
   let trimmed = false;
   for (let i = 0; i < block.children.length; i++) {

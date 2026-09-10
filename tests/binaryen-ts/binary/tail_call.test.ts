@@ -165,7 +165,8 @@ Deno.test('Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolv
 /** The binary parser wraps function bodies in a block. Returns the first
  *  non-block descendant — useful when a fixture's body is a single instruction. */
 function unwrapSingle(e: Expression): Expression {
-  if (e.kind === ExpressionKind.Block) {
+  // A body is a region now; a block of one is still unwrapped where it is real.
+  if (e.kind === ExpressionKind.Block || e.kind === ExpressionKind.Region) {
     const b = e as { children: Expression[] };
     if (b.children.length === 1) return unwrapSingle(b.children[0]);
   }

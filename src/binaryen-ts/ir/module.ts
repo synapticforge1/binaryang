@@ -23,7 +23,7 @@
  * @license MIT
  */
 
-import type { Expression } from './expressions.ts';
+import { asRegion, type Expression, type RegionExpr, type RegionInput } from './expressions.ts';
 import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
@@ -57,8 +57,8 @@ export interface WasmFunction {
   results: ValueType[];
   /** All locals including params. Additional locals start at params.length. */
   locals: Local[];
-  /** The function body (a single expression, typically a Block). */
-  body: Expression;
+  /** The function's region — see {@link RegionExpr}. */
+  body: RegionExpr;
   /**
    * Label of the function's implicit outermost block — the target of a `br`
    * that exits the whole function (depth = number of enclosing blocks). The
@@ -321,14 +321,15 @@ export class ModuleBuilder {
    * @param name - Internal function name.
    * @param params - Parameter types.
    * @param results - Return types (empty = void).
-   * @param body - The function body expression.
+   * @param body - The function body: a region, a list, or one expression
+   *   (see {@link asRegion}).
    * @param locals - Additional (non-param) local variables.
    */
   addFunction(
     name: string,
     params: ValueType[],
     results: ValueType[],
-    body: Expression,
+    body: RegionInput,
     locals: Local[] = [],
     bodyFrameLabel?: string,
   ): this {
@@ -338,7 +339,7 @@ export class ModuleBuilder {
       params,
       results,
       locals: [...paramLocals, ...locals],
-      body,
+      body: asRegion(body),
       bodyFrameLabel,
     });
     return this;

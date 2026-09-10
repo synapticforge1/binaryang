@@ -30,6 +30,7 @@ import { assert, assertEquals } from '@std/assert';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
+  asRegion,
   makeI32Const,
   makeNop,
   makeTry,
@@ -41,6 +42,7 @@ import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { soleInstr } from '../region_helpers.ts';
 
 /**
  * Positions where two encodings differ, as `[index, a, b]`.
@@ -72,7 +74,7 @@ describe('try catch clauses are records, not parallel arrays', () => {
     const mod = parseWat(`(module
       (tag $e)
       (func $f (try $t (nop) (catch $e) (catch_all (nop)))))`);
-    const t = mod.functions[0].body as TryExpr;
+    const t = soleInstr(mod.functions[0].body) as TryExpr;
     assertEquals(t.catches.length, 2);
     assertEquals(t.catches[0]!.tag, varName('$e'));
     assertEquals(t.catches[1]!.tag, undefined, 'catch_all carries no tag at all');
@@ -91,7 +93,7 @@ describe('try catch clauses are records, not parallel arrays', () => {
       tryCatchAll(makeNop()),
     ]));
     const back = parseWasm(bytes);
-    const t = back.functions[0]!.body as TryExpr;
+    const t = soleInstr(back.functions[0]!.body) as TryExpr;
     const kinds = t.catches.map((c) => (c.tag === undefined ? 'all' : 'tagged'));
     assertEquals(kinds, ['tagged', 'all']);
   });
@@ -102,21 +104,21 @@ describe('try catch clauses are records, not parallel arrays', () => {
     // ONLY difference it makes to the encoding is the opcode.
     const plain = encodeWasm(tryModule([tryCatch(varName('$e'), makeNop())]));
     const ref = encodeWasm(tryModule([
-      { tag: varName('$e'), isRef: true, body: makeNop() },
+      { tag: varName('$e'), isRef: true, body: asRegion(makeNop()) },
     ]));
     assertEquals(byteDiff(plain, ref), [[byteDiff(plain, ref)[0]![0], 0x07, 0x08]]);
   });
 
   it('catch_all_ref changes exactly one byte: 0x19 becomes 0x18', () => {
     const plain = encodeWasm(tryModule([tryCatchAll(makeNop())]));
-    const ref = encodeWasm(tryModule([{ isRef: true, body: makeNop() }]));
+    const ref = encodeWasm(tryModule([{ isRef: true, body: asRegion(makeNop()) }]));
     assertEquals(byteDiff(plain, ref), [[byteDiff(plain, ref)[0]![0], 0x19, 0x18]]);
   });
 
   it('isRef is per-clause — flipping the middle one moves only its opcode', () => {
     const clauses = (mid: boolean) => [
       tryCatch(varName('$e'), makeNop()),
-      { tag: varName('$e'), isRef: mid, body: makeI32Const(1) },
+      { tag: varName('$e'), isRef: mid, body: asRegion(makeI32Const(1)) },
       tryCatchAll(makeNop()),
     ];
     const diff = byteDiff(

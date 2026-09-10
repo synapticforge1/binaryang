@@ -73,6 +73,7 @@
 import { parseWasm } from '../binary/wasm-parser.ts';
 import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import {
+  asRegion,
   BinaryOp,
   type Expression,
   makeBinary,
@@ -1118,7 +1119,9 @@ export class Module {
       params: paramVts,
       results: resultVts,
       locals,
-      body,
+      // binaryen.js callers pass one expression, usually an unnamed block;
+      // `asRegion` takes that block's contents, as binaryen's writer does.
+      body: asRegion(body),
     };
     this._inner.functions.push(fn);
     return fn;

@@ -51,12 +51,14 @@ registerPass(SimplifyLocalsPass);
 // ---------------------------------------------------------------------------
 
 function _simplifyNode(expr: Expression): Expression {
-  if (expr.kind !== ExpressionKind.Block) return expr;
+  // Region too: every function / loop / if body is one, and they were unnamed
+  // Blocks — so handled here — before regions were a kind.
+  if (expr.kind !== ExpressionKind.Block && expr.kind !== ExpressionKind.Region) return expr;
   return _simplifyBlock(expr);
 }
 
 function _simplifyBlock(
-  block: Extract<Expression, { kind: ExpressionKind.Block }>,
+  block: Extract<Expression, { kind: ExpressionKind.Block | ExpressionKind.Region }>,
 ): Expression {
   const children = block.children;
   const result: Expression[] = [];
