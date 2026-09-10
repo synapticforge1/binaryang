@@ -982,15 +982,15 @@ did.
 
 **Group 2 — the seven that are real decisions.**
 
-| kind(s)                                     | the difference                                           | controls                               | why                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `load`, `store`, `simd.load*`               | `opcode` vs decomposed `bytes` + `signed`                | **wabt-ts**                            | S6 stage 1 already made the numeric opcode the operator representation. `bytes`/`signed` are derivable from it; the reverse needs a table. Settled by consistency, not re-litigated.                                                                                                                                                                                                                                      |
-| memarg `offset`                             | `bigint` vs `number`                                     | **wabt-ts**                            | memory64 offsets exceed 2^32. `number` cannot carry one, so **fidelity binds**: a valid module would be unrepresentable.                                                                                                                                                                                                                                                                                                  |
-| `loop`, `try`, `try_table` body             | `Expr[]` vs a single `Expression`                        | **wabt-ts**                            | A list of N instructions can only be one `Expression` inside a synthetic `Block`. That wrapper is a node the input never had, and it has already cost: `oneOrTypedBlock` creates them, `encodeRegionBody` must inline them, and `isBlockTypeCarrier` carries a comment about a multi-value function body wrapper registering a type entry nothing addressed. **Fidelity binds** and the wrapper is a known defect source. |
-| `try` catches                               | `Catch[]` vs parallel `catchTags[]` + `catchBodies[]`    | **wabt-ts**                            | The parallel arrays are documented as such in binaryen-ts. Two arrays indexed in lockstep are one fact in two places — the hazard class this codebase has been bitten by most, and the one `deno task operators` exists to police.                                                                                                                                                                                        |
-| `br` values                                 | `values: Expr[]` vs `value: Expression \| null`          | **wabt-ts**                            | A multi-value `br` carries N values. S2 flagged this as a real arity difference, not a rename. **Fidelity binds.**                                                                                                                                                                                                                                                                                                        |
-| `blockType`, `typeUse`, `select.resultType` | present on wabt-ts, absent on binaryen-ts                | **wabt-ts, and they stay on the node** | These are the as-written fields S3 put in the fidelity table. The table SHADOWS them; it does not replace them, because the encoder still needs a value when no entry exists. Keeping both is the S3 design, not a duplication.                                                                                                                                                                                           |
-| `ref.as` operator, `simd.shuffle` operator  | an operator field on a kind with exactly ONE instruction | **drop it**                            | With one variant the KIND is the operator. Neither side loses anything, and it removes a field that can disagree with the kind.                                                                                                                                                                                                                                                                                           |
+| kind(s)                                     | the difference                                           | controls                               | why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | -------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `load`, `store`, `simd.load*`               | `opcode` vs decomposed `bytes` + `signed`                | **wabt-ts**                            | S6 stage 1 already made the numeric opcode the operator representation. `bytes`/`signed` are derivable from it; the reverse needs a table. Settled by consistency, not re-litigated.                                                                                                                                                                                                                                                                                                                                      |
+| memarg `offset`                             | `bigint` vs `number`                                     | **wabt-ts**                            | memory64 offsets exceed 2^32. `number` cannot carry one, so **fidelity binds**: a valid module would be unrepresentable.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `loop`, `try`, `try_table` body             | `Expr[]` vs a single `Expression`                        | **wabt-ts**                            | A list of N instructions can only be one `Expression` inside a synthetic `Block`. That wrapper is a node the input never had, and it has already cost: `oneOrTypedBlock` creates them, `encodeRegionBody` must inline them, and `isBlockTypeCarrier` carries a comment about a multi-value function body wrapper registering a type entry nothing addressed. **Fidelity binds** and the wrapper is a known defect source. 🔧 _Overstated — faithful today by convention; resolved as neither form, see decision 5 below._ |
+| `try` catches                               | `Catch[]` vs parallel `catchTags[]` + `catchBodies[]`    | **wabt-ts**                            | The parallel arrays are documented as such in binaryen-ts. Two arrays indexed in lockstep are one fact in two places — the hazard class this codebase has been bitten by most, and the one `deno task operators` exists to police.                                                                                                                                                                                                                                                                                        |
+| `br` values                                 | `values: Expr[]` vs `value: Expression \| null`          | **wabt-ts**                            | A multi-value `br` carries N values. S2 flagged this as a real arity difference, not a rename. **Fidelity binds.**                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `blockType`, `typeUse`, `select.resultType` | present on wabt-ts, absent on binaryen-ts                | **wabt-ts, and they stay on the node** | These are the as-written fields S3 put in the fidelity table. The table SHADOWS them; it does not replace them, because the encoder still needs a value when no entry exists. Keeping both is the S3 design, not a duplication.                                                                                                                                                                                                                                                                                           |
+| `ref.as` operator, `simd.shuffle` operator  | an operator field on a kind with exactly ONE instruction | **drop it**                            | With one variant the KIND is the operator. Neither side loses anything, and it removes a field that can disagree with the kind.                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **Group 3 — genuine ties, decided on cost (5 kinds).** `br_on` (`from`/`to` objects vs four flat
 `castType`/`castNullable`/`srcType`/`srcNullable` fields), `select` (`val1`/`val2` vs
@@ -1509,6 +1509,58 @@ also exports the table (`loadShape`, `storeShape`, `withSigned`, …) for anyone
 Plus Group 3's five ties and the block/label family — which still owns the 7 label references
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
 around so the mechanical passes could not settle them by accident.
+
+###### 📋 5. Region bodies — neither form: a `RegionExpr` in every region slot (decided 2026-09-10)
+
+🔧 **The Group 2 table's reason for this row was OVERSTATED.** It says "fidelity binds" because a
+multi-instruction body must sit in a synthetic `Block`. Probed against upstream `wat2wasm`: a block
+the SOURCE wrote without a label survives both binaryen-ts paths byte-for-byte — inside a `loop`, an
+`if` arm, as a function body, typed and untyped, 5 of 5. The single-expression form IS faithful
+today. It is faithful **by convention**: `labelFor` names every source block, so `name === null` can
+mean "synthetic wrapper". Nothing in the type enforces that, which is the UNREPRESENTABLE rule's
+sentinel tell — and the wrapper it protects has cost twice (C6's silent miscompile; the orphan type
+entry from a multi-value function-body wrapper).
+
+**The trials** (field types flipped, `deno task check`, reverted; counts are per-site sums — the
+`Found N` line counts only the first of two programs, since `tests/binaryen-ts` is a workspace
+member):
+
+| option                                                          | src sites                            | test sites                          |
+| --------------------------------------------------------------- | ------------------------------------ | ----------------------------------- |
+| single wins — wabt-ts `loop`/`try`/`try_table` → one `Expr`     | 35 (10 in the bridge step 5 deletes) | 1                                   |
+| lists win — the same three only                                 | 39                                   | 4                                   |
+| lists, all seven region slots (+ catch bodies, `if`, functions) | ~160                                 | 354                                 |
+| **every slot narrowed to a list-node subtype of `Expression`**  | **49** (29 passes, **0 encoder**)    | 124, mostly absorbable by factories |
+
+Each pure form's cons were real on the other side: single moves wrappers and their convention into
+wabt-ts, the FIDELITY half; lists break the one-slot shape every binaryen-ts pass (and its upstream
+C++ reference) is written against, and converting only three kinds keeps the whole wrapper mechanism
+alive for `if` arms, catch bodies and function bodies.
+
+**The blend, chosen by the owner:** a new interface,
+`RegionExpr { kind: Region; children:
+Expression[] }`, held by all seven slots (`loop`, `try`, each
+catch, `try_table`, both `if` arms, the function body), ALWAYS — even for 0 or 1 instructions, so a
+body has one spelling. It is an `Expression`, so reading, visiting, typing or replacing a slot is
+unchanged; it is its own KIND, so "synthetic" is a type fact, not a naming convention. Blocks are
+only ever blocks.
+
+What it deliberately leaves, and the sweeps it therefore owes:
+
+- **A new kind.** `walk.ts` throws on an unknown kind, so the central walkers fail loud; **16
+  private kind switches in 10 files** do not, and must be swept.
+- **30 `kind === Block` tests (10 pass files).** One applied directly to a slot becomes a compile
+  error (no overlap). One on a node reached through a walker just stops matching — silent mode 4.
+- **A `Region` in an operand slot type-checks.** The encoder rejects it loudly. Excluding it from
+  the `Expression` union would enforce it but makes every slot read a type error — the list cost.
+- Byte gates cannot see a pass that stops firing, so the fuzz and pipeline tests carry this one.
+
+Rejected variant: keep the slot a `BlockExpr` that is synthetic by POSITION. No new kind, but its
+`name` would be settable and meaningless, and type registration would have to know position —
+trading one convention for another.
+
+All seven slots in ONE commit: at 49 sites it is affordable, and stopping part-way is what would
+leave the wrapper mechanism alive.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
