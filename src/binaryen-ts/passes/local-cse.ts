@@ -9,7 +9,7 @@
  * new local; subsequent occurrences are replaced with `local.get(fresh)`,
  * avoiding redundant recomputation.
  *
- * **What counts as a CSE candidate (pure expression)**:
+ * **What is KEYED (a pure expression, hashed structurally)**:
  * - Integer / float constants (`i32.const`, `i64.const`, `f32.const`, `f64.const`)
  * - `local.get(i)` (a read has no side effects)
  * - `global.get(name)` (immutable global reads have no side effects)
@@ -17,6 +17,11 @@
  *   which can trap)
  * - Unary ops on a pure sub-expression (excluding non-saturating float
  *   truncations, which can trap)
+ *
+ * **What becomes a CANDIDATE**: a keyed expression that repeats AND passes
+ * upstream's `isRelevant` — never a bare `local.get` or a constant (they are
+ * keyed only so a compound's key can be built from them), and only at size ≥ 3
+ * when shrinking, ≥ 2 otherwise. See `_isRelevant`.
  *
  * **Scope**: only direct children of a `block` are considered. Expressions
  * nested inside `if`, `loop`, or other control-flow are handled by the
@@ -59,9 +64,9 @@ export class LocalCSEPass implements Pass {
     'Common subexpression elimination: repeated pure expressions are computed once and cached in a local.';
   readonly requiresNonNullableLocalFixups = false;
 
-  run(module: WasmModule, _options: PassOptions): void {
+  run(module: WasmModule, options: PassOptions): void {
     for (const fn of module.functions) {
-      fn.body = asRegion(_cseFunction(fn));
+      fn.body = asRegion(_cseFunction(fn, options.shrinkLevel));
     }
   }
 }
@@ -72,7 +77,7 @@ registerPass(LocalCSEPass);
 // Implementation
 // ---------------------------------------------------------------------------
 
-function _cseFunction(fn: WasmFunction): Expression {
+function _cseFunction(fn: WasmFunction, shrinkLevel: number): Expression {
   // We may need to add fresh locals; track the next available index.
   // `fn.locals` is the full local vector INCLUDING params (the encoder slices
   // `fn.locals.slice(fn.params.length)` to recover the declared-locals tail),
@@ -80,6 +85,7 @@ function _cseFunction(fn: WasmFunction): Expression {
   const state: CSEState = {
     nextLocal: fn.locals.length,
     newLocals: [],
+    shrinkLevel,
   };
 
   const body = mapExpression(fn.body, (expr) => {
@@ -101,6 +107,8 @@ function _cseFunction(fn: WasmFunction): Expression {
 interface CSEState {
   nextLocal: number;
   newLocals: Local[];
+  /** The runner's shrink level — upstream's relevance threshold depends on it. */
+  shrinkLevel: number;
 }
 
 function _cseBlock(
@@ -109,14 +117,15 @@ function _cseBlock(
 ): Expression {
   // --- Pass 1: count occurrences of each keyed expression ---
   const counts = new Map<string, number>();
+  const reps = new Map<string, Expression>();
   for (const child of block.children) {
-    _countKeys(child, counts);
+    _countKeys(child, counts, reps);
   }
 
-  // Only proceed if any expression appears more than once
+  // A candidate appears more than once AND is worth caching (upstream's rule).
   const candidates = new Set<string>();
   for (const [k, n] of counts) {
-    if (n > 1) candidates.add(k);
+    if (n > 1 && _isRelevant(reps.get(k)!, state.shrinkLevel)) candidates.add(k);
   }
   if (candidates.size === 0) return block;
 
@@ -206,38 +215,73 @@ function _exprKey(expr: Expression): string | null {
   }
 }
 
-function _countKeys(expr: Expression, counts: Map<string, number>): void {
+/**
+ * Count every keyed sub-expression, and record ONE expression per key so the
+ * relevance rule can be applied to it (see {@link _isRelevant}).
+ */
+function _countKeys(
+  expr: Expression,
+  counts: Map<string, number>,
+  reps: Map<string, Expression>,
+): void {
   const key = _exprKey(expr);
   if (key !== null) {
     counts.set(key, (counts.get(key) ?? 0) + 1);
+    if (!reps.has(key)) reps.set(key, expr);
   }
   // Recurse into all child expressions
   switch (expr.kind) {
     case ExpressionKind.Binary:
-      _countKeys(expr.left, counts);
-      _countKeys(expr.right, counts);
+      _countKeys(expr.left, counts, reps);
+      _countKeys(expr.right, counts, reps);
       break;
     case ExpressionKind.Unary:
     case ExpressionKind.Drop:
     case ExpressionKind.LocalSet:
     case ExpressionKind.LocalTee:
     case ExpressionKind.GlobalSet:
-      _countKeys(expr.value, counts);
+      _countKeys(expr.value, counts, reps);
       break;
     case ExpressionKind.Return:
-      if (expr.value) _countKeys(expr.value, counts);
+      if (expr.value) _countKeys(expr.value, counts, reps);
       break;
     case ExpressionKind.Call:
-      expr.operands.forEach((o) => _countKeys(o, counts));
+      expr.operands.forEach((o) => _countKeys(o, counts, reps));
       break;
     case ExpressionKind.Load:
-      _countKeys(expr.ptr, counts);
+      _countKeys(expr.ptr, counts, reps);
       break;
     case ExpressionKind.Store:
-      _countKeys(expr.ptr, counts);
-      _countKeys(expr.value, counts);
+      _countKeys(expr.ptr, counts, reps);
+      _countKeys(expr.value, counts, reps);
       break;
   }
+}
+
+/**
+ * Whether a repeated expression is WORTH caching — upstream's `isRelevant`
+ * (`upstream/src/passes/LocalCSE.cpp:344`), ported rule for rule.
+ *
+ * - never a `local.get` (or set): that is what CSE rewrites INTO, so caching
+ *   one replaces a two-byte read with a tee and a read of a NEW local;
+ * - never a constant: it would undo constant propagation;
+ * - when shrinking, only size ≥ 3 (two copies → 6 nodes, and a set + get
+ *   replacing one copy is then not a loss);
+ * - otherwise size ≥ 2 with a non-zero cost (every keyed Binary/Unary has one).
+ *
+ * 🛑 The port had no such rule: every repeated key was a candidate, bare
+ * `local.get` and constants included. Keys for those must still EXIST — a
+ * compound's key is built from its children's — so the rule is applied here,
+ * at candidate selection, not in `_exprKey`. The divergence was live on
+ * multi-statement blocks all along; S6 decision 5 made it reach one-instruction
+ * bodies too (+128 bytes over 28 `-Oz` corpus modules), which is how it was
+ * found. cmem/divergences.md C1.
+ */
+function _isRelevant(expr: Expression, shrinkLevel: number): boolean {
+  if (expr.kind === ExpressionKind.LocalGet || expr.kind === ExpressionKind.Const) return false;
+  let size = 0;
+  walkExpression(expr, () => size++);
+  return shrinkLevel > 0 ? size >= 3 : size >= 2;
 }
 
 // ---------------------------------------------------------------------------

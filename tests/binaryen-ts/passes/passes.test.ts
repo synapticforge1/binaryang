@@ -11,7 +11,6 @@ import { assertEquals, assertNotEquals } from '@std/assert';
 import {
   asRegion,
   BinaryOp,
-  type BlockExpr,
   type ConstExpr,
   type Expression,
   ExpressionKind,
