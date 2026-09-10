@@ -14,9 +14,11 @@
  */
 
 import {
+  asRegion,
   type Expression,
   ExpressionKind,
   type QuaternaryExpr,
+  type RegionExpr,
   type SIMDExtractExpr,
   type SIMDLoadExpr,
   type SIMDLoadStoreLaneExpr,
@@ -41,12 +43,17 @@ import {
  * @param fn   - Called on each node after its children have been transformed.
  * @returns The transformed tree (may share structure with the original).
  */
+export function mapExpression(expr: RegionExpr, fn: (e: Expression) => Expression): RegionExpr;
+export function mapExpression(expr: Expression, fn: (e: Expression) => Expression): Expression;
 export function mapExpression(
   expr: Expression,
   fn: (e: Expression) => Expression,
 ): Expression {
-  const mapped = _mapChildren(expr, (c) => mapExpression(c, fn));
-  return fn(mapped);
+  const mapped = fn(_mapChildren(expr, (c) => mapExpression(c, fn)));
+  // A region in gives a region out — `fn.body = mapExpression(fn.body, …)` is
+  // the commonest line in the passes, and `fn` may legitimately replace the
+  // region itself (DCE turns an unreachable one into `unreachable`).
+  return expr.kind === ExpressionKind.Region ? asRegion(mapped) : mapped;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,20 +120,26 @@ function _mapChildren(
   expr: Expression,
   fn: (e: Expression) => Expression,
 ): Expression {
+  // Every REGION SLOT goes through `asRegion`: `fn` returns an `Expression`,
+  // and a pass may replace a region with something else (see mapExpression).
+  const slot = (r: Expression) => asRegion(fn(r));
   switch (expr.kind) {
     case ExpressionKind.Block:
+      return { ...expr, children: expr.children.map((c) => fn(c)) };
+
+    case ExpressionKind.Region:
       return { ...expr, children: expr.children.map((c) => fn(c)) };
 
     case ExpressionKind.If:
       return {
         ...expr,
         condition: fn(expr.condition),
-        ifTrue: fn(expr.ifTrue),
-        ifFalse: expr.ifFalse ? fn(expr.ifFalse) : null,
+        ifTrue: slot(expr.ifTrue),
+        ifFalse: expr.ifFalse ? slot(expr.ifFalse) : null,
       };
 
     case ExpressionKind.Loop:
-      return { ...expr, body: fn(expr.body) };
+      return { ...expr, body: slot(expr.body) };
 
     case ExpressionKind.Break:
       return {
@@ -377,14 +390,14 @@ function _mapChildren(
     case ExpressionKind.TryTable:
       return {
         ...expr,
-        body: fn(expr.body),
+        body: slot(expr.body),
       };
 
     case ExpressionKind.Try:
       return {
         ...expr,
-        body: fn(expr.body),
-        catches: expr.catches.map((c) => ({ ...c, body: fn(c.body) })),
+        body: slot(expr.body),
+        catches: expr.catches.map((c) => ({ ...c, body: slot(c.body) })),
       };
 
     case ExpressionKind.Throw:
@@ -478,6 +491,7 @@ function _visitChildren(
 ): void {
   switch (expr.kind) {
     case ExpressionKind.Block:
+    case ExpressionKind.Region:
       expr.children.forEach(visit);
       break;
     case ExpressionKind.If:

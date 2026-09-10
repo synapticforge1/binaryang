@@ -43,6 +43,8 @@
  */
 
 import {
+  asRegion,
+  asStatement,
   BinaryOp,
   type CallExpr,
   type CallIndirectExpr,
@@ -66,6 +68,7 @@ import {
   makeLoad,
   makeLocalGet,
   makeLocalSet,
+  makeRegion,
   makeReturn,
   makeStore,
   makeUnary,
@@ -380,7 +383,7 @@ function addControlFunction(
     params: params.map((l) => l.type),
     results,
     locals: [...params],
-    body,
+    body: asRegion(body),
   });
   if (exported) module.exports.push({ name: hostName, value: internalName, kind: 'function' });
 }
@@ -866,34 +869,42 @@ function makeCallSupport(curr: Expression, ctx: FlowCtx): Expression {
   );
 }
 
+/** Instrument a statement list: state-changing statements individually, runs of the rest under one skip. */
+function processFlowList(children: Expression[], ctx: FlowCtx): Expression[] {
+  const newList: Expression[] = [];
+  let i = 0;
+  while (i < children.length) {
+    const child = children[i]!; // bounded by the `while` condition
+    if (exprCanChangeState(child, ctx)) {
+      newList.push(processFlow(child, ctx));
+      i++;
+    } else {
+      // Clump a run of non-state-changing statements under one skip.
+      let j = i;
+      while (j < children.length && !exprCanChangeState(children[j]!, ctx)) j++;
+      const run = children.slice(i, j);
+      newList.push(
+        run.length === 1 ? makeMaybeSkip(run[0]!) : makeMaybeSkip(makeBlock(run, null)),
+      );
+      i = j;
+    }
+  }
+  return newList;
+}
+
 /** Recursively instrument a flat expression tree for unwind/rewind. */
 function processFlow(curr: Expression, ctx: FlowCtx): Expression {
   // A subtree that can't change state is simply skipped while rewinding.
   if (!exprCanChangeState(curr, ctx)) return makeMaybeSkip(curr);
 
   switch (curr.kind) {
-    case ExpressionKind.Block: {
-      const children = curr.children;
-      const newList: Expression[] = [];
-      let i = 0;
-      while (i < children.length) {
-        const child = children[i]!; // bounded by the `while` condition
-        if (exprCanChangeState(child, ctx)) {
-          newList.push(processFlow(child, ctx));
-          i++;
-        } else {
-          // Clump a run of non-state-changing statements under one skip.
-          let j = i;
-          while (j < children.length && !exprCanChangeState(children[j]!, ctx)) j++;
-          const run = children.slice(i, j);
-          newList.push(
-            run.length === 1 ? makeMaybeSkip(run[0]!) : makeMaybeSkip(makeBlock(run, null)),
-          );
-          i = j;
-        }
-      }
-      return makeBlock(newList, curr.name);
-    }
+    case ExpressionKind.Block:
+      return makeBlock(processFlowList(curr.children, ctx), curr.name);
+
+    // Every loop / if-arm / function body. These were unnamed Blocks before
+    // regions were a kind, and went through the case above.
+    case ExpressionKind.Region:
+      return makeRegion(processFlowList(curr.children, ctx));
 
     case ExpressionKind.If: {
       // In flat form the state change is in an arm, never the condition.
@@ -931,7 +942,7 @@ function processFlow(curr: Expression, ctx: FlowCtx): Expression {
     }
 
     case ExpressionKind.Loop:
-      return { ...curr, type: None, body: processFlow(curr.body, ctx) };
+      return { ...curr, type: None, body: asRegion(processFlow(curr.body, ctx)) };
 
     default:
       if (doesCall(curr)) return makeCallSupport(curr, ctx);
@@ -949,13 +960,15 @@ export function flowInstrumentFunction(func: WasmFunction, ctx: FlowCtx): void {
   const processed = processFlow(func.body, ctx);
   const list: Expression[] = [
     makeIf(makeStateCheck(State.Rewinding), makeCall(varName(ASYNCIFY_GET_CALL_INDEX), [], None)),
-    processed,
+    // The old body becomes a STATEMENT of the new one, which a region cannot
+    // be — upstream nests it as a block here, and so does this.
+    asStatement(processed),
   ];
   // Rewriting control flow may leave the value-producing tail conditional; a
   // trailing unreachable keeps a value-returning function well-formed (the
   // optimizer removes it later).
   if (func.results.length > 0) list.push(makeUnreachable());
-  func.body = makeBlock(list, null);
+  func.body = makeRegion(list);
 }
 
 // ---------------------------------------------------------------------------
@@ -1302,7 +1315,9 @@ export function localsInstrumentFunction(
     kind: ExpressionKind.Block,
     type: ValType.I32, // breaks carry the i32 call index
     name: ASYNCIFY_UNWIND_LABEL,
-    children: [loweredBody, barrier],
+    // The old body is a STATEMENT here, which a region cannot be; `children`
+    // is `Expression[]`, so the type would not have said so.
+    children: [asStatement(loweredBody), barrier],
   };
 
   const newList: Expression[] = [
@@ -1315,7 +1330,7 @@ export function localsInstrumentFunction(
   // host); provide a zero of the result type.
   if (func.results[0] !== undefined) newList.push(makeZero(func.results[0]));
 
-  func.body = makeBlock(newList, null);
+  func.body = makeRegion(newList);
 }
 
 // ---------------------------------------------------------------------------

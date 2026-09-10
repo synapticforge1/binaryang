@@ -69,6 +69,16 @@ function _vacuumNode(expr: Expression): Expression {
     case ExpressionKind.Block:
       return _simplifyBlock(expr);
 
+    // ⚠️ Every loop / if / try / function body. They were unnamed Blocks before
+    // regions were a kind and were vacuumed by the case above; without this one
+    // `default` would have returned them untouched. Only the nop filter
+    // applies: a slot always holds a region, so one cannot turn into a `nop` or
+    // collapse into its child the way a block can.
+    case ExpressionKind.Region: {
+      const kept = expr.children.filter((c) => c.kind !== ExpressionKind.Nop);
+      return kept.length === expr.children.length ? expr : { ...expr, children: kept };
+    }
+
     case ExpressionKind.Drop: {
       const inner = expr.value;
       if (inner.kind === ExpressionKind.Nop) return makeNop();

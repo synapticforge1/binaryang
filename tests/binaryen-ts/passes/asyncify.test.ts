@@ -15,7 +15,6 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import {
   BinaryOp,
-  type BlockExpr,
   ExpressionKind,
   type GlobalSetExpr,
   type IfExpr,
@@ -37,6 +36,7 @@ import {
   State,
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
 import { type Var, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { region, soleInstr } from '../region_helpers.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -298,8 +298,8 @@ Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data
     partialInliningIfs: 0,
   });
 
-  const body = funcByName(m, `$${ASYNCIFY_START_UNWIND}`)!.body as BlockExpr;
-  assertEquals(body.kind, ExpressionKind.Block);
+  // Built as an unnamed block of three; a region takes the block's contents.
+  const body = region(funcByName(m, `$${ASYNCIFY_START_UNWIND}`)!.body);
   assertEquals(body.children.length, 3);
 
   // child 0: global.set $__asyncify_state (i32.const 1)
@@ -322,7 +322,7 @@ Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data
   const rhs = (check.condition as { right: { offset: bigint } }).right;
   assertEquals(lhs.offset, 0n);
   assertEquals(rhs.offset, 4n);
-  assertEquals(check.ifTrue.kind, ExpressionKind.Unreachable);
+  assertEquals(soleInstr(check.ifTrue).kind, ExpressionKind.Unreachable);
   assertEquals(check.ifFalse, null);
 });
 
@@ -337,11 +337,11 @@ Deno.test('Asyncify Stage 1 — get_state returns the state global; stop_* reset
     partialInliningIfs: 0,
   });
 
-  const getState = funcByName(m, `$${ASYNCIFY_GET_STATE}`)!.body;
+  const getState = soleInstr(funcByName(m, `$${ASYNCIFY_GET_STATE}`)!.body);
   assertEquals(getState.kind, ExpressionKind.GlobalGet);
   assertEquals((getState as { var: Var }).var, varName(ASYNCIFY_STATE));
 
-  const stop = funcByName(m, `$${ASYNCIFY_STOP_UNWIND}`)!.body as BlockExpr;
+  const stop = region(funcByName(m, `$${ASYNCIFY_STOP_UNWIND}`)!.body);
   const setState = stop.children[0] as GlobalSetExpr;
   assertEquals((setState.value as { value: { i32: number } }).value.i32, State.Normal);
 });

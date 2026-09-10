@@ -15,6 +15,7 @@
 import { assert, assertEquals, assertInstanceOf, assertThrows } from '@std/assert';
 
 import {
+  asRegion,
   BinaryOp,
   type BlockExpr,
   type Expression,
@@ -40,6 +41,7 @@ import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { parseArgs, wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { region, soleInstr, soleOf } from '../region_helpers.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -66,7 +68,7 @@ function emptyModule(): WasmModule {
 }
 
 function makeTestFn(name: string, body: Expression): WasmFunction {
-  return { name, params: [], results: [], locals: [], body };
+  return { name, params: [], results: [], locals: [], body: asRegion(body) };
 }
 
 /** Encode a simple add(i32,i32)->i32 module as a WASM binary. */
@@ -154,11 +156,17 @@ Deno.test('listPasses includes all Phase 4-5 passes', () => {
 
 Deno.test('RemoveUnusedNames: strips unused block name', () => {
   const mod = emptyModule();
-  mod.functions.push(makeTestFn('f', makeBlock([makeNop()], 'unused_label')));
+  // A sibling keeps the block from being the body's ONLY instruction: an
+  // unnamed block that is, dissolves into the region, and the stripped name
+  // could no longer be observed.
+  mod.functions.push(
+    makeTestFn('f', makeBlock([makeBlock([makeNop()], 'unused_label'), makeNop()])),
+  );
 
   new PassRunner(mod).add('RemoveUnusedNames').run();
 
-  const body = mod.functions[0].body as BlockExpr;
+  const body = region(mod.functions[0].body).children[0] as BlockExpr;
+  assertEquals(body.kind, ExpressionKind.Block);
   assertEquals(body.name, null, 'unused block name should be stripped to null');
 });
 
@@ -170,7 +178,7 @@ Deno.test('RemoveUnusedNames: keeps block name that is branched to', () => {
 
   new PassRunner(mod).add('RemoveUnusedNames').run();
 
-  const newBody = mod.functions[0].body as BlockExpr;
+  const newBody = soleOf(mod.functions[0].body, ExpressionKind.Block);
   assertEquals(newBody.name, 'exit', 'used block name must be kept');
 });
 
@@ -184,7 +192,7 @@ Deno.test('RemoveUnusedNames: replaces unused loop with body', () => {
 
   new PassRunner(mod).add('RemoveUnusedNames').run();
 
-  const newBody = mod.functions[0].body as BlockExpr;
+  const newBody = region(mod.functions[0].body);
   // The loop should have been replaced by its body (nop)
   assertEquals(
     newBody.children[0].kind,
@@ -204,7 +212,7 @@ Deno.test('RemoveUnusedNames: keeps loop with br back-edge', () => {
 
   // The body should still be a loop (not replaced)
   assertEquals(
-    mod.functions[0].body.kind,
+    soleInstr(mod.functions[0].body).kind,
     ExpressionKind.Loop,
     'loop with back-edge must not be removed',
   );
@@ -215,11 +223,13 @@ Deno.test('RemoveUnusedNames: strips outer name but keeps inner used name', () =
   const mod = emptyModule();
   const inner = makeBlock([makeBreak('inner')], 'inner');
   const outer = makeBlock([inner], 'outer');
-  mod.functions.push(makeTestFn('f', outer));
+  // The sibling keeps $outer observable once its name is stripped (see above).
+  mod.functions.push(makeTestFn('f', makeBlock([outer, makeNop()])));
 
   new PassRunner(mod).add('RemoveUnusedNames').run();
 
-  const newOuter = mod.functions[0].body as BlockExpr;
+  const newOuter = region(mod.functions[0].body).children[0] as BlockExpr;
+  assertEquals(newOuter.kind, ExpressionKind.Block);
   assertEquals(newOuter.name, null, 'outer unused name should be stripped');
   const newInner = newOuter.children[0] as BlockExpr;
   assertEquals(newInner.name, 'inner', 'inner used name should be kept');
@@ -251,10 +261,9 @@ Deno.test('wasmOpt: output is re-parseable as valid WASM module', async () => {
 
 Deno.test('wasmOpt: -O1 applies DCE and removes dead code', async () => {
   const input = buildDeadCodeWasm();
-  // Before optimization: body is a block with 3 children (unreachable + 2 nops)
+  // Before optimization: body is a region of 3 (unreachable + 2 nops)
   const inputMod = parseWasm(input);
-  assertEquals(inputMod.functions[0].body.kind, ExpressionKind.Block);
-  assertEquals((inputMod.functions[0].body as BlockExpr).children.length, 3);
+  assertEquals(region(inputMod.functions[0].body).children.length, 3);
 
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 1 }));
   assertInstanceOf(result, Uint8Array);
@@ -263,7 +272,7 @@ Deno.test('wasmOpt: -O1 applies DCE and removes dead code', async () => {
   // DCE removes the dead nops → Vacuum collapses the single-child unnamed block.
   // After encode + re-parse (single-expr body → no wrapping block), body is unreachable.
   assertEquals(
-    optimized.functions[0].body.kind,
+    soleInstr(optimized.functions[0].body).kind,
     ExpressionKind.Unreachable,
     'dead nops should be eliminated; body collapses to just unreachable',
   );
@@ -364,7 +373,7 @@ Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => 
   assertInstanceOf(result, Uint8Array);
 
   const optimized = parseWasm(result as Uint8Array);
-  const fnBody = optimized.functions[0].body;
+  const fnBody = soleInstr(optimized.functions[0].body);
   // If RemoveUnusedNames did NOT run, the body would still be a named block after
   // round-trip. When it does run the name is stripped, the encoder unpacks the
   // null-named wrapper, and the parser returns a bare i32.const expression.

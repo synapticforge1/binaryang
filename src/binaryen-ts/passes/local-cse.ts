@@ -32,6 +32,7 @@
  */
 
 import {
+  asRegion,
   BinaryOp,
   type Expression,
   ExpressionKind,
@@ -60,7 +61,7 @@ export class LocalCSEPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
-      fn.body = _cseFunction(fn);
+      fn.body = asRegion(_cseFunction(fn));
     }
   }
 }
@@ -82,7 +83,11 @@ function _cseFunction(fn: WasmFunction): Expression {
   };
 
   const body = mapExpression(fn.body, (expr) => {
-    if (expr.kind !== ExpressionKind.Block) return expr;
+    // ⚠️ Region is a statement list exactly as a Block is. Every function /
+    // loop / if body is one; before regions were a kind those were unnamed
+    // Blocks and got CSE'd here. Testing `Block` alone would have quietly
+    // switched CSE off for every region — nothing typed says so.
+    if (expr.kind !== ExpressionKind.Block && expr.kind !== ExpressionKind.Region) return expr;
     return _cseBlock(expr, state);
   });
 
@@ -99,7 +104,7 @@ interface CSEState {
 }
 
 function _cseBlock(
-  block: Extract<Expression, { kind: ExpressionKind.Block }>,
+  block: Extract<Expression, { kind: ExpressionKind.Block | ExpressionKind.Region }>,
   state: CSEState,
 ): Expression {
   // --- Pass 1: count occurrences of each keyed expression ---

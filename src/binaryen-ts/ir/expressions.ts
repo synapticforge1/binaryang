@@ -55,6 +55,7 @@ export enum ExpressionKind {
   // Control flow
   Nop = 'nop',
   Block = 'block',
+  Region = 'region',
   If = 'if',
   Loop = 'loop',
   Break = 'br',
@@ -747,6 +748,39 @@ export interface BlockExpr extends ExprBase {
   children: Expression[];
 }
 
+/**
+ * The instruction sequence of ONE REGION: the body of a `loop`, `try`,
+ * `try_table`, each `catch`, each `if` arm, and a function.
+ *
+ * 🔑 **Why a node of its own, and not a `Block` or a bare `Expression[]`.**
+ * A region slot used to hold one `Expression`, so a body of N instructions sat
+ * inside a synthetic unnamed `Block` — and "synthetic" was a CONVENTION: every
+ * parser named every real block, so `name === null` could mean "wrapper". The
+ * encoder inlined unnamed blocks in slots on that theory, `isBlockTypeCarrier`
+ * had to agree with it, and the wrapper cost twice (C6: its `''` label shadowed
+ * the function frame; a multi-value function's wrapper registered a type entry
+ * nothing addressed). A bare list would have fixed that and broken the one-slot
+ * shape every pass is written against. This keeps the slot one `Expression` —
+ * visit it, type it, replace it — while being synthetic by KIND:
+ *
+ * - it is never a branch target and has no label to be one;
+ * - it never writes a blocktype; the enclosing construct owns that;
+ * - it is ALWAYS present, even for 0 or 1 instructions, so a body has one
+ *   spelling;
+ * - it belongs ONLY in a region slot. The type cannot stop one being placed as
+ *   an operand (excluding it from {@link Expression} would make every read of a
+ *   slot a type error); the encoder rejects that loudly instead.
+ *
+ * Decided as S6 Group 2 decision 5; the measurements are in
+ * `cmem/ir-convergence.md`.
+ */
+export interface RegionExpr extends ExprBase {
+  /** Discriminant — identifies which expression variant this is. */
+  kind: ExpressionKind.Region;
+  /** The instructions, in order, exactly as the region holds them. */
+  children: Expression[];
+}
+
 /** {@link IfExpr} — see {@link makeIf} for the factory. */
 export interface IfExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
@@ -754,9 +788,9 @@ export interface IfExpr extends ExprBase {
   /** Condition expression (typed as i32). */
   condition: Expression;
   /** Branch taken when the condition is non-zero. */
-  ifTrue: Expression;
+  ifTrue: RegionExpr;
   /** Branch taken when the condition is zero (nullable). */
-  ifFalse: Expression | null;
+  ifFalse: RegionExpr | null;
   /**
    * Branch-target label for the `if` block. Like `block`/`loop`, an `if`
    * introduces a label a `br`/`br_if` can target (its end). The binary parser
@@ -773,8 +807,8 @@ export interface LoopExpr extends ExprBase {
   kind: ExpressionKind.Loop;
   /** Branch label for `br` back-edges. */
   name: string;
-  /** Body expression. */
-  body: Expression;
+  /** The loop's region. */
+  body: RegionExpr;
 }
 
 /** {@link BreakExpr} — see {@link makeBreak} for the factory. */
@@ -1619,8 +1653,8 @@ export interface TryTableExpr extends ExprBase {
   kind: ExpressionKind.TryTable;
   /** Optional label for the try_table block itself. */
   name: string | null;
-  /** The protected body. */
-  body: Expression;
+  /** The protected region. */
+  body: RegionExpr;
   /** catches — see the matching factory for semantics. */
   catches: CatchClause[];
 }
@@ -1648,8 +1682,8 @@ export interface TryCatch {
   tag?: Var;
   /** `catch_ref` / `catch_all_ref` — the handler also receives an `exnref`. */
   isRef: boolean;
-  /** The handler body. */
-  body: Expression;
+  /** The handler's region. */
+  body: RegionExpr;
 }
 
 export interface TryExpr extends ExprBase {
@@ -1657,8 +1691,8 @@ export interface TryExpr extends ExprBase {
   kind: ExpressionKind.Try;
   /** Label (targetable by `delegate`). */
   name: string | null;
-  /** Body expression. */
-  body: Expression;
+  /** The protected region. */
+  body: RegionExpr;
   /** The catch clauses, in order. */
   catches: TryCatch[];
   /** Set for the `delegate` variant; depth to delegate to. */
@@ -1882,6 +1916,7 @@ export type Expression =
   | NopExpr
   | UnreachableExpr
   | BlockExpr
+  | RegionExpr
   | IfExpr
   | LoopExpr
   | BreakExpr
@@ -2060,10 +2095,12 @@ export function makeCall(
 /** Creates an `if` expression. The optional `name` is the `if`'s branch-target label. */
 export function makeIf(
   condition: Expression,
-  ifTrue: Expression,
-  ifFalse: Expression | null = null,
+  thenArm: RegionInput,
+  elseArm: RegionInput | null = null,
   name?: string,
 ): IfExpr {
+  const ifTrue = asRegion(thenArm);
+  const ifFalse = elseArm === null ? null : asRegion(elseArm);
   // Type follows upstream `If::finalize`:
   //  - no `else` → `none` (the `then` may be skipped, so nothing flows out);
   //  - with `else` → the result type of the REACHABLE arm. When one arm is
@@ -2102,6 +2139,97 @@ export function makeBlock(
   return { kind: ExpressionKind.Block, type, name, children };
 }
 
+/**
+ * Creates a region from its instructions, EXACTLY as given — for the parsers,
+ * which hold the list as written. The type is `type` when given (a parser knows
+ * the declared one), else inferred as {@link makeBlock} does.
+ */
+export function makeRegion(children: Expression[], type?: Type): RegionExpr {
+  const last = children[children.length - 1];
+  return {
+    kind: ExpressionKind.Region,
+    type: type ?? (last ? typeOf(last) : None),
+    children,
+  };
+}
+
+/**
+ * A region's instructions as a BLOCK, for placing a body where a statement goes
+ * — inlining a callee, or nesting a function's old body inside a new one.
+ *
+ * A region cannot be a statement (the encoder rejects one outside its slot), and
+ * upstream binaryen nests the old body as a block in exactly these places, so
+ * this is the faithful move. The block takes the region's type and, by default,
+ * no label: nothing could branch to a region, so nothing can branch to it.
+ */
+export function blockOf(region: RegionExpr, name: string | null = null): BlockExpr {
+  const block: BlockExpr = { kind: ExpressionKind.Block, name, children: region.children };
+  if (region.type !== undefined) block.type = region.type;
+  return block;
+}
+
+/**
+ * `e` fit to stand as a statement or operand. A region of ONE instruction
+ * becomes that instruction; any other region becomes {@link blockOf} it;
+ * anything that is not a region is returned as is.
+ *
+ * ⚠️ For code that holds an expression which MAY be a region — a body it is
+ * about to put in `children` or an operand, or put in place of its construct
+ * (a loop replaced by its body). Those positions are typed `Expression`, which
+ * a region is, so the compiler cannot flag the mistake; the encoder would, at
+ * run time.
+ *
+ * One-or-block is deliberate: it is the shape every such call site produced
+ * before regions were a kind (a body was its lone expression or a wrapper
+ * block), and the shape upstream's passes see — so pass output is unchanged.
+ */
+export function asStatement(e: Expression): Expression {
+  if (e.kind !== ExpressionKind.Region) return e;
+  return e.children.length === 1 ? e.children[0]! : blockOf(e);
+}
+
+/** What a region slot accepts from code that builds trees: a region, a list, or one expression. */
+export type RegionInput = Expression | Expression[];
+
+/**
+ * A region for a slot, from whatever a tree-building caller has — for PASSES and
+ * the builder API, not the parsers (they call {@link makeRegion}).
+ *
+ * - a region is returned as is — unless its ONE instruction is an unnamed
+ *   `Block`, when it becomes that block's region;
+ * - a list becomes a region of that list;
+ * - an UNNAMED `Block` contributes its children, not itself;
+ * - any other expression becomes a region of one.
+ *
+ * ⚠️ The unnamed-block rules are a normalization, not the old convention come
+ * back. Passes were written against "a body is one expression", so they build
+ * bodies as `makeBlock(list, null)` — and RemoveUnusedNames strips the name off
+ * a block that IS a body's one instruction. The encoder used to inline an
+ * unnamed block sitting in a body; without these rules each such body would
+ * gain a `block … end` in optimized output. One level, exactly as the encoder
+ * did it.
+ *
+ * Sound because an unnamed block cannot be a branch target (the encoder's label
+ * stack gives it `null`), so its children in the region mean the same thing.
+ * And it cannot touch FIDELITY: the parsers build regions with
+ * {@link makeRegion} and never come through here; this runs on trees a pass or
+ * a builder made — and on every region slot `mapExpression` rebuilds.
+ */
+export function asRegion(input: RegionInput): RegionExpr {
+  if (Array.isArray(input)) return makeRegion(input);
+  if (input.kind === ExpressionKind.Region) {
+    const only = input.children.length === 1 ? input.children[0]! : undefined;
+    if (only?.kind === ExpressionKind.Block && only.name === null) {
+      return makeRegion(only.children, input.type);
+    }
+    return input;
+  }
+  if (input.kind === ExpressionKind.Block && input.name === null) {
+    return makeRegion(input.children, input.type);
+  }
+  return makeRegion([input], input.type);
+}
+
 /** Creates a `drop` expression (discards a value). */
 export function makeDrop(value: Expression): DropExpr {
   return { kind: ExpressionKind.Drop, type: None, value };
@@ -2118,8 +2246,8 @@ export function makeUnreachable(): UnreachableExpr {
 }
 
 /** Creates a `loop` expression. */
-export function makeLoop(name: string, body: Expression, resultType: Type = None): LoopExpr {
-  return { kind: ExpressionKind.Loop, type: resultType, name, body };
+export function makeLoop(name: string, body: RegionInput, resultType: Type = None): LoopExpr {
+  return { kind: ExpressionKind.Loop, type: resultType, name, body: asRegion(body) };
 }
 
 /** Creates a `br` or `br_if` expression. */
@@ -2709,17 +2837,17 @@ export function makeBrOn(
 /** Creates a `try_table` expression. */
 export function makeTryTable(
   name: string | null,
-  body: Expression,
+  body: RegionInput,
   catches: CatchClause[],
   resultType: Type,
 ): TryTableExpr {
-  return { kind: ExpressionKind.TryTable, type: resultType, name, body, catches };
+  return { kind: ExpressionKind.TryTable, type: resultType, name, body: asRegion(body), catches };
 }
 
 /** Creates a `try` expression (old EH). */
 export function makeTry(
   name: string | null,
-  body: Expression,
+  body: RegionInput,
   catches: TryCatch[],
   delegateTarget: string | null,
   resultType: Type,
@@ -2728,20 +2856,20 @@ export function makeTry(
     kind: ExpressionKind.Try,
     type: resultType,
     name,
-    body,
+    body: asRegion(body),
     catches,
     delegateTarget,
   };
 }
 
 /** A `catch $tag` clause. */
-export function tryCatch(tag: Var, body: Expression): TryCatch {
-  return { tag, isRef: false, body };
+export function tryCatch(tag: Var, body: RegionInput): TryCatch {
+  return { tag, isRef: false, body: asRegion(body) };
 }
 
 /** A `catch_all` clause — no tag, which is what absence means. */
-export function tryCatchAll(body: Expression): TryCatch {
-  return { isRef: false, body };
+export function tryCatchAll(body: RegionInput): TryCatch {
+  return { isRef: false, body: asRegion(body) };
 }
 
 /** Creates a `throw $tag operands*` expression. */

@@ -26,6 +26,7 @@
  */
 
 import {
+  asStatement,
   type Expression,
   ExpressionKind,
   makeBlock,
@@ -84,11 +85,13 @@ export function stripEHNode(expr: Expression): Expression {
 
     case ExpressionKind.Try:
       // Replace with the body; catch bodies and delegate target are discarded.
-      return expr.body;
+      // The body takes the TRY's place — a statement position a region cannot
+      // hold, and one `Expression` would not refuse.
+      return asStatement(expr.body);
 
     case ExpressionKind.TryTable:
       // Replace with the body; catch destinations are discarded.
-      return expr.body;
+      return asStatement(expr.body);
 
     default:
       return expr;

@@ -58,6 +58,7 @@ import {
   type RefIsNullExpr,
   type RefNullExpr,
   type RefTestExpr,
+  type RegionExpr,
   type RethrowExpr,
   type ReturnExpr,
   type SelectExpr,
@@ -285,6 +286,20 @@ function valTypeByte(t: ValType): number {
   }
 }
 
+/**
+ * The encoder's label stack, innermost last. A frame with no label is `null`.
+ *
+ * 🛑 It was `string[]`, with an unlabelled frame pushed as `''` — the same string
+ * the function frame is seeded with, and the name the WAT path gives a `br` that
+ * exits the function. So an unnamed block, `if` or `try` that was actually
+ * EMITTED shadowed the function frame: `drop (block (result i32) (br '' 1))`
+ * exited the block instead of the function and returned the wrong value, in a
+ * module every engine accepts. C6 fixed one instance (region wrappers stopped
+ * being emitted); this removes the cause. `null` equals no name, so a frame
+ * without a label can never be a branch target by accident.
+ */
+type LabelStack = (string | null)[];
+
 function writeValType(w: BinaryWriter, t: ValType): void {
   w.writeU8(valTypeByte(t));
 }
@@ -299,20 +314,17 @@ function writeValType(w: BinaryWriter, t: ValType): void {
  */
 function isBlockTypeCarrier(expr: Expression): boolean {
   switch (expr.kind) {
+    case ExpressionKind.Block:
     case ExpressionKind.Loop:
     case ExpressionKind.If:
     case ExpressionKind.Try:
     case ExpressionKind.TryTable:
       return true;
-    case ExpressionKind.Block:
-      // ⚠️ An UNNAMED block is a synthetic region wrapper — `oneOrTypedBlock`
-      // building a container for a body that holds one expression in the IR —
-      // and `encodeRegionBody` inlines it, so it never writes a blocktype. It
-      // carries the enclosing construct's type, so a multi-value FUNCTION gave
-      // its body wrapper a multi-value type and this registered an entry for it
-      // that nothing addressed. Same rule as `encodeRegionBody`, and the two
-      // must agree: inlined means no blocktype means no type entry.
-      return (expr as BlockExpr).name !== null;
+    // A Region never writes a blocktype — the construct that owns it does. This
+    // used to be an exception for UNNAMED blocks, which had to agree with
+    // `encodeRegionBody`'s rule for inlining them: a multi-value function's body
+    // wrapper once registered a type entry nothing addressed. Being a region is
+    // a kind now, so there is no rule to keep in step.
     default:
       return false;
   }
@@ -1295,7 +1307,7 @@ class WasmEncoder {
     // phantom — no `block` opcode is emitted for it — and is never resolved for
     // functions that don't branch to the function frame, so the common case is
     // unchanged.
-    const labels: string[] = [fn.bodyFrameLabel ?? ''];
+    const labels: LabelStack = [fn.bodyFrameLabel ?? ''];
     // The same rule as every other region, through the same helper. This was a
     // third open-coded copy; `Loop` and `try_table` were two places that had the
     // rule and did NOT apply it, which is how the shadowing bug survived.
@@ -1423,21 +1435,21 @@ class WasmEncoder {
     w.writeU32(this.mod.dataSegments.length);
   }
 
-  private encodeRegionBody(w: BinaryWriter, body: Expression, labels: string[]): void {
-    if (body.kind === ExpressionKind.Block && (body as BlockExpr).name === null) {
-      for (const child of (body as BlockExpr).children) {
-        this.encodeExpr(w, child, labels);
-      }
-    } else {
-      this.encodeExpr(w, body, labels);
-    }
+  /**
+   * A region's instructions, with no header or `end` of its own — the owning
+   * construct writes those. It used to inline any UNNAMED block found here, on
+   * the convention that only a synthetic wrapper was unnamed; a region is a kind
+   * now, and every `Block` is emitted as the block it is.
+   */
+  private encodeRegionBody(w: BinaryWriter, body: RegionExpr, labels: LabelStack): void {
+    for (const child of body.children) this.encodeExpr(w, child, labels);
   }
 
   // ---------------------------------------------------------------------------
   // Expression encoder (recursive, stack-machine order)
   // ---------------------------------------------------------------------------
 
-  private resolveLabel(labels: string[], name: string): number {
+  private resolveLabel(labels: LabelStack, name: string): number {
     for (let i = labels.length - 1; i >= 0; i--) {
       if (labels[i] === name) return labels.length - 1 - i;
     }
@@ -1449,12 +1461,20 @@ class WasmEncoder {
     throw new WasmEncodeError(`unresolved branch label: "${name}"`);
   }
 
-  private encodeExpr(w: BinaryWriter, expr: Expression, labels: string[]): void {
+  private encodeExpr(w: BinaryWriter, expr: Expression, labels: LabelStack): void {
     switch (expr.kind) {
       case ExpressionKind.Nop: {
         w.writeU8(0x01);
         break;
       }
+
+      case ExpressionKind.Region:
+        // Regions are reached only through `encodeRegionBody`, from the slot
+        // that owns them. One here is sitting in an operand or statement
+        // position, which the type admits (a Region is an Expression) and the IR
+        // forbids — emitting its children inline would silently change what the
+        // surrounding code consumes.
+        throw new WasmEncodeError('a region outside a region slot');
       case ExpressionKind.Unreachable: {
         w.writeU8(0x00);
         break;
@@ -1464,7 +1484,7 @@ class WasmEncoder {
         const e = expr as BlockExpr;
         w.writeU8(0x02);
         writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-        labels.push(e.name ?? '');
+        labels.push(e.name ?? null);
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -1494,7 +1514,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
         writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-        labels.push(e.name ?? ''); // the if's branch-target label (if any)
+        labels.push(e.name ?? null); // the if's branch-target label (if any)
         // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
         // exits via `br` ends in an unreachable-typed child, so re-wrapping it
         // emitted a void blocktype that absorbed the unreachability and yielded
@@ -2086,7 +2106,7 @@ class WasmEncoder {
           }
           w.writeU32(this.resolveLabel(labels, c.dest));
         }
-        labels.push(e.name ?? '');
+        labels.push(e.name ?? null);
         this.encodeRegionBody(w, e.body, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -2099,7 +2119,7 @@ class WasmEncoder {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
           writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-          labels.push(e.name ?? '');
+          labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
           w.writeU8(0x18); // delegate
@@ -2107,7 +2127,7 @@ class WasmEncoder {
         } else {
           w.writeU8(0x06); // try
           writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
-          labels.push(e.name ?? '');
+          labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           // The length guard that stood here — "try has N catch tags but M
           // bodies" — is gone with the parallel arrays that made the mismatch

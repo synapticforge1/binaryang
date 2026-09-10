@@ -41,7 +41,7 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, makeDrop } from '../ir/expressions.ts';
+import { asRegion, type Expression, ExpressionKind, makeDrop } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
@@ -157,7 +157,7 @@ function _coalesceFunction(fn: WasmFunction): void {
   const hasIneffective = _hasAnyIneffective(cfg, effectiveSet);
 
   if (mappingChanged || hasIneffective) {
-    fn.body = _rewriteBody(fn.body, mapping, effectiveSet);
+    fn.body = asRegion(_rewriteBody(fn.body, mapping, effectiveSet));
   }
 
   // 6. Rebuild fn.locals ---------------------------------------------------

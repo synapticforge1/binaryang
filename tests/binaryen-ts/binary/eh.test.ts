@@ -27,6 +27,7 @@ import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { region } from '../region_helpers.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 // ---------------------------------------------------------------------------
@@ -212,15 +213,12 @@ Deno.test('EH parser: hasExceptionHandling flag set when tag section present', (
 Deno.test('EH parser: throw decoded as ThrowExpr', () => {
   const mod = parseWasm(THROW_MODULE);
   assertEquals(mod.functions.length, 1);
-  // Function body has [local.get, throw, unreachable]; body is a block
+  // Function body has [local.get, throw, unreachable] — a region of three
   const body = mod.functions[0].body;
-  // Find the throw expression (in block children)
-  let throwExpr: ThrowExpr | undefined;
-  if (body.kind === ExpressionKind.Block) {
-    throwExpr = body.children.find((c) => c.kind === ExpressionKind.Throw) as ThrowExpr | undefined;
-  } else if (body.kind === ExpressionKind.Throw) {
-    throwExpr = body as ThrowExpr;
-  }
+  // Find the throw expression among the region's instructions
+  const throwExpr = region(body).children.find((c) => c.kind === ExpressionKind.Throw) as
+    | ThrowExpr
+    | undefined;
   assertEquals(throwExpr !== undefined, true, 'throw expression not found');
   assertEquals(throwExpr!.kind, ExpressionKind.Throw);
   assertEquals(throwExpr!.operands.length, 1);
@@ -231,12 +229,9 @@ Deno.test('EH parser: throw tag name resolved from tag section', () => {
   const mod = parseWasm(THROW_MODULE);
   const tag0 = mod.tags[0].name;
   const body = mod.functions[0].body;
-  let throwExpr: ThrowExpr | undefined;
-  if (body.kind === ExpressionKind.Block) {
-    throwExpr = body.children.find((c) => c.kind === ExpressionKind.Throw) as ThrowExpr | undefined;
-  } else if (body.kind === ExpressionKind.Throw) {
-    throwExpr = body as ThrowExpr;
-  }
+  const throwExpr = region(body).children.find((c) => c.kind === ExpressionKind.Throw) as
+    | ThrowExpr
+    | undefined;
   assertEquals(throwExpr!.tag, varName(tag0));
 });
 
@@ -253,7 +248,7 @@ Deno.test('EH parser: try_table decoded as TryTableExpr', () => {
     e: { kind: unknown; children?: unknown[]; body?: unknown },
   ): TryTableExpr | undefined => {
     if (e.kind === ExpressionKind.TryTable) return e as TryTableExpr;
-    if (e.kind === ExpressionKind.Block) {
+    if (e.kind === ExpressionKind.Block || e.kind === ExpressionKind.Region) {
       for (const c of (e.children ?? []) as typeof e[]) {
         const found = findTryTable(c as { kind: unknown; children?: unknown[]; body?: unknown });
         if (found) return found;
@@ -300,15 +295,10 @@ Deno.test('EH parser: exnref value type decoded in function params', () => {
 Deno.test('EH parser: throw_ref decoded as ThrowRefExpr', () => {
   const mod = parseWasm(THROW_REF_MODULE);
   const body = mod.functions[0].body;
-  // Body is a block or the expression directly
-  let trExpr: ThrowRefExpr | undefined;
-  if (body.kind === ExpressionKind.ThrowRef) {
-    trExpr = body as ThrowRefExpr;
-  } else if (body.kind === ExpressionKind.Block) {
-    trExpr = body.children.find((c) => c.kind === ExpressionKind.ThrowRef) as
-      | ThrowRefExpr
-      | undefined;
-  }
+  // The body is a region; the throw_ref is one of its instructions
+  const trExpr = region(body).children.find((c) => c.kind === ExpressionKind.ThrowRef) as
+    | ThrowRefExpr
+    | undefined;
   assertEquals(trExpr !== undefined, true, 'throw_ref expression not found');
   assertEquals(trExpr!.kind, ExpressionKind.ThrowRef);
   assertEquals(trExpr!.exnref.kind, ExpressionKind.LocalGet);
@@ -331,12 +321,9 @@ Deno.test('EH encoder: throw expression preserved after round-trip', () => {
   const mod = parseWasm(THROW_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
   const body = mod2.functions[0].body;
-  let throwExpr: ThrowExpr | undefined;
-  if (body.kind === ExpressionKind.Block) {
-    throwExpr = body.children.find((c) => c.kind === ExpressionKind.Throw) as ThrowExpr | undefined;
-  } else if (body.kind === ExpressionKind.Throw) {
-    throwExpr = body as ThrowExpr;
-  }
+  const throwExpr = region(body).children.find((c) => c.kind === ExpressionKind.Throw) as
+    | ThrowExpr
+    | undefined;
   assertEquals(throwExpr !== undefined, true, 'throw not found after round-trip');
   assertEquals(throwExpr!.operands.length, 1);
   assertEquals(throwExpr!.operands[0].kind, ExpressionKind.LocalGet);
@@ -373,14 +360,9 @@ Deno.test('EH encoder: throw_ref module round-trips through encode+parse', () =>
   assertEquals(mod2.functions.length, 1);
   assertEquals(mod2.functions[0].params[0], ValType.ExnRef);
   const body = mod2.functions[0].body;
-  let trExpr: ThrowRefExpr | undefined;
-  if (body.kind === ExpressionKind.ThrowRef) {
-    trExpr = body as ThrowRefExpr;
-  } else if (body.kind === ExpressionKind.Block) {
-    trExpr = body.children.find((c) => c.kind === ExpressionKind.ThrowRef) as
-      | ThrowRefExpr
-      | undefined;
-  }
+  const trExpr = region(body).children.find((c) => c.kind === ExpressionKind.ThrowRef) as
+    | ThrowRefExpr
+    | undefined;
   assertEquals(trExpr !== undefined, true, 'throw_ref not found after round-trip');
   assertEquals(trExpr!.exnref.kind, ExpressionKind.LocalGet);
 });

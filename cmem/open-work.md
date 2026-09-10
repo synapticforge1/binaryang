@@ -204,7 +204,7 @@ one fact in two places, which is this codebase's known failure mode.
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                |
 | S4 coarse grouping     | ✅ five kinds folded away                                                             |
 | S5 one-sided kinds     | 🚧 acceptance criterion met (wide arithmetic round-trips); regroupings merged into S6 |
-| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done, stage 2 three of seven      |
+| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2 at 5 of 7 (09-10)   |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest                                                  |
 
 **S6 has its own acceptance gate now: `deno task bridge`**, at **401/421** (2026-09-10; it stood at
@@ -216,6 +216,18 @@ bridge leaves untyped. Four of those five now round-trip; one was masking a vali
 ⚠️ **S6 deletes the bridge and dissolves C10a** rather than fixing it — and that diagnosis has now
 been checked against ALL 24 rather than the one module it was recorded from: wabt-ts's own path is
 valid for 24 of 24, so the fault is entirely in the translation.
+
+**Group 2 is at 5 of 7** (decision 5, region bodies, `365e9277c`). Two findings from it are OPEN and
+belong to neither S6 step — each is pre-existing, and each wants its own measured commit:
+
+- ⬚ **LocalCSE CSEs a bare `local.get` and constants.** Upstream's `isRelevant` excludes both
+  (`binaryen-ts/upstream/src/passes/LocalCSE.cpp:356`) — CSE-ing either can only add a local and
+  bytes. Live on multi-statement bodies all along; decision 5 made it reach single-instruction ones
+  too (+128 bytes net over 28 `-Oz` corpus modules). Fixing it moves `-Oz` output broadly, so it
+  needs its own before/after corpus diff.
+- ⬚ **The binaryen-ts WAT parser emits an `else` for `(else)` with no instructions**, which upstream
+  wat2wasm omits. Valid either way; a byte divergence the spec harness cannot see (it drives the
+  wabt-ts parser).
 
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
 

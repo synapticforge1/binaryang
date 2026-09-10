@@ -41,6 +41,7 @@
  */
 
 import {
+  asStatement,
   type BlockExpr,
   type BreakExpr,
   type CallExpr,
@@ -53,8 +54,10 @@ import {
   makeLocalGet,
   makeLocalSet,
   makeNop,
+  makeRegion,
   makeReturn,
   makeUnreachable,
+  type RegionExpr,
   type SwitchExpr,
   typeOf,
 } from '../ir/expressions.ts';
@@ -91,6 +94,7 @@ function isTrivial(e: Expression): boolean {
 /** Control-flow structures handled explicitly (children may have side effects). */
 function isControlFlow(e: Expression): boolean {
   return e.kind === ExpressionKind.Block ||
+    e.kind === ExpressionKind.Region ||
     e.kind === ExpressionKind.If ||
     e.kind === ExpressionKind.Loop;
 }
@@ -251,6 +255,12 @@ function flattenControlFlow(e: Expression, ctx: Ctx): Flat {
   switch (e.kind) {
     case ExpressionKind.Block:
       return flattenBlock(e as BlockExpr, ctx);
+    // A region flattens as its one instruction, or as an unnamed block of
+    // several (`asStatement`) — the shapes upstream's parser hands its Flatten,
+    // and the ones this port's parsers produced before regions were a kind, so
+    // the Flat IR that asyncify mirrors against `wasm-opt` is unchanged.
+    case ExpressionKind.Region:
+      return flattenExpr(asStatement(e), ctx);
     case ExpressionKind.If:
       return flattenIf(e as IfExpr, ctx);
     case ExpressionKind.Loop:
@@ -302,11 +312,11 @@ function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
   const concrete = isConcrete(typeOf(iff));
   const resultTemp = concrete ? allocTemp(ctx, typeOf(iff)) : -1;
 
-  const arm = (a: Expression): Expression => {
+  const arm = (a: RegionExpr): RegionExpr => {
     const f = flattenExpr(a, ctx);
     const stmts = [...f.pre];
     if (concrete && isConcrete(typeOf(a))) stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
-    return makeBlock(stmts, null);
+    return makeRegion(stmts);
   };
 
   const ifTrue = arm(iff.ifTrue);
@@ -339,7 +349,7 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
     kind: ExpressionKind.Loop,
     type: None,
     name: loop.name,
-    body: makeBlock(stmts, null),
+    body: makeRegion(stmts),
   };
 
   return concrete
@@ -391,13 +401,17 @@ export function flattenFunction(
   // result signature, not `body.type`, since a call-bodied function has
   // `body.type === none` from the parser.
   const bodyIsValue = func.results.length > 0 && func.body.type !== Unreachable;
-  const source = bodyIsValue ? makeReturn(func.body) : func.body;
+  // Unwrapped, not placed as is: `return` takes an OPERAND, which a region
+  // cannot be — and `makeReturn(region)` type-checks, since a region is an
+  // Expression.
+  const body = asStatement(func.body);
+  const source = bodyIsValue ? makeReturn(body) : body;
 
   const f = flattenExpr(source, ctx);
   const list = [...f.pre];
   // If the source was void and produced a trailing non-nop value, keep it.
   if (!bodyIsValue && f.value.kind !== ExpressionKind.Nop) list.push(f.value);
-  func.body = makeBlock(list, null);
+  func.body = makeRegion(list);
 }
 
 /** Rewrites every function in the module into Flat IR. */

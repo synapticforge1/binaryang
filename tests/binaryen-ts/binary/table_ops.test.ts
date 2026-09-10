@@ -221,7 +221,8 @@ Deno.test('element segment: flag-4 (expression-form) active funcref segment roun
  *  instruction inside. Used here because all fixtures have one-instruction
  *  bodies. */
 function unwrap(e: Expression): Expression {
-  if (e.kind === ExpressionKind.Block) {
+  // A body is a region now; a block of one is still unwrapped where it is real.
+  if (e.kind === ExpressionKind.Block || e.kind === ExpressionKind.Region) {
     const b = e as { children: Expression[] };
     if (b.children.length === 1) return unwrap(b.children[0]);
   }

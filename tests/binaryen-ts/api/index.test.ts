@@ -9,6 +9,7 @@
 import { assert, assertThrows } from '@std/assert';
 import { createModule } from '../../../src/binaryen-ts/api/index.ts';
 import {
+  asRegion,
   makeBlock,
   makeI32Const,
   makeLoop,
@@ -28,7 +29,7 @@ Deno.test('toWat: unsupported expression kind throws instead of a silent (;; TOD
     params: [],
     results: [],
     locals: [],
-    body: makeLoop('l', makeNop(), None),
+    body: asRegion(makeLoop('l', makeNop(), None)),
   });
   assertThrows(() => mod.toWat(), Error, 'unsupported expression kind');
 });
@@ -44,7 +45,7 @@ Deno.test('Module.optimize honors the -O level (was hardcoded to 2)', async () =
       params: [],
       results: [ValType.I32],
       locals: [],
-      body: makeBlock([makeNop(), makeI32Const(5)], null),
+      body: asRegion(makeBlock([makeNop(), makeI32Const(5)], null)),
     });
     return mod;
   };

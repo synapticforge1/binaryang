@@ -13,6 +13,7 @@ import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { type Var, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { soleInstr } from '../region_helpers.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -194,7 +195,7 @@ Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr dire
   const mod = parseWasm(STRUCT_MODULE);
   assertEquals(mod.functions.length, 1);
   // Single-result function body: the body IS the struct.new (no wrapper block)
-  const body = mod.functions[0].body;
+  const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.StructNew);
   const sn = body as { typeVar: Var; operands: unknown[]; defaultInit: boolean };
   assertEquals(sn.typeVar, varIndex(0));
@@ -215,7 +216,7 @@ Deno.test('GC parser: array type definition is decoded', () => {
 
 Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init', () => {
   const mod = parseWasm(ARRAY_MODULE);
-  const body = mod.functions[0].body;
+  const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.ArrayNew);
   const an = body as { typeVar: Var; init: unknown };
   assertEquals(an.typeVar, varIndex(0));
@@ -224,7 +225,7 @@ Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init',
 
 Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
   const mod = parseWasm(REF_TEST_MODULE);
-  const body = mod.functions[0].body;
+  const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
   const rt = body as { castType: unknown; nullable: boolean };
   assertEquals(rt.castType, 0);
@@ -266,7 +267,7 @@ Deno.test('GC encoder: struct fields preserved after round-trip', () => {
 Deno.test('GC encoder: struct.new preserved after round-trip', () => {
   const mod = parseWasm(STRUCT_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
-  const body = mod2.functions[0].body;
+  const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.StructNew);
   const sn = body as { typeVar: Var; operands: unknown[] };
   assertEquals(sn.typeVar, varIndex(0));
@@ -287,7 +288,7 @@ Deno.test('GC encoder: array module round-trips through encode+parse', () => {
 Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
   const mod = parseWasm(ARRAY_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
-  const body = mod2.functions[0].body;
+  const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.ArrayNew);
   const an = body as { init: unknown };
   assertEquals(an.init, null);
@@ -296,7 +297,7 @@ Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
 Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
   const mod = parseWasm(REF_TEST_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
-  const body = mod2.functions[0].body;
+  const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
   const rt = body as { castType: unknown; nullable: boolean };
   assertEquals(rt.castType, 0);

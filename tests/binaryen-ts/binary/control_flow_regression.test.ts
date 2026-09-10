@@ -42,6 +42,7 @@ import {
 import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { createPass, PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { soleOf } from '../region_helpers.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register built-in passes
 
 // ---------------------------------------------------------------------------
@@ -119,10 +120,7 @@ Deno.test('regression: call to imported function resolves to correct index after
   // Also assert the parsed call targets the import by its unified name.
   const bytes = new Uint8Array([...MAGIC, ...[types, imports, funcs, code].flat()]);
   const mod = parseWasm(bytes);
-  const call = mod.functions[0].body.kind === ExpressionKind.Call
-    ? mod.functions[0].body as CallExpr
-    : null;
-  assert(call, 'function body should be a call');
+  const call: CallExpr = soleOf(mod.functions[0].body, ExpressionKind.Call);
   assertEquals(call!.target, varName('$func1'));
   assertEquals(call!.operands.length, 2);
   // The import the call points at must itself be the 2-arg import.
@@ -311,11 +309,10 @@ Deno.test('regression: LocalCSE preserves a result-typed block that exits via br
   const mod = parseWasm(new Uint8Array([...MAGIC, ...[types, funcs, code].flat()]));
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).addPass(createPass('LocalCSE')).run();
 
-  // The body IS the `(result i32)` block (single-expression body, unwrapped).
-  // Its declared type must survive LocalCSE as i32 — not be clobbered to the
-  // tail `br`'s `unreachable`.
-  const fnBody = mod.functions[0].body as BlockExpr;
-  assert(fnBody.kind === ExpressionKind.Block, 'body should be a block');
+  // The body's one instruction IS the `(result i32)` block. Its declared type
+  // must survive LocalCSE as i32 — not be clobbered to the tail `br`'s
+  // `unreachable`.
+  const fnBody: BlockExpr = soleOf(mod.functions[0].body, ExpressionKind.Block);
   assertEquals(fnBody.type, ValType.I32);
 
   // And the encoded result must validate (this is what threw before the fix).

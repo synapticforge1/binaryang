@@ -36,6 +36,7 @@ import {
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
 import type { WasmFunction, WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { nameOf, sameVar, type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { region } from '../region_helpers.ts';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -123,8 +124,7 @@ const LOOP_CALL = `(module
 
 Deno.test('flow — body starts with the rewind prelude (pop call index)', () => {
   const foo = fn(flowModule(ONE_CALL), '$foo');
-  assertEquals(foo.body.kind, ExpressionKind.Block);
-  const first = (foo.body as { children: Expression[] }).children[0];
+  const first = region(foo.body).children[0]!;
   assertEquals(first.kind, ExpressionKind.If);
   // its then-arm calls __asyncify_get_call_index exactly once.
   assertEquals(countCallsTo(first, GET_INDEX), 1);

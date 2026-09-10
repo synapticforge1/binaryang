@@ -285,6 +285,28 @@ is a finding.
 new test fails on `main` means reading the step lines themselves (`MALFORMED ... FAILED`) from an
 unfiltered run — and a check that greps the output for a summary line will pass on this one.
 
+### A GUARDED assertion is vacuous — state the expectation, do not branch on it
+
+```ts
+const ret = mod.functions[0].body;
+if (ret.kind === ExpressionKind.Return) {
+  assertEquals(ret.value?.kind, ExpressionKind.LocalGet); // asserts NOTHING if ret is anything else
+}
+```
+
+Decision 5 found about a dozen of these in `passes.test.ts` alone (OptimizeInstructions,
+SimplifyLocals, RemoveUnusedBrs, CoalesceLocals). Once every body became a region, each would have
+passed while checking nothing. They were flagged only because the narrowed type made the comparison
+impossible (`TS2367`). The helpers in `tests/binaryen-ts/region_helpers.ts` — `region`, `soleInstr`,
+`soleOf(body, kind)` — FAIL on the wrong shape instead of skipping it.
+
+⚠️ **A STRUCTURAL cast accepts any node that fits.**
+`body as { kind: ExpressionKind; type: string }` compiled with a region there, because a region has
+a `kind` and a `type`. One such test asserted only `.type` — and a region of one block has the
+block's type, so it would have PASSED while reading the wrong node, and its next line checked
+`$outer` where it meant `$inner`. When a node's position changes, convert every read of it, not just
+the ones the compiler flags.
+
 ### A replaced test must say it REPLACED, and why
 
 `wasm_encoder.test.ts` asserted "load with a non-numeric result type throws" — a guard that existed
