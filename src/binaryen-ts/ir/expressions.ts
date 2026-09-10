@@ -12,11 +12,18 @@
  *
  * @example
  * ```ts
- * import { makeBinary, makeI32Const, makeLocalGet } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import {
+ *   BinaryOp,
+ *   makeBinary,
+ *   makeI32Const,
+ *   makeLocalGet,
+ *   ValType,
+ * } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
  *
  * const expr = makeBinary(
  *   BinaryOp.AddI32,
- *   makeLocalGet(0, ValType.I32),
+ *   makeLocalGet(varIndex(0), ValType.I32),
  *   makeI32Const(1),
  * );
  * ```

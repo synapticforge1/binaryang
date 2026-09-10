@@ -16,6 +16,7 @@ import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 import { ExpressionKind } from '../../src/binaryen-ts/ir/expressions.ts';
 import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
+import { requireIndex, type Var } from '../../src/wabt-ts/ir/ir.ts';
 import '../../src/binaryen-ts/passes/index.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
@@ -41,10 +42,11 @@ interface Op {
 function ops(body: import('../../src/binaryen-ts/ir/expressions.ts').Expression): Op[] {
   const out: Op[] = [];
   walkExpression(body, (e) => {
-    if (e.kind === ExpressionKind.LocalSet) out.push({ kind: 'set', index: e.index });
-    else if (e.kind === ExpressionKind.LocalTee) out.push({ kind: 'tee', index: e.index });
+    const local = (v: Var) => requireIndex(v, 'local index');
+    if (e.kind === ExpressionKind.LocalSet) out.push({ kind: 'set', index: local(e.index) });
+    else if (e.kind === ExpressionKind.LocalTee) out.push({ kind: 'tee', index: local(e.index) });
     else if (e.kind === ExpressionKind.Drop) out.push({ kind: 'drop' });
-    else if (e.kind === ExpressionKind.LocalGet) out.push({ kind: 'get', index: e.index });
+    else if (e.kind === ExpressionKind.LocalGet) out.push({ kind: 'get', index: local(e.index) });
   });
   return out;
 }
