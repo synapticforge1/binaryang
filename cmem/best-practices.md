@@ -574,6 +574,18 @@ break into a compile error — that is real, and it is why `typeIndex`→`typeVa
 cheaper than `memory`, which kept its name and got no such protection. But the arm being tested or
 built still exists under any name.
 
+🛑 **Adding a KIND is the same widening, one level up — and every private `switch` finds it first.**
+Decision 5 added `ExpressionKind.Region` for what used to be unnamed wrapper `Block`s. DCE, Vacuum,
+LocalCSE, SimplifyLocals and asyncify's flow each handled `Block` and let `default` return anything
+else untouched — so every loop, if, try and function body would have quietly stopped being
+optimized. The compiler flagged **none** of the five; a test caught one. `walk.ts` was safe only
+because its `default` THROWS.
+
+**How to apply:** before adding a kind, list every `switch (x.kind)` outside the central walker and
+read each `default` — `throw` is safe, `return x` / `break` / `return false` must be judged one by
+one — and grep `kind === <the kind it replaces>` and `kind !== <…>`. Both lists went into the
+decision record before the code; the sweep then found exactly what they predicted.
+
 ### A numeric ENUM parameter accepts the number it replaced
 
 The eighth mode, and the one that defeats a signature change — the move usually relied on to make
@@ -633,7 +645,7 @@ const make = head === 'array.init_data' ? makeArrayInitData : makeArrayInitElem;
 a caret run giving the exact token width, so an edit anchored on that is anchored on the compiler's
 view instead of a guess. It found 19 test sites a search would have had to guess at.
 
-### The three traps in doing it
+### The five traps in doing it
 
 - ⚠️ **Compare the two counts.** The first run fixed 11 of 18 and reported success on all 11: the
   script required a `~` run and TypeScript underlines a **single-character** token with `^`. "11
@@ -645,7 +657,19 @@ view instead of a guess. It found 19 test sites a search would have had to guess
 - ⚠️ **Assert on the command's FAILURE, not on a string in its output.** A loop that counted `TS`
   errors reported "0 errors" for four rounds while a file was syntactically broken.
   `deno task test
-  | tail` likewise exits 0 from `tail`.
+  | tail` likewise exits 0 from `tail`. It happened again in decision 5 — "0
+  errors (exit 1)" was a `SyntaxError` the error parser did not recognise.
+- ⚠️ **A scanner that balances brackets must skip COMMENTS, not just strings.** The decision-5
+  wrapper tracked quotes; the apostrophe in `// (otherwise it's a dead drop …)` opened a phantom
+  string and the closing paren landed lines away. Restore the files and re-run — a patched-up
+  partial result is not trustworthy.
+- ⚠️ **`String.replace` / `replaceAll` with a STRING replacement is a template.** `$$` becomes `$`,
+  `$&` the match, `` $` `` / `$'` the surrounding text. A replacement holding
+  `` `$${ASYNCIFY_START_UNWIND}` `` wrote `` `${ASYNCIFY_START_UNWIND}` `` — a different function
+  name, no error, and a test failing far from the cause. **Pass a function (`() => to`)**, which is
+  literal; and after any scripted edit, audit the changed files for HEAD lines holding `$` sequences
+  that no longer appear verbatim. The same family as the heredoc rule: a tool interpreting
+  characters meant literally.
 
 ### Where it stops
 
@@ -861,6 +885,29 @@ worktree — not by assuming.
   then `operators · spec · bridge`.
 - **An unpushed branch is not a tested branch.** The longer `main` runs ahead of `origin`, the more
   a CI-only step is worth running locally.
+
+## 🆕 A node COUNT is behaviour — a representation that adds nodes moves every threshold on it
+
+Inlining decides by size (≤2 always, ≤10 one caller, ≤20 flexible), and size was "nodes
+`walkExpression` visits". Decision 5 made every body a region node, which would have added one node
+to every function and one per `if` arm — and silently changed which functions inline, with no error
+anywhere. `countsTowardSize` counts a region only where upstream's IR has a node (a body of N ≠ 1
+instructions), which reproduces the pre-region count exactly.
+
+**Grep for counters over a walk (`size++`, `count++`, `measure…`) whenever a change adds or removes
+nodes.** A threshold calibrated against one IR's shape is a claim about that shape.
+
+## 🆕 Before fixing a hypothesis, TEST it — "fidelity binds" was not true
+
+Decision 5's recorded rationale was that a single-expression body loses fidelity. Five probes
+against upstream `wat2wasm` said no: source-written unlabeled blocks survived byte-for-byte, because
+every parser names every real block. The rationale was overstated — and correcting it changed the
+decision (neither pure form won; a new interface did). The measurement that followed found the
+fidelity defects that DID exist, in a different place: the decoder invented a `nop` for an empty
+body and dropped an explicit empty `else`.
+
+**A recorded reason is a hypothesis until a probe agrees with it.** The probe costs minutes; acting
+on a false reason costs the design.
 
 ## 🆕 A fixed failure can UNMASK another — predict from counts, then check per file
 

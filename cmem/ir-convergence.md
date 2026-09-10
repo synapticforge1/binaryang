@@ -1385,7 +1385,7 @@ which also owns the 7 label references (`name` ×5, `delegateTarget`, `Rethrow.t
 `CatchClause.tag`, all deliberately routed around during the mechanical passes so they would not be
 settled by accident.
 
-##### Group 2 — the seven real decisions 🚧 4 of 7 IMPLEMENTED
+##### Group 2 — the seven real decisions 🚧 5 of 7 IMPLEMENTED
 
 The decisions themselves were made when the 28 were scoped; these are the implementations, each its
 own commit and gate.
@@ -1498,19 +1498,18 @@ eighth silent mode in [best-practices.md](best-practices.md).
 API-visible: `LoadExpr`/`StoreExpr` and both factory signatures via `./ir/binaryen-ts`, which now
 also exports the table (`loadShape`, `storeShape`, `withSigned`, …) for anyone who read `.bytes`.
 
-###### Remaining: 3 of 7
+###### Remaining: 2 of 7
 
-| # | decision                                                     | note                                                                                                              |
-| - | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| 5 | `loop`/`try`/`try_table` body — `Expr[]` vs one `Expression` | **the largest**; changes every pass that treats a body as a single expression, and three other kinds depend on it |
-| 6 | `br` values — `Expr[]` vs a single `value`                   | a real arity difference, flagged in S2                                                                            |
-| 7 | `blockType` / `typeUse` / `select.resultType`                | stay on the node; the fidelity table SHADOWS them, it does not replace them                                       |
+| # | decision                                      | note                                                                        |
+| - | --------------------------------------------- | --------------------------------------------------------------------------- |
+| 6 | `br` values — `Expr[]` vs a single `value`    | a real arity difference, flagged in S2                                      |
+| 7 | `blockType` / `typeUse` / `select.resultType` | stay on the node; the fidelity table SHADOWS them, it does not replace them |
 
 Plus Group 3's five ties and the block/label family — which still owns the 7 label references
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
 around so the mechanical passes could not settle them by accident.
 
-###### 📋 5. Region bodies — neither form: a `RegionExpr` in every region slot (decided 2026-09-10)
+###### ✅ 5. Region bodies — neither form: a `RegionExpr` in every region slot (`365e9277c`)
 
 🔧 **The Group 2 table's reason for this row was OVERSTATED.** It says "fidelity binds" because a
 multi-instruction body must sit in a synthetic `Block`. Probed against upstream `wat2wasm`: a block
@@ -1561,6 +1560,31 @@ trading one convention for another.
 
 All seven slots in ONE commit: at 49 sites it is affordable, and stopping part-way is what would
 leave the wrapper mechanism alive.
+
+**Implemented 2026-09-10 — what the implementation found that the plan did not:**
+
+| found                                                                                                     | how                                         | disposition                                     |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------- |
+| an emitted unnamed block/if/try shadowed the FUNCTION frame (`''` meant both) — V8-valid, wrong value     | probed while designing; C6 had one instance | fixed first, `2f519bde7`                        |
+| the decoder invented a `nop` for an EMPTY body (`03 40 0b` → `03 40 01 0b`)                               | probe vs upstream                           | fixed by the region                             |
+| the decoder dropped an explicit EMPTY `else` from a valid binary                                          | hand-assembled binary                       | fixed by the region                             |
+| 5 passes' private switches handled `Block` and defaulted past `Region` — every body silently unoptimized  | the switch sweep                            | Region added to each                            |
+| 5 places put a body where a STATEMENT goes (StripEH, remove-unused-names, asyncify ×2, inlining, flatten) | grep for body/arm fields used as values     | `asStatement`                                   |
+| inlining's size thresholds counted nodes — regions would have moved them                                  | reading the counter                         | `countsTowardSize`, exact                       |
+| ~a dozen VACUOUS guarded assertions in tests; structural casts that accept a region                       | the conversion                              | `region_helpers.ts`                             |
+| LocalCSE CSEs bare `local.get` and constants; upstream's `isRelevant` excludes both (LocalCSE.cpp:356)    | classifying the `-Oz` byte diff             | **OPEN** — pre-existing, now reaching more code |
+| the WAT path emits an `else` for `(else)` with no instructions; upstream wat2wasm omits it                | the empty-region probe                      | **OPEN** — pre-existing, unchanged by this      |
+
+**Measured against `main`, 421 corpus modules:** parse→encode **421/421 byte-identical**; `-O1` 2
+differ (−2 each); `-Oz` 28 differ, net **+128 bytes**, all V8-valid, every one classified — an
+all-nop body now encodes as nothing instead of `nop`, and LocalCSE reaching single-instruction
+bodies (the OPEN divergence above; it was already live on multi-statement bodies). Bridge held at
+401/421; baseline IDENTICAL; spec 100% on four axes.
+
+⚠️ **A region's TYPE is its contents' type**, not the construct's. The wrapper stamped the declared
+type because it wrote a blocktype; a region never does, so the declared type stays on the construct.
+Passes that ask an arm "do you produce a value?" through its type then get the answer a
+one-instruction arm always gave.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
