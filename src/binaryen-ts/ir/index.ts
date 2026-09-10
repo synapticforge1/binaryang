@@ -18,10 +18,15 @@
  *   makeBinary,
  *   makeReturn,
  * } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
  *
  * const mod = new ModuleBuilder()
  *   .addFunction("add", [ValType.I32, ValType.I32], [ValType.I32],
- *     makeReturn(makeBinary(BinaryOp.AddI32, makeLocalGet(0, ValType.I32), makeLocalGet(1, ValType.I32)))
+ *     makeReturn(makeBinary(
+ *       BinaryOp.AddI32,
+ *       makeLocalGet(varIndex(0), ValType.I32),
+ *       makeLocalGet(varIndex(1), ValType.I32),
+ *     ))
  *   )
  *   .addExport("add", "add")
  *   .build();
@@ -33,4 +38,5 @@
 export * from './gc-types.ts';
 export * from './types.ts';
 export * from './expressions.ts';
+export * from './memory-access.ts';
 export * from './module.ts';

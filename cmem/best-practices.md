@@ -472,10 +472,13 @@ standard would have licensed the change; measuring our own parser is what caught
 `i32.add` every assertion here passes under the reversed reading. `i32.sub` and a 3-argument
 subtraction are what made the slots observable.
 
-## 🆕 Changing a field has SEVEN failure modes the compiler cannot see
+## 🆕 Changing a field has EIGHT failure modes the compiler cannot see
 
-**Rule: a type change is not finished when it compiles. Sweep for the seven, then let a behavioural
+**Rule: a type change is not finished when it compiles. Sweep for the eight, then let a behavioural
 test and a byte gate disagree with you.**
+
+(Seven were paid for in S6 step 4; the eighth — a numeric enum accepting the number it replaced — in
+Group 2 decision 4. It has its own section below.)
 
 Paid for across S6 step 4 (2026-09-09), converting five field families in binaryen-ts and wabt-ts to
 their as-written forms. Every defect below **compiled clean**, and none was found by reading code.
@@ -537,6 +540,19 @@ for (const k of ['ref', 'index', 'value', 'size']) assert(node[k] !== undefined)
 A rename cannot touch a string, so this fails at RUNTIME only. Same for a field name in a map key, a
 template, or a serialized shape.
 
+⚠️ **Worse when the string guards a PRESENCE test.** Decision 4 removed `bytes` from Load/Store and
+found two:
+
+```ts
+nodes.find((n) => n['bytes'] !== undefined)                          // multi_memory.test.ts
+if (node.kind === ExpressionKind.Store && node.bytes !== undefined)  // narrow_store_width.test.ts
+```
+
+A presence guard converts "the field is gone" into "nothing matched" — an EMPTY result, not an
+error. Both tests went red only because something downstream happened to assert non-emptiness
+(`assert(store)`, `assertEquals(widths, [1])`). Find nodes by their DISCRIMINANT (`kind`), and when
+a walk must read a field, make its absence THROW rather than skip.
+
 🔑 **The through-line for all six: the compiler sees a field name used as SYNTAX.** The moment the
 name becomes data, it is outside the type system, and no rename, retype or arm-widening will make it
 speak up. Sweep for `'<field>'` as a string literal in tests before believing a rename is done — and
@@ -558,11 +574,40 @@ break into a compile error — that is real, and it is why `typeIndex`→`typeVa
 cheaper than `memory`, which kept its name and got no such protection. But the arm being tested or
 built still exists under any name.
 
+### A numeric ENUM parameter accepts the number it replaced
+
+The eighth mode, and the one that defeats a signature change — the move usually relied on to make
+the compiler list every call site.
+
+```ts
+makeStore(bytes: 1 | 2 | 4 | 8 | 16, offset, align, ptr, value, memidx?)   // before
+makeStore(opcode: Opcode,            offset, align, ptr, value, memidx?)   // after
+makeStore(4, offset, align, ptr, value)   // unconverted — COMPILES
+```
+
+A numeric enum admits any number literal equal to one of its member values, and `Opcode` has members
+at 1, 2, 4, 8 and 16 (`nop`, `block`, `if`, `throw`, `call`) — every width a store can have. So the
+old calls type-checked as a request for a store whose opcode was `if`. A `number`-typed argument is
+accepted too: asyncify's `makeStore(loadOpBytes(t), …)` passed a width straight into the opcode
+slot.
+
+`makeLoad` did NOT hide its sites — its arity changed (7 → 5 arguments), and arity is checked. **The
+trial count the compiler gave (54 errors) was therefore complete for loads and blind for stores**,
+and the two looked identical in the output: 15 wasm-parser errors, all loads, none of its ten
+stores. The tell was an absence — a file with ten store sites reporting zero of them.
+
+**How to apply:** when a parameter's type changes to a numeric enum (or a `number`-backed brand),
+either change the ARITY or the POSITION so every old call becomes a type error, or grep every call
+site of the function by name — and add a runtime check at construction (`makeStore` now validates
+its opcode through `storeShape`), so any site that slipped through fails the first test that reaches
+it. **Look at which files report errors, not just how many.**
+
 ### How to apply
 
 - **Grep the five patterns before running the suite**, on the changed field: `\.<field> (===|!==)`,
   `\$\{[^}]*\.<field>\}`, `as any` / `as unknown as` / `as \{ <field>:`, `\.kind === '<arm>'`, and
-  `\{ kind: '<arm>'`.
+  `\{ kind: '<arm>'`. Plus, for a changed PARAMETER, every call of the function by name when its new
+  type is a numeric enum; and `'<field>'` / `\.<field> !== undefined` in tests.
 - **Give every union arm a CONSTRUCTOR** (`varIndex`, `varName`, `heapAbstract`) and an equality
   helper (`sameVar`, `sameHeap`). A bare literal makes the wrong arm easy to build; a constructor
   makes it hard. Put the failure that motivated the helper in its doc comment.
@@ -700,6 +745,9 @@ change to it:
 | `RefAsOp`, one member but typed `Opcode`     | an encoder `throw` for every value the type admitted and the kind forbade             | no field: the kind is the operator                          |
 | `number` memarg offset                       | the bridge's `throw 'memory64 not supported yet'`                                     | `bigint`, and a `writeU64`                                  |
 | a `Var` whose name arm meant keyword OR `$T` | four keyword-table lookups re-deriving which                                          | an `abstract` arm                                           |
+| load/store as `bytes` + `signed` (+ type)    | FIVE width tables re-deriving the opcode; two of them INVERSELY rotated               | the opcode on the node, and one table deriving the rest     |
+| a store opcode read off its OPERAND's type   | an encoder `throw` for an untyped operand — 5 of the bridge's 24 failures             | same                                                        |
+| WAT mnemonic matched by a PATTERN            | none — `f32.load8_s` was accepted and became `f32.load`                               | exact lookup in the same table                              |
 
 🔑 **Each mechanism was correct and each one was the problem.** A guard proves someone met the
 invalid state; it does not stop the next author from producing it, and it costs every reader the
@@ -712,6 +760,10 @@ reasoning to see why it cannot fire.
 - a **sentinel**: `=== ''`, `=== -1`, `'$__x'`, a well-formed value standing for "none"
 - a **`not yet supported` / `unsupported`** throw on a value the type admits
 - a field the code **always sets to the same value**, or tests only against one
+- a value **re-derived from a DIFFERENT field** at every use (`loadOpcode(e)` switching on `e.type`)
+  — each re-derivation is a copy of a table, and copies drift
+- a **pattern** (regex, `includes`, `startsWith`) routing input into code that then needs a table —
+  the pattern admits whatever it matches, and the table was never asked
 
 ### ⚠️ The rule already existed, and the code violated it anyway
 
@@ -786,6 +838,39 @@ left unused.
 **Check whether a reserved extension point has been served some other way before removing it — and
 say what served it in the comment left behind.** A reader who finds neither the mechanism nor an
 explanation will reasonably re-add it, and the reservation will outlive a second design.
+
+## 🆕 The local gate must BE CI's gate — a step only CI runs is a failure deferred to push time
+
+**Rule: run every step CI runs, read from the workflow file, not from memory of it.**
+
+S6 step 4 (`abddf1206`) left two scripts that no longer type-checked. The local gate —
+`test · baseline · operators · spec · bridge` — does not run `deno task check`; `ci.yml` does, and
+so does `publish.yml`. Nothing had been pushed since, so for 65 commits `main` was red by CI's
+standard and green by ours, and **the first push would have failed, and so would the next publish.**
+
+It was found by accident: decision 4's trial type-check included `scripts/`, and ten of its errors
+were not decision 4's. They were confirmed pre-existing by running the same check on a `main`
+worktree — not by assuming.
+
+### How to apply
+
+- **The gate is `grep -n "run:" .github/workflows/ci.yml`**, plus the project's own gates on top.
+  Today that is
+  `fmt --check · lint · check · check-naming.sh · check-portability.sh · test ·
+  baseline · publish --dry-run`,
+  then `operators · spec · bridge`.
+- **An unpushed branch is not a tested branch.** The longer `main` runs ahead of `origin`, the more
+  a CI-only step is worth running locally.
+
+## 🆕 A fixed failure can UNMASK another — predict from counts, then check per file
+
+Decision 4 removed a failure class accounting for 5 of the bridge's 24 failures, and the bridge went
+397 → **401**, not 402. A per-file diff against `main` explained it in one line: `59_AsyncClosureCb`
+had been failing at ENCODE on the removed class and now got far enough to fail at V8 in the dominant
+fallthru class. Not a regression — a second defect the first one had been hiding.
+
+**A pass count is a sum over files; diff the per-file outcomes, not the totals.** "4 fixed, 1 moved
+class" and "5 fixed, 1 new regression" produce the same total.
 
 ## Where to go for the rest
 

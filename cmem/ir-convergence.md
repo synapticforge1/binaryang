@@ -566,8 +566,9 @@ the original eleven.
 
 **The gate exists now**: `deno task bridge` (`scripts/check-bridge-corpus.ts`) runs the real
 pipeline — parse, `resolveNames`, `synthesizeTypes`, bridge, binaryen-ts encode — and uses the
-ENGINE as the oracle. Current state **397 / 421**, which reproduces C10a's recorded "5 fail to
+ENGINE as the oracle. It opened at **397 / 421**, which reproduces C10a's recorded "5 fail to
 encode, 19 fail validation" exactly. The 24 was a remembered number; it is now a measured one.
+(**401 / 421** since Group 2 decision 4, which removed the encode class — see there.)
 
 It reports the engine's actual complaint instead of a bare boolean, turning 24 opaque failures into
 three root causes:
@@ -1384,7 +1385,7 @@ which also owns the 7 label references (`name` ×5, `delegateTarget`, `Rethrow.t
 `CatchClause.tag`, all deliberately routed around during the mechanical passes so they would not be
 settled by accident.
 
-##### Group 2 — the seven real decisions 🚧 3 of 7 IMPLEMENTED
+##### Group 2 — the seven real decisions 🚧 4 of 7 IMPLEMENTED
 
 The decisions themselves were made when the 28 were scoped; these are the implementations, each its
 own commit and gate.
@@ -1467,11 +1468,40 @@ the requirement, which is what let the mismatch read as intended behaviour. It n
   fail and the two below 2³² still pass**, so it discriminates on the boundary rather than merely
   going red.
 
-###### Remaining: 4 of 7
+###### ✅ 4. Load/store hold their OPCODE — and three defects went with the old shape
+
+`LoadExpr` drops `bytes` + `signed`, `StoreExpr` drops `bytes`; both hold `opcode: Opcode`. Width,
+sign and type come from ONE table, `src/binaryen-ts/ir/memory-access.ts`, which replaced five copies
+(encoder `loadOpcode`/`storeOpcode`, bridge `loadInfo`/`storeBytes`, WAT-parser
+`loadBytes`/`storeBytes`). The table is tested against sources that are not itself: each row's
+mnemonic against wabt-ts's `anyOpcodeName`, and each width against what the mnemonic states — either
+check alone misses half of a rotation (right names, wrong widths).
+
+Three defects, each a consequence of re-deriving the opcode:
+
+| defect                                                                                                      | caught by                                   | closed in                 |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
+| i64 narrow stores ROTATED in the encoder and INVERSELY in the decoder; `i64.store8` wrote 2 bytes           | executing under V8, per half, independently | `b8b3150db` (before this) |
+| a store's opcode read off its OPERAND's type → "cannot encode store with value type: none"                  | 5 of the bridge's 24 failures               | `006326af7`               |
+| WAT names matched by pattern: `f32.load8_s`→`f32.load`, `f64.store8`→`f64.store`, `i32.load32_s`→`i32.load` | a probe; upstream wat2wasm rejects all five | `006326af7`               |
+
+**Bridge 397 → 401.** Four of the five store failures round-trip; the fifth (`59_AsyncClosureCb`)
+was masking a second failure and now sits in the dominant fallthru class with the other 17 — which
+is step 5's. A per-file diff against `main` said so; the totals could not.
+
+🛑 **The compiler's error list was complete for loads and blind for stores.** `makeLoad` changed
+arity; `makeStore` did not, and its old first argument — a width, 1/2/4/8/16 — is a valid `Opcode`
+value at every width (`nop`, `block`, `if`, `throw`, `call`). Every unconverted store call
+type-checked. Store sites were found by grep, `makeStore` now validates its opcode, and this is the
+eighth silent mode in [best-practices.md](best-practices.md).
+
+API-visible: `LoadExpr`/`StoreExpr` and both factory signatures via `./ir/binaryen-ts`, which now
+also exports the table (`loadShape`, `storeShape`, `withSigned`, …) for anyone who read `.bytes`.
+
+###### Remaining: 3 of 7
 
 | # | decision                                                     | note                                                                                                              |
 | - | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| 4 | `load`/`store` `opcode` vs decomposed `bytes` + `signed`     | touches the same nodes as #2                                                                                      |
 | 5 | `loop`/`try`/`try_table` body — `Expr[]` vs one `Expression` | **the largest**; changes every pass that treats a body as a single expression, and three other kinds depend on it |
 | 6 | `br` values — `Expr[]` vs a single `value`                   | a real arity difference, flagged in S2                                                                            |
 | 7 | `blockType` / `typeUse` / `select.resultType`                | stay on the node; the fidelity table SHADOWS them, it does not replace them                                       |
@@ -1486,14 +1516,19 @@ around so the mechanical passes could not settle them by accident.
 today**; that derivation (`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified
 tree, or binaryen-ts's passes get nodes with no `type` to dispatch on.
 
-**Acceptance**: `deno task bridge` goes 397/421 → **421/421**. If it does not, C10a's diagnosis was
-wrong and this whole step rests on a mistake — which is exactly what the gate was built to be able
-to say.
+**Acceptance**: `deno task bridge` goes 401/421 → **421/421** (it opened at 397). If it does not,
+C10a's diagnosis was wrong and this whole step rests on a mistake — which is exactly what the gate
+was built to be able to say.
 
 ##### Verification at every step
 
-`deno task test` · `baseline` · `operators` · `spec` · `bridge` — and the bridge gate must never
-regress below 397 until step 5 raises it.
+**CI's steps first** — `deno fmt --check` · `deno lint` · `deno task ci` (check + test) ·
+`scripts/check-naming.sh` · `scripts/check-portability.sh` · `baseline` · `publish:dry` — then
+`operators` · `spec` · `bridge`. The bridge gate must never regress below **401** (raised from 397
+by decision 4) until step 5 raises it to 421.
+
+🛑 This list used to start at `deno task test`, which runs `--no-check`. S6 step 4 left two
+`scripts/` files uncompiled and nothing here could see it; CI would have on the first push.
 
 #### Measured size of what remains
 

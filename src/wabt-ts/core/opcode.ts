@@ -366,6 +366,12 @@ export function opcodeName(op: Opcode): string | undefined {
  */
 export const OPCODE_I8X16_SHUFFLE: Opcode = ((PREFIX_SIMD << 16) | 0x0d) as Opcode;
 
+/** `v128.load` — the 16-byte plain SIMD load, `0xFD 0x00`. */
+export const OPCODE_V128_LOAD: Opcode = ((PREFIX_SIMD << 16) | 0x00) as Opcode;
+
+/** `v128.store` — the 16-byte plain SIMD store, `0xFD 0x0B`. */
+export const OPCODE_V128_STORE: Opcode = ((PREFIX_SIMD << 16) | 0x0b) as Opcode;
+
 // Built lazily from the enum above; avoids a large switch statement.
 const OPCODE_NAMES: ReadonlyMap<Opcode, string> = new Map<Opcode, string>([
   [Opcode.Unreachable, 'unreachable'],

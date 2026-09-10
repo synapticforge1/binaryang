@@ -37,6 +37,7 @@ import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: pass registration
 
 /**
@@ -72,7 +73,7 @@ function buildModule(): ReturnType<ModuleBuilder['build']> {
       [],
       [ValType.I32],
       makeBlock([
-        makeLocalSet(varIndex(0), makeLoad(1, true, BigInt(0), 0, makeI32Const(0), ValType.I32)),
+        makeLocalSet(varIndex(0), makeLoad(Opcode.I32Load8S, BigInt(0), 0, makeI32Const(0))),
         makeDrop(
           makeBinary(BinaryOp.AndI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(0xff)),
         ),

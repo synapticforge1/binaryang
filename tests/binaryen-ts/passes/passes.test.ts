@@ -49,6 +49,7 @@ import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1167,7 +1168,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     [ValType.I32],
     makeCallIndirect(
       varName('$t0'),
-      makeLoad(4, false, BigInt(0), 2, makeLocalGet(varIndex(1), ValType.I32), ValType.I32), // index = mem[$t]
+      makeLoad(Opcode.I32Load, BigInt(0), 2, makeLocalGet(varIndex(1), ValType.I32)), // index = mem[$t]
       [makeLocalTee(varIndex(1), makeLocalGet(varIndex(0), ValType.I32), ValType.I32)], // arg = ($t := obj)
       SIG_P,
       SIG_R,

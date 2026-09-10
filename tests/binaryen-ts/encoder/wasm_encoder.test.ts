@@ -18,14 +18,18 @@ import {
   type Expression,
   makeBinary,
   makeCall,
+  makeDrop,
   makeI32Const,
+  makeLoad,
   makeLocalGet,
   makeSelect,
+  makeStore,
   makeUnreachable,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
 // Shared binary fixtures (same as parser tests)
@@ -356,21 +360,41 @@ Deno.test('encodeWasm: a multi-value (tuple) block result encodes as a type-inde
   );
 });
 
-Deno.test('encodeWasm: load with a non-numeric result type throws instead of silently emitting i64', () => {
-  // The opcode resolver treated any non-f32/f64/i32 type as i64. A load whose
-  // result type is unexpectedly `unreachable` used to silently emit an i64
-  // opcode of the wrong width; it now fails loudly.
-  const badLoad = {
-    kind: ExpressionKind.Load,
-    type: Unreachable,
-    bytes: 4,
-    signed: false,
-    offset: 0,
-    align: 2,
-    ptr: makeI32Const(0),
-  } as unknown as Expression;
-  const mod = new ModuleBuilder().addFunction('f', [], [], badLoad).build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'cannot encode load');
+// 🔧 **These two REPLACE a test, they do not just follow it.** It asserted the
+// encoder threw on a load whose result type was `unreachable` — the right guard
+// while the load opcode was RECOMPUTED from the result type, which had silently
+// emitted an i64 opcode of the wrong width for anything unexpected. The node now
+// holds its opcode, so that failure is unrepresentable and the throw is gone.
+// What is left worth pinning is the property itself: types do not choose bytes.
+function memModule(body: Expression): Uint8Array {
+  return encodeWasm(
+    new ModuleBuilder().addMemory('$m', 1, null).addFunction('f', [], [], body).build(),
+  );
+}
+
+Deno.test("encodeWasm: a load's bytes do not depend on its result type", () => {
+  const encode = (retype: boolean) => {
+    const load = makeLoad(Opcode.I64Load8S, 0n, 0, makeI32Const(0));
+    if (retype) load.type = Unreachable;
+    return memModule(makeDrop(load));
+  };
+  assertEquals(encode(true), encode(false));
+});
+
+Deno.test('encodeWasm: a store whose operand is untyped still encodes, as the store it names', () => {
+  // Deriving the store opcode from `value.type` made this throw "cannot encode
+  // store with value type" — five of the bridge's 24 failures. Diffing it against
+  // the neighbouring opcode shows the ONE byte that differs is the opcode itself,
+  // with the value each node holds — not a whole-binary scan for a byte.
+  const encode = (op: Opcode) =>
+    memModule(makeStore(op, 0n, 0, makeI32Const(0), makeUnreachable()));
+  const a = encode(Opcode.I64Store8);
+  const b = encode(Opcode.I64Store16);
+  assert(WebAssembly.validate(a as BufferSource), 'V8 rejected the i64.store8 module');
+  assertEquals(a.length, b.length);
+  const diffs = [...a.keys()].filter((i) => a[i] !== b[i]);
+  assertEquals(diffs.length, 1);
+  assertEquals([a[diffs[0]!], b[diffs[0]!]], [0x3c, 0x3d]);
 });
 
 // 🔧 **This test was INVERTED, not deleted.** It asserted that the encoder

@@ -80,6 +80,7 @@ import { buildCFG, computeLiveness } from './cfg.ts';
 import { buildCallResultTypes, flattenFunction } from './flatten.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { requireIndex, requireName, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { Opcode } from '../../wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
 // ABI constants (mirror Asyncify.cpp lines 366-386)
@@ -213,8 +214,8 @@ function makeStackOverflowCheck(): Expression {
   return makeIf(
     makeBinary(
       BinaryOp.GtUI32,
-      makeLoad(4, false, BigInt(DataOffset.StackPos), 2, dataPtr(), ValType.I32),
-      makeLoad(4, false, BigInt(DataOffset.StackEnd), 2, dataPtr(), ValType.I32),
+      makeLoad(Opcode.I32Load, BigInt(DataOffset.StackPos), 2, dataPtr()),
+      makeLoad(Opcode.I32Load, BigInt(DataOffset.StackEnd), 2, dataPtr()),
     ),
     makeUnreachable(),
   );
@@ -1058,12 +1059,10 @@ const ASYNCIFY_UNWIND_LABEL = '$__asyncify_unwind';
 /** `load i32 from $__asyncify_data[stackPos]` — the current asyncify stack pointer. */
 function makeGetStackPos(): Expression {
   return makeLoad(
-    4,
-    false,
+    Opcode.I32Load,
     STACK_POS_OFFSET,
     STACK_ALIGN_LOG2,
     makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
-    ValType.I32,
   );
 }
 
@@ -1071,7 +1070,7 @@ function makeGetStackPos(): Expression {
 function makeIncStackPos(by: number): Expression {
   if (by === 0) return makeBlock([], null); // effect-free placeholder
   return makeStore(
-    4,
+    Opcode.I32Store,
     STACK_POS_OFFSET,
     STACK_ALIGN_LOG2,
     makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
@@ -1093,9 +1092,43 @@ function byteSize(type: Type): number {
   }
 }
 
-/** log2 store size of a numeric type (for the memarg align). */
-function loadOpBytes(type: Type): 1 | 2 | 4 | 8 | 16 {
-  return byteSize(type) as 1 | 2 | 4 | 8 | 16;
+/**
+ * The full-width load that restores a saved local of `type`.
+ *
+ * Returns the OPCODE, not a width: a width was ambiguous (4 is both `i32.load`
+ * and `f32.load`), which is why the old helper had to be paired with the type
+ * at every call site — and, once `makeStore` took an opcode, a width passed
+ * where the opcode goes still type-checked, because 4 is `Opcode.If`.
+ */
+function localLoadOp(type: Type): Opcode {
+  switch (type) {
+    case ValType.I32:
+      return Opcode.I32Load;
+    case ValType.I64:
+      return Opcode.I64Load;
+    case ValType.F32:
+      return Opcode.F32Load;
+    case ValType.F64:
+      return Opcode.F64Load;
+    default:
+      throw new Error(`asyncify: cannot save/restore non-numeric local of type ${type}`);
+  }
+}
+
+/** The full-width store that saves a local of `type`. See {@link localLoadOp}. */
+function localStoreOp(type: Type): Opcode {
+  switch (type) {
+    case ValType.I32:
+      return Opcode.I32Store;
+    case ValType.I64:
+      return Opcode.I64Store;
+    case ValType.F32:
+      return Opcode.F32Store;
+    case ValType.F64:
+      return Opcode.F64Store;
+    default:
+      throw new Error(`asyncify: cannot save/restore non-numeric local of type ${type}`);
+  }
 }
 
 /** Per-function locals context. */
@@ -1139,7 +1172,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
           makeIncStackPos(-4),
           makeLocalSet(
             varIndex(ctx.rewindIndex),
-            makeLoad(4, false, BigInt(0), STACK_ALIGN_LOG2, makeGetStackPos(), ValType.I32),
+            makeLoad(Opcode.I32Load, BigInt(0), STACK_ALIGN_LOG2, makeGetStackPos()),
           ),
         ], null);
       }
@@ -1170,7 +1203,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
 function makeCallIndexPush(unwindIndex: number): Expression {
   return makeBlock([
     makeStore(
-      4,
+      Opcode.I32Store,
       BigInt(0),
       STACK_ALIGN_LOG2,
       makeGetStackPos(),
@@ -1195,12 +1228,10 @@ function makeLocalLoading(func: WasmFunction, saved: number[]): Expression {
     list.push(makeLocalSet(
       varIndex(i),
       makeLoad(
-        loadOpBytes(t),
-        true,
+        localLoadOp(t),
         BigInt(offset),
         STACK_ALIGN_LOG2,
         makeLocalGet(varIndex(temp), ValType.I32),
-        t as ValType,
       ),
     ));
     offset += byteSize(t);
@@ -1217,7 +1248,7 @@ function makeLocalSaving(func: WasmFunction, saved: number[]): Expression {
   for (const i of saved) {
     const t = func.locals[i]!.type;
     list.push(makeStore(
-      loadOpBytes(t),
+      localStoreOp(t),
       BigInt(offset),
       STACK_ALIGN_LOG2,
       makeLocalGet(varIndex(temp), ValType.I32),

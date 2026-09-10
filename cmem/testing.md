@@ -278,6 +278,22 @@ process so the run produces **no summary line at all**. That is the danger — i
 did not print ok" and is easy to skip past. Re-run it; if it reproduces on the same file, _then_ it
 is a finding.
 
+### `--filter` matches TEST names, not STEP names — an empty run prints like a clean one
+
+`deno test --filter MALFORMED` on a file whose cases are `it()` steps inside one `describe()` ran
+**nothing**: `ok | 0 passed | 0 failed | 1 filtered out`. It exits 0 and says `ok`. Verifying that a
+new test fails on `main` means reading the step lines themselves (`MALFORMED ... FAILED`) from an
+unfiltered run — and a check that greps the output for a summary line will pass on this one.
+
+### A replaced test must say it REPLACED, and why
+
+`wasm_encoder.test.ts` asserted "load with a non-numeric result type throws" — a guard that existed
+because the load opcode was recomputed from the type. Once the node held its opcode, that failure
+became unrepresentable and the throw was deleted, so the test had to go. It was replaced by what the
+new design promises (a load's bytes do not depend on its type; an untyped store operand still
+encodes, diffed against its neighbour opcode) with a 🔧 note saying so. A deleted test with no note
+reads, to the next person, as coverage lost.
+
 ### Invert every gate before trusting it
 
 A check that can only say "clean" is indistinguishable from one that is blind. Break something on
@@ -324,6 +340,12 @@ something, check what it actually walks.**
 
 `scripts/` is in the gate too. Until it was added, the file that publishes immutable artifacts was
 type-checked by nothing.
+
+🛑 **And then a local gate dropped it again.** The S6 verification list was
+`test · baseline · operators · spec · bridge` — no `check`, and `test` runs `--no-check`. So
+`abddf1206` left two `scripts/` files uncompiled, and `main` stayed red by CI's standard for 65
+unpushed commits. **Use `deno task ci` (check + test), never `deno task test` alone**, and see
+[best-practices.md](best-practices.md) "The local gate must BE CI's gate".
 
 ## ⚠️ Every test-file path in the wings is DEAD
 

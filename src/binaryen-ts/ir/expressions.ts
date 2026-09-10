@@ -12,11 +12,18 @@
  *
  * @example
  * ```ts
- * import { makeBinary, makeI32Const, makeLocalGet } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import {
+ *   BinaryOp,
+ *   makeBinary,
+ *   makeI32Const,
+ *   makeLocalGet,
+ *   ValType,
+ * } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
  *
  * const expr = makeBinary(
  *   BinaryOp.AddI32,
- *   makeLocalGet(0, ValType.I32),
+ *   makeLocalGet(varIndex(0), ValType.I32),
  *   makeI32Const(1),
  * );
  * ```
@@ -33,6 +40,7 @@ import { indexOf, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import type { HeapType, ValueType } from './gc-types.ts';
+import { loadShape, storeShape } from './memory-access.ts';
 export type { HeapType, RefType, ValueType } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -938,10 +946,12 @@ export interface LoadExpr extends ExprBase {
   memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Load;
-  /** Byte width of the memory access (1, 2, 4, 8, 16). */
-  bytes: 1 | 2 | 4 | 8 | 16;
-  /** Whether the loaded integer is sign-extended. */
-  signed: boolean;
+  /**
+   * The instruction, as written. Width, signedness and result type are derived
+   * from it by `loadShape` in `memory-access.ts` — never stored beside it, so
+   * a width/sign/type combination that is no real load cannot be built.
+   */
+  opcode: Opcode;
   /** Static byte offset added to the address operand. */
   offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
@@ -963,8 +973,13 @@ export interface StoreExpr extends ExprBase {
   memidx?: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Store;
-  /** Width in bytes of the access. */
-  bytes: 1 | 2 | 4 | 8 | 16;
+  /**
+   * The instruction, as written. Width and operand type are derived from it by
+   * `storeShape` in `memory-access.ts`. It used to be recomputed from `bytes`
+   * and the OPERAND's type, so a store whose operand was not yet typed could
+   * not be encoded at all.
+   */
+  opcode: Opcode;
   /** Static byte offset added to the address operand. */
   offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
@@ -2182,21 +2197,21 @@ export function makeCallIndirect(
   };
 }
 
-/** Creates a memory load expression. */
+/**
+ * Creates a memory load expression. The result type is the one `opcode`
+ * produces; there is no separate type argument to disagree with it.
+ */
 export function makeLoad(
-  bytes: 1 | 2 | 4 | 8 | 16,
-  signed: boolean,
+  opcode: Opcode,
   offset: bigint,
   align: number,
   ptr: Expression,
-  resultType: ValType,
   memidx: Var = varIndex(0),
 ): LoadExpr {
   return {
     kind: ExpressionKind.Load,
-    type: resultType,
-    bytes,
-    signed,
+    type: loadShape(opcode).type,
+    opcode,
     offset,
     align,
     ptr,
@@ -2204,19 +2219,20 @@ export function makeLoad(
   };
 }
 
-/** Creates a memory store expression. */
+/** Creates a memory store expression. Throws if `opcode` is not a plain store. */
 export function makeStore(
-  bytes: 1 | 2 | 4 | 8 | 16,
+  opcode: Opcode,
   offset: bigint,
   align: number,
   ptr: Expression,
   value: Expression,
   memidx: Var = varIndex(0),
 ): StoreExpr {
+  storeShape(opcode);
   return {
     kind: ExpressionKind.Store,
     type: None,
-    bytes,
+    opcode,
     offset,
     align,
     ptr,

@@ -31,6 +31,7 @@ import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ModuleBuilder } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
+import { varIndex } from '../../src/wabt-ts/ir/ir.ts';
 import {
   BinaryOp,
   type Expression,
@@ -128,8 +129,8 @@ function buildStressFunction(numChunks: number): Expression {
   const body: Expression[] = [];
   // We'll have 8 i32 locals: 0..7
   for (let i = 0; i < numChunks; i++) {
-    const slot = i & 7; // 8 locals cycled
-    const otherSlot = (i + 3) & 7;
+    const slot = varIndex(i & 7); // 8 locals cycled
+    const otherSlot = varIndex((i + 3) & 7);
     // local.set $slot, (i32.add (local.get $slot) (i32.const i))
     body.push(
       makeLocalSet(

@@ -40,6 +40,8 @@ import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { storeShape } from '../../../src/binaryen-ts/ir/memory-access.ts';
+import type { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 
 /** Bytes a store actually wrote: store -1 into zeroed memory, count the 0xFF bytes. */
 async function bytesWritten(op: string): Promise<number> {
@@ -57,13 +59,25 @@ async function bytesWritten(op: string): Promise<number> {
   return n;
 }
 
-/** Every Store node's recorded width, in order, from a parsed binary. */
+/**
+ * Every Store node's width, in order, from a parsed binary — read off the
+ * node's OPCODE through the shared table.
+ *
+ * ⚠️ This used to read `node.bytes` and skip nodes where it was `undefined`.
+ * When the node stopped carrying `bytes`, that guard would have turned every
+ * Store into a skip: the walk returns `[]`, and the test's only protection is
+ * that `[]` happens not to equal `[width]`. A Store without an opcode now
+ * THROWS instead of being skipped.
+ */
 function storeWidths(bytes: Uint8Array): number[] {
   const out: number[] = [];
   const walk = (e: unknown): void => {
     if (!e || typeof e !== 'object') return;
-    const node = e as { kind?: string; bytes?: number };
-    if (node.kind === ExpressionKind.Store && node.bytes !== undefined) out.push(node.bytes);
+    const node = e as { kind?: string; opcode?: Opcode };
+    if (node.kind === ExpressionKind.Store) {
+      if (node.opcode === undefined) throw new Error('Store node without an opcode');
+      out.push(storeShape(node.opcode).bytes);
+    }
     for (const v of Object.values(e as Record<string, unknown>)) {
       if (Array.isArray(v)) v.forEach(walk);
       else walk(v);

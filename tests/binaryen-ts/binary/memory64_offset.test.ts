@@ -36,6 +36,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 
 /** Offsets that a u32 cannot hold, plus the boundary either side of 2^32. */
 const OFFSETS: ReadonlyArray<readonly [string, bigint]> = [
@@ -72,7 +73,7 @@ function moduleWithLoadOffset(offset: bigint): ReturnType<ModuleBuilder['build']
       '$f',
       [],
       [ValType.I32],
-      makeLoad(4, false, offset, 2, makeI32Const(0), ValType.I32),
+      makeLoad(Opcode.I32Load, offset, 2, makeI32Const(0)),
     )
     .build();
 }
@@ -95,7 +96,7 @@ describe('memarg offsets survive the full 64-bit range', () => {
         '$f',
         [],
         [],
-        makeStore(4, offset, 2, makeI32Const(0), makeI32Const(7)),
+        makeStore(Opcode.I32Store, offset, 2, makeI32Const(0), makeI32Const(7)),
       )
       .build();
     const back = parseWasm(encodeWasm(mod));
