@@ -888,11 +888,11 @@ class WatModuleParser {
     // Constants
     // -----------------------------------------------------------------------
     if (head === 'i32.const') {
-      const v = this.expectInt(args[0], head);
+      const v = Number(this.expectIntLiteral(args[0], head, 32));
       return { kind: ExpressionKind.Const, type: ValType.I32, value: { i32: v } } as ConstExpr;
     }
     if (head === 'i64.const') {
-      const v = this.expectIntBig(args[0], head);
+      const v = this.expectIntLiteral(args[0], head, 64);
       return { kind: ExpressionKind.Const, type: ValType.I64, value: { i64: v } } as ConstExpr;
     }
     if (head === 'f32.const') {
@@ -3227,11 +3227,33 @@ class WatModuleParser {
     return Number(v);
   }
 
-  private expectIntBig(s: SExpr | undefined, instr: string): bigint {
+  /**
+   * An integer literal for an N-bit type, as the text format defines it.
+   *
+   * Valid in [-2^(N-1), 2^N): it may be written SIGNED or UNSIGNED, and denotes
+   * the two's-complement value, so `i32.const 0xFFFFFFFF` and `i32.const -1`
+   * are the same constant. Outside that range the literal is MALFORMED.
+   *
+   * 🛑 Both widths got this wrong, in OPPOSITE directions. `i32.const` went
+   * through `expectInt`, whose value reached the encoder's `n | 0` — so an
+   * out-of-range literal was WRAPPED silently (`0x100000000` became 0). And
+   * `i64.const` passed the raw bigint through, so an unsigned-range literal
+   * above 2^63 reached the SIGNED LEB writer as a positive number and produced
+   * a module V8 rejects. One rule, applied once, at the text boundary where the
+   * literal is read — upstream wabt's answers are pinned in
+   * int_literal_range.test.ts.
+   */
+  private expectIntLiteral(s: SExpr | undefined, instr: string, bits: 32 | 64): bigint {
     if (!s) this.err(`${instr}: missing integer argument`);
-    const v = atomInt(s!);
-    if (v === null) this.err(`${instr}: expected integer`, s!.pos);
-    return typeof v === 'bigint' ? v : BigInt(v!);
+    const raw = atomInt(s!);
+    if (raw === null) this.err(`${instr}: expected integer`, s!.pos);
+    const v = typeof raw === 'bigint' ? raw : BigInt(raw!);
+    const lo = -(1n << BigInt(bits - 1));
+    const hi = 1n << BigInt(bits);
+    if (v < lo || v >= hi) {
+      this.err(`${instr}: constant ${v} out of range for i${bits}`, s!.pos);
+    }
+    return BigInt.asIntN(bits, v);
   }
 
   private expectFloat(s: SExpr | undefined, instr: string): number {

@@ -182,6 +182,42 @@ Two ways that misleads if unstated:
 When the third oracle cannot reach a feature, the spec is the authority — and the write-up has to
 say so, or the next reader assumes the usual oracle was consulted.
 
+### Do not scan a whole binary for an opcode byte — DIFF two encodings
+
+Added 2026-09-09.
+
+The first version of `try_catch_clauses.test.ts` scanned every byte of an encoded module for
+`0x07`/`0x08`/`0x18`/`0x19` and asserted the list it found. Those values are also section ids,
+section lengths, type codes and LEB continuation bytes, so it collected an `0x08` from a section
+header and **failed on a correct encoding**. Worse, a scan like that can equally PASS on a wrong
+one, if the stray byte happens to supply the missing value.
+
+**Build two modules that differ ONLY in the property under test, encode both, and diff them.**
+Nothing else in the module can move, so the diff is self-anchoring — and it supports a stronger
+claim than presence. Flipping `isRef` on the middle of three catch clauses provably moves **exactly
+one byte**, `0x07`→`0x08`, which says the flag is per-clause and disturbs no neighbour. A scan could
+never have shown that.
+
+### A test that pins an internal CONVENTION records it as a requirement
+
+Added 2026-09-09.
+
+`wat_parser.test.ts` asserted `catchTags === ['$e', '$__catch_all']`. The encoder had never agreed —
+it tested `tag === ''` — so every `catch_all` failed to encode, and the test, pinning the losing
+side, made the disagreement read as intended behaviour. It was corrected to `['$e', '']` with the
+message _"as the encoder requires"_: **the other side of the same disagreement, pinned the same
+way.** It has now been rewritten a third time, to assert that a `catch_all` has no tag at all.
+
+The failure was not either value. It was asserting a representation CHOICE — how "no tag" happens to
+be spelled — as if it were the behaviour. Two things follow:
+
+- **Assert the property, not the spelling.** "The handler runs", "the module validates", "the clause
+  has no tag" survive a change of representation; `=== ''` does not, and resists the change that
+  would have fixed the defect.
+- **A test that has had to be rewritten for the same reason twice is telling you the representation
+  is wrong**, not the test. Both rewrites moved the assertion; neither asked why there was a
+  sentinel to assert on.
+
 ### A harness must call the real entry point
 
 Scratch harnesses reassembled the pipeline and skipped one step, so nearly every module was rejected

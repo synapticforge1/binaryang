@@ -478,9 +478,15 @@ function storeOpcode(expr: StoreExpr): number {
     return 0x36;
   }
   if (vt === ValType.I64) {
-    if (expr.bytes === 1) return 0x3d;
-    if (expr.bytes === 2) return 0x3e;
-    if (expr.bytes === 4) return 0x3c;
+    // 🛑 These three were ROTATED — width 1/2/4 emitted 0x3d/0x3e/0x3c, i.e.
+    // i64.store16 / i64.store32 / i64.store8. Executed, `i64.store8` wrote two
+    // bytes and `i64.store16` wrote four: valid wasm, silent corruption of
+    // adjacent memory. The binary decoder carried the exact inverse rotation,
+    // so every round trip was byte-identical and no byte gate could see it.
+    // Pinned per half, independently, by narrow_store_width.test.ts.
+    if (expr.bytes === 1) return 0x3c; // i64.store8
+    if (expr.bytes === 2) return 0x3d; // i64.store16
+    if (expr.bytes === 4) return 0x3e; // i64.store32
     return 0x37;
   }
   throw new WasmEncodeError(`cannot encode store with value type: ${vt}`);
