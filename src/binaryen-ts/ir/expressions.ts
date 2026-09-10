@@ -2178,14 +2178,28 @@ export function makeIf(
   };
 }
 
-/** Creates a `block` expression. */
+/**
+ * Creates a `block` expression — typed `type` when given, else inferred from
+ * its last child.
+ *
+ * A block's type is DECLARED in wasm, and inference from the last child is
+ * wrong whenever the value leaves through a branch: asyncify's unwind block is
+ * `i32` because its `br`s carry the call index, while its last child is a
+ * barrier. Without the parameter every such site built the node as a literal
+ * beside this factory, and a literal is a second copy of its rules.
+ */
 export function makeBlock(
   children: Expression[],
   name: string | null = null,
+  type?: Type,
 ): BlockExpr {
   const last = children[children.length - 1];
-  const type: Type = last ? typeOf(last) : None;
-  return { kind: ExpressionKind.Block, type, name, children };
+  return {
+    kind: ExpressionKind.Block,
+    type: type ?? (last ? typeOf(last) : None),
+    name,
+    children,
+  };
 }
 
 /**

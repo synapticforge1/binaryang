@@ -51,8 +51,10 @@ import {
   type IfExpr,
   type LoopExpr,
   makeBlock,
+  makeIf,
   makeLocalGet,
   makeLocalSet,
+  makeLoop,
   makeNop,
   makeRegion,
   makeReturn,
@@ -321,13 +323,10 @@ function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
 
   const ifTrue = arm(iff.ifTrue);
   const ifFalse = iff.ifFalse ? arm(iff.ifFalse) : null;
-  const flatIf: IfExpr = {
-    kind: ExpressionKind.If,
-    type: None,
-    condition: cond.value,
-    ifTrue,
-    ifFalse,
-  };
+  // 🔧 Through `makeIf`, carrying the `if`'s LABEL. This was a literal without
+  // `name`, so a `br` inside that targeted the `if` itself lost its target and
+  // the encoder threw "unresolved branch label" on a valid input.
+  const flatIf = makeIf(cond.value, ifTrue, ifFalse, iff.name);
 
   return concrete
     ? { pre: [...cond.pre, flatIf], value: makeLocalGet(varIndex(resultTemp), iff.type as ValType) }
@@ -345,12 +344,7 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
     stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
   }
 
-  const flatLoop: LoopExpr = {
-    kind: ExpressionKind.Loop,
-    type: None,
-    name: loop.name,
-    body: makeRegion(stmts),
-  };
+  const flatLoop = makeLoop(loop.name, makeRegion(stmts));
 
   return concrete
     ? { pre: [flatLoop], value: makeLocalGet(varIndex(resultTemp), loop.type as ValType) }

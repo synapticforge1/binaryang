@@ -64,6 +64,7 @@ import {
   makeArrayNewDefault,
   makeArrayNewFixed,
   makeArraySet,
+  makeBlock,
   makeBreak,
   makeDataDrop,
   makeElemDrop,
@@ -71,6 +72,7 @@ import {
   makeI31Get,
   makeIf,
   makeLoad,
+  makeLoop,
   makeMemoryInit,
   makePop,
   makeRefAsNonNull,
@@ -1444,7 +1446,7 @@ class WatModuleParser {
     const innerCtx = this.pushLabel(blockLabel, ctx);
     const bodyExprs = this.parseStatementList(children.slice(idx), innerCtx);
     const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
-    return { kind: ExpressionKind.Block, type, name: blockLabel, children: bodyExprs };
+    return makeBlock(bodyExprs, blockLabel, type);
   }
 
   private parseLoop(list: SList, ctx: FuncContext): LoopExpr {
@@ -1468,9 +1470,9 @@ class WatModuleParser {
       bodyExprs.push(this.parseExpr(children[idx], innerCtx));
       idx++;
     }
-    const type = this.declaredType(results, None);
-    const body = this.region(bodyExprs);
-    return { kind: ExpressionKind.Loop, type, name: label, body };
+    // `makeLoop`'s `asRegion` would dissolve a sole UNNAMED block, but none
+    // reaches it from here: `labelFor` names every block this parser builds.
+    return makeLoop(label, this.region(bodyExprs), this.declaredType(results, None));
   }
 
   private parseIf(list: SList, ctx: FuncContext): IfExpr {
