@@ -146,6 +146,7 @@ import {
   AbstractHeapType,
   type FieldType,
   type FuncTypeDef,
+  funcTypeKey,
   type HeapType,
   isPackedType,
   isRefType,
@@ -289,6 +290,8 @@ class WatModuleParser {
   // `parseCallIndirect` / `parseTryTable` / etc. to resolve `(type $sig)`
   // references back to the underlying params/results.
   private funcTypeDefs = new Map<string, FuncTypeDef>();
+  /** Every function-signature type use, in text order — see `appendImplicitTypes`. */
+  private typeUses: { params: ValueType[]; results: ValueType[] }[] = [];
 
   // EH tag name → tag index
   private tagNames = new Map<string, number>();
@@ -394,6 +397,7 @@ class WatModuleParser {
     for (const raw of this.rawFunctions) {
       this.buildFunc(raw);
     }
+    this.appendImplicitTypes();
 
     return this.builder.build();
   }
@@ -414,6 +418,7 @@ class WatModuleParser {
 
     if (head === 'func') {
       const { name, params, results } = this.parseFuncType(descList);
+      this.noteTypeUse(params, results);
       const internalName = name ?? `$__import_func_${this.funcNames.size}`;
       this.funcNames.set(internalName, this.funcNames.size);
       this.funcOrder.push(internalName);
@@ -600,6 +605,7 @@ class WatModuleParser {
     // empty body -- an import turned into a stub returning nothing.
     if (decorated.imp) {
       const { params, results } = this.parseFuncType(list);
+      this.noteTypeUse(params, results);
       this.builder.addFunctionImport(
         raw.name,
         decorated.imp.module,
@@ -614,11 +620,17 @@ class WatModuleParser {
     // Inline imports (function re-export, rare — skip)
     if (idx < children.length && isListWith(children[idx], 'import')) idx++;
 
-    // Type annotation (optional): (type $name)
-    if (idx < children.length && isListWith(children[idx], 'type')) idx++;
+    // Type annotation (optional): (type $name). It was SKIPPED — `idx++` and
+    // nothing else — so `(func (type $a))` with no inline `(param …)` got the
+    // signature `() -> ()` and lost its parameters. It is resolved below.
+    let typeRef: string | null = null;
+    if (idx < children.length && isListWith(children[idx], 'type')) {
+      typeRef = atomText(listChildren(children[idx] as SList)[0]) ?? null;
+      idx++;
+    }
 
     // Params and results
-    const params: ValueType[] = [];
+    let params: ValueType[] = [];
     const paramNames = new Map<string, number>();
     while (idx < children.length && isListWith(children[idx], 'param')) {
       const p = children[idx] as SList;
@@ -636,11 +648,26 @@ class WatModuleParser {
       idx++;
     }
 
-    const results: ValueType[] = [];
+    let results: ValueType[] = [];
     while (idx < children.length && isListWith(children[idx], 'result')) {
       for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
       idx++;
     }
+
+    // The type use: with no inline signature it IS the signature; with one,
+    // the two must agree — upstream wat2wasm rejects a mismatch too.
+    if (typeRef !== null) {
+      const def = this.funcTypeDefs.get(typeRef) ?? this.funcTypeByIndex(typeRef) ??
+        this.err(`func: unknown type ${typeRef}`, list.pos);
+      const inline = params.length > 0 || results.length > 0;
+      if (inline && funcTypeKey(params, results) !== funcTypeKey(def.params, def.results)) {
+        this.err(`func: (type ${typeRef}) does not match its inline signature`, list.pos);
+      }
+      params = [...def.params];
+      results = [...def.results];
+    }
+    // The function's own signature is its first type use; its body's follow.
+    this.noteTypeUse(params, results);
 
     // Additional locals
     const additionalLocals: Local[] = [];
@@ -1399,11 +1426,9 @@ class WatModuleParser {
       idx++;
     }
     // Optional result type
-    const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], 'result')) {
-      for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
-      idx++;
-    }
+    const blockType = this.parseBlockTypeUse(children, idx, list.pos);
+    const results = blockType.results;
+    idx = blockType.idx;
     // Body
     const blockLabel = this.labelFor(label, ctx);
     const innerCtx = this.pushLabel(blockLabel, ctx);
@@ -1424,11 +1449,9 @@ class WatModuleParser {
     // dropping it here typed the loop `None`, so the encoder emitted a void
     // blocktype for a value-producing loop → invalid module, and any pass reading
     // `loop.type` saw `None`. Honor it, mirroring parseBlock.
-    const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], 'result')) {
-      for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
-      idx++;
-    }
+    const blockType = this.parseBlockTypeUse(children, idx, list.pos);
+    const results = blockType.results;
+    idx = blockType.idx;
     const innerCtx = this.pushLabel(label, ctx);
     const bodyExprs: Expression[] = [];
     while (idx < children.length) {
@@ -1464,11 +1487,9 @@ class WatModuleParser {
       idx++;
     }
     // Optional result type
-    const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], 'result')) {
-      for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
-      idx++;
-    }
+    const blockType = this.parseBlockTypeUse(children, idx, list.pos);
+    const results = blockType.results;
+    idx = blockType.idx;
     // Condition (before then/else branches)
     // In folded form: (if (cond) (then ...) (else ...))
     // In unfolded form: condition is already on the stack
@@ -1615,11 +1636,9 @@ class WatModuleParser {
       idx++;
     }
     // Optional result type
-    const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], 'result')) {
-      for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
-      idx++;
-    }
+    const blockType = this.parseBlockTypeUse(children, idx, list.pos);
+    const results = blockType.results;
+    idx = blockType.idx;
     // Catch clauses before body
     const catches: CatchClause[] = [];
     const tryLabel = this.labelFor(label, ctx);
@@ -1667,11 +1686,9 @@ class WatModuleParser {
       idx++;
     }
     // Optional result type
-    const results: ValueType[] = [];
-    while (idx < children.length && isListWith(children[idx], 'result')) {
-      for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
-      idx++;
-    }
+    const blockType = this.parseBlockTypeUse(children, idx, list.pos);
+    const results = blockType.results;
+    idx = blockType.idx;
     const tryLabel = this.labelFor(label, ctx);
     const innerCtx = this.pushLabel(tryLabel, ctx);
     // Body: (do ...) block or inline instructions before any catch/catch_all/delegate clause
@@ -1811,6 +1828,7 @@ class WatModuleParser {
     }
     const params = typeRefParams ?? inlineParams;
     const results = typeRefResults ?? inlineResults;
+    this.noteTypeUse(params, results);
     // Operands then target index
     const operands = args.slice(idx, args.length - 1).map((a) => this.parseExpr(a, ctx));
     const target = this.parseExpr(args[args.length - 1], ctx);
@@ -3172,6 +3190,96 @@ class WatModuleParser {
    * Zero values is a bare `return`/`br`; one stays unwrapped so the common case
    * produces the tree it always did.
    */
+  /**
+   * A block-like construct's type use: `(type $t)? (param …)* (result …)*`.
+   *
+   * Shared by block, loop, if, try and try_table, which each carried their own
+   * copy of the `(result …)` loop and none of which accepted `(type $t)` — it
+   * was parsed as the first INSTRUCTION ("unsupported instruction: type").
+   *
+   * A type reference and an inline signature, when both are given, must agree
+   * (upstream wat2wasm rejects a mismatch too). Block PARAMETERS are refused
+   * loudly until S6 decision 7b gives the node somewhere to hold them —
+   * silently dropping one would change what the block consumes.
+   */
+  private parseBlockTypeUse(
+    children: SExpr[],
+    start: number,
+    pos: TextPos,
+  ): { results: ValueType[]; idx: number } {
+    let idx = start;
+    let typeRef: string | null = null;
+    if (idx < children.length && isListWith(children[idx], 'type')) {
+      typeRef = atomText(listChildren(children[idx] as SList)[0]) ?? null;
+      idx++;
+    }
+    let params: ValueType[] = [];
+    while (idx < children.length && isListWith(children[idx], 'param')) {
+      for (const t of listChildren(children[idx] as SList)) params.push(this.parseValType(t));
+      idx++;
+    }
+    let results: ValueType[] = [];
+    while (idx < children.length && isListWith(children[idx], 'result')) {
+      for (const t of listChildren(children[idx] as SList)) results.push(this.parseValType(t));
+      idx++;
+    }
+    if (typeRef !== null) {
+      const def = this.funcTypeDefs.get(typeRef) ?? this.funcTypeByIndex(typeRef) ??
+        this.err(`block type: unknown type ${typeRef}`, pos);
+      const inline = params.length > 0 || results.length > 0;
+      if (inline && funcTypeKey(params, results) !== funcTypeKey(def.params, def.results)) {
+        this.err(`block type: (type ${typeRef}) does not match its inline signature`, pos);
+      }
+      params = [...def.params];
+      results = [...def.results];
+    }
+    if (params.length > 0) {
+      this.err('block parameters are not supported yet (S6 decision 7b)', pos);
+    }
+    // A multi-value block type is encoded as a TYPE INDEX, so it is a type use
+    // that may need an implicit type — see `appendImplicitTypes`.
+    if (results.length > 1) this.noteTypeUse([], results);
+    return { results, idx };
+  }
+
+  /**
+   * Record a function-signature type use, in TEXT order — a function's own
+   * signature, an import's, a `call_indirect`'s, a multi-value block type's.
+   */
+  private noteTypeUse(params: readonly ValueType[], results: readonly ValueType[]): void {
+    this.typeUses.push({ params: [...params], results: [...results] });
+  }
+
+  /**
+   * Append an implicit type for every recorded type use no declared type
+   * matches — the text format's rule, and what upstream wat2wasm does.
+   *
+   * Only when the module declares types. Without any, the encoder derives the
+   * whole type section from the signatures it finds. With any, it switches to
+   * emitting the declared types VERBATIM and requires every signature to be
+   * among them — so a function whose signature was not declared threw
+   * `unresolved GC function type` from a perfectly legal module.
+   *
+   * ORDER matters for byte identity: declared types keep their indices, and
+   * implicit ones follow in the order their uses appear in the text — each
+   * import's, then each function's own signature followed by the uses in its
+   * body. Measured against upstream wat2wasm 1.0.41.
+   */
+  private appendImplicitTypes(): void {
+    if (this.heapTypeDefs.size === 0) return;
+    const have = new Set<string>();
+    for (const d of this.heapTypeDefs.values()) {
+      if (d.kind === 'func') have.add(funcTypeKey(d.params, d.results));
+    }
+    for (const u of this.typeUses) {
+      const key = funcTypeKey(u.params, u.results);
+      if (have.has(key)) continue;
+      const def: TypeDef = { kind: 'func', params: u.params, results: u.results };
+      this.heapTypeDefs.set(this.builder.addHeapType(def), def);
+      have.add(key);
+    }
+  }
+
   private tupleOrSingle(values: Expression[]): Expression | null {
     if (values.length === 0) return null;
     if (values.length === 1) return values[0]!;

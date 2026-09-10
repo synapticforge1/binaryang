@@ -102,6 +102,7 @@ import { visitChildren } from '../ir/walk.ts';
 import {
   AbstractHeapType,
   type FieldType,
+  funcTypeKey,
   type HeapType,
   isPackedType,
   isRefType,
@@ -109,6 +110,7 @@ import {
   type StorageType,
   type TypeDef,
   type ValueType,
+  valueTypeKey,
 } from '../ir/gc-types.ts';
 import { requireIndex, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
 
@@ -455,25 +457,10 @@ function writeValueType(w: BinaryWriter, t: ValType | RefType): void {
 }
 
 // ---------------------------------------------------------------------------
-// FuncType key for deduplication
+// FuncType key for deduplication — `funcTypeKey` / `valueTypeKey` live in
+// `ir/gc-types.ts`, shared with the WAT parser, which must match signatures
+// EXACTLY as `gcFuncTypeIndex` below does.
 // ---------------------------------------------------------------------------
-
-/**
- * Stable string form of one value type, for map keys and diagnostics.
- *
- * `RefType` is an object, so `String(t)` / `join(",")` would render every
- * concrete typed reference as `[object Object]` — collapsing `(ref $A)` and
- * `(ref null $B)` onto the same key and silently deduping two distinct
- * signatures into one type-section entry.
- */
-function valueTypeKey(t: ValueType): string {
-  if (!isRefType(t)) return t;
-  return `ref${t.nullable ? ' null' : ''} ${typeof t.heap === 'number' ? t.heap : t.heap}`;
-}
-
-function funcTypeKey(params: ValueType[], results: ValueType[]): string {
-  return params.map(valueTypeKey).join(',') + '->' + results.map(valueTypeKey).join(',');
-}
 
 /** Human-readable `(a, b) -> (c)` rendering for error messages. */
 function funcSigString(params: ValueType[], results: ValueType[]): string {

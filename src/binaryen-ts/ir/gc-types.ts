@@ -213,6 +213,30 @@ export type TypeDef = StructTypeDef | ArrayTypeDef | FuncTypeDef;
  *
  * Useful to narrow `ValType | RefType` unions.
  */
+/**
+ * Stable string form of one value type, for map keys and diagnostics.
+ *
+ * `RefType` is an object, so `String(t)` / `join(",")` would render every
+ * concrete typed reference as `[object Object]` — collapsing `(ref $A)` and
+ * `(ref null $B)` onto the same key and silently deduping two distinct
+ * signatures into one type-section entry.
+ */
+export function valueTypeKey(t: ValueType): string {
+  if (!isRefType(t)) return t;
+  return `ref${t.nullable ? ' null' : ''} ${t.heap}`;
+}
+
+/**
+ * The key two function signatures share exactly when they are the same
+ * signature. ONE definition, used by the encoder to find a signature's type
+ * index and by the WAT parser to decide whether a type use needs an implicit
+ * type — if the two compared differently, the parser would add an entry the
+ * encoder cannot find, or skip one it needs.
+ */
+export function funcTypeKey(params: readonly ValueType[], results: readonly ValueType[]): string {
+  return params.map(valueTypeKey).join(',') + '->' + results.map(valueTypeKey).join(',');
+}
+
 export function isRefType(t: unknown): t is RefType {
   return (
     typeof t === 'object' &&
