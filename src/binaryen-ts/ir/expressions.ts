@@ -971,6 +971,20 @@ export interface SelectExpr extends ExprBase {
   ifFalse: Expression;
   /** Condition expression (typed as i32). */
   condition: Expression;
+  /**
+   * The DECLARED result type of a typed `select` (`0x1c`, `(select (result t))`),
+   * or `null` for an untyped one (S6 decision 7a).
+   *
+   * Semantics, not decoration: over references the declared type is what
+   * validation checks, and it may be WIDER than either arm — a `ref.null` arm
+   * and a `(ref $a)` arm declared `(ref null $a)`. It rode in `type` through a
+   * spread override, where anything rebuilding the node through the factory
+   * lost it. Its presence also records that the source wrote the typed form,
+   * so a numeric typed select re-encodes as written (divergence S1). Upstream
+   * binaryen keeps neither: `wasm-opt` rewrites a numeric `0x1c` as `0x1b`.
+   * Validation requires exactly one type, so one is all this holds.
+   */
+  resultType: ValueType | null;
 }
 
 /** {@link DropExpr} — see {@link makeDrop} for the factory. */
@@ -2356,14 +2370,17 @@ export function makeSelect(
   ifTrue: Expression,
   ifFalse: Expression,
   condition: Expression,
+  resultType: ValueType | null = null,
 ): SelectExpr {
-  // A `select` always has both arms, so its result type is the type of the
-  // reachable arm — `unreachable` only when BOTH arms are unreachable. Taking
-  // `ifTrue.type` blindly mistyped a select whose `ifTrue` is `unreachable`
-  // (e.g. it ends in a trap/branch) even though `ifFalse` yields a real value,
-  // the same hazard `makeIf` was fixed for.
-  const type: Type = typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue);
-  return { kind: ExpressionKind.Select, type, ifTrue, ifFalse, condition };
+  // The declared type wins when there is one. Otherwise a `select` always has
+  // both arms, so its result type is the type of the reachable arm —
+  // `unreachable` only when BOTH arms are unreachable. Taking `ifTrue.type`
+  // blindly mistyped a select whose `ifTrue` is `unreachable` (e.g. it ends in
+  // a trap/branch) even though `ifFalse` yields a real value, the same hazard
+  // `makeIf` was fixed for.
+  const type: Type = resultType ??
+    (typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue));
+  return { kind: ExpressionKind.Select, type, ifTrue, ifFalse, condition, resultType };
 }
 
 /** Creates a `call_indirect` expression. */

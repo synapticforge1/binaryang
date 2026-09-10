@@ -2108,14 +2108,16 @@ class WasmParser {
           // Was not decoded at all ("unknown opcode 0x1c"): a standard
           // instruction since reference types, and the ONLY legal select over
           // references. The declared type wins over the arms' inferred one — a
-          // `ref.null` arm infers a narrower type than the select declares.
+          // `ref.null` arm infers a narrower type than the select declares —
+          // and is kept ON THE NODE (S6 decision 7a), so it survives anything
+          // that rebuilds the select and re-encodes as written.
           const count = r.readU32();
           if (count !== 1) r.error(`typed select must declare exactly one type, got ${count}`);
           const declared = readValueType(r);
           const cond = pop();
           const b = pop();
           const a = pop();
-          push({ ...makeSelect(a, b, cond), type: declared });
+          push(makeSelect(a, b, cond, declared));
           break;
         }
 

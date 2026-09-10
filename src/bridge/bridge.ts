@@ -1093,10 +1093,14 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // --- Select -----------------------------------------------------------
     case 'select': {
       const s = e as SelectExpr;
+      // 🔧 The declared type was DROPPED here, so a `(select (result (ref null
+      // $t)) …)` crossing the bridge fell back to its `ifTrue` arm's type.
+      const declared = s.resultType[0];
       return makeSelect(
         bridgeExpr(s.val1, ctx),
         bridgeExpr(s.val2, ctx),
         bridgeExpr(s.condition, ctx),
+        declared === undefined ? null : wabtTypeToValueType(declared, ctx),
       );
     }
 

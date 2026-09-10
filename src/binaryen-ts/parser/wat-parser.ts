@@ -1046,9 +1046,9 @@ class WatModuleParser {
       const ifFalse = this.parseExpr(args[idx + 1], ctx);
       const condition = this.parseExpr(args[idx + 2], ctx);
       // Route through makeSelect so the result type is the reachable arm's type
-      // (the LUB), not a blind `ifTrue.type` — unless declared, which wins.
-      const sel = makeSelect(ifTrue, ifFalse, condition);
-      return results.length === 1 ? { ...sel, type: results[0]! } : sel;
+      // (the LUB), not a blind `ifTrue.type` — unless declared, which wins and
+      // stays on the node (S6 decision 7a).
+      return makeSelect(ifTrue, ifFalse, condition, results[0] ?? null);
     }
     if (head === 'block') return this.parseBlock(list, ctx);
     if (head === 'loop') return this.parseLoop(list, ctx);

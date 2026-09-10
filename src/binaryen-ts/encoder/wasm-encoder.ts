@@ -1655,12 +1655,13 @@ class WasmEncoder {
         this.encodeExpr(w, e.ifTrue, labels);
         this.encodeExpr(w, e.ifFalse, labels);
         this.encodeExpr(w, e.condition, labels);
-        // The untyped form (0x1b) is legal only over numeric and vector types;
-        // a select over references MUST be the typed form (0x1c) and carry its
-        // type. Upstream binaryen's rule. A numeric select written typed comes
-        // back untyped — valid, but the form is lost; S6 decision 7 keeps it.
-        const t = e.type;
-        if (t !== undefined && isRef(t)) {
+        // A DECLARED type is written as declared — the typed form, numeric or
+        // not (S6 decision 7a; upstream binaryen writes a numeric one untyped).
+        // Without one, the untyped form (0x1b) is legal only over numeric and
+        // vector types; a select over references MUST be the typed form and
+        // carry its type — upstream binaryen's rule for a select it built.
+        const t = e.resultType ?? e.type;
+        if (e.resultType !== null || (t !== undefined && isRef(t))) {
           w.writeU8(0x1c);
           w.writeU32(1);
           writeValueType(w, t as ValType | RefType);
