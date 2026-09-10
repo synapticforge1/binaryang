@@ -1577,11 +1577,14 @@ class WatModuleParser {
     const defaultTarget = this.resolveLabel(defaultRef, ctx, pos);
 
     // Remaining args are operand expressions. Last is always the condition;
-    // anything before it is the optional value.
+    // EVERYTHING before it is the carried values. This took only the one just
+    // before the condition, so a multi-value `br_table` dropped the rest and
+    // V8 rejected the module — the third time this packing step dropped values
+    // (see `tupleOrSingle`: `return` and `br` did it first).
     const operands = args.slice(labelEnd);
     if (operands.length === 0) this.err('br_table: missing condition operand', pos);
     const condition = this.parseExpr(operands[operands.length - 1], ctx);
-    const value = operands.length > 1 ? this.parseExpr(operands[operands.length - 2], ctx) : null;
+    const value = this.tupleOrSingle(operands.slice(0, -1).map((a) => this.parseExpr(a, ctx)));
 
     return makeSwitch(targets, defaultTarget, condition, value);
   }
