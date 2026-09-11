@@ -75,9 +75,13 @@ upstreams' defaults.** Upstream loses them unless asked (probed):
 | `wasm-opt -O2` / `-O2 -g` / `-g` | no / yes / yes     | none / SURVIVING functions only (locals gone) / all |
 
 - **Reading and writing without optimization** — our `wat2wasm`, decode → encode, `wasm-opt` with no
-  passes: names are preserved by default. DESIGN vs both upstreams: our fidelity requirement
-  dictates over their default. A way to strip stays (`wasm-strip`). Byte parity with upstream is
-  then measured against `wat2wasm --debug-names`, not its default.
+  passes: names are preserved. DESIGN vs both upstreams: our fidelity requirement dictates over
+  their default. Byte parity with upstream is then measured against `wat2wasm --debug-names`.
+- 🛑 **wabt-ts ALWAYS keeps names** (owner, 2026-09-10, refining the above) — not a default with an
+  opt-out flag. It is the fidelity half and never optimizes, so the rule is absolute: **WAT →
+  `wat2wasm` → `wasm2wat` must reconstitute the WAT, names included.** That round trip is N1's
+  acceptance criterion for the wabt-ts half. Removing names is a separate, explicit act —
+  `wasm-strip` — never a mode of the fidelity tools.
 - **Optimization**: once passes run there is no original to be faithful to (the two-phase rule), so
   optimized output follows a `-g`-style option (`PassOptions.debugInfo`), as upstream does. Its
   DEFAULT was not separately decided; off, as upstream, until the owner says otherwise.
