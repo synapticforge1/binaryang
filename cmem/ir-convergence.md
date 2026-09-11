@@ -4,6 +4,14 @@ Written 2026-08-31, from a measured finding rather than a design discussion. It 
 answer to a question [overview.md](overview.md) decision 1 left open: the two IRs are retained, and
 convergence is "gradual and open-ended" — this is what convergence would actually consist of.
 
+> 🛑 **Owner decision, 2026-09-10 — the TEXT front end is wabt-ts.** The end state is WAT → wabt-ts
+> parser → wabt-ts binary writer → bytes → binaryen-ts decoder, and external WAT already takes that
+> route (`e18d9f09a`, `readWat`). binaryen-ts's own WAT parser is internal only and a retirement
+> candidate once S6 unifies the tree, so **"Stage 1" below — teaching it stack-sourced operands — is
+> SUPERSEDED**: do not resume it. Measured on the new route: every corpus module, written by our
+> `wasm2wat` in linear or folded form, reads back 421/421 valid and byte-identical to decoding its
+> original bytes.
+
 ## The finding
 
 A stack machine lets one instruction's result be consumed by a later instruction with nothing
