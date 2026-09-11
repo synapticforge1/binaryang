@@ -1252,13 +1252,22 @@ export class BinaryReader {
    * duplicate renamed. The writer then writes it back verbatim and generates
    * none, so a binary round trip loses nothing even then. When the module
    * does hold it all, the writer regenerates it from the IR.
+   *
+   * A module with TWO `name` sections holds more than the IR can: the earlier
+   * is kept as bytes, and a raw `name` section stops the writer generating
+   * one — so the one read for names, had it been left to regeneration, would
+   * have been lost (C2 found it). Every one is then kept as bytes, each at its
+   * own position.
    */
   private applyPendingNames(m: Module): void {
     const pending = this.pendingNames;
     if (pending === null) return;
     const parsed = parseNameSection(pending.custom.data);
     const applied = parsed !== null && applyNameSection(m, parsed.names);
-    if (!(applied && parsed.complete)) m.customs.splice(pending.at, 0, pending.custom);
+    const another = m.customs.some((c) => c.name === 'name');
+    if (!(applied && parsed.complete) || another) {
+      m.customs.splice(pending.at, 0, pending.custom);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -2714,7 +2723,7 @@ export class BinaryReader {
   private dataCount: number | null = null;
 
   /**
-   * The first `name` section, held until the module is complete: its raw form,
+   * The last `name` section so far, held until the module is complete: its raw form,
    * and where among `m.customs` it would go if it has to be kept as bytes.
    */
   private pendingNames: { custom: Custom; at: number } | null = null;
@@ -2822,13 +2831,17 @@ export class BinaryReader {
             loc: this.loc(),
             precedingSection: lastKnownSection,
           };
-          // The FIRST name section is read for its names once the module is
-          // complete (`applyPendingNames`); a second one is just bytes.
+          // The LAST name section is read for its names once the module is
+          // complete (`applyPendingNames`) — as upstream wasm2wat and
+          // wasm-tools both do; an earlier one is just bytes, put back at
+          // its own position.
           //
           // 🔧 This used to pass the payload from `nameStart` -- BEFORE the
           // section's own name -- so the parser read the string "name" as
           // subsections and never found one.
-          if (name === 'name' && this.opts.readDebugNames && this.pendingNames === null) {
+          if (name === 'name' && this.opts.readDebugNames) {
+            const earlier = this.pendingNames;
+            if (earlier !== null) m.customs.splice(earlier.at, 0, earlier.custom);
             this.pendingNames = { custom, at: m.customs.length };
             m.hasNameSection = true;
           } else {

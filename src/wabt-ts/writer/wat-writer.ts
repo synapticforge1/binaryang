@@ -42,6 +42,7 @@ import type {
 } from '../ir/ir.ts';
 import type { NodeId } from '../ir/fidelity.ts';
 import { ExternalKind } from '../core/binary.ts';
+import { placementText } from '../core/custom-placement.ts';
 import { Type, typeName } from '../core/types.ts';
 import { type HeapTypeRef, indexOf, isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
@@ -2224,6 +2225,12 @@ class WatWriter extends ModuleContext {
   private writeCustom(c: Custom): void {
     this.openSpace('@custom');
     this.writeQuotedString(c.name, NC.Space);
+    // The position the section held (C2): printed so the text assembles back
+    // to the same binary. A custom with no recorded position prints none and
+    // is appended, as it would have been.
+    if (c.precedingSection !== undefined) {
+      this.putsSpace(placementText(c.precedingSection));
+    }
     this.writeQuotedData(c.data);
     this.closeNewline();
   }
