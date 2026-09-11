@@ -263,18 +263,24 @@ drop) — see ir-convergence decision 7.
 - ✅ **W4** — resolved by ROUTING, owner decision 2026-09-10 (`e18d9f09a`): external WAT goes
   wabt-ts → bytes → decoder, the pipeline binaryang converges on anyway. binaryen-ts's own
   `parseWat` stays an internal folded subset and retires with S6; its "Stage 1" is superseded.
-- ⬚ **N1 — names lost at three hops** — **SCOPED 2026-09-11: [names.md](names.md)** (six steps
-  P1–P6; three owner decisions pending before P1). Owner asked that it not be skipped, and DECIDED
-  (2026-09-10): names are kept when reading and writing without optimization — over both upstreams,
-  which drop them unless asked — and **wabt-ts ALWAYS keeps them**, no opt-out: WAT → `wat2wasm` →
-  `wasm2wat` must reconstitute the WAT, names included (the acceptance test). Optimized output
-  follows a different rule: a `-g`-style `debugInfo` option (default off, as upstream, unless
-  re-decided). Export and import names are the interface, not N1, and are already pinned. (1)
-  wabt-ts's writer: implement the ignored `writeDebugNames` — a name section; (2) binaryen-ts's
-  decoder: pre-scan for the name section and name entities from it, uniquified; (3) binaryen-ts's
-  encoder: write it under `debugInfo` AND in `lowerBlockParams`' re-encode, or 7b(i)'s name check
-  breaks for named modules. Then `readWat` asks for names. Tests: `$foo` through every route, and
-  byte comparison with upstream `wat2wasm --debug-names` / `wasm-opt -g`.
+- 🚧 **N1 — names lost at three hops** — [names.md](names.md), six steps. Owner decided
+  (2026-09-10/11): names are kept when reading and writing without optimization, over both
+  upstreams; **wabt-ts ALWAYS keeps them** — WAT → `wat2wasm` → `wasm2wat` must reconstitute the WAT
+  (the acceptance test); optimized output follows `debugInfo`; labels and GC field names are a
+  FEATURE beyond upstream (N2). Export and import names are the interface, not N1, already pinned.
+  - ✅ **The wabt-ts half, P1–P3, merged `7520ed7d3` (2026-09-11)**: the owner's test holds on the
+    whole corpus — 63,930 / 63,930 names, byte fixed point 421/421, folded and linear.
+  - ⬚ **P4 + P5 together** (the 7b(i) lowering name check couples them): binaryen-ts's decoder
+    pre-scans the name section and names entities at the ~40 sites, uniquified; its encoder writes
+    one in the fidelity path and the lowering re-encode, and after `PassRunner` only under
+    `debugInfo`. **Delete `tests/binaryen-ts/wabt_reference.ts` with P5.** Then P6: `readWat` and
+    `wasm-opt`, `$foo` through every route.
+  - 📝 **Release-note items (API-visible):** `wat2wasm` output now carries a name section;
+    `wasm2wat` no longer invents `$f0`-style names (`generateNames` / `--generate-names` to ask);
+    names that are not all idchars print quoted (`$"foo bar"`); `WriteBinaryOptions.writeDebugNames`
+    now works and defaults to true; `Module` gained a required `hasNameSection` (use `makeModule`).
+- ⬚ **C2** — the WAT writer prints custom sections as `(@custom …)` and the parser cannot read it,
+  so `wasm2wat` → `wat2wasm` drops every custom section (register C2, DEFECT; found in N1 P3).
 - ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
 
 **🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how
