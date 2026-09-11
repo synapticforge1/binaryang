@@ -3,20 +3,21 @@
 //
 // T13.32 — every `TokenType` the lexer can emit, and nothing else.
 //
-// `TokenType` has 182 members. Two are referenced by neither the lexer nor the
-// parser, and both turn out to be deliberate:
+// `TokenType` has 182 members. One is referenced by neither the lexer nor the
+// parser, and it turns out to be deliberate:
 //
 //   SimdLoadSplat  superseded — `v128.load8_splat` lexes as TokenType.Load
 //                  carrying a SIMD sub-opcode, not as its own token type
-//   LparAnn        deliberately abandoned. `wast-lexer.ts` explains it in
-//                  place: annotation bodies contain arbitrary reserved
-//                  characters, so they are skipped at the CHARACTER level;
-//                  emitting LparAnn and resuming normal lexing produced
-//                  "unexpected char" on the first `,`
 //
-// Neither is a bug. Both are traps — an editor reaching for
+// It is not a bug, it is a trap — an editor reaching for
 // `TokenType.SimdLoadSplat` to handle splat instructions would emit a token
 // nothing consumes, and the parse would fail somewhere unrelated.
+//
+// `LparAnn` was on that list too, "abandoned", until C2: the lexer now emits it
+// for `(@custom …)`, the ONE annotation wabt-ts understands. Every other
+// annotation is still skipped at the CHARACTER level, because an annotation
+// body may hold arbitrary reserved characters — lexing one normally produced
+// "unexpected char" on the first `,`.
 //
 // **The regression this really guards is the other direction.** A member stops
 // being produced when its KEYWORDS entry is deleted or mistyped — and the
@@ -39,7 +40,6 @@ const PARSER_SRC = new URL('../../../src/wabt-ts/parser/wast-parser.ts', import.
  */
 const NEVER_EMITTED: ReadonlyMap<string, string> = new Map([
   ['SimdLoadSplat', 'superseded: v128.load*_splat lexes as TokenType.Load + a SIMD sub-opcode'],
-  ['LparAnn', 'abandoned: annotations are skipped at the character level (see wast-lexer.ts)'],
 ]);
 
 async function tokenTypeMembers(): Promise<string[]> {
@@ -95,9 +95,10 @@ describe('T13.32 — TokenType members are reachable, or documented as not', () 
 
   it('records which emitted members the parser never consumes', async () => {
     // NOT a failure — the lexer knows several wabt script keywords the parser
-    // has never implemented (`input`, `output`, `before`, `after`, `code`), and
-    // an unhandled token yields a parse error, which is right for an
-    // unsupported feature. None appears in any spec-testsuite file.
+    // has never implemented (`input`, `output`, `code`), and an unhandled token
+    // yields a parse error, which is right for an unsupported feature. None
+    // appears in any spec-testsuite file. (`before` and `after` left this list
+    // in C2, which consumes them as custom-section placements.)
     //
     // The assertion is that this set does not GROW silently: a newly
     // unconsumed token usually means a parser case was dropped.
@@ -112,7 +113,7 @@ describe('T13.32 — TokenType members are reachable, or documented as not', () 
     // parser never looking at it is exactly why an unknown operator was reported
     // as a stray parenthesis. A token sitting in this list is not automatically
     // benign; ask what the lexer emits it FOR before excusing it.
-    const KNOWN = ['After', 'Before', 'Code', 'Input', 'Invalid', 'Output'];
+    const KNOWN = ['Code', 'Input', 'Invalid', 'Output'];
     assertEquals(
       orphans,
       KNOWN,

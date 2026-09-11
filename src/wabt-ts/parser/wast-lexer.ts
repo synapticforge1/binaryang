@@ -862,6 +862,14 @@ export class WastLexer {
     return false;
   }
 
+  /** `w` as a whole annotation id — not the start of a longer one (`customx`). */
+  private matchAnnotationWord(w: string): boolean {
+    const saved = this.cursor;
+    if (this.matchStr(w) && !isIdChar(this.peek())) return true;
+    this.src.seek(saved);
+    return false;
+  }
+
   private matchStr(s: string): boolean {
     const saved = this.cursor;
     for (let i = 0; i < s.length; i++) {
@@ -955,7 +963,14 @@ export class WastLexer {
             return this.bareToken(TokenType.Eof);
           }
           if (this.matchStr('(@')) {
-            // Custom annotation `(@id …)`. The spec makes annotations
+            // `(@custom …)` is the one annotation wabt-ts UNDERSTANDS: a custom
+            // section written in text (C2). It becomes an `LparAnn` token and
+            // its body is tokenised normally — a name string, an optional
+            // `(before|after …)` placement, data strings — for the parser to
+            // read as a module field. Anywhere else it is then an unexpected
+            // token, as upstream wat2wasm and wasm-tools both treat it.
+            if (this.matchAnnotationWord('custom')) return this.textToken(TokenType.LparAnn, 2);
+            // Any other annotation `(@id …)`. The spec makes annotations
             // TRANSPARENT: a tool that does not understand one skips it. Their
             // bodies are deliberately hostile — arbitrary reserved characters
             // (`, ; ] [ }} }x{`), nested parens, nested annotations, and

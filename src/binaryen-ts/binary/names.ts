@@ -40,12 +40,17 @@ function leb(bytes: Uint8Array, p: { i: number }): number | null {
 }
 
 /**
- * The FIRST `name` section's payload (after its own name), found by walking
+ * The LAST `name` section's payload (after its own name), found by walking
  * section headers only — or `null` when there is none, or the headers are
  * malformed (the real decode reports those; this must not).
+ *
+ * The last, because upstream binaryen, wabt and wasm-tools all name a module
+ * with two from the later one; binaryen writes one section back, so the other
+ * is dropped, as upstream drops it.
  */
 export function findNameSection(bytes: Uint8Array): Uint8Array | null {
   const p = { i: 8 };
+  let found: Uint8Array | null = null;
   while (p.i < bytes.length) {
     const id = bytes[p.i++]!;
     const size = leb(bytes, p);
@@ -57,12 +62,12 @@ export function findNameSection(bytes: Uint8Array): Uint8Array | null {
       const n = leb(bytes, q);
       if (n !== null && q.i + n <= end) {
         const name = new TextDecoder().decode(bytes.subarray(q.i, q.i + n));
-        if (name === 'name') return bytes.subarray(q.i + n, end);
+        if (name === 'name') found = bytes.subarray(q.i + n, end);
       }
     }
     p.i = end;
   }
-  return null;
+  return found;
 }
 
 /**

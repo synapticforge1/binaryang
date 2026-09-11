@@ -137,6 +137,8 @@ import {
   varName,
 } from '../ir/ir.ts';
 import { makeTypeInterner } from '../ir/synthesize-types.ts';
+import { BinarySection } from '../core/binary.ts';
+import { placementAnchor } from '../core/custom-placement.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
 import { LexerSource } from './lexer-source.ts';
@@ -505,6 +507,8 @@ function isInstr(tt: TokenType, next: TokenType): boolean {
 }
 
 function isModuleField(tt0: TokenType, tt1: TokenType): boolean {
+  // `(@custom …)` — the lexer emits `LparAnn` for that annotation only (C2).
+  if (tt0 === TokenType.LparAnn) return true;
   if (tt0 !== TokenType.Lpar) return false;
   switch (tt1) {
     case TokenType.Func:
@@ -2194,6 +2198,7 @@ export class WastParser {
   }
 
   private parseModuleField(module: Module): Result {
+    if (this.peek() === TokenType.LparAnn) return this.parseCustomAnnotation(module);
     const tt1 = this.peek(1);
     switch (tt1) {
       case TokenType.Type:
@@ -2225,6 +2230,52 @@ export class WastParser {
         this.error(this.loc(), 'unknown module field');
         return Result.Error;
     }
+  }
+
+  /**
+   * `(@custom "name" place? datastring*)` — a custom section written in text.
+   *
+   * 🔧 C2: the lexer skipped EVERY annotation, this one included, while the
+   * WAT writer printed each custom section as `(@custom …)` — so `wasm2wat` →
+   * `wat2wasm` dropped them all, silently: `producers`, `target_features`,
+   * `dylink.0`, anything a toolchain put there.
+   *
+   * `place` is `(before first)`, `(after last)`, or `(before|after <section>)`
+   * (see `custom-placement.ts`); absent, the section goes at the END, as both
+   * upstream wat2wasm and wasm-tools place it. The data strings concatenate,
+   * like a data segment's. The name must be valid UTF-8, like every name.
+   */
+  private parseCustomAnnotation(module: Module): Result {
+    const loc = this.loc();
+    this.drop(); // `(@custom`
+    const name = this.parseQuotedText();
+    if (name === null) return Result.Error;
+
+    // Absent means `(after last)` — the SAME anchor, not "unknown": an
+    // unanchored custom is appended after every anchored one, so `(@custom "a")
+    // (@custom "b" (after last))` would come out b, a.
+    let precedingSection: BinarySection | null = BinarySection.Data;
+    if (
+      this.peek() === TokenType.Lpar &&
+      (this.peek(1) === TokenType.Before || this.peek(1) === TokenType.After)
+    ) {
+      this.drop();
+      const where = this.consume().tokenType === TokenType.Before ? 'before' : 'after';
+      const tok = this.consume();
+      const word = 'text' in tok ? tok.text : tokenTypeName(tok.tokenType);
+      const anchor = placementAnchor(where, word);
+      if (anchor === undefined) {
+        this.error(tok.loc, `unknown section in custom section placement: ${where} ${word}`);
+        return Result.Error;
+      }
+      precedingSection = anchor;
+      if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
+    }
+
+    const data = this.parseTextList();
+    if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
+    module.customs.push({ name, data, loc, precedingSection });
+    return Result.Ok;
   }
 
   /**
