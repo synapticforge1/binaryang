@@ -144,8 +144,28 @@ keep passing, which is why P5's row names the file.)
   is set OR anything is named.
 - **Label indices** count every label-introducing instruction in BINARY order — a folded
   `(if (block …))` writes the block first. The writer counts as it writes; the reader numbers with
-  the same `ExprVisitor` walk, so they cannot disagree. No oracle checked the order: upstream wabt
-  writes no labels and `wasm-tools` is not installed here.
+  the same `ExprVisitor` walk, so they cannot disagree. ✅ **Oracle-confirmed by `wasm-tools`
+  1.259.0** (installed 2026-09-11; upstream wabt writes no labels) — see the next section.
+
+## ✅ wasm-tools as the oracle for what upstream wabt cannot judge (2026-09-11)
+
+`wasm-tools parse` writes labels and field names, so it judges exactly the N2 half. Over the corpus
+(422 inputs; 10 legacy-EH modules it cannot PARSE, see below):
+
+| check                                                                                   | result                                                          |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| WRITER — our name section vs `wasm-tools parse`'s, every subsection, decoded            | **agree in every module**, all eleven subsections either writes |
+| labels, byte for byte                                                                   | **406 / 406**                                                   |
+| READER — `wasm-tools parse` bytes → our `wasm2wat`: every source label comes back       | **412 / 412**                                                   |
+| CROSS — our bytes → `wasm-tools print` → `parse`: our label subsection survives         | **412 / 412**                                                   |
+| the 10 it cannot parse (`(try (do …))`): our bytes validate, and cross-read identically | **10 / 10**                                                     |
+| GC field names (a probe: struct, `sub`, `rec`, array)                                   | agree — except inside `(rec …)`, where wasm-tools writes none   |
+
+Differences that are wasm-tools', not ours (register G4): it omits field names for struct types in
+an explicit `(rec …)` group (with `sub` alone it writes them), and its local subsection lists only
+functions with named locals, and never an import's param names — upstream wabt lists every function,
+and we follow wabt there. Scripts: `wt-oracle.ts`, `wt-legacy.ts` in the session scratchpad.
+
 - Found beside it, not N1: the WAT writer prints custom sections as `(@custom …)` and the parser
   cannot read that, so `wasm2wat` → `wat2wasm` drops every custom section (register C2, DEFECT). And
   the folded writer drifted two columns left per block (fixed; hidden while every block had a
