@@ -97,6 +97,48 @@ describe('wasm-opt reads external WAT through wabt-ts and the decoder', () => {
   }
 });
 
+describe('the module INTERFACE survives the route — export and import names are never mangled', () => {
+  // Owner, 2026-09-10: an exported name must absolutely be preserved, or we
+  // have name mangling. Export and import names live in the export and import
+  // SECTIONS — the interface — not in the `name` section, so divergence N1
+  // (internal `$names` lost on this route) does not reach them. Pinned here so
+  // that it never does. Expected lists are upstream wat2wasm 1.0.41's, read
+  // back with `WebAssembly.Module.exports` / `.imports`.
+  const WAT = `(module
+    (import "env" "log" (func $log (param i32)))
+    (import "env" "mem" (memory 1))
+    (func $internal_name (export "public_name") (result i32) (i32.const 7))
+    (func $other (export "second_export") (export "alias_of_second") (call $log (i32.const 1)))
+    (global $g (export "exported_global") i32 (i32.const 3))
+    (table $t (export "exported_table") 1 funcref)
+    (func $unexported)
+    (export "late_export" (func $unexported)))`;
+  const EXPORTS = [
+    { name: 'public_name', kind: 'function' },
+    { name: 'second_export', kind: 'function' },
+    { name: 'alias_of_second', kind: 'function' },
+    { name: 'exported_global', kind: 'global' },
+    { name: 'exported_table', kind: 'table' },
+    { name: 'late_export', kind: 'function' },
+  ];
+  const IMPORTS = [
+    { module: 'env', name: 'log', kind: 'function' },
+    { module: 'env', name: 'mem', kind: 'memory' },
+  ];
+
+  for (
+    const [label, optimizeLevel, shrinkLevel] of [['no optimization', 0, 0], ['-Oz', 2, 2]] as const
+  ) {
+    it(label, async () => {
+      const m = new WebAssembly.Module(
+        await optimizeText(WAT, optimizeLevel, shrinkLevel) as BufferSource,
+      );
+      assertEquals(WebAssembly.Module.exports(m), EXPORTS);
+      assertEquals(WebAssembly.Module.imports(m), IMPORTS);
+    });
+  }
+});
+
 describe('readWat', () => {
   it("reports the text front end's diagnostic, with its position, as a WatInputError", () => {
     const e = assertThrows(() => readWat('(module (func (i32.bogus)))', 'bad.wat'), WatInputError);
