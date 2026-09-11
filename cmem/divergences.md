@@ -58,6 +58,12 @@ is not skipped"). `$foo` does not survive WAT → wabt-ts → bytes → binaryen
 | binaryen-ts decoder     | `readNameSection` SKIPS it                                                     | wasm-opt always reads it                   |
 | binaryen-ts encoder     | writes none                                                                    | wasm-opt writes it with `-g` (`debugInfo`) |
 
+✅ **Not in N1: the module INTERFACE.** Export and import names live in the export and import
+sections, not the `name` section, and survive the route and -Oz exactly — including aliases and a
+late `(export …)` field (probed against upstream wat2wasm). Owner: an exported name must absolutely
+be preserved, or it is name mangling — pinned by `wat_input.test.ts`, verified to fail when one
+export name is altered. N1 is the INTERNAL identifiers: `$internal_name` comes back `$func1`.
+
 Class DEFECT, vs both. ⚠️ **The three are coupled to decision 7b(i)**: `lowerBlockParams`
 re-decodes `encodeWasm(module)` and refuses a module whose names no longer match its own bytes. Once
 the decoder reads real names, an encoder that drops them makes every NAMED module with block
