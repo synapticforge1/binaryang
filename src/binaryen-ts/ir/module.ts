@@ -296,6 +296,43 @@ export interface WasmModule {
    * carried one it did not need re-encodes with it. Absent means false.
    */
   hasDataCount?: boolean;
+  /**
+   * The custom sections the module was decoded from, in binary order — C3
+   * (cmem/divergences.md).
+   *
+   * 🔧 The decoder collected NONE, so a decode → encode dropped `producers`,
+   * `target_features`, `dylink.0` and every DWARF section outright, with no
+   * diagnostic. Upstream `wasm-opt` keeps them all, through `-O2`.
+   *
+   * Each one records the position it held, so the module comes back as it went
+   * in — where upstream APPENDS them after the known sections and special-cases
+   * only `dylink.0` (which must come first). Absent means a module built
+   * through the API, which has none.
+   */
+  customSections?: CustomSection[];
+}
+
+/**
+ * One custom section a module carried: its bytes and where they sat.
+ *
+ * The `name` section is the exception — the encoder GENERATES it from
+ * {@link WasmModule.explicitNames}, so the entry for it only marks the PLACE,
+ * with `data: null`. That is how a binary whose customs straddle the name
+ * section (`.debug_*`, `name`, `producers` — clang's layout) re-encodes in the
+ * order it arrived.
+ */
+export interface CustomSection {
+  /** The section's name: `producers`, `target_features`, `dylink.0`, `.debug_info`, … */
+  name: string;
+  /** Its payload, verbatim — or `null` for the `name` section's place. */
+  data: Uint8Array | null;
+  /**
+   * The id of the known section this one FOLLOWED, or `null` when it came
+   * before every known section. Ids are the binary's own (1 type … 13 tag), so
+   * a section is written back into the same gap even if the neighbour it was
+   * recorded against is gone.
+   */
+  precedingSection: number | null;
 }
 
 /**

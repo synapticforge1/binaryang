@@ -109,13 +109,12 @@ describe('C2 — a custom section survives wasm2wat → wat2wasm, where it stood
     assert(same(writeBinaryIr(m), THREE), hex(writeBinaryIr(m)));
   });
 
-  it('binaryen-ts drops them — C3, registered, not this change', () => {
-    // Upstream binaryen KEEPS every custom section (it appends them after the
-    // known ones rather than restoring their position); binaryen-ts's decoder
-    // never collects them, so a decode → encode loses `producers`,
-    // `target_features`, `dylink.0` outright. Pinned here so the fix shows up
-    // as this test failing, with the row to close beside it.
-    assertEquals(layout(encodeWasm(parseWasm(THREE))), '1 3 10');
+  it('and binaryen-ts keeps them now too — C3, fixed', () => {
+    // This pinned the DROP until C3: binaryen-ts's decoder collected no custom
+    // section, so a decode → encode lost `producers`, `target_features`,
+    // `dylink.0` outright. It now restores each one's position, which upstream
+    // `wasm-opt` does for `dylink.0` alone (register C6).
+    assert(same(encodeWasm(parseWasm(THREE)), THREE), hex(encodeWasm(parseWasm(THREE))));
   });
 });
 

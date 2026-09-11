@@ -643,39 +643,91 @@ class WasmEncoder {
     // input never had, which is a round-trip difference for every type-less
     // module. Found while proving multi-memory round trips byte-identically;
     // unrelated to that, and pre-existing.
+    // Custom sections go back into the gap each one held (C3); `writeCustoms`
+    // is called after every known section, whether or not that section is
+    // emitted, so a module that lost its start section does not drag a custom
+    // along with it.
+    this.writeCustoms(out, null);
     if (this.typeCount() > 0) this.writeSection(out, 1, (w) => this.encodeTypeSection(w));
+    this.writeCustoms(out, 1);
     if (this.hasImports()) this.writeSection(out, 2, (w) => this.encodeImportSection(w));
+    this.writeCustoms(out, 2);
     if (this.mod.functions.length > 0) {
       this.writeSection(out, 3, (w) => this.encodeFunctionSection(w));
     }
+    this.writeCustoms(out, 3);
     if (this.hasTables()) this.writeSection(out, 4, (w) => this.encodeTableSection(w));
+    this.writeCustoms(out, 4);
     if (this.hasMemories()) this.writeSection(out, 5, (w) => this.encodeMemorySection(w));
+    this.writeCustoms(out, 5);
     if (this.mod.tags.length > 0) this.writeSection(out, 13, (w) => this.encodeTagSection(w));
+    this.writeCustoms(out, 13);
     if (this.mod.globals.length > 0) this.writeSection(out, 6, (w) => this.encodeGlobalSection(w));
+    this.writeCustoms(out, 6);
     if (this.mod.exports.length > 0) this.writeSection(out, 7, (w) => this.encodeExportSection(w));
+    this.writeCustoms(out, 7);
     // `!= null` (loose) on purpose: a module built against the pre-start
     // `WasmModule` shape has no `start` field at all, and absent
     // unambiguously means "no start function" — there is nothing to fail
     // loudly about. A `!== null` check would treat `undefined` as a real
     // name and emit a section referencing a function called "undefined".
     if (this.mod.start != null) this.writeSection(out, 8, (w) => this.encodeStartSection(w));
+    this.writeCustoms(out, 8);
     if (this.mod.elements.length > 0) {
       this.writeSection(out, 9, (w) => this.encodeElementSection(w));
     }
+    this.writeCustoms(out, 9);
     // BEFORE the code section, which is the point of it: a validator needs the
     // segment count while type-checking `memory.init` / `data.drop`.
     if (this.mod.hasDataCount === true || this.usesDataIndex()) {
       this.writeSection(out, 12, (w) => this.encodeDataCountSection(w));
     }
+    this.writeCustoms(out, 12);
     if (this.mod.functions.length > 0) this.writeSection(out, 10, (w) => this.encodeCodeSection(w));
+    this.writeCustoms(out, 10);
     if (this.mod.dataSegments.length > 0) {
       this.writeSection(out, 11, (w) => this.encodeDataSection(w));
     }
+    this.writeCustoms(out, 11);
     // Last, as the spec places it — and after the code, which is where the
-    // label names were counted.
-    if (this.mod.explicitNames !== undefined) this.writeNameSection(out, this.mod.explicitNames);
+    // label names were counted. A module DECODED with a name section already
+    // wrote it above, at the place it held among the other custom sections.
+    if (this.mod.explicitNames !== undefined && !this.wroteNameSection) {
+      this.writeNameSection(out, this.mod.explicitNames);
+    }
 
     return out.toUint8Array();
+  }
+
+  /** Whether {@link writeCustoms} has already generated the `name` section. */
+  private wroteNameSection = false;
+
+  /**
+   * The custom sections that followed section `after` — `null` for those that
+   * came before every known section — in the order the module carried them
+   * (C3). An entry with no data is the `name` section's PLACE: its content is
+   * generated, and only when the module still has explicit names, so a pass run
+   * without `debugInfo` drops the section rather than writing an empty one.
+   *
+   * Upstream `wasm-opt` instead APPENDS every custom section after the known
+   * ones, keeping only `dylink.0` first; restoring the recorded position covers
+   * that case and every other (register C6).
+   */
+  private writeCustoms(out: BinaryWriter, after: number | null): void {
+    for (const c of this.mod.customSections ?? []) {
+      if (c.precedingSection !== after) continue;
+      if (c.data === null) {
+        if (this.mod.explicitNames === undefined) continue;
+        this.writeNameSection(out, this.mod.explicitNames);
+        this.wroteNameSection = true;
+      } else {
+        const data = c.data;
+        this.writeSection(out, 0, (w) => {
+          w.writeUTF8(c.name);
+          w.writeBytes(data);
+        });
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
