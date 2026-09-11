@@ -48,6 +48,7 @@ class. "Valid either way" is not a class.
 | W4 | wabt     | binaryen-ts's own `parseWat` is a FOLDED SUBSET: no multi-operand stack sources, stack conditions, block params, or bare linear form        | DESIGN     | owner 2026-09-10: external WAT goes wabt-ts → bytes → decoder (`e18d9f09a`); `parseWat` internal only |
 | W5 | wabt     | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order   | DEFECT     | ⬚ form only. Upstream: explicit types first, then implicit in text order, interleaved                 |
 | W6 | wabt     | wabt-ts writes a DataCount section whenever data segments exist; upstream wat2wasm only when `memory.init` / `data.drop` use it             | DEFECT     | ⬚ form only, 3 bytes. 242 corpus modules differ from upstream in section 12 alone                     |
+| N2 | both     | LABEL names (subsection 3) and GC FIELD names (10) are written and read; upstream `wat2wasm --debug-names` writes neither                   | FEATURE    | owner 2026-09-11; needed so WAT → `wat2wasm` → `wasm2wat` reconstitutes labels. ⬚ built in N1 P2–P3   |
 
 **N1 — NAMES are lost at three hops** (found 2026-09-10, from the W4 route; owner: "so that this is
 not skipped"). **SCOPED 2026-09-11 in [names.md](names.md)**: ~43,000 source names in the corpus, 2
