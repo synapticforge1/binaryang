@@ -32,7 +32,6 @@
 
 import { ExternalKind } from '../wabt-ts/core/binary.ts';
 import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
-import { naturalAlignForOpcode } from '../wabt-ts/core/opcode.ts';
 import {
   CatchKind,
   coarsenValueType,
@@ -195,7 +194,6 @@ import type {
 } from '../binaryen-ts/ir/index.ts';
 
 import { wabtTypeToValType } from './type-map.ts';
-import { loadShape, storeShape } from '../binaryen-ts/ir/memory-access.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -1121,13 +1119,13 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           simdOp,
           bridgeExpr(ld.address, ctx),
           ld.offset,
-          alignBytesToExponent(ld.align, naturalAlignForOpcode(ld.opcode), 'load'),
+          alignBytesToExponent(ld.align, 'load'),
         );
       }
       return makeLoad(
         ld.opcode,
         ld.offset,
-        alignBytesToExponent(ld.align, loadShape(ld.opcode).bytes, 'load'),
+        alignBytesToExponent(ld.align, 'load'),
         bridgeExpr(ld.address, ctx),
       );
     }
@@ -1139,7 +1137,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         ls.opcode,
         bridgeExpr(ls.address, ctx),
         ls.offset,
-        alignBytesToExponent(ls.align, naturalAlignForOpcode(ls.opcode), 'simd.load'),
+        alignBytesToExponent(ls.align, 'simd.load'),
       );
     }
     case 'simd.load_store_lane': {
@@ -1150,7 +1148,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bridgeExpr(sll.address, ctx),
         bridgeExpr(sll.vec, ctx),
         sll.offset,
-        alignBytesToExponent(sll.align, naturalAlignForOpcode(sll.opcode), 'simd.load_store_lane'),
+        alignBytesToExponent(sll.align, 'simd.load_store_lane'),
         sll.lane,
       );
     }
@@ -1160,7 +1158,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeStore(
         st.opcode,
         st.offset,
-        alignBytesToExponent(st.align, storeShape(st.opcode).bytes, 'store'),
+        alignBytesToExponent(st.align, 'store'),
         bridgeExpr(st.address, ctx),
         bridgeExpr(st.value, ctx),
       );
@@ -1648,26 +1646,22 @@ function requireDefaultMemory(memidx: Var, opLabel: string): void {
 
 /**
  * Convert wabt-ts's byte-valued alignment into the wasm `memarg.align`
- * exponent that binaryen-ts's encoder writes to the binary. wabt-ts's WAT
- * parser stores the literal byte count (`align=4` → `4`) and uses `0` for
- * "no explicit align" — which the spec interprets as the opcode's natural
- * alignment, NOT exponent 0. Treating 0 as exponent 0 silently produced
- * binaries with 1-byte alignment on every default-aligned memory op,
- * which defeated binaryen's optimizer (it reads the field and treats it
- * as a hard constraint). Use the caller-supplied natural byte count when
- * align is unspecified.
+ * exponent that binaryen-ts's encoder writes to the binary (`4` → `2`).
+ *
+ * wabt-ts's parser used to store `0` for "no explicit align", and this
+ * function resolved it to the natural byte count the caller passed. The
+ * parser now stores the natural alignment itself, so every producer hands
+ * over a real power of two and anything else is a producer bug — thrown,
+ * because log2 of it is not an exponent and the optimizer reads the field
+ * as a hard constraint.
  */
-function alignBytesToExponent(
-  wabtAlign: number,
-  naturalBytes: number,
-  opLabel: string,
-): number {
-  const bytes = wabtAlign === 0 ? naturalBytes : wabtAlign;
-  // Must be a power of two; the wasm spec requires this.
-  if (bytes <= 0 || (bytes & (bytes - 1)) !== 0) {
-    throw new Error(`Bridge: ${opLabel} align ${bytes} is not a positive power of two`);
+function alignBytesToExponent(wabtAlign: number, opLabel: string): number {
+  // (Math.log2 is exact on powers of two; a bitwise test would wrap past 2^31.)
+  const exponent = Math.log2(wabtAlign);
+  if (!Number.isInteger(exponent) || exponent < 0) {
+    throw new Error(`Bridge: ${opLabel} align ${wabtAlign} is not a positive power of two`);
   }
-  return Math.log2(bytes);
+  return exponent;
 }
 
 /**

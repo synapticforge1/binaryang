@@ -16,7 +16,7 @@ import { addError, ErrorLevel, unknownLocation } from '../core/error.ts';
 import { Result } from '../core/result.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
-import { GcOpcode, Opcode, PREFIX_SIMD } from '../core/opcode.ts';
+import { GcOpcode, naturalAlignForOpcode, Opcode, PREFIX_SIMD } from '../core/opcode.ts';
 import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
 import {
   type ArrayCopyExpr,
@@ -1867,7 +1867,16 @@ export class WastParser {
   }
 
   /**
-   * Parse `align=N` if present. Returns 0 if not (caller uses natural align).
+   * Parse `align=N` if present; without it, the NATURAL alignment of `opcode`
+   * — the text format's meaning of an absent `align=`.
+   *
+   * 🔧 This returned 0 for "absent", a sentinel only the binary writer
+   * resolved. Every other consumer of the parser's tree read it as an
+   * alignment: the WAT writer printed `align=0`, so `parseWat(…).toText()`
+   * wrote text that does not assemble for any module with a plain load or
+   * store (0 of 421 corpus modules re-assembled), and the validator reported
+   * `alignment (0) must be a power of 2` on a valid module. Now the tree holds
+   * a real alignment from every producer.
    *
    * `N` must be a POWER OF TWO — the text grammar says so, which makes anything
    * else MALFORMED rather than invalid. Without the check the value flowed into
@@ -1876,32 +1885,32 @@ export class WastParser {
    * cosmetic difference: binaryen's optimizer reads the alignment as a hard
    * constraint (see the `naturalAlignForOpcode` note in design-decisions.md).
    *
-   * Zero is rejected here too. It is not a power of two, and it would be
-   * indistinguishable from the "no `align=` keyword given" sentinel this
-   * function returns — so an explicit `align=0` silently meant "natural".
+   * Zero is rejected too: it is not a power of two. (While absence was the
+   * sentinel 0, an explicit `align=0` had also silently meant "natural".)
    *
    * The SIZE of the alignment is a separate, VALIDATION-time rule (`align`
    * must not exceed the operand's natural alignment); `align=8` on an
    * `i32.load` is well-formed and invalid, and is already rejected there.
    */
-  private parseAlignOpt(): number {
+  private parseAlignOpt(opcode: number): number {
+    const natural = naturalAlignForOpcode(opcode);
     if (this.peek() === TokenType.AlignEqNat) {
       const loc = this.loc();
       const tok = this.consume() as StringToken;
       const n = parseNatText(tok.text);
       if (n === null) {
         this.error(loc, `malformed alignment: ${tok.text}`);
-        return 0;
+        return natural;
       }
       // Power-of-two test on the BigInt: a 2^32 alignment would overflow a
       // 32-bit bitwise check.
       if (n <= 0n || (n & (n - 1n)) !== 0n) {
         this.error(loc, `alignment must be a power of two: ${n}`);
-        return 0;
+        return natural;
       }
       return Number(n);
     }
-    return 0;
+    return natural;
   }
 
   /** Parse inline imports `(import "mod" "field")` if present. Returns null if not found. */
@@ -4044,7 +4053,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'load',
           opcode: op as unknown as Opcode,
@@ -4059,7 +4068,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'store',
           opcode: op as unknown as Opcode,
@@ -4515,7 +4524,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.load',
           opcode: op as unknown as Opcode,
@@ -4530,7 +4539,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.store',
           opcode: op as unknown as Opcode,
@@ -4546,7 +4555,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.rmw',
           opcode: op as unknown as Opcode,
@@ -4562,7 +4571,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.cmpxchg',
           opcode: op as unknown as Opcode,
@@ -4579,7 +4588,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.notify',
           opcode: op as unknown as Opcode,
@@ -4595,7 +4604,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.wait',
           opcode: op as unknown as Opcode,
@@ -4663,7 +4672,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseSimdLaneMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         const lane = this.parseSimdLane();
         return {
           kind: 'simd.load_store_lane',
@@ -4681,7 +4690,7 @@ export class WastParser {
         const op = (tok as OpcodeToken).opcode as unknown as number;
         const memidx = this.parseSimdLaneMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
-        const align = this.parseAlignOpt();
+        const align = this.parseAlignOpt(op);
         const lane = this.parseSimdLane();
         return {
           kind: 'simd.load_store_lane',

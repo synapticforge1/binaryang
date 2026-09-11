@@ -16,9 +16,10 @@
 // in design-decisions.md records a case where getting this field wrong made the
 // optimizer bail on rewrites and produce out-of-bounds accesses at runtime.
 //
-// `align=0` had a second problem: 0 is also the "no `align=` keyword given"
-// sentinel `parseAlignOpt` returns, so an explicit `align=0` was
-// indistinguishable from writing no alignment at all.
+// `align=0` had a second problem: 0 was also the "no `align=` keyword given"
+// sentinel `parseAlignOpt` returned, so an explicit `align=0` was
+// indistinguishable from writing no alignment at all. (The sentinel is gone —
+// an absent `align=` is now the natural alignment; align_natural.test.ts.)
 //
 // The SIZE of the alignment is a separate, VALIDATION-time rule — `align` must
 // not exceed the operand's natural alignment. `align=8` on an `i32.load` is

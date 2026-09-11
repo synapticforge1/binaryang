@@ -613,7 +613,10 @@ export interface QuaternaryExpr {
 }
 
 // --- Memory load/store ---
-/** Linear-memory load (`i32.load`, `f64.load8_s`, etc.). `align = 0` means "use opcode-natural". */
+/**
+ * Linear-memory load (`i32.load`, `f64.load8_s`, etc.). `align` is in BYTES and
+ * always a power of two — the natural alignment when the text gave no `align=`.
+ */
 export interface LoadExpr {
   readonly kind: 'load';
   readonly opcode: Opcode;
@@ -623,7 +626,7 @@ export interface LoadExpr {
   readonly address: Expr;
   readonly loc: Location;
 }
-/** Linear-memory store (`i32.store`, `f32.store`, etc.). `align = 0` means "use opcode-natural". */
+/** Linear-memory store (`i32.store`, `f32.store`, etc.). `align` as for {@link LoadExpr}. */
 export interface StoreExpr {
   readonly kind: 'store';
   readonly opcode: Opcode;

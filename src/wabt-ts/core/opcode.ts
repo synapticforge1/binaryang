@@ -1005,9 +1005,9 @@ export function anyOpcodeName(op: number): string {
 }
 
 /**
- * The natural alignment in bytes for a memory-touching opcode. Used by the
- * binary writer to emit a spec-correct `memarg.align` when the IR carries
- * `align = 0` (the parser's sentinel for "no explicit `align=N` keyword").
+ * The natural alignment in bytes for a memory-touching opcode. The parser
+ * stores it when there is no explicit `align=N` keyword; the WAT writer
+ * compares against it to decide whether to print one.
  *
  * Returns the data width of the access — i32.store → 4, i64.load → 8,
  * v128.load → 16, i32.atomic.load → 4, etc. Atomics MUST use the natural
@@ -1017,8 +1017,8 @@ export function anyOpcodeName(op: number): string {
  * rewrites.
  *
  * Returns 1 for opcodes that aren't memory ops at all — callers shouldn't
- * pass those in (the binary writer only calls this for load/store-family
- * expressions), so the fallback is just defensive.
+ * pass those in (the parser and WAT writer only call this for
+ * load/store-family instructions), so the fallback is just defensive.
  */
 export function naturalAlignForOpcode(op: number): number {
   switch (op) {
