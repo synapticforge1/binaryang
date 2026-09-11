@@ -224,6 +224,11 @@ interface DecoderCtx {
   globalInfos: GlobalInfo[];
   tableNames: string[];
   tagInfos: TagInfo[];
+  /**
+   * Every tag's payload types, in the tag INDEX space — imports first. `tagInfos`
+   * holds the DEFINED tags only, so it cannot be indexed by a tag index.
+   */
+  tagParams: ValueType[][];
   /** See {@link ParseWasmOptions.lowerBlockParams}. */
   lowerBlockParams: boolean;
   /** Every entity's name, by index — from the name section where it has one (N1 P4). */
@@ -771,6 +776,8 @@ class WasmParser {
   private globalInfos: GlobalInfo[] = [];
   private tableNames: string[] = [];
   private tagInfos: TagInfo[] = [];
+  /** See {@link DecoderCtx.tagParams}. */
+  private readonly tagParams: ValueType[][] = [];
   private importedTagCount = 0;
   /** Memories so far, imported and defined — the memory index space. */
   private memoryCount = 0;
@@ -1043,6 +1050,7 @@ class WasmParser {
           // the way `$import${n}` once did for functions.
           const name = this.names.tag(this.importedTagCount);
           this.builder.addTagImport(name, module, base, ft.params);
+          this.tagParams.push(ft.params);
           this.importedTagCount++;
           break;
         }
@@ -1253,6 +1261,7 @@ class WasmParser {
       globalInfos: this.globalInfos,
       tableNames: this.tableNames,
       tagInfos: this.tagInfos,
+      tagParams: this.tagParams,
       lowerBlockParams: this.lowerBlockParams,
       names: this.names,
     };
@@ -1313,6 +1322,7 @@ class WasmParser {
         name: this.names.tag(this.importedTagCount + this.tagInfos.length),
         params: ft.params,
       });
+      this.tagParams.push(ft.params);
     }
   }
 
@@ -1861,7 +1871,7 @@ class WasmParser {
         case 0x07: { // catch $tag (old EH)
           const tagIdx = r.readU32();
           const tagName = ctx.names.tag(tagIdx);
-          const tagParams = ctx.tagInfos[tagIdx]?.params ?? [];
+          const tagParams = tagParamsAt(ctx, tagIdx, r);
           const frame = topFrame(frames, r);
           if (frame.kind === 'try' || frame.kind === 'catch') {
             // save current body
@@ -1889,7 +1899,7 @@ class WasmParser {
         case 0x08: { // throw $tag
           const tagIdx = r.readU32();
           const tagName = ctx.names.tag(tagIdx);
-          const tagParams = ctx.tagInfos[tagIdx]?.params ?? [];
+          const tagParams = tagParamsAt(ctx, tagIdx, r);
           const operands = popN(tagParams.length);
           push(makeThrow(varName(tagName), operands));
           break;
@@ -2737,6 +2747,21 @@ function decodeGcPrefix(
 // ---------------------------------------------------------------------------
 // 0xFC prefix (bulk memory + saturating truncations)
 // ---------------------------------------------------------------------------
+
+/**
+ * A tag's payload types, by tag INDEX — imported tags first.
+ *
+ * 🔧 This read `ctx.tagInfos[tagIdx]`, but `tagInfos` holds only the DEFINED
+ * tags: with an imported tag, index 0 named the first defined tag's payload or
+ * nothing, and the `?? []` fallback made a `throw` of an imported
+ * `(param i32 i64)` tag pop ZERO operands. Its payload was left behind as loose
+ * statements; the bytes happened to round-trip, but the IR said `throw` with no
+ * payload, which is not the program. An index past the end is now an error, not
+ * an empty payload.
+ */
+function tagParamsAt(ctx: DecoderCtx, tagIdx: number, r: BinaryReader): ValueType[] {
+  return ctx.tagParams[tagIdx] ?? r.error(`tag index ${tagIdx} is out of range`);
+}
 
 /** A data segment's name — the one `readDataSection` gave it. */
 function dataSegName(ctx: DecoderCtx, i: number): string {
