@@ -1669,6 +1669,13 @@ class WatWriter extends ModuleContext {
    * depths are resolved against it, so skipping that would silently renumber
    * every branch inside the body — the folded form drops the `end` keyword, not
    * the scope it delimited.
+   *
+   * Indentation: each `(` is followed by `indent += 2`, and `close()` takes the
+   * 2 back. 🔧 Every construct here also subtracted 2 by hand before closing,
+   * so the indentation drifted two columns LEFT per block, clause and `if` —
+   * nested code ran into the margin. Bytes were never affected; it was hidden
+   * while `generateNames` labelled every block, because a labelled one wrapped
+   * onto a fresh line.
    */
   private writeFoldedControl(e: Expr): boolean {
     switch (e.kind) {
@@ -1687,7 +1694,6 @@ class WatWriter extends ModuleContext {
         );
         this.indent += 2;
         this.writeExprList(e.body);
-        this.indent -= 2;
         this.endBlock();
         this.close(NC.Space);
         return true;
@@ -1710,12 +1716,12 @@ class WatWriter extends ModuleContext {
         this.putsSpace('do');
         this.indent += 2;
         this.writeExprList(e.body);
-        this.indent -= 2;
         this.close(NC.Newline);
 
         if (e.delegate !== undefined) {
           this.puts('(', NC.None);
           this.putsSpace('delegate');
+          this.indent += 2;
           this.writeVar(e.delegate, NC.None);
           this.close(NC.Newline);
         } else {
@@ -1729,12 +1735,10 @@ class WatWriter extends ModuleContext {
             }
             this.indent += 2;
             this.writeExprList(c.body);
-            this.indent -= 2;
             this.close(NC.Newline);
           }
         }
 
-        this.indent -= 2;
         this.endBlock();
         this.close(NC.Space);
         return true;
@@ -1757,7 +1761,6 @@ class WatWriter extends ModuleContext {
         this.putsSpace('then');
         this.indent += 2;
         this.writeExprList(e.then_);
-        this.indent -= 2;
         this.close(NC.Space);
         if (e.else_.length > 0) {
           this.newline(true);
@@ -1765,11 +1768,9 @@ class WatWriter extends ModuleContext {
           this.putsSpace('else');
           this.indent += 2;
           this.writeExprList(e.else_);
-          this.indent -= 2;
           this.close(NC.Space);
         }
         this.endBlock();
-        this.indent -= 2;
         this.close(NC.Space);
         return true;
       }
