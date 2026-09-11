@@ -68,6 +68,21 @@ function encode(src: string): Uint8Array {
   assert(binary);
   return binary;
 }
+/** The memory section's body. */
+function memorySection(binary: Uint8Array): Uint8Array {
+  for (let p = 8; p < binary.length;) {
+    const id = binary[p++]!;
+    let size = 0;
+    for (let shift = 0;; shift += 7) {
+      const b = binary[p++]!;
+      size += (b & 0x7f) * 2 ** shift;
+      if ((b & 0x80) === 0) break;
+    }
+    if (id === 5) return binary.subarray(p, p + size);
+    p += size;
+  }
+  throw new Error('no memory section');
+}
 function malformed(src: string): string {
   const { errors } = wat2wasm(src);
   assert(hasErrors(errors), `accepted malformed text: ${src}`);
@@ -91,14 +106,20 @@ describe('T13.4 — the page size is parsed, and it is a log2 on the wire', () =
     // 65536 there, which the old byte-valued field would have, is a different
     // memory type and three bytes longer.
     //
-    // Taken from the END: the writer pads every section size to a fixed 5-byte
-    // LEB, so the payload does not start at a fixed offset.
-    assertEquals([...encode('(module (memory 1 (pagesize 1)))').slice(-4)], [1, 0x08, 1, 0]);
+    // The memory SECTION's body — once taken from the end of the binary, which
+    // a name section now follows (N1 P2).
+    assertEquals([...memorySection(encode('(module (memory 1 (pagesize 1)))'))], [1, 0x08, 1, 0]);
   });
 
   it('puts the field AFTER min and max, where the format does', () => {
     // flags 0x09 (max + page size), min 2, max 3, then the log2.
-    assertEquals([...encode('(module (memory 2 3 (pagesize 1)))').slice(-5)], [1, 0x09, 2, 3, 0]);
+    assertEquals([...memorySection(encode('(module (memory 2 3 (pagesize 1)))'))], [
+      1,
+      0x09,
+      2,
+      3,
+      0,
+    ]);
   });
 
   it('round-trips byte-identically, keeping an explicit 65536', () => {

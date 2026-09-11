@@ -5,7 +5,7 @@
 //
 // It wrote none — `writeDebugNames` was declared and ignored — so every name in
 // the source was gone from the bytes: WAT → `wat2wasm` → `wasm2wat` could not
-// give back one of the corpus's 48,207 names. The owner's rule: wabt-ts is the
+// give back one of the corpus's 63,930 names. The owner's rule: wabt-ts is the
 // fidelity half and keeps names.
 //
 // For the ten kinds upstream writes, the bytes are upstream

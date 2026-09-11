@@ -29,7 +29,8 @@ import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
+import { wabtReference } from '../wabt_reference.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** Export names in the order the binary section lists them. */
@@ -40,7 +41,7 @@ function exportOrder(bytes: Uint8Array): string[] {
 
 /** binaryen-ts must produce byte-identical output to wabt-ts. */
 function assertSameBytes(wat: string): Uint8Array {
-  const ref = wat2wasm(wat, { filename: 'ref.wat' });
+  const ref = wabtReference(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
   const got = encodeWasm(parseWat(wat));
   assertEquals(Array.from(got), Array.from(ref.binary));

@@ -37,7 +37,9 @@ describe('generateNames synthetic-name validity', () => {
     const { binary } = wat2wasm(
       '(module (func (param i32) (result i32) local.get 0) (global i32 (i32.const 0)))',
     );
-    const { text } = wasm2wat(binary);
+    // Asked for: since N1 P3 wasm2wat invents names only on request, as
+    // upstream's `--generate-names`.
+    const { text } = wasm2wat(binary, { generateNames: true });
     // Synthetic identifiers must carry the leading `$`.
     assert(text.includes('$f0'), `expected $f0 in:\n${text}`);
     assert(!/\(func f0\b/.test(text), 'func identifier must not be bare f0');

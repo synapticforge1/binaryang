@@ -37,12 +37,13 @@ import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
+import { wabtReference } from '../wabt_reference.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** binaryen-ts must assemble `wat` to exactly the bytes wabt-ts does. */
 function assertSameBytes(wat: string): Uint8Array {
-  const ref = wat2wasm(wat, { filename: 'ref.wat' });
+  const ref = wabtReference(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
   const got = encodeWasm(parseWat(wat));
   // Validity first: a byte diff on an invalid module buries the real message.

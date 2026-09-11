@@ -73,10 +73,30 @@ describe('quoted identifiers denote the same name as bare ones', () => {
 });
 
 describe('WAT strings encode raw characters as UTF-8', () => {
-  /** The data-segment payload: the trailing bytes after the length prefix. */
+  /** The body of the section with id `want`. */
+  function sectionBody(binary: Uint8Array, want: number): Uint8Array {
+    for (let p = 8; p < binary.length;) {
+      const id = binary[p++]!;
+      let size = 0;
+      for (let shift = 0;; shift += 7) {
+        const b = binary[p++]!;
+        size += (b & 0x7f) * 2 ** shift;
+        if ((b & 0x80) === 0) break;
+      }
+      if (id === want) return binary.subarray(p, p + size);
+      p += size;
+    }
+    throw new Error(`no section ${want}`);
+  }
+
+  /**
+   * The data-segment payload: the trailing bytes of the DATA section. (Of the
+   * section, not the binary — a name section follows it since N1 P2.)
+   */
   function dataOf(literal: string, len: number): number[] {
     const binary = compile(`(module (memory 1) (data (i32.const 0) "${literal}"))`);
-    return [...binary.slice(binary.length - len)];
+    const data = sectionBody(binary, 11);
+    return [...data.slice(data.length - len)];
   }
 
   it('a raw non-ASCII character emits its UTF-8 bytes', () => {

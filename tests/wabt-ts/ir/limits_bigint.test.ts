@@ -157,7 +157,9 @@ describe('T13.3 — a maximum of ZERO is a maximum', () => {
 
   it('keeps a zero maximum through a round trip', () => {
     const text = wasm2wat(encode('(module (memory 0 0))')).text!;
-    assert(/\(memory[^)]*0 0\)/.test(text), text);
+    // `(memory (;0;) 0 0)`: an unnamed memory is printed by index since N1 P3,
+    // no longer as an invented `$M0`.
+    assert(/\(memory (?:\$\S+|\(;\d+;\)) 0 0\)/.test(text), text);
   });
 });
 

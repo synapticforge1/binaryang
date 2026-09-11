@@ -1536,6 +1536,35 @@ class BinaryWriter {
    * named entries only, omitted when there are none — so a module without
    * named labels or fields stays byte-identical to upstream.
    */
+  /** Whether anything in the module has a name — labels as collected by the code section. */
+  private namesAnything(): boolean {
+    const { m } = this;
+    const named = (x: { name: string }) => x.name !== '';
+    const importNamed = m.imports.some((imp) => {
+      switch (imp.kind) {
+        case ExternalKind.Func:
+          return named(imp.func) || (imp.func.localNames?.size ?? 0) > 0;
+        case ExternalKind.Table:
+          return named(imp.table);
+        case ExternalKind.Memory:
+          return named(imp.memory);
+        case ExternalKind.Global:
+          return named(imp.global);
+        case ExternalKind.Tag:
+          return named(imp.tag);
+      }
+    });
+    return m.name !== '' || importNamed || this.labelNames.size > 0 ||
+      m.funcs.some((f) => named(f) || (f.localNames?.size ?? 0) > 0) ||
+      m.types.some((t) =>
+        named(t) ||
+        (t.kind === 'struct' && t.fields.some(named)) ||
+        (t.kind === 'array' && named(t.field))
+      ) ||
+      [m.tables, m.memories, m.globals, m.tags, m.elemSegments, m.dataSegments]
+        .some((items: readonly { name: string }[]) => items.some(named));
+  }
+
   private writeNameSection(): void {
     const { m, s } = this;
     const funcs: Func[] = [];
@@ -1666,10 +1695,16 @@ class BinaryWriter {
     }
     this.writeTrailingCustomSections();
     // A `name` section already among the customs is one the reader kept as raw
-    // bytes (`readDebugNames: false`) — it was written verbatim above, and its
-    // names never reached the IR, so generating another would put a second,
-    // emptier name section beside it.
-    if (this.writeDebugNames && !this.m.customs.some((c) => c.name === CUSTOM_SECTION_NAME_NAME)) {
+    // bytes — it was written verbatim above, so generating another would put a
+    // second name section beside it. Otherwise one is generated when the
+    // module had one or names anything (`Module.hasNameSection`): a binary
+    // read WITHOUT names must not gain a section on the way back out, but one
+    // the caller has since named must not lose the names.
+    if (
+      this.writeDebugNames &&
+      !this.m.customs.some((c) => c.name === CUSTOM_SECTION_NAME_NAME) &&
+      (this.m.hasNameSection || this.namesAnything())
+    ) {
       this.writeNameSection();
     }
 
