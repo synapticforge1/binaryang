@@ -12,6 +12,7 @@ import { DecodedNames } from './names.ts';
 import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
 import {
+  type CustomSection,
   type ElementSegment,
   type ElementSegmentMode,
   type Local,
@@ -783,6 +784,12 @@ class WasmParser {
   private memoryCount = 0;
   /** Whether the binary had a DataCount section. See {@link WasmModule.hasDataCount}. */
   private hasDataCount = false;
+  /** Custom sections, in binary order. See {@link WasmModule.customSections} (C3). */
+  private readonly customSections: CustomSection[] = [];
+  /** Where in {@link customSections} the `name` section's place sits, if any. */
+  private nameSectionAt: number | null = null;
+  /** The last KNOWN section read — what a custom section's position is recorded against. */
+  private lastKnownSection: number | null = null;
   /** Imported functions' names, by function index. */
   private readonly importFuncNames: string[] = [];
   private readonly lowerBlockParams: boolean;
@@ -813,6 +820,7 @@ class WasmParser {
       tags: this.tagInfos.map((t) => ({ name: t.name, params: t.params })),
       hasExceptionHandling: this.tagInfos.length > 0 || mod.hasExceptionHandling,
       ...(this.hasDataCount ? { hasDataCount: true } : {}),
+      ...(this.customSections.length > 0 ? { customSections: this.customSections } : {}),
       // Only when the binary HAD a name section: one without must not gain one.
       ...(this.names.hasSection
         ? {
@@ -893,6 +901,8 @@ class WasmParser {
         case SECTION_CUSTOM:
           this.readCustomSection(start, end);
           break;
+        // Note: `lastKnownSection` is updated below, after the switch, for
+        // every id but this one.
         default:
           // Skipping an unknown section id dropped it from the re-encoded
           // module with no diagnostic — the same shape as the start section
@@ -905,6 +915,7 @@ class WasmParser {
           break;
       }
 
+      if (id !== SECTION_CUSTOM) this.lastKnownSection = id;
       if (this.r.position !== end) this.r.seek(end);
     }
   }
@@ -1331,6 +1342,18 @@ class WasmParser {
     }
   }
 
+  /**
+   * Collect the section, with the position it held (C3).
+   *
+   * 🔧 This read the name and threw the section away, so a decode → encode
+   * dropped `producers`, `target_features`, `dylink.0` and DWARF outright.
+   *
+   * The `name` section is recorded as a PLACE only (`data: null`): its content
+   * is regenerated from the names, which passes may have changed. A module with
+   * two of them keeps the last place, because the names come from the last
+   * section (`findNameSection`) and one section is written back, as upstream
+   * binaryen does.
+   */
   private readCustomSection(_start: number, end: number): void {
     if (this.r.position >= end) return;
     const nameLen = this.r.readU32();
@@ -1340,14 +1363,16 @@ class WasmParser {
     }
     const name = this.r.readUTF8(nameLen);
     if (name === 'name') {
-      this.readNameSection(end);
+      if (this.nameSectionAt !== null) this.customSections.splice(this.nameSectionAt, 1);
+      this.nameSectionAt = this.customSections.length;
+      this.customSections.push({ name, data: null, precedingSection: this.lastKnownSection });
     } else {
-      this.r.seek(end);
+      this.customSections.push({
+        name,
+        data: this.r.readBytes(end - this.r.position),
+        precedingSection: this.lastKnownSection,
+      });
     }
-  }
-
-  private readNameSection(end: number): void {
-    // Skip name section -- names are already assigned internally
     this.r.seek(end);
   }
 

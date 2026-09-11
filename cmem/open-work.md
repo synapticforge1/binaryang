@@ -302,17 +302,28 @@ drop) — see ir-convergence decision 7.
     write, because a raw `name` custom stops the writer generating one. Every one is now kept as
     bytes at its own position; the names come from the LAST, as upstream wabt, binaryen and
     wasm-tools all read them (binaryen-ts too — it still writes one section back, as binaryen does).
-  - ⬚ **C3** — binaryen-ts's decoder collects NO custom section, so a decode → encode drops
-    `producers`, `target_features`, `dylink.0` outright. Upstream `wasm-opt` keeps every one
-    (appending them after the known sections rather than restoring the position). wabt-ts already
-    keeps them, positions and all. Pinned by the C2 test so the fix shows up there.
+  - ✅ **C3 — binaryen-ts keeps them now too** (2026-09-11). `WasmModule.customSections` records
+    each section with the known section it followed; the encoder writes it back into that gap. The
+    `name` section is an entry with no data, marking the PLACE its regenerated content goes — which
+    is what makes clang's layout (`.debug_*`, `name`, `producers`) come back in order, and appending
+    cannot. Upstream `wasm-opt` appends and special-cases only `dylink.0` (C6). Passes keep them, as
+    upstream does through `-O2`.
   - 📝 **Release-note items (API-visible):** `wasm2wat` now prints every custom section with its
     position and `wat2wasm` honours it; a `(@custom "name" …)` in text is taken as THE name section
     and none is generated beside it (C5).
-- ⬚ **C3** — binaryen-ts keeps no custom section (see C2 above); the next bug in the queue. ⚠️ It
-  touches **S7**: the linear-form marker is planned as a custom section that "optimization strips
-  for free" — free only because binaryen-ts drops every custom section today. Fixing C3 removes
-  that, so S7 must strip its own marker deliberately.
+- ⚠️ **S7 changed under C3**: the linear-form marker is planned as a custom section that
+  "optimization strips for free" — free only because binaryen-ts dropped every custom section. It no
+  longer does (passes keep them, as upstream does), so S7 must strip its own marker deliberately.
+- ⬚ **N6 — the name section's LOCAL subsection**, found measuring C3 against real binaries, and the
+  next bug in the queue. Every clang / rustc / zig binary lists only the functions that HAVE local
+  names; both our writers list every function (N1 matched upstream `wat2wasm --debug-names`, which
+  does). So a read → write of a producer binary differs by 2+ bytes: **9 of 9 WASI binaries with a
+  name section miss byte-identity on this alone**, in BOTH halves, one cause. The fix is to record
+  which functions the subsection listed — `ExplicitNames` in binaryen-ts, the fidelity record in
+  wabt-ts — and write exactly those, so our own bytes (every function listed) still round trip.
+  - Measured: 376 real WASI binaries, 366 byte-identical through binaryen-ts. Of the 10 that are
+    not, 9 are this; the tenth is L1 (relocation-padded LEBs re-encode minimally — valid, and what
+    upstream wabt and binaryen do too).
 - ⬚ **A1** — wabt-ts accepts `(array (field (mut i8)))`, which the GC text grammar does not have
   (wasm-tools rejects it; binaryen accepts it). Probable DEFECT; confirm against the spec text
   first.
