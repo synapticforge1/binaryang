@@ -106,7 +106,6 @@ import { type AbstractHeap, heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
   GcOpcode,
-  naturalAlignForOpcode,
   Opcode,
   OPCODE_I8X16_SHUFFLE,
   PREFIX_GC,
@@ -323,19 +322,25 @@ function writeMemArg(
   memidx: Var,
   opcode: number,
 ): void {
-  // wabt-ts IR stores align in BYTES (e.g. 4 for i32) with 0 meaning
-  // "no explicit `align=N` keyword in WAT — use the opcode's natural
-  // alignment". The binary spec encodes align as a log2 exponent, so
-  // 4 bytes → exponent 2. Previously this function wrote the raw byte
-  // value, which produced binaries where:
-  //   - default-aligned ops emitted align=0 (1-byte alignment); accepted
-  //     by V8 but defeated binaryen's optimizer because the field signals
-  //     a tighter alignment constraint than the user intended.
-  //   - explicit-aligned ops (rare) emitted byte value 4 = 2^4 = 16-byte
-  //     alignment, which V8 rejects as larger than natural.
-  // Fix: resolve natural when align=0, then log2-encode.
-  const bytes = alignBytes === 0 ? naturalAlignForOpcode(opcode) : alignBytes;
-  const alignLog2 = Math.log2(bytes);
+  // wabt-ts IR stores align in BYTES (e.g. 4 for i32); the binary spec
+  // encodes it as a log2 exponent, so 4 bytes → exponent 2.
+  //
+  // The parser resolves an absent `align=` to the opcode's natural
+  // alignment, so every producer hands over a real power of two. (It used
+  // to store 0 for "absent" and this function resolved it; the WAT writer
+  // and the validator read the same 0 literally — `align=0`, and
+  // "alignment (0) must be a power of 2" on a valid module.) Anything else
+  // is a producer bug: log2 of it is not an exponent, and the LEB would
+  // silently encode the wrong alignment.
+  // (Math.log2 is exact on powers of two; a bitwise test would wrap past
+  // 2^31.)
+  const alignLog2 = Math.log2(alignBytes);
+  if (!Number.isInteger(alignLog2) || alignLog2 < 0) {
+    throw new Error(
+      `memarg alignment must be a power-of-two byte count, got ${alignBytes} ` +
+        `(opcode 0x${opcode.toString(16)})`,
+    );
+  }
   const idx = requireIndex(memidx, 'memarg memory index');
   if (idx !== 0) {
     s.writeU32Leb(alignLog2 | 0x40); // bit 6 set = explicit memidx follows

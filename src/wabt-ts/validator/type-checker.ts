@@ -571,6 +571,24 @@ function getOpcodeTypeInfo(opcode: number): OpcodeTypeInfo {
     case S(0x05): // v128.load32x2_s
     case S(0x06): // v128.load32x2_u
       return oi(_V128, _I32, _V, _V, 8);
+    // The splats and zero-extending loads have their own handlers
+    // (`onLoadSplat` / `onLoadZero`) for the binary reader's node kinds, but
+    // the TEXT parser builds a plain `LoadExpr` for them, which reaches
+    // `onLoad` and this table. Without these entries they fell to the
+    // lane-wise default and every one was rejected as "expected [v128] but
+    // got [i32]" — invisible because the spec harness validates the BYTES,
+    // and it was hidden behind the parser's old `align = 0` sentinel, which
+    // failed validation first.
+    case S(0x07): // v128.load8_splat
+      return oi(_V128, _I32, _V, _V, 1);
+    case S(0x08): // v128.load16_splat
+      return oi(_V128, _I32, _V, _V, 2);
+    case S(0x09): // v128.load32_splat
+    case S(0x5c): // v128.load32_zero
+      return oi(_V128, _I32, _V, _V, 4);
+    case S(0x0a): // v128.load64_splat
+    case S(0x5d): // v128.load64_zero
+      return oi(_V128, _I32, _V, _V, 8);
     case S(0x0b): // v128.store
       return oi(_V, _I32, _V128, _V, 16);
   }

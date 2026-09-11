@@ -29,12 +29,14 @@ line-by-line version is in the legacy `CLAUDE.md`.
 - **No `const w = this;` aliasing** in `WatWriter` delegate methods (the `no-this-alias` lint blocks
   it). The arrow fns in `makeDelegate()` already capture `this`; just write `this.foo()`.
 - **`naturalAlignForOpcode(op)` in `src/core/opcode.ts` is the canonical per-opcode
-  natural-alignment lookup** (~80 entries: core loads/stores + SIMD memory + atomics). The binary
-  writer's `writeMemArg` uses it to fill the right LEB exponent when the IR carries `align = 0` (the
-  parser's sentinel for "no explicit `align=N`"). The bridge's `alignBytesToExponent` calls it too.
-  Don't duplicate the table — extend the central one. Writing `align = 0` as the exponent silently
-  broke binaryen's optimizer (it reads the field as a hard constraint and bailed on rewrites → OOB
-  at runtime); regression in `tests/tools/wat2wasm.test.ts`.
+  natural-alignment lookup** (~80 entries: core loads/stores + SIMD memory + atomics). The parser
+  stores it when there is no explicit `align=N`, so the IR's `align` is always a real power of two;
+  the WAT writer compares against it to decide whether to print `align=`. (Until 2026-09-11 the
+  parser stored `0` as a "no `align=`" sentinel that only the binary writer and the bridge resolved;
+  the WAT writer printed `align=0` and the validator rejected valid modules. Both resolvers now
+  throw on a non-power-of-two instead.) Don't duplicate the table — extend the central one. Writing
+  `align = 0` as the exponent silently broke binaryen's optimizer (it reads the field as a hard
+  constraint and bailed on rewrites → OOB at runtime); regression in `tests/tools/wat2wasm.test.ts`.
 
 ## IR-shape correctness invariants
 
@@ -766,10 +768,10 @@ Full detail and the incident behind each: [tasks.md](tasks.md).
 - **`align=N` must be a POWER OF TWO, checked at PARSE time (T12.3).** The text grammar says so,
   which makes anything else malformed. Unchecked, the raw value flowed into a flooring `log2`, so
   `align=3` was emitted as `align=2` — and the optimizer treats the alignment as a hard constraint.
-  `align=0` is rejected for the same reason plus a second one: 0 is `parseAlignOpt`'s "no `align=`
-  given" sentinel, so an explicit zero was indistinguishable from writing nothing. **The SIZE rule
-  stays in the validator** — `align` not exceeding natural alignment is a validity question, and
-  `align=8` on an `i32.load` must parse and then fail validation.
+  `align=0` is rejected for the same reason (0 is not a power of two; it was also, until the
+  sentinel was removed, indistinguishable from writing nothing). **The SIZE rule stays in the
+  validator** — `align` not exceeding natural alignment is a validity question, and `align=8` on an
+  `i32.load` must parse and then fail validation.
 - **A SIMD lane immediate must fit `u8`; being below the lane COUNT is the validator's job
   (T12.4).** The immediate is one byte on the wire, so 256+ is MALFORMED, while 16..255 fits the
   byte and is INVALID — the spec gives them different messages and they must fail in different
