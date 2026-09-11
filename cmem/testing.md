@@ -121,6 +121,14 @@ which cost a real bug:
   four releases with four metrics green and none of them running the validator.
 - **A metric measures the population its classifier hands it.** One denominator moved from 2737 to
   2683 purely because a case stopped being misclassified.
+- **The byte BASELINE pins our own output, so it is blind to every divergence older than itself.**
+  Upstream wat2wasm is "the byte-level oracle", and wabt-ts's byte parity with it on its own corpus
+  had never been measured. Measured 2026-09-10: **146 of 421 identical** — 242 differ only by a
+  DataCount section upstream omits, ~33 by implicit-type order. All valid, so every validity metric
+  was green. A named oracle is not an oracle until something compares against it.
+
+⚠️ **Compare with default features, not `--enable-all`** — it changes what upstream EMITS (compact
+imports), and the first run of that comparison read 51/421 because of it.
 
 ### The BYTE gates are blind to a pass that stops firing
 

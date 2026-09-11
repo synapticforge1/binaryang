@@ -741,6 +741,30 @@ export interface UnreachableExpr extends ExprBase {
   type: Unreachable;
 }
 
+/**
+ * A block-type carrier's PARAMETERS: the values it takes from the enclosing
+ * stack on entry, and their declared types (S6 decision 7b(i), divergence B1).
+ *
+ * `values` are evaluated BEFORE the construct — before an `if`'s condition —
+ * in stack order, and are children of the construct like any operand. Inside,
+ * the body finds them already on its stack: the decoder seeds each region with
+ * one `Pop` per type, exactly as a `catch` is seeded with its tag's values, and
+ * a `Pop` encodes to nothing. A branch to a parametrised LOOP carries the
+ * loop's parameters in its `values`.
+ *
+ * 🛑 **Fidelity phase only.** Upstream binaryen has no block parameters — its
+ * reader lowers them to locals — and neither do the passes ported from it, so
+ * `PassRunner` lowers every parameter to locals before the first pass runs
+ * (`lowerBlockParams`). Nothing past that point sees this field. Absent means
+ * none, which is what every factory and pass produces.
+ */
+export interface BlockParams {
+  /** The declared parameter types, in order. */
+  types: ValueType[];
+  /** The entry values, one per type, in stack order. */
+  values: Expression[];
+}
+
 /** {@link BlockExpr} — see {@link makeBlock} for the factory. */
 export interface BlockExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
@@ -749,6 +773,8 @@ export interface BlockExpr extends ExprBase {
   name: string | null;
   /** Ordered list of child expressions. */
   children: Expression[];
+  /** Entry parameters, when the block declares any — see {@link BlockParams}. */
+  params?: BlockParams;
 }
 
 /**
@@ -802,6 +828,11 @@ export interface IfExpr extends ExprBase {
    * wrong (innermost) target. Optional — most `if`s are not branch targets.
    */
   name?: string | undefined;
+  /**
+   * Entry parameters — see {@link BlockParams}. Evaluated before the
+   * condition; BOTH arms start with them on their stack.
+   */
+  params?: BlockParams;
 }
 
 /** {@link LoopExpr} — see {@link makeLoop} for the factory. */
@@ -812,6 +843,11 @@ export interface LoopExpr extends ExprBase {
   name: string;
   /** The loop's region. */
   body: RegionExpr;
+  /**
+   * Entry parameters — see {@link BlockParams}. A back-edge `br` re-supplies
+   * them in its own `values`.
+   */
+  params?: BlockParams;
 }
 
 /**
@@ -971,6 +1007,20 @@ export interface SelectExpr extends ExprBase {
   ifFalse: Expression;
   /** Condition expression (typed as i32). */
   condition: Expression;
+  /**
+   * The DECLARED result type of a typed `select` (`0x1c`, `(select (result t))`),
+   * or `null` for an untyped one (S6 decision 7a).
+   *
+   * Semantics, not decoration: over references the declared type is what
+   * validation checks, and it may be WIDER than either arm — a `ref.null` arm
+   * and a `(ref $a)` arm declared `(ref null $a)`. It rode in `type` through a
+   * spread override, where anything rebuilding the node through the factory
+   * lost it. Its presence also records that the source wrote the typed form,
+   * so a numeric typed select re-encodes as written (divergence S1). Upstream
+   * binaryen keeps neither: `wasm-opt` rewrites a numeric `0x1c` as `0x1b`.
+   * Validation requires exactly one type, so one is all this holds.
+   */
+  resultType: ValueType | null;
 }
 
 /** {@link DropExpr} — see {@link makeDrop} for the factory. */
@@ -1685,9 +1735,10 @@ export interface TryTableExpr extends ExprBase {
   body: RegionExpr;
   /** catches — see the matching factory for semantics. */
   catches: CatchClause[];
+  /** Entry parameters — see {@link BlockParams}. Only the body is seeded. */
+  params?: BlockParams;
 }
 
-/** `try` expression (old/legacy EH). */
 /**
  * One `catch` clause of an old-EH `try`.
  *
@@ -1714,6 +1765,7 @@ export interface TryCatch {
   body: RegionExpr;
 }
 
+/** `try` expression (old/legacy EH). */
 export interface TryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Try;
@@ -1725,6 +1777,11 @@ export interface TryExpr extends ExprBase {
   catches: TryCatch[];
   /** Set for the `delegate` variant; depth to delegate to. */
   delegateTarget: string | null;
+  /**
+   * Entry parameters — see {@link BlockParams}. Only the try BODY is seeded: a
+   * catch starts with its tag's values, not the try's.
+   */
+  params?: BlockParams;
 }
 
 /** `throw $tag operands*` expression. Always has type `unreachable`. */
@@ -2178,14 +2235,28 @@ export function makeIf(
   };
 }
 
-/** Creates a `block` expression. */
+/**
+ * Creates a `block` expression — typed `type` when given, else inferred from
+ * its last child.
+ *
+ * A block's type is DECLARED in wasm, and inference from the last child is
+ * wrong whenever the value leaves through a branch: asyncify's unwind block is
+ * `i32` because its `br`s carry the call index, while its last child is a
+ * barrier. Without the parameter every such site built the node as a literal
+ * beside this factory, and a literal is a second copy of its rules.
+ */
 export function makeBlock(
   children: Expression[],
   name: string | null = null,
+  type?: Type,
 ): BlockExpr {
   const last = children[children.length - 1];
-  const type: Type = last ? typeOf(last) : None;
-  return { kind: ExpressionKind.Block, type, name, children };
+  return {
+    kind: ExpressionKind.Block,
+    type: type ?? (last ? typeOf(last) : None),
+    name,
+    children,
+  };
 }
 
 /**
@@ -2235,6 +2306,24 @@ export function blockOf(region: RegionExpr, name: string | null = null): BlockEx
 export function asStatement(e: Expression): Expression {
   if (e.kind !== ExpressionKind.Region) return e;
   return e.children.length === 1 ? e.children[0]! : blockOf(e);
+}
+
+/**
+ * The {@link BlockParams} of a block-type carrier — `block`, `loop`, `if`,
+ * `try`, `try_table` — or `undefined` for any other expression, or a carrier
+ * that declares none.
+ */
+export function blockParamsOf(e: Expression): BlockParams | undefined {
+  switch (e.kind) {
+    case ExpressionKind.Block:
+    case ExpressionKind.Loop:
+    case ExpressionKind.If:
+    case ExpressionKind.Try:
+    case ExpressionKind.TryTable:
+      return e.params;
+    default:
+      return undefined;
+  }
 }
 
 /** What a region slot accepts from code that builds trees: a region, a list, or one expression. */
@@ -2342,14 +2431,17 @@ export function makeSelect(
   ifTrue: Expression,
   ifFalse: Expression,
   condition: Expression,
+  resultType: ValueType | null = null,
 ): SelectExpr {
-  // A `select` always has both arms, so its result type is the type of the
-  // reachable arm — `unreachable` only when BOTH arms are unreachable. Taking
-  // `ifTrue.type` blindly mistyped a select whose `ifTrue` is `unreachable`
-  // (e.g. it ends in a trap/branch) even though `ifFalse` yields a real value,
-  // the same hazard `makeIf` was fixed for.
-  const type: Type = typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue);
-  return { kind: ExpressionKind.Select, type, ifTrue, ifFalse, condition };
+  // The declared type wins when there is one. Otherwise a `select` always has
+  // both arms, so its result type is the type of the reachable arm —
+  // `unreachable` only when BOTH arms are unreachable. Taking `ifTrue.type`
+  // blindly mistyped a select whose `ifTrue` is `unreachable` (e.g. it ends in
+  // a trap/branch) even though `ifFalse` yields a real value, the same hazard
+  // `makeIf` was fixed for.
+  const type: Type = resultType ??
+    (typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue));
+  return { kind: ExpressionKind.Select, type, ifTrue, ifFalse, condition, resultType };
 }
 
 /** Creates a `call_indirect` expression. */

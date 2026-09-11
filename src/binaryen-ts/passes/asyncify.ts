@@ -1311,14 +1311,14 @@ export function localsInstrumentFunction(
   // unwind block with the call index. Barrier after the body must be reached
   // only in the (impossible) fallthrough case.
   const barrier = func.results.length === 0 ? makeReturn() : makeUnreachable();
-  const unwindBlock: Expression = {
-    kind: ExpressionKind.Block,
-    type: ValType.I32, // breaks carry the i32 call index
-    name: ASYNCIFY_UNWIND_LABEL,
-    // The old body is a STATEMENT here, which a region cannot be; `children`
-    // is `Expression[]`, so the type would not have said so.
-    children: [asStatement(loweredBody), barrier],
-  };
+  // Typed i32 because its breaks carry the call index; its last child is the
+  // barrier. The old body is a STATEMENT here, which a region cannot be;
+  // `children` is `Expression[]`, so the type would not have said so.
+  const unwindBlock = makeBlock(
+    [asStatement(loweredBody), barrier],
+    ASYNCIFY_UNWIND_LABEL,
+    ValType.I32,
+  );
 
   const newList: Expression[] = [
     makeIf(makeStateCheck(State.Rewinding), makeLocalLoading(func, saved)),

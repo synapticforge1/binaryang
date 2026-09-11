@@ -20,6 +20,7 @@ import {
 } from '../ir/module.ts';
 import {
   BinaryOp,
+  type BlockParams,
   type CatchClause,
   type Expression,
   makeBinary,
@@ -182,18 +183,23 @@ interface ControlFrame {
   catchBodies?: Expression[][];
   delegateTarget?: string | null;
   /**
-   * For an `if` with parameters: the local slots holding them, and their types.
+   * For an `if` with parameters: builds the ELSE arm's starting stack — fresh
+   * `Pop`s, or fresh reads of the spill slots when lowering.
    *
-   * Deliberately NOT the `local.get` nodes themselves. Both arms need the same
-   * reads, and this IR requires every expression node to have exactly one
-   * parent — handing the same node objects to the then-arm and the else-arm
-   * aliases one object into two tree positions. Store the slots; build fresh
-   * reads per arm.
+   * A function that builds fresh nodes, deliberately not the then-arm's nodes.
+   * Both arms need the same seed, and this IR requires every expression node to
+   * have exactly one parent — handing the same objects to both arms aliases one
+   * object into two tree positions.
    */
-  paramSeed?: { slots: number[]; types: ValueType[] };
-  /** For a LOOP with parameters: the local slots its parameters were spilled into. */
+  seedElse?: () => Expression[];
+  /** The construct's parameters, kept on the node (not lowering). */
+  params?: BlockParams;
+  /** For a LOOP with parameters, when lowering: the local slots they were spilled into. */
   paramLocals?: number[];
-  /** For a LOOP with parameters: the declared type of each parameter. */
+  /**
+   * For a LOOP with parameters: the declared type of each — what a branch back
+   * to it carries (kept), or what its temps hold (lowering).
+   */
   paramTypes?: ValueType[];
   // try_table state
   tryCatches?: CatchClause[];
@@ -217,6 +223,25 @@ interface DecoderCtx {
   globalInfos: GlobalInfo[];
   tableNames: string[];
   tagInfos: TagInfo[];
+  /** See {@link ParseWasmOptions.lowerBlockParams}. */
+  lowerBlockParams: boolean;
+}
+
+/** Options for {@link parseWasm}. */
+export interface ParseWasmOptions {
+  /**
+   * Lower block, loop, if, try and try_table PARAMETERS to locals while
+   * decoding, instead of keeping them on the node.
+   *
+   * Off by default: a parametrised construct keeps its `params` and its body
+   * starts with one `Pop` per parameter, so it re-encodes as written (S6
+   * decision 7b(i)). On, the decoder spills each entry value to a fresh local
+   * and rewrites branches to parametrised loops — the IR upstream binaryen's
+   * reader produces and every pass here was written against. `PassRunner`
+   * asks for it before the first pass runs; it is public for anyone who wants
+   * that IR directly.
+   */
+  lowerBlockParams?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -672,7 +697,9 @@ function _branchValueArity(frames: ControlFrame[], depth: number): number {
   // Branching to a loop jumps to its ENTRY, so it consumes the loop's
   // PARAMETERS (0 for an MVP loop, N for a parametrised one) — never its
   // results. Every other frame consumes its result arity.
-  if (target.kind === 'loop') return target.paramLocals?.length ?? 0;
+  // (Kept parameters: the branch carries them. Lowered: `rewriteLoopBranch`
+  // handles the branch before this is asked.)
+  if (target.kind === 'loop') return target.paramTypes?.length ?? 0;
   return target.resultTypes.length;
 }
 
@@ -742,9 +769,11 @@ class WasmParser {
   private tableNames: string[] = [];
   private tagInfos: TagInfo[] = [];
   private importedTagCount = 0;
+  private readonly lowerBlockParams: boolean;
 
-  constructor(bytes: Uint8Array) {
+  constructor(bytes: Uint8Array, options: ParseWasmOptions = {}) {
     this.r = new BinaryReader(bytes);
+    this.lowerBlockParams = options.lowerBlockParams ?? false;
   }
 
   parse(): WasmModule {
@@ -1192,6 +1221,7 @@ class WasmParser {
       globalInfos: this.globalInfos,
       tableNames: this.tableNames,
       tagInfos: this.tagInfos,
+      lowerBlockParams: this.lowerBlockParams,
     };
     for (let i = 0; i < count; i++) {
       const bodySize = this.r.readU32();
@@ -1467,6 +1497,39 @@ class WasmParser {
     };
 
     /**
+     * A construct's entry, for parameter types `types`: what its region starts
+     * with, the parameters to keep on the node, and — when lowering — the spill
+     * slots.
+     *
+     * By default (S6 decision 7b(i)) the entry values are popped into the
+     * node's `params` and the region is seeded with one `Pop` per type, exactly
+     * as a `catch` is seeded with its tag's values: nothing moves, and the
+     * construct re-encodes as written. With `lowerBlockParams` the values are
+     * spilled to locals and the region reads them back — `spillBlockParams`,
+     * the IR every pass expects.
+     */
+    const enterParams = (
+      types: ValueType[],
+    ): { seed: Expression[]; params?: BlockParams; slots: number[] } => {
+      if (types.length === 0) return { seed: [], slots: [] };
+      if (ctx.lowerBlockParams) {
+        const { reads, slots } = spillBlockParams(types);
+        return { seed: reads, slots };
+      }
+      return {
+        seed: types.map((t) => makePop(t)),
+        params: { types: [...types], values: popN(types.length) },
+        slots: [],
+      };
+    };
+
+    /** `node`, given the frame's kept parameters when it has any. */
+    const withParams = <T extends { params?: BlockParams }>(node: T, frame: ControlFrame): T => {
+      if (frame.params !== undefined) node.params = frame.params;
+      return node;
+    };
+
+    /**
      * Rewrites a branch whose target is a parametrised LOOP.
      *
      * The loop's parameters have become locals, so a back-edge must WRITE those
@@ -1601,6 +1664,16 @@ class WasmParser {
       };
 
       // One wrapper block per case; `caseLabels[j]` is exited to reach case j.
+      //
+      // 🔧 Each wrapper is DECLARED `none`. `makeBlock` infers from the last
+      // child — here the `br_table`, or a case's closing `br` — which typed
+      // every wrapper `unreachable`. But each is a branch TARGET, so its end is
+      // reachable (upstream `Block::finalize` checks for branches; inference
+      // cannot). DCE trusted the type and deleted every case after the first
+      // wrapper: any -O level turned the valid module invalid ("expected 1
+      // elements on the stack for fallthru"). Found when S6 decision 7b(i)'s
+      // tests ran each parametrised fixture through the optimizer — no test
+      // had ever optimized a trampoline.
       const caseLabels = labels.map(() => freshLabel());
       const last = caseLabels.length - 1;
 
@@ -1611,9 +1684,14 @@ class WasmParser {
           makeLocalGet(varIndex(idxSlot), ValType.I32),
         )],
         caseLabels[last],
+        None,
       );
       for (let j = last - 1; j >= 0; j--) {
-        node = makeBlock([node, ...caseCode(targetFrames[j + 1], labels[j + 1]!)], caseLabels[j]!);
+        node = makeBlock(
+          [node, ...caseCode(targetFrames[j + 1], labels[j + 1]!)],
+          caseLabels[j]!,
+          None,
+        );
       }
       push(node);
       for (const e of caseCode(targetFrames[0], labels[0]!)) push(e);
@@ -1640,28 +1718,30 @@ class WasmParser {
 
         case 0x02: { // block
           const sig = readBlockType(r, ctx.funcTypes);
-          const { reads: seed } = spillBlockParams(sig.params);
+          const entry = enterParams(sig.params);
           frames.push({
             kind: 'block',
             label: freshLabel(),
             resultTypes: sig.results,
-            exprs: seed,
+            exprs: entry.seed,
+            ...(entry.params ? { params: entry.params } : {}),
           });
           break;
         }
         case 0x03: { // loop
           const sig = readBlockType(r, ctx.funcTypes);
-          // Entry values go into locals exactly as for `block`/`if`; what makes
-          // a LOOP different is that every back-edge branch re-supplies them, so
-          // the temps are recorded on the frame for `rewriteLoopBranch` to find.
-          const { reads, slots } = spillBlockParams(sig.params);
+          // What makes a LOOP different is that every back-edge branch
+          // re-supplies its parameters: kept, a branch carries them as values;
+          // lowered, the temps are recorded for `rewriteLoopBranch` to find.
+          const entry = enterParams(sig.params);
           frames.push({
             kind: 'loop',
             label: freshLabel(),
             resultTypes: sig.results,
-            exprs: [...reads],
-            paramLocals: slots,
+            exprs: entry.seed,
+            paramLocals: entry.slots,
             paramTypes: [...sig.params],
+            ...(entry.params ? { params: entry.params } : {}),
           });
           break;
         }
@@ -1669,15 +1749,22 @@ class WasmParser {
           const sig = readBlockType(r, ctx.funcTypes);
           // Pop the CONDITION first: it sits above the parameters on the stack.
           const cond = pop();
-          const { reads: seed, slots: seedSlots } = spillBlockParams(sig.params);
+          const entry = enterParams(sig.params);
+          const types = [...sig.params];
+          const slots = entry.slots;
           frames.push({
             kind: 'if',
             label: freshLabel(),
             resultTypes: sig.results,
-            exprs: seed,
+            exprs: entry.seed,
             ifCondition: cond,
             thenExprs: [],
-            paramSeed: { slots: seedSlots, types: [...sig.params] },
+            // Both arms start with the same parameters on their stack — the
+            // values were evaluated ONCE, before the `if`.
+            seedElse: entry.params
+              ? () => types.map((t) => makePop(t))
+              : () => slots.map((slot, i) => makeLocalGet(varIndex(slot), types[i]!)),
+            ...(entry.params ? { params: entry.params } : {}),
           });
           break;
         }
@@ -1685,15 +1772,8 @@ class WasmParser {
           const frame = topFrame(frames, r);
           if (frame.kind === 'if') {
             frame.thenExprs = frame.exprs;
-            // Both arms start with the same parameters on their stack. The values
-            // were evaluated ONCE into locals before the `if`, so each arm reads
-            // them back — re-seeding here, not re-evaluating.
-            // FRESH reads, not the then-arm's node objects: sharing them would
-            // put one expression in two tree positions.
-            const ps = frame.paramSeed;
-            frame.exprs = ps
-              ? ps.slots.map((slot, i) => makeLocalGet(varIndex(slot), ps.types[i]!))
-              : [];
+            // Re-seed, do not re-evaluate: fresh nodes, never the then-arm's.
+            frame.exprs = frame.seedElse?.() ?? [];
             frame.kind = 'else' as ControlFrameKind;
           } else {
             // `else` outside an `if` used to fall through this `if` and vanish:
@@ -1711,16 +1791,17 @@ class WasmParser {
           // TAG's parameters, not the try's. So the plain `block` spill applies
           // and only the try BODY is seeded.
           const trySig = readBlockType(r, ctx.funcTypes);
-          const { reads: trySeed } = spillBlockParams(trySig.params);
+          const entry = enterParams(trySig.params);
           const rts = trySig.results;
           frames.push({
             kind: 'try',
             label: freshLabel(),
             resultTypes: rts,
-            exprs: [...trySeed],
+            exprs: entry.seed,
             catchTags: [],
             catchBodies: [],
             delegateTarget: null,
+            ...(entry.params ? { params: entry.params } : {}),
           });
           break;
         }
@@ -1814,10 +1895,10 @@ class WasmParser {
             // does with `withDeclaredType`, and the same fact `cmem/ir-convergence.md`
             // records as the most load-bearing member of the as-written set.
             const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label);
-            push(rts.length > 0 ? { ...ifExpr, type: resultType } : ifExpr);
+            push(withParams(rts.length > 0 ? { ...ifExpr, type: resultType } : ifExpr, frame));
           } else if (frame.kind === 'loop') {
             const body = sealFrame(frame);
-            push(makeLoop(frame.label, body, resultType));
+            push(withParams(makeLoop(frame.label, body, resultType), frame));
           } else if (frame.kind === 'try' || frame.kind === 'catch') {
             const tryBodyExprs = frame.kind === 'try' ? frame.exprs : (frame.tryBody ?? []);
             const tryBody = makeRegion(tryBodyExprs);
@@ -1831,10 +1912,15 @@ class WasmParser {
               isRef: false,
               body: makeRegion(body),
             }));
-            push(makeTry(frame.label, tryBody, catches, null, resultType));
+            push(withParams(makeTry(frame.label, tryBody, catches, null, resultType), frame));
           } else if (frame.kind === 'try_table') {
             const body = sealFrame(frame);
-            push(makeTryTable(frame.label, body, frame.tryCatches ?? [], resultType));
+            push(
+              withParams(
+                makeTryTable(frame.label, body, frame.tryCatches ?? [], resultType),
+                frame,
+              ),
+            );
           } else {
             // block (only remaining kind here — func/if/else/loop/try*
             // were handled above).
@@ -1846,8 +1932,7 @@ class WasmParser {
             if (frame.exprs.length === 0 && !frame.label) {
               push(makeNop());
             } else {
-              const blk = makeBlock(frame.exprs, frame.label);
-              blk.type = resultType;
+              const blk = withParams(makeBlock(frame.exprs, frame.label, resultType), frame);
               // A multi-result block leaves N values on the enclosing operand
               // stack, but the IR models it as ONE node. Seed N-1 typed `Pop`s
               // beneath it so each later consumer has its own value-typed
@@ -2033,7 +2118,10 @@ class WasmParser {
           const rts = frame.resultTypes;
           const resultType: Type = resultTypeOf(rts);
           const tryBody = makeRegion(frame.exprs);
-          push(makeTry(frame.label, tryBody, [], resolveLabel(frames, depth), resultType));
+          push(withParams(
+            makeTry(frame.label, tryBody, [], resolveLabel(frames, depth), resultType),
+            frame,
+          ));
           break;
         }
         case 0x19: { // catch_all (old EH)
@@ -2055,7 +2143,7 @@ class WasmParser {
         case 0x1f: { // try_table blocktype (numHandlers handlers) (new EH)
           // Same as `try`: parameters are entry-only, so seed just the body.
           const ttSig = readBlockType(r, ctx.funcTypes);
-          const { reads: ttSeed } = spillBlockParams(ttSig.params);
+          const entry = enterParams(ttSig.params);
           const rts = ttSig.results;
           const numHandlers = r.readU32();
           // Read catch clause data (tag+depth pairs) before pushing frame
@@ -2088,8 +2176,9 @@ class WasmParser {
             kind: 'try_table',
             label: freshLabel(),
             resultTypes: rts,
-            exprs: [...ttSeed],
+            exprs: entry.seed,
             tryCatches: catches,
+            ...(entry.params ? { params: entry.params } : {}),
           });
           break;
         }
@@ -2108,14 +2197,16 @@ class WasmParser {
           // Was not decoded at all ("unknown opcode 0x1c"): a standard
           // instruction since reference types, and the ONLY legal select over
           // references. The declared type wins over the arms' inferred one — a
-          // `ref.null` arm infers a narrower type than the select declares.
+          // `ref.null` arm infers a narrower type than the select declares —
+          // and is kept ON THE NODE (S6 decision 7a), so it survives anything
+          // that rebuilds the select and re-encodes as written.
           const count = r.readU32();
           if (count !== 1) r.error(`typed select must declare exactly one type, got ${count}`);
           const declared = readValueType(r);
           const cond = pop();
           const b = pop();
           const a = pop();
-          push({ ...makeSelect(a, b, cond), type: declared });
+          push(makeSelect(a, b, cond, declared));
           break;
         }
 
@@ -4001,8 +4092,12 @@ function decodeSIMDPrefix(
  * @param _filename - Optional filename for error messages (not yet used).
  * @throws {@link WasmBinaryError} on malformed or truncated input.
  */
-export function parseWasm(bytes: Uint8Array, _filename?: string): WasmModule {
-  return new WasmParser(bytes).parse();
+export function parseWasm(
+  bytes: Uint8Array,
+  _filename?: string,
+  options: ParseWasmOptions = {},
+): WasmModule {
+  return new WasmParser(bytes, options).parse();
 }
 
 export { WasmBinaryError };

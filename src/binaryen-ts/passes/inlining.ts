@@ -44,6 +44,7 @@ import {
   makeF64Const,
   makeI32Const,
   makeI64Const,
+  makeIf,
   makeLocalGet,
   makeLocalSet,
   makeRefNull,
@@ -52,7 +53,6 @@ import {
   makeUnreachable,
   makeV128Const,
   type RefIsNullExpr,
-  typeOf,
   type UnaryExpr,
   UnaryOp,
 } from '../ir/expressions.ts';
@@ -420,13 +420,12 @@ class FunctionSplitter {
 
     // Inlineable shell: just the if, condition flipped, body replaced with
     // a call to the outlined function.
-    const shellIf: IfExpr = {
-      kind: ExpressionKind.If,
-      type: typeOf(originalIf),
-      condition: makeUnary(UnaryOp.EqzI32, deepCopy(originalIf.condition)),
-      ifTrue: asRegion(makeCall(varName(outlined.name), getForwardedArgs(fn), None)),
-      ifFalse: null,
-    };
+    // No `else`, so `makeIf` types it `none` — which a one-armed `if` is; the
+    // literal this replaced copied the original's type instead.
+    const shellIf = makeIf(
+      makeUnary(UnaryOp.EqzI32, deepCopy(originalIf.condition)),
+      makeCall(varName(outlined.name), getForwardedArgs(fn), None),
+    );
 
     return {
       name: `byn-split-inlineable-A$${fn.name}`,
@@ -761,12 +760,7 @@ function inlineCallSite(
 
   // 5. If the original call was unreachable (an operand was unreachable),
   //    propagate unreachability: wrap in sequence ending with unreachable.
-  const block: BlockExpr = {
-    kind: ExpressionKind.Block,
-    type: retType,
-    name: label,
-    children,
-  };
+  const block = makeBlock(children, label, retType);
 
   if (call.type === Unreachable && !call.isReturn) {
     return makeBlock(

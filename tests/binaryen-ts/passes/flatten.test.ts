@@ -367,3 +367,18 @@ Deno.test('Flatten: an unresolvable call target fails loudly instead of typing i
 
   assertThrows(() => new FlattenPass().run(mod, FLATTEN_OPTS), Error, 'unresolved call target');
 });
+
+Deno.test('Flatten: an `if` keeps its label, so a `br` to the `if` still resolves', () => {
+  // Flatten rebuilt the `if` as a literal without `name`. The `br $l` inside
+  // then named a label no enclosing construct carried, and the encoder threw
+  // "unresolved branch label" on a valid module. The binary decoder labels
+  // every `if`, so any decoded `br` to an `if` hit this.
+  assertEquivalent(
+    `(module (func (export "f") (param i32) (result i32)
+       (if $l (local.get 0)
+         (then (local.set 0 (i32.const 5)) (br $l) (local.set 0 (i32.const 7))))
+       (local.get 0)))`,
+    'f',
+    [[0], [1]],
+  );
+});

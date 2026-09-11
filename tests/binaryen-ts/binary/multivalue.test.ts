@@ -219,13 +219,37 @@ Deno.test('multi-result block: round-trip is a fixed point', () => {
   assertEquals(kinds(third.functions[0].body), kinds(second.functions[0].body));
 });
 
+/**
+ * A parametrised construct on all THREE paths it can take (S6 decision 7b(i)):
+ *
+ *  - KEPT — the default decode: the parameters stay on the node, so the module
+ *    re-encodes BYTE-IDENTICALLY;
+ *  - LOWERED at decode (`lowerBlockParams`) — the long-standing spill / loop
+ *    rewrite / trampoline, now asked for explicitly;
+ *  - lowered where OPTIMIZATION starts — `PassRunner` re-decodes that way
+ *    before the first pass, then -Oz runs.
+ *
+ * 🔧 Before 7b(i) these tests ran the default decode, which WAS the lowering.
+ * Once the default kept the parameters, every one still passed while none
+ * reached the lowering at all — so the lowered path is named here, not implied.
+ */
+async function allPaths(bytes: Uint8Array, expected: unknown): Promise<void> {
+  assertEquals(await run(bytes), expected, 'the fixture itself');
+  assertEquals(encodeWasm(parseWasm(bytes)), bytes, 'kept: not byte-identical');
+  const lowered = parseWasm(bytes, undefined, { lowerBlockParams: true });
+  assertEquals(await run(encodeWasm(lowered)), expected, 'lowered at decode');
+  const optimized = parseWasm(bytes);
+  new PassRunner(optimized, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses()
+    .run();
+  assertEquals(await run(encodeWasm(optimized)), expected, 'lowered by PassRunner, then -Oz');
+}
+
 Deno.test('block WITH INPUTS: entry values reach the body', async () => {
   // `i32.const 7; block (param i32) (result i32) end` — the parameter falls
-  // straight through, so the function returns 7. The parameter is spilled to a
-  // local before the block and read back inside it; getting that wrong loses
-  // the value entirely.
-  assertEquals(await run(BLOCK_WITH_INPUT), 7);
-  assertEquals(await run(encodeWasm(parseWasm(BLOCK_WITH_INPUT))), 7);
+  // straight through, so the function returns 7. Lowered, the parameter is
+  // spilled to a local before the block and read back inside it; getting that
+  // wrong loses the value entirely.
+  await allPaths(BLOCK_WITH_INPUT, 7);
 });
 
 /**
@@ -247,8 +271,7 @@ const IF_WITH_INPUT = Uint8Array.from([
 ]);
 
 Deno.test('if WITH INPUTS: both arms see the parameter, evaluated once', async () => {
-  assertEquals(await run(IF_WITH_INPUT), 7);
-  assertEquals(await run(encodeWasm(parseWasm(IF_WITH_INPUT))), 7);
+  await allPaths(IF_WITH_INPUT, 7);
 });
 
 /** `i32.const 7; loop (param i32) (result i32) end` — a LOOP with an input. */
@@ -261,8 +284,7 @@ const LOOP_WITH_INPUT = Uint8Array.from([
 ]);
 
 Deno.test('loop WITH INPUTS: entry values reach the body', async () => {
-  assertEquals(await run(LOOP_WITH_INPUT), 7);
-  assertEquals(await run(encodeWasm(parseWasm(LOOP_WITH_INPUT))), 7);
+  await allPaths(LOOP_WITH_INPUT, 7);
 });
 
 /**
@@ -322,11 +344,10 @@ const LOOP_BACKEDGE = Uint8Array.from([
 ]);
 
 Deno.test('loop back-edge br_if: parameter re-supplied, fall-through value kept', async () => {
-  // The fixture itself must be valid, or the test proves nothing.
-  assertEquals(await run(LOOP_BACKEDGE), 0);
-  // And the rewrite must preserve it: writing the loop's temp unconditionally
-  // without restoring the stack would strip the fall-through value.
-  assertEquals(await run(encodeWasm(parseWasm(LOOP_BACKEDGE))), 0);
+  // Kept, the `br_if` simply carries the parameter. Lowered, the rewrite must
+  // preserve it: writing the loop's temp unconditionally without restoring the
+  // stack would strip the fall-through value.
+  await allPaths(LOOP_BACKEDGE, 0);
 });
 
 /**
@@ -382,22 +403,35 @@ const BR_TABLE_MIXED = Uint8Array.from([
 ]);
 
 Deno.test('br_table mixing a parametrised loop with other targets: dispatch trampoline', async () => {
-  // The fixture must be valid on its own, or the round-trip proves nothing.
-  assertEquals(await run(BR_TABLE_MIXED), 0);
-  // The trampoline demotes the table to selecting a CASE, then each case
+  // Kept, the table carries its value to either target like any other. Lowered,
+  // the trampoline demotes the table to selecting a CASE, then each case
   // branches in its own convention: the loop case writes the loop's temps and
   // branches value-less; the function-frame case reads the shared temps back
   // onto the stack. Getting either convention wrong changes the result.
-  assertEquals(await run(encodeWasm(parseWasm(BR_TABLE_MIXED))), 0);
+  await allPaths(BR_TABLE_MIXED, 0);
+});
+
+Deno.test('br_table trampoline: survives the optimizer at every level', async () => {
+  // The trampoline's wrapper blocks were typed `unreachable` — inferred from
+  // their last child, a branch — though each is a branch TARGET whose end is
+  // reachable. DCE believed the type and deleted every case after the first:
+  // -O1, -O2 and -Oz all turned this valid module invalid.
+  for (const [optimizeLevel, shrinkLevel] of [[1, 0], [2, 0], [2, 2]] as const) {
+    const m = parseWasm(BR_TABLE_MIXED);
+    new PassRunner(m, { optimizeLevel, shrinkLevel }).addDefaultOptimizationPasses().run();
+    assertEquals(await run(encodeWasm(m)), 0, `-O${optimizeLevel} shrink ${shrinkLevel}`);
+  }
 });
 
 Deno.test('br_table trampoline: round-trip converges', () => {
   // The spill/dispatch rewrite legitimately adds local.set/local.get nodes on
-  // the FIRST trip. It must not keep growing after that.
-  const g1 = parseWasm(BR_TABLE_MIXED);
-  const g2 = parseWasm(encodeWasm(g1));
-  const g3 = parseWasm(encodeWasm(g2));
-  const g4 = parseWasm(encodeWasm(g3));
+  // the FIRST trip. It must not keep growing after that. Lowering asked for on
+  // every trip — the default keeps the parameters and would converge trivially.
+  const lower = { lowerBlockParams: true };
+  const g1 = parseWasm(BR_TABLE_MIXED, undefined, lower);
+  const g2 = parseWasm(encodeWasm(g1), undefined, lower);
+  const g3 = parseWasm(encodeWasm(g2), undefined, lower);
+  const g4 = parseWasm(encodeWasm(g3), undefined, lower);
   assertEquals(kinds(g3.functions[0].body), kinds(g2.functions[0].body));
   assertEquals(kinds(g4.functions[0].body), kinds(g3.functions[0].body));
 });
@@ -423,25 +457,28 @@ Deno.test('if WITH INPUTS: the two arms do not share expression nodes', () => {
   // both arms with the same `local.get` objects (rather than fresh reads per
   // arm) aliases one node into two tree positions — a pass that rewrites or
   // marks a node by identity, as CoalesceLocals does, would then affect both
-  // arms at once.
-  const mod = parseWasm(IF_WITH_INPUT);
-  const seen = new Set<unknown>();
-  const shared: string[] = [];
-  const walk = (e: unknown): void => {
-    if (!e || typeof e !== 'object') return;
-    const node = e as Record<string, unknown>;
-    if (typeof node.kind === 'string') {
-      if (seen.has(e)) shared.push(node.kind);
-      seen.add(e);
-    }
-    for (const [k, v] of Object.entries(node)) {
-      if (k === 'kind' || k === 'type') continue;
-      if (Array.isArray(v)) v.forEach(walk);
-      else walk(v);
-    }
-  };
-  walk(mod.functions[0].body);
-  assertEquals(shared, [], 'expression node(s) reachable from two tree positions');
+  // arms at once. Checked on both decodes: kept, each arm starts with its own
+  // `Pop`s; lowered, with its own `local.get`s.
+  for (const lowerBlockParams of [false, true]) {
+    const mod = parseWasm(IF_WITH_INPUT, undefined, { lowerBlockParams });
+    const seen = new Set<unknown>();
+    const shared: string[] = [];
+    const walk = (e: unknown): void => {
+      if (!e || typeof e !== 'object') return;
+      const node = e as Record<string, unknown>;
+      if (typeof node.kind === 'string') {
+        if (seen.has(e)) shared.push(node.kind);
+        seen.add(e);
+      }
+      for (const [k, v] of Object.entries(node)) {
+        if (k === 'kind' || k === 'type') continue;
+        if (Array.isArray(v)) v.forEach(walk);
+        else walk(v);
+      }
+    };
+    walk(mod.functions[0].body);
+    assertEquals(shared, [], `shared node(s), lowerBlockParams=${lowerBlockParams}`);
+  }
 });
 
 // ---------------------------------------------------------------------------

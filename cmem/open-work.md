@@ -204,7 +204,7 @@ one fact in two places, which is this codebase's known failure mode.
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                |
 | S4 coarse grouping     | ✅ five kinds folded away                                                             |
 | S5 one-sided kinds     | 🚧 acceptance criterion met (wide arithmetic round-trips); regroupings merged into S6 |
-| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2 at 6 of 7 (09-10)   |
+| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2: 6 + 7a/7b(i) of 7  |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest                                                  |
 
 **S6 has its own acceptance gate now: `deno task bridge`**, at **401/421** (2026-09-10; it stood at
@@ -249,7 +249,22 @@ and made the operators gate a ratchet. Two follow-ups kept deliberately behaviou
   convert to factories as 7's first step; the rest want a sweep that compares each literal's type to
   the factory's.
 
-**Next: decision 7** — 7a, 7b(i), 7c.
+✅ **Decision 7a and 7b(i) are implemented** (2026-09-10, `7171b8b38`, `02d77f533`), with three
+defects fixed on the way (Flatten's `if` label, the trampoline's DCE break, wabt-ts's folded `if`
+drop) — see ir-convergence decision 7.
+
+**Queued, bugs first (owner: "fix any bugs first"), then 7c:**
+
+- ⬚ **W6** — wabt-ts writes a DataCount section upstream does not (242 corpus modules). Small; moves
+  the corpus baseline, so it re-baselines in its own commit.
+- ⬚ **W5** — wabt-ts's implicit type ORDER. Upstream: explicit types first, then implicit ones in
+  text order, interleaved per function. Needs text-order assignment at the end of parsing (the
+  bridge tests parse without `synthesizeTypes`, so a deferred index there would break them).
+- ⬚ **W4** — binaryen-ts's WAT parser breaks the parenthesis rule for multi-operand stack sources,
+  `if`/`br_if` conditions, block params, and bare linear form. Large: arity-aware claiming and a
+  second parsing mode — the paused ir-convergence "Stage 1". A smaller alternative exists: route
+  external WAT (the `wasm-opt` CLI) through wabt-ts, the declared front door.
+- ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
 
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
 
@@ -434,11 +449,11 @@ exports **196 → 345 of 345**, export sets identical on 149 of 149 modules, gat
 
 Chased to the section, then to the byte. Three components, none of them a defect:
 
-| component          | cause                                                                                                                                                                                                                                                                                                               |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **code −3,073**    | binaryen-ts run-length-compresses consecutive same-type locals; wabt-ts emitted one group per local. `vec(count, valtype)`, so three i32 locals went out as `3 \| (1,i32)(1,i32)(1,i32)` where `1 \| (3,i32)` says the same thing in 3 bytes instead of 7                                                           |
-| **datacount −162** | the section is **optional** unless `memory.init` / `data.drop` reference the data index space. wabt emits it whenever data segments exist; binaryen-ts omits it. Both valid — and binaryen-ts rejects those two instructions outright, loudly, in both its WAT and binary readers, so it can never need the section |
-| type +70, data +66 | small, and in the other direction                                                                                                                                                                                                                                                                                   |
+| component          | cause                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **code −3,073**    | binaryen-ts run-length-compresses consecutive same-type locals; wabt-ts emitted one group per local. `vec(count, valtype)`, so three i32 locals went out as `3 \| (1,i32)(1,i32)(1,i32)` where `1 \| (3,i32)` says the same thing in 3 bytes instead of 7                                                                                                                                                                                       |
+| **datacount −162** | the section is **optional** unless `memory.init` / `data.drop` reference the data index space. wabt-ts emits it whenever data segments exist; binaryen-ts omits it. Both valid — and binaryen-ts rejects those two instructions outright, loudly, in both its WAT and binary readers, so it can never need the section. 🔧 "wabt" here meant wabt-ts: UPSTREAM wat2wasm 1.0.41 omits it unless it is used (measured 2026-09-10) — divergence W6 |
+| type +70, data +66 | small, and in the other direction                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **Fixed on the wabt-ts side.** The writer's comment already claimed run-length encoding; only the
 loop did not do it. Coalescing recovered **42,437 bytes (2.7%) across the 421-file corpus** —

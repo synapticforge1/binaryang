@@ -64,6 +64,7 @@ import {
   makeArrayNewDefault,
   makeArrayNewFixed,
   makeArraySet,
+  makeBlock,
   makeBreak,
   makeDataDrop,
   makeElemDrop,
@@ -71,6 +72,7 @@ import {
   makeI31Get,
   makeIf,
   makeLoad,
+  makeLoop,
   makeMemoryInit,
   makePop,
   makeRefAsNonNull,
@@ -1044,9 +1046,9 @@ class WatModuleParser {
       const ifFalse = this.parseExpr(args[idx + 1], ctx);
       const condition = this.parseExpr(args[idx + 2], ctx);
       // Route through makeSelect so the result type is the reachable arm's type
-      // (the LUB), not a blind `ifTrue.type` — unless declared, which wins.
-      const sel = makeSelect(ifTrue, ifFalse, condition);
-      return results.length === 1 ? { ...sel, type: results[0]! } : sel;
+      // (the LUB), not a blind `ifTrue.type` — unless declared, which wins and
+      // stays on the node (S6 decision 7a).
+      return makeSelect(ifTrue, ifFalse, condition, results[0] ?? null);
     }
     if (head === 'block') return this.parseBlock(list, ctx);
     if (head === 'loop') return this.parseLoop(list, ctx);
@@ -1444,7 +1446,7 @@ class WatModuleParser {
     const innerCtx = this.pushLabel(blockLabel, ctx);
     const bodyExprs = this.parseStatementList(children.slice(idx), innerCtx);
     const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
-    return { kind: ExpressionKind.Block, type, name: blockLabel, children: bodyExprs };
+    return makeBlock(bodyExprs, blockLabel, type);
   }
 
   private parseLoop(list: SList, ctx: FuncContext): LoopExpr {
@@ -1468,9 +1470,9 @@ class WatModuleParser {
       bodyExprs.push(this.parseExpr(children[idx], innerCtx));
       idx++;
     }
-    const type = this.declaredType(results, None);
-    const body = this.region(bodyExprs);
-    return { kind: ExpressionKind.Loop, type, name: label, body };
+    // `makeLoop`'s `asRegion` would dissolve a sole UNNAMED block, but none
+    // reaches it from here: `labelFor` names every block this parser builds.
+    return makeLoop(label, this.region(bodyExprs), this.declaredType(results, None));
   }
 
   private parseIf(list: SList, ctx: FuncContext): IfExpr {
@@ -3187,9 +3189,16 @@ class WatModuleParser {
    * was parsed as the first INSTRUCTION ("unsupported instruction: type").
    *
    * A type reference and an inline signature, when both are given, must agree
-   * (upstream wat2wasm rejects a mismatch too). Block PARAMETERS are refused
-   * loudly until S6 decision 7b gives the node somewhere to hold them —
-   * silently dropping one would change what the block consumes.
+   * (upstream wat2wasm rejects a mismatch too).
+   *
+   * Block PARAMETERS are refused, loudly — not yet supported (divergence W4).
+   * Since S6 decision 7b(i) the node has somewhere to hold them and the binary
+   * decoder keeps them. The folded form CAN write them, and upstream wat2wasm
+   * reads every such spelling: an input folded BEFORE the construct,
+   * `(i32.const 7) (block (param i32) …)`, consumed inside by a partial fold
+   * like `(i32.add (i32.const 1))`; and for `if`, extra folded instructions in
+   * the condition slot, `(if (param i32) … (i32.const 7) (local.get 0) (then …))`.
+   * Silently dropping a parameter would change what the construct consumes.
    */
   private parseBlockTypeUse(
     children: SExpr[],
@@ -3223,7 +3232,11 @@ class WatModuleParser {
       results = [...def.results];
     }
     if (params.length > 0) {
-      this.err('block parameters are not supported yet (S6 decision 7b)', pos);
+      this.err(
+        'block parameters are not supported yet by the binaryen-ts WAT parser ' +
+          '(the binary decoder keeps them; wabt-ts wat2wasm reads them)',
+        pos,
+      );
     }
     // A multi-value block type is encoded as a TYPE INDEX, so it is a type use
     // that may need an implicit type — see `appendImplicitTypes`.

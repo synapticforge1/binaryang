@@ -38,6 +38,7 @@
 
 import {
   type BinaryOp,
+  blockParamsOf,
   type Expression,
   ExpressionKind,
   makeBinary,
@@ -324,6 +325,22 @@ function serializeToWat(mod: WasmModule): string {
 }
 
 /**
+ * Refuses a construct that keeps block PARAMETERS (S6 decision 7b(i)): this
+ * serializer writes folded WAT, which has no way to say "take these values from
+ * the enclosing stack", and printing the block without them would describe a
+ * different program — one `hybridMode` would hand straight to `wasm-opt`.
+ * @internal
+ */
+function requireNoParams(expr: Expression): void {
+  if (blockParamsOf(expr) !== undefined) {
+    throw new Error(
+      `serializeToWat: a ${expr.kind} with block parameters cannot be written as folded WAT ` +
+        `(use the binary encoder, or optimize first — PassRunner lowers them)`,
+    );
+  }
+}
+
+/**
  * Renders a single expression to WAT text (recursive, depth-first).
  * @internal
  */
@@ -365,6 +382,7 @@ function exprToWat(expr: Expression, _indent: number): string {
     case ExpressionKind.Drop:
       return `(drop ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Block: {
+      requireNoParams(expr);
       const label = expr.name ? ` $${expr.name}` : '';
       const result = expr.type !== None ? ` (result ${expr.type})` : '';
       const body = expr.children.map((c) => `  ${exprToWat(c, _indent + 2)}`).join('\n');
@@ -376,6 +394,7 @@ function exprToWat(expr: Expression, _indent: number): string {
       // synthetic wrapper, which described a nesting the module does not have.
       return expr.children.map((c) => exprToWat(c, _indent)).join(`\n${' '.repeat(_indent)}`);
     case ExpressionKind.If: {
+      requireNoParams(expr);
       const result = expr.type !== None ? ` (result ${expr.type})` : '';
       const then = `(then ${exprToWat(expr.ifTrue, _indent)})`;
       const else_ = expr.ifFalse ? ` (else ${exprToWat(expr.ifFalse, _indent)})` : '';
