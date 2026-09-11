@@ -74,7 +74,9 @@ describe('type uses that must be refused', () => {
     );
   });
 
-  it('block parameters, until S6 decision 7b gives the node a place for them', () => {
+  it('block parameters — not yet read by this parser (divergence W4), loudly', () => {
+    // The node holds them since S6 decision 7b(i) and the binary decoder keeps
+    // them; upstream wat2wasm reads this folded spelling. Refused, never dropped.
     assertThrows(
       () =>
         parseWat(

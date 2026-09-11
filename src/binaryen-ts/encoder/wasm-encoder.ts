@@ -23,6 +23,7 @@ import {
   type ArraySetExpr,
   type BinaryExpr,
   type BlockExpr,
+  blockParamsOf,
   type BreakExpr,
   type BrOnExpr,
   BrOnOp,
@@ -89,7 +90,7 @@ import {
   type UnaryExpr,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
-import { isRef, None, type Type, ValType } from '../ir/types.ts';
+import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
 // it did not list, and it did not list `TupleMake` (the container multi-value
@@ -330,6 +331,16 @@ function isBlockTypeCarrier(expr: Expression): boolean {
     default:
       return false;
   }
+}
+
+/**
+ * A block-type carrier's RESULT list, from its type: empty for `none` and for
+ * `unreachable` (a construct whose every path branches away declares no result
+ * — the same reading {@link writeBlockType} gives it with `0x40`).
+ */
+function resultsOf(t: Type | undefined): ValueType[] {
+  if (t === undefined || t === None || t === Unreachable) return [];
+  return Array.isArray(t) ? (t as ValueType[]) : [t as ValueType];
 }
 
 /**
@@ -757,10 +768,34 @@ class WasmEncoder {
     // Harmless as it stood — unreferenced, appended last so no index shifted —
     // but "emit a type in case something needs it" is a rule that cannot be
     // checked, whereas "emit one for the constructs that address one" can.
-    if (isBlockTypeCarrier(expr) && Array.isArray(expr.type) && expr.type.length > 1) {
+    const params = blockParamsOf(expr);
+    if (params !== undefined && params.types.length > 0) {
+      // A parametrised block's header is ALWAYS a type index — no inline form
+      // can say `(param …)` — so its `params -> results` signature is needed
+      // whatever the result count.
+      addType(params.types, resultsOf(expr.type));
+    } else if (isBlockTypeCarrier(expr) && Array.isArray(expr.type) && expr.type.length > 1) {
       addType([], expr.type as ValueType[]);
     }
     visitChildren(expr, (child) => this.collectExprTypes(child, addType));
+  }
+
+  /**
+   * Writes a block-type carrier's header type: a type index for a construct
+   * with parameters (S6 decision 7b(i)), else {@link writeBlockType}'s forms.
+   */
+  private writeCarrierType(w: BinaryWriter, e: Expression): void {
+    const params = blockParamsOf(e);
+    if (params !== undefined && params.types.length > 0) {
+      w.writeI32(this.blockTypeIndex(resultsOf(e.type), params.types));
+      return;
+    }
+    writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
+  }
+
+  /** A carrier's entry values, emitted before its opcode (and an `if`'s condition). */
+  private encodeParamValues(w: BinaryWriter, e: Expression, labels: LabelStack): void {
+    for (const v of blockParamsOf(e)?.values ?? []) this.encodeExpr(w, v, labels);
   }
 
   /**
@@ -772,10 +807,10 @@ class WasmEncoder {
    * class of bug that once retyped tag signatures (WT-2d). The two orderings
    * are unrelated, so they only coincide by luck.
    */
-  private blockTypeIndex(results: ValueType[]): number {
+  private blockTypeIndex(results: ValueType[], params: ValueType[] = []): number {
     return this.heapTypes.length > 0
-      ? this.gcFuncTypeIndex([], results)
-      : this.getTypeIndex([], results);
+      ? this.gcFuncTypeIndex(params, results)
+      : this.getTypeIndex(params, results);
   }
 
   /**
@@ -1469,8 +1504,9 @@ class WasmEncoder {
 
       case ExpressionKind.Block: {
         const e = expr as BlockExpr;
+        this.encodeParamValues(w, e, labels);
         w.writeU8(0x02);
-        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
+        this.writeCarrierType(w, e);
         labels.push(e.name ?? null);
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
@@ -1480,8 +1516,9 @@ class WasmEncoder {
 
       case ExpressionKind.Loop: {
         const e = expr as LoopExpr;
+        this.encodeParamValues(w, e, labels);
         w.writeU8(0x03);
-        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
+        this.writeCarrierType(w, e);
         labels.push(e.name);
         // A REGION, like the `if` arms — see `encodeRegionBody`. Encoding the
         // body directly emitted the parser's synthetic wrapper as a real nested
@@ -1498,9 +1535,10 @@ class WasmEncoder {
 
       case ExpressionKind.If: {
         const e = expr as IfExpr;
+        this.encodeParamValues(w, e, labels); // below the condition on the stack
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
-        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
+        this.writeCarrierType(w, e);
         labels.push(e.name ?? null); // the if's branch-target label (if any)
         // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
         // exits via `br` ends in an unreachable-typed child, so re-wrapping it
@@ -2088,8 +2126,9 @@ class WasmEncoder {
 
       case ExpressionKind.TryTable: {
         const e = expr as TryTableExpr;
+        this.encodeParamValues(w, e, labels);
         w.writeU8(0x1f); // try_table
-        writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
+        this.writeCarrierType(w, e);
         w.writeU32(e.catches.length);
         // The catch clauses are resolved BEFORE the try_table label is pushed:
         // its own label is not in scope for its handlers, so depth 0 names the
@@ -2114,10 +2153,11 @@ class WasmEncoder {
 
       case ExpressionKind.Try: {
         const e = expr as TryExpr;
+        this.encodeParamValues(w, e, labels);
         if (e.delegateTarget !== null) {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
-          writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
+          this.writeCarrierType(w, e);
           labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
@@ -2125,7 +2165,7 @@ class WasmEncoder {
           w.writeU32(this.resolveLabel(labels, e.delegateTarget));
         } else {
           w.writeU8(0x06); // try
-          writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
+          this.writeCarrierType(w, e);
           labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           // The length guard that stood here — "try has N catch tags but M

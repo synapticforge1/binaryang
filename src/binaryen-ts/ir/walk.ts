@@ -15,6 +15,7 @@
 
 import {
   asRegion,
+  type BlockParams,
   type Expression,
   ExpressionKind,
   type QuaternaryExpr,
@@ -116,6 +117,18 @@ export function mapChildrenShallow(
 // `mapExpression` passes a callback that recurses, so it maps the whole tree.
 // ---------------------------------------------------------------------------
 
+/**
+ * A block-type carrier's {@link BlockParams} with its values mapped, as a
+ * fragment to spread into the rebuilt node — or nothing, when it has none.
+ * Spread BEFORE the other children: the values are evaluated first.
+ */
+function mappedParams(
+  params: BlockParams | undefined,
+  fn: (e: Expression) => Expression,
+): { params?: BlockParams } {
+  return params ? { params: { types: params.types, values: params.values.map(fn) } } : {};
+}
+
 function _mapChildren(
   expr: Expression,
   fn: (e: Expression) => Expression,
@@ -125,7 +138,11 @@ function _mapChildren(
   const slot = (r: Expression) => asRegion(fn(r));
   switch (expr.kind) {
     case ExpressionKind.Block:
-      return { ...expr, children: expr.children.map((c) => fn(c)) };
+      return {
+        ...expr,
+        ...mappedParams(expr.params, fn),
+        children: expr.children.map((c) => fn(c)),
+      };
 
     case ExpressionKind.Region:
       return { ...expr, children: expr.children.map((c) => fn(c)) };
@@ -133,13 +150,14 @@ function _mapChildren(
     case ExpressionKind.If:
       return {
         ...expr,
+        ...mappedParams(expr.params, fn),
         condition: fn(expr.condition),
         ifTrue: slot(expr.ifTrue),
         ifFalse: expr.ifFalse ? slot(expr.ifFalse) : null,
       };
 
     case ExpressionKind.Loop:
-      return { ...expr, body: slot(expr.body) };
+      return { ...expr, ...mappedParams(expr.params, fn), body: slot(expr.body) };
 
     // ⚠️ Condition is mapped BEFORE the values, the reverse of wasm's evaluation
     // order (values are pushed first). Kept as it was when `value` became
@@ -389,12 +407,14 @@ function _mapChildren(
     case ExpressionKind.TryTable:
       return {
         ...expr,
+        ...mappedParams(expr.params, fn),
         body: slot(expr.body),
       };
 
     case ExpressionKind.Try:
       return {
         ...expr,
+        ...mappedParams(expr.params, fn),
         body: slot(expr.body),
         catches: expr.catches.map((c) => ({ ...c, body: slot(c.body) })),
       };
@@ -489,16 +509,22 @@ function _visitChildren(
   visit: (child: Expression) => void,
 ): void {
   switch (expr.kind) {
+    // A carrier's parameter values come first: they are evaluated before it.
     case ExpressionKind.Block:
+      expr.params?.values.forEach(visit);
+      expr.children.forEach(visit);
+      break;
     case ExpressionKind.Region:
       expr.children.forEach(visit);
       break;
     case ExpressionKind.If:
+      expr.params?.values.forEach(visit);
       visit(expr.condition);
       visit(expr.ifTrue);
       if (expr.ifFalse) visit(expr.ifFalse);
       break;
     case ExpressionKind.Loop:
+      expr.params?.values.forEach(visit);
       visit(expr.body);
       break;
     // ⚠️ Condition before values — see the same note in `mapExpression`.
@@ -672,9 +698,11 @@ function _visitChildren(
       visit(expr.ref);
       break;
     case ExpressionKind.TryTable:
+      expr.params?.values.forEach(visit);
       visit(expr.body);
       break;
     case ExpressionKind.Try:
+      expr.params?.values.forEach(visit);
       visit(expr.body);
       expr.catches.forEach((c) => visit(c.body));
       break;

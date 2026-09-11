@@ -741,6 +741,30 @@ export interface UnreachableExpr extends ExprBase {
   type: Unreachable;
 }
 
+/**
+ * A block-type carrier's PARAMETERS: the values it takes from the enclosing
+ * stack on entry, and their declared types (S6 decision 7b(i), divergence B1).
+ *
+ * `values` are evaluated BEFORE the construct — before an `if`'s condition —
+ * in stack order, and are children of the construct like any operand. Inside,
+ * the body finds them already on its stack: the decoder seeds each region with
+ * one `Pop` per type, exactly as a `catch` is seeded with its tag's values, and
+ * a `Pop` encodes to nothing. A branch to a parametrised LOOP carries the
+ * loop's parameters in its `values`.
+ *
+ * 🛑 **Fidelity phase only.** Upstream binaryen has no block parameters — its
+ * reader lowers them to locals — and neither do the passes ported from it, so
+ * `PassRunner` lowers every parameter to locals before the first pass runs
+ * (`lowerBlockParams`). Nothing past that point sees this field. Absent means
+ * none, which is what every factory and pass produces.
+ */
+export interface BlockParams {
+  /** The declared parameter types, in order. */
+  types: ValueType[];
+  /** The entry values, one per type, in stack order. */
+  values: Expression[];
+}
+
 /** {@link BlockExpr} — see {@link makeBlock} for the factory. */
 export interface BlockExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
@@ -749,6 +773,8 @@ export interface BlockExpr extends ExprBase {
   name: string | null;
   /** Ordered list of child expressions. */
   children: Expression[];
+  /** Entry parameters, when the block declares any — see {@link BlockParams}. */
+  params?: BlockParams;
 }
 
 /**
@@ -802,6 +828,11 @@ export interface IfExpr extends ExprBase {
    * wrong (innermost) target. Optional — most `if`s are not branch targets.
    */
   name?: string | undefined;
+  /**
+   * Entry parameters — see {@link BlockParams}. Evaluated before the
+   * condition; BOTH arms start with them on their stack.
+   */
+  params?: BlockParams;
 }
 
 /** {@link LoopExpr} — see {@link makeLoop} for the factory. */
@@ -812,6 +843,11 @@ export interface LoopExpr extends ExprBase {
   name: string;
   /** The loop's region. */
   body: RegionExpr;
+  /**
+   * Entry parameters — see {@link BlockParams}. A back-edge `br` re-supplies
+   * them in its own `values`.
+   */
+  params?: BlockParams;
 }
 
 /**
@@ -1699,9 +1735,10 @@ export interface TryTableExpr extends ExprBase {
   body: RegionExpr;
   /** catches — see the matching factory for semantics. */
   catches: CatchClause[];
+  /** Entry parameters — see {@link BlockParams}. Only the body is seeded. */
+  params?: BlockParams;
 }
 
-/** `try` expression (old/legacy EH). */
 /**
  * One `catch` clause of an old-EH `try`.
  *
@@ -1728,6 +1765,7 @@ export interface TryCatch {
   body: RegionExpr;
 }
 
+/** `try` expression (old/legacy EH). */
 export interface TryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Try;
@@ -1739,6 +1777,11 @@ export interface TryExpr extends ExprBase {
   catches: TryCatch[];
   /** Set for the `delegate` variant; depth to delegate to. */
   delegateTarget: string | null;
+  /**
+   * Entry parameters — see {@link BlockParams}. Only the try BODY is seeded: a
+   * catch starts with its tag's values, not the try's.
+   */
+  params?: BlockParams;
 }
 
 /** `throw $tag operands*` expression. Always has type `unreachable`. */
@@ -2263,6 +2306,24 @@ export function blockOf(region: RegionExpr, name: string | null = null): BlockEx
 export function asStatement(e: Expression): Expression {
   if (e.kind !== ExpressionKind.Region) return e;
   return e.children.length === 1 ? e.children[0]! : blockOf(e);
+}
+
+/**
+ * The {@link BlockParams} of a block-type carrier — `block`, `loop`, `if`,
+ * `try`, `try_table` — or `undefined` for any other expression, or a carrier
+ * that declares none.
+ */
+export function blockParamsOf(e: Expression): BlockParams | undefined {
+  switch (e.kind) {
+    case ExpressionKind.Block:
+    case ExpressionKind.Loop:
+    case ExpressionKind.If:
+    case ExpressionKind.Try:
+    case ExpressionKind.TryTable:
+      return e.params;
+    default:
+      return undefined;
+  }
 }
 
 /** What a region slot accepts from code that builds trees: a region, a list, or one expression. */

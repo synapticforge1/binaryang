@@ -3189,9 +3189,16 @@ class WatModuleParser {
    * was parsed as the first INSTRUCTION ("unsupported instruction: type").
    *
    * A type reference and an inline signature, when both are given, must agree
-   * (upstream wat2wasm rejects a mismatch too). Block PARAMETERS are refused
-   * loudly until S6 decision 7b gives the node somewhere to hold them —
-   * silently dropping one would change what the block consumes.
+   * (upstream wat2wasm rejects a mismatch too).
+   *
+   * Block PARAMETERS are refused, loudly — not yet supported (divergence W4).
+   * Since S6 decision 7b(i) the node has somewhere to hold them and the binary
+   * decoder keeps them. The folded form CAN write them, and upstream wat2wasm
+   * reads every such spelling: an input folded BEFORE the construct,
+   * `(i32.const 7) (block (param i32) …)`, consumed inside by a partial fold
+   * like `(i32.add (i32.const 1))`; and for `if`, extra folded instructions in
+   * the condition slot, `(if (param i32) … (i32.const 7) (local.get 0) (then …))`.
+   * Silently dropping a parameter would change what the construct consumes.
    */
   private parseBlockTypeUse(
     children: SExpr[],
@@ -3225,7 +3232,11 @@ class WatModuleParser {
       results = [...def.results];
     }
     if (params.length > 0) {
-      this.err('block parameters are not supported yet (S6 decision 7b)', pos);
+      this.err(
+        'block parameters are not supported yet by the binaryen-ts WAT parser ' +
+          '(the binary decoder keeps them; wabt-ts wat2wasm reads them)',
+        pos,
+      );
     }
     // A multi-value block type is encoded as a TYPE INDEX, so it is a type use
     // that may need an implicit type — see `appendImplicitTypes`.

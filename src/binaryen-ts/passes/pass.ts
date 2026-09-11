@@ -25,6 +25,7 @@
  */
 
 import type { WasmModule } from '../ir/module.ts';
+import { lowerBlockParams } from './lower-block-params.ts';
 
 // ---------------------------------------------------------------------------
 // Pass interface
@@ -283,6 +284,9 @@ export class PassRunner {
    * Runs all enqueued passes in order, then clears the queue.
    */
   run(): void {
+    // Block parameters exist only for fidelity; no pass here was written for
+    // them (S6 decision 7b(i)). Lower them before the first pass sees the tree.
+    lowerBlockParams(this._module);
     for (const pass of this._queue) {
       pass.run(this._module, this._options);
     }
