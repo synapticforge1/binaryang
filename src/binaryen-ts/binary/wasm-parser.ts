@@ -1601,6 +1601,16 @@ class WasmParser {
       };
 
       // One wrapper block per case; `caseLabels[j]` is exited to reach case j.
+      //
+      // 🔧 Each wrapper is DECLARED `none`. `makeBlock` infers from the last
+      // child — here the `br_table`, or a case's closing `br` — which typed
+      // every wrapper `unreachable`. But each is a branch TARGET, so its end is
+      // reachable (upstream `Block::finalize` checks for branches; inference
+      // cannot). DCE trusted the type and deleted every case after the first
+      // wrapper: any -O level turned the valid module invalid ("expected 1
+      // elements on the stack for fallthru"). Found when S6 decision 7b(i)'s
+      // tests ran each parametrised fixture through the optimizer — no test
+      // had ever optimized a trampoline.
       const caseLabels = labels.map(() => freshLabel());
       const last = caseLabels.length - 1;
 
@@ -1611,9 +1621,14 @@ class WasmParser {
           makeLocalGet(varIndex(idxSlot), ValType.I32),
         )],
         caseLabels[last],
+        None,
       );
       for (let j = last - 1; j >= 0; j--) {
-        node = makeBlock([node, ...caseCode(targetFrames[j + 1], labels[j + 1]!)], caseLabels[j]!);
+        node = makeBlock(
+          [node, ...caseCode(targetFrames[j + 1], labels[j + 1]!)],
+          caseLabels[j]!,
+          None,
+        );
       }
       push(node);
       for (const e of caseCode(targetFrames[0], labels[0]!)) push(e);

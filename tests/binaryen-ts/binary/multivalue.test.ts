@@ -391,6 +391,18 @@ Deno.test('br_table mixing a parametrised loop with other targets: dispatch tram
   assertEquals(await run(encodeWasm(parseWasm(BR_TABLE_MIXED))), 0);
 });
 
+Deno.test('br_table trampoline: survives the optimizer at every level', async () => {
+  // The trampoline's wrapper blocks were typed `unreachable` — inferred from
+  // their last child, a branch — though each is a branch TARGET whose end is
+  // reachable. DCE believed the type and deleted every case after the first:
+  // -O1, -O2 and -Oz all turned this valid module invalid.
+  for (const [optimizeLevel, shrinkLevel] of [[1, 0], [2, 0], [2, 2]] as const) {
+    const m = parseWasm(BR_TABLE_MIXED);
+    new PassRunner(m, { optimizeLevel, shrinkLevel }).addDefaultOptimizationPasses().run();
+    assertEquals(await run(encodeWasm(m)), 0, `-O${optimizeLevel} shrink ${shrinkLevel}`);
+  }
+});
+
 Deno.test('br_table trampoline: round-trip converges', () => {
   // The spill/dispatch rewrite legitimately adds local.set/local.get nodes on
   // the FIRST trip. It must not keep growing after that.
