@@ -49,6 +49,26 @@ class. "Valid either way" is not a class.
 | W5 | wabt     | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order   | DEFECT     | ⬚ form only. Upstream: explicit types first, then implicit in text order, interleaved                 |
 | W6 | wabt     | wabt-ts writes a DataCount section whenever data segments exist; upstream wat2wasm only when `memory.init` / `data.drop` use it             | DEFECT     | ⬚ form only, 3 bytes. 242 corpus modules differ from upstream in section 12 alone                     |
 
+**N1 — NAMES are lost at three hops** (found 2026-09-10, from the W4 route; owner: "so that this
+is not skipped"). `$foo` does not survive WAT → wabt-ts → bytes → binaryen-ts:
+
+| hop                     | today                                                                          | upstream                                   |
+| ----------------------- | ------------------------------------------------------------------------------ | ------------------------------------------ |
+| wabt-ts binary writer   | writes NO name section — `writeDebugNames` is declared and IGNORED (`_opts`)   | wat2wasm writes one with `--debug-names`   |
+| binaryen-ts decoder     | `readNameSection` SKIPS it                                                     | wasm-opt always reads it                   |
+| binaryen-ts encoder     | writes none                                                                    | wasm-opt writes it with `-g` (`debugInfo`) |
+
+Class DEFECT, vs both. ⚠️ **The three are coupled to decision 7b(i)**: `lowerBlockParams`
+re-decodes `encodeWasm(module)` and refuses a module whose names no longer match its own bytes. Once
+the decoder reads real names, an encoder that drops them makes every NAMED module with block
+parameters fail that check — so the decoder and encoder halves land together, with the lowering
+re-encode keeping names.
+
+The name section follows the code section, so the decoder must SCAN for it first (the bytes are in
+memory) and name entities before any body refers to them — and uniquify duplicate or clashing names,
+as upstream binaryen does. A flag that promises a feature and does nothing is the `compactImports`
+shape again: implement `writeDebugNames`, never leave it ignored.
+
 **wabt-ts vs upstream wat2wasm, byte for byte, on the 421-file corpus: 146 identical** (measured
 2026-09-10, default features — `--enable-all` changes what upstream EMITS). 242 differ in the
 DataCount section alone (W6); ~33 more in type / function / code / tag sections, consistent with W5.
