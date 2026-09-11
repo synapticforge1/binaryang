@@ -381,6 +381,11 @@ markers — 123 distinct instruction names, all of which already exist, correct 
 wabt-ts's parser. A second implementation would be the "one fact in two places" shape at the scale
 of an entire instruction set.
 
+🔧 **Superseded 2026-09-10 (`e18d9f09a`)**: `parseWatAnyForm` is deleted — by then nothing called it
+— and external WAT goes wabt-ts → bytes → decoder (`readWat`), with no bridge: linear input
+**421/421 parsed, 421 valid**, byte-identical to decoding the original bytes. The record as it
+stood:
+
 `parseWatAnyForm` (`src/bridge/parse-wat.ts`) tries the native folded parser first, then falls back
 to wabt-ts + the bridge. It lives in the bridge because binaryen-ts imports nothing from wabt-ts,
 and the bridge is the one place allowed to know both. **Linear input: 0/421 → 416/421 parsed, 397

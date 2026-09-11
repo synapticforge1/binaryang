@@ -27,7 +27,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { parseWasm } from '../binary/index.ts';
 import { encodeWasm } from '../encoder/index.ts';
-import { parseWat } from '../parser/wat-parser.ts';
+import { readWat } from './read-wat.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { defaultPassOptions, listPasses, PassRunner, shrinkPassOptions } from '../passes/index.ts';
 import type { PassOptions } from '../passes/pass.ts';
@@ -188,7 +188,15 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     process.exit(1);
   }
 
-  const result = await wasmOpt(parsed.input, parsed.options);
+  // A failure is a DIAGNOSTIC, not a stack trace: nothing above this catches,
+  // so an unparseable input surfaced as an uncaught exception.
+  let result: Uint8Array | string;
+  try {
+    result = await wasmOpt(parsed.input, parsed.options);
+  } catch (e) {
+    console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
+  }
   const outPath = parsed.options.output ?? 'output.wasm';
 
   if (typeof result === 'string') {
@@ -224,7 +232,10 @@ function _nativeOptimize(
     );
   }
 
-  const module = isWat ? parseWat(new TextDecoder().decode(inputBytes)) : parseWasm(inputBytes);
+  // External WAT goes through wabt-ts to bytes, then the decoder — the one text
+  // route (see `read-wat.ts`). binaryen-ts's own WAT parser reads only a folded
+  // subset; it rejected the linear text our own `wasm2wat` writes.
+  const module = isWat ? readWat(new TextDecoder().decode(inputBytes)) : parseWasm(inputBytes);
 
   const passOpts: PassOptions = {
     optimizeLevel: opts.optimizeLevel,

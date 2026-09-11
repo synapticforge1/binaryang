@@ -32,22 +32,22 @@ class. "Valid either way" is not a class.
 
 ## Open and intended
 
-| id | vs       | what differs                                                                                                                                | class      | status / authority                                                                        |
-| -- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------- |
-| G1 | wabt     | GC text syntax — `(ref null any)`, `(sub …)`, heap-type keywords. wabt 1.0.41 has none                                                      | FEATURE    | the spec is the authority; upstream `wat2wasm` cannot be consulted (G2)                   |
-| G2 | wabt     | `wast2json` 1.0.41 cannot split 30 GC-proposal spec files; `deno task spec` skips them                                                      | ORACLE GAP | those 30 files are untested by the harness — say so in any claim covering them            |
-| G3 | wabt     | any GC-typed WAT probe: upstream rejects with "unexpected token" — a missing feature, not a verdict                                         | ORACLE GAP | read the error TEXT; use V8 for behaviour, our wabt-ts for assembly                       |
-| R1 | binaryen | body representation: a `RegionExpr` in every region slot (upstream: `Expression*`, often an unnamed `Block`)                                | DESIGN     | S6 decision 5, `7f3ec1d6e`. Passes see one slot; a region is never a branch target        |
-| R2 | binaryen | an all-nop body vacuums to an EMPTY region (`00 0b`); upstream `wasm-opt --vacuum` leaves one `nop` (`00 01 0b`) — probed 2026-09-10        | DESIGN     | consequence of R1; the spec allows an empty body, and ours is a byte smaller              |
-| E1 | wabt     | a binary `if` with an explicit EMPTY `else` (`04 40 … 05 0b`) keeps the `else` through binaryen-ts; wabt's text path drops it               | DESIGN     | fidelity — upstream `wasm-opt` keeps it too (probed). ⬚ wabt-ts drops it: unify in S6     |
-| B1 | binaryen | block PARAMETERS stay on the node through the fidelity phase; lowered to locals only when optimization starts. Upstream lowers at read time | DESIGN     | S6 decision 7b(i), `02d77f533`. `PassRunner` lowers first; no pass may see `params`       |
-| V1 | binaryen | branch/return values held as a LIST (`values: Expression[]`); upstream uses one `value` + `tuple.make`                                      | DESIGN     | S6 decision 6A, `2b5850a8a`. No `tuple.make` kind; do not port one back in                |
-| S2 | binaryen | a NUMERIC select written typed (`0x1c`) stays typed through binaryen-ts; `wasm-opt` rewrites it `0x1b` (probed)                             | DESIGN     | S6 decision 7a, `7171b8b38` — the declared type is on the node. wabt keeps it too         |
-| T1 | wabt     | `call_indirect (type $b)` re-encodes naming an identical `$a` (first structural match) through binaryen-ts                                  | DEFECT     | ⬚ form only — probed: behaviour preserved even with non-final/final GC types; decision 7c |
-| T2 | wabt     | binaryen-ts's encoder DERIVES the type-section order when no type is declared (signatures, tags, then expression uses), reordering input    | DEFECT     | ⬚ form only; decision 7c territory with T1. Measured by the type-order probe, 2026-09-10  |
-| W4 | wabt     | binaryen-ts's WAT parser breaks the parenthesis rule: `(i32.add)`, `(select)`, `(if (then …))`, `(br_if 0)` with stack operands fail        | DEFECT     | ⬚ loud. Also block params, bare linear form. Plan: ir-convergence "Stage 1" (paused)      |
-| W5 | wabt     | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order   | DEFECT     | ⬚ form only. Upstream: explicit types first, then implicit in text order, interleaved     |
-| W6 | wabt     | wabt-ts writes a DataCount section whenever data segments exist; upstream wat2wasm only when `memory.init` / `data.drop` use it             | DEFECT     | ⬚ form only, 3 bytes. 242 corpus modules differ from upstream in section 12 alone         |
+| id | vs       | what differs                                                                                                                                | class      | status / authority                                                                                    |
+| -- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
+| G1 | wabt     | GC text syntax — `(ref null any)`, `(sub …)`, heap-type keywords. wabt 1.0.41 has none                                                      | FEATURE    | the spec is the authority; upstream `wat2wasm` cannot be consulted (G2)                               |
+| G2 | wabt     | `wast2json` 1.0.41 cannot split 30 GC-proposal spec files; `deno task spec` skips them                                                      | ORACLE GAP | those 30 files are untested by the harness — say so in any claim covering them                        |
+| G3 | wabt     | any GC-typed WAT probe: upstream rejects with "unexpected token" — a missing feature, not a verdict                                         | ORACLE GAP | read the error TEXT; use V8 for behaviour, our wabt-ts for assembly                                   |
+| R1 | binaryen | body representation: a `RegionExpr` in every region slot (upstream: `Expression*`, often an unnamed `Block`)                                | DESIGN     | S6 decision 5, `7f3ec1d6e`. Passes see one slot; a region is never a branch target                    |
+| R2 | binaryen | an all-nop body vacuums to an EMPTY region (`00 0b`); upstream `wasm-opt --vacuum` leaves one `nop` (`00 01 0b`) — probed 2026-09-10        | DESIGN     | consequence of R1; the spec allows an empty body, and ours is a byte smaller                          |
+| E1 | wabt     | a binary `if` with an explicit EMPTY `else` (`04 40 … 05 0b`) keeps the `else` through binaryen-ts; wabt's text path drops it               | DESIGN     | fidelity — upstream `wasm-opt` keeps it too (probed). ⬚ wabt-ts drops it: unify in S6                 |
+| B1 | binaryen | block PARAMETERS stay on the node through the fidelity phase; lowered to locals only when optimization starts. Upstream lowers at read time | DESIGN     | S6 decision 7b(i), `02d77f533`. `PassRunner` lowers first; no pass may see `params`                   |
+| V1 | binaryen | branch/return values held as a LIST (`values: Expression[]`); upstream uses one `value` + `tuple.make`                                      | DESIGN     | S6 decision 6A, `2b5850a8a`. No `tuple.make` kind; do not port one back in                            |
+| S2 | binaryen | a NUMERIC select written typed (`0x1c`) stays typed through binaryen-ts; `wasm-opt` rewrites it `0x1b` (probed)                             | DESIGN     | S6 decision 7a, `7171b8b38` — the declared type is on the node. wabt keeps it too                     |
+| T1 | wabt     | `call_indirect (type $b)` re-encodes naming an identical `$a` (first structural match) through binaryen-ts                                  | DEFECT     | ⬚ form only — probed: behaviour preserved even with non-final/final GC types; decision 7c             |
+| T2 | wabt     | binaryen-ts's encoder DERIVES the type-section order when no type is declared (signatures, tags, then expression uses), reordering input    | DEFECT     | ⬚ form only; decision 7c territory with T1. Measured by the type-order probe, 2026-09-10              |
+| W4 | wabt     | binaryen-ts's own `parseWat` is a FOLDED SUBSET: no multi-operand stack sources, stack conditions, block params, or bare linear form        | DESIGN     | owner 2026-09-10: external WAT goes wabt-ts → bytes → decoder (`e18d9f09a`); `parseWat` internal only |
+| W5 | wabt     | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order   | DEFECT     | ⬚ form only. Upstream: explicit types first, then implicit in text order, interleaved                 |
+| W6 | wabt     | wabt-ts writes a DataCount section whenever data segments exist; upstream wat2wasm only when `memory.init` / `data.drop` use it             | DEFECT     | ⬚ form only, 3 bytes. 242 corpus modules differ from upstream in section 12 alone                     |
 
 **wabt-ts vs upstream wat2wasm, byte for byte, on the 421-file corpus: 146 identical** (measured
 2026-09-10, default features — `--enable-all` changes what upstream EMITS). 242 differ in the
@@ -76,10 +76,16 @@ Each is pinned by a test whose expected output is upstream's (or V8's, where ups
 | wabt     | S1: a numeric typed select re-encoded untyped through binaryen-ts (now S2, vs binaryen)     | `7171b8b38` | `typed_select.test.ts`        |
 | wabt     | wabt-ts's folded `if` DROPPED every condition-slot instruction but the last (its inputs)    | `c309e57a0` | `folded_block_params.test.ts` |
 
-W3 with block PARAMETERS is not closed — the binary path keeps them since B1, but the binaryen-ts
-WAT parser still refuses them, loudly: that is W4. C1's pin is upstream's rule, not upstream's
-bytes: the test FAILS against the pre-fix pass, and the three invalidation tests it had made vacuous
-were rebuilt and verified to FAIL with invalidation disabled.
+W3 with block PARAMETERS: the binary path keeps them since B1, and external WAT with them reaches
+binaryen-ts through wabt-ts since W4's route. Only binaryen-ts's internal `parseWat` still refuses
+them, loudly.
+
+**The front-door decision behind W4** (owner, 2026-09-10): the end state is WAT → wabt-ts parser →
+wabt-ts binary writer → bytes → binaryen-ts decoder. So binaryen-ts's WAT parser is not a second
+front end to be completed — it is internal, and a candidate for retirement once S6 unifies the tree.
+Do not invest in its stack-form support ("Stage 1" in ir-convergence is superseded). C1's pin is
+upstream's rule, not upstream's bytes: the test FAILS against the pre-fix pass, and the three
+invalidation tests it had made vacuous were rebuilt and verified to FAIL with invalidation disabled.
 
 ## When refactoring or optimizing — the checklist
 

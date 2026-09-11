@@ -260,10 +260,9 @@ drop) — see ir-convergence decision 7.
 - ⬚ **W5** — wabt-ts's implicit type ORDER. Upstream: explicit types first, then implicit ones in
   text order, interleaved per function. Needs text-order assignment at the end of parsing (the
   bridge tests parse without `synthesizeTypes`, so a deferred index there would break them).
-- ⬚ **W4** — binaryen-ts's WAT parser breaks the parenthesis rule for multi-operand stack sources,
-  `if`/`br_if` conditions, block params, and bare linear form. Large: arity-aware claiming and a
-  second parsing mode — the paused ir-convergence "Stage 1". A smaller alternative exists: route
-  external WAT (the `wasm-opt` CLI) through wabt-ts, the declared front door.
+- ✅ **W4** — resolved by ROUTING, owner decision 2026-09-10 (`e18d9f09a`): external WAT goes
+  wabt-ts → bytes → decoder, the pipeline binaryang converges on anyway. binaryen-ts's own
+  `parseWat` stays an internal folded subset and retires with S6; its "Stage 1" is superseded.
 - ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
 
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
@@ -386,7 +385,12 @@ import-kind dispatches all carry comments about exactly this shape having bitten
   instantiates and computes correctly; resolves `wasmtk@2.0.1 → binaryang@1.5.2` with **neither
   predecessor pulled**. Detail and the caching trap it exposed: [transition.md](transition.md).
 
-## 🚨 `wasm-opt` cannot read the WAT `wasm2wat` writes
+## ✅ `wasm-opt` cannot read the WAT `wasm2wat` writes — BOTH defects closed, `e18d9f09a`
+
+✅ **2026-09-10.** `wasm-opt` reads external WAT through wabt-ts → bytes → the decoder (owner
+decision; divergence W4), so linear form reads — every corpus module written by our `wasm2wat`,
+linear or folded, comes back 421/421 valid. And `wasm-opt`'s `main` reports a failure as
+`wasm-opt: <message>`, exit 1, instead of an uncaught exception. The record as it stood:
 
 Found 2026-08-31 while asking whether the "nothing ships against the bridge" item could be closed.
 It could — and the asking turned up a user-facing defect that outranks it.
