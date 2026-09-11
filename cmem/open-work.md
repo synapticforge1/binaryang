@@ -263,6 +263,12 @@ drop) — see ir-convergence decision 7.
 - ✅ **W4** — resolved by ROUTING, owner decision 2026-09-10 (`e18d9f09a`): external WAT goes
   wabt-ts → bytes → decoder, the pipeline binaryang converges on anyway. binaryen-ts's own
   `parseWat` stays an internal folded subset and retires with S6; its "Stage 1" is superseded.
+- ⬚ **N1 — names lost at three hops** (divergences.md N1). Owner asked that it not be skipped.
+  (1) wabt-ts's writer: implement the ignored `writeDebugNames` — a name section; (2) binaryen-ts's
+  decoder: pre-scan for the name section and name entities from it, uniquified; (3) binaryen-ts's
+  encoder: write it under `debugInfo` AND in `lowerBlockParams`' re-encode, or 7b(i)'s name check
+  breaks for named modules. Then `readWat` asks for names. Tests: `$foo` through every route, and
+  byte comparison with upstream `wat2wasm --debug-names` / `wasm-opt -g`.
 - ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
 
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7

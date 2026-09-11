@@ -26,9 +26,9 @@
  * 20 of the 421 corpus modules (C10a) and is deleted in S6 step 5; bytes need
  * no translation. Nothing called it any more.
  *
- * What does not survive the hop: WAT NAMES. The decoder skips the name
- * section, so `$foo` comes back as a generated name. Irrelevant to binary
- * output; visible only if the module is printed back as text.
+ * ⚠️ What does not survive the hop yet: WAT NAMES — divergence N1, queued.
+ * wabt-ts's writer ignores its own `writeDebugNames` option, and the decoder
+ * skips the name section, so `$foo` comes back as a generated name.
  */
 
 import { wat2wasm } from '../../wabt-ts/tools/wat2wasm.ts';

@@ -1490,7 +1490,14 @@ class BinaryWriter {
 
 /** Options for {@link writeBinaryIr}. */
 export interface WriteBinaryOptions {
-  /** Write debug names (name custom section). Default: `false`. */
+  /**
+   * Write debug names (the `name` custom section). Default: `false`.
+   *
+   * ⚠️ **Not yet implemented — currently IGNORED**: no name section is written
+   * either way. Divergence N1 in cmem/divergences.md, queued; upstream
+   * wat2wasm writes one under `--debug-names`. Said here so the option cannot
+   * pass for a feature, as `Features.compactImports` once did.
+   */
   writeDebugNames?: boolean;
 }
 
