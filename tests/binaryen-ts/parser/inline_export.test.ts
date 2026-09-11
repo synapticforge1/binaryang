@@ -30,7 +30,7 @@ import { assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
+// wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../wabt_reference.ts.
 import { wabtReference } from '../wabt_reference.ts';
 
 /** Export set of a binary, as `name:kind`, sorted — the property that matters. */

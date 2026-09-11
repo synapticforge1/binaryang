@@ -89,7 +89,7 @@ import {
   typeOf,
   type UnaryExpr,
 } from '../ir/expressions.ts';
-import type { WasmFunction, WasmModule } from '../ir/module.ts';
+import type { ExplicitNames, WasmFunction, WasmModule } from '../ir/module.ts';
 import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
@@ -507,8 +507,31 @@ class WasmEncoder {
    */
   private heapTypes: TypeDef[] = [];
 
+  /**
+   * Label names written so far, by function index — for the name section's
+   * label subsection (N1 P5). A label's index counts every label-introducing
+   * instruction in its function in the order they are WRITTEN; see
+   * {@link noteLabel}.
+   */
+  private readonly labelNames = new Map<number, [number, string][]>();
+  /** The current function's labels that came from a name section, and its count so far. */
+  private funcLabels: ReadonlySet<string> | undefined;
+  private funcLabelsOut: [number, string][] = [];
+  private labelCount = 0;
+
   constructor(mod: WasmModule) {
     this.mod = mod;
+  }
+
+  /**
+   * Count one label-introducing instruction — called where each pushes its
+   * label, i.e. as its opcode is written — and keep its name when the module
+   * was read with it. Binary order, not tree order: a folded `if`'s condition
+   * block is written before the `if`.
+   */
+  private noteLabel(name: string | null | undefined): void {
+    const index = this.labelCount++;
+    if (name != null && this.funcLabels?.has(name)) this.funcLabelsOut.push([index, name]);
   }
 
   /**
@@ -650,8 +673,131 @@ class WasmEncoder {
     if (this.mod.dataSegments.length > 0) {
       this.writeSection(out, 11, (w) => this.encodeDataSection(w));
     }
+    // Last, as the spec places it — and after the code, which is where the
+    // label names were counted.
+    if (this.mod.explicitNames !== undefined) this.writeNameSection(out, this.mod.explicitNames);
 
     return out.toUint8Array();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Name section — N1 P5 (cmem/names.md)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The `name` custom section, from the names the module was READ with
+   * ({@link WasmModule.explicitNames}) — never from the ones the decoder made
+   * up.
+   *
+   * 🔧 This encoder wrote none, so every name was lost the moment binaryen-ts
+   * re-encoded a module (hop D of N1), and 7b(i)'s block-parameter lowering —
+   * which re-decodes this encoder's output — refused every named module that
+   * had parameters, because the names came back different.
+   *
+   * The layout is wabt-ts's writer's, which is upstream `wat2wasm
+   * --debug-names`'s for the ten kinds upstream writes: subsections in id
+   * order; flat maps list named entries only and are omitted when empty; the
+   * local subsection is always written, with an entry for every function; names
+   * without the `$`. So wabt-ts's bytes decode and re-encode to themselves.
+   */
+  private writeNameSection(out: BinaryWriter, names: ExplicitNames): void {
+    const { mod } = this;
+    const bare = (s: string): string => (s.startsWith('$') ? s.slice(1) : s);
+    const sorted = (m: ReadonlyMap<number, string>): [number, string][] =>
+      [...m].filter(([, n]) => n !== '').sort(([a], [b]) => a - b);
+    const entries = (w: BinaryWriter, list: readonly [number, string][]): void => {
+      w.writeU32(list.length);
+      for (const [i, n] of list) {
+        w.writeU32(i);
+        w.writeUTF8(bare(n));
+      }
+    };
+    const sub = (w: BinaryWriter, id: number, body: (b: BinaryWriter) => void): void => {
+      const b = new BinaryWriter();
+      body(b);
+      w.writeU8(id);
+      w.writeU32(b.byteLength);
+      w.writeAll(b);
+    };
+    /** A flat map over one index space: the listed names only; nothing if none. */
+    const flat = (
+      w: BinaryWriter,
+      id: number,
+      space: readonly string[],
+      set: ReadonlySet<string>,
+    ) => {
+      const list: [number, string][] = [];
+      space.forEach((name, i) => {
+        if (set.has(name)) list.push([i, name]);
+      });
+      if (list.length > 0) sub(w, id, (b) => entries(b, list));
+    };
+    /** An indirect map: the outers that have names only; nothing if none. */
+    const indirect = (
+      w: BinaryWriter,
+      id: number,
+      outer: readonly [number, [number, string][]][],
+    ) => {
+      const kept = outer.filter(([, inner]) => inner.length > 0);
+      if (kept.length === 0) return;
+      sub(w, id, (b) => {
+        b.writeU32(kept.length);
+        for (const [i, inner] of kept) {
+          b.writeU32(i);
+          entries(b, inner);
+        }
+      });
+    };
+    const imports = (kind: string): string[] =>
+      mod.imports.filter((i) => i.kind === kind).map((i) => i.name);
+    const funcSpace = [...imports('function'), ...mod.functions.map((f) => f.name)];
+
+    const section = new BinaryWriter();
+    section.writeUTF8('name');
+    if (names.module !== undefined) sub(section, 0, (b) => b.writeUTF8(bare(names.module!)));
+    flat(section, 1, funcSpace, names.functions);
+    // Every function, as upstream wat2wasm writes it — imports included.
+    sub(section, 2, (b) => {
+      const importFuncs = mod.imports.filter((i) => i.kind === 'function');
+      b.writeU32(importFuncs.length + mod.functions.length);
+      importFuncs.forEach((imp, i) => {
+        b.writeU32(i);
+        entries(b, sorted(names.importParams.get(imp.name) ?? new Map()));
+      });
+      mod.functions.forEach((fn, i) => {
+        b.writeU32(importFuncs.length + i);
+        const list: [number, string][] = [];
+        fn.locals.forEach((l, j) => {
+          if (l.name !== undefined && l.name !== '') list.push([j, l.name]);
+        });
+        entries(b, list);
+      });
+    });
+    indirect(section, 3, [...this.labelNames].sort(([a], [b]) => a - b));
+    // Types by the OBJECT they were read as: a type a pass rebuilt, or one the
+    // encoder appended for an expression, has none. Only the GC-mode type
+    // section (`heapTypes`) is the decoder's own list; the derived one is not.
+    const typeList: [number, string][] = [];
+    this.heapTypes.forEach((def, i) => {
+      const n = names.types.get(def);
+      if (n !== undefined) typeList.push([i, n]);
+    });
+    if (typeList.length > 0) sub(section, 4, (b) => entries(b, typeList));
+    flat(section, 5, [...imports('table'), ...mod.tables.map((t) => t.name)], names.tables);
+    flat(section, 6, [...imports('memory'), ...mod.memories.map((m) => m.name)], names.memories);
+    flat(section, 7, [...imports('global'), ...mod.globals.map((g) => g.name)], names.globals);
+    flat(section, 8, mod.elements.map((e) => e.name), names.elements);
+    flat(section, 9, mod.dataSegments.map((d) => d.name), names.dataSegments);
+    indirect(
+      section,
+      10,
+      this.heapTypes.map((def, i) => [i, sorted(names.fields.get(def) ?? new Map())]),
+    );
+    flat(section, 11, [...imports('tag'), ...mod.tags.map((t) => t.name)], names.tags);
+
+    out.writeU8(0);
+    out.writeU32(section.byteLength);
+    out.writeAll(section);
   }
 
   // ---------------------------------------------------------------------------
@@ -1330,11 +1476,18 @@ class WasmEncoder {
     // functions that don't branch to the function frame, so the common case is
     // unchanged.
     const labels: LabelStack = [fn.bodyFrameLabel ?? ''];
+    // Label indices count from 0 in each function (N1 P5).
+    this.funcLabels = this.mod.explicitNames?.labels.get(fn.name);
+    this.funcLabelsOut = [];
+    this.labelCount = 0;
     // The same rule as every other region, through the same helper. This was a
     // third open-coded copy; `Loop` and `try_table` were two places that had the
     // rule and did NOT apply it, which is how the shadowing bug survived.
     this.encodeRegionBody(w, fn.body, labels);
     w.writeU8(0x0b); // end
+    if (this.funcLabelsOut.length > 0) {
+      this.labelNames.set(this.funcIndex.get(fn.name)!, this.funcLabelsOut);
+    }
   }
 
   /**
@@ -1507,6 +1660,7 @@ class WasmEncoder {
         this.encodeParamValues(w, e, labels);
         w.writeU8(0x02);
         this.writeCarrierType(w, e);
+        this.noteLabel(e.name);
         labels.push(e.name ?? null);
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
@@ -1519,6 +1673,7 @@ class WasmEncoder {
         this.encodeParamValues(w, e, labels);
         w.writeU8(0x03);
         this.writeCarrierType(w, e);
+        this.noteLabel(e.name);
         labels.push(e.name);
         // A REGION, like the `if` arms — see `encodeRegionBody`. Encoding the
         // body directly emitted the parser's synthetic wrapper as a real nested
@@ -1539,6 +1694,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
         this.writeCarrierType(w, e);
+        this.noteLabel(e.name);
         labels.push(e.name ?? null); // the if's branch-target label (if any)
         // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
         // exits via `br` ends in an unreachable-typed child, so re-wrapping it
@@ -2144,6 +2300,7 @@ class WasmEncoder {
           }
           w.writeU32(this.resolveLabel(labels, c.dest));
         }
+        this.noteLabel(e.name);
         labels.push(e.name ?? null);
         this.encodeRegionBody(w, e.body, labels);
         labels.pop();
@@ -2158,6 +2315,7 @@ class WasmEncoder {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
           this.writeCarrierType(w, e);
+          this.noteLabel(e.name);
           labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
@@ -2166,6 +2324,7 @@ class WasmEncoder {
         } else {
           w.writeU8(0x06); // try
           this.writeCarrierType(w, e);
+          this.noteLabel(e.name);
           labels.push(e.name ?? null);
           this.encodeRegionBody(w, e.body, labels);
           // The length guard that stood here — "try has N catch tags but M

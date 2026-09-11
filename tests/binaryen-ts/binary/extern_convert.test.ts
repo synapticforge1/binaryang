@@ -16,8 +16,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
-import { wabtReference } from '../wabt_reference.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
@@ -34,7 +33,7 @@ async function instance(bytes: Uint8Array): Promise<Record<string, (x: unknown) 
 }
 
 describe('the extern conversions', () => {
-  const input = wabtReference(WAT, { filename: 'convert.wat' }).binary;
+  const input = wat2wasm(WAT, { filename: 'convert.wat' }).binary;
 
   it('the input is a valid module (V8)', () => {
     assert(input.length > 0, 'wabt-ts assembled nothing');

@@ -1,22 +1,22 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 //
-// wabt-ts's bytes WITHOUT their name section — the reference that binaryen-ts
-// ENCODINGS are compared against. N1 interim (cmem/names.md).
+// wabt-ts's bytes WITHOUT their name section — the reference for comparing what
+// binaryen-ts's INTERNAL `parseWat` encodes with what wabt-ts assembles.
+// (cmem/names.md, N1.)
 //
-// Since N1 P2 wabt-ts writes a name section, always. binaryen-ts neither reads
-// one nor writes one until P4/P5, so every byte comparison between the two
-// failed on the name section alone. What these tests compare — instruction and
-// section encodings — the name section does not touch, so the reference leaves
-// it out.
+// Since N1 P2 wabt-ts writes a name section, always. binaryen-ts reads and
+// writes one since P4–P5 — but only for a module READ WITH one: `parseWat` is
+// binaryen-ts's internal folded-subset parser, deliberately not extended (W4 —
+// external WAT goes wabt-ts → bytes → decoder), so what it builds carries no
+// name section. What these tests compare — instruction and section encodings —
+// the name section does not touch, so the reference leaves it out.
 //
-// ⚠️ DELETE WITH P5, and point every user back at `wat2wasm`. Once binaryen-ts
-// writes names, its output carries a name section and the comparisons against
-// this reference fail; that is this narrowing announcing it is over. Do not
-// silence it by stripping binaryen-ts's side too — that would hide the very
-// loss P4/P5 exist to close. (The decode → encode users feed the stripped bytes
-// IN, so they keep passing after P5; names.md's P5 row lists this file so it is
-// not left behind.)
+// ⚠️ Only for `parseWat` comparisons. A DECODE → ENCODE test must use the full
+// `wat2wasm` bytes: binaryen-ts keeps names on that path, and stripping them
+// would hide exactly the loss P4–P5 closed (the three that used this until P5 —
+// wide arithmetic, multi-memory, extern conversions — went back to `wat2wasm`
+// then). Retire this with `parseWat` itself (S6).
 
 import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 import type { Wat2WasmOptions, Wat2WasmResult } from '../../src/wabt-ts/tools/wat2wasm.ts';

@@ -33,15 +33,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
-import { wabtReference } from '../wabt_reference.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { type Var, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 function assemble(wat: string): Uint8Array {
-  const asm = wabtReference(wat, { filename: 'wide.wat' });
+  const asm = wat2wasm(wat, { filename: 'wide.wat' });
   assert(asm.binary, `fixture must assemble: ${wat.slice(0, 60)}`);
   return asm.binary;
 }

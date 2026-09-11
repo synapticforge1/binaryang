@@ -286,11 +286,19 @@ export class PassRunner {
   run(): void {
     // Block parameters exist only for fidelity; no pass here was written for
     // them (S6 decision 7b(i)). Lower them before the first pass sees the tree.
+    // (The lowering re-encodes and re-decodes, so it relies on the encoder
+    // writing the module's names — N1 P5.)
     lowerBlockParams(this._module);
+    const optimized = this._queue.length > 0;
     for (const pass of this._queue) {
       pass.run(this._module, this._options);
     }
     this._queue.length = 0;
+    // Names follow `-g` once a pass has run, as upstream: there is no original
+    // left to be faithful to (N1, cmem/names.md). With no pass run this is still
+    // a plain read-and-write, which keeps them — the owner's rule, over
+    // upstream `wasm-opt`, which strips them even then.
+    if (optimized && !this._options.debugInfo) delete this._module.explicitNames;
   }
 
   /** The current pass queue (read-only). */

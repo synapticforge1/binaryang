@@ -273,6 +273,54 @@ export interface WasmModule {
   heapTypes: TypeDef[];
   /** Whether the module uses the GC proposal. */
   hasGC: boolean;
+  /**
+   * The names the module was READ with — its `name` section — as opposed to
+   * the ones the decoder made up. N1 steps P4–P5 (cmem/names.md).
+   *
+   * Every entity here is keyed by a name, so the decoder names the unnamed ones
+   * `$func3`, `$global0`, … The encoder must not write those into a name
+   * section — that would invent names, the fault `wasm2wat`'s `generateNames`
+   * had — so it writes only what is listed here. Upstream binaryen keeps the
+   * same distinction as `hasExplicitName`.
+   *
+   * Absent means the module had no name section, and none is written: a module
+   * built through the API, or by the internal `parseWat`, encodes as before.
+   * `PassRunner` drops it at the end of a run unless `debugInfo` is set —
+   * optimized output follows `-g`, as upstream.
+   */
+  explicitNames?: ExplicitNames;
+}
+
+/**
+ * A module's names from its `name` section, as {@link WasmModule.explicitNames}
+ * holds them. Every name is `$`-prefixed like the IR's own.
+ *
+ * Entities are listed by the name they carry in the IR (after disambiguation),
+ * so a pass that renames or removes one simply takes it out of the name section.
+ * TYPES and their fields are keyed by the `TypeDef` OBJECT: the type section is
+ * written from `heapTypes`, and a pass that rebuilds a type loses its name rather
+ * than lending it to whatever takes its index.
+ */
+export interface ExplicitNames {
+  /** The module's own name (subsection 0). */
+  module?: string;
+  /** Functions, imported and defined (1). */
+  functions: ReadonlySet<string>;
+  /** Param names of IMPORTED functions, by import name (2) — a defined function's are `Local.name`. */
+  importParams: ReadonlyMap<string, ReadonlyMap<number, string>>;
+  /** Label names, by function name (3) — the names of the blocks, loops, ifs and trys that had one. */
+  labels: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Type names (4). */
+  types: ReadonlyMap<TypeDef, string>;
+  /** Tables (5), memories (6), globals (7), element (8) and data (9) segments, tags (11). */
+  tables: ReadonlySet<string>;
+  memories: ReadonlySet<string>;
+  globals: ReadonlySet<string>;
+  elements: ReadonlySet<string>;
+  dataSegments: ReadonlySet<string>;
+  tags: ReadonlySet<string>;
+  /** Struct field names, by type (10). */
+  fields: ReadonlyMap<TypeDef, ReadonlyMap<number, string>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +372,9 @@ export class ModuleBuilder {
    * @param body - The function body: a region, a list, or one expression
    *   (see {@link asRegion}).
    * @param locals - Additional (non-param) local variables.
+   * @param paramNames - The params' names, by index; `undefined` for an unnamed
+   *   one. A param is a local, so its name is its `Local.name` — the decoder
+   *   passes the name section's here (N1 P4); without this they were dropped.
    */
   addFunction(
     name: string,
@@ -332,8 +383,12 @@ export class ModuleBuilder {
     body: RegionInput,
     locals: Local[] = [],
     bodyFrameLabel?: string,
+    paramNames?: readonly (string | undefined)[],
   ): this {
-    const paramLocals: Local[] = params.map((type) => ({ type }));
+    const paramLocals: Local[] = params.map((type, i) => {
+      const n = paramNames?.[i];
+      return n === undefined ? { type } : { type, name: n };
+    });
     this._functions.push({
       name,
       params,
