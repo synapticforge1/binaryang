@@ -3270,8 +3270,18 @@ export class WastParser {
         if (this.pos === before) break; // nothing consumed — do not spin
       }
       if (condCtx.stmts.length > 0 || condCtx.stack.length > 0) {
-        flushStack(condCtx);
-        cond = condCtx.stmts[condCtx.stmts.length - 1] ?? condCtx.stack[0];
+        // The LAST folded value is the condition. Everything folded before it
+        // runs BEFORE the `if` — `(if bt foldedinstr* (then …))` is
+        // `foldedinstr* if bt … end` — and for a parametrised `if` that is its
+        // INPUTS, left on the stack beneath the condition exactly as the linear
+        // form leaves them: statements in order, then the remaining values.
+        //
+        // 🔧 This kept the last item and DISCARDED the rest, so
+        // `(if (param i32) (result i32) (i32.const 7) (local.get 0) (then …))`
+        // lost its input and wrote an invalid module. Upstream wat2wasm reads it.
+        cond = condCtx.stack.pop() ?? condCtx.stmts.pop();
+        for (const s of condCtx.stmts) pushStmt(ctx, s);
+        for (const v of condCtx.stack) ctx.stack.push(v);
       }
       if (cond === undefined && ctx.stack.length > 0) {
         cond = ctx.stack.pop();
