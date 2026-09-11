@@ -47,8 +47,7 @@ class. "Valid either way" is not a class.
 | T1 | wabt       | `call_indirect (type $b)` re-encodes naming an identical `$a` (first structural match) through binaryen-ts                                                                | DEFECT     | ⬚ form only — probed: behaviour preserved even with non-final/final GC types; decision 7c                                                         |
 | T2 | wabt       | binaryen-ts's encoder DERIVES the type-section order when no type is declared (signatures, tags, then expression uses), reordering input                                  | DEFECT     | ⬚ form only; decision 7c territory with T1. Measured by the type-order probe, 2026-09-10                                                          |
 | W4 | wabt       | binaryen-ts's own `parseWat` is a FOLDED SUBSET: no multi-operand stack sources, stack conditions, block params, or bare linear form                                      | DESIGN     | owner 2026-09-10: external WAT goes wabt-ts → bytes → decoder (`e18d9f09a`); `parseWat` internal only                                             |
-| W5 | wabt       | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order                                 | DEFECT     | ⬚ form only. Upstream: explicit types first, then implicit in text order, interleaved                                                             |
-| W6 | wabt       | wabt-ts writes a DataCount section whenever data segments exist; upstream wat2wasm only when `memory.init` / `data.drop` use it                                           | DEFECT     | ⬚ form only, 3 bytes. 242 corpus modules differ from upstream in section 12 alone                                                                 |
+| W5 | wabt       | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order                                 | DEFECT     | ⬚ form only; 21 corpus modules (all EH), types/functions/tags. Upstream: explicit first, then implicit in text order                              |
 | N2 | both       | LABEL names (subsection 3) and GC FIELD names (10) are written and read; upstream `wat2wasm --debug-names` writes neither                                                 | FEATURE    | owner 2026-09-11. ✅ wabt-ts writes (P2 `ab9d48b1e`), reads (P3 `b76dde783`); ⬚ binaryen-ts (P4–P5)                                               |
 | N3 | wabt       | `wasm2wat` prints a name that is not all idchars QUOTED (`$"foo bar"`); upstream substitutes `_`, renaming it (`$foo_bar`)                                                | DESIGN     | fidelity, N1 P3: the text must hold the name the binary did. binaryen prints the same quoted form                                                 |
 | N4 | binaryen   | after passes with `-g`, binaryen-ts keeps the LOCAL and LABEL names the passes leave; upstream `wasm-opt -O2 -g` drops every local name (params too) and writes no labels | DESIGN     | provisional (N1 P5, 2026-09-11): "follow `-g`" was decided, what `-g` keeps after optimization was not — the owner's future discussion settles it |
@@ -118,6 +117,12 @@ DataCount section alone (W6); ~33 more in type / function / code / tag sections,
 Never measured before: the corpus baseline pins wabt-ts's OWN output, so any divergence older than
 the baseline is invisible to it.
 
+✅ **After W6 (2026-09-11): 400 / 421 identical**, custom sections aside (their name sections are
+426/426 equal on their own). Re-measured precisely: the first count was 148 with default features,
+and the "other" differences were the 21 exception-handling modules upstream cannot assemble without
+`--enable-exceptions`. With it, those 21 differ ONLY in the type, function and tag sections — W5 is
+21 modules, nothing else is left.
+
 ## Closed — defects that were divergences, kept as history
 
 Each is pinned by a test whose expected output is upstream's (or V8's, where upstream cannot reach).
@@ -143,6 +148,7 @@ Each is pinned by a test whose expected output is upstream's (or V8's, where ups
 | binaryen | N1: binaryen-ts's decoder skipped the name section and its encoder wrote none               | `138148881` | `binary/names.test.ts`        |
 | binaryen | every imported memory decoded as `mem0`, colliding with the first defined one               | `138148881` | `binary/names.test.ts`        |
 | binaryen | a `throw` / `catch` of an IMPORTED tag decoded with NO payload (tag-index-space mixup)      | `874caf068` | `imported_tag.test.ts`        |
+| wabt     | W6: DataCount written whenever data existed; upstream only when code names a data segment   | `cb474baaa` | `data_count.test.ts`          |
 
 W3 with block PARAMETERS: the binary path keeps them since B1, and external WAT with them reaches
 binaryen-ts through wabt-ts since W4's route. Only binaryen-ts's internal `parseWat` still refuses
