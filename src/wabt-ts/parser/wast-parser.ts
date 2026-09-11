@@ -970,6 +970,19 @@ function newCtx(): ExprCtx {
   return { stack: [], stmts: [] };
 }
 
+/**
+ * A function's param/local scope (`$name` → slot) as the IR keeps it: slot →
+ * `$name`, or `undefined` when nothing was named. The parser resolves every
+ * local reference to a slot through the scope; this is what keeps the NAMES
+ * once that is done (N1, cmem/names.md).
+ */
+function namesByIndex(scope: Map<string, number>): Map<number, string> | undefined {
+  if (scope.size === 0) return undefined;
+  const names = new Map<number, string>();
+  for (const [name, slot] of scope) names.set(slot, name);
+  return names;
+}
+
 /** Pop `n` operands from stack (right-to-left order: last-in first-out). */
 function popN(ctx: ExprCtx, n: number, fallback: Location): Expr[] {
   const result: Expr[] = [];
@@ -2352,8 +2365,9 @@ export class WastParser {
       this.drop();
       const name = this.parseBindVarOpt();
       const typeVar = this.parseTypeUseOpt();
-      const { sig } = this.parseFuncSignature();
+      const { sig, bindings } = this.parseFuncSignature();
       const typeUse = this.settleTypeUse(module, typeVar, sig);
+      const localNames = namesByIndex(bindings);
       const func: Func = {
         name,
         loc,
@@ -2362,6 +2376,7 @@ export class WastParser {
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls: [],
+        ...(localNames !== undefined ? { localNames } : {}),
         body: [],
         tailcall: false,
       };
@@ -2480,6 +2495,7 @@ export class WastParser {
 
     if (inlineImp !== null) {
       // This is an imported function declared as (func (import ...) ...)
+      const localNames = namesByIndex(bindings);
       const func: Func = {
         name,
         loc,
@@ -2488,6 +2504,7 @@ export class WastParser {
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls: [],
+        ...(localNames !== undefined ? { localNames } : {}),
         body: [],
         tailcall: false,
       };
@@ -2545,6 +2562,7 @@ export class WastParser {
       const bodyEnd = this.pos;
       const body: Expr[] = [];
 
+      const localNames = namesByIndex(scope);
       const func: Func = {
         name,
         loc,
@@ -2553,6 +2571,7 @@ export class WastParser {
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         localDecls,
+        ...(localNames !== undefined ? { localNames } : {}),
         body,
         tailcall: false,
       };

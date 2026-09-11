@@ -1582,6 +1582,19 @@ export interface Func {
   sig: FuncSignature;
   /** Local variable declarations (not including params). */
   localDecls: LocalDecl[];
+  /**
+   * The names of params and locals, by index in their SHARED index space
+   * (params first), `$`-prefixed like every name here — only those that have
+   * one. Absent means none.
+   *
+   * 🔧 N1 (cmem/names.md): there was nowhere to keep these. The parser
+   * resolved `$arg` to a slot and discarded the name, so no writer could put it
+   * back and WAT → wasm2wat lost every param and local name (24,694 of them in
+   * the corpus). `LocalDecl` is run-length `{ type, count }` and cannot hold a
+   * name per local; a sparse index map can, and matches the name section's
+   * local subsection, which is indexed the same way.
+   */
+  localNames?: Map<Index, string>;
   /** Function body as a sequence of tree-structured expressions. */
   body: Expr[];
   tailcall: boolean;

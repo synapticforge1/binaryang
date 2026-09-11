@@ -32,7 +32,6 @@ import type {
   Global,
   Import,
   Limits,
-  LocalDecl,
   Memory,
   Module,
   Table,
@@ -688,17 +687,17 @@ class WatWriter extends ModuleContext {
 
       onLocalGetExpr: (e) => {
         this.putsSpace('local.get');
-        this.writeVar(e.var, NC.Newline);
+        this.writeLocalVar(e.var);
         return Result.Ok;
       },
       onLocalSetExpr: (e) => {
         this.putsSpace('local.set');
-        this.writeVar(e.var, NC.Newline);
+        this.writeLocalVar(e.var);
         return Result.Ok;
       },
       onLocalTeeExpr: (e) => {
         this.putsSpace('local.tee');
-        this.writeVar(e.var, NC.Newline);
+        this.writeLocalVar(e.var);
         return Result.Ok;
       },
       onGlobalGetExpr: (e) => {
@@ -1945,7 +1944,6 @@ class WatWriter extends ModuleContext {
     this.closeNewline();
   }
 
-  /** Write `(func ...)` header (name, inline exports/imports, type) for imported funcs. */
   /**
    * Emit the function's `(type N)` type-use.
    *
@@ -1965,12 +1963,18 @@ class WatWriter extends ModuleContext {
     this.closeSpace();
   }
 
+  /**
+   * Write the `(func ...)` header of an IMPORTED function: name, inline
+   * exports, type use, and its signature — with its param names (N1), which an
+   * import can carry like any function.
+   */
   private writeFuncBegin(func: Func, _isImport: boolean): void {
     this.openSpace('func');
     this.writeNameOrIndex(func.name, this.funcIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
     this.writeFuncTypeUse(func);
-    this.writeFuncSig(func.sig);
+    this.writeParams(func.sig.params, func.localNames);
+    this.writeTypes(func.sig.results, 'result');
     this.funcIdx++;
   }
 
@@ -1980,20 +1984,21 @@ class WatWriter extends ModuleContext {
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
     this.writeFuncTypeUse(func);
     this.funcIdx++;
-    // Params (named individually if they have names)
-    this.writeTypeBindings('param', func.sig.params, func.localDecls, 0);
+    // Params: a named one on its own, consecutive unnamed ones as one group.
+    this.writeParams(func.sig.params, func.localNames);
     this.writeTypes(func.sig.results, 'result');
     this.newline(false);
-    // Locals
+    // Locals. 🔧 N1: a NAMED local is written with its name — it had none to
+    // write, the parser having discarded it ("local might have no name —
+    // that's fine" stood here). An unnamed one keeps this writer's one-per-group
+    // form.
     if (func.localDecls.length > 0) {
+      let idx = func.sig.params.length;
       for (const decl of func.localDecls) {
         for (let k = 0; k < decl.count; k++) {
           this.openSpace('local');
-          // Only write the name for the first local in this group
-          // (when count > 1 they're anonymous in grouped form)
-          if (decl.count === 1) {
-            // local might have no name — that's fine
-          }
+          const name = func.localNames?.get(idx++);
+          if (name !== undefined) this.writeName(name, NC.Space);
           this.writeType(decl.type, NC.Space);
           this.closeSpace();
         }
@@ -2002,33 +2007,45 @@ class WatWriter extends ModuleContext {
     }
     // Body
     this.beginFunc(func);
+    this.bodyLocalNames = func.localNames;
     this.writeExprList(func.body);
+    this.bodyLocalNames = undefined;
     this.endFunc();
     this.closeNewline();
   }
 
-  private writeTypeBindings(
-    prefix: string,
-    types: ValueType[],
-    _decls: LocalDecl[],
-    _offset: number,
-  ): void {
-    // For params, write grouped (param i32 i64) or individually ($name i32)
-    if (types.length === 0) return;
-    // For simplicity, write all params as one group per type
+  /**
+   * A function's params, as upstream wasm2wat writes them: a NAMED param on
+   * its own, `(param $a i32)`; a run of consecutive unnamed ones as one group,
+   * `(param i32 i64)`. With no names at all that is the single group this
+   * wrote before N1 — whose placeholder comment promised "individually
+   * ($name i32)" and never did, having no names to write.
+   */
+  private writeParams(types: ValueType[], names: Map<number, string> | undefined): void {
     let i = 0;
     while (i < types.length) {
-      // Check if consecutive params have same type and no names
-      this.openSpace(prefix);
-      this.writeType(types[i]!, NC.Space);
-      i++;
-      while (i < types.length) {
-        this.writeType(types[i]!, NC.Space);
-        i++;
+      this.openSpace('param');
+      const name = names?.get(i);
+      if (name !== undefined) {
+        this.writeName(name, NC.Space);
+        this.writeType(types[i++]!, NC.Space);
+      } else {
+        while (i < types.length && names?.get(i) === undefined) {
+          this.writeType(types[i++]!, NC.Space);
+        }
       }
       this.closeSpace();
-      break; // single group for all params
     }
+  }
+
+  /** The param/local names of the function whose body is being written. */
+  private bodyLocalNames: Map<number, string> | undefined;
+
+  /** A local reference by its NAME where it has one (as upstream prints it), else by index. */
+  private writeLocalVar(v: Var): void {
+    const name = v.kind === 'index' ? this.bodyLocalNames?.get(v.value) : undefined;
+    if (name !== undefined) this.writeName(name, NC.Newline);
+    else this.writeVar(v, NC.Newline);
   }
 
   private writeGlobalBegin(g: Global, _isImport: boolean): void {
