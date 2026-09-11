@@ -50,7 +50,10 @@ class. "Valid either way" is not a class.
 | W6 | wabt     | wabt-ts writes a DataCount section whenever data segments exist; upstream wat2wasm only when `memory.init` / `data.drop` use it             | DEFECT     | ⬚ form only, 3 bytes. 242 corpus modules differ from upstream in section 12 alone                     |
 
 **N1 — NAMES are lost at three hops** (found 2026-09-10, from the W4 route; owner: "so that this is
-not skipped"). `$foo` does not survive WAT → wabt-ts → bytes → binaryen-ts:
+not skipped"). **SCOPED 2026-09-11 in [names.md](names.md)**: ~43,000 source names in the corpus, 2
+survive our round trip; the wabt-ts reader has never read one (a slice bug); upstream itself does
+not write LABEL names, so keeping them is a FEATURE beyond upstream; a six-step plan. `$foo` does
+not survive WAT → wabt-ts → bytes → binaryen-ts:
 
 | hop                   | today                                                                        | upstream                                   |
 | --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------ |

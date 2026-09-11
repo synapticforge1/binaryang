@@ -263,11 +263,12 @@ drop) — see ir-convergence decision 7.
 - ✅ **W4** — resolved by ROUTING, owner decision 2026-09-10 (`e18d9f09a`): external WAT goes
   wabt-ts → bytes → decoder, the pipeline binaryang converges on anyway. binaryen-ts's own
   `parseWat` stays an internal folded subset and retires with S6; its "Stage 1" is superseded.
-- ⬚ **N1 — names lost at three hops** (divergences.md N1). Owner asked that it not be skipped, and
-  DECIDED (2026-09-10): names are kept when reading and writing without optimization — over both
-  upstreams, which drop them unless asked — and **wabt-ts ALWAYS keeps them**, no opt-out: WAT →
-  `wat2wasm` → `wasm2wat` must reconstitute the WAT, names included (the acceptance test). Optimized
-  output follows a different rule: a `-g`-style `debugInfo` option (default off, as upstream, unless
+- ⬚ **N1 — names lost at three hops** — **SCOPED 2026-09-11: [names.md](names.md)** (six steps
+  P1–P6; three owner decisions pending before P1). Owner asked that it not be skipped, and DECIDED
+  (2026-09-10): names are kept when reading and writing without optimization — over both upstreams,
+  which drop them unless asked — and **wabt-ts ALWAYS keeps them**, no opt-out: WAT → `wat2wasm` →
+  `wasm2wat` must reconstitute the WAT, names included (the acceptance test). Optimized output
+  follows a different rule: a `-g`-style `debugInfo` option (default off, as upstream, unless
   re-decided). Export and import names are the interface, not N1, and are already pinned. (1)
   wabt-ts's writer: implement the ignored `writeDebugNames` — a name section; (2) binaryen-ts's
   decoder: pre-scan for the name section and name entities from it, uniquified; (3) binaryen-ts's
