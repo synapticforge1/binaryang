@@ -939,6 +939,32 @@ the body bytes in a one-function `() -> ()` module, run `wasm-opt in.wasm [flags
 flags = read → write), and compare the code-section body. Note that `-Oz` deletes an unexported
 function outright — export it, or probe a single pass.
 
+## 🆕 Every linear instruction has a folded form — add parentheses (owner rule, 2026-09-10)
+
+**Rule: anything written linearly can be written folded by putting parentheses around the
+instruction.** Folded operands are OPTIONAL; whatever an instruction consumes beyond them comes from
+the stack. So `i32.add` ≡ `(i32.add)`, and `i32.const 2 i32.add` ≡ `(i32.add (i32.const 2))` when
+the other operand is already there. Structured instructions fold the same way: `(block …)`,
+`(loop …)`, and `(if bt foldedinstr* (then …) (else …))`, which means `foldedinstr* if bt … end` —
+the condition slot holds any number of folded instructions, the last value being the condition.
+
+**"This has no folded form" is therefore never a reason** — not to refuse input, not to justify
+dropping part of it, not to rule a feature out of a parser.
+
+The instance: I wrote that the binaryen-ts WAT parser "reads folded form only", so block PARAMETERS
+— "by definition a value left on the stack by what came before" — could not be read. The owner
+corrected it. Upstream wat2wasm reads all four folded spellings: an input folded before
+`(block (param …) …)`, a body consuming it with a partial fold, `if` inputs in the condition slot,
+and a loop back-edge. Probing those spellings then found a real defect — wabt-ts's folded `if` kept
+only the LAST instruction of its condition slot and silently dropped the input (`c309e57a0`).
+
+### How to apply
+
+- A parser that reads folded form must read EVERY instruction parenthesised with fewer folded
+  operands than it consumes, taking the rest from the stack.
+- A claim about what text can express is checked against upstream `wat2wasm` before it is written
+  down — it is the authority on the text format, and a probe costs a minute.
+
 ## 🆕 A pinned list must be a RATCHET, not a ceiling (S6 decision 6A, 2026-09-10)
 
 The operators gate pinned seven phantom kinds and failed on any ADDITION. Decision 6A deleted one,

@@ -1385,7 +1385,7 @@ which also owns the 7 label references (`name` ×5, `delegateTarget`, `Rethrow.t
 `CatchClause.tag`, all deliberately routed around during the mechanical passes so they would not be
 settled by accident.
 
-##### Group 2 — the seven real decisions 🚧 6 of 7 IMPLEMENTED
+##### Group 2 — the seven real decisions 🚧 6 of 7 IMPLEMENTED, and 7a / 7b(i) of the seventh
 
 The decisions themselves were made when the 28 were scoped; these are the implementations, each its
 own commit and gate.
@@ -1538,11 +1538,45 @@ they were so that would hold, and are open:
 multi-value `call` or `block`, or flatten's `return` of a whole multi-result body — stands for all
 of them. `valuesType` flattens such entries; nothing should count `values` to find the arity.
 
-###### Remaining: 1 of 7
+###### 🚧 7. Declared types and block parameters — 7a and 7b(i) done, 7c open (2026-09-10)
 
-| # | decision                                      | note                                                                                                                                                                 |
-| - | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 7 | `blockType` / `typeUse` / `select.resultType` | owner 2026-09-10: 7a select `resultType` on the node; **7b(i)** block PARAMS on the node, lowered to locals only when optimization starts; 7c FORM in the side table |
+Owner: 7a (select `resultType` on the node), 7b(i) (block params on the node, lowered where
+optimization starts), 7c (FORM in the fidelity side table). Five commits, each gated:
+
+| commit      | what                                                                                                                    |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `c0bab64ac` | 7 control-node literals → factories (`makeBlock` gains a declared type) — found Flatten dropping an `if`'s label        |
+| `7171b8b38` | **7a** `SelectExpr.resultType` — S1 closes with no side table; the bridge was dropping the declaration                  |
+| `73a1066fb` | the `br_table` trampoline's wrapper blocks were typed `unreachable`; DCE deleted cases — any -O level broke it          |
+| `02d77f533` | **7b(i)** `params?: BlockParams` on block/loop/if/try/try_table; decoder keeps them; `PassRunner` lowers by re-decoding |
+| `c309e57a0` | wabt-ts's folded `if` dropped its condition-slot inputs (found probing folded block params)                             |
+
+🔑 **7a needed no side table.** A declared result type is semantics for references and its PRESENCE
+is the form, so one field on the node is both. The side table is for form that is not also meaning.
+
+🔑 **7b(i) lowers by RE-DECODING.** Placed `Pop`s do not say which parameter they are; the decoder's
+stack does. So `lowerBlockParams` encodes the module and decodes it with the long-standing lowering,
+swapping in only the parametrised functions' bodies, and refuses (loudly) a module whose names no
+longer match its own bytes.
+
+⚠️ **The owner corrected a false rationale mid-step**: I had the binaryen-ts WAT parser refusing
+block params because it "reads folded form only". Every linear instruction has a folded form (add
+parentheses — best-practices); upstream wat2wasm reads all four folded spellings, and probing them
+found the wabt-ts `if` defect above and three more divergences (W4, W5, W6 in divergences.md) —
+including that **wabt-ts matches upstream wat2wasm byte-for-byte on only 146 of 421 corpus files**.
+
+**Measured against `main` at each step: 421/421 byte-identical on parse→encode, -O1 and -Oz.** No
+corpus module has a typed select or block parameters, so the corpus could not see these changes —
+their tests carry them, each inverted.
+
+**7c remains** — and T2 widens it: binaryen-ts's encoder derives the type-section order itself when
+no type is declared, so a binary from upstream wat2wasm comes back with its types reordered.
+
+###### Remaining: 1 of 7 (7c)
+
+| # | decision                                      | note                                                                                                                                                            |
+| - | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7 | `blockType` / `typeUse` / `select.resultType` | 7a ✅ `7171b8b38`; 7b(i) ✅ `02d77f533`; ⬚ **7c** — FORM (T1's identical type index, T2's derived type order, a block type written as an index) in a side table |
 
 Plus Group 3's five ties and the block/label family — which still owns the 7 label references
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
