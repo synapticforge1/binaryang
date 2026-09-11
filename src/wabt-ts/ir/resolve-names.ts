@@ -20,6 +20,7 @@ import { ExternalKind } from '../core/binary.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import type {
+  BlockType,
   Expr,
   Func,
   FuncSignature,
@@ -29,7 +30,8 @@ import type {
   ValueType,
   Var,
 } from './ir.ts';
-import { isRefValueType, varIndex } from './ir.ts';
+import { blockTypeValue, isRefValueType, varIndex } from './ir.ts';
+import type { NodeId } from './fidelity.ts';
 
 // ---------------------------------------------------------------------------
 // Name binding map
@@ -392,20 +394,23 @@ class ResolveContext {
       }
       case 'block':
       case 'loop': {
+        const blockType = this.resolveBlockType(e, loc);
         this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
-        return [r, { ...e, body }];
+        return [r, { ...e, blockType, body }];
       }
       case 'if': {
+        const blockType = this.resolveBlockType(e, loc);
         const [rC, cond] = this.resolveExpr(e.condition);
         this.labelStack.push(e.label);
         const [rT, then_] = this.resolveExprArray(e.then_);
         const [rE, else_] = this.resolveExprArray(e.else_);
         this.labelStack.pop();
-        return [combine(rC, combine(rT, rE)), { ...e, condition: cond, then_, else_ }];
+        return [combine(rC, combine(rT, rE)), { ...e, blockType, condition: cond, then_, else_ }];
       }
       case 'try': {
+        const blockType = this.resolveBlockType(e, loc);
         this.labelStack.push(e.label);
         const [rB, body] = this.resolveExprArray(e.body);
         let result = rB;
@@ -428,12 +433,13 @@ class ResolveContext {
         if (e.delegate !== undefined) {
           return [result, {
             ...e,
+            blockType,
             body,
             catches: newCatches,
             delegate: this.resolveLabelVar(e.delegate, loc),
           }];
         }
-        return [result, { ...e, body, catches: newCatches }];
+        return [result, { ...e, blockType, body, catches: newCatches }];
       }
       case 'try_table': {
         // The catch clauses' tag and branch target were never resolved at all,
@@ -454,7 +460,7 @@ class ResolveContext {
         this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
-        return [r, { ...e, catches, body }];
+        return [r, { ...e, blockType: this.resolveBlockType(e, loc), catches, body }];
       }
       case 'throw': {
         const [r, args] = this.resolveExprArray(e.operands);
@@ -991,6 +997,27 @@ class ResolveContext {
    * or a user-defined type name (`"$T"`). Abstract keywords pass through
    * unchanged; everything else is looked up in the typeScope.
    */
+  /**
+   * A block type's single `(ref $t)` result holds a name-var like any other
+   * value type.
+   *
+   * 🔧 W5: a typed-ref block result used to be interned as a FUNCTION type, and
+   * `resolveModuleValueTypes` resolved it there, among the declarations. Written
+   * inline now — as the spec and wasm-tools encode it — it sits on the node, and
+   * nothing resolved it until this. Like `select`'s annotation, the side table
+   * moves with the node: the writer reads the declared block type from there.
+   */
+  private resolveBlockType(e: { blockType: BlockType; nodeId?: NodeId }, loc: Location): BlockType {
+    const bt = e.blockType;
+    if (bt.kind !== 'value' || !isRefValueType(bt.type)) return bt;
+    const resolved = blockTypeValue({
+      ...bt.type,
+      heapType: this.resolveHeapTypeVar(bt.type.heapType, loc),
+    });
+    if (e.nodeId !== undefined) this.module.fidelity.set(e.nodeId, { blockType: resolved });
+    return resolved;
+  }
+
   private resolveHeapTypeVar(
     h: HeapTypeRef,
     loc: Location = unknownLocation(),

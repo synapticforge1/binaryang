@@ -73,7 +73,6 @@ import {
   type I31GetExpr,
   type IfExpr,
   type Import,
-  isRefValueType,
   type Limits,
   type LoadExpr,
   type LocalDecl,
@@ -130,12 +129,14 @@ import {
   type TypeEntry,
   type TypeUse,
   type UnaryExpr,
+  UNASSIGNED_TYPE_INDEX,
   type UnreachableExpr,
   type ValueType,
   type Var,
   varIndex,
   varName,
 } from '../ir/ir.ts';
+import { makeTypeInterner } from '../ir/synthesize-types.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
 import { LexerSource } from './lexer-source.ts';
@@ -1132,6 +1133,14 @@ export class WastParser {
   private pendingTypeUses: { typeVar: Var; sig: FuncSignature; loc: Location }[] = [];
 
   /**
+   * Block types with an inline signature that needs a type-section entry
+   * (params, several results, a typed-ref result), waiting for their index —
+   * keyed by the `BlockType` object the block and its fidelity record share.
+   * See {@link assignImplicitTypes}.
+   */
+  private pendingBlockSigs = new Map<BlockType, FuncSignature>();
+
+  /**
    * Param count of every function in the index space of the module whose
    * deferred bodies are being parsed, by index and by name. Empty outside
    * {@link parsePendingBodies}, in which case every variable-arity opcode
@@ -1956,6 +1965,8 @@ export class WastParser {
     this.pendingBodies = [];
     const savedTypeUses = this.pendingTypeUses;
     this.pendingTypeUses = [];
+    const savedBlockSigs = this.pendingBlockSigs;
+    this.pendingBlockSigs = new Map();
 
     // An import may not follow a DEFINITION of a function, table, memory,
     // global or tag. Imports occupy the low indices of each index space, so
@@ -1997,6 +2008,11 @@ export class WastParser {
     const pending = this.pendingBodies;
     this.pendingBodies = savedPending;
     this.parsePendingBodies(pending, module);
+    // Every body is parsed, so every implicit type is known: index them all, in
+    // text order, after the explicit ones (W5).
+    const blockSigs = this.pendingBlockSigs;
+    this.pendingBlockSigs = savedBlockSigs;
+    this.assignImplicitTypes(module, blockSigs);
     const typeUses = this.pendingTypeUses;
     this.pendingTypeUses = savedTypeUses;
     this.checkPendingTypeUses(typeUses, module);
@@ -5088,29 +5104,95 @@ export class WastParser {
 
     if (params.length === 0) {
       if (results.length === 0) return BLOCK_TYPE_VOID;
-      if (results.length === 1) {
-        // A single ABSTRACT result uses the compact one-byte blocktype; a
-        // concrete typed ref cannot be spelled that way and needs the
-        // interned function type like every other non-shorthand shape.
-        const only = results[0]!;
-        if (!isRefValueType(only)) return blockTypeValue(only);
-      }
+      // A SINGLE result of any value type is written inline — a concrete typed
+      // ref too: `blocktype ::= 0x40 | valtype | s33`, and `(ref $t)` is a
+      // valtype (`64 <heaptype>`), which is how wasm-tools encodes it.
+      //
+      // 🔧 A typed-ref result used to intern a function type instead, on the
+      // belief it could not be spelled inline. That added a type the source
+      // never implied — so `(block (result (ref 1)))` in a one-type module
+      // (ref.wast, "unknown type") found a type 1 to point at; only the old
+      // eager ordering of implicit types kept that invalid module rejected.
+      if (results.length === 1) return blockTypeValue(results[0]!);
     }
-    return { kind: 'func_type', typeIdx: this.internFuncType({ params, results }) };
+    // The INDEX is assigned at the end of the module, in text order, with every
+    // other implicit type (`assignImplicitTypes`). The object is what the block
+    // and its fidelity record share, so assigning it reaches both.
+    const bt = { kind: 'func_type' as const, typeIdx: UNASSIGNED_TYPE_INDEX };
+    this.pendingBlockSigs.set(bt, { params, results });
+    return bt;
   }
 
   /**
-   * Find or append a function type matching `sig` and return its index.
-   * Appending keeps every already-declared type at its existing index, and
-   * `synthesizeTypes` reconciles whatever it adds afterwards.
+   * Give every IMPLICIT type its index — the types the source never declared,
+   * written only as inline signatures — in the order upstream `wat2wasm` does,
+   * after every explicit `(type …)` (W5, cmem/divergences.md):
+   *
+   *   1. each import, in order (imports precede every definition);
+   *   2. each function and tag in TEXT order — a function's own signature
+   *      first, then its body's block types and inline `call_indirect`
+   *      signatures in BINARY order (the `ExprVisitor` walk the writer uses: a
+   *      folded `if`'s condition block comes before the `if`).
+   *
+   * 🔧 A block's type was appended the moment the block was PARSED, so it
+   * landed before its own function's signature, and before any explicit type
+   * declared later in the text; `call_indirect`'s and every tag's came after
+   * all the functions' (in `synthesizeTypes`). Besides the bytes, that changed
+   * MEANING: `(func (type 1))` naming an implicit type named a different
+   * signature than upstream's, and produced a valid module where upstream
+   * reports a type mismatch.
+   *
+   * Uses the interner `synthesizeTypes` uses, which then finds exactly these
+   * types and changes nothing.
    */
-  private internFuncType(sig: FuncSignature): number {
-    const m = this.currentModule;
-    if (m === null) return 0;
-    const existing = m.types.findIndex((t) => t.kind === 'func' && sigEquals(t.sig, sig));
-    if (existing >= 0) return existing;
-    m.types.push({ kind: 'func', name: '', sig, loc: this.loc() });
-    return m.types.length - 1;
+  private assignImplicitTypes(module: Module, blockSigs: Map<BlockType, FuncSignature>): void {
+    const intern = makeTypeInterner(module);
+    const assignBlock = (bt: BlockType): void => {
+      const sig = blockSigs.get(bt);
+      if (sig === undefined) return;
+      (bt as { typeIdx: number }).typeIdx = intern(sig);
+      blockSigs.delete(bt);
+    };
+    const block = (e: { blockType: BlockType }): Result => {
+      assignBlock(e.blockType);
+      return Result.Ok;
+    };
+    const walker = new ExprVisitor({
+      beginBlockExpr: block,
+      beginLoopExpr: block,
+      beginIfExpr: block,
+      beginTryExpr: block,
+      beginTryTableExpr: block,
+      onCallIndirectExpr: (e) => {
+        if (e.typeUse === 'inline') (e as { typeVar: Var }).typeVar = varIndex(intern(e.sig));
+        return Result.Ok;
+      },
+    });
+
+    for (const imp of module.imports) {
+      if (imp.kind === ExternalKind.Func && imp.func.typeUse === undefined) {
+        imp.func.typeVar = varIndex(intern(imp.func.sig));
+      } else if (imp.kind === ExternalKind.Tag) {
+        intern(imp.tag.sig);
+      }
+    }
+    // Functions and tags interleave in the text; their source offsets say how.
+    // (`sort` is stable, so items without a location keep their array order.)
+    const defs: ({ offset: number; func: Func } | { offset: number; sig: FuncSignature })[] = [
+      ...module.funcs.map((func) => ({ offset: func.loc.offset, func })),
+      ...module.tags.map((tag) => ({ offset: tag.loc.offset, sig: tag.sig })),
+    ].sort((a, b) => a.offset - b.offset);
+    for (const d of defs) {
+      if ('func' in d) {
+        if (d.func.typeUse === undefined) d.func.typeVar = varIndex(intern(d.func.sig));
+        walker.visitExprList(d.func.body);
+      } else {
+        intern(d.sig);
+      }
+    }
+    // A block no function body holds — none should exist — still gets an index,
+    // so the placeholder can never reach a writer.
+    for (const bt of [...blockSigs.keys()]) assignBlock(bt);
   }
 
   // -------------------------------------------------------------------------
