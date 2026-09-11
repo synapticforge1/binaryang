@@ -108,12 +108,14 @@ What each component does, found by reading and confirmed by the probes:
 P4 and P5 merge together (the lowering constraint). P1–P3 are wabt-ts-only and independent of them.
 Nothing here touches exported or imported names except to keep pinning them.
 
-## Owner decisions this needs before P1
+## ✅ Owner decisions (2026-09-11)
 
-1. **Labels (and GC field names) beyond upstream** — required by the reconstitution rule; upstream
-   `wat2wasm` does not write them. Confirm as a FEATURE.
-2. **Duplicate / invalid names from foreign binaries** — binaryen-ts must uniquify them to use them
-   as keys (as upstream binaryen does). Should the ORIGINAL spellings be kept aside and re-emitted
-   verbatim on a no-pass round trip (strict fidelity), or is the uniquified name acceptable there?
-3. **The size cost** (+20% and more with labels) is the price of "always"; confirm no opt-out beyond
-   `wasm-strip`.
+1. **Label and GC field names are kept — a new FEATURE**, a deliberate divergence from upstream,
+   which writes neither. Register row N2 in divergences.md.
+2. **Names are kept as written.** Duplicates should not arise in practice — code with them would
+   fault anyway, and the wasmtk bundler already resolves them when it merges modules into one. So no
+   side table of original spellings: the name section's names ARE the names. Where a duplicate does
+   arrive in a foreign binary, binaryen-ts disambiguates it (as upstream binaryen does) so it can
+   use it as a key; that case is not a fidelity target.
+3. **The size is accepted** for fidelity's sake: "when we send it through the optimization it just
+   goes away" — optimized output follows `debugInfo`, default off. No opt-out beyond `wasm-strip`.
