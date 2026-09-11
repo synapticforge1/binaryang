@@ -1771,6 +1771,18 @@ export interface Module {
    */
   fidelity: FidelityTable;
 
+  /**
+   * Whether the module carries a `name` section even when it names nothing —
+   * N1 (cmem/names.md).
+   *
+   * The binary writer writes one when this is set OR anything is named. True
+   * from {@link makeModule}, so text and hand-built modules get upstream
+   * `wat2wasm --debug-names`'s section even at `(module)`. The binary reader
+   * sets it to whether the binary HAD one: a binary without names must
+   * round-trip without gaining a section it never had.
+   */
+  hasNameSection: boolean;
+
   // Features used by this module (tracked during decode)
   featuresUsed: {
     simd: boolean;
@@ -1805,6 +1817,7 @@ export function makeModule(): Module {
     numTagImports: 0,
     sectionMeta: [],
     fidelity: new FidelityTable(),
+    hasNameSection: true,
     featuresUsed: { simd: false, exceptions: false, threads: false, tailcall: false, gc: false },
   };
 }

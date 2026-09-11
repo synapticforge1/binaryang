@@ -30,6 +30,7 @@ import {
   decodeU32Leb128,
   decodeU64Leb128,
 } from '../core/leb128.ts';
+import { applyNameSection, parseNameSection } from './name-section.ts';
 
 // UTF-8 decoder reused across every name read. TextDecoder is stateless when
 // called via .decode(); a single module-level instance avoids reallocating
@@ -73,6 +74,7 @@ import {
   constI32,
   constI64,
   constV128,
+  type Custom,
   type DataDropExpr,
   type ElemDropExpr,
   type Expr,
@@ -1237,48 +1239,24 @@ export class BinaryReader {
     }
   }
 
-  private readNameSection(m: Module, data: Uint8Array): void {
-    if (!this.opts.readDebugNames) return;
-    let pos = 0;
-
-    const readU32Leb = (): number => {
-      const [v, n] = decodeU32Leb128(data, pos);
-      pos += n;
-      return v;
-    };
-    const readName_ = (): string => {
-      const len = readU32Leb();
-      const bytes = data.slice(pos, pos + len);
-      pos += len;
-      return TEXT_DECODER.decode(bytes);
-    };
-
-    while (pos < data.length) {
-      const subsectionType = data[pos++]!;
-      const subsectionSize = readU32Leb();
-      const subsectionEnd = pos + subsectionSize;
-
-      switch (subsectionType) {
-        case 0: // module name
-          m.name = '$' + readName_();
-          break;
-        case 1: { // function names
-          const fnCount = readU32Leb();
-          for (let i = 0; i < fnCount && pos < subsectionEnd; i++) {
-            const idx = readU32Leb();
-            const name = readName_();
-            if (name) {
-              const func = m.funcs[idx - m.numFuncImports];
-              if (func && idx >= m.numFuncImports) func.name = '$' + name;
-            }
-          }
-          break;
-        }
-        default:
-          pos = subsectionEnd;
-      }
-      pos = subsectionEnd;
-    }
+  /**
+   * Give the module the names in its `name` section, once every definition
+   * they name exists — the section may legally sit anywhere, even before the
+   * code it names labels in. N1 P3 (`name-section.ts`).
+   *
+   * The section is ALSO kept as a raw custom section, at its own position,
+   * whenever the module does not now hold exactly what it said: malformed,
+   * something beyond the twelve subsections, a name with nowhere to go, or a
+   * duplicate renamed. The writer then writes it back verbatim and generates
+   * none, so a binary round trip loses nothing even then. When the module
+   * does hold it all, the writer regenerates it from the IR.
+   */
+  private applyPendingNames(m: Module): void {
+    const pending = this.pendingNames;
+    if (pending === null) return;
+    const parsed = parseNameSection(pending.custom.data);
+    const applied = parsed !== null && applyNameSection(m, parsed.names);
+    if (!(applied && parsed.complete)) m.customs.splice(pending.at, 0, pending.custom);
   }
 
   // ---------------------------------------------------------------------------
@@ -2733,9 +2711,18 @@ export class BinaryReader {
   /** Count from the data-count section, or null when there is none. */
   private dataCount: number | null = null;
 
+  /**
+   * The first `name` section, held until the module is complete: its raw form,
+   * and where among `m.customs` it would go if it has to be kept as bytes.
+   */
+  private pendingNames: { custom: Custom; at: number } | null = null;
+
   readModule(): Module {
     const m = makeModule();
     m.filename = this.filename;
+    // Set again when a name section is read; a binary without one must not
+    // gain one on the way back out (`Module.hasNameSection`).
+    m.hasNameSection = false;
 
     // Magic + version.
     //
@@ -2817,7 +2804,6 @@ export class BinaryReader {
 
       switch (sectionId) {
         case BinarySection.Custom: {
-          const nameStart = this.pos;
           const name = this.readName();
           // A custom section IS a name plus a payload, so a section too small
           // to hold its own name is malformed. An empty one decoded to a
@@ -2828,15 +2814,23 @@ export class BinaryReader {
           }
           const dataStart = this.pos;
           const data = this.data.slice(dataStart, sectionEnd);
-          if (name === 'name' && this.opts.readDebugNames) {
-            this.readNameSection(m, this.data.slice(nameStart, sectionEnd));
+          const custom: Custom = {
+            name,
+            data,
+            loc: this.loc(),
+            precedingSection: lastKnownSection,
+          };
+          // The FIRST name section is read for its names once the module is
+          // complete (`applyPendingNames`); a second one is just bytes.
+          //
+          // 🔧 This used to pass the payload from `nameStart` -- BEFORE the
+          // section's own name -- so the parser read the string "name" as
+          // subsections and never found one.
+          if (name === 'name' && this.opts.readDebugNames && this.pendingNames === null) {
+            this.pendingNames = { custom, at: m.customs.length };
+            m.hasNameSection = true;
           } else {
-            m.customs.push({
-              name,
-              data,
-              loc: this.loc(),
-              precedingSection: lastKnownSection,
-            });
+            m.customs.push(custom);
           }
           this.pos = sectionEnd;
           break;
@@ -2910,6 +2904,7 @@ export class BinaryReader {
     if (this.ok() && m.funcs.length > 0 && !seen.has(BinarySection.Code)) {
       this.err('function and code section have inconsistent lengths');
     }
+    if (this.ok()) this.applyPendingNames(m);
 
     return m;
   }

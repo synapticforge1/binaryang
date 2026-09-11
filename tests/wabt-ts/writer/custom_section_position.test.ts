@@ -80,9 +80,13 @@ function layout(b: Uint8Array): string[] {
   return out;
 }
 
-const BASE = wat2wasm(
-  '(module (memory 1) (global $g i32 (i32.const 0)) (func (export "f") (result i32) (i32.const 7)))',
-).binary!;
+// Stripped, so that every custom section in these tests is one the test put
+// there: since N1 P2 wat2wasm's output carries a name section of its own.
+const BASE = wasmStrip(
+  wat2wasm(
+    '(module (memory 1) (global $g i32 (i32.const 0)) (func (export "f") (result i32) (i32.const 7)))',
+  ).binary!,
+).binary;
 
 /** Splice a custom section in just before the `nth` known section. */
 function withCustomBefore(nth: number, name: string): Uint8Array {

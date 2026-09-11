@@ -115,11 +115,13 @@ import {
 } from '../core/opcode.ts';
 import {
   BinarySection,
+  CUSTOM_SECTION_NAME_NAME,
   ExternalKind,
   LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG,
   LIMITS_HAS_MAX_FLAG,
   LIMITS_IS_64_FLAG,
   LIMITS_IS_SHARED_FLAG,
+  NameSectionSubsection,
   WASM_MAGIC,
   WASM_VERSION,
 } from '../core/binary.ts';
@@ -398,6 +400,29 @@ function writeLimits(
   }
 }
 
+/**
+ * A name as the name section holds it: the IR keeps the text format's `$`
+ * (quoted ids already decoded — `$"a b"` is `$a b`), the binary does not.
+ */
+function bareName(name: string): string {
+  return name.startsWith('$') ? name.slice(1) : name;
+}
+
+/** The entries that HAVE a name, in index order — what every name map lists. */
+function namedEntries(entries: readonly (readonly [number, string])[]): [number, string][] {
+  return entries.filter(([, n]) => n !== '').map(([i, n]) => [i, n] as [number, string])
+    .sort(([a], [b]) => a - b);
+}
+
+/** `vec(index, name)`. */
+function writeNameEntries(s: MemoryStream, entries: readonly [number, string][]): void {
+  s.writeU32Leb(entries.length);
+  for (const [i, n] of entries) {
+    s.writeU32Leb(i);
+    s.writeName(bareName(n));
+  }
+}
+
 function catchKindByte(k: CatchKind): number {
   switch (k) {
     case CatchKind.Catch:
@@ -419,9 +444,33 @@ class BodyWriter implements ExprVisitorDelegate {
   private readonly s: MemoryStream;
   private readonly fidelity: FidelityTable;
 
+  /**
+   * The current function's named labels, as `[labelIndex, name]` — for the
+   * name section's label subsection (N1 P2, a FEATURE beyond upstream: N2).
+   *
+   * A label's INDEX is the count of label-introducing instructions (`block`,
+   * `loop`, `if`, `try`, `try_table`) written before it in this body, named or
+   * not. Counted HERE, as the opcodes go out, because binary order is not tree
+   * order: a folded `(if (block …) (then …))` writes the condition's `block`
+   * BEFORE the `if`.
+   */
+  labelNames: [number, string][] = [];
+  private labelCount = 0;
+
   constructor(s: MemoryStream, fidelity: FidelityTable) {
     this.s = s;
     this.fidelity = fidelity;
+  }
+
+  /** Start a function body: label indices count from 0 in each one. */
+  beginFunctionBody(): void {
+    this.labelNames = [];
+    this.labelCount = 0;
+  }
+
+  private noteLabel(label: string): void {
+    const index = this.labelCount++;
+    if (label !== '') this.labelNames.push([index, label]);
   }
 
   /**
@@ -474,6 +523,7 @@ class BodyWriter implements ExprVisitorDelegate {
 
   // --- Block structures ---
   beginBlockExpr(e: BlockExpr): Result {
+    this.noteLabel(e.label);
     this.s.writeU8(Opcode.Block);
     writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
@@ -483,6 +533,7 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   beginLoopExpr(e: LoopExpr): Result {
+    this.noteLabel(e.label);
     this.s.writeU8(Opcode.Loop);
     writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
@@ -492,6 +543,7 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   beginIfExpr(e: IfExpr): Result {
+    this.noteLabel(e.label);
     this.s.writeU8(Opcode.If);
     writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
@@ -507,6 +559,7 @@ class BodyWriter implements ExprVisitorDelegate {
 
   // --- try/catch (legacy exception handling) ---
   beginTryExpr(e: TryExpr): Result {
+    this.noteLabel(e.label);
     this.s.writeU8(Opcode.Try);
     writeBlockType(this.s, this.declaredBlockType(e));
     return Result.Ok;
@@ -532,6 +585,7 @@ class BodyWriter implements ExprVisitorDelegate {
 
   // --- try_table (new exception handling) ---
   beginTryTableExpr(e: TryTableExpr): Result {
+    this.noteLabel(e.label);
     this.s.writeU8(Opcode.TryTable);
     writeBlockType(this.s, this.declaredBlockType(e));
     this.s.writeU32Leb(e.catches.length);
@@ -1018,9 +1072,14 @@ class BinaryWriter {
   private readonly visitor: ExprVisitor;
 
   private readonly m: Module;
+  private readonly writeDebugNames: boolean;
 
-  constructor(m: Module) {
+  /** Named labels by FUNCTION INDEX, collected as the code section is written. */
+  private readonly labelNames = new Map<number, [number, string][]>();
+
+  constructor(m: Module, writeDebugNames: boolean) {
     this.m = m;
+    this.writeDebugNames = writeDebugNames;
     this.s = new MemoryStream(4096);
     this.bodyWriter = new BodyWriter(this.s, m.fidelity);
     this.visitor = new ExprVisitor(this.bodyWriter);
@@ -1331,7 +1390,7 @@ class BinaryWriter {
   // Code section
   // ---------------------------------------------------------------------------
 
-  private writeFuncBody(func: Func): void {
+  private writeFuncBody(func: Func, funcIndex: number): void {
     const { s } = this;
     const sizePos = s.reserveU32Leb();
     const start = s.offset;
@@ -1367,7 +1426,11 @@ class BinaryWriter {
     }
 
     // Body
+    this.bodyWriter.beginFunctionBody();
     this.visitor.visitExprList(func.body);
+    if (this.bodyWriter.labelNames.length > 0) {
+      this.labelNames.set(funcIndex, this.bodyWriter.labelNames);
+    }
 
     // End
     s.writeU8(Opcode.End);
@@ -1378,9 +1441,10 @@ class BinaryWriter {
   private writeCodeSection(): void {
     const { m, s } = this;
     if (m.funcs.length === 0) return;
+    const firstDefined = m.imports.filter((i) => i.kind === ExternalKind.Func).length;
     s.writeSection(BinarySection.Code, () => {
       s.writeU32Leb(m.funcs.length);
-      for (const f of m.funcs) this.writeFuncBody(f);
+      m.funcs.forEach((f, i) => this.writeFuncBody(f, firstDefined + i));
     });
   }
 
@@ -1450,6 +1514,152 @@ class BinaryWriter {
   }
 
   // ---------------------------------------------------------------------------
+  // Name section — N1 P2 (cmem/names.md)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * The `name` custom section, generated from the IR's names.
+   *
+   * 🔧 This writer used to write none — `writeDebugNames` was declared and
+   * ignored — so WAT → `wat2wasm` → `wasm2wat` lost every name. The owner's
+   * rule: wabt-ts is the fidelity half and ALWAYS keeps names.
+   *
+   * For the ten kinds upstream writes, the bytes are upstream
+   * `wat2wasm --debug-names`'s, measured: subsections in id order; each flat
+   * map lists only NAMED entries and is omitted when there are none; the local
+   * subsection is ALWAYS written and has an entry for EVERY function, imports
+   * included, even an empty one — so even `(module)` gets a 10-byte section.
+   * Names are written without the text format's `$`.
+   *
+   * LABELS (3) and GC FIELDS (10) go beyond upstream, which writes neither
+   * (FEATURE N2 in cmem/divergences.md). They follow the flat maps' rule —
+   * named entries only, omitted when there are none — so a module without
+   * named labels or fields stays byte-identical to upstream.
+   */
+  /** Whether anything in the module has a name — labels as collected by the code section. */
+  private namesAnything(): boolean {
+    const { m } = this;
+    const named = (x: { name: string }) => x.name !== '';
+    const importNamed = m.imports.some((imp) => {
+      switch (imp.kind) {
+        case ExternalKind.Func:
+          return named(imp.func) || (imp.func.localNames?.size ?? 0) > 0;
+        case ExternalKind.Table:
+          return named(imp.table);
+        case ExternalKind.Memory:
+          return named(imp.memory);
+        case ExternalKind.Global:
+          return named(imp.global);
+        case ExternalKind.Tag:
+          return named(imp.tag);
+      }
+    });
+    return m.name !== '' || importNamed || this.labelNames.size > 0 ||
+      m.funcs.some((f) => named(f) || (f.localNames?.size ?? 0) > 0) ||
+      m.types.some((t) =>
+        named(t) ||
+        (t.kind === 'struct' && t.fields.some(named)) ||
+        (t.kind === 'array' && named(t.field))
+      ) ||
+      [m.tables, m.memories, m.globals, m.tags, m.elemSegments, m.dataSegments]
+        .some((items: readonly { name: string }[]) => items.some(named));
+  }
+
+  private writeNameSection(): void {
+    const { m, s } = this;
+    const funcs: Func[] = [];
+    const tables: { name: string }[] = [];
+    const memories: { name: string }[] = [];
+    const globals: { name: string }[] = [];
+    const tags: { name: string }[] = [];
+    for (const imp of m.imports) {
+      switch (imp.kind) {
+        case ExternalKind.Func:
+          funcs.push(imp.func);
+          break;
+        case ExternalKind.Table:
+          tables.push(imp.table);
+          break;
+        case ExternalKind.Memory:
+          memories.push(imp.memory);
+          break;
+        case ExternalKind.Global:
+          globals.push(imp.global);
+          break;
+        case ExternalKind.Tag:
+          tags.push(imp.tag);
+          break;
+      }
+    }
+    funcs.push(...m.funcs);
+    tables.push(...m.tables);
+    memories.push(...m.memories);
+    globals.push(...m.globals);
+    tags.push(...m.tags);
+
+    /** A flat name map: `vec(index, name)` over the named entries only. */
+    const nameMap = (id: NameSectionSubsection, items: readonly { name: string }[]): void => {
+      const named = namedEntries(items.map((it, i) => [i, it.name]));
+      if (named.length === 0) return;
+      s.writeSection(id, () => writeNameEntries(s, named));
+    };
+    /** An indirect name map: `vec(outer, vec(inner, name))`, outers with a name only. */
+    const indirectMap = (
+      id: NameSectionSubsection,
+      outer: [number, [number, string][]][],
+    ): void => {
+      const kept = outer.map(([i, inner]) => [i, namedEntries(inner)] as const)
+        .filter(([, inner]) => inner.length > 0);
+      if (kept.length === 0) return;
+      s.writeSection(id, () => {
+        s.writeU32Leb(kept.length);
+        for (const [i, inner] of kept) {
+          s.writeU32Leb(i);
+          writeNameEntries(s, inner);
+        }
+      });
+    };
+
+    s.writeSection(BinarySection.Custom, () => {
+      s.writeName(CUSTOM_SECTION_NAME_NAME);
+      if (m.name !== '') {
+        s.writeSection(NameSectionSubsection.Module, () => s.writeName(bareName(m.name)));
+      }
+      nameMap(NameSectionSubsection.Function, funcs);
+      // Every function, named locals or not — upstream's shape, see above.
+      s.writeSection(NameSectionSubsection.Local, () => {
+        s.writeU32Leb(funcs.length);
+        funcs.forEach((f, i) => {
+          s.writeU32Leb(i);
+          writeNameEntries(s, namedEntries([...(f.localNames ?? [])]));
+        });
+      });
+      indirectMap(
+        NameSectionSubsection.Label,
+        [...this.labelNames].sort(([a], [b]) => a - b),
+      );
+      nameMap(NameSectionSubsection.Type, m.types);
+      nameMap(NameSectionSubsection.Table, tables);
+      nameMap(NameSectionSubsection.Memory, memories);
+      nameMap(NameSectionSubsection.Global, globals);
+      nameMap(NameSectionSubsection.ElemSegment, m.elemSegments);
+      nameMap(NameSectionSubsection.DataSegment, m.dataSegments);
+      indirectMap(
+        NameSectionSubsection.Field,
+        m.types.map((t, i) => [
+          i,
+          t.kind === 'struct'
+            ? t.fields.map((f, j) => [j, f.name] as [number, string])
+            : t.kind === 'array'
+            ? [[0, t.field.name]]
+            : [],
+        ]),
+      );
+      nameMap(NameSectionSubsection.Tag, tags);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Top-level module write
   // ---------------------------------------------------------------------------
 
@@ -1484,6 +1694,19 @@ class BinaryWriter {
       this.writeCustomSectionsAfter(id);
     }
     this.writeTrailingCustomSections();
+    // A `name` section already among the customs is one the reader kept as raw
+    // bytes — it was written verbatim above, so generating another would put a
+    // second name section beside it. Otherwise one is generated when the
+    // module had one or names anything (`Module.hasNameSection`): a binary
+    // read WITHOUT names must not gain a section on the way back out, but one
+    // the caller has since named must not lose the names.
+    if (
+      this.writeDebugNames &&
+      !this.m.customs.some((c) => c.name === CUSTOM_SECTION_NAME_NAME) &&
+      (this.m.hasNameSection || this.namesAnything())
+    ) {
+      this.writeNameSection();
+    }
 
     return s.toUint8Array();
   }
@@ -1496,12 +1719,17 @@ class BinaryWriter {
 /** Options for {@link writeBinaryIr}. */
 export interface WriteBinaryOptions {
   /**
-   * Write debug names (the `name` custom section). Default: `false`.
+   * Write the `name` custom section from the IR's names. Default: **`true`**.
    *
-   * ⚠️ **Not yet implemented — currently IGNORED**: no name section is written
-   * either way. Divergence N1 in cmem/divergences.md, queued; upstream
-   * wat2wasm writes one under `--debug-names`. Said here so the option cannot
-   * pass for a feature, as `Features.compactImports` once did.
+   * wabt-ts keeps names: `wat2wasm` output must disassemble back to the names
+   * it was written with (N1, cmem/names.md). That is why the default is `true`
+   * where upstream's `--debug-names` is off. `false` is for REMOVING names —
+   * it is what `wasm-strip` passes — and is not an option any wabt-ts tool
+   * offers for ordinary output.
+   *
+   * A `name` section held as a raw custom section (read with
+   * `readDebugNames: false`) is written verbatim either way, and suppresses
+   * the generated one.
    */
   writeDebugNames?: boolean;
 }
@@ -1510,6 +1738,6 @@ export interface WriteBinaryOptions {
  * Encode a {@link Module} IR as a wasm binary. Returns the bytes; the
  * encoder doesn't accumulate errors (any IR shape it can't encode throws).
  */
-export function writeBinaryIr(m: Module, _opts: WriteBinaryOptions = {}): Uint8Array {
-  return new BinaryWriter(m).write();
+export function writeBinaryIr(m: Module, opts: WriteBinaryOptions = {}): Uint8Array {
+  return new BinaryWriter(m, opts.writeDebugNames ?? true).write();
 }

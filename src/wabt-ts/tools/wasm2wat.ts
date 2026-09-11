@@ -25,10 +25,11 @@
  * console.log(text);
  * ```
  *
- * Pipeline: `readBinaryIr` (with `readDebugNames: true` by default) →
- * `generateNames` (fills synthetic `$f0` / `$g0` / … for unnamed entities) →
- * `writeWatModule`. The `inlineExport` option controls whether exports are
- * rendered inline inside their defining item (default `true`).
+ * Pipeline: `readBinaryIr` (with `readDebugNames: true` by default, so the
+ * names the binary carries are the names printed) → `generateNames` only
+ * when asked (`generateNames: true` / `--generate-names`) → `writeWatModule`.
+ * The `inlineExport` option controls whether exports are rendered inline
+ * inside their defining item (default `true`).
  */
 
 import { readBinaryIr } from '../reader/binary-reader.ts';
@@ -71,6 +72,20 @@ export interface Wasm2WatOptions {
    * Linear stays fully supported and is pinned by the same baseline.
    */
   fold?: boolean;
+  /**
+   * Invent names (`$f0`, `$g0`, `$t0`, …) for the entities that have none.
+   * Default: **`false`**, as upstream `wasm2wat`, where it is
+   * `--generate-names`.
+   *
+   * 🔧 This used to happen ALWAYS. Once the binary carries its names (N1,
+   * cmem/names.md) an invented name is indistinguishable from a real one in
+   * the text, so WAT → `wat2wasm` → `wasm2wat` no longer gave back the WAT it
+   * started from — `(func …)` came back as `(func $f0 …)`, and the next
+   * `wat2wasm` wrote `f0` into the name section as if the author had.
+   * Unnamed entities now print as upstream prints them: `(;0;)`, referenced
+   * by index.
+   */
+  generateNames?: boolean;
 }
 
 /** Return value from {@link wasm2wat}. */
@@ -100,9 +115,8 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
     return { text: '', errors, result: Result.Error };
   }
 
-  // Fill in synthetic names for any unnamed entities so the WAT output is
-  // readable (emits $f0, $g0, … for anonymous functions/globals).
-  generateNames(module);
+  // Only on request — see `Wasm2WatOptions.generateNames`.
+  if (opts.generateNames === true) generateNames(module);
 
   const text = writeWatModule(module, {
     inlineExport: opts.inlineExport !== false,
@@ -127,11 +141,14 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   let input: string | undefined;
   let output: string | undefined;
   let fold = true;
+  let generateNames = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
+    } else if (arg === '--generate-names') {
+      generateNames = true;
     } else if (arg === '--fold' || arg === '-f') {
       // Explicit, even though it is the default since 1.5.4: a script that
       // needs folded output should be able to ASK for it rather than rely
@@ -149,16 +166,19 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
 
   if (!input) {
     console.error(
-      'usage: wasm2wat <input.wasm> [-o <output.wat>] [--linear|-l] [--fold|-f]',
+      'usage: wasm2wat <input.wasm> [-o <output.wat>] [--linear|-l] [--fold|-f] [--generate-names]',
     );
     console.error(
       '  output is FOLDED by default; --linear emits the flat stack-machine form',
+    );
+    console.error(
+      '  --generate-names invents $f0, $g0, ... for entities the binary does not name',
     );
     process.exit(1);
   }
 
   const binary = await cliRead('wasm2wat', input);
-  const { text, errors, result } = wasm2wat(binary, { filename: input, fold });
+  const { text, errors, result } = wasm2wat(binary, { filename: input, fold, generateNames });
 
   if (errors.length > 0) {
     console.error(formatErrors(errors));

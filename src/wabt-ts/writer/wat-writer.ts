@@ -276,15 +276,32 @@ class WatWriter extends ModuleContext {
   // Name / identifier emit
   // -------------------------------------------------------------------------
 
+  /**
+   * An identifier: `$name` when every character is an idchar, otherwise the
+   * QUOTED form `$"…"`, which denotes exactly the same name.
+   *
+   * 🔧 N1 P3: every non-idchar used to become `_`, as upstream wasm2wat does.
+   * Once names are read from the binary that is a RENAME — `"foo bar"` came
+   * back as `$foo_bar`, and re-assembling the text wrote a name the module
+   * never had. Quoted identifiers are in the text format and binaryen prints
+   * them the same way; upstream wat2wasm reads them only with
+   * `--enable-annotations` (register: divergences.md).
+   */
   private writeName(s: string, nc: NC): void {
     // s must begin with '$'
-    const needsQuoting = [...s].some((c) => !VALID_NAME_CHARS[c.charCodeAt(0)]);
-    if (needsQuoting) {
-      const safe = s.replace(/[^\x21\x23-\x27\x2a-\x3a\x3c-\x40\x5c\x5e-\x7e]/g, '_');
-      this.puts(safe, nc);
-    } else {
+    const body = s.slice(1);
+    if (body.length > 0 && [...body].every((c) => VALID_NAME_CHARS[c.charCodeAt(0)] === 1)) {
       this.puts(s, nc);
+      return;
     }
+    const hexDigits = '0123456789abcdef';
+    let quoted = '$"';
+    for (const b of TEXT_ENCODER.encode(body)) {
+      quoted += IS_CHAR_ESCAPED[b]
+        ? '\\' + hexDigits[b >> 4]! + hexDigits[b & 0xf]!
+        : String.fromCharCode(b);
+    }
+    this.puts(quoted + '"', nc);
   }
 
   private writeNameOrIndex(name: string, idx: number, nc: NC): void {
@@ -1669,6 +1686,13 @@ class WatWriter extends ModuleContext {
    * depths are resolved against it, so skipping that would silently renumber
    * every branch inside the body — the folded form drops the `end` keyword, not
    * the scope it delimited.
+   *
+   * Indentation: each `(` is followed by `indent += 2`, and `close()` takes the
+   * 2 back. 🔧 Every construct here also subtracted 2 by hand before closing,
+   * so the indentation drifted two columns LEFT per block, clause and `if` —
+   * nested code ran into the margin. Bytes were never affected; it was hidden
+   * while `generateNames` labelled every block, because a labelled one wrapped
+   * onto a fresh line.
    */
   private writeFoldedControl(e: Expr): boolean {
     switch (e.kind) {
@@ -1687,7 +1711,6 @@ class WatWriter extends ModuleContext {
         );
         this.indent += 2;
         this.writeExprList(e.body);
-        this.indent -= 2;
         this.endBlock();
         this.close(NC.Space);
         return true;
@@ -1710,12 +1733,12 @@ class WatWriter extends ModuleContext {
         this.putsSpace('do');
         this.indent += 2;
         this.writeExprList(e.body);
-        this.indent -= 2;
         this.close(NC.Newline);
 
         if (e.delegate !== undefined) {
           this.puts('(', NC.None);
           this.putsSpace('delegate');
+          this.indent += 2;
           this.writeVar(e.delegate, NC.None);
           this.close(NC.Newline);
         } else {
@@ -1729,12 +1752,10 @@ class WatWriter extends ModuleContext {
             }
             this.indent += 2;
             this.writeExprList(c.body);
-            this.indent -= 2;
             this.close(NC.Newline);
           }
         }
 
-        this.indent -= 2;
         this.endBlock();
         this.close(NC.Space);
         return true;
@@ -1757,7 +1778,6 @@ class WatWriter extends ModuleContext {
         this.putsSpace('then');
         this.indent += 2;
         this.writeExprList(e.then_);
-        this.indent -= 2;
         this.close(NC.Space);
         if (e.else_.length > 0) {
           this.newline(true);
@@ -1765,11 +1785,9 @@ class WatWriter extends ModuleContext {
           this.putsSpace('else');
           this.indent += 2;
           this.writeExprList(e.else_);
-          this.indent -= 2;
           this.close(NC.Space);
         }
         this.endBlock();
-        this.indent -= 2;
         this.close(NC.Space);
         return true;
       }

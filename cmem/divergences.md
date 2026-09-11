@@ -48,19 +48,24 @@ class. "Valid either way" is not a class.
 | W4 | wabt     | binaryen-ts's own `parseWat` is a FOLDED SUBSET: no multi-operand stack sources, stack conditions, block params, or bare linear form        | DESIGN     | owner 2026-09-10: external WAT goes wabt-ts → bytes → decoder (`e18d9f09a`); `parseWat` internal only |
 | W5 | wabt     | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order   | DEFECT     | ⬚ form only. Upstream: explicit types first, then implicit in text order, interleaved                 |
 | W6 | wabt     | wabt-ts writes a DataCount section whenever data segments exist; upstream wat2wasm only when `memory.init` / `data.drop` use it             | DEFECT     | ⬚ form only, 3 bytes. 242 corpus modules differ from upstream in section 12 alone                     |
-| N2 | both     | LABEL names (subsection 3) and GC FIELD names (10) are written and read; upstream `wat2wasm --debug-names` writes neither                   | FEATURE    | owner 2026-09-11; needed so WAT → `wat2wasm` → `wasm2wat` reconstitutes labels. ⬚ built in N1 P2–P3   |
+| N2 | both     | LABEL names (subsection 3) and GC FIELD names (10) are written and read; upstream `wat2wasm --debug-names` writes neither                   | FEATURE    | owner 2026-09-11. ✅ wabt-ts writes (P2 `ab9d48b1e`), reads (P3 `b76dde783`); ⬚ binaryen-ts (P4–P5)   |
+| N3 | wabt     | `wasm2wat` prints a name that is not all idchars QUOTED (`$"foo bar"`); upstream substitutes `_`, renaming it (`$foo_bar`)                  | DESIGN     | fidelity, N1 P3: the text must hold the name the binary did. binaryen prints the same quoted form     |
+| C2 | wabt     | the WAT writer prints custom sections as `(@custom …)`, which the parser cannot read: `wasm2wat` → `wat2wasm` DROPS every custom section    | DEFECT     | ⬚ found 2026-09-11 (N1 P3). Upstream reads and writes `@custom` only with `--enable-annotations`      |
 
 **N1 — NAMES are lost at three hops** (found 2026-09-10, from the W4 route; owner: "so that this is
-not skipped"). **SCOPED 2026-09-11 in [names.md](names.md)**: ~43,000 source names in the corpus, 2
-survive our round trip; the wabt-ts reader has never read one (a slice bug); upstream itself does
-not write LABEL names, so keeping them is a FEATURE beyond upstream; a six-step plan. `$foo` does
-not survive WAT → wabt-ts → bytes → binaryen-ts:
+not skipped"). **SCOPED 2026-09-11 in [names.md](names.md)**: 63,930 source names in the corpus (the
+scope first estimated ~43,000), 2 survived our round trip; the wabt-ts reader had never read one (a
+slice bug); upstream itself does not write LABEL names, so keeping them is a FEATURE beyond
+upstream; a six-step plan. **The wabt-ts half is built (P1–P3): WAT → `wat2wasm` → `wasm2wat` keeps
+63,930 / 63,930 and is a byte fixed point on all 421 modules.** `$foo` still does not survive WAT →
+wabt-ts → bytes → binaryen-ts:
 
-| hop                   | today                                                                        | upstream                                   |
-| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------ |
-| wabt-ts binary writer | writes NO name section — `writeDebugNames` is declared and IGNORED (`_opts`) | wat2wasm writes one with `--debug-names`   |
-| binaryen-ts decoder   | `readNameSection` SKIPS it                                                   | wasm-opt always reads it                   |
-| binaryen-ts encoder   | writes none                                                                  | wasm-opt writes it with `-g` (`debugInfo`) |
+| hop                   | today                                                                                                   | upstream                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| wabt-ts binary writer | ✅ writes one by default (P2); its ten kinds byte-equal to upstream's on 426/426; `wasm-strip` opts out | wat2wasm writes one with `--debug-names`   |
+| wabt-ts reader        | ✅ reads all twelve subsections (P3); keeps the section raw when the module cannot hold it exactly      | wasm2wat reads it                          |
+| binaryen-ts decoder   | ⬚ `readNameSection` SKIPS it (P4)                                                                       | wasm-opt always reads it                   |
+| binaryen-ts encoder   | ⬚ writes none (P5)                                                                                      | wasm-opt writes it with `-g` (`debugInfo`) |
 
 ✅ **Not in N1: the module INTERFACE.** Export and import names live in the export and import
 sections, not the `name` section, and survive the route and -Oz exactly — including aliases and a
@@ -90,8 +95,8 @@ upstreams' defaults.** Upstream loses them unless asked (probed):
   optimized output follows a `-g`-style option (`PassOptions.debugInfo`), as upstream does. Its
   DEFAULT was not separately decided; off, as upstream, until the owner says otherwise.
 
-Until the three hops below are built, N1 is still a DEFECT: the decision says what to keep, and
-nothing keeps it yet.
+Until the binaryen-ts hops are built, N1 is still a DEFECT there: wabt-ts keeps names, binaryen-ts
+does not yet.
 
 ⚠️ **The three are coupled to decision 7b(i)**: `lowerBlockParams` re-decodes `encodeWasm(module)`
 and refuses a module whose names no longer match its own bytes. Once the decoder reads real names,
@@ -100,8 +105,8 @@ decoder and encoder halves land together, with the lowering re-encode keeping na
 
 The name section follows the code section, so the decoder must SCAN for it first (the bytes are in
 memory) and name entities before any body refers to them — and uniquify duplicate or clashing names,
-as upstream binaryen does. A flag that promises a feature and does nothing is the `compactImports`
-shape again: implement `writeDebugNames`, never leave it ignored.
+as upstream binaryen does. (`writeDebugNames`, the flag that promised a feature and did nothing, is
+now implemented and defaults to true — P2.)
 
 **wabt-ts vs upstream wat2wasm, byte for byte, on the 421-file corpus: 146 identical** (measured
 2026-09-10, default features — `--enable-all` changes what upstream EMITS). 242 differ in the
@@ -129,6 +134,8 @@ Each is pinned by a test whose expected output is upstream's (or V8's, where ups
 | binaryen | C1: LocalCSE cached a bare `local.get` / constant; upstream `isRelevant` excludes both      | `5b0cf25c6` | `passes.test.ts` (-Oz −3.9%)  |
 | wabt     | S1: a numeric typed select re-encoded untyped through binaryen-ts (now S2, vs binaryen)     | `7171b8b38` | `typed_select.test.ts`        |
 | wabt     | wabt-ts's folded `if` DROPPED every condition-slot instruction but the last (its inputs)    | `c309e57a0` | `folded_block_params.test.ts` |
+| wabt     | wabt-ts's text path printed `align=0` for every natural alignment (a parser sentinel)       | `b8e5aaff3` | `align_natural.test.ts`       |
+| wabt     | `wasm2wat` invented `$f0`/`$t0`/… ALWAYS; upstream only with `--generate-names` (N1 P3)     | `b76dde783` | `name_section_read.test.ts`   |
 
 W3 with block PARAMETERS: the binary path keeps them since B1, and external WAT with them reaches
 binaryen-ts through wabt-ts since W4's route. Only binaryen-ts's internal `parseWat` still refuses

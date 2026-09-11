@@ -130,7 +130,11 @@ export interface ToTextOptions {
 export interface ToBinaryOptions {
   /** Generate sourcemap output. Not yet supported; accepted but ignored. */
   log?: boolean;
-  /** Generate write_debug_names entries. Not yet supported; accepted but ignored. */
+  /**
+   * Accepted for shape compatibility and IGNORED: the name section is ALWAYS
+   * written, `false` included — wabt-ts keeps names (N1, cmem/names.md), where
+   * libwabt.js writes them only on `true`. To remove names, use `wasmStrip`.
+   */
   write_debug_names?: boolean;
   /** Any other option — passed through for shape compatibility. */
   [k: string]: unknown;

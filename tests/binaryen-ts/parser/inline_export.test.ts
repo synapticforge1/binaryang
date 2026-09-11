@@ -30,7 +30,8 @@ import { assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
+import { wabtReference } from '../wabt_reference.ts';
 
 /** Export set of a binary, as `name:kind`, sorted — the property that matters. */
 function exportsOf(bytes: Uint8Array): string[] {
@@ -51,7 +52,7 @@ function importsOf(bytes: Uint8Array): string[] {
  * here, which is the actual invariant.
  */
 function assertAgrees(wat: string) {
-  const ref = wat2wasm(wat, { filename: 'ref.wat' });
+  const ref = wabtReference(wat, { filename: 'ref.wat' });
   const got = encodeWasm(parseWat(wat));
   assertEquals(exportsOf(got), exportsOf(ref.binary), 'export sets must agree');
   assertEquals(importsOf(got), importsOf(ref.binary), 'import sets must agree');
@@ -94,7 +95,7 @@ describe('WAT parser — inline exports on every declaration kind', () => {
     // them from the wrong index is how the export was lost in the first place,
     // and a defaulted `(memory 1)` would still export and still validate.
     const bin = encodeWasm(parseWat(wat));
-    const ref = wat2wasm(wat, { filename: 'ref.wat' }).binary;
+    const ref = wabtReference(wat, { filename: 'ref.wat' }).binary;
     assertEquals(bin.length, ref.length, 'limits must match the reference encoding');
   });
 
@@ -167,6 +168,6 @@ describe('WAT parser — inline exports on every declaration kind', () => {
       return (inst.exports.f as () => number)();
     };
     assertEquals(call(encodeWasm(parseWat(wat))), 2);
-    assertEquals(call(wat2wasm(wat, { filename: 'ref.wat' }).binary), 2);
+    assertEquals(call(wabtReference(wat, { filename: 'ref.wat' }).binary), 2);
   });
 });

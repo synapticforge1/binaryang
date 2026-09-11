@@ -27,7 +27,8 @@
  * ```
  *
  * Pipeline: `readBinaryIr` with `readDebugNames: false` (so the name section
- * stays in `module.customs`) → clear `module.customs` → `writeBinaryIr`.
+ * stays in `module.customs`) → clear `module.customs` → `writeBinaryIr` with
+ * `writeDebugNames: false` (so no name section is generated in its place).
  */
 
 import { readBinaryIr } from '../reader/binary-reader.ts';
@@ -116,8 +117,13 @@ export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): Wasm
   // references a type the type section no longer contains reaches this line
   // with no decode error. Two such inputs crashed this tool during the T13.29
   // fuzz. Report instead.
+  //
+  // `writeDebugNames: false` because the writer otherwise GENERATES a name
+  // section from the IR (N1 P2) — and would put one back into every module
+  // this tool had just stripped. A `name` section the caller asked to keep is
+  // still among the customs and is written verbatim.
   try {
-    const stripped = writeBinaryIr(module);
+    const stripped = writeBinaryIr(module, { writeDebugNames: false });
     return { binary: stripped, errors, result: Result.Ok };
   } catch (e) {
     addError(errors, unknownLocation(), e instanceof Error ? e.message : String(e));

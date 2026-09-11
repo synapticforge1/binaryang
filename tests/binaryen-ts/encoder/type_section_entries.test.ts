@@ -31,7 +31,8 @@ import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
+import { wabtReference } from '../wabt_reference.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
@@ -40,7 +41,9 @@ function typeLines(bytes: Uint8Array): string[] {
   return wasm2wat(bytes, { fold: false }).text
     .split('\n')
     .filter((l) => /^\s*\(type /.test(l))
-    .map((l) => l.trim().replace(/\$t\d+ /, ''));
+    // Drop the index-bearing part: `(;0;)` for an unnamed type (the form since
+    // N1 P3), `$t0` if names are generated. The comparison is of the SET.
+    .map((l) => l.trim().replace(/(\$t\d+|\(;\d+;\)) /, ''));
 }
 
 /**
@@ -54,7 +57,7 @@ function typeLines(bytes: Uint8Array): string[] {
  * which is what would catch an index resolved against the wrong ordering.
  */
 function assertSameTypes(wat: string): void {
-  const ref = wat2wasm(wat, { filename: 'ref.wat' });
+  const ref = wabtReference(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
   const got = encodeWasm(parseWat(wat));
   new WebAssembly.Module(got as BufferSource); // validity before comparison

@@ -33,12 +33,13 @@ import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+// wabt-ts's bytes without the name section until N1 P5 -- see ../wabt_reference.ts.
+import { wabtReference } from '../wabt_reference.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** Both toolchains must build `wat`, run it, and agree with `want`. */
 function bothAgree(wat: string, want: number, arg = 0): void {
-  const ref = wat2wasm(wat, { filename: 'ref.wat' });
+  const ref = wabtReference(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
   const run = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
@@ -50,7 +51,7 @@ function bothAgree(wat: string, want: number, arg = 0): void {
 /** The number of `block` instructions in the encoded body, via disassembly. */
 function blockCount(wat: string): number {
   const bytes = encodeWasm(parseWat(wat));
-  const ref = wat2wasm(wat, { filename: 'c.wat' });
+  const ref = wabtReference(wat, { filename: 'c.wat' });
   assert(ref.binary && !hasErrors(ref.errors));
   // Compare against wabt-ts rather than an absolute number: the claim is "no
   // MORE blocks than the source has", not a particular count.
