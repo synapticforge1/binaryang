@@ -47,7 +47,6 @@ class. "Valid either way" is not a class.
 | T1 | wabt       | `call_indirect (type $b)` re-encodes naming an identical `$a` (first structural match) through binaryen-ts                                                                | DEFECT     | ⬚ form only — probed: behaviour preserved even with non-final/final GC types; decision 7c                                                         |
 | T2 | wabt       | binaryen-ts's encoder DERIVES the type-section order when no type is declared (signatures, tags, then expression uses), reordering input                                  | DEFECT     | ⬚ form only; decision 7c territory with T1. Measured by the type-order probe, 2026-09-10                                                          |
 | W4 | wabt       | binaryen-ts's own `parseWat` is a FOLDED SUBSET: no multi-operand stack sources, stack conditions, block params, or bare linear form                                      | DESIGN     | owner 2026-09-10: external WAT goes wabt-ts → bytes → decoder (`e18d9f09a`); `parseWat` internal only                                             |
-| W5 | wabt       | wabt-ts orders IMPLICIT types wrongly: a block's before its function's own, `call_indirect`'s after every signature. Upstream: text order                                 | DEFECT     | ⬚ form only; 21 corpus modules (all EH), types/functions/tags. Upstream: explicit first, then implicit in text order                              |
 | N2 | both       | LABEL names (subsection 3) and GC FIELD names (10) are written and read; upstream `wat2wasm --debug-names` writes neither                                                 | FEATURE    | owner 2026-09-11. ✅ wabt-ts writes (P2 `ab9d48b1e`), reads (P3 `b76dde783`); ⬚ binaryen-ts (P4–P5)                                               |
 | N3 | wabt       | `wasm2wat` prints a name that is not all idchars QUOTED (`$"foo bar"`); upstream substitutes `_`, renaming it (`$foo_bar`)                                                | DESIGN     | fidelity, N1 P3: the text must hold the name the binary did. binaryen prints the same quoted form                                                 |
 | N4 | binaryen   | after passes with `-g`, binaryen-ts keeps the LOCAL and LABEL names the passes leave; upstream `wasm-opt -O2 -g` drops every local name (params too) and writes no labels | DESIGN     | provisional (N1 P5, 2026-09-11): "follow `-g`" was decided, what `-g` keeps after optimization was not — the owner's future discussion settles it |
@@ -123,6 +122,11 @@ and the "other" differences were the 21 exception-handling modules upstream cann
 `--enable-exceptions`. With it, those 21 differ ONLY in the type, function and tag sections — W5 is
 21 modules, nothing else is left.
 
+✅✅ **After W5 (2026-09-11): 421 / 421 identical** — wabt-ts's `wat2wasm` output equals upstream's
+on the whole corpus outside the custom sections, and the name sections are equal on their own. The
+parity the baseline could never see (it pins our OWN output) is now total on this corpus; any new
+difference is a regression or a new divergence, and gets a row.
+
 ## Closed — defects that were divergences, kept as history
 
 Each is pinned by a test whose expected output is upstream's (or V8's, where upstream cannot reach).
@@ -149,6 +153,9 @@ Each is pinned by a test whose expected output is upstream's (or V8's, where ups
 | binaryen | every imported memory decoded as `mem0`, colliding with the first defined one               | `138148881` | `binary/names.test.ts`        |
 | binaryen | a `throw` / `catch` of an IMPORTED tag decoded with NO payload (tag-index-space mixup)      | `874caf068` | `imported_tag.test.ts`        |
 | wabt     | W6: DataCount written whenever data existed; upstream only when code names a data segment   | `cb474baaa` | `data_count.test.ts`          |
+| wabt     | W5: implicit types out of upstream's text order — changed what `(func (type N))` meant      | `bd327efe7` | `implicit_type_order.test.ts` |
+| both     | a single typed-ref block result interned a func type (spec + wasm-tools: inline `64 ht`)    | `bd327efe7` | `implicit_type_order.test.ts` |
+| wabt     | an implicit signature reused the LAST equal explicit type; upstream the first               | `bd327efe7` | `implicit_type_order.test.ts` |
 
 W3 with block PARAMETERS: the binary path keeps them since B1, and external WAT with them reaches
 binaryen-ts through wabt-ts since W4's route. Only binaryen-ts's internal `parseWat` still refuses
