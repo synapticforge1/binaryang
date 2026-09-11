@@ -1062,6 +1062,31 @@ class BodyWriter implements ExprVisitorDelegate {
   }
 }
 
+/**
+ * Finds an instruction that names a DATA SEGMENT — the ones that make the
+ * DataCount section required (`memory.init`, `data.drop`, and GC's
+ * `array.new_data` / `array.init_data`).
+ */
+class DataIndexUse implements ExprVisitorDelegate {
+  found = false;
+  onMemoryInitExpr(): Result {
+    this.found = true;
+    return Result.Ok;
+  }
+  onDataDropExpr(): Result {
+    this.found = true;
+    return Result.Ok;
+  }
+  onArrayNewDataExpr(): Result {
+    this.found = true;
+    return Result.Ok;
+  }
+  onArrayInitSegmentExpr(e: { kind: string }): Result {
+    if (e.kind === 'array.init_data') this.found = true;
+    return Result.Ok;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // BinaryWriter
 // ---------------------------------------------------------------------------
@@ -1378,9 +1403,31 @@ class BinaryWriter {
   // DataCount section
   // ---------------------------------------------------------------------------
 
+  /** Whether any function body names a data segment. */
+  private usesDataIndex(): boolean {
+    const seen = new DataIndexUse();
+    const visitor = new ExprVisitor(seen);
+    for (const f of this.m.funcs) {
+      visitor.visitExprList(f.body);
+      if (seen.found) return true;
+    }
+    return false;
+  }
+
+  /**
+   * The DataCount section (id 12), when a function body names a data segment —
+   * the format REQUIRES it then, since the code is decoded before the data
+   * section — or when the module was read with one.
+   *
+   * 🔧 W6: this was written whenever a data segment existed. Upstream
+   * `wat2wasm` and `wasm-tools` write it only when code uses a data index; 242
+   * corpus modules differed from upstream in this section alone. A module READ
+   * with one it did not need keeps it (`Module.hasDataCountSection`), so a
+   * binary round trip changes nothing.
+   */
   private writeDataCountSection(): void {
     const { m, s } = this;
-    if (m.dataSegments.length === 0) return;
+    if (!m.hasDataCountSection && !this.usesDataIndex()) return;
     s.writeSection(BinarySection.DataCount, () => {
       s.writeU32Leb(m.dataSegments.length);
     });

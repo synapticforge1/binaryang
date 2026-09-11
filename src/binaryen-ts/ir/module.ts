@@ -289,6 +289,13 @@ export interface WasmModule {
    * optimized output follows `-g`, as upstream.
    */
   explicitNames?: ExplicitNames;
+  /**
+   * Whether the module was decoded from a binary with a DataCount section (id
+   * 12) — W6. The encoder writes one when a function body names a data segment
+   * (then the format requires it), or when this is set, so a binary that
+   * carried one it did not need re-encodes with it. Absent means false.
+   */
+  hasDataCount?: boolean;
 }
 
 /**

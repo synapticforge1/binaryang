@@ -781,6 +781,8 @@ class WasmParser {
   private importedTagCount = 0;
   /** Memories so far, imported and defined — the memory index space. */
   private memoryCount = 0;
+  /** Whether the binary had a DataCount section. See {@link WasmModule.hasDataCount}. */
+  private hasDataCount = false;
   /** Imported functions' names, by function index. */
   private readonly importFuncNames: string[] = [];
   private readonly lowerBlockParams: boolean;
@@ -810,6 +812,7 @@ class WasmParser {
       // renumbering here would desync every throw / catch / tag export.
       tags: this.tagInfos.map((t) => ({ name: t.name, params: t.params })),
       hasExceptionHandling: this.tagInfos.length > 0 || mod.hasExceptionHandling,
+      ...(this.hasDataCount ? { hasDataCount: true } : {}),
       // Only when the binary HAD a name section: one without must not gain one.
       ...(this.names.hasSection
         ? {
@@ -881,6 +884,8 @@ class WasmParser {
           break;
         case SECTION_DATA_COUNT:
           this.r.readU32();
+          // Kept so the encoder re-emits a DataCount the module did not need (W6).
+          this.hasDataCount = true;
           break;
         case SECTION_TAG:
           this.readTagSection();
