@@ -8,6 +8,7 @@
  */
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
+import { DecodedNames } from './names.ts';
 import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
 import {
@@ -223,8 +224,15 @@ interface DecoderCtx {
   globalInfos: GlobalInfo[];
   tableNames: string[];
   tagInfos: TagInfo[];
+  /**
+   * Every tag's payload types, in the tag INDEX space — imports first. `tagInfos`
+   * holds the DEFINED tags only, so it cannot be indexed by a tag index.
+   */
+  tagParams: ValueType[][];
   /** See {@link ParseWasmOptions.lowerBlockParams}. */
   lowerBlockParams: boolean;
+  /** Every entity's name, by index — from the name section where it has one (N1 P4). */
+  names: DecodedNames;
 }
 
 /** Options for {@link parseWasm}. */
@@ -768,12 +776,25 @@ class WasmParser {
   private globalInfos: GlobalInfo[] = [];
   private tableNames: string[] = [];
   private tagInfos: TagInfo[] = [];
+  /** See {@link DecoderCtx.tagParams}. */
+  private readonly tagParams: ValueType[][] = [];
   private importedTagCount = 0;
+  /** Memories so far, imported and defined — the memory index space. */
+  private memoryCount = 0;
+  /** Imported functions' names, by function index. */
+  private readonly importFuncNames: string[] = [];
   private readonly lowerBlockParams: boolean;
+  /**
+   * Every entity's name, from the name section where it has one — read FIRST,
+   * though the section comes after the code, because every reference site
+   * needs the name its target will have. See `names.ts`.
+   */
+  private readonly names: DecodedNames;
 
   constructor(bytes: Uint8Array, options: ParseWasmOptions = {}) {
     this.r = new BinaryReader(bytes);
     this.lowerBlockParams = options.lowerBlockParams ?? false;
+    this.names = new DecodedNames(bytes);
   }
 
   parse(): WasmModule {
@@ -789,6 +810,16 @@ class WasmParser {
       // renumbering here would desync every throw / catch / tag export.
       tags: this.tagInfos.map((t) => ({ name: t.name, params: t.params })),
       hasExceptionHandling: this.tagInfos.length > 0 || mod.hasExceptionHandling,
+      // Only when the binary HAD a name section: one without must not gain one.
+      ...(this.names.hasSection
+        ? {
+          explicitNames: this.names.explicit(
+            (i) => this.names.func(i),
+            this.heapTypeDefs,
+            this.importFuncNames,
+          ),
+        }
+        : {}),
     };
   }
 
@@ -836,7 +867,7 @@ class WasmParser {
           // under the same `$func${globalIndex}` naming every other reference
           // site uses, so the encoder can resolve it back to an index.
           const startIdx = this.r.readU32();
-          this.builder.setStart(`$func${startIdx}`);
+          this.builder.setStart(this.names.func(startIdx));
           break;
         }
         case SECTION_ELEMENT:
@@ -967,8 +998,10 @@ class WasmParser {
           // references dangling: the encoder's funcIndex map keyed imports by
           // their (mismatched) name, so `funcIndex.get("$func1")` missed and
           // fell back to `?? 0`, encoding every imported-function call as index
-          // 0 (wrong target, wrong arity → "call need N got M").
-          const name = `$func${this.importedFuncCount}`;
+          // 0 (wrong target, wrong arity → "call need N got M"). The shared
+          // naming is now `this.names`, which every site asks by index.
+          const name = this.names.func(this.importedFuncCount);
+          this.importFuncNames.push(name);
           this.builder.addFunctionImport(name, module, base, ft.params, ft.results);
           this.importedFuncTypeIndices.push(typeIdx);
           this.importedFuncCount++;
@@ -979,7 +1012,7 @@ class WasmParser {
           const hasMax = this.r.readU8();
           const initial = this.r.readU32();
           const max = hasMax ? this.r.readU32() : null;
-          const tname = `$table${this.tableNames.length}`;
+          const tname = this.names.table(this.tableNames.length);
           this.tableNames.push(tname);
           this.builder.addTableImport(tname, module, base, elemType, initial, max);
           break;
@@ -991,13 +1024,17 @@ class WasmParser {
           const hasMax = (flags & 0x01) !== 0;
           const initial = this.r.readU32();
           const max = hasMax ? this.r.readU32() : null;
-          this.builder.addMemoryImport('mem0', module, base, initial, max, shared, is64);
+          // By index like every other memory. This was 'mem0' for EVERY
+          // imported memory, which collided with the first defined one — named
+          // `mem0` too — and with each other under multi-memory.
+          const mname = this.names.memory(this.memoryCount++);
+          this.builder.addMemoryImport(mname, module, base, initial, max, shared, is64);
           break;
         }
         case 0x03: { // global
           const type = readValTypeByte(this.r);
           const mutable = this.r.readU8() !== 0;
-          const gname = `$global${this.globalInfos.length}`;
+          const gname = this.names.global(this.globalInfos.length);
           this.globalInfos.push({ type, mutable });
           this.builder.addGlobalImport(gname, module, base, type, mutable);
           break;
@@ -1011,8 +1048,9 @@ class WasmParser {
           // uses (throw / catch / try_table / tag exports). Naming them on a
           // separate counter would leave those references dangling in exactly
           // the way `$import${n}` once did for functions.
-          const name = `$tag${this.importedTagCount}`;
+          const name = this.names.tag(this.importedTagCount);
           this.builder.addTagImport(name, module, base, ft.params);
+          this.tagParams.push(ft.params);
           this.importedTagCount++;
           break;
         }
@@ -1036,7 +1074,7 @@ class WasmParser {
       const hasMax = this.r.readU8();
       const initial = this.r.readU32();
       const max = hasMax ? this.r.readU32() : null;
-      const name = `$table${this.tableNames.length}`;
+      const name = this.names.table(this.tableNames.length);
       this.tableNames.push(name);
       this.builder.addTable(name, elemType, initial, max);
     }
@@ -1051,7 +1089,9 @@ class WasmParser {
       const hasMax = (flags & 0x01) !== 0;
       const initial = this.r.readU32();
       const max = hasMax ? this.r.readU32() : null;
-      this.builder.addMemory(`mem${i}`, initial, max, shared, is64);
+      // In the memory INDEX space, imports first — as the export section names
+      // them. `mem${i}` counted defined memories only.
+      this.builder.addMemory(this.names.memory(this.memoryCount++), initial, max, shared, is64);
     }
   }
 
@@ -1061,7 +1101,7 @@ class WasmParser {
       const type = readValTypeByte(this.r);
       const mutable = this.r.readU8() !== 0;
       const init = this.readInitExpr(type);
-      const name = `$global${this.globalInfos.length}`;
+      const name = this.names.global(this.globalInfos.length);
       this.globalInfos.push({ type, mutable });
       this.builder.addGlobal(name, type, mutable, init);
     }
@@ -1076,22 +1116,20 @@ class WasmParser {
       const index = this.r.readU32();
       switch (kind) {
         case 0x00: { // function
-          const funcName = `$func${index}`;
-          this.builder.addExport(name, funcName, 'function');
+          this.builder.addExport(name, this.names.func(index), 'function');
           break;
         }
         case 0x01: { // table
-          const tname = this.tableNames[index] ?? `$table${index}`;
-          this.builder.addExport(name, tname, 'table');
+          this.builder.addExport(name, this.names.table(index), 'table');
           break;
         }
         case 0x02: // memory
           // Named by index, matching the names addMemory assigns. Hardcoding
           // 'mem0' here silently re-pointed every memory export at memory 0.
-          this.builder.addExport(name, `mem${index}`, 'memory');
+          this.builder.addExport(name, this.names.memory(index), 'memory');
           break;
         case 0x03: { // global
-          this.builder.addExport(name, `$global${index}`, 'global');
+          this.builder.addExport(name, this.names.global(index), 'global');
           break;
         }
         case 0x04: { // tag (EH proposal)
@@ -1103,7 +1141,7 @@ class WasmParser {
           // was silently dropped, which broke wasic-emitted modules that
           // export `__exn_tag` (and reproduced as "tag export stripped" in the
           // wasmtk team's bug report against v1.2.2).
-          this.builder.addExport(name, `$tag${index}`, 'tag');
+          this.builder.addExport(name, this.names.tag(index), 'tag');
           break;
         }
         default:
@@ -1168,12 +1206,14 @@ class WasmParser {
       const numElems = this.r.readU32();
       const funcs: string[] = [];
       for (let j = 0; j < numElems; j++) {
-        funcs.push(useExpressions ? this.readElemExprFuncName() : `$func${this.r.readU32()}`);
+        funcs.push(
+          useExpressions ? this.readElemExprFuncName() : this.names.func(this.r.readU32()),
+        );
       }
 
-      const tname = this.tableNames[tableIdx] ?? this.tableNames[0] ?? '$table0';
+      const tname = this.tableNames[tableIdx] ?? this.tableNames[0] ?? this.names.table(0);
       const seg: ElementSegment = {
-        name: `$elem${i}`,
+        name: this.names.elem(i),
         mode,
         table: tname,
         offset,
@@ -1191,7 +1231,7 @@ class WasmParser {
     const opcode = this.r.readU8();
     if (opcode === 0xd2) {
       // ref.func <funcidx>
-      const name = `$func${this.r.readU32()}`;
+      const name = this.names.func(this.r.readU32());
       this.r.readU8(); // 0x0b end
       return name;
     }
@@ -1221,7 +1261,9 @@ class WasmParser {
       globalInfos: this.globalInfos,
       tableNames: this.tableNames,
       tagInfos: this.tagInfos,
+      tagParams: this.tagParams,
       lowerBlockParams: this.lowerBlockParams,
+      names: this.names,
     };
     for (let i = 0; i < count; i++) {
       const bodySize = this.r.readU32();
@@ -1239,6 +1281,7 @@ class WasmParser {
         fn.body,
         fn.locals.slice(fn.params.length),
         fn.bodyFrameLabel,
+        fn.locals.slice(0, fn.params.length).map((l) => l.name),
       );
       this.r.seek(bodyEnd);
     }
@@ -1252,19 +1295,19 @@ class WasmParser {
         const offset = this.readInitExpr(ValType.I32);
         const dataLen = this.r.readU32();
         const data = this.r.readBytes(dataLen);
-        this.builder.addDataSegment(`$data${i}`, offset, data);
+        this.builder.addDataSegment(this.names.data(i), offset, data);
       } else if (segKind === 1) {
         // passive
         const dataLen = this.r.readU32();
         const data = this.r.readBytes(dataLen);
-        this.builder.addPassiveDataSegment(`$data${i}`, data);
+        this.builder.addPassiveDataSegment(this.names.data(i), data);
       } else {
         // active with explicit memory index (kind=2)
         const segMemory = this.r.readU32();
         const offset = this.readInitExpr(ValType.I32);
         const dataLen = this.r.readU32();
         const data = this.r.readBytes(dataLen);
-        this.builder.addDataSegment(`$data${i}`, offset, data, segMemory);
+        this.builder.addDataSegment(this.names.data(i), offset, data, segMemory);
       }
     }
   }
@@ -1276,9 +1319,10 @@ class WasmParser {
       const typeIdx = this.r.readU32();
       const ft = funcTypeAt(this.funcTypes, typeIdx, this.r, `tag ${this.tagInfos.length}`);
       this.tagInfos.push({
-        name: `$tag${this.importedTagCount + this.tagInfos.length}`,
+        name: this.names.tag(this.importedTagCount + this.tagInfos.length),
         params: ft.params,
       });
+      this.tagParams.push(ft.params);
     }
   }
 
@@ -1320,7 +1364,10 @@ class WasmParser {
         break;
       case 0x23: { // global.get
         const idx = this.r.readU32();
-        expr = makeGlobalGet(varName(`$global${idx}`), globalTypeAt(this.globalInfos, idx, this.r));
+        expr = makeGlobalGet(
+          varName(this.names.global(idx)),
+          globalTypeAt(this.globalInfos, idx, this.r),
+        );
         break;
       }
       case 0xd0: { // ref.null
@@ -1329,7 +1376,7 @@ class WasmParser {
       }
       case 0xd2: { // ref.func
         const idx = this.r.readU32();
-        expr = makeRefFunc(`$func${idx}`);
+        expr = makeRefFunc(this.names.func(idx));
         break;
       }
       default:
@@ -1356,11 +1403,27 @@ class WasmParser {
       const t = readValTypeByte(r);
       for (let j = 0; j < n; j++) locals.push({ type: t });
     }
+    // Params and locals share one index space, as the name section's local
+    // subsection does. An index past the end names nothing.
+    for (const [i, name] of ctx.names.locals(funcIdx)) {
+      const local = locals[i];
+      if (local !== undefined) local.name = name;
+    }
 
     const frames: ControlFrame[] = [];
     let labelIdx = 0;
+    // The name section numbers labels by every block / loop / if / try /
+    // try_table in BINARY order — which is decode order here. The function frame
+    // and the br_table trampoline's synthetic blocks are not in that count.
+    let binaryLabelIdx = 0;
 
-    const freshLabel = (): string => `$l${funcIdx}_${labelIdx++}`;
+    // A made-up label, clear of every label the section gives this function.
+    const freshLabel = (): string => ctx.names.freshLabel(funcIdx, `$l${funcIdx}_${labelIdx++}`);
+    // A label-introducing instruction's label: the section's, else a made-up one.
+    const instrLabel = (): string => {
+      const fresh = freshLabel();
+      return ctx.names.label(funcIdx, binaryLabelIdx++) ?? fresh;
+    };
 
     frames.push({
       kind: 'func',
@@ -1721,7 +1784,7 @@ class WasmParser {
           const entry = enterParams(sig.params);
           frames.push({
             kind: 'block',
-            label: freshLabel(),
+            label: instrLabel(),
             resultTypes: sig.results,
             exprs: entry.seed,
             ...(entry.params ? { params: entry.params } : {}),
@@ -1736,7 +1799,7 @@ class WasmParser {
           const entry = enterParams(sig.params);
           frames.push({
             kind: 'loop',
-            label: freshLabel(),
+            label: instrLabel(),
             resultTypes: sig.results,
             exprs: entry.seed,
             paramLocals: entry.slots,
@@ -1754,7 +1817,7 @@ class WasmParser {
           const slots = entry.slots;
           frames.push({
             kind: 'if',
-            label: freshLabel(),
+            label: instrLabel(),
             resultTypes: sig.results,
             exprs: entry.seed,
             ifCondition: cond,
@@ -1795,7 +1858,7 @@ class WasmParser {
           const rts = trySig.results;
           frames.push({
             kind: 'try',
-            label: freshLabel(),
+            label: instrLabel(),
             resultTypes: rts,
             exprs: entry.seed,
             catchTags: [],
@@ -1807,8 +1870,8 @@ class WasmParser {
         }
         case 0x07: { // catch $tag (old EH)
           const tagIdx = r.readU32();
-          const tagName = ctx.tagInfos[tagIdx]?.name ?? `$tag${tagIdx}`;
-          const tagParams = ctx.tagInfos[tagIdx]?.params ?? [];
+          const tagName = ctx.names.tag(tagIdx);
+          const tagParams = tagParamsAt(ctx, tagIdx, r);
           const frame = topFrame(frames, r);
           if (frame.kind === 'try' || frame.kind === 'catch') {
             // save current body
@@ -1835,8 +1898,8 @@ class WasmParser {
         }
         case 0x08: { // throw $tag
           const tagIdx = r.readU32();
-          const tagName = ctx.tagInfos[tagIdx]?.name ?? `$tag${tagIdx}`;
-          const tagParams = ctx.tagInfos[tagIdx]?.params ?? [];
+          const tagName = ctx.names.tag(tagIdx);
+          const tagParams = tagParamsAt(ctx, tagIdx, r);
           const operands = popN(tagParams.length);
           push(makeThrow(varName(tagName), operands));
           break;
@@ -2045,7 +2108,10 @@ class WasmParser {
           const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, `call ${fidx}`);
           const operands = popN(cft.params.length);
           const resultType: Type = resultTypeOf(cft.results);
-          pushMultiValueCall(makeCall(varName(`$func${fidx}`), operands, resultType), cft.results);
+          pushMultiValueCall(
+            makeCall(varName(ctx.names.func(fidx)), operands, resultType),
+            cft.results,
+          );
           break;
         }
         case 0x11: { // call_indirect
@@ -2076,7 +2142,7 @@ class WasmParser {
           const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, `call ${fidx}`);
           const operands = popN(cft.params.length);
           const resultType: Type = resultTypeOf(cft.results);
-          push(makeCall(varName(`$func${fidx}`), operands, resultType, /* isReturn */ true));
+          push(makeCall(varName(ctx.names.func(fidx)), operands, resultType, /* isReturn */ true));
           break;
         }
         case 0x13: { // return_call_indirect (tail-call proposal)
@@ -2153,7 +2219,7 @@ class WasmParser {
             let tag: string | null = null;
             if (code === 0x00 || code === 0x01) { // catch / catch_ref
               const tidx = r.readU32();
-              tag = ctx.tagInfos[tidx]?.name ?? `$tag${tidx}`;
+              tag = ctx.names.tag(tidx);
             }
             const depth = r.readU32();
             const isRef = code === 0x01 || code === 0x03;
@@ -2174,7 +2240,7 @@ class WasmParser {
           }));
           frames.push({
             kind: 'try_table',
-            label: freshLabel(),
+            label: instrLabel(),
             resultTypes: rts,
             exprs: entry.seed,
             tryCatches: catches,
@@ -2228,25 +2294,27 @@ class WasmParser {
         }
         case 0x23: { // global.get
           const idx = r.readU32();
-          push(makeGlobalGet(varName(`$global${idx}`), globalTypeAt(ctx.globalInfos, idx, r)));
+          push(
+            makeGlobalGet(varName(ctx.names.global(idx)), globalTypeAt(ctx.globalInfos, idx, r)),
+          );
           break;
         }
         case 0x24: { // global.set
           const idx = r.readU32();
-          push(makeGlobalSet(varName(`$global${idx}`), pop()));
+          push(makeGlobalSet(varName(ctx.names.global(idx)), pop()));
           break;
         }
 
         case 0x25: { // table.get $t
           const tidx = r.readU32();
-          const table = ctx.tableNames[tidx] ?? `$table${tidx}`;
+          const table = ctx.names.table(tidx);
           const indexExpr = pop();
           push(makeTableGet(varName(table), indexExpr));
           break;
         }
         case 0x26: { // table.set $t
           const tidx = r.readU32();
-          const table = ctx.tableNames[tidx] ?? `$table${tidx}`;
+          const table = ctx.names.table(tidx);
           const value = pop();
           const indexExpr = pop();
           push(makeTableSet(varName(table), indexExpr, value));
@@ -2323,7 +2391,7 @@ class WasmParser {
           break;
         }
         case 0xd2: { // ref.func
-          push(makeRefFunc(`$func${r.readU32()}`));
+          push(makeRefFunc(ctx.names.func(r.readU32())));
           break;
         }
         case 0xd3: { // ref.eq
@@ -2390,7 +2458,7 @@ class WasmParser {
     const body = makeRegion(funcFrame.exprs);
 
     return {
-      name: `$func${funcIdx}`,
+      name: ctx.names.func(funcIdx),
       // The function-frame label is the target of a `br` that exits the whole
       // function. A region carries no label, so record it here for the encoder
       // to seed; otherwise such a branch mis-resolves.
@@ -2680,19 +2748,34 @@ function decodeGcPrefix(
 // 0xFC prefix (bulk memory + saturating truncations)
 // ---------------------------------------------------------------------------
 
-/** Data segments are named by position; the binary format gives them no name. */
-function dataSegName(i: number): string {
-  return `$data${i}`;
+/**
+ * A tag's payload types, by tag INDEX — imported tags first.
+ *
+ * 🔧 This read `ctx.tagInfos[tagIdx]`, but `tagInfos` holds only the DEFINED
+ * tags: with an imported tag, index 0 named the first defined tag's payload or
+ * nothing, and the `?? []` fallback made a `throw` of an imported
+ * `(param i32 i64)` tag pop ZERO operands. Its payload was left behind as loose
+ * statements; the bytes happened to round-trip, but the IR said `throw` with no
+ * payload, which is not the program. An index past the end is now an error, not
+ * an empty payload.
+ */
+function tagParamsAt(ctx: DecoderCtx, tagIdx: number, r: BinaryReader): ValueType[] {
+  return ctx.tagParams[tagIdx] ?? r.error(`tag index ${tagIdx} is out of range`);
 }
 
-/** Element segments likewise. Must match what `parseElementSection` assigns. */
-function elemSegName(i: number): string {
-  return `$elem${i}`;
+/** A data segment's name — the one `readDataSection` gave it. */
+function dataSegName(ctx: DecoderCtx, i: number): string {
+  return ctx.names.data(i);
 }
 
-/** A table's name, or the synthesized one when the module names no tables. */
+/** An element segment's, likewise. */
+function elemSegName(ctx: DecoderCtx, i: number): string {
+  return ctx.names.elem(i);
+}
+
+/** A table's name, by index. */
 function tableName(ctx: DecoderCtx, i: number): string {
-  return ctx.tableNames[i] ?? `$table${i}`;
+  return ctx.names.table(i);
 }
 
 function decodeMiscPrefix(
@@ -2757,11 +2840,11 @@ function decodeMiscPrefix(
       const size = pop();
       const offset = pop();
       const dst = pop();
-      push(makeMemoryInit(varName(dataSegName(segIdx)), dst, offset, size, varIndex(initMem)));
+      push(makeMemoryInit(varName(dataSegName(ctx, segIdx)), dst, offset, size, varIndex(initMem)));
       break;
     }
     case 9: { // data.drop
-      push(makeDataDrop(varName(dataSegName(r.readU32()))));
+      push(makeDataDrop(varName(dataSegName(ctx, r.readU32()))));
       break;
     }
     case 12: { // table.init
@@ -2773,7 +2856,7 @@ function decodeMiscPrefix(
       const dst = pop();
       push(
         makeTableInit(
-          varName(elemSegName(segIdx)),
+          varName(elemSegName(ctx, segIdx)),
           varName(tableName(ctx, tableIdx)),
           dst,
           offset,
@@ -2783,7 +2866,7 @@ function decodeMiscPrefix(
       break;
     }
     case 13: { // elem.drop
-      push(makeElemDrop(varName(elemSegName(r.readU32()))));
+      push(makeElemDrop(varName(elemSegName(ctx, r.readU32()))));
       break;
     }
     case 14: { // table.copy

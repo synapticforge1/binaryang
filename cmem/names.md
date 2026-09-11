@@ -21,20 +21,20 @@ The `name` section's twelve subsections, and how many the 421 corpus sources wri
 and 40% of the labels. The figures below are from the PARSE TREE (P1's `localNames`, P3's
 acceptance), and the scope's first estimate of "~43,000" was 63,930.
 
-| sub | kind     | corpus source names (modules)                              | home in wabt-ts IR                                     | home in binaryen-ts IR                  |
-| --: | -------- | ---------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------- |
-|   0 | module   | 0 (0)                                                      | `Module.name`                                          | ✗ none                                  |
-|   1 | function | 8,298 (420)                                                | `Func.name` (imports: `imp.func.name`)                 | `WasmFunction.name` / `WasmImport.name` |
-|   2 | local    | 14,973 params + 25,444 locals = 40,417 (scope said 24,694) | `Func.localNames` (P1) — `LocalDecl` is `{type,count}` | `Local.name?` (params: ✗)               |
-|   3 | label    | 13,611: 5,925 block + 7,686 loop (scope said 8,308)        | `label` on block/loop/if/try/try_table                 | block names are REGENERATED (fresh)     |
-|   4 | type     | 78 (44)                                                    | `TypeEntry.name`                                       | ✗ `TypeDef` has none                    |
-|   5 | table    | 2 (2)                                                      | `Table.name`                                           | `WasmTable.name`                        |
-|   6 | memory   | 3 (3)                                                      | `Memory.name`                                          | `WasmMemory.name`                       |
-|   7 | global   | 1,488 (416)                                                | `Global.name`                                          | `WasmGlobal.name`                       |
-|   8 | elem     | 2 (2)                                                      | `ElemSegment.name`                                     | `ElementSegment.name`                   |
-|   9 | data     | 10 (3)                                                     | `DataSegment.name`                                     | `DataSegment.name`                      |
-|  10 | field    | 0 (GC only)                                                | `Field.name`                                           | ✗                                       |
-|  11 | tag      | 21 (21)                                                    | `Tag.name`                                             | `WasmTag.name`                          |
+| sub | kind     | corpus source names (modules)                              | home in wabt-ts IR                                     | home in binaryen-ts IR                   |
+| --: | -------- | ---------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------- |
+|   0 | module   | 0 (0)                                                      | `Module.name`                                          | `explicitNames.module` (P4)              |
+|   1 | function | 8,298 (420)                                                | `Func.name` (imports: `imp.func.name`)                 | `WasmFunction.name` / `WasmImport.name`  |
+|   2 | local    | 14,973 params + 25,444 locals = 40,417 (scope said 24,694) | `Func.localNames` (P1) — `LocalDecl` is `{type,count}` | `Local.name` — params too (P4)           |
+|   3 | label    | 13,611: 5,925 block + 7,686 loop (scope said 8,308)        | `label` on block/loop/if/try/try_table                 | block names, from the section (P4)       |
+|   4 | type     | 78 (44)                                                    | `TypeEntry.name`                                       | `explicitNames.types`, by `TypeDef` (P4) |
+|   5 | table    | 2 (2)                                                      | `Table.name`                                           | `WasmTable.name`                         |
+|   6 | memory   | 3 (3)                                                      | `Memory.name`                                          | `WasmMemory.name`                        |
+|   7 | global   | 1,488 (416)                                                | `Global.name`                                          | `WasmGlobal.name`                        |
+|   8 | elem     | 2 (2)                                                      | `ElemSegment.name`                                     | `ElementSegment.name`                    |
+|   9 | data     | 10 (3)                                                     | `DataSegment.name`                                     | `DataSegment.name`                       |
+|  10 | field    | 0 (GC only)                                                | `Field.name`                                           | `explicitNames.fields`, by `TypeDef`     |
+|  11 | tag      | 21 (21)                                                    | `Tag.name`                                             | `WasmTag.name`                           |
 
 ## 2. What upstream keeps (probed, wabt 1.0.41 / binaryen 132)
 
@@ -57,12 +57,12 @@ The owner accepted the cost, decision 3.)
 
 ## 3. Where each hop loses them — measured over the corpus
 
-| hop                                      | kept of 63,930 source names — scoped                | after P2 + P3 (2026-09-11)                                          |
-| ---------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------- |
-| A. our `wat2wasm` → our `wasm2wat`       | **2**                                               | ✅ **63,930 / 63,930**, and a byte fixed point 421/421, both forms  |
-| B. upstream `--debug-names` → our reader | **2** — the reader reads NOTHING (defect below)     | ✅ 50,319 — every name upstream writes; it writes no label (13,611) |
-| C. upstream-named bytes → binaryen-ts    | **0**: 7,611 / 7,611 functions get a synthetic name | ⬚ P4                                                                |
-| D. binaryen-ts re-encode                 | 0 modules carry a name section                      | ⬚ P5                                                                |
+| hop                                      | kept of 63,930 source names — scoped                | after P2 + P3 (2026-09-11)                                               |
+| ---------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------ |
+| A. our `wat2wasm` → our `wasm2wat`       | **2**                                               | ✅ **63,930 / 63,930**, and a byte fixed point 421/421, both forms       |
+| B. upstream `--debug-names` → our reader | **2** — the reader reads NOTHING (defect below)     | ✅ 50,319 — every name upstream writes; it writes no label (13,611)      |
+| C. upstream-named bytes → binaryen-ts    | **0**: 7,611 / 7,611 functions get a synthetic name | ✅ P4: **8,298 / 8,298** named functions carry the section's name        |
+| D. binaryen-ts re-encode                 | 0 modules carry a name section                      | ✅ P5: our bytes 421/421 byte-identical; upstream's name section 421/421 |
 
 What each component does, found by reading and confirmed by the probes:
 
@@ -102,16 +102,16 @@ What each component does, found by reading and confirmed by the probes:
 
 ## 5. The plan — six steps, each its own gated commit
 
-| step | what                                                                                                                                            | size   | acceptance                                                                            | status                                                  |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| P1   | wabt-ts IR: a home for PARAM and LOCAL names; the parser keeps them; the WAT writer writes them                                                 | medium | a text-only round trip (parse → WAT writer) keeps every param/local name              | ✅ `acc5e7e23`, merged `e127d1aad`                      |
-| P2   | wabt-ts binary writer: a name section, ALWAYS, all kinds incl. labels (and fields); `writeDebugNames` removed or made truthful; **re-baseline** | medium | bytes = upstream `--debug-names` for its ten kinds; labels extra and documented       | ✅ `ab9d48b1e` — 426/426 name sections equal upstream's |
-| P3   | wabt-ts reader: fix the slice; read all twelve subsections; keep the section on a round trip                                                    | medium | **the owner's test: corpus WAT → `wat2wasm` → `wasm2wat` keeps every name**           | ✅ `b76dde783` — 63,930 / 63,930; fixed point 421/421   |
-| P4   | binaryen-ts decoder: pre-scan; per-namespace name tables at the ~40 sites; locals; labels as block names; uniquify                              | large  | upstream-named bytes → IR names = the section's (C: 0 synthetic)                      | ⬚                                                       |
-| P5   | binaryen-ts encoder: a name section; fidelity path always; after `PassRunner` only under `debugInfo`; kept in the lowering re-encode            | medium | decode → encode byte-identical on named input; `-O2 -g` vs upstream `wasm-opt -O2 -g` | ⬚ **and delete `tests/binaryen-ts/wabt_reference.ts`**  |
-| P6   | `readWat` and `wasm-opt`: names flow end to end                                                                                                 | small  | `$foo` through every route                                                            | ⬚                                                       |
+| step | what                                                                                                                                            | size   | acceptance                                                                            | status                                                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| P1   | wabt-ts IR: a home for PARAM and LOCAL names; the parser keeps them; the WAT writer writes them                                                 | medium | a text-only round trip (parse → WAT writer) keeps every param/local name              | ✅ `acc5e7e23`, merged `e127d1aad`                       |
+| P2   | wabt-ts binary writer: a name section, ALWAYS, all kinds incl. labels (and fields); `writeDebugNames` removed or made truthful; **re-baseline** | medium | bytes = upstream `--debug-names` for its ten kinds; labels extra and documented       | ✅ `ab9d48b1e` — 426/426 name sections equal upstream's  |
+| P3   | wabt-ts reader: fix the slice; read all twelve subsections; keep the section on a round trip                                                    | medium | **the owner's test: corpus WAT → `wat2wasm` → `wasm2wat` keeps every name**           | ✅ `b76dde783` — 63,930 / 63,930; fixed point 421/421    |
+| P4   | binaryen-ts decoder: pre-scan; per-namespace name tables at the ~40 sites; locals; labels as block names; uniquify                              | large  | upstream-named bytes → IR names = the section's (C: 0 synthetic)                      | ✅ 8,298 / 8,298 — merged with P5                        |
+| P5   | binaryen-ts encoder: a name section; fidelity path always; after `PassRunner` only under `debugInfo`; kept in the lowering re-encode            | medium | decode → encode byte-identical on named input; `-O2 -g` vs upstream `wasm-opt -O2 -g` | ✅ 421/421; `-O2 -g` differs — register N4               |
+| P6   | `readWat` and `wasm-opt`: names flow end to end                                                                                                 | small  | `$foo` through every route                                                            | ✅ readWat, wasm-opt (WAT and wasm), compat — no printer |
 
-P4 and P5 merge together (the lowering constraint). Nothing here touches exported or imported names
+P4 and P5 merged together (the lowering constraint). Nothing here touches exported or imported names
 except to keep pinning them.
 
 ⚠️ **"P1–P3 are independent of P4–P5" was wrong.** Nothing in binaryen-ts changed, but its tests
@@ -122,6 +122,40 @@ That is a deliberate, temporary narrowing: once P5 writes names, binaryen-ts's o
 the reference lacks and every one of those comparisons FAILS — the signal to delete the helper, not
 to strip binaryen-ts's side too. (Its decode → encode users feed the stripped bytes in and would
 keep passing, which is why P5's row names the file.)
+
+## P4–P6 as built (2026-09-11)
+
+- **The decoder reads the section FIRST** (`binary/names.ts`): it comes after the code, but
+  binaryen-ts refers by name, so every reference site asks one per-namespace table by index. A
+  section name wins, disambiguated with `.N`; an unnamed entity keeps the name it always had
+  (`$func3`, `mem0`) unless the section uses that name elsewhere (then `$func3.1`). Params and
+  locals become `Local.name` (`ModuleBuilder.addFunction` gained `paramNames` — it rebuilt params
+  from bare types and dropped them). Labels become the blocks' names, numbered by a counter of their
+  own in binary order.
+- **`WasmModule.explicitNames`** records which names are REAL — upstream binaryen's
+  `hasExplicitName`. The decoder makes a name up for everything, so without it the encoder could not
+  tell `$helper` from `$func3`, and would invent names the way `wasm2wat` did. Absent = the module
+  had no name section, and none is written: API-built and `parseWat` modules encode exactly as
+  before. Type and field names are keyed by the `TypeDef` OBJECT, so a pass that rebuilds a type
+  drops its name rather than lending it to whatever takes its index.
+- **The encoder writes** only `explicitNames`, in wabt-ts's layout, so wabt-ts's bytes decode and
+  re-encode to themselves. Labels are counted where each label-introducing construct pushes its
+  label.
+- **`PassRunner` applies the two-phase rule**: after a run with at least one pass, names are dropped
+  unless `debugInfo`. With no pass it is still a plain read-and-write and they stay (the owner's
+  rule; upstream `wasm-opt` strips them even then). The block-parameter lowering at the start of a
+  run re-encodes and re-decodes, and now gets the names back — which is what coupled P4 to P5.
+- **`-O2 -g` differs from upstream** (register N4): we keep the local and label names the passes
+  leave; upstream drops every local name, params included, and writes no labels. What optimization
+  may do with names is the owner's future discussion, so this is recorded, not decided.
+- **`wabt_reference.ts` stays — for `parseWat` only.** `parseWat` carries no names by design (W4,
+  not extended), so comparing its output with wabt-ts needs wabt-ts's bytes without a name section.
+  The three DECODE → ENCODE tests that used it went back to full `wat2wasm` bytes, which they now
+  round-trip exactly. It retires with `parseWat` (S6), not with P5 as first planned.
+- Built in `138148881`. Found alongside: an imported memory was always named `mem0`, colliding with
+  the first defined one (fixed there — by index now); a `throw` / `catch` of an IMPORTED tag decoded
+  with no operands, because `tagInfos` holds defined tags only and was indexed by tag index (fixed
+  `874caf068`). Both are closed rows in the register.
 
 ## Found while building P2 and P3 (2026-09-11)
 
