@@ -276,6 +276,13 @@ drop) — see ir-convergence decision 7.
   byte comparison with upstream `wat2wasm --debug-names` / `wasm-opt -g`.
 - ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
 
+**🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how
+binaryen-ts's OPTIMIZATION treats INTERNAL names versus EXPORTED names, explicitly, and how that
+compares with upstream binaryen (which, under `-g`, keeps only the names of functions that survive).
+N1 settles only the fidelity phase and that optimized output follows `debugInfo`; the finer policy
+for what optimization may rename, merge or drop is the owner's to set. Until then, export and import
+names stay inviolable (pinned) and nothing else is decided.
+
 ## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
 
 A three-version plan: **1.5.5** code issues, **1.5.6** hardening then code again, **1.5.7** security
