@@ -31,34 +31,34 @@ import type { FuncSignature, Module, TypeEntry, TypeUse, ValueType, Var } from '
 const NO_LOC = { filename: '', line: 0, column: 0, offset: 0 };
 
 /**
- * Walk `module.imports`, `module.funcs`, and `module.tags`; ensure that
- * `module.types` contains a `func`-kind entry matching each item's
- * signature, and update each item's `typeVar` to point at the matching
- * type index.
+ * The IMPLICIT type for a signature: the index of an existing type that
+ * denotes it, or a new one appended to `module.types`. The one rule for
+ * "find or append", shared by the text parser — which interns every implicit
+ * type in text order at the end of a module (W5) — and by
+ * {@link synthesizeTypes}, which must find exactly what the parser appended so
+ * that running it afterwards changes nothing.
+ *
+ * ONLY types that are their own rec group are candidates. An implicit type-use
+ * denotes a SINGLETON rec group, and type identity is compared up to the rec
+ * group — so a `(func)` sitting inside `(rec (type $a (func)) (type $b
+ * (func)))` is a DIFFERENT type from a standalone `(func)`, and reusing it
+ * silently gives the function a type the source did not write. `type-rec.wast`
+ * asserts exactly this, with the comment ";; the implicit type of $f is not
+ * $ft"; we were producing `(func (type $ft))` and every engine accepted the
+ * result (T13). A singleton `(rec (type …))` counts as its own group and stays
+ * reusable — it encodes differently from a bare `(type …)` but denotes the
+ * same type.
  */
-export function synthesizeTypes(module: Module): void {
+export function makeTypeInterner(module: Module): (sig: FuncSignature) => number {
   const sigToIdx = new Map<string, number>();
-
-  // Index existing type entries by their normalized signature so we don't
-  // duplicate when a user-declared (type ...) already covers an inline sig.
-  //
-  // ONLY types that are their own rec group are candidates. An implicit
-  // type-use denotes a SINGLETON rec group, and type identity is compared up
-  // to the rec group — so a `(func)` sitting inside `(rec (type $a (func))
-  // (type $b (func)))` is a DIFFERENT type from a standalone `(func)`, and
-  // reusing it silently gives the function a type the source did not write.
-  // `type-rec.wast` asserts exactly this, with the comment ";; the implicit
-  // type of $f is not $ft"; we were producing `(func (type $ft))` and every
-  // engine accepted the result (T13). A singleton `(rec (type …))` counts as
-  // its own group and stays reusable — it encodes differently from a bare
-  // `(type …)` but denotes the same type.
   const singleton = new Set<number>();
   for (const g of recGroups(module.types)) if (g.count === 1) singleton.add(g.start);
   for (const [i, te] of module.types.entries()) {
-    if (te.kind === 'func' && singleton.has(i)) sigToIdx.set(sigKey(te.sig), i);
+    if (te.kind === 'func' && singleton.has(i) && !sigToIdx.has(sigKey(te.sig))) {
+      sigToIdx.set(sigKey(te.sig), i);
+    }
   }
-
-  const ensureTypeFor = (sig: FuncSignature): number => {
+  return (sig: FuncSignature): number => {
     const key = sigKey(sig);
     const existing = sigToIdx.get(key);
     if (existing !== undefined) return existing;
@@ -68,6 +68,16 @@ export function synthesizeTypes(module: Module): void {
     sigToIdx.set(key, idx);
     return idx;
   };
+}
+
+/**
+ * Walk `module.imports`, `module.funcs`, and `module.tags`; ensure that
+ * `module.types` contains a `func`-kind entry matching each item's
+ * signature, and update each item's `typeVar` to point at the matching
+ * type index.
+ */
+export function synthesizeTypes(module: Module): void {
+  const ensureTypeFor = makeTypeInterner(module);
 
   // Items the parser could not settle. Deferred for two different reasons,
   // both about INDEX ORDER: an item that references an existing type

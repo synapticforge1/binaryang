@@ -259,11 +259,13 @@ drop) — see ir-convergence decision 7.
   when a binary was read with one (round trips stay exact); both writers (`cb474baaa`, re-baseline
   `5dbe951f1`, 2026-09-11). wabt-ts now equals upstream `wat2wasm` on 400 / 421 corpus modules
   outside custom sections — every module but W5's 21.
-- ⬚ **W5** — wabt-ts's implicit type ORDER: the LAST difference from upstream `wat2wasm` on the
-  corpus — 21 modules, all exception-handling ones, in the type, function and tag sections.
-  Upstream: explicit types first, then implicit ones in text order, interleaved per function. Needs
-  text-order assignment at the end of parsing (the bridge tests parse without `synthesizeTypes`, so
-  a deferred index there would break them).
+- ✅ **W5** — implicit types in upstream's order (`bd327efe7`, re-baseline `232768359`, 2026-09-11):
+  after every explicit type; imports, then functions and tags in text order, each function's own
+  signature before its body's block and `call_indirect` types in binary order. The parser indexes
+  them all at the end of the module, so the bridge tests that skip `synthesizeTypes` still see
+  indices. Also fixed: a single typed-ref block result is written inline (both writers), and an
+  implicit signature reuses the FIRST equal explicit type. **wabt-ts == upstream `wat2wasm` on 421 /
+  421 corpus modules** outside custom sections; wasm-tools agrees on the GC probes.
 - ✅ **W4** — resolved by ROUTING, owner decision 2026-09-10 (`e18d9f09a`): external WAT goes
   wabt-ts → bytes → decoder, the pipeline binaryang converges on anyway. binaryen-ts's own
   `parseWat` stays an internal folded subset and retires with S6; its "Stage 1" is superseded.

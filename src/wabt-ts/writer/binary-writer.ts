@@ -285,6 +285,14 @@ function writeBlockType(s: MemoryStream, bt: BlockType): void {
     // gap concealed each other.
     writeValueType(s, bt.type);
   } else {
+    // A negative index would encode as a VALUE-type byte (-1 is `0x7f`, i32):
+    // a valid block of the wrong type. Only an unindexed implicit type can be
+    // negative (`UNASSIGNED_TYPE_INDEX`), and the parser indexes them all.
+    if (bt.typeIdx < 0) {
+      throw new Error(
+        `block type has no type index yet (${bt.typeIdx}) — implicit types unassigned`,
+      );
+    }
     s.writeS32Leb(bt.typeIdx);
   }
 }

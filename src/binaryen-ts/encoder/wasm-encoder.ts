@@ -363,23 +363,21 @@ function writeBlockType(
   if (t === None || (Array.isArray(t) && t.length === 0)) {
     w.writeU8(0x40);
   } else if (Array.isArray(t)) {
-    if (t.length > 1 || isRefType(t[0])) {
+    if (t.length > 1) {
       w.writeI32(resolveBlockType(t as ValueType[]));
       return;
     }
     writeValueType(w, t[0] as ValType | RefType);
   } else if (t !== 'unreachable') {
-    // A TYPED reference block result goes through the type-index form, not the
-    // inline valtype form. Both are legal blocktype encodings per the spec —
-    // blocktype is s33, and `(ref ht)` starts 0x64 which sign-extends negative,
-    // so it reads as a valtype — but a block returning `(ref $T)` encoded inline
-    // was rejected downstream with `type mismatch in br_on_cast`, while wabt
-    // emits the same block as a type index and validates. Matching the form that
-    // round-trips is worth more than exercising the one that is merely legal.
-    if (isRefType(t)) {
-      w.writeI32(resolveBlockType([t] as ValueType[]));
-      return;
-    }
+    // A single result of ANY value type is written inline — a typed reference
+    // too (`64 <heaptype>`), which is how the spec and wasm-tools encode it and,
+    // since W5, how wabt-ts's writer does.
+    //
+    // 🔧 This used to go through the type-index form for `(ref $T)`, to match
+    // wabt-ts, which interned a function type for such a block. That type was
+    // one the source never implied (`ref.wast`: a one-type module must reject
+    // `(block (result (ref 1)))` as "unknown type"), so wabt-ts stopped, and the
+    // two writers must agree.
     writeValueType(w, t as ValType | RefType);
   } else {
     w.writeU8(0x40);

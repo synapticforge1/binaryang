@@ -242,6 +242,14 @@ export type BlockType =
   | { readonly kind: 'value'; readonly type: ValueType }
   | { readonly kind: 'func_type'; readonly typeIdx: Index };
 
+/**
+ * The `typeIdx` of a `func_type` block type the text parser has not indexed
+ * YET. Implicit types are indexed at the end of the module, in text order
+ * (W5); the parser assigns every one before it returns, and the writers
+ * refuse to encode this value rather than write `-1` as a block type byte.
+ */
+export const UNASSIGNED_TYPE_INDEX = -1;
+
 /** Pre-built singleton for the void block type. */
 export const BLOCK_TYPE_VOID: BlockType = { kind: 'void' };
 /** Construct a single-value {@link BlockType}. */
