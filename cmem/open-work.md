@@ -255,11 +255,15 @@ drop) — see ir-convergence decision 7.
 
 **Queued, bugs first (owner: "fix any bugs first"), then 7c:**
 
-- ⬚ **W6** — wabt-ts writes a DataCount section upstream does not (242 corpus modules). Small; moves
-  the corpus baseline, so it re-baselines in its own commit.
-- ⬚ **W5** — wabt-ts's implicit type ORDER. Upstream: explicit types first, then implicit ones in
-  text order, interleaved per function. Needs text-order assignment at the end of parsing (the
-  bridge tests parse without `synthesizeTypes`, so a deferred index there would break them).
+- ✅ **W6** — DataCount only when code names a data segment (upstream's and wasm-tools' rule), or
+  when a binary was read with one (round trips stay exact); both writers (`cb474baaa`, re-baseline
+  `5dbe951f1`, 2026-09-11). wabt-ts now equals upstream `wat2wasm` on 400 / 421 corpus modules
+  outside custom sections — every module but W5's 21.
+- ⬚ **W5** — wabt-ts's implicit type ORDER: the LAST difference from upstream `wat2wasm` on the
+  corpus — 21 modules, all exception-handling ones, in the type, function and tag sections.
+  Upstream: explicit types first, then implicit ones in text order, interleaved per function. Needs
+  text-order assignment at the end of parsing (the bridge tests parse without `synthesizeTypes`, so
+  a deferred index there would break them).
 - ✅ **W4** — resolved by ROUTING, owner decision 2026-09-10 (`e18d9f09a`): external WAT goes
   wabt-ts → bytes → decoder, the pipeline binaryang converges on anyway. binaryen-ts's own
   `parseWat` stays an internal folded subset and retires with S6; its "Stage 1" is superseded.

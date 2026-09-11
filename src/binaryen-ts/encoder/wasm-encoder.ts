@@ -666,7 +666,7 @@ class WasmEncoder {
     }
     // BEFORE the code section, which is the point of it: a validator needs the
     // segment count while type-checking `memory.init` / `data.drop`.
-    if (this.mod.dataSegments.length > 0) {
+    if (this.mod.hasDataCount === true || this.usesDataIndex()) {
       this.writeSection(out, 12, (w) => this.encodeDataCountSection(w));
     }
     if (this.mod.functions.length > 0) this.writeSection(out, 10, (w) => this.encodeCodeSection(w));
@@ -1599,15 +1599,47 @@ class WasmEncoder {
    * nothing could reach the invalid combination. That coupling is why the two
    * were fixed in one change rather than separately.
    *
-   * Emitted whenever a data segment exists, not only when a bulk-memory opcode is
-   * present. It is optional in that wider case, but it is the rule wabt-ts's
-   * writer follows — and two tools in this repo disagreeing about the section
-   * list for the same module is its own defect. Matching also closes the last
-   * of the round-trip byte delta: 273 corpus modules carried a `datacount` that
-   * a minimal rule would have dropped.
+   * Emitted when a function body names a data segment, or when the module was
+   * decoded from a binary that had one (`WasmModule.hasDataCount`) — the rule
+   * wabt-ts's writer follows, because two tools in this repo disagreeing about
+   * the section list for the same module is its own defect.
+   *
+   * 🔧 W6: both used to emit it whenever a data segment EXISTED. Upstream
+   * `wat2wasm` and `wasm-tools` emit it only when code uses a data index, and
+   * 242 corpus modules differed from upstream in this section alone. The
+   * "decoded with one" half keeps a binary round trip exact: a module that
+   * carried a DataCount it did not need keeps it.
    */
   private encodeDataCountSection(w: BinaryWriter): void {
     w.writeU32(this.mod.dataSegments.length);
+  }
+
+  /**
+   * Whether a function body names a data segment — `memory.init`, `data.drop`,
+   * `array.new_data`, `array.init_data` — which makes the DataCount section
+   * required.
+   */
+  private usesDataIndex(): boolean {
+    const DATA_INDEX_USERS: ReadonlySet<string> = new Set([
+      ExpressionKind.MemoryInit,
+      ExpressionKind.DataDrop,
+      ExpressionKind.ArrayNewData,
+      ExpressionKind.ArrayInitData,
+    ]);
+    let found = false;
+    const visit = (e: Expression): void => {
+      if (found) return;
+      if (DATA_INDEX_USERS.has(e.kind)) {
+        found = true;
+        return;
+      }
+      visitChildren(e, visit);
+    };
+    for (const fn of this.mod.functions) {
+      visit(fn.body);
+      if (found) return true;
+    }
+    return false;
   }
 
   /**

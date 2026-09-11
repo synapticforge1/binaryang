@@ -1147,8 +1147,10 @@ export class BinaryReader {
    * index is in range at that point), and when it is present it must agree
    * with the data section's own count.
    */
-  private readDataCountSection(_m: Module, _end: number): void {
+  private readDataCountSection(m: Module, _end: number): void {
     this.dataCount = this.readU32Leb();
+    // Recorded so the writer keeps a DataCount the module did not need (W6).
+    m.hasDataCountSection = true;
   }
 
   private readDataSection(m: Module, end: number): void {

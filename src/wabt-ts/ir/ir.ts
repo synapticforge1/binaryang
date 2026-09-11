@@ -1783,6 +1783,18 @@ export interface Module {
    */
   hasNameSection: boolean;
 
+  /**
+   * Whether the module was READ with a DataCount section (id 12) — W6.
+   *
+   * The writer emits one when a function body names a data segment
+   * (`memory.init`, `data.drop`, `array.new_data`, `array.init_data`), which is
+   * when the format REQUIRES it and exactly when upstream `wat2wasm` and
+   * `wasm-tools` write it — or when this is set, so a binary that carried one
+   * it did not need round-trips with it. False from {@link makeModule}: text has
+   * no way to ask for one.
+   */
+  hasDataCountSection: boolean;
+
   // Features used by this module (tracked during decode)
   featuresUsed: {
     simd: boolean;
@@ -1818,6 +1830,7 @@ export function makeModule(): Module {
     sectionMeta: [],
     fidelity: new FidelityTable(),
     hasNameSection: true,
+    hasDataCountSection: false,
     featuresUsed: { simd: false, exceptions: false, threads: false, tailcall: false, gc: false },
   };
 }
