@@ -281,6 +281,15 @@ drop) — see ir-convergence decision 7.
     now works and defaults to true; `Module` gained a required `hasNameSection` (use `makeModule`).
 - ⬚ **C2** — the WAT writer prints custom sections as `(@custom …)` and the parser cannot read it,
   so `wasm2wat` → `wat2wasm` drops every custom section (register C2, DEFECT; found in N1 P3).
+- ⬚ **A1** — wabt-ts accepts `(array (field (mut i8)))`, which the GC text grammar does not have
+  (wasm-tools rejects it; binaryen accepts it). Probable DEFECT; confirm against the spec text
+  first.
+- ⬚ **G2 is now closeable — the 30 GC spec files.** `wasm-tools json-from-wast` (1.259, installed
+  2026-09-11) splits all 30 files `wast2json` cannot: 287 modules, 289 `assert_invalid`, 73
+  `assert_malformed`, 1,350 `assert_trap`. A new must-reject corpus for exactly the proposal
+  upstream wabt cannot judge. Needs `spec-prepare` to fall back to wasm-tools for those files, and
+  the harness to read its JSON (it has `module_definition` / `module_instance` commands wast2json
+  does not).
 - ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
 
 **🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how
