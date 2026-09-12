@@ -1904,7 +1904,18 @@ class WatWriter extends ModuleContext {
       }
       case 'array':
         this.openSpace('array');
-        this.writeField(te.field);
+        // The spec's form is `(array fieldtype)`, and `wasm-tools` takes only
+        // that — so the `(field …)` wrapper goes in ONLY when the field has a
+        // name, which that form is the sole way to write (A1). Upstream wabt
+        // and binaryen read both.
+        if (te.field.name !== '') {
+          this.openSpace('field');
+          this.writeName(te.field.name, NC.Space);
+          this.writeField(te.field);
+          this.closeSpace();
+        } else {
+          this.writeField(te.field);
+        }
         this.closeSpace();
         break;
     }
