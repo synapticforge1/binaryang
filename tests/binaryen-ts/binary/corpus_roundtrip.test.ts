@@ -39,9 +39,23 @@ import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 // parity with the rest of the tree, so convert the URL by hand (matching
 // scripts/verify_roundtrip.ts). The leading slash of a Windows file URL
 // path ("/D:/...") has to go.
-const CORPUS = decodeURIComponent(
-  new URL('../../../upstream/test', import.meta.url).pathname,
-).replace(/^\/(?=[A-Za-z]:)/, '');
+const asPath = (rel: string): string =>
+  decodeURIComponent(new URL(rel, import.meta.url).pathname).replace(/^\/(?=[A-Za-z]:)/, '');
+
+/**
+ * Where the reading-room clone may sit.
+ *
+ * 🔧 Only the first was checked, and it has not existed since the MERGE: the
+ * `upstream/` clone stayed beside the merged repo, in the pre-merge binaryen-ts
+ * checkout. So this test — promoted out of `scripts/` precisely because "leaving
+ * it as a script meant nobody ran it" — reported `ignored` on every run instead,
+ * which is the same thing wearing a passing suite's colours. A skip is only
+ * honest when the corpus is genuinely absent, as it is in CI.
+ */
+const CORPUS_CANDIDATES = [
+  asPath('../../../upstream/test'),
+  asPath('../../../../binaryen-ts/upstream/test'),
+];
 
 /**
  * Lower bound on files that must survive a full round-trip. Raise it when the
@@ -49,13 +63,21 @@ const CORPUS = decodeURIComponent(
  */
 const MIN_ROUNDTRIPPING = 80;
 
-async function corpusPresent(): Promise<boolean> {
-  try {
-    const st = await fs.stat(CORPUS);
-    return st.isDirectory();
-  } catch {
-    return false;
+async function findCorpus(): Promise<string | null> {
+  for (const dir of CORPUS_CANDIDATES) {
+    try {
+      if ((await fs.stat(dir)).isDirectory()) return dir;
+    } catch {
+      // try the next candidate
+    }
   }
+  return null;
+}
+
+const CORPUS = await findCorpus();
+
+async function corpusPresent(): Promise<boolean> {
+  return CORPUS !== null;
 }
 
 async function findWasm(dir: string, out: string[] = []): Promise<string[]> {
@@ -77,13 +99,30 @@ async function findWasm(dir: string, out: string[] = []): Promise<string[]> {
 }
 
 /** Coarse structural fingerprint — what must survive a round-trip. */
-function summary(mod: WasmModule): { fns: number; globals: number; data: number; exprs: number } {
+/**
+ * What a round trip must preserve, counted per index space.
+ *
+ * 🔧 This counted functions, globals, data segments and expressions — so the
+ * whole EXPORT section could vanish and this test still passed, which was
+ * measured, not supposed. "Nothing drifts" was the claim; four of the nine
+ * index spaces were the measurement. Every entity space a module can hold is
+ * counted now, and imports separately: dropping one changes every later index,
+ * which is how a silently-retargeted call gets made.
+ */
+function summary(mod: WasmModule): Record<string, number> {
   let exprs = 0;
   for (const fn of mod.functions) walkExpression(fn.body, () => void exprs++);
   return {
     fns: mod.functions.length,
     globals: mod.globals.length,
     data: mod.dataSegments.length,
+    imports: mod.imports.length,
+    exports: mod.exports.length,
+    tables: mod.tables.length,
+    memories: mod.memories.length,
+    tags: mod.tags.length,
+    elems: mod.elements.length,
+    types: mod.heapTypes.length,
     exprs,
   };
 }
@@ -103,10 +142,12 @@ Deno.test({
   name: 'corpus: parse->encode->parse is lossless and stays valid',
   ignore: !(await corpusPresent()),
   fn: async () => {
-    const files = await findWasm(CORPUS);
-    assert(files.length > 0, `no .wasm files under ${CORPUS}`);
+    // Non-null by the `ignore` gate above, which is `CORPUS === null`.
+    const corpus = CORPUS!;
+    const files = await findWasm(corpus);
+    assert(files.length > 0, `no .wasm files under ${corpus}`);
 
-    const rel = (f: string) => path.relative(CORPUS, f).split(path.sep).join('/');
+    const rel = (f: string) => path.relative(corpus, f).split(path.sep).join('/');
     const okFiles: string[] = [];
     const rejectedOnInput: string[] = [];
     const encodeFail: string[] = [];
@@ -150,10 +191,15 @@ Deno.test({
       const a = summary(mod1);
       const b = summary(mod2);
 
-      // Entity counts are exact: no round-trip may add or drop a function,
-      // global, or data segment.
-      if (a.fns !== b.fns || a.globals !== b.globals || a.data !== b.data) {
-        drift.push(`${rel(file)}: entities ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+      // Entity counts are exact in EVERY index space: no round-trip may add or
+      // drop a function, import, export, global, table, memory, tag, element
+      // segment, data segment or type. Comparing the whole record rather than a
+      // hand-listed few is the point — the listed few were the blind spot.
+      const drifted = Object.keys(a).filter((k) => k !== 'exprs' && a[k] !== b[k]);
+      if (drifted.length > 0) {
+        drift.push(
+          `${rel(file)}: ${drifted.join(', ')} — ${JSON.stringify(a)} -> ${JSON.stringify(b)}`,
+        );
         continue;
       }
 
