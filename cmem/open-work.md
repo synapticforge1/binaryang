@@ -314,16 +314,21 @@ drop) — see ir-convergence decision 7.
 - ⚠️ **S7 changed under C3**: the linear-form marker is planned as a custom section that
   "optimization strips for free" — free only because binaryen-ts dropped every custom section. It no
   longer does (passes keep them, as upstream does), so S7 must strip its own marker deliberately.
-- ⬚ **N6 — the name section's LOCAL subsection**, found measuring C3 against real binaries, and the
-  next bug in the queue. Every clang / rustc / zig binary lists only the functions that HAVE local
-  names; both our writers list every function (N1 matched upstream `wat2wasm --debug-names`, which
-  does). So a read → write of a producer binary differs by 2+ bytes: **9 of 9 WASI binaries with a
-  name section miss byte-identity on this alone**, in BOTH halves, one cause. The fix is to record
-  which functions the subsection listed — `ExplicitNames` in binaryen-ts, the fidelity record in
-  wabt-ts — and write exactly those, so our own bytes (every function listed) still round trip.
-  - Measured: 376 real WASI binaries, 366 byte-identical through binaryen-ts. Of the 10 that are
-    not, 9 are this; the tenth is L1 (relocation-padded LEBs re-encode minimally — valid, and what
-    upstream wabt and binaryen do too).
+- ✅ **N6 — the name section's LOCAL subsection** (2026-09-11), found measuring C3 against real
+  binaries. Every clang / rustc / zig binary lists only the functions that HAVE local names; both
+  writers listed every function (N1 matched upstream `wat2wasm --debug-names`, which does), so a
+  read → write of a producer binary gained entries it never had. The reader now records which
+  functions the subsection listed — `Module.localNamesListed` (by index) in wabt-ts,
+  `ExplicitNames.localsListed` (by NAME, since passes reorder) in binaryen-ts — and each writer
+  lists exactly those. Three shapes, three different bytes: **no record** → every function, as
+  upstream; **a set** → those, even when empty (`02 01 00` is not nothing); **`null`** → the section
+  had no local subsection, so write none.
+  - **376 real WASI binaries: 366 → 374 byte-identical, through BOTH halves.** The two left are L1
+    (relocation-padded LEBs re-encode minimally — valid, and what upstream normalizes to), one of
+    them also N7 (a duplicate function name renamed `dummy.1`, owner decision 2; wabt-ts keeps that
+    section raw and is exact).
+  - Our own corpus is unchanged — `deno task baseline` IDENTICAL — because text modules have no
+    record and keep upstream's shape.
 - ⬚ **A1** — wabt-ts accepts `(array (field (mut i8)))`, which the GC text grammar does not have
   (wasm-tools rejects it; binaryen accepts it). Probable DEFECT; confirm against the spec text
   first.

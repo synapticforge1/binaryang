@@ -11,6 +11,7 @@ import { type AbstractHeap, isReferenceType, Type, typeToHeapTypeName } from '..
 import {
   BinarySection,
   ExternalKind,
+  NameSectionSubsection,
   sectionOrderRank,
   WASM_MAGIC,
   WASM_VERSION,
@@ -1264,6 +1265,13 @@ export class BinaryReader {
     if (pending === null) return;
     const parsed = parseNameSection(pending.custom.data);
     const applied = parsed !== null && applyNameSection(m, parsed.names);
+    if (parsed !== null) {
+      // The SHAPE of the local subsection, which its names alone do not carry:
+      // a producer lists only the functions that have a named local (N6).
+      m.localNamesListed = parsed.subsections.has(NameSectionSubsection.Local)
+        ? new Set(parsed.names.localNames.keys())
+        : null;
+    }
     const another = m.customs.some((c) => c.name === 'name');
     if (!(applied && parsed.complete) || another) {
       m.customs.splice(pending.at, 0, pending.custom);

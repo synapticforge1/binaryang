@@ -1792,6 +1792,24 @@ export interface Module {
   hasNameSection: boolean;
 
   /**
+   * Which functions the `name` section's LOCAL subsection listed, by index in
+   * the function index space — imports first — N6 (cmem/divergences.md).
+   *
+   * 🔧 The writer listed EVERY function, which is upstream `wat2wasm
+   * --debug-names`'s shape and right for a module we assembled. A producer
+   * (clang, rustc, zig) lists only the functions that HAVE a named local, so
+   * re-encoding one gained entries it never had: 9 of 9 real WASI binaries with
+   * a name section differed by those bytes and nothing else.
+   *
+   * - **absent** — not read from a name section: list every function, as
+   *   upstream does. Text and hand-built modules take this path.
+   * - **a set** — list exactly these, even if it is empty (a subsection that
+   *   listed nobody is `02 01 00`, not nothing).
+   * - **`null`** — the section had NO local subsection: write none.
+   */
+  localNamesListed?: ReadonlySet<number> | null;
+
+  /**
    * Whether the module was READ with a DataCount section (id 12) — W6.
    *
    * The writer emits one when a function body names a data segment

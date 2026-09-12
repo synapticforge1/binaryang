@@ -36,6 +36,12 @@ export interface ParsedNameSection {
    * one map. The names that fit are still in {@link names}.
    */
   complete: boolean;
+  /**
+   * The subsection ids the section actually held, in no order — an EMPTY map in
+   * {@link names} cannot say whether its subsection was absent or listed
+   * nothing, and the two are different bytes (N6).
+   */
+  subsections: ReadonlySet<NameSectionSubsection>;
 }
 
 /** Names must be valid UTF-8; a decoder that substitutes U+FFFD would change them. */
@@ -141,7 +147,7 @@ export function parseNameSection(payload: Uint8Array): ParsedNameSection | null 
   } catch {
     return null;
   }
-  return { names, complete };
+  return { names, complete, subsections: seen };
 }
 
 /**
