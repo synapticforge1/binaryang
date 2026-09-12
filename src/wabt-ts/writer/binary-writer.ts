@@ -1681,14 +1681,21 @@ class BinaryWriter {
         s.writeSection(NameSectionSubsection.Module, () => s.writeName(bareName(m.name)));
       }
       nameMap(NameSectionSubsection.Function, funcs);
-      // Every function, named locals or not — upstream's shape, see above.
-      s.writeSection(NameSectionSubsection.Local, () => {
-        s.writeU32Leb(funcs.length);
-        funcs.forEach((f, i) => {
-          s.writeU32Leb(i);
-          writeNameEntries(s, namedEntries([...(f.localNames ?? [])]));
+      // Which functions the subsection lists: every one, which is upstream
+      // `wat2wasm --debug-names`'s shape — unless the module was READ from a
+      // section that listed only some, as every producer's does (N6).
+      const listed = m.localNamesListed;
+      if (listed !== null) {
+        const entries = funcs.map((f, i) => [i, f] as const)
+          .filter(([i]) => listed === undefined || listed.has(i));
+        s.writeSection(NameSectionSubsection.Local, () => {
+          s.writeU32Leb(entries.length);
+          for (const [i, f] of entries) {
+            s.writeU32Leb(i);
+            writeNameEntries(s, namedEntries([...(f.localNames ?? [])]));
+          }
         });
-      });
+      }
       indirectMap(
         NameSectionSubsection.Label,
         [...this.labelNames].sort(([a], [b]) => a - b),

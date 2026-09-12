@@ -352,6 +352,17 @@ export interface ExplicitNames {
   functions: ReadonlySet<string>;
   /** Param names of IMPORTED functions, by import name (2) — a defined function's are `Local.name`. */
   importParams: ReadonlyMap<string, ReadonlyMap<number, string>>;
+  /**
+   * Which functions the local subsection (2) LISTED, by IR name — or `null`
+   * when the section had no local subsection at all. N6.
+   *
+   * 🔧 The encoder listed every function, upstream `wat2wasm --debug-names`'s
+   * shape; a producer lists only the ones that HAVE a named local, so
+   * re-encoding a clang or rustc binary gained entries it never had. Keyed by
+   * name, like every other entry here: a function a pass removed simply leaves
+   * the section, and one a pass added was never in it.
+   */
+  localsListed: ReadonlySet<string> | null;
   /** Label names, by function name (3) — the names of the blocks, loops, ifs and trys that had one. */
   labels: ReadonlyMap<string, ReadonlySet<string>>;
   /** Type names (4). */

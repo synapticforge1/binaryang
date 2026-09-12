@@ -806,23 +806,35 @@ class WasmEncoder {
     section.writeUTF8('name');
     if (names.module !== undefined) sub(section, 0, (b) => b.writeUTF8(bare(names.module!)));
     flat(section, 1, funcSpace, names.functions);
-    // Every function, as upstream wat2wasm writes it — imports included.
-    sub(section, 2, (b) => {
+    // Which functions the subsection lists: the ones the section listed, or —
+    // with no record — every one, as upstream `wat2wasm --debug-names` does
+    // (N6). `null` is a section that had no local subsection: write none.
+    if (names.localsListed !== null) {
       const importFuncs = mod.imports.filter((i) => i.kind === 'function');
-      b.writeU32(importFuncs.length + mod.functions.length);
+      const locals: [number, [number, string][]][] = [];
+      const listed = names.localsListed;
+      const wanted = (name: string) => listed.has(name);
       importFuncs.forEach((imp, i) => {
-        b.writeU32(i);
-        entries(b, sorted(names.importParams.get(imp.name) ?? new Map()));
+        if (wanted(imp.name)) {
+          locals.push([i, sorted(names.importParams.get(imp.name) ?? new Map())]);
+        }
       });
       mod.functions.forEach((fn, i) => {
-        b.writeU32(importFuncs.length + i);
+        if (!wanted(fn.name)) return;
         const list: [number, string][] = [];
         fn.locals.forEach((l, j) => {
           if (l.name !== undefined && l.name !== '') list.push([j, l.name]);
         });
-        entries(b, list);
+        locals.push([importFuncs.length + i, list]);
       });
-    });
+      sub(section, 2, (b) => {
+        b.writeU32(locals.length);
+        for (const [i, list] of locals) {
+          b.writeU32(i);
+          entries(b, list);
+        }
+      });
+    }
     indirect(section, 3, [...this.labelNames].sort(([a], [b]) => a - b));
     // Types by the OBJECT they were read as: a type a pass rebuilt, or one the
     // encoder appended for an expression, has none. Only the GC-mode type

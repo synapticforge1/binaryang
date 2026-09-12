@@ -24,6 +24,7 @@
  */
 
 import { parseNameSection } from '../../wabt-ts/reader/name-section.ts';
+import { NameSectionSubsection } from '../../wabt-ts/core/binary.ts';
 import type { ModuleNames, NameMap } from '../../wabt-ts/ir/apply-names.ts';
 import type { ExplicitNames } from '../ir/module.ts';
 import type { TypeDef } from '../ir/gc-types.ts';
@@ -128,11 +129,22 @@ export class DecodedNames {
   private readonly labelsGiven = new Map<number, Map<number, string>>();
   private readonly labelsExplicit = new Map<number, Set<string>>();
 
+  /** Function INDICES the local subsection listed, or `null` when it had none (N6). */
+  private readonly localsListed: ReadonlySet<number> | null;
+
   constructor(bytes: Uint8Array) {
     const payload = findNameSection(bytes);
     this.hasSection = payload !== null;
     // A malformed section names nothing, as upstream binaryen warns and goes on.
-    this.raw = payload === null ? null : (parseNameSection(payload)?.names ?? null);
+    const parsed = payload === null ? null : parseNameSection(payload);
+    this.raw = parsed?.names ?? null;
+    // An empty `localNames` cannot say whether the subsection was absent or
+    // listed nobody, and those are different bytes — ask the parse.
+    this.localsListed = parsed === null
+      ? null
+      : parsed.subsections.has(NameSectionSubsection.Local)
+      ? new Set(parsed.names.localNames.keys())
+      : null;
     const n = this.raw;
     this.funcs = new Namespace(n?.funcNames, (i) => `$func${i}`);
     this.tables = new Namespace(n?.tableNames, (i) => `$table${i}`);
@@ -263,6 +275,11 @@ export class DecodedNames {
       ...(n?.moduleName ? { module: '$' + n.moduleName } : {}),
       functions: this.funcs.explicit,
       importParams,
+      // By NAME, so a pass that reorders or removes a function does not shift
+      // someone else's entry into its place (N6).
+      localsListed: this.localsListed === null
+        ? null
+        : new Set([...this.localsListed].map((i) => funcName(i))),
       labels,
       types,
       tables: this.tables.explicit,
