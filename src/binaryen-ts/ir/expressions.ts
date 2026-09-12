@@ -1026,10 +1026,17 @@ export interface BinaryExpr extends ExprBase {
 export interface SelectExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Select;
-  /** Branch taken when the condition is non-zero. */
-  ifTrue: Expression;
-  /** Branch taken when the condition is zero (nullable). */
-  ifFalse: Expression;
+  /**
+   * The value the instruction yields when the condition is NON-ZERO.
+   *
+   * Named as the spec names the operands, not `ifTrue` / `ifFalse`: a select
+   * is not a branch. BOTH operands are evaluated, always — that is the whole
+   * difference from an `if`, and the reason a select cannot host a trap or a
+   * side effect that only one side should see.
+   */
+  val1: Expression;
+  /** The value it yields when the condition is ZERO. Also always evaluated. */
+  val2: Expression;
   /** Condition expression (typed as i32). */
   condition: Expression;
   /**
@@ -2515,7 +2522,7 @@ export function makeSelect(
   // `makeIf` was fixed for.
   const type: Type = resultType ??
     (typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue));
-  return { kind: ExpressionKind.Select, type, ifTrue, ifFalse, condition, resultType };
+  return { kind: ExpressionKind.Select, type, val1: ifTrue, val2: ifFalse, condition, resultType };
 }
 
 /** Creates a `call_indirect` expression. */

@@ -771,11 +771,11 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginIfExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.then_);
+        r = this.visitExprList(e.ifTrue);
         if (r === Result.Error) return r;
         r = this.d.afterIfTrueExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.else_);
+        r = this.visitExprList(e.ifFalse);
         if (r === Result.Error) return r;
         return this.d.endIfExpr?.(e) ?? Result.Ok;
       }

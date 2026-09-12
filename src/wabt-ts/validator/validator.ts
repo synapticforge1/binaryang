@@ -667,13 +667,13 @@ class ModuleValidator implements ExprVisitorDelegate {
     let r = this.sv.onIf(e.loc, e.blockType);
     // A missing `else` is not modelled anywhere else, so the arity rule for a
     // one-armed if has to be checked from the IR.
-    if (e.else_.length === 0) {
+    if (e.ifFalse.length === 0) {
       r = combineResults(r, this.sv.onOneArmedIf(e.loc, e.blockType));
     }
     return r;
   }
   afterIfTrueExpr(e: IfExpr): Result {
-    return e.else_.length > 0 ? this.sv.onElse(e.loc) : Result.Ok;
+    return e.ifFalse.length > 0 ? this.sv.onElse(e.loc) : Result.Ok;
   }
   endIfExpr(e: IfExpr): Result {
     return this.sv.onEnd(e.loc);

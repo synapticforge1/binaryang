@@ -210,8 +210,8 @@ class NameGenerator {
         }
         case 'if': {
           if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
-          this.generateLabelNames(e.then_, counter);
-          this.generateLabelNames(e.else_, counter);
+          this.generateLabelNames(e.ifTrue, counter);
+          this.generateLabelNames(e.ifFalse, counter);
           break;
         }
         case 'try':

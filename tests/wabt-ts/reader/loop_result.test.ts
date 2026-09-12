@@ -48,8 +48,8 @@ const CHILD_KEYS = [
   'args',
   'operands',
   'body',
-  'then_',
-  'else_',
+  'ifTrue',
+  'ifFalse',
 ] as const;
 
 /** Count synthesized operand slot-fillers in a decoded module. */

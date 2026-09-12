@@ -448,8 +448,18 @@ export interface IfExpr {
   readonly label: string;
   readonly blockType: BlockType;
   readonly condition: Expr;
-  readonly then_: Expr[];
-  readonly else_: Expr[];
+  /**
+   * The arm run when the condition is non-zero — binaryen-ts's spelling, taken
+   * for the merged tree (S6 Group 3, decided on blast radius: 30 sites here
+   * against 44 there).
+   *
+   * `ifTrue` was upstream wabt's C++ keyword workaround, and in TypeScript
+   * `then` carries a hazard of its own: an object with a `then` PROPERTY is
+   * treated as a thenable by `await` and `Promise.resolve`.
+   */
+  readonly ifTrue: Expr[];
+  /** The arm run when the condition is zero; empty when there is no `else`. */
+  readonly ifFalse: Expr[];
   readonly loc: Location;
 }
 

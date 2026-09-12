@@ -3398,18 +3398,18 @@ export class WastParser {
       }
 
       // then branch
-      const then_: Expr[] = [];
+      const ifTrue: Expr[] = [];
       if (this.matchLpar(TokenType.Then)) {
-        this.parseInstrListInto(then_);
+        this.parseInstrListInto(ifTrue);
         this.expect(TokenType.Rpar);
       } else {
-        this.parseInstrListInto(then_);
+        this.parseInstrListInto(ifTrue);
       }
 
       // else branch
-      const else_: Expr[] = [];
+      const ifFalse: Expr[] = [];
       if (this.matchLpar(TokenType.Else)) {
-        this.parseInstrListInto(else_);
+        this.parseInstrListInto(ifFalse);
         this.expect(TokenType.Rpar);
       }
 
@@ -3422,8 +3422,8 @@ export class WastParser {
         blockType,
         nodeId: this.fid({ blockType }),
         condition: condExpr,
-        then_,
-        else_,
+        ifTrue,
+        ifFalse,
         loc,
       };
       const hasValue = blockType.kind !== 'void';
@@ -3679,22 +3679,22 @@ export class WastParser {
       const blockType = this.parseBlockType();
       const cond = ctx.stack.pop();
 
-      const then_: Expr[] = [];
+      const ifTrue: Expr[] = [];
       const then_Ctx = newCtx();
       this.parseInstrList(then_Ctx);
 
-      const else_: Expr[] = [];
+      const ifFalse: Expr[] = [];
       if (this.match(TokenType.Else)) {
         this.matchClosingLabel(label);
         flushStack(then_Ctx);
-        then_.push(...then_Ctx.stmts);
+        ifTrue.push(...then_Ctx.stmts);
         const else_Ctx = newCtx();
         this.parseInstrList(else_Ctx);
         flushStack(else_Ctx);
-        else_.push(...else_Ctx.stmts);
+        ifFalse.push(...else_Ctx.stmts);
       } else {
         flushStack(then_Ctx);
-        then_.push(...then_Ctx.stmts);
+        ifTrue.push(...then_Ctx.stmts);
       }
 
       this.expect(TokenType.End);
@@ -3707,8 +3707,8 @@ export class WastParser {
         blockType,
         nodeId: this.fid({ blockType }),
         condition: condExpr2,
-        then_,
-        else_,
+        ifTrue,
+        ifFalse,
         loc,
       };
       const hasValue = blockType.kind !== 'void';

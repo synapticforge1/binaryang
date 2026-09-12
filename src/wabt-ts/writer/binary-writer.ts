@@ -557,7 +557,7 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   afterIfTrueExpr(e: IfExpr): Result {
-    if (e.else_.length > 0) this.s.writeU8(Opcode.Else);
+    if (e.ifFalse.length > 0) this.s.writeU8(Opcode.Else);
     return Result.Ok;
   }
   endIfExpr(_e: IfExpr): Result {

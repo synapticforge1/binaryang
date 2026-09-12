@@ -1101,7 +1101,7 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       afterIfTrueExpr: (e) => {
-        if (e.else_.length > 0) {
+        if (e.ifFalse.length > 0) {
           this.indent -= 2;
           this.putsSpace('else');
           this.indent += 2;
@@ -1778,14 +1778,14 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace('then');
         this.indent += 2;
-        this.writeExprList(e.then_);
+        this.writeExprList(e.ifTrue);
         this.close(NC.Space);
-        if (e.else_.length > 0) {
+        if (e.ifFalse.length > 0) {
           this.newline(true);
           this.puts('(', NC.None);
           this.putsSpace('else');
           this.indent += 2;
-          this.writeExprList(e.else_);
+          this.writeExprList(e.ifFalse);
           this.close(NC.Space);
         }
         this.endBlock();

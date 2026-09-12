@@ -1949,8 +1949,8 @@ class WasmEncoder {
 
       case ExpressionKind.Select: {
         const e = expr as SelectExpr;
-        this.encodeExpr(w, e.ifTrue, labels);
-        this.encodeExpr(w, e.ifFalse, labels);
+        this.encodeExpr(w, e.val1, labels);
+        this.encodeExpr(w, e.val2, labels);
         this.encodeExpr(w, e.condition, labels);
         // A DECLARED type is written as declared — the typed form, numeric or
         // not (S6 decision 7a; upstream binaryen writes a numeric one untyped).
