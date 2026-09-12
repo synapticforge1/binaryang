@@ -1822,7 +1822,7 @@ class WasmEncoder {
         } else {
           w.writeU8(0x0c); // br
         }
-        w.writeU32(this.resolveLabel(labels, e.name));
+        w.writeU32(this.resolveLabel(labels, e.target));
         break;
       }
 
@@ -2367,7 +2367,7 @@ class WasmEncoder {
       case ExpressionKind.BrOn: {
         const e = expr as BrOnExpr;
         this.encodeExpr(w, e.ref, labels);
-        const depth = this.resolveLabel(labels, e.label);
+        const depth = this.resolveLabel(labels, e.target);
         if (e.opcode === BrOnOp.Null) {
           w.writeU8(0xd5);
           w.writeU32(depth);
@@ -2406,7 +2406,7 @@ class WasmEncoder {
           } else {
             w.writeU8(c.isRef ? 0x03 : 0x02); // catch_all / catch_all_ref
           }
-          w.writeU32(this.resolveLabel(labels, c.dest));
+          w.writeU32(this.resolveLabel(labels, c.target));
         }
         this.noteLabel(e.name);
         labels.push(e.name ?? null);

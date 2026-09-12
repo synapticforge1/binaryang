@@ -890,7 +890,7 @@ class ResolveContext {
         // Legacy EH: `rethrow $label` / `rethrow N` targets an enclosing
         // try's catch. The depth is a label reference, so resolve it the
         // same way as a `br` target (numeric depths pass through unchanged).
-        return [Result.Ok, { ...e, depth: this.resolveLabelVar(e.depth, loc) }];
+        return [Result.Ok, { ...e, target: this.resolveLabelVar(e.target, loc) }];
       case 'br_on': {
         const [r, ref] = this.resolveExpr(e.ref);
         const [rv, values] = this.resolveExprArray(e.values);

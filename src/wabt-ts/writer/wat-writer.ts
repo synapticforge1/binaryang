@@ -1057,7 +1057,7 @@ class WatWriter extends ModuleContext {
       },
       onRethrowExpr: (e) => {
         this.putsSpace('rethrow');
-        this.writeBrVar(e.depth, NC.Newline);
+        this.writeBrVar(e.target, NC.Newline);
         return Result.Ok;
       },
 

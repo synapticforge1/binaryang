@@ -73,7 +73,7 @@ function _optimizeBlock(
     last.kind === ExpressionKind.Break &&
     last.condition === null &&
     last.values.length === 0 &&
-    last.name === block.name
+    last.target === block.name
   ) {
     const rest = block.children.slice(0, -1);
     if (rest.length === 0) return makeNop();
@@ -88,7 +88,7 @@ function _optimizeBlock(
     last.kind === ExpressionKind.Break &&
     last.condition !== null &&
     last.values.length === 0 &&
-    last.name === block.name
+    last.target === block.name
   ) {
     const drop = makeDrop(last.condition);
     const newChildren = [...block.children.slice(0, -1), drop];

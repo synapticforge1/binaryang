@@ -1008,7 +1008,7 @@ class ModuleValidator implements ExprVisitorDelegate {
   onRethrowExpr(e: RethrowExpr): Result {
     const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onRethrow(e.loc, varIdx(e.depth));
+    return this.sv.onRethrow(e.loc, varIdx(e.target));
   }
 
   beginTryExpr(e: TryExpr): Result {

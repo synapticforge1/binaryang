@@ -1062,7 +1062,7 @@ class BodyWriter implements ExprVisitorDelegate {
     // `rethrow $l` names a CATCH label like a branch does, so it resolves the
     // same way (legacy EH). Missing it here was the one site the label-name
     // tests caught.
-    this.writeLabelVar(e.depth);
+    this.writeLabelVar(e.target);
     return Result.Ok;
   }
 
