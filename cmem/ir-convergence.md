@@ -1579,14 +1579,35 @@ including that **wabt-ts matches upstream wat2wasm byte-for-byte on only 146 of 
 corpus module has a typed select or block parameters, so the corpus could not see these changes —
 their tests carry them, each inverted.
 
-**7c remains** — and T2 widens it: binaryen-ts's encoder derives the type-section order itself when
-no type is declared, so a binary from upstream wat2wasm comes back with its types reordered.
+###### ✅ 7c — the written type INDEX, on the node (2026-09-11)
 
-###### Remaining: 1 of 7 (7c)
+Two form losses, both in binaryen-ts, both closed by recording what the header NAMED:
 
-| # | decision                                      | note                                                                                                                                                            |
-| - | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 7 | `blockType` / `typeUse` / `select.resultType` | 7a ✅ `7171b8b38`; 7b(i) ✅ `02d77f533`; ⬚ **7c** — FORM (T1's identical type index, T2's derived type order, a block type written as an index) in a side table |
+- **T1** — `call_indirect (type $b)` came back `(type $a)`: the encoder derived the index by
+  matching the signature, and a module may hold several identical function types.
+- **a block header written as a type INDEX** came back inline (`02 00` → `02 7f`). Same type,
+  different bytes.
+
+🔑 **It rides on the NODE, not in wabt-ts's side table** — binaryen-ts's IR has no `NodeId` to key
+that table with, and 7a/7b(i) set the precedent (`resultType`, `params`). `PassRunner` drops it
+before the first pass runs: a pass may retype a construct and leave the index naming something else.
+
+🔧 **Recording it unconditionally broke every lowered block-parameter case** — the index names a
+type WITH parameters, and `lowerBlockParams` takes the parameters away, so the header re-declared
+inputs nothing supplied ("not enough arguments on the stack for loop"). The index is kept only while
+the node still has that signature: no parameters, or parameters kept.
+
+⚠️ **T2 was not real on this path, and the row said it was.** "The encoder DERIVES the type-section
+order, reordering input" does not happen for a decoded module: it keeps the decoder's type list, in
+its own order, duplicates included. Three cases that would each come back reordered are pinned in
+`tests/binaryen-ts/binary/written_type_index.test.ts`. T2's row is corrected rather than closed —
+whatever was measured on 2026-09-10 was not the decode → encode path.
+
+###### Remaining: none of 7
+
+| # | decision                                      | note                                                                                                   |
+| - | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 7 | `blockType` / `typeUse` / `select.resultType` | 7a ✅ `7171b8b38`; 7b(i) ✅ `02d77f533`; 7c ✅ — the written type index on the node, dropped by passes |
 
 Plus Group 3's five ties and the block/label family — which still owns the 7 label references
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
