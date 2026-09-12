@@ -2399,13 +2399,28 @@ export class WastParser {
    *   (field mut? value-type)
    *   (mut? value-type)
    */
+  /**
+   * An array's element: `fieldtype`, or wabt's `(field id? fieldtype)` — A1.
+   *
+   * The spec grammar is `'(' 'array' fieldtype ')'`; `(field id? fieldtype)`
+   * belongs to STRUCTS. Both upstreams take it for arrays anyway — wabt through
+   * the very same `ParseField` it uses for struct fields, binaryen with an
+   * "expected exactly one field in array definition" check — and only
+   * `wasm-tools` refuses it.
+   *
+   * 🔧 We took the form but NOT its `id`, which is the half that carries a
+   * name: an array field named in the binary's name section (subsection 10,
+   * FEATURE N2) had nowhere to go in text, so `wasm2wat` dropped it. Reading
+   * the id is what lets the WAT writer print it back.
+   */
   private parseArrayField(): Field {
     if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Field) {
       this.drop(); // (
       this.drop(); // field
+      const name = this.parseBindVarOpt();
       const { mutable, type } = this.parseFieldType();
       this.expect(TokenType.Rpar);
-      return { name: '', type, mutable };
+      return { name, type, mutable };
     }
     const { mutable, type } = this.parseFieldType();
     return { name: '', type, mutable };

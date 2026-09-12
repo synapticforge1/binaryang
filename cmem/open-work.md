@@ -329,9 +329,16 @@ drop) — see ir-convergence decision 7.
     section raw and is exact).
   - Our own corpus is unchanged — `deno task baseline` IDENTICAL — because text modules have no
     record and keep upstream's shape.
-- ⬚ **A1** — wabt-ts accepts `(array (field (mut i8)))`, which the GC text grammar does not have
-  (wasm-tools rejects it; binaryen accepts it). Probable DEFECT; confirm against the spec text
-  first.
+- ✅ **A1 — resolved 2026-09-11, and it was NOT the defect it was filed as.** The spec grammar is
+  `(array fieldtype)` and `(field id? fieldtype)` is the STRUCT form — confirmed against the spec
+  text — but **upstream wabt parses an array's element with the SAME `ParseField` as a struct's**
+  (`wast-parser.cc:1793`, optional id and all), binaryen takes it too (rejecting only a second
+  field), and the testsuite has no case either way. So accepting it matches both upstreams;
+  `wasm-tools` is the lone refuser. The real fault was the half we had NOT taken: we ignored the
+  `id`, so an array field named in the binary (subsection 10, N2) had nowhere to go in text and
+  `wasm2wat` dropped the name — a name lost at the text hop, which N1 forbids. Now the id is read,
+  and the `(field …)` wrapper is printed **only when the field has a name**, so every other array
+  type stays in the spec's form that wasm-tools reads.
 - ⬚ **G2 is now closeable — the 30 GC spec files.** `wasm-tools json-from-wast` (1.259, installed
   2026-09-11) splits all 30 files `wast2json` cannot: 287 modules, 289 `assert_invalid`, 73
   `assert_malformed`, 1,350 `assert_trap`. A new must-reject corpus for exactly the proposal
