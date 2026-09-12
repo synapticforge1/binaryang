@@ -22,19 +22,27 @@
 // 🔑 That consequence is NOT what moved the corpus. Its 415 text hashes (and 0
 // byte hashes) are ALL the binary-derived case, because the baseline's text
 // columns come from `wasm2wat(binary)` — a depth with no spelling behind it,
-// which is exactly what this rule is for. The text→text case is separate, and
-// it closes when a branch target takes the `TypeUse` treatment: an index-form
-// `Var` means three different things today (the author wrote a number,
-// `resolveNames` resolved a name, or a binary gave a depth), and `TypeUse`
-// already solves that ambiguity for TYPE references — record the SPELLING and
-// derive only where none was written.
+// which is exactly what this rule is for.
+//
+// An index-form `Var` on a branch target used to mean THREE things — the author
+// wrote a number, `resolveNames` resolved a name down to a depth, or a binary
+// gave a depth. `resolveNames` no longer rewrites labels (see below), so the
+// middle one is gone and a name now reaches the writer as a name. The two that
+// remain, an authored number and a binary's depth, are still indistinguishable,
+// which is why an authored `br 0` at a named block still prints `$b`. Closing
+// that needs an origin marker, and is only worth adding for a text→text
+// consumer; there is none today.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+
+const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -98,6 +106,67 @@ describe('…except where the name would mean a different block', () => {
   it('an unnamed target keeps the depth and its `(;@N;)` comment', () => {
     const text = roundTrip('(module (func $f (block (block (br 1)))))');
     assert(text.includes('br 1 (;@1;)'), text);
+  });
+});
+
+describe('the binary writer resolves label NAMES itself', () => {
+  // `resolveNames` no longer rewrites a label reference to a depth: a label's
+  // target is a position on the block stack the writer already walks, not an
+  // entry in a module-level index space. So the writer resolves it, and the
+  // as-written spelling stays on the node.
+  it('a module whose labels are still names encodes without a resolve pass', () => {
+    const { module, errors } = parseWatModule('(module (func (block $b (br $b))))');
+    assert(!hasErrors(errors), formatErrors(errors));
+    // NOTE: no `resolveNames` call — this threw "unresolved name-var" before.
+    const bytes = writeBinaryIr(module);
+    assert(WebAssembly.validate(bytes as BufferSource), hex(bytes));
+  });
+
+  it('and it resolves to the same depth the resolver would have', () => {
+    const viaWriter = (() => {
+      const { module } = parseWatModule('(module (func (block $o (block $i (br $o)))))');
+      return writeBinaryIr(module);
+    })();
+    // `br $o` from one block deeper is depth 1.
+    assert(hex(viaWriter).includes('0c 01'), hex(viaWriter));
+  });
+
+  it('an undefined label name fails LOUD rather than encoding a wrong depth', () => {
+    const { module } = parseWatModule('(module (func (block $b (br $nope))))');
+    assertThrows(() => writeBinaryIr(module), Error, 'undefined label');
+  });
+
+  it("a legacy `delegate` resolves OUTSIDE the try's own label", () => {
+    // `(block $b (try (do) (delegate $b)))` — when the delegate target is
+    // resolved, the try's own (unnamed) label must be off the stack, so `$b` is
+    // depth 0. With it left on, `$b` resolves to depth 1: valid bytes, wrong
+    // handler. The parser already rejects `(try $t … (delegate $t))` for the
+    // same reason (label_scope.test.ts); this is the writer's half.
+    const { module, errors } = parseWatModule(
+      '(module (func (block $b (try (do) (delegate $b)))))',
+    );
+    assert(!hasErrors(errors), formatErrors(errors));
+    const bytes = writeBinaryIr(module);
+    // 0x18 = delegate, then the depth.
+    assert(hex(bytes).includes('18 00'), hex(bytes));
+  });
+
+  it('a try_table catch resolves outside ITS own label too', () => {
+    const { module, errors } = parseWatModule(
+      '(module (func (block $h (try_table (catch_all $h) (nop)))))',
+    );
+    assert(!hasErrors(errors), formatErrors(errors));
+    // catch_all = 0x02, then the depth: `$h` is the immediately enclosing
+    // block, depth 0, because the try_table's own label is not in scope for it.
+    // (The four kinds are catch 0x00, catch_ref 0x01, catch_all 0x02,
+    // catch_all_ref 0x03.)
+    assert(hex(writeBinaryIr(module)).includes('02 00'), hex(writeBinaryIr(module)));
+  });
+
+  it('a name shadowed by a nearer one resolves to the NEARER block', () => {
+    const { module } = parseWatModule('(module (func (block $b (block $b (br $b)))))');
+    // depth 0 — the inner `$b`, which is what the text means.
+    assert(hex(writeBinaryIr(module)).includes('0c 00'), hex(writeBinaryIr(module)));
   });
 });
 

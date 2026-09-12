@@ -1109,15 +1109,30 @@ class ResolveContext {
     return this.resolveVar(v, this.dataSegScope, 'data segment', loc);
   }
 
+  /**
+   * CHECK a label reference; do not rewrite it.
+   *
+   * 🔧 This used to return `varIndex(depth)`, and that rewrite destroyed which
+   * spelling the source used: `br 1` and `br $b` both became `{kind:'index'}`,
+   * after which an index-form target meant three different things — the author
+   * wrote a number, a name was resolved here, or a binary handed us a depth —
+   * and no later reader could tell them apart. (`TypeUse` exists to break the
+   * same ambiguity for type references: "index 0 is ambiguous between 'no
+   * annotation' and 'the source really wrote `(type 0)`'".)
+   *
+   * A label is the one reference that needs no rewriting: unlike a func or
+   * global, its target is not an entry in a module-level index space that has
+   * to be counted, but a position on the block stack the WRITER already walks.
+   * So the binary writer resolves it (`writeLabelVar`), and the name survives
+   * to the text unchanged.
+   */
   private resolveLabelVar(v: Var, loc: Location = unknownLocation()): Var {
     if (v.kind === 'index') return v;
-    const depth = this.labelStack.lastIndexOf(v.name);
-    if (depth === -1) {
+    if (this.labelStack.lastIndexOf(v.name) === -1) {
       addError(this.errors, loc, `undefined label "${v.name}"`);
       this.hadError = true;
-      return v;
     }
-    return varIndex(this.labelStack.length - 1 - depth);
+    return v;
   }
 
   private resolveByKind(v: Var, kind: ExternalKind): Var {
