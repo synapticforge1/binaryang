@@ -1445,7 +1445,11 @@ export class BinaryReader {
             }
             if (!this.ok()) break; // stop on a malformed catch clause
             const target = varIndex(this.readU32Leb());
-            const tc: TableCatch = tag ? { loc, kind, tag, target } : { loc, kind, target };
+            // The kind decides the SHAPE (`TableCatch` is a union): the tagged
+            // kinds read a tag above, the `catch_all` pair cannot carry one.
+            const tc: TableCatch = kind === CatchKind.Catch || kind === CatchKind.CatchRef
+              ? { loc, kind, tag: tag!, target }
+              : { loc, kind, target };
             tableCatches.push(tc);
           }
           const f = new Frame('try_table', bt, '', loc);

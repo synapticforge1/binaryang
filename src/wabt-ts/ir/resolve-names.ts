@@ -26,6 +26,7 @@ import type {
   FuncSignature,
   HeapTypeRef,
   Module,
+  TableCatch,
   TypeUse,
   ValueType,
   Var,
@@ -458,11 +459,14 @@ class ResolveContext {
         // 0/1/2 for that exact shape — only 0 is accepted. (An earlier pass
         // here pushed first, which reads naturally from the spec's
         // "C, label [t*] ⊢ catch*" rule but is off by one in the encoding.)
-        const catches = e.catches.map((c) => ({
-          ...c,
-          ...(c.tag === undefined ? {} : { tag: this.resolveTagVar(c.tag, loc) }),
-          target: this.resolveLabelVar(c.target, loc),
-        }));
+        // Rebuilt per SHAPE: `TableCatch` is a union, so a tagged clause keeps
+        // its tag and a `catch_all` cannot acquire one here by spread.
+        const catches: TableCatch[] = e.catches.map((c) => {
+          const target = this.resolveLabelVar(c.target, loc);
+          return c.tag === undefined
+            ? { ...c, target }
+            : { ...c, tag: this.resolveTagVar(c.tag, loc), target };
+        });
         this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();

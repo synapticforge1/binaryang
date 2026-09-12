@@ -3591,8 +3591,11 @@ export class WastParser {
         return null;
     }
     this.drop(); // consume the catch keyword
+    // A tagged kind and its tag are built TOGETHER: `TableCatch` is two shapes,
+    // so the tag cannot be attached to a `catch_all` by accident.
+    const tagged = kind === CatchKind.Catch || kind === CatchKind.CatchRef;
     let tag: Var | undefined;
-    if (kind === CatchKind.Catch || kind === CatchKind.CatchRef) {
+    if (tagged) {
       const tv = this.parseVar();
       if (tv === null) {
         this.error(catchLoc, 'expected tag reference after catch / catch_ref');
@@ -3606,9 +3609,10 @@ export class WastParser {
       return null;
     }
     this.expect(TokenType.Rpar);
-    return tag === undefined
-      ? { kind, target, loc: catchLoc }
-      : { kind, tag, target, loc: catchLoc };
+    if (kind === CatchKind.Catch || kind === CatchKind.CatchRef) {
+      return { kind, tag: tag!, target, loc: catchLoc };
+    }
+    return { kind, target, loc: catchLoc };
   }
 
   // -------------------------------------------------------------------------

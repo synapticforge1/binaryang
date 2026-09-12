@@ -322,13 +322,36 @@ export interface Catch {
   body: Expr[];
 }
 
-/** A catch entry in a try_table block (new exception handling proposal). */
-export interface TableCatch {
-  loc: Location;
-  kind: CatchKind;
-  tag?: Var; // undefined for CatchAll / CatchAllRef
-  target: Var; // branch target label
-}
+/**
+ * A catch entry in a try_table block (new exception handling proposal).
+ *
+ * 🔑 Two SHAPES, not one interface with an optional tag, because `kind` and the
+ * presence of `tag` are the same fact: `catch` / `catch_ref` name a tag,
+ * `catch_all` / `catch_all_ref` cannot. Held as one interface, the pair could
+ * disagree — and the writer reads them SEPARATELY (`catchKindByte(c.kind)`,
+ * then `if (c.tag !== undefined)`), so `CatchAll` beside a tag would emit the
+ * `catch_all` byte FOLLOWED by a stray tag index, sliding every later clause by
+ * one field. Valid-looking bytes, different program, no diagnostic.
+ *
+ * Split this way, the compiler refuses the combination at every construction
+ * site instead. Nothing in the parser or reader built it — this closes the
+ * shape, not a live defect.
+ */
+export type TableCatch =
+  | {
+    loc: Location;
+    /** `(catch $tag $label)` / `(catch_ref $tag $label)` — the tag is required. */
+    kind: CatchKind.Catch | CatchKind.CatchRef;
+    tag: Var;
+    target: Var; // branch target label
+  }
+  | {
+    loc: Location;
+    /** `(catch_all $label)` / `(catch_all_ref $label)` — there is no tag. */
+    kind: CatchKind.CatchAll | CatchKind.CatchAllRef;
+    tag?: undefined;
+    target: Var; // branch target label
+  };
 
 // ---------------------------------------------------------------------------
 // Expr — the full discriminated union for WebAssembly instructions

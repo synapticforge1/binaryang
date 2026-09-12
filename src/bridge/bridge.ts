@@ -39,7 +39,7 @@ import {
   varIndex,
   varName,
 } from '../wabt-ts/ir/ir.ts';
-import type { HeapTypeRef, ValueType } from '../wabt-ts/ir/ir.ts';
+import type { HeapTypeRef, TableCatch, ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
   ArrayLenExpr,
@@ -1520,15 +1520,17 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
 
 /** Translate a wabt try_table catch into a binaryen-ts CatchClause. */
 function buildCatchClause(
-  c: { kind: CatchKind; tag?: Var; target: Var },
+  c: TableCatch,
   ctx: BridgeCtx,
 ): CatchClause {
   const dest = resolveLabel(ctx, c.target);
+  // Switching on `kind` narrows the union, so the tagged arms SEE a tag —
+  // the `c.tag!` assertions this used to need are gone.
   switch (c.kind) {
     case CatchKind.Catch:
-      return { tag: resolveVarName(c.tag!, ctx.tagNames), dest, isRef: false };
+      return { tag: resolveVarName(c.tag, ctx.tagNames), dest, isRef: false };
     case CatchKind.CatchRef:
-      return { tag: resolveVarName(c.tag!, ctx.tagNames), dest, isRef: true };
+      return { tag: resolveVarName(c.tag, ctx.tagNames), dest, isRef: true };
     case CatchKind.CatchAll:
       return { tag: null, dest, isRef: false };
     case CatchKind.CatchAllRef:
