@@ -105,15 +105,19 @@ needs `--experimental-wasm-compact-imports` to load such a module at all. The re
 proposal instead of `unknown import kind: 127`, and the field says plainly that setting it does
 nothing. Kept rather than removed, because `Features` is public surface.
 
-▶ **The one real gap this surfaced is now ASSIGNED TO S5 of the convergence** (owner, 2026-09-02):
-wide arithmetic works in wabt-ts and is refused loudly by binaryen-ts's binary reader
+▶ **The one real gap this surfaced was ASSIGNED TO S5 of the convergence** (owner, 2026-09-02): wide
+arithmetic worked in wabt-ts and was refused loudly by binaryen-ts's binary reader
 (`unsupported bulk-memory/table opcode: 0xFC 0x13`).
 
-wabt-ts models it as `quaternary`, already on the one-sided list S5 covers, so **convergence
-dissolves it rather than requiring separate work** — the same shape as S6 dissolving C10a. ⚠️ **Do
-not implement it separately in binaryen-ts first**: that adds a second copy of something the merge
-is about to unify. S5 now carries it as an acceptance criterion — see
-[ir-convergence.md](ir-convergence.md).
+✅ **CLOSED — re-probed 2026-09-12 when S5 closed.** `quaternary` is now a SHARED kind, and the
+capability came with it: `(i64.add128 …)` assembled by upstream `wat2wasm --enable-all` decodes
+through binaryen-ts and re-encodes **byte-identically** (40B → 40B). The prediction held —
+convergence dissolved it rather than requiring separate work, the same shape as S6 dissolving C10a.
+
+⚠️ **Checked rather than assumed, and the distinction matters**: a shared KIND does not imply a
+decoded OPCODE. The kind sets agreeing is exactly the kind of evidence that reads as proof and is
+not — see the `ONE_SIDED_BUDGET` note in [ir-convergence.md](ir-convergence.md), where three
+successive miscounts came from trusting a name diff.
 
 🔑 **A feature flag is not an implementation** — the third "declared is not implemented" of the
 session, after `ExpressionKind` members with no factory and four stale `not yet supported` blockers.
@@ -199,15 +203,15 @@ one fact in two places, which is this codebase's known failure mode.
 
 **Seven ordered steps, S1–S7, in [ir-convergence.md](ir-convergence.md).**
 
-| step                   | state as of 2026-09-04                                                                |
-| ---------------------- | ------------------------------------------------------------------------------------- |
-| S1 the gate            | ✅ `deno task operators`                                                              |
-| S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                   |
-| S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                |
-| S4 coarse grouping     | ✅ five kinds folded away                                                             |
-| S5 one-sided kinds     | 🚧 acceptance criterion met (wide arithmetic round-trips); regroupings merged into S6 |
-| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2: 6 + 7a/7b(i) of 7  |
-| S7 linear-form marker  | ⬚ untouched, independent of the rest                                                  |
+| step                   | state as of 2026-09-04                                                                                                                                                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1 the gate            | ✅ `deno task operators`                                                                                                                                                                                                                  |
+| S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                                                                                                                                                                       |
+| S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                                                    |
+| S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                                                 |
+| S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — **75 shared, 9 wabt-only, 2 binaryen-only**, and none of the 11 is a rename. The recorded "27" was 8 days stale. Pinned by `ONE_SIDED_BUDGET`; K3 (`simd.shift` regrouping) is the one open decision |
+| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2 **7/7**, Group 3 and the block/label family done                                                                                                                        |
+| S7 linear-form marker  | ⬚ untouched, independent of the rest                                                                                                                                                                                                      |
 
 **S6 has its own acceptance gate now: `deno task bridge`**, at **401/421** (2026-09-10; it stood at
 397 — C10a's recorded "5 fail to encode, 19 fail validation" exactly — until Group 2 decision 4).
