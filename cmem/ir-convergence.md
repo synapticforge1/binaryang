@@ -387,7 +387,9 @@ what caught it.
 
 **Verified inert**, which is the whole point of doing it as its own commit: baseline `IDENTICAL`
 (421/421, no emitted byte changed), 944 tests passing, `operators` TOTAL, spec suite 100% on all
-four axes (1955 accepted, 2422 invalid rejected, 711 malformed binary, 1156 malformed text).
+four axes — 2248 accepted, 2714 invalid rejected, 711 malformed binary, 1229 malformed text, over
+all 257 files since G2 (2026-09-11); it was 1955 / 2422 / 711 / 1156 over the 227 `wast2json` can
+split.
 
 ### S3 — the side table ✅ done
 
