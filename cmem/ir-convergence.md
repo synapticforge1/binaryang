@@ -1009,6 +1009,43 @@ did.
 binds on any of them: both forms are fidelity-equivalent and no pass depends on either spelling.
 Blast radius decides, as it did in S2 and for the SIMD lane family.
 
+###### ✅ Group 3, measured and 3 of 5 done (2026-09-11)
+
+Blast radius by TRIAL — rename the field in the interface only, count the compile errors, revert.
+Baseline 0, so every count is real.
+
+| tie             | change wabt-ts | change binaryen-ts | taken                                 |
+| --------------- | -------------- | ------------------ | ------------------------------------- |
+| `select`        | 12             | **8**              | ✅ wabt-ts's `val1` / `val2`          |
+| `if`            | **30**         | 44                 | ✅ binaryen-ts's `ifTrue` / `ifFalse` |
+| `br_on`         | 30             | **5**              | ✅ wabt-ts's paired `from` / `to`     |
+| `call_indirect` | **11**         | 16                 | ⬚ NOT mechanical — see below          |
+| `ref.null`      | 10             | n/a                | ⬚ NOT a rename — see below            |
+
+🔑 **On all three taken, cost and meaning agreed** — which is what made them safe to do as renames:
+
+- a SELECT is not a branch. Both operands are always evaluated, so `ifTrue` / `ifFalse` named it
+  wrongly (its doc comments said "branch taken when…" of an instruction that branches nowhere).
+- an `if` does branch, so `ifTrue` / `ifFalse` is right there; `then_` was wabt's C++ keyword
+  workaround, and in TypeScript a `then` PROPERTY makes an object a thenable to `await`.
+- `br_on`'s heap type and its nullability are ONE reference type. Four flat optionals could hold a
+  nullability with no heap type beside it, and the encoder papered over exactly that with
+  `?? AbstractHeapType.Any`; paired, that state cannot be written down.
+
+⚠️ **Two of the five are not the mechanical ties the plan called them**, and the measurement is what
+showed it:
+
+- **`call_indirect`** — 11 vs 16 is close, and wabt-ts's `sig` is not a free-standing spelling: it
+  is one leg of the as-written `typeVar` / `typeUse` / `sig` triple that S3's fidelity table also
+  keys on (`FidelityEntry.sig`). Splitting it into two arrays would contradict that table; taking it
+  into binaryen-ts costs its encoder and type-checking the other way. **This wants a Group 2-style
+  worst-condition decision, not a cost coin-flip.**
+- **`ref.null`** — binaryen-ts has no field at all; the heap type rides on `ExprBase.type`, and
+  wabt-ts's nodes have NO `type`. So there is nothing to rename: the merged node needs an explicit
+  immediate (the heap type IS the instruction's operand, the same reasoning 7a used), and the work
+  is adding one to binaryen-ts plus moving its encoder off `type` — behaviour-affecting, not
+  mechanical.
+
 **So the order of work is:** the `Var` accessor first, since Group 1 cannot land without it; then
 Group 2's seven, which are structural and want their own commits; then Group 3's renames, which are
 mechanical; then the aliasing.

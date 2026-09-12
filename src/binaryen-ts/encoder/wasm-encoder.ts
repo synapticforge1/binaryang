@@ -2378,12 +2378,12 @@ class WasmEncoder {
           w.writeU8(0xfb);
           w.writeU32(e.opcode === BrOnOp.Cast ? 0x18 : 0x19);
           // flags: bit 0 = source nullable, bit 1 = cast-target nullable.
-          w.writeU8((e.srcNullable ? 0x01 : 0x00) | (e.castNullable ? 0x02 : 0x00));
+          w.writeU8((e.from?.nullable ? 0x01 : 0x00) | (e.to?.nullable ? 0x02 : 0x00));
           w.writeU32(depth);
-          // Two distinct heap-type immediates: source ($T1) then target ($T2).
-          // Emitting the target twice corrupted the source immediate.
-          writeHeapType(w, e.srcType ?? AbstractHeapType.Any);
-          writeHeapType(w, e.castType ?? AbstractHeapType.Any);
+          // Two distinct heap-type immediates: source (`rt1`) then target
+          // (`rt2`). Emitting the target twice corrupted the source immediate.
+          writeHeapType(w, e.from?.heapType ?? AbstractHeapType.Any);
+          writeHeapType(w, e.to?.heapType ?? AbstractHeapType.Any);
         }
         break;
       }
