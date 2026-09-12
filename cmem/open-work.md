@@ -291,17 +291,17 @@ drop) — see ir-convergence decision 7.
     `debugInfo`; `ModuleBuilder.addFunction` takes optional `paramNames`; imported memories are
     named by index (`mem1` where two collided on `mem0`); an imported tag's `throw` now carries its
     payload in the IR.
-- ✅ **C2** — custom sections survive the text (2026-09-11). The lexer emits `LparAnn` for `(@custom`
-  and nothing else (every other annotation is still skipped at the character level, which is why it
-  was abandoned the first time); the parser reads `(@custom "name" place? "data"*)`; the WAT writer
-  prints the POSITION the section held. One table, `core/custom-placement.ts`, is read by both — and
-  spells each position in the form BOTH oracles accept, since upstream wat2wasm has no `func` /
-  `tag` / `first` / `last` keyword and wasm-tools no `function`. `wasm-tools parse` agrees on all 15
-  probed placements; upstream accepts our text but appends (C4). Two side findings, below.
-  - ✅ **N5, fixed here** — a module with two `name` sections LOST the first on a plain read → write,
-    because a raw `name` custom stops the writer generating one. Every one is now kept as bytes at
-    its own position; the names come from the LAST, as upstream wabt, binaryen and wasm-tools all
-    read them (binaryen-ts too — it still writes one section back, as binaryen does).
+- ✅ **C2** — custom sections survive the text (2026-09-11). The lexer emits `LparAnn` for
+  `(@custom` and nothing else (every other annotation is still skipped at the character level, which
+  is why it was abandoned the first time); the parser reads `(@custom "name" place? "data"*)`; the
+  WAT writer prints the POSITION the section held. One table, `core/custom-placement.ts`, is read by
+  both — and spells each position in the form BOTH oracles accept, since upstream wat2wasm has no
+  `func` / `tag` / `first` / `last` keyword and wasm-tools no `function`. `wasm-tools parse` agrees
+  on all 15 probed placements; upstream accepts our text but appends (C4). Two side findings, below.
+  - ✅ **N5, fixed here** — a module with two `name` sections LOST the first on a plain read →
+    write, because a raw `name` custom stops the writer generating one. Every one is now kept as
+    bytes at its own position; the names come from the LAST, as upstream wabt, binaryen and
+    wasm-tools all read them (binaryen-ts too — it still writes one section back, as binaryen does).
   - ⬚ **C3** — binaryen-ts's decoder collects NO custom section, so a decode → encode drops
     `producers`, `target_features`, `dylink.0` outright. Upstream `wasm-opt` keeps every one
     (appending them after the known sections rather than restoring the position). wabt-ts already
@@ -309,7 +309,10 @@ drop) — see ir-convergence decision 7.
   - 📝 **Release-note items (API-visible):** `wasm2wat` now prints every custom section with its
     position and `wat2wasm` honours it; a `(@custom "name" …)` in text is taken as THE name section
     and none is generated beside it (C5).
-- ⬚ **C3** — binaryen-ts keeps no custom section (see C2 above); the next bug in the queue.
+- ⬚ **C3** — binaryen-ts keeps no custom section (see C2 above); the next bug in the queue. ⚠️ It
+  touches **S7**: the linear-form marker is planned as a custom section that "optimization strips
+  for free" — free only because binaryen-ts drops every custom section today. Fixing C3 removes
+  that, so S7 must strip its own marker deliberately.
 - ⬚ **A1** — wabt-ts accepts `(array (field (mut i8)))`, which the GC text grammar does not have
   (wasm-tools rejects it; binaryen accepts it). Probable DEFECT; confirm against the spec text
   first.
