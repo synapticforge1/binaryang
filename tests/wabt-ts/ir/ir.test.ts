@@ -286,8 +286,8 @@ describe('ExprVisitor', () => {
       label: '',
       blockType: BLOCK_TYPE_VOID,
       condition: makeConst(0),
-      then_: [makeConst(1)],
-      else_: [makeConst(2)],
+      ifTrue: [makeConst(1)],
+      ifFalse: [makeConst(2)],
       loc: LOC,
     };
     const v = new ExprVisitor(delegate);

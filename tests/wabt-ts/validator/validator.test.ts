@@ -271,8 +271,8 @@ describe('validateModule', () => {
         label: '',
         blockType: blockTypeValue(Type.I32),
         condition: makeConst32(1),
-        then_: [makeConst32(10)],
-        else_: [makeConst32(20)],
+        ifTrue: [makeConst32(10)],
+        ifFalse: [makeConst32(20)],
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [ifExpr])), true);

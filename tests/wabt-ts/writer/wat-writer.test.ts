@@ -303,8 +303,8 @@ describe('writeWatModule — functions', () => {
       label: '',
       blockType: BLOCK_TYPE_VOID,
       condition: cond,
-      then_: [{ kind: 'nop', loc: LOC }],
-      else_: [],
+      ifTrue: [{ kind: 'nop', loc: LOC }],
+      ifFalse: [],
       loc: LOC,
     };
     m.funcs.push(makeFunc({ body: [ifExpr] }));
@@ -330,8 +330,8 @@ describe('writeWatModule — functions', () => {
       label: '',
       blockType: BLOCK_TYPE_VOID,
       condition: cond,
-      then_: [nop],
-      else_: [unr],
+      ifTrue: [nop],
+      ifFalse: [unr],
       loc: LOC,
     };
     m.funcs.push(makeFunc({ params: [Type.I32], body: [ifExpr] }));

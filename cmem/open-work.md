@@ -374,6 +374,18 @@ drop) — see ir-convergence decision 7.
     2026-09-10 was some other path. Three would-be-reordered cases are pinned.
   - **S6 decision 7 is now complete** (7a, 7b(i), 7c). Group 2 is 7 of 7.
 
+- ◐ **S6 Group 3 — 3 of 5 ties done** (2026-09-11): `select` → `val1`/`val2`, `if` →
+  `ifTrue`/`ifFalse`, `br_on` → paired `from`/`to`. Each measured by trial rename (blast radius),
+  and on each cost and meaning agreed. **The remaining two are not mechanical, which the measurement
+  is what revealed:**
+  - ⬚ **`call_indirect` (`sig` vs `params`+`results`)** — 11 vs 16 sites, too close to settle on
+    cost, and wabt-ts's `sig` is one leg of the as-written `typeVar` / `typeUse` / `sig` triple that
+    S3's fidelity table keys on. Wants a Group 2-style worst-condition decision.
+  - ⬚ **`ref.null` (`refType` vs the node's `type`)** — not a rename at all: binaryen-ts has no
+    field, and wabt-ts's nodes have no `type` to carry one. The merged node needs an explicit
+    immediate (7a's reasoning), so the work is adding one to binaryen-ts and moving its encoder off
+    `type` — behaviour-affecting.
+
 **🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how
 binaryen-ts's OPTIMIZATION treats INTERNAL names versus EXPORTED names, explicitly, and how that
 compares with upstream binaryen (which, under `-g`, keeps only the names of functions that survive).

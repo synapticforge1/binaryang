@@ -1014,9 +1014,9 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // from `resolveNames`, which does push a frame here.
       ctx.labelStack.push(ifName ?? IF_FRAME);
       try {
-        const ifTrue = bridgeRegion(ife.then_, ctx);
-        // wabt-ts holds an absent else and an empty one alike (`else_: []`).
-        const ifFalse = ife.else_.length === 0 ? null : bridgeRegion(ife.else_, ctx);
+        const ifTrue = bridgeRegion(ife.ifTrue, ctx);
+        // wabt-ts holds an absent else and an empty one alike (`ifFalse: []`).
+        const ifFalse = ife.ifFalse.length === 0 ? null : bridgeRegion(ife.ifFalse, ctx);
         const built = makeIf(condition, ifTrue, ifFalse);
         return withDeclaredType(
           ifName === null ? built : { ...built, name: ifName },

@@ -160,7 +160,7 @@ class Frame {
 
   // if / if_else
   condition: Expr | undefined = undefined;
-  then_: Expr[] | undefined = undefined;
+  ifTrue: Expr[] | undefined = undefined;
 
   // try
   catches: Catch[] | undefined = undefined;
@@ -1336,7 +1336,7 @@ export class BinaryReader {
           }
           const thenBody = frame.flush();
           frame.kind = 'if_else';
-          frame.then_ = thenBody;
+          frame.ifTrue = thenBody;
           break;
         }
         case Opcode.Try: {
@@ -1493,8 +1493,8 @@ export class BinaryReader {
                 blockType: frame.blockType,
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 condition: frame.condition ?? operandPlaceholder(loc),
-                then_: endBody,
-                else_: [],
+                ifTrue: endBody,
+                ifFalse: [],
                 loc: frame.loc,
               };
               break;
@@ -1505,8 +1505,8 @@ export class BinaryReader {
                 blockType: frame.blockType,
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 condition: frame.condition ?? operandPlaceholder(loc),
-                then_: frame.then_ ?? [],
-                else_: endBody,
+                ifTrue: frame.ifTrue ?? [],
+                ifFalse: endBody,
                 loc: frame.loc,
               };
               break;

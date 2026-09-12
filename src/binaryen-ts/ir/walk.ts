@@ -211,8 +211,8 @@ function _mapChildren(
     case ExpressionKind.Select:
       return {
         ...expr,
-        ifTrue: fn(expr.ifTrue),
-        ifFalse: fn(expr.ifFalse),
+        val1: fn(expr.val1),
+        val2: fn(expr.val2),
         condition: fn(expr.condition),
       };
 
@@ -561,8 +561,8 @@ function _visitChildren(
       visit(expr.right);
       break;
     case ExpressionKind.Select:
-      visit(expr.ifTrue);
-      visit(expr.ifFalse);
+      visit(expr.val1);
+      visit(expr.val2);
       visit(expr.condition);
       break;
     case ExpressionKind.Drop:

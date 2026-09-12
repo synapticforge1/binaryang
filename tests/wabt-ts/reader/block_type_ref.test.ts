@@ -56,8 +56,8 @@ import type { Expr } from '../../../src/wabt-ts/ir/ir.ts';
  */
 const CHILD_FIELDS = [
   'body',
-  'then_',
-  'else_',
+  'ifTrue',
+  'ifFalse',
   'value',
   'values',
   'operand',

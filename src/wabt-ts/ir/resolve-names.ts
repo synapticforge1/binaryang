@@ -404,10 +404,16 @@ class ResolveContext {
         const blockType = this.resolveBlockType(e, loc);
         const [rC, cond] = this.resolveExpr(e.condition);
         this.labelStack.push(e.label);
-        const [rT, then_] = this.resolveExprArray(e.then_);
-        const [rE, else_] = this.resolveExprArray(e.else_);
+        const [rT, ifTrue] = this.resolveExprArray(e.ifTrue);
+        const [rE, ifFalse] = this.resolveExprArray(e.ifFalse);
         this.labelStack.pop();
-        return [combine(rC, combine(rT, rE)), { ...e, blockType, condition: cond, then_, else_ }];
+        return [combine(rC, combine(rT, rE)), {
+          ...e,
+          blockType,
+          condition: cond,
+          ifTrue,
+          ifFalse,
+        }];
       }
       case 'try': {
         const blockType = this.resolveBlockType(e, loc);

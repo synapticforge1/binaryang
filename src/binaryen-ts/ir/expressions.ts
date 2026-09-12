@@ -1026,10 +1026,17 @@ export interface BinaryExpr extends ExprBase {
 export interface SelectExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Select;
-  /** Branch taken when the condition is non-zero. */
-  ifTrue: Expression;
-  /** Branch taken when the condition is zero (nullable). */
-  ifFalse: Expression;
+  /**
+   * The value the instruction yields when the condition is NON-ZERO.
+   *
+   * Named as the spec names the operands, not `ifTrue` / `ifFalse`: a select
+   * is not a branch. BOTH operands are evaluated, always — that is the whole
+   * difference from an `if`, and the reason a select cannot host a trap or a
+   * side effect that only one side should see.
+   */
+  val1: Expression;
+  /** The value it yields when the condition is ZERO. Also always evaluated. */
+  val2: Expression;
   /** Condition expression (typed as i32). */
   condition: Expression;
   /**
@@ -1729,14 +1736,25 @@ export interface BrOnExpr extends ExprBase {
   label: string;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
-  /** Target reference type for the cast (`br_on_cast`/`br_on_cast_fail`). */
-  castType?: HeapType | undefined;
-  /** Whether the cast TARGET type is nullable (flags bit 1). */
-  castNullable?: boolean | undefined;
-  /** Source reference heap type (`br_on_cast`/`br_on_cast_fail` first immediate). */
-  srcType?: HeapType | undefined;
-  /** Whether the SOURCE type is nullable (flags bit 0). */
-  srcNullable?: boolean | undefined;
+  /**
+   * `rt1` — the type the operand is expected to have. Cast variants only.
+   *
+   * 🔑 The heap type and its nullability are ONE reference type, so they are
+   * one field (S6 Group 3, taking wabt-ts's shape). As four flat optionals —
+   * `srcType`, `srcNullable`, `castType`, `castNullable` — a node could hold a
+   * nullability with no heap type beside it, and the encoder had to paper over
+   * exactly that with `?? AbstractHeapType.Any`. Paired, the incoherent state
+   * cannot be written down.
+   */
+  from?: RefTypeImmediate | undefined;
+  /** `rt2` — the type being tested for. Cast variants only. */
+  to?: RefTypeImmediate | undefined;
+}
+
+/** One reference type immediate: a heap type and whether it is nullable. */
+export interface RefTypeImmediate {
+  heapType: HeapType;
+  nullable: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -2515,7 +2533,7 @@ export function makeSelect(
   // `makeIf` was fixed for.
   const type: Type = resultType ??
     (typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue));
-  return { kind: ExpressionKind.Select, type, ifTrue, ifFalse, condition, resultType };
+  return { kind: ExpressionKind.Select, type, val1: ifTrue, val2: ifFalse, condition, resultType };
 }
 
 /** Creates a `call_indirect` expression. */
@@ -3025,16 +3043,20 @@ export function makeBrOn(
   srcType?: HeapType,
   srcNullable?: boolean,
 ): BrOnExpr {
+  // The four parameters stay flat — every caller passes them positionally — but
+  // the NODE pairs each heap type with its nullability (Group 3).
   return {
     kind: ExpressionKind.BrOn,
     type: resultType,
     opcode,
     label,
     ref,
-    castType,
-    castNullable,
-    srcType,
-    srcNullable,
+    ...(srcType !== undefined
+      ? { from: { heapType: srcType, nullable: srcNullable ?? false } }
+      : {}),
+    ...(castType !== undefined
+      ? { to: { heapType: castType, nullable: castNullable ?? false } }
+      : {}),
   };
 }
 

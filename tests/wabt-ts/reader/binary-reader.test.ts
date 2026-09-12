@@ -474,8 +474,8 @@ describe('readBinaryIr', () => {
           label: '',
           blockType: blockTypeValue(Type.I32),
           condition: { kind: 'local.get', var: varIndex(0), loc: LOC },
-          then_: [{ kind: 'const', value: constI32(1), loc: LOC }],
-          else_: [{ kind: 'const', value: constI32(0), loc: LOC }],
+          ifTrue: [{ kind: 'const', value: constI32(1), loc: LOC }],
+          ifFalse: [{ kind: 'const', value: constI32(0), loc: LOC }],
           loc: LOC,
         },
       ],
@@ -492,10 +492,10 @@ describe('readBinaryIr', () => {
     const e = body[0]!;
     assertEquals(e.kind, 'if');
     if (e.kind === 'if') {
-      assertEquals(e.then_.length, 1);
-      assertEquals(e.else_.length, 1);
-      assertEquals(e.then_[0]!.kind, 'const');
-      assertEquals(e.else_[0]!.kind, 'const');
+      assertEquals(e.ifTrue.length, 1);
+      assertEquals(e.ifFalse.length, 1);
+      assertEquals(e.ifTrue[0]!.kind, 'const');
+      assertEquals(e.ifFalse[0]!.kind, 'const');
     }
   });
 
