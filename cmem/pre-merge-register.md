@@ -319,6 +319,13 @@ convention silently covers half the tree and **reports green on the half it ran*
 Decide it as part of step 5, and if the conventions are unified, do it as its own rename commit for
 the same reason as P1.
 
+✅ **MOOT — the merge already unified it, verified 2026-09-12 when S5 closed**: **230 `*.test.ts`, 0
+`*_test.ts`.** wabt-ts's convention won, and the rename happened during the merge rather than as the
+separate commit this row asked for. No action; the hazard it describes (an `include` glob or shard
+split covering half the tree) cannot occur with one convention. ⚠️ Left standing as an open step-5
+item for nine days after it had been resolved. See `claim-vs-artifact`: a row saying "decide this
+later" is a claim about the present too.
+
 ### N2 🆕 binaryen-ts's `tests/deno.json` workspace member is load-bearing — 424 errors
 
 `binaryen-ts/deno.json` declares `"workspace": ["./tests"]`, and the member exists only to set
