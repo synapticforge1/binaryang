@@ -413,7 +413,7 @@ Deno.test('compat: Module.call_indirect takes table as the FIRST argument (upstr
     binaryen.none,
   ) as CallIndirectExpr;
   assertEquals(ci.table, varName('0'));
-  assertEquals(ci.target.kind, ExpressionKind.Const); // not the bare "0" string
+  assertEquals(ci.callee.kind, ExpressionKind.Const); // not the bare "0" string
 });
 
 Deno.test('compat: Module.setMemory installs data segments without binding them to `shared`', () => {

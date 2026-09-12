@@ -1035,16 +1035,31 @@ Baseline 0, so every count is real.
 ⚠️ **Two of the five are not the mechanical ties the plan called them**, and the measurement is what
 showed it:
 
-- **`call_indirect`** — 11 vs 16 is close, and wabt-ts's `sig` is not a free-standing spelling: it
-  is one leg of the as-written `typeVar` / `typeUse` / `sig` triple that S3's fidelity table also
-  keys on (`FidelityEntry.sig`). Splitting it into two arrays would contradict that table; taking it
-  into binaryen-ts costs its encoder and type-checking the other way. **This wants a Group 2-style
-  worst-condition decision, not a cost coin-flip.**
-- **`ref.null`** — binaryen-ts has no field at all; the heap type rides on `ExprBase.type`, and
-  wabt-ts's nodes have NO `type`. So there is nothing to rename: the merged node needs an explicit
-  immediate (the heap type IS the instruction's operand, the same reasoning 7a used), and the work
-  is adding one to binaryen-ts plus moving its encoder off `type` — behaviour-affecting, not
-  mechanical.
+- **`call_indirect`'s `sig` vs `params`+`results` — 🗓️ OWNER CALL, evidence gathered 2026-09-11.**
+  Cost says convert wabt-ts (11 vs 16), but that is a 5-site margin **against the structural
+  grain**: `FuncSignature` is wabt-ts's house concept — 49 uses, 78 `.sig` reads — and binaryen-ts
+  has ZERO, so whichever way this goes ONE side gets a lone exception. In wabt-ts the flat spelling
+  would also sit beside `typeVar` / `typeUse`, the triple whose whole point is "this call names a
+  signature" (and which S3's table keys on as `FidelityEntry.sig`). `FuncSignature` is exactly
+  `{params, results}`, so the two really are equivalent — which is why cost cannot settle it alone.
+  **Not flipped unilaterally on a 5-site margin: the one Group 3 tie where cost and structure point
+  opposite ways.**
+- **`ref.null` — NO CHANGE, and that is the finding.** binaryen-ts has no field because the heap
+  type IS the node's `type` (`ref.null t` has type `(ref null t)`) — one fact in one place, and
+  **byte-identical on all 13 spellings probed**: every abstract heap type, a concrete `$t`, and a
+  `$t` that is not type 0. Adding an explicit `refType` beside it TODAY would be the same fact
+  twice, the hazard this codebase keeps being bitten by. The merged tree does need the explicit
+  field, because wabt-ts's nodes have no `type` to carry it — so it lands WITH the merge, when
+  `type` becomes derived, not before.
+
+###### ✅ And one safety rename cost did not get a vote on
+
+**binaryen-ts's `CallIndirectExpr.target` → `callee`.** It was documented "Target label of the
+branch", which it is not: `call_indirect` does not branch and the field is not a label — it is the
+operand giving the table SLOT. `target` meant three different things across kinds (the called
+function on `call`, a branch label on `br_on`, this operand here), and here it sat directly beside
+`table`, the other thing a reader would call a target. wabt-ts's `callee` is unambiguous. Same
+precedent as `table.copy`'s `dst` / `dest`: safety, not blast radius.
 
 **So the order of work is:** the `Var` accessor first, since Group 1 cannot land without it; then
 Group 2's seven, which are structural and want their own commits; then Group 3's renames, which are

@@ -454,7 +454,7 @@ class _CFGBuilder {
       // (wrong-signature) function at runtime. Visit in true execution order.
       case ExpressionKind.CallIndirect: {
         for (const opcode of e.operands) this.visit(opcode);
-        this.visit(e.target);
+        this.visit(e.callee);
         if (this.current) {
           this.current.callPoints.push({ pos: this.current.actions.length, call: e });
         }

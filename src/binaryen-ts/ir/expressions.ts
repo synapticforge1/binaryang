@@ -1355,8 +1355,17 @@ export interface CallIndirectExpr extends ExprBase {
   kind: ExpressionKind.CallIndirect;
   /** Table index (defaults to 0). */
   table: Var;
-  /** Target label of the branch. */
-  target: Expression;
+  /**
+   * The operand giving the table SLOT to call — `call_indirect`'s last operand.
+   *
+   * 🔧 It was `target`, documented as "target label of the branch", which it is
+   * not: this instruction does not branch and the field is not a label. `target`
+   * meant three different things across kinds — the called function on `call`, a
+   * branch label on `br_on`, this operand here — and here it sat right beside
+   * `table`, the other thing a reader would call a target. Named `callee`, as
+   * wabt-ts names it (S6 Group 3, on SAFETY, the `table.copy` precedent).
+   */
+  callee: Expression;
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** params — see the matching factory for semantics. */
@@ -2550,7 +2559,7 @@ export function makeCallIndirect(
     kind: ExpressionKind.CallIndirect,
     type,
     table,
-    target,
+    callee: target,
     operands,
     params,
     results,

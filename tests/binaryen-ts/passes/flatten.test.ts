@@ -115,7 +115,7 @@ function assertFlat(mod: WasmModule): void {
           break;
         case ExpressionKind.CallIndirect:
           checkOperands(e.operands);
-          assert(TRIVIAL.has(e.target.kind), 'call_indirect target not trivial');
+          assert(TRIVIAL.has(e.callee.kind), 'call_indirect callee not trivial');
           break;
         case ExpressionKind.Binary:
           checkOperands([e.left, e.right]);
