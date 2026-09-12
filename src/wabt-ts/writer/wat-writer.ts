@@ -406,6 +406,17 @@ class WatWriter extends ModuleContext {
     if (v.kind === 'index') {
       const depth = v.value;
       const stackSize = this.labelStackSize;
+      // A target whose label HAS a name is printed by name, as `wasm-tools`
+      // does: a binary holds only depths, so a branch read from one is an
+      // index, but N2 gives its target a name from the `name` section and we
+      // were printing `br 1` beside a block we had just called `$outer`.
+      // `labelNameAtDepth` returns undefined when a nearer label shadows the
+      // name, where printing it would retarget the branch.
+      const name = this.labelNameAtDepth(depth);
+      if (name !== undefined) {
+        this.writeName(name, nc);
+        return;
+      }
       if (depth < stackSize) {
         this.writef(`${depth} (;@${stackSize - depth - 1};)`);
       } else {
