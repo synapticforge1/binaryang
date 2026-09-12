@@ -142,6 +142,29 @@ export class ModuleContext {
     this.labelStack.pop();
   }
 
+  /**
+   * The NAME a branch at `depth` may be printed with, or `undefined` when the
+   * depth must be printed instead.
+   *
+   * A binary holds only depths, so a branch read from one is always an index —
+   * but its target may carry a name from the `name` section (subsection 3, N2),
+   * and `wasm-tools` prints `br $outer` where we printed `br 1` beside a block
+   * we had just called `$outer`.
+   *
+   * ⚠️ `undefined` when a NEARER label shares the name: `$b` in
+   * `(block $b (block $b (br 1)))` resolves to the inner one, so printing the
+   * name there would retarget the branch.
+   */
+  labelNameAtDepth(depth: Index): string | undefined {
+    const idx = this.labelStack.length - 1 - depth;
+    const target = idx >= 0 ? this.labelStack[idx] : undefined;
+    if (target === undefined || target.name === '') return undefined;
+    for (let i = this.labelStack.length - 1; i > idx; i--) {
+      if (this.labelStack[i]!.name === target.name) return undefined;
+    }
+    return target.name;
+  }
+
   getLabel(v: Var): Label | undefined {
     if (v.kind === 'index') {
       const depth = v.value;
