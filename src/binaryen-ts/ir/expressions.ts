@@ -765,6 +765,25 @@ export interface BlockParams {
   values: Expression[];
 }
 
+/**
+ * The type-section index a construct's header NAMED, where the same type could
+ * have been written inline — S6 decision 7c. Carried by the five block-type
+ * carriers and by `call_indirect`.
+ *
+ * A header with no parameters and at most one result has two legal spellings —
+ * `0x40` / an inline value type, or an `s33` index — and they are different
+ * bytes for the same type. Likewise `call_indirect` names ONE index, and a
+ * module may hold several structurally identical function types: deriving the
+ * index picks the first match, which is a different instruction from the one
+ * written (T1).
+ *
+ * 🛑 **Fidelity phase only.** It is form, not meaning: the signature is on the
+ * node either way, and `PassRunner` drops this before the first pass runs,
+ * because a pass may retype the construct and leave the index naming something
+ * else. Absent means "derive it", which is what every factory and pass produces.
+ */
+export type WrittenTypeIndex = number;
+
 /** {@link BlockExpr} — see {@link makeBlock} for the factory. */
 export interface BlockExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
@@ -775,6 +794,8 @@ export interface BlockExpr extends ExprBase {
   children: Expression[];
   /** Entry parameters, when the block declares any — see {@link BlockParams}. */
   params?: BlockParams;
+  /** The type-section index its header NAMED — see {@link WrittenTypeIndex} (7c). */
+  typeIndex?: WrittenTypeIndex;
 }
 
 /**
@@ -833,6 +854,8 @@ export interface IfExpr extends ExprBase {
    * condition; BOTH arms start with them on their stack.
    */
   params?: BlockParams;
+  /** The type-section index its header NAMED — see {@link WrittenTypeIndex} (7c). */
+  typeIndex?: WrittenTypeIndex;
 }
 
 /** {@link LoopExpr} — see {@link makeLoop} for the factory. */
@@ -848,6 +871,8 @@ export interface LoopExpr extends ExprBase {
    * them in its own `values`.
    */
   params?: BlockParams;
+  /** The type-section index its header NAMED — see {@link WrittenTypeIndex} (7c). */
+  typeIndex?: WrittenTypeIndex;
 }
 
 /**
@@ -1333,6 +1358,12 @@ export interface CallIndirectExpr extends ExprBase {
   results: ValueType[];
   /** isReturn — see the matching factory for semantics. */
   isReturn: boolean;
+  /**
+   * The type-section index the instruction NAMED — see {@link WrittenTypeIndex}
+   * (7c). Without it the encoder derives one by structural match, which picks
+   * the FIRST identical type and so re-encodes `(type $b)` as `$a` (T1).
+   */
+  typeIndex?: WrittenTypeIndex;
 }
 
 /** {@link RefNullExpr} — see {@link makeRefNull} for the factory. */
@@ -1737,6 +1768,8 @@ export interface TryTableExpr extends ExprBase {
   catches: CatchClause[];
   /** Entry parameters — see {@link BlockParams}. Only the body is seeded. */
   params?: BlockParams;
+  /** The type-section index its header NAMED — see {@link WrittenTypeIndex} (7c). */
+  typeIndex?: WrittenTypeIndex;
 }
 
 /**
@@ -1782,6 +1815,8 @@ export interface TryExpr extends ExprBase {
    * catch starts with its tag's values, not the try's.
    */
   params?: BlockParams;
+  /** The type-section index its header NAMED — see {@link WrittenTypeIndex} (7c). */
+  typeIndex?: WrittenTypeIndex;
 }
 
 /** `throw $tag operands*` expression. Always has type `unreachable`. */
@@ -2323,6 +2358,45 @@ export function blockParamsOf(e: Expression): BlockParams | undefined {
       return e.params;
     default:
       return undefined;
+  }
+}
+
+/**
+ * The type-section index this node's header named, where one was written —
+ * {@link WrittenTypeIndex} (7c). `undefined` for every other kind, and for a
+ * node a pass built or the form was dropped from.
+ */
+export function writtenTypeIndexOf(e: Expression): WrittenTypeIndex | undefined {
+  switch (e.kind) {
+    case ExpressionKind.Block:
+    case ExpressionKind.Loop:
+    case ExpressionKind.If:
+    case ExpressionKind.Try:
+    case ExpressionKind.TryTable:
+    case ExpressionKind.CallIndirect:
+      return e.typeIndex;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Forget the as-written type index on ONE node — `PassRunner` does this to
+ * every node before the first pass runs, because a pass may retype a construct
+ * and leave the index naming something else (7c).
+ */
+export function dropWrittenTypeIndex(e: Expression): void {
+  switch (e.kind) {
+    case ExpressionKind.Block:
+    case ExpressionKind.Loop:
+    case ExpressionKind.If:
+    case ExpressionKind.Try:
+    case ExpressionKind.TryTable:
+    case ExpressionKind.CallIndirect:
+      delete e.typeIndex;
+      break;
+    default:
+      break;
   }
 }
 

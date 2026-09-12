@@ -82,13 +82,13 @@ The spec suite saw the same gap from the other side: a heap index never stored c
 range-checked, so two INVALID modules were ACCEPTED. **SP1–SP3's "type mismatch" errors were the
 same missing heap type breaking type-checking downstream.**
 
-| axis                      | after                  |
-| ------------------------- | ---------------------- |
-| modules ACCEPTED          | 1955 / 1955 · **100%** |
-| `assert_invalid` REJECTED | 2422 / 2422 · **100%** |
+| axis                      | after                                     |
+| ------------------------- | ----------------------------------------- |
+| modules ACCEPTED          | 1955 / 1955 · **100%**                    |
+| `assert_invalid` REJECTED | 2422 / 2422 · **100%**                    |
 |                           | _(227 files; G2 below adds the other 30)_ |
-| malformed BINARY          | 711 / 711 · **100%**   |
-| malformed TEXT            | 1156 / 1156 · **100%** |
+| malformed BINARY          | 711 / 711 · **100%**                      |
+| malformed TEXT            | 1156 / 1156 · **100%**                    |
 
 ### ✅ SP5 closed — and the finding as first written was half wrong
 
@@ -347,12 +347,12 @@ drop) — see ir-convergence decision 7.
   `assert_invalid` cases given as **TEXT**, where `wast2json` only ever emitted binaries. A text
   module is assembled and then decoded and validated, because `wat2wasm` does not validate.
 
-  | axis                      | was (227 files)  | now (257 files)        |
-  | ------------------------- | ---------------- | ---------------------- |
-  | modules ACCEPTED          | 1955 / 1955      | **2248 / 2248 · 100%** |
-  | `assert_invalid` REJECTED | 2422 / 2422      | **2714 / 2714 · 100%** |
-  | malformed BINARY          | 711 / 711        | **711 / 711 · 100%**   |
-  | malformed TEXT            | 1156 / 1156      | **1229 / 1229 · 100%** |
+  | axis                      | was (227 files) | now (257 files)        |
+  | ------------------------- | --------------- | ---------------------- |
+  | modules ACCEPTED          | 1955 / 1955     | **2248 / 2248 · 100%** |
+  | `assert_invalid` REJECTED | 2422 / 2422     | **2714 / 2714 · 100%** |
+  | malformed BINARY          | 711 / 711       | **711 / 711 · 100%**   |
+  | malformed TEXT            | 1156 / 1156     | **1229 / 1229 · 100%** |
 
   🔑 **The 30 missing files were the least safe thirty to be missing**: they test the GC proposal —
   the one thing this toolchain implements and upstream wabt cannot judge at all (G1, G3). The new
@@ -360,7 +360,19 @@ drop) — see ir-convergence decision 7.
   them pass on the first run.** Verified not vacuous: run over those 30 dirs alone they account for
   exactly those counts, and corrupting one accepted module plus making one `assert_invalid` case
   valid makes the harness report both.
-- ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
+- ✅ **7c — the written type INDEX, on the node** (2026-09-11). Two form losses closed: **T1**
+  (`call_indirect (type $b)` came back `(type $a)`, the first structurally identical type the
+  encoder derived) and **a block header written as an index** coming back inline (`02 00` →
+  `02 7f`). The decoder records what the header named; the encoder writes it; `PassRunner` drops it
+  before the first pass, since a pass may retype the construct. It rides on the NODE — binaryen-ts's
+  IR has no `NodeId` to key wabt-ts's side table with, and 7a/7b(i) set that precedent.
+  - 🔧 Recording it unconditionally broke every lowered block-parameter case: the index names a type
+    WITH parameters, and `lowerBlockParams` removes them, so the header re-declared inputs nothing
+    supplied. Kept only while the node still has that signature.
+  - ⚠️ **T2 is not reproducible on this path** — a decoded module keeps the decoder's type list,
+    order and duplicates included. Its row is corrected, not closed: whatever was measured on
+    2026-09-10 was some other path. Three would-be-reordered cases are pinned.
+  - **S6 decision 7 is now complete** (7a, 7b(i), 7c). Group 2 is 7 of 7.
 
 **🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how
 binaryen-ts's OPTIMIZATION treats INTERNAL names versus EXPORTED names, explicitly, and how that

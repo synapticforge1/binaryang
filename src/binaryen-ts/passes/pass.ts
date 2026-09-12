@@ -25,6 +25,8 @@
  */
 
 import type { WasmModule } from '../ir/module.ts';
+import { dropWrittenTypeIndex } from '../ir/expressions.ts';
+import { walkExpression } from '../ir/walk.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 
 // ---------------------------------------------------------------------------
@@ -290,6 +292,16 @@ export class PassRunner {
     // writing the module's names — N1 P5.)
     lowerBlockParams(this._module);
     const optimized = this._queue.length > 0;
+    // As-written type indices are FORM (S6 decision 7c) — which of several
+    // identical types a `call_indirect` named, and whether a block header was
+    // written as an index. A pass may retype either, leaving the index naming
+    // something else, so the form goes before the first pass runs. With no pass
+    // queued this is still a plain read-and-write, which keeps it.
+    if (optimized) {
+      for (const fn of this._module.functions) {
+        walkExpression(fn.body, dropWrittenTypeIndex);
+      }
+    }
     for (const pass of this._queue) {
       pass.run(this._module, this._options);
     }

@@ -196,6 +196,8 @@ interface ControlFrame {
   seedElse?: () => Expression[];
   /** The construct's parameters, kept on the node (not lowering). */
   params?: BlockParams;
+  /** The type-section index its header NAMED, where one was written (7c). */
+  typeIndex?: number;
   /** For a LOOP with parameters, when lowering: the local slots they were spilled into. */
   paramLocals?: number[];
   /**
@@ -573,6 +575,13 @@ function localTypeAt(locals: Local[], idx: number, r: BinaryReader): ValueType {
 interface BlockSignature {
   params: ValueType[];
   results: ValueType[];
+  /**
+   * The type-section index the header NAMED, when it was written as one — S6
+   * decision 7c. A header with no parameters and one result has two legal
+   * spellings, an inline value type and an index, and they are different bytes;
+   * only the choice is unrecoverable from the signature.
+   */
+  typeIndex?: number;
 }
 
 function readBlockType(r: BinaryReader, funcTypes: (FuncType | null)[]): BlockSignature {
@@ -609,7 +618,7 @@ function readBlockType(r: BinaryReader, funcTypes: (FuncType | null)[]): BlockSi
         : `block type index ${typeIdx} is not a function type`,
     );
   }
-  return { params: [...ft.params], results: [...ft.results] };
+  return { params: [...ft.params], results: [...ft.results], typeIndex: typeIdx };
 }
 
 /**
@@ -1616,9 +1625,33 @@ class WasmParser {
       };
     };
 
+    /**
+     * The header's written type index, where keeping it is SAFE (7c).
+     *
+     * 🔧 Recording it unconditionally broke every lowered block-parameter case:
+     * the index names a type WITH parameters, and after `lowerBlockParams` the
+     * construct no longer takes any, so the header re-declared inputs nothing
+     * supplied — "not enough arguments on the stack for loop". The index is only
+     * the node's own type while the node still has that signature.
+     */
+    const writtenIndex = (
+      sig: BlockSignature,
+      entry: { params?: BlockParams },
+    ): { typeIndex?: number } =>
+      sig.typeIndex !== undefined && (sig.params.length === 0 || entry.params !== undefined)
+        ? { typeIndex: sig.typeIndex }
+        : {};
+
     /** `node`, given the frame's kept parameters when it has any. */
-    const withParams = <T extends { params?: BlockParams }>(node: T, frame: ControlFrame): T => {
+    const withParams = <T extends { params?: BlockParams; typeIndex?: number }>(
+      node: T,
+      frame: ControlFrame,
+    ): T => {
       if (frame.params !== undefined) node.params = frame.params;
+      // The header's written form: an index where an inline value type would
+      // have done (7c). Only the CHOICE is unrecoverable — the signature is on
+      // the node either way.
+      if (frame.typeIndex !== undefined) node.typeIndex = frame.typeIndex;
       return node;
     };
 
@@ -1818,6 +1851,7 @@ class WasmParser {
             resultTypes: sig.results,
             exprs: entry.seed,
             ...(entry.params ? { params: entry.params } : {}),
+            ...writtenIndex(sig, entry),
           });
           break;
         }
@@ -1835,6 +1869,7 @@ class WasmParser {
             paramLocals: entry.slots,
             paramTypes: [...sig.params],
             ...(entry.params ? { params: entry.params } : {}),
+            ...writtenIndex(sig, entry),
           });
           break;
         }
@@ -1858,6 +1893,7 @@ class WasmParser {
               ? () => types.map((t) => makePop(t))
               : () => slots.map((slot, i) => makeLocalGet(varIndex(slot), types[i]!)),
             ...(entry.params ? { params: entry.params } : {}),
+            ...writtenIndex(sig, entry),
           });
           break;
         }
@@ -1895,6 +1931,7 @@ class WasmParser {
             catchBodies: [],
             delegateTarget: null,
             ...(entry.params ? { params: entry.params } : {}),
+            ...writtenIndex(trySig, entry),
           });
           break;
         }
@@ -2159,7 +2196,12 @@ class WasmParser {
           const tableName = ctx.tableNames[tidx] ??
             r.error(`call_indirect table index ${tidx} is out of range`);
           pushMultiValueCall(
-            makeCallIndirect(varName(tableName), target, operands, cft.params, cft.results),
+            // The index AS WRITTEN (7c): several types may be structurally
+            // identical, and deriving one picks the first (T1).
+            {
+              ...makeCallIndirect(varName(tableName), target, operands, cft.params, cft.results),
+              typeIndex: typeIdx,
+            },
             cft.results,
           );
           break;
@@ -2189,8 +2231,8 @@ class WasmParser {
           // introspection) saw the wrong table with no diagnostic.
           const tableName = ctx.tableNames[tidx] ??
             r.error(`call_indirect table index ${tidx} is out of range`);
-          push(
-            makeCallIndirect(
+          push({
+            ...makeCallIndirect(
               varName(tableName),
               target,
               operands,
@@ -2198,7 +2240,8 @@ class WasmParser {
               cft.results,
               /* isReturn */ true,
             ),
-          );
+            typeIndex: typeIdx, // as written (7c) — see `call_indirect` above
+          });
           break;
         }
 
@@ -2275,6 +2318,7 @@ class WasmParser {
             exprs: entry.seed,
             tryCatches: catches,
             ...(entry.params ? { params: entry.params } : {}),
+            ...writtenIndex(ttSig, entry),
           });
           break;
         }

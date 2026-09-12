@@ -88,6 +88,7 @@ import {
   type TryTableExpr,
   typeOf,
   type UnaryExpr,
+  writtenTypeIndexOf,
 } from '../ir/expressions.ts';
 import type { ExplicitNames, WasmFunction, WasmModule } from '../ir/module.ts';
 import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
@@ -996,6 +997,14 @@ class WasmEncoder {
     const params = blockParamsOf(e);
     if (params !== undefined && params.types.length > 0) {
       w.writeI32(this.blockTypeIndex(resultsOf(e.type), params.types));
+      return;
+    }
+    // A header the source wrote as an INDEX keeps that form (7c). `0x40` and an
+    // inline value type are the same type in fewer bytes, so a carrier that did
+    // not name an index still takes `writeBlockType`'s forms.
+    const written = writtenTypeIndexOf(e);
+    if (written !== undefined) {
+      w.writeI32(written);
       return;
     }
     writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
@@ -2123,9 +2132,14 @@ class WasmEncoder {
         this.encodeExpr(w, e.target, labels);
         // 0x11 = call_indirect, 0x13 = return_call_indirect (tail-call proposal).
         w.writeU8(e.isReturn ? 0x13 : 0x11);
-        const ciIdx = this.heapTypes.length > 0
-          ? this.gcFuncTypeIndex(e.params, e.results)
-          : this.getTypeIndex(e.params, e.results);
+        // The index AS WRITTEN where the decoder recorded one (7c): a module may
+        // hold several structurally identical function types, and deriving the
+        // index picks the FIRST — re-encoding `(type $b)` as `(type $a)`, a
+        // different instruction for the same behaviour (T1).
+        const ciIdx = e.typeIndex ??
+          (this.heapTypes.length > 0
+            ? this.gcFuncTypeIndex(e.params, e.results)
+            : this.getTypeIndex(e.params, e.results));
         w.writeU32(ciIdx);
         w.writeU32(this.resolveRef(this.tableIndex, e.table, 'call_indirect table'));
         break;
