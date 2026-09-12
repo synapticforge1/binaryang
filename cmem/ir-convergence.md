@@ -1661,6 +1661,17 @@ whatever was measured on 2026-09-10 was not the decode → encode path.
 | - | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | 7 | `blockType` / `typeUse` / `select.resultType` | 7a ✅ `7171b8b38`; 7b(i) ✅ `02d77f533`; 7c ✅ — the written type index on the node, dropped by passes |
 
+🔑 **The block/label family's answer is a PORT, not a new design — `TypeUse` already solves its
+ambiguity.** An index-form `Var` on a branch target means three different things: the author wrote a
+number, `resolveNames` resolved a name down to a depth, or a binary handed us a depth with no
+spelling behind it at all. `TypeUse` (`Var | 'resolved' | 'inline'`, omitted when nothing was
+written) exists for exactly that ambiguity on TYPE references — its doc names it: *"index 0 is
+ambiguous between 'no annotation' and 'the source really wrote `(type 0)`'"*. Give a branch target
+the same treatment and each of the three prints faithfully; N8's rule then reduces to "print the
+recorded spelling, derive only when there is none", and the text→text consequence N8 accepted
+disappears. What is left is mechanical: one field, a label stack in wabt-ts's binary writer
+(binaryen-ts's `resolveLabel` is the template), and a reader that records which of the three it saw.
+
 Plus Group 3's five ties and the block/label family — which still owns the 7 label references
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
 around so the mechanical passes could not settle them by accident.
