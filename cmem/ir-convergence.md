@@ -506,7 +506,7 @@ data rather than as a kind:
 
 ⚠️ **Wide arithmetic is NOT here.** It sits under S5, which is where the note assigning it lives.
 
-### S5 — the one-sided kinds 🚧 acceptance criterion met, regroupings outstanding
+### S5 — the one-sided kinds ✅ scoped out 2026-09-12; one regrouping (K3) left to decide
 
 **Landed**: wide arithmetic in binaryen-ts (all four ops, byte-identical), six kind renames, and
 `placeholder` → `pop`. One-sided kinds **41 → 27**. Baseline `IDENTICAL`, 952 tests, `operators`
@@ -560,7 +560,45 @@ two IRs had one mechanism under two spellings. wabt-ts's `nop` + `placeholder: b
 indistinguishable from a real `nop` to anything that forgot to check it; three of the four readers
 did check, and nothing enforced that. A kind cannot be forgotten.
 
-#### Outstanding — 27 kinds, and why they are not trivial
+#### ✅ RE-MEASURED 2026-09-12 — the 27 is **11**, and none of them is a rename
+
+The table below is what S5 left in 2026-09-04. **It is stale**, and it was cited as "27 outstanding"
+for eight days. S6's stages dissolved most of it: `*.new_default` became a field, `simd_lane_op` was
+split, `return_call*` became `isReturn`, `tuple.make` / `tuple.extract` were deleted (6A).
+Recomputed from source against the `Expr` union and the `ExpressionKind` VALUES:
+
+|                          |                                                    |
+| ------------------------ | -------------------------------------------------- |
+| kinds shared by both IRs | **75**                                             |
+| only wabt-ts             | **9** — the 7 atomics, `call_ref`, `code_metadata` |
+| only binaryen-ts         | **2** — `region`, `simd.shift`                     |
+
+And all 11 are already understood: 8 are one capability gap (**K1**, measured — the decoder refuses
+them with `unknown opcode 0xfe`), `code_metadata` is wabt-ts-only (**K2**), `region` is the intended
+R1, and `simd.shift` is a regrouping both sides implement (**K3**). **No renames remain.**
+
+⚠️ **This count was wrong three times before it was right, each way worth keeping in view** — the
+number was never the hard part, reading the source correctly was:
+
+1. a **union-typed** `kind: A | B` was invisible to the regex, so `ExternConvertAny` looked like a
+   phantom. `check-operator-mapping.ts` had already fixed exactly this and said so in a comment; the
+   scrape reintroduced it.
+2. **every** `readonly kind:` in `ir.ts` was counted — including non-expressions. `ref` is
+   `RefValueType`, a TYPE, reported as a missing instruction. The `Expr` union is the authority.
+3. worst, because it manufactured a _decision_: it compared binaryen-ts's enum **identifiers**
+   (`Break`) against wabt-ts's kind **strings** through a snake_case guess. `ExpressionKind` is a
+   string enum whose values already ARE wabt-ts's strings — `Break = 'br'`, `Switch = 'br_table'`.
+   So `br`/`Break` and `br_table`/`Switch` were reported as four one-sided kinds when they are two
+   shared ones spelled for two audiences, and I was a step away from measuring the blast radius of a
+   rename that had nothing to rename. **Compare the values.**
+
+🔑 The lesson is the recurring one, in a new place: a stale measurement and a wrong measurement are
+cited identically. The fix is not a better number but a **ratchet** — `ONE_SIDED_BUDGET` in
+`deno task operators` pins the 9 and the 2, fails when either grows, and fails when a pinned kind
+becomes shared without leaving the list. Inverted four ways, including value-drift
+(`Break = 'break'`) and a union member whose interface moved.
+
+#### The S5 list, as recorded 2026-09-04 — superseded, kept as history
 
 | only wabt-ts (16)                                                                                                                                                                                                                                                        | only binaryen-ts (11)                                                                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1665,8 +1703,8 @@ whatever was measured on 2026-09-10 was not the decode → encode path.
 ambiguity.** An index-form `Var` on a branch target means three different things: the author wrote a
 number, `resolveNames` resolved a name down to a depth, or a binary handed us a depth with no
 spelling behind it at all. `TypeUse` (`Var | 'resolved' | 'inline'`, omitted when nothing was
-written) exists for exactly that ambiguity on TYPE references — its doc names it: *"index 0 is
-ambiguous between 'no annotation' and 'the source really wrote `(type 0)`'"*. Give a branch target
+written) exists for exactly that ambiguity on TYPE references — its doc names it: _"index 0 is
+ambiguous between 'no annotation' and 'the source really wrote `(type 0)`'"_. Give a branch target
 the same treatment and each of the three prints faithfully; N8's rule then reduces to "print the
 recorded spelling, derive only when there is none", and the text→text consequence N8 accepted
 disappears. What is left is mechanical: one field, a label stack in wabt-ts's binary writer
@@ -1823,13 +1861,13 @@ by decision 4) until step 5 raises it to 421.
 
 #### Measured size of what remains
 
-|                                            |              |
-| ------------------------------------------ | ------------ |
-| files importing wabt-ts's `Expr`           | 25           |
-| files importing binaryen-ts's `Expression` | 32           |
-| lines in the two IR modules + bridge       | 6,346        |
-| one-sided kinds still to reconcile         | 27 (from S5) |
-| name pairs inherited from S2               | 6            |
+|                                            |                                                                                                                                                                                        |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| files importing wabt-ts's `Expr`           | 25                                                                                                                                                                                     |
+| files importing binaryen-ts's `Expression` | 32                                                                                                                                                                                     |
+| lines in the two IR modules + bridge       | 6,346                                                                                                                                                                                  |
+| one-sided kinds still to reconcile         | **11**, re-measured 2026-09-12 — 8 are one capability gap (K1), and 1 is a regrouping to decide (K3). The "27 (from S5)" here was stale for eight days; `ONE_SIDED_BUDGET` now pins it |
+| name pairs inherited from S2               | 6                                                                                                                                                                                      |
 
 **This is larger than S2–S5 combined.** It should be staged the way they were — each stage
 independently verifiable against `deno task bridge`, the byte baseline and the spec suite — rather
