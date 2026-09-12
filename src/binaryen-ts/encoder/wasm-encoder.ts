@@ -2400,9 +2400,9 @@ class WasmEncoder {
         // deep — symmetric with the decoder, so round-trips hid it, but IR
         // built anywhere else (a pass, the wabt-ts bridge) encoded wrong.
         for (const c of e.catches) {
-          if (c.tag !== null) {
+          if (c.tag !== undefined) {
             w.writeU8(c.isRef ? 0x01 : 0x00); // catch / catch_ref
-            w.writeU32(this.resolveRef(this.tagIndex, varFromToken(c.tag), 'try_table catch tag'));
+            w.writeU32(this.resolveRef(this.tagIndex, c.tag, 'try_table catch tag'));
           } else {
             w.writeU8(c.isRef ? 0x03 : 0x02); // catch_all / catch_all_ref
           }

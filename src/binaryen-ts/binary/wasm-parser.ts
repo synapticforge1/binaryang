@@ -2286,13 +2286,17 @@ class WasmParser {
           const rts = ttSig.results;
           const numHandlers = r.readU32();
           // Read catch clause data (tag+depth pairs) before pushing frame
-          const catchData: Array<{ tag: string | null; depth: number; isRef: boolean }> = [];
+          // `tag: Var | undefined`, not `tag?: Var`: this is the decoder's own
+          // scratch list, where every entry HAS the slot. The IR's clause is
+          // the one that distinguishes absent from present
+          // (`exactOptionalPropertyTypes`), and the map below does that.
+          const catchData: Array<{ tag: Var | undefined; depth: number; isRef: boolean }> = [];
           for (let i = 0; i < numHandlers; i++) {
             const code = r.readU8();
-            let tag: string | null = null;
+            let tag: Var | undefined;
             if (code === 0x00 || code === 0x01) { // catch / catch_ref
               const tidx = r.readU32();
-              tag = ctx.names.tag(tidx);
+              tag = varName(ctx.names.tag(tidx));
             }
             const depth = r.readU32();
             const isRef = code === 0x01 || code === 0x03;
@@ -2307,7 +2311,9 @@ class WasmParser {
           // stayed byte-identical and hid it; only the IR — and anything built
           // against it, such as the wabt-ts bridge — saw the wrong target.
           const catches: CatchClause[] = catchData.map(({ tag, depth, isRef }) => ({
-            tag,
+            // ABSENT tag means catch_all / catch_all_ref, as the legacy path
+            // has always spelled it.
+            ...(tag !== undefined ? { tag } : {}),
             target: resolveLabel(frames, depth),
             isRef,
           }));

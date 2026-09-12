@@ -1528,13 +1528,13 @@ function buildCatchClause(
   // the `c.tag!` assertions this used to need are gone.
   switch (c.kind) {
     case CatchKind.Catch:
-      return { tag: resolveVarName(c.tag, ctx.tagNames), target, isRef: false };
+      return { tag: varName(resolveVarName(c.tag, ctx.tagNames)), target, isRef: false };
     case CatchKind.CatchRef:
-      return { tag: resolveVarName(c.tag, ctx.tagNames), target, isRef: true };
+      return { tag: varName(resolveVarName(c.tag, ctx.tagNames)), target, isRef: true };
     case CatchKind.CatchAll:
-      return { tag: null, target, isRef: false };
+      return { target, isRef: false };
     case CatchKind.CatchAllRef:
-      return { tag: null, target, isRef: true };
+      return { target, isRef: true };
   }
 }
 
