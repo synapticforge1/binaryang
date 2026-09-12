@@ -14,10 +14,12 @@
 // captures the reference, so `(block $b (block $b (br 1)))` must keep the depth
 // — printing `$b` there would retarget the branch to the inner block.
 //
-// ⚠️ Consequence, accepted for now: TEXT that wrote a numeric target at a NAMED
-// block (`(block $b (br 0))`) now prints `(br $b)`. Bytes are identical, and the
-// name reaching the text is the point of N2 — but the as-written numeric
-// spelling is not reproduced.
+// ⚠️ It applies ONLY where the index is a depth with no spelling behind it,
+// which only the CALLER knows: `wasm2wat` decoded a binary and opts in
+// (`namedLabelTargets`), while a caller that PARSED text does not — there an
+// index is what the author wrote. That was N8's open residual, and it was live
+// in the public compat API (`parseWat(…).toText()`, text → IR → text with no
+// binary hop), which turned `(block $b (br 0))` into `(br $b)`.
 //
 // 🔑 That consequence is NOT what moved the corpus. Its 415 text hashes (and 0
 // byte hashes) are ALL the binary-derived case, because the baseline's text
@@ -40,6 +42,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
+import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
@@ -167,6 +170,41 @@ describe('the binary writer resolves label NAMES itself', () => {
     const { module } = parseWatModule('(module (func (block $b (block $b (br $b)))))');
     // depth 0 — the inner `$b`, which is what the text means.
     assert(hex(writeBinaryIr(module)).includes('0c 00'), hex(writeBinaryIr(module)));
+  });
+});
+
+describe('text → text keeps the spelling the AUTHOR wrote', () => {
+  // The residual N8 left, closed: only the caller knows whether an index-form
+  // target carries a spelling. `wasm2wat` decoded a binary, where the format
+  // has only depths, so it opts into names (`namedLabelTargets`). A caller that
+  // PARSED text must not — there an index is what the author typed, and the
+  // compat API's `toText()` is exactly that path, with no binary hop.
+  const textToText = (wat: string): string => {
+    const { module, errors } = parseWatModule(wat);
+    assert(!hasErrors(errors), formatErrors(errors));
+    return writeWatModule(module, {}).replace(/\s+/g, ' ').trim();
+  };
+
+  it('an authored numeric target at a NAMED block stays numeric', () => {
+    const text = textToText('(module (func (block $b (br 0))))');
+    assert(text.includes('br 0'), text);
+    assert(!text.includes('(br $b)'), text);
+  });
+
+  it('an authored NAME still prints as that name', () => {
+    assert(textToText('(module (func (block $b (br $b))))').includes('(br $b)'));
+  });
+
+  it('br_table keeps each target as written', () => {
+    const text = textToText('(module (func (block $a (block $b (br_table 0 $a (i32.const 0))))))');
+    assert(text.includes('br_table 0'), text);
+    assert(text.includes('$a'), text);
+  });
+
+  it('…while wasm2wat, which decoded a binary, still prints the name', () => {
+    // Same module through the binary: there the index is a DEPTH, not a
+    // spelling, so N8's rule applies and the name is the better text.
+    assert(roundTrip('(module (func (block $b (br 0))))').includes('(br $b)'));
   });
 });
 

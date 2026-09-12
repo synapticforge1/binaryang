@@ -121,6 +121,12 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
   const text = writeWatModule(module, {
     inlineExport: opts.inlineExport !== false,
     fold: opts.fold !== false,
+    // This module came from a BINARY, where a branch target is a depth and the
+    // author's spelling was never in the file — so a label's name (N2) is the
+    // best text there is, and `br $outer` beats `br 1 (;@1;)` beside a block
+    // already printed as `$outer`. A caller that PARSED text must not set this:
+    // there an index is what the author wrote.
+    namedLabelTargets: true,
   });
 
   return { text, errors, result: Result.Ok };
