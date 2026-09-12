@@ -255,22 +255,64 @@ Deno.test('optimizeBinary — honors explicit passes', async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Live integration (disabled by default)
+// Live integration — against the real npm:binaryen
 //
-// To run against real npm:binaryen:
-//   deno test --allow-net --allow-read --allow-env=BINARYEN_LIVE \
-//     tests/interop/binaryen_interop_test.ts
-// and set BINARYEN_LIVE=1 in the environment.
+// 🔧 This was gated on `BINARYEN_LIVE=1` and therefore never ran. Enabled, it
+// FAILED: the fixture was written in LINEAR form, and the pinned binaryen
+// (116.0.0, per deno.lock) has the OLD s-expression parser, which reads folded
+// form only — `parseText` hits `[parse exception: expected list]`, Emscripten
+// calls `Fatal:` and aborts the process with exit(1), which Deno's exit
+// sanitizer then reports. binaryen 132 (the `wasm-opt` on PATH) has the new
+// parser and reads both, which is why the same call succeeds from a script that
+// resolves npm:binaryen outside this project's lockfile. Measured both ways.
+//
+// The fixture is FOLDED now: what is under test is `BinaryenInterop`, not which
+// WAT dialect a given binaryen build accepts.
+//
+// It runs whenever npm:binaryen can be loaded, and skips when it cannot — the
+// same rule the corpus round-trip uses, and for the same reason: a permanently
+// skipped test is a test nobody runs.
 // ---------------------------------------------------------------------------
+
+/** Whether `npm:binaryen` resolves here (it needs the package cached or network). */
+async function binaryenAvailable(): Promise<boolean> {
+  try {
+    await import('npm:binaryen');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 Deno.test({
   name: 'BinaryenInterop.create — live npm:binaryen end-to-end',
-  ignore: Deno.env.get('BINARYEN_LIVE') !== '1',
+  ignore: !(await binaryenAvailable()),
   fn: async () => {
     const interop = await BinaryenInterop.create({ binaryenJsPath: 'npm:binaryen' });
-    const watIn = '(module (func (export "f") (result i32) i32.const 42))';
+    // FOLDED: binaryen 116's parser takes nothing else. See the note above.
+    const watIn = '(module (func (export "f") (result i32) (i32.const 42)))';
     const watOut = interop.optimizeWat(watIn, '-Oz');
     assert(watOut.length > 0);
-    assert(watOut.includes('i32.const'));
+    assert(watOut.includes('i32.const'), watOut);
+    // It really went through binaryen: the output is binaryen's own printing,
+    // which names the type and hoists the export.
+    assert(watOut.includes('(type'), watOut);
+  },
+});
+
+Deno.test({
+  name: 'BinaryenInterop — a binary round-trips through live binaryen',
+  ignore: !(await binaryenAvailable()),
+  fn: async () => {
+    const interop = await BinaryenInterop.create({ binaryenJsPath: 'npm:binaryen' });
+    // `(module (func (export "f") (result i32) (i32.const 42)))`, assembled.
+    const wat = '(module (func (export "f") (result i32) (i32.const 42)))';
+    const bytes = interop.optimizeBinary(
+      interop.binaryen.parseText(wat).emitBinary(),
+      { optimizeLevel: 2 },
+    );
+    assert(bytes.length > 8, 'got bytes back');
+    assertEquals([...bytes.subarray(0, 4)], [0x00, 0x61, 0x73, 0x6d], 'still a wasm binary');
+    assert(WebAssembly.validate(bytes as BufferSource), 'and it validates');
   },
 });
