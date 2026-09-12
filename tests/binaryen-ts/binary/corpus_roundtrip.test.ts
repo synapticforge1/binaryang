@@ -76,10 +76,6 @@ async function findCorpus(): Promise<string | null> {
 
 const CORPUS = await findCorpus();
 
-async function corpusPresent(): Promise<boolean> {
-  return CORPUS !== null;
-}
-
 async function findWasm(dir: string, out: string[] = []): Promise<string[]> {
   // Structural type, not `Awaited<ReturnType<typeof fs.readdir>>`: inference
   // picks readdir's Buffer-name overload there, so `e.name` comes back as a
@@ -140,7 +136,7 @@ async function validates(bytes: Uint8Array): Promise<boolean> {
 
 Deno.test({
   name: 'corpus: parse->encode->parse is lossless and stays valid',
-  ignore: !(await corpusPresent()),
+  ignore: CORPUS === null,
   fn: async () => {
     // Non-null by the `ignore` gate above, which is `CORPUS === null`.
     const corpus = CORPUS!;
