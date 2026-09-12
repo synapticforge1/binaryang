@@ -1510,7 +1510,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'rethrow': {
       // The depth names an enclosing TRY, and binaryen-ts holds that target by
       // name, so it resolves through the same label stack a branch does.
-      return makeRethrow(resolveLabel(ctx, (e as RethrowExpr).depth));
+      return makeRethrow(resolveLabel(ctx, (e as RethrowExpr).target));
     }
 
     default:
@@ -1523,18 +1523,18 @@ function buildCatchClause(
   c: TableCatch,
   ctx: BridgeCtx,
 ): CatchClause {
-  const dest = resolveLabel(ctx, c.target);
+  const target = resolveLabel(ctx, c.target);
   // Switching on `kind` narrows the union, so the tagged arms SEE a tag —
   // the `c.tag!` assertions this used to need are gone.
   switch (c.kind) {
     case CatchKind.Catch:
-      return { tag: resolveVarName(c.tag, ctx.tagNames), dest, isRef: false };
+      return { tag: resolveVarName(c.tag, ctx.tagNames), target, isRef: false };
     case CatchKind.CatchRef:
-      return { tag: resolveVarName(c.tag, ctx.tagNames), dest, isRef: true };
+      return { tag: resolveVarName(c.tag, ctx.tagNames), target, isRef: true };
     case CatchKind.CatchAll:
-      return { tag: null, dest, isRef: false };
+      return { tag: null, target, isRef: false };
     case CatchKind.CatchAllRef:
-      return { tag: null, dest, isRef: true };
+      return { tag: null, target, isRef: true };
   }
 }
 

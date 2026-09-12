@@ -892,8 +892,14 @@ export interface LoopExpr extends ExprBase {
 export interface BreakExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Break;
-  /** Target label. */
-  name: string;
+  /**
+   * The label this branches to.
+   *
+   * Named `target` like every other single-label reference in this IR — it was
+   * `name`, which reads as the node's OWN label (what `block`, `loop`, `if` and
+   * `try` call `name`) rather than the one it jumps to.
+   */
+  target: string;
   /** Optional condition — when present this is a `br_if`. */
   condition: Expression | null;
   /** The forwarded values, in stack order — empty for a value-less branch. */
@@ -1741,8 +1747,8 @@ export interface BrOnExpr extends ExprBase {
   kind: ExpressionKind.BrOn;
   /** Operator code. */
   opcode: BrOnOp;
-  /** label — see the matching factory for semantics. */
-  label: string;
+  /** The label this branches to — see the matching factory for semantics. */
+  target: string;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /**
@@ -1777,8 +1783,8 @@ export interface RefTypeImmediate {
 export interface CatchClause {
   /** Tag name, or `null` for `catch_all` / `catch_all_ref`. */
   tag: string | null;
-  /** Branch label to jump to when this clause matches. */
-  dest: string;
+  /** The label this clause branches to when it matches. */
+  target: string;
   /** `true` for `catch_ref` and `catch_all_ref` (sends an exnref). */
   isRef: boolean;
 }
@@ -2503,7 +2509,7 @@ export function makeBreak(
   // falls through when the condition is false, so it takes its values' type
   // (`none` when value-less).
   const type: Type = condition === null ? Unreachable : valuesType(values);
-  return { kind: ExpressionKind.Break, type, name, condition, values };
+  return { kind: ExpressionKind.Break, type, target: name, condition, values };
 }
 
 /** Creates a `br_table` expression carrying `values`. */
@@ -3058,7 +3064,7 @@ export function makeBrOn(
     kind: ExpressionKind.BrOn,
     type: resultType,
     opcode,
-    label,
+    target: label,
     ref,
     ...(srcType !== undefined
       ? { from: { heapType: srcType, nullable: srcNullable ?? false } }

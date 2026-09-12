@@ -276,7 +276,7 @@ Deno.test('EH parser: try_table catch clause dest resolves to outer block label'
     return undefined;
   };
   const tt = findTryTable(body as { kind: unknown; children?: unknown[] });
-  const dest = tt!.catches[0].dest;
+  const dest = tt!.catches[0].target;
   // The dest label should be non-null and refer to an outer block
   assertEquals(typeof dest, 'string');
   assertEquals(dest.startsWith('$'), true);
@@ -725,7 +725,7 @@ Deno.test('try_table: a catch destination names the ENCLOSING frame, not the try
 
   // The handler targets `$outer`. Resolving one frame too deep named `$inner`;
   // resolving inside the try_table's own frame named the try_table itself.
-  assertEquals((tt as TryTableExpr).catches[0].dest, outer.name);
+  assertEquals((tt as TryTableExpr).catches[0].target, outer.name);
 
   assertEquals(await runF(encodeWasm(mod)), 7);
 });

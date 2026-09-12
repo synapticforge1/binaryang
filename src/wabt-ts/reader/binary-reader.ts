@@ -2136,7 +2136,7 @@ export class BinaryReader {
         case Opcode.Rethrow: {
           m.featuresUsed.exceptions = true;
           const depth = this.readU32Leb();
-          pushStmt(stack, stmts, { kind: 'rethrow', depth: varIndex(depth), loc } as RethrowExpr);
+          pushStmt(stack, stmts, { kind: 'rethrow', target: varIndex(depth), loc } as RethrowExpr);
           break;
         }
 

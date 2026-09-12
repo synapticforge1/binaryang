@@ -4561,7 +4561,7 @@ export class WastParser {
         return { kind: 'throw_ref', exnref: op0(), loc } as ThrowRefExpr;
       case TokenType.Rethrow: {
         const v = this.parseVar() ?? varIndex(0);
-        return { kind: 'rethrow', depth: v, loc } as RethrowExpr;
+        return { kind: 'rethrow', target: v, loc } as RethrowExpr;
       }
 
       case TokenType.Unary: {
@@ -6172,7 +6172,7 @@ function checkLabelScopes(
       return Result.Ok;
     },
     onRethrowExpr: (e) => {
-      check(e.depth, e.loc);
+      check(e.target, e.loc);
       return Result.Ok;
     },
   });

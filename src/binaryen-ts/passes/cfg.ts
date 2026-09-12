@@ -294,7 +294,7 @@ class _CFGBuilder {
       case ExpressionKind.Break: {
         for (const v of e.values) this.visit(v);
         if (e.condition) this.visit(e.condition);
-        const target = this.resolveLabel(e.name);
+        const target = this.resolveLabel(e.target);
         if (target) this.link(this.current, target);
         if (e.condition) {
           // br_if: fall through if condition is zero
@@ -400,7 +400,7 @@ class _CFGBuilder {
         // catch resolves, the throw exits the function (we drop the edge).
         const targets: BasicBlock[] = [];
         for (const cc of e.catches) {
-          const target = this.resolveLabel(cc.dest);
+          const target = this.resolveLabel(cc.target);
           if (target) {
             this.link(bodyEntry, target); // conservative entry edge
             targets.push(target);

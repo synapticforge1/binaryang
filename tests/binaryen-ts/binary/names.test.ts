@@ -123,12 +123,17 @@ describe('P4 — the decoder names every entity from the name section', () => {
     const labels: string[] = [];
     const branches: string[] = [];
     walkExpression(m.functions[0]!.body, (e) => {
-      const n = (e as { name?: string | null }).name;
-      if (typeof n !== 'string') return;
+      // A carrier's OWN label is `name`; a branch's REFERENCE is `target`.
+      // They used to share the field name, which is what the label-reference
+      // rename separated — reading one field could not tell them apart.
+      const own = (e as { name?: string | null }).name;
+      const ref = (e as { target?: string | null }).target;
       if (['block', 'loop', 'if', 'try', 'try_table'].includes(e.kind)) {
-        if (!n.startsWith('$l')) labels.push(`${e.kind}:${n}`); // `$l…` are made up
-      } else {
-        branches.push(`${e.kind}:${n}`);
+        if (typeof own === 'string' && !own.startsWith('$l')) {
+          labels.push(`${e.kind}:${own}`); // `$l…` are made up
+        }
+      } else if (typeof ref === 'string') {
+        branches.push(`${e.kind}:${ref}`);
       }
     });
     assertEquals(labels.sort(), ['block:$cond', 'block:$done']);

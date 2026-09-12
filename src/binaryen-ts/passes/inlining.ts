@@ -228,7 +228,7 @@ function getIf(e: Expression, i = 0): IfExpr | null {
 function hasBreakTo(e: Expression, label: string): boolean {
   let found = false;
   walkExpression(e, (n) => {
-    if (n.kind === ExpressionKind.Break && (n as BreakExpr).name === label) found = true;
+    if (n.kind === ExpressionKind.Break && (n as BreakExpr).target === label) found = true;
     if (n.kind === ExpressionKind.Switch) {
       const sw = n as { targets: string[]; defaultTarget: string };
       if (sw.targets.includes(label) || sw.defaultTarget === label) found = true;
@@ -522,7 +522,7 @@ function collectLabels(expr: Expression): Set<string> {
   walkExpression(expr, (e) => {
     if (e.kind === ExpressionKind.Block && e.name !== null) labels.add(e.name);
     if (e.kind === ExpressionKind.Loop) labels.add(e.name);
-    if (e.kind === ExpressionKind.Break) labels.add(e.name);
+    if (e.kind === ExpressionKind.Break) labels.add(e.target);
     if (e.kind === ExpressionKind.Switch) {
       e.targets.forEach((t) => labels.add(t));
       labels.add(e.defaultTarget);
@@ -645,7 +645,7 @@ function substituteBody(
         const br: BreakExpr = {
           kind: ExpressionKind.Break,
           type: Unreachable,
-          name: returnLabel,
+          target: returnLabel,
           condition: null,
           values: e.values,
         };

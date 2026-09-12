@@ -1122,7 +1122,15 @@ export interface ThrowRefExpr {
 /** `rethrow $depth` (0x09) — legacy EH: re-throws the exception caught by the labeled outer catch. */
 export interface RethrowExpr {
   readonly kind: 'rethrow';
-  readonly depth: Var;
+  /**
+   * The catch label this re-throws from.
+   *
+   * 🔧 It was `depth`, which describes only ONE of the two forms a {@link Var}
+   * takes — `rethrow $l` names a label, and since the binary writer resolves
+   * label names itself, a name is exactly what reaches this field from text.
+   * Every other single-label reference in both IRs is `target`.
+   */
+  readonly target: Var;
   readonly loc: Location;
 }
 

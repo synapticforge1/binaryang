@@ -2308,7 +2308,7 @@ class WasmParser {
           // against it, such as the wabt-ts bridge — saw the wrong target.
           const catches: CatchClause[] = catchData.map(({ tag, depth, isRef }) => ({
             tag,
-            dest: resolveLabel(frames, depth),
+            target: resolveLabel(frames, depth),
             isRef,
           }));
           frames.push({
