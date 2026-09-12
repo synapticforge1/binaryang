@@ -90,6 +90,27 @@ export interface WriteWatOptions {
   inlineExport?: boolean;
   /** Emit `(import "m" "f")` inline inside declarations instead of standalone. Default: `false`. */
   inlineImport?: boolean;
+  /**
+   * Print a branch target by its label's NAME when the label has one, instead
+   * of the depth the node carries. Default: `false`.
+   *
+   * 🔑 Only the CALLER knows whether an index-form target carries a spelling.
+   * A label reference reaches this writer as one of two things, and they are
+   * indistinguishable here:
+   *
+   * - decoded from a BINARY, where the format has only depths and the author's
+   *   spelling was never in the file. Then the name (N2's, from the `name`
+   *   section) is the best text there is, and `wasm2wat` sets this — which is
+   *   what `wasm-tools print` does and what makes a round trip say `br $outer`.
+   * - parsed from TEXT, where an index means the author WROTE a number.
+   *   Printing a name there would rewrite their source, so the compat API's
+   *   `toText()` leaves this off.
+   *
+   * (Since `resolveNames` stopped rewriting labels, those are the only two
+   * cases: a name the author wrote arrives as a name and prints as one either
+   * way.)
+   */
+  namedLabelTargets?: boolean;
 }
 
 /**
@@ -187,6 +208,7 @@ class WatWriter extends ModuleContext {
       fold: opts.fold ?? true,
       inlineExport: opts.inlineExport ?? true,
       inlineImport: opts.inlineImport ?? false,
+      namedLabelTargets: opts.namedLabelTargets ?? false,
     };
     this.buildNameIndexMap();
   }
@@ -412,7 +434,11 @@ class WatWriter extends ModuleContext {
       // were printing `br 1` beside a block we had just called `$outer`.
       // `labelNameAtDepth` returns undefined when a nearer label shadows the
       // name, where printing it would retarget the branch.
-      const name = this.labelNameAtDepth(depth);
+      //
+      // ⚠️ Only when the CALLER says the index is a depth with no spelling
+      // behind it (`namedLabelTargets`). Parsed from text, an index is what
+      // the author WROTE, and printing a name would rewrite their source.
+      const name = this.opts.namedLabelTargets ? this.labelNameAtDepth(depth) : undefined;
       if (name !== undefined) {
         this.writeName(name, nc);
         return;
