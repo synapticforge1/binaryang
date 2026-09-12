@@ -14,10 +14,20 @@
 // captures the reference, so `(block $b (block $b (br 1)))` must keep the depth
 // — printing `$b` there would retarget the branch to the inner block.
 //
-// ⚠️ Consequence, accepted: TEXT that wrote a numeric target at a NAMED block
-// (`(block $b (br 0))`) now prints `(br $b)`. The bytes are identical — the
-// corpus moved 415 text hashes and 0 byte hashes — and the name reaching the
-// text is the point of N2. The as-written numeric spelling is not reproduced.
+// ⚠️ Consequence, accepted for now: TEXT that wrote a numeric target at a NAMED
+// block (`(block $b (br 0))`) now prints `(br $b)`. Bytes are identical, and the
+// name reaching the text is the point of N2 — but the as-written numeric
+// spelling is not reproduced.
+//
+// 🔑 That consequence is NOT what moved the corpus. Its 415 text hashes (and 0
+// byte hashes) are ALL the binary-derived case, because the baseline's text
+// columns come from `wasm2wat(binary)` — a depth with no spelling behind it,
+// which is exactly what this rule is for. The text→text case is separate, and
+// it closes when a branch target takes the `TypeUse` treatment: an index-form
+// `Var` means three different things today (the author wrote a number,
+// `resolveNames` resolved a name, or a binary gave a depth), and `TypeUse`
+// already solves that ambiguity for TYPE references — record the SPELLING and
+// derive only where none was written.
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
