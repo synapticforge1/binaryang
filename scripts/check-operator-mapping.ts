@@ -227,6 +227,126 @@ if (retired.length > 0) {
 }
 console.log(`declared-but-unimplemented kinds   : ${phantoms.length} (pinned)`);
 
+// ---------------------------------------------------------------------------
+// The one-sided kinds (S5) — pinned, and only ever allowed to shrink
+// ---------------------------------------------------------------------------
+
+/**
+ * Every kind in wabt-ts's `Expr` union, by its discriminant string.
+ *
+ * ⚠️ The union is the authority, NOT every `readonly kind:` in `ir.ts`. That
+ * file also declares non-expression nodes — `RefValueType` has `kind: 'ref'`
+ * — and counting those reports a TYPE as a missing instruction.
+ */
+function wabtExprKinds(irSrc: string): Set<string> {
+  const kindOf = new Map<string, string[]>();
+  for (const m of irSrc.matchAll(/export interface (\w+)\s*(?:extends [^{]+)?\{([\s\S]*?)\n\}/g)) {
+    const k = m[2]!.match(/^\s*readonly kind:\s*((?:'[^']+'\s*\|\s*)*'[^']+')/m);
+    if (k) kindOf.set(m[1]!, [...k[1]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!));
+  }
+  const union = irSrc.match(/export type Expr =([\s\S]*?);/);
+  if (!union) {
+    console.error('check-operator-mapping: no `export type Expr =` union in ir.ts — failing.');
+    Deno.exit(1);
+  }
+  const out = new Set<string>();
+  const missing: string[] = [];
+  for (const m of union[1]!.matchAll(/\|?\s*(\w+)/g)) {
+    const ks = kindOf.get(m[1]!);
+    if (!ks) missing.push(m[1]!);
+    else for (const k of ks) out.add(k);
+  }
+  // A union member whose interface we could not read would silently shrink the
+  // wabt-ts side and manufacture agreement. Refuse to report instead.
+  if (missing.length > 0) {
+    console.error(
+      `check-operator-mapping: no kind found for ${missing.length} Expr member(s): ` +
+        `${missing.join(', ')} — the shapes in ir.ts have moved. Failing rather than ` +
+        `passing vacuously.`,
+    );
+    Deno.exit(1);
+  }
+  return out;
+}
+
+/**
+ * The kinds each tree has and the other does not — pinned at what S5 left.
+ *
+ * ⚠️ Compare the enum's VALUES, never its identifiers. `ExpressionKind` is a
+ * string enum whose values already ARE wabt-ts's kind strings (`Break = 'br'`,
+ * `Switch = 'br_table'`), so an identifier diff reports `br` and `Break` as two
+ * one-sided kinds when they are one shared kind spelled for two audiences. A
+ * scrape that did exactly that is what kept the stale "27 outstanding" alive.
+ *
+ * What is left is not renames. It is four facts:
+ *
+ * - **the atomics and `call_ref`** — binaryen-ts cannot represent them at all;
+ *   six of the eight are the `PHANTOM_BUDGET` above, and `atomic.load` /
+ *   `atomic.store` are not even declared. A capability gap, registered.
+ * - **`code_metadata`** — wabt-ts's annotation pseudo-instruction.
+ * - **`region`** — divergence R1, S6 decision 5. Intended, and permanent.
+ * - **`simd.shift`** — a REGROUPING, not a gap: wabt-ts encodes the same
+ *   instructions as `binary` with a SIMD opcode (`i8x16.shl` is
+ *   `TokenType.Binary` in its lexer). Both sides implement every one.
+ */
+const ONE_SIDED_BUDGET = {
+  wabt: [
+    'atomic.cmpxchg',
+    'atomic.fence',
+    'atomic.load',
+    'atomic.notify',
+    'atomic.rmw',
+    'atomic.store',
+    'atomic.wait',
+    'call_ref',
+    'code_metadata',
+  ],
+  binaryen: ['region', 'simd.shift'],
+};
+
+const wabtKinds = wabtExprKinds(
+  await Deno.readTextFile(new URL('../src/wabt-ts/ir/ir.ts', import.meta.url)),
+);
+const binKinds = new Set(
+  [...exprSrc.matchAll(/^\s{2}([A-Za-z0-9_]+) = '([^']+)',/gm)]
+    .filter((m) => !phantoms.includes(m[1]!))
+    .map((m) => m[2]!),
+);
+
+const oneSided = {
+  wabt: [...wabtKinds].filter((k) => !binKinds.has(k)).sort(),
+  binaryen: [...binKinds].filter((k) => !wabtKinds.has(k)).sort(),
+};
+let oneSidedFailed = false;
+for (const side of ['wabt', 'binaryen'] as const) {
+  const pinned = ONE_SIDED_BUDGET[side];
+  const grew = oneSided[side].filter((k) => !pinned.includes(k));
+  // Same ratchet as PHANTOM_BUDGET: a pinned kind that became shared must leave
+  // the list, or it silently buys back room for a future divergence.
+  const gone = pinned.filter((k) => !oneSided[side].includes(k));
+  if (grew.length > 0) {
+    console.error(`\n${grew.length} NEW kind(s) only ${side} has: ${grew.join(', ')}`);
+    console.error(
+      'A kind on one side only is a capability the other cannot represent. ' +
+        'Implement it on both, or add it here with its row in cmem/divergences.md.',
+    );
+    oneSidedFailed = true;
+  }
+  if (gone.length > 0) {
+    console.error(
+      `\n${gone.length} pinned ${side}-only kind(s) now on both sides: ${gone.join(', ')}`,
+    );
+    console.error('Remove them from ONE_SIDED_BUDGET so the list only ever shrinks.');
+    oneSidedFailed = true;
+  }
+}
+if (oneSidedFailed) Deno.exit(1);
+console.log(
+  `kinds shared by both IRs           : ${
+    [...wabtKinds].filter((k) => binKinds.has(k)).length
+  } (${oneSided.wabt.length} wabt-only, ${oneSided.binaryen.length} binaryen-only, pinned)`,
+);
+
 if (orphans.length === 0) {
   console.log('TOTAL — every operator constant is an opcode wabt-ts names.');
   Deno.exit(0);

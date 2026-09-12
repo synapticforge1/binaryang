@@ -10,8 +10,9 @@
  * (parse → optimize → emit → dispose lifecycle, pass-list routing, level
  * shorthand parsing, options validation, error surfaces) is exercised.
  *
- * A separate live test against the real `npm:binaryen` is documented in the
- * file but disabled by default.
+ * Two LIVE tests against the real binaryen follow the mocks. They are not
+ * disabled — they run whenever the package resolves and skip when it does not.
+ * They were env-gated once, which meant never, and they were failing.
  *
  * @license MIT
  */
@@ -275,10 +276,21 @@ Deno.test('optimizeBinary — honors explicit passes', async () => {
 // skipped test is a test nobody runs.
 // ---------------------------------------------------------------------------
 
-/** Whether `npm:binaryen` resolves here (it needs the package cached or network). */
+/**
+ * The binaryen this test loads — **must track the pin in `deno.lock`**.
+ *
+ * Spelled with its version because `deno lint`'s `no-unversioned-import` refuses
+ * a bare `npm:binaryen`, and rightly: an unversioned specifier is how this test
+ * came to run against 116 while every other tool here was 132. One constant, used
+ * for the availability probe and both live cases, so the version is one fact in
+ * one place rather than three literals that can drift apart.
+ */
+const BINARYEN = 'npm:binaryen@132';
+
+/** Whether binaryen resolves here (it needs the package cached or network). */
 async function binaryenAvailable(): Promise<boolean> {
   try {
-    await import('npm:binaryen');
+    await import(BINARYEN);
     return true;
   } catch {
     return false;
@@ -289,7 +301,7 @@ Deno.test({
   name: 'BinaryenInterop.create — live npm:binaryen end-to-end',
   ignore: !(await binaryenAvailable()),
   fn: async () => {
-    const interop = await BinaryenInterop.create({ binaryenJsPath: 'npm:binaryen' });
+    const interop = await BinaryenInterop.create({ binaryenJsPath: BINARYEN });
     // FOLDED: every binaryen parser takes it. See the note above.
     const watIn = '(module (func (export "f") (result i32) (i32.const 42)))';
     const watOut = interop.optimizeWat(watIn, '-Oz');
@@ -305,7 +317,7 @@ Deno.test({
   name: 'BinaryenInterop — a binary round-trips through live binaryen',
   ignore: !(await binaryenAvailable()),
   fn: async () => {
-    const interop = await BinaryenInterop.create({ binaryenJsPath: 'npm:binaryen' });
+    const interop = await BinaryenInterop.create({ binaryenJsPath: BINARYEN });
     // `(module (func (export "f") (result i32) (i32.const 42)))`, assembled.
     const wat = '(module (func (export "f") (result i32) (i32.const 42)))';
     const bytes = interop.optimizeBinary(
