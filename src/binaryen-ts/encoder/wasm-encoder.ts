@@ -2129,7 +2129,7 @@ class WasmEncoder {
       case ExpressionKind.CallIndirect: {
         const e = expr as CallIndirectExpr;
         for (const opcode of e.operands) this.encodeExpr(w, opcode, labels);
-        this.encodeExpr(w, e.target, labels);
+        this.encodeExpr(w, e.callee, labels);
         // 0x11 = call_indirect, 0x13 = return_call_indirect (tail-call proposal).
         w.writeU8(e.isReturn ? 0x13 : 0x11);
         // The index AS WRITTEN where the decoder recorded one (7c): a module may

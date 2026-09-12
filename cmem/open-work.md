@@ -378,13 +378,20 @@ drop) — see ir-convergence decision 7.
   `ifTrue`/`ifFalse`, `br_on` → paired `from`/`to`. Each measured by trial rename (blast radius),
   and on each cost and meaning agreed. **The remaining two are not mechanical, which the measurement
   is what revealed:**
-  - ⬚ **`call_indirect` (`sig` vs `params`+`results`)** — 11 vs 16 sites, too close to settle on
-    cost, and wabt-ts's `sig` is one leg of the as-written `typeVar` / `typeUse` / `sig` triple that
-    S3's fidelity table keys on. Wants a Group 2-style worst-condition decision.
-  - ⬚ **`ref.null` (`refType` vs the node's `type`)** — not a rename at all: binaryen-ts has no
-    field, and wabt-ts's nodes have no `type` to carry one. The merged node needs an explicit
-    immediate (7a's reasoning), so the work is adding one to binaryen-ts and moving its encoder off
-    `type` — behaviour-affecting.
+  - 🗓️ **`call_indirect` (`sig` vs `params`+`results`) — OWNER CALL, evidence gathered.** Cost says
+    convert wabt-ts (11 vs 16), but that 5-site margin runs against the structural grain:
+    `FuncSignature` is wabt-ts's house concept (49 uses, 78 `.sig` reads) and binaryen-ts has none,
+    so either way one side gets a lone exception — and in wabt-ts the flat form would sit beside
+    `typeVar` / `typeUse`, the triple S3's table keys on. Not flipped on a 5-site margin.
+  - ✅ **`ref.null` — NO CHANGE, and that is the finding.** binaryen-ts has no field because the
+    heap type IS the node's `type`; probed byte-identical on all 13 spellings (every abstract heap
+    type, a concrete `$t`, and a `$t` that is not type 0). An explicit `refType` beside it today
+    would be the same fact twice. The merged tree needs it — wabt-ts's nodes have no `type` — so it
+    lands with the merge, when `type` becomes derived.
+  - ✅ **`CallIndirectExpr.target` → `callee` in binaryen-ts, on SAFETY.** It was documented "target
+    label of the branch": `call_indirect` does not branch, the field is not a label, and `target`
+    already meant the called function on `call` and a branch label on `br_on` — here sitting right
+    beside `table`. The `table.copy` precedent: cost did not get a vote.
 
 **🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how
 binaryen-ts's OPTIMIZATION treats INTERNAL names versus EXPORTED names, explicitly, and how that

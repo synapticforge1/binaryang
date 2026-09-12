@@ -1846,7 +1846,7 @@ class WatModuleParser {
       kind: ExpressionKind.CallIndirect,
       type: isReturn ? Unreachable : (results[0] ?? None),
       table: varName(table),
-      target,
+      callee: target,
       operands,
       params,
       results,
