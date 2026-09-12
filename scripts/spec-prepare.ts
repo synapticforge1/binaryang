@@ -92,6 +92,8 @@ await Deno.mkdir(out, { recursive: true });
 let ok = 0;
 const failed: string[] = [];
 
+let viaWasmTools = 0;
+
 for (const name of wasts) {
   const base = name.replace(/\.wast$/, '');
   const dir = `${out}/${base}`;
@@ -102,17 +104,48 @@ for (const name of wasts) {
     stderr: 'piped',
   });
   const { code } = await cmd.output();
-  if (code === 0) ok++;
-  else {
+  if (code === 0) {
+    ok++;
+    continue;
+  }
+  // G2: `wast2json` 1.0.41 cannot split the 30 GC-proposal files — the very
+  // files that test the proposal this toolchain implements and upstream wabt
+  // does not, so they were the LEAST safe thirty to be missing. `wasm-tools`
+  // splits all of them, into the same layout with a few command types of its
+  // own (`module_definition`, `module_instance`, modules given as TEXT); the
+  // harness reads those.
+  await Deno.remove(dir, { recursive: true }).catch(() => {});
+  await Deno.mkdir(dir, { recursive: true });
+  const wt = new Deno.Command('wasm-tools', {
+    args: [
+      'json-from-wast',
+      `${src}/${name}`,
+      '--wasm-dir',
+      dir,
+      '-o',
+      `${dir}/${base}.json`,
+      '--pretty',
+    ],
+    stdout: 'null',
+    stderr: 'piped',
+  });
+  const wtOut = await wt.output();
+  if (wtOut.success) {
+    ok++;
+    viaWasmTools++;
+  } else {
     failed.push(base);
     await Deno.remove(dir, { recursive: true }).catch(() => {});
   }
 }
 
 console.log(`prepared ${ok} of ${wasts.length} .wast files into ${out}`);
+if (viaWasmTools > 0) {
+  console.log(`  ${viaWasmTools} of them via wasm-tools json-from-wast (wast2json could not)`);
+}
 if (failed.length > 0) {
-  // Not an error: these use proposals upstream wabt cannot split at this
-  // version. Named so the harness's coverage is never mistaken for the suite's.
-  console.log(`skipped ${failed.length} (wast2json could not split them):`);
+  // Not an error: neither splitter could take these. Named so the harness's
+  // coverage is never mistaken for the suite's.
+  console.log(`skipped ${failed.length} (neither wast2json nor wasm-tools could split them):`);
   console.log('  ' + failed.join(' '));
 }

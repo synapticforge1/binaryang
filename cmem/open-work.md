@@ -53,7 +53,8 @@ designed to attack it.
 | malformed BINARY rejected      | 711 / 711 · **100%**   |
 | malformed TEXT rejected        | 1156 / 1156 · **100%** |
 
-227 of 257 files; the 30 skipped are GC-proposal files `wast2json` 1.0.41 cannot split.
+227 of 257 files; the 30 skipped are GC-proposal files `wast2json` 1.0.41 cannot split. **G2 closed
+that gap on 2026-09-11 — all 257 now run, see below.**
 
 ### ✅ All six findings CLOSED by ONE fix — `3445d978a`
 
@@ -85,6 +86,7 @@ same missing heap type breaking type-checking downstream.**
 | ------------------------- | ---------------------- |
 | modules ACCEPTED          | 1955 / 1955 · **100%** |
 | `assert_invalid` REJECTED | 2422 / 2422 · **100%** |
+|                           | _(227 files; G2 below adds the other 30)_ |
 | malformed BINARY          | 711 / 711 · **100%**   |
 | malformed TEXT            | 1156 / 1156 · **100%** |
 
@@ -339,12 +341,25 @@ drop) — see ir-convergence decision 7.
   `wasm2wat` dropped the name — a name lost at the text hop, which N1 forbids. Now the id is read,
   and the `(field …)` wrapper is printed **only when the field has a name**, so every other array
   type stays in the spec's form that wasm-tools reads.
-- ⬚ **G2 is now closeable — the 30 GC spec files.** `wasm-tools json-from-wast` (1.259, installed
-  2026-09-11) splits all 30 files `wast2json` cannot: 287 modules, 289 `assert_invalid`, 73
-  `assert_malformed`, 1,350 `assert_trap`. A new must-reject corpus for exactly the proposal
-  upstream wabt cannot judge. Needs `spec-prepare` to fall back to wasm-tools for those files, and
-  the harness to read its JSON (it has `module_definition` / `module_instance` commands wast2json
-  does not).
+- ✅ **G2 CLOSED 2026-09-11 — the harness runs all 257 spec files.** `spec-prepare` falls back to
+  `wasm-tools json-from-wast` for the 30 `wast2json` 1.0.41 cannot split, and the harness reads its
+  command types: `module_definition` (a module's obligation — accept it), and modules or
+  `assert_invalid` cases given as **TEXT**, where `wast2json` only ever emitted binaries. A text
+  module is assembled and then decoded and validated, because `wat2wasm` does not validate.
+
+  | axis                      | was (227 files)  | now (257 files)        |
+  | ------------------------- | ---------------- | ---------------------- |
+  | modules ACCEPTED          | 1955 / 1955      | **2248 / 2248 · 100%** |
+  | `assert_invalid` REJECTED | 2422 / 2422      | **2714 / 2714 · 100%** |
+  | malformed BINARY          | 711 / 711        | **711 / 711 · 100%**   |
+  | malformed TEXT            | 1156 / 1156      | **1229 / 1229 · 100%** |
+
+  🔑 **The 30 missing files were the least safe thirty to be missing**: they test the GC proposal —
+  the one thing this toolchain implements and upstream wabt cannot judge at all (G1, G3). The new
+  ground is 293 must-accept modules, 289 must-reject modules and 73 must-reject texts, and **all of
+  them pass on the first run.** Verified not vacuous: run over those 30 dirs alone they account for
+  exactly those counts, and corrupting one accepted module plus making one `assert_invalid` case
+  valid makes the harness report both.
 - ⬚ **7c** — form in a side table: T1, T2, a block type written as a type index.
 
 **🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how

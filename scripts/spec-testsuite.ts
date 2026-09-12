@@ -23,7 +23,9 @@
  * ## Usage
  *
  * The `.wast` files are scripts, not modules, so they are split first with
- * upstream `wast2json` into modules plus a JSON manifest of assertions.
+ * upstream `wast2json` — or, for the 30 GC-proposal files it cannot split,
+ * `wasm-tools json-from-wast` (G2) — into modules plus a JSON manifest of
+ * assertions.
  *
  * ```sh
  * deno task spec:prepare   # once — writes manifests under the scratch dir
@@ -38,9 +40,14 @@
  * | manifest type | our obligation |
  * | ------------- | -------------- |
  * | `module` | accept: decode and validate it |
+ * | `module_definition` | the same — it is a module that is not instantiated on the spot |
  * | `assert_invalid` | REJECT at validation |
  * | `assert_malformed` (binary) | REJECT at decode |
  * | `assert_malformed` (text) | REJECT at parse |
+ *
+ * A `module` or `assert_invalid` may arrive as TEXT rather than a binary
+ * (`module_type: "text"`), which only `wasm-tools` emits: it is assembled first,
+ * then decoded and validated, because `wat2wasm` does not validate.
  *
  * `assert_return` / `assert_trap` are behavioural and need a runner; they are
  * counted and skipped, deliberately, so the first pass measures the axis that
@@ -53,6 +60,7 @@ import { readBinaryIr } from '../src/wabt-ts/reader/binary-reader-ir.ts';
 import { validateModule } from '../src/wabt-ts/validator/validator.ts';
 import { hasErrors, makeErrorList } from '../src/wabt-ts/core/error.ts';
 import { parseWatModule } from '../src/wabt-ts/parser/wast-parser.ts';
+import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
 import { allFeatures } from '../src/wabt-ts/core/feature.ts';
 
 /**
@@ -104,6 +112,26 @@ function rejectReason(bytes: Uint8Array): string | null {
   }
 }
 
+/**
+ * The same obligation for a module given as TEXT: assemble it, then decode and
+ * validate the bytes. `wat2wasm` parses, resolves names and writes — it does
+ * not validate — so both halves are needed to say "accepted".
+ *
+ * G2: `wasm-tools json-from-wast` hands some modules over as `.wat`, where
+ * `wast2json` always emitted `.wasm`.
+ */
+function rejectReasonText(text: string): string | null {
+  let binary: Uint8Array;
+  try {
+    const r = wat2wasm(text);
+    if (hasErrors(r.errors)) return 'parse: ' + String(r.errors[0]?.message ?? '?');
+    binary = r.binary;
+  } catch (e) {
+    return 'THREW: ' + (e as Error).message;
+  }
+  return rejectReason(binary);
+}
+
 const tally = {
   module: { n: 0, ok: 0 },
   assert_invalid: { n: 0, ok: 0 },
@@ -128,19 +156,24 @@ for await (const dir of Deno.readDir(MANIFESTS)) {
   for (const cmd of manifest.commands) {
     const where = `${dir.name}.wast:${cmd.line}`;
 
-    if (cmd.type === 'module' && cmd.filename) {
+    // `module_definition` is a module that is not instantiated on the spot — a
+    // wasm-tools command type (G2). The obligation is a module's: accept it.
+    if ((cmd.type === 'module' || cmd.type === 'module_definition') && cmd.filename) {
       tally.module.n++;
-      const bytes = await Deno.readFile(`${dirOf}/${cmd.filename}`);
-      const why = rejectReason(bytes);
+      const why = cmd.module_type === 'text'
+        ? rejectReasonText(await Deno.readTextFile(`${dirOf}/${cmd.filename}`))
+        : rejectReason(await Deno.readFile(`${dirOf}/${cmd.filename}`));
       if (why === null) tally.module.ok++;
       else miss('REJECTED a module the spec says is VALID', `${where}  ${why.slice(0, 70)}`);
       continue;
     }
 
-    if (cmd.type === 'assert_invalid' && cmd.filename && cmd.module_type === 'binary') {
+    if (cmd.type === 'assert_invalid' && cmd.filename) {
       tally.assert_invalid.n++;
-      const bytes = await Deno.readFile(`${dirOf}/${cmd.filename}`);
-      if (rejectReason(bytes) !== null) tally.assert_invalid.ok++;
+      const why = cmd.module_type === 'text'
+        ? rejectReasonText(await Deno.readTextFile(`${dirOf}/${cmd.filename}`))
+        : rejectReason(await Deno.readFile(`${dirOf}/${cmd.filename}`));
+      if (why !== null) tally.assert_invalid.ok++;
       else miss('ACCEPTED a module the spec says is INVALID', `${where}  want: ${cmd.text ?? '?'}`);
       continue;
     }
