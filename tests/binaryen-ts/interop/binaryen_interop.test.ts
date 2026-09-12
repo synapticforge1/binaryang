@@ -258,16 +258,17 @@ Deno.test('optimizeBinary — honors explicit passes', async () => {
 // Live integration — against the real npm:binaryen
 //
 // 🔧 This was gated on `BINARYEN_LIVE=1` and therefore never ran. Enabled, it
-// FAILED: the fixture was written in LINEAR form, and the pinned binaryen
-// (116.0.0, per deno.lock) has the OLD s-expression parser, which reads folded
-// form only — `parseText` hits `[parse exception: expected list]`, Emscripten
-// calls `Fatal:` and aborts the process with exit(1), which Deno's exit
-// sanitizer then reports. binaryen 132 (the `wasm-opt` on PATH) has the new
-// parser and reads both, which is why the same call succeeds from a script that
-// resolves npm:binaryen outside this project's lockfile. Measured both ways.
+// FAILED: the fixture was written in LINEAR form, and the lockfile then pinned
+// binaryen **116**, whose OLD s-expression parser reads folded form only —
+// `parseText` hits `[parse exception: expected list]`, Emscripten calls
+// `Fatal:` and aborts the process with exit(1), which Deno's exit sanitizer
+// reports, and the set exit code then fails the NEXT live test for free.
 //
-// The fixture is FOLDED now: what is under test is `BinaryenInterop`, not which
-// WAT dialect a given binaryen build accepts.
+// The pin is **132** now (the `wasm-opt` on PATH, and the vendored upstream),
+// whose new parser reads both forms — so this fixture would pass either way.
+// It stays FOLDED deliberately: what is under test is `BinaryenInterop`, not
+// which WAT dialect a given binaryen build accepts, and folded is the form
+// every version takes.
 //
 // It runs whenever npm:binaryen can be loaded, and skips when it cannot — the
 // same rule the corpus round-trip uses, and for the same reason: a permanently
@@ -289,7 +290,7 @@ Deno.test({
   ignore: !(await binaryenAvailable()),
   fn: async () => {
     const interop = await BinaryenInterop.create({ binaryenJsPath: 'npm:binaryen' });
-    // FOLDED: binaryen 116's parser takes nothing else. See the note above.
+    // FOLDED: every binaryen parser takes it. See the note above.
     const watIn = '(module (func (export "f") (result i32) (i32.const 42)))';
     const watOut = interop.optimizeWat(watIn, '-Oz');
     assert(watOut.length > 0);
