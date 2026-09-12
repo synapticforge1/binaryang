@@ -1781,8 +1781,16 @@ export interface RefTypeImmediate {
  * Mirrors the four catch opcode variants (0x00–0x03) from the EH proposal.
  */
 export interface CatchClause {
-  /** Tag name, or `null` for `catch_all` / `catch_all_ref`. */
-  tag: string | null;
+  /**
+   * The tag caught. ABSENT means `catch_all` / `catch_all_ref`.
+   *
+   * 🔧 It was `string | null`, which spelled a catch tag differently from the
+   * legacy `TryCatch.tag?: Var` beside it — the same concept, two shapes in one
+   * IR — and the encoder had to wrap it in `varFromToken()` to resolve what the
+   * other path passes straight through. A tag is an INDEX-SPACE reference (a
+   * label is not), so `Var` is also the form that can carry `0` as written.
+   */
+  tag?: Var;
   /** The label this clause branches to when it matches. */
   target: string;
   /** `true` for `catch_ref` and `catch_all_ref` (sends an exnref). */

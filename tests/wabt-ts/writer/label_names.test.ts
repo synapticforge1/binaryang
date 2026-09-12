@@ -36,7 +36,7 @@
 // consumer; there is none today.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals, assertThrows } from '@std/assert';
+import { assert, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';

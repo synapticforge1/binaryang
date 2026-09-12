@@ -261,7 +261,40 @@ Deno.test('EH parser: try_table decoded as TryTableExpr', () => {
   assertEquals(ttExpr!.kind, ExpressionKind.TryTable);
   assertEquals(ttExpr!.catches.length, 1);
   assertEquals(ttExpr!.catches[0].isRef, false);
-  assertEquals(ttExpr!.catches[0].tag !== null, true);
+  // ABSENT means catch_all now, where this used to be `null` — and `!== null`
+  // would pass either way, so it has to ask the question the shape answers.
+  assertEquals(ttExpr!.catches[0].tag !== undefined, true);
+  assertEquals(ttExpr!.catches[0].tag?.kind, 'name');
+});
+
+Deno.test('EH parser: a catch tag is spelled the same in BOTH try forms', () => {
+  // 🔧 `try_table` carried `tag: string | null` while the legacy `try` carried
+  // `tag?: Var` — one concept, two shapes in one IR, and the encoder had to
+  // wrap the first in `varFromToken()` to resolve what the second passes
+  // straight through.
+  const mod = parseWasm(TRY_TABLE_MODULE);
+  let seen: unknown;
+  walkExpression(mod.functions[0].body, (e) => {
+    if (e.kind === ExpressionKind.TryTable) seen = (e as TryTableExpr).catches[0]?.tag;
+  });
+  // A `Var`, like `TryCatch.tag` — not a bare string.
+  assertEquals(typeof seen, 'object');
+  assertEquals((seen as { kind: string }).kind, 'name');
+});
+
+Deno.test('EH parser: catch_all carries NO tag, and re-encodes as catch_all', () => {
+  // catch_all is kind byte 0x02 with no tag index; absence is what says so.
+  const mod = parseWasm(TRY_TABLE_MODULE);
+  const before = encodeWasm(mod);
+  let tt: TryTableExpr | undefined;
+  walkExpression(mod.functions[0].body, (e) => {
+    if (e.kind === ExpressionKind.TryTable) tt = e as TryTableExpr;
+  });
+  assert(tt !== undefined);
+  delete tt.catches[0].tag; // now a catch_all
+  tt.catches[0].isRef = false;
+  const after = encodeWasm(mod);
+  assert(after.length < before.length, 'dropping the tag drops its index byte too');
 });
 
 Deno.test('EH parser: try_table catch clause dest resolves to outer block label', () => {
