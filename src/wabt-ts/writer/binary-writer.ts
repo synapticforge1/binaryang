@@ -474,11 +474,65 @@ class BodyWriter implements ExprVisitorDelegate {
   beginFunctionBody(): void {
     this.labelNames = [];
     this.labelCount = 0;
+    // The scope stack is balanced by construction — every carrier pushes in its
+    // `begin` and pops in its `end`. A leftover frame would silently shift every
+    // depth in the NEXT function, so say so rather than resetting: a silent
+    // reset would hide the imbalance, and wrong depths are exactly the kind of
+    // valid-but-different output this codebase fails loud on.
+    if (this.labelScope.length !== 0) {
+      throw new Error(
+        `binary writer: label scope not balanced at end of function ` +
+          `(${this.labelScope.length} left: ${this.labelScope.join(', ')})`,
+      );
+    }
   }
 
   private noteLabel(label: string): void {
     const index = this.labelCount++;
     if (label !== '') this.labelNames.push([index, label]);
+    this.labelScope.push(label);
+  }
+
+  /**
+   * The labels currently in scope, innermost LAST — what a name-form branch
+   * target is resolved against.
+   *
+   * 🔑 The writer resolves label names ITSELF rather than requiring
+   * `resolveNames` to have rewritten them to depths. A depth is positional, so
+   * rewriting destroys which spelling the source used: `br 1` and `br $b` both
+   * become `{kind:'index'}` and no later reader can tell an authored number
+   * from a resolved name (the same ambiguity `TypeUse` exists to break for type
+   * references). Resolving here keeps the as-written form on the node all the
+   * way to the bytes.
+   *
+   * ⚠️ Two scopes are NOT the obvious one, and both are in the spec:
+   * - a `try`'s own label is not in scope for its `delegate`, so the label is
+   *   popped BEFORE the delegate target is written;
+   * - a `try_table`'s own label is not in scope for its catch targets, so its
+   *   catches are written BEFORE its label is pushed.
+   */
+  private labelScope: string[] = [];
+
+  private popLabel(): void {
+    this.labelScope.pop();
+  }
+
+  /** A label reference: an index as written, or a name resolved to its depth. */
+  private writeLabelVar(v: Var): void {
+    if (v.kind === 'index') {
+      this.s.writeU32Leb(v.value);
+      return;
+    }
+    // Innermost first: a nearer label with the same name shadows an outer one,
+    // which is what `(block $b (block $b (br $b)))` means.
+    const at = this.labelScope.lastIndexOf(v.name);
+    if (at < 0) {
+      throw new Error(
+        `binary writer: undefined label ${JSON.stringify(v.name)} — ` +
+          `no enclosing block, loop, if, try or try_table carries that name`,
+      );
+    }
+    this.s.writeU32Leb(this.labelScope.length - 1 - at);
   }
 
   /**
@@ -537,6 +591,7 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endBlockExpr(_e: BlockExpr): Result {
+    this.popLabel();
     this.s.writeU8(Opcode.End);
     return Result.Ok;
   }
@@ -547,6 +602,7 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endLoopExpr(_e: LoopExpr): Result {
+    this.popLabel();
     this.s.writeU8(Opcode.End);
     return Result.Ok;
   }
@@ -561,6 +617,7 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   endIfExpr(_e: IfExpr): Result {
+    this.popLabel();
     this.s.writeU8(Opcode.End);
     return Result.Ok;
   }
@@ -583,10 +640,14 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onDelegateExpr(e: TryExpr): Result {
     this.s.writeU8(Opcode.Delegate);
-    writeVar(this.s, e.delegate!);
+    // The try's own label is NOT in scope for its delegate target.
+    this.popLabel();
+    this.writeLabelVar(e.delegate!);
+    this.labelScope.push(e.label);
     return Result.Ok;
   }
   endTryExpr(_e: TryExpr): Result {
+    this.popLabel();
     this.s.writeU8(Opcode.End);
     return Result.Ok;
   }
@@ -597,14 +658,19 @@ class BodyWriter implements ExprVisitorDelegate {
     this.s.writeU8(Opcode.TryTable);
     writeBlockType(this.s, this.declaredBlockType(e));
     this.s.writeU32Leb(e.catches.length);
+    // A catch target names a label OUTSIDE this try_table, so resolve them
+    // with its own label off the scope stack.
+    this.popLabel();
     for (const c of e.catches) {
       this.s.writeU8(catchKindByte(c.kind));
       if (c.tag !== undefined) writeVar(this.s, c.tag);
-      writeVar(this.s, c.target);
+      this.writeLabelVar(c.target);
     }
+    this.labelScope.push(e.label);
     return Result.Ok;
   }
   endTryTableExpr(_e: TryTableExpr): Result {
+    this.popLabel();
     this.s.writeU8(Opcode.End);
     return Result.Ok;
   }
@@ -612,14 +678,14 @@ class BodyWriter implements ExprVisitorDelegate {
   // --- Branches ---
   onBrExpr(e: BrExpr): Result {
     this.s.writeU8(e.condition !== undefined ? Opcode.BrIf : Opcode.Br);
-    writeVar(this.s, e.target);
+    this.writeLabelVar(e.target);
     return Result.Ok;
   }
   onBrTableExpr(e: BrTableExpr): Result {
     this.s.writeU8(Opcode.BrTable);
     this.s.writeU32Leb(e.targets.length);
-    for (const t of e.targets) writeVar(this.s, t);
-    writeVar(this.s, e.defaultTarget);
+    for (const t of e.targets) this.writeLabelVar(t);
+    this.writeLabelVar(e.defaultTarget);
     return Result.Ok;
   }
 
@@ -917,7 +983,7 @@ class BodyWriter implements ExprVisitorDelegate {
     // and carry both heap types. The sub-op says which.
     if (e.op === 'br_on_null' || e.op === 'br_on_non_null') {
       this.s.writeU8(e.op === 'br_on_null' ? Opcode.BrOnNull : Opcode.BrOnNonNull);
-      writeVar(this.s, e.target);
+      this.writeLabelVar(e.target);
       return Result.Ok;
     }
     this.s.writeU8(PREFIX_GC);
@@ -925,7 +991,7 @@ class BodyWriter implements ExprVisitorDelegate {
     // Nullability of BOTH reference types travels in one flags byte rather
     // than in the heap types themselves: bit 0 = rt1 nullable, bit 1 = rt2.
     this.s.writeU8((e.from!.nullable ? 1 : 0) | (e.to!.nullable ? 2 : 0));
-    writeVar(this.s, e.target);
+    this.writeLabelVar(e.target);
     writeHeapType(this.s, e.from!.heapType);
     writeHeapType(this.s, e.to!.heapType);
     return Result.Ok;
@@ -993,7 +1059,10 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onRethrowExpr(e: RethrowExpr): Result {
     this.s.writeU8(Opcode.Rethrow);
-    writeVar(this.s, e.depth);
+    // `rethrow $l` names a CATCH label like a branch does, so it resolves the
+    // same way (legacy EH). Missing it here was the one site the label-name
+    // tests caught.
+    this.writeLabelVar(e.depth);
     return Result.Ok;
   }
 

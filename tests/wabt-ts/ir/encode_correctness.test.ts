@@ -194,12 +194,30 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
    * (`func`, `any`, …) is not a name in any index space and stays a name-var
    * for `writeHeapType` to encode as a single negative byte.
    */
+  /**
+   * LABEL references, which `resolveNames` deliberately leaves as names.
+   *
+   * A label is the one reference that needs no rewriting: its target is a
+   * position on the block stack the binary writer already walks, not an entry
+   * in a module-level index space. Rewriting it to a depth destroyed which
+   * spelling the source used — `br 1` and `br $b` both became an index — so
+   * the writer resolves it instead (`writeLabelVar`, fail-loud on an unknown
+   * name), and the name survives to the text.
+   *
+   * Every one of these fields holds a label and nothing else, in wabt-ts's IR
+   * today: `br`/`br_if`/`br_on` `target`, `br_table` `targets` +
+   * `defaultTarget`, a legacy `try`'s `delegate`, and `rethrow`'s `depth`.
+   * (A `try_table` catch's `target` is also a label; it is `target` too.)
+   */
+  const LABEL_FIELDS = new Set(['target', 'targets', 'defaultTarget', 'delegate', 'depth']);
+
   function survivors(node: unknown, kind: string, out: Set<string>): void {
     if (node === null || typeof node !== 'object') return;
     const o = node as Record<string, unknown>;
     if (typeof o.kind === 'string' && 'loc' in o) kind = o.kind as string;
     for (const [k, v] of Object.entries(o)) {
       if (v === null || typeof v !== 'object') continue;
+      if (LABEL_FIELDS.has(k)) continue;
       const vv = v as Record<string, unknown>;
       if (vv.kind === 'name' && typeof vv.name === 'string') {
         // An ABSTRACT heap-type keyword (`func`, `any`, `array`, …) is not a
@@ -270,6 +288,37 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
     resolveNames(module, errors);
     assert(!hasErrors(errors), formatErrors(errors));
     assertEquals([...moduleSurvivors(module)], [], 'unresolved name-vars survived resolveNames');
+  });
+
+  it('…and label names DO survive it, which is the other half of the rule', () => {
+    // The guard above exempts label fields, so this side has to be asserted or
+    // the exemption would hide a silent return to rewriting them.
+    const wat = '(module (func (block $out (block $b (br_table $b $out (i32.const 0))))))';
+    const { module, errors } = parseWatModule(wat);
+    assert(!hasErrors(errors), formatErrors(errors));
+    resolveNames(module, errors);
+    assert(!hasErrors(errors), formatErrors(errors));
+    const names: string[] = [];
+    type NameVar = { kind: string; name?: string };
+    const walk = (exprs: readonly unknown[]): void => {
+      for (
+        const e of exprs as {
+          kind: string;
+          targets?: NameVar[];
+          defaultTarget?: NameVar;
+          body?: unknown[];
+        }[]
+      ) {
+        if (e.kind === 'br_table') {
+          for (const t of e.targets ?? []) if (t.kind === 'name') names.push(t.name!);
+          // The LAST label in the text is the default target, not a case.
+          if (e.defaultTarget?.kind === 'name') names.push(e.defaultTarget.name!);
+        }
+        if (Array.isArray(e.body)) walk(e.body);
+      }
+    };
+    for (const f of module.funcs) walk(f.body);
+    assertEquals(names, ['$b', '$out']);
   });
 
   it('holds across the whole spec testsuite', () => {
