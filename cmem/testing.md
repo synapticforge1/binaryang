@@ -486,6 +486,25 @@ would have agreed with the first and proved nothing.
 | wabt-ts `wat2wasm` bytes == upstream (W5, W6)   | 421 / 421, outside custom sections |
 | `wasm-tools` on our labels and field names (N2) | see [names.md](names.md)           |
 
+### Byte parity with upstream `wat2wasm` — 146 → 400 → 421 of 421
+
+The byte baseline pins our OWN output, so it was blind to every divergence older than itself;
+wabt-ts's parity with upstream `wat2wasm` had never been measured. Measured 2026-09-10 with default
+features (`--enable-all` changes what upstream EMITS): **146 of 421 identical** — 242 differed in
+the DataCount section alone, the rest in type / function / code / tag sections. Re-measured
+precisely the next day: those "other" differences were the 21 exception-handling modules upstream
+cannot assemble without `--enable-exceptions`.
+
+| after           | identical, outside custom sections | commit (re-baseline)      |
+| --------------- | ---------------------------------- | ------------------------- |
+| W6 — DataCount  | 400 / 421                          | `cb474baaa` (`5dbe951f1`) |
+| W5 — type order | **421 / 421**                      | `bd327efe7` (`232768359`) |
+
+The name sections, compared on their own, are equal on 426/426. Parity is now total on this corpus,
+so **any new difference is a regression or a new divergence, and gets a row** in
+[divergences.md](divergences.md). Details of both fixes are their rows there; W5's implicit types
+are indexed by the PARSER at module end, through a `makeTypeInterner` shared with `synthesizeTypes`.
+
 The upstream-wabt oracle's REACH LIMIT is above ("An oracle that cannot reach the feature must be
 SAID to not reach it"); `wasm-tools` 1.259 reaches GC text, labels and field names, and has its own
 gaps (divergence G4).
