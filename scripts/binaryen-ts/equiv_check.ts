@@ -1,5 +1,5 @@
 /**
- * @module scripts/equiv_check
+ * @module scripts/binaryen-ts/equiv_check
  *
  * WT-2c — differential behavioral-equivalence check between a corpus module and
  * its `binaryen-ts/compat` `-Oz` optimization. `WebAssembly.compile`-validity
@@ -21,7 +21,7 @@
  * only *identical*, for the differential to be valid.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/equiv_check.ts [rel ...]
+ *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/equiv_check.ts [rel ...]
  *
  * @license MIT
  */

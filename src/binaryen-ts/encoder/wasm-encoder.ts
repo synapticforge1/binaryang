@@ -3,7 +3,7 @@
  *
  * WASM binary encoder: serializes a {@link WasmModule} IR tree into a `.wasm` binary.
  *
- * This is the inverse of the Phase 2 parser (`src/binary/wasm-parser.ts`).
+ * This is the inverse of the Phase 2 parser (`src/binaryen-ts/binary/wasm-parser.ts`).
  * The output is a valid WebAssembly 1.0 binary that can be re-parsed or executed.
  *
  * @license MIT

@@ -2,7 +2,7 @@
 
 **From:** wabt-ts · **Date:** 2026-08-24 · **Status:** measured, reproducible
 
-Follow-up to `scripts/wasmtk-eh-report.md` (the legacy-EH finding you confirmed and queued). Since
+Follow-up to `scripts/wabt-ts/wasmtk-eh-report.md` (the legacy-EH finding you confirmed and queued). Since
 then we ran the whole corpus against every runtime installed here, which turned up a **second,
 cheaper** portability item that is independent of the EH migration — plus one thing we want to
 explicitly ask you **not** to change.
@@ -170,7 +170,7 @@ node -e 'WebAssembly.validate(require("fs").readFileSync("mod.wasm"))'
 `deno task engine-check <dir-of-wasm>` in wabt-ts runs Wasmtime + V8 + Wasmer with the right flags
 and self-tests against a known-invalid module first.
 
-**Caveats on our side, stated so you can discount them:** `tests/wasmtk/` is a frozen 272-file
+**Caveats on our side, stated so you can discount them:** `tests/wabt-ts/wasmtk/` is a frozen 272-file
 snapshot (you emit 373 now) with no recorded source commit, so every filename above is _our_ copy
 and current wasic may differ. Line numbers are from `origin/main` at 2026-08-10 and drift — the
 shapes are `mergeOneWasmImport`, `needsExceptionTag`, and the `utils.ts` uncaught-error path.

@@ -16,7 +16,7 @@
  * This is the core of the "tee" optimization. Blocks nested deeper in the tree
  * are handled by the recursive `mapExpression` walk.
  *
- * Reference: `upstream/src/passes/SimplifyLocals.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/SimplifyLocals.cpp`
  *
  * @license MIT
  */

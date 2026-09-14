@@ -1,11 +1,11 @@
 /**
- * @module scripts/diag_compile
+ * @module scripts/binaryen-ts/diag_compile
  *
  * Parse + encode a corpus file and run the real WebAssembly.compile() validator
  * on the re-encoded output, reporting the exact validation error.
  *
  * Run:
- *   deno run --allow-read scripts/diag_compile.ts <relpath-under-upstream/test>
+ *   deno run --allow-read scripts/binaryen-ts/diag_compile.ts <relpath-under-upstream/test>
  *
  * @license MIT
  */

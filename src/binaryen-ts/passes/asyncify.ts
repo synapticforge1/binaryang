@@ -7,8 +7,8 @@
  * generators, and (the driving one here) **TinyGo goroutines** compiled to
  * wasm, for which wasm-opt's `--asyncify` is a required post-processing step.
  *
- * This is a faithful port of upstream Binaryen's `src/passes/Asyncify.cpp`
- * (vendored at `upstream/src/passes/Asyncify.cpp`). The exact ABI it produces
+ * This is a faithful port of upstream Binaryen's `WebAssembly/binaryen/src/passes/Asyncify.cpp`
+ * (vendored at `WebAssembly/binaryen/src/passes/Asyncify.cpp`). The exact ABI it produces
  * is depended on by TinyGo's runtime, so the transformation and the generated
  * runtime-support functions must match upstream bit-for-bit in shape.
  *

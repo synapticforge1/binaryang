@@ -1,12 +1,12 @@
 /**
- * @module scripts/diff_function
+ * @module scripts/binaryen-ts/diff_function
  *
  * Byte-level diff of the same function across the original input wasm and
  * our re-encoded output. Locates the first divergence so we can identify the
  * pathological instruction that breaks the parse+encode round-trip.
  *
  * Run:
- *   deno run --allow-read scripts/diff_function.ts
+ *   deno run --allow-read scripts/binaryen-ts/diff_function.ts
  *
  * @license MIT
  */

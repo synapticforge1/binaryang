@@ -5,7 +5,7 @@ import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
 
 // T13.44. `release_guard.test.ts` proves `releaseBlockers` returns the right
-// answer. It does NOT prove `scripts/publish.ts` asks the question -- delete
+// answer. It does NOT prove `scripts/release/publish.ts` asks the question -- delete
 // the whole guard block and every one of those tests still passes.
 //
 // That gap is exactly how T13.43 happened: two documents described a

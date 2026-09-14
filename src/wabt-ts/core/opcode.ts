@@ -607,14 +607,14 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_MISC << 16) | 0x16, 'i64.mul_wide_u'],
 
   // --- 0xfd: SIMD / v128 instructions (regenerated from upstream wabt
-  // opcode.def via scripts/gen_simd_opcode_table.ts; cross-checked against
+  // opcode.def via scripts/wabt-ts/gen_simd_opcode_table.ts; cross-checked against
   // https://github.com/WebAssembly/simd/blob/main/proposals/simd/BinarySIMD.md).
   // Previous hand-written entries had drifted: ~95 opcodes were either at
   // wrong byte positions (e.g. i64x2 compares listed at 0x41-0x46 instead of
   // 0xd6-0xdb), missing entirely (extmul, extend_low/high families), or
   // colliding via duplicate keys (relaxed-SIMD ops written as `| 0x100+` end
   // up OR'd into the same 16-bit key as low SIMD opcodes). Run the audit
-  // script (scripts/audit_opcodes.ts) to detect future drift.
+  // script (scripts/wabt-ts/audit_opcodes.ts) to detect future drift.
   //
   // SIMD sub-opcodes >= 0x100 (the relaxed-SIMD set) are LEB128-encoded in the
   // binary. They did NOT fit the old `(prefix << 8) | byte` key: `S(0x100)`

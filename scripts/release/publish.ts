@@ -1,5 +1,5 @@
 /**
- * @module scripts/publish
+ * @module scripts/release/publish
  *
  * Local release driver. Commits and tags whatever `deno.json` currently says,
  * then pushes commit + tag in a single atomic `git push origin main vX.Y.Z`.

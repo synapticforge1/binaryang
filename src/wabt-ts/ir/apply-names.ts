@@ -232,7 +232,7 @@ function rewriteExprListVars(exprs: Expr[], ctx: ApplyContext): void {
 // knowledge that cannot be inferred from the field name alone (`segment` is a
 // data index on `memory.init` and an elem index on `table.init`), and guessing
 // wrong silently renames a reference to a different entity — Bug G's failure
-// mode. `tests/ir/apply_names_total.test.ts` gates both axes.
+// mode. `tests/wabt-ts/ir/apply_names_total.test.ts` gates both axes.
 //
 // Before T13.20 this was a single hand-written switch covering 37 of 87 kinds;
 // the other 50 fell to `default: return e`, so a `global.get` nested inside

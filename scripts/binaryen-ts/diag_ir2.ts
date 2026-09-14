@@ -1,12 +1,12 @@
 /**
- * @module scripts/diag_ir2
+ * @module scripts/binaryen-ts/diag_ir2
  *
  * Dump the IR of one function BOTH from the original parse and from a
  * parse→encode→reparse round-trip, side by side, so encoder-introduced drift
  * is visible directly.
  *
  * Run:
- *   deno run --allow-read scripts/diag_ir2.ts <relpath> <definedFnIndex>
+ *   deno run --allow-read scripts/binaryen-ts/diag_ir2.ts <relpath> <definedFnIndex>
  *
  * @license MIT
  */

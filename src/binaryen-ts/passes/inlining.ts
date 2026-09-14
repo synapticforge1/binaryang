@@ -22,7 +22,7 @@
  *   globally used and not removed after inlining, though they may still be
  *   inlined at their call sites.
  *
- * Reference: `upstream/src/passes/Inlining.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/Inlining.cpp`
  *
  * @license MIT
  */
@@ -174,7 +174,7 @@ function isInlineable(
 
 // ---------------------------------------------------------------------------
 // Split inlining (Pattern A / Pattern B) — port of upstream FunctionSplitter
-// (`upstream/src/passes/Inlining.cpp` lines 740-1240). Enabled by setting
+// (`WebAssembly/binaryen/src/passes/Inlining.cpp` lines 740-1240). Enabled by setting
 // `PassOptions.partialInliningIfs >= 1`. Disabled by default (matches upstream
 // which also defaults to 0). Trades code size for speed: turns a call + branch
 // on the cold path into a single branch by inlining only the "fast-path"
@@ -198,7 +198,7 @@ type SplitMode =
  *  duplicate at every call site as part of a partial inline. Intentionally
  *  narrow: `LocalGet` / `GlobalGet` / `Unary(simple)` / `RefIsNull(simple)`.
  *  Notably NOT `Const` (no benefit — already trivial), NOT `Binary` (compute
- *  cost matters). Matches `upstream/src/passes/Inlining.cpp:1222`. */
+ *  cost matters). Matches `WebAssembly/binaryen/src/passes/Inlining.cpp:1222`. */
 function isSimple(e: Expression): boolean {
   if (e.type === Unreachable) return false;
   if (e.kind === ExpressionKind.LocalGet || e.kind === ExpressionKind.GlobalGet) return true;

@@ -2,7 +2,7 @@
 // imports upstream binaryen via npm: specifier as a trusted disassembler.
 
 /**
- * @module scripts/diff_wat
+ * @module scripts/binaryen-ts/diff_wat
  *
  * Disassembles the same wasm input two ways — directly, and after a parse+
  * encode round-trip through binaryen-ts — using upstream binaryen.js as a
@@ -10,7 +10,7 @@
  * that the round-trip introduces.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/diff_wat.ts
+ *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/diff_wat.ts
  *
  * @license MIT
  */

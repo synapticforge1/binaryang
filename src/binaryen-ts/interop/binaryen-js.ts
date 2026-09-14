@@ -50,7 +50,7 @@
 // ---------------------------------------------------------------------------
 // Binaryen.js type stubs
 // These describe the subset of the binaryen.js API used for interop.
-// Reference: upstream/src/js/binaryen.js-post.js — the Module namespace
+// Reference: WebAssembly/binaryen/src/js/binaryen.js-post.js — the Module namespace
 // (factory) and the object returned by Module['parseText'] / wrapModule.
 // ---------------------------------------------------------------------------
 

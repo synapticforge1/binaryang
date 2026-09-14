@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-import-prefix -- diagnostic: upstream binaryen as trusted disassembler.
 
 /**
- * @module scripts/diag_roundtrip
+ * @module scripts/binaryen-ts/diag_roundtrip
  *
  * General per-file round-trip diagnostic. Parses a .wasm with binaryen-ts,
  * re-encodes, then disassembles BOTH the original and the re-encoded output
@@ -9,7 +9,7 @@
  * function so the offending construct can be read directly.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/diag_roundtrip.ts <relpath-under-upstream/test>
+ *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/diag_roundtrip.ts <relpath-under-upstream/test>
  *
  * @license MIT
  */

@@ -165,7 +165,7 @@ describe('GC Tier 2: struct.get opcode encoding + signedness', () => {
     // bytes engines reject -- and 1.5.0 fixed it with `packedGetSubop`.
     //
     // The test pinned a documented upstream DEFECT, so fixing the defect broke
-    // it. That is the same shape as tests/wasmtk's KNOWN_INVALID: an
+    // it. That is the same shape as tests/wabt-ts/wasmtk's KNOWN_INVALID: an
     // assertion whose job is to go red when someone else's bug is fixed. Keep
     // it that way round -- it is how we learn the fix landed.
     const wasm = bridge(`(module

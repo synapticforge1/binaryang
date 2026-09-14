@@ -275,7 +275,7 @@ never the thing we were measuring.
 
 **This one we had recorded wrong, and the correction is in your favour.** Our older note said
 "`ValType` cannot express a concrete typed reference — it is a flat string enum" and called it a
-design limit. v1.3.5 has `RefType { heap: HeapType; nullable: boolean }` in `src/ir/gc-types.ts`,
+design limit. v1.3.5 has `RefType { heap: HeapType; nullable: boolean }` in `src/binaryen-ts/ir/gc-types.ts`,
 the expression-level `Type` includes it, and `FuncTypeDef.params` / `.results` are already
 `(ValType | RefType)[]`. The representational work is done.
 

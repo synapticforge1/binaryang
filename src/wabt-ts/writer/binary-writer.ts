@@ -1428,7 +1428,7 @@ class BinaryWriter {
         // `(ref func)` table. Emitting expressions unconditionally made every
         // `(table 10 (ref func) …)` module fail with "Element segment of type
         // funcref is not a subtype of referenced table 0". Verified against V8
-        // for all five candidate encodings; see tests/writer/elem_form.test.ts.
+        // for all five candidate encodings; see tests/wabt-ts/writer/elem_form.test.ts.
         // Only when the declared type IS the funcidx form's own type. An
         // explicitly-written `funcref` elemlist is NULLABLE and must keep the
         // expression form, or the encoding silently widens — and a module the

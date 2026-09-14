@@ -2,7 +2,7 @@
 // imports upstream binaryen via npm: specifier for head-to-head comparison.
 
 /**
- * @module scripts/headtohead_bench
+ * @module scripts/binaryen-ts/headtohead_bench
  *
  * Head-to-head bench: npm:binaryen (upstream Emscripten-built C++) vs
  * @jrmarcum/binaryen-ts/compat (this repo's TypeScript implementation) on
@@ -28,7 +28,7 @@
  *
  * Run (requires npm:binaryen to be cached on first call):
  *   deno run --allow-read --allow-env --allow-net --allow-write --allow-ffi \
- *     scripts/headtohead_bench.ts
+ *     scripts/binaryen-ts/headtohead_bench.ts
  *
  * @license MIT
  */

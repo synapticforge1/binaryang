@@ -576,7 +576,7 @@ Deno.test('EH encoder: multi-instruction catch handler is not wrapped in a spuri
 // stack for fallthru, found 2". The parser now seeds one typed `Pop` per tag
 // param and pops the topmost *value* (skipping `none` statements), so each bind
 // carries a real `Pop` that survives optimization as `drop(pop)`. (Reported by
-// the wasmtk team against binaryen-ts 1.2.9 via tests/wasm_wasi/15_recover.)
+// the wasmtk team against binaryen-ts 1.2.9 via wasmtk/tests/wasi/wasm_wasi/15_recover.ts.)
 const CATCH_DEAD_BINDS_MODULE = new Uint8Array([
   0,
   97,

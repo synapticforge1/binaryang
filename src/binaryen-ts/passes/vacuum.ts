@@ -15,7 +15,7 @@
  * - `drop(local.get)` → `nop` (local reads have no side effects).
  * - `drop(global.get)` → `nop` (global reads have no side effects).
  *
- * Reference: `upstream/src/passes/Vacuum.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/Vacuum.cpp`
  *
  * @license MIT
  */

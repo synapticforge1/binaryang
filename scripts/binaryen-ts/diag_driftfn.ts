@@ -1,12 +1,12 @@
 /**
- * @module scripts/diag_driftfn
+ * @module scripts/binaryen-ts/diag_driftfn
  *
  * Find which function(s) change expression count across a parse→encode→reparse
  * round-trip — these are where the encoder emits a byte stream our parser then
  * reconstructs differently (typically via empty-stack nop insertion).
  *
  * Run:
- *   deno run --allow-read scripts/diag_driftfn.ts <relpath>
+ *   deno run --allow-read scripts/binaryen-ts/diag_driftfn.ts <relpath>
  *
  * @license MIT
  */

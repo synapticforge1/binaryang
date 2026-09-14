@@ -1,11 +1,11 @@
 /**
- * @module scripts/diag_cfg
+ * @module scripts/binaryen-ts/diag_cfg
  *
  * Dump the CFG + liveness of _fib (fib-dbg defined-fn #5): per block its
  * actions, in/out edges, and computed live-in/live-out sets. Reveals where
  * liveness fails to propagate (e.g. a use whose block has no predecessor link).
  *
- * Run: deno run --allow-read scripts/diag_cfg.ts
+ * Run: deno run --allow-read scripts/binaryen-ts/diag_cfg.ts
  *
  * @license MIT
  */

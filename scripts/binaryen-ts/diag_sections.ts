@@ -1,5 +1,5 @@
 /**
- * @module scripts/diag_sections
+ * @module scripts/binaryen-ts/diag_sections
  *
  * Dump the top-level section list (id + name-for-custom + byte size) of a wasm
  * binary, for the original input and for our parse→encode round-trip output,
@@ -7,7 +7,7 @@
  * whether custom (e.g. DWARF `.debug_*`) sections are dropped.
  *
  * Run:
- *   deno run --allow-read scripts/diag_sections.ts <relpath-under-upstream/test>
+ *   deno run --allow-read scripts/binaryen-ts/diag_sections.ts <relpath-under-upstream/test>
  *
  * @license MIT
  */

@@ -2,13 +2,13 @@
  * @module binaryen-ts/tests/binary/ref_null_heap_test
  *
  * Regression tests for the last two corpus round-trip defects, both found by
- * `scripts/verify_roundtrip.ts` over the upstream test tree.
+ * `scripts/binaryen-ts/verify_roundtrip.ts` over the upstream test tree.
  *
  * 1. **`ref.null` collapsed every heap type to `externref`.** Both decode sites
  *    did `r.readU8()` then `ht === 0x70 ? FuncRef : ExternRef`. Wrong twice: a
  *    heap type is a signed LEB (`s33`), not one byte; and every non-`func` heap
  *    type — `none`, `noextern`, `eq`, a concrete `$T` — became `extern`. On
- *    `upstream/test/unit/input/gc_target_feature.wasm` that turned a valid
+ *    `WebAssembly/binaryen/test/unit/input/gc_target_feature.wasm` that turned a valid
  *    `(global (mut eqref) (ref.null none))` into a module V8 rejects:
  *    "type error in constant expression[0] (expected eqref, got externref)".
  *
@@ -38,7 +38,7 @@ import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { isRefType, type RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 
 /**
- * `upstream/test/unit/input/gc_target_feature.wasm`, minus its custom sections:
+ * `WebAssembly/binaryen/test/unit/input/gc_target_feature.wasm`, minus its custom sections:
  *
  * ```wat
  * (global (mut externref) (ref.null noextern))   ;; heap type 0x72

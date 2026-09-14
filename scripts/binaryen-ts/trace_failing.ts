@@ -6,7 +6,7 @@
  * parser handler isn't pushing.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/trace_failing.ts
+ *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/trace_failing.ts
  */
 
 import * as fs from 'node:fs/promises';

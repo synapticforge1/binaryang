@@ -1866,7 +1866,7 @@ class WatWriter extends ModuleContext {
    * duplication (T10.6). Verified by deleting the `ref.i31` case: a table
    * initializer came out as `(i32.const 7 ref.i31 (i32.const 7))`.
    *
-   * Gated by `tests/writer/const_expr_head_coupling.test.ts` (T13.21), which
+   * Gated by `tests/wabt-ts/writer/const_expr_head_coupling.test.ts` (T13.21), which
    * reads both switches out of this file and fails if they drift.
    */
   private writeInstrHead(e: Expr): void {
@@ -2406,7 +2406,7 @@ class WatWriter extends ModuleContext {
  * instruction with its operands AND then the operands again, which reparses
  * cleanly as a different module. Returning `[]` (a leaf) carries no such
  * obligation — that path never calls `writeInstrHead`. Gated by
- * `tests/writer/const_expr_head_coupling.test.ts` (T13.21).
+ * `tests/wabt-ts/writer/const_expr_head_coupling.test.ts` (T13.21).
  */
 function constExprOperands(e: Expr): Expr[] | null {
   switch (e.kind) {

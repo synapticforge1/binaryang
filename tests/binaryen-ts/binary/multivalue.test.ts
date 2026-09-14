@@ -532,7 +532,7 @@ Deno.test('multi-result block: type-index ordering survives the full -Oz pipelin
 // module failed with `unresolved function type`.
 //
 // The fix is not "add the missing case": it is to stop keeping a second
-// enumeration at all. `visitChildren` from `src/ir/walk.ts` is the authoritative
+// enumeration at all. `visitChildren` from `src/binaryen-ts/ir/walk.ts` is the authoritative
 // one and THROWS on an unhandled kind, so the next node added cannot go missing
 // the same way.
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 /**
- * @module scripts/repro_branch_value
+ * @module scripts/binaryen-ts/repro_branch_value
  *
  * Hypothesis: our encoder mis-emits `br` instructions to value-typed
  * blocks, dropping the value-providing expression. This reproducer:
@@ -12,7 +12,7 @@
  * fannkuch0_dwarf.wasm followed by encode breaks).
  *
  * Run:
- *   deno run --allow-read scripts/repro_branch_value.ts
+ *   deno run --allow-read scripts/binaryen-ts/repro_branch_value.ts
  *
  * @license MIT
  */

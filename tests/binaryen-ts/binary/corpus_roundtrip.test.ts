@@ -5,7 +5,7 @@
  * nothing drifts, nothing fails to re-encode, and nothing that validated on the
  * way in fails to validate on the way out.
  *
- * This was `scripts/verify_roundtrip.ts`, kept out of the suite with the note
+ * This was `scripts/binaryen-ts/verify_roundtrip.ts`, kept out of the suite with the note
  * "promote to a real test once the parser is provably clean". It is now: the
  * corpus stands at 80 exact, 0 structural drift, 0 validate failures, and the
  * 10 remaining rejections are deliberate. Leaving it as a script meant nobody
@@ -37,7 +37,7 @@ import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
 // `path.fromFileUrl` is Deno-std; this file uses `node:path` for cross-runtime
 // parity with the rest of the tree, so convert the URL by hand (matching
-// scripts/verify_roundtrip.ts). The leading slash of a Windows file URL
+// scripts/binaryen-ts/verify_roundtrip.ts). The leading slash of a Windows file URL
 // path ("/D:/...") has to go.
 const asPath = (rel: string): string =>
   decodeURIComponent(new URL(rel, import.meta.url).pathname).replace(/^\/(?=[A-Za-z]:)/, '');

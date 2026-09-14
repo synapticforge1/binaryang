@@ -24,7 +24,7 @@
  * global access patterns introduced by host imports are assumed to be
  * visible and are not analysed.
  *
- * Reference: `upstream/src/passes/RemoveUnusedModuleElements.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/RemoveUnusedModuleElements.cpp`
  *
  * @license MIT
  */

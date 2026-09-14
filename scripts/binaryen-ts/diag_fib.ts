@@ -1,12 +1,12 @@
 /**
- * @module scripts/diag_fib
+ * @module scripts/binaryen-ts/diag_fib
  *
  * Isolate where `_fib` stops matching the input: compare `_fib(n)` of the
  * original against (a) our parse→encode (no passes) and (b) each -Oz pass added
  * cumulatively. Pinpoints whether a semantic divergence is in the encoder or a
  * specific pass.
  *
- * Run: deno run --allow-read scripts/diag_fib.ts
+ * Run: deno run --allow-read scripts/binaryen-ts/diag_fib.ts
  *
  * @license MIT
  */

@@ -60,13 +60,23 @@
  * ## Architecture
  *
  * ```
- * binaryen-ts/ts/
- * ├── src/ir/        IR types and module builder  (@jrmarcum/binaryang/ir/binaryen-ts)
- * ├── src/passes/    Optimization pass registry   (@jrmarcum/binaryang/passes)
- * ├── src/tools/     CLI tools (wasm-opt, etc.)
- * ├── src/api/       Unified high-level API       (@jrmarcum/binaryang/api)
- * ├── src/interop/   Upstream binaryen.js bridge  (@jrmarcum/binaryang/interop)
- * └── upstream/      Upstream Binaryen C++ source (git submodule, reference)
+ * binaryang/
+ * ├── main.ts                     this CLI entry: `binaryang <tool>`
+ * ├── src/binaryen-ts/
+ * │   ├── ir/                     IR types and module builder   (@jrmarcum/binaryang/ir/binaryen-ts)
+ * │   ├── passes/                 optimization pass registry    (@jrmarcum/binaryang/passes)
+ * │   ├── api/                    high-level API + compat facade (@jrmarcum/binaryang/api, /compat/binaryen)
+ * │   ├── interop/                upstream binaryen.js bridge   (@jrmarcum/binaryang/interop)
+ * │   └── tools/                  wasm-opt                      (@jrmarcum/binaryang/tools/wasm-opt)
+ * ├── src/wabt-ts/
+ * │   ├── ir/ core/               IR and core vocabulary        (@jrmarcum/binaryang/ir/wabt-ts, /core/wabt-ts)
+ * │   ├── api/                    compat facade                 (@jrmarcum/binaryang/compat/wabt)
+ * │   └── tools/                  wat2wasm, wasm2wat, wasm-validate, wasm-objdump, wasm-strip, wasm2ts
+ * ├── src/bridge/                 wabt-ts IR -> binaryen-ts IR (internal; S6 deletes it)
+ * └── src/cli/                    shared cross-runtime CLI helpers
+ *
+ * Upstream C++ is cited by its upstream path (`WebAssembly/binaryen/src/…`, `WebAssembly/wabt`);
+ * it is not part of this repository.
  * ```
  *
  * @license MIT
@@ -89,7 +99,7 @@ import { main as wasm2tsMain } from './src/wabt-ts/tools/wasm2ts.ts';
  * Package version.
  *
  * Kept in sync with `deno.json` MECHANICALLY, not by hand: `deno task bump` rewrites
- * this line as well, and `tests/version_sync_test.ts` fails if the two ever disagree.
+ * this line as well, and `tests/binaryen-ts/version_sync.test.ts` fails if the two ever disagree.
  * The previous "keep in sync by hand" comment is what this looked like after someone
  * did not — `--version` printed 1.3.4 through two minor releases.
  *

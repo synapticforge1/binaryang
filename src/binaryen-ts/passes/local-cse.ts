@@ -31,7 +31,7 @@
  * encountered, all cached CSE entries that reference `local.get(i)` are
  * evicted. Global-writes and calls evict all cached entries.
  *
- * Reference: `upstream/src/passes/LocalCSE.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/LocalCSE.cpp`
  *
  * @license MIT
  */
@@ -261,7 +261,7 @@ function _countKeys(
 
 /**
  * Whether a repeated expression is WORTH caching — upstream's `isRelevant`
- * (`upstream/src/passes/LocalCSE.cpp:344`), ported rule for rule.
+ * (`WebAssembly/binaryen/src/passes/LocalCSE.cpp:344`), ported rule for rule.
  *
  * - never a `local.get` (or set): that is what CSE rewrites INTO, so caching
  *   one replaces a two-byte read with a tee and a read of a NEW local;

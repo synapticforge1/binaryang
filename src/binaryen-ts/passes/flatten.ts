@@ -10,7 +10,7 @@
  *    value, if any, flows out through a temp local; their conditions are
  *    trivial.
  *
- * This mirrors upstream Binaryen's `src/passes/Flatten.cpp`. It is a
+ * This mirrors upstream Binaryen's `WebAssembly/binaryen/src/passes/Flatten.cpp`. It is a
  * prerequisite for the Asyncify flow transform (`asyncify.ts` Stage 3), which
  * relies on calls being standalone statements and on control-flow conditions
  * being trivial so it can wrap each call and "skip forward" while rewinding.

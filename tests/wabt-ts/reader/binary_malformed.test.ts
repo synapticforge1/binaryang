@@ -35,7 +35,7 @@
 // numeric id order. The tag section is id 13 but sits between memory and
 // global, and the data-count section is id 12 but sits between elem and code.
 // Comparing ids numerically would accept an order no producer may emit and
-// reject a legal one, so `sectionOrderRank` in `src/core/binary.ts` holds the
+// reject a legal one, so `sectionOrderRank` in `src/wabt-ts/core/binary.ts` holds the
 // one order — the same one `writeBinaryIr` emits.
 //
 // assert_malformed (binary): 638 -> 711 / 711. Other six metrics unmoved.

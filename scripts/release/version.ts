@@ -1,5 +1,5 @@
 /**
- * @module scripts/version
+ * @module scripts/release/version
  *
  * Shared version helpers for the release scripts. binaryang's versioning rule,
  * inherited unchanged from both predecessors: each sub-version maxes at 9

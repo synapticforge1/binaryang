@@ -1,11 +1,11 @@
 /**
- * @module scripts/diag_ir
+ * @module scripts/binaryen-ts/diag_ir
  *
  * Dump the parsed IR tree of one function as an indented s-expression so we can
  * see node kinds and inferred `.type` fields directly.
  *
  * Run:
- *   deno run --allow-read scripts/diag_ir.ts <relpath> <funcIndexInDefined>
+ *   deno run --allow-read scripts/binaryen-ts/diag_ir.ts <relpath> <funcIndexInDefined>
  *
  * @license MIT
  */

@@ -15,7 +15,7 @@
  * and is therefore equivalent to a straight-line sequence — the loop wrapper
  * is replaced by its body.
  *
- * Reference: `upstream/src/passes/RemoveUnusedNames.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/RemoveUnusedNames.cpp`
  *
  * @license MIT
  */

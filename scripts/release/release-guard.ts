@@ -1,7 +1,7 @@
 /**
- * @module scripts/release-guard
+ * @module scripts/release/release-guard
  *
- * Pure helpers for the release preflight in `scripts/publish.ts`, kept in
+ * Pure helpers for the release preflight in `scripts/release/publish.ts`, kept in
  * their own module so they can be TESTED. `publish.ts` is a top-level script
  * with side effects on import (it stages, tags and pushes), so nothing can
  * import it to check its logic — which is how it went four releases claiming

@@ -11,7 +11,7 @@
  *
  * ## Why this exists
  *
- * The pass infrastructure (`src/passes/pass.ts`) documents three optimisation
+ * The pass infrastructure (`src/binaryen-ts/passes/pass.ts`) documents three optimisation
  * tiers: pure TypeScript, `wasic`-compiled TypeScript, and the upstream
  * `binaryen.js` WASM. This runtime is the bridge for the middle tier — it
  * decouples kernel embedding from kernel call sites so individual passes

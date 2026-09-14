@@ -8,7 +8,7 @@
  * files that embed the bytes as `Uint8Array` constants suitable for import by
  * the runtime ({@link ../wasm-runtime.ts}).
  *
- * Build: `deno run --allow-read --allow-write scripts/gen_demo_bytes.ts`
+ * Build: `deno run --allow-read --allow-write scripts/binaryen-ts/gen_demo_bytes.ts`
  *
  * The build pipeline is self-hosted — binaryen-ts' own Phase 1 WAT parser
  * and Phase 3 binary encoder produce the embedded bytes. No external
@@ -22,7 +22,7 @@ export { DEMO_BYTES } from './demo_bytes.ts';
 /**
  * Spec for the Phase 10 demo kernel — three trivial single-opcode i32 functions.
  *
- * Used by the boundary-cost benchmark and by `tests/wasm/runtime_test.ts` to
+ * Used by the boundary-cost benchmark and by `tests/binaryen-ts/wasm/runtime.test.ts` to
  * exercise the {@link ../wasm-runtime.ts | runtime} end-to-end. NOT intended
  * to be wired into any optimisation pass — the per-call boundary cost would
  * regress against the native TypeScript implementation.

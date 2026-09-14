@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * Round-trip integration test: every `.wat` file under `tests/wasmtk/` is run
+ * Round-trip integration test: every `.wat` file under `tests/wabt-ts/wasmtk/` is run
  * through `wat2wasm` → `wasm2wat` → `wat2wasm`, asserting the disassembly
  * RE-COMPILES cleanly. This is the structural guard for the
  * invalid-`wasm2wat`-output class of bug (e.g. the 2026-06-09 round-5 finding

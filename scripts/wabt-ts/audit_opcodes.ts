@@ -1,7 +1,7 @@
 /**
  * Audit wabt-ts EXTENDED_OPCODE_NAMES against upstream wabt's opcode.def.
  *
- * Run: deno run -A scripts/audit_opcodes.ts
+ * Run: deno run -A scripts/wabt-ts/audit_opcodes.ts
  *
  * Prints any (prefix, byte, name) discrepancies. Fail-loud: if upstream and
  * wabt-ts disagree on a name, that's almost certainly a stale-draft entry
