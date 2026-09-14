@@ -1351,6 +1351,22 @@ export interface CallExpr extends ExprBase {
   isReturn: boolean;
 }
 
+/**
+ * A function signature: parameter and result types, together.
+ *
+ * wabt-ts's house concept (`FuncSignature` in `wabt-ts/ir/ir.ts`, on `Func`, the
+ * func type entry, the func import and `call_indirect`), with the same name and
+ * shape here over binaryen-ts's value types; the two become one when S6 unifies
+ * the type systems. One field, so a signature's two halves travel together and
+ * cannot be set or compared one at a time.
+ */
+export interface FuncSignature {
+  /** Parameter types in declaration order. */
+  params: ValueType[];
+  /** Result types in declaration order (empty = void). */
+  results: ValueType[];
+}
+
 /** {@link CallIndirectExpr} — see {@link makeCallIndirect} for the factory. */
 export interface CallIndirectExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
@@ -1370,10 +1386,16 @@ export interface CallIndirectExpr extends ExprBase {
   callee: Expression;
   /** Argument expressions in declaration order. */
   operands: Expression[];
-  /** params — see the matching factory for semantics. */
-  params: ValueType[];
-  /** results — see the {@link make} factory for semantics. */
-  results: ValueType[];
+  /**
+   * The signature the call expects the table entry to have.
+   *
+   * 🔧 It was flat `params` + `results`. S6 Group 3's one tie where cost and
+   * structure pointed opposite ways (11 compile errors to convert wabt-ts, 16 to
+   * convert binaryen-ts — but 10 vs 9 in source alone); the owner took wabt-ts's
+   * `sig` (2026-09-14), the form beside its `typeVar` / `typeUse` and the one
+   * `FidelityEntry.sig` keys on (cmem/ir-convergence.md § "Group 3").
+   */
+  sig: FuncSignature;
   /** isReturn — see the matching factory for semantics. */
   isReturn: boolean;
   /**
@@ -2545,21 +2567,19 @@ export function makeSelect(
 /** Creates a `call_indirect` expression. */
 export function makeCallIndirect(
   table: Var,
-  target: Expression,
+  callee: Expression,
   operands: Expression[],
-  params: ValueType[],
-  results: ValueType[],
+  sig: FuncSignature,
   isReturn = false,
 ): CallIndirectExpr {
-  const type: Type = results[0] ?? None;
+  const type: Type = sig.results[0] ?? None;
   return {
     kind: ExpressionKind.CallIndirect,
     type,
     table,
-    callee: target,
+    callee,
     operands,
-    params,
-    results,
+    sig,
     isReturn,
   };
 }

@@ -1406,9 +1406,10 @@ export class Module {
     params: number | number[],
     results: number | number[],
   ): Expression {
-    const paramVts = _idToValTypeArray(params);
-    const resultVts = _idToValTypeArray(results);
-    return makeCallIndirect(varName(table), target, operands, paramVts, resultVts);
+    return makeCallIndirect(varName(table), target, operands, {
+      params: _idToValTypeArray(params),
+      results: _idToValTypeArray(results),
+    });
   }
 
   /** `return value?` — return from the current function. */

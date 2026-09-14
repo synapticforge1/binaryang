@@ -1073,19 +1073,15 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const tableName = resolveVarName(ci.table, ctx.tableNames);
       const target = bridgeExpr(ci.callee, ctx);
       const operands = ci.operands.map((a) => bridgeExpr(a, ctx));
-      // binaryen-ts's makeCallIndirect surface accepts ValType[] (single-result
-      // result list). Multi-result calls fall through to the multi-value check
-      // below.
+      // Both IRs carry the signature as one `sig` now; only its value types
+      // differ between the two type systems. Multi-result calls are refused.
       if (ci.sig.results.length > 1) {
         throw new Error('Bridge: multi-value call_indirect not yet supported');
       }
-      return makeCallIndirect(
-        varName(tableName),
-        target,
-        operands,
-        ci.sig.params.map(wabtTypeToValType),
-        ci.sig.results.map(wabtTypeToValType),
-      );
+      return makeCallIndirect(varName(tableName), target, operands, {
+        params: ci.sig.params.map(wabtTypeToValType),
+        results: ci.sig.results.map(wabtTypeToValType),
+      });
     }
 
     // --- Select -----------------------------------------------------------

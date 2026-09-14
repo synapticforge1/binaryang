@@ -56,16 +56,19 @@ describe('WAT parser — numeric type references', () => {
     const e = findCallIndirect(
       `${HEAD}(call_indirect $tbl (type $t) (i32.const 1) (i64.const 2) (i32.const 0))${TAIL}`,
     );
-    assertEquals(e.params.length, 2, 'two params from the referenced type');
-    assertEquals(e.results.length, 1);
+    assertEquals(e.sig.params.length, 2, 'two params from the referenced type');
+    assertEquals(e.sig.results.length, 1);
+    // The signature is ONE field, as in wabt-ts (owner decision 3, 2026-09-14).
+    // @ts-expect-error — no flat `params` beside `sig` to disagree with it
+    assertEquals(e.params, undefined);
   });
 
   it('a NUMERIC type ref resolves the SAME signature', () => {
     const e = findCallIndirect(
       `${HEAD}(call_indirect $tbl (type 0) (i32.const 1) (i64.const 2) (i32.const 0))${TAIL}`,
     );
-    assertEquals(e.params.length, 2, 'index 0 is $t, which has two params');
-    assertEquals(e.results.length, 1);
+    assertEquals(e.sig.params.length, 2, 'index 0 is $t, which has two params');
+    assertEquals(e.sig.results.length, 1);
   });
 
   it('an ANONYMOUS type declaration is reachable only by index', () => {
@@ -73,7 +76,7 @@ describe('WAT parser — numeric type references', () => {
       '(module (type (func (param i32 i64) (result f32))) (table $tbl 1 funcref) ' +
         '(func (export "f") (call_indirect $tbl (type 0) (i32.const 1) (i64.const 2) (i32.const 0))))',
     );
-    assertEquals(e.params.length, 2);
+    assertEquals(e.sig.params.length, 2);
   });
 
   // The fail-loud path must survive: an index naming nothing is still an error,

@@ -973,7 +973,7 @@ class WasmEncoder {
   ): void {
     if (expr.kind === ExpressionKind.CallIndirect) {
       const e = expr as CallIndirectExpr;
-      addType(e.params, e.results);
+      addType(e.sig.params, e.sig.results);
     }
     // ⚠️ Only a CONTROL construct needs a type-section entry for its result: it
     // is the one that writes a blocktype, and a blocktype above the inline forms
@@ -2170,8 +2170,8 @@ class WasmEncoder {
         // different instruction for the same behaviour (T1).
         const ciIdx = e.typeIndex ??
           (this.heapTypes.length > 0
-            ? this.gcFuncTypeIndex(e.params, e.results)
-            : this.getTypeIndex(e.params, e.results));
+            ? this.gcFuncTypeIndex(e.sig.params, e.sig.results)
+            : this.getTypeIndex(e.sig.params, e.sig.results));
         w.writeU32(ciIdx);
         w.writeU32(this.resolveRef(this.tableIndex, e.table, 'call_indirect table'));
         break;
