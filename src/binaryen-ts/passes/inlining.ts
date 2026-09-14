@@ -984,17 +984,21 @@ export class InliningPass implements Pass {
     // now counted per ACTION, as upstream counts it, and the recount of what
     // REMAINS is a second, independent guard.
     //
-    // ⚠️ Unlike upstream, a function never inlined but unreferenced (0 consumed
-    // of 0 refs) is removed here too — divergence I1: -O3 runs no
-    // RemoveUnusedModuleElements, and this is its only dead-function removal.
-    // Repeated until nothing more goes, so a function referenced only from a
-    // body removed in the same round goes with it, as it did before.
+    // Only a function this pass INLINED is a candidate, as upstream
+    // (`inlinedUses.contains(name)`). 🔧 A never-inlined unreferenced function
+    // (0 consumed of 0 refs) used to be removed too — divergence I1, the only
+    // dead-function removal -O3 had. Dead code is RemoveUnusedModuleElements'
+    // job, now scheduled where upstream schedules it (owner, 2026-09-14;
+    // `dead_function_removal.test.ts`).
+    // Repeated until nothing more goes, so a callee referenced only from another
+    // callee removed in the same round goes with it.
     for (let before = -1; before !== module.functions.length;) {
       before = module.functions.length;
       const after = buildFunctionInfo(module);
       module.functions = module.functions.filter((fn) => {
         const fi = info.get(fn.name);
         const now = after.get(fn.name);
+        if (!consumed.has(fn.name)) return true;
         if (!fi || !now || fi.usedGlobally || now.usedGlobally) return true;
         const allConsumed = (consumed.get(fn.name) ?? 0) >= fi.refs;
         return !(allConsumed && now.refs === 0);

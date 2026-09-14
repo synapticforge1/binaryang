@@ -99,8 +99,11 @@ function buildDeadCodeWasm(): Uint8Array {
     makeNop(), // dead
     makeNop(), // dead
   ]);
+  // Exported: since RemoveUnusedModuleElements runs at every -O level (as
+  // upstream), an unreferenced function is removed before this can look at it.
   const mod = new ModuleBuilder()
     .addFunction('fn', [], [], body)
+    .addExport('fn', 'fn')
     .build();
   return encodeWasm(mod);
 }
@@ -364,8 +367,10 @@ Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => 
     [makeI32Const(42)],
     'dead_label',
   );
+  // Exported, so RemoveUnusedModuleElements (every -O level) keeps it.
   const mod = new ModuleBuilder()
     .addFunction('fn', [], [ValType.I32], body)
+    .addExport('fn', 'fn')
     .build();
   const input = encodeWasm(mod);
 
