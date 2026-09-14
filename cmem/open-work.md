@@ -68,7 +68,7 @@ inlined.
    direction: fix it to behave as upstream does.
 2. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
    `ref.as_non_null` refusal is among the 20 misses.
-2. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
+3. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
 
 ## Owner actions — nothing here is blocked on code
 
