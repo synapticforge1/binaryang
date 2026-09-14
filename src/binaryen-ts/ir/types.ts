@@ -4,7 +4,7 @@
  * WebAssembly type system definitions for the binaryen-ts IR.
  *
  * This module mirrors the type hierarchy in the upstream Binaryen C++ library
- * (`src/wasm-type.h`) and represents it as TypeScript discriminated unions and
+ * (`WebAssembly/binaryen/src/wasm-type.h`) and represents it as TypeScript discriminated unions and
  * const enums for zero-cost type safety.
  *
  * **Value types** are the primitive types that WASM values carry at runtime.

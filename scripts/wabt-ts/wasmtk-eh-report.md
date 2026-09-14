@@ -16,7 +16,7 @@ Everything below was measured, not inferred. Paste from the horizontal rule down
 ## Prompt
 
 You are working in the **wasmtk** repo. This is a bug report from the sibling **wabt-ts** project,
-which uses wasmtk's `tests/wasmtk/` WAT corpus (272 files, 270 of them importing
+which uses wasmtk's `tests/wabt-ts/wasmtk/` WAT corpus (272 files, 270 of them importing
 `wasi_snapshot_preview1`) as its real-world conformance yardstick.
 
 Please read this, confirm it against the code, and record it in `cmem/compiler-bugs.md` per that
@@ -189,12 +189,12 @@ than take it on trust — recompiled each from the wasmtk checkout with
 | all seven, our validator | INVALID         | **valid**                  |
 | spot-checked on Wasmtime | —               | **exit 0, correct output** |
 
-The cause is ours: `tests/wasmtk/` is a **frozen 272-file snapshot** of wasmtk's build output with
+The cause is ours: `tests/wabt-ts/wasmtk/` is a **frozen 272-file snapshot** of wasmtk's build output with
 no recorded provenance, and our `KNOWN_INVALID` assertion — written deliberately to go red when
 wasic is fixed, so the list would shrink — kept passing because it was re-checking bytes that
 predate the fix. **It masked the fix instead of tracking it, the inverse of its purpose.**
 
-Fixed on our side: `tests/wasmtk/PROVENANCE.md` now records what the directory is, when it was
+Fixed on our side: `tests/wabt-ts/wasmtk/PROVENANCE.md` now records what the directory is, when it was
 taken, that it is 272 files against wasmtk's current 373, and the rule that no present-tense claim
 about wasic may be derived from it. The full refresh is queued as its own change.
 

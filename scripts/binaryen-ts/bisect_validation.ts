@@ -1,5 +1,5 @@
 /**
- * @module scripts/bisect_validation
+ * @module scripts/binaryen-ts/bisect_validation
  *
  * Bisects where validation breaks for ours: encoder-only, then each pass
  * individually on top of the parse, on a previously-failing module.
@@ -8,7 +8,7 @@
  * a non-validating .wasm.
  *
  * Run:
- *   deno run --allow-read --allow-env scripts/bisect_validation.ts
+ *   deno run --allow-read --allow-env scripts/binaryen-ts/bisect_validation.ts
  *
  * @license MIT
  */

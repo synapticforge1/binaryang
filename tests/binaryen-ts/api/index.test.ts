@@ -1,7 +1,7 @@
 /**
  * @module binaryen-ts/tests/api/index_test
  *
- * Tests for the high-level `createModule` / `Module` API in `src/api/index.ts`.
+ * Tests for the high-level `createModule` / `Module` API in `src/binaryen-ts/api/index.ts`.
  *
  * @license MIT
  */

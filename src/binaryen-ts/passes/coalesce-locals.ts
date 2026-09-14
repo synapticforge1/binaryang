@@ -35,8 +35,8 @@
  * treated as interfering. This closes the residual gap from the previous
  * ordinal-based segment model.
  *
- * Reference: `upstream/src/passes/CoalesceLocals.cpp`,
- * `upstream/src/cfg/liveness-traversal.h`
+ * Reference: `WebAssembly/binaryen/src/passes/CoalesceLocals.cpp`,
+ * `WebAssembly/binaryen/src/cfg/liveness-traversal.h`
  *
  * @license MIT
  */

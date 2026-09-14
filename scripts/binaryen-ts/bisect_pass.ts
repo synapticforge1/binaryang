@@ -1,5 +1,5 @@
 /**
- * @module scripts/bisect_pass
+ * @module scripts/binaryen-ts/bisect_pass
  *
  * Isolate which optimization pass turns a (valid) parsed module into invalid
  * wasm. Runs each named pass individually (parse → single pass → encode →
@@ -7,7 +7,7 @@
  * -Oz pipeline prefix-by-prefix to find the first breaking step.
  *
  * Run:
- *   deno run --allow-read scripts/bisect_pass.ts <relpath>
+ *   deno run --allow-read scripts/binaryen-ts/bisect_pass.ts <relpath>
  *
  * @license MIT
  */

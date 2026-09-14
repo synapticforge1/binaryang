@@ -12,7 +12,7 @@
  * validation pass that only checks structure without building an IR.
  *
  * In the TypeScript port the equivalent is {@link NopDelegate} from
- * `src/ir/expr-visitor.ts`. This module re-exports it under the name
+ * `src/wabt-ts/ir/expr-visitor.ts`. This module re-exports it under the name
  * `BinaryReaderNop` to preserve source-naming compatibility.
  */
 

@@ -1,4 +1,4 @@
-# `tests/wasmtk/` — what this corpus is, and when it was taken
+# `tests/wabt-ts/wasmtk/` — what this corpus is, and when it was taken
 
 **This directory is a FROZEN SNAPSHOT of another project's build output, not a live view of it.**
 Read that before drawing any conclusion about wasmtk or its wasic compiler from what is in here.
@@ -104,4 +104,4 @@ deno run -A main.ts wasic tests/wasi/wasm_wasi/<name>.ts -o <out>/<name>.wasm
 A full refresh is 373 modules and moves the WASI round-trip denominator, so it is its own change
 with its own re-measurement — not a drive-by. When it happens, expect `KNOWN_INVALID` to empty out
 (all seven are fixed upstream) and expect the legacy-EH modules to change shape if wasic has
-migrated to `try_table` by then (**10 of them upstream, of which this snapshot holds 6**) (see `scripts/wasmtk-eh-report.md`).
+migrated to `try_table` by then (**10 of them upstream, of which this snapshot holds 6**) (see `scripts/wabt-ts/wasmtk-eh-report.md`).

@@ -1,5 +1,5 @@
 /**
- * @module scripts/probe_corpus
+ * @module scripts/binaryen-ts/probe_corpus
  *
  * Phase 10 profiling step 0 — discover which upstream/test/*.wasm files parse
  * cleanly with our binary parser. Reports byte size, function count, total
@@ -7,7 +7,7 @@
  * profiler harness when picking a corpus subset.
  *
  * Run:
- *   deno run --allow-read scripts/probe_corpus.ts
+ *   deno run --allow-read scripts/binaryen-ts/probe_corpus.ts
  *
  * @license MIT
  */

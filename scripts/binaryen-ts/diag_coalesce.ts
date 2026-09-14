@@ -1,12 +1,12 @@
 /**
- * @module scripts/diag_coalesce
+ * @module scripts/binaryen-ts/diag_coalesce
  *
  * For _fib (fib-dbg defined-fn #5), list every `local.set` in the original IR
  * and report what CoalesceLocals turned it into (a `local.set` with renamed
  * index, a `local.tee` with renamed index, or a `drop`). Side-by-side with the
  * locals count change and the local-index mapping inferred from gets.
  *
- * Run: deno run --allow-read scripts/diag_coalesce.ts
+ * Run: deno run --allow-read scripts/binaryen-ts/diag_coalesce.ts
  *
  * @license MIT
  */

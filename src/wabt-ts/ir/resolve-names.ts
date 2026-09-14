@@ -992,7 +992,7 @@ class ResolveContext {
    *
    * `typeUse` is settled by `synthesizeTypes`, which runs after this
    * pass — but resolveNames' own invariant is that NO name-var survives it,
-   * and the standing guard in `tests/ir/encode_correctness.test.ts` enforces
+   * and the standing guard in `tests/wabt-ts/ir/encode_correctness.test.ts` enforces
    * that across the whole spec testsuite. Leaving it unresolved here would
    * also mean a caller that skips synthesizeTypes silently gets index 0.
    */

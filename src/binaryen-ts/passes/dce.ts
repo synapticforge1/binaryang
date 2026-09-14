@@ -9,7 +9,7 @@
  * dropped. The pass recurses into the bodies of `if`, `loop`, `try`, and
  * `try_table` so dead code buried in nested control flow is reached too.
  *
- * This mirrors the `DeadCodeElimination` pass in `src/passes/DeadCodeElimination.cpp`
+ * This mirrors the `DeadCodeElimination` pass in `WebAssembly/binaryen/src/passes/DeadCodeElimination.cpp`
  * in the upstream Binaryen C++ library (the simplified post-order tail-trim
  * variant — full liveness-based DCE is deferred).
  *

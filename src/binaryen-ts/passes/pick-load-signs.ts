@@ -31,7 +31,7 @@
  * that are used directly without being stored to a local (e.g., as an operand
  * in a larger expression) are not currently optimised.
  *
- * Reference: `upstream/src/passes/PickLoadSigns.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/PickLoadSigns.cpp`
  *
  * @license MIT
  */

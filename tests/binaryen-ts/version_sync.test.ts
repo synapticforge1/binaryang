@@ -41,7 +41,7 @@ Deno.test('version: main.ts VERSION matches deno.json', async () => {
     match !== null,
     true,
     "main.ts has no `const VERSION = '...'` literal — if it was renamed or moved, " +
-      'update `scripts/bump_version.ts` to match, or the bump silently stops syncing it',
+      'update `scripts/release/bump_version.ts` to match, or the bump silently stops syncing it',
   );
 
   assertEquals(

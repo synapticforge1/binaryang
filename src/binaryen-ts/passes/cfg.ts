@@ -37,7 +37,7 @@
  *   either — their effect on locals is captured by the surrounding
  *   `local.get` / `local.set` actions for any value they consume / produce.
  *
- * Reference: `upstream/src/cfg/cfg-traversal.h`, `upstream/src/cfg/liveness-traversal.h`
+ * Reference: `WebAssembly/binaryen/src/cfg/cfg-traversal.h`, `WebAssembly/binaryen/src/cfg/liveness-traversal.h`
  *
  * @license MIT
  */

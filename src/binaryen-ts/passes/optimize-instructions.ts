@@ -25,7 +25,7 @@
  *   - Integer unary ops: clz, eqz, extend, wrap, sign-extend.
  *   - Division is excluded from constant folding (can trap on zero).
  *
- * Reference: `upstream/src/passes/OptimizeInstructions.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/OptimizeInstructions.cpp`
  *
  * @license MIT
  */

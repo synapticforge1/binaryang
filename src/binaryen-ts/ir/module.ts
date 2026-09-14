@@ -6,7 +6,7 @@
  * A {@link WasmModule} is the root container for all WASM definitions.
  * The {@link ModuleBuilder} class provides a fluent API for constructing
  * modules, mirroring the `BinaryenModule*` family of functions in the upstream
- * Binaryen C API (`src/binaryen-c.h`).
+ * Binaryen C API (`WebAssembly/binaryen/src/binaryen-c.h`).
  *
  * @example
  * ```ts
@@ -46,7 +46,7 @@ export interface Local {
 
 /**
  * A WASM function definition.
- * Mirrors `Function` in `src/wasm.h`.
+ * Mirrors `Function` in `WebAssembly/binaryen/src/wasm.h`.
  */
 export interface WasmFunction {
   /** Internal name (used for calls and exports). */
@@ -71,7 +71,7 @@ export interface WasmFunction {
 
 /**
  * Import descriptor.
- * Mirrors `Import` in `src/wasm.h`.
+ * Mirrors `Import` in `WebAssembly/binaryen/src/wasm.h`.
  */
 export interface WasmImport {
   /** Internal module name (`"env"`, `"wasi_snapshot_preview1"`, etc.). */
@@ -102,7 +102,7 @@ export interface WasmImport {
 
 /**
  * Export descriptor.
- * Mirrors `Export` in `src/wasm.h`.
+ * Mirrors `Export` in `WebAssembly/binaryen/src/wasm.h`.
  */
 export interface WasmExport {
   /** The name visible to the host. */
@@ -234,7 +234,7 @@ export interface ElementSegment {
 
 /**
  * The root container for all WASM definitions.
- * Analogous to `Module` in `src/wasm.h`.
+ * Analogous to `Module` in `WebAssembly/binaryen/src/wasm.h`.
  */
 export interface WasmModule {
   /** All locally-defined functions in declaration order. */

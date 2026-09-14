@@ -1,9 +1,9 @@
 /**
  * Regenerate the SIMD section of EXTENDED_OPCODE_NAMES from upstream
- * wabt's opcode.def. Run, then paste the output into src/core/opcode.ts
+ * wabt's opcode.def. Run, then paste the output into src/wabt-ts/core/opcode.ts
  * between `--- 0xfd: SIMD ---` and `--- 0xfe: atomics ---`.
  *
- *   deno run -A scripts/gen_simd_opcode_table.ts > /tmp/simd_table.ts
+ *   deno run -A scripts/wabt-ts/gen_simd_opcode_table.ts > /tmp/simd_table.ts
  */
 
 const UPSTREAM_DEF = new URL('../../upstream/include/wabt/opcode.def', import.meta.url);

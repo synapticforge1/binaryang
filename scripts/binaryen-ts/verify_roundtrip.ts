@@ -1,12 +1,12 @@
 /**
- * @module scripts/verify_roundtrip
+ * @module scripts/binaryen-ts/verify_roundtrip
  *
  * Verifies parser/encoder round-trip on the corpus: parse a .wasm to IR,
  * encode back to bytes, parse the result, confirm function/global/data counts
  * survive and the second parse succeeds with no diagnostics.
  *
  * Run:
- *   deno run --allow-read scripts/verify_roundtrip.ts
+ *   deno run --allow-read scripts/binaryen-ts/verify_roundtrip.ts
  *
  * @license MIT
  */
@@ -139,7 +139,7 @@ for (const file of files) {
   // dispatch trampoline) add local.set/local.get nodes on the first trip. What
   // must never happen is growth that keeps going — the `unreachable-pops`
   // defect added an expression on EVERY trip. Mirrors
-  // tests/binary/corpus_roundtrip_test.ts.
+  // tests/binaryen-ts/binary/corpus_roundtrip.test.ts.
   let s3 = s2;
   if (s1.exprs !== s2.exprs) {
     try {

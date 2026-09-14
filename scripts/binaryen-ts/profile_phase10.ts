@@ -1,5 +1,5 @@
 /**
- * @module scripts/profile_phase10
+ * @module scripts/binaryen-ts/profile_phase10
  *
  * Phase 10 — per-pass + encoder profiling harness.
  *
@@ -16,7 +16,7 @@
  * boundary tax.
  *
  * Run:
- *   deno run --allow-read scripts/profile_phase10.ts
+ *   deno run --allow-read scripts/binaryen-ts/profile_phase10.ts
  *
  * @license MIT
  */

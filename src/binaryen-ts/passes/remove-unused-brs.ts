@@ -21,7 +21,7 @@
  * Precondition: the tail child must have type `none` so that removing the
  * branch does not change the block's result type.
  *
- * Reference: `upstream/src/passes/RemoveUnusedBrs.cpp`
+ * Reference: `WebAssembly/binaryen/src/passes/RemoveUnusedBrs.cpp`
  *
  * @license MIT
  */

@@ -15,7 +15,7 @@
  *   `hasExceptionHandling` is set to
  *   `false` so downstream consumers stop emitting the EH feature.
  *
- * This mirrors `upstream/src/passes/StripEH.cpp`. The upstream pass invokes
+ * This mirrors `WebAssembly/binaryen/src/passes/StripEH.cpp`. The upstream pass invokes
  * `ReFinalize` to re-compute expression types after substitution; binaryen-ts
  * does not yet ship a ReFinalize utility, so callers that depend on tight
  * type recomputation should run subsequent cleanup passes (Vacuum,

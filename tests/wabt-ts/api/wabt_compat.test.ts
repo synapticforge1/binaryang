@@ -3,7 +3,7 @@
 
 /**
  * Tests for the `/compat` facade. Exercises the call shapes wasmtk
- * (src/utils.ts, src/wasic.ts, src/wasmbundle.ts) uses against
+ * (wasmtk/src/utils.ts, wasmtk/src/wasic.ts, wasmtk/src/wasmbundle.ts) uses against
  * `npm:wabt`, so a one-line import-map flip lets wasmtk migrate.
  */
 
@@ -127,7 +127,7 @@ describe('wabt-ts/compat — destroy semantics', () => {
 
 describe('wabt-ts/compat — wasmtk reference call shapes', () => {
   // These tests mirror the exact call patterns used by wasmtk's
-  // src/utils.ts, src/wasic.ts, src/wasmbundle.ts so the migration
+  // wasmtk/src/utils.ts, wasmtk/src/wasic.ts, wasmtk/src/wasmbundle.ts so the migration
   // path doesn't surface a shape regression later.
 
   it('utils.ts pattern: parseWat with features, toBinary({}), destroy', async () => {

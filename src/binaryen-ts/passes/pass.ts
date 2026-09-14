@@ -6,7 +6,7 @@
  * Optimization passes implement the {@link Pass} interface and are registered
  * with the {@link PassRunner} which schedules and applies them to a
  * {@link WasmModule}. This mirrors the pass infrastructure in the upstream
- * Binaryen C++ library (`src/pass.h`).
+ * Binaryen C++ library (`WebAssembly/binaryen/src/pass.h`).
  *
  * **Hybrid note**: Individual passes may be implemented as:
  * - Pure TypeScript (run directly in Deno)
@@ -69,7 +69,7 @@ export interface Pass {
 
 /**
  * Options forwarded to every pass during a runner cycle.
- * Mirrors `PassOptions` in `src/pass.h`.
+ * Mirrors `PassOptions` in `WebAssembly/binaryen/src/pass.h`.
  */
 export interface PassOptions {
   /**

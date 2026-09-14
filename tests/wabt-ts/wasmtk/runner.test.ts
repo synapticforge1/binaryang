@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * Integration tests: every `.wat` file under `tests/wasmtk/` is compiled
+ * Integration tests: every `.wat` file under `tests/wabt-ts/wasmtk/` is compiled
  * through `wat2wasm` and validated. These are real-world modules emitted
  * by wasmtk's wasic compiler (port of TypeScript → WAT), so they exercise
  * the parser / IR / writer / validator pipeline together against shapes

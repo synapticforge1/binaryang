@@ -4,7 +4,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
 
-// T13.45. `tests/wasmtk/` is a frozen snapshot of another project's build
+// T13.45. `tests/wabt-ts/wasmtk/` is a frozen snapshot of another project's build
 // output. Its PROVENANCE.md carried "Snapshot date: unknown" and "Source
 // commit: unknown" for three months -- a claim nobody had checked, since one
 // `git log --diff-filter=A` in THIS repository answers it.

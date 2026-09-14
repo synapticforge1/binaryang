@@ -1,5 +1,5 @@
 /**
- * @module scripts/bump_version
+ * @module scripts/release/bump_version
  *
  * Bumps `deno.json` `version` to the next value under the sub-version-
  * capped-at-9 rule (see `./version.ts` for the rule). Prints the old → new

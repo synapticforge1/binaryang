@@ -664,7 +664,7 @@ function instrInputCount(tt: TokenType): number {
   // the module ran and returned a different answer); too LOW and the operands
   // become placeholders and the IR TREE is wrong even though the bytes come
   // out right (the `Quaternary` bug — which is what the bridge and `wasm2ts`
-  // read). `tests/parser/instr_arity.test.ts` gates both: T13.8 differentials
+  // read). `tests/wabt-ts/parser/instr_arity.test.ts` gates both: T13.8 differentials
   // folded against linear form, and T13.18 fails if any `isPlainInstr` token
   // has no entry here at all.
   switch (tt) {
@@ -775,7 +775,7 @@ function instrInputCount(tt: TokenType): number {
       // modules do not survive to that metric), and everything else starts
       // from bytes. Caught by a folded-vs-linear differential — write the
       // instruction folded, disassemble to linear, re-encode, compare
-      // (`tests/parser/instr_arity.test.ts`).
+      // (`tests/wabt-ts/parser/instr_arity.test.ts`).
       return 2;
     case TokenType.Select:
     case TokenType.MemoryFill:
@@ -1033,7 +1033,7 @@ function flushStack(ctx: ExprCtx): void {
  *
  * Fixed 2026-05-30 — reported via wasmtk's shared-heap stdlib track: a folded
  * `sideEffectingCall(); … return X;` pattern silently sank the call past the
- * return. Regression tests in tests/parser/stmt_order.test.ts.
+ * return. Regression tests in tests/wabt-ts/parser/stmt_order.test.ts.
  */
 function pushStmt(ctx: ExprCtx, expr: Expr): void {
   for (const e of ctx.stack) ctx.stmts.push(e);
@@ -1248,7 +1248,7 @@ export class WastParser {
    *
    * The spec calls this an "unknown operator" and the testsuite asserts that
    * wording, so the phrase is load-bearing — see
-   * `tests/parser/unknown_operator.test.ts`.
+   * `tests/wabt-ts/parser/unknown_operator.test.ts`.
    */
   private unknownOperatorText(): string | null {
     const i = this.peek() === TokenType.Lpar ? this.pos + 1 : this.pos;

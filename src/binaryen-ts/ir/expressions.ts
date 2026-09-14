@@ -5,7 +5,7 @@
  *
  * Every node in the IR tree is one of the discriminated-union variants below,
  * each with a unique `kind` field. This mirrors the `ExpressionId` enum and
- * per-expression structs in the upstream Binaryen C++ source (`src/wasm.h`).
+ * per-expression structs in the upstream Binaryen C++ source (`WebAssembly/binaryen/src/wasm.h`).
  *
  * **Tree invariant** (inherited from Binaryen): each node must have exactly
  * one parent. Never share expression nodes between positions in the tree.

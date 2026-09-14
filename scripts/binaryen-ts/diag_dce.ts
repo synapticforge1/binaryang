@@ -1,10 +1,10 @@
 /**
- * @module scripts/diag_dce
+ * @module scripts/binaryen-ts/diag_dce
  *
  * Dump _fib's IR before and after the DCE pass, side by side, to see exactly
  * which expressions DCE removes.
  *
- * Run: deno run --allow-read scripts/diag_dce.ts
+ * Run: deno run --allow-read scripts/binaryen-ts/diag_dce.ts
  *
  * @license MIT
  */

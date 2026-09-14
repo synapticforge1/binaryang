@@ -10,8 +10,8 @@
 // `printF32Literal` stripped the quiet bit before printing the payload, on the
 // theory that "the parser always ORs it back in". TWO parsers disagreed:
 //
-//   src/core/literal.ts   parseF32Literal      forced the quiet bit ON
-//   src/parser/…          parseF32LiteralBits  read the payload exactly
+//   src/wabt-ts/core/literal.ts   parseF32Literal      forced the quiet bit ON
+//   src/wabt-ts/parser/…          parseF32LiteralBits  read the payload exactly
 //
 // The second is the one `wat2wasm` calls, and it is the one the spec agrees
 // with: `nan:0x<n>` names the mantissa EXACTLY, with no special treatment of

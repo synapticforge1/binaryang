@@ -1,5 +1,5 @@
 /**
- * @module scripts/verify-baseline
+ * @module scripts/wabt-ts/verify-baseline
  *
  * Prove that a refactor did not change what the toolchain EMITS.
  *
@@ -14,8 +14,8 @@
  * identical manifest; anything else is a behaviour change that needs a reason.
  *
  * ```sh
- * deno run --allow-read scripts/verify-baseline.ts            # verify
- * deno run --allow-read --allow-write scripts/verify-baseline.ts --write   # re-baseline
+ * deno run --allow-read scripts/wabt-ts/verify-baseline.ts            # verify
+ * deno run --allow-read --allow-write scripts/wabt-ts/verify-baseline.ts --write   # re-baseline
  * ```
  *
  * Exit 0 when identical, 1 on any difference (with the first 20 named).
