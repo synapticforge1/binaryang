@@ -67,7 +67,8 @@
     "spec:prepare": "deno run --allow-read --allow-write --allow-run --allow-env scripts/spec-prepare.ts",
     "spec": "deno run --allow-read --allow-write --allow-env scripts/spec-testsuite.ts",
     "bridge": "deno run --allow-read scripts/check-bridge-corpus.ts",
-    "translate-eh": "deno run --allow-read --allow-write --allow-run --allow-env scripts/check-translate-eh.ts"
+    "translate-eh": "deno run --allow-read --allow-write --allow-run --allow-env scripts/check-translate-eh.ts",
+    "optimize-corpus": "deno run --allow-read scripts/check-optimize-corpus.ts"
   },
   "fmt": {
     "include": [

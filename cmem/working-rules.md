@@ -33,7 +33,12 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `sh scripts/check-portability.sh` · `deno task baseline` · `deno publish --dry-run --allow-dirty`
 
 then the project's own: `deno task operators` · `deno task spec <corpus>` · `deno task bridge` ·
-`deno task translate-eh <testsuite-main>/legacy <outDir>`.
+`deno task translate-eh <testsuite-main>/legacy <outDir>` · `deno task optimize-corpus`.
+
+- ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
+  (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes
+  all 421 modules at `-O1` … `-Oz` and fails on any throw or any module `WebAssembly.validate`
+  rejects.
 
 - ⚠️ **Run it after the LAST edit.** If an edit follows the gate, the gate has not run — decision 5
   merged with `deno lint` red that way.

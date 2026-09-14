@@ -110,6 +110,10 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **Inlining a callee with several results produced invalid modules** at `-O3` — 16 corpus
+  modules, whose string and math helpers return pairs: the wrapper declared only the first result.
+  It now declares them all, as upstream; and a reference comparison that would have appended a
+  trapping `unreachable` after such a body is gone. Loud before (engines refused), not silent.
 - **`-O3` removed a recursive function it had inlined** (`426e78eb8`) while the inlined copy still
   called it, so the module could not be encoded ("unresolved call target reference") — three corpus
   modules. Loud, not silent. Every other corpus `-O2` / `-O3` / `-Oz` output is byte-identical.
