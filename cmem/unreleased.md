@@ -105,6 +105,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **`-O3` removed a recursive function it had inlined** (`426e78eb8`) while the inlined copy still
+  called it, so the module could not be encoded ("unresolved call target reference") — three corpus
+  modules. Loud, not silent. Every other corpus `-O2` / `-O3` / `-Oz` output is byte-identical.
 - **The non-nullable-local fixup runs** (`135a81f99`): `PassRunner` documented it and never did it,
   so Flatten (and Asyncify, which runs it) could leave a non-nullable local read where no set
   covers it — a module V8 refuses. Such a local now becomes nullable with `ref.as_non_null` at its

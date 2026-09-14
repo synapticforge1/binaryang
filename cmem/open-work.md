@@ -56,14 +56,15 @@ failing 30 of 70 spec assertions — which the owner had fixed next (`959954015`
 [ir-convergence.md](ir-convergence.md) § "Group 3"). No owner decision is pending in the table
 below except the standing ones (1, 4, 5). **The non-nullable-local probe then ran** and found the
 fixup reachable through Flatten; it is built (`135a81f99`, [binaryen-ts.md](binaryen-ts.md)).
+Checking it found `-O3` unable to encode three recursive corpus modules, which the owner had fixed
+next (`426e78eb8`: Inlining removed a recursive callee it had counted as fully consumed;
+divergence I1 records the dead-function removal it keeps).
 
 **Suggested order:**
 
 1. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
    `ref.as_non_null` refusal is among the 20 misses.
-2. **`-O3` on recursive corpus modules** (§ "Open defects and gaps") — loud, but three of the corpus
-   modules cannot be optimized at `-O3` at all.
-3. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
+2. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
 
 ## Owner actions — nothing here is blocked on code
 
@@ -121,12 +122,6 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   `--reload` ([binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/publishing.md`). Release tooling, so
   the owner's call. (Its neighbour, the bump-then-release refusal, was fixed under owner decision 6
   — [publishing.md](publishing.md) § "The flow".)
-- ⬚ **`-O3` cannot encode three corpus modules with recursive functions** (found 2026-09-14, hashing
-  the corpus's `-O2` / `-O3` / `-Oz` output while checking the non-nullable fixup changed nothing):
-  `1_recursion.wat`, `39_Phase39Combined.wat` and `5e_RecursiveArrow.wat` throw `unresolved call
-  target reference: "$fact…"` at encode. Only `-O3` runs Inlining, so it is the first suspect — a
-  self-call left pointing at a function that was renamed or removed — but unattributed. LOUD: nothing
-  is emitted. Present before `135a81f99` as well (identical rows with and without it).
 - ⬚ **Multiple tables are refused at encode** (`checkSingleTable`, `wasm-encoder.ts` ~1151; elem and
   `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already
   resolves `call_indirect`'s table index. The day it is lifted, both encoders must thread the real
