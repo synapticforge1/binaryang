@@ -56,6 +56,10 @@ their own bump — and nothing breaks by their standing still.
   now on `BinaryOp`. Code matching `kind === 'simd.shift'` or reading `.vec` / `.shift` must read a
   `binary`'s `left` / `right`, whose types differ (v128, i32). Bytes unchanged; LocalCSE now reuses
   a repeated shift.
+- **New pass `TranslateToExnref`** (owner decision 7, `11517b29a`; `translate-to-exnref` resolves
+  too): legacy EH — `try` / `catch` / `catch_all` / `delegate` / `rethrow` — into `try_table` and
+  `throw_ref`, so a legacy-EH binary runs on Wasmtime and Wasmer. Opt-in; no optimization level
+  runs it. Translate BEFORE `-Oz`: optimizing untranslated legacy EH is an open defect (open-work).
 - **Wide arithmetic** in binaryen-ts: `i64.add128` / `sub128` (a new `Quaternary` node) and
   `i64.mul_wide_s` / `_u` (two new `BinaryOp` members).
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
@@ -96,6 +100,12 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **wabt-ts `wat2wasm` wrote a named branch after a legacy `delegate` one frame too deep**
+  (`dd3c138ec`): the binary writer leaked the delegate's label. Valid bytes, a different program —
+  `br 1` where upstream writes `br 0`; a later function refused the module instead.
+- **A multi-result `if` / `loop` / `try` / `try_table` lost its extra values through binaryen-ts's
+  decoder** (`2e02963bc`) when a later instruction consumed them one at a time: a plain decode →
+  encode wrote `unreachable` into a module that validated and trapped. `block` was already right.
 - **memory64 memarg offsets round-trip** — `writeU32` had truncated anything above 2³²: valid wasm,
   wrong address.
 - **`catch_ref` / `catch_all_ref`** are supported where the bridge threw "not yet supported".

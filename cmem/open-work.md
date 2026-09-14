@@ -46,12 +46,16 @@ IDENTICAL after every merge), and the full gate passed on the committed tree at 
   documented, because `RELEASE_FILES` is one list ([publishing.md](publishing.md) § "The flow").
 - **K3, merged** — `simd.shift` is a `binary` ([ir-convergence.md](ir-convergence.md) § "K3").
 
-The other two, `call_indirect`'s `sig` (row 3) and TranslateEH (row 7), were sent back for an
-options review and are still open.
+The other two went to an options review. **TranslateEH (row 7) was then decided — implement — and
+built:** `TranslateToExnref`, 70 / 70 legacy spec assertions through it
+([binaryen-ts.md](binaryen-ts.md) § "TranslateEH"). Building it found and fixed two silent
+miscompiles elsewhere (see [unreleased.md](unreleased.md)) and found a third, still open: `-Oz` on
+legacy EH (§ "Open defects and gaps"). **`call_indirect`'s `sig` (row 3) is next with the owner**,
+by their word.
 
 **Suggested order:**
 
-1. **Owner decisions first** — rows 3 and 7 of the table below. Each one unblocks or removes work.
+1. **Owner decision first** — row 3 of the table below.
 2. **Probe the non-nullable-local fixup** (§ "Open defects and gaps"). It is the one new finding
    that could be a silent miscompile. Build a fixture that inlines a callee with a non-nullable
    `(ref $T)` local, and check the result validates. Then either port the fixup or correct the
@@ -68,7 +72,6 @@ options review and are still open.
 | 3 | **`call_indirect`'s `sig`**     | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways. Options reviewed 2026-09-14: re-measured, and by SOURCE sites alone it is 10 vs 9, the other way — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                |
 | 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned)                                  |
 | 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                                                               |
-| 7 | **TranslateEH — still wanted?** | 🗓️ re-checked 2026-09-14: unimplemented, and wasmtk is migrating wasic to `try_table`, so it would be a compatibility shim for legacy binaries only. Options reviewed 2026-09-14: step 0 DONE — wasmtime 48.0.2 runs our encoder's `try_table` (plain and `-Oz`), and still refuses legacy `try`. Keep, or close as won't-do — see § "Repo work" |
 
 ~~A local directory path in git history~~ — 🛑 CLOSED as leave-it (owner, 2026-09-14). Committed
 cmem no longer carries it: the absolute paths are in the private `cmem/local/environment.md`. The
@@ -111,6 +114,12 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ## Open defects and gaps
 
+- ⬚ **binaryen-ts's `-Oz` pipeline miscompiles UNtranslated legacy EH** (found 2026-09-14, inverting
+  `deno task translate-eh`): with TranslateToExnref disabled, the legacy spec modules through the
+  default `-Oz` passes fail **30 of 70** behavioural assertions in V8. Translated first, `-Oz` holds
+  70 / 70, so a caller has a safe order today. Unattributed: which pass, and whether it is the
+  `try` / `catch` region handling or the `Pop`s. Reproduce by running the gate with the pass's
+  `translateFunction` call removed.
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
 - ⬚ **`scripts/release/` runs no cold type check before the tag push**, so a stale type cache is
@@ -216,12 +225,6 @@ fatigue.
 - ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal (WASI Preview 1 capable TypeScript
   output). **Blocked, and not close**: as of 2026-09-02 the wasmtk side has a long way to go before
   there is anything to implement against.
-- ⬚ **TranslateEH** (binaryen-ts) — re-checked 2026-09-14: still unimplemented (no pass, no mention
-  in `src/` or `tests/`). **Whether it is still wanted is the owner's call**: wasmtk chose to
-  migrate wasic to `try_table`, which makes TranslateEH a compatibility shim for already-built
-  legacy binaries rather than a pipeline step. Its step 0 — confirm wasmtime accepts a `try_table`
-  module OUR encoder produces — was DONE 2026-09-14 and passed, `-Oz` included
-  ([binaryen-ts.md](binaryen-ts.md) § "TranslateEH").
 - ⬚ **Phase 10 kernel selection** — a live gap carried from binaryen-ts, not re-checked since the
   merge ([project.md](project.md)).
 - ⬚ **Diagnostic usefulness** ("is the message actionable?") is the one hardening axis never
