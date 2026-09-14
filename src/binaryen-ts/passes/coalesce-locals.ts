@@ -60,7 +60,7 @@ export class CoalesceLocalsPass implements Pass {
   readonly name = 'CoalesceLocals';
   readonly description =
     'Eliminates dead local writes and merges non-interfering locals into shared slots.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {

@@ -62,7 +62,7 @@ export class LocalCSEPass implements Pass {
   readonly name = 'LocalCSE';
   readonly description =
     'Common subexpression elimination: repeated pure expressions are computed once and cached in a local.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, options: PassOptions): void {
     for (const fn of module.functions) {

@@ -28,6 +28,7 @@ import type { WasmModule } from '../ir/module.ts';
 import { dropWrittenTypeIndex } from '../ir/expressions.ts';
 import { walkExpression } from '../ir/walk.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
+import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
 
 // ---------------------------------------------------------------------------
 // Pass interface
@@ -221,7 +222,10 @@ export function createPass(name: string): Pass {
  *
  * Passes are applied in the order they are added.
  * After each pass, if {@link Pass.requiresNonNullableLocalFixups} is `true`,
- * the non-nullable local fixup pass is automatically inserted.
+ * the non-nullable local fixup runs over every function
+ * (`handleNonDefaultableLocals`, `non-nullable-locals.ts`). 🔧 Until 2026-09-14
+ * this sentence was the only place the fixup existed: every pass declared
+ * `false`, nothing read the flag, and Flatten left modules V8 refused.
  *
  * @example
  * ```ts
@@ -304,6 +308,9 @@ export class PassRunner {
     }
     for (const pass of this._queue) {
       pass.run(this._module, this._options);
+      if (pass.requiresNonNullableLocalFixups) {
+        for (const fn of this._module.functions) handleNonDefaultableLocals(fn);
+      }
     }
     this._queue.length = 0;
     // Names follow `-g` once a pass has run, as upstream: there is no original

@@ -415,7 +415,7 @@ export class FlattenPass implements Pass {
     'Rewrites functions into Flat IR: every value-producing subexpression is ' +
     'hoisted into its own local, operands become trivial, and control flow ' +
     "routes values through temp locals. Port of Binaryen's --flatten.";
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     const callResultTypes = buildCallResultTypes(module);

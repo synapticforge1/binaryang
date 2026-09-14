@@ -41,7 +41,7 @@ export class RemoveUnusedBrsPass implements Pass {
   readonly name = 'RemoveUnusedBrs';
   readonly description =
     'Removes branches to where execution falls through anyway (tail-of-block optimisation).';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {

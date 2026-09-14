@@ -83,7 +83,7 @@ export class TranslateToExnrefPass implements Pass {
   readonly name = 'TranslateToExnref';
   readonly description =
     'Translates legacy EH (try / catch / catch_all / delegate / rethrow) into try_table and throw_ref.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     const paramsOf = tagParamsResolver(module);

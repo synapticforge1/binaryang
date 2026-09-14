@@ -38,7 +38,7 @@ export class DCEPass implements Pass {
   readonly name = 'DCE';
   readonly description =
     'Removes dead code — expressions that follow unreachable instructions in a block.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {

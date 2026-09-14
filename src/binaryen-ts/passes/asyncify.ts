@@ -1352,7 +1352,7 @@ export class AsyncifyPass implements Pass {
   readonly name = 'Asyncify';
   readonly description = 'Transforms a module to support pausing and resuming (unwind/rewind the ' +
     "call stack). Port of Binaryen's --asyncify.";
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, options: PassOptions): void {
     const opts = parseAsyncifyOptions(options.passArgs);

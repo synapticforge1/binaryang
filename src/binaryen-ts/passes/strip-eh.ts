@@ -42,7 +42,7 @@ export class StripEHPass implements Pass {
   readonly name = 'StripEH';
   readonly description =
     'Removes EH instructions and tags. Throws become unreachable; try / try_table are replaced by their body.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {

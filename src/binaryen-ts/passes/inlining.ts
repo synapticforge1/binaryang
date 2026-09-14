@@ -835,7 +835,7 @@ function inlineIntoFunction(
 export class InliningPass implements Pass {
   readonly name: string = 'Inlining';
   readonly description: string = 'Inlines small direct-call targets to eliminate call overhead.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   /** Whether to run Vacuum + OptimizeInstructions on modified functions. */
   protected readonly optimize: boolean = false;

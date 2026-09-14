@@ -54,7 +54,7 @@ export class OptimizeInstructionsPass implements Pass {
   readonly name = 'OptimizeInstructions';
   readonly description =
     'Algebraic identities (identity element removal, strength reduction) and integer constant folding.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
