@@ -105,6 +105,12 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **The non-nullable-local fixup runs** (`135a81f99`): `PassRunner` documented it and never did it,
+  so Flatten (and Asyncify, which runs it) could leave a non-nullable local read where no set
+  covers it — a module V8 refuses. Such a local now becomes nullable with `ref.as_non_null` at its
+  reads, as upstream does. Not silent — the engine refused — but it was a documented guarantee the
+  code did not keep. No byte change where nothing was broken (corpus `-O2` / `-O3` / `-Oz`
+  identical).
 - **DCE deleted a value still needed after a void `if` whose arms both throw or trap**
   (`959954015`), so `-Oz` produced a module engines refuse — 30 of the 70 legacy EH spec
   assertions, and not EH-specific. The decoder now keeps every `if`'s declared type, and the

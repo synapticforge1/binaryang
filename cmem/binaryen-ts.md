@@ -493,10 +493,11 @@ projects, not three"). Its version (v1.3.9) and layout are pre-merge.
 **Kept:**
 - [reference] **The IR is a tree:** one parent per expression, never reuse a node, and factories always build new
   objects. Binaryen IR has an `unreachable` type the spec lacks.
-- [correction] **"The pass runner auto-fixes non-nullable locals after each pass" is false of the code.**
-  `Pass.requiresNonNullableLocalFixups` (`src/binaryen-ts/passes/pass.ts:54`) is `false` in every pass, `run()` never
-  reads it, and no fixup pass exists. The JSDoc at `pass.ts:223` and the comment at `inlining.ts:551` still rely
-  on it → [open-work.md](open-work.md).
+- [correction] **"The pass runner auto-fixes non-nullable locals after each pass" was false of the code** —
+  `requiresNonNullableLocalFixups` was `false` in every pass and nothing read it — **and is TRUE since 2026-09-14**
+  (`135a81f99`). Probing found it reachable through Flatten (an `if` typed `(ref $T)` left a read no set covered;
+  V8 refused the module), not through Inlining. `non-nullable-locals.ts` ports upstream's
+  `handleNonDefaultableLocals`; `PassRunner.run` calls it after each pass declaring the flag, now `true` on twelve.
 - [reference] **Upstream references**, present in the clone at `wasmExamples/binaryen-ts/upstream/`:
   `WebAssembly/binaryen/src/parser/lexer.h`, `…/parser/wat-parser.cpp`, `…/src/wasm.h`, `…/src/passes/*.cpp`,
   `…/src/binaryen-c.h` (constructor-API shape), `…/src/js/binaryen.js-post.js` (`/compat`, interop).
