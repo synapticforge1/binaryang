@@ -1,9 +1,12 @@
-# Best practices — the rules BOTH projects derived independently
+# Best practices — the rules paid for, in both projects and since the merge
 
-Merged topic file (A16). This holds only the **convergent** rules. The full enumerations stay in the
-wings — [binaryen-ts/best-practices.md](binaryen-ts/best-practices.md) (294 lines) and
-[wabt-ts/best-practices.md](wabt-ts/best-practices.md) (2,894) — and nothing has been deleted from
-either.
+Merged topic file (A16). It opened holding only the **convergent** rules — the ones both
+predecessors derived independently, down to "Write down the thing you only said out loud". Every
+section marked 🆕 after that was paid for in binaryang itself, since the merge. The full pre-merge
+enumerations stay in the wings — [binaryen-ts/best-practices.md](binaryen-ts/best-practices.md) (294
+lines) and [wabt-ts/best-practices.md](wabt-ts/best-practices.md) (2,894) — and nothing has been
+deleted from either. The day-to-day checklist these rules produce is
+[working-rules.md](working-rules.md).
 
 ## Why this file is a selection and not a rewrite
 
@@ -189,11 +192,16 @@ there is indistinguishable from no fix at all.
 ### The measurement trap this exposed, which is the more portable lesson
 
 Every CR count taken during the investigation was **wrong**, in the direction that confirmed the
-theory. `grep -c $'
-'` and `od -c | grep -o '
-'` both match a literal `r` in a BRE — so files were
-reported as full of carriage returns when they held none, and the numbers moved plausibly because
-the letter `r` is common.
+theory. A `grep -c` for a carriage return, and `od -c` piped into a `grep -o` for the same escape,
+both ended up matching a literal letter `r` in a BRE — the backslash of the escape was eaten on the
+way in — so files were reported as full of carriage returns when they held none, and the numbers
+moved plausibly because the letter `r` is common.
+
+🔧 **Corrected 2026-09-14, and the correction is itself the lesson.** This paragraph originally
+spelled both commands with their escape sequences. Somewhere between authoring and commit the
+backslashes were eaten and each escape became a real line break, so the note explaining escape
+corruption was itself corrupted. It now describes the commands in words, the only form that survives
+every layer (see "Do not author file CONTENT through a shell heredoc" below).
 
 **Trust the tool that is actually failing.** `deno fmt --check` going from `32 not formatted` to
 `Checked 283 files` was the only unambiguous signal in the whole episode. A hand-rolled measurement
@@ -293,14 +301,50 @@ and the file it corrupted was the file whose job is to prevent that class of cor
 a quoting error, a formatting drift, a binary file. None of them announces "your escape sequence was
 eaten."
 
-**How to work:** author content with a real file write, then use the shell only to move or append
-it. When a shell measurement disagrees with a tool's own verdict, **believe the tool** —
-`deno fmt --check` going from `32 not formatted` to `Checked 283 files` was the only unambiguous
-signal in the entire line-ending episode, and every hand-rolled measurement around it was noise.
+**How to work:** author content with a real file write, then use the shell only to move or append it
+(`cat fragment >> target`). When a shell measurement disagrees with a tool's own verdict, **believe
+the tool** — `deno fmt --check` going from `32 not formatted` to `Checked 283 files` was the only
+unambiguous signal in the entire line-ending episode, and every hand-rolled measurement around it
+was noise.
+
+### 🔁 Knowing the rule did not prevent it — four failure modes, one family
+
+Broken again five times on 2026-09-02 **by the author of this rule**, so the trigger is worth
+stating in one line: **the moment the content contains a backslash, a heredoc is the wrong tool** —
+not "risky", wrong. Even a quoted heredoc (`<<'EOF'`) is unsafe here. Python's own
+`SyntaxWarning: invalid escape sequence` fired every time and was not enough of a signal; **treat
+that warning as a failed command.** The worst instance: a table row EXPLAINING byte-widening
+corruption had its own example escapes eaten. It survived only once rewritten with no escape
+characters at all, spelling the bytes out in words ("the single byte F0 became the two bytes C3
+B0"). **If a note about escaping cannot survive its own delivery mechanism, describe bytes in
+words.**
+
+The family is one thing — **a tool interpreting characters you meant literally** — and it has four
+members, each in a different layer:
+
+| mode                                     | the instance                                                                                                                                                                                                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. backslash escapes eaten               | the table above; the two CR measurements in the line-ending section                                                                                                                                                                                                              |
+| 2. long commands TRUNCATED               | `unexpected EOF while looking for matching` on 90- and 150-line heredocs. **If a heredoc fails with unexpected EOF, suspect length before quoting**                                                                                                                              |
+| 3. backticks run as COMMAND SUBSTITUTION | 2026-09-04: `git merge -m "... the field is X on both halves ..."` with X in markdown backticks. The shell substituted the empty result, and the merge message shipped with nothing at all where the field's name belonged, between "the operator field is" and "on both halves" |
+| 4. a STRING replacement is a template    | 2026-09-10, inside Deno, no shell at all: `text.replaceAll(from, to)` turns `$$` into `$` — see "Let the COMPILER name the sites" below. **Pass a function (`() => to`)**                                                                                                        |
+
+Mode 3 generalises the rule: **any shell string carrying prose destined for a file or a commit
+message is single-quoted or delivered by a file** — a double-quoted `-m` is not safe even when a
+quoted heredoc would have been. Hence `git commit -F <file>` in
+[working-rules.md](working-rules.md). And one inline `deno eval "…"` was mangled by shell quoting
+the same week, so: **scripts go in files, always.**
+
+⚠️ **Two different silent failures in one session came from editing docs by script:** the eaten
+backslash, and a string-replace that silently matched nothing because `deno fmt` had reflowed the
+target paragraph between reading and writing. **Both were caught by re-reading the file, never by
+the tooling.** After any scripted doc edit, read back the lines it changed, and audit the diff for
+HEAD lines holding `$` sequences that no longer appear verbatim.
 
 ## 🆕 The result gets attributed to whichever property was in view
 
-**Four instances in one week across two repositories, and nobody caught their own.**
+**Four instances in one week across two repositories, and nobody caught their own.** Seven by
+2026-09-04 — the later three are below the table.
 
 | the claim                                              | the property in view                       | what actually governed                                                                                                            |
 | ------------------------------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -338,6 +382,67 @@ trap had just been named twice.
 
 **That is the argument for this section existing.** The pattern is not detectable by being careful;
 it is detectable by being enumerable.
+
+### Three more instances, and what they add (through 2026-09-04)
+
+| the claim                                                                               | the property in view                                                 | what actually governed                                                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| "the convert pair round-trips fine"                                                     | the module **validates**                                             | the opcode was silently dropped — valid, and still correct on the one input tested (the self-caught one above)                                                                                                                                                                       |
+| "wasmtk imports our IR in 10 places, so the merge is a 2.0.0 break"                     | matches under wasmtk's directory                                     | every match was inside `wasmtk/upstream/binaryang/` — a **vendored copy of OUR repo** — and they were comments, not imports. wasmtk imports two compat façades and reads no IR field                                                                                                 |
+| "binaryen-ts silently rewrites multi-memory to memory 0", then "no — it refuses loudly" | first the missing `memory` field, then the `checkSingleMemory` guard | neither. The reader DESYNCED: bit 6 of the memarg align field means an explicit memidx follows, so the offset byte was consumed as an opcode and became a phantom `unreachable`. **Two wrong descriptions in a row, both from reading code; the truth came from running one module** |
+
+Four rules they add to the two above:
+
+- **Run one input before describing a behaviour.** Reading more code produced a second wrong answer,
+  not a right one; one module through the real path settled it in one command.
+- **Build the thing before pricing it.** One module through the full path would have shown all three
+  `br_on_cast` defects in minutes.
+- **A sibling repo may vendor YOUR source.** Exclude vendor directories before measuring "what does
+  the consumer use" — the second row above nearly forced a needless major version.
+- **Assert the mechanism, not the outcome.** A validity check passes a silently dropped opcode; an
+  opcode count does not.
+
+## 🆕 A written result is a CLAIM — compare it to the artifact (2026-09-12)
+
+**Rule: a commit message, a gate report and a recorded count are claims, not evidence. Check the
+thing itself — the diff, the exit code, a re-derived number — and prefer a guard that fails over a
+note that is true.**
+
+Three landed on `main` stating results the artifact contradicted, all found on one day, all by
+finally looking at the artifact:
+
+| the claim                                                       | the artifact                                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `b8fafaa3f` "pin npm:binaryen to **132** … exactly one mapping" | its diff DELETED the 132 entries; `@*` stayed **116.0.0** (fixed `dea8ff9cf`)              |
+| `456423b54` / `cec3a3381` "Gate: fmt, **lint**, ci …"           | `deno lint` failed on the committed tree, twice, from those commits (fixed `fc91cf409`)    |
+| "**27** one-sided kinds outstanding", cited for 8 days          | re-derived: **11**, and none of them a rename (S5, [ir-convergence.md](ir-convergence.md)) |
+
+**Why each survived.** Nothing downstream reads a commit message. The suite was green — but green
+says nothing about what it RAN AGAINST: the binaryen tests passed on 116 because the same commit had
+switched that fixture to folded WAT, which 116 also accepts. And a stale number and a wrong number
+are **cited identically**; neither carries a date or a way to fail.
+
+### How to actually check
+
+- **A commit's effect**: `git show <sha> -- <path>`. Read the diff, not the prose. That very
+  commit's own takeaway was "check `git diff deno.lock` after version archaeology" — not applied to
+  itself.
+- **A gate**: the EXIT CODE, per step. `check-naming.sh` prints a filename on success, which trains
+  you to read gate output as prose; that habit is how a non-zero exit passed unnoticed.
+- **A pin**: put the version where the tool ENFORCES it. A bare `import('npm:binaryen')` names no
+  version, so the lockfile may answer anything; `const BINARYEN = 'npm:binaryen@132'` in the source
+  cannot drift. `deno lint`'s `no-unversioned-import` was flagging exactly this.
+- **A recorded count**: re-derive it, then make it RATCHET (`PHANTOM_BUDGET`, `ONE_SIDED_BUDGET`).
+- **A cached third-party reading**: it is a claim about the past. We told wasmtk they were on
+  binaryang 1.5.2, read off JSR's dependency endpoint before 1.5.3 existed and never checked against
+  their own report — they were on 1.5.3 (corrected in [handoffs.md](handoffs.md) § 10). **A cached
+  third-party reading beat a direct statement from the party itself.** Ask the party.
+
+🔑 **Every one of the three was written down correctly somewhere and still decayed, because prose
+has no failure mode.** The related failure in the TEST suite — a skipped test and a narrow guard
+fail the same silent way — is in [testing.md](testing.md) § "Independent oracles". The difference
+from the section above: that one attributes a real result to the wrong cause; this one never checks
+the result.
 
 ## 🆕 A change that silently does nothing is indistinguishable from one that worked
 

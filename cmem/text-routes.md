@@ -1,0 +1,373 @@
+# Text routes into binaryen-ts — the folded-writer ladder and the `parseWat` gaps
+
+History, closed. Moved verbatim from `open-work.md` on 2026-09-14, where it was recorded while it
+was open work (2026-08-31 → 2026-09-10). **Nothing in this file is outstanding.**
+
+How it ended: external WAT now reaches binaryen-ts through wabt-ts → bytes → the decoder (owner
+decision 2026-09-10, divergence W4, `e18d9f09a`), binaryen-ts's own `parseWat` is an internal folded
+subset that retires with S6, and the bridge is deleted by S6
+([ir-convergence.md](ir-convergence.md)). What stays useful here is the record of how a layered
+failure ladder was climbed, and the lessons it paid for — each one is also a rule in
+[best-practices.md](best-practices.md) or [testing.md](testing.md).
+
+## ✅ `wasm-opt` cannot read the WAT `wasm2wat` writes — BOTH defects closed, `e18d9f09a`
+
+✅ **2026-09-10.** `wasm-opt` reads external WAT through wabt-ts → bytes → the decoder (owner
+decision; divergence W4), so linear form reads — every corpus module written by our `wasm2wat`,
+linear or folded, comes back 421/421 valid. And `wasm-opt`'s `main` reports a failure as
+`wasm-opt: <message>`, exit 1, instead of an uncaught exception. The record as it stood:
+
+Found 2026-08-31 while asking whether the "nothing ships against the bridge" item could be closed.
+It could — and the asking turned up a user-facing defect that outranks it.
+
+```sh
+binaryang wat2wasm  a.wat  -o a.wasm     # ok
+binaryang wasm2wat  a.wasm -o b.wat      # ok — emits LINEAR form
+binaryang wasm-opt  b.wat  -o b.wasm -Oz # ✗ uncaught exception + stack trace
+binaryang wasm-opt  a.wat  -o c.wasm -Oz # ok — the original FOLDED source
+```
+
+**Two defects, and the second is nearly free to fix:**
+
+1. **`src/binaryen-ts/parser/wat-parser.ts` handles only FOLDED s-expression form.** A bare
+   instruction sequence — `(func (result i32) i32.const 7)` — fails with
+   `unexpected atom in expression: i32.const`. Linear form is the canonical WAT text form and is
+   what **our own `wasm2wat` emits**.
+2. **`wasm-opt` does not catch the parse failure.** It surfaces as an uncaught exception with a
+   stack trace rather than a diagnostic, which violates the fail-loud contract's _readable_ half.
+
+⚠️ **This is precisely the shape [testing.md](testing.md) names as needing no oracle** — _a
+differential between two spellings of the same thing_, folded versus linear, which must agree by
+construction. Nothing tested it, so a broken round trip between two of our own CLI tools went
+unnoticed.
+
+### ✅ FIXED 2026-08-31 — the parser dropped inline exports (43% of them)
+
+Found while measuring whether the IR choice costs anything in the shipped wasm. It does not — but
+the measurement could not be trusted until this was explained.
+
+`binaryen-ts/parser/wat-parser.ts` does not support the **inline export abbreviation** on
+non-function items:
+
+| form                                   | result                                      |
+| -------------------------------------- | ------------------------------------------- |
+| `(memory (export "mem") 1)`            | **export silently dropped — no diagnostic** |
+| `(global $g (export "g") i32 …)`       | throws `unknown value type: (export "g")`   |
+| `(memory 1) (export "mem" (memory 0))` | correct                                     |
+
+Measured over 149 corpus modules: **345 exports via wabt-ts, 196 via binaryen-ts — 43% lost**, and
+`memory` in every sampled case. 148 of 149 modules lost at least one.
+
+⚠️ **This is why binaryen-ts's output looked 1.24% SMALLER.** It was not encoding better; it was
+emitting less. A size win that is actually data loss is the exact shape a byte-count comparison
+cannot distinguish — the export COUNT is what separated them, and the modules still validate,
+because a module that fails to export its memory is perfectly valid and merely useless to its host.
+
+**Inline export is the idiomatic form and is what our own `wasm2wat` emits** — `inlineExport`
+defaults to `true`. So this compounds the round-trip defect above rather than sitting beside it.
+
+**Ranking:** this outranked the linear-form gap. Linear form fails loudly; this one succeeded and
+returned a module missing its exports.
+
+**Fixed.** All four collectors (`memory`, `table`, `tag`, `global`) now consume the abbreviation
+through one shared `takeInlineExports` helper, matching what `collectFunc` always did. Corpus
+exports **196 → 345 of 345**, export sets identical on 149 of 149 modules, gated by
+`tests/binaryen-ts/parser/inline_export.test.ts`.
+
+### ✅ The byte gap is fully explained (2026-08-31), and it was NOT data loss
+
+Chased to the section, then to the byte. Three components, none of them a defect:
+
+| component          | cause                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **code −3,073**    | binaryen-ts run-length-compresses consecutive same-type locals; wabt-ts emitted one group per local. `vec(count, valtype)`, so three i32 locals went out as `3 \| (1,i32)(1,i32)(1,i32)` where `1 \| (3,i32)` says the same thing in 3 bytes instead of 7                                                                                                                                                                                       |
+| **datacount −162** | the section is **optional** unless `memory.init` / `data.drop` reference the data index space. wabt-ts emits it whenever data segments exist; binaryen-ts omits it. Both valid — and binaryen-ts rejects those two instructions outright, loudly, in both its WAT and binary readers, so it can never need the section. 🔧 "wabt" here meant wabt-ts: UPSTREAM wat2wasm 1.0.41 omits it unless it is used (measured 2026-09-10) — divergence W6 |
+| type +70, data +66 | small, and in the other direction                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+**Fixed on the wabt-ts side.** The writer's comment already claimed run-length encoding; only the
+loop did not do it. Coalescing recovered **42,437 bytes (2.7%) across the 421-file corpus** —
+considerably more than the 3,073 gap that led to it, because binaryen-ts coalesces only partially,
+so the gap measured the _difference_ in redundancy rather than the total.
+
+⚠️ **This moved the emitted-byte baseline on 398 files**, and came with a deliberate re-baseline in
+the same commit: 1,557,602 → 1,515,165 bytes. The baseline is not a test; it pins bytes, so a
+genuine encoder improvement is supposed to move it.
+
+⬚ **binaryen-ts could take the same fix** — it carries roughly 5,600 bytes of the same redundancy on
+this corpus. Not done; it is an optimisation, not a defect.
+
+### ✅ FIXED 2026-08-31 — inline IMPORTS, the worse half
+
+Same abbreviation family, all five kinds. `(memory (import "m" "a") 1)`, `(table (import …))` and
+`(func (import …))` were **silently dropped**; `(global (import …))` threw.
+
+**A dropped import is worse than a dropped export**: it removes an entry from the index space, so
+every later function, memory, table or global index shifts by one — a valid module that calls the
+wrong function. For `func` the failure was different and louder in hindsight: the import became a
+DEFINITION with an empty body, so a declared result had nothing to return
+(`expected 1 elements on the stack for fallthru`).
+
+Handled through the same shared helper, now `takeInlineDecorations`, consuming exports and an
+optional import in one loop because the spec permits them interleaved.
+
+**Corpus parity, 149 modules:** exports **345 / 345**, imports **250 / 250**, identical sets on 149
+of 149 for both.
+
+The regression test asserts the computed VALUE for the index-space case — if the import were lost,
+`$two` would move from index 1 to 0 and `call $two` would still be a valid module calling the wrong
+function, which no structural assertion catches. Verified by neutering the abbreviation: 6 steps
+fail.
+
+### ◐ Folding reaches 82.9% of modules; binaryen-ts's parser has SEPARATE gaps
+
+The folded writer works: **421/421 corpus modules assemble identically folded or linear.** But the
+goal it was meant to serve is not reachable this way.
+
+**binaryen-ts's parser accepts our folded output on 1 of 421 modules.** Folded output is not
+uniformly folded — it is folded where it can be and linear where it cannot, and binaryen-ts rejects
+any linear fragment, so one is enough to fail the whole module.
+
+🔧 **CORRECTED.** This section first claimed `br`, `br_if` and `return` were structurally unfoldable
+— that a branch's value lives on the stack and cannot be a child. **That was wrong, and the error
+was in how the IR was read, not in the IR.** All four branch kinds carry `values: Expr[]`; the
+interfaces were read with `grep -A 9`, which stops inside the docstring that precedes that field, so
+it was never seen. Folding them with an empty operand list emitted the head while the linear writer
+still rendered the value — `(i32.const 1 br 0)` — and that malformed output was misread as evidence
+the concept was impossible.
+
+Hand-written pairs settle it: `(br $l (i32.const 1))`, `(return (i32.const 5))` and
+`(br_if $l v cond)` all assemble to **bytes identical** to their linear equivalents. The WAT was
+always legal.
+
+**With the real operand lists wired, fully-foldable modules went 3/421 → 349/421 (82.9%).**
+
+One genuine structural blocker remains:
+
+|                                                           | why                                                                                                |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **`placeholder` operands** — 2,140 nodes, ~17% of modules | "the value is already on the stack". Linear spells that by writing nothing; folded cannot spell it |
+| `try` — 15 nodes                                          | not implemented; ordinary work, not a blocker                                                      |
+
+**A fully-folded module with no placeholders DOES parse in binaryen-ts** — verified. So folding
+works, and the remaining failures are elsewhere.
+
+⚠️ **Separate the PARSER from the ENCODER before attributing anything here.** Measuring
+`encodeWasm(parseWat(t))` as one step hid which half was failing, and the answer was not the one the
+error text suggested:
+
+| stage                           | result              |
+| ------------------------------- | ------------------- |
+| `parseWat` on our folded output | **311 / 421 (74%)** |
+| `encodeWasm` after that parse   | 1 / 421             |
+
+So the dominant failure was in the **encoder**, not the parser.
+
+### ✅ Fixed: numeric entity references (310 modules)
+
+`resolveRef` looked every reference up as a NAME and threw on a miss. A WAT identifier always begins
+with `$`, so a bare integer can only be a direct index — `(export "f" (func 19))` is as legal as
+`(export "f" (func $g))`, and our own `wasm2wat` emits the numeric form. Fixed, gated by
+`tests/binaryen-ts/encoder/numeric_refs.test.ts`, with the fail-loud guarantee preserved: a dangling
+**named** reference still throws.
+
+⚠️ **This is NOT the inline-export fix.** That one was about exports being _dropped at parse time_;
+this is a parsed export failing to _resolve at encode time_. Adjacent symptoms, different stages —
+which is why the first fix did not touch it.
+
+### ⬚ The remaining ladder, each revealed by fixing the one above it
+
+| # | gap                                                             | modules | state                                                                                                                                    |
+| - | --------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | numeric branch depths + `br`/`br_if` operands                   | 307     | ✅ **fixed** — see below                                                                                                                 |
+| 2 | stack-sourced operands, for the modules carrying placeholders   | 44      | ✅ **done** — round-trip 302 → 340. Both halves landed; the two IRs met on `Pop` / `placeholder`. [ir-convergence.md](ir-convergence.md) |
+| 3 | `call_indirect: unknown type N` — numeric type references       | 39      | ✅ **done** — round-trip 340 → 373                                                                                                       |
+| 4 | `label depth N exceeds` — **an `if` pushed no label scope**     | 24      | ✅ **done** — round-trip 373 → 393. The error was the benign half; the silent half was branches going to the WRONG block                 |
+| 5 | `unresolved throw tag reference` — a **reconstructed** tag name | 11      | ✅ **done** — round-trip 393 → 404                                                                                                       |
+| 6 | `try` — a bare atom, plus a mismatched `catch_all` sentinel     | 10      | ✅ **done** — round-trip 404 → 412                                                                                                       |
+| 7 | 4 `local.get`, 2 `rethrow`, 2 branch labels, 1 GC func type     | 9       | ✅ **done** — round-trip 412 → **421 / 421**. Four unrelated causes; see below                                                           |
+
+**The ladder is finished: binaryen-ts reads our folded output on all 421 corpus modules**, and
+folded output still assembles to bytes identical to linear on all 421. Emitted-byte baseline
+`IDENTICAL` throughout.
+
+### ✅ #7 — the tail was four unrelated causes, `df24686ec` + `3ec5b29d6`
+
+Grouping them by "9 modules" made them look like one thing. They shared nothing but the count.
+
+| cause                                        | where              | fix                                                                                       |
+| -------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
+| `rethrow` emitted as a bare atom             | wabt-ts writer     | absent from `foldSpec`; it carries no operands, so it folds as a leaf                     |
+| partly stack-sourced operands declined       | wabt-ts writer     | placeholders occupy a PREFIX; omitting them is the correct folded spelling                |
+| an ANONYMOUS `block` had no name on the node | binaryen-ts parser | the label map got `$depth{N}`, the node got `null`, the encoder pushed `''`               |
+| an import's `(type N)` was not skipped       | binaryen-ts parser | it comes FIRST, so the `(param ...)` loop never started and the signature read `() -> ()` |
+
+⚠️ **The mixed-operand decline was justified by reasoning that was wrong about WAT and right about
+our own parser** — a combination worth remembering, because checking only the first half would have
+shipped a silent miscompile. The old comment argued that `(i32.store (value))` gives one operand for
+two slots and "a reader assigns it to the FIRST". Folding is defined by UNFOLDING, so written
+operands land in the LAST slots and the stack supplies the rest; wabt-ts reads it correctly. But
+binaryen-ts read that same text as storing the ADDRESS at the VALUE and returned 0 where wabt-ts
+returns 42 — valid bytes, wrong program. Two causes there: a claim splices the producer into
+whichever slot asked (a trailing one), and `parseStore` gave a lone written operand to the address.
+Both fixed; claims are now gated on no written operand having been consumed.
+
+🔧 **A correction this produced:** the `_claims` docstring said one claim "is the subset where order
+cannot be wrong". It is not. With N slots, W written and C claimed, the stack fills the LEADING C
+slots, so claims and written operands agree only when W is zero.
+
+**And `call` never had the problem**, for a reason worth knowing: it does not ask for missing
+operands at all. It emits fewer and lets the preceding statements supply the rest, which is just
+stack semantics working. The bound bites only where arity is discovered BY ASKING — binary ops,
+stores, compares.
+
+⚠️ **Two of the four fixes were first covered by tests that did not discriminate.** Written as a
+round trip, every anonymous-block fixture passed with the fix reverted, because `wasm2wat --fold`
+NAMES a block it emits a branch to — so the anonymous case never reached the parser. They only
+discriminate when the folded WAT is parsed DIRECTLY. Each group was then checked by reverting its
+own fix; the two that still passed are labelled in the file as guards rather than coverage. See
+[best-practices.md](best-practices.md) on verifying that a test fails without its fix.
+
+⚠️ **The counts in rows 5–7 were STALE until 2026-09-01** — they read 7 and 4, from an early sample
+rather than the full corpus, and the rows were in the opposite order. Re-derived against all 421
+modules. A number carried forward without re-measuring is the thing this file exists to prevent.
+
+### 🔁 The same mistake in three places: RECONSTRUCTING a name instead of resolving an index
+
+Worth recording as one pattern rather than three incidents, because it recurred after being fixed
+twice:
+
+| where                 | reconstructed      | actually needed                    |
+| --------------------- | ------------------ | ---------------------------------- |
+| branch labels         | `$depth{N}`        | the label registered at that depth |
+| `call_indirect` types | a name lookup only | the index-keyed `heapTypeDefs`     |
+| throw / catch tags    | `$tag{N}`          | the tag registered at that index   |
+
+Each reconstruction is the name the parser would have SYNTHESIZED for an anonymous construct, so
+each works right up until the construct has a name of its own — and our own `wasm2wat` names
+everything while referencing numerically, which is why all three surfaced together and none had
+surfaced before.
+
+**A reconstruction also rots**: it silently stops matching if the synthesizing side ever changes its
+naming. A lookup does not. Prefer resolving what is AT an index over rebuilding what its name
+probably is.
+
+### ◐ #2 — the placeholders are MULTI-VALUE, and that really is unfoldable
+
+Traced to the slot they fill: **2,095 of 2,140 are `local.set.value`**. Two causes, and only one of
+them was a bug.
+
+✅ **Fixed: a loop did not push its result.** A loop's blocktype means different things at its two
+ends — a BRANCH to a loop targets its start and carries its PARAMETERS, while a loop reaching its
+END produces its RESULTS. `brTargetResultCount` got the first right; the end-of-frame path forced
+`rCount = 0` for loops as well, so `(loop (result i32) …)` was flushed as a statement instead of
+pushing its value.
+
+⚠️ **That defect was invisible to every byte-level check.** The modules still round-tripped, because
+the writer spells a placeholder by emitting linear form, which reassembles to the same bytes. It was
+visible only as an IR that could not be folded. `tests/wabt-ts/reader/loop_result.test.ts` asserts
+the IR SHAPE for that reason.
+
+🚨 **The remaining placeholders are multi-value results, and those cannot fold.** A producer with N
+results pushes one node, so a second consumer finds an empty stack:
+
+```
+(call $two)      ;; results i32 i32
+local.set 1
+local.set 0
+```
+
+There is no folded spelling for "this call produces two values consumed by two instructions" — the
+tree has one node and two parents. Verified on both a multi-value `call` and a multi-value `block`.
+
+🔧 **CORRECTED again — "unfoldable" was too strong.** Multi-value CAN be spelled in folded form:
+
+```wat
+(local.set 1 (call $two))
+(local.set 0)
+```
+
+runs correctly and is accepted by wabt-ts and upstream wabt. The second consumer is a folded
+instruction with NO operand, taking its value from the stack — the same shape as a `br` carrying a
+stack value.
+
+**And upstream binaryen parses every form, including bare linear.** It spills the multi-value result
+into a synthetic local and rewrites each consumer as a `tuple.extract`. The restriction is
+binaryen-ts's own: it implemented the folded subset. Full measurement and a three-stage scope:
+[ir-convergence.md](ir-convergence.md).
+
+### ✅ #1 fixed — round-trip went 2 → 302 of 421
+
+**Three defects in one area, plus one the fix introduced.**
+
+1. `resolveLabel` **reconstructed** the name `pushLabel` would have synthesized (`$depth{N}`) rather
+   than looking up whichever label sits at that depth. That only works for ANONYMOUS blocks — a
+   block with an explicit `$B0` registers that name instead. Our `wasm2wat` emits named blocks and
+   numeric branches, a combination nothing in the suite produced.
+2. An unconditional `br` **dropped its value**: the guard read `conditional && args[2]`, so
+   `(br $l (i32.const 7))` parsed as a bare branch.
+3. `br_if` read its operands **backwards** — in `(br_if $l value cond)` the condition is LAST,
+   because it is the top of the stack and the value sits below it.
+
+⚠️ **And the fix's own bounds check rejected 279 modules.** Depth −1 is the FUNCTION FRAME, the
+implicit block around every body that `br N` may target as a return. It is not in the parser's label
+map, so "past every block" read as out of range — a guard firing on the single most common branch in
+real code. The encoder seeds `fn.bodyFrameLabel ?? ''`, so the empty name resolves there.
+
+**Each fix in this chain revealed the next**, and the counts moved 1 → 2 → 101 → 302.
+
+**Every fix so far has revealed the next one.** That is worth stating plainly rather than
+re-estimating each time: the count went 1 → 2 modules while removing 310 failures, because the
+failures are layered rather than parallel.
+
+✅ **The default WAS flipped, in 1.5.4** (`357007307`). At the time this paragraph was written the
+parsing benefit did not exist — binaryen-ts re-read 1 of 421 modules from folded output, so folding
+bought nothing and cost a re-baseline. Finishing the ladder took that to 421 of 421, which is what
+turned the decision. Linear stays behind `wasm2wat --linear`.
+
+**Measured before re-baselining, and the reason this was safe:** emitted wasm bytes and hashes
+unchanged on 421/421; LINEAR text byte-for-byte identical to the old baseline on 421/421; default
+output assembles to linear's bytes on 421/421. The flip changed which form is default, not what the
+toolchain can emit.
+
+⚠️ **It exposed two defects that had cancelled each other out.** `writeFoldedConstExpr` treated a
+leaf as "its linear rendering IS its head" and routed it through `writeExprList`, while
+`writeInstrHead`'s default branch did the same and described itself as unreachable. Both were wrong,
+and the output was valid for exactly as long as linear was the default — then
+`(table $T0 10 funcref ((ref.func 0)))`, which does not parse. **A wrong assumption held by two
+places at once produces correct output until one of them moves.**
+
+⚠️ **The baseline pinned ONE text hash taken from the DEFAULT.** Left alone the flip would have
+silently repurposed that column — pinning folded while dropping every trace of linear coverage. It
+now records both forms by name, and `--write` makes re-baselining run the same code path that
+verifies.
+
+## Which answers the bridge question
+
+**The bridge is not redundant duplication. It is the MORE CAPABLE of the two WAT → binaryen routes,
+and shipped code uses the other one.**
+
+Measured over 150 corpus files:
+
+|                                      |                                                                |
+| ------------------------------------ | -------------------------------------------------------------- |
+| both routes succeed                  | 70 — and **0 produce identical bytes**                         |
+| only the shipped parser (`parseWat`) | 52 — the bridge lacks `memory.copy` and the bulk-memory family |
+| only the bridge                      | 4 — the shipped parser cannot read linear form                 |
+| neither                              | 24                                                             |
+
+So each route covers what the other cannot, they never agree byte-for-byte, and **no test compares
+them.**
+
+### The decision this turns into
+
+"Where does the bridge live" is settled ([overview.md](overview.md)). What is open is sharper:
+**should `wasm-opt` route `.wat` input through the bridge?** Doing so would fix defect 1 and clear
+the bridge item in one move — but it is not a drop-in, because the bridge fails on `memory.copy`,
+which the shipped parser handles.
+
+⚠️ **Do not treat "export the bridge" as the way to close this.** Exporting makes `./bridge`
+supported public surface on the fastest-moving part of the tree; it would not fix the round trip,
+and it would make the duplication permanent rather than resolved.
+
+**It depends on no other task item.** The convert pair and exact types touch the bridge but neither
+gates this.

@@ -26,6 +26,10 @@ Thumbs.db
 CLAUDE.md
 TASKS.md
 
+# Private, machine-specific project memory (local paths, account names). NEVER committed: this
+# repo is pushed to GitHub. Anchored, per the note below. See cmem/INDEX.md.
+/cmem/local/
+
 # Local-only reference clones, NOT part of this repo.
 #
 # These patterns are ANCHORED with a leading `/` on purpose. binaryen-ts carried

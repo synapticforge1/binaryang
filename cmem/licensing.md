@@ -92,7 +92,7 @@ JSDoc `{@link}` and `@example` snippets are **not type-checked**. When renaming,
 as code — Phase 11.2 found stale `makeConst()` references after the real factories had become
 per-type `makeI32Const` / `makeI64Const` / `makeF32Const` / `makeF64Const`.
 
-🔓 **Open:** the JSDoc examples across `src/binaryen-ts/` still import from
-`@jrmarcum/binaryen-ts/*`. They are documentation of consumer usage, so they are not wrong code, but
-they name a package that is being retired. They want updating to `@jrmarcum/binaryang/*` before
-1.5.1 — tracked with the migration note (A17).
+✅ **Closed** (re-checked 2026-09-14): the JSDoc examples across `src/binaryen-ts/` used to import
+from `@jrmarcum/binaryen-ts/*`, a package being retired, and wanted updating to
+`@jrmarcum/binaryang/*`. `src/` no longer names either predecessor package except `src/index.ts`'s
+module doc, which says binaryang REPLACES them — which is correct.

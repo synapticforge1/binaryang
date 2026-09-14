@@ -1,10 +1,16 @@
-# Publishing — JSR provenance
+# Publishing — JSR provenance and the release process
 
-Merged topic file, **partial**. This covers provenance only. The rest of the release process is
-still wing-scoped in [binaryen-ts/publishing.md](binaryen-ts/publishing.md) and
-[wabt-ts/publishing.md](wabt-ts/publishing.md), because the two release scripts are not yet
-reconciled and a merged document would describe a flow that does not exist. See
-[INDEX.md](INDEX.md).
+Merged topic file, **both halves**: the provenance half at A16, the release process at §2.2
+(2026-08-31, once `scripts/release/` made it one flow — the second half starts at "The release
+process" below). The wings, [binaryen-ts/publishing.md](binaryen-ts/publishing.md) and
+[wabt-ts/publishing.md](wabt-ts/publishing.md), are the origin record.
+
+**Current state (2026-09-14):** `@jrmarcum/binaryang@1.5.4` is latest, score 100, provenance
+`rekorLogId=2692137018`. `main` carries unreleased work — [unreleased.md](unreleased.md).
+`RELEASE_PAT` is still NOT set; that is owner action 1 in [open-work.md](open-work.md).
+
+The sections below are in the order they were found, so a later one can narrow an earlier one — the
+last section, "The tag-push path works unaided", narrows the manual-step warnings above it.
 
 ## RULE — never bump the version in the same change that merges to `main`
 
@@ -157,7 +163,10 @@ Fixed by deleting and re-pushing the tag once the workflows were registered.
 because there the branch push always comes first. Worth writing down anyway: the symptom is not an
 error, it is an _absence_, and absence is the hardest thing to notice.
 
-### The score is 88, and provenance is not why
+### The score was 88 at 1.5.1, and provenance was not why
+
+_Historical: binaryang has scored 100 since the three settings below were set; 1.5.4 read 100 on
+2026-09-02._
 
 Read from `api.jsr.io/scopes/jrmarcum/packages/binaryang/score` — **15 of 17 factors**:
 
@@ -205,7 +214,9 @@ must not be described as a score fix.
 
 _Relocated from machine-local memory 2026-08-31, where it was the only copy — the same move wabt-ts
 made with its formatter notes, and for the same reason: this is PROJECT knowledge and would not
-survive a clone. Machine-level facts (`safe.directory`, the repack failure) correctly stay outside._
+survive a clone. Machine-level facts (`safe.directory`, the repack failure) stayed outside at the
+time; since 2026-09-14 the owner's rule is that they live under `cmem/` too — in the PRIVATE,
+gitignored `cmem/local/environment.md`, since they name local paths and accounts._
 
 `allFastCheck: yes` independently confirms that removing `--allow-slow-types` was right: the package
 passes fast-check, so it ships a `.d.ts` for Node consumers.
@@ -276,6 +287,10 @@ being recorded. `updatedAt == createdAt` means either not-yet-attested or never-
 cache-busted read distinguishes them.
 
 ## 🚨 The auto-tag dispatch path does NOT publish — 3 of 3
+
+_Superseded by the ROOT CAUSE section below, which explains every row. Kept because the
+correlation-that-became-a-resting-place is itself the lesson ([best-practices.md](best-practices.md)
+§ "When two paths to the same action disagree")._
 
 Measured across three releases of three packages:
 
@@ -452,8 +467,9 @@ The tag push fires `publish.yml`, which verifies the tag matches `deno.json`, ru
 `test`, then calls `deno publish` **directly** — never through `deno task`, because that indirection
 spawns a subprocess and loses OIDC — and finally creates a GitHub Release.
 
-⚠️ **In practice a release currently needs a manual step**, because `RELEASE_PAT` is not set. See
-the root-cause section above.
+⚠️ **A DISPATCHED release needs a manual step**, because `RELEASE_PAT` is not set. See the
+root-cause section above. 🔧 This first said "a release currently needs a manual step"; 1.5.4
+narrowed it — see "The tag-push path works unaided" at the end of this file.
 
 ## Version rule — sub-version capped at 9
 
@@ -551,3 +567,20 @@ binaryang has **no submodules** — the predecessor remotes point at local sibli
 carry a submodule-remnant recovery recipe (`git rm --cached` leaves behind a `.git` file and the
 `.git/modules/<name>/` storage, worth hundreds of MB). It no longer applies here and is left in the
 wings for the history.
+
+## ✅ The tag-push path works unaided — 1.5.4, 2026-09-02
+
+**1.5.4 was released with `deno task release` and published from the tag push, with NO manual
+re-push.** Confirmed on JSR: `latest=1.5.4`, score 100, `rekorLogId=2692137018`, not yanked. It is
+the first evidence that `deno task release` works end to end on its own; 1.5.3 had needed the
+recovery recipe.
+
+⚠️ **This narrows the earlier finding rather than overturning it.** The `actorNotScopeMember`
+failure is on the `workflow_dispatch` path, which is what `RELEASE_PAT` exists for. A developer tag
+push authenticates as the developer, so it was never the path at risk. The earlier note that "every
+release will need the manual step" was too broad — every DISPATCHED release does.
+
+**So `RELEASE_PAT` is still an open owner action**, and the recovery recipe above still applies to
+any release that falls through to dispatch. The record, by path: `push: tags` has succeeded **6 of
+6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
+→ `workflow_dispatch` path has succeeded **0 of 4**.
