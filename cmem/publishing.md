@@ -2,8 +2,8 @@
 
 Merged topic file, **both halves**: the provenance half at A16, the release process at §2.2
 (2026-08-31, once `scripts/release/` made it one flow — the second half starts at "The release
-process" below). The wings, [binaryen-ts/publishing.md](binaryen-ts/publishing.md) and
-[wabt-ts/publishing.md](wabt-ts/publishing.md), are the origin record.
+process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
+[wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
 **Current state (2026-09-14):** `@jrmarcum/binaryang@1.5.4` is latest, score 100, provenance
 `rekorLogId=2692137018`. `main` carries unreleased work — [unreleased.md](unreleased.md).
@@ -571,9 +571,9 @@ tag event against, and the event passes unmatched. Push the branch first.
 goes in `README.md`; if it is curated internal project memory, it goes in `cmem/`.
 
 binaryang has **no submodules** — the predecessor remotes point at local sibling paths. Both wings
-carry a submodule-remnant recovery recipe (`git rm --cached` leaves behind a `.git` file and the
-`.git/modules/<name>/` storage, worth hundreds of MB). It no longer applies here and is left in the
-wings for the history.
+carried a submodule-remnant recovery recipe (`git rm --cached` leaves behind a `.git` file and the
+`.git/modules/<name>/` storage, worth hundreds of MB). It no longer applies here; the full texts
+(`git show 9758fc736:cmem/<wing>/publishing.md`) keep it for the history.
 
 ## ✅ The tag-push path works unaided — 1.5.4, 2026-09-02
 

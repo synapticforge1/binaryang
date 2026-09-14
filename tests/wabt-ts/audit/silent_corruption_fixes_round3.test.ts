@@ -4,7 +4,7 @@
 /**
  * Round-3 regression tests for the 2026-06-09 silent-corruption audit — the
  * third-sweep findings (core encoding utilities + more writer/parser fail-loud).
- * See cmem/wabt-ts/design-decisions.md.
+ * See cmem/wabt-ts.md § "2026-06-09 silent-corruption audit".
  */
 
 import { describe, it } from '@std/testing/bdd';

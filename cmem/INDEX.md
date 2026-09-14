@@ -25,21 +25,23 @@ it went stale, and three commit messages on `main` stated results their own diff
 3. **[unreleased.md](unreleased.md)** — what is on `main` and must go in the next release note.
 4. The topic file the open item points at.
 
-## Structure: shared core, project wings
+## Structure: one flat core, and a summary per predecessor
 
-Decision 6 settled that `cmem/` merges **by topic**, not by concatenation, with project-specific
-wings retained.
+Decision 6 settled that `cmem/` merges **by topic**, not by concatenation. Each predecessor brought
+a project-specific WING directory as well: `cmem/binaryen-ts/` (14 files, 3,586 lines, as it stood at
+`73ab06cb627`) and `cmem/wabt-ts/` (12 files, 13,219 lines, as it stood at `fa9483aa3`).
 
-|                     |                                                             |
-| ------------------- | ----------------------------------------------------------- |
-| `cmem/*.md`         | the shared core — merged topics, and binaryang's own record |
-| `cmem/binaryen-ts/` | the binaryen-ts wing, as it stood at `73ab06cb627`          |
-| `cmem/wabt-ts/`     | the wabt-ts wing, as it stood at `fa9483aa3`                |
+|                       |                                                                              |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `cmem/*.md`           | the shared core — merged topics, and binaryang's own record                  |
+| `cmem/wabt-ts.md`     | the wabt-ts wing, corrected and summarized (2026-09-14)                      |
+| `cmem/binaryen-ts.md` | the binaryen-ts wing, corrected and summarized (2026-09-14)                  |
+| `cmem/local/`         | private, gitignored — machine facts only (above)                             |
 
-**Nothing in the wings is deleted, and nothing in them is edited.** They are the origin record, and
-for the merge itself the evidence of what each side knew before the trees became one. A core topic
-file supersedes its wing counterparts for day-to-day reading; the wings stay because "it was already
-like that" is unfalsifiable once there is no repository boundary left.
+🔧 **The wings were summarized on 2026-09-14** (owner: "the wing docs get both corrected and
+summarized"). Until then they were kept unedited as the origin record — the evidence of what each
+side knew before the trees became one. That evidence is intact in git: every wing file is one
+`git show 9758fc736:cmem/<wing>/<file>` away, and each summary section names its command.
 
 **Consolidated 2026-09-14** (branch `cmem-consolidation`): machine-local memory moved in,
 `open-work.md` cut to open items with its closed history moved to topic files, stale status lines
@@ -66,8 +68,10 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
   counts, retellings of one event across files, completed runbooks, closed correspondence.
 - **Check it, do not assert it:** every removed section maps to a summary with a commit pointer, and
   no decision, DESIGN row, open item or trigger is among what was removed.
-- ⬚ **The wings** (below) are still under their "never deleted" rule; replacing them with summaries
-  is proposed and awaits the owner's explicit decision.
+- **Correct while summarizing.** A summary that carries a stale claim forward is worse than the full
+  text, because it looks current: paths are rewritten to today's tree and checked, claims the code
+  has overtaken are marked as corrections, and anything found still open is verified in the code and
+  moved to [open-work.md](open-work.md).
 
 Applied so far, each with its full text at the commit named:
 
@@ -79,6 +83,8 @@ Applied so far, each with its full text at the commit named:
 | `quality-passes.md`                                                  | the plan in [open-work.md](open-work.md); the passes in [testing.md](testing.md)                                                     | `git show 1672c2a5a:cmem/quality-passes.md` |
 | `handoffs.md` letters (file kept, as a log)                          | [handoffs.md](handoffs.md)                                                                                                           | `git show 1672c2a5a:cmem/handoffs.md`       |
 | `divergences.md` N1 and parity prose, the X1 record                  | [names.md](names.md), [testing.md](testing.md), a summary in place                                                                   | `git show 1672c2a5a:cmem/divergences.md`    |
+| the wabt-ts wing, `cmem/wabt-ts/` (12 files)                         | [wabt-ts.md](wabt-ts.md)                                                                                                             | `git show 9758fc736:cmem/wabt-ts/<file>`     |
+| the binaryen-ts wing, `cmem/binaryen-ts/` (14 files)                 | [binaryen-ts.md](binaryen-ts.md)                                                                                                     | `git show 9758fc736:cmem/binaryen-ts/<file>` |
 
 ---
 
@@ -107,32 +113,25 @@ Applied so far, each with its full text at the commit named:
 | [licensing.md](licensing.md)           | MIT-primary with Apache-2.0 alternative; why binaryang inherits BOTH upstreams' §4 obligations; the two JSR rejection conditions.                                                                                                                                                                                                                                  |
 | [handoffs.md](handoffs.md)             | **Correspondence with the sibling repos** — the live convention (never write into a sibling; draft here), a log of every letter with its outcome, and the lessons found only there. New drafts go at its end.                                                                                                                                                      |
 
-## The wings
+### The predecessors — look up an ID, an invariant or a test here
 
-**binaryen-ts** — `architecture.md` · `correctness.md` · `passes.md` · `phases.md` · `overview.md` ·
-`publishing.md` · `testing.md` · `INDEX.md` · `handoffs.md` · `best-practices.md` · `bridge.md` ·
-`licensing.md` · `binaryang.md` · `binaryang-kickoff.md`
-
-**wabt-ts** — `tasks.md` (7,564 lines; the phase and decision ledger) · `design-decisions.md` ·
-`pre-merge-known-issues.md` · `runtime-tooling.md` · `overview.md` · `publishing.md` · `testing.md`
-· `INDEX.md` · `best-practices.md` · `bridge.md` · `licensing.md` · `phases.md`
-
-**The wings are historical, not stale** — a distinction worth keeping. They remain the place to look
-for per-phase scope, per-invariant test placement, the TS↔C++ porting map, and the conformance
-metric tables. What is _stale_ is narrower and named: both wing `overview.md` files still say all
-three projects merge, and every test-file path in them uses the dead `foo_test.ts` form.
+| file                               | what it holds                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [wabt-ts.md](wabt-ts.md)           | **The wabt-ts wing, summarized.** The T-id index (every T-id code, tests or commits cite) and UP-n; the invariants a refactor or port must not undo, each with its test; the method rules and recurring root causes; conformance metrics at campaign close; invariant → test placement; the TS ↔ C++ map; the audit definition. |
+| [binaryen-ts.md](binaryen-ts.md)   | **The binaryen-ts wing, summarized.** The fail-loud contract; UP-n / WT-n index; pass-authoring invariants (walk API, label references, reachability roots, EH-aware CFG, Inlining, the Asyncify ABI); per-subsystem design; TranslateEH's scoping; rules S6 superseded, named so nobody ports them back.                  |
 
 ✅ **§2.2 is complete.** Every topic both wings carried is merged in the core — `overview` and
 `phases` now as [project.md](project.md), `bridge` as a summary in
 [ir-convergence.md](ir-convergence.md), and `licensing`, `testing` and both halves of `publishing`
-under their own names. Only `best-practices.md` (2,894 / 294) stays split, for the reason below — a
-decision, not a backlog item.
+under their own names. Only `best-practices.md` stayed split, for the reason below — a decision,
+not a backlog item — and the unconverged half now lives in the two summaries.
 
 ---
 
 ## Why `best-practices.md` is split rather than rewritten
 
-It is the trap file: 2,894 lines against 294, a 9.8:1 ratio, and a naive merge reads as wabt-ts's
+It is the trap file: 2,894 lines against 294 at the merge (a 9.8:1 ratio; wabt-ts's was 2,638 when
+summarized), and a naive merge reads as wabt-ts's
 memory with a few binaryen-ts notes appended — quietly losing the smaller project's reasoning.
 
 The instruction from the register inverts the usual framing, and it is the sharpest thing either
@@ -142,8 +141,9 @@ pass proves nothing. **For a rule two teams found separately, both origin storie
 evidence**, and choosing a survivor discards the strongest thing about it.
 
 So the shared `best-practices.md` opens with **only the convergent rules**, each with both
-derivations named, and the wings keep their full enumerations, which are long, project-specific, and
-lose nothing by staying where they were paid for.
+derivations named. The rules that did not converge are kept in [wabt-ts.md](wabt-ts.md) and
+[binaryen-ts.md](binaryen-ts.md) — one rule and one citing incident each — with the full
+enumerations one `git show` away.
 
 ---
 
@@ -155,5 +155,6 @@ lose nothing by staying where they were paid for.
 3. [project.md](project.md) — what binaryang is, what was decided and why, and how it got here.
 4. The README — the user-facing surface: subpaths, the runtime floors, migrating.
 5. [ir-convergence.md](ir-convergence.md) — the largest piece of live work.
-6. `wabt-ts/tasks.md` when you need the history behind a specific defect; it is the deepest record
-   either project kept.
+6. [wabt-ts.md](wabt-ts.md) and [binaryen-ts.md](binaryen-ts.md) when code, a test or a commit
+   cites a T-id, UP-n, WT-n or a named bug — the indexes are there, with the command for each full
+   text.

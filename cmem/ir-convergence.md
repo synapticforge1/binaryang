@@ -2001,7 +2001,7 @@ one-instruction arm always gave.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
-1,923 lines plus 13 test files. ⚠️ **The bridge is also where a wabt-ts tree acquires its types
+1,923 lines plus 13 test files when this step was planned (2026-09-04); 1,803 lines on 2026-09-14. ⚠️ **The bridge is also where a wabt-ts tree acquires its types
 today**; that derivation (`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified
 tree, or binaryen-ts's passes get nodes with no `type` to dispatch on.
 
@@ -2018,10 +2018,10 @@ paths, import aliases that must not shadow a package — moved to [project.md](p
 
 **Until this step lands, two things matter when touching the bridge** (`src/bridge/bridge.ts`, tests
 `tests/bridge/`): it walks the wabt-ts IR by **direct recursion**, not the expression-visitor
-delegate (reasoning: `cmem/wabt-ts/bridge.md` § "Why direct recursion"); and it keeps **its OWN
+delegate (reasoning: [wabt-ts.md](wabt-ts.md) § "Why direct recursion"); and it keeps **its OWN
 label stack, which has diverged twice** — T13.22 the notorious one — so its tests are the first to
 run after touching either IR's control flow. Tier coverage (~60 kinds plus the module surface) is
-enumerated in `cmem/wabt-ts/bridge.md`. And it is **deliberately NOT exported** (decided
+enumerated in [wabt-ts.md](wabt-ts.md) § "Tier coverage". And it is **deliberately NOT exported** (decided
 2026-08-27): a `./bridge` subpath would make the part of the tree most likely to change a supported
 public surface, and the duplication permanent rather than resolved. Do not export it to close a gap.
 
@@ -2108,7 +2108,7 @@ than attempted as one change. The natural stages, in dependency order:
    as a pass
 6. `deno task bridge` reaches 421/421 — the acceptance criterion
 
-Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines) and its 13 test files
+Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines when written; 1,803 on 2026-09-14) and its test files
 become unnecessary.
 
 ✅ **S6 BLOCKER CLEARED, 2026-09-04 — and it was a defect, not just a gap.**

@@ -27,7 +27,7 @@ retirement completed when wasmtk republished — not when the signposts went up.
 | 3 | **wasmtk does not merge.**                                                        | It stays a consumer.                                                                                                                                      |
 | 4 | **Start at 1.5.1.**                                                               | The next version of two packages both at 1.5.0 — continuous with each predecessor's number, not a patch on either.                                        |
 | 5 | **`./compat/binaryen` and `./compat/wabt`**, each keeping its upstream API shape. | Two different facades cannot share one `./compat` subpath, and both are the migration surface their consumers were told to adopt.                         |
-| 6 | **`cmem/` merges by topic** — shared core, project wings.                         | Reassessed as convergence proceeds; see [INDEX.md](INDEX.md).                                                                                             |
+| 6 | **`cmem/` merges by topic** — shared core, project wings.                         | Reassessed as convergence proceeds; the wings were summarized into `wabt-ts.md` and `binaryen-ts.md` on 2026-09-14 — see [INDEX.md](INDEX.md).            |
 
 ✅ Decision 2 was verified, and the recipe matters: `merge -s ours` plus `read-tree --prefix`
 preserves history in the DAG but yields **0** commits from `git log --follow`, because the files
@@ -285,12 +285,12 @@ it here loses nothing: the commits above, and the file at `1672c2a5a`, are the p
 
 ## Live gaps carried from the predecessors
 
-| gap                                                   | where                          | state                                                                                                                                           |
-| ----------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/wabt-ts/tools/wasm2ts.ts` | the long-term goal — WASI Preview 1 capable TypeScript output; blocked on wasmtk ([open-work.md](open-work.md), A2)                             |
-| **TranslateEH**                                       | binaryen-ts                    | a live gap, scoped 2026-08-24 — `binaryen-ts/correctness.md` § "TranslateEH"; not re-checked since the merge                                    |
-| **Phase 10 kernel selection**                         | binaryen-ts                    | deferred until real-corpus profiling; single-op dispatch regresses                                                                              |
-| **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229 — none at ceiling; much of the parser's remainder is where OUR message is better |
+| gap                                                   | where                          | state                                                                                                                                              |
+| ----------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/wabt-ts/tools/wasm2ts.ts` | the long-term goal — WASI Preview 1 capable TypeScript output; blocked on wasmtk ([open-work.md](open-work.md), A2)                                |
+| **TranslateEH**                                       | binaryen-ts                    | a live gap, scoped 2026-08-24 — [binaryen-ts.md](binaryen-ts.md) § "TranslateEH"; re-checked 2026-09-14: still unimplemented, and demand has moved |
+| **Phase 10 kernel selection**                         | binaryen-ts                    | deferred until real-corpus profiling; single-op dispatch regresses                                                                                 |
+| **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229 — none at ceiling; much of the parser's remainder is where OUR message is better    |
 
 Closed since the merge: custom-section preservation (C3, `4c162c584`) and diagnostic offset accuracy
 (A3, measured 2026-08-31 — [testing.md](testing.md)).

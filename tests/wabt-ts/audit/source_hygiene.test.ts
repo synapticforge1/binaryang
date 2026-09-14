@@ -17,7 +17,7 @@
 // grep classifies a file containing a NUL as binary and prints that line
 // INSTEAD of the matches. The bridge dropped out of an alignment-duplication
 // sweep entirely, and the sweep reported clean. Every enumeration in
-// `cmem/INDEX.md`'s audit definition — `Var`-bearing fields, `Expr`-bearing
+// `cmem/wabt-ts.md` § "The audit definition" — `Var`-bearing fields, `Expr`-bearing
 // fields, delegate hooks, arity tables, handler families — is grep- or
 // regex-driven over the source, so one invisible byte silently narrows the
 // population that every one of them measures, and each still reports success.
@@ -36,8 +36,8 @@ import { assert } from '@std/assert';
 // `cmem/` and `README.md` are in scope too, and were NOT at first — which is
 // how T13.28 happened: five control bytes accumulated across three memory
 // files, making wabt-ts's `tasks.md` and `design-decisions.md` BINARY to grep
-// (both at the root of its `cmem/` then; since the merge,
-// `cmem/wabt-ts/tasks.md` and `cmem/wabt-ts/design-decisions.md`).
+// (both at the root of its `cmem/` then, in binaryang's wabt-ts wing after the merge,
+// and summarized into `cmem/wabt-ts.md` since 2026-09-14).
 // Searching project memory is itself a grep, and one of the corrupted bytes was
 // a `\b` inside the documented id-lookup command, so the instruction the ledger
 // gives for picking the next tranche id was silently broken.
