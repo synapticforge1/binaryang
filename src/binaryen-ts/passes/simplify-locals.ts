@@ -35,7 +35,7 @@ import { sameVar } from '../../wabt-ts/ir/ir.ts';
 export class SimplifyLocalsPass implements Pass {
   readonly name = 'SimplifyLocals';
   readonly description = 'Collapses consecutive local.set + local.get pairs into local.tee.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {

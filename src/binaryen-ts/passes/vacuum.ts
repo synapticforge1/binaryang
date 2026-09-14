@@ -35,7 +35,7 @@ export class VacuumPass implements Pass {
   readonly name = 'Vacuum';
   readonly description =
     'Removes nop instructions, empty/redundant blocks, and dropped pure expressions.';
-  readonly requiresNonNullableLocalFixups = false;
+  readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {

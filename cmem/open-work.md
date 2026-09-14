@@ -54,16 +54,15 @@ failing 30 of 70 spec assertions — which the owner had fixed next (`959954015`
 `if` typed unreachable that wasm validates as void; divergence U1). **`call_indirect`'s `sig`
 (row 3) was then decided — A, binaryen-ts takes `sig` — and done** (`b034cedb1`,
 [ir-convergence.md](ir-convergence.md) § "Group 3"). No owner decision is pending in the table
-below except the standing ones (1, 4, 5).
+below except the standing ones (1, 4, 5). **The non-nullable-local probe then ran** and found the
+fixup reachable through Flatten; it is built (`135a81f99`, [binaryen-ts.md](binaryen-ts.md)).
 
 **Suggested order:**
 
-1. **Probe the non-nullable-local fixup** (§ "Open defects and gaps"). It is the one new finding
-   that could be a silent miscompile. Build a fixture that inlines a callee with a non-nullable
-   `(ref $T)` local, and check the result validates. Then either port the fixup or correct the
-   comments.
-2. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
+1. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
    `ref.as_non_null` refusal is among the 20 misses.
+2. **`-O3` on recursive corpus modules** (§ "Open defects and gaps") — loud, but three of the corpus
+   modules cannot be optimized at `-O3` at all.
 3. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
 
 ## Owner actions — nothing here is blocked on code
@@ -122,13 +121,12 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   `--reload` ([binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/publishing.md`). Release tooling, so
   the owner's call. (Its neighbour, the bump-then-release refusal, was fixed under owner decision 6
   — [publishing.md](publishing.md) § "The flow".)
-- ⬚ **The non-nullable-local fixup is documented but does not exist** (found 2026-09-14 summarizing
-  the binaryen-ts wing; verified by grep). `Pass.requiresNonNullableLocalFixups` is `false` in every
-  pass, `PassRunner.run()` never reads it, and no fixup pass exists — yet the JSDoc at
-  `src/binaryen-ts/passes/pass.ts:223` says one is inserted, and `inlining.ts:551` returns `null`
-  ("no reset") for a non-nullable `(ref $T)` local on the strength of it. Whether it is REACHABLE is
-  unverified: it needs a non-nullable typed-ref local through inlining. Probe with such a fixture
-  before deciding between porting the fixup and correcting the comments.
+- ⬚ **`-O3` cannot encode three corpus modules with recursive functions** (found 2026-09-14, hashing
+  the corpus's `-O2` / `-O3` / `-Oz` output while checking the non-nullable fixup changed nothing):
+  `1_recursion.wat`, `39_Phase39Combined.wat` and `5e_RecursiveArrow.wat` throw `unresolved call
+  target reference: "$fact…"` at encode. Only `-O3` runs Inlining, so it is the first suspect — a
+  self-call left pointing at a function that was renamed or removed — but unattributed. LOUD: nothing
+  is emitted. Present before `135a81f99` as well (identical rows with and without it).
 - ⬚ **Multiple tables are refused at encode** (`checkSingleTable`, `wasm-encoder.ts` ~1151; elem and
   `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already
   resolves `call_indirect`'s table index. The day it is lifted, both encoders must thread the real
