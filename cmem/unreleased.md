@@ -91,6 +91,11 @@ their own bump — and nothing breaks by their standing still.
 
 ## Behaviour changes — bytes move
 
+- **Dead functions are removed at every `-O` level, as upstream** (owner decision, 2026-09-14; was
+  divergence I1): `RemoveUnusedModuleElements` now runs before the function passes from `-O2` and
+  at the end at `-O1` and up, and `Inlining` removes only functions it inlined. Corpus: `-O1` /
+  `-O2` −39% bytes (7,620 → 3,943 functions), `-O3` −13%, `-Os` / `-Oz` unchanged. A caller that
+  optimizes a module and then looks for an UNEXPORTED function by name may no longer find it.
 - **DataCount only when code names a data segment**, or when the input binary had one — both writers
   (W6, `3db3106dc`); 3 bytes smaller on 273 corpus modules.
 - **Implicit types in upstream's order** (W5, `964d80c46`) — this can change what a `(type N)`

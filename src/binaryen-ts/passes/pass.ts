@@ -339,6 +339,15 @@ export class PassRunner {
 function getDefaultOptimizationPasses(opts: PassOptions): string[] {
   const passes: string[] = [];
 
+  // RemoveUnusedModuleElements where upstream schedules it: once BEFORE the
+  // function passes from -O2 ("a global cleanup before anything heavy",
+  // addDefaultGlobalOptimizationPrePasses) and once at the END at every level
+  // (addDefaultGlobalOptimizationPostPasses). 🔧 It ran at -Os / -Oz only, so
+  // -O1 / -O2 kept every dead function and -O3 removed them only through an
+  // Inlining side effect (divergence I1, retired 2026-09-14: corpus -O1 / -O2
+  // −39% bytes, -O3 −13%, -Os / -Oz unchanged; `dead_function_removal.test.ts`).
+  if (opts.optimizeLevel >= 2) passes.push('RemoveUnusedModuleElements');
+
   if (opts.optimizeLevel >= 1) {
     passes.push('DCE', 'PickLoadSigns', 'Vacuum');
   }
@@ -356,8 +365,9 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     passes.push('Inlining', 'OptimizeInstructions', 'CoalesceLocals');
   }
   if (opts.shrinkLevel >= 1) {
-    passes.push('Vacuum', 'RemoveUnusedModuleElements');
+    passes.push('Vacuum');
   }
+  if (opts.optimizeLevel >= 1) passes.push('RemoveUnusedModuleElements');
 
   return passes;
 }

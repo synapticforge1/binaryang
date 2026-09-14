@@ -57,14 +57,18 @@ failing 30 of 70 spec assertions — which the owner had fixed next (`959954015`
 below except the standing ones (1, 4, 5). **The non-nullable-local probe then ran** and found the
 fixup reachable through Flatten; it is built (`135a81f99`, [binaryen-ts.md](binaryen-ts.md)).
 Checking it found `-O3` unable to encode three recursive corpus modules, which the owner had fixed
-next (`426e78eb8`: Inlining removed a recursive callee it had counted as fully consumed;
-divergence I1 records the dead-function removal it keeps).
+next (`426e78eb8`: Inlining removed a recursive callee it had counted as fully consumed). The
+owner then aligned dead-function removal with upstream (option B, `909c2fc54`, divergence I1
+retired): RemoveUnusedModuleElements where upstream schedules it, Inlining removing only what it
+inlined.
 
 **Suggested order:**
 
-1. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
+1. **`-O3` output invalid in 16–17 corpus modules** (§ "Open defects and gaps") — the owner's
+   direction: fix it to behave as upstream does.
+2. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
    `ref.as_non_null` refusal is among the 20 misses.
-2. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
+3. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
 
 ## Owner actions — nothing here is blocked on code
 
@@ -115,6 +119,13 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ## Open defects and gaps
 
+- ⬚ **Inlining leaves invalid output in corpus modules at `-O3`** (found 2026-09-14, measuring the
+  dead-function alignment): V8 rejects 17 modules on `main` before that change, 16 after it —
+  every one "expected 1 elements on the stack for fallthru, found 2", and **Inlining alone**
+  reproduces each (`22_ConstEnumFoldingAndExponentCast`, `27_base64-encoding`, the `38_Math*` and
+  `7a_*` families, …). Present before today's Inlining fixes. LOUD: engines refuse it. Owner's
+  direction: do as upstream does. Earlier corpus checks hashed `-O` output without validating it,
+  which is how it went unseen.
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
 - ⬚ **`scripts/release/` runs no cold type check before the tag push**, so a stale type cache is
