@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (one an owner call), the block/label family done. **Step 5 — delete the bridge — is next**; `deno task bridge` at 401/421 must reach 421/421                       |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14), the block/label family done. **Step 5 — delete the bridge — is next**; `deno task bridge` at 401/421 must reach 421/421                       |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
@@ -46,9 +46,8 @@ The grouping decision was taken by worst-condition analysis — the fidelity wor
 unrepresentable instruction) does NOT bind at 0/128; the optimization worst case does, on
 `optimize-instructions.ts` with its 64 operator dispatches.
 
-**Next, in order:** the owner's call on `call_indirect`'s `sig` (Group 3), then S6 step 5. (K3 was
-decided and merged 2026-09-14.) The increments as they landed on `main` are in "Merge log" at the
-end of this file.
+**Next:** S6 step 5. (K3 and `call_indirect`'s `sig` were both decided and merged 2026-09-14.) The
+increments as they landed on `main` are in "Merge log" at the end of this file.
 
 ## The finding
 
@@ -1183,7 +1182,7 @@ Baseline 0, so every count is real.
 | `select`        | 12             | **8**              | ✅ wabt-ts's `val1` / `val2`          |
 | `if`            | **30**         | 44                 | ✅ binaryen-ts's `ifTrue` / `ifFalse` |
 | `br_on`         | 30             | **5**              | ✅ wabt-ts's paired `from` / `to`     |
-| `call_indirect` | **11**         | 16                 | ⬚ NOT mechanical — see below          |
+| `call_indirect` | 11             | **16**             | ✅ wabt-ts's `sig` (owner, 2026-09-14) |
 | `ref.null`      | 10             | n/a                | ⬚ NOT a rename — see below            |
 
 🔑 **On all three taken, cost and meaning agreed** — which is what made them safe to do as renames:
@@ -1199,6 +1198,14 @@ Baseline 0, so every count is real.
 ⚠️ **Two of the five are not the mechanical ties the plan called them**, and the measurement is what
 showed it:
 
+- ✅ **DECIDED 2026-09-14: A — binaryen-ts takes `sig`** (owner: fidelity is where the trouble has
+  been, and binaryen-ts is the cheaper side to change in source). Done in `b034cedb1`: binaryen-ts
+  gains `FuncSignature` (same name and shape as wabt-ts's, over its own value types, until S6
+  unifies them); `CallIndirectExpr.sig`; `makeCallIndirect` changed ARITY so the compiler named all
+  22 sites; a `@ts-expect-error` pins that no flat `params` returns (inverted). Behaviour-neutral:
+  baseline IDENTICAL, decode → encode 421/421. ⚠️ Scope was this node: binaryen-ts's
+  `WasmFunction` is still flat `params` / `results`, so the function-signature family is not yet
+  one shape on that side.
 - **`call_indirect`'s `sig` vs `params`+`results` — 🗓️ OWNER CALL, evidence gathered 2026-09-11.**
   Cost says convert wabt-ts (11 vs 16), but that is a 5-site margin **against the structural
   grain**: `FuncSignature` is wabt-ts's house concept — 49 uses, 78 `.sig` reads — and binaryen-ts

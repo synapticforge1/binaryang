@@ -157,7 +157,7 @@ function callEffectiveType(e: Expression, ctx: Ctx): Type {
     return t;
   }
   if (e.kind === ExpressionKind.CallIndirect) {
-    const r = (e as CallIndirectExpr).results;
+    const r = (e as CallIndirectExpr).sig.results;
     if (r.length > 1) {
       throw new Error(
         `Flatten: call_indirect returns ${r.length} values; ` +

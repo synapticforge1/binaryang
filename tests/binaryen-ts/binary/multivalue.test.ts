@@ -545,7 +545,10 @@ Deno.test('type collection reaches a call_indirect carried as a multi-value bran
   // The values sat in a `tuple.make` when this was found; since S6 decision 6A
   // they are the branch's own `values` list — the enumeration must reach them
   // there just the same.
-  const ci = makeCallIndirect(varName('$t'), makeI32Const(0), [], [], [ValType.I32]);
+  const ci = makeCallIndirect(varName('$t'), makeI32Const(0), [], {
+    params: [],
+    results: [ValType.I32],
+  });
   const blk = makeBlock([makeBreak('$l', null, [ci, makeI32Const(7)])], '$l');
   blk.type = [ValType.I32, ValType.I32];
 

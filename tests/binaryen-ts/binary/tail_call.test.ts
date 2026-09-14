@@ -154,8 +154,8 @@ Deno.test('Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolv
   assertEquals((target as CallIndirectExpr).isReturn, true);
   // Params/results were populated from the type reference.
   const ci = target as CallIndirectExpr;
-  assertEquals(ci.params.length, 1);
-  assertEquals(ci.results.length, 1);
+  assertEquals(ci.sig.params.length, 1);
+  assertEquals(ci.sig.results.length, 1);
 });
 
 // ---------------------------------------------------------------------------

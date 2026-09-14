@@ -52,25 +52,25 @@ built:** `TranslateToExnref`, 70 / 70 legacy spec assertions through it
 miscompiles elsewhere (see [unreleased.md](unreleased.md)) and found a third — `-Oz` on legacy EH
 failing 30 of 70 spec assertions — which the owner had fixed next (`959954015`: DCE trusted an
 `if` typed unreachable that wasm validates as void; divergence U1). **`call_indirect`'s `sig`
-(row 3) is next with the owner**, by their word.
+(row 3) was then decided — A, binaryen-ts takes `sig` — and done** (`b034cedb1`,
+[ir-convergence.md](ir-convergence.md) § "Group 3"). No owner decision is pending in the table
+below except the standing ones (1, 4, 5).
 
 **Suggested order:**
 
-1. **Owner decision first** — row 3 of the table below.
-2. **Probe the non-nullable-local fixup** (§ "Open defects and gaps"). It is the one new finding
+1. **Probe the non-nullable-local fixup** (§ "Open defects and gaps"). It is the one new finding
    that could be a silent miscompile. Build a fixture that inlines a callee with a non-nullable
    `(ref $T)` local, and check the result validates. Then either port the fixup or correct the
    comments.
-3. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
+2. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
    `ref.as_non_null` refusal is among the 20 misses.
-4. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
+3. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
 
 ## Owner actions — nothing here is blocked on code
 
 | # | item                            | note                                                                                                                                                                                                                                                                                                                                             |
 | - | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1 | **Create `RELEASE_PAT`**        | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                                                             |
-| 3 | **`call_indirect`'s `sig`**     | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways. Options reviewed 2026-09-14: re-measured, and by SOURCE sites alone it is 10 vs 9, the other way — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                |
 | 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned)                                  |
 | 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                                                               |
 

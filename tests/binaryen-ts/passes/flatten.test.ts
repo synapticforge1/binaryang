@@ -282,8 +282,7 @@ Deno.test('walk — call_indirect visits operands before the table index', () =>
     varName('$t'),
     makeI32Const(200), // target (table index) — must be visited LAST
     [makeI32Const(100)], // operand — must be visited FIRST
-    [ValType.I32],
-    [ValType.I32],
+    { params: [ValType.I32], results: [ValType.I32] },
   );
   const readVal = (c: Expression) => (c as { value: { i32: number } }).value.i32;
 

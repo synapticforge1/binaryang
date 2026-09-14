@@ -2211,7 +2211,10 @@ class WasmParser {
             // The index AS WRITTEN (7c): several types may be structurally
             // identical, and deriving one picks the first (T1).
             {
-              ...makeCallIndirect(varName(tableName), target, operands, cft.params, cft.results),
+              ...makeCallIndirect(varName(tableName), target, operands, {
+                params: cft.params,
+                results: cft.results,
+              }),
               typeIndex: typeIdx,
             },
             cft.results,
@@ -2248,8 +2251,7 @@ class WasmParser {
               varName(tableName),
               target,
               operands,
-              cft.params,
-              cft.results,
+              { params: cft.params, results: cft.results },
               /* isReturn */ true,
             ),
             typeIndex: typeIdx, // as written (7c) — see `call_indirect` above

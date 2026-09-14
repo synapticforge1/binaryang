@@ -1844,8 +1844,7 @@ class WatModuleParser {
       table: varName(table),
       callee: target,
       operands,
-      params,
-      results,
+      sig: { params, results },
       isReturn,
     };
   }
