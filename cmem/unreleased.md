@@ -122,3 +122,7 @@ anonymous-function name collision turned `(call 1)` into infinite recursion.
   had silently resolved 116. See [testing.md](testing.md) § "Independent oracles".
 - The corpus round trip over binaryen's own tests runs again and guards every index space
   (`456423b54`); the live binaryen interop tests run on availability (`cec3a3381`).
+- **`deno task bump` then `deno task release` works as documented** (owner decision 6, 2026-09-14).
+  It used to refuse at its own guard because the bump also dirties `main.ts`. `RELEASE_FILES` in
+  `scripts/release/release-guard.ts` is now the one list the release stages and the guard exempts —
+  [publishing.md](publishing.md) § "The flow".

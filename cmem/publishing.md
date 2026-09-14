@@ -470,6 +470,16 @@ deno task bump                      # rewrites deno.json AND main.ts (sub-versio
 deno task release                   # guard, commit the bump, tag, push commit + tag atomically
 ```
 
+**The bump and the release share ONE file list**: `RELEASE_FILES` (`deno.json`, `main.ts`) in
+`scripts/release/release-guard.ts`. `publish.ts` stages exactly those, and the dirty-tree guard
+exempts exactly those. 🔧 **Until 2026-09-14 this flow refused at its own guard.** Both halves named
+`deno.json` alone, while the bump also rewrites `main.ts`, so the guard returned `[" M main.ts"]`
+and exited 1. It failed safe. 1.5.4 went out only because its bump was committed by hand first
+(`395f536fc`), which made the script skip its own commit. `release_guard.test.ts` now checks the
+list against `bump_version.ts`'s write sites, and `publish_preflight_wiring.test.ts` checks that the
+`git add` stages the list. Verified by a real `deno task bump` with the actual `git status` fed to
+the guard (no blockers), then restored.
+
 The tag push fires `publish.yml`, which verifies the tag matches `deno.json`, runs `check` and
 `test`, then calls `deno publish` **directly** — never through `deno task`, because that indirection
 spawns a subprocess and loses OIDC — and finally creates a GitHub Release.
@@ -532,10 +542,10 @@ boundary. Moving checkout from v4 to v6 was forced by GitHub's Node 20 runtime d
 
 ### A dirty tree ships a release containing none of the work
 
-`publish.ts` stages `deno.json` and nothing else, so on a dirty tree it commits a bare version bump,
-tags that, and publishes a release with none of the code. **binaryen-ts v1.2.3 shipped as
-effectively v1.2.2 with a different version string** — two sessions of fixes sat uncommitted, and
-the wasmtk team reported "the bugs you fixed are still there", because they were.
+`publish.ts` stages the bump (`RELEASE_FILES`) and nothing else, so on a dirty tree it commits a
+bare version bump, tags that, and publishes a release with none of the code. **binaryen-ts v1.2.3
+shipped as effectively v1.2.2 with a different version string** — two sessions of fixes sat
+uncommitted, and the wasmtk team reported "the bugs you fixed are still there", because they were.
 
 Guarded now by `scripts/release/release-guard.ts`. **Untracked files count as dirty too**: a new
 source file that was never committed is absent from the tag, so the release is missing it while

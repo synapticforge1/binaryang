@@ -64,7 +64,6 @@ the worst-condition method ([ir-convergence.md](ir-convergence.md) § "K3").
 | 3 | **`call_indirect`'s `sig`**     | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                                                                                 |
 | 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned) |
 | 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                              |
-| 6 | **Release-flow fix**            | 🗓️ found 2026-09-14: `deno task bump` then `deno task release` refuses at its own guard (`main.ts` left dirty). Release tooling, so the owner's call — see § "Open defects and gaps". Decide before the next release                                                                                            |
 | 7 | **TranslateEH — still wanted?** | 🗓️ re-checked 2026-09-14: unimplemented, and wasmtk is migrating wasic to `try_table`, so it would be a compatibility shim for legacy binaries only. Keep, or close as won't-do — see § "Repo work"                                                                                                             |
 
 ~~A local directory path in git history~~ — 🛑 CLOSED as leave-it (owner, 2026-09-14). Committed
@@ -108,18 +107,11 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
-- ⬚ **The documented release flow refuses at its own guard** (found 2026-09-14 summarizing the
-  wabt-ts wing; verified by running the guard). `deno task bump` rewrites `deno.json` AND `main.ts`,
-  but `scripts/release/publish.ts` stages only `deno.json` and `releaseBlockers` exempts only
-  `deno.json` — so right after a bump the guard returns `[" M main.ts"]` and `deno task release`
-  exits 1. It fails SAFE (nothing publishes); 1.5.4 went out because its bump was committed by hand
-  first (`395f536fc` holds both files) and the script skipped its commit.
-  [publishing.md](publishing.md) § "The flow" documents the path that refuses. Fix is release
-  tooling — the owner's call: stage and exempt `main.ts` too, with a guard test for the post-bump
-  status. Related, also release tooling and still not applied: `scripts/release/` runs no cold type
-  check before the tag push, so a stale type cache is caught only by `publish.yml` after the tag is
-  public — and it wants a fresh `DENO_DIR`, not `--reload` ([binaryen-ts.md](binaryen-ts.md) §
-  `binaryen-ts/publishing.md`).
+- ⬚ **`scripts/release/` runs no cold type check before the tag push**, so a stale type cache is
+  caught only by `publish.yml` after the tag is public — and it wants a fresh `DENO_DIR`, not
+  `--reload` ([binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/publishing.md`). Release tooling, so
+  the owner's call. (Its neighbour, the bump-then-release refusal, was fixed under owner decision 6
+  — [publishing.md](publishing.md) § "The flow".)
 - ⬚ **The non-nullable-local fixup is documented but does not exist** (found 2026-09-14 summarizing
   the binaryen-ts wing; verified by grep). `Pass.requiresNonNullableLocalFixups` is `false` in every
   pass, `PassRunner.run()` never reads it, and no fixup pass exists — yet the JSDoc at
