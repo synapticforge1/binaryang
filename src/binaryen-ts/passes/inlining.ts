@@ -804,6 +804,7 @@ function inlineIntoFunction(
   inlineable: Map<string, WasmFunction>,
   _opts: PassOptions,
   labelHint: { value: number },
+  consumed: Map<string, number>,
 ): boolean {
   const usedLabels = collectLabels(fn.body);
   let changed = false;
@@ -816,6 +817,8 @@ function inlineIntoFunction(
     if (!callee) return e;
 
     changed = true;
+    // One ACTION, counted as it happens — upstream's `inlinedUses[name]++`.
+    consumed.set(callee.name, (consumed.get(callee.name) ?? 0) + 1);
     return inlineCallSite(callee, call, fn, labelHint.value++, usedLabels);
   });
 
@@ -909,6 +912,8 @@ export class InliningPass implements Pass {
 
     const labelHint = { value: 0 };
     const inlinedUses = new Map<string, number>();
+    /** Call sites inlined THIS iteration, per callee — what the removal below counts. */
+    const consumed = new Map<string, number>();
     let anyInlined = false;
 
     for (const fn of module.functions) {
@@ -917,7 +922,7 @@ export class InliningPass implements Pass {
       // iteration (avoids unsafe mutation of a function being read as callee).
       if (inlinedUses.has(fn.name)) continue;
 
-      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint);
+      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint, consumed);
       if (!changed) continue;
 
       anyInlined = true;
@@ -966,16 +971,35 @@ export class InliningPass implements Pass {
 
     if (!anyInlined) return false;
 
-    // Remove functions that are now fully inlined away (all refs consumed,
-    // not exported or referenced from tables).
-    module.functions = module.functions.filter((fn) => {
-      const fi = info.get(fn.name);
-      if (!fi) return true;
-      if (fi.usedGlobally) return true;
-      const used = inlinedUses.get(fn.name) ?? 0;
-      // Keep if not all call-site references were inlined.
-      return used < fi.refs;
-    });
+    // Remove functions no longer needed: every call site counted before this
+    // iteration was consumed by it, and nothing references them now.
+    //
+    // 🔧 The consumed count was taken by counting `__inlined_func$<name>`
+    // wrapper blocks in each caller's body — which holds EARLIER iterations'
+    // wrappers too. A recursive `$fact` inlined into `$_start` twice over two
+    // iterations looked fully consumed (2 wrappers against 2 refs: `$_start`'s
+    // call and its own self-call), yet the second copy still called `$fact`. It
+    // was removed and encoding refused ("unresolved call target reference" on
+    // three corpus modules at -O3, `inlining_recursion.test.ts`). Consumption is
+    // now counted per ACTION, as upstream counts it, and the recount of what
+    // REMAINS is a second, independent guard.
+    //
+    // ⚠️ Unlike upstream, a function never inlined but unreferenced (0 consumed
+    // of 0 refs) is removed here too — divergence I1: -O3 runs no
+    // RemoveUnusedModuleElements, and this is its only dead-function removal.
+    // Repeated until nothing more goes, so a function referenced only from a
+    // body removed in the same round goes with it, as it did before.
+    for (let before = -1; before !== module.functions.length;) {
+      before = module.functions.length;
+      const after = buildFunctionInfo(module);
+      module.functions = module.functions.filter((fn) => {
+        const fi = info.get(fn.name);
+        const now = after.get(fn.name);
+        if (!fi || !now || fi.usedGlobally || now.usedGlobally) return true;
+        const allConsumed = (consumed.get(fn.name) ?? 0) >= fi.refs;
+        return !(allConsumed && now.refs === 0);
+      });
+    }
 
     return true;
   }
