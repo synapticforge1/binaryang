@@ -40,6 +40,37 @@ unreleased set on top — [unreleased.md](unreleased.md); what is outstanding is
 
 Both predecessors ended at a terminal **1.5.1**. Their phase tables are closed.
 
+### 1.5.2 and 1.5.3 — the scope, summarized
+
+`cmem/scope-1.5.2.md` scoped branch `release/1.5.2` (opened 2026-08-27) and tracked its deferred
+items through 1.5.3. **Everything in it shipped**, so it was retired on 2026-09-14 under the
+summarize-when- complete policy ([INDEX.md](INDEX.md)). Full text:
+`git show cff3284b8:cmem/scope-1.5.2.md`.
+
+| release | merge       | tag                    | what landed, by commit                                                                                                                                                                                                                                                                               |
+| ------- | ----------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.5.2   | `6ee0eef1d` | `v1.5.2` → `740fbb119` | bridge de-coarsening, all shapes (`50a959baa`); `-Oz` store live across a `try_table` catch edge (`d5485a740`); user-facing README (`9083abdab`)                                                                                                                                                     |
+| 1.5.3   | `1e1479f3f` | `v1.5.3` → `384f37ecc` | releases routed through the trigger that works (`74bee7522`); `br_on_*`, three defects (`7ff0408f4`); one release flow (`b955443a6`); convergence indicator scripted (`71d7772a0`); bridge to `src/bridge/` (`e76e2b7ca`); last ten symbols documented (`6d118b33e`); `.gitattributes` (`ec3a07de0`) |
+
+Where the substance lives now: the de-coarsening and its lessons in [bridge.md](bridge.md); the
+never-bump-in-the-merge rule and what "tag exists" implies in [publishing.md](publishing.md); the
+bridge's location in [overview.md](overview.md); the retirement ladder in
+[transition.md](transition.md).
+
+Two lessons that lived only in that file:
+
+- **Merge duplicated tooling as a UNION, not a pick.** Each predecessor's release scripts held a
+  guard the other lacked — wabt-ts's `--dry-run` and `release-guard.ts`, binaryen-ts's `main.ts`
+  version rewrite — so choosing either side would have silently dropped one.
+- **Never give a branch the same name as a tag.** `release/1.5.2`, not `v1.5.2`, so
+  `git checkout v1.5.2` cannot be ambiguous between `refs/heads` and `refs/tags`. Likewise the task
+  is `release`, not `publish`, one keystroke from `publish:dry`, which does something unrelated and
+  reversible.
+
+Loose ends it held, resolved: "pass the provenance finding to wasmtk" was never recorded as sent,
+and became moot when wasmtk 2.0.2 published with provenance (`rekorLogId=2666522017`); "doc
+references mapped on plausibility" is carried in [open-work.md](open-work.md).
+
 ## The versioning rule — a genuine convergence
 
 **Sub-version capped at 9**: `1.0.9 → 1.1.0`, `1.9.9 → 2.0.0`, major uncapped (`9.9.9 → 10.0.0`).

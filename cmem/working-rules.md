@@ -71,6 +71,12 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` · `d
 - **Decide by the worst condition.** For a representation choice, find the worst case on the
   fidelity side and on the optimization side and let the binding one control; when neither binds,
   say so and let cost decide. See [ir-convergence.md](ir-convergence.md) § "The grouping decision".
+- **When work completes, summarize it in cmem — do not accumulate it.** A summary names what landed,
+  its commits and tags, where the substance now lives, any lesson found nowhere else, and a
+  `git show <commit>:<path>` pointer to the text it replaces. Decisions, DESIGN rows, open items and
+  triggers are never summarized away. The full policy: [INDEX.md](INDEX.md) § "Cleanup policy".
+- **Nothing private in a committed cmem file** — no local path, account name, token or secret. That
+  goes in the gitignored `cmem/local/`, or nowhere.
 - **Owner calls stay owner calls.** Where a record says 🗓️ OWNER or "future discussion", gather the
   evidence and stop.
 
