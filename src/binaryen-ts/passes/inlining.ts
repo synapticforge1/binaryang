@@ -57,7 +57,7 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
-import { isRef, None, Unreachable, ValType } from '../ir/types.ts';
+import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { optimizeNode } from './optimize-instructions.ts';
@@ -729,13 +729,31 @@ function inlineCallSite(
   // calls, rewrite `return` → `br $wrapperLabel`). For tail calls we leave
   // returns alone so they propagate out as the caller's returns.
   const bodyCopy = deepCopy(callee.body);
+
+  // 4. Result type of the wrapper block: the callee's WHOLE result type, as
+  //    upstream (`block->type = retType`). 🔧 It was `results[0]`, so a
+  //    `(result i32 i32)` callee sat in a block declaring one value and the
+  //    module was refused — 16 corpus modules at -O3 (`inlining_multivalue.test.ts`).
+  const retType: Type = callee.results.length === 0
+    ? None
+    : callee.results.length === 1
+    ? callee.results[0]!
+    : [...callee.results];
+
   // The callee's body becomes a STATEMENT of the wrapper block, which a region
   // cannot be; `children` is `Expression[]`, so only the encoder would object.
-  const substituted = asStatement(substituteBody(bodyCopy, mapping, label, !call.isReturn));
+  let substituted = asStatement(substituteBody(bodyCopy, mapping, label, !call.isReturn));
+  // A body of several instructions becomes an unnamed block typed like the
+  // region — by its LAST instruction. When a multi-value callee's values come
+  // from several of them, that block must declare them all, or it holds two
+  // values while declaring one: the same refusal, one level in.
+  if (
+    Array.isArray(retType) && substituted.kind === ExpressionKind.Block &&
+    substituted.name === null && substituted.type !== None && substituted.type !== Unreachable
+  ) {
+    substituted = { ...substituted, type: retType };
+  }
   children.push(substituted);
-
-  // 4. Result type of the wrapper block.
-  const retType = callee.results.length > 0 ? callee.results[0]! : None;
 
   // 4a. Guarantee a valid wrapper fallthrough.
   //
@@ -751,10 +769,16 @@ function inlineCallSite(
   //
   // Safe because the only live exits from the wrapper are the `br $label`s the
   // returns became — the post-body position is dynamically never reached. We
-  // append whenever the body does not fall through with `retType` (i.e. its
-  // type is `none` or `unreachable`); for a body that already ends unreachable
-  // the extra `unreachable` is redundant but harmless (Vacuum drops it).
-  if (retType !== None && substituted.type !== retType) {
+  // append whenever the body does not fall through with values (its type is
+  // `none` or `unreachable`); for a body that already ends unreachable the
+  // extra `unreachable` is redundant but harmless (Vacuum drops it).
+  //
+  // 🔧 This compared `substituted.type !== retType` by REFERENCE. A tuple type
+  // is an array, so a multi-value callee always "differed" and got an
+  // `unreachable` after a body that DOES fall through — valid, and a trap. A
+  // body whose values come from separate instructions is typed by its last one
+  // alone, too, so the question is only whether it yields values at all.
+  if (retType !== None && (substituted.type === None || substituted.type === Unreachable)) {
     children.push(makeUnreachable());
   }
 
@@ -763,9 +787,13 @@ function inlineCallSite(
   const block = makeBlock(children, label, retType);
 
   if (call.type === Unreachable && !call.isReturn) {
+    // `drop` takes ONE value; a multi-value wrapper's values need no consumer
+    // before an `unreachable`, which discards whatever the stack holds.
     return makeBlock(
       [
-        block.type !== None ? { kind: ExpressionKind.Drop, type: None, value: block } : block,
+        block.type !== None && !Array.isArray(block.type)
+          ? { kind: ExpressionKind.Drop, type: None, value: block }
+          : block,
         makeUnreachable(),
       ],
     );
