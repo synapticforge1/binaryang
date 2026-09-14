@@ -50,6 +50,12 @@ their own bump — and nothing breaks by their standing still.
   legacy and `try_table` clauses.
 - **`TableCatch` is a two-shape UNION** (`b1410d6e8`): a `catch_all` can no longer carry a tag — a
   compile-time break for anyone constructing one.
+- **The SIMD lane shifts are a `binary`** (K3, 2026-09-14): `ExpressionKind.SIMDShift`,
+  `SIMDShiftExpr`, `SIMDShiftOp` and `makeSIMDShift` are REMOVED. Build a shift with
+  `makeBinary(BinaryOp.ShlVecI8x16, vec, count)` — the twelve members keep their names and opcodes,
+  now on `BinaryOp`. Code matching `kind === 'simd.shift'` or reading `.vec` / `.shift` must read a
+  `binary`'s `left` / `right`, whose types differ (v128, i32). Bytes unchanged; LocalCSE now reuses
+  a repeated shift.
 - **Wide arithmetic** in binaryen-ts: `i64.add128` / `sub128` (a new `Quaternary` node) and
   `i64.mul_wide_s` / `_u` (two new `BinaryOp` members).
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its

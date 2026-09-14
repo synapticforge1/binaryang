@@ -40,13 +40,18 @@ IDENTICAL after every merge), and the full gate passed on the committed tree at 
 | `9758fc736` | code path references follow binaryang's layout (193 unresolved → 69, all by design); `git gc --prune=now`                                                                               |
 | `1cbe88be8` | both wings corrected and summarized: 26 files / 16,805 lines → [wabt-ts.md](wabt-ts.md) + [binaryen-ts.md](binaryen-ts.md), 1,662 lines; the findings below were added to this file     |
 
-Also scoped (no code change): **K3** — recommendation MERGE `simd.shift` into `binary`, measured by
-the worst-condition method ([ir-convergence.md](ir-convergence.md) § "K3").
+**Later the same day, the owner decided four rows.** Two landed as code:
+
+- **Decision 6, the release flow** — `deno task bump` then `deno task release` now works as
+  documented, because `RELEASE_FILES` is one list ([publishing.md](publishing.md) § "The flow").
+- **K3, merged** — `simd.shift` is a `binary` ([ir-convergence.md](ir-convergence.md) § "K3").
+
+The other two, `call_indirect`'s `sig` (row 3) and TranslateEH (row 7), were sent back for an
+options review and are still open.
 
 **Suggested order:**
 
-1. **Owner decisions first** — rows 2, 3, 6 and 7 of the table below. Each one unblocks or removes
-   work.
+1. **Owner decisions first** — rows 3 and 7 of the table below. Each one unblocks or removes work.
 2. **Probe the non-nullable-local fixup** (§ "Open defects and gaps"). It is the one new finding
    that could be a silent miscompile. Build a fixture that inlines a callee with a non-nullable
    `(ref $T)` local, and check the result validates. Then either port the fixup or correct the
@@ -60,7 +65,6 @@ the worst-condition method ([ir-convergence.md](ir-convergence.md) § "K3").
 | # | item                            | note                                                                                                                                                                                                                                                                                                            |
 | - | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 | **Create `RELEASE_PAT`**        | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                            |
-| 2 | **K3 — `simd.shift`**           | 🗓️ scoped 2026-09-14; recommendation MERGE into `binary`. [ir-convergence.md](ir-convergence.md) § "K3"                                                                                                                                                                                                         |
 | 3 | **`call_indirect`'s `sig`**     | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                                                                                 |
 | 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned) |
 | 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                              |
@@ -94,9 +98,11 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 - ⬚ **43 node LITERALS in `src/` bypass their factory** and hand-compute its `type` — 29 in the WAT
   parser, 7 in inlining (count: `grep "kind: ExpressionKind\.X,"` outside `ir/expressions.ts`). The
   `br_if` one was wrong. The rest want a sweep comparing each literal's type to the factory's.
-- ⬚ **LocalCSE is an allow-list of kinds** and is opaque to everything it does not list — e.g. a
-  shift under `extract_lane` is never reused, where upstream `--local-cse` reuses it (found scoping
-  K3). How much of the size gap to upstream it explains is unmeasured.
+- ⬚ **LocalCSE is an allow-list of kinds** and is opaque to everything it does not list — e.g. an
+  expression under `extract_lane` (or any other SIMD kind) is never reused, where upstream
+  `--local-cse` reuses it. Found scoping K3. K3 fixed the shift itself, which is now a `binary`, but
+  not what sits beneath an unlisted kind: the K3 test's first fixture tripped on exactly this. How
+  much of the size gap to upstream it explains is unmeasured.
 - ⬚ **LocalCSE runs after SimplifyLocals and CoalesceLocals at -Oz**, so the tee it adds is never
   cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
 - ⬚ **binaryen-ts could run-length-compress its locals** as wabt-ts now does — roughly 5,600 bytes

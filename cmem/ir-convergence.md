@@ -21,15 +21,15 @@ faithful to — so the fidelity metadata lives BESIDE the tree, and binaryen-ts'
 every value has exactly one consumer and a program already IS a tree, plus a marker for the producer
 that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 
-| step                   | state                                                                                                                                                                                     |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S1 the gate            | ✅ `deno task operators`                                                                                                                                                                  |
-| S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                                                                                                                       |
-| S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                    |
-| S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                 |
-| S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 2 binaryen-only, ratcheted by `ONE_SIDED_BUDGET`. **K3 (`simd.shift`) scoped 2026-09-14, awaiting the owner** — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (one an owner call), the block/label family done. **Step 5 — delete the bridge — is next**; `deno task bridge` at 401/421 must reach 421/421  |
-| S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                         |
+| step                   | state                                                                                                                                                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1 the gate            | ✅ `deno task operators`                                                                                                                                                                                       |
+| S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                                                                                                                                            |
+| S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
+| S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
+| S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (one an owner call), the block/label family done. **Step 5 — delete the bridge — is next**; `deno task bridge` at 401/421 must reach 421/421                       |
+| S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
 `open-work.md`'s summary; the detail is under "The measurements this rests on"):
@@ -46,8 +46,9 @@ The grouping decision was taken by worst-condition analysis — the fidelity wor
 unrepresentable instruction) does NOT bind at 0/128; the optimization worst case does, on
 `optimize-instructions.ts` with its 64 operator dispatches.
 
-**Next, in order:** the owner's call on `call_indirect`'s `sig` (Group 3), the owner's call on K3,
-then S6 step 5. The increments as they landed on `main` are in "Merge log" at the end of this file.
+**Next, in order:** the owner's call on `call_indirect`'s `sig` (Group 3), then S6 step 5. (K3 was
+decided and merged 2026-09-14.) The increments as they landed on `main` are in "Merge log" at the
+end of this file.
 
 ## The finding
 
@@ -543,7 +544,7 @@ data rather than as a kind:
 
 ⚠️ **Wide arithmetic is NOT here.** It sits under S5, which is where the note assigning it lives.
 
-### S5 — the one-sided kinds ✅ scoped out 2026-09-12; one regrouping (K3) left to decide
+### S5 — the one-sided kinds ✅ scoped out 2026-09-12; its last regrouping (K3) merged 2026-09-14
 
 **Landed**: wide arithmetic in binaryen-ts (all four ops, byte-identical), six kind renames, and
 `placeholder` → `pop`. One-sided kinds **41 → 27**. Baseline `IDENTICAL`, 952 tests, `operators`
@@ -614,7 +615,9 @@ Recomputed from source against the `Expr` union and the `ExpressionKind` VALUES:
 
 And all 11 are already understood: 8 are one capability gap (**K1**, measured — the decoder refuses
 them with `unknown opcode 0xfe`), `code_metadata` is wabt-ts-only (**K2**), `region` is the intended
-R1, and `simd.shift` is a regrouping both sides implement (**K3**). **No renames remain.**
+R1, and `simd.shift` is a regrouping both sides implement (**K3**). **No renames remain.** 🔧
+2026-09-14: K3 merged `simd.shift` into `binary`, so binaryen-only is **1** (`region`) and
+implemented binaryen-ts kinds are **76**.
 
 ⚠️ **EVERY vocabulary count in this file has been overstated at least once, by SEVEN independent
 causes** — the six corrections in S6 stage 2's table below, plus the identifier-vs-string comparison
@@ -639,7 +642,36 @@ cited identically. The fix is not a better number but a **ratchet** — `ONE_SID
 becomes shared without leaving the list. Inverted four ways, including value-drift
 (`Break = 'break'`) and a union member whose interface moved.
 
-#### 🔬 K3 — `simd.shift`, scoped by the worst-condition method (2026-09-14) — 🗓️ awaiting the owner
+#### ✅ K3 — `simd.shift`, scoped by the worst-condition method (2026-09-14) — MERGED into `binary`
+
+**Owner decision 2026-09-14: merge**, as recommended below, and done the same day. The scoping that
+follows is kept as written; what landed:
+
+- **The kind is gone.** `ExpressionKind.SIMDShift`, `SIMDShiftExpr`, `SIMDShiftOp` and
+  `makeSIMDShift` are removed. The twelve operators are `BinaryOp` members with the same names and
+  opcodes. The decoder's twelve dispatches build `makeBinary(op, vec, count)`, `parseWat` finds them
+  in `BINARY_OPS`, and the walker and encoder arms went with the kind. So binaryen-ts no longer
+  holds two shapes for one instruction depending on the entry path.
+- **The cost matched the trial.** `deno check` was clean after the sites the trial named, plus the
+  one test that built the old shape. No `default` arm needed judging: removing a kind sends its
+  nodes to `Binary`'s arms, which exist in LocalCSE, OptimizeInstructions and PickLoadSigns, and all
+  three match exact scalar opcodes.
+- **`BinaryOp`'s doc now warns** that a `binary`'s operands are not always the same type.
+  [divergences.md](divergences.md) K3 is now a DESIGN row against upstream binaryen.
+- **`ONE_SIDED_BUDGET` binaryen → `['region']`.** Inverted: restoring a `simd.shift` kind with an
+  interface behind it fails with "1 NEW kind(s) only binaryen has".
+- **The gate is `tests/binaryen-ts/binary/simd_shift.test.ts`**, because the corpus holds no shifts.
+  It runs 12 shifts through `parseWat` (compared to wabt-ts's bytes), decode → encode
+  (byte-identical), the bridge, and LocalCSE. Every module runs in V8 on non-commutative inputs, and
+  a `@ts-expect-error` checks that the kind cannot be built. **Red first:** the `parseWat`, decoder
+  and LocalCSE cases failed on the pre-merge sources. The bridge cases pass on both sides, so they
+  are labelled a guard. **Mutants:** a wrong opcode in `BINARY_OPS` failed exactly that case;
+  swapped decoder operands failed the operand check and V8 validation.
+- ⚠️ **Fixture lesson:** the first LocalCSE fixture put the repeated shift under `extract_lane`, and
+  it failed after the merge too. LocalCSE is opaque to `extract_lane`, which is the allow-list gap
+  in [open-work.md](open-work.md). The shape the pass cannot see was the one first written. The
+  fixture now sums the shifts under a `local.set`, and was re-shown failing on the pre-merge
+  sources.
 
 The twelve lane shifts (`i8x16` / `i16x8` / `i32x4` / `i64x2` × `shl` / `shr_s` / `shr_u`) are a
 `binary` in wabt-ts (and in upstream wabt) and their own `SIMDShift` kind in binaryen-ts (and in
@@ -2001,9 +2033,10 @@ one-instruction arm always gave.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
-1,923 lines plus 13 test files when this step was planned (2026-09-04); 1,803 lines on 2026-09-14. ⚠️ **The bridge is also where a wabt-ts tree acquires its types
-today**; that derivation (`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified
-tree, or binaryen-ts's passes get nodes with no `type` to dispatch on.
+1,923 lines plus 13 test files when this step was planned (2026-09-04); 1,803 lines on 2026-09-14.
+⚠️ **The bridge is also where a wabt-ts tree acquires its types today**; that derivation
+(`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified tree, or binaryen-ts's passes
+get nodes with no `type` to dispatch on.
 
 **Acceptance**: `deno task bridge` goes 401/421 → **421/421** (it opened at 397). If it does not,
 C10a's diagnosis was wrong and this whole step rests on a mistake — which is exactly what the gate
@@ -2021,9 +2054,10 @@ paths, import aliases that must not shadow a package — moved to [project.md](p
 delegate (reasoning: [wabt-ts.md](wabt-ts.md) § "Why direct recursion"); and it keeps **its OWN
 label stack, which has diverged twice** — T13.22 the notorious one — so its tests are the first to
 run after touching either IR's control flow. Tier coverage (~60 kinds plus the module surface) is
-enumerated in [wabt-ts.md](wabt-ts.md) § "Tier coverage". And it is **deliberately NOT exported** (decided
-2026-08-27): a `./bridge` subpath would make the part of the tree most likely to change a supported
-public surface, and the duplication permanent rather than resolved. Do not export it to close a gap.
+enumerated in [wabt-ts.md](wabt-ts.md) § "Tier coverage". And it is **deliberately NOT exported**
+(decided 2026-08-27): a `./bridge` subpath would make the part of the tree most likely to change a
+supported public surface, and the duplication permanent rather than resolved. Do not export it to
+close a gap.
 
 **What the bridge went through.** The merge turned a package boundary into an internal module (A7:
 the exact `jsr:@jrmarcum/binaryen-ts@1.5.0` pin gone, 15 cross-tree imports now relative).
@@ -2087,13 +2121,13 @@ by decision 4) until step 5 raises it to 421.
 
 #### Measured size of what remains
 
-|                                            |                                                                                                                                                                                                           |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| files importing wabt-ts's `Expr`           | 25                                                                                                                                                                                                        |
-| files importing binaryen-ts's `Expression` | 32                                                                                                                                                                                                        |
-| lines in the two IR modules + bridge       | 6,346                                                                                                                                                                                                     |
-| one-sided kinds still to reconcile         | **11**, re-measured 2026-09-12 — 8 are one capability gap (K1), and 1 is a regrouping to decide (K3, scoped 2026-09-14). The "27 (from S5)" here was stale for eight days; `ONE_SIDED_BUDGET` now pins it |
-| name pairs inherited from S2               | 6                                                                                                                                                                                                         |
+|                                            |                                                                                                                                                                                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| files importing wabt-ts's `Expr`           | 25                                                                                                                                                                                                                             |
+| files importing binaryen-ts's `Expression` | 32                                                                                                                                                                                                                             |
+| lines in the two IR modules + bridge       | 6,346                                                                                                                                                                                                                          |
+| one-sided kinds still to reconcile         | **10** since K3 merged (2026-09-14); **11** when re-measured 2026-09-12 — 8 are one capability gap (K1), `code_metadata` (K2), `region` (R1). The "27 (from S5)" here was stale for eight days; `ONE_SIDED_BUDGET` now pins it |
+| name pairs inherited from S2               | 6                                                                                                                                                                                                                              |
 
 **This is larger than S2–S5 combined.** It should be staged the way they were — each stage
 independently verifiable against `deno task bridge`, the byte baseline and the spec suite — rather
@@ -2108,8 +2142,8 @@ than attempted as one change. The natural stages, in dependency order:
    as a pass
 6. `deno task bridge` reaches 421/421 — the acceptance criterion
 
-Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines when written; 1,803 on 2026-09-14) and its test files
-become unnecessary.
+Only now is there one `Expression`. `src/bridge/bridge.ts` (1,935 lines when written; 1,803 on
+2026-09-14) and its test files become unnecessary.
 
 ✅ **S6 BLOCKER CLEARED, 2026-09-04 — and it was a defect, not just a gap.**
 
