@@ -44,9 +44,9 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` · `d
 - **The spec corpus is per-session scratch.** A new session rebuilds it first:
   `deno task spec:prepare <testsuite-main> <outDir>` then `deno task spec <outDir>`, with `<outDir>`
   in the session scratchpad. Source, READ ONLY (a sibling repo):
-  `<workspace>/wasmtk/tests/module/wasm_wast/testsuite-main`.
-  Expect **2248/2248 · 2714/2714 · 711/711 · 1229/1229**; a different count means the prepare step,
-  not a regression.
+  `wasmtk/tests/module/wasm_wast/testsuite-main`, absolute path in the private
+  `cmem/local/environment.md`. Expect **2248/2248 · 2714/2714 · 711/711 · 1229/1229**; a different
+  count means the prepare step, not a regression.
 
 ## Tests, measurements and records
 
@@ -75,6 +75,15 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` · `d
   its commits and tags, where the substance now lives, any lesson found nowhere else, and a
   `git show <commit>:<path>` pointer to the text it replaces. Decisions, DESIGN rows, open items and
   triggers are never summarized away. The full policy: [INDEX.md](INDEX.md) § "Cleanup policy".
+  **Correct while summarizing, and check the result mechanically** (the wings, 2026-09-14):
+  - Before cutting, snapshot the facts: hashes, backticked names, ratios, IDs.
+  - Afterwards, prove that every ID cited by code or commits still resolves in cmem, and that every
+    section citation matches a heading. Invert that check before trusting it.
+  - Read by hand every removed line that marked something open.
+  - A summary that repeats a stale claim is worse than the full text, because it looks current.
+- **Retargeting a reference is part of removing a doc.** Code, tests and scripts cite cmem by path
+  and by § heading. Grep `src/`, `tests/`, `scripts/` and the core for both forms before deleting or
+  renaming a cmem file or heading, and update them in the same commit.
 - **Nothing private in a committed cmem file** — no local path, account name, token or secret. That
   goes in the gitignored `cmem/local/`, or nowhere.
 - **Owner calls stay owner calls.** Where a record says 🗓️ OWNER or "future discussion", gather the
@@ -117,7 +126,7 @@ What each oracle can and cannot judge is in [testing.md](testing.md) § "Indepen
 ## Sibling repositories
 
 All four repos — `binaryang`, the archived `binaryen-ts` and `wabt-ts`, and `wasmtk` — are siblings
-under `<workspace>/`.
+in one parent directory (its absolute path is in the private `cmem/local/environment.md`).
 
 - **Nothing is ever written into a sibling repo from this one.** Draft the note in
   [handoffs.md](handoffs.md) and hand it over; fixes land in the repo that owns the file. During a

@@ -393,8 +393,8 @@ between them contained **58 references to the old form**, every one an unfollowa
 🔧 The summaries ([wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md), 2026-09-14) rewrote
 every path to today's tree and checked it. The full texts behind their `git show` commands were not
 corrected: they are not wrong about _which_ test pins an invariant, but their paths cannot be
-copy-pasted. Translate the name, and confirm the file exists before citing it — two of the
-paths in this very file were carried over from a wing and had to be corrected the same way.
+copy-pasted. Translate the name, and confirm the file exists before citing it — two of the paths in
+this very file were carried over from a wing and had to be corrected the same way.
 
 ## ✅ A3 — diagnostic offsets are MEASURED (2026-08-31)
 
@@ -544,10 +544,11 @@ is named — and check the ignored count, every time.**
 **Owner-assigned 2026-09-02, built `c1c24c9d3`**: `deno task spec:prepare` then `deno task spec`.
 Moved here from `open-work.md` on 2026-09-14, where it had been recorded while it was the open item.
 
-The source is 257 `.wast` files at
-`<workspace>\wasmtk\tests\module\wasm_wast\testsuite-main`.
-⚠️ **READ ONLY**: it is a sibling repo, so never write there; copy to scratch if a tool might.
-Rebuilding the corpus each session: [working-rules.md](working-rules.md).
+The source is 257 `.wast` files in the sibling wasmtk checkout, at
+`wasmtk/tests/module/wasm_wast/testsuite-main` (its absolute path on the development machine is in
+the private `cmem/local/environment.md`). ⚠️ **READ ONLY**: it is a sibling repo, so never write
+there; copy to scratch if a tool might. Rebuilding the corpus each session:
+[working-rules.md](working-rules.md).
 
 🔑 **It tests an axis nothing here had EVER tested: whether we correctly REJECT.** Every invariant
 before it asked "do we accept valid input correctly" — and a tool that accepts everything scores
@@ -731,10 +732,10 @@ depended on it.
 
 ## Where the per-invariant detail lives
 
-- **[binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/testing.md`** — the region matrix, the corpus round-trip
-  design points, the fuzzer's hazard list, and regression-test placement per invariant.
-- **[wabt-ts.md](wabt-ts.md) § `wabt-ts/testing.md`** — the conformance metrics (13 rows) with their blind-spot
-  column, the hardening-axis table, the enumeration frontier, and the invariant → test
+- **[binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/testing.md`** — the region matrix, the corpus
+  round-trip design points, the fuzzer's hazard list, and regression-test placement per invariant.
+- **[wabt-ts.md](wabt-ts.md) § `wabt-ts/testing.md`** — the conformance metrics (13 rows) with their
+  blind-spot column, the hardening-axis table, the enumeration frontier, and the invariant → test
   placement table.
 
 ⚠️ **The conformance metric tables from the wabt-ts wing are a SNAPSHOT at campaign close, not a
