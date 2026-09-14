@@ -110,7 +110,9 @@ describe('T13.44 — the release preflight stays wired in', () => {
   it('documents where the guards live, so the docs cannot drift silently', () => {
     // The T13.43 root cause was prose describing a guard that did not exist.
     // Naming the module in the release docs means a rewrite has to look at it.
-    return Deno.readTextFile('cmem/wabt-ts/publishing.md').then((doc) => {
+    // The release docs are the merged cmem/publishing.md since the wabt-ts wing
+    // was summarized (2026-09-14).
+    return Deno.readTextFile('cmem/publishing.md').then((doc) => {
       expect(doc).toContain('release-guard.ts');
     });
   });

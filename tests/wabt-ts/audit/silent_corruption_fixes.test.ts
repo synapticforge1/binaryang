@@ -4,7 +4,7 @@
 /**
  * Regression tests for the 2026-06-09 silent-corruption audit (Critical + High
  * findings). Each `describe` block pins one root-cause fix so the bug can't
- * silently return. See cmem/wabt-ts/design-decisions.md for the narrative.
+ * silently return. See cmem/wabt-ts.md § "2026-06-09 silent-corruption audit".
  */
 
 import { describe, it } from '@std/testing/bdd';

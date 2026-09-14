@@ -5,7 +5,7 @@
 //
 // Both guard a table with a documented history of drifting, and neither needs a
 // corpus: they enumerate the whole population and check it, which is what
-// best-practices.md means by "audit a manual walk against the TYPE".
+// cmem/wabt-ts.md means by "Audit a manual walk against the TYPE, not against a corpus".
 //
 // 1. **lexer ⇄ printer symmetry.** Every keyword the lexer maps to an opcode
 //    must print back under the same name. If the two tables disagree, a round

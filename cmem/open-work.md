@@ -70,6 +70,51 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
+- ⬚ **The documented release flow refuses at its own guard** (found 2026-09-14 summarizing the wabt-ts
+  wing; verified by running the guard). `deno task bump` rewrites `deno.json` AND `main.ts`, but
+  `scripts/release/publish.ts` stages only `deno.json` and `releaseBlockers` exempts only `deno.json`
+  — so right after a bump the guard returns `[" M main.ts"]` and `deno task release` exits 1. It fails
+  SAFE (nothing publishes); 1.5.4 went out because its bump was committed by hand first (`395f536fc`
+  holds both files) and the script skipped its commit. [publishing.md](publishing.md) § "The flow"
+  documents the path that refuses. Fix is release tooling — the owner's call: stage and exempt
+  `main.ts` too, with a guard test for the post-bump status. Related, also release tooling and still
+  not applied: `scripts/release/` runs no cold type check before the tag push, so a stale type cache
+  is caught only by `publish.yml` after the tag is public — and it wants a fresh `DENO_DIR`, not
+  `--reload` ([binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/publishing.md`).
+- ⬚ **The non-nullable-local fixup is documented but does not exist** (found 2026-09-14 summarizing the
+  binaryen-ts wing; verified by grep). `Pass.requiresNonNullableLocalFixups` is `false` in every pass,
+  `PassRunner.run()` never reads it, and no fixup pass exists — yet the JSDoc at
+  `src/binaryen-ts/passes/pass.ts:223` says one is inserted, and `inlining.ts:551` returns `null` ("no
+  reset") for a non-nullable `(ref $T)` local on the strength of it. Whether it is REACHABLE is
+  unverified: it needs a non-nullable typed-ref local through inlining. Probe with such a fixture
+  before deciding between porting the fixup and correcting the comments.
+- ⬚ **Multiple tables are refused at encode** (`checkSingleTable`, `wasm-encoder.ts` ~1151; elem and
+  `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already resolves
+  `call_indirect`'s table index. The day it is lifted, both encoders must thread the real index.
+- ⬚ **`src/bridge/bridge.ts:1190-1194` refuses `ref.as_non_null`** because "binaryen-ts v1.0.9 has no
+  makeRefAsNonNull factory"; the factory exists since UP-4 (`f664ba579`). A stale blocker, moot if S6
+  step 5 deletes the bridge — check whether it is among the bridge's 20 refusals first.
+- ⬚ **`scripts/wabt-ts/engine-check.ts` self-tests only the reject direction** (~195–219: a known-INVALID
+  module must be refused). No must-ACCEPT module guards an engine that refuses everything — the exact
+  failure its Wasmer comment describes (`--enable-all` made every module read as rejected).
+- ⬚ **Stale source comments** (claim vs artifact; each verified 2026-09-14):
+  - `src/wabt-ts/ir/ir-util.ts` — the `ModuleContext` class doc and the field comment at 86–90 claim
+    validator/writer traffic; `getExprArity` has no production caller ([wabt-ts.md](wabt-ts.md)).
+  - `src/wabt-ts/ir/apply-names.ts` header NOTE still calls the rewriter partial; T13.20 made it total.
+  - `src/wabt-ts/reader/binary-reader.ts` ~2572 calls relaxed ternaries a known limitation; they decode
+    as ternary.
+  - `src/binaryen-ts/encoder/wasm-encoder.ts` ~1594–1605 describes "four sites" and `sealFrame`-stamped
+    blocks, a mechanism S6 5 removed; so does the header of
+    `tests/binaryen-ts/binary/region_body.test.ts` ("three of these thirteen" fail on a revert of
+    `encodeRegionBody`).
+  - `src/binaryen-ts/passes/asyncify.ts` ~263 says loads carry no memory index, and ~541–545 says the
+    reader discards the name section; N1 P4 (`138148881`) reads names. Neither limitation re-probed.
+  - `src/binaryen-ts/tools/wasm-opt.ts` ~461–463 says `import.meta.main` is "not yet universal"; the
+    Node 22.18 floor has it.
+  - `tests/wabt-ts/tools/cli_io_errors.test.ts:27` says `deno task test` runs `--allow-read` only.
+- ⬚ **Minor, wabt-ts**: `parseHexFloat` (`core/literal.ts`) sums `parseInt` parts, imprecise but
+  lexer-level only (the const path uses `parseF64Bits`); `wasm-objdump -h` only re-sets a default that
+  is already `true`; the lexer's `isDigit && !readNum()` guard is dead.
 - ⬚ **T2** — "binaryen-ts's encoder derives the type-section order" is NOT reproducible on decode →
   encode; open until reproduced with a case on whatever path was measured.
 - ⬚ **E1 unification** — wabt-ts drops an explicit empty `else` where binaryen-ts keeps it; unify in
@@ -130,8 +175,15 @@ fatigue.
 - ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal (WASI Preview 1 capable TypeScript
   output). **Blocked, and not close**: as of 2026-09-02 the wasmtk side has a long way to go before
   there is anything to implement against.
-- ⬚ **TranslateEH** (binaryen-ts) and **Phase 10 kernel selection** — live gaps carried from the
-  predecessors, not re-checked since the merge ([project.md](project.md)).
+- ⬚ **TranslateEH** (binaryen-ts) — re-checked 2026-09-14: still unimplemented (no pass, no mention
+  in `src/` or `tests/`). **Whether it is still wanted is the owner's call**: wasmtk chose to migrate
+  wasic to `try_table`, which makes TranslateEH a compatibility shim for already-built legacy
+  binaries rather than a pipeline step. If kept, its step 0 — confirm wasmtime accepts a `try_table`
+  module OUR encoder produces — was never done ([binaryen-ts.md](binaryen-ts.md) § "TranslateEH").
+- ⬚ **Phase 10 kernel selection** — a live gap carried from binaryen-ts, not re-checked since the
+  merge ([project.md](project.md)).
+- ⬚ **Diagnostic usefulness** ("is the message actionable?") is the one hardening axis never
+  attempted; offsets (A3) and wording are measured ([wabt-ts.md](wabt-ts.md) § `wabt-ts/testing.md`).
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 

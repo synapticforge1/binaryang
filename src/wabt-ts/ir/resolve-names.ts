@@ -309,7 +309,7 @@ class ResolveContext {
     // live. And a `case` sharing a label with a genuine LEAF is the specific
     // trap: `table.get` inherited `table.size`'s body that way and stopped
     // walking its own operand. The mechanical form of both checks is in
-    // cmem/INDEX.md under the "look for code issues" trigger.
+    // cmem/wabt-ts.md § "The audit definition".
     const loc = e.loc;
 
     switch (e.kind) {

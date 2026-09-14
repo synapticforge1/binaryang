@@ -1,7 +1,7 @@
 # Licensing
 
-Merged topic file (A16). Supersedes `binaryen-ts/licensing.md` and `wabt-ts/licensing.md`, both kept
-in the wings as the origin record.
+Merged topic file (A16). Supersedes `binaryen-ts/licensing.md` and `wabt-ts/licensing.md` (full texts:
+`git show 9758fc736:cmem/<wing>/licensing.md`; summaries in [wabt-ts.md](wabt-ts.md) and [binaryen-ts.md](binaryen-ts.md)).
 
 binaryang is **MIT-primary with Apache-2.0 as an alternative**. MIT is what is declared on JSR;
 Apache-2.0 ships alongside for consumers whose policies require it, and to satisfy upstream

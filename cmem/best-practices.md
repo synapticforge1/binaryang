@@ -2,10 +2,10 @@
 
 Merged topic file (A16). It opened holding only the **convergent** rules — the ones both
 predecessors derived independently, down to "Write down the thing you only said out loud". Every
-section marked 🆕 after that was paid for in binaryang itself, since the merge. The full pre-merge
-enumerations stay in the wings — [binaryen-ts/best-practices.md](binaryen-ts/best-practices.md) (294
-lines) and [wabt-ts/best-practices.md](wabt-ts/best-practices.md) (2,894) — and nothing has been
-deleted from either. The day-to-day checklist these rules produce is
+section marked 🆕 after that was paid for in binaryang itself, since the merge. The rules that did
+not converge are summarized in [wabt-ts.md](wabt-ts.md) § `wabt-ts/best-practices.md` and
+[binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/best-practices.md`; the full pre-merge enumerations
+(2,894 and 294 lines at the merge) are one `git show 9758fc736:cmem/<wing>/best-practices.md` away. The day-to-day checklist these rules produce is
 [working-rules.md](working-rules.md).
 
 ## Why this file is a selection and not a rewrite
@@ -553,7 +553,7 @@ the defect affects from the ones it does not. A test where all seven had gone re
 only that something changed.
 
 **Include cases on BOTH sides of the boundary, and read which ones flip.** This is the same
-instruction the wabt-ts wing gives for guard tests — "check WHICH steps flip" — applied to a value
+instruction the wabt-ts wing gave for guard tests — "check WHICH steps flip" — applied to a value
 range rather than a set of steps.
 
 ### Refinement: a fix that NARROWS what a component acts on can make its OLD tests vacuous (S6, 2026-09-10)
@@ -909,7 +909,7 @@ reasoning to see why it cannot fire.
 
 ### ⚠️ The rule already existed, and the code violated it anyway
 
-`cmem/binaryen-ts/best-practices.md` already says it, reached independently from `funcTypes`: _"Use
+The binaryen-ts wing already said it ([binaryen-ts.md](binaryen-ts.md), its best-practices § 2c), reached independently from `funcTypes`: _"Use
 a sentinel the domain cannot produce (`null`), or throw — never a well-formed value of the same
 type… Then put the sentinel in the TYPE and let the compiler do the audit."_ The `catch_all` `''`
 violated that for the life of the file, and a test pinned the violation as a requirement.
@@ -1104,11 +1104,11 @@ class" and "5 fixed, 1 new regression" produce the same total.
 
 ## Where to go for the rest
 
-The wings hold what did not converge, and it is most of the volume:
+The predecessor summaries hold what did not converge:
 
-- [wabt-ts/best-practices.md](wabt-ts/best-practices.md) — ~60 further rules, each paid for by a
+- [wabt-ts.md](wabt-ts.md) § `wabt-ts/best-practices.md` — ~60 further rules, each paid for by a
   named incident, plus a table of root causes that have **recurred** (with an honest note on that
   table's decaying yield). The first thing a new audit should read.
-- [binaryen-ts/best-practices.md](binaryen-ts/best-practices.md) — the IR-walker and pass-authoring
+- [binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/best-practices.md` — the IR-walker and pass-authoring
   rules: close the shape not the arm, a placeholder must not be representable as real data, a value
   read and discarded is a decision.

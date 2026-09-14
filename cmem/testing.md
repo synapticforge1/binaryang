@@ -1,8 +1,8 @@
 # Testing
 
 Merged topic file (§2.2). Supersedes `binaryen-ts/testing.md` and `wabt-ts/testing.md` as the
-statement of how binaryang is tested. Both wings stay for per-invariant detail — which regression
-test pins which bug — and remain worth opening.
+statement of how binaryang is tested. The per-invariant detail — which regression test pins which
+bug — is in [wabt-ts.md](wabt-ts.md) and [binaryen-ts.md](binaryen-ts.md).
 
 Unblocked by §2.1: until `scripts/release/` existed this file would have described two release
 gates.
@@ -30,13 +30,13 @@ without an explicit type, and 339 passing tests plus three metric runs never saw
 
 ## ✅ The `deno fmt --check` line-ending false alarm is RETIRED
 
-The wabt-ts wing carries an elaborate apparatus for working around it: a `diff` incantation that
+The wabt-ts wing carried an elaborate apparatus for working around it: a `diff` incantation that
 strips carriage returns and re-passes the project's formatter options, a scratch-checkout recipe, a
 warning that `git archive` applies the same conversion, a rule to copy files aside rather than
 `git stash` before revert experiments, and a note that a Python edit must preserve line endings.
 
 **All of it is obsolete here.** `.gitattributes` pins `* text=auto eol=lf`, so `deno fmt --check`
-now reports what it means. Read those wing sections as history.
+now reports what it means. Its full text keeps those sections as history.
 
 ⚠️ **The revert-experiment habit survives the fix and is still worth keeping**: run
 `git diff --stat` after any revert experiment. It is one line, and it catches a restore that
@@ -384,14 +384,16 @@ type-checked by nothing.
 unpushed commits. **Use `deno task ci` (check + test), never `deno task test` alone**, and see
 [best-practices.md](best-practices.md) "The local gate must BE CI's gate".
 
-## ⚠️ Every test-file path in the wings is DEAD
+## ⚠️ Every test-file path in the wing full texts is DEAD
 
 The merge normalised the naming from `foo_test.ts` to `foo.test.ts`. **Zero `*_test.ts` files exist;
 all 172 are `*.test.ts`** (230 by 2026-09-12, still zero of the old form) — and the two wings
-between them contain **58 references to the old form**, every one an unfollowable path.
+between them contained **58 references to the old form**, every one an unfollowable path.
 
-They are not wrong about _which_ test pins an invariant, which is what those sections are for. They
-cannot be copy-pasted. Translate the name, and confirm the file exists before citing it — two of the
+🔧 The summaries ([wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md), 2026-09-14) rewrote
+every path to today's tree and checked it. The full texts behind their `git show` commands were not
+corrected: they are not wrong about _which_ test pins an invariant, but their paths cannot be
+copy-pasted. Translate the name, and confirm the file exists before citing it — two of the
 paths in this very file were carried over from a wing and had to be corrected the same way.
 
 ## ✅ A3 — diagnostic offsets are MEASURED (2026-08-31)
@@ -729,13 +731,13 @@ depended on it.
 
 ## Where the per-invariant detail lives
 
-- **[binaryen-ts/testing.md](binaryen-ts/testing.md)** — the region matrix, the corpus round-trip
+- **[binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/testing.md`** — the region matrix, the corpus round-trip
   design points, the fuzzer's hazard list, and regression-test placement per invariant.
-- **[wabt-ts/testing.md](wabt-ts/testing.md)** — the nine conformance metrics with their blind-spot
-  column, the hardening-axis table, the enumeration frontier, and ~200 lines of per-invariant test
-  placement.
+- **[wabt-ts.md](wabt-ts.md) § `wabt-ts/testing.md`** — the conformance metrics (13 rows) with their blind-spot
+  column, the hardening-axis table, the enumeration frontier, and the invariant → test
+  placement table.
 
-⚠️ **The conformance metric tables in the wabt-ts wing are a SNAPSHOT at campaign close, not a
+⚠️ **The conformance metric tables from the wabt-ts wing are a SNAPSHOT at campaign close, not a
 current reading.** They were headed "now" until someone noticed — a header that silently becomes
 false. The harnesses are the only current answer, and they live in a session scratchpad, not the
 repo.

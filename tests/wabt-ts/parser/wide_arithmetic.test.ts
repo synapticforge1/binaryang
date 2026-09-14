@@ -25,7 +25,8 @@
 //    `TokenType.Quaternary` all along, so `wat2wasm` accepted and encoded them
 //    while `wasm2wat` could not read back what our own front end had just
 //    written. A producer/consumer mismatch inside one toolchain, which is the
-//    recurring blind spot in `cmem/best-practices.md` §3.
+//    recurring blind spot in `cmem/best-practices.md` § "Producer/consumer pairs are the
+//    recurring blind spot".
 //
 // 3. **And the first fix only covered HALF the proposal.** `add128`/`sub128`
 //    were fixed from the reported symptom; `mul_wide_s`/`mul_wide_u` (0xfc

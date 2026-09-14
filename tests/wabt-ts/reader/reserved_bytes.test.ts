@@ -22,7 +22,7 @@
 // both tag sites with the comment "attribute = exception (only valid value)"
 // and at the table site as `0x40 0x00`. So this was a one-sided rule: the
 // writer enforced it on itself and the reader accepted anything — exactly the
-// producer/consumer asymmetry `best-practices.md` §3 is about, and the reason
+// producer/consumer asymmetry `cmem/best-practices.md` § "Producer/consumer pairs are the recurring blind spot" is about, and the reason
 // a round-trip metric cannot see it either (we never emit the bad byte, so we
 // never read it back).
 //
