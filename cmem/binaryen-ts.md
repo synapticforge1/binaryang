@@ -134,8 +134,10 @@ listed defect fixed and one live gap, TranslateEH.
   wrote `unreachable`). Neither was reachable from the corpus. And **four fixture failures were the fixture's own
   WAT** (stack order in folded form, an untaken `br_if` leaving its value) — which is why each fixture is checked
   against legacy V8 BEFORE the pass is blamed.
-- [open] **binaryen-ts's `-Oz` on UNtranslated legacy EH breaks 30 of the 70 spec assertions** (seen inverting the
-  gate). Translated first, `-Oz` holds 70 / 70. Tracked in open-work.md.
+- [lesson] **Inverting the gate found a third defect**: `-Oz` on UNtranslated legacy EH broke 30 of the 70 spec
+  assertions. Attributed by running each `-Oz` pass alone — DCE only — and fixed (`959954015`, divergence U1): a
+  construct TYPED unreachable is not stack-polymorphic after its `end`. The gate's "disabled pass" inversion now
+  fails only on the surviving `try`s, not on behaviour.
 - [baseline] Measured 2026-08-24: `wasmtime compile` (47.0.3) rejects legacy EH outright — "legacy_exceptions
   feature required for try instruction" — on our fixture and on `WebAssembly/binaryen/test/passes/dwarf_with_exceptions.wasm`;
   `-W` offers only `exceptions` (the new proposal). V8 accepts legacy EH, and every binaryen-ts EH test validated

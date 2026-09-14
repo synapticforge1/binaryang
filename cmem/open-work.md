@@ -49,9 +49,10 @@ IDENTICAL after every merge), and the full gate passed on the committed tree at 
 The other two went to an options review. **TranslateEH (row 7) was then decided — implement — and
 built:** `TranslateToExnref`, 70 / 70 legacy spec assertions through it
 ([binaryen-ts.md](binaryen-ts.md) § "TranslateEH"). Building it found and fixed two silent
-miscompiles elsewhere (see [unreleased.md](unreleased.md)) and found a third, still open: `-Oz` on
-legacy EH (§ "Open defects and gaps"). **`call_indirect`'s `sig` (row 3) is next with the owner**,
-by their word.
+miscompiles elsewhere (see [unreleased.md](unreleased.md)) and found a third — `-Oz` on legacy EH
+failing 30 of 70 spec assertions — which the owner had fixed next (`959954015`: DCE trusted an
+`if` typed unreachable that wasm validates as void; divergence U1). **`call_indirect`'s `sig`
+(row 3) is next with the owner**, by their word.
 
 **Suggested order:**
 
@@ -114,12 +115,6 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ## Open defects and gaps
 
-- ⬚ **binaryen-ts's `-Oz` pipeline miscompiles UNtranslated legacy EH** (found 2026-09-14, inverting
-  `deno task translate-eh`): with TranslateToExnref disabled, the legacy spec modules through the
-  default `-Oz` passes fail **30 of 70** behavioural assertions in V8. Translated first, `-Oz` holds
-  70 / 70, so a caller has a safe order today. Unattributed: which pass, and whether it is the
-  `try` / `catch` region handling or the `Pop`s. Reproduce by running the gate with the pass's
-  `translateFunction` call removed.
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
 - ⬚ **`scripts/release/` runs no cold type check before the tag push**, so a stale type cache is

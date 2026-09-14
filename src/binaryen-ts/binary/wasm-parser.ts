@@ -2022,14 +2022,18 @@ class WasmParser {
             // never a guess here. This is the same reconciliation the bridge
             // does with `withDeclaredType`, and the same fact `cmem/ir-convergence.md`
             // records as the most load-bearing member of the as-written set.
+            //
+            // 🔧 A VOID `if` too. It was left to inference, so one whose arms both
+            // end unreachable came out typed `unreachable` — but wasm validates
+            // it against its declared type, and after its `end` the stack is
+            // empty, not polymorphic. DCE read the IR type and deleted the value
+            // the enclosing block still needed (-Oz failed 30 of the 70 legacy
+            // EH spec assertions; `unreachable_construct.test.ts`).
             const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label);
             // Every multi-result carrier seeds its extra values' `Pop`s, not only
             // `block` below: pushed bare, a later consumer's second pop found
             // nothing and took `unreachable` (`multivalue_constructs.test.ts`).
-            pushMultiValueCall(
-              withParams(rts.length > 0 ? { ...ifExpr, type: resultType } : ifExpr, frame),
-              rts,
-            );
+            pushMultiValueCall(withParams({ ...ifExpr, type: resultType }, frame), rts);
           } else if (frame.kind === 'loop') {
             const body = sealFrame(frame);
             pushMultiValueCall(withParams(makeLoop(frame.label, body, resultType), frame), rts);
