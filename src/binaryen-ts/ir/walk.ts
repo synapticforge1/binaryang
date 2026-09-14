@@ -24,7 +24,6 @@ import {
   type SIMDLoadExpr,
   type SIMDLoadStoreLaneExpr,
   type SIMDReplaceExpr,
-  type SIMDShiftExpr,
   type SIMDShuffleExpr,
   type SIMDTernaryExpr,
 } from './expressions.ts';
@@ -461,11 +460,6 @@ function _mapChildren(
       };
     }
 
-    case ExpressionKind.SIMDShift: {
-      const e = expr as SIMDShiftExpr;
-      return { ...e, vec: fn(e.vec), shift: fn(e.shift) };
-    }
-
     case ExpressionKind.SIMDLoad:
       return { ...(expr as SIMDLoadExpr), ptr: fn((expr as SIMDLoadExpr).ptr) };
 
@@ -740,12 +734,6 @@ function _visitChildren(
       visit(e.a);
       visit(e.b);
       visit(e.c);
-      break;
-    }
-    case ExpressionKind.SIMDShift: {
-      const e = expr as SIMDShiftExpr;
-      visit(e.vec);
-      visit(e.shift);
       break;
     }
     case ExpressionKind.SIMDLoad:

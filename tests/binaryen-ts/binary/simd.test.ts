@@ -22,8 +22,6 @@ import {
   SIMDLoadStoreLaneOp,
   type SIMDReplaceExpr,
   SIMDReplaceOp,
-  type SIMDShiftExpr,
-  SIMDShiftOp,
   type SIMDShuffleExpr,
   type SIMDTernaryExpr,
   SIMDTernaryOp,
@@ -292,7 +290,8 @@ Deno.test('SIMD: i32x4.replace_lane parsed correctly', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Test binary 7: i32x4.shl (SIMDShift)
+// Test binary 7: i32x4.shl — a `binary` since K3 (all twelve shifts, every
+// entry path: simd_shift.test.ts)
 //
 // sub-opcode 0xAB=171, LEB128: 0xAB 0x01
 // body: 0x00 0x20 0x00 0x20 0x01 0xfd 0xab 0x01 0x0b = 9 bytes
@@ -317,11 +316,11 @@ const SHIFT_MODULE = module(
   ),
 );
 
-Deno.test('SIMD: i32x4.shl (SIMDShift) parsed correctly', () => {
+Deno.test('SIMD: i32x4.shl parsed as a binary (K3)', () => {
   const mod = parseWasm(SHIFT_MODULE);
-  const expr = soleInstr(mod.functions[0].body) as SIMDShiftExpr;
-  assertEquals(expr.kind, ExpressionKind.SIMDShift);
-  assertEquals(expr.opcode, SIMDShiftOp.ShlVecI32x4);
+  const expr = soleInstr(mod.functions[0].body) as BinaryExpr;
+  assertEquals(expr.kind, ExpressionKind.Binary);
+  assertEquals(expr.opcode, BinaryOp.ShlVecI32x4);
   assertEquals(expr.type, ValType.V128);
 });
 

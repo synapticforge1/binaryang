@@ -91,7 +91,6 @@ import {
   makeSIMDLoad,
   makeSIMDLoadStoreLane,
   makeSIMDReplace,
-  makeSIMDShift,
   makeSIMDShuffle,
   makeSIMDTernary,
   makeStore,
@@ -124,8 +123,6 @@ import {
   SIMDLoadStoreLaneOp,
   type SIMDReplaceExpr,
   SIMDReplaceOp,
-  type SIMDShiftExpr,
-  SIMDShiftOp,
   type SIMDShuffleExpr,
   type SIMDTernaryExpr,
   SIMDTernaryOp,
@@ -1197,7 +1194,6 @@ class WatModuleParser {
     if (head === 'i8x16.shuffle') return this.parseSIMDShuffle(args, ctx);
     if (head in SIMD_EXTRACT_OPS) return this.parseSIMDExtract(head, args, ctx);
     if (head in SIMD_REPLACE_OPS) return this.parseSIMDReplace(head, args, ctx);
-    if (head in SIMD_SHIFT_OPS) return this.parseSIMDShiftOp(head, args, ctx);
     if (head === 'v128.bitselect') return this.parseSIMDBitselect(args, ctx);
     if (head in SIMD_LOAD_OPS) return this.parseSIMDLoad(head, args, ctx);
     if (head in SIMD_LANE_OPS) return this.parseSIMDLaneLdSt(head, args, ctx);
@@ -1979,13 +1975,6 @@ class WatModuleParser {
     const vec = this.parseExpr(args[1], ctx);
     const value = this.parseExpr(args[2], ctx);
     return makeSIMDReplace(SIMD_REPLACE_OPS[head] as SIMDReplaceOp, vec, lane, value);
-  }
-
-  private parseSIMDShiftOp(head: string, args: SExpr[], ctx: FuncContext): SIMDShiftExpr {
-    // (i8x16.shl <vec> <shift>)
-    const vec = this.parseExpr(args[0], ctx);
-    const shift = this.parseExpr(args[1], ctx);
-    return makeSIMDShift(SIMD_SHIFT_OPS[head] as SIMDShiftOp, vec, shift);
   }
 
   private parseSIMDBitselect(args: SExpr[], ctx: FuncContext): SIMDTernaryExpr {
@@ -3464,20 +3453,6 @@ const SIMD_REPLACE_OPS: Record<string, SIMDReplaceOp> = {
   'f32x4.replace_lane': SIMDReplaceOp.ReplaceLaneVecF32x4,
   'f64x2.replace_lane': SIMDReplaceOp.ReplaceLaneVecF64x2,
 };
-const SIMD_SHIFT_OPS: Record<string, SIMDShiftOp> = {
-  'i8x16.shl': SIMDShiftOp.ShlVecI8x16,
-  'i8x16.shr_s': SIMDShiftOp.ShrSVecI8x16,
-  'i8x16.shr_u': SIMDShiftOp.ShrUVecI8x16,
-  'i16x8.shl': SIMDShiftOp.ShlVecI16x8,
-  'i16x8.shr_s': SIMDShiftOp.ShrSVecI16x8,
-  'i16x8.shr_u': SIMDShiftOp.ShrUVecI16x8,
-  'i32x4.shl': SIMDShiftOp.ShlVecI32x4,
-  'i32x4.shr_s': SIMDShiftOp.ShrSVecI32x4,
-  'i32x4.shr_u': SIMDShiftOp.ShrUVecI32x4,
-  'i64x2.shl': SIMDShiftOp.ShlVecI64x2,
-  'i64x2.shr_s': SIMDShiftOp.ShrSVecI64x2,
-  'i64x2.shr_u': SIMDShiftOp.ShrUVecI64x2,
-};
 const SIMD_LOAD_OPS: Record<string, SIMDLoadOp> = {
   'v128.load8_splat': SIMDLoadOp.Load8SplatVec128,
   'v128.load16_splat': SIMDLoadOp.Load16SplatVec128,
@@ -3807,6 +3782,19 @@ const BINARY_OPS: Record<string, BinaryOp> = {
   'i64x2.extmul_high_i32x4_s': BinaryOp.ExtmulHighSVecI32x4ToI64x2,
   'i64x2.extmul_low_i32x4_u': BinaryOp.ExtmulLowUVecI32x4ToI64x2,
   'i64x2.extmul_high_i32x4_u': BinaryOp.ExtmulHighUVecI32x4ToI64x2,
+  // SIMD lane shifts — a `binary` since K3: (i8x16.shl <v128> <i32 count>)
+  'i8x16.shl': BinaryOp.ShlVecI8x16,
+  'i8x16.shr_s': BinaryOp.ShrSVecI8x16,
+  'i8x16.shr_u': BinaryOp.ShrUVecI8x16,
+  'i16x8.shl': BinaryOp.ShlVecI16x8,
+  'i16x8.shr_s': BinaryOp.ShrSVecI16x8,
+  'i16x8.shr_u': BinaryOp.ShrUVecI16x8,
+  'i32x4.shl': BinaryOp.ShlVecI32x4,
+  'i32x4.shr_s': BinaryOp.ShrSVecI32x4,
+  'i32x4.shr_u': BinaryOp.ShrUVecI32x4,
+  'i64x2.shl': BinaryOp.ShlVecI64x2,
+  'i64x2.shr_s': BinaryOp.ShrSVecI64x2,
+  'i64x2.shr_u': BinaryOp.ShrUVecI64x2,
   // SIMD f32x4 binary
   'f32x4.eq': BinaryOp.EqVecF32x4,
   'f32x4.ne': BinaryOp.NeVecF32x4,

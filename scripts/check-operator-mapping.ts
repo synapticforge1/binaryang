@@ -278,16 +278,16 @@ function wabtExprKinds(irSrc: string): Set<string> {
  * one-sided kinds when they are one shared kind spelled for two audiences. A
  * scrape that did exactly that is what kept the stale "27 outstanding" alive.
  *
- * What is left is not renames. It is four facts:
+ * What is left is not renames. It is three facts:
  *
  * - **the atomics and `call_ref`** — binaryen-ts cannot represent them at all;
  *   six of the eight are the `PHANTOM_BUDGET` above, and `atomic.load` /
  *   `atomic.store` are not even declared. A capability gap, registered.
  * - **`code_metadata`** — wabt-ts's annotation pseudo-instruction.
  * - **`region`** — divergence R1, S6 decision 5. Intended, and permanent.
- * - **`simd.shift`** — a REGROUPING, not a gap: wabt-ts encodes the same
- *   instructions as `binary` with a SIMD opcode (`i8x16.shl` is
- *   `TokenType.Binary` in its lexer). Both sides implement every one.
+ *
+ * `simd.shift` was a fourth until K3 (owner decision 2026-09-14) merged it into
+ * `binary`, wabt-ts's shape. Should a `simd.shift` kind come back, this fails.
  */
 const ONE_SIDED_BUDGET = {
   wabt: [
@@ -301,7 +301,7 @@ const ONE_SIDED_BUDGET = {
     'call_ref',
     'code_metadata',
   ],
-  binaryen: ['region', 'simd.shift'],
+  binaryen: ['region'],
 };
 
 const wabtKinds = wabtExprKinds(

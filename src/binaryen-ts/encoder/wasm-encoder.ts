@@ -67,7 +67,6 @@ import {
   type SIMDLoadExpr,
   type SIMDLoadStoreLaneExpr,
   type SIMDReplaceExpr,
-  type SIMDShiftExpr,
   type SIMDShuffleExpr,
   type SIMDTernaryExpr,
   type StoreExpr,
@@ -2527,14 +2526,6 @@ class WasmEncoder {
         this.encodeExpr(w, e.c, labels);
         w.writeU8(0xfd);
         w.writeU32(0x52);
-        break;
-      }
-
-      case ExpressionKind.SIMDShift: {
-        const e = expr as SIMDShiftExpr;
-        this.encodeExpr(w, e.vec, labels);
-        this.encodeExpr(w, e.shift, labels);
-        this.writeOperator(w, e.opcode);
         break;
       }
 
