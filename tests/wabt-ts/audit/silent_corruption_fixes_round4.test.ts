@@ -4,7 +4,7 @@
 /**
  * Round-4 regression tests for the 2026-06-09 silent-corruption audit — the
  * fourth-sweep findings (validator tail-call / try_table soundness + lexer
- * fail-loud gaps). See cmem/design-decisions.md.
+ * fail-loud gaps). See cmem/wabt-ts/design-decisions.md.
  */
 
 import { describe, it } from '@std/testing/bdd';

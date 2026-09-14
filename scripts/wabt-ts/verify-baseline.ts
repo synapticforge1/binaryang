@@ -3,10 +3,10 @@
  *
  * Prove that a refactor did not change what the toolchain EMITS.
  *
- * Written for the binaryang merge (`cmem/pre-merge-known-issues.md`). A merge
- * is a large move-refactor, and the conformance harnesses that would otherwise
- * catch a regression live in a session scratchpad rather than the repo — they
- * do not survive it. This does: `scripts/pre-merge-baseline.tsv` records, for
+ * Written for the binaryang merge (`cmem/wabt-ts/pre-merge-known-issues.md`). A
+ * merge is a large move-refactor, and the conformance harnesses that would
+ * otherwise catch a regression live in a session scratchpad rather than the
+ * repo — they do not survive it. This does: `scripts/wabt-ts/pre-merge-baseline.tsv` records, for
  * every file in the wasmtk corpus, the byte length and hash of the `wat2wasm`
  * output and the hash of the `wasm2wat` disassembly.
  *
