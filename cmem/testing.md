@@ -486,6 +486,25 @@ would have agreed with the first and proved nothing.
 | wabt-ts `wat2wasm` bytes == upstream (W5, W6)   | 421 / 421, outside custom sections |
 | `wasm-tools` on our labels and field names (N2) | see [names.md](names.md)           |
 
+### Byte parity with upstream `wat2wasm` — 146 → 400 → 421 of 421
+
+The byte baseline pins our OWN output, so it was blind to every divergence older than itself;
+wabt-ts's parity with upstream `wat2wasm` had never been measured. Measured 2026-09-10 with default
+features (`--enable-all` changes what upstream EMITS): **146 of 421 identical** — 242 differed in
+the DataCount section alone, the rest in type / function / code / tag sections. Re-measured
+precisely the next day: those "other" differences were the 21 exception-handling modules upstream
+cannot assemble without `--enable-exceptions`.
+
+| after           | identical, outside custom sections | commit (re-baseline)      |
+| --------------- | ---------------------------------- | ------------------------- |
+| W6 — DataCount  | 400 / 421                          | `cb474baaa` (`5dbe951f1`) |
+| W5 — type order | **421 / 421**                      | `bd327efe7` (`232768359`) |
+
+The name sections, compared on their own, are equal on 426/426. Parity is now total on this corpus,
+so **any new difference is a regression or a new divergence, and gets a row** in
+[divergences.md](divergences.md). Details of both fixes are their rows there; W5's implicit types
+are indexed by the PARSER at module end, through a `makeTypeInterner` shared with `synthesizeTypes`.
+
 The upstream-wabt oracle's REACH LIMIT is above ("An oracle that cannot reach the feature must be
 SAID to not reach it"); `wasm-tools` 1.259 reaches GC text, labels and field names, and has its own
 gaps (divergence G4).
@@ -655,6 +674,58 @@ makes the harness report both.
 `assert_return` / `assert_trap` — 55,993 behavioural assertions, skipped deliberately so the first
 pass measured the axis nothing else measures. Running them needs an invoke harness, and an engine
 already covers that ground; worth doing, but second. Tracked in [open-work.md](open-work.md).
+
+## The 1.5.5 passes — the code lens, summarized
+
+Seven passes on 2026-09-02; the plan and the lens definitions for 1.5.6 / 1.5.7 are in
+[open-work.md](open-work.md). Full per-pass register: `git show 1672c2a5a:cmem/quality-passes.md`.
+
+**The method that found things here** — greps found NOTHING (no live TODOs; all four "impossible"
+comments self-aware). What worked was **strengthening an existing metric**: the corpus asked whether
+binaryen-ts re-encodes _without throwing_ (421/421, green for months); asking whether the result
+_validates_ read 383/421. 🔑 **Look for a check whose PREDICATE is weaker than its name** —
+"round-trips" that only assert no-throw, "agrees" that only compares lengths, counts of files
+processed rather than files correct. And when a metric is raised, re-derive every number that
+depended on it.
+
+| pass | commit                   | what it found                                                                                                                                                                                                                                             |
+| ---- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `e662bd099`              | memarg alignment is an EXPONENT, and its default was wrong the other way; `return` / `br` kept only their first value; `storeBytes` had drifted from `loadBytes`                                                                                          |
+| 2    | `3e808b99b`              | `parseElem` was a stub that emptied every function table (still valid, then every `call_indirect` trapped); anonymous functions all synthesized as `$f0`, so `(call 1)` became infinite recursion from valid input                                        |
+| 3    | `9588504bd`, `ff9a383d2` | two "size deltas" were a **silent miscompile** (a synthetic loop wrapper shadowing the function frame) and **silent data corruption** (a byte string UTF-8 encoded)                                                                                       |
+| 4    | `c0d79b56d`              | `memory.init` / `data.drop` and the data count section, done together because either alone is a wrong module; six `ExpressionKind` members had nothing behind them                                                                                        |
+| 5    | `d706fffa1`              | orphan type entries — the predicate is "does it write a blocktype", not "is it a block"                                                                                                                                                                   |
+| 6    | `a33c94655`              | C9, one IR gap behind four symptoms: `ElementSegment.mode` — unblocked passive and declarative segments, `table.init`, `elem.drop` and six `0xFC` ops                                                                                                     |
+| 7    | `a38febfc6`              | export ORDER, the last byte difference; five never-run probe classes, which found that our linear output could not be re-read (C10, first routed through the bridge `ab90d7beb`, superseded by W4's `e18d9f09a`; C10a absorbed into S6 by owner decision) |
+
+| measure             | before       | after pass 7  |
+| ------------------- | ------------ | ------------- |
+| re-encode validates | 383 / 421    | **421 / 421** |
+| byte-identical      | 1 / 421      | **421 / 421** |
+| total size delta    | +24107 bytes | **0 bytes**   |
+
+**Lessons it paid for**, beyond the method:
+
+- **A size delta is not a cosmetic finding.** Both "bytes, probably benign" items in pass 3 were
+  wrong output; the size was the symptom that was easy to measure. And each hid behind a natural
+  fixture — a one-statement loop needs no wrapper, and ASCII round-trips through UTF-8 unchanged.
+- **Unexplained is not benign.** C6–C8 stayed open as unexplained size deltas; two of them were the
+  miscompile and the corruption.
+- **When testing an INDEX path, the fixture must be anonymous** — a probe using named targets came
+  back clean, because calls by name never touch the synthesized spelling. The named case is the
+  control.
+- **An enum member is not evidence of an implementation**, and a **central walker whose `default`
+  throws** is what caught every omitted kind.
+- **A guard can be holding up code that has never run**: lifting C9's refusal exposed an `flags & 2`
+  test that was right only while declarative segments were unreachable.
+- **When a test asserts a REFUSAL, write down what stays true once the refusal is lifted** — the
+  third time a test pinned a limitation so that removing it read as a regression. The unknown-`0xFC`
+  test moved to an unassigned sub-opcode; the passive-segment test now requires the untouched slot
+  to TRAP.
+- **No check that inspects a SET can see ORDER**: the interface comparison passed 421/421 while
+  every function's export landed after every other kind's. It took a byte comparison.
+- **A blocker naming a version is a dated assertion, not an invariant** — four stale "binaryen-ts
+  v1.0.9 lacks X" blockers made a whole route look impossible, and one refused 417 of 421 modules.
 
 ## Where the per-invariant detail lives
 

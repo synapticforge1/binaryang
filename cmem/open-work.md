@@ -14,9 +14,9 @@ that history now lives in its topic files — nothing was dropped:
 | every upstream difference, open and closed                      | [divergences.md](divergences.md)       |
 | names (N1 and its release items)                                | [names.md](names.md)                   |
 | everything on `main` awaiting a release note                    | [unreleased.md](unreleased.md)         |
-| the WAT routes, the folded-writer ladder, the bridge question   | [text-routes.md](text-routes.md)       |
-| the retirement (D2 / D3, the frozen predecessors)               | [transition.md](transition.md)         |
-| the 1.5.5 quality passes                                        | [quality-passes.md](quality-passes.md) |
+| the WAT routes, the folded-writer ladder, the bridge question   | [ir-convergence.md](ir-convergence.md) |
+| the retirement (D2 / D3, the frozen predecessors)               | [project.md](project.md)               |
+| the 1.5.5 quality passes                                        | [testing.md](testing.md)               |
 | releases, 1.5.4, `RELEASE_PAT`'s root cause                     | [publishing.md](publishing.md)         |
 | the wasmtk correspondence                                       | [handoffs.md](handoffs.md)             |
 
@@ -35,7 +35,7 @@ bridge 401/421. Re-derive before quoting.
 | 5 | **When to release**          | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                              |
 
 ~~JSR and GitHub descriptions on both predecessors~~ — 🛑 CLOSED as won't-do (owner, 2026-09-02);
-the predecessors are frozen. Do not re-open ([transition.md](transition.md)).
+the predecessors are frozen. Do not re-open ([project.md](project.md)).
 
 ## IR convergence — next steps
 
@@ -64,7 +64,7 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
 - ⬚ **binaryen-ts could run-length-compress its locals** as wabt-ts now does — roughly 5,600 bytes
   of that redundancy on the corpus. An optimisation, not a defect
-  ([text-routes.md](text-routes.md)).
+  ([ir-convergence.md](ir-convergence.md)).
 
 ## Open defects and gaps
 
@@ -88,7 +88,7 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 - ⬚ **Doc references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`
   and `wasm/demo_bytes` named subpaths that never existed and were pointed at `./api` and `./wasm`.
   Someone who knows the intent should confirm (recorded in 1.5.2's scope, summarized in
-  [phases.md](phases.md)).
+  [project.md](project.md)).
 
 ## Conformance gaps — the wasmtk-ranked list
 
@@ -102,11 +102,28 @@ Ranking agreed in [handoffs.md](handoffs.md). Ranks 1–3 shipped (`br_on_cast` 
 
 ## Quality passes — 1.5.6 / 1.5.7
 
-The three-version plan: **1.5.5** code issues (passes 1–7 done, register EMPTY, converged against
-the invariant battery), **1.5.6** hardening then code again, **1.5.7** security then hardening then
-code again — each lens repeated until a pass turns up nothing new. ⬚ 1.5.6 and 1.5.7 not started. ⚠️
-Converging means THESE invariants no longer discriminate, not that no issues remain. Lens
-definitions, method and register: [quality-passes.md](quality-passes.md).
+The plan, agreed 2026-09-02. Each version adds a LENS and re-runs every lens below it, and each lens
+repeats until a pass turns up nothing new — the re-runs are the point, since fixing a hardening
+issue can introduce a code issue:
+
+| version   | lenses, in order                            | state                                                                                    |
+| --------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **1.5.5** | code                                        | ✅ passes 1–7, register empty, converged — [testing.md](testing.md) § "The 1.5.5 passes" |
+| **1.5.6** | hardening → then code again                 | ⬚ not started                                                                            |
+| **1.5.7** | security → then hardening → then code again | ⬚ not started                                                                            |
+
+Without definitions 1.5.6 just repeats 1.5.5. If a finding fits two lenses, file it under the
+**lowest** one that would have caught it:
+
+| lens          | question                                    | examples from this codebase                                                                                                 |
+| ------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **code**      | is it WRONG on valid input?                 | wrong bytes, dropped information, logic contradicting its own docs, one fact duplicated in two places that drifted          |
+| **hardening** | does it survive HOSTILE or malformed input? | truncated binaries, absurd section counts, deep nesting, a panic where a typed error is the contract, unbounded work        |
+| **security**  | can a consequence be EXPLOITED?             | unbounded allocation from an attacker-controlled length, path traversal in a CLI, ReDoS, integer overflow reaching an index |
+
+⚠️ Converging means THESE invariants no longer discriminate, not that no issues remain. Keep a
+per-pass record — what each pass looked for and found — or convergence cannot be told apart from
+fatigue.
 
 ## Repo work
 
@@ -114,7 +131,7 @@ definitions, method and register: [quality-passes.md](quality-passes.md).
   output). **Blocked, and not close**: as of 2026-09-02 the wasmtk side has a long way to go before
   there is anything to implement against.
 - ⬚ **TranslateEH** (binaryen-ts) and **Phase 10 kernel selection** — live gaps carried from the
-  predecessors, not re-checked since the merge ([phases.md](phases.md)).
+  predecessors, not re-checked since the merge ([project.md](project.md)).
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 
@@ -139,6 +156,6 @@ someone is looking at.
 ## Not tasks, by decision
 
 - **Converging the two IRs is not a release task** — open-ended by decision 1, tracked by
-  `deno task collisions` ([overview.md](overview.md)). The S series is the work.
-- **D4 — never yank, ever** ([transition.md](transition.md)).
+  `deno task collisions` ([project.md](project.md)). The S series is the work.
+- **D4 — never yank, ever** ([project.md](project.md)).
 - **The predecessors are frozen** — no change to `binaryen-ts` or `wabt-ts` on GitHub or JSR.

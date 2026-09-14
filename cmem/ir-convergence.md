@@ -1,7 +1,7 @@
 # IR convergence — what actually separates the two IRs
 
 Written 2026-08-31, from a measured finding rather than a design discussion. It is the concrete
-answer to a question [overview.md](overview.md) decision 1 left open: the two IRs are retained, and
+answer to a question [project.md](project.md) decision 1 left open: the two IRs are retained, and
 convergence is "gradual and open-ended" — this is what convergence would actually consist of.
 
 > 🛑 **Owner decision, 2026-09-10 — the TEXT front end is wabt-ts.** The end state is WAT → wabt-ts
@@ -2008,6 +2008,72 @@ tree, or binaryen-ts's passes get nodes with no `type` to dispatch on.
 **Acceptance**: `deno task bridge` goes 401/421 → **421/421** (it opened at 397). If it does not,
 C10a's diagnosis was wrong and this whole step rests on a mistake — which is exactly what the gate
 was built to be able to say.
+
+##### The bridge and the WAT routes into binaryen-ts — history, summarized
+
+Consolidated 2026-09-14 from `bridge.md` and `text-routes.md` under the cleanup policy
+([INDEX.md](INDEX.md)); full text of each: `git show 1672c2a5a:cmem/bridge.md` and
+`git show 1672c2a5a:cmem/text-routes.md`. The bridge's binding rules — reserved upstream names in
+paths, import aliases that must not shadow a package — moved to [project.md](project.md).
+
+**Until this step lands, two things matter when touching the bridge** (`src/bridge/bridge.ts`, tests
+`tests/bridge/`): it walks the wabt-ts IR by **direct recursion**, not the expression-visitor
+delegate (reasoning: `cmem/wabt-ts/bridge.md` § "Why direct recursion"); and it keeps **its OWN
+label stack, which has diverged twice** — T13.22 the notorious one — so its tests are the first to
+run after touching either IR's control flow. Tier coverage (~60 kinds plus the module surface) is
+enumerated in `cmem/wabt-ts/bridge.md`. And it is **deliberately NOT exported** (decided
+2026-08-27): a `./bridge` subpath would make the part of the tree most likely to change a supported
+public surface, and the duplication permanent rather than resolved. Do not export it to close a gap.
+
+**What the bridge went through.** The merge turned a package boundary into an internal module (A7:
+the exact `jsr:@jrmarcum/binaryen-ts@1.5.0` pin gone, 15 cross-tree imports now relative).
+**T13.22**, two errors cancelling across the repository boundary, was closed BEFORE the merge,
+because merging first would have made it permanently invisible — `buildCatchClause` now runs before
+the label push, gated by a numeric probe in `try_table_catch_scope.test.ts`. **T13.50 / A1**, the
+incomplete de-coarsening, closed in 1.5.2 (`50a959baa`) with six shapes in
+`gc_decoarsening.test.ts`; its two lessons were **two defects stacked** (removing one refusal only
+MOVED the error message, which is what showed the second) and **a tag case green for the wrong
+reason** (a conjunction precondition, now in [best-practices.md](best-practices.md)). It moved to
+`src/bridge/` in 1.5.3 (`e76e2b7ca`). Nothing ever shipped against it, and this step deletes it.
+
+**The WAT routes, 2026-08-31 → 2026-09-10.** Asking whether "nothing ships against the bridge" could
+be closed turned up a user-facing defect: **`wasm-opt` could not read the linear WAT our own
+`wasm2wat` writes**, and died with an uncaught exception. Closed by routing (W4, `e18d9f09a`):
+external WAT goes wabt-ts → bytes → the decoder, 421/421, and failures print `wasm-opt: <message>`,
+exit 1. Measured on 150 files beforehand, the two WAT → binaryen routes covered different ground and
+agreed byte-for-byte on 0 of the 70 both could read — the argument for one front door, not a second.
+
+On the way, binaryen-ts's own `parseWat` was climbed from reading **1/421 → 421/421** of our folded
+output, each fix revealing the next (1 → 2 → 101 → 302 → … → 421): numeric branch depths and
+operands (307 modules), stack-sourced operands (44), numeric `call_indirect` types (39), an `if`
+that pushed no label scope — whose silent half sent branches to the WRONG block (24), reconstructed
+tag names (11), `try` (10), and a tail of four unrelated causes (`df24686ec`, `3ec5b29d6`). With the
+ladder finished, 1.5.4 flipped `wasm2wat`'s default to folded (`357007307`). Pins: inline exports
+and imports `tests/binaryen-ts/parser/inline_export.test.ts`; numeric references
+`tests/binaryen-ts/encoder/numeric_refs.test.ts`; the loop result
+`tests/wabt-ts/reader/loop_result.test.ts`. What it taught, kept here because it is not recorded
+elsewhere:
+
+- **A size win can be data loss.** binaryen-ts's output looked 1.24% smaller because `parseWat`
+  silently dropped inline exports — 196 of 345 — and inline IMPORTS, which shift every later index
+  so a valid module calls the wrong function. **Count the thing, not the bytes.** The real byte gap,
+  once found, was wabt-ts not run-length-compressing locals: fixed for **42,437 bytes (2.7%)** over
+  the corpus (baseline 1,557,602 → 1,515,165); binaryen-ts could take the same fix
+  ([open-work.md](open-work.md)).
+- 🔁 **RECONSTRUCTING a name instead of resolving an index** recurred three times — `$depth{N}` for
+  branch labels, a name-only lookup for `call_indirect` types, `$tag{N}` for tags. Each is the name
+  the parser would have synthesized for an anonymous construct, so each works until the construct
+  has a name of its own — and it silently rots if the synthesizing side changes. **Resolve what is
+  AT an index.**
+- **"Structurally unfoldable" was wrong twice.** `br` / `br_if` / `return` carry `values`, hidden
+  from a `grep -A 9` by a docstring; and multi-value results CAN fold —
+  `(local.set 1 (call $two)) (local.set 0)` is valid, the second consumer taking its value from the
+  stack. Hence the owner's folded-form rule in [best-practices.md](best-practices.md).
+- **A defect invisible to every byte check**: a `loop` reaching its end did not push its result, so
+  it could not fold — valid bytes, wrong IR shape. `loop_result.test.ts` asserts the SHAPE.
+- **A wrong assumption held by two places produces correct output until one of them moves**:
+  `writeFoldedConstExpr` and `writeInstrHead` both treated a leaf's linear rendering as its head,
+  and the output was valid exactly as long as linear was the default.
 
 ##### Verification at every step
 

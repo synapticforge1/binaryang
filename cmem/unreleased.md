@@ -111,10 +111,10 @@ their own bump — and nothing breaks by their standing still.
 ## From the 1.5.5 quality passes
 
 Seven passes, ~20 defects fixed; the corpus went from 383/421 validating and 1/421 byte-identical to
-**421/421 and 421/421**, size delta zero. Per-pass register: [quality-passes.md](quality-passes.md).
-Among them: C9's `ElementSegment.mode` unblocked passive and declarative segments, `table.init`,
-`elem.drop` and six other `0xFC` ops; an element-segment stub had silently emptied every function
-table; an anonymous-function name collision turned `(call 1)` into infinite recursion.
+**421/421 and 421/421**, size delta zero. Per-pass register: [testing.md](testing.md). Among them:
+C9's `ElementSegment.mode` unblocked passive and declarative segments, `table.init`, `elem.drop` and
+six other `0xFC` ops; an element-segment stub had silently emptied every function table; an
+anonymous-function name collision turned `(call 1)` into infinite recursion.
 
 ## Not release-note material, but true of `main`
 

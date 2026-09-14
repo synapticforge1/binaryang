@@ -66,83 +66,13 @@ class. "Valid either way" is not a class.
 | K3 | binaryen   | `simd.shift` is its own kind in binaryen-ts; wabt-ts spells the same instructions `binary` with a SIMD opcode (`i8x16.shl` is `TokenType.Binary` in its lexer)                                                                                                                                                      | DESIGN     | a REGROUPING, not a capability gap — **both sides implement every one of them**. The last of S5's regroupings, and the same shape as `simd_lane_op`, which wabt-ts split into `simd.extract` / `simd.replace`. 🔬 **SCOPED 2026-09-14 by the worst-condition method — recommendation MERGE into `binary`, 🗓️ awaiting the owner.** Fidelity does not bind (byte-exact both shapes, every path); optimization binds against the split form (LocalCSE silently skips `SIMDShift`; upstream `wasm-opt` does CSE shifts). Measurement, cost trial and gate plan: [ir-convergence.md](ir-convergence.md) § "K3". On merging, this row becomes DESIGN vs upstream BINARYEN, whose `Binary` requires same-typed children                                                                                                                                       |
 | K4 | binaryen   | `Module.toWat()` (public `./api`) prints INVALID WAT: the `Binary` and `Unary` arms of `exprToWat` print the numeric opcode — `(106 (local.get 0) (local.get 1))` for `i32.add` — plus `$$func0` and `(export "f" (function …))`. `optimize(flags, hybridMode = true)` feeds that text to the `wasm-opt` subprocess | DEFECT     | ⬚ OPEN, found 2026-09-14 while scoping K3, **measured by running `Module.toWat()` on one module**. Upstream binaryen prints valid WAT. The numeric opcode dates from `aeb4b62cc` (2026-09-04, S6 stage 3 step 1, operators became numeric) — checked with `git log -S`; that step's scoping had listed "`exprToWat` prints `expr.op` and needs `opName(op)`" as a known consequence, and it was not carried out. The `$$func0` / `(function …)` spellings were not traced. Not yet pinned by a test                                                                                                                                                                                                                                                                                                                                                     |
 
-**N1 — NAMES are lost at three hops** (found 2026-09-10, from the W4 route; owner: "so that this is
-not skipped"). **SCOPED 2026-09-11 in [names.md](names.md)**: 63,930 source names in the corpus (the
-scope first estimated ~43,000), 2 survived our round trip; the wabt-ts reader had never read one (a
-slice bug); upstream itself does not write LABEL names, so keeping them is a FEATURE beyond
-upstream; a six-step plan. **BUILT, both halves (2026-09-11).** wabt-ts (P1–P3): WAT → `wat2wasm` →
-`wasm2wat` keeps 63,930 / 63,930 and is a byte fixed point on all 421 modules. binaryen-ts (P4–P6):
-our named bytes decode and re-encode byte-identically 421/421, and `$foo` survives WAT → wabt-ts →
-bytes → binaryen-ts:
-
-| hop                   | today                                                                                                   | upstream                                   |
-| --------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| wabt-ts binary writer | ✅ writes one by default (P2); its ten kinds byte-equal to upstream's on 426/426; `wasm-strip` opts out | wat2wasm writes one with `--debug-names`   |
-| wabt-ts reader        | ✅ reads all twelve subsections (P3); keeps the section raw when the module cannot hold it exactly      | wasm2wat reads it                          |
-| binaryen-ts decoder   | ✅ reads it FIRST, one name table per namespace (P4); 8,298 / 8,298 upstream-named functions            | wasm-opt always reads it                   |
-| binaryen-ts encoder   | ✅ writes the REAL names only (`explicitNames`, P5); after passes only under `debugInfo`                | wasm-opt writes it with `-g` (`debugInfo`) |
-
-✅ **Not in N1: the module INTERFACE.** Export and import names live in the export and import
-sections, not the `name` section, and survive the route and -Oz exactly — including aliases and a
-late `(export …)` field (probed against upstream wat2wasm). Owner: an exported name must absolutely
-be preserved, or it is name mangling — pinned by `wat_input.test.ts`, verified to fail when one
-export name is altered. N1 is the INTERNAL identifiers: `$internal_name` comes back `$func1`.
-
-🛑 **Owner decision, 2026-09-10 — names are KEPT BY DEFAULT in the fidelity phase, over both
-upstreams' defaults.** Upstream loses them unless asked (probed):
-
-| upstream                         | `name` section out | names read back                                     |
-| -------------------------------- | ------------------ | --------------------------------------------------- |
-| `wat2wasm` (default)             | no                 | none                                                |
-| `wat2wasm --debug-names`         | yes                | functions and locals                                |
-| `wasm-opt`, no flags — NO passes | **no**             | none — even a plain round trip strips them          |
-| `wasm-opt -O2` / `-O2 -g` / `-g` | no / yes / yes     | none / SURVIVING functions only (locals gone) / all |
-
-- **Reading and writing without optimization** — our `wat2wasm`, decode → encode, `wasm-opt` with no
-  passes: names are preserved. DESIGN vs both upstreams: our fidelity requirement dictates over
-  their default. Byte parity with upstream is then measured against `wat2wasm --debug-names`.
-- 🛑 **wabt-ts ALWAYS keeps names** (owner, 2026-09-10, refining the above) — not a default with an
-  opt-out flag. It is the fidelity half and never optimizes, so the rule is absolute: **WAT →
-  `wat2wasm` → `wasm2wat` must reconstitute the WAT, names included.** That round trip is N1's
-  acceptance criterion for the wabt-ts half. Removing names is a separate, explicit act —
-  `wasm-strip` — never a mode of the fidelity tools.
-- **Optimization**: once passes run there is no original to be faithful to (the two-phase rule), so
-  optimized output follows a `-g`-style option (`PassOptions.debugInfo`), as upstream does. Its
-  DEFAULT was not separately decided; off, as upstream, until the owner says otherwise.
-
-N1 is CLOSED as a defect: both halves keep names in the fidelity phase. What remains of it is N4 —
-which names optimized output keeps under `-g`, the owner's future discussion.
-
-⚠️ **The three are coupled to decision 7b(i)**: `lowerBlockParams` re-decodes `encodeWasm(module)`
-and refuses a module whose names no longer match its own bytes. Once the decoder reads real names,
-an encoder that drops them makes every NAMED module with block parameters fail that check — so the
-decoder and encoder halves land together, with the lowering re-encode keeping names.
-
-The name section follows the code section, so the decoder must SCAN for it first (the bytes are in
-memory) and name entities before any body refers to them — and uniquify duplicate or clashing names,
-as upstream binaryen does. (`writeDebugNames`, the flag that promised a feature and did nothing, is
-now implemented and defaults to true — P2.)
-
-**wabt-ts vs upstream wat2wasm, byte for byte, on the 421-file corpus: 146 identical** (measured
-2026-09-10, default features — `--enable-all` changes what upstream EMITS). 242 differ in the
-DataCount section alone (W6); ~33 more in type / function / code / tag sections, consistent with W5.
-Never measured before: the corpus baseline pins wabt-ts's OWN output, so any divergence older than
-the baseline is invisible to it.
-
-✅ **After W6 (2026-09-11): 400 / 421 identical**, custom sections aside (their name sections are
-426/426 equal on their own). Re-measured precisely: the first count was 148 with default features,
-and the "other" differences were the 21 exception-handling modules upstream cannot assemble without
-`--enable-exceptions`. With it, those 21 differ ONLY in the type, function and tag sections — W5 is
-21 modules, nothing else is left.
-
-✅✅ **After W5 (2026-09-11): 421 / 421 identical** — wabt-ts's `wat2wasm` output equals upstream's
-on the whole corpus outside the custom sections, and the name sections are equal on their own. W6
-(`cb474baaa`) and W5 (`bd327efe7`) each re-baselined the corpus in their own commit (`5dbe951f1`,
-`232768359`). W5's implicit types are indexed by the PARSER at module end, through a
-`makeTypeInterner` shared with `synthesizeTypes` (idempotent), so the bridge tests that skip
-`synthesizeTypes` still see indices. The parity the baseline could never see (it pins our OWN
-output) is now total on this corpus; any new difference is a regression or a new divergence, and
-gets a row.
+**N1 — names** (found 2026-09-10, BUILT in both halves 2026-09-11; merged `7520ed7d3`, `eb0b3dcea`).
+Its owner decisions — wabt-ts ALWAYS keeps names, reading and writing without optimization keeps
+them over both upstreams' defaults, optimized output follows `debugInfo`, export and import names
+are the inviolable interface — and its measurements live in [names.md](names.md); the rows that
+remain are N2–N8. **wabt-ts's byte parity with upstream `wat2wasm`** (146 → 400 → 421 of 421, via W6
+and W5) is in [testing.md](testing.md) § "Byte parity with upstream `wat2wasm`". Full prose as it
+stood: `git show 1672c2a5a:cmem/divergences.md`.
 
 ## Closed — defects that were divergences, kept as history
 
@@ -185,53 +115,18 @@ Do not invest in its stack-form support ("Stage 1" in ir-convergence is supersed
 upstream's rule, not upstream's bytes: the test FAILS against the pre-fix pass, and the three
 invalidation tests it had made vacuous were rebuilt and verified to FAIL with invalidation disabled.
 
-## X1 — the convert pair, as it was priced
+## X1 — the convert pair, summarized
 
-The record behind the closed X1 row, moved verbatim from `open-work.md` on 2026-09-14. The
-enumeration it asks for at the end is still open ([open-work.md](open-work.md)).
-
-### The convert pair — measured, not estimated
-
-✅ **Closed by `9d5c886be`** — `ExternConvertExpr` (`makeExternConvert` keeps the operand's
-nullability), decoded from `0xfb 0x1a/0x1b` and re-emitted, plus a bridge case;
-`extern_convert.test.ts` asserts the OPCODES survive, as the paragraph below demands. The record of
-how it was priced stays as written.
-
-**Priced by building it**, per the rule the `br_on_cast` miss produced. Probed across all three
-layers:
-
-| layer                             | result                                                      |
-| --------------------------------- | ----------------------------------------------------------- |
-| wabt-ts parse → encode → validate | ✅ works                                                    |
-| binaryen-ts decode → re-encode    | ⚠️ **silently drops both opcodes**                          |
-| the bridge                        | ❌ `expression kind not yet supported` (fail-loud, correct) |
-
-⚠️ **The drop is deliberate, not an oversight.** `src/binaryen-ts/binary/wasm-parser.ts` case
-`0x1a`/`0x1b` reads `push(pop()); // identity conversion in IR`. The **value** survives; the
-**type** does not, so the encoder cannot re-emit the opcode and it vanishes — the re-encoded module
-is 2 bytes shorter per conversion.
-
-**Severity: fail-loud downstream, not a miscompile.** In every position where the conversion is
-load-bearing for typing, V8 rejects the re-encode with a type error. It is invisible only in the
-null-identity case (`any.convert_extern(extern.convert_any(null))`), where dropping both is
-coincidentally value-preserving and the module still returns the right answer.
-
-⚠️ **That case is why a validity-only check passes here.** The first probe reported
-`bin-roundtrip=OK` and was green for the wrong reason; the opcode count and the byte length are what
-exposed it. Any test written for this must assert the opcode survives, not that the module
-validates.
-
-**So the work is:** a real IR representation in binaryen-ts (node + reader + encoder, replacing the
-`push(pop())`) **and** a bridge case. Not "one bridge case" — the same shape as `br_on_cast`, where
-the estimate counted only the layer being looked at.
-
-### A defect in its own right, found alongside
-
-The reader errors on an unsupported GC opcode (`unsupported GC opcode: 0xFB 0x..`) but _consumes_
-these two. **The fail-loud contract is not being violated by an unknown opcode — it is being
-violated by a known one that is deliberately discarded.** Worth an enumeration: are there other
-cases in this decoder that consume-and-discard rather than error? The section, export-kind and
-import-kind dispatches all carry comments about exactly this shape having bitten before.
+**Closed by `9d5c886be`** (2026-09-10): `any.convert_extern` / `extern.convert_any` are real
+binaryen-ts nodes (`ExternConvertExpr`, decoded from `0xfb 0x1a/0x1b`, re-emitted), plus a bridge
+case; `extern_convert.test.ts` asserts the OPCODES survive. Priced by building it across all three
+layers: wabt-ts worked, the bridge refused loudly, and binaryen-ts's decoder **silently dropped both
+opcodes** with a deliberate `push(pop())` — fail-loud downstream (V8 rejects wherever the conversion
+matters for typing) except in the null-identity case, which is why a validity-only probe passed. Two
+lessons kept elsewhere: assert the mechanism, not validity ([best-practices.md](best-practices.md));
+and a KNOWN opcode deliberately discarded violates fail-loud as surely as an unknown one — the
+decoder-wide enumeration that asks for is open in [open-work.md](open-work.md). Full record:
+`git show 1672c2a5a:cmem/divergences.md`.
 
 ## When refactoring or optimizing — the checklist
 

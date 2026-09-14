@@ -69,8 +69,16 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
 - ⬚ **The wings** (below) are still under their "never deleted" rule; replacing them with summaries
   is proposed and awaits the owner's explicit decision.
 
-Applied so far: `scope-1.5.2.md` → [phases.md](phases.md) § "1.5.2 and 1.5.3 — the scope,
-summarized".
+Applied so far, each with its full text at the commit named:
+
+| retired or summarized                                                | now in                                                                                                                               | full text                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `scope-1.5.2.md`                                                     | [project.md](project.md) § "Versions"                                                                                                | `git show cff3284b8:cmem/scope-1.5.2.md`    |
+| `overview.md`, `phases.md`, `transition.md`, `pre-merge-register.md` | [project.md](project.md)                                                                                                             | `git show 1672c2a5a:cmem/<file>`            |
+| `bridge.md`, `text-routes.md`                                        | [ir-convergence.md](ir-convergence.md) § "The bridge and the WAT routes into binaryen-ts"; binding rules in [project.md](project.md) | `git show 1672c2a5a:cmem/<file>`            |
+| `quality-passes.md`                                                  | the plan in [open-work.md](open-work.md); the passes in [testing.md](testing.md)                                                     | `git show 1672c2a5a:cmem/quality-passes.md` |
+| `handoffs.md` letters (file kept, as a log)                          | [handoffs.md](handoffs.md)                                                                                                           | `git show 1672c2a5a:cmem/handoffs.md`       |
+| `divergences.md` N1 and parity prose, the X1 record                  | [names.md](names.md), [testing.md](testing.md), a summary in place                                                                   | `git show 1672c2a5a:cmem/divergences.md`    |
 
 ---
 
@@ -95,20 +103,9 @@ summarized".
 | [testing.md](testing.md)               | **How binaryang is tested**: the gates and what each can see, the corpora, the convergent philosophy (three states, every metric's blind spot), independent oracles, the spec-testsuite harness and its must-reject axis, A3's diagnostic offsets.                                                                                                                 |
 | [publishing.md](publishing.md)         | **Provenance and the release process**: never bump in the change that merges, provenance fails silently, the `actorNotScopeMember` root cause and `RELEASE_PAT`, never publish locally, recovery recipes, 1.5.4's unaided tag push.                                                                                                                                |
 | [names.md](names.md)                   | **N1 — internal names**: 63,930 in the corpus, the owner's rules, per-kind and per-hop measurements, the six steps as built, `wasm-tools` as the label oracle.                                                                                                                                                                                                     |
-| [bridge.md](bridge.md)                 | **The wabt-ts → binaryen-ts translator**, scheduled for deletion by S6: the binding naming rule, its design constraints, the de-coarsening and T13.22 history.                                                                                                                                                                                                     |
-| [overview.md](overview.md)             | **The internal picture**: scope (two projects, not three), the six settled decisions, layout and the promotion rule, the convergence indicator, the binding rules.                                                                                                                                                                                                 |
-| [phases.md](phases.md)                 | **Delivery status and versions**: why a bare "Phase N" is ambiguous here, what each release carried, the gaps carried from the predecessors.                                                                                                                                                                                                                       |
+| [project.md](project.md)               | **What binaryang is and what was decided**: scope, the settled and pre-merge decisions (export map, clean break, runtime floors), layout and the promotion rule, the binding rules (reserved names, import aliases, layered portability), the convergence indicator, versions 1.5.1–1.5.4, and summaries of the retirement and the merge.                          |
 | [licensing.md](licensing.md)           | MIT-primary with Apache-2.0 alternative; why binaryang inherits BOTH upstreams' §4 obligations; the two JSR rejection conditions.                                                                                                                                                                                                                                  |
-
-### Records — closed, kept as history
-
-| file                                           | what it holds                                                                                                                                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [quality-passes.md](quality-passes.md)         | The 1.5.5 code passes 1–7, per-pass findings, and the method that found them: strengthen a metric whose predicate is weaker than its name.                                                  |
-| [text-routes.md](text-routes.md)               | The WAT routes into binaryen-ts: the `wasm-opt` defects, the folded-writer ladder 1 → 421/421, the bridge question — closed by W4's routing.                                                |
-| [transition.md](transition.md)                 | The merge and retirement ladder, phases A–D, the archive runbook, and the stale-resolution trap. Complete.                                                                                  |
-| [pre-merge-register.md](pre-merge-register.md) | **The reconciliation** of both pre-merge registers: four conflicts, the missing pre-merge action, seven findings neither had, the runtime-floor decisions. Read before quoting either wing. |
-| [handoffs.md](handoffs.md)                     | Correspondence drafted here and handed over, dated and left as sent. Nothing is ever written into a sibling repo from this one.                                                             |
+| [handoffs.md](handoffs.md)             | **Correspondence with the sibling repos** — the live convention (never write into a sibling; draft here), a log of every letter with its outcome, and the lessons found only there. New drafts go at its end.                                                                                                                                                      |
 
 ## The wings
 
@@ -125,9 +122,11 @@ for per-phase scope, per-invariant test placement, the TS↔C++ porting map, and
 metric tables. What is _stale_ is narrower and named: both wing `overview.md` files still say all
 three projects merge, and every test-file path in them uses the dead `foo_test.ts` form.
 
-✅ **§2.2 is complete.** `overview`, `licensing`, `bridge`, `phases`, `testing` and both halves of
-`publishing` are merged topic files. Only `best-practices.md` (2,894 / 294) stays split, for the
-reason below — a decision, not a backlog item.
+✅ **§2.2 is complete.** Every topic both wings carried is merged in the core — `overview` and
+`phases` now as [project.md](project.md), `bridge` as a summary in
+[ir-convergence.md](ir-convergence.md), and `licensing`, `testing` and both halves of `publishing`
+under their own names. Only `best-practices.md` (2,894 / 294) stays split, for the reason below — a
+decision, not a backlog item.
 
 ---
 
@@ -153,8 +152,8 @@ lose nothing by staying where they were paid for.
 1. This file.
 2. [open-work.md](open-work.md) and [working-rules.md](working-rules.md) — where things stand, and
    how work is done.
-3. [pre-merge-register.md](pre-merge-register.md) — what was true before the trees became one.
-4. The README — the binding naming rule, the runtime floors, and the settled decisions.
+3. [project.md](project.md) — what binaryang is, what was decided and why, and how it got here.
+4. The README — the user-facing surface: subpaths, the runtime floors, migrating.
 5. [ir-convergence.md](ir-convergence.md) — the largest piece of live work.
 6. `wabt-ts/tasks.md` when you need the history behind a specific defect; it is the deepest record
    either project kept.

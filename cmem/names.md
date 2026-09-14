@@ -11,7 +11,12 @@ description. The register entry is N1 in [divergences.md](divergences.md).
   separate, explicit `wasm-strip`.
 - **Reading and writing without optimization keeps names** (binaryen-ts decode → encode too).
 - **Optimized output follows a `-g`-style `debugInfo` option** (default off, as upstream).
-- **Export and import names are the interface, not N1** — inviolable, already pinned.
+- **Export and import names are the interface, not N1** — inviolable, already pinned. They live in
+  the export and import sections, not the `name` section, and survive the WAT route and `-Oz`
+  exactly, including aliases and a late `(export …)` field (probed against upstream `wat2wasm`).
+  Owner: an exported name must absolutely be preserved, "or we have name mangling" — pinned by
+  `wat_input.test.ts` (`91fa9caf9`), verified to fail when one export name is altered. N1 is the
+  INTERNAL identifiers: before it, `$internal_name` came back `$func1`.
 - How optimization treats internal vs exported names is a **future owner discussion**; not here.
 
 ## 1. Which names are at stake — 63,930 of them in the corpus
