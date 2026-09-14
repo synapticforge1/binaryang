@@ -48,6 +48,30 @@ hash, backticked identifier, measured ratio and quantity in the old core and in 
 snapshotted first and verified present afterwards, with each deliberate exception listed and
 reasoned — and the check was inverted (a mutated copy fails it, naming exactly what was removed).
 
+## Cleanup policy — summarize completed work, keep what ongoing work needs (owner, 2026-09-14)
+
+**cmem is working memory, not an archive; git is the archive.** "Nothing is deleted" was retired as
+a practice for the shared core: it made every closed item cost every future reader. Detail removed
+from cmem stays recoverable through commits, merge messages and `git log -S`.
+
+- **Completed work is SUMMARIZED**: what landed, the commits and tags it landed in, where its
+  substance now lives, and any lesson found nowhere else — plus a `git show <commit>:<path>` pointer
+  to the full text it replaces. **A summary without a commit pointer is a loss**, not a summary.
+- **Kept in full, even when the work is done:** decisions and their reasons (above all DESIGN rows
+  in [divergences.md](divergences.md) — they stop a refactor or an upstream port silently undoing
+  them); recurring lessons, as a rule plus one instance; conditional risks with their trigger ("the
+  day X, these become exposed"); measurements later work compares against (gate expectations,
+  baselines); corrections of beliefs someone could re-derive wrongly.
+- **Dropped to the summary:** blow-by-blow narratives of finished stages, superseded intermediate
+  counts, retellings of one event across files, completed runbooks, closed correspondence.
+- **Check it, do not assert it:** every removed section maps to a summary with a commit pointer, and
+  no decision, DESIGN row, open item or trigger is among what was removed.
+- ⬚ **The wings** (below) are still under their "never deleted" rule; replacing them with summaries
+  is proposed and awaits the owner's explicit decision.
+
+Applied so far: `scope-1.5.2.md` → [phases.md](phases.md) § "1.5.2 and 1.5.3 — the scope,
+summarized".
+
 ---
 
 ## The shared core
@@ -83,7 +107,6 @@ reasoned — and the check was inverted (a mutated copy fails it, naming exactly
 | [quality-passes.md](quality-passes.md)         | The 1.5.5 code passes 1–7, per-pass findings, and the method that found them: strengthen a metric whose predicate is weaker than its name.                                                  |
 | [text-routes.md](text-routes.md)               | The WAT routes into binaryen-ts: the `wasm-opt` defects, the folded-writer ladder 1 → 421/421, the bridge question — closed by W4's routing.                                                |
 | [transition.md](transition.md)                 | The merge and retirement ladder, phases A–D, the archive runbook, and the stale-resolution trap. Complete.                                                                                  |
-| [scope-1.5.2.md](scope-1.5.2.md)               | The 1.5.2 / 1.5.3 scope: de-coarsening, release-script unification, the convergence indicator. Shipped.                                                                                     |
 | [pre-merge-register.md](pre-merge-register.md) | **The reconciliation** of both pre-merge registers: four conflicts, the missing pre-merge action, seven findings neither had, the runtime-floor decisions. Read before quoting either wing. |
 | [handoffs.md](handoffs.md)                     | Correspondence drafted here and handed over, dated and left as sent. Nothing is ever written into a sibling repo from this one.                                                             |
 

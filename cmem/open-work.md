@@ -87,7 +87,8 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   prints `call $foo`; folded siblings share a line. Text only, never bytes ([names.md](names.md)).
 - ⬚ **Doc references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`
   and `wasm/demo_bytes` named subpaths that never existed and were pointed at `./api` and `./wasm`.
-  Someone who knows the intent should confirm ([scope-1.5.2.md](scope-1.5.2.md)).
+  Someone who knows the intent should confirm (recorded in 1.5.2's scope, summarized in
+  [phases.md](phases.md)).
 
 ## Conformance gaps — the wasmtk-ranked list
 

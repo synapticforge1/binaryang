@@ -116,7 +116,7 @@ Two, both enforced in CI, both with their full reasoning elsewhere:
 | every divergence from upstream                | [divergences.md](divergences.md)                                              |
 | what was true before the merge                | [pre-merge-register.md](pre-merge-register.md)                                |
 | the execution list and the retirement ladder  | [transition.md](transition.md)                                                |
-| the 1.5.2 / 1.5.3 scope (shipped)             | [scope-1.5.2.md](scope-1.5.2.md)                                              |
+| what each release carried, 1.5.1 → 1.5.4      | [phases.md](phases.md)                                                        |
 | the seam between the two IRs                  | [bridge.md](bridge.md)                                                        |
 | JSR provenance and the release process        | [publishing.md](publishing.md)                                                |
 | the rules paid for, and the working checklist | [best-practices.md](best-practices.md) · [working-rules.md](working-rules.md) |

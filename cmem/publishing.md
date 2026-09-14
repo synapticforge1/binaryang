@@ -56,7 +56,14 @@ Both files, together: `tests/binaryen-ts/version_sync.test.ts` fails the publish
 `deno task bump` rewrites both.
 
 ⚠️ Two consequences of the rule being _"tag exists"_ rather than _"version increased"_: deleting a
-tag re-arms that version, and a downgrade triggers a publish too. There is no monotonicity check.
+tag re-arms that version (the next merge re-tags and attempts a republish, which JSR rejects as
+immutable, so the job goes red rather than doing something silently wrong), and a downgrade triggers
+a publish too. There is no monotonicity check.
+
+🚨 **A tag publishes from ANY branch.** `publish.yml` keys on `push: tags: [v*]` with no branch
+constraint, so pushing a `v*` tag from a feature or release branch publishes immediately — the one
+thing reachable from a branch push that can. (Recorded in 1.5.2's scope; see
+[phases.md](phases.md).)
 
 ## The one thing to understand
 
