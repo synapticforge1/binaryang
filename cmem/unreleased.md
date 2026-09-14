@@ -48,6 +48,11 @@ their own bump — and nothing breaks by their standing still.
   every single-label reference is **`target`** in BOTH IRs (`BreakExpr.name`, `BrOnExpr.label`,
   `CatchClause.dest`, wabt-ts `RethrowExpr.depth` all renamed); the catch tag is `tag?: Var` on both
   legacy and `try_table` clauses.
+- **`CallIndirectExpr.params` / `results` → `sig: FuncSignature`** (owner decision 3, `b034cedb1`),
+  and **`makeCallIndirect(table, callee, operands, sig, isReturn?)`** takes the signature as one
+  object — five arguments where there were six. `FuncSignature` is a new export. The compat
+  facade's binaryen.js-shaped `call_indirect(table, target, operands, params, results)` is
+  unchanged.
 - **`TableCatch` is a two-shape UNION** (`b1410d6e8`): a `catch_all` can no longer carry a tag — a
   compile-time break for anyone constructing one.
 - **The SIMD lane shifts are a `binary`** (K3, 2026-09-14): `ExpressionKind.SIMDShift`,
