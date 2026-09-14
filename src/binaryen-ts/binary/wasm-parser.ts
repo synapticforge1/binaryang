@@ -65,7 +65,6 @@ import {
   makeSIMDLoad,
   makeSIMDLoadStoreLane,
   makeSIMDReplace,
-  makeSIMDShift,
   makeSIMDShuffle,
   makeSIMDTernary,
   makeStore,
@@ -90,7 +89,6 @@ import {
   SIMDLoadOp,
   SIMDLoadStoreLaneOp,
   SIMDReplaceOp,
-  SIMDShiftOp,
   SIMDTernaryOp,
   typeOf,
   UnaryOp,
@@ -3679,17 +3677,17 @@ function decodeSIMDPrefix(
       break;
     case 0x6b: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShlVecI8x16, pop(), shift));
+      push(makeBinary(BinaryOp.ShlVecI8x16, pop(), shift));
       break;
     }
     case 0x6c: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrSVecI8x16, pop(), shift));
+      push(makeBinary(BinaryOp.ShrSVecI8x16, pop(), shift));
       break;
     }
     case 0x6d: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrUVecI8x16, pop(), shift));
+      push(makeBinary(BinaryOp.ShrUVecI8x16, pop(), shift));
       break;
     }
     case 0x6e: {
@@ -3810,17 +3808,17 @@ function decodeSIMDPrefix(
       break;
     case 0x8b: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShlVecI16x8, pop(), shift));
+      push(makeBinary(BinaryOp.ShlVecI16x8, pop(), shift));
       break;
     }
     case 0x8c: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrSVecI16x8, pop(), shift));
+      push(makeBinary(BinaryOp.ShrSVecI16x8, pop(), shift));
       break;
     }
     case 0x8d: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrUVecI16x8, pop(), shift));
+      push(makeBinary(BinaryOp.ShrUVecI16x8, pop(), shift));
       break;
     }
     case 0x8e: {
@@ -3933,17 +3931,17 @@ function decodeSIMDPrefix(
       break;
     case 0xab: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShlVecI32x4, pop(), shift));
+      push(makeBinary(BinaryOp.ShlVecI32x4, pop(), shift));
       break;
     }
     case 0xac: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrSVecI32x4, pop(), shift));
+      push(makeBinary(BinaryOp.ShrSVecI32x4, pop(), shift));
       break;
     }
     case 0xad: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrUVecI32x4, pop(), shift));
+      push(makeBinary(BinaryOp.ShrUVecI32x4, pop(), shift));
       break;
     }
     case 0xae: {
@@ -4033,17 +4031,17 @@ function decodeSIMDPrefix(
       break;
     case 0xcb: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShlVecI64x2, pop(), shift));
+      push(makeBinary(BinaryOp.ShlVecI64x2, pop(), shift));
       break;
     }
     case 0xcc: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrSVecI64x2, pop(), shift));
+      push(makeBinary(BinaryOp.ShrSVecI64x2, pop(), shift));
       break;
     }
     case 0xcd: {
       const shift = pop();
-      push(makeSIMDShift(SIMDShiftOp.ShrUVecI64x2, pop(), shift));
+      push(makeBinary(BinaryOp.ShrUVecI64x2, pop(), shift));
       break;
     }
     case 0xce: {

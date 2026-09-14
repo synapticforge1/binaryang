@@ -109,7 +109,7 @@ export enum ExpressionKind {
   SIMDShuffle = 'simd.shuffle',
   SIMDTernary = 'simd.ternary',
   Quaternary = 'quaternary',
-  SIMDShift = 'simd.shift',
+  // No `simd.shift`: the lane shifts are `binary` (K3, cmem/ir-convergence.md).
   SIMDLoad = 'simd.load',
   SIMDLoadStoreLane = 'simd.load_store_lane',
   // References (GC + reference-types proposals)
@@ -537,6 +537,24 @@ export const BinaryOp = {
   MaxVecF64x2: (0xfd << 16) | 0xf5, // f64x2.max
   PminVecF64x2: (0xfd << 16) | 0xf6, // f64x2.pmin
   PmaxVecF64x2: (0xfd << 16) | 0xf7, // f64x2.pmax
+  // Lane shifts: a v128 on the LEFT, an i32 count on the RIGHT. K3 merged
+  // binaryen-ts's separate `SIMDShift` kind into `binary`, as wabt-ts and upstream
+  // wabt spell it (cmem/ir-convergence.md § "K3"). ⚠️ So a `binary`'s two operands
+  // are NOT always the same type — upstream binaryen's validator requires that,
+  // and splits these out for it. Match exact opcodes; never assume `left` and
+  // `right` share a type (divergence K3, cmem/divergences.md).
+  ShlVecI8x16: (0xfd << 16) | 0x6b, // i8x16.shl
+  ShrSVecI8x16: (0xfd << 16) | 0x6c, // i8x16.shr_s
+  ShrUVecI8x16: (0xfd << 16) | 0x6d, // i8x16.shr_u
+  ShlVecI16x8: (0xfd << 16) | 0x8b, // i16x8.shl
+  ShrSVecI16x8: (0xfd << 16) | 0x8c, // i16x8.shr_s
+  ShrUVecI16x8: (0xfd << 16) | 0x8d, // i16x8.shr_u
+  ShlVecI32x4: (0xfd << 16) | 0xab, // i32x4.shl
+  ShrSVecI32x4: (0xfd << 16) | 0xac, // i32x4.shr_s
+  ShrUVecI32x4: (0xfd << 16) | 0xad, // i32x4.shr_u
+  ShlVecI64x2: (0xfd << 16) | 0xcb, // i64x2.shl
+  ShrSVecI64x2: (0xfd << 16) | 0xcc, // i64x2.shr_s
+  ShrUVecI64x2: (0xfd << 16) | 0xcd, // i64x2.shr_u
 } as const;
 
 /**
@@ -582,28 +600,6 @@ export const SIMDReplaceOp = {
  * the ~116 that have no member above. See S6 stage 1 in cmem/ir-convergence.md.
  */
 export type SIMDReplaceOp = Opcode;
-
-/** SIMD lane shift operators. Mirrors `SIMDShiftOp` in Binaryen. */
-export const SIMDShiftOp = {
-  ShlVecI8x16: (0xfd << 16) | 0x6b, // i8x16.shl
-  ShrSVecI8x16: (0xfd << 16) | 0x6c, // i8x16.shr_s
-  ShrUVecI8x16: (0xfd << 16) | 0x6d, // i8x16.shr_u
-  ShlVecI16x8: (0xfd << 16) | 0x8b, // i16x8.shl
-  ShrSVecI16x8: (0xfd << 16) | 0x8c, // i16x8.shr_s
-  ShrUVecI16x8: (0xfd << 16) | 0x8d, // i16x8.shr_u
-  ShlVecI32x4: (0xfd << 16) | 0xab, // i32x4.shl
-  ShrSVecI32x4: (0xfd << 16) | 0xac, // i32x4.shr_s
-  ShrUVecI32x4: (0xfd << 16) | 0xad, // i32x4.shr_u
-  ShlVecI64x2: (0xfd << 16) | 0xcb, // i64x2.shl
-  ShrSVecI64x2: (0xfd << 16) | 0xcc, // i64x2.shr_s
-  ShrUVecI64x2: (0xfd << 16) | 0xcd, // i64x2.shr_u
-} as const;
-
-/**
- * An operator is an OPCODE, so the field admits every instruction — including
- * the ~116 that have no member above. See S6 stage 1 in cmem/ir-convergence.md.
- */
-export type SIMDShiftOp = Opcode;
 
 /** SIMD extended-load operators. Mirrors `SIMDLoadOp` in Binaryen. */
 export const SIMDLoadOp = {
@@ -2003,18 +1999,6 @@ export interface SIMDTernaryExpr extends ExprBase {
   c: Expression;
 }
 
-/** `*.shl` / `*.shr_s` / `*.shr_u` — SIMD lane shift (vec: v128, shift: i32). */
-export interface SIMDShiftExpr extends ExprBase {
-  /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.SIMDShift;
-  /** Operator code. */
-  opcode: SIMDShiftOp;
-  /** vec — see the matching factory for semantics. */
-  vec: Expression;
-  /** Shift amount operand. */
-  shift: Expression;
-}
-
 /** Extended SIMD loads: splat, extend (8x8/16x4/32x2), and zero-extend. */
 export interface SIMDLoadExpr extends ExprBase {
   /**
@@ -2147,7 +2131,6 @@ export type Expression =
   | SIMDShuffleExpr
   | SIMDTernaryExpr
   | QuaternaryExpr
-  | SIMDShiftExpr
   | SIMDLoadExpr
   | SIMDLoadStoreLaneExpr;
 
@@ -3183,15 +3166,6 @@ export function makeSIMDTernary(
   c: Expression,
 ): SIMDTernaryExpr {
   return { kind: ExpressionKind.SIMDTernary, type: ValType.V128, opcode, a, b, c };
-}
-
-/** Creates a `*.shl` / `*.shr_s` / `*.shr_u` SIMD shift expression. */
-export function makeSIMDShift(
-  opcode: SIMDShiftOp,
-  vec: Expression,
-  shift: Expression,
-): SIMDShiftExpr {
-  return { kind: ExpressionKind.SIMDShift, type: ValType.V128, opcode, vec, shift };
 }
 
 /** Creates a SIMD extended load expression (splat, extend, or zero-extend). */
