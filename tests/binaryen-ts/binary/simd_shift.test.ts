@@ -133,12 +133,10 @@ function assertBinaryShift(e: Expression | undefined, opcode: number, where: str
   assert(e !== undefined, `${where}: no node carries the shift opcode`);
   assertEquals(e.kind, ExpressionKind.Binary, `${where}: kind`);
   const b = e as BinaryExpr;
+  assertEquals(b.opcode, opcode, `${where}: opcode`);
   assertEquals(b.type, ValType.V128, `${where}: type`);
-  assertEquals(
-    (b.left as { opcode?: unknown }).opcode !== undefined,
-    true,
-    `${where}: vec is left`,
-  );
+  // The fixture's vec is `(<lane>.splat (local.get 0))`, its count `(local.get 1)`.
+  assertEquals(b.left.kind, ExpressionKind.Unary, `${where}: vec (the splat) is left`);
   assertEquals(b.right.kind, ExpressionKind.LocalGet, `${where}: count is right`);
 }
 
