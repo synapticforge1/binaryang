@@ -119,8 +119,14 @@ listed defect fixed and one live gap, TranslateEH.
 - [decision] The old blocker ("behind multi-value") is gone: a `catch $tag` branches to a block carrying the tag's
   params, i.e. multi-result blocks, delivered in binaryen-ts Tiers 5–8. IR pieces exist (`TryExpr`, `TryTableExpr`,
   `CatchClause.isRef`, `ThrowRef`, `Rethrow`, `Pop`, `ExnRef`).
-- [open] Scope as written: (0) first confirm wasmtime (`-W exceptions=y`) accepts a `try_table` module OUR encoder
-  produces — not done, the one attempt used a malformed fixture; (1) `try` + `catch`/`catch_all` → `try_table` +
+- [measured] **Step 0 DONE 2026-09-14** (for owner decision 7), on wasmtime **48.0.2**. Two modules were built
+  with wabt-ts `wat2wasm`, then run through binaryen-ts decode → encode, plain and after `-Oz`: a `try_table`
+  catching a tag payload, and a `catch_all_ref` → `throw_ref` rethrow caught by an outer `try_table`. **All 4
+  accepted by `wasmtime run -W exceptions=y`**, with the right values (`f(0)=7 f(4)=5`; `f(0)=0 f(4)=12`),
+  identical to V8. Legacy `try` through the same path is still refused by 48.0.2: "legacy_exceptions feature
+  required for try instruction", and `-W` still offers only `exceptions`. So the encoder side of a TranslateEH
+  output is known-good; the pass itself is what does not exist. The probe script was session scratch, not kept.
+- [open] Scope as written: (0) ✅ above; (1) `try` + `catch`/`catch_all` → `try_table` +
   block scaffolding (bulk, mechanical); (2) `rethrow $l` → an `exnref` local per rethrow-targeted try filled via
   `catch_ref`/`catch_all_ref`, then `throw_ref` (upstream: one local per nesting depth, reused across siblings);
   (3) `delegate $l` — the hardest; (4) register opt-in — upstream does NOT run it in `-Oz`; (5) test on wasmtime.

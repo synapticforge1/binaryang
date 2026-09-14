@@ -110,6 +110,11 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` · `d
   one file.
 - **After any scripted edit, read back the lines it changed**, and treat "0 replacements" as a
   failure, not a no-op.
+- ⚠️ **`cmem/` is outside `deno fmt`'s `include`, and naming a file formats it anyway.** The gate's
+  `deno fmt --check` never reads cmem, so nothing requires it to be formatted — and
+  [wabt-ts.md](wabt-ts.md) / [binaryen-ts.md](binaryen-ts.md) use long lines by design. 2026-09-14:
+  `deno fmt cmem/binaryen-ts.md` rewrapped 862 lines around a 10-line edit (restored before commit).
+  Do not run `deno fmt` on a cmem file; check `git diff --stat` against the size of the edit.
 
 ### Installed oracles — do not re-ask
 

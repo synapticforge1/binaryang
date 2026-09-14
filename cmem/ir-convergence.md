@@ -1207,7 +1207,23 @@ showed it:
   signature" (and which S3's table keys on as `FidelityEntry.sig`). `FuncSignature` is exactly
   `{params, results}`, so the two really are equivalent — which is why cost cannot settle it alone.
   **Not flipped unilaterally on a 5-site margin: the one Group 3 tie where cost and structure point
-  opposite ways.**
+  opposite ways.** 🔬 **Re-measured 2026-09-14, for the owner's options review** (same trial: change
+  the interface, count `deno check` errors, revert). The totals are unchanged at **11 vs 16**, but
+  split by file **the margin is mostly tests**:
+  - convert wabt-ts: 10 source sites (`bridge.ts` 3, `wast-parser.ts` 3, `ir-util.ts` 2,
+    `binary-reader.ts` 2) plus 1 test;
+  - convert binaryen-ts: 9 source sites (`wasm-encoder.ts` 6, `expressions.ts` 1, `wat-parser.ts` 1,
+    `flatten.ts` 1) plus 7 tests.
+
+  Counting production code only, binaryen-ts is the cheaper side to change. The structural fact is
+  wider than this one node:
+  - wabt-ts carries `sig: FuncSignature` on `Func`, on the func type entry, on the func import and
+    in `FidelityEntry`.
+  - binaryen-ts carries flat `params` / `results` on `WasmFunction`, and has no `FuncSignature` at
+    all.
+
+  So the tie is two house styles for ONE family (function signatures), and settling `call_indirect`
+  alone leaves a lone exception on whichever side loses.
 - **`ref.null` — NO CHANGE, and that is the finding.** binaryen-ts has no field because the heap
   type IS the node's `type` (`ref.null t` has type `(ref null t)`) — one fact in one place, and
   **byte-identical on all 13 spellings probed**: every abstract heap type, a concrete `$t`, and a

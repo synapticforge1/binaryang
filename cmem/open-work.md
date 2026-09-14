@@ -62,13 +62,13 @@ options review and are still open.
 
 ## Owner actions — nothing here is blocked on code
 
-| # | item                            | note                                                                                                                                                                                                                                                                                                            |
-| - | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 | **Create `RELEASE_PAT`**        | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                            |
-| 3 | **`call_indirect`'s `sig`**     | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                                                                                 |
-| 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned) |
-| 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                              |
-| 7 | **TranslateEH — still wanted?** | 🗓️ re-checked 2026-09-14: unimplemented, and wasmtk is migrating wasic to `try_table`, so it would be a compatibility shim for legacy binaries only. Keep, or close as won't-do — see § "Repo work"                                                                                                             |
+| # | item                            | note                                                                                                                                                                                                                                                                                                                                             |
+| - | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 | **Create `RELEASE_PAT`**        | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                                                             |
+| 3 | **`call_indirect`'s `sig`**     | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways. Options reviewed 2026-09-14: re-measured, and by SOURCE sites alone it is 10 vs 9, the other way — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                |
+| 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned)                                  |
+| 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                                                               |
+| 7 | **TranslateEH — still wanted?** | 🗓️ re-checked 2026-09-14: unimplemented, and wasmtk is migrating wasic to `try_table`, so it would be a compatibility shim for legacy binaries only. Options reviewed 2026-09-14: step 0 DONE — wasmtime 48.0.2 runs our encoder's `try_table` (plain and `-Oz`), and still refuses legacy `try`. Keep, or close as won't-do — see § "Repo work" |
 
 ~~A local directory path in git history~~ — 🛑 CLOSED as leave-it (owner, 2026-09-14). Committed
 cmem no longer carries it: the absolute paths are in the private `cmem/local/environment.md`. The
@@ -219,9 +219,9 @@ fatigue.
 - ⬚ **TranslateEH** (binaryen-ts) — re-checked 2026-09-14: still unimplemented (no pass, no mention
   in `src/` or `tests/`). **Whether it is still wanted is the owner's call**: wasmtk chose to
   migrate wasic to `try_table`, which makes TranslateEH a compatibility shim for already-built
-  legacy binaries rather than a pipeline step. If kept, its step 0 — confirm wasmtime accepts a
-  `try_table` module OUR encoder produces — was never done ([binaryen-ts.md](binaryen-ts.md) §
-  "TranslateEH").
+  legacy binaries rather than a pipeline step. Its step 0 — confirm wasmtime accepts a `try_table`
+  module OUR encoder produces — was DONE 2026-09-14 and passed, `-Oz` included
+  ([binaryen-ts.md](binaryen-ts.md) § "TranslateEH").
 - ⬚ **Phase 10 kernel selection** — a live gap carried from binaryen-ts, not re-checked since the
   merge ([project.md](project.md)).
 - ⬚ **Diagnostic usefulness** ("is the message actionable?") is the one hardening axis never
