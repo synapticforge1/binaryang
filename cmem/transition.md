@@ -179,12 +179,15 @@ conservative one — provided D4 holds.
 
 ---
 
-## Still open
+## Was open at scoping — both closed
 
-| item                       | blocking? | note                                                                                                                                                                                                                                                                                                                                      |
-| -------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The promotion-rule gap** | no        | a module is promoted when nothing in either tree imports it across the boundary — but the **bridge is cross-tree by definition**, so the rule can never promote the one module that most obviously belongs to neither side. Decide where `src/bridge` lives; it can move in under `src/wabt-ts/bridge/` and be promoted later at no cost. |
-| Signpost wording           | no        | drafted as handoffs when phase B is reached, not now — they would go stale                                                                                                                                                                                                                                                                |
+**The ladder is complete** (2026-09-02; see "THE RETIREMENT IS CLOSED" below). Nothing in this file
+is outstanding; live work is in [open-work.md](open-work.md).
+
+| item                       | blocking? | note                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The promotion-rule gap** | no        | ✅ **Decided 2026-08-27: `src/bridge/`**, as the rule's one written standing exception ([overview.md](overview.md)). Was: a module is promoted when nothing in either tree imports it across the boundary — but the **bridge is cross-tree by definition**, so the rule can never promote the one module that most obviously belongs to neither side. |
+| Signpost wording           | no        | ✅ drafted in [handoffs.md](handoffs.md) § 2 and shipped with B3–B5                                                                                                                                                                                                                                                                                   |
 
 ✅ **Closed by the not-EOL policy:** the "what happens when Node 26 becomes LTS on 2026-10-28"
 question. Under a lifecycle rule, **nothing happens** — Node 22 stays supported because it is still

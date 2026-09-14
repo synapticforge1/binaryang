@@ -6,11 +6,48 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 
 > 🛑 **Owner decision, 2026-09-10 — the TEXT front end is wabt-ts.** The end state is WAT → wabt-ts
 > parser → wabt-ts binary writer → bytes → binaryen-ts decoder, and external WAT already takes that
-> route (`e18d9f09a`, `readWat`). binaryen-ts's own WAT parser is internal only and a retirement
-> candidate once S6 unifies the tree, so **"Stage 1" below — teaching it stack-sourced operands — is
-> SUPERSEDED**: do not resume it. Measured on the new route: every corpus module, written by our
-> `wasm2wat` in linear or folded form, reads back 421/421 valid and byte-identical to decoding its
-> original bytes.
+> route (`e18d9f09a`, `readWat` in `src/binaryen-ts/tools/read-wat.ts`, merged `1cb7300317`).
+> binaryen-ts's own WAT parser is internal only and a retirement candidate once S6 unifies the tree,
+> so **"Stage 1" below — teaching it stack-sourced operands — is SUPERSEDED**: do not resume it.
+> Measured on the new route: every corpus module, written by our `wasm2wat` in linear or folded
+> form, reads back 421/421 valid and byte-identical to decoding its original bytes.
+
+## Where it stands — 2026-09-14
+
+**The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
+PHASES, never both meaningful for the same module — once a pass runs there is no original to be
+faithful to — so the fidelity metadata lives BESIDE the tree, and binaryen-ts's passes drop it. ⚠️
+"A tree cannot be faithful" is false and was recorded as though it were true: wasm has no `dup`, so
+every value has exactly one consumer and a program already IS a tree, plus a marker for the producer
+that must stay put — which both sides had (`Pop` ≡ `placeholder`).
+
+| step                   | state                                                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S1 the gate            | ✅ `deno task operators`                                                                                                                                                                  |
+| S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                                                                                                                       |
+| S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                    |
+| S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                 |
+| S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 2 binaryen-only, ratcheted by `ONE_SIDED_BUDGET`. **K3 (`simd.shift`) scoped 2026-09-14, awaiting the owner** — see S5 below |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (one an owner call), the block/label family done. **Step 5 — delete the bridge — is next**; `deno task bridge` at 401/421 must reach 421/421  |
+| S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                         |
+
+**Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
+`open-work.md`'s summary; the detail is under "The measurements this rests on"):
+
+|                                              |                                                                             |
+| -------------------------------------------- | --------------------------------------------------------------------------- |
+| shared expression kinds (identical spelling) | 63 of 81 / 98 — including **every** structural construct                    |
+| shared kinds whose fields differ             | 47 of 62, but almost all pure RENAMES                                       |
+| the real difference                          | one coherent set: what wabt-ts keeps AS WRITTEN vs what binaryen-ts DERIVES |
+| passes touching an as-written field          | **0 of 16** — the split is already the one the code observes                |
+| grouping: opcodes representable coarsely     | **128 / 128**, and 0 of 313 operators name a non-instruction                |
+
+The grouping decision was taken by worst-condition analysis — the fidelity worst case (an
+unrepresentable instruction) does NOT bind at 0/128; the optimization worst case does, on
+`optimize-instructions.ts` with its 64 operator dispatches.
+
+**Next, in order:** the owner's call on `call_indirect`'s `sig` (Group 3), the owner's call on K3,
+then S6 step 5. The increments as they landed on `main` are in "Merge log" at the end of this file.
 
 ## The finding
 
@@ -567,18 +604,22 @@ for eight days. S6's stages dissolved most of it: `*.new_default` became a field
 split, `return_call*` became `isReturn`, `tuple.make` / `tuple.extract` were deleted (6A).
 Recomputed from source against the `Expr` union and the `ExpressionKind` VALUES:
 
-|                          |                                                    |
-| ------------------------ | -------------------------------------------------- |
-| kinds shared by both IRs | **75**                                             |
-| only wabt-ts             | **9** — the 7 atomics, `call_ref`, `code_metadata` |
-| only binaryen-ts         | **2** — `region`, `simd.shift`                     |
+|                                 |                                                    |
+| ------------------------------- | -------------------------------------------------- |
+| kinds in wabt-ts's `Expr` union | **84**                                             |
+| implemented binaryen-ts kinds   | **77**                                             |
+| kinds shared by both IRs        | **75**                                             |
+| only wabt-ts                    | **9** — the 7 atomics, `call_ref`, `code_metadata` |
+| only binaryen-ts                | **2** — `region`, `simd.shift`                     |
 
 And all 11 are already understood: 8 are one capability gap (**K1**, measured — the decoder refuses
 them with `unknown opcode 0xfe`), `code_metadata` is wabt-ts-only (**K2**), `region` is the intended
 R1, and `simd.shift` is a regrouping both sides implement (**K3**). **No renames remain.**
 
-⚠️ **This count was wrong three times before it was right, each way worth keeping in view** — the
-number was never the hard part, reading the source correctly was:
+⚠️ **EVERY vocabulary count in this file has been overstated at least once, by SEVEN independent
+causes** — the six corrections in S6 stage 2's table below, plus the identifier-vs-string comparison
+here (3). **This count was wrong three times before it was right, each way worth keeping in view** —
+the number was never the hard part, reading the source correctly was:
 
 1. a **union-typed** `kind: A | B` was invisible to the regex, so `ExternConvertAny` looked like a
    phantom. `check-operator-mapping.ts` had already fixed exactly this and said so in a comment; the
@@ -597,6 +638,59 @@ cited identically. The fix is not a better number but a **ratchet** — `ONE_SID
 `deno task operators` pins the 9 and the 2, fails when either grows, and fails when a pinned kind
 becomes shared without leaving the list. Inverted four ways, including value-drift
 (`Break = 'break'`) and a union member whose interface moved.
+
+#### 🔬 K3 — `simd.shift`, scoped by the worst-condition method (2026-09-14) — 🗓️ awaiting the owner
+
+The twelve lane shifts (`i8x16` / `i16x8` / `i32x4` / `i64x2` × `shl` / `shr_s` / `shr_u`) are a
+`binary` in wabt-ts (and in upstream wabt) and their own `SIMDShift` kind in binaryen-ts (and in
+upstream binaryen, whose validator requires a `Binary`'s two children to have the SAME type — the
+reason it splits them; binaryen-ts has no such check). **Recommendation: merge — binaryen-ts gives
+up the kind, the unified tree takes wabt-ts's `binary`.** Everything below was RUN, not read: a
+probe of 12 opcodes × 9 forms (108 functions), each result executed in V8 on 28 inputs against
+upstream `wat2wasm`'s bytes, with an inversion (one flipped opcode → a byte difference and 1 wrong
+export).
+
+**Fidelity — does not bind.** Byte-exact in BOTH shapes on every path: wabt-ts read → write,
+`wasm2wat` folded and linear, binaryen-ts decode → encode, the bridge, and the merged shape. The
+opcode is the only datum and both carry it.
+
+**Optimization — binds, against the SPLIT form.** 13 passes and -O1/-O2/-O3/-Os/-Oz, both shapes,
+all valid with 0 wrong results. But **LocalCSE is a kind allow-list**: it neither keys a `SIMDShift`
+nor descends into its operands — S4's worst condition exactly (a pass forced to enumerate finer
+kinds, where a missed member silently does not fire). Upstream `wasm-opt --local-cse` DOES reuse a
+repeated shift (`local.tee` on `i8x16.shl`), so the merged shape matches upstream behaviour and the
+split one does not. The contrary worst case for merging — a `Binary` consumer assuming same-typed
+operands — did not occur: OptimizeInstructions and PickLoadSigns match exact scalar opcodes, which a
+v128 × i32 node cannot reach.
+
+⚠️ **Merging is not size-neutral**: on the probe -Oz went 7292 → 7307 bytes and -O3 7292 → 7259.
+**Attributed by running, not reasoning**: `i8x16.add` — a `binary` in both shapes — gains the same
++4 bytes from LocalCSE at -Oz, because LocalCSE runs after SimplifyLocals and CoalesceLocals and its
+tee is never cleaned up. The pipeline's cost model, not the shape.
+
+**This is not the `simd_lane_op` precedent**: there no pass dispatched on the family, so neither
+condition bound and cost decided. Here a pass does.
+
+**Cost, by trial** (`deno check` error counts, both reverted):
+
+| direction           | compile errors                                                                      | unflagged sites                                                                                                                                                                                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| merge (binaryen-ts) | 10, in 5 files, plus 12 decoder `makeSIMDShift` calls hidden behind an import error | the existing `Binary` arms — all run above; `ONE_SIDED_BUDGET` fails loudly                                                                                                                                                                                  |
+| split (wabt-ts)     | 2 (the exhaustive `never` switches)                                                 | `resolve-names`' default returns without descending; the WAT writer's fold spec defaults to linear; three OPTIONAL visitor delegates (`onBinaryExpr?.(e) ?? Result.Ok`) where a miss silently drops the shift in the binary writer, validator and WAT writer |
+
+Merging fails loudly wherever it breaks; splitting fails silently, including in the binary writer.
+
+**What the implementation needs:** a gate that can see shifts — **the 421-module corpus holds 0 SIMD
+shifts**, so `baseline` and `bridge` are blind to K3, and `simd_bit_shift.wast` (343 uses) plus a
+dedicated test is the real gate; K3's row in [divergences.md](divergences.md) replaced by a DESIGN
+row vs upstream binaryen (trigger: all 13 upstream `left->type` / `right->type` reads in passes are
+in `OptimizeInstructions.cpp`, and a port of them must not assume equal child types);
+`ONE_SIDED_BUDGET` binaryen → `['region']`.
+
+**Found alongside, outside K3:** the bridge already builds the MERGED shape (528 `binary`, 0
+`simd.shift`, where the decoder builds 228 `simd.shift`), so binaryen-ts holds two shapes for one
+instruction by entry path today; and `Module.toWat()` prints invalid WAT — a DEFECT row (K4) in
+[divergences.md](divergences.md).
 
 #### The S5 list, as recorded 2026-09-04 — superseded, kept as history
 
@@ -1714,6 +1808,72 @@ Plus Group 3's five ties and the block/label family — which still owns the 7 l
 (`name` ×5, `delegateTarget`, `Rethrow.target`) and `CatchClause.tag`, all deliberately routed
 around so the mechanical passes could not settle them by accident.
 
+###### ✅ The block/label family and the catch clauses — DONE 2026-09-11
+
+Recorded here 2026-09-14; until then this series lived only in machine-local memory and in the merge
+messages. In landing order:
+
+- **A branch to a NAMED label prints the name — N8, `61d991592`.** `wasm2wat` printed `block $outer`
+  and then `br 1 (;@1;)` below it: N2 reads label names and nothing used them. `wasm-tools print` is
+  the oracle (upstream `wasm2wat` has no label names to print). ⚠️ Only where the name MEANS that
+  block — a nearer label sharing the name keeps the depth, or the branch would be retargeted. **415
+  of 421 TEXT hashes moved, 0 byte hashes**, checked column by column and re-baselined in its own
+  commit.
+- **Labels keep their NAME; the binary writer resolves the depth — `3e1cc60b1`.** `resolveLabelVar`
+  rewrote every label reference to a depth, and that rewrite is what CREATED the ambiguity: `br 1`
+  and `br $b` both became an index. 🔑 **A label is the ONE reference that needs no rewriting** —
+  its target is a position on the block stack the writer already walks, not an entry in a
+  module-level index space. So `resolveNames` now only CHECKS, and the binary writer resolves
+  (`writeLabelVar`, innermost first so a nearer same name shadows). Corpus byte-identical.
+  - ⚠️ Two scopes are not the obvious one, both in the spec: a `try`'s own label is out of scope for
+    its `delegate`, and a `try_table`'s for its catch targets. **The inversion run is what showed
+    both had no coverage** — the parser had tests, the writer had none.
+  - `rethrow $l` is a label reference too; it was the one site missed.
+  - `writeBinaryIr` no longer needs a prior resolve pass for labels; the per-function scope reset
+    became a LOUD balance check, since a silent reset would hide an imbalance that shifts every
+    depth.
+- **The text→text residual closed before it could spread — `2abb7880c`.** It was live in the PUBLIC
+  compat API: `parseWat(…).toText()` is text → IR → text with NO binary hop (`wabt-compat.ts`), and
+  it rewrote `(block $b (br 0))` into `(br $b)`. Only the CALLER knows whether an index carries a
+  spelling, so `WriteWatOptions.namedLabelTargets` (default OFF) carries that bit: `wasm2wat` sets
+  it (a binary's index is a depth), a text-parsing caller does not. ⚠️ **The corpus could never have
+  caught it**: 17 of 421 files hold 2,090 authored numeric labels and 0 point at a NAMED block, so
+  the byte baseline is blind to the whole class — it needed a test, not a re-baseline. 🔑 The merged
+  tree still wants NAMES in the tree (binaryen-ts's form — a depth silently retargets when a pass
+  inserts a block) with the as-written form beside it; this removed the wabt-ts half of the
+  obstacle.
+- **A `try_table` catch clause carries its kind ONCE — `b1410d6e8`.** Scoping `CatchClause.tag`
+  found more than a naming difference: `TableCatch` held `kind: CatchKind` AND `tag?: Var`, whose
+  PRESENCE says the same thing, and the binary writer read them separately (`catchKindByte(c.kind)`,
+  then `if (c.tag !== undefined)`) — so `CatchAll` plus a tag would emit the catch_all byte AND a
+  stray tag index, sliding every later clause by a field. Nothing built that state, so this closed
+  the SHAPE: two shapes, tagged kinds REQUIRING a tag, the catch_all pair unable to carry one. Two
+  `c.tag!` assertions in the bridge went (the switch now narrows). 🔑 **For an unrepresentability
+  change the inversion is COMPILE-TIME**: the load-bearing assertions are `@ts-expect-error`,
+  checked by `deno task check` — widening the union back makes four of them stop erroring and the
+  gate fails. Verified by doing it.
+- **Every single-label reference is `target`, in BOTH IRs — `d85635eb1`** (`targets` /
+  `defaultTarget` for the table, which already agreed). Measured: converting binaryen-ts's `name` /
+  `label` / `dest` = 24 sites, the reverse = 45. wabt-ts's `rethrow.depth` → `target` too (9 sites):
+  `depth` described only ONE of a `Var`'s two forms, and since the writer resolves label names, what
+  reaches that field from text is a NAME. ⚠️ `name` is overloaded (a block's OWN label), so this
+  went per compile error; the scripted pass still over-corrected `block.name` → `block.target` twice
+  and the COMPILER caught both. ⬚ Deliberately left: `delegate` vs `delegateTarget` (not worse, and
+  not a branch target), and the try's OWN label (`label` vs `name`) — a definition, not a reference.
+- **The catch tag is a `Var`, spelled once — `949bee3b8`.** binaryen-ts held `TryCatch.tag?: Var`
+  (legacy) beside `CatchClause.tag: string | null` (try_table) — one concept, two shapes, with the
+  encoder wrapping the second in `varFromToken()` to resolve what the first passed straight through.
+  Both are `tag?: Var` now. 🔑 NOT the redundancy class `TableCatch` closed: `CatchClause` is two
+  ORTHOGONAL bits (has-tag × is-ref) and always was. Consistency plus the merged tree's form;
+  nothing gains fidelity today, since binaryen-ts's decoder and WAT parser both produce names. ⚠️
+  `exactOptionalPropertyTypes` matters here: the decoder's scratch list stays `tag: Var | undefined`
+  (every entry HAS the slot); only the IR clause distinguishes absent. A stale `tag !== null`
+  assertion passed either way once `null` was gone — **check what an assertion still ASKS after a
+  sentinel changes.**
+
+⚠️ `else_` in `binaryen-ts/api/` is a public PARAMETER of the compat façade, not the `if` field
+Group 3 renamed — do not rename it with the field.
+
 ###### 🔬 Premises of 6 and 7 re-checked 2026-09-10, BEFORE either is implemented
 
 Decision 5's recorded reason turned out false, so both remaining rows were probed against upstream
@@ -1861,13 +2021,13 @@ by decision 4) until step 5 raises it to 421.
 
 #### Measured size of what remains
 
-|                                            |                                                                                                                                                                                        |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| files importing wabt-ts's `Expr`           | 25                                                                                                                                                                                     |
-| files importing binaryen-ts's `Expression` | 32                                                                                                                                                                                     |
-| lines in the two IR modules + bridge       | 6,346                                                                                                                                                                                  |
-| one-sided kinds still to reconcile         | **11**, re-measured 2026-09-12 — 8 are one capability gap (K1), and 1 is a regrouping to decide (K3). The "27 (from S5)" here was stale for eight days; `ONE_SIDED_BUDGET` now pins it |
-| name pairs inherited from S2               | 6                                                                                                                                                                                      |
+|                                            |                                                                                                                                                                                                           |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| files importing wabt-ts's `Expr`           | 25                                                                                                                                                                                                        |
+| files importing binaryen-ts's `Expression` | 32                                                                                                                                                                                                        |
+| lines in the two IR modules + bridge       | 6,346                                                                                                                                                                                                     |
+| one-sided kinds still to reconcile         | **11**, re-measured 2026-09-12 — 8 are one capability gap (K1), and 1 is a regrouping to decide (K3, scoped 2026-09-14). The "27 (from S5)" here was stale for eight days; `ONE_SIDED_BUDGET` now pins it |
+| name pairs inherited from S2               | 6                                                                                                                                                                                                         |
 
 **This is larger than S2–S5 combined.** It should be staged the way they were — each stage
 independently verifiable against `deno task bridge`, the byte baseline and the spec suite — rather
@@ -1946,8 +2106,10 @@ A custom section recording that the source was linear, so `wasm2wat` reproduces 
 given. Independent of S2–S6 and can land at any point.
 
 - wabt-ts already models custom sections (`Custom { name, data, loc, afterSection }`)
-- **binaryen-ts drops custom sections entirely**, so optimization strips the marker for free —
-  exactly the wanted behaviour, with no code
+- ~~**binaryen-ts drops custom sections entirely**, so optimization strips the marker for free —
+  exactly the wanted behaviour, with no code~~ ⚠️ **No longer true since C3 (2026-09-11,
+  `4c162c584`)**: binaryen-ts keeps every custom section and passes keep them, as upstream does
+  through `-O2`. So S7 must strip its own marker DELIBERATELY when optimization runs.
 - corpus sources are folded (58 of 60 sampled), so emitting the marker only for linear input leaves
   the emitted-byte baseline untouched
 - absence means folded, so binaries produced before this exists still read right
@@ -1970,3 +2132,66 @@ folded input to it — and the round trip that would have caught it (`wasm2wat` 
 itself broken for an unrelated reason. **Building the folded writer is what made the gap
 measurable**, which is the argument for having built it even though it did not, on its own, achieve
 what it was aimed at.
+
+## Merge log — the S6 run on `main`, 2026-09-09 → 2026-09-12
+
+Generated from `git log --first-parent --merges main` on 2026-09-14 rather than transcribed, so the
+hashes are the artifact. Each merge message carries the increment's measurements; the branch commits
+beneath it carry the code. Merges after this list are in `git log`.
+
+| merge       | date       | increment                                                                                |
+| ----------- | ---------- | ---------------------------------------------------------------------------------------- |
+| `219c9736b` | 2026-09-09 | S6 step 2 complete -- bucket A reconciled, all seven families                            |
+| `73d1e6120` | 2026-09-09 | S6 step 3 -- the shared node base carries loc? and type?                                 |
+| `56dcdd711` | 2026-09-09 | S6 step 4 measured -- field-level divergence and the Var decision                        |
+| `f7ad11f42` | 2026-09-09 | S6 step 4 groundwork -- one canonical Var accessor                                       |
+| `abd08c834` | 2026-09-09 | S6 step 4 -- four of the five (b) families hold a Var                                    |
+| `14119f9ea` | 2026-09-09 | S6 step 4 COMPLETE -- every (b) family holds its as-written form                         |
+| `1e0c220e3` | 2026-09-09 | the remaining entity references hold their as-written form                               |
+| `51cc013cd` | 2026-09-09 | the 28 structural kinds reduce to 16 real decisions                                      |
+| `3c54ce732` | 2026-09-09 | S6 Group 2 -- three of the seven structural decisions implemented                        |
+| `41b9ca385` | 2026-09-10 | two binaryen-ts defects found while scoping Group 2 decision 4, plus the Group 2 lessons |
+| `813fce2a4` | 2026-09-10 | S6 Group 2 decision 4 -- load/store hold their opcode; `check` green again               |
+| `7f3ec1d6e` | 2026-09-10 | S6 Group 2 decision 5 -- region bodies are a RegionExpr                                  |
+| `bc44d98d3` | 2026-09-10 | record decisions 6/7 premise checks                                                      |
+| `31ec7cc86` | 2026-09-10 | clear the pre-6/7 bug queue before decisions 6A and 7b(i)                                |
+| `15c6ef763` | 2026-09-10 | S6 Group 2 decision 6A -- branch and return values are a list                            |
+| `527759f58` | 2026-09-10 | S6 decision 7a and 7b(i), and three defects found on the way                             |
+| `1cb730031` | 2026-09-10 | external WAT goes through wabt-ts to bytes -- W4 resolved by routing                     |
+| `2e3de0734` | 2026-09-10 | register N1 -- names are lost at three hops                                              |
+| `91fa9caf9` | 2026-09-10 | pin the module interface -- export and import names never mangled                        |
+| `76fd5f82c` | 2026-09-10 | N1 decision -- names kept by default in the fidelity phase                               |
+| `66871576e` | 2026-09-10 | wabt-ts always keeps names                                                               |
+| `2c2647066` | 2026-09-10 | future discussion -- internal vs exported names under optimization                       |
+| `d588817dd` | 2026-09-11 | scope N1 -- internal names                                                               |
+| `40d171ce2` | 2026-09-11 | N1 owner decisions                                                                       |
+| `e127d1aad` | 2026-09-11 | N1 step P1 -- param and local names have a home                                          |
+| `fd4e1f4b4` | 2026-09-11 | an absent align= is the natural alignment in the tree                                    |
+| `7520ed7d3` | 2026-09-11 | N1 P2-P3 -- wabt-ts keeps names; WAT -> wat2wasm -> wasm2wat gives the WAT back          |
+| `25a63a8cb` | 2026-09-11 | open-work -- N1 wabt-ts half merged, C2 queued                                           |
+| `006fa2a08` | 2026-09-11 | wasm-tools confirms N1 labels and fields; G2 closeable; A1 registered                    |
+| `eb0b3dcea` | 2026-09-11 | N1 P4-P6 -- binaryen-ts reads and writes names; N1 built in both halves                  |
+| `3db3106dc` | 2026-09-11 | W6 -- DataCount only when needed or when read; wabt-ts equals upstream on 400/421        |
+| `964d80c46` | 2026-09-11 | W5 -- implicit types in upstream's order; wabt-ts equals upstream wat2wasm on 421/421    |
+| `13f0e806e` | 2026-09-11 | C2 -- custom sections survive the text, with their position                              |
+| `5debccc22` | 2026-09-11 | C3 touches S7 -- the linear-form marker's free strip                                     |
+| `4c162c584` | 2026-09-11 | C3 -- binaryen-ts keeps the custom sections a binary carried                             |
+| `5d3ebb9ef` | 2026-09-11 | N6 -- the name section's local subsection keeps the shape it was read with               |
+| `feea95f09` | 2026-09-11 | A1 -- an array field's NAME survives the text                                            |
+| `318915973` | 2026-09-11 | G2 -- the spec harness runs all 257 files, GC included                                   |
+| `7a87af4b9` | 2026-09-11 | 7c -- the written type index, on the node (S6 decision 7 complete)                       |
+| `be762009e` | 2026-09-11 | S6 Group 3 -- 3 of 5 ties settled, and the other 2 re-classified                         |
+| `edbdb8c10` | 2026-09-11 | Group 3 -- call_indirect's CALLEE, and the last two ties settled as findings             |
+| `61d991592` | 2026-09-11 | a branch to a NAMED label prints the name (N8)                                           |
+| `470eae6e2` | 2026-09-11 | correct what moved the corpus for N8, and name the TypeUse port                          |
+| `3e1cc60b1` | 2026-09-11 | labels keep their NAME; the binary writer resolves the depth                             |
+| `2abb7880c` | 2026-09-11 | close N8's text→text residual before it could spread                                     |
+| `b1410d6e8` | 2026-09-11 | a try_table catch clause carries its kind ONCE                                           |
+| `d85635eb1` | 2026-09-11 | every single-label reference is `target`, in both IRs                                    |
+| `949bee3b8` | 2026-09-11 | a catch tag is a `Var`, spelled once in binaryen-ts                                      |
+| `456423b54` | 2026-09-12 | the corpus round trip runs again, and guards every index space                           |
+| `cec3a3381` | 2026-09-12 | the live binaryen interop test runs — 0 ignored in the suite                             |
+| `0e66da1e3` | 2026-09-12 | pin npm:binaryen to 132, and clean the lock my probes dirtied                            |
+| `f1675d261` | 2026-09-12 | S5 one-sided kinds are 11 and now ratchet -- plus two corrections to my own commits      |
+| `f36a22e43` | 2026-09-12 | open-work -- S5 closed, its acceptance criterion re-probed and holding                   |
+| `c6bbf7d71` | 2026-09-12 | pre-merge N1 (test-file naming) was already moot -- 230 .test.ts, 0 _test.ts             |

@@ -73,6 +73,10 @@ Recorded rather than resolved, because exporting it is a public-API decision wit
 `./bridge` would be a supported subpath, and the bridge is the part of the tree most likely to
 change as convergence proceeds. Do not quietly export it to close the gap.
 
+✅ **Resolved by design since:** external WAT reaches binaryen-ts through wabt-ts → bytes → the
+decoder (divergence W4, owner 2026-09-10), and **S6 of the IR convergence deletes the bridge**
+outright, with `deno task bridge` as the acceptance gate — [ir-convergence.md](ir-convergence.md).
+
 **Two namespaced trees with a working bridge is a _stable_ arrangement** — nothing breaks if
 convergence never happens. That is what makes it safe to start this way, and exactly why it needs
 counter-pressure.
@@ -85,7 +89,8 @@ ambiguity is compile-time and visible to the checker rather than silent.
 ✅ Re-derived 2026-08-27: still 56 — and the **counting rule is `type` + `interface` + `enum`,
 exported, both `src/` trees**. That rule was never written down, and it matters: the same tree
 yields 55 without `enum`, 56 with, and 58 if classes are counted. A metric whose method is unpinned
-cannot be compared across time. Scripting it is a 1.5.2 item.
+cannot be compared across time. ✅ Scripted since 1.5.3: `deno task collisions`
+(`scripts/count-collisions.ts`), reported into CI's summary and deliberately ungated.
 
 It only moves when convergence is real, which is what makes it worth having.
 
@@ -103,11 +108,15 @@ Two, both enforced in CI, both with their full reasoning elsewhere:
 
 ## Where the rest lives
 
-|                                              |                                                |
-| -------------------------------------------- | ---------------------------------------------- |
-| what was true before the merge               | [pre-merge-register.md](pre-merge-register.md) |
-| the execution list and the retirement ladder | [transition.md](transition.md)                 |
-| the current release's scope                  | [scope-1.5.2.md](scope-1.5.2.md)               |
-| the seam between the two IRs                 | [bridge.md](bridge.md)                         |
-| JSR provenance, and why it fails silently    | [publishing.md](publishing.md)                 |
-| rules both projects derived independently    | [best-practices.md](best-practices.md)         |
+|                                               |                                                                               |
+| --------------------------------------------- | ----------------------------------------------------------------------------- |
+| what is outstanding                           | [open-work.md](open-work.md)                                                  |
+| what is on `main` but unreleased              | [unreleased.md](unreleased.md)                                                |
+| the IR convergence, S1–S7                     | [ir-convergence.md](ir-convergence.md)                                        |
+| every divergence from upstream                | [divergences.md](divergences.md)                                              |
+| what was true before the merge                | [pre-merge-register.md](pre-merge-register.md)                                |
+| the execution list and the retirement ladder  | [transition.md](transition.md)                                                |
+| the 1.5.2 / 1.5.3 scope (shipped)             | [scope-1.5.2.md](scope-1.5.2.md)                                              |
+| the seam between the two IRs                  | [bridge.md](bridge.md)                                                        |
+| JSR provenance and the release process        | [publishing.md](publishing.md)                                                |
+| the rules paid for, and the working checklist | [best-practices.md](best-practices.md) · [working-rules.md](working-rules.md) |

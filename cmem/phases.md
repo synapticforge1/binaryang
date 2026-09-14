@@ -27,13 +27,16 @@ at every use.
 
 ## Where binaryang actually is
 
-**`@jrmarcum/binaryang@1.5.3`**, published 2026-08-28 with provenance.
+**`@jrmarcum/binaryang@1.5.4`**, published 2026-09-02 with provenance. `main` carries a large
+unreleased set on top — [unreleased.md](unreleased.md); what is outstanding is
+[open-work.md](open-work.md).
 
 | version   | what it carried                                                                                                                                                                       |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1.5.1** | the merge itself, plus the signpost releases of both predecessors                                                                                                                     |
 | **1.5.2** | the T13.50 bridge de-coarsening, the `-Oz` `try_table` miscompile, the `compat/binaryen` pass API. Shipped ahead of the ladder because wasmtk was blocked on the miscompile           |
 | **1.5.3** | release trigger, all four `br_on_*` forms, one `scripts/release/`, the convergence indicator scripted, the bridge at `src/bridge/`, the last ten symbols documented, `.gitattributes` |
+| **1.5.4** | `wasm2wat` emits FOLDED output by default (`--linear` opts out), and the export-kind rejection found by A3                                                                            |
 
 Both predecessors ended at a terminal **1.5.1**. Their phase tables are closed.
 
@@ -49,18 +52,19 @@ still needs a human to type the number. See [publishing.md](publishing.md).
 
 ## Live gaps — carried forward, not closed by the merge
 
-These outlived both projects and are still true of binaryang. Each names its owning tree, per the
-rule above.
+These outlived both projects. Each names its owning tree, per the rule above. Recorded at the merge
+(2026-08-31); the state column was re-checked 2026-09-14, and a ✅ row is kept as history of what
+the merge carried.
 
-| gap                                                   | where                          | state                                                                                                                                                                    |
-| ----------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/wabt-ts/tools/wasm2ts.ts` | the project's long-term goal — WASI Preview 1 capable TypeScript output. Deferred pending wasmtk QA/QC                                                                   |
-| **TranslateEH**                                       | binaryen-ts                    | ⚠️ **a live gap, not a leftover TODO** — scoped and measured 2026-08-24. `binaryen-ts/correctness.md` § "TranslateEH"                                                    |
-| **Custom-section preservation**                       | binaryen-ts                    | parse→encode drops DWARF `.debug_*` / `name` / `producers`. Acceptable for production `-Oz`, and must be _acknowledged_ rather than discovered                           |
-| **Phase 10 kernel selection**                         | binaryen-ts                    | deferred until real-corpus profiling; single-op dispatch regresses                                                                                                       |
-| **Diagnostic offset accuracy**                        | both                           | ⚠️ **UNMEASURED, not clean.** T13.35's cheap oracle was false for every multi-byte construct and no replacement was built. Do not let attrition convert this into "fine" |
-| **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229. None at ceiling, and the parser's remainder is largely cases where OUR message is better                 |
-| **Nothing ships against the bridge**                  | `src/bridge/`                  | no `src/` file imports it, no export-map entry — tests only. Deliberately unresolved; see [overview.md](overview.md)                                                     |
+| gap                                                   | where                          | state                                                                                                                                                                                                                                    |
+| ----------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/wabt-ts/tools/wasm2ts.ts` | the project's long-term goal — WASI Preview 1 capable TypeScript output. Deferred pending wasmtk QA/QC                                                                                                                                   |
+| **TranslateEH**                                       | binaryen-ts                    | ⚠️ **a live gap, not a leftover TODO** — scoped and measured 2026-08-24. `binaryen-ts/correctness.md` § "TranslateEH"                                                                                                                    |
+| **Custom-section preservation**                       | binaryen-ts                    | ✅ **CLOSED 2026-09-11 (C3, `4c162c584`)** — every custom section is kept and written back where it stood. Was: parse→encode dropped DWARF `.debug_*` / `name` / `producers`                                                             |
+| **Phase 10 kernel selection**                         | binaryen-ts                    | deferred until real-corpus profiling; single-op dispatch regresses                                                                                                                                                                       |
+| **Diagnostic offset accuracy**                        | both                           | ✅ **MEASURED 2026-08-31 (A3, `deno task offsets`)** — 0 missed rejections, and it found the export-kind defect. Was UNMEASURED, not clean: T13.35's cheap oracle was false for every multi-byte construct. See [testing.md](testing.md) |
+| **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229. None at ceiling, and the parser's remainder is largely cases where OUR message is better                                                                                 |
+| **Nothing ships against the bridge**                  | `src/bridge/`                  | still true — no `src/` file imports it, no export-map entry, tests only. **S6 deletes it** ([ir-convergence.md](ir-convergence.md)); `deno task bridge` is the acceptance gate                                                           |
 
 ## Two lessons the phase records paid for, and the merge must not lose
 

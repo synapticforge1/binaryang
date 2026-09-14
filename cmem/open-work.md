@@ -1,905 +1,134 @@
 # Open work
 
-The single list of what is outstanding. Re-derived against live JSR and GitHub state 2026-09-02;
-**`binaryang@1.5.4` published, score 100**, provenance `rekorLogId=2692137018`.
+**The single list of what is outstanding.** A list split across three documents is a list nobody
+reads, so this file holds only open items, each with a pointer to where its record lives. When an
+item closes, its record goes to the topic file and its line leaves here.
 
-Kept here rather than in a version scope file because most of it is not scoped to a release yet, and
-a list split across three documents is a list nobody reads. Version-specific status stays in
-[scope-1.5.2.md](scope-1.5.2.md); the retirement ladder stays in [transition.md](transition.md).
+Rewritten 2026-09-14 as outstanding-only. It had grown to 912 lines, most of them CLOSED history;
+that history now lives in its topic files — nothing was dropped:
 
-## ✅ The spec-testsuite harness — BUILT, and its first findings
+| closed history                                                  | now in                                 |
+| --------------------------------------------------------------- | -------------------------------------- |
+| the spec-testsuite harness, SP1–SP5, G2, the feature-set lesson | [testing.md](testing.md)               |
+| the IR convergence record and status, S1–S7                     | [ir-convergence.md](ir-convergence.md) |
+| every upstream difference, open and closed                      | [divergences.md](divergences.md)       |
+| names (N1 and its release items)                                | [names.md](names.md)                   |
+| everything on `main` awaiting a release note                    | [unreleased.md](unreleased.md)         |
+| the WAT routes, the folded-writer ladder, the bridge question   | [text-routes.md](text-routes.md)       |
+| the retirement (D2 / D3, the frozen predecessors)               | [transition.md](transition.md)         |
+| the 1.5.5 quality passes                                        | [quality-passes.md](quality-passes.md) |
+| releases, 1.5.4, `RELEASE_PAT`'s root cause                     | [publishing.md](publishing.md)         |
+| the wasmtk correspondence                                       | [handoffs.md](handoffs.md)             |
 
-**Build a harness over the official WebAssembly spec tests.** Owner-assigned 2026-09-02.
-
-`<workspace>\wasmtk\tests\module\wasm_wast\testsuite-main`
-— 257 `.wast` files. ⚠️ **READ ONLY**: it is a sibling repo, so never write there; copy to scratch
-if a tool might.
-
-🔑 **It tests an axis nothing here has EVER tested: whether we correctly REJECT.** Every invariant
-to date asks "do we accept valid input correctly". The suite contains **4,654 must-reject cases**:
-
-| assertion              | count     | what it demands                           |
-| ---------------------- | --------- | ----------------------------------------- |
-| `assert_return`        | 52,591    | the module runs and returns a given value |
-| `assert_trap`          | 4,977     | it traps                                  |
-| **`assert_invalid`**   | **2,714** | the module **must fail validation**       |
-| **`assert_malformed`** | **1,940** | the text **must fail to parse**           |
-| `assert_unlinkable`    | 200       | instantiation must fail                   |
-
-**Tools already on PATH** (owner installed them 2026-09-02, so do not re-ask):
-
-- `wast2json` 1.0.41 — splits a `.wast` into modules plus a JSON manifest of its assertions. This is
-  the way in; do not hand-parse `.wast`.
-- `wat2wasm` / `wasm2wat` / `wasm-validate` / `wasm-interp` 1.0.41 — upstream wabt
-- `wasm-opt` / `wasm-as` / `wasm-dis` 132 — upstream binaryen
-- ⬚ `gh` is NOT installed
-
-**Start from what the other two oracles already proved**, so the harness adds a new axis rather than
-repeating one:
-
-- upstream validates our binaries **421/421** and assembles both our WAT forms **421/421**
-- 511 foreign `.wasm` from the wasmtk suite: read and re-encode valid **511/511** — after the one
-  defect that run found (see `if_declared_result.test.ts`)
-
-### Built `c1c24c9d3` — `deno task spec:prepare` then `deno task spec`
-
-**The must-reject axis came out strong**, which is the real result: fail-loud holds up under a suite
-designed to attack it.
-
-| axis                           | result                 |
-| ------------------------------ | ---------------------- |
-| modules ACCEPTED (must accept) | 1951 / 1955 · 99.8%    |
-| `assert_invalid` REJECTED      | 2420 / 2422 · 99.9%    |
-| malformed BINARY rejected      | 711 / 711 · **100%**   |
-| malformed TEXT rejected        | 1156 / 1156 · **100%** |
-
-227 of 257 files; the 30 skipped are GC-proposal files `wast2json` 1.0.41 cannot split. **G2 closed
-that gap on 2026-09-11 — all 257 now run, see below.**
-
-### ✅ All six findings CLOSED by ONE fix — `3445d978a`
-
-SP1–SP4 were one root cause, and SP5 remains as a separate gap.
-
-**`BlockType`'s value case was typed `Type`** — a flat numeric enum whose values are single wire
-bytes. A typed reference does not fit: `(ref ht)` encodes as `0x64` FOLLOWED BY a heap type. The
-reader took the tag and left the heap index in the instruction stream, where the next decode step
-consumed it as an OPCODE:
-
-```
-(block (result (ref 0)) (ref.func 0))
-  upstream : block (result (ref 0)) / ref.func 0
-  ours     : block <type 100> / UNREACHABLE / ref.func
-```
-
-🔑 **BYTE EQUALITY IS NOT SEMANTIC EQUALITY, and this is the proof.** It round-tripped
-byte-identically — the writer emitted that phantom `unreachable` as the very byte it had been
-mis-read from, so the two halves of one gap concealed each other. **The corpus round trip at 421/421
-byte-identical, the strongest signal this project had, was blind to an IR containing an instruction
-the program does not have.** A phantom `unreachable` makes everything after it dead code, so any
-pass reading that IR reasoned about a different program.
-
-The spec suite saw the same gap from the other side: a heap index never stored can never be
-range-checked, so two INVALID modules were ACCEPTED. **SP1–SP3's "type mismatch" errors were the
-same missing heap type breaking type-checking downstream.**
-
-| axis                      | after                                     |
-| ------------------------- | ----------------------------------------- |
-| modules ACCEPTED          | 1955 / 1955 · **100%**                    |
-| `assert_invalid` REJECTED | 2422 / 2422 · **100%**                    |
-|                           | _(227 files; G2 below adds the other 30)_ |
-| malformed BINARY          | 711 / 711 · **100%**                      |
-| malformed TEXT            | 1156 / 1156 · **100%**                    |
-
-### ✅ SP5 closed — and the finding as first written was half wrong
-
-I recorded "`Features.compactImports` and `.wideArithmetic` are declared but the binary reader does
-not implement them". One claim covering two unrelated situations, and **I had checked neither**.
-
-- ✅ **`wideArithmetic` is FULLY implemented in wabt-ts** — `i64.add128` / `sub128` / `mul_wide_s` /
-  `mul_wide_u` decode, validate, write and round-trip byte-identically.
-- ⚠️ **`compactImports` is worse than unimplemented**: the field is declared, settable, and returned
-  `true` by `allFeatures()`, and **nothing reads it**. Enabling it changes nothing.
-
-Fixed by making the flag TRUTHFUL rather than implementing the proposal, which is not planned — V8
-needs `--experimental-wasm-compact-imports` to load such a module at all. The reader now names the
-proposal instead of `unknown import kind: 127`, and the field says plainly that setting it does
-nothing. Kept rather than removed, because `Features` is public surface.
-
-▶ **The one real gap this surfaced was ASSIGNED TO S5 of the convergence** (owner, 2026-09-02): wide
-arithmetic worked in wabt-ts and was refused loudly by binaryen-ts's binary reader
-(`unsupported bulk-memory/table opcode: 0xFC 0x13`).
-
-✅ **CLOSED — re-probed 2026-09-12 when S5 closed.** `quaternary` is now a SHARED kind, and the
-capability came with it: `(i64.add128 …)` assembled by upstream `wat2wasm --enable-all` decodes
-through binaryen-ts and re-encodes **byte-identically** (40B → 40B). The prediction held —
-convergence dissolved it rather than requiring separate work, the same shape as S6 dissolving C10a.
-
-⚠️ **Checked rather than assumed, and the distinction matters**: a shared KIND does not imply a
-decoded OPCODE. The kind sets agreeing is exactly the kind of evidence that reads as proof and is
-not — see the `ONE_SIDED_BUDGET` note in [ir-convergence.md](ir-convergence.md), where three
-successive miscounts came from trusting a name diff.
-
-🔑 **A feature flag is not an implementation** — the third "declared is not implemented" of the
-session, after `ExpressionKind` members with no factory and four stale `not yet supported` blockers.
-⚠️ And the lesson about the FINDING: I wrote a two-part claim from one observation. **The half I had
-evidence for was true; the half I inferred was false.**
-
-### ⚠️ The feature set is the design, and it was wrong twice first
-
-- **`--enable-all` is wrong**: it changes what `wast2json` EMITS, not just what it permits. It
-  produced compact-imports binaries (import kind `0x7F`) that are not standard wasm — V8 rejects
-  them outright — and the harness reported **58 false "valid module REJECTED"** findings.
-- **the DEFAULT set is also wrong**: only 157 of 257 files convert, silently dropping SIMD, GC,
-  threads and tail calls. That reads as a pass because the failures never enter the corpus.
-- **the validator needs its features passed too**: the very first run used the default set and
-  reported **464 false rejections**, every one a post-MVP proposal the suite exercises on purpose.
-
-**A corpus built with the wrong flags measures the flags, not the code.** All three configurations
-are recorded in `scripts/spec-prepare.ts` so the next person does not rediscover them.
-
-### ⬚ Not yet covered
-
-`assert_return` / `assert_trap` — 55,993 behavioural assertions, skipped deliberately so the first
-pass measured the axis nothing else measures. Running them needs an invoke harness, and an engine
-already covers that ground; worth doing, but second.
+**State, 2026-09-14:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
+ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
+bridge 401/421. Re-derive before quoting.
 
 ## Owner actions — nothing here is blocked on code
 
-| # | item                                         | note                                                                                                                                                                               |
-| - | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 | **Create `RELEASE_PAT`**                     | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every release needs a manual tag re-push — see [publishing.md](publishing.md) § "ROOT CAUSE". |
-| 2 | ~~JSR descriptions on both predecessors~~    | 🛑 **CLOSED — won't do (2026-09-02).** They stay as `binaryen rewritten in typescript` / `rewrite of wabt in typescript`.                                                          |
-| 3 | ~~GitHub descriptions on both predecessors~~ | 🛑 **CLOSED — won't do (2026-09-02).** Frozen by the archive; the unarchive → edit → re-archive route is deliberately not being taken.                                             |
-| 4 | ~~D2 — JSR `isArchived`~~                    | ✅ **DONE 2026-09-02.** Verified live: `isArchived=true` on both.                                                                                                                  |
+| # | item                         | note                                                                                                                                                                                                                                                                                                            |
+| - | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | **Create `RELEASE_PAT`**     | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                            |
+| 2 | **K3 — `simd.shift`**        | 🗓️ scoped 2026-09-14; recommendation MERGE into `binary`. [ir-convergence.md](ir-convergence.md) § "K3"                                                                                                                                                                                                         |
+| 3 | **`call_indirect`'s `sig`**  | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                                                                                 |
+| 4 | **Names under optimization** | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned) |
+| 5 | **When to release**          | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                              |
 
-## ✅ 1.5.4 is released — the unreleased change is shipped
+~~JSR and GitHub descriptions on both predecessors~~ — 🛑 CLOSED as won't-do (owner, 2026-09-02);
+the predecessors are frozen. Do not re-open ([transition.md](transition.md)).
 
-`deno.json` and the published version both read **1.5.4**. It carries two things:
+## IR convergence — next steps
 
-- **`wasm2wat` now emits FOLDED output by default**, `--linear` to opt out. The headline change.
-- **the export-kind check** (`9b54db228`, found by A3) — the behaviour change this section used to
-  weigh. It is a rejection that did not previously happen: a module with an out-of-range export kind
-  used to decode, and now yields a diagnostic. Shipped as part of 1.5.4 rather than on its own.
+Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where it stands".
 
-⚠️ **The fold flip is a DEFAULT change, not a capability change**, and the distinction was measured
-before it was made: on all 421 corpus modules the emitted wasm bytes and hashes are unchanged, the
-LINEAR text is byte-for-byte identical to the old baseline, and the new default assembles to exactly
-the bytes linear does. A consumer who wants the old text passes `--linear` / `{ fold: false }`.
+- ⬚ **S6 step 5 — delete the bridge**, carrying its type derivation forward as a pass. Acceptance:
+  `deno task bridge` 401/421 → **421/421**. It absorbs C10a (the 24 modules the bridge
+  mistranslates, owner decision 2026-09-02); if S6 is abandoned, C10a comes back.
+- ⬚ **S7 — the linear-form marker.** Independent of the rest. ⚠️ Changed by C3: binaryen-ts now
+  keeps custom sections, so S7 must strip its own marker deliberately when optimization runs.
+- ⬚ **K1 — atomics and `call_ref` in binaryen-ts** (DEFECT, port gap). The decoder refuses them
+  loudly; pinned by `PHANTOM_BUDGET` and `ONE_SIDED_BUDGET`.
 
-✅ **The release published from the TAG PUSH, with no manual re-push.** 1.5.3 needed one, and this
-is the first evidence that the tag-push path works on its own — but it is not evidence that
-`RELEASE_PAT` is unnecessary. That secret is for the `workflow_dispatch` path, which is what failed
-with `actorNotScopeMember`; a developer tag push authenticates as the developer. Owner action 1
-stands.
+### Follow-ups kept deliberately behaviour-neutral
 
-**What must not happen is the next bump being made incidentally**: the version line is what arms the
-release, so bumping it "to keep main tidy" publishes. See [publishing.md](publishing.md).
-
-## 🔑 IR convergence — reframed, scoped, and no longer a merge
-
-**The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
-PHASES, never both meaningful for the same module — once a pass runs there is no original to be
-faithful to. So the fidelity metadata lives BESIDE the tree, and binaryen-ts's passes drop it.
-
-⚠️ **"A tree cannot be faithful" is false** and this project recorded it as though it were true.
-Wasm has no `dup`, so every value has exactly one consumer and a program already IS a tree — plus a
-marker for the producer that must stay put, which BOTH sides already have (`Pop` ≡ `placeholder`).
-
-**Measured 2026-09-02**, and the numbers are the reason this is now scoped rather than debated:
-
-|                                              |                                                                             |
-| -------------------------------------------- | --------------------------------------------------------------------------- |
-| shared expression kinds (identical spelling) | 63 of 81 / 98 — including **every** structural construct                    |
-| shared kinds whose fields differ             | 47 of 62, but almost all pure RENAMES                                       |
-| the real difference                          | one coherent set: what wabt-ts keeps AS WRITTEN vs what binaryen-ts DERIVES |
-| passes touching an as-written field          | **0 of 16** — the split is already the one the code observes                |
-| grouping: opcodes representable coarsely     | **128 / 128**, and 0 of 313 operators name a non-instruction                |
-
-**The grouping decision was taken by worst-condition analysis** — the fidelity worst case (an
-unrepresentable instruction) does NOT bind at 0/128; the optimization worst case does, on
-`optimize-instructions.ts` with its 64 operator dispatches. So binaryen-ts's coarser grouping
-controls, and it ships with a gate — `deno task operators` — because the mapping it depends on is
-one fact in two places, which is this codebase's known failure mode.
-
-**Seven ordered steps, S1–S7, in [ir-convergence.md](ir-convergence.md).**
-
-| step                   | state as of 2026-09-04                                                                                                                                                                                                                    |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S1 the gate            | ✅ `deno task operators`                                                                                                                                                                                                                  |
-| S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                                                                                                                                                                       |
-| S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                                                    |
-| S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                                                 |
-| S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — **75 shared, 9 wabt-only, 2 binaryen-only**, and none of the 11 is a rename. The recorded "27" was 8 days stale. Pinned by `ONE_SIDED_BUDGET`; K3 (`simd.shift` regrouping) is the one open decision |
-| S6 unify the type      | 🚧 gate built, three structural axes found, stage 1 done; Group 2 **7/7**, Group 3 and the block/label family done                                                                                                                        |
-| S7 linear-form marker  | ⬚ untouched, independent of the rest                                                                                                                                                                                                      |
-
-**S6 has its own acceptance gate now: `deno task bridge`**, at **401/421** (2026-09-10; it stood at
-397 — C10a's recorded "5 fail to encode, 19 fail validation" exactly — until Group 2 decision 4).
-Decision 4 removed the whole encode class: the store opcode had been derived from an operand the
-bridge leaves untyped. Four of those five now round-trip; one was masking a validation failure. All
-20 remaining fail VALIDATION. It must reach 421/421 when the bridge is deleted.
-
-⚠️ **S6 deletes the bridge and dissolves C10a** rather than fixing it — and that diagnosis has now
-been checked against ALL 24 rather than the one module it was recorded from: wabt-ts's own path is
-valid for 24 of 24, so the fault is entirely in the translation.
-
-**Group 2 is at 6 of 7** (decision 5, region bodies, `365e9277c`; decision 6A, value lists,
-`2b5850a8a`). The owner chose 6A and 7b(i) on 2026-09-10 with **"fix any bugs first"** — so the
-defects found probing 5, 6 and 7 were cleared on `s6-prefix-bugfixes` BEFORE either decision starts.
-Every one is a row in [divergences.md](divergences.md), closed with its commit and pin:
-
-| fixed                                                                                     | commit      |
-| ----------------------------------------------------------------------------------------- | ----------- |
-| WAT `br_table` dropped values from a multi-value branch (V8 rejected)                     | `87e5766c3` |
-| decoder rejected typed `select` (`0x1c`); no reference-typed select could be emitted      | `b64b2e144` |
-| WAT type uses: `(func (type $a))` ignored, undeclared signatures threw, block `(type $t)` | `152d0ed76` |
-| decoder DROPPED the convert pair — now real nodes, with a bridge case                     | `9d5c886be` |
-| WAT emitted an `else` for an empty `(else)`                                               | `ce77680de` |
-| LocalCSE cached a bare `local.get` / constant (−3.9% `-Oz`, 0 of 421 modules grew)        | `5b0cf25c6` |
-
-**Left for the decisions themselves**, deliberately: block PARAMETERS (B1, decision 7b(i) — WAT now
-fails loudly with "not supported yet"), and the two FORM losses S1 (numeric typed select) and T1
-(`call_indirect`'s identical type index), decision 7c.
-
-✅ **Decision 6A is implemented** (`2b5850a8a`): branch and return values are a `values` list,
-`tuple.make` is gone, corpus byte-identical on all three paths. It surfaced three more defects
-(decoder multi-value `return`, the bridge dropping `br_table` values, the WAT `br_if` typed `none`)
-and made the operators gate a ratchet. Two follow-ups kept deliberately behaviour-neutral:
-
-- ⬚ `mapExpression` / `walkExpression` visit a branch's condition before its values — the reverse of
+- ⬚ `mapExpression` / `walkExpression` visit a branch's condition BEFORE its values — the reverse of
   wasm's evaluation order. Fixing it may move `-Oz` bytes, so it wants its own measured commit.
 - ⬚ LocalCSE treats a multi-value `return` as opaque (as it did the `tuple.make`).
 - ⬚ **43 node LITERALS in `src/` bypass their factory** and hand-compute its `type` — 29 in the WAT
-  parser, 7 in inlining. The `br_if` one was wrong. Counted with `grep "kind: ExpressionKind\.X,"`
-  outside `ir/expressions.ts`. Block / Loop / If / Select literals are decision 7's sites, so those
-  convert to factories as 7's first step; the rest want a sweep that compares each literal's type to
-  the factory's.
+  parser, 7 in inlining (count: `grep "kind: ExpressionKind\.X,"` outside `ir/expressions.ts`). The
+  `br_if` one was wrong. The rest want a sweep comparing each literal's type to the factory's.
+- ⬚ **LocalCSE is an allow-list of kinds** and is opaque to everything it does not list — e.g. a
+  shift under `extract_lane` is never reused, where upstream `--local-cse` reuses it (found scoping
+  K3). How much of the size gap to upstream it explains is unmeasured.
+- ⬚ **LocalCSE runs after SimplifyLocals and CoalesceLocals at -Oz**, so the tee it adds is never
+  cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
+- ⬚ **binaryen-ts could run-length-compress its locals** as wabt-ts now does — roughly 5,600 bytes
+  of that redundancy on the corpus. An optimisation, not a defect
+  ([text-routes.md](text-routes.md)).
 
-✅ **Decision 7a and 7b(i) are implemented** (2026-09-10, `7171b8b38`, `02d77f533`), with three
-defects fixed on the way (Flatten's `if` label, the trampoline's DCE break, wabt-ts's folded `if`
-drop) — see ir-convergence decision 7.
+## Open defects and gaps
 
-**Queued, bugs first (owner: "fix any bugs first"), then 7c:**
+- ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
+  feeds it to `wasm-opt` — [divergences.md](divergences.md).
+- ⬚ **T2** — "binaryen-ts's encoder derives the type-section order" is NOT reproducible on decode →
+  encode; open until reproduced with a case on whatever path was measured.
+- ⬚ **E1 unification** — wabt-ts drops an explicit empty `else` where binaryen-ts keeps it; unify in
+  S6.
+- ⬚ **Does the decoder consume-and-discard anywhere else?** The convert pair was a KNOWN opcode
+  deliberately discarded (`push(pop())`), not an unknown one refused — so the fail-loud contract can
+  be violated by a known opcode. Worth an enumeration of the decoder's dispatches; the section,
+  export-kind and import-kind dispatches all carry comments about this shape having bitten before.
+- ⬚ **`assert_return` / `assert_trap` are not run** — 55,993 behavioural spec assertions, skipped
+  deliberately so the first harness measured the must-reject axis. Needs an invoke harness; worth
+  doing, second ([testing.md](testing.md)).
+- ⬚ **N4** — under `-O2 -g` we keep the local and label names passes leave; upstream drops them.
+  Provisional, pending owner action 4.
+- ⬚ **`wasm2wat` cosmetics** — entity and branch references print by index (`call 0`) where upstream
+  prints `call $foo`; folded siblings share a line. Text only, never bytes ([names.md](names.md)).
+- ⬚ **Doc references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`
+  and `wasm/demo_bytes` named subpaths that never existed and were pointed at `./api` and `./wasm`.
+  Someone who knows the intent should confirm ([scope-1.5.2.md](scope-1.5.2.md)).
 
-- ✅ **W6** — DataCount only when code names a data segment (upstream's and wasm-tools' rule), or
-  when a binary was read with one (round trips stay exact); both writers (`cb474baaa`, re-baseline
-  `5dbe951f1`, 2026-09-11). wabt-ts now equals upstream `wat2wasm` on 400 / 421 corpus modules
-  outside custom sections — every module but W5's 21.
-- ✅ **W5** — implicit types in upstream's order (`bd327efe7`, re-baseline `232768359`, 2026-09-11):
-  after every explicit type; imports, then functions and tags in text order, each function's own
-  signature before its body's block and `call_indirect` types in binary order. The parser indexes
-  them all at the end of the module, so the bridge tests that skip `synthesizeTypes` still see
-  indices. Also fixed: a single typed-ref block result is written inline (both writers), and an
-  implicit signature reuses the FIRST equal explicit type. **wabt-ts == upstream `wat2wasm` on 421 /
-  421 corpus modules** outside custom sections; wasm-tools agrees on the GC probes.
-- ✅ **W4** — resolved by ROUTING, owner decision 2026-09-10 (`e18d9f09a`): external WAT goes
-  wabt-ts → bytes → decoder, the pipeline binaryang converges on anyway. binaryen-ts's own
-  `parseWat` stays an internal folded subset and retires with S6; its "Stage 1" is superseded.
-- ✅ **N1 — names lost at three hops** — [names.md](names.md), six steps, ALL BUILT. Owner decided
-  (2026-09-10/11): names are kept when reading and writing without optimization, over both
-  upstreams; **wabt-ts ALWAYS keeps them** — WAT → `wat2wasm` → `wasm2wat` must reconstitute the WAT
-  (the acceptance test); optimized output follows `debugInfo`; labels and GC field names are a
-  FEATURE beyond upstream (N2). Export and import names are the interface, not N1, already pinned.
-  - ✅ **The wabt-ts half, P1–P3, merged `7520ed7d3` (2026-09-11)**: the owner's test holds on the
-    whole corpus — 63,930 / 63,930 names, byte fixed point 421/421, folded and linear.
-  - ✅ **The binaryen-ts half, P4–P6** (`138148881`, 2026-09-11): our named bytes decode and
-    re-encode byte-identically 421/421; 8,298 / 8,298 upstream-named functions keep their names;
-    names follow `-g` after passes and stay with none; `$foo` survives `readWat` and `wasm-opt`.
-    `wabt_reference.ts` stays for the `parseWat` comparisons only (W4) — it retires with `parseWat`.
-  - ⬚ **N4** — under `-O2 -g` we keep the local and label names passes leave; upstream drops them.
-    Provisional; the owner's future discussion on names under optimization settles it.
-  - 📝 **Release-note items (API-visible):** `wat2wasm` output now carries a name section;
-    `wasm2wat` no longer invents `$f0`-style names (`generateNames` / `--generate-names` to ask);
-    names that are not all idchars print quoted (`$"foo bar"`); `WriteBinaryOptions.writeDebugNames`
-    now works and defaults to true; `Module` gained a required `hasNameSection` (use `makeModule`).
-    binaryen-ts: a module decoded from a binary WITH a name section now carries its names
-    (`WasmModule.explicitNames`) and re-encodes them; `optimize` / `PassRunner` drops them unless
-    `debugInfo`; `ModuleBuilder.addFunction` takes optional `paramNames`; imported memories are
-    named by index (`mem1` where two collided on `mem0`); an imported tag's `throw` now carries its
-    payload in the IR.
-- ✅ **C2** — custom sections survive the text (2026-09-11). The lexer emits `LparAnn` for
-  `(@custom` and nothing else (every other annotation is still skipped at the character level, which
-  is why it was abandoned the first time); the parser reads `(@custom "name" place? "data"*)`; the
-  WAT writer prints the POSITION the section held. One table, `core/custom-placement.ts`, is read by
-  both — and spells each position in the form BOTH oracles accept, since upstream wat2wasm has no
-  `func` / `tag` / `first` / `last` keyword and wasm-tools no `function`. `wasm-tools parse` agrees
-  on all 15 probed placements; upstream accepts our text but appends (C4). Two side findings, below.
-  - ✅ **N5, fixed here** — a module with two `name` sections LOST the first on a plain read →
-    write, because a raw `name` custom stops the writer generating one. Every one is now kept as
-    bytes at its own position; the names come from the LAST, as upstream wabt, binaryen and
-    wasm-tools all read them (binaryen-ts too — it still writes one section back, as binaryen does).
-  - ✅ **C3 — binaryen-ts keeps them now too** (2026-09-11). `WasmModule.customSections` records
-    each section with the known section it followed; the encoder writes it back into that gap. The
-    `name` section is an entry with no data, marking the PLACE its regenerated content goes — which
-    is what makes clang's layout (`.debug_*`, `name`, `producers`) come back in order, and appending
-    cannot. Upstream `wasm-opt` appends and special-cases only `dylink.0` (C6). Passes keep them, as
-    upstream does through `-O2`.
-  - 📝 **Release-note items (API-visible):** `wasm2wat` now prints every custom section with its
-    position and `wat2wasm` honours it; a `(@custom "name" …)` in text is taken as THE name section
-    and none is generated beside it (C5).
-- ⚠️ **S7 changed under C3**: the linear-form marker is planned as a custom section that
-  "optimization strips for free" — free only because binaryen-ts dropped every custom section. It no
-  longer does (passes keep them, as upstream does), so S7 must strip its own marker deliberately.
-- ✅ **N6 — the name section's LOCAL subsection** (2026-09-11), found measuring C3 against real
-  binaries. Every clang / rustc / zig binary lists only the functions that HAVE local names; both
-  writers listed every function (N1 matched upstream `wat2wasm --debug-names`, which does), so a
-  read → write of a producer binary gained entries it never had. The reader now records which
-  functions the subsection listed — `Module.localNamesListed` (by index) in wabt-ts,
-  `ExplicitNames.localsListed` (by NAME, since passes reorder) in binaryen-ts — and each writer
-  lists exactly those. Three shapes, three different bytes: **no record** → every function, as
-  upstream; **a set** → those, even when empty (`02 01 00` is not nothing); **`null`** → the section
-  had no local subsection, so write none.
-  - **376 real WASI binaries: 366 → 374 byte-identical, through BOTH halves.** The two left are L1
-    (relocation-padded LEBs re-encode minimally — valid, and what upstream normalizes to), one of
-    them also N7 (a duplicate function name renamed `dummy.1`, owner decision 2; wabt-ts keeps that
-    section raw and is exact).
-  - Our own corpus is unchanged — `deno task baseline` IDENTICAL — because text modules have no
-    record and keep upstream's shape.
-- ✅ **A1 — resolved 2026-09-11, and it was NOT the defect it was filed as.** The spec grammar is
-  `(array fieldtype)` and `(field id? fieldtype)` is the STRUCT form — confirmed against the spec
-  text — but **upstream wabt parses an array's element with the SAME `ParseField` as a struct's**
-  (`wast-parser.cc:1793`, optional id and all), binaryen takes it too (rejecting only a second
-  field), and the testsuite has no case either way. So accepting it matches both upstreams;
-  `wasm-tools` is the lone refuser. The real fault was the half we had NOT taken: we ignored the
-  `id`, so an array field named in the binary (subsection 10, N2) had nowhere to go in text and
-  `wasm2wat` dropped the name — a name lost at the text hop, which N1 forbids. Now the id is read,
-  and the `(field …)` wrapper is printed **only when the field has a name**, so every other array
-  type stays in the spec's form that wasm-tools reads.
-- ✅ **G2 CLOSED 2026-09-11 — the harness runs all 257 spec files.** `spec-prepare` falls back to
-  `wasm-tools json-from-wast` for the 30 `wast2json` 1.0.41 cannot split, and the harness reads its
-  command types: `module_definition` (a module's obligation — accept it), and modules or
-  `assert_invalid` cases given as **TEXT**, where `wast2json` only ever emitted binaries. A text
-  module is assembled and then decoded and validated, because `wat2wasm` does not validate.
+## Conformance gaps — the wasmtk-ranked list
 
-  | axis                      | was (227 files) | now (257 files)        |
-  | ------------------------- | --------------- | ---------------------- |
-  | modules ACCEPTED          | 1955 / 1955     | **2248 / 2248 · 100%** |
-  | `assert_invalid` REJECTED | 2422 / 2422     | **2714 / 2714 · 100%** |
-  | malformed BINARY          | 711 / 711       | **711 / 711 · 100%**   |
-  | malformed TEXT            | 1156 / 1156     | **1229 / 1229 · 100%** |
+Ranking agreed in [handoffs.md](handoffs.md). Ranks 1–3 shipped (`br_on_cast` and `br_on_*` in
+1.5.3; the convert pair `9d5c886be`, unreleased — divergence X1).
 
-  🔑 **The 30 missing files were the least safe thirty to be missing**: they test the GC proposal —
-  the one thing this toolchain implements and upstream wabt cannot judge at all (G1, G3). The new
-  ground is 293 must-accept modules, 289 must-reject modules and 73 must-reject texts, and **all of
-  them pass on the first run.** Verified not vacuous: run over those 30 dirs alone they account for
-  exactly those counts, and corrupting one accepted module plus making one `assert_invalid` case
-  valid makes the harness report both.
-- ✅ **7c — the written type INDEX, on the node** (2026-09-11). Two form losses closed: **T1**
-  (`call_indirect (type $b)` came back `(type $a)`, the first structurally identical type the
-  encoder derived) and **a block header written as an index** coming back inline (`02 00` →
-  `02 7f`). The decoder records what the header named; the encoder writes it; `PassRunner` drops it
-  before the first pass, since a pass may retype the construct. It rides on the NODE — binaryen-ts's
-  IR has no `NodeId` to key wabt-ts's side table with, and 7a/7b(i) set that precedent.
-  - 🔧 Recording it unconditionally broke every lowered block-parameter case: the index names a type
-    WITH parameters, and `lowerBlockParams` removes them, so the header re-declared inputs nothing
-    supplied. Kept only while the node still has that signature.
-  - ⚠️ **T2 is not reproducible on this path** — a decoded module keeps the decoder's type list,
-    order and duplicates included. Its row is corrected, not closed: whatever was measured on
-    2026-09-10 was some other path. Three would-be-reordered cases are pinned.
-  - **S6 decision 7 is now complete** (7a, 7b(i), 7c). Group 2 is 7 of 7.
+| rank | gap                                                | status                                                                                                                                       |
+| ---- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4    | the five that unblock nothing for wasmtk           | ⬚ open, ranked last on their numbers despite 121 occurrences                                                                                 |
+| —    | **exact types** (`(exact $T)`), 116–548 assertions | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case |
 
-- ◐ **S6 Group 3 — 3 of 5 ties done** (2026-09-11): `select` → `val1`/`val2`, `if` →
-  `ifTrue`/`ifFalse`, `br_on` → paired `from`/`to`. Each measured by trial rename (blast radius),
-  and on each cost and meaning agreed. **The remaining two are not mechanical, which the measurement
-  is what revealed:**
-  - 🗓️ **`call_indirect` (`sig` vs `params`+`results`) — OWNER CALL, evidence gathered.** Cost says
-    convert wabt-ts (11 vs 16), but that 5-site margin runs against the structural grain:
-    `FuncSignature` is wabt-ts's house concept (49 uses, 78 `.sig` reads) and binaryen-ts has none,
-    so either way one side gets a lone exception — and in wabt-ts the flat form would sit beside
-    `typeVar` / `typeUse`, the triple S3's table keys on. Not flipped on a 5-site margin.
-  - ✅ **`ref.null` — NO CHANGE, and that is the finding.** binaryen-ts has no field because the
-    heap type IS the node's `type`; probed byte-identical on all 13 spellings (every abstract heap
-    type, a concrete `$t`, and a `$t` that is not type 0). An explicit `refType` beside it today
-    would be the same fact twice. The merged tree needs it — wabt-ts's nodes have no `type` — so it
-    lands with the merge, when `type` becomes derived.
-  - ✅ **`CallIndirectExpr.target` → `callee` in binaryen-ts, on SAFETY.** It was documented "target
-    label of the branch": `call_indirect` does not branch, the field is not a label, and `target`
-    already meant the called function on `call` and a branch label on `br_on` — here sitting right
-    beside `table`. The `table.copy` precedent: cost did not get a vote.
+## Quality passes — 1.5.6 / 1.5.7
 
-**🗓️ Future discussion (owner, 2026-09-10) — not scheduled, not to be decided unilaterally:** how
-binaryen-ts's OPTIMIZATION treats INTERNAL names versus EXPORTED names, explicitly, and how that
-compares with upstream binaryen (which, under `-g`, keeps only the names of functions that survive).
-N1 settles only the fidelity phase and that optimized output follows `debugInfo`; the finer policy
-for what optimization may rename, merge or drop is the owner's to set. Until then, export and import
-names stay inviolable (pinned) and nothing else is decided.
-
-## ⬚ Quality passes — 1.5.5 / 1.5.6 / 1.5.7
-
-A three-version plan: **1.5.5** code issues, **1.5.6** hardening then code again, **1.5.7** security
-then hardening then code again. Each lens repeats until a pass turns up nothing new. Lens
-definitions, method, and the per-pass findings register: [quality-passes.md](quality-passes.md).
-
-**1.5.5 passes 1–5 are done. Pass 5 CONVERGED against the invariant battery** — nothing new beyond
-what pass 4 had already named — with the corpus at 421/421 validating, 420/421 byte-identical to
-source, and a total size delta of zero. ⚠️ That means _these invariants_ no longer discriminate, not
-that no code issues remain; every defect found came from strengthening a check or inventing one.
-**C9 is now CLOSED too** (`a33c94655`): `ElementSegment.mode` was the single IR gap behind four
-symptoms, and adding it unblocked passive and declarative segments, `table.init`, `elem.drop`, and
-the six other `0xFC` ops the binary reader was refusing. **The C1–C9 register is empty.** Earlier:
-Pass 4 closed C2 and C4 together (bulk memory plus the data count section they require) and left two
-items: C7, and one IR gap standing behind four symptoms. Pass 3's lesson: **a size delta is not a
-cosmetic finding** — both remaining "extra bytes" items turned out to be wrong output, one a silent
-miscompile (a synthetic loop wrapper shadowing the function frame) and one silent data corruption (a
-byte string UTF-8 encoded). Earlier: Pass 1 fixed three defects (`e662bd099`); pass 2 fixed four
-more (`3e808b99b`), including an element-segment stub that silently emptied every function table,
-and an anonymous-function name collision that turned `(call 1)` into infinite recursion. Five
-findings remain (C2, C4, C6–C8). ⚠️ **The version is NOT bumped**; the bump is what arms a release,
-so it happens when the passes converge, not while they run.
-
-🔑 **The one lesson worth carrying:** greps found nothing — no live TODOs, every "impossible"
-comment self-aware. What found three real bugs was **strengthening an existing metric**: the corpus
-check asked whether binaryen-ts re-encodes _without throwing_ (421/421, green for months); asking
-whether the result _validates_ read 383/421. Look for checks whose predicate is weaker than their
-name.
-
-## ✅ The retirement is closed
-
-**D2 and D3 are both done, verified against the live JSR API on 2026-09-02 rather than assumed:**
-`binaryen-ts` and `wabt-ts` are each `isArchived=true`, latest 1.5.1, score 100, one dependent.
-`binaryang` itself is correctly `isArchived=false` at 1.5.4.
-
-🛑 **The predecessors are FROZEN by owner decision**: _"we are not changing either the github repo
-or the jsr any further for the wabt-ts or binaryen-ts projects."_ So all four descriptions stay as
-they are, permanently, still presenting the predecessors as live projects. **That is an accepted
-cost, not an oversight — do not re-open it as an action item.** The archived banner plus the README
-signpost carry the retirement message on the pages themselves.
-
-⚠️ **The freeze covers the PREDECESSORS ONLY.** Owner action 1 (`RELEASE_PAT`) is a secret on
-binaryang's own repo, which is live and unaffected.
-
-⚠️ **`dependentCount` reads 1 on both and will never reach zero**: wasmtk's earlier published
-versions are immutable and still name them. Retirement means _no new dependents_. The only mechanism
-that would drive it down is yanking — D4, the one action that turns a safe break into a breaking
-one.
-
-## Conformance gaps — the wasmtk-ranked list, restated with current status
-
-Ranking agreed in [handoffs.md](handoffs.md); status re-derived 2026-08-31.
-
-| rank | gap                                                                                                                         | status                                                                                                                                       |
-| ---- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `br_on_cast` (+ `br_on_cast_fail`)                                                                                          | ✅ **shipped in 1.5.3**                                                                                                                      |
-| 3    | `br_on_null` / `br_on_non_null`                                                                                             | ✅ **shipped in 1.5.3** — they rode along with rank 1, as predicted                                                                          |
-| 2    | **The convert pair** — `any.convert_extern` / `extern.convert_any`, ≈49 assertions across `extern.wast` and `ref_test.wast` | ✅ **both layers fixed**, `9d5c886be` (2026-09-10): real binaryen-ts nodes + a bridge case. Unreleased                                       |
-| 4    | The five that unblock nothing for wasmtk                                                                                    | ⬚ open, ranked last on their numbers despite 121 occurrences                                                                                 |
-| —    | **Exact types** (`(exact $T)`), 116–548 assertions                                                                          | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case |
-
-### The convert pair — measured, not estimated
-
-✅ **Closed by `9d5c886be`** — `ExternConvertExpr` (`makeExternConvert` keeps the operand's
-nullability), decoded from `0xfb 0x1a/0x1b` and re-emitted, plus a bridge case;
-`extern_convert.test.ts` asserts the OPCODES survive, as the paragraph below demands. The record of
-how it was priced stays as written.
-
-**Priced by building it**, per the rule the `br_on_cast` miss produced. Probed across all three
-layers:
-
-| layer                             | result                                                      |
-| --------------------------------- | ----------------------------------------------------------- |
-| wabt-ts parse → encode → validate | ✅ works                                                    |
-| binaryen-ts decode → re-encode    | ⚠️ **silently drops both opcodes**                          |
-| the bridge                        | ❌ `expression kind not yet supported` (fail-loud, correct) |
-
-⚠️ **The drop is deliberate, not an oversight.** `src/binaryen-ts/binary/wasm-parser.ts` case
-`0x1a`/`0x1b` reads `push(pop()); // identity conversion in IR`. The **value** survives; the
-**type** does not, so the encoder cannot re-emit the opcode and it vanishes — the re-encoded module
-is 2 bytes shorter per conversion.
-
-**Severity: fail-loud downstream, not a miscompile.** In every position where the conversion is
-load-bearing for typing, V8 rejects the re-encode with a type error. It is invisible only in the
-null-identity case (`any.convert_extern(extern.convert_any(null))`), where dropping both is
-coincidentally value-preserving and the module still returns the right answer.
-
-⚠️ **That case is why a validity-only check passes here.** The first probe reported
-`bin-roundtrip=OK` and was green for the wrong reason; the opcode count and the byte length are what
-exposed it. Any test written for this must assert the opcode survives, not that the module
-validates.
-
-**So the work is:** a real IR representation in binaryen-ts (node + reader + encoder, replacing the
-`push(pop())`) **and** a bridge case. Not "one bridge case" — the same shape as `br_on_cast`, where
-the estimate counted only the layer being looked at.
-
-### A defect in its own right, found alongside
-
-The reader errors on an unsupported GC opcode (`unsupported GC opcode: 0xFB 0x..`) but _consumes_
-these two. **The fail-loud contract is not being violated by an unknown opcode — it is being
-violated by a known one that is deliberately discarded.** Worth an enumeration: are there other
-cases in this decoder that consume-and-discard rather than error? The section, export-kind and
-import-kind dispatches all carry comments about exactly this shape having bitten before.
+The three-version plan: **1.5.5** code issues (passes 1–7 done, register EMPTY, converged against
+the invariant battery), **1.5.6** hardening then code again, **1.5.7** security then hardening then
+code again — each lens repeated until a pass turns up nothing new. ⬚ 1.5.6 and 1.5.7 not started. ⚠️
+Converging means THESE invariants no longer discriminate, not that no issues remain. Lens
+definitions, method and register: [quality-passes.md](quality-passes.md).
 
 ## Repo work
 
-- ✅ **A3 — MEASURED 2026-08-31.** `deno task offsets`: 196 corruptions, 195 rejected, **0 missed
-  rejections**, 133 of 154 specific diagnostics landing at the construct. It found and fixed a
-  fail-loud defect on the way — the export section accepted any byte as an export kind. Reading,
-  calibrations and blind spots: [testing.md](testing.md).
-- **A2 — `wasm2ts` is a stub that throws.** The long-term goal. ⬚ **Blocked, and not close**: as of
-  2026-09-02 the wasmtk side has a long way to go before there is anything to implement against, so
-  this is not a near-term item.
-- ⚠️ **Nothing ships against the bridge — and investigating why found a shipped-tool defect.** See
-  the section below; the short form is that the bridge is the MORE capable of two WAT → binaryen
-  routes and `wasm-opt` uses the other, which cannot read the WAT our own `wasm2wat` emits.
-- ✅ **C3 — LeptonPad's `build:wasm` — VERIFIED 2026-08-31.** Runs; the artifact validates,
-  instantiates and computes correctly; resolves `wasmtk@2.0.1 → binaryang@1.5.2` with **neither
-  predecessor pulled**. Detail and the caching trap it exposed: [transition.md](transition.md).
-
-## ✅ `wasm-opt` cannot read the WAT `wasm2wat` writes — BOTH defects closed, `e18d9f09a`
-
-✅ **2026-09-10.** `wasm-opt` reads external WAT through wabt-ts → bytes → the decoder (owner
-decision; divergence W4), so linear form reads — every corpus module written by our `wasm2wat`,
-linear or folded, comes back 421/421 valid. And `wasm-opt`'s `main` reports a failure as
-`wasm-opt: <message>`, exit 1, instead of an uncaught exception. The record as it stood:
-
-Found 2026-08-31 while asking whether the "nothing ships against the bridge" item could be closed.
-It could — and the asking turned up a user-facing defect that outranks it.
-
-```sh
-binaryang wat2wasm  a.wat  -o a.wasm     # ok
-binaryang wasm2wat  a.wasm -o b.wat      # ok — emits LINEAR form
-binaryang wasm-opt  b.wat  -o b.wasm -Oz # ✗ uncaught exception + stack trace
-binaryang wasm-opt  a.wat  -o c.wasm -Oz # ok — the original FOLDED source
-```
-
-**Two defects, and the second is nearly free to fix:**
-
-1. **`src/binaryen-ts/parser/wat-parser.ts` handles only FOLDED s-expression form.** A bare
-   instruction sequence — `(func (result i32) i32.const 7)` — fails with
-   `unexpected atom in expression: i32.const`. Linear form is the canonical WAT text form and is
-   what **our own `wasm2wat` emits**.
-2. **`wasm-opt` does not catch the parse failure.** It surfaces as an uncaught exception with a
-   stack trace rather than a diagnostic, which violates the fail-loud contract's _readable_ half.
-
-⚠️ **This is precisely the shape [testing.md](testing.md) names as needing no oracle** — _a
-differential between two spellings of the same thing_, folded versus linear, which must agree by
-construction. Nothing tested it, so a broken round trip between two of our own CLI tools went
-unnoticed.
-
-### ✅ FIXED 2026-08-31 — the parser dropped inline exports (43% of them)
-
-Found while measuring whether the IR choice costs anything in the shipped wasm. It does not — but
-the measurement could not be trusted until this was explained.
-
-`binaryen-ts/parser/wat-parser.ts` does not support the **inline export abbreviation** on
-non-function items:
-
-| form                                   | result                                      |
-| -------------------------------------- | ------------------------------------------- |
-| `(memory (export "mem") 1)`            | **export silently dropped — no diagnostic** |
-| `(global $g (export "g") i32 …)`       | throws `unknown value type: (export "g")`   |
-| `(memory 1) (export "mem" (memory 0))` | correct                                     |
-
-Measured over 149 corpus modules: **345 exports via wabt-ts, 196 via binaryen-ts — 43% lost**, and
-`memory` in every sampled case. 148 of 149 modules lost at least one.
-
-⚠️ **This is why binaryen-ts's output looked 1.24% SMALLER.** It was not encoding better; it was
-emitting less. A size win that is actually data loss is the exact shape a byte-count comparison
-cannot distinguish — the export COUNT is what separated them, and the modules still validate,
-because a module that fails to export its memory is perfectly valid and merely useless to its host.
-
-**Inline export is the idiomatic form and is what our own `wasm2wat` emits** — `inlineExport`
-defaults to `true`. So this compounds the round-trip defect above rather than sitting beside it.
-
-**Ranking:** this outranked the linear-form gap. Linear form fails loudly; this one succeeded and
-returned a module missing its exports.
-
-**Fixed.** All four collectors (`memory`, `table`, `tag`, `global`) now consume the abbreviation
-through one shared `takeInlineExports` helper, matching what `collectFunc` always did. Corpus
-exports **196 → 345 of 345**, export sets identical on 149 of 149 modules, gated by
-`tests/binaryen-ts/parser/inline_export.test.ts`.
-
-### ✅ The byte gap is fully explained (2026-08-31), and it was NOT data loss
-
-Chased to the section, then to the byte. Three components, none of them a defect:
-
-| component          | cause                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **code −3,073**    | binaryen-ts run-length-compresses consecutive same-type locals; wabt-ts emitted one group per local. `vec(count, valtype)`, so three i32 locals went out as `3 \| (1,i32)(1,i32)(1,i32)` where `1 \| (3,i32)` says the same thing in 3 bytes instead of 7                                                                                                                                                                                       |
-| **datacount −162** | the section is **optional** unless `memory.init` / `data.drop` reference the data index space. wabt-ts emits it whenever data segments exist; binaryen-ts omits it. Both valid — and binaryen-ts rejects those two instructions outright, loudly, in both its WAT and binary readers, so it can never need the section. 🔧 "wabt" here meant wabt-ts: UPSTREAM wat2wasm 1.0.41 omits it unless it is used (measured 2026-09-10) — divergence W6 |
-| type +70, data +66 | small, and in the other direction                                                                                                                                                                                                                                                                                                                                                                                                               |
-
-**Fixed on the wabt-ts side.** The writer's comment already claimed run-length encoding; only the
-loop did not do it. Coalescing recovered **42,437 bytes (2.7%) across the 421-file corpus** —
-considerably more than the 3,073 gap that led to it, because binaryen-ts coalesces only partially,
-so the gap measured the _difference_ in redundancy rather than the total.
-
-⚠️ **This moved the emitted-byte baseline on 398 files**, and came with a deliberate re-baseline in
-the same commit: 1,557,602 → 1,515,165 bytes. The baseline is not a test; it pins bytes, so a
-genuine encoder improvement is supposed to move it.
-
-⬚ **binaryen-ts could take the same fix** — it carries roughly 5,600 bytes of the same redundancy on
-this corpus. Not done; it is an optimisation, not a defect.
-
-### ✅ FIXED 2026-08-31 — inline IMPORTS, the worse half
-
-Same abbreviation family, all five kinds. `(memory (import "m" "a") 1)`, `(table (import …))` and
-`(func (import …))` were **silently dropped**; `(global (import …))` threw.
-
-**A dropped import is worse than a dropped export**: it removes an entry from the index space, so
-every later function, memory, table or global index shifts by one — a valid module that calls the
-wrong function. For `func` the failure was different and louder in hindsight: the import became a
-DEFINITION with an empty body, so a declared result had nothing to return
-(`expected 1 elements on the stack for fallthru`).
-
-Handled through the same shared helper, now `takeInlineDecorations`, consuming exports and an
-optional import in one loop because the spec permits them interleaved.
-
-**Corpus parity, 149 modules:** exports **345 / 345**, imports **250 / 250**, identical sets on 149
-of 149 for both.
-
-The regression test asserts the computed VALUE for the index-space case — if the import were lost,
-`$two` would move from index 1 to 0 and `call $two` would still be a valid module calling the wrong
-function, which no structural assertion catches. Verified by neutering the abbreviation: 6 steps
-fail.
-
-### ◐ Folding reaches 82.9% of modules; binaryen-ts's parser has SEPARATE gaps
-
-The folded writer works: **421/421 corpus modules assemble identically folded or linear.** But the
-goal it was meant to serve is not reachable this way.
-
-**binaryen-ts's parser accepts our folded output on 1 of 421 modules.** Folded output is not
-uniformly folded — it is folded where it can be and linear where it cannot, and binaryen-ts rejects
-any linear fragment, so one is enough to fail the whole module.
-
-🔧 **CORRECTED.** This section first claimed `br`, `br_if` and `return` were structurally unfoldable
-— that a branch's value lives on the stack and cannot be a child. **That was wrong, and the error
-was in how the IR was read, not in the IR.** All four branch kinds carry `values: Expr[]`; the
-interfaces were read with `grep -A 9`, which stops inside the docstring that precedes that field, so
-it was never seen. Folding them with an empty operand list emitted the head while the linear writer
-still rendered the value — `(i32.const 1 br 0)` — and that malformed output was misread as evidence
-the concept was impossible.
-
-Hand-written pairs settle it: `(br $l (i32.const 1))`, `(return (i32.const 5))` and
-`(br_if $l v cond)` all assemble to **bytes identical** to their linear equivalents. The WAT was
-always legal.
-
-**With the real operand lists wired, fully-foldable modules went 3/421 → 349/421 (82.9%).**
-
-One genuine structural blocker remains:
-
-|                                                           | why                                                                                                |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **`placeholder` operands** — 2,140 nodes, ~17% of modules | "the value is already on the stack". Linear spells that by writing nothing; folded cannot spell it |
-| `try` — 15 nodes                                          | not implemented; ordinary work, not a blocker                                                      |
-
-**A fully-folded module with no placeholders DOES parse in binaryen-ts** — verified. So folding
-works, and the remaining failures are elsewhere.
-
-⚠️ **Separate the PARSER from the ENCODER before attributing anything here.** Measuring
-`encodeWasm(parseWat(t))` as one step hid which half was failing, and the answer was not the one the
-error text suggested:
-
-| stage                           | result              |
-| ------------------------------- | ------------------- |
-| `parseWat` on our folded output | **311 / 421 (74%)** |
-| `encodeWasm` after that parse   | 1 / 421             |
-
-So the dominant failure was in the **encoder**, not the parser.
-
-### ✅ Fixed: numeric entity references (310 modules)
-
-`resolveRef` looked every reference up as a NAME and threw on a miss. A WAT identifier always begins
-with `$`, so a bare integer can only be a direct index — `(export "f" (func 19))` is as legal as
-`(export "f" (func $g))`, and our own `wasm2wat` emits the numeric form. Fixed, gated by
-`tests/binaryen-ts/encoder/numeric_refs.test.ts`, with the fail-loud guarantee preserved: a dangling
-**named** reference still throws.
-
-⚠️ **This is NOT the inline-export fix.** That one was about exports being _dropped at parse time_;
-this is a parsed export failing to _resolve at encode time_. Adjacent symptoms, different stages —
-which is why the first fix did not touch it.
-
-### ⬚ The remaining ladder, each revealed by fixing the one above it
-
-| # | gap                                                             | modules | state                                                                                                                                    |
-| - | --------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 | numeric branch depths + `br`/`br_if` operands                   | 307     | ✅ **fixed** — see below                                                                                                                 |
-| 2 | stack-sourced operands, for the modules carrying placeholders   | 44      | ✅ **done** — round-trip 302 → 340. Both halves landed; the two IRs met on `Pop` / `placeholder`. [ir-convergence.md](ir-convergence.md) |
-| 3 | `call_indirect: unknown type N` — numeric type references       | 39      | ✅ **done** — round-trip 340 → 373                                                                                                       |
-| 4 | `label depth N exceeds` — **an `if` pushed no label scope**     | 24      | ✅ **done** — round-trip 373 → 393. The error was the benign half; the silent half was branches going to the WRONG block                 |
-| 5 | `unresolved throw tag reference` — a **reconstructed** tag name | 11      | ✅ **done** — round-trip 393 → 404                                                                                                       |
-| 6 | `try` — a bare atom, plus a mismatched `catch_all` sentinel     | 10      | ✅ **done** — round-trip 404 → 412                                                                                                       |
-| 7 | 4 `local.get`, 2 `rethrow`, 2 branch labels, 1 GC func type     | 9       | ✅ **done** — round-trip 412 → **421 / 421**. Four unrelated causes; see below                                                           |
-
-**The ladder is finished: binaryen-ts reads our folded output on all 421 corpus modules**, and
-folded output still assembles to bytes identical to linear on all 421. Emitted-byte baseline
-`IDENTICAL` throughout.
-
-### ✅ #7 — the tail was four unrelated causes, `df24686ec` + `3ec5b29d6`
-
-Grouping them by "9 modules" made them look like one thing. They shared nothing but the count.
-
-| cause                                        | where              | fix                                                                                       |
-| -------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
-| `rethrow` emitted as a bare atom             | wabt-ts writer     | absent from `foldSpec`; it carries no operands, so it folds as a leaf                     |
-| partly stack-sourced operands declined       | wabt-ts writer     | placeholders occupy a PREFIX; omitting them is the correct folded spelling                |
-| an ANONYMOUS `block` had no name on the node | binaryen-ts parser | the label map got `$depth{N}`, the node got `null`, the encoder pushed `''`               |
-| an import's `(type N)` was not skipped       | binaryen-ts parser | it comes FIRST, so the `(param ...)` loop never started and the signature read `() -> ()` |
-
-⚠️ **The mixed-operand decline was justified by reasoning that was wrong about WAT and right about
-our own parser** — a combination worth remembering, because checking only the first half would have
-shipped a silent miscompile. The old comment argued that `(i32.store (value))` gives one operand for
-two slots and "a reader assigns it to the FIRST". Folding is defined by UNFOLDING, so written
-operands land in the LAST slots and the stack supplies the rest; wabt-ts reads it correctly. But
-binaryen-ts read that same text as storing the ADDRESS at the VALUE and returned 0 where wabt-ts
-returns 42 — valid bytes, wrong program. Two causes there: a claim splices the producer into
-whichever slot asked (a trailing one), and `parseStore` gave a lone written operand to the address.
-Both fixed; claims are now gated on no written operand having been consumed.
-
-🔧 **A correction this produced:** the `_claims` docstring said one claim "is the subset where order
-cannot be wrong". It is not. With N slots, W written and C claimed, the stack fills the LEADING C
-slots, so claims and written operands agree only when W is zero.
-
-**And `call` never had the problem**, for a reason worth knowing: it does not ask for missing
-operands at all. It emits fewer and lets the preceding statements supply the rest, which is just
-stack semantics working. The bound bites only where arity is discovered BY ASKING — binary ops,
-stores, compares.
-
-⚠️ **Two of the four fixes were first covered by tests that did not discriminate.** Written as a
-round trip, every anonymous-block fixture passed with the fix reverted, because `wasm2wat --fold`
-NAMES a block it emits a branch to — so the anonymous case never reached the parser. They only
-discriminate when the folded WAT is parsed DIRECTLY. Each group was then checked by reverting its
-own fix; the two that still passed are labelled in the file as guards rather than coverage. See
-[best-practices.md](best-practices.md) on verifying that a test fails without its fix.
-
-⚠️ **The counts in rows 5–7 were STALE until 2026-09-01** — they read 7 and 4, from an early sample
-rather than the full corpus, and the rows were in the opposite order. Re-derived against all 421
-modules. A number carried forward without re-measuring is the thing this file exists to prevent.
-
-### 🔁 The same mistake in three places: RECONSTRUCTING a name instead of resolving an index
-
-Worth recording as one pattern rather than three incidents, because it recurred after being fixed
-twice:
-
-| where                 | reconstructed      | actually needed                    |
-| --------------------- | ------------------ | ---------------------------------- |
-| branch labels         | `$depth{N}`        | the label registered at that depth |
-| `call_indirect` types | a name lookup only | the index-keyed `heapTypeDefs`     |
-| throw / catch tags    | `$tag{N}`          | the tag registered at that index   |
-
-Each reconstruction is the name the parser would have SYNTHESIZED for an anonymous construct, so
-each works right up until the construct has a name of its own — and our own `wasm2wat` names
-everything while referencing numerically, which is why all three surfaced together and none had
-surfaced before.
-
-**A reconstruction also rots**: it silently stops matching if the synthesizing side ever changes its
-naming. A lookup does not. Prefer resolving what is AT an index over rebuilding what its name
-probably is.
-
-### ◐ #2 — the placeholders are MULTI-VALUE, and that really is unfoldable
-
-Traced to the slot they fill: **2,095 of 2,140 are `local.set.value`**. Two causes, and only one of
-them was a bug.
-
-✅ **Fixed: a loop did not push its result.** A loop's blocktype means different things at its two
-ends — a BRANCH to a loop targets its start and carries its PARAMETERS, while a loop reaching its
-END produces its RESULTS. `brTargetResultCount` got the first right; the end-of-frame path forced
-`rCount = 0` for loops as well, so `(loop (result i32) …)` was flushed as a statement instead of
-pushing its value.
-
-⚠️ **That defect was invisible to every byte-level check.** The modules still round-tripped, because
-the writer spells a placeholder by emitting linear form, which reassembles to the same bytes. It was
-visible only as an IR that could not be folded. `tests/wabt-ts/reader/loop_result.test.ts` asserts
-the IR SHAPE for that reason.
-
-🚨 **The remaining placeholders are multi-value results, and those cannot fold.** A producer with N
-results pushes one node, so a second consumer finds an empty stack:
-
-```
-(call $two)      ;; results i32 i32
-local.set 1
-local.set 0
-```
-
-There is no folded spelling for "this call produces two values consumed by two instructions" — the
-tree has one node and two parents. Verified on both a multi-value `call` and a multi-value `block`.
-
-🔧 **CORRECTED again — "unfoldable" was too strong.** Multi-value CAN be spelled in folded form:
-
-```wat
-(local.set 1 (call $two))
-(local.set 0)
-```
-
-runs correctly and is accepted by wabt-ts and upstream wabt. The second consumer is a folded
-instruction with NO operand, taking its value from the stack — the same shape as a `br` carrying a
-stack value.
-
-**And upstream binaryen parses every form, including bare linear.** It spills the multi-value result
-into a synthetic local and rewrites each consumer as a `tuple.extract`. The restriction is
-binaryen-ts's own: it implemented the folded subset. Full measurement and a three-stage scope:
-[ir-convergence.md](ir-convergence.md).
-
-### ✅ #1 fixed — round-trip went 2 → 302 of 421
-
-**Three defects in one area, plus one the fix introduced.**
-
-1. `resolveLabel` **reconstructed** the name `pushLabel` would have synthesized (`$depth{N}`) rather
-   than looking up whichever label sits at that depth. That only works for ANONYMOUS blocks — a
-   block with an explicit `$B0` registers that name instead. Our `wasm2wat` emits named blocks and
-   numeric branches, a combination nothing in the suite produced.
-2. An unconditional `br` **dropped its value**: the guard read `conditional && args[2]`, so
-   `(br $l (i32.const 7))` parsed as a bare branch.
-3. `br_if` read its operands **backwards** — in `(br_if $l value cond)` the condition is LAST,
-   because it is the top of the stack and the value sits below it.
-
-⚠️ **And the fix's own bounds check rejected 279 modules.** Depth −1 is the FUNCTION FRAME, the
-implicit block around every body that `br N` may target as a return. It is not in the parser's label
-map, so "past every block" read as out of range — a guard firing on the single most common branch in
-real code. The encoder seeds `fn.bodyFrameLabel ?? ''`, so the empty name resolves there.
-
-**Each fix in this chain revealed the next**, and the counts moved 1 → 2 → 101 → 302.
-
-**Every fix so far has revealed the next one.** That is worth stating plainly rather than
-re-estimating each time: the count went 1 → 2 modules while removing 310 failures, because the
-failures are layered rather than parallel.
-
-✅ **The default WAS flipped, in 1.5.4** (`357007307`). At the time this paragraph was written the
-parsing benefit did not exist — binaryen-ts re-read 1 of 421 modules from folded output, so folding
-bought nothing and cost a re-baseline. Finishing the ladder took that to 421 of 421, which is what
-turned the decision. Linear stays behind `wasm2wat --linear`.
-
-**Measured before re-baselining, and the reason this was safe:** emitted wasm bytes and hashes
-unchanged on 421/421; LINEAR text byte-for-byte identical to the old baseline on 421/421; default
-output assembles to linear's bytes on 421/421. The flip changed which form is default, not what the
-toolchain can emit.
-
-⚠️ **It exposed two defects that had cancelled each other out.** `writeFoldedConstExpr` treated a
-leaf as "its linear rendering IS its head" and routed it through `writeExprList`, while
-`writeInstrHead`'s default branch did the same and described itself as unreachable. Both were wrong,
-and the output was valid for exactly as long as linear was the default — then
-`(table $T0 10 funcref ((ref.func 0)))`, which does not parse. **A wrong assumption held by two
-places at once produces correct output until one of them moves.**
-
-⚠️ **The baseline pinned ONE text hash taken from the DEFAULT.** Left alone the flip would have
-silently repurposed that column — pinning folded while dropping every trace of linear coverage. It
-now records both forms by name, and `--write` makes re-baselining run the same code path that
-verifies.
-
-## Which answers the bridge question
-
-**The bridge is not redundant duplication. It is the MORE CAPABLE of the two WAT → binaryen routes,
-and shipped code uses the other one.**
-
-Measured over 150 corpus files:
-
-|                                      |                                                                |
-| ------------------------------------ | -------------------------------------------------------------- |
-| both routes succeed                  | 70 — and **0 produce identical bytes**                         |
-| only the shipped parser (`parseWat`) | 52 — the bridge lacks `memory.copy` and the bulk-memory family |
-| only the bridge                      | 4 — the shipped parser cannot read linear form                 |
-| neither                              | 24                                                             |
-
-So each route covers what the other cannot, they never agree byte-for-byte, and **no test compares
-them.**
-
-### The decision this turns into
-
-"Where does the bridge live" is settled ([overview.md](overview.md)). What is open is sharper:
-**should `wasm-opt` route `.wat` input through the bridge?** Doing so would fix defect 1 and clear
-the bridge item in one move — but it is not a drop-in, because the bridge fails on `memory.copy`,
-which the shipped parser handles.
-
-⚠️ **Do not treat "export the bridge" as the way to close this.** Exporting makes `./bridge`
-supported public surface on the fastest-moving part of the tree; it would not fix the round trip,
-and it would make the duplication permanent rather than resolved.
-
-**It depends on no other task item.** The convert pair and exact types touch the bridge but neither
-gates this.
+- ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal (WASI Preview 1 capable TypeScript
+  output). **Blocked, and not close**: as of 2026-09-02 the wasmtk side has a long way to go before
+  there is anything to implement against.
+- ⬚ **TranslateEH** (binaryen-ts) and **Phase 10 kernel selection** — live gaps carried from the
+  predecessors, not re-checked since the merge ([phases.md](phases.md)).
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 
-| §  | content                                                                                   | state                                                                                                                                                                              |
-| -- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 7  | the `br_on_cast` estimate correction — it was three defects, not one                      | delivered                                                                                                                                                                          |
-| 8  | retraction of the phantom "deps need proper names" finding                                | delivered                                                                                                                                                                          |
-| 9  | defect 5 is **wider** than we described; the deps unblock; their missing `.gitattributes` | ✅ **closed by them** — they renamed `binaryen` → `binaryen-backend`, widened `.gitattributes`, and closed defect 5 with a conditional                                             |
-| 10 | correcting § 9 (they are on **1.5.3**, not 1.5.2); the convert pair priced by building it | ⬚ **awaiting their answer on one question** — though they have now SHIPPED against 1.5.3 as 2.0.2, so the `br_on_cast` queue entry is most likely stale rather than a live failure |
-| 11 | adopting their conditional-not-clearance form and their alias invariant                   | ⬚ outbound                                                                                                                                                                         |
+| §  | content                                                                        | state                                                                                                                                                                          |
+| -- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 7  | the `br_on_cast` estimate correction — three defects, not one                  | delivered                                                                                                                                                                      |
+| 8  | retraction of the phantom "deps need proper names" finding                     | delivered                                                                                                                                                                      |
+| 9  | defect 5 is **wider** than described; the deps unblock; `.gitattributes`       | ✅ **closed by them** — they renamed `binaryen` → `binaryen-backend`, widened `.gitattributes`, and closed defect 5 with a conditional                                         |
+| 10 | correcting § 9 (they are on **1.5.3**); the convert pair priced by building it | ⬚ **awaiting their answer on one question** — though they have SHIPPED against 1.5.3 as 2.0.2, so the `br_on_cast` queue entry is most likely stale rather than a live failure |
+| 11 | adopting their conditional-not-clearance form and their alias invariant        | ⬚ outbound                                                                                                                                                                     |
 
 ⚠️ **The one open question is in § 10 and it matters:** their queue still lists `br_on_cast` as
 unstarted, but all four `br_on_*` forms shipped in 1.5.3, which they are on. Either that entry
 predates their bump, or **our fix does not cover their cases** — we asked for one failing module.
-Worth resolving before anyone starts the convert pair.
+Resolve it before anyone starts on their queue.
 
 **Also open, from their side:** their 100 pinned wast failures are described as GC/ref-types
 conformance gaps. If any route to us rather than to wasic we want to know which — "now visible
@@ -908,5 +137,7 @@ someone is looking at.
 
 ## Not tasks, by decision
 
-**Converging the two IRs** — open-ended by decision 1, tracked by `deno task collisions`, not a
-release task. **D4 — never yank, ever.**
+- **Converging the two IRs is not a release task** — open-ended by decision 1, tracked by
+  `deno task collisions` ([overview.md](overview.md)). The S series is the work.
+- **D4 — never yank, ever** ([transition.md](transition.md)).
+- **The predecessors are frozen** — no change to `binaryen-ts` or `wabt-ts` on GitHub or JSR.

@@ -5,12 +5,21 @@ Merged topic file (A16). Supersedes `binaryen-ts/bridge.md` (312 lines) and `wab
 particular the wings are worth keeping, because most of what they contain is **history the merge
 itself invalidated**.
 
+**Current state (2026-09-14):** the bridge lives at `src/bridge/bridge.ts` (tests `tests/bridge/`,
+moved in 1.5.3), is reached by tests only, and is **scheduled for deletion by S6** of the IR
+convergence — the unified tree makes a translator unnecessary. Its acceptance gate is
+`deno task bridge`, at 401/421, which must reach 421/421 once the bridge is gone. External WAT no
+longer needs it: it goes wabt-ts → bytes → the binaryen-ts decoder (W4). See
+[ir-convergence.md](ir-convergence.md). Paths below that say `src/wabt-ts/bridge/` or
+`tests/wabt-ts/bridge/` are from before the move.
+
 ## What the merge changed
 
-`src/wabt-ts/bridge/bridge.ts` translates the wabt-ts IR into the binaryen-ts IR. It used to be a
-**package boundary**; it is now an **internal module**. Both IRs are retained deliberately — they do
-different jobs and wabt's round-trip fidelity is load-bearing — so the seam does not go away. What
-goes away is everything that existed only because the seam crossed a repository:
+`src/wabt-ts/bridge/bridge.ts` (now `src/bridge/bridge.ts`) translates the wabt-ts IR into the
+binaryen-ts IR. It used to be a **package boundary**; it is now an **internal module**. Both IRs are
+retained deliberately — they do different jobs and wabt's round-trip fidelity is load-bearing — so
+the seam does not go away. What goes away is everything that existed only because the seam crossed a
+repository:
 
 | gone with the merge                                       | why                               |
 | --------------------------------------------------------- | --------------------------------- |
@@ -144,8 +153,8 @@ producer and its consumer is invisible to their round trip.**
 
 The bridge is the one module the promotion rule can never promote: a module earns a common `src/`
 folder when nothing in either namespaced tree still imports it across the boundary, and the bridge
-is cross-tree _by definition_. 🔓 Where `src/wabt-ts/bridge/` finally lives is an open layout
-question — it can stay where it is and be promoted later at no cost.
+is cross-tree _by definition_. ✅ Where it lives was decided 2026-08-27: `src/bridge/`, as the
+promotion rule's one written standing exception ([overview.md](overview.md)).
 
 ## 🆕 An import alias must not collide with a package the project could resolve
 

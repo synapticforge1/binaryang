@@ -285,7 +285,8 @@ Recorded so they are not silently dropped, and so nobody re-opens the question:
   capable TypeScript output. A feature, not merge follow-through, and deferred pending wasmtk QA/QC.
 - **A3 — diagnostic offset accuracy is UNMEASURED**, not clean. T13.35's cheap oracle was false for
   every multi-byte construct and no replacement was built. **Do not let attrition convert this into
-  "clean"** — it needs a measurement before it needs a fix.
+  "clean"** — it needs a measurement before it needs a fix. ✅ _Measured 2026-08-31 (after 1.5.2):
+  `deno task offsets`, 0 missed rejections — [testing.md](testing.md)._
 - **Converging the two IRs.** Open-ended by decision 1, tracked by the count in § 3, and not a
   release task.
 

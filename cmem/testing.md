@@ -11,7 +11,7 @@ gates.
 
 ```sh
 deno task check        # type-check src/ + main.ts + tests/ + scripts/
-deno task test         # the full suite — 912 tests / 3153 steps / 2 ignored (2026-08-27)
+deno task test         # the full suite — 1043 tests / 0 ignored (2026-09-12); was 912 tests / 3153 steps / 2 ignored (2026-08-27)
 deno task fmt:check    # format
 deno lint
 deno task ci           # check + test
@@ -79,10 +79,10 @@ tree, exit 1 naming the file when one byte-count or hash is altered.
 
 ## The corpora, and what each is for
 
-| corpus                  | what                                         | state                                                                                                                     |
-| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `upstream/test`         | binaryen's own suite, for parse→encode→parse | **gitignored and currently ABSENT.** The test SKIPS rather than fails, so it is free to keep locally and CI is unaffected |
-| `tests/wabt-ts/wasmtk/` | 421 real-world WAT files from wasmtk         | present; the runner picks up any file dropped in, and a reverse-direction runner asserts the disassembly re-compiles      |
+| corpus                  | what                                         | state                                                                                                                                                                                                                                                                     |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `upstream/test`         | binaryen's own suite, for parse→encode→parse | the reading-room clone, OUTSIDE the repo at `wasmExamples/binaryen-ts/upstream/test`. The test looks in both places and SKIPS only when neither exists, so CI is unaffected. 🔧 It had silently skipped from the merge until 2026-09-12 — see "Independent oracles" below |
+| `tests/wabt-ts/wasmtk/` | 421 real-world WAT files from wasmtk         | present; the runner picks up any file dropped in, and a reverse-direction runner asserts the disassembly re-compiles                                                                                                                                                      |
 
 ### The wasmtk corpus is a SNAPSHOT, and that has cost real credibility
 
@@ -387,8 +387,8 @@ unpushed commits. **Use `deno task ci` (check + test), never `deno task test` al
 ## ⚠️ Every test-file path in the wings is DEAD
 
 The merge normalised the naming from `foo_test.ts` to `foo.test.ts`. **Zero `*_test.ts` files exist;
-all 172 are `*.test.ts`** — and the two wings between them contain **58 references to the old
-form**, every one an unfollowable path.
+all 172 are `*.test.ts`** (230 by 2026-09-12, still zero of the old form) — and the two wings
+between them contain **58 references to the old form**, every one an unfollowable path.
 
 They are not wrong about _which_ test pins an invariant, which is what those sections are for. They
 cannot be copy-pasted. Translate the name, and confirm the file exists before citing it — two of the
@@ -453,6 +453,208 @@ removed). Missed rejections **5 → 0**, and the one legal alternative encoding 
   downstream cases are all body-internal corruption noticed at the section or function end, which is
   explainable rather than obviously wrong — nobody has judged them one at a time.
 - **The accepted class outranks the offset numbers**, and the harness says so in its own output.
+
+## Independent oracles — our two implementations checking each other is blind by construction
+
+⚠️ **Nearly every invariant in this project compares wabt-ts against binaryen-ts — our own two
+implementations.** That is excellent at finding disagreements (it found ~20 defects across the 1.5.5
+passes) but **blind by construction** to two things: anything both get wrong the same way, and any
+input neither of them produces. The tools that reach past it are installed; the list is in
+[working-rules.md](working-rules.md) § "Installed oracles".
+
+**Proved on first use.** Against 511 third-party binaries from the wasmtk suite, exactly one failed
+— a Go-compiled `strlib.wasm`. The binary reader read an `if`'s blocktype, computed its result type,
+and discarded it with a literal `void resultType;`; `makeIf` infers from the arms instead, which is
+right until BOTH arms are unreachable. No module in the 421-file corpus has that shape, so no amount
+of re-running it would ever have found this (`if_declared_result.test.ts`). It also confirmed
+empirically that `blockType`-as-declared is the most load-bearing member of the as-written set
+([ir-convergence.md](ir-convergence.md)): its absence emitted an invalid module on real code.
+
+🔑 **Keep reaching for upstream on every byte-level claim.** It paid twice on 2026-09-04: upstream
+`wat2wasm` confirmed our multi-memory bytes were right before a defect was diagnosed from them, and
+confirmed the wide-arithmetic encoding before binaryen-ts gained it. Our own second implementation
+would have agreed with the first and proved nothing.
+
+### Standing results — so a new harness adds an axis rather than repeating one
+
+| oracle                                          | result                             |
+| ----------------------------------------------- | ---------------------------------- |
+| upstream `wasm-validate` on our binaries        | 421 / 421                          |
+| upstream `wat2wasm` on our FOLDED output        | 421 / 421                          |
+| upstream `wat2wasm` on our LINEAR output        | 421 / 421                          |
+| 511 foreign `.wasm` read and re-encoded valid   | 511 / 511                          |
+| wabt-ts `wat2wasm` bytes == upstream (W5, W6)   | 421 / 421, outside custom sections |
+| `wasm-tools` on our labels and field names (N2) | see [names.md](names.md)           |
+
+The upstream-wabt oracle's REACH LIMIT is above ("An oracle that cannot reach the feature must be
+SAID to not reach it"); `wasm-tools` 1.259 reaches GC text, labels and field names, and has its own
+gaps (divergence G4).
+
+### A SKIPPED test and a NARROW guard fail the same way — silently (2026-09-12)
+
+Found by asking what the suite's "2 ignored" were. **Read what a passing test MEASURES, not what it
+is named — and check the ignored count, every time.**
+
+- **`corpus_roundtrip` (91 upstream binaries) had been skipping since the MERGE.** It looked for the
+  reading-room clone at `<repo>/upstream/test`, and the clone stayed BESIDE the merged repo, in
+  `wasmExamples/binaryen-ts/upstream/test`. It now checks both paths (`456423b54`).
+- **Then it turned out not to guard what its doc claimed**: `summary()` counted 4 of the 9 index
+  spaces, so deleting the entire EXPORT section from the encoder still passed it. It now counts
+  every space and compares the whole record.
+- **The other ignored test was ALSO broken.** The live `npm:binaryen` interop test, gated on
+  `BINARYEN_LIVE=1`, had never run — and failed when enabled. Its fixture was LINEAR WAT while
+  `deno.lock` resolved `npm:binaryen@116`, whose old s-expression parser reads FOLDED only:
+  `parseText` aborts the Emscripten process with `exit(1)`, which poisons the exit code for the NEXT
+  live test too. binaryen 132 (the `wasm-opt` on PATH) reads both. Both live tests now run on
+  availability rather than an env flag: **1043 passed, 0 ignored** (`cec3a3381`).
+- ⚠️ **A probe that imports `npm:binaryen` from OUTSIDE this project resolves 132** and says linear
+  is fine — the probe and the test were both right about different binaryens. Pin the version in the
+  probe, or compare `npm:binaryen@116` and `@132` side by side, which is what settled it.
+- 🛑 **The follow-up pin commit did the opposite of its message.** `b8fafaa3f` said `npm:binaryen@*`
+  → 132.0.0; its diff deleted the 132 entries and left `@*` → 116.0.0, and the suite stayed green
+  only because the same commit made the fixture folded, which 116 also reads. 🔑 **The hole was the
+  BARE specifier** — `import('npm:binaryen')` names no version, so the lock may answer anything. The
+  version now lives in the SOURCE, `const BINARYEN = 'npm:binaryen@132'`, one constant for the probe
+  and both live cases, where Deno enforces it (`dea8ff9cf`). See
+  [best-practices.md](best-practices.md) § "A written result is a CLAIM".
+
+## The spec-testsuite harness — the must-REJECT axis
+
+**Owner-assigned 2026-09-02, built `c1c24c9d3`**: `deno task spec:prepare` then `deno task spec`.
+Moved here from `open-work.md` on 2026-09-14, where it had been recorded while it was the open item.
+
+The source is 257 `.wast` files at
+`<workspace>\wasmtk\tests\module\wasm_wast\testsuite-main`.
+⚠️ **READ ONLY**: it is a sibling repo, so never write there; copy to scratch if a tool might.
+Rebuilding the corpus each session: [working-rules.md](working-rules.md).
+
+🔑 **It tests an axis nothing here had EVER tested: whether we correctly REJECT.** Every invariant
+before it asked "do we accept valid input correctly" — and a tool that accepts everything scores
+perfectly on all of them. The suite contains **4,654 must-reject cases**:
+
+| assertion              | count     | what it demands                           |
+| ---------------------- | --------- | ----------------------------------------- |
+| `assert_return`        | 52,591    | the module runs and returns a given value |
+| `assert_trap`          | 4,977     | it traps                                  |
+| **`assert_invalid`**   | **2,714** | the module **must fail validation**       |
+| **`assert_malformed`** | **1,940** | the text **must fail to parse**           |
+| `assert_unlinkable`    | 200       | instantiation must fail                   |
+
+`wast2json` splits each file into modules plus a JSON manifest of its assertions — that is the way
+in; do not hand-parse `.wast`.
+
+### First run: the must-reject axis came out strong
+
+Fail-loud holds up under a suite designed to attack it.
+
+| axis                           | result                 |
+| ------------------------------ | ---------------------- |
+| modules ACCEPTED (must accept) | 1951 / 1955 · 99.8%    |
+| `assert_invalid` REJECTED      | 2420 / 2422 · 99.9%    |
+| malformed BINARY rejected      | 711 / 711 · **100%**   |
+| malformed TEXT rejected        | 1156 / 1156 · **100%** |
+
+227 of 257 files; the 30 skipped were GC-proposal files `wast2json` 1.0.41 cannot split (G2, closed
+below).
+
+### All six findings closed by ONE fix — `3445d978a`
+
+SP1–SP4 were one root cause. **`BlockType`'s value case was typed `Type`** — a flat numeric enum
+whose values are single wire bytes. A typed reference does not fit: `(ref ht)` encodes as `0x64`
+FOLLOWED BY a heap type. The reader took the tag and left the heap index in the instruction stream,
+where the next decode step consumed it as an OPCODE:
+
+```
+(block (result (ref 0)) (ref.func 0))
+  upstream : block (result (ref 0)) / ref.func 0
+  ours     : block <type 100> / UNREACHABLE / ref.func
+```
+
+🔑 **BYTE EQUALITY IS NOT SEMANTIC EQUALITY, and this is the proof.** It round-tripped
+byte-identically — the writer emitted that phantom `unreachable` as the very byte it had been
+mis-read from, so the two halves of one gap concealed each other. **The corpus round trip at 421/421
+byte-identical, the strongest signal this project had, was blind to an IR containing an instruction
+the program does not have.** A phantom `unreachable` makes everything after it dead code, so any
+pass reading that IR reasoned about a different program. The spec suite saw the same gap from the
+other side: a heap index never stored can never be range-checked, so two INVALID modules were
+ACCEPTED, and SP1–SP3's "type mismatch" errors were the missing heap type breaking type-checking
+downstream.
+
+| axis                      | after                  |
+| ------------------------- | ---------------------- |
+| modules ACCEPTED          | 1955 / 1955 · **100%** |
+| `assert_invalid` REJECTED | 2422 / 2422 · **100%** |
+| malformed BINARY          | 711 / 711 · **100%**   |
+| malformed TEXT            | 1156 / 1156 · **100%** |
+
+### SP5 — and the finding as first written was half wrong
+
+It was recorded as "`Features.compactImports` and `.wideArithmetic` are declared but the binary
+reader does not implement them" — one claim covering two unrelated situations, and **neither had
+been checked**.
+
+- ✅ **`wideArithmetic` is FULLY implemented in wabt-ts** — `i64.add128` / `sub128` / `mul_wide_s` /
+  `mul_wide_u` decode, validate, write and round-trip byte-identically.
+- ⚠️ **`compactImports` was worse than unimplemented**: declared, settable, returned `true` by
+  `allFeatures()`, and read by nothing. Enabling it changed nothing.
+
+Fixed by making the flag TRUTHFUL rather than implementing the proposal, which is not planned — V8
+needs `--experimental-wasm-compact-imports` to load such a module at all. The reader names the
+proposal instead of `unknown import kind: 127`, and the field says plainly that setting it does
+nothing. Kept rather than removed, because `Features` is public surface.
+
+The one real gap it surfaced — wide arithmetic refused by binaryen-ts's binary reader
+(`unsupported bulk-memory/table opcode: 0xFC 0x13`) — was assigned to S5 and **dissolved by it**
+(re-probed 2026-09-12): `(i64.add128 …)` assembled by upstream `wat2wasm --enable-all` decodes
+through binaryen-ts and re-encodes **byte-identically** (40B → 40B). ⚠️ Checked rather than assumed:
+a shared KIND does not imply a decoded OPCODE.
+
+🔑 **A feature flag is not an implementation** — the third "declared is not implemented" of that
+session, after `ExpressionKind` members with no factory and four stale `not yet supported` blockers.
+And about the FINDING: a two-part claim written from one observation. **The half with evidence was
+true; the inferred half was false.**
+
+### ⚠️ The feature set IS the design, and it was wrong twice first
+
+- **`--enable-all` is wrong**: it changes what `wast2json` EMITS, not just what it permits. It
+  produced compact-imports binaries (import kind `0x7F`) that are not standard wasm — V8 rejects
+  them outright — and the harness reported **58 false "valid module REJECTED"** findings.
+- **the DEFAULT set is also wrong**: only 157 of 257 files convert, silently dropping SIMD, GC,
+  threads and tail calls. That reads as a pass because the failures never enter the corpus.
+- **the validator needs its features passed too**: the very first run used the default set and
+  reported **464 false rejections**, every one a post-MVP proposal the suite exercises on purpose.
+
+**A corpus built with the wrong flags measures the flags, not the code.** All three configurations
+are recorded in `scripts/spec-prepare.ts`.
+
+### ✅ G2 — all 257 files run (2026-09-11, `318915973`)
+
+`spec-prepare` falls back to `wasm-tools json-from-wast` for the 30 files `wast2json` 1.0.41 cannot
+split, and the harness reads its command types: `module_definition` (a module's obligation — accept
+it), and modules or `assert_invalid` cases given as **TEXT**, where `wast2json` only ever emitted
+binaries. A text module is assembled and then decoded and validated, because `wat2wasm` does not
+validate.
+
+| axis                      | was (227 files) | now (257 files)        |
+| ------------------------- | --------------- | ---------------------- |
+| modules ACCEPTED          | 1955 / 1955     | **2248 / 2248 · 100%** |
+| `assert_invalid` REJECTED | 2422 / 2422     | **2714 / 2714 · 100%** |
+| malformed BINARY          | 711 / 711       | **711 / 711 · 100%**   |
+| malformed TEXT            | 1156 / 1156     | **1229 / 1229 · 100%** |
+
+🔑 **The 30 missing files were the least safe thirty to be missing**: they test the GC proposal —
+the one thing this toolchain implements and upstream wabt cannot judge at all (G1, G3). The new
+ground is 293 must-accept modules, 289 must-reject modules and 73 must-reject texts, and **all of
+them passed on the first run.** ⚠️ **"No misses" on brand-new coverage is the shape of a harness
+that is NOT RUNNING** — so it was proved otherwise: run over those 30 dirs alone they account for
+exactly those counts, and corrupting one accepted module plus making one `assert_invalid` case valid
+makes the harness report both.
+
+### ⬚ Not yet covered
+
+`assert_return` / `assert_trap` — 55,993 behavioural assertions, skipped deliberately so the first
+pass measured the axis nothing else measures. Running them needs an invoke harness, and an engine
+already covers that ground; worth doing, but second. Tracked in [open-work.md](open-work.md).
 
 ## Where the per-invariant detail lives
 

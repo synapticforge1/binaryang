@@ -323,8 +323,8 @@ the same reason as P1.
 `*_test.ts`.** wabt-ts's convention won, and the rename happened during the merge rather than as the
 separate commit this row asked for. No action; the hazard it describes (an `include` glob or shard
 split covering half the tree) cannot occur with one convention. ⚠️ Left standing as an open step-5
-item for nine days after it had been resolved. See `claim-vs-artifact`: a row saying "decide this
-later" is a claim about the present too.
+item for nine days after it had been resolved. See [best-practices.md](best-practices.md) § "A
+written result is a CLAIM": a row saying "decide this later" is a claim about the present too.
 
 ### N2 🆕 binaryen-ts's `tests/deno.json` workspace member is load-bearing — 424 errors
 
