@@ -333,6 +333,20 @@ function isBlockTypeCarrier(expr: Expression): boolean {
   }
 }
 
+/** A construct that closes with its own `end`, and so resets the stack to its declared type. */
+function isControlConstruct(e: Expression): boolean {
+  switch (e.kind) {
+    case ExpressionKind.Block:
+    case ExpressionKind.Loop:
+    case ExpressionKind.If:
+    case ExpressionKind.Try:
+    case ExpressionKind.TryTable:
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
  * A block-type carrier's RESULT list, from its type: empty for `none` and for
  * `unreachable` (a construct whose every path branches away declares no result
@@ -1738,7 +1752,26 @@ class WasmEncoder {
     throw new WasmEncodeError(`unresolved branch label: "${name}"`);
   }
 
+  /**
+   * One expression — and, after a control construct TYPED unreachable, an extra
+   * `unreachable` opcode.
+   *
+   * A `block` / `loop` / `if` / `try` / `try_table` is validated against its
+   * DECLARED type: after its `end` the stack holds exactly its results, never a
+   * polymorphic one, however surely every path inside throws or traps. The IR
+   * may type such a construct `unreachable`, and a pass reading that type may
+   * leave nothing after it — so without this a tree a pass built was invalid
+   * wherever a value had to follow (`unreachable_construct.test.ts`). Upstream's
+   * writer does exactly this (`wasm-stack.h`, `BinaryenIRWriter::visitBlock` and
+   * its siblings). A DECODED construct carries its declared type, so a plain
+   * decode → encode never reaches the extra byte.
+   */
   private encodeExpr(w: BinaryWriter, expr: Expression, labels: LabelStack): void {
+    this.encodeExprInner(w, expr, labels);
+    if (expr.type === Unreachable && isControlConstruct(expr)) w.writeU8(0x00);
+  }
+
+  private encodeExprInner(w: BinaryWriter, expr: Expression, labels: LabelStack): void {
     switch (expr.kind) {
       case ExpressionKind.Nop: {
         w.writeU8(0x01);
