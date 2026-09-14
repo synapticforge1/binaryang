@@ -7,32 +7,66 @@ item closes, its record goes to the topic file and its line leaves here.
 Rewritten 2026-09-14 as outstanding-only. It had grown to 912 lines, most of them CLOSED history;
 that history now lives in its topic files — nothing was dropped:
 
-| closed history                                                  | now in                                 |
-| --------------------------------------------------------------- | -------------------------------------- |
-| the spec-testsuite harness, SP1–SP5, G2, the feature-set lesson | [testing.md](testing.md)               |
-| the IR convergence record and status, S1–S7                     | [ir-convergence.md](ir-convergence.md) |
-| every upstream difference, open and closed                      | [divergences.md](divergences.md)       |
-| names (N1 and its release items)                                | [names.md](names.md)                   |
-| everything on `main` awaiting a release note                    | [unreleased.md](unreleased.md)         |
-| the WAT routes, the folded-writer ladder, the bridge question   | [ir-convergence.md](ir-convergence.md) |
-| the retirement (D2 / D3, the frozen predecessors)               | [project.md](project.md)               |
-| the 1.5.5 quality passes                                        | [testing.md](testing.md)               |
-| releases, 1.5.4, `RELEASE_PAT`'s root cause                     | [publishing.md](publishing.md)         |
-| the wasmtk correspondence                                       | [handoffs.md](handoffs.md)             |
+| closed history                                                  | now in                                                     |
+| --------------------------------------------------------------- | ---------------------------------------------------------- |
+| the spec-testsuite harness, SP1–SP5, G2, the feature-set lesson | [testing.md](testing.md)                                   |
+| the IR convergence record and status, S1–S7                     | [ir-convergence.md](ir-convergence.md)                     |
+| every upstream difference, open and closed                      | [divergences.md](divergences.md)                           |
+| names (N1 and its release items)                                | [names.md](names.md)                                       |
+| everything on `main` awaiting a release note                    | [unreleased.md](unreleased.md)                             |
+| the WAT routes, the folded-writer ladder, the bridge question   | [ir-convergence.md](ir-convergence.md)                     |
+| the retirement (D2 / D3, the frozen predecessors)               | [project.md](project.md)                                   |
+| the 1.5.5 quality passes                                        | [testing.md](testing.md)                                   |
+| releases, 1.5.4, `RELEASE_PAT`'s root cause                     | [publishing.md](publishing.md)                             |
+| the wasmtk correspondence                                       | [handoffs.md](handoffs.md)                                 |
+| the predecessors' wings (T-ids, UP-n, WT-n, invariants → tests) | [wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md) |
+| the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
 **State, 2026-09-14:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
-bridge 401/421. Re-derive before quoting.
+bridge 401/421, one pack. Re-derive before quoting.
+
+## Start the next session here (handoff, 2026-09-14)
+
+The 2026-09-14 session was **memory work, not code**. `src/` behaviour is unchanged (baseline
+IDENTICAL after every merge), and the full gate passed on the committed tree at `1cbe88be8`.
+
+| merge       | what landed                                                                                                                                                                             |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cff3284b8` | machine-local memory moved into cmem; machine facts in the PRIVATE, gitignored `cmem/local/` (history rewritten before any push, so they never entered it); open-work cut to open items |
+| `6e5e1b72c` | `scope-1.5.2.md` retired into a summary; the cleanup policy recorded ([INDEX.md](INDEX.md) § "Cleanup policy")                                                                          |
+| `1672c2a5a` | eight cmem references in code that used wabt-ts's pre-merge paths fixed                                                                                                                 |
+| `de803de12` | core consolidated by topic, 19 files → 13                                                                                                                                               |
+| `9758fc736` | code path references follow binaryang's layout (193 unresolved → 69, all by design); `git gc --prune=now`                                                                               |
+| `1cbe88be8` | both wings corrected and summarized: 26 files / 16,805 lines → [wabt-ts.md](wabt-ts.md) + [binaryen-ts.md](binaryen-ts.md), 1,662 lines; the findings below were added to this file     |
+
+Also scoped (no code change): **K3** — recommendation MERGE `simd.shift` into `binary`, measured by
+the worst-condition method ([ir-convergence.md](ir-convergence.md) § "K3").
+
+**Suggested order:**
+
+1. **Owner decisions first** — rows 2, 3, 6, 7 and 8 of the table below. Each one unblocks or
+   removes work.
+2. **Probe the non-nullable-local fixup** (§ "Open defects and gaps"). It is the one new finding
+   that could be a silent miscompile. Build a fixture that inlines a callee with a non-nullable
+   `(ref $T)` local, and check the result validates. Then either port the fixup or correct the
+   comments.
+3. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
+   `ref.as_non_null` refusal is among the 20 misses.
+4. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
 
 ## Owner actions — nothing here is blocked on code
 
-| # | item                         | note                                                                                                                                                                                                                                                                                                            |
-| - | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 | **Create `RELEASE_PAT`**     | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                            |
-| 2 | **K3 — `simd.shift`**        | 🗓️ scoped 2026-09-14; recommendation MERGE into `binary`. [ir-convergence.md](ir-convergence.md) § "K3"                                                                                                                                                                                                         |
-| 3 | **`call_indirect`'s `sig`**  | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                                                                                 |
-| 4 | **Names under optimization** | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned) |
-| 5 | **When to release**          | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                              |
+| # | item                            | note                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| - | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | **Create `RELEASE_PAT`**        | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                                                                                                                                                                                              |
+| 2 | **K3 — `simd.shift`**           | 🗓️ scoped 2026-09-14; recommendation MERGE into `binary`. [ir-convergence.md](ir-convergence.md) § "K3"                                                                                                                                                                                                                                                                                                                                                                           |
+| 3 | **`call_indirect`'s `sig`**     | 🗓️ Group 3's one tie where cost (11 vs 16, convert wabt-ts) and structure (`FuncSignature` is wabt-ts's house concept) point opposite ways — [ir-convergence.md](ir-convergence.md) § "Group 3"                                                                                                                                                                                                                                                                                   |
+| 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned)                                                                                                                                                                   |
+| 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                                                                                                                                                                                                |
+| 6 | **Release-flow fix**            | 🗓️ found 2026-09-14: `deno task bump` then `deno task release` refuses at its own guard (`main.ts` left dirty). Release tooling, so the owner's call — see § "Open defects and gaps". Decide before the next release                                                                                                                                                                                                                                                              |
+| 7 | **TranslateEH — still wanted?** | 🗓️ re-checked 2026-09-14: unimplemented, and wasmtk is migrating wasic to `try_table`, so it would be a compatibility shim for legacy binaries only. Keep, or close as won't-do — see § "Repo work"                                                                                                                                                                                                                                                                               |
+| 8 | **A local path in git history** | 🗓️ found 2026-09-14. Committed cmem carried this machine's absolute directory path for the spec testsuite and sibling repos. It is now moved to `cmem/local/environment.md`. It is a directory layout, with no account name, token or secret — but it is **already on GitHub** in `b472b4aa4` (pushed 2026-09-03), and in the unpushed `df3659840`. Removing it from pushed history needs a force push. Recommendation: leave it, since the sensitivity is low; the owner decides |
 
 ~~JSR and GitHub descriptions on both predecessors~~ — 🛑 CLOSED as won't-do (owner, 2026-09-02);
 the predecessors are frozen. Do not re-open ([project.md](project.md)).
@@ -70,51 +104,56 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
-- ⬚ **The documented release flow refuses at its own guard** (found 2026-09-14 summarizing the wabt-ts
-  wing; verified by running the guard). `deno task bump` rewrites `deno.json` AND `main.ts`, but
-  `scripts/release/publish.ts` stages only `deno.json` and `releaseBlockers` exempts only `deno.json`
-  — so right after a bump the guard returns `[" M main.ts"]` and `deno task release` exits 1. It fails
-  SAFE (nothing publishes); 1.5.4 went out because its bump was committed by hand first (`395f536fc`
-  holds both files) and the script skipped its commit. [publishing.md](publishing.md) § "The flow"
-  documents the path that refuses. Fix is release tooling — the owner's call: stage and exempt
-  `main.ts` too, with a guard test for the post-bump status. Related, also release tooling and still
-  not applied: `scripts/release/` runs no cold type check before the tag push, so a stale type cache
-  is caught only by `publish.yml` after the tag is public — and it wants a fresh `DENO_DIR`, not
-  `--reload` ([binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/publishing.md`).
-- ⬚ **The non-nullable-local fixup is documented but does not exist** (found 2026-09-14 summarizing the
-  binaryen-ts wing; verified by grep). `Pass.requiresNonNullableLocalFixups` is `false` in every pass,
-  `PassRunner.run()` never reads it, and no fixup pass exists — yet the JSDoc at
-  `src/binaryen-ts/passes/pass.ts:223` says one is inserted, and `inlining.ts:551` returns `null` ("no
-  reset") for a non-nullable `(ref $T)` local on the strength of it. Whether it is REACHABLE is
+- ⬚ **The documented release flow refuses at its own guard** (found 2026-09-14 summarizing the
+  wabt-ts wing; verified by running the guard). `deno task bump` rewrites `deno.json` AND `main.ts`,
+  but `scripts/release/publish.ts` stages only `deno.json` and `releaseBlockers` exempts only
+  `deno.json` — so right after a bump the guard returns `[" M main.ts"]` and `deno task release`
+  exits 1. It fails SAFE (nothing publishes); 1.5.4 went out because its bump was committed by hand
+  first (`395f536fc` holds both files) and the script skipped its commit.
+  [publishing.md](publishing.md) § "The flow" documents the path that refuses. Fix is release
+  tooling — the owner's call: stage and exempt `main.ts` too, with a guard test for the post-bump
+  status. Related, also release tooling and still not applied: `scripts/release/` runs no cold type
+  check before the tag push, so a stale type cache is caught only by `publish.yml` after the tag is
+  public — and it wants a fresh `DENO_DIR`, not `--reload` ([binaryen-ts.md](binaryen-ts.md) §
+  `binaryen-ts/publishing.md`).
+- ⬚ **The non-nullable-local fixup is documented but does not exist** (found 2026-09-14 summarizing
+  the binaryen-ts wing; verified by grep). `Pass.requiresNonNullableLocalFixups` is `false` in every
+  pass, `PassRunner.run()` never reads it, and no fixup pass exists — yet the JSDoc at
+  `src/binaryen-ts/passes/pass.ts:223` says one is inserted, and `inlining.ts:551` returns `null`
+  ("no reset") for a non-nullable `(ref $T)` local on the strength of it. Whether it is REACHABLE is
   unverified: it needs a non-nullable typed-ref local through inlining. Probe with such a fixture
   before deciding between porting the fixup and correcting the comments.
 - ⬚ **Multiple tables are refused at encode** (`checkSingleTable`, `wasm-encoder.ts` ~1151; elem and
-  `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already resolves
-  `call_indirect`'s table index. The day it is lifted, both encoders must thread the real index.
-- ⬚ **`src/bridge/bridge.ts:1190-1194` refuses `ref.as_non_null`** because "binaryen-ts v1.0.9 has no
-  makeRefAsNonNull factory"; the factory exists since UP-4 (`f664ba579`). A stale blocker, moot if S6
-  step 5 deletes the bridge — check whether it is among the bridge's 20 refusals first.
-- ⬚ **`scripts/wabt-ts/engine-check.ts` self-tests only the reject direction** (~195–219: a known-INVALID
-  module must be refused). No must-ACCEPT module guards an engine that refuses everything — the exact
-  failure its Wasmer comment describes (`--enable-all` made every module read as rejected).
+  `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already
+  resolves `call_indirect`'s table index. The day it is lifted, both encoders must thread the real
+  index.
+- ⬚ **`src/bridge/bridge.ts:1190-1194` refuses `ref.as_non_null`** because "binaryen-ts v1.0.9 has
+  no makeRefAsNonNull factory"; the factory exists since UP-4 (`f664ba579`). A stale blocker, moot
+  if S6 step 5 deletes the bridge — check whether it is among the bridge's 20 refusals first.
+- ⬚ **`scripts/wabt-ts/engine-check.ts` self-tests only the reject direction** (~195–219: a
+  known-INVALID module must be refused). No must-ACCEPT module guards an engine that refuses
+  everything — the exact failure its Wasmer comment describes (`--enable-all` made every module read
+  as rejected).
 - ⬚ **Stale source comments** (claim vs artifact; each verified 2026-09-14):
   - `src/wabt-ts/ir/ir-util.ts` — the `ModuleContext` class doc and the field comment at 86–90 claim
     validator/writer traffic; `getExprArity` has no production caller ([wabt-ts.md](wabt-ts.md)).
-  - `src/wabt-ts/ir/apply-names.ts` header NOTE still calls the rewriter partial; T13.20 made it total.
-  - `src/wabt-ts/reader/binary-reader.ts` ~2572 calls relaxed ternaries a known limitation; they decode
-    as ternary.
-  - `src/binaryen-ts/encoder/wasm-encoder.ts` ~1594–1605 describes "four sites" and `sealFrame`-stamped
-    blocks, a mechanism S6 5 removed; so does the header of
+  - `src/wabt-ts/ir/apply-names.ts` header NOTE still calls the rewriter partial; T13.20 made it
+    total.
+  - `src/wabt-ts/reader/binary-reader.ts` ~2572 calls relaxed ternaries a known limitation; they
+    decode as ternary.
+  - `src/binaryen-ts/encoder/wasm-encoder.ts` ~1594–1605 describes "four sites" and
+    `sealFrame`-stamped blocks, a mechanism S6 5 removed; so does the header of
     `tests/binaryen-ts/binary/region_body.test.ts` ("three of these thirteen" fail on a revert of
     `encodeRegionBody`).
-  - `src/binaryen-ts/passes/asyncify.ts` ~263 says loads carry no memory index, and ~541–545 says the
-    reader discards the name section; N1 P4 (`138148881`) reads names. Neither limitation re-probed.
+  - `src/binaryen-ts/passes/asyncify.ts` ~263 says loads carry no memory index, and ~541–545 says
+    the reader discards the name section; N1 P4 (`138148881`) reads names. Neither limitation
+    re-probed.
   - `src/binaryen-ts/tools/wasm-opt.ts` ~461–463 says `import.meta.main` is "not yet universal"; the
     Node 22.18 floor has it.
   - `tests/wabt-ts/tools/cli_io_errors.test.ts:27` says `deno task test` runs `--allow-read` only.
 - ⬚ **Minor, wabt-ts**: `parseHexFloat` (`core/literal.ts`) sums `parseInt` parts, imprecise but
-  lexer-level only (the const path uses `parseF64Bits`); `wasm-objdump -h` only re-sets a default that
-  is already `true`; the lexer's `isDigit && !readNum()` guard is dead.
+  lexer-level only (the const path uses `parseF64Bits`); `wasm-objdump -h` only re-sets a default
+  that is already `true`; the lexer's `isDigit && !readNum()` guard is dead.
 - ⬚ **T2** — "binaryen-ts's encoder derives the type-section order" is NOT reproducible on decode →
   encode; open until reproduced with a case on whatever path was measured.
 - ⬚ **E1 unification** — wabt-ts drops an explicit empty `else` where binaryen-ts keeps it; unify in
@@ -176,14 +215,16 @@ fatigue.
   output). **Blocked, and not close**: as of 2026-09-02 the wasmtk side has a long way to go before
   there is anything to implement against.
 - ⬚ **TranslateEH** (binaryen-ts) — re-checked 2026-09-14: still unimplemented (no pass, no mention
-  in `src/` or `tests/`). **Whether it is still wanted is the owner's call**: wasmtk chose to migrate
-  wasic to `try_table`, which makes TranslateEH a compatibility shim for already-built legacy
-  binaries rather than a pipeline step. If kept, its step 0 — confirm wasmtime accepts a `try_table`
-  module OUR encoder produces — was never done ([binaryen-ts.md](binaryen-ts.md) § "TranslateEH").
+  in `src/` or `tests/`). **Whether it is still wanted is the owner's call**: wasmtk chose to
+  migrate wasic to `try_table`, which makes TranslateEH a compatibility shim for already-built
+  legacy binaries rather than a pipeline step. If kept, its step 0 — confirm wasmtime accepts a
+  `try_table` module OUR encoder produces — was never done ([binaryen-ts.md](binaryen-ts.md) §
+  "TranslateEH").
 - ⬚ **Phase 10 kernel selection** — a live gap carried from binaryen-ts, not re-checked since the
   merge ([project.md](project.md)).
 - ⬚ **Diagnostic usefulness** ("is the message actionable?") is the one hardening axis never
-  attempted; offsets (A3) and wording are measured ([wabt-ts.md](wabt-ts.md) § `wabt-ts/testing.md`).
+  attempted; offsets (A3) and wording are measured ([wabt-ts.md](wabt-ts.md) §
+  `wabt-ts/testing.md`).
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 
