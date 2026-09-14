@@ -35,7 +35,9 @@ import { assert } from '@std/assert';
 
 // `cmem/` and `README.md` are in scope too, and were NOT at first — which is
 // how T13.28 happened: five control bytes accumulated across three memory
-// files, making `cmem/tasks.md` and `cmem/design-decisions.md` BINARY to grep.
+// files, making wabt-ts's `tasks.md` and `design-decisions.md` BINARY to grep
+// (both at the root of its `cmem/` then; since the merge,
+// `cmem/wabt-ts/tasks.md` and `cmem/wabt-ts/design-decisions.md`).
 // Searching project memory is itself a grep, and one of the corrupted bytes was
 // a `\b` inside the documented id-lookup command, so the instruction the ledger
 // gives for picking the next tranche id was silently broken.

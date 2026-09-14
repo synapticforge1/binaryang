@@ -5,7 +5,7 @@
  * Round-5 regression tests for the 2026-06-09 silent-corruption audit — the
  * fifth-sweep finding: generateNames emitted synthetic names without the
  * leading `$`, producing invalid WAT on the wasm2wat path that did not
- * round-trip. See cmem/design-decisions.md.
+ * round-trip. See cmem/wabt-ts/design-decisions.md.
  */
 
 import { describe, it } from '@std/testing/bdd';
