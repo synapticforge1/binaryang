@@ -102,11 +102,28 @@ Ranking agreed in [handoffs.md](handoffs.md). Ranks 1–3 shipped (`br_on_cast` 
 
 ## Quality passes — 1.5.6 / 1.5.7
 
-The three-version plan: **1.5.5** code issues (passes 1–7 done, register EMPTY, converged against
-the invariant battery), **1.5.6** hardening then code again, **1.5.7** security then hardening then
-code again — each lens repeated until a pass turns up nothing new. ⬚ 1.5.6 and 1.5.7 not started. ⚠️
-Converging means THESE invariants no longer discriminate, not that no issues remain. Lens
-definitions, method and register: [quality-passes.md](quality-passes.md).
+The plan, agreed 2026-09-02. Each version adds a LENS and re-runs every lens below it, and each lens
+repeats until a pass turns up nothing new — the re-runs are the point, since fixing a hardening
+issue can introduce a code issue:
+
+| version   | lenses, in order                            | state                                                                                    |
+| --------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **1.5.5** | code                                        | ✅ passes 1–7, register empty, converged — [testing.md](testing.md) § "The 1.5.5 passes" |
+| **1.5.6** | hardening → then code again                 | ⬚ not started                                                                            |
+| **1.5.7** | security → then hardening → then code again | ⬚ not started                                                                            |
+
+Without definitions 1.5.6 just repeats 1.5.5. If a finding fits two lenses, file it under the
+**lowest** one that would have caught it:
+
+| lens          | question                                    | examples from this codebase                                                                                                 |
+| ------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **code**      | is it WRONG on valid input?                 | wrong bytes, dropped information, logic contradicting its own docs, one fact duplicated in two places that drifted          |
+| **hardening** | does it survive HOSTILE or malformed input? | truncated binaries, absurd section counts, deep nesting, a panic where a typed error is the contract, unbounded work        |
+| **security**  | can a consequence be EXPLOITED?             | unbounded allocation from an attacker-controlled length, path traversal in a CLI, ReDoS, integer overflow reaching an index |
+
+⚠️ Converging means THESE invariants no longer discriminate, not that no issues remain. Keep a
+per-pass record — what each pass looked for and found — or convergence cannot be told apart from
+fatigue.
 
 ## Repo work
 
