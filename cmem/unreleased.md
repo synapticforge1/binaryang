@@ -59,7 +59,7 @@ their own bump — and nothing breaks by their standing still.
 - **New pass `TranslateToExnref`** (owner decision 7, `11517b29a`; `translate-to-exnref` resolves
   too): legacy EH — `try` / `catch` / `catch_all` / `delegate` / `rethrow` — into `try_table` and
   `throw_ref`, so a legacy-EH binary runs on Wasmtime and Wasmer. Opt-in; no optimization level
-  runs it. Translate BEFORE `-Oz`: optimizing untranslated legacy EH is an open defect (open-work).
+  runs it.
 - **Wide arithmetic** in binaryen-ts: `i64.add128` / `sub128` (a new `Quaternary` node) and
   `i64.mul_wide_s` / `_u` (two new `BinaryOp` members).
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
@@ -100,6 +100,11 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **DCE deleted a value still needed after a void `if` whose arms both throw or trap**
+  (`959954015`), so `-Oz` produced a module engines refuse — 30 of the 70 legacy EH spec
+  assertions, and not EH-specific. The decoder now keeps every `if`'s declared type, and the
+  encoder writes an extra `unreachable` after a construct a pass typed unreachable, as upstream
+  does. Decode → encode is still byte-identical (divergence U1).
 - **wabt-ts `wat2wasm` wrote a named branch after a legacy `delegate` one frame too deep**
   (`dd3c138ec`): the binary writer leaked the delegate's label. Valid bytes, a different program —
   `br 1` where upstream writes `br 0`; a later function refused the module instead.
