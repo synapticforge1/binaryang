@@ -110,8 +110,32 @@ listed defect fixed and one live gap, TranslateEH.
 
 ### TranslateEH
 
-**Status 2026-09-14: still unimplemented** — no such pass in `src/binaryen-ts/passes/` (15 `registerPass` calls;
-`strip-eh.ts` only removes EH), and `git grep TranslateEH` over `src/` and `tests/` returns nothing. Upstream: `WebAssembly/binaryen/src/passes/TranslateEH.cpp`, 823 lines, legacy `try` → `try_table`.
+**✅ IMPLEMENTED 2026-09-14 (owner decision 7: implement)** — `src/binaryen-ts/passes/translate-eh.ts`, registered as
+`TranslateToExnref` (upstream's `--translate-to-exnref` resolves to it), opt-in. Upstream:
+`WebAssembly/binaryen/src/passes/TranslateEH.cpp`, 823 lines, legacy `try` → `try_table`. The record of the build:
+- [decision] **Upstream's shapes, with one departure (divergence H1): no scratch or tuple locals.** binaryen-ts has no
+  tuple kinds, and its `Pop` is a stack placeholder a catch region already starts with, so a catch body is spliced in
+  after the block that delivers its values. The same placeholder moves an exnref into its local and a split
+  multi-value result into a `br`.
+- [decision] **Two things the decoder leaves raw, resolved in the pass:** a `br` may target a legacy try's own label
+  (the outermost replacement takes the try's name), and a `delegate` may name any enclosing label (resolved outward
+  to the nearest try whose BODY encloses it, or the caller — upstream's IRBuilder rule). Analysis is keyed by NODE
+  IDENTITY, not label, so a reused name cannot misresolve. A surviving legacy node throws.
+- [measured] **Gates.** `tests/binaryen-ts/passes/translate_eh.test.ts`: 14 fixtures, each run in V8 as legacy AND
+  translated against hand-written outcomes, validated by wabt-ts, re-decoded legacy-free, and run on wasmtime where
+  installed; six mutants (catch scope as delegate target, no try label, no `*_ref`, one shared exnref local, no `br`
+  out of a catch, delegate to a plain label as the caller) each failed exactly the fixture that pins it.
+  `deno task translate-eh <testsuite>/legacy <out>`: the spec's legacy files, **70 / 70 behavioural assertions** in
+  V8 as legacy, translated, and translated then `-Oz`; inverted twice (pass disabled; no `*_ref` → 61 / 70).
+  Wasmtime 48.0.2 compiles all 6 translated spec modules, plain and `-Oz`, and refuses the 5 legacy ones with a `try`.
+- [lesson] **Building the fixtures found two silent miscompiles elsewhere**, both fixed first (`dd3c138ec`,
+  `2e02963bc`): wabt-ts's binary writer leaked a `delegate`'s label (every later named branch one frame too deep),
+  and binaryen-ts's decoder dropped a multi-result `if` / `loop` / `try` / `try_table`'s extra values (decode → encode
+  wrote `unreachable`). Neither was reachable from the corpus. And **four fixture failures were the fixture's own
+  WAT** (stack order in folded form, an untaken `br_if` leaving its value) — which is why each fixture is checked
+  against legacy V8 BEFORE the pass is blamed.
+- [open] **binaryen-ts's `-Oz` on UNtranslated legacy EH breaks 30 of the 70 spec assertions** (seen inverting the
+  gate). Translated first, `-Oz` holds 70 / 70. Tracked in open-work.md.
 - [baseline] Measured 2026-08-24: `wasmtime compile` (47.0.3) rejects legacy EH outright — "legacy_exceptions
   feature required for try instruction" — on our fixture and on `WebAssembly/binaryen/test/passes/dwarf_with_exceptions.wasm`;
   `-W` offers only `exceptions` (the new proposal). V8 accepts legacy EH, and every binaryen-ts EH test validated
@@ -126,16 +150,15 @@ listed defect fixed and one live gap, TranslateEH.
   identical to V8. Legacy `try` through the same path is still refused by 48.0.2: "legacy_exceptions feature
   required for try instruction", and `-W` still offers only `exceptions`. So the encoder side of a TranslateEH
   output is known-good; the pass itself is what does not exist. The probe script was session scratch, not kept.
-- [open] Scope as written: (0) ✅ above; (1) `try` + `catch`/`catch_all` → `try_table` +
-  block scaffolding (bulk, mechanical); (2) `rethrow $l` → an `exnref` local per rethrow-targeted try filled via
-  `catch_ref`/`catch_all_ref`, then `throw_ref` (upstream: one local per nesting depth, reused across siblings);
-  (3) `delegate $l` — the hardest; (4) register opt-in — upstream does NOT run it in `-Oz`; (5) test on wasmtime.
+- [history] Scope as written, all ✅ 2026-09-14: (0) above; (1) `try` + `catch`/`catch_all` → `try_table` + block
+  scaffolding; (2) `rethrow $l` → an `exnref` local per nesting depth of rethrow-targeted trys, filled via
+  `catch_ref`/`catch_all_ref`, then `throw_ref`; (3) `delegate $l`; (4) registered opt-in; (5) tested on wasmtime.
 - [correction] **Demand has moved since the scoping.** The note said to ask wasmtk whether wasic should emit
   `try_table` instead. They chose to migrate wasic (their top next-work item, 2026-08-24; wabt-ts measured
   `try_table` at parity on Wasmtime/Wasmer/V8/Bun, and wasmtk themselves ran a hand-written `try_table` on
   wasmtime with no flags), and the multi-value writer was fixed in exchange for dropping this ask. The 1.5.2
   `-Oz` `try_table` miscompile (handoffs § 3) suggests they emit it now. TranslateEH is therefore a compatibility
-  shim for already-built legacy binaries, not a pipeline step — whether it is still wanted is the owner's call.
+  shim for already-built legacy binaries, not a pipeline step. The owner decided to implement it anyway (2026-09-14).
 
 **Already in the core**
 - best-practices.md § "One authoritative enumeration…" (walk rule, `deepCopy` 29/79, PickLoadSigns `-1`→`255`);
@@ -143,7 +166,7 @@ listed defect fixed and one live gap, TranslateEH.
   UNREPRESENTABLE" (catch records, `catch_all` sentinel, `RefAsOp`, load/store bytes+signed); § "A node LITERAL…"
 - testing.md § "The behavioural harnesses" (fuzzer reach, `equiv_check`); § "`noUncheckedIndexedAccess` is ON at the
   root, OFF in `tests/binaryen-ts/`"; § "A fixture believed valid must be said to an engine" (legacy EH is V8-only)
-- TranslateEH as a live gap → project.md § "Live gaps carried from the predecessors"; open-work.md § "Repo work"
+- TranslateEH, closed 2026-09-14 → project.md § "Live gaps carried from the predecessors"; divergences.md H1
 
 **Superseded by S6 (rules not to carry forward)**
 - ⟶ S6 5 (`365e9277c`): the region-body class — decoder `oneOrBlock` (unstamped) vs `sealFrame` (stamped), and
@@ -451,8 +474,8 @@ Full text: `git show 9758fc736:cmem/binaryen-ts/publishing.md`
 Rest of the sequence: Tier 4 corpus closure; Sweeps 1–3 (`if`-arm aliasing, 4 dead exports, duplicate dispatchers);
 Tier 9 (multi-value writer, catch scope, RemoveUnusedNames); Sweep 4 (7 fail-loud findings).
 **Kept:**
-- [open] **TranslateEH** and **Phase 10 kernel selection** are still in cmem/open-work.md § "Repo work", and there is no
-  TranslateEH pass in `src/binaryen-ts/passes/`.
+- [open] **Phase 10 kernel selection** is still in cmem/open-work.md § "Repo work". (**TranslateEH**, listed here
+  with it, was implemented 2026-09-14 — § "TranslateEH" above.)
 - [lesson] **To hold a release, leave `deno.json` at a version whose tag already exists** — auto-tag no-ops, so no push
   can publish.
 **Already in the core:** "cannot ship alone" and custom sections (C3 `4c162c584`) → cmem/project.md § "Live gaps…";

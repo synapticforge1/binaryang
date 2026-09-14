@@ -2023,10 +2023,16 @@ class WasmParser {
             // does with `withDeclaredType`, and the same fact `cmem/ir-convergence.md`
             // records as the most load-bearing member of the as-written set.
             const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label);
-            push(withParams(rts.length > 0 ? { ...ifExpr, type: resultType } : ifExpr, frame));
+            // Every multi-result carrier seeds its extra values' `Pop`s, not only
+            // `block` below: pushed bare, a later consumer's second pop found
+            // nothing and took `unreachable` (`multivalue_constructs.test.ts`).
+            pushMultiValueCall(
+              withParams(rts.length > 0 ? { ...ifExpr, type: resultType } : ifExpr, frame),
+              rts,
+            );
           } else if (frame.kind === 'loop') {
             const body = sealFrame(frame);
-            push(withParams(makeLoop(frame.label, body, resultType), frame));
+            pushMultiValueCall(withParams(makeLoop(frame.label, body, resultType), frame), rts);
           } else if (frame.kind === 'try' || frame.kind === 'catch') {
             const tryBodyExprs = frame.kind === 'try' ? frame.exprs : (frame.tryBody ?? []);
             const tryBody = makeRegion(tryBodyExprs);
@@ -2040,14 +2046,18 @@ class WasmParser {
               isRef: false,
               body: makeRegion(body),
             }));
-            push(withParams(makeTry(frame.label, tryBody, catches, null, resultType), frame));
+            pushMultiValueCall(
+              withParams(makeTry(frame.label, tryBody, catches, null, resultType), frame),
+              rts,
+            );
           } else if (frame.kind === 'try_table') {
             const body = sealFrame(frame);
-            push(
+            pushMultiValueCall(
               withParams(
                 makeTryTable(frame.label, body, frame.tryCatches ?? [], resultType),
                 frame,
               ),
+              rts,
             );
           } else {
             // block (only remaining kind here — func/if/else/loop/try*
@@ -2255,10 +2265,13 @@ class WasmParser {
           const rts = frame.resultTypes;
           const resultType: Type = resultTypeOf(rts);
           const tryBody = makeRegion(frame.exprs);
-          push(withParams(
-            makeTry(frame.label, tryBody, [], resolveLabel(frames, depth), resultType),
-            frame,
-          ));
+          pushMultiValueCall(
+            withParams(
+              makeTry(frame.label, tryBody, [], resolveLabel(frames, depth), resultType),
+              frame,
+            ),
+            rts,
+          );
           break;
         }
         case 0x19: { // catch_all (old EH)

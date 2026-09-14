@@ -66,7 +66,8 @@
     "operators": "deno run --allow-read scripts/check-operator-mapping.ts",
     "spec:prepare": "deno run --allow-read --allow-write --allow-run --allow-env scripts/spec-prepare.ts",
     "spec": "deno run --allow-read --allow-write --allow-env scripts/spec-testsuite.ts",
-    "bridge": "deno run --allow-read scripts/check-bridge-corpus.ts"
+    "bridge": "deno run --allow-read scripts/check-bridge-corpus.ts",
+    "translate-eh": "deno run --allow-read --allow-write --allow-run --allow-env scripts/check-translate-eh.ts"
   },
   "fmt": {
     "include": [

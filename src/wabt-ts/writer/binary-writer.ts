@@ -640,10 +640,13 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onDelegateExpr(e: TryExpr): Result {
     this.s.writeU8(Opcode.Delegate);
-    // The try's own label is NOT in scope for its delegate target.
+    // The try's own label is NOT in scope for its delegate target — and it
+    // leaves scope for good here: `delegate` REPLACES `end`, so `ExprVisitor`
+    // fires this INSTEAD of `endTryExpr`. Pushing the label back for an end that
+    // never comes leaked it, and every later named branch in the function was
+    // written one frame too deep (`delegate_label_scope.test.ts`).
     this.popLabel();
     this.writeLabelVar(e.delegate!);
-    this.labelScope.push(e.label);
     return Result.Ok;
   }
   endTryExpr(_e: TryExpr): Result {

@@ -288,7 +288,7 @@ it here loses nothing: the commits above, and the file at `1672c2a5a`, are the p
 | gap                                                   | where                          | state                                                                                                                                              |
 | ----------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/wabt-ts/tools/wasm2ts.ts` | the long-term goal — WASI Preview 1 capable TypeScript output; blocked on wasmtk ([open-work.md](open-work.md), A2)                                |
-| **TranslateEH**                                       | binaryen-ts                    | a live gap, scoped 2026-08-24 — [binaryen-ts.md](binaryen-ts.md) § "TranslateEH"; re-checked 2026-09-14: still unimplemented, and demand has moved |
+| ~~**TranslateEH**~~                                   | binaryen-ts                    | ✅ CLOSED 2026-09-14 — implemented as `TranslateToExnref` (owner decision 7); [binaryen-ts.md](binaryen-ts.md) § "TranslateEH" |
 | **Phase 10 kernel selection**                         | binaryen-ts                    | deferred until real-corpus profiling; single-op dispatch regresses                                                                                 |
 | **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229 — none at ceiling; much of the parser's remainder is where OUR message is better    |
 

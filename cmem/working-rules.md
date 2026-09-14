@@ -32,7 +32,8 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `deno fmt --check` · `deno lint` · `deno task ci` · `sh scripts/check-naming.sh` ·
 `sh scripts/check-portability.sh` · `deno task baseline` · `deno publish --dry-run --allow-dirty`
 
-then the project's own: `deno task operators` · `deno task spec <corpus>` · `deno task bridge`.
+then the project's own: `deno task operators` · `deno task spec <corpus>` · `deno task bridge` ·
+`deno task translate-eh <testsuite-main>/legacy <outDir>`.
 
 - ⚠️ **Run it after the LAST edit.** If an edit follows the gate, the gate has not run — decision 5
   merged with `deno lint` red that way.
@@ -47,6 +48,9 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` · `d
   `wasmtk/tests/module/wasm_wast/testsuite-main`, absolute path in the private
   `cmem/local/environment.md`. Expect **2248/2248 · 2714/2714 · 711/711 · 1229/1229**; a different
   count means the prepare step, not a regression.
+- **`deno task translate-eh`** splits the testsuite's `legacy/` itself (upstream `wast2json`, so it
+  needs that installed) into `<outDir>`. Expect **6 modules, 70 / 70 in all three worlds** (legacy,
+  translated, translated `-Oz`). It is not in CI: CI has neither the sibling testsuite nor `wast2json`.
 
 ## Tests, measurements and records
 
