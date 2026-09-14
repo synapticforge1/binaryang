@@ -252,14 +252,14 @@ from the plan, and seven findings in neither register. Its decisions are above; 
 were re-derived against `binaryen-ts@db71b066223` and `wabt-ts@fa9483aa3`. Full text:
 `git show 1672c2a5a:cmem/pre-merge-register.md`.
 
-| item | outcome                                                                                                                                                                            |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1   | `fmt.singleQuote` requote in binaryen-ts, its own commit BEFORE the move — `2c41d3d1371`, 104 files, 4,302 / 4,302, pure. Agreed by both sides, omitted from the plan              |
-| N1   | two test-file conventions (`_test.ts` 38 / `.test.ts` 130) — moot: the merge unified them (230 `.test.ts`, 0 `_test.ts`)                                                           |
-| N3   | "unify the CLI" was not mechanical: six extractions plus a `Deno` → `node:` port (53 `Deno.*` on 43 lines), preserving `wasm-validate`'s `--enable-*` surface (T13.10)             |
-| N4   | binaryen-ts `--version` printed `1.3.4` for two minor releases — fixed at source, `73ab06cb627`: `bump` rewrites `main.ts` and fails loudly; a sync test catches hand-set versions |
-| G1   | the emitted-byte baseline, captured while "before" still existed — [testing.md](testing.md)                                                                                        |
-| A0   | T13.22, the compensating pair across the repository boundary — closed BEFORE the merge, which would otherwise have made it permanently invisible ([bridge.md](bridge.md))          |
+| item | outcome                                                                                                                                                                                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1   | `fmt.singleQuote` requote in binaryen-ts, its own commit BEFORE the move — `2c41d3d1371`, 104 files, 4,302 / 4,302, pure. Agreed by both sides, omitted from the plan                     |
+| N1   | two test-file conventions (`_test.ts` 38 / `.test.ts` 130) — moot: the merge unified them (230 `.test.ts`, 0 `_test.ts`)                                                                  |
+| N3   | "unify the CLI" was not mechanical: six extractions plus a `Deno` → `node:` port (53 `Deno.*` on 43 lines), preserving `wasm-validate`'s `--enable-*` surface (T13.10)                    |
+| N4   | binaryen-ts `--version` printed `1.3.4` for two minor releases — fixed at source, `73ab06cb627`: `bump` rewrites `main.ts` and fails loudly; a sync test catches hand-set versions        |
+| G1   | the emitted-byte baseline, captured while "before" still existed — [testing.md](testing.md)                                                                                               |
+| A0   | T13.22, the compensating pair across the repository boundary — closed BEFORE the merge, which would otherwise have made it permanently invisible ([ir-convergence.md](ir-convergence.md)) |
 
 **Lessons it paid for** (the general ones are rules in [best-practices.md](best-practices.md)):
 

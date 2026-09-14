@@ -1436,7 +1436,8 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // in the old position, a numeric `(catch $e 1)` silently encoded depth 0
       // -- bytes V8 still accepts, naming the wrong handler -- and a named
       // target threw `unresolved branch label`. So this ordering and the pin
-      // are ONE change; see cmem/bridge.md.
+      // are ONE change; see T13.22 in cmem/ir-convergence.md § "The bridge and
+      // the WAT routes into binaryen-ts".
       const catches: CatchClause[] = tt.catches.map((c) => buildCatchClause(c, ctx));
       ctx.labelStack.push(name);
       try {

@@ -1,7 +1,7 @@
 # IR convergence — what actually separates the two IRs
 
 Written 2026-08-31, from a measured finding rather than a design discussion. It is the concrete
-answer to a question [overview.md](overview.md) decision 1 left open: the two IRs are retained, and
+answer to a question [project.md](project.md) decision 1 left open: the two IRs are retained, and
 convergence is "gradual and open-ended" — this is what convergence would actually consist of.
 
 > 🛑 **Owner decision, 2026-09-10 — the TEXT front end is wabt-ts.** The end state is WAT → wabt-ts
@@ -2021,7 +2021,9 @@ paths, import aliases that must not shadow a package — moved to [project.md](p
 delegate (reasoning: `cmem/wabt-ts/bridge.md` § "Why direct recursion"); and it keeps **its OWN
 label stack, which has diverged twice** — T13.22 the notorious one — so its tests are the first to
 run after touching either IR's control flow. Tier coverage (~60 kinds plus the module surface) is
-enumerated in `cmem/wabt-ts/bridge.md`.
+enumerated in `cmem/wabt-ts/bridge.md`. And it is **deliberately NOT exported** (decided
+2026-08-27): a `./bridge` subpath would make the part of the tree most likely to change a supported
+public surface, and the duplication permanent rather than resolved. Do not export it to close a gap.
 
 **What the bridge went through.** The merge turned a package boundary into an internal module (A7:
 the exact `jsr:@jrmarcum/binaryen-ts@1.5.0` pin gone, 15 cross-tree imports now relative).

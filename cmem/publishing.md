@@ -63,7 +63,7 @@ a publish too. There is no monotonicity check.
 🚨 **A tag publishes from ANY branch.** `publish.yml` keys on `push: tags: [v*]` with no branch
 constraint, so pushing a `v*` tag from a feature or release branch publishes immediately — the one
 thing reachable from a branch push that can. (Recorded in 1.5.2's scope; see
-[phases.md](phases.md).)
+[project.md](project.md).)
 
 ## The one thing to understand
 

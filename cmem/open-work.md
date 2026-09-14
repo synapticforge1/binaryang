@@ -14,9 +14,9 @@ that history now lives in its topic files — nothing was dropped:
 | every upstream difference, open and closed                      | [divergences.md](divergences.md)       |
 | names (N1 and its release items)                                | [names.md](names.md)                   |
 | everything on `main` awaiting a release note                    | [unreleased.md](unreleased.md)         |
-| the WAT routes, the folded-writer ladder, the bridge question   | [text-routes.md](text-routes.md)       |
-| the retirement (D2 / D3, the frozen predecessors)               | [transition.md](transition.md)         |
-| the 1.5.5 quality passes                                        | [quality-passes.md](quality-passes.md) |
+| the WAT routes, the folded-writer ladder, the bridge question   | [ir-convergence.md](ir-convergence.md) |
+| the retirement (D2 / D3, the frozen predecessors)               | [project.md](project.md)               |
+| the 1.5.5 quality passes                                        | [testing.md](testing.md)               |
 | releases, 1.5.4, `RELEASE_PAT`'s root cause                     | [publishing.md](publishing.md)         |
 | the wasmtk correspondence                                       | [handoffs.md](handoffs.md)             |
 
@@ -35,7 +35,7 @@ bridge 401/421. Re-derive before quoting.
 | 5 | **When to release**          | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                              |
 
 ~~JSR and GitHub descriptions on both predecessors~~ — 🛑 CLOSED as won't-do (owner, 2026-09-02);
-the predecessors are frozen. Do not re-open ([transition.md](transition.md)).
+the predecessors are frozen. Do not re-open ([project.md](project.md)).
 
 ## IR convergence — next steps
 
@@ -64,7 +64,7 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
 - ⬚ **binaryen-ts could run-length-compress its locals** as wabt-ts now does — roughly 5,600 bytes
   of that redundancy on the corpus. An optimisation, not a defect
-  ([text-routes.md](text-routes.md)).
+  ([ir-convergence.md](ir-convergence.md)).
 
 ## Open defects and gaps
 
@@ -88,7 +88,7 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 - ⬚ **Doc references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`
   and `wasm/demo_bytes` named subpaths that never existed and were pointed at `./api` and `./wasm`.
   Someone who knows the intent should confirm (recorded in 1.5.2's scope, summarized in
-  [phases.md](phases.md)).
+  [project.md](project.md)).
 
 ## Conformance gaps — the wasmtk-ranked list
 
@@ -131,7 +131,7 @@ fatigue.
   output). **Blocked, and not close**: as of 2026-09-02 the wasmtk side has a long way to go before
   there is anything to implement against.
 - ⬚ **TranslateEH** (binaryen-ts) and **Phase 10 kernel selection** — live gaps carried from the
-  predecessors, not re-checked since the merge ([phases.md](phases.md)).
+  predecessors, not re-checked since the merge ([project.md](project.md)).
 
 ## The wasmtk thread — `handoffs.md` §§ 7–11
 
@@ -156,6 +156,6 @@ someone is looking at.
 ## Not tasks, by decision
 
 - **Converging the two IRs is not a release task** — open-ended by decision 1, tracked by
-  `deno task collisions` ([overview.md](overview.md)). The S series is the work.
-- **D4 — never yank, ever** ([transition.md](transition.md)).
+  `deno task collisions` ([project.md](project.md)). The S series is the work.
+- **D4 — never yank, ever** ([project.md](project.md)).
 - **The predecessors are frozen** — no change to `binaryen-ts` or `wabt-ts` on GitHub or JSR.
