@@ -33,7 +33,7 @@
  */
 
 import { readCurrentVersion } from './version.ts';
-import { releaseBlockers } from './release-guard.ts';
+import { RELEASE_FILES, releaseBlockers } from './release-guard.ts';
 
 async function run(cmd: string[]): Promise<void> {
   console.log(`$ ${cmd.join(' ')}`);
@@ -69,9 +69,10 @@ console.log(`Releasing ${tag}\n`);
 // 0. GUARD: refuse on a dirty tree.
 //
 // The tag this script pushes is exactly what JSR publishes, and this script
-// stages `deno.json` and NOTHING ELSE. So on a dirty tree it commits a bare
-// version bump, tags that, and publishes a release containing none of the
-// work -- and a JSR version is immutable, so the only remedy is to burn
+// stages RELEASE_FILES (what the bump wrote) and NOTHING ELSE. So on a dirty
+// tree it commits a bare version bump, tags that, and publishes a release
+// containing none of the work -- and a JSR version is immutable, so the only
+// remedy is to burn
 // another version number.
 //
 // Not hypothetical: this guard was written after finding the tree carrying 15
@@ -91,7 +92,9 @@ if (dirty.length > 0) {
   for (const l of dirty.slice(0, 10)) console.error(`    ${l}`);
   if (dirty.length > 10) console.error(`    ... and ${dirty.length - 10} more`);
   console.error('');
-  console.error('  This script commits deno.json only. Commit or stash the rest first --');
+  console.error(
+    `  This script commits ${RELEASE_FILES.join(' and ')} only. Commit or stash the rest first --`,
+  );
   console.error('  a published JSR version cannot be replaced.');
   Deno.exit(1);
 }
@@ -112,11 +115,13 @@ if (remoteTag.trim() !== '') {
   Deno.exit(1);
 }
 
-// 1. Stage deno.json (only file we touch on a release)
-await run(['git', 'add', 'deno.json']);
+// 1. Stage the bump -- RELEASE_FILES, the only files a release touches. Not
+//    `deno.json` alone: the bump also rewrites main.ts's VERSION literal, and
+//    staging one of the two would tag a CLI reporting the old version.
+await run(['git', 'add', ...RELEASE_FILES]);
 
 // 2. Commit only if there's actually something staged. `deno task bump` +
-//    `deno task release` is the common path (deno.json is dirty), but if the
+//    `deno task release` is the common path (both files dirty), but if the
 //    user already committed the bump manually, skip the no-op commit.
 const diffCheck = new Deno.Command('git', {
   args: ['diff', '--cached', '--quiet'],
@@ -125,7 +130,7 @@ const { code: diffCode } = await diffCheck.output();
 if (diffCode !== 0) {
   await run(['git', 'commit', '-m', `bump to ${tag}`]);
 } else {
-  console.log('(deno.json already committed — skipping commit)\n');
+  console.log('(the bump is already committed — skipping commit)\n');
 }
 
 // 3. Force-tag locally for re-run safety: if a previous publish attempt got

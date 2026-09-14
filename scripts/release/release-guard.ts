@@ -12,6 +12,17 @@
  */
 
 /**
+ * The files a release commits: exactly the files `deno task bump` rewrites.
+ *
+ * `publish.ts` stages these and `releaseBlockers` exempts them, so the two can
+ * only agree. They were two hand-written copies of `deno.json` while the bump
+ * also rewrote `main.ts`, and the documented bump-then-release flow refused at
+ * the guard. `release_guard.test.ts` reads the bump's write sites and fails if
+ * this list stops matching them.
+ */
+export const RELEASE_FILES: readonly string[] = ['deno.json', 'main.ts'];
+
+/**
  * The path named by one `git status --porcelain` line.
  *
  * The format is two status characters, a space, then the path; a rename is
@@ -26,8 +37,8 @@ export function statusPath(line: string): string {
 /**
  * The `git status --porcelain` lines that would be left out of a release.
  *
- * `deno.json` is excluded because `publish.ts` stages exactly that file and
- * commits it as the version bump. Everything else — modified, staged, or
+ * {@link RELEASE_FILES} are excluded because `publish.ts` stages exactly those
+ * and commits them as the version bump. Everything else — modified, staged, or
  * UNTRACKED — is absent from the tag, and the tag is what JSR publishes.
  *
  * Untracked files count: a new source file that was never committed is
@@ -39,5 +50,5 @@ export function releaseBlockers(porcelain: string): string[] {
     .split('\n')
     .map((l) => l.trimEnd())
     .filter(Boolean)
-    .filter((l) => statusPath(l) !== 'deno.json');
+    .filter((l) => !RELEASE_FILES.includes(statusPath(l)));
 }

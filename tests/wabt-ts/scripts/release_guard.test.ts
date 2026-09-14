@@ -3,9 +3,14 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { releaseBlockers, statusPath } from '../../../scripts/release/release-guard.ts';
+import {
+  RELEASE_FILES,
+  releaseBlockers,
+  statusPath,
+} from '../../../scripts/release/release-guard.ts';
+import * as version from '../../../scripts/release/version.ts';
 
-// T13.43. `scripts/release/publish.ts` stages `deno.json` and NOTHING else, then tags
+// T13.43. `scripts/release/publish.ts` stages the bump (`RELEASE_FILES`) and NOTHING else, then tags
 // and pushes -- and the tag is exactly what JSR publishes. So on a dirty tree
 // it released a bare version bump containing none of the work, and a JSR
 // version is immutable.
@@ -30,6 +35,35 @@ describe('T13.43 — release preflight', () => {
     expect(releaseBlockers('M  deno.json\n')).toEqual([]);
   });
 
+  // The status `deno task bump` actually leaves. The guard exempted deno.json
+  // alone while the bump also rewrites main.ts, so `deno task bump` followed by
+  // `deno task release` -- the documented flow -- refused at this guard with
+  // `[" M main.ts"]` (found 2026-09-14). 1.5.4 shipped only because its bump
+  // was committed by hand first.
+  it('does not block the status a real bump leaves (deno.json AND main.ts)', () => {
+    expect(releaseBlockers(' M deno.json\n M main.ts\n')).toEqual([]);
+    expect(releaseBlockers(' M main.ts')).toEqual([]);
+  });
+
+  // The class, not the instance: the files the bump WRITES and the files the
+  // release STAGES are one list. Read off bump_version.ts's write sites, so a
+  // third version literal added to the bump fails here instead of at release.
+  it('exempts exactly the files deno task bump writes', async () => {
+    const bump = await Deno.readTextFile('scripts/release/bump_version.ts');
+    const names = [...bump.matchAll(/Deno\.writeTextFile\(\s*(\w+)/g)].map((m) => m[1]!);
+    expect(names.length).toBeGreaterThan(0);
+    const urls = version as unknown as Record<string, URL>;
+    const root = new URL('../../../', import.meta.url).href;
+    const written = names.map((n) => {
+      const url = urls[n];
+      if (!(url instanceof URL)) {
+        throw new Error(`bump writes ${n}, not a URL exported by version.ts`);
+      }
+      return url.href.slice(root.length);
+    });
+    expect([...new Set(written)].sort()).toEqual([...RELEASE_FILES].sort());
+  });
+
   const BLOCKING: [name: string, porcelain: string][] = [
     ['a modified source file', ' M src/writer/binary-writer.ts'],
     ['a staged source file', 'M  src/core/leb128.ts'],
@@ -41,8 +75,8 @@ describe('T13.43 — release preflight', () => {
     it(`blocks on ${name}`, () => {
       const b = releaseBlockers(porcelain);
       expect(b.length).toBeGreaterThan(0);
-      // deno.json is never itself a blocker, even when listed alongside one.
-      expect(b.some((l) => statusPath(l) === 'deno.json')).toBe(false);
+      // A bump file is never itself a blocker, even when listed alongside one.
+      expect(b.some((l) => RELEASE_FILES.includes(statusPath(l)))).toBe(false);
     });
   }
 
@@ -64,6 +98,13 @@ describe('T13.43 — release preflight', () => {
     expect(releaseBlockers(' M deno.json.bak')).toHaveLength(1);
     expect(releaseBlockers(' M scripts/deno.json')).toHaveLength(1);
     expect(releaseBlockers('?? deno.jsonc')).toHaveLength(1);
+  });
+
+  // main.ts is a common basename, so the exemption must be the ROOT file only.
+  it('is not fooled by a main.ts outside the repository root', () => {
+    expect(releaseBlockers(' M src/wabt-ts/main.ts')).toHaveLength(1);
+    expect(releaseBlockers('?? tests/main.ts')).toHaveLength(1);
+    expect(releaseBlockers(' M main.ts.orig')).toHaveLength(1);
   });
 
   it('survives trailing whitespace and CRLF', () => {

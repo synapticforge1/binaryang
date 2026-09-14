@@ -74,6 +74,17 @@ describe('T13.44 — the release preflight stays wired in', () => {
     }
   });
 
+  // The guard exempts RELEASE_FILES because this script stages them. If the
+  // stage names its own list, the two drift apart again: staging deno.json
+  // alone after a bump that also rewrote main.ts is the 2026-09-14 refusal,
+  // and exempting main.ts without staging it would tag the old CLI version.
+  it('stages exactly the list the guard exempts', () => {
+    const adds = [...PUBLISH.matchAll(/\[\s*'git'\s*,\s*'add'\s*,([^\]]*)\]/g)].map((m) =>
+      m[1]!.trim()
+    );
+    expect(adds).toEqual(['...RELEASE_FILES']);
+  });
+
   it('checks the remote tag before mutating anything', () => {
     const calls = gitCalls(PUBLISH);
     const lsRemote = calls.find((c) => c.sub === 'ls-remote');
