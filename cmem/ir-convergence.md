@@ -2368,8 +2368,41 @@ files (compiler-caught; one a SyntaxError my counter did not count — it does n
 mutant that matched FOUR identical lines proved nothing about `br_on` until redone on one line.
 🔑 **A mutant has to change exactly the thing under test — count the lines it changed.**
 
-**What is left of `names` (9):** the block family (`block`, `if`, `loop`, `try`, `try_table`),
-`call_indirect`'s type use, `ref.null`, `array.init_data` / `array.init_elem`.
+###### ✅ Stage A3 + C1 — `array.init_*`, and constants as BITS (2026-09-15). Ratchet 62/2/9 → **65 / 1 / 7**
+
+**A3** split wabt-ts's one `array.init_*` interface (a KIND UNION) into two, as binaryen-ts has. The
+fields were already identical; a merged-kind interface just cannot be picked out by kind
+(`Extract<Expr, { kind: 'array.init_data' }>` is `never`), so the ratchet — and any consumer that
+narrows — read identical fields as different. 0 errors.
+
+**C1** made `ConstExpr.value` wabt-ts's `Const`: integers `{ type, value }`, FLOATS `{ type, bits }`,
+v128 `{ type, bytes }`. Fidelity binds, and this one was not theoretical:
+
+🛑 **Three defects, each measured before it was fixed:**
+
+| defect                                                                                  | how it showed                                                                  |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| binaryen-ts held floats as JS NUMBERS, losing signalling-NaN payloads                   | decode → encode changed 4 of 4 sNaN constants; the module RETURNED other bits  |
+| `f32.reinterpret_i32` of a constant folded to an **i32 constant holding a float**       | `-O2` emitted an INVALID module; no corpus module reinterprets a constant      |
+| LocalCSE keyed floats by NUMBER, and `${-0}` is `"0"`                                   | `0.0` and `-0.0` shared a key; restoring it turns `-0` into `0` at `-O2`       |
+
+And a fourth, in wabt-ts, found while building a `-0` fixture: **`f32.const -0` lost its sign** —
+`parseNatText` returns a bigint and `BigInt('-0')` is `0n`, so the integer spelling assembled to +0
+where upstream writes the sign bit. Every other spelling took the float path and was right.
+
+🔑 **The conversion could not follow the compiler.** `'i32' in v` still compiles against the new type
+and is simply always FALSE. Only 16 errors surfaced, all in tests; optimize-instructions (11 sites),
+LocalCSE, pick-load-signs and the compat printer raised NONE. They were converted by reading.
+**When a union's arms change shape, `in` checks are not errors — they are silent falsehoods.**
+
+⚠️ **A fixture built by the tool under test cannot show that tool is wrong**: C1's NaN test built its
+`-0` case with `wat2wasm`, so it compared +0 against +0. The negative-zero test asserts UPSTREAM's
+bytes.
+
+**What is left of `names` (7):** the block family (`block`, `if`, `loop`, `try`, `try_table`),
+`call_indirect`'s type use, and `ref.null` (deferred by Group 3 to the type-derivation stage).
+**`types` (1):** `select.resultType`, only because wabt-ts's `ValueType` admits non-value `Type`
+members.
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and

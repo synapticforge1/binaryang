@@ -25,6 +25,7 @@ import '../../../src/binaryen-ts/passes/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
+import { type ConstExpr, literalFloat } from '../../../src/binaryen-ts/ir/expressions.ts';
 
 Deno.test('parseWat — empty module', () => {
   const mod = parseWat('(module)');
@@ -57,7 +58,8 @@ Deno.test('parseWat — i32.const', () => {
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Const);
   assertEquals((body as import('../../../src/binaryen-ts/ir/expressions.ts').ConstExpr).value, {
-    i32: 42,
+    type: ValType.I32,
+    value: 42,
   });
 });
 
@@ -65,10 +67,9 @@ Deno.test('parseWat — f64.const', () => {
   const mod = parseWat(`(module (func $f (result f64) (f64.const 3.14)))`);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Const);
-  const v = (body as import('../../../src/binaryen-ts/ir/expressions.ts').ConstExpr).value as {
-    f64: number;
-  };
-  assertClose(v.f64, 3.14);
+  // A float constant holds BITS now (S6 step 5, stage C1); read it as a number.
+  const v = (body as import('../../../src/binaryen-ts/ir/expressions.ts').ConstExpr).value;
+  assertClose(literalFloat(v), 3.14);
 });
 
 Deno.test('parseWat — local.get and local.set', () => {
@@ -558,9 +559,9 @@ Deno.test('parseWat — hex float literal parses to its value, not NaN', () => {
   // 0x1.8p+1 = (1 + 8/16) × 2^1 = 1.5 × 2 = 3. The old `Number("0x1.8p+1")`
   // fallback returned NaN for every hex float.
   const mod = parseWat(`(module (func $f (result f64) (f64.const 0x1.8p+1)))`);
-  const body = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; value: { f64: number } };
+  const body = soleInstr(mod.functions[0].body) as ConstExpr;
   assertEquals(body.kind, ExpressionKind.Const);
-  assertEquals(body.value.f64, 3);
+  assertEquals(literalFloat(body.value), 3);
 });
 
 // ---------------------------------------------------------------------------

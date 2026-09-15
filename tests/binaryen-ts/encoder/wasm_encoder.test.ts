@@ -245,7 +245,7 @@ Deno.test('round-trip: global module init expression preserved', () => {
   const g = mod2.globals[0];
   assertEquals(g.init.kind, ExpressionKind.Const);
   if (g.init.kind === ExpressionKind.Const) {
-    assertEquals((g.init.value as { i32: number }).i32, 42);
+    assertEquals((g.init.value as { value: number }).value, 42);
   }
 });
 
@@ -472,8 +472,8 @@ Deno.test('encodeWasm: i32.const value preserved through encode/parse', () => {
     bodyExpr as Parameters<typeof walkFind>[0],
     (e) => {
       if (e.kind !== ExpressionKind.Const) return false;
-      const v = (e as { value?: { i32?: number } }).value;
-      return v !== undefined && typeof v === 'object' && 'i32' in v && v.i32 === 1337;
+      const v = (e as { value?: { type?: unknown; value?: number } }).value;
+      return v !== undefined && v.type === ValType.I32 && v.value === 1337;
     },
   );
   assertEquals(found, true);

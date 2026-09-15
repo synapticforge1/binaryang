@@ -151,8 +151,8 @@ function _pickLoadSigns(fn: WasmFunction): void {
       parent.kind === ExpressionKind.Binary &&
       parent.opcode === BinaryOp.AndI32 &&
       parent.right.kind === ExpressionKind.Const &&
-      'i32' in parent.right.value &&
-      (parent.right.value.i32 as number) === _zeroMask(loadShape(info.load.opcode).bytes)
+      parent.right.value.type === ValType.I32 &&
+      parent.right.value.value === _zeroMask(loadShape(info.load.opcode).bytes)
     ) {
       usage.unsignedCount++;
     }

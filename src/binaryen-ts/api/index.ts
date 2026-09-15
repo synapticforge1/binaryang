@@ -41,6 +41,7 @@ import {
   blockParamsOf,
   type Expression,
   ExpressionKind,
+  literalFloat,
   makeBinary,
   makeBlock,
   makeDrop,
@@ -353,10 +354,23 @@ function exprToWat(expr: Expression, _indent: number): string {
       return '(unreachable)';
     case ExpressionKind.Const: {
       const v = expr.value;
-      if ('i32' in v) return `(i32.const ${v.i32})`;
-      if ('i64' in v) return `(i64.const ${v.i64})`;
-      if ('f32' in v) return `(f32.const ${v.f32})`;
-      return `(f64.const ${'f64' in v ? v.f64 : 0})`;
+      // On the arm's TYPE (S6 step 5, stage C1): `'i32' in v` still compiles
+      // against the bits form and is always false.
+      switch (v.type) {
+        case ValType.I32:
+          return `(i32.const ${v.value})`;
+        case ValType.I64:
+          return `(i64.const ${v.value})`;
+        case ValType.F32:
+          return `(f32.const ${literalFloat(v)})`;
+        case ValType.F64:
+          return `(f64.const ${literalFloat(v)})`;
+        default:
+          // This fell through to `(f64.const 0)`: a v128 constant printed as a
+          // different instruction with a different value. Refuse, as the
+          // serializer does for every kind it cannot write.
+          throw new Error('serializeToWat: unsupported expression kind "v128.const"');
+      }
     }
     case ExpressionKind.LocalGet:
       return `(local.get ${requireIndex(expr.var, 'local.get')})`;

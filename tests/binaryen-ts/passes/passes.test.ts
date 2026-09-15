@@ -235,7 +235,7 @@ Deno.test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
   assertEquals(ret.values[0]?.kind, ExpressionKind.Const);
-  assertEquals(((ret.values[0] as ConstExpr).value as { i32: number }).i32, 7);
+  assertEquals(((ret.values[0] as ConstExpr).value as { value: number }).value, 7);
 });
 
 Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
@@ -252,7 +252,7 @@ Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
   assertEquals(ret.values[0]?.kind, ExpressionKind.Const);
-  assertEquals(((ret.values[0] as ConstExpr).value as { i32: number }).i32, 42);
+  assertEquals(((ret.values[0] as ConstExpr).value as { value: number }).value, 42);
 });
 
 Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
@@ -269,7 +269,7 @@ Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
 
   const ret = soleOf(mod.functions[0].body, ExpressionKind.Return);
   assertEquals(ret.values[0]?.kind, ExpressionKind.Const);
-  assertEquals(((ret.values[0] as ConstExpr).value as { i32: number }).i32, 1);
+  assertEquals(((ret.values[0] as ConstExpr).value as { value: number }).value, 1);
 });
 
 Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
@@ -1272,7 +1272,7 @@ Deno.test('StripEH: try is replaced by its body; catch is discarded', () => {
   const outer = region(mod.functions[0].body);
   // The try was substituted by its body (the i32.const 1).
   assertEquals(outer.children[0].kind, ExpressionKind.Const);
-  assertEquals((outer.children[0] as { value: { i32: number } }).value.i32, 1);
+  assertEquals((outer.children[0] as { value: { value: number } }).value.value, 1);
 });
 
 Deno.test('StripEH: try_table is replaced by its body', () => {
@@ -1286,7 +1286,7 @@ Deno.test('StripEH: try_table is replaced by its body', () => {
 
   const outer = region(mod.functions[0].body);
   assertEquals(outer.children[0].kind, ExpressionKind.Const);
-  assertEquals((outer.children[0] as { value: { i32: number } }).value.i32, 7);
+  assertEquals((outer.children[0] as { value: { value: number } }).value.value, 7);
 });
 
 Deno.test('StripEH: module.tags cleared and hasExceptionHandling reset', () => {

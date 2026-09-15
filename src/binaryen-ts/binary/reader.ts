@@ -110,6 +110,27 @@ export class BinaryReader {
   }
 
   /** Read eight bytes as a little-endian IEEE-754 double-precision float. */
+  /**
+   * A float32's four bytes as their raw bit pattern (a u32). A NaN read through
+   * `getFloat32` may lose its payload; a constant must not (S6 step 5, stage C1).
+   */
+  readF32Bits(): number {
+    this.checkBounds(4);
+    const view = new DataView(this.bytes.buffer, this.bytes.byteOffset + this.pos, 4);
+    const bits = view.getUint32(0, true);
+    this.pos += 4;
+    return bits;
+  }
+
+  /** A float64's eight bytes as their raw bit pattern (an unsigned bigint). */
+  readF64Bits(): bigint {
+    this.checkBounds(8);
+    const view = new DataView(this.bytes.buffer, this.bytes.byteOffset + this.pos, 8);
+    const bits = view.getBigUint64(0, true);
+    this.pos += 8;
+    return bits;
+  }
+
   readF64(): number {
     this.checkBounds(8);
     const view = new DataView(this.bytes.buffer, this.bytes.byteOffset + this.pos, 8);

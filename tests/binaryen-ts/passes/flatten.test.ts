@@ -284,7 +284,7 @@ Deno.test('walk — call_indirect visits operands before the table index', () =>
     [makeI32Const(100)], // operand — must be visited FIRST
     { params: [ValType.I32], results: [ValType.I32] },
   );
-  const readVal = (c: Expression) => (c as { value: { i32: number } }).value.i32;
+  const readVal = (c: Expression) => (c as { value: { value: number } }).value.value;
 
   const mapOrder: number[] = [];
   mapChildrenShallow(ci, (c) => {

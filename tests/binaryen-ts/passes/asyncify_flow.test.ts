@@ -146,8 +146,8 @@ Deno.test('flow — each call gets a distinct index (two calls → two checks/un
   const indices: number[] = [];
   walkExpression(foo.body, (e) => {
     if (e.kind === ExpressionKind.Call && nameOf((e as CallExpr).func) === CHECK_INDEX) {
-      const arg = (e as CallExpr).operands[0] as { value: { i32: number } };
-      indices.push(arg.value.i32);
+      const arg = (e as CallExpr).operands[0] as { value: { value: number } };
+      indices.push(arg.value.value);
     }
   });
   assertEquals(indices.sort(), [0, 1]);

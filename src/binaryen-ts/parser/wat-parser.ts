@@ -69,7 +69,11 @@ import {
   makeDataDrop,
   makeElemDrop,
   makeExternConvert,
+  makeF32Const,
+  makeF64Const,
   makeI31Get,
+  makeI32Const,
+  makeI64Const,
   makeIf,
   makeLoad,
   makeLoop,
@@ -903,11 +907,7 @@ class WatModuleParser {
     // Number literal?
     if (atom.token.kind === 'integer') {
       // Standalone integers become i32.const (context-dependent in real WAT, defaulting to i32)
-      return {
-        kind: ExpressionKind.Const,
-        type: ValType.I32,
-        value: { i32: Number(atom.token.value ?? 0) },
-      } as ConstExpr;
+      return makeI32Const(Number(atom.token.value ?? 0));
     }
     this.err(`unexpected atom in expression: ${atom.token.raw}`, atom.pos);
   }
@@ -921,19 +921,19 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     if (head === 'i32.const') {
       const v = Number(this.expectIntLiteral(args[0], head, 32));
-      return { kind: ExpressionKind.Const, type: ValType.I32, value: { i32: v } } as ConstExpr;
+      return makeI32Const(v);
     }
     if (head === 'i64.const') {
       const v = this.expectIntLiteral(args[0], head, 64);
-      return { kind: ExpressionKind.Const, type: ValType.I64, value: { i64: v } } as ConstExpr;
+      return makeI64Const(v);
     }
     if (head === 'f32.const') {
       const v = this.expectFloat(args[0], head);
-      return { kind: ExpressionKind.Const, type: ValType.F32, value: { f32: v } } as ConstExpr;
+      return makeF32Const(v);
     }
     if (head === 'f64.const') {
       const v = this.expectFloat(args[0], head);
-      return { kind: ExpressionKind.Const, type: ValType.F64, value: { f64: v } } as ConstExpr;
+      return makeF64Const(v);
     }
 
     // -----------------------------------------------------------------------

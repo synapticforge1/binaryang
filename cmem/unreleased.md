@@ -66,6 +66,10 @@ their own bump — and nothing breaks by their standing still.
   Then stages B1–B3: wabt-ts's `BrTableExpr.condition` (was `value`) · wabt-ts's `BrOnExpr.opcode: Opcode`
   (was `op`, a string union) with ONE `BrOnOp` const of numeric opcodes, re-exported by binaryen-ts
   (wabt-ts's `BrOnOp` was the string union) · binaryen-ts's `BrOnExpr.values` (new).
+  Then stage C1: `ConstExpr.value` is wabt-ts's `Const` — `{ type, value }` for integers, `{ type, bits }`
+  for FLOATS (raw IEEE 754), `{ type, bytes }` for v128; `Literal` is an alias of it. `'i32' in v` no
+  longer works (and still compiles): test `v.type === ValType.I32`. New: `makeF32ConstBits`,
+  `makeF64ConstBits`, `f32BitsOf`, `f64BitsOf`, `literalFloat`.
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and

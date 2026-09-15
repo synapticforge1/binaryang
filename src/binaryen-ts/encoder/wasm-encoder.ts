@@ -212,6 +212,21 @@ class BinaryWriter {
     for (const b of bytes) this.buf.push(b);
   }
 
+  /** A float32 from its raw bit pattern (a u32), little-endian — payload intact. */
+  writeF32Bits(bits: number): void {
+    const b = bits >>> 0;
+    this.buf.push(b & 0xff, (b >>> 8) & 0xff, (b >>> 16) & 0xff, (b >>> 24) & 0xff);
+  }
+
+  /** A float64 from its raw bit pattern (an unsigned bigint), little-endian. */
+  writeF64Bits(bits: bigint): void {
+    let v = BigInt.asUintN(64, bits);
+    for (let i = 0; i < 8; i++) {
+      this.buf.push(Number(v & 0xffn));
+      v >>= 8n;
+    }
+  }
+
   writeF64(n: number): void {
     const arr = new Float64Array([n]);
     const bytes = new Uint8Array(arr.buffer);
@@ -1899,22 +1914,31 @@ class WasmEncoder {
       case ExpressionKind.Const: {
         const e = expr as ConstExpr;
         const v = e.value;
-        if ('i32' in v) {
-          w.writeU8(0x41);
-          w.writeI32(v.i32);
-        } else if ('i64' in v) {
-          w.writeU8(0x42);
-          w.writeI64(v.i64);
-        } else if ('f32' in v) {
-          w.writeU8(0x43);
-          w.writeF32(v.f32);
-        } else if ('v128' in v) {
-          w.writeU8(0xfd);
-          w.writeU32(0x0c);
-          w.writeBytes((v as { v128: Uint8Array }).v128);
-        } else {
-          w.writeU8(0x44);
-          w.writeF64((v as { f64: number }).f64);
+        // Switch on the arm's TYPE (S6 step 5, stage C1). Floats are written from
+        // their BITS: writing them through a float view is where a signalling
+        // NaN's payload was lost.
+        switch (v.type) {
+          case ValType.I32:
+            w.writeU8(0x41);
+            w.writeI32(v.value);
+            break;
+          case ValType.I64:
+            w.writeU8(0x42);
+            w.writeI64(v.value);
+            break;
+          case ValType.F32:
+            w.writeU8(0x43);
+            w.writeF32Bits(v.bits);
+            break;
+          case ValType.F64:
+            w.writeU8(0x44);
+            w.writeF64Bits(v.bits);
+            break;
+          case ValType.V128:
+            w.writeU8(0xfd);
+            w.writeU32(0x0c);
+            w.writeBytes(v.bytes);
+            break;
         }
         break;
       }
