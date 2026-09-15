@@ -281,7 +281,7 @@ asserting `v8Accepts(binary) === false` reads like a full cross-check otherwise.
 
 ### A crashed run is not a green run
 
-Deno 2.9.5 intermittently panics (`Check failed: !job->compile_imports_.empty()`), aborting the
+Deno 2.9.5 and 2.9.6 intermittently panic (`Check failed: !job->compile_imports_.empty()`), aborting the
 process so the run produces **no summary line at all**. That is the danger — it reads as "the suite
 did not print ok" and is easy to skip past. Re-run it; if it reproduces on the same file, _then_ it
 is a finding.
