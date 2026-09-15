@@ -2009,7 +2009,7 @@ class WasmEncoder {
 
       case ExpressionKind.Load: {
         const e = expr as LoadExpr;
-        this.encodeExpr(w, e.ptr, labels);
+        this.encodeExpr(w, e.address, labels);
         // The node holds the opcode it was written with — `v128.load`'s
         // `0xFD 0x00` included — so nothing is recomputed from width, sign or
         // result type here (see memory-access.ts for what that used to cost).
@@ -2020,7 +2020,7 @@ class WasmEncoder {
 
       case ExpressionKind.Store: {
         const e = expr as StoreExpr;
-        this.encodeExpr(w, e.ptr, labels);
+        this.encodeExpr(w, e.address, labels);
         this.encodeExpr(w, e.value, labels);
         // Not derived from `e.value.type`: a store whose operand is untyped
         // (unreachable, or not yet finalized) is still a well-formed store.
@@ -2564,7 +2564,7 @@ class WasmEncoder {
 
       case ExpressionKind.SIMDLoad: {
         const e = expr as SIMDLoadExpr;
-        this.encodeExpr(w, e.ptr, labels);
+        this.encodeExpr(w, e.address, labels);
         this.writeOperator(w, e.opcode);
         this.writeMemArg(w, e.align, e.offset, e.memidx);
         break;
@@ -2572,7 +2572,7 @@ class WasmEncoder {
 
       case ExpressionKind.SIMDLoadStoreLane: {
         const e = expr as SIMDLoadStoreLaneExpr;
-        this.encodeExpr(w, e.ptr, labels);
+        this.encodeExpr(w, e.address, labels);
         this.encodeExpr(w, e.vec, labels);
         this.writeOperator(w, e.opcode);
         this.writeMemArg(w, e.align, e.offset, e.memidx);

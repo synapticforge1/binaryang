@@ -124,10 +124,10 @@ function assertFlat(mod: WasmModule): void {
           checkOperands([e.value]);
           break;
         case ExpressionKind.Load:
-          checkOperands([e.ptr]);
+          checkOperands([e.address]);
           break;
         case ExpressionKind.Store:
-          checkOperands([e.ptr, e.value]);
+          checkOperands([e.address, e.value]);
           break;
       }
     });

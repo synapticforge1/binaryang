@@ -250,10 +250,10 @@ function _countKeys(
       expr.operands.forEach((o) => _countKeys(o, counts, reps));
       break;
     case ExpressionKind.Load:
-      _countKeys(expr.ptr, counts, reps);
+      _countKeys(expr.address, counts, reps);
       break;
     case ExpressionKind.Store:
-      _countKeys(expr.ptr, counts, reps);
+      _countKeys(expr.address, counts, reps);
       _countKeys(expr.value, counts, reps);
       break;
   }

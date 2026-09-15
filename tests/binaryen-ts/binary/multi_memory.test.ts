@@ -58,7 +58,7 @@ function nodesOf(root: unknown): Record<string, unknown>[] {
       const key of [
         'children',
         'body',
-        'ptr',
+        'address',
         'value',
         'operands',
         'dest',

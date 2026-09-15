@@ -1091,7 +1091,7 @@ export interface LoadExpr extends ExprBase {
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
 }
 
 /** Memory store node. */
@@ -1119,7 +1119,7 @@ export interface StoreExpr extends ExprBase {
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
   /** Value expression. */
   value: Expression;
 }
@@ -2037,7 +2037,7 @@ export interface SIMDLoadExpr extends ExprBase {
   /** Operator code. */
   opcode: SIMDLoadOp;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
   /** Static byte offset added to the address operand. */
   offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
@@ -2060,7 +2060,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
   /** Operator code. */
   opcode: SIMDLoadStoreLaneOp;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
   /** vec — see the {@link make} factory for semantics. */
   vec: Expression;
   /** Static byte offset added to the address operand. */
@@ -2601,7 +2601,7 @@ export function makeLoad(
     opcode,
     offset,
     align,
-    ptr,
+    address: ptr,
     ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
@@ -2622,7 +2622,7 @@ export function makeStore(
     opcode,
     offset,
     align,
-    ptr,
+    address: ptr,
     value,
     ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
@@ -3200,7 +3200,7 @@ export function makeSIMDLoad(
     kind: ExpressionKind.SIMDLoad,
     type: ValType.V128,
     opcode,
-    ptr,
+    address: ptr,
     offset,
     align,
     ...(indexOf(memidx) !== 0 ? { memidx } : {}),
@@ -3225,7 +3225,7 @@ export function makeSIMDLoadStoreLane(
     kind: ExpressionKind.SIMDLoadStoreLane,
     type: isStore ? None : ValType.V128,
     opcode,
-    ptr,
+    address: ptr,
     vec,
     offset,
     align,

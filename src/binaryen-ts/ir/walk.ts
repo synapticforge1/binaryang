@@ -219,12 +219,12 @@ function _mapChildren(
       return { ...expr, value: fn(expr.value) };
 
     case ExpressionKind.Load:
-      return { ...expr, ptr: fn(expr.ptr) };
+      return { ...expr, address: fn(expr.address) };
 
     case ExpressionKind.Store:
       return {
         ...expr,
-        ptr: fn(expr.ptr),
+        address: fn(expr.address),
         value: fn(expr.value),
       };
 
@@ -461,11 +461,11 @@ function _mapChildren(
     }
 
     case ExpressionKind.SIMDLoad:
-      return { ...(expr as SIMDLoadExpr), ptr: fn((expr as SIMDLoadExpr).ptr) };
+      return { ...(expr as SIMDLoadExpr), address: fn((expr as SIMDLoadExpr).address) };
 
     case ExpressionKind.SIMDLoadStoreLane: {
       const e = expr as SIMDLoadStoreLaneExpr;
-      return { ...e, ptr: fn(e.ptr), vec: fn(e.vec) };
+      return { ...e, address: fn(e.address), vec: fn(e.vec) };
     }
 
     // Leaf nodes — no children to transform
@@ -563,10 +563,10 @@ function _visitChildren(
       visit(expr.value);
       break;
     case ExpressionKind.Load:
-      visit(expr.ptr);
+      visit(expr.address);
       break;
     case ExpressionKind.Store:
-      visit(expr.ptr);
+      visit(expr.address);
       visit(expr.value);
       break;
     case ExpressionKind.MemoryGrow:
@@ -737,11 +737,11 @@ function _visitChildren(
       break;
     }
     case ExpressionKind.SIMDLoad:
-      visit((expr as SIMDLoadExpr).ptr);
+      visit((expr as SIMDLoadExpr).address);
       break;
     case ExpressionKind.SIMDLoadStoreLane: {
       const e = expr as SIMDLoadStoreLaneExpr;
-      visit(e.ptr);
+      visit(e.address);
       visit(e.vec);
       break;
     }
