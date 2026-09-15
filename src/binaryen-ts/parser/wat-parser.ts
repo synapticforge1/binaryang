@@ -1257,7 +1257,7 @@ class WatModuleParser {
     if (head === 'ref.func') {
       const fnRef = atomText(args[0]) ?? this.err('ref.func: missing function', list.pos);
       const fnName = fnRef.startsWith('$') ? fnRef : `$func${fnRef}`;
-      return makeRefFunc(fnName);
+      return makeRefFunc(varName(fnName));
     }
     if (head === 'ref.is_null') {
       return makeRefIsNull(this.parseExpr(args[0], ctx));

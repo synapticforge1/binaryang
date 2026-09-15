@@ -228,8 +228,8 @@ Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
   const mod = parseWasm(REF_TEST_MODULE);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
-  const rt = body as { castType: unknown; nullable: boolean };
-  assertEquals(rt.castType, varIndex(0));
+  const rt = body as { heapType: unknown; nullable: boolean };
+  assertEquals(rt.heapType, varIndex(0));
   assertEquals(rt.nullable, false);
 });
 
@@ -300,8 +300,8 @@ Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
   const mod2 = parseWasm(encodeWasm(mod));
   const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
-  const rt = body as { castType: unknown; nullable: boolean };
-  assertEquals(rt.castType, varIndex(0));
+  const rt = body as { heapType: unknown; nullable: boolean };
+  assertEquals(rt.heapType, varIndex(0));
   assertEquals(rt.nullable, false);
 });
 

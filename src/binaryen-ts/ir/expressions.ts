@@ -1043,7 +1043,7 @@ export interface SelectExpr extends ExprBase {
   condition: Expression;
   /**
    * The DECLARED result type of a typed `select` (`0x1c`, `(select (result t))`),
-   * or `null` for an untyped one (S6 decision 7a).
+   * or EMPTY for an untyped one (S6 decision 7a).
    *
    * Semantics, not decoration: over references the declared type is what
    * validation checks, and it may be WIDER than either arm — a `ref.null` arm
@@ -1052,9 +1052,14 @@ export interface SelectExpr extends ExprBase {
    * lost it. Its presence also records that the source wrote the typed form,
    * so a numeric typed select re-encodes as written (divergence S1). Upstream
    * binaryen keeps neither: `wasm-opt` rewrites a numeric `0x1c` as `0x1b`.
-   * Validation requires exactly one type, so one is all this holds.
+   * ⚠️ **A list, and deliberately** (S6 step 5, stage S3). It held one `ValueType |
+   * null` because validation requires exactly one type. But the ENCODING is a
+   * vector, and wabt-ts's reader keeps whatever count a binary declares so its
+   * validator can report a wrong one — a count this could not represent. Fidelity
+   * binds, so wabt-ts's form controls; binaryen-ts's own front doors still refuse
+   * any count but one.
    */
-  resultType: ValueType | null;
+  resultType: ValueType[];
 }
 
 /** {@link DropExpr} — see {@link makeDrop} for the factory. */
@@ -1468,7 +1473,7 @@ export interface RefFuncExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefFunc;
   /** func — see the {@link make} factory for semantics. */
-  func: string;
+  func: Var;
 }
 
 // ---------------------------------------------------------------------------
@@ -1746,7 +1751,7 @@ export interface RefTestExpr extends ExprBase {
   /** ref — see the matching factory for semantics. */
   ref: Expression;
   /** Target reference type for the cast. */
-  castType: HeapType;
+  heapType: HeapType;
   /** Whether the reference type is nullable. */
   nullable: boolean;
 }
@@ -1758,7 +1763,7 @@ export interface RefCastExpr extends ExprBase {
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /** Target reference type for the cast. */
-  castType: HeapType;
+  heapType: HeapType;
   /** Whether the reference type is nullable. */
   nullable: boolean;
 }
@@ -2562,15 +2567,21 @@ export function makeSelect(
   ifTrue: Expression,
   ifFalse: Expression,
   condition: Expression,
-  resultType: ValueType | null = null,
+  // A single type or `null` is still accepted -- every caller wrote one.
+  declared: ValueType | readonly ValueType[] | null = null,
 ): SelectExpr {
+  const resultType: ValueType[] = declared === null
+    ? []
+    : Array.isArray(declared)
+    ? [...declared]
+    : [declared as ValueType];
   // The declared type wins when there is one. Otherwise a `select` always has
   // both arms, so its result type is the type of the reachable arm —
   // `unreachable` only when BOTH arms are unreachable. Taking `ifTrue.type`
   // blindly mistyped a select whose `ifTrue` is `unreachable` (e.g. it ends in
   // a trap/branch) even though `ifFalse` yields a real value, the same hazard
   // `makeIf` was fixed for.
-  const type: Type = resultType ??
+  const type: Type = (resultType.length === 1 ? resultType[0] : undefined) ??
     (typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue));
   return { kind: ExpressionKind.Select, type, val1: ifTrue, val2: ifFalse, condition, resultType };
 }
@@ -2788,7 +2799,7 @@ export function makeRefNull(type: ValueType): RefNullExpr {
 }
 
 /** Creates a `ref.func` expression. */
-export function makeRefFunc(func: string, type: ValType = ValType.FuncRef): RefFuncExpr {
+export function makeRefFunc(func: Var, type: ValType = ValType.FuncRef): RefFuncExpr {
   return { kind: ExpressionKind.RefFunc, type, func };
 }
 
@@ -3070,7 +3081,7 @@ export function makeArrayLen(ref: Expression): ArrayLenExpr {
 
 /** Creates a ref.test or ref.test null expression. */
 export function makeRefTest(ref: Expression, castType: HeapType, nullable: boolean): RefTestExpr {
-  return { kind: ExpressionKind.RefTest, type: ValType.I32, ref, castType, nullable };
+  return { kind: ExpressionKind.RefTest, type: ValType.I32, ref, heapType: castType, nullable };
 }
 
 /** Creates a ref.cast or ref.cast null expression. */
@@ -3080,7 +3091,7 @@ export function makeRefCast(
   nullable: boolean,
   resultType: Type,
 ): RefCastExpr {
-  return { kind: ExpressionKind.RefCast, type: resultType, ref, castType, nullable };
+  return { kind: ExpressionKind.RefCast, type: resultType, ref, heapType: castType, nullable };
 }
 
 /** Creates a br_on_null, br_on_non_null, br_on_cast, or br_on_cast_fail expression. */

@@ -1273,7 +1273,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     }
     case 'ref.func': {
       const rf = e as RefFuncExpr;
-      return makeRefFunc(resolveVarName(rf.func, ctx.funcNames), ValType.FuncRef);
+      return makeRefFunc(varName(resolveVarName(rf.func, ctx.funcNames)), ValType.FuncRef);
     }
     case 'ref.is_null': {
       const rin = e as RefIsNullExpr;

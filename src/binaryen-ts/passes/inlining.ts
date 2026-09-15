@@ -115,7 +115,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
         if (target) target.refs++;
       }
       if (e.kind === ExpressionKind.RefFunc) {
-        const target = info.get(e.func);
+        const target = info.get(requireName(e.func, 'ref.func'));
         if (target) {
           target.refs++;
           target.usedGlobally = true;

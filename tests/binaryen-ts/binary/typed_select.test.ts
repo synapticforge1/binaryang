@@ -113,9 +113,9 @@ describe('typed select', () => {
   });
 
   it('the declared type is ON THE NODE, not only in `type`', () => {
-    assertEquals(selects(parseWasm(NUM_BYTES))[0]!.resultType, ValType.I32);
-    assertEquals(selects(parseWasm(REF_BYTES))[0]!.resultType, ValType.FuncRef);
-    assertEquals(selects(parseWasm(UNTYPED_BYTES))[0]!.resultType, null);
+    assertEquals(selects(parseWasm(NUM_BYTES))[0]!.resultType, [ValType.I32]);
+    assertEquals(selects(parseWasm(REF_BYTES))[0]!.resultType, [ValType.FuncRef]);
+    assertEquals(selects(parseWasm(UNTYPED_BYTES))[0]!.resultType, []);
   });
 
   it('the bridge keeps the declared type (it fell back to the ifTrue arm)', () => {
@@ -125,7 +125,7 @@ describe('typed select', () => {
       '(module (func $f) (elem declare func $f) (func (export "go") (param i32) (result i32) ' +
       '(ref.is_null (select (result funcref) (ref.func $f) (ref.func $f) (local.get 0)))))';
     const sel = selects(bridged(wat))[0]!;
-    assertEquals(sel.resultType, ValType.FuncRef);
+    assertEquals(sel.resultType, [ValType.FuncRef]);
     assertEquals(sel.type, ValType.FuncRef);
   });
 });
