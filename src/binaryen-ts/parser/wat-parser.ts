@@ -73,7 +73,11 @@ import {
   makeIf,
   makeLoad,
   makeLoop,
+  makeMemoryCopy,
+  makeMemoryFill,
+  makeMemoryGrow,
   makeMemoryInit,
+  makeMemorySize,
   makePop,
   makeRefAsNonNull,
   makeRefCast,
@@ -109,10 +113,6 @@ import {
   makeTry,
   makeTryTable,
   makeV128Const,
-  type MemoryCopyExpr,
-  type MemoryFillExpr,
-  type MemoryGrowExpr,
-  type MemorySizeExpr,
   type NopExpr,
   type RegionExpr,
   type SIMDExtractExpr,
@@ -898,7 +898,7 @@ class WatModuleParser {
         // factory was fixed for.
         return makeReturn();
       case 'memory.size':
-        return { kind: ExpressionKind.MemorySize, type: ValType.I32 } as MemorySizeExpr;
+        return makeMemorySize();
     }
     // Number literal?
     if (atom.token.kind === 'integer') {
@@ -1093,11 +1093,17 @@ class WatModuleParser {
     // Memory
     // -----------------------------------------------------------------------
     if (head === 'memory.size') {
-      return { kind: ExpressionKind.MemorySize, type: ValType.I32 } as MemorySizeExpr;
+      // This front door has no multi-memory support, and its siblings refuse an
+      // index (as "unexpected atom"). `memory.size` alone IGNORED one and asked
+      // memory 0 -- a valid module reading the wrong memory. Refuse it too.
+      if (args.length > 0) {
+        this.err('memory.size: an explicit memory index is not supported by this parser', list.pos);
+      }
+      return makeMemorySize();
     }
     if (head === 'memory.grow') {
       const delta = this.parseExpr(args[0], ctx);
-      return { kind: ExpressionKind.MemoryGrow, type: ValType.I32, delta } as MemoryGrowExpr;
+      return makeMemoryGrow(delta);
     }
     // Bulk memory and table operations.
     //
@@ -1178,13 +1184,13 @@ class WatModuleParser {
       const dest = this.parseExpr(args[0], ctx);
       const source = this.parseExpr(args[1], ctx);
       const size = this.parseExpr(args[2], ctx);
-      return { kind: ExpressionKind.MemoryCopy, type: None, dest, source, size } as MemoryCopyExpr;
+      return makeMemoryCopy(dest, source, size);
     }
     if (head === 'memory.fill') {
       const dest = this.parseExpr(args[0], ctx);
       const value = this.parseExpr(args[1], ctx);
       const size = this.parseExpr(args[2], ctx);
-      return { kind: ExpressionKind.MemoryFill, type: None, dest, value, size } as MemoryFillExpr;
+      return makeMemoryFill(dest, value, size);
     }
 
     // -----------------------------------------------------------------------

@@ -36,7 +36,7 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
-import { indexOf, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
@@ -1077,7 +1077,7 @@ export interface LoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Load;
   /**
@@ -1104,7 +1104,7 @@ export interface StoreExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Store;
   /**
@@ -1134,7 +1134,7 @@ export interface MemoryGrowExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryGrow;
   /** Result type — the value type yielded at runtime. */
@@ -1153,7 +1153,7 @@ export interface MemorySizeExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemorySize;
   /** Result type — the value type yielded at runtime. */
@@ -1209,7 +1209,7 @@ export interface MemoryInitExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryInit;
   /** Result type — the value type yielded at runtime. */
@@ -1301,9 +1301,9 @@ export interface MemoryCopyExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  destMemidx?: Var;
+  destMemidx: Var;
   /** Memory the COPY READS FROM. Omitted means 0. `memory` is the destination. */
-  srcMemidx?: Var;
+  srcMemidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryCopy;
   /** Result type — the value type yielded at runtime. */
@@ -1326,7 +1326,7 @@ export interface MemoryFillExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryFill;
   /** Result type — the value type yielded at runtime. */
@@ -2035,7 +2035,7 @@ export interface SIMDLoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoad;
   /** Operator code. */
@@ -2058,7 +2058,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoadStoreLane;
   /** Operator code. */
@@ -2613,7 +2613,7 @@ export function makeLoad(
     offset,
     align,
     address: ptr,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2635,7 +2635,7 @@ export function makeStore(
     align,
     address: ptr,
     value,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2644,7 +2644,7 @@ export function makeMemorySize(memidx: Var = varIndex(0)): MemorySizeExpr {
   return {
     kind: ExpressionKind.MemorySize,
     type: ValType.I32,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2654,7 +2654,7 @@ export function makeMemoryGrow(delta: Expression, memidx: Var = varIndex(0)): Me
     kind: ExpressionKind.MemoryGrow,
     type: ValType.I32,
     delta,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2689,7 +2689,7 @@ export function makeMemoryInit(
     dest,
     source,
     size,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2755,8 +2755,8 @@ export function makeMemoryCopy(
     dest,
     source,
     size,
-    ...(indexOf(destMemidx) !== 0 ? { destMemidx } : {}),
-    ...(indexOf(srcMemidx) !== 0 ? { srcMemidx } : {}),
+    destMemidx,
+    srcMemidx,
   };
 }
 
@@ -2773,7 +2773,7 @@ export function makeMemoryFill(
     dest,
     value,
     size,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -3228,7 +3228,7 @@ export function makeSIMDLoad(
     address: ptr,
     offset,
     align,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -3255,7 +3255,7 @@ export function makeSIMDLoadStoreLane(
     offset,
     align,
     lane,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
