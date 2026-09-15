@@ -36,7 +36,7 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
-import { indexOf, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
@@ -897,7 +897,7 @@ export interface BreakExpr extends ExprBase {
    */
   target: string;
   /** Optional condition — when present this is a `br_if`. */
-  condition: Expression | null;
+  condition?: Expression;
   /** The forwarded values, in stack order — empty for a value-less branch. */
   values: Expression[];
 }
@@ -1077,7 +1077,7 @@ export interface LoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Load;
   /**
@@ -1104,7 +1104,7 @@ export interface StoreExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Store;
   /**
@@ -1134,7 +1134,7 @@ export interface MemoryGrowExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryGrow;
   /** Result type — the value type yielded at runtime. */
@@ -1153,7 +1153,7 @@ export interface MemorySizeExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemorySize;
   /** Result type — the value type yielded at runtime. */
@@ -1209,7 +1209,7 @@ export interface MemoryInitExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryInit;
   /** Result type — the value type yielded at runtime. */
@@ -1301,9 +1301,9 @@ export interface MemoryCopyExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  destMemidx?: Var;
+  destMemidx: Var;
   /** Memory the COPY READS FROM. Omitted means 0. `memory` is the destination. */
-  srcMemidx?: Var;
+  srcMemidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryCopy;
   /** Result type — the value type yielded at runtime. */
@@ -1326,7 +1326,7 @@ export interface MemoryFillExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryFill;
   /** Result type — the value type yielded at runtime. */
@@ -1348,7 +1348,7 @@ export interface CallExpr extends ExprBase {
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** isReturn — see the {@link make} factory for semantics. */
-  isReturn: boolean;
+  isReturn?: boolean;
 }
 
 /**
@@ -1397,7 +1397,7 @@ export interface CallIndirectExpr extends ExprBase {
    */
   sig: FuncSignature;
   /** isReturn — see the matching factory for semantics. */
-  isReturn: boolean;
+  isReturn?: boolean;
   /**
    * The type-section index the instruction NAMED — see {@link WrittenTypeIndex}
    * (7c). Without it the encoder derives one by structural match, which picks
@@ -1530,7 +1530,7 @@ export interface StructNewExpr extends ExprBase {
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** defaultInit — see the {@link make} factory for semantics. */
-  defaultInit: boolean;
+  defaultInit?: boolean;
 }
 
 /** {@link StructGetExpr} — see {@link makeStructGet} for the factory. */
@@ -1543,8 +1543,12 @@ export interface StructGetExpr extends ExprBase {
   fieldVar: Var;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
-  /** Whether the load is sign-extended (signed=true) or zero-extended. */
-  signed: boolean;
+  /**
+   * Which of the three spellings: absent is plain `get` (a non-packed field),
+   * `true` is `get_s`, `false` is `get_u`. Three states, not two -- see
+   * `tests/binaryen-ts/binary/get_signedness.test.ts`.
+   */
+  signed?: boolean;
 }
 
 /** {@link StructSetExpr} — see {@link makeStructSet} for the factory. */
@@ -1570,7 +1574,7 @@ export interface ArrayNewExpr extends ExprBase {
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** init — see the matching factory for semantics. */
-  init: Expression | null;
+  init?: Expression;
   /** Byte length to operate on. */
   length: Expression;
 }
@@ -1623,8 +1627,8 @@ export interface ArrayGetExpr extends ExprBase {
   ref: Expression;
   /** Numeric index into the relevant table. */
   index: Expression;
-  /** Whether the load is sign-extended (signed=true) or zero-extended. */
-  signed: boolean;
+  /** As {@link StructGetExpr.signed}: absent is plain `get`, `true` `get_s`, `false` `get_u`. */
+  signed?: boolean;
 }
 
 /** {@link ArraySetExpr} — see {@link makeArraySet} for the factory. */
@@ -2031,7 +2035,7 @@ export interface SIMDLoadExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoad;
   /** Operator code. */
@@ -2054,7 +2058,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
    * multi-memory could not survive convergence without regressing behaviour
    * that already works. The worst load combination controls the element.
    */
-  memidx?: Var;
+  memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.SIMDLoadStoreLane;
   /** Operator code. */
@@ -2511,7 +2515,8 @@ export function makeLoop(name: string, body: RegionInput, resultType: Type = Non
 /** Creates a `br` or `br_if` expression carrying `values`. */
 export function makeBreak(
   name: string,
-  condition: Expression | null = null,
+  // `null` is still accepted: every caller wrote it, and absent is what it means.
+  condition: Expression | null | undefined = undefined,
   values: Expression[] = [],
 ): BreakExpr {
   // Mirrors upstream `Break::finalize`: an UNCONDITIONAL `br` always transfers
@@ -2521,8 +2526,14 @@ export function makeBreak(
   // unreachable, so no fallthrough value is required). A conditional `br_if`
   // falls through when the condition is false, so it takes its values' type
   // (`none` when value-less).
-  const type: Type = condition === null ? Unreachable : valuesType(values);
-  return { kind: ExpressionKind.Break, type, target: name, condition, values };
+  const type: Type = condition == null ? Unreachable : valuesType(values);
+  return {
+    kind: ExpressionKind.Break,
+    type,
+    target: name,
+    ...(condition == null ? {} : { condition }),
+    values,
+  };
 }
 
 /** Creates a `br_table` expression carrying `values`. */
@@ -2602,7 +2613,7 @@ export function makeLoad(
     offset,
     align,
     address: ptr,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2624,7 +2635,7 @@ export function makeStore(
     align,
     address: ptr,
     value,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2633,7 +2644,7 @@ export function makeMemorySize(memidx: Var = varIndex(0)): MemorySizeExpr {
   return {
     kind: ExpressionKind.MemorySize,
     type: ValType.I32,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2643,7 +2654,7 @@ export function makeMemoryGrow(delta: Expression, memidx: Var = varIndex(0)): Me
     kind: ExpressionKind.MemoryGrow,
     type: ValType.I32,
     delta,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2678,7 +2689,7 @@ export function makeMemoryInit(
     dest,
     source,
     size,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2744,8 +2755,8 @@ export function makeMemoryCopy(
     dest,
     source,
     size,
-    ...(indexOf(destMemidx) !== 0 ? { destMemidx } : {}),
-    ...(indexOf(srcMemidx) !== 0 ? { srcMemidx } : {}),
+    destMemidx,
+    srcMemidx,
   };
 }
 
@@ -2762,7 +2773,7 @@ export function makeMemoryFill(
     dest,
     value,
     size,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -2862,9 +2873,16 @@ export function makeStructGet(
   fieldVar: Var,
   ref: Expression,
   resultType: Type,
-  signed = false,
+  signed?: boolean,
 ): StructGetExpr {
-  return { kind: ExpressionKind.StructGet, type: resultType, typeVar, fieldVar, ref, signed };
+  return {
+    kind: ExpressionKind.StructGet,
+    type: resultType,
+    typeVar,
+    fieldVar,
+    ref,
+    ...(signed === undefined ? {} : { signed }),
+  };
 }
 
 /** Creates a struct.set expression. */
@@ -2893,7 +2911,7 @@ export function makeArrayNewDefault(
   length: Expression,
   resultType: Type,
 ): ArrayNewExpr {
-  return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, init: null, length };
+  return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, length };
 }
 
 /** Creates an array.new_fixed expression. */
@@ -2947,9 +2965,16 @@ export function makeArrayGet(
   ref: Expression,
   index: Expression,
   resultType: Type,
-  signed = false,
+  signed?: boolean,
 ): ArrayGetExpr {
-  return { kind: ExpressionKind.ArrayGet, type: resultType, typeVar, ref, index, signed };
+  return {
+    kind: ExpressionKind.ArrayGet,
+    type: resultType,
+    typeVar,
+    ref,
+    index,
+    ...(signed === undefined ? {} : { signed }),
+  };
 }
 
 /** Creates an array.set expression. */
@@ -3203,7 +3228,7 @@ export function makeSIMDLoad(
     address: ptr,
     offset,
     align,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 
@@ -3230,7 +3255,7 @@ export function makeSIMDLoadStoreLane(
     offset,
     align,
     lane,
-    ...(indexOf(memidx) !== 0 ? { memidx } : {}),
+    memidx,
   };
 }
 

@@ -141,6 +141,12 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   `--reload` ([binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/publishing.md`). Release tooling, so
   the owner's call. (Its neighbour, the bump-then-release refusal, was fixed under owner decision 6
   — [publishing.md](publishing.md) § "The flow".)
+- ⬚ **binaryen-ts's WAT parser has no multi-memory support** (measured 2026-09-15). An explicit
+  memory index on `memory.size`/`grow`/`fill`/`copy` or a load/store is REFUSED — loud, not silent.
+  `memory.size` was the silent exception (it ignored `$b` and asked memory 0) until S6 step 5 stage
+  B4; `tests/binaryen-ts/parser/explicit_memory_index.test.ts` pins all five as refusals. wabt-ts's
+  parser and both binary paths handle multi-memory. A capability gap in one front door, not a
+  defect.
 - ⬚ **Multiple tables are refused at encode** (`checkSingleTable`, `wasm-encoder.ts` ~1151; elem and
   `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already
   resolves `call_indirect`'s table index. The day it is lifted, both encoders must thread the real

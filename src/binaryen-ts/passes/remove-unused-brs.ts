@@ -71,7 +71,7 @@ function _optimizeBlock(
   // Case 1: (br $name) — unconditional, no value, at end of own block
   if (
     last.kind === ExpressionKind.Break &&
-    last.condition === null &&
+    last.condition === undefined &&
     last.values.length === 0 &&
     last.target === block.name
   ) {
@@ -86,7 +86,7 @@ function _optimizeBlock(
   // Case 2: (br_if $name cond) — conditional, no value, at end of own block
   if (
     last.kind === ExpressionKind.Break &&
-    last.condition !== null &&
+    last.condition !== undefined &&
     last.values.length === 0 &&
     last.target === block.name
   ) {

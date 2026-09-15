@@ -153,9 +153,8 @@ describe('binaryen-ts — multi-memory beyond load and store', () => {
 });
 
 describe('binaryen-ts — single-memory output is untouched', () => {
-  // The memory field is omitted when zero, so nothing about a single-memory
-  // module changes shape. The corpus baseline is the broader proof; this is the
-  // direct one.
+  // Nothing about a single-memory module's BYTES changes. The corpus baseline is
+  // the broader proof; this is the direct one.
   it('still round-trips a plain single-memory module byte-identically', () => {
     const input = assemble(`(module (memory 1)
       (func $f (param i32) (result i32)
@@ -165,12 +164,15 @@ describe('binaryen-ts — single-memory output is untouched', () => {
     assertEquals(Array.from(out), Array.from(input));
   });
 
-  it('records no memory field on a memory-0 access', () => {
+  // ⚠️ INVERTED, not deleted (S6 step 5, stage B4). This pinned the OLD shape --
+  // memory 0 as an ABSENT field. The unified node is wabt-ts's: `memidx` is always
+  // present, so the two sides can be one type. The bytes above did not move.
+  it('records memory 0 explicitly, as index 0', () => {
     const mod = parseWasm(
       assemble('(module (memory 1) (func $f (result i32) (i32.load (i32.const 0))))'),
     );
     const load = nodesOf(mod.functions[0]?.body).find((n) => n['kind'] === ExpressionKind.Load);
     assert(load, 'a load must be present');
-    assertEquals(load.memidx, undefined, 'memory 0 is represented by absence');
+    assertEquals(load.memidx, varIndex(0), 'memory 0 is an explicit index, never an absence');
   });
 });

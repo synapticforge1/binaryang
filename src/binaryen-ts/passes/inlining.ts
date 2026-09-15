@@ -646,7 +646,6 @@ function substituteBody(
           kind: ExpressionKind.Break,
           type: Unreachable,
           target: returnLabel,
-          condition: null,
           values: e.values,
         };
         return br;
