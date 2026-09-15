@@ -24,7 +24,7 @@ that history now lives in its topic files — nothing was dropped:
 
 **State, 2026-09-14:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
-bridge 401/421, one pack. Re-derive before quoting.
+bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
 ## Start the next session here (handoff, 2026-09-14)
 
@@ -66,8 +66,9 @@ optimized output is now validated at every level by `deno task optimize-corpus`.
 
 **Suggested order:**
 
-1. **S6 step 5 — delete the bridge** (401/421 → 421/421). Check first whether its stale
-   `ref.as_non_null` refusal is among the 20 misses.
+1. **S6 step 5 — delete the bridge.** Its acceptance is already met (421/421, `ed38c084f`); the 20
+   misses were one `call_indirect` signature bug, and the stale `ref.as_non_null` refusal was NOT
+   among them (checked 2026-09-15: 18 were "fallthru", 2 were operand-type mismatches).
 2. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
 
 ## Owner actions — nothing here is blocked on code
@@ -90,9 +91,11 @@ the predecessors are frozen. Do not re-open ([project.md](project.md)).
 
 Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where it stands".
 
-- ⬚ **S6 step 5 — delete the bridge**, carrying its type derivation forward as a pass. Acceptance:
-  `deno task bridge` 401/421 → **421/421**. It absorbs C10a (the 24 modules the bridge
-  mistranslates, owner decision 2026-09-02); if S6 is abandoned, C10a comes back.
+- ⬚ **S6 step 5 — delete the bridge**, carrying its type derivation forward as a pass. Its
+  acceptance (`deno task bridge` 421/421) was **met on 2026-09-15 ahead of the step**
+  (`ed38c084f`): C10a's 20 remaining modules had one cause, a `call_indirect` signature the bridge
+  never resolved. So the gate now starts green and can only say the step did not break it —
+  [ir-convergence.md](ir-convergence.md) § "Step 5".
 - ⬚ **S7 — the linear-form marker.** Independent of the rest. ⚠️ Changed by C3: binaryen-ts now
   keeps custom sections, so S7 must strip its own marker deliberately when optimization runs.
 - ⬚ **K1 — atomics and `call_ref` in binaryen-ts** (DEFECT, port gap). The decoder refuses them
@@ -118,6 +121,14 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   ([ir-convergence.md](ir-convergence.md)).
 
 ## Open defects and gaps
+
+- ⬚ **The bridge silently drops element segments** (found 2026-09-15, building the `call_indirect`
+  fixture; verified by reading `bridge.ts` — `module.elemSegments` is never read). A bridged
+  module's tables stay empty, so any `call_indirect` through one traps with "null function". The
+  module doc claimed element segments "will throw"; it was corrected in the same commit
+  (`ed38c084f`). **`deno task bridge` cannot see it**: it compiles what the bridge builds and never
+  runs it, which is also why "421/421" is a validity claim only. Moot if S6 step 5 deletes the
+  bridge; until then, anything that RUNS bridged output is unsound.
 
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
