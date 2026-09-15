@@ -2279,10 +2279,10 @@ class WasmEncoder {
       }
       case ExpressionKind.ArrayNew: {
         const e = expr as ArrayNewExpr;
-        if (e.init !== null) this.encodeExpr(w, e.init, labels);
+        if (e.init !== undefined) this.encodeExpr(w, e.init, labels);
         this.encodeExpr(w, e.length, labels);
         w.writeU8(0xfb);
-        w.writeU32(e.init === null ? 0x07 : 0x06);
+        w.writeU32(e.init === undefined ? 0x07 : 0x06);
         w.writeU32(requireIndex(e.typeVar, e.kind));
         break;
       }

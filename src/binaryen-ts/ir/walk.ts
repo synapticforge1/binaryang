@@ -164,7 +164,7 @@ function _mapChildren(
     case ExpressionKind.Break:
       return {
         ...expr,
-        condition: expr.condition ? fn(expr.condition) : null,
+        ...(expr.condition === undefined ? {} : { condition: fn(expr.condition) }),
         values: expr.values.map(fn),
       };
 
@@ -334,7 +334,7 @@ function _mapChildren(
     case ExpressionKind.ArrayNew:
       return {
         ...expr,
-        init: expr.init ? fn(expr.init) : null,
+        ...(expr.init === undefined ? {} : { init: fn(expr.init) }),
         length: fn(expr.length),
       };
 

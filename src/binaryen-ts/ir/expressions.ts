@@ -897,7 +897,7 @@ export interface BreakExpr extends ExprBase {
    */
   target: string;
   /** Optional condition — when present this is a `br_if`. */
-  condition: Expression | null;
+  condition?: Expression;
   /** The forwarded values, in stack order — empty for a value-less branch. */
   values: Expression[];
 }
@@ -1574,7 +1574,7 @@ export interface ArrayNewExpr extends ExprBase {
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** init — see the matching factory for semantics. */
-  init: Expression | null;
+  init?: Expression;
   /** Byte length to operate on. */
   length: Expression;
 }
@@ -2515,7 +2515,8 @@ export function makeLoop(name: string, body: RegionInput, resultType: Type = Non
 /** Creates a `br` or `br_if` expression carrying `values`. */
 export function makeBreak(
   name: string,
-  condition: Expression | null = null,
+  // `null` is still accepted: every caller wrote it, and absent is what it means.
+  condition: Expression | null | undefined = undefined,
   values: Expression[] = [],
 ): BreakExpr {
   // Mirrors upstream `Break::finalize`: an UNCONDITIONAL `br` always transfers
@@ -2525,8 +2526,14 @@ export function makeBreak(
   // unreachable, so no fallthrough value is required). A conditional `br_if`
   // falls through when the condition is false, so it takes its values' type
   // (`none` when value-less).
-  const type: Type = condition === null ? Unreachable : valuesType(values);
-  return { kind: ExpressionKind.Break, type, target: name, condition, values };
+  const type: Type = condition == null ? Unreachable : valuesType(values);
+  return {
+    kind: ExpressionKind.Break,
+    type,
+    target: name,
+    ...(condition == null ? {} : { condition }),
+    values,
+  };
 }
 
 /** Creates a `br_table` expression carrying `values`. */
@@ -2904,7 +2911,7 @@ export function makeArrayNewDefault(
   length: Expression,
   resultType: Type,
 ): ArrayNewExpr {
-  return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, init: null, length };
+  return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, length };
 }
 
 /** Creates an array.new_fixed expression. */

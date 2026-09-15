@@ -220,7 +220,7 @@ Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init',
   assertEquals(body.kind, ExpressionKind.ArrayNew);
   const an = body as { typeVar: Var; init: unknown };
   assertEquals(an.typeVar, varIndex(0));
-  assertEquals(an.init, null);
+  assertEquals('init' in an, false, 'array.new_default carries no init at all');
 });
 
 Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
@@ -291,7 +291,7 @@ Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
   const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.ArrayNew);
   const an = body as { init: unknown };
-  assertEquals(an.init, null);
+  assertEquals('init' in an, false, 'array.new_default carries no init at all');
 });
 
 Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
