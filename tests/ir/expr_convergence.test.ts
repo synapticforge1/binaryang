@@ -126,7 +126,7 @@ const PINNED: Computed = {
   'simd.load': 'types',
   'simd.load_store_lane': 'types',
   'simd.replace': 'identical',
-  'simd.shuffle': 'names',
+  'simd.shuffle': 'identical',
   'simd.ternary': 'identical',
   'store': 'types',
   'struct.get': 'types',

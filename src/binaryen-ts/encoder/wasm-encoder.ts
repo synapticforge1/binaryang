@@ -2535,7 +2535,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.right, labels);
         w.writeU8(0xfd);
         w.writeU32(0x0d);
-        w.writeBytes(e.mask);
+        w.writeBytes(e.lanes);
         break;
       }
 

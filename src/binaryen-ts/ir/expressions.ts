@@ -1949,7 +1949,7 @@ export interface SIMDShuffleExpr extends ExprBase {
   /** Right-hand operand. */
   right: Expression;
   /** 16-byte immediate lane-select mask. */
-  mask: Uint8Array;
+  lanes: Uint8Array;
 }
 
 /** `v128.bitselect` and relaxed ternary SIMD ops. */
@@ -3175,7 +3175,7 @@ export function makeSIMDShuffle(
   right: Expression,
   mask: Uint8Array,
 ): SIMDShuffleExpr {
-  return { kind: ExpressionKind.SIMDShuffle, type: ValType.V128, left, right, mask };
+  return { kind: ExpressionKind.SIMDShuffle, type: ValType.V128, left, right, lanes: mask };
 }
 
 /** Creates a `v128.bitselect` or relaxed ternary SIMD expression. */

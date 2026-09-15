@@ -219,8 +219,8 @@ Deno.test('SIMD: i8x16.shuffle parsed correctly', () => {
   const expr = soleInstr(mod.functions[0].body) as SIMDShuffleExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDShuffle);
   assertEquals(expr.type, ValType.V128);
-  assertEquals(expr.mask.length, 16);
-  for (let i = 0; i < 16; i++) assertEquals(expr.mask[i], i);
+  assertEquals(expr.lanes.length, 16);
+  for (let i = 0; i < 16; i++) assertEquals(expr.lanes[i], i);
 });
 
 // ---------------------------------------------------------------------------
