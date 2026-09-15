@@ -44,7 +44,8 @@ import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
 import { Result } from '../../../src/wabt-ts/core/result.ts';
-import { isRefValueType } from '../../../src/wabt-ts/ir/ir.ts';
+import { isRefValueType, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { Type } from '../../../src/wabt-ts/core/types.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 
 function compile(wat: string): Uint8Array {
@@ -173,8 +174,18 @@ describe('T9.10 — a select result annotation is encoded as a value type', () =
       (func (param (ref null $t) (ref null $t) i32) (result (ref null $t))
         (select (result (ref null $t)) (local.get 0) (local.get 1) (local.get 2))))`;
     const back = readBinaryIr(compile(wat), makeErrorList(), {});
-    const body = JSON.stringify(back.funcs[0]!.body);
-    assert(body.includes('"kind":"ref"'), `select annotation lost: ${body}`);
+    // Asserted on the NODE, not on a JSON substring: this used to look for
+    // `"kind":"ref"`, a discriminator S6 step 5 stage V3b removed while the
+    // annotation itself stayed exactly as it was.
+    const sel = back.funcs[0]!.body.find((e) => e.kind === 'select');
+    assert(sel?.kind === 'select', `no select in: ${JSON.stringify(back.funcs[0]!.body)}`);
+    const [rt] = sel.resultType;
+    assert(
+      rt !== undefined && isRefValueType(rt),
+      `select annotation lost: ${JSON.stringify(sel)}`,
+    );
+    assertEquals(rt.nullable, true);
+    assertEquals(rt.heapType, varIndex(0));
     accepts(wat);
   });
 
@@ -190,8 +201,15 @@ describe('T9.10 — a select result annotation is encoded as a value type', () =
       makeErrorList(),
       {},
     );
-    const sel = JSON.stringify(back.funcs[0]!.body);
-    assert(sel.includes('112') || sel.includes('"kind":"ref"'), sel);
+    // On the node: this matched `'112'` (funcref's byte) or `"kind":"ref"` in a
+    // JSON dump, and the second arm went dead when stage V3b removed that key.
+    const sel = back.funcs[0]!.body.find((e) => e.kind === 'select');
+    assert(sel?.kind === 'select', JSON.stringify(back.funcs[0]!.body));
+    const [rt] = sel.resultType;
+    const isFuncref = rt === Type.FuncRef ||
+      (rt !== undefined && isRefValueType(rt) && rt.nullable &&
+        rt.heapType.kind === 'abstract' && rt.heapType.name === 'func');
+    assert(isFuncref, `expected funcref, got ${JSON.stringify(rt)}`);
   });
 
   it('and isRefValueType still tells the two apart', () => {

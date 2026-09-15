@@ -705,8 +705,8 @@ class ModuleValidator implements ExprVisitorDelegate {
       e.loc,
       varIdx(e.target),
       e.op === 'br_on_cast_fail',
-      { kind: 'ref', heapType: e.from!.heapType, nullable: e.from!.nullable },
-      { kind: 'ref', heapType: e.to!.heapType, nullable: e.to!.nullable },
+      { heapType: e.from!.heapType, nullable: e.from!.nullable },
+      { heapType: e.to!.heapType, nullable: e.to!.nullable },
     );
   }
 
@@ -842,7 +842,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     // `refType` is a HEAP type, and `ref.null H` produces `(ref null H)`.
     // A user-defined `$T` used to coarsen to the abstract supertype of its
     // entry, which lost which type it was; it now travels as an index.
-    return this.sv.onRefNull(e.loc, { kind: 'ref', heapType: e.refType, nullable: true });
+    return this.sv.onRefNull(e.loc, { heapType: e.refType, nullable: true });
   }
 
   onRefIsNullExpr(e: RefIsNullExpr): Result {
@@ -953,7 +953,6 @@ class ModuleValidator implements ExprVisitorDelegate {
     // Hand over the type being tested FOR — `(ref [null] H)` — so the operand
     // can be checked against it, exactly as `onRefCastExpr` does below.
     return this.sv.onRefTest(e.loc, {
-      kind: 'ref',
       heapType: e.heapType,
       nullable: e.nullable,
     });
@@ -964,7 +963,6 @@ class ModuleValidator implements ExprVisitorDelegate {
     // Hand over the type being cast TO — `(ref [null] H)` — so the result on
     // the stack is that type rather than an anonymous reference.
     return this.sv.onRefCast(e.loc, {
-      kind: 'ref',
       heapType: e.heapType,
       nullable: e.nullable,
     });

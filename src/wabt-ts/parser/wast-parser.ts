@@ -567,7 +567,6 @@ function isCommand(tt0: TokenType, tt1: TokenType): boolean {
  * against the same table as INVALID, and they differ only in this.
  */
 const FUNCIDX_ELEM_TYPE: ValueType = {
-  kind: 'ref',
   heapType: heapAbstract('func'),
   nullable: false,
 };
@@ -1598,7 +1597,7 @@ export class WastParser {
         // non-nullable form and still needs the two-part encoding.
         if (abstract_ !== null && nullable) return abstract_;
       }
-      return { kind: 'ref', heapType: ht, nullable };
+      return { heapType: ht, nullable };
     }
     this.error(this.loc(), `expected value type, got ${tokenName(tt)}`);
     return null;

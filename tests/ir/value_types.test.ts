@@ -16,6 +16,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { Type } from '../../src/wabt-ts/core/types.ts';
+import type { RefValueType } from '../../src/wabt-ts/ir/ir.ts';
+import type { RefType } from '../../src/binaryen-ts/ir/gc-types.ts';
 import {
   isValType,
   None,
@@ -85,3 +87,25 @@ describe('one scalar value-type representation', () => {
     assert(!isValType(0x40), 'a byte that is not a value type');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Stage V3: ONE reference-type record
+// ---------------------------------------------------------------------------
+
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/**
+ * binaryen-ts's `RefType` and wabt-ts's `RefValueType` are the same record:
+ * `{ heapType: HeapTypeRef; nullable: boolean }`. V3a renamed binaryen-ts's
+ * `heap` to `heapType`; V3b removed wabt-ts's `kind: 'ref'`. A compile-time
+ * assertion, in two parts: the KEY sets, then mutual assignability. Assignability
+ * alone was not enough -- its first draft stayed green with an OPTIONAL field
+ * added to one side, because an absent optional still assigns. (`readonly` does
+ * not affect assignability, so wabt-ts's readonly fields do not stop it being
+ * one record.)
+ */
+const _oneRefRecord: [Same<keyof RefType, keyof RefValueType>, Same<RefType, RefValueType>] = [
+  true,
+  true,
+];
+void _oneRefRecord;

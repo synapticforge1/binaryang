@@ -829,7 +829,7 @@ function nonNullable(t: ValueType): ValueType {
   if (isRefValueType(t)) return t.nullable ? { ...t, nullable: false } : t;
   const name = typeToHeapTypeName(t);
   if (name === null) return t;
-  return { kind: 'ref', heapType: heapAbstract(name), nullable: false };
+  return { heapType: heapAbstract(name), nullable: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -1583,7 +1583,7 @@ export class TypeChecker {
     // The operand must be an ARRAY reference, not merely a reference:
     // `array.len` on a `(ref $struct)` or a `funcref` used to validate.
     const r = this.popAndCheck1Type(
-      { kind: 'ref', heapType: heapAbstract('array'), nullable: true },
+      { heapType: heapAbstract('array'), nullable: true },
       'array.len',
     );
     this.pushType(Type.I32);
@@ -1754,7 +1754,7 @@ export class TypeChecker {
    * function type, so a `(result (ref $T))` slot accepts it.
    */
   onRefFunc(typeIndex: number): Result {
-    this.pushType({ kind: 'ref', heapType: { kind: 'index', value: typeIndex }, nullable: false });
+    this.pushType({ heapType: { kind: 'index', value: typeIndex }, nullable: false });
     return Result.Ok;
   }
 
@@ -1805,7 +1805,7 @@ export class TypeChecker {
     // validated.
     const r = this.popAndCheck1Type(_I32, 'ref.i31');
     // Non-null by construction: `(ref i31)`, not the nullable `i31ref`.
-    this.pushType({ kind: 'ref', heapType: heapAbstract('i31'), nullable: false });
+    this.pushType({ heapType: heapAbstract('i31'), nullable: false });
     return r;
   }
 
@@ -1815,7 +1815,7 @@ export class TypeChecker {
     // Must be an i31 reference. Unchecked, `i31.get_s` accepted any operand
     // at all — `anyref` and even `funcref`.
     const r = this.popAndCheck1Type(
-      { kind: 'ref', heapType: heapAbstract('i31'), nullable: true },
+      { heapType: heapAbstract('i31'), nullable: true },
       'i31.get',
     );
     this.pushType(_I32);

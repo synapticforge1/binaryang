@@ -235,8 +235,9 @@ console.log(`declared-but-unimplemented kinds   : ${phantoms.length} (pinned)`);
  * Every kind in wabt-ts's `Expr` union, by its discriminant string.
  *
  * ⚠️ The union is the authority, NOT every `readonly kind:` in `ir.ts`. That
- * file also declares non-expression nodes — `RefValueType` has `kind: 'ref'`
- * — and counting those reports a TYPE as a missing instruction.
+ * file also declares non-expression records with a `kind` (catch clauses, block
+ * types; `RefValueType` had `kind: 'ref'` until S6 step 5 stage V3b) — and
+ * counting those reports a TYPE as a missing instruction.
  */
 function wabtExprKinds(irSrc: string): Set<string> {
   const kindOf = new Map<string, string[]>();

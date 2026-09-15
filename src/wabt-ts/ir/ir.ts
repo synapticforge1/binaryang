@@ -1448,7 +1448,9 @@ export interface LocalDecl {
  * signature, local, global, or element type.
  */
 export interface RefValueType {
-  readonly kind: 'ref';
+  // No `kind`: S6 step 5 stage V3b removed a discriminator that could only ever
+  // be 'ref' -- a ref record is the one OBJECT among value types, so it told
+  // nothing `typeof` did not -- and binaryen-ts's `RefType` never had one.
   /** The heap type: a name-var for `$T`, an index-var once resolved. */
   readonly heapType: HeapTypeRef;
   /** `(ref null $T)` when true, `(ref $T)` when false. */

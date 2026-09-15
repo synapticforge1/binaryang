@@ -323,12 +323,12 @@ export class SharedValidator {
 
   /** The non-nullable reference to a defined type: `(ref $idx)`. */
   private refTo(idx: number): ValueType {
-    return { kind: 'ref', heapType: varIndex(idx), nullable: false };
+    return { heapType: varIndex(idx), nullable: false };
   }
 
   /** `(ref null $idx)` — what an operand slot accepts for a defined type. */
   private refNullTo(idx: number): ValueType {
-    return { kind: 'ref', heapType: varIndex(idx), nullable: true };
+    return { heapType: varIndex(idx), nullable: true };
   }
 
   /**
@@ -2126,7 +2126,7 @@ export class SharedValidator {
     if (kind === CatchKind.CatchRef || kind === CatchKind.CatchAllRef) {
       // A caught exception reference is NON-NULL — `(ref exn)`, not the
       // nullable `exnref`. There is always an exception when the clause runs.
-      params.push({ kind: 'ref', heapType: heapAbstract('exn'), nullable: false });
+      params.push({ heapType: heapAbstract('exn'), nullable: false });
     }
     if (depth === undefined) return Result.Ok;
     return this.tc.checkCatchTarget(depth, params);
