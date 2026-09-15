@@ -113,7 +113,13 @@ import {
   type ValueType,
   valueTypeKey,
 } from '../ir/gc-types.ts';
-import { heapAbstract, requireIndex, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
+import {
+  heapAbstract,
+  requireIndex,
+  requireName,
+  type Var,
+  varFromToken,
+} from '../../wabt-ts/ir/ir.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -1743,7 +1749,18 @@ class WasmEncoder {
   // Expression encoder (recursive, stack-machine order)
   // ---------------------------------------------------------------------------
 
-  private resolveLabel(labels: LabelStack, name: string): number {
+  private resolveLabel(labels: LabelStack, target: Var): number {
+    // A label reference is a `Var` (S6 step 5): an index IS the depth as written
+    // — exact here, because every block, loop, if and try pushes a frame, named
+    // or not. It is only safe BEFORE a pass inserts a block, which is why passes
+    // require the name form (`requireName(…, 'label')`).
+    if (target.kind === 'index') {
+      if (target.value < labels.length) return target.value;
+      throw new WasmEncodeError(
+        `branch depth ${target.value} is outside the ${labels.length} enclosing labels`,
+      );
+    }
+    const name = requireName(target, 'branch label');
     for (let i = labels.length - 1; i >= 0; i--) {
       if (labels[i] === name) return labels.length - 1 - i;
     }
@@ -2459,7 +2476,7 @@ class WasmEncoder {
       case ExpressionKind.Try: {
         const e = expr as TryExpr;
         this.encodeParamValues(w, e, labels);
-        if (e.delegateTarget !== null) {
+        if (e.delegate !== undefined) {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
           this.writeCarrierType(w, e);
@@ -2468,7 +2485,7 @@ class WasmEncoder {
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
           w.writeU8(0x18); // delegate
-          w.writeU32(this.resolveLabel(labels, e.delegateTarget));
+          w.writeU32(this.resolveLabel(labels, e.delegate));
         } else {
           w.writeU8(0x06); // try
           this.writeCarrierType(w, e);

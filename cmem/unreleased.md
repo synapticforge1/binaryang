@@ -59,6 +59,10 @@ their own bump — and nothing breaks by their standing still.
   Then stages S1–S3: `RefTestExpr`/`RefCastExpr` `heapType` (was `castType`) · `RefFuncExpr.func` a
   `Var` (was `string`; `makeRefFunc` takes a `Var`) · `SelectExpr.resultType` a `ValueType[]`, empty
   for untyped (was `ValueType | null`; `makeSelect` still accepts `null` or one type).
+  Then stage L1: every LABEL REFERENCE is a `Var` — `BreakExpr.target`, `SwitchExpr.targets` /
+  `defaultTarget`, `BrOnExpr.target`, `RethrowExpr.target`, `CatchClause.target` (were `string`) —
+  and `TryExpr.delegate?: Var` (was `delegateTarget: string | null`). The factories still take
+  label NAMES. New export `labelName(v)`, which throws on an index-form reference.
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and

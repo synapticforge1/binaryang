@@ -27,6 +27,7 @@ import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
+import type { Var } from '../../../src/wabt-ts/ir/ir.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -127,7 +128,9 @@ describe('P4 — the decoder names every entity from the name section', () => {
       // They used to share the field name, which is what the label-reference
       // rename separated — reading one field could not tell them apart.
       const own = (e as { name?: string | null }).name;
-      const ref = (e as { target?: string | null }).target;
+      // A label reference is a `Var` (S6 step 5); only a NAME-form one counts here.
+      const refVar = (e as { target?: Var }).target;
+      const ref = refVar?.kind === 'name' ? refVar.name : undefined;
       if (['block', 'loop', 'if', 'try', 'try_table'].includes(e.kind)) {
         if (typeof own === 'string' && !own.startsWith('$l')) {
           labels.push(`${e.kind}:${own}`); // `$l…` are made up

@@ -42,7 +42,7 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind } from '../ir/expressions.ts';
+import { type Expression, ExpressionKind, labelName } from '../ir/expressions.ts';
 import { visitChildren } from '../ir/walk.ts';
 import { requireIndex } from '../../wabt-ts/ir/ir.ts';
 
@@ -294,7 +294,7 @@ class _CFGBuilder {
       case ExpressionKind.Break: {
         for (const v of e.values) this.visit(v);
         if (e.condition) this.visit(e.condition);
-        const target = this.resolveLabel(e.target);
+        const target = this.resolveLabel(labelName(e.target));
         if (target) this.link(this.current, target);
         if (e.condition) {
           // br_if: fall through if condition is zero
@@ -312,7 +312,7 @@ class _CFGBuilder {
         for (const v of e.values) this.visit(v);
         this.visit(e.condition);
         const seen = new Set<string>();
-        for (const name of [...e.targets, e.defaultTarget]) {
+        for (const name of [...e.targets, e.defaultTarget].map(labelName)) {
           if (seen.has(name)) continue;
           seen.add(name);
           const target = this.resolveLabel(name);
@@ -400,7 +400,7 @@ class _CFGBuilder {
         // catch resolves, the throw exits the function (we drop the edge).
         const targets: BasicBlock[] = [];
         for (const cc of e.catches) {
-          const target = this.resolveLabel(cc.target);
+          const target = this.resolveLabel(labelName(cc.target));
           if (target) {
             this.link(bodyEntry, target); // conservative entry edge
             targets.push(target);

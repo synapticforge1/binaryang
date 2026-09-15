@@ -27,6 +27,7 @@ import {
   type BrOnExpr,
   type Expression,
   ExpressionKind,
+  labelName,
   type LoopExpr,
   type RethrowExpr,
   type TryExpr,
@@ -65,24 +66,24 @@ function _processBody(body: Expression): Expression {
   const targets = new Set<string>();
   walkExpression(body, (e) => {
     if (e.kind === ExpressionKind.Break) {
-      targets.add(e.target);
+      targets.add(labelName(e.target));
     } else if (e.kind === ExpressionKind.Switch) {
-      for (const t of e.targets) targets.add(t);
-      targets.add(e.defaultTarget);
+      for (const t of e.targets) targets.add(labelName(t));
+      targets.add(labelName(e.defaultTarget));
     } else if (e.kind === ExpressionKind.BrOn) {
       // `br_on_null` / `br_on_cast` name a label exactly like `br` does.
-      targets.add((e as BrOnExpr).target);
+      targets.add(labelName((e as BrOnExpr).target));
     } else if (e.kind === ExpressionKind.TryTable) {
       // A catch clause branches to its `dest` when the handler fires. The
       // label lives OUTSIDE the try_table, so it is an ordinary block label
       // that this pass would otherwise see no reference to and strip —
       // leaving the encoder with a dangling target it can only throw on.
-      for (const c of (e as TryTableExpr).catches) targets.add(c.target);
+      for (const c of (e as TryTableExpr).catches) targets.add(labelName(c.target));
     } else if (e.kind === ExpressionKind.Try) {
-      const t = (e as TryExpr).delegateTarget;
-      if (t !== null) targets.add(t);
+      const t = (e as TryExpr).delegate;
+      if (t !== undefined) targets.add(labelName(t));
     } else if (e.kind === ExpressionKind.Rethrow) {
-      targets.add((e as RethrowExpr).target);
+      targets.add(labelName((e as RethrowExpr).target));
     }
   });
 

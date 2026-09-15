@@ -57,6 +57,7 @@ import {
   type CatchClause,
   type Expression,
   ExpressionKind,
+  labelName,
   makeBlock,
   makeBreak,
   makeLocalGet,
@@ -76,7 +77,7 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { mapChildrenShallow, visitChildren, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 
 /** Translates legacy EH instructions into `try_table` / `throw_ref`. */
 export class TranslateToExnrefPass implements Pass {
@@ -164,9 +165,9 @@ function analyze(fn: WasmFunction): Analysis {
       case ExpressionKind.Try: {
         a.legacy = true;
         e.params?.values.forEach(scan);
-        if (e.delegateTarget !== null) {
+        if (e.delegate !== undefined) {
           // Relative to the try's PARENT scope, so resolve before entering it.
-          let i = find(e.delegateTarget, 'a delegate');
+          let i = find(labelName(e.delegate), 'a delegate');
           let dest: DelegateDest | undefined;
           for (; i >= 0 && dest === undefined; i--) {
             const s = scopes[i]!;
@@ -191,10 +192,10 @@ function analyze(fn: WasmFunction): Analysis {
       }
       case ExpressionKind.Rethrow: {
         a.legacy = true;
-        const s = scopes[find(e.target, 'a rethrow')]!;
+        const s = scopes[find(labelName(e.target), 'a rethrow')]!;
         if (s.kind !== 'catch') {
           throw new Error(
-            `TranslateToExnref: rethrow "${e.target}" is not inside a catch of that try`,
+            `TranslateToExnref: rethrow "${labelName(e.target)}" is not inside a catch of that try`,
           );
         }
         a.rethrowDest.set(e, { node: s.node, clause: s.clause });
@@ -303,14 +304,14 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
       body = makeRegion([makeThrowRef(trampoline)], Unreachable);
     }
 
-    if (t.delegateTarget !== null || t.catches.length === 0) {
+    if (t.delegate !== undefined || t.catches.length === 0) {
       const catches: CatchClause[] = [];
-      if (t.delegateTarget !== null) {
+      if (t.delegate !== undefined) {
         const dest = a.delegateDest.get(t)!;
         const target = dest === CALLER
           ? (callerTrampoline ??= fresh('$eh_delegate_caller'))
           : trampolineOf(dest);
-        catches.push({ target, isRef: true });
+        catches.push({ target: varName(target), isRef: true });
       }
       if (!isDelegateTarget) return makeTryTable(t.name, body, catches, type);
       return makeBlock([makeTryTable(null, body, catches, type)], outerName(), type);
@@ -318,7 +319,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
 
     const clauses: CatchClause[] = t.catches.map((c, i) => ({
       ...(c.tag === undefined ? {} : { tag: c.tag }),
-      target: fresh(c.tag === undefined ? '$eh_catch_all' : '$eh_catch'),
+      target: varName(fresh(c.tag === undefined ? '$eh_catch_all' : '$eh_catch')),
       isRef: a.refClauses.get(t)?.has(i) ?? false,
     }));
     const tryTable = makeTryTable(null, body, clauses, type);
@@ -347,7 +348,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
     clauses.forEach((clause, i) => {
       const params = clause.tag === undefined ? [] : paramsOf(clause.tag);
       const sent: ValueType[] = clause.isRef ? [...params, ValType.ExnRef] : params;
-      const next: Expression[] = [makeBlock(items, clause.target, typeOfValues(sent))];
+      const next: Expression[] = [makeBlock(items, labelName(clause.target), typeOfValues(sent))];
       if (clause.isRef) {
         // The exnref is on TOP of the delivered values; the catch body's own
         // `Pop`s then take the payload beneath it, as the legacy catch left it.

@@ -36,7 +36,7 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
-import { heapAbstract, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, requireName, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
@@ -895,7 +895,7 @@ export interface BreakExpr extends ExprBase {
    * `name`, which reads as the node's OWN label (what `block`, `loop`, `if` and
    * `try` call `name`) rather than the one it jumps to.
    */
-  target: string;
+  target: Var;
   /** Optional condition — when present this is a `br_if`. */
   condition?: Expression;
   /** The forwarded values, in stack order — empty for a value-less branch. */
@@ -907,9 +907,9 @@ export interface SwitchExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Switch;
   /** Branch table targets. */
-  targets: string[];
+  targets: Var[];
   /** Default branch label when no index matches. */
-  defaultTarget: string;
+  defaultTarget: Var;
   /** Condition expression (typed as i32). */
   condition: Expression;
   /** The forwarded values, in stack order — empty for a value-less branch. */
@@ -1775,7 +1775,7 @@ export interface BrOnExpr extends ExprBase {
   /** Operator code. */
   opcode: BrOnOp;
   /** The label this branches to — see the matching factory for semantics. */
-  target: string;
+  target: Var;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /**
@@ -1819,7 +1819,7 @@ export interface CatchClause {
    */
   tag?: Var;
   /** The label this clause branches to when it matches. */
-  target: string;
+  target: Var;
   /** `true` for `catch_ref` and `catch_all_ref` (sends an exnref). */
   isRef: boolean;
 }
@@ -1876,8 +1876,12 @@ export interface TryExpr extends ExprBase {
   body: RegionExpr;
   /** The catch clauses, in order. */
   catches: TryCatch[];
-  /** Set for the `delegate` variant; depth to delegate to. */
-  delegateTarget: string | null;
+  /**
+   * Present for the `delegate` variant: the label it delegates to. A `Var`, and
+   * wabt-ts's name and optionality (S6 step 5) — it was `delegateTarget: string |
+   * null`.
+   */
+  delegate?: Var;
   /**
    * Entry parameters — see {@link BlockParams}. Only the try BODY is seeded: a
    * catch starts with its tag's values, not the try's.
@@ -1910,7 +1914,7 @@ export interface RethrowExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Rethrow;
   /** Label of the enclosing try whose caught exception to rethrow. */
-  target: string;
+  target: Var;
 }
 
 /** `pop` pseudo-instruction — implicit value producer at start of catch handlers. */
@@ -2517,6 +2521,22 @@ export function makeLoop(name: string, body: RegionInput, resultType: Type = Non
   return { kind: ExpressionKind.Loop, type: resultType, name, body: asRegion(body) };
 }
 
+/**
+ * The NAME a label reference holds — how a pass reads `br.target`, a
+ * `br_table` target, `br_on.target`, `rethrow.target`, `try.delegate` or a catch
+ * clause's target.
+ *
+ * ⚠️ **The invariant, in one place** (S6 step 5). A label reference is a `Var`,
+ * so it can hold the depth a text or binary source WROTE — fidelity needs that.
+ * A pass must not see one: inserting or removing a block shifts every depth
+ * below it, silently retargeting the branch. Passes therefore require the name
+ * form, and a depth reaching one throws here rather than being guessed at. The
+ * factories only ever build names.
+ */
+export function labelName(v: Var): string {
+  return requireName(v, 'label reference');
+}
+
 /** Creates a `br` or `br_if` expression carrying `values`. */
 export function makeBreak(
   name: string,
@@ -2535,7 +2555,9 @@ export function makeBreak(
   return {
     kind: ExpressionKind.Break,
     type,
-    target: name,
+    // A label NAME in, a name-form `Var` on the node: a factory-built label can
+    // never be a depth, which a pass inserting a block would silently retarget.
+    target: varName(name),
     ...(condition == null ? {} : { condition }),
     values,
   };
@@ -2555,8 +2577,8 @@ export function makeSwitch(
   return {
     kind: ExpressionKind.Switch,
     type: Unreachable,
-    targets,
-    defaultTarget,
+    targets: targets.map(varName),
+    defaultTarget: varName(defaultTarget),
     condition,
     values,
   };
@@ -3111,7 +3133,7 @@ export function makeBrOn(
     kind: ExpressionKind.BrOn,
     type: resultType,
     opcode,
-    target: label,
+    target: varName(label),
     ref,
     ...(srcType !== undefined
       ? { from: { heapType: srcType, nullable: srcNullable ?? false } }
@@ -3146,7 +3168,7 @@ export function makeTry(
     name,
     body: asRegion(body),
     catches,
-    delegateTarget,
+    ...(delegateTarget === null ? {} : { delegate: varName(delegateTarget) }),
   };
 }
 
@@ -3172,7 +3194,7 @@ export function makeThrowRef(exnref: Expression): ThrowRefExpr {
 
 /** Creates a `rethrow $depth` expression (old EH). */
 export function makeRethrow(target: string): RethrowExpr {
-  return { kind: ExpressionKind.Rethrow, type: Unreachable, target };
+  return { kind: ExpressionKind.Rethrow, type: Unreachable, target: varName(target) };
 }
 
 /** Creates a `pop` pseudo-instruction. */

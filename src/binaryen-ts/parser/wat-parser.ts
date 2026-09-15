@@ -1664,14 +1664,18 @@ class WatModuleParser {
         const tagName = this.resolveTagRef(tagRef);
         const destRef = atomText(clauseArgs[1]) ?? this.err('catch: missing dest label', list.pos);
         const dest = this.resolveLabel(destRef, innerCtx, list.pos);
-        catches.push({ tag: varName(tagName), target: dest, isRef: clauseHead === 'catch_ref' });
+        catches.push({
+          tag: varName(tagName),
+          target: varName(dest),
+          isRef: clauseHead === 'catch_ref',
+        });
         idx++;
       } else if (clauseHead === 'catch_all' || clauseHead === 'catch_all_ref') {
         const clauseArgs = listChildren(clauseList);
         const destRef = atomText(clauseArgs[0]) ??
           this.err('catch_all: missing dest label', list.pos);
         const dest = this.resolveLabel(destRef, innerCtx, list.pos);
-        catches.push({ target: dest, isRef: clauseHead === 'catch_all_ref' });
+        catches.push({ target: varName(dest), isRef: clauseHead === 'catch_all_ref' });
         idx++;
       } else {
         break;

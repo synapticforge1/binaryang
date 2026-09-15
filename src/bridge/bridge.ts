@@ -1619,7 +1619,7 @@ function buildCatchClause(
   c: TableCatch,
   ctx: BridgeCtx,
 ): CatchClause {
-  const target = resolveLabel(ctx, c.target);
+  const target = varName(resolveLabel(ctx, c.target));
   // Switching on `kind` narrows the union, so the tagged arms SEE a tag —
   // the `c.tag!` assertions this used to need are gone.
   switch (c.kind) {
