@@ -20,7 +20,7 @@ import type { Location } from '../core/error.ts';
 import { Type, typeName } from '../core/types.ts';
 import type { AbstractHeap, Index } from '../core/types.ts';
 import { BinarySection, ExternalKind } from '../core/binary.ts';
-import { Opcode } from '../core/opcode.ts';
+import { GcOpcode, Opcode, PREFIX_GC } from '../core/opcode.ts';
 import { FidelityTable } from './fidelity.ts';
 import type { NodeId } from './fidelity.ts';
 
@@ -520,7 +520,7 @@ export interface BrTableExpr {
    * The i32 index selecting a target. It is the TOP operand — the values
    * carried to the target sit below it, exactly as with {@link BrIfExpr.condition}.
    */
-  readonly value: Expr;
+  readonly condition: Expr;
   /**
    * Values carried to the selected label, in stack order. In the LINEAR form
    * these are preceding statements, but the folded form
@@ -531,8 +531,20 @@ export interface BrTableExpr {
   readonly values: Expr[];
   readonly loc: Location;
 }
-/** Which `br_on_*` this is. Mirrors binaryen-ts's `BrOnOp` exactly. */
-export type BrOnOp = 'br_on_null' | 'br_on_non_null' | 'br_on_cast' | 'br_on_cast_fail';
+/**
+ * Which `br_on_*` this is, as its OPCODE — the operator representation stage 1
+ * settled (a GC-prefixed one is `(PREFIX_GC << 16) | sub`). It was a string union
+ * here and a numeric const in binaryen-ts; S6 step 5 made this the ONE
+ * definition, which binaryen-ts re-exports.
+ */
+export const BrOnOp = {
+  Null: Opcode.BrOnNull,
+  NonNull: Opcode.BrOnNonNull,
+  Cast: (PREFIX_GC << 16) | GcOpcode.BrOnCast,
+  CastFail: (PREFIX_GC << 16) | GcOpcode.BrOnCastFail,
+} as const;
+/** A `br_on_*` operator: an {@link Opcode}, like every operator field. */
+export type BrOnOp = Opcode;
 
 /**
  * The `br_on_*` family: a conditional branch that tests the top reference.
@@ -557,7 +569,7 @@ export type BrOnOp = 'br_on_null' | 'br_on_non_null' | 'br_on_cast' | 'br_on_cas
  */
 export interface BrOnExpr {
   readonly kind: 'br_on';
-  readonly op: BrOnOp;
+  readonly opcode: Opcode;
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. */
   readonly nodeId?: NodeId;
   readonly target: Var;

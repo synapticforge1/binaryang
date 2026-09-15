@@ -2348,6 +2348,29 @@ caught by reading: TranslateEH's error message `${e.target}`.
 **What is left of `types` (2):** `const.value` and `select.resultType` (the latter only wabt-ts's
 `ValueType` admitting non-value `Type` members).
 
+###### ✅ Stages B1–B3 — `br_table` and `br_on` (2026-09-15). Ratchet 60/2/11 → **62 / 2 / 9**
+
+| stage | change                                                          | deciding                                                     |
+| ----- | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| B1    | wabt-ts `br_table.value` → `condition`                          | tie 6 vs 7; `br`'s i32 operand is `condition` on both sides |
+| B2    | wabt-ts `br_on.op` (string) → `opcode: Opcode`; ONE `BrOnOp`    | stage 1: operators are numeric opcodes                       |
+| B3    | binaryen-ts `BrOnExpr.values` (new)                             | decision 6's shape for the last branch kind                  |
+
+B3 moves no bytes (binaryen-ts's decoder leaves `values` empty) but makes every hand-written handler
+see a non-empty list: both walkers and the encoder; the bridge's refusal of carried values is gone.
+⚠️ **`br_on_null` leaves its carried values on the stack when it falls through** —
+`[t* (ref null ht)] → [t* (ref ht)]`. The first draft of the test forgot that and the engine
+refused it; the encoder was right. Checked wabt-ts's arity table, which ignores those values on
+fall-through: folded and flat text still round-trip byte-identically, so not a finding.
+
+🛑 **Process, again:** `|` as a perl delimiter against patterns containing `|` left fragments in two
+files (compiler-caught; one a SyntaxError my counter did not count — it does now); and an encoder
+mutant that matched FOUR identical lines proved nothing about `br_on` until redone on one line.
+🔑 **A mutant has to change exactly the thing under test — count the lines it changed.**
+
+**What is left of `names` (9):** the block family (`block`, `if`, `loop`, `try`, `try_table`),
+`call_indirect`'s type use, `ref.null`, `array.init_data` / `array.init_elem`.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

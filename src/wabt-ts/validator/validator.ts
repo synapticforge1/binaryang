@@ -107,6 +107,7 @@ import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { SharedValidator } from './shared-validator.ts';
 import type { ValidateOptions } from './shared-validator.ts';
+import { BrOnOp } from '../ir/ir.ts';
 
 /**
  * Canonical structural keys for every type-section entry.
@@ -688,14 +689,14 @@ class ModuleValidator implements ExprVisitorDelegate {
   onBrOnExpr(e: BrOnExpr): Result {
     // The null pair is typed function references; the cast pair is GC.
     // One node, two feature gates, chosen by the sub-op.
-    if (e.op === 'br_on_null' || e.op === 'br_on_non_null') {
+    if (e.opcode === BrOnOp.Null || e.opcode === BrOnOp.NonNull) {
       const rn = this.sv.requireFeature(
         'functionReferences',
         'typed function reference',
         e.loc,
       );
       if (rn !== Result.Ok) this.acc(rn);
-      return e.op === 'br_on_null'
+      return e.opcode === BrOnOp.Null
         ? this.sv.onBrOnNull(e.loc, varIdx(e.target))
         : this.sv.onBrOnNonNull(e.loc, varIdx(e.target));
     }
@@ -704,7 +705,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onBrOnCast(
       e.loc,
       varIdx(e.target),
-      e.op === 'br_on_cast_fail',
+      e.opcode === BrOnOp.CastFail,
       { heapType: e.from!.heapType, nullable: e.from!.nullable },
       { heapType: e.to!.heapType, nullable: e.to!.nullable },
     );

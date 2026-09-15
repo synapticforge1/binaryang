@@ -383,13 +383,13 @@ class ResolveContext {
         // but this case never recursed — leaving names inside it unresolved
         // and the writer emitting index 0 or throwing. Same class as the
         // br_if.value fix (Bug F).
-        const [r, value] = this.resolveExpr(e.value);
+        const [r, value] = this.resolveExpr(e.condition);
         const [rv, values] = this.resolveExprArray(e.values);
         return [combine(r, rv), {
           ...e,
           targets: e.targets.map((t) => this.resolveLabelVar(t, loc)),
           defaultTarget: this.resolveLabelVar(e.defaultTarget, loc),
-          value,
+          condition: value,
           values,
         }];
       }

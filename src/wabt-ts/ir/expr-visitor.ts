@@ -595,7 +595,7 @@ export class ExprVisitor {
           const rv = this.dispatch(v);
           if (rv === Result.Error) return rv;
         }
-        const r = this.dispatch(e.value);
+        const r = this.dispatch(e.condition);
         if (r === Result.Error) return r;
         return this.d.onBrTableExpr?.(e) ?? Result.Ok;
       }

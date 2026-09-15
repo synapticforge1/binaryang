@@ -36,7 +36,14 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
-import { heapAbstract, requireName, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import {
+  type BrOnOp,
+  heapAbstract,
+  requireName,
+  type Var,
+  varIndex,
+  varName,
+} from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
@@ -1480,19 +1487,12 @@ export interface RefFuncExpr extends ExprBase {
 // GC proposal expression node types (Phase 7)
 // ---------------------------------------------------------------------------
 
-/** Discriminant for br_on variants. */
-export const BrOnOp = {
-  Null: 0xd5, // br_on_null
-  NonNull: 0xd6, // br_on_non_null
-  Cast: (0xfb << 16) | 0x18, // br_on_cast
-  CastFail: (0xfb << 16) | 0x19, // br_on_cast_fail
-} as const;
-
 /**
- * An operator is an OPCODE, so the field admits every instruction — including
- * the ~116 that have no member above. See S6 stage 1 in cmem/ir-convergence.md.
+ * The `br_on_*` opcodes, and the operator type of a `br_on` — ONE definition,
+ * wabt-ts's (S6 step 5). An operator is an OPCODE, so the field admits every
+ * instruction; see S6 stage 1 in cmem/ir-convergence.md.
  */
-export type BrOnOp = Opcode;
+export { BrOnOp } from '../../wabt-ts/ir/ir.ts';
 
 /** {@link RefEqExpr} — see {@link makeRefEq} for the factory. */
 export interface RefEqExpr extends ExprBase {
@@ -1778,6 +1778,13 @@ export interface BrOnExpr extends ExprBase {
   target: Var;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
+  /**
+   * The branch values carried below the ref, in stack order — decision 6's shape,
+   * extended to the last branch kind (S6 step 5, stage B3). binaryen-ts's decoder
+   * leaves them EMPTY (they stay as preceding stack entries); a wabt-ts tree folds
+   * them in, so everything that handles a `br_on` by hand must see them.
+   */
+  values: Expression[];
   /**
    * `rt1` — the type the operand is expected to have. Cast variants only.
    *
@@ -3135,6 +3142,7 @@ export function makeBrOn(
     opcode,
     target: varName(label),
     ref,
+    values: [],
     ...(srcType !== undefined
       ? { from: { heapType: srcType, nullable: srcNullable ?? false } }
       : {}),
