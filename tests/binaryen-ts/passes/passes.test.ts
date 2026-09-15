@@ -621,7 +621,7 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
   const outerGet = (outerCatch.children[1] as Extract<Expression, { kind: ExpressionKind.Drop }>)
     .value as Extract<Expression, { kind: ExpressionKind.LocalGet }>;
   // `e` (read in the outer catch) must not occupy the slot written by the inner catch.
-  assertNotEquals(outerGet.index, innerSet.index);
+  assertNotEquals(outerGet.var, innerSet.var);
 });
 
 // ---------------------------------------------------------------------------

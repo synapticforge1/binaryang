@@ -203,14 +203,14 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   // sibling operands) → the parent read the wrong value. Capture into a temp
   // that nothing else writes, mirroring the general-case hoist below.
   if (e.kind === ExpressionKind.LocalTee) {
-    const tee = e as { index: Var; value: Expression; type: Type };
+    const tee = e as { var: Var; value: Expression; type: Type };
     const inner = flattenExpr(tee.value, ctx);
     const temp = allocTemp(ctx, tee.type);
     return {
       pre: [
         ...inner.pre,
         makeLocalSet(varIndex(temp), inner.value),
-        makeLocalSet(tee.index, makeLocalGet(varIndex(temp), tee.type as ValType)),
+        makeLocalSet(tee.var, makeLocalGet(varIndex(temp), tee.type as ValType)),
       ],
       value: makeLocalGet(varIndex(temp), tee.type as ValType),
     };

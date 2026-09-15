@@ -1905,21 +1905,21 @@ class WasmEncoder {
       case ExpressionKind.LocalGet: {
         const e = expr as LocalGetExpr;
         w.writeU8(0x20);
-        w.writeU32(requireIndex(e.index, 'local index'));
+        w.writeU32(requireIndex(e.var, 'local index'));
         break;
       }
       case ExpressionKind.LocalSet: {
         const e = expr as LocalSetExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x21);
-        w.writeU32(requireIndex(e.index, 'local index'));
+        w.writeU32(requireIndex(e.var, 'local index'));
         break;
       }
       case ExpressionKind.LocalTee: {
         const e = expr as LocalTeeExpr;
         this.encodeExpr(w, e.value, labels);
         w.writeU8(0x22);
-        w.writeU32(requireIndex(e.index, 'local index'));
+        w.writeU32(requireIndex(e.var, 'local index'));
         break;
       }
 

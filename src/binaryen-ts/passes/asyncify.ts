@@ -851,11 +851,11 @@ function makeCallSupport(curr: Expression, ctx: FlowCtx): Expression {
     // declared type, not `set.value.type`: the parser leaves `Call.type === none`
     // (see flatten.ts `callEffectiveType`), whereas the local's type is always
     // concrete. Falling back to `set.value.type` only if the local is missing.
-    const callType = ctx.func.locals[requireIndex(set.index, 'local index')]?.type ??
+    const callType = ctx.func.locals[requireIndex(set.var, 'local index')]?.type ??
       typeOf(set.value);
     const fake = fakeGlobalFor(ctx, callType);
     executed = makeGlobalSet(varName(fake), set.value);
-    setBack = makeLocalSet(set.index, makeGlobalGet(varName(fake), callType as ValType));
+    setBack = makeLocalSet(set.var, makeGlobalGet(varName(fake), callType as ValType));
   }
 
   const thenSeq = makeBlock([executed, makePossibleUnwind(index, setBack)], null);

@@ -113,7 +113,7 @@ function _pickLoadSigns(fn: WasmFunction): void {
       if (shape.type !== ValType.I32 && shape.type !== ValType.I64) return;
       const maxBytes = shape.type === ValType.I32 ? 4 : 8;
       if (shape.bytes >= maxBytes) return; // already full-width
-      loadsByLocal.set(requireIndex(expr.index, 'local index'), { load, localIndex: expr.index });
+      loadsByLocal.set(requireIndex(expr.var, 'local index'), { load, localIndex: expr.var });
     }
   });
 
@@ -136,9 +136,9 @@ function _pickLoadSigns(fn: WasmFunction): void {
   // rewrite was itself inert; see the identity-loss note below.)
   _walkWithParent(fn.body, null, (expr, parent) => {
     if (expr.kind !== ExpressionKind.LocalGet) return;
-    const info = loadsByLocal.get(requireIndex(expr.index, 'local index'));
+    const info = loadsByLocal.get(requireIndex(expr.var, 'local index'));
     if (!info) return;
-    const usage = usages.get(requireIndex(expr.index, 'local index'))!;
+    const usage = usages.get(requireIndex(expr.var, 'local index'))!;
     usage.totalCount++;
 
     if (!parent) return; // observing use (bare get)

@@ -72,14 +72,14 @@ export function uncoveredNonNullableLocals(fn: WasmFunction): Set<number> {
   const scan = (e: Expression): void => {
     switch (e.kind) {
       case ExpressionKind.LocalGet: {
-        const i = requireIndex(e.index, 'local.get');
+        const i = requireIndex(e.var, 'local.get');
         if (interesting.has(i) && !set.has(i)) bad.add(i);
         return;
       }
       case ExpressionKind.LocalSet:
       case ExpressionKind.LocalTee:
         scan(e.value); // the value is evaluated first
-        markSet(requireIndex(e.index, e.kind));
+        markSet(requireIndex(e.var, e.kind));
         return;
       case ExpressionKind.Block:
         e.params?.values.forEach(scan);
@@ -139,8 +139,8 @@ export function handleNonDefaultableLocals(fn: WasmFunction): void {
 
   fn.body = mapExpression(fn.body, (e) => {
     if (e.kind !== ExpressionKind.LocalGet && e.kind !== ExpressionKind.LocalTee) return e;
-    const t = nonNull.get(requireIndex(e.index, e.kind));
+    const t = nonNull.get(requireIndex(e.var, e.kind));
     if (t === undefined) return e;
-    return makeRefAsNonNull({ ...e, type: fn.locals[requireIndex(e.index, e.kind)]!.type }, t);
+    return makeRefAsNonNull({ ...e, type: fn.locals[requireIndex(e.var, e.kind)]!.type }, t);
   }) as RegionExpr;
 }

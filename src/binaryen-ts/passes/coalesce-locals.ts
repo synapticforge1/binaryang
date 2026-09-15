@@ -329,24 +329,24 @@ function _rewriteBody(
     if (e.kind === ExpressionKind.LocalSet) {
       // `e.value` here is already the post-rewrite (renamed) value subtree.
       if (_isIneffective(e)) return makeDrop(e.value);
-      const cur = requireIndex(e.index, 'local index');
+      const cur = requireIndex(e.var, 'local index');
       const slot = mapping[cur];
-      if (slot !== undefined && slot !== cur) return { ...e, index: varIndex(slot) };
+      if (slot !== undefined && slot !== cur) return { ...e, var: varIndex(slot) };
       return e;
     }
     if (e.kind === ExpressionKind.LocalTee) {
       // Tee both writes and pushes the value. If the write is ineffective,
       // the tee degrades to just the (already-rewritten) value.
       if (_isIneffective(e)) return e.value;
-      const cur = requireIndex(e.index, 'local index');
+      const cur = requireIndex(e.var, 'local index');
       const slot = mapping[cur];
-      if (slot !== undefined && slot !== cur) return { ...e, index: varIndex(slot) };
+      if (slot !== undefined && slot !== cur) return { ...e, var: varIndex(slot) };
       return e;
     }
     if (e.kind === ExpressionKind.LocalGet) {
-      const cur = requireIndex(e.index, 'local index');
+      const cur = requireIndex(e.var, 'local index');
       const slot = mapping[cur];
-      if (slot !== undefined && slot !== cur) return { ...e, index: varIndex(slot) };
+      if (slot !== undefined && slot !== cur) return { ...e, var: varIndex(slot) };
     }
     return e;
   });

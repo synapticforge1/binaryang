@@ -2087,6 +2087,11 @@ leaves the second, so "delete the bridge" is not what one `Expression` achieves 
 an owner call**, and it is the last thing step 5 needs: everything before it is required whichever
 way it goes.
 
+✅ **DECIDED 2026-09-15 (owner): C — decide later.** Finish one `Expression` AND one value-type
+representation first (both required either way — see stage B's note on the 12 embedded fields),
+then choose between A (a thin module adapter, the expression translation deleted) and B (unify
+`Module` too, delete the bridge outright) with measured sizes in hand.
+
 ###### ✅ Stage A — the six pure renames (2026-09-15). Ratchet 34/14/25 → **38 / 19 / 16**
 
 Direction by trial blast radius (rename in the interface only, count `deno task check` errors outside
@@ -2102,7 +2107,7 @@ has precedent.
 | `table.grow`                 | `value`   | 5 / 5                                 | consistency — table.fill's `value`                     |
 | `simd.shuffle`               | `lanes`   | 5 / **4**                             | cost, and the spec's `laneidx`                         |
 
-🗓️ **HELD FOR THE OWNER — locals: `var` or `index`?** The one pair where cost and meaning point
+✅ **DECIDED 2026-09-15 (owner): `var`** — done in stage A2 below. The one pair where cost and meaning point
 opposite ways, which the `call_indirect` precedent says is not flipped unilaterally. **Cost says
 `index`**: converting wabt-ts is 21 source + 25 test sites, converting binaryen-ts 44 source + 3
 test (46 vs 50 in total, but 2× on source). **Meaning says `var`**: the field holds a `Var`, which
@@ -2158,6 +2163,25 @@ measured by running both). Now refused like its four siblings; `explicit_memory_
 
 ⚠️ Two spellings of one fact now type-check for `isReturn` / `defaultInit` (`false` or absent).
 Nothing compares nodes generically today; an equality or hashing helper must read them `?? false`.
+
+###### ✅ Stage A2 — locals are `var` (owner, 2026-09-15). Ratchet 52/5/16 → **55 / 5 / 13**
+
+binaryen-ts's `LocalGet/Set/TeeExpr.index` → `var`. 43 sites at the compiler's positions, 7 by hand
+(three factory shorthands — a binding cannot be NAMED `var`, so `var: index` — and four casts).
+
+🛑 **The worst residue of step 5 so far, and the sweep had predicted it.** `index` is ALSO a field
+on `array.get`, `array.set`, `table.get`, `table.set`, so a spread rewriting a local node's index
+inside a callback typed `Expression` is not an excess-property error. Listed BEFORE the rename:
+three such spreads in CoalesceLocals (`{ ...e, index: varIndex(slot) }`) and three in Inlining.
+Inlining's three were caught only because the same lines READ `e.index`; **CoalesceLocals' three
+stayed green at compile time** and would have stopped it remapping any local — a miscompile.
+Mutant restored against a green 134/134: it type-checks, and 5 tests fail (including "CoalesceLocals
+preserves effective sets when remapping locals" and the `-Oz` fuzz). Also stale: an Asyncify
+fixture under `as any`, and `wide_arithmetic.test.ts` reading `(x as { index: Var }).index` (a test
+failure, so visible).
+
+🔑 **Before renaming a field that another union member also has, list every spread and cast that
+writes it — the compiler is structurally blind to exactly those.**
 
 **What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
