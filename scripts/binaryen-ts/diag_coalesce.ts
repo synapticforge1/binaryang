@@ -43,10 +43,10 @@ function ops(body: import('../../src/binaryen-ts/ir/expressions.ts').Expression)
   const out: Op[] = [];
   walkExpression(body, (e) => {
     const local = (v: Var) => requireIndex(v, 'local index');
-    if (e.kind === ExpressionKind.LocalSet) out.push({ kind: 'set', index: local(e.index) });
-    else if (e.kind === ExpressionKind.LocalTee) out.push({ kind: 'tee', index: local(e.index) });
+    if (e.kind === ExpressionKind.LocalSet) out.push({ kind: 'set', index: local(e.var) });
+    else if (e.kind === ExpressionKind.LocalTee) out.push({ kind: 'tee', index: local(e.var) });
     else if (e.kind === ExpressionKind.Drop) out.push({ kind: 'drop' });
-    else if (e.kind === ExpressionKind.LocalGet) out.push({ kind: 'get', index: local(e.index) });
+    else if (e.kind === ExpressionKind.LocalGet) out.push({ kind: 'get', index: local(e.var) });
   });
   return out;
 }

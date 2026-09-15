@@ -96,8 +96,8 @@ describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
     assertEquals(quad['opcode'], (0xfc << 16) | 19); // i64.add128
     // Four distinct operands, in source order — a reversed pop would swap them.
     for (const k of ['a', 'b', 'c', 'd']) assert(quad[k], `operand ${k} must be present`);
-    assertEquals((quad['a'] as { index: Var }).index, varIndex(0));
-    assertEquals((quad['d'] as { index: Var }).index, varIndex(3));
+    assertEquals((quad['a'] as { var: Var }).var, varIndex(0));
+    assertEquals((quad['d'] as { var: Var }).var, varIndex(3));
   });
 
   it('the pair produces TWO results, so the node type is a tuple', () => {

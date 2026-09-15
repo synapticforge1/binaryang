@@ -72,13 +72,13 @@ function _simplifyBlock(
       curr.kind === ExpressionKind.LocalSet &&
       next !== undefined &&
       next.kind === ExpressionKind.LocalGet &&
-      sameVar(curr.index, next.index)
+      sameVar(curr.var, next.var)
     ) {
       // Replace set+get pair with tee
       const tee: LocalTeeExpr = {
         kind: ExpressionKind.LocalTee,
         type: typeOf(next),
-        index: curr.index,
+        var: curr.var,
         value: curr.value,
       };
       result.push(tee);

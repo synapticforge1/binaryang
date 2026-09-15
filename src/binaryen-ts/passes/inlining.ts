@@ -250,7 +250,7 @@ function hasReturn(e: Expression): boolean {
 function collectLocalSets(e: Expression, into: Set<number>): void {
   walkExpression(e, (n) => {
     if (n.kind === ExpressionKind.LocalSet) {
-      into.add(requireIndex((n as LocalSetExpr).index, 'local index'));
+      into.add(requireIndex((n as LocalSetExpr).var, 'local index'));
     }
   });
 }
@@ -260,7 +260,7 @@ function collectLocalGets(e: Expression): number[] {
   const out: number[] = [];
   walkExpression(e, (n) => {
     if (n.kind === ExpressionKind.LocalGet) {
-      out.push(requireIndex((n as LocalGetExpr).index, 'local.get'));
+      out.push(requireIndex((n as LocalGetExpr).var, 'local.get'));
     }
   });
   return out;
@@ -628,13 +628,13 @@ function substituteBody(
   return mapExpression(body, (e): Expression => {
     switch (e.kind) {
       case ExpressionKind.LocalGet:
-        return { ...e, index: varIndex(remap(requireIndex(e.index, 'local index'))) };
+        return { ...e, var: varIndex(remap(requireIndex(e.var, 'local index'))) };
 
       case ExpressionKind.LocalSet:
-        return { ...e, index: varIndex(remap(requireIndex(e.index, 'local index'))) };
+        return { ...e, var: varIndex(remap(requireIndex(e.var, 'local index'))) };
 
       case ExpressionKind.LocalTee:
-        return { ...e, index: varIndex(remap(requireIndex(e.index, 'local index'))) };
+        return { ...e, var: varIndex(remap(requireIndex(e.var, 'local index'))) };
 
       case ExpressionKind.Return: {
         if (!rewriteReturns) return e;
@@ -709,7 +709,7 @@ function inlineCallSite(
     const setParam: LocalSetExpr = {
       kind: ExpressionKind.LocalSet,
       type: None,
-      index: varIndex(remapSlot(mapping, i)),
+      var: varIndex(remapSlot(mapping, i)),
       value: operand,
     };
     children.push(setParam);

@@ -937,7 +937,7 @@ export interface LocalGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.LocalGet;
   /** Local index. */
-  index: Var;
+  var: Var;
 }
 
 /** {@link LocalSetExpr} — see {@link makeLocalSet} for the factory. */
@@ -945,7 +945,7 @@ export interface LocalSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.LocalSet;
   /** Numeric index into the relevant table. */
-  index: Var;
+  var: Var;
   /** Value expression. */
   value: Expression;
 }
@@ -955,7 +955,7 @@ export interface LocalTeeExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.LocalTee;
   /** Numeric index into the relevant table. */
-  index: Var;
+  var: Var;
   /** Value expression. */
   value: Expression;
 }
@@ -2196,17 +2196,17 @@ export function makeGlobalSet(v: Var, value: Expression): GlobalSetExpr {
 
 /** Creates a `local.get` expression. */
 export function makeLocalGet(index: Var, type: ValueType): LocalGetExpr {
-  return { kind: ExpressionKind.LocalGet, type, index };
+  return { kind: ExpressionKind.LocalGet, type, var: index };
 }
 
 /** Creates a `local.set` expression (result type is `none`). */
 export function makeLocalSet(index: Var, value: Expression): LocalSetExpr {
-  return { kind: ExpressionKind.LocalSet, type: None, index, value };
+  return { kind: ExpressionKind.LocalSet, type: None, var: index, value };
 }
 
 /** Creates a `local.tee` expression (result type matches the value). */
 export function makeLocalTee(index: Var, value: Expression, type: ValueType): LocalTeeExpr {
-  return { kind: ExpressionKind.LocalTee, type, index, value };
+  return { kind: ExpressionKind.LocalTee, type, var: index, value };
 }
 
 /** Creates a `table.get` expression. Default element type is `funcref` (the

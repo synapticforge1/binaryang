@@ -184,7 +184,7 @@ function _exprKey(expr: Expression): string | null {
       return null;
     }
     case ExpressionKind.LocalGet:
-      return `lg:${requireIndex(expr.index, 'local.get')}`;
+      return `lg:${requireIndex(expr.var, 'local.get')}`;
     case ExpressionKind.GlobalGet:
       return `gg:${requireName(expr.var, 'global.get')}`;
     case ExpressionKind.Binary: {
@@ -304,7 +304,7 @@ function _invalidate(expr: Expression, cache: Map<string, number>): void {
       case ExpressionKind.LocalTee:
         // Evict all entries that depend on this local.
         for (const key of [...cache.keys()]) {
-          if (key.includes(`lg:${requireIndex(e.index, 'local index')}`)) cache.delete(key);
+          if (key.includes(`lg:${requireIndex(e.var, 'local index')}`)) cache.delete(key);
         }
         break;
       case ExpressionKind.GlobalSet:
@@ -348,7 +348,7 @@ function _rewriteExpr(
       const tee: LocalTeeExpr = {
         kind: ExpressionKind.LocalTee,
         type: localType,
-        index: varIndex(slot),
+        var: varIndex(slot),
         value: expr,
       };
       return tee;

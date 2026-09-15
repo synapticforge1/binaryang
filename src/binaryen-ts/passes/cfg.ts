@@ -201,7 +201,7 @@ class _CFGBuilder {
         if (this.current) {
           this.current.actions.push({
             kind: 'get',
-            index: requireIndex(e.index, 'local.get'),
+            index: requireIndex(e.var, 'local.get'),
             origin: e,
           });
         }
@@ -213,7 +213,7 @@ class _CFGBuilder {
         if (this.current) {
           this.current.actions.push({
             kind: 'set',
-            index: requireIndex(e.index, 'local.set'),
+            index: requireIndex(e.var, 'local.set'),
             origin: e,
           });
         }

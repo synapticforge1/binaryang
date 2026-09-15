@@ -358,15 +358,11 @@ function exprToWat(expr: Expression, _indent: number): string {
       return `(f64.const ${'f64' in v ? v.f64 : 0})`;
     }
     case ExpressionKind.LocalGet:
-      return `(local.get ${requireIndex(expr.index, 'local.get')})`;
+      return `(local.get ${requireIndex(expr.var, 'local.get')})`;
     case ExpressionKind.LocalSet:
-      return `(local.set ${requireIndex(expr.index, 'local.set')} ${
-        exprToWat(expr.value, _indent)
-      })`;
+      return `(local.set ${requireIndex(expr.var, 'local.set')} ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.LocalTee:
-      return `(local.tee ${requireIndex(expr.index, 'local.tee')} ${
-        exprToWat(expr.value, _indent)
-      })`;
+      return `(local.tee ${requireIndex(expr.var, 'local.tee')} ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.GlobalGet:
       return `(global.get $${requireName(expr.var, 'global.get')})`;
     case ExpressionKind.GlobalSet:

@@ -941,7 +941,7 @@ class WatModuleParser {
     // -----------------------------------------------------------------------
     if (head === 'local.get') {
       const { index, type } = this.resolveLocal(args[0], ctx, head);
-      return { kind: ExpressionKind.LocalGet, type, index: varIndex(index) } as LocalGetExpr;
+      return { kind: ExpressionKind.LocalGet, type, var: varIndex(index) } as LocalGetExpr;
     }
     if (head === 'local.set') {
       const { index } = this.resolveLocal(args[0], ctx, head);
@@ -949,14 +949,14 @@ class WatModuleParser {
       return {
         kind: ExpressionKind.LocalSet,
         type: None,
-        index: varIndex(index),
+        var: varIndex(index),
         value,
       } as LocalSetExpr;
     }
     if (head === 'local.tee') {
       const { index, type } = this.resolveLocal(args[0], ctx, head);
       const value = this.parseExpr(args[1], ctx);
-      return { kind: ExpressionKind.LocalTee, type, index: varIndex(index), value } as LocalTeeExpr;
+      return { kind: ExpressionKind.LocalTee, type, var: varIndex(index), value } as LocalTeeExpr;
     }
     if (head === 'global.get') {
       const name = this.resolveGlobalName(args[0], head);

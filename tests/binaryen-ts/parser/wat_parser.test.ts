@@ -78,7 +78,7 @@ Deno.test('parseWat — local.get and local.set', () => {
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.LocalGet);
   assertEquals(
-    (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).index,
+    (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).var,
     varIndex(0),
   );
   assertEquals(
