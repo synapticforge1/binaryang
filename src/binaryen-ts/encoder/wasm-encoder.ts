@@ -2154,7 +2154,7 @@ class WasmEncoder {
         for (const opcode of e.operands) this.encodeExpr(w, opcode, labels);
         // 0x10 = call, 0x12 = return_call (tail-call proposal).
         w.writeU8(e.isReturn ? 0x12 : 0x10);
-        w.writeU32(this.resolveRef(this.funcIndex, e.target, 'call target'));
+        w.writeU32(this.resolveRef(this.funcIndex, e.func, 'call target'));
         break;
       }
 

@@ -402,7 +402,7 @@ function exprToWat(expr: Expression, _indent: number): string {
     }
     case ExpressionKind.Call: {
       const args = expr.operands.map((a) => exprToWat(a, _indent)).join(' ');
-      return `(call $${requireName(expr.target, 'call')}${args ? ' ' + args : ''})`;
+      return `(call $${requireName(expr.func, 'call')}${args ? ' ' + args : ''})`;
     }
     default:
       // This serializer only covers a subset of expression kinds. Emitting a

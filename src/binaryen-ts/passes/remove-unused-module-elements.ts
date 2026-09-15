@@ -156,7 +156,7 @@ function _collectCallTargets(
       // This pass runs before any index resolution; an index-form target here
       // would mean the module was built by a path that skipped naming, which
       // requireName says rather than silently missing the entity.
-      const target = requireName(e.target, 'call target');
+      const target = requireName(e.func, 'call target');
       if (!live.has(target) && !imported.has(target)) {
         live.add(target);
         queue.push(target);

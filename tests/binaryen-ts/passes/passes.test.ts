@@ -866,7 +866,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
           {
             kind: ExpressionKind.Call,
             type: None,
-            target: varName('helper'),
+            func: varName('helper'),
             operands: [],
             isReturn: false,
           },

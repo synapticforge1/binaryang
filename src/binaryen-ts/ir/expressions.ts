@@ -1344,7 +1344,7 @@ export interface CallExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Call;
   /** Target label of the branch. */
-  target: Var;
+  func: Var;
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** isReturn — see the {@link make} factory for semantics. */
@@ -2276,7 +2276,7 @@ export function makeCall(
   resultType: Type,
   isReturn = false,
 ): CallExpr {
-  return { kind: ExpressionKind.Call, type: resultType, target, operands, isReturn };
+  return { kind: ExpressionKind.Call, type: resultType, func: target, operands, isReturn };
 }
 
 /** Creates an `if` expression. The optional `name` is the `if`'s branch-target label. */

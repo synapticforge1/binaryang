@@ -1065,7 +1065,7 @@ class WatModuleParser {
       return {
         kind: ExpressionKind.Call,
         type: resultType,
-        target: varName(funcName),
+        func: varName(funcName),
         operands,
         isReturn: false,
       } as CallExpr;
@@ -1077,7 +1077,7 @@ class WatModuleParser {
       return {
         kind: ExpressionKind.Call,
         type: Unreachable,
-        target: varName(funcName),
+        func: varName(funcName),
         operands,
         isReturn: true,
       } as CallExpr;

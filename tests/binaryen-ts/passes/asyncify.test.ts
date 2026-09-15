@@ -55,7 +55,7 @@ function moduleWithImport(): WasmModule {
         type: ValType.I32,
         name: null,
         children: [
-          { kind: ExpressionKind.Call, type: 'none', target: varName('$sleep'), operands: [] },
+          { kind: ExpressionKind.Call, type: 'none', func: varName('$sleep'), operands: [] },
           { kind: ExpressionKind.LocalGet, type: ValType.I32, index: varIndex(0) },
         ],
         // deno-lint-ignore no-explicit-any

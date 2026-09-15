@@ -111,7 +111,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
       if (e.kind === ExpressionKind.Call) {
         entry.hasCalls = true;
         // Count reference to the callee.
-        const target = info.get(requireName(e.target, 'call target'));
+        const target = info.get(requireName(e.func, 'call target'));
         if (target) target.refs++;
       }
       if (e.kind === ExpressionKind.RefFunc) {
@@ -840,8 +840,8 @@ function inlineIntoFunction(
   fn.body = mapExpression(fn.body, (e): Expression => {
     if (e.kind !== ExpressionKind.Call) return e;
     const call = e as CallExpr;
-    if (requireName(call.target, 'call target') === fn.name) return e; // skip recursive calls
-    const callee = inlineable.get(requireName(call.target, 'call target'));
+    if (requireName(call.func, 'call target') === fn.name) return e; // skip recursive calls
+    const callee = inlineable.get(requireName(call.func, 'call target'));
     if (!callee) return e;
 
     changed = true;

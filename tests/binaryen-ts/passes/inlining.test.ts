@@ -73,7 +73,7 @@ function countKind(expr: Expression, kind: ExpressionKind): number {
 function hasCall(expr: Expression, target: string): boolean {
   let found = false;
   walkExpression(expr, (e) => {
-    if (e.kind === ExpressionKind.Call && nameOf(e.target) === target) found = true;
+    if (e.kind === ExpressionKind.Call && nameOf(e.func) === target) found = true;
   });
   return found;
 }

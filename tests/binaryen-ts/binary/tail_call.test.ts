@@ -87,7 +87,7 @@ Deno.test('Phase 13: parser decodes 0x12 as Call with isReturn=true', () => {
   assertEquals(target.kind, ExpressionKind.Call);
   const call = target as CallExpr;
   assertEquals(call.isReturn, true);
-  assertEquals(call.target, varName('$func0'));
+  assertEquals(call.func, varName('$func0'));
 });
 
 Deno.test('Phase 13: parser distinguishes call vs return_call', () => {
