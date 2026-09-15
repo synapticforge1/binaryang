@@ -311,7 +311,7 @@ Deno.test('array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11',
 Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref local)', async () => {
   // Buildable only because `Local.type` accepts a concrete `RefType` (UP-7).
   const { m, arrayType } = gcBuilder();
-  const arrRef = { heap: arrayType, nullable: true };
+  const arrRef = { heap: varIndex(arrayType), nullable: true };
   m.addFunction(
     'read',
     [],
@@ -320,7 +320,7 @@ Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref loc
       makeLocalSet(
         varIndex(0),
         makeArrayNew(varIndex(arrayType), makeI32Const(0), makeI32Const(3), {
-          heap: arrayType,
+          heap: varIndex(arrayType),
           nullable: false,
         }),
       ),
@@ -363,12 +363,12 @@ Deno.test('array.copy keeps dest and src type immediates in the right order', ()
         varIndex(arrayType),
         varIndex(second),
         makeArrayNew(varIndex(arrayType), makeI32Const(0), makeI32Const(1), {
-          heap: arrayType,
+          heap: varIndex(arrayType),
           nullable: false,
         }),
         makeI32Const(0),
         makeArrayNew(varIndex(second), makeI32Const(5), makeI32Const(1), {
-          heap: second,
+          heap: varIndex(second),
           nullable: false,
         }),
         makeI32Const(0),
@@ -397,10 +397,10 @@ Deno.test('ref.as_non_null passes a non-null reference through', async () => {
       varIndex(arrayType),
       makeRefAsNonNull(
         makeArrayNewFixed(varIndex(arrayType), [makeI32Const(99)], {
-          heap: arrayType,
+          heap: varIndex(arrayType),
           nullable: true,
         }),
-        { heap: arrayType, nullable: false },
+        { heap: varIndex(arrayType), nullable: false },
       ),
       makeI32Const(0),
       ValType.I32,
@@ -421,10 +421,10 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', 
       varIndex(arrayType),
       makeRefAsNonNull(
         makeArrayNewFixed(varIndex(arrayType), [makeI32Const(1)], {
-          heap: arrayType,
+          heap: varIndex(arrayType),
           nullable: true,
         }),
-        { heap: arrayType, nullable: false },
+        { heap: varIndex(arrayType), nullable: false },
       ),
       makeI32Const(0),
       ValType.I32,

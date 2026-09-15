@@ -12,16 +12,19 @@
  *
  * @example
  * ```ts
- * import { AbstractHeapType, type RefType } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import { AbstractHeapType, heapAbstract, type RefType } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
  *
- * const i31ref: RefType = { heap: AbstractHeapType.I31, nullable: true };
- * const ref0: RefType  = { heap: 0, nullable: false }; // (ref $0)
+ * const i31ref: RefType = { heap: heapAbstract(AbstractHeapType.I31), nullable: true };
+ * const ref0: RefType   = { heap: varIndex(0), nullable: false }; // (ref $0)
  * ```
  *
  * @license MIT
  */
 
 import { type ValType, valTypeName } from './types.ts';
+import { heapAbstract, type HeapTypeRef } from '../../wabt-ts/ir/ir.ts';
+export { heapAbstract, sameHeap } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Heap types
@@ -73,12 +76,20 @@ export const AbstractHeapType = {
 export type AbstractHeapType = typeof AbstractHeapType[keyof typeof AbstractHeapType];
 
 /**
- * A heap type: either an abstract built-in or a user-defined type index.
+ * A heap type: an abstract built-in, or a reference to a defined type.
  *
- * - `AbstractHeapType` → one of the built-in GC heap types.
- * - `number` → a 0-based index into {@link WasmModule.heapTypes}.
+ * ⚠️ **It IS wabt-ts's `HeapTypeRef`** (S6 step 5, stage V2 — the owner's
+ * "third form", decided 2026-09-09). It was `AbstractHeapType | number`. Now:
+ *
+ * - `{ kind: 'abstract', name }` — one of the twelve built-ins;
+ * - a `Var` — `{ kind: 'index', value }` into {@link WasmModule.heapTypes}, or
+ *   a `{ kind: 'name', name }` not yet resolved.
+ *
+ * An OBJECT: never compare two with `===` (use `sameHeap`), never key a `Map`
+ * on one, never interpolate one, never test one with `typeof` — each of those
+ * still compiles. Build them with `heapAbstract` and `varIndex`.
  */
-export type HeapType = AbstractHeapType | number;
+export type HeapType = HeapTypeRef;
 
 // ---------------------------------------------------------------------------
 // Reference types
@@ -91,9 +102,9 @@ export type HeapType = AbstractHeapType | number;
  *
  * @example
  * ```ts
- * const anyref: RefType = { heap: AbstractHeapType.Any, nullable: true };
- * const nonNullI31: RefType = { heap: AbstractHeapType.I31, nullable: false };
- * const userStruct: RefType = { heap: 0, nullable: false }; // (ref $0)
+ * const anyref: RefType = { heap: heapAbstract(AbstractHeapType.Any), nullable: true };
+ * const nonNullI31: RefType = { heap: heapAbstract(AbstractHeapType.I31), nullable: false };
+ * const userStruct: RefType = { heap: varIndex(0), nullable: false }; // (ref $0)
  * ```
  */
 export interface RefType {
@@ -224,7 +235,10 @@ export type TypeDef = StructTypeDef | ArrayTypeDef | FuncTypeDef;
 export function valueTypeKey(t: ValueType): string {
   // The NAME, not the value: keys stay the strings they always were.
   if (!isRefType(t)) return valTypeName(t);
-  return `ref${t.nullable ? ' null' : ''} ${t.heap}`;
+  // `heapTypeToString`, never `${t.heap}`: the heap is an OBJECT now, and would
+  // render every typed reference as `[object Object]` — the exact collapse this
+  // function exists to prevent.
+  return `ref${t.nullable ? ' null' : ''} ${heapTypeToString(t.heap)}`;
 }
 
 /**
@@ -252,15 +266,13 @@ export function isRefType(t: unknown): t is RefType {
  * Returns `true` if the heap type is an abstract built-in rather than a
  * user-defined type index.
  *
- * This is the public discriminator for the exported {@link HeapType} union
- * (`number | AbstractHeapType`): without it a consumer holding a `HeapType`
- * would have to test `typeof h === "string"` and reach into the
- * representation. Completes the guard set with {@link isRefType} and
- * {@link isPackedType}. Unused inside this package by design — it exists for
- * callers of the `./ir` entry point, such as the wabt-ts IR bridge.
+ * This is the public discriminator for the exported {@link HeapType} union.
+ * Completes the guard set with {@link isRefType} and {@link isPackedType}.
  */
-export function isAbstractHeapType(h: HeapType): h is AbstractHeapType {
-  return typeof h === 'string';
+export function isAbstractHeapType(
+  h: HeapType,
+): h is { readonly kind: 'abstract'; readonly name: AbstractHeapType } {
+  return h.kind === 'abstract';
 }
 
 /**
@@ -280,8 +292,8 @@ export function isPackedType(t: StorageType): t is PackedType {
  * Abstract types use their built-in name; type indices use `$typeN`.
  */
 export function heapTypeToString(h: HeapType): string {
-  if (typeof h === 'string') return h;
-  return `$type${h}`;
+  if (h.kind === 'abstract' || h.kind === 'name') return h.name;
+  return `$type${h.value}`;
 }
 
 /**
@@ -289,8 +301,8 @@ export function heapTypeToString(h: HeapType): string {
  *
  * @example
  * ```ts
- * refTypeToString({ heap: AbstractHeapType.I31, nullable: true })  // → "(ref null i31)"
- * refTypeToString({ heap: 0, nullable: false })                    // → "(ref $type0)"
+ * refTypeToString({ heap: heapAbstract('i31'), nullable: true }) // → "(ref null i31)"
+ * refTypeToString({ heap: varIndex(0), nullable: false })          // → "(ref $type0)"
  * ```
  */
 export function refTypeToString(rt: RefType): string {
@@ -303,7 +315,10 @@ export function refTypeToString(rt: RefType): string {
  */
 export function storageTypeToString(t: StorageType): string {
   if (isRefType(t)) return refTypeToString(t);
-  return t as string;
+  if (isPackedType(t)) return t;
+  // ⚠️ Was `t as string`, which stage V1 turned into the BYTE (`127`) -- a cast,
+  // so V1's sweep of interpolations did not see it; found in V2.
+  return valTypeName(t);
 }
 
 // ---------------------------------------------------------------------------
@@ -311,18 +326,18 @@ export function storageTypeToString(t: StorageType): string {
 // ---------------------------------------------------------------------------
 
 /** `anyref` = `(ref null any)` */
-export const anyref: RefType = { heap: AbstractHeapType.Any, nullable: true };
+export const anyref: RefType = { heap: heapAbstract(AbstractHeapType.Any), nullable: true };
 /** `eqref`  = `(ref null eq)`  */
-export const eqref: RefType = { heap: AbstractHeapType.Eq, nullable: true };
+export const eqref: RefType = { heap: heapAbstract(AbstractHeapType.Eq), nullable: true };
 /** `i31ref` = `(ref null i31)` */
-export const i31ref: RefType = { heap: AbstractHeapType.I31, nullable: true };
+export const i31ref: RefType = { heap: heapAbstract(AbstractHeapType.I31), nullable: true };
 /** `structref` = `(ref null struct)` */
-export const structref: RefType = { heap: AbstractHeapType.Struct, nullable: true };
+export const structref: RefType = { heap: heapAbstract(AbstractHeapType.Struct), nullable: true };
 /** `arrayref` = `(ref null array)` */
-export const arrayref: RefType = { heap: AbstractHeapType.Array, nullable: true };
+export const arrayref: RefType = { heap: heapAbstract(AbstractHeapType.Array), nullable: true };
 /** `funcref` = `(ref null func)` */
-export const funcref: RefType = { heap: AbstractHeapType.Func, nullable: true };
+export const funcref: RefType = { heap: heapAbstract(AbstractHeapType.Func), nullable: true };
 /** `externref` = `(ref null ext)` */
-export const externref: RefType = { heap: AbstractHeapType.Ext, nullable: true };
+export const externref: RefType = { heap: heapAbstract(AbstractHeapType.Ext), nullable: true };
 /** `nullref` = `(ref null none)` */
-export const nullref: RefType = { heap: AbstractHeapType.None, nullable: true };
+export const nullref: RefType = { heap: heapAbstract(AbstractHeapType.None), nullable: true };

@@ -9,7 +9,7 @@
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
-import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
 import {
   type CustomSection,
@@ -432,39 +432,39 @@ const ABSTRACT_HEAP_TO_VALTYPE: Record<AbstractHeapType, ValType> = {
  */
 function readRefNullType(r: BinaryReader): ValueType {
   const ht = readHeapType(r);
-  if (typeof ht === 'number') return { heap: ht, nullable: true };
-  return ABSTRACT_HEAP_TO_VALTYPE[ht];
+  if (ht.kind !== 'abstract') return { heap: ht, nullable: true };
+  return ABSTRACT_HEAP_TO_VALTYPE[ht.name];
 }
 
 function readHeapType(r: BinaryReader): HeapType {
   const v = r.readI32(); // heap types encoded as signed LEB128
   switch (v) {
     case -0x10:
-      return AbstractHeapType.Func;
+      return heapAbstract(AbstractHeapType.Func);
     case -0x0d:
-      return AbstractHeapType.NoFunc;
+      return heapAbstract(AbstractHeapType.NoFunc);
     case -0x11:
-      return AbstractHeapType.Ext;
+      return heapAbstract(AbstractHeapType.Ext);
     case -0x0e:
-      return AbstractHeapType.NoExt;
+      return heapAbstract(AbstractHeapType.NoExt);
     case -0x12:
-      return AbstractHeapType.Any;
+      return heapAbstract(AbstractHeapType.Any);
     case -0x13:
-      return AbstractHeapType.Eq;
+      return heapAbstract(AbstractHeapType.Eq);
     case -0x14:
-      return AbstractHeapType.I31;
+      return heapAbstract(AbstractHeapType.I31);
     case -0x15:
-      return AbstractHeapType.Struct;
+      return heapAbstract(AbstractHeapType.Struct);
     case -0x16:
-      return AbstractHeapType.Array;
+      return heapAbstract(AbstractHeapType.Array);
     case -0x0f:
-      return AbstractHeapType.None;
+      return heapAbstract(AbstractHeapType.None);
     case -0x17:
-      return AbstractHeapType.Exn;
+      return heapAbstract(AbstractHeapType.Exn);
     case -0x0c:
-      return AbstractHeapType.NoExn;
+      return heapAbstract(AbstractHeapType.NoExn);
     default:
-      if (v >= 0) return v; // type index
+      if (v >= 0) return varIndex(v); // type index
       // Unknown abstract heap-type byte — silently returning `any` mistyped the
       // reference. Fail loudly, matching readValTypeByte.
       return r.error(`unknown heap type: SLEB ${v}`);
@@ -2573,7 +2573,7 @@ class WasmParser {
 // ---------------------------------------------------------------------------
 
 function gcRefType(typeIndex: number): RefType {
-  return { heap: typeIndex, nullable: false };
+  return { heap: varIndex(typeIndex), nullable: false };
 }
 
 function decodeGcPrefix(
@@ -2825,7 +2825,7 @@ function decodeGcPrefix(
       break;
     }
     case 0x1c: { // ref.i31
-      push(makeRefI31(pop(), { heap: AbstractHeapType.I31, nullable: false }));
+      push(makeRefI31(pop(), { heap: heapAbstract(AbstractHeapType.I31), nullable: false }));
       break;
     }
     case 0x1d: { // i31.get_s

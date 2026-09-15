@@ -36,7 +36,7 @@
 // the operator representation for both halves, and core/opcode.ts is a leaf
 // module holding the wire format, the one fact neither half gets its own copy of.
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
-import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
@@ -2830,9 +2830,9 @@ export function makeExternConvert(
 ): ExternConvertExpr {
   const t = value.type;
   const nullable = t !== undefined && isRefType(t) ? t.nullable : true;
-  const heap = kind === ExpressionKind.AnyConvertExtern
-    ? AbstractHeapType.Any
-    : AbstractHeapType.Ext;
+  const heap = heapAbstract(
+    kind === ExpressionKind.AnyConvertExtern ? AbstractHeapType.Any : AbstractHeapType.Ext,
+  );
   return { kind, type: { heap, nullable }, value };
 }
 

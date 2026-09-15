@@ -2223,6 +2223,38 @@ which is part of the alias stage, not a second enum kept in step.
 ⚠️ **Public, and breaking at run time** — `ValType` is exported from `./ir/binaryen-ts` and `./api`;
 recorded in [unreleased.md](unreleased.md). Bytes unchanged (baseline IDENTICAL).
 
+###### ✅ Stage V2 — binaryen-ts's heap types ARE `HeapTypeRef` (2026-09-15)
+
+The owner's 2026-09-09 third form, applied to binaryen-ts: `HeapType = HeapTypeRef`
+(`{ kind: 'abstract', name } | Var`), was `AbstractHeapType | number`. The earlier work had paid for
+this in advance — `AbstractHeapType` was already a const object of plain literals, so its values fit
+the abstract arm with no mapping. The bridge's heap translation collapsed to a pass-through.
+
+Trial: 73 compile errors in 12 files. The real hazard was what an OBJECT representation stops
+meaning without a compile error, so a TYPE-AWARE sweep ran BEFORE the change (every `===`, `switch`,
+`typeof`, map/set key, element access, interpolation and concatenation on a `HeapType` operand):
+16 sites, of which 7 were silent — 4 `typeof` tests and 3 interpolations. The one that mattered:
+`valueTypeKey`'s `${t.heap}`, the key that dedupes type-section signatures — as an object it is
+`[object Object]` for every typed reference. Restored as a mutant: the corpus round trip and "two func
+types differing only in heap type are no longer ambiguous" fail. `heapTypeToString` as `${h}`: 12
+steps fail. Re-sweep after: only `!== undefined` checks remain.
+
+🛑 **Two process errors of mine, both caught, both worth the rule they teach:**
+
+- A `sed` whose line-number lookup came back EMPTY ran with no address and overwrote every line of
+  `gc-types.ts`. Restored from git (nothing was committed), redone with exact edits. **Never feed a
+  computed address to `sed -i` without checking it is non-empty.**
+- `[A-Za-z]+` does not match `I31`: it skipped that member twice (decoder, `gc-types.ts`). The
+  compiler named both. **An identifier pattern needs digits.**
+
+🛑 **And a stage-V1 residue:** `storageTypeToString` ended `return t as string`, which V1 had turned
+into the byte. V1's sweep covered interpolation, concatenation, `String()` and `join()` — not `as`
+casts. It reached only an error message. Fixed; the `as string` class is now swept too (1 site).
+
+⚠️ PUBLIC and breaking — `RefType` and `HeapType` are exported; [unreleased.md](unreleased.md).
+Bytes unchanged; ratchet unchanged (`ref.cast`/`ref.test` still differ by NAME, `heapType` against
+`castType` — now over the same type).
+
 **What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

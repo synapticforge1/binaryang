@@ -113,7 +113,7 @@ import {
   type ValueType,
   valueTypeKey,
 } from '../ir/gc-types.ts';
-import { requireIndex, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, requireIndex, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -452,19 +452,19 @@ const ABSTRACT_HEAP_TYPE_BYTE: Record<AbstractHeapType, number> = {
 };
 
 function writeHeapType(w: BinaryWriter, h: HeapType): void {
-  if (typeof h === 'number') {
+  if (h.kind !== 'abstract') {
     // A heap type is an `s33` — a SIGNED LEB — which is how `readHeapType`
     // reads it back. `writeU32` agrees with the signed form only for indices
     // below 64; at 64 the unsigned encoding (`0x40`) reads back as -64 and
     // resolves to an abstract heap type instead of the intended index.
-    w.writeI32(h);
+    w.writeI32(requireIndex(h, 'heap type'));
   } else {
-    const b = ABSTRACT_HEAP_TYPE_BYTE[h];
+    const b = ABSTRACT_HEAP_TYPE_BYTE[h.name];
     if (b === undefined) {
       // The table is `Record<AbstractHeapType, number>`, so this is statically
       // unreachable today; the old `?? 0x6e` silently rewrote any future
       // unmapped heap type to `any`.
-      throw new WasmEncodeError(`cannot encode abstract heap type: ${h}`);
+      throw new WasmEncodeError(`cannot encode abstract heap type: ${h.name}`);
     }
     w.writeU8(b);
   }
@@ -2417,8 +2417,8 @@ class WasmEncoder {
           w.writeU32(depth);
           // Two distinct heap-type immediates: source (`rt1`) then target
           // (`rt2`). Emitting the target twice corrupted the source immediate.
-          writeHeapType(w, e.from?.heapType ?? AbstractHeapType.Any);
-          writeHeapType(w, e.to?.heapType ?? AbstractHeapType.Any);
+          writeHeapType(w, e.from?.heapType ?? heapAbstract(AbstractHeapType.Any));
+          writeHeapType(w, e.to?.heapType ?? heapAbstract(AbstractHeapType.Any));
         }
         break;
       }

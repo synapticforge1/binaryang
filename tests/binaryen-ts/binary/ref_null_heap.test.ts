@@ -36,6 +36,7 @@ import { ExpressionKind, makeRefNull } from '../../../src/binaryen-ts/ir/express
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { isRefType, type RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /**
  * `WebAssembly/binaryen/test/unit/input/gc_target_feature.wasm`, minus its custom sections:
@@ -176,13 +177,13 @@ Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', 
   }
   assert(target >= 64, `expected a heap type index >= 64, got ${target}`);
 
-  const refT: RefType = { heap: target, nullable: true };
+  const refT: RefType = { heap: varIndex(target), nullable: true };
   m.addGlobal('$g', refT, true, makeRefNull(refT));
 
   const parsed = parseWasm(encodeWasm(m.build()));
   const initType = parsed.globals[0].init.type;
   assert(isRefType(initType), `ref.null decoded as ${JSON.stringify(initType)}`);
-  assertEquals((initType as RefType).heap, target);
+  assertEquals((initType as RefType).heap, varIndex(target));
 });
 
 Deno.test('a phantom pop in stack-polymorphic code yields unreachable, not nop', () => {

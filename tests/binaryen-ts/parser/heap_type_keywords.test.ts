@@ -26,7 +26,11 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { AbstractHeapType, refTypeToString } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import {
+  AbstractHeapType,
+  heapAbstract,
+  refTypeToString,
+} from '../../../src/binaryen-ts/ir/gc-types.ts';
 
 /** Every abstract heap type the text format defines. */
 const SPEC_KEYWORDS: ReadonlyArray<readonly [string, AbstractHeapType]> = [
@@ -53,7 +57,10 @@ describe('binaryen-ts — abstract heap-type keywords', () => {
       parseWat(`(module (func $f (param (ref null ${keyword}))))`);
       // The printed form is the property that broke: the enum's VALUE is the
       // keyword, so a wrong value is invalid output rather than a wrong label.
-      assertEquals(refTypeToString({ heap, nullable: true }), `(ref null ${keyword})`);
+      assertEquals(
+        refTypeToString({ heap: heapAbstract(heap), nullable: true }),
+        `(ref null ${keyword})`,
+      );
     });
   }
 
