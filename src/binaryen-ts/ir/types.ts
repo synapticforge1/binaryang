@@ -28,6 +28,7 @@
  */
 
 import { isRefType, type RefType, refTypeToString } from './gc-types.ts';
+import { Type as WireType, typeName as wireTypeName } from '../../wabt-ts/core/types.ts';
 export type { RefType } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -48,50 +49,57 @@ export type { RefType } from './gc-types.ts';
  * already the numeric wire encoding (stage 1). `tests/ir/value_types.test.ts`
  * pins the equality.
  *
- * A NAME is therefore never the value: print with {@link valTypeName}, parse
- * with {@link valTypeFromName}, and never interpolate a `ValType` into a string
- * or test it with `typeof === 'string'` -- both still compile, and both are wrong.
- * (A numeric enum also reverse-maps, so `Object.values(ValType)` yields the
- * member NAMES as well as the numbers.)
+ * ⚠️ **And since stage V4 the members ARE wabt-ts's `Type` members** — a const
+ * object over `Type`, not a second enum. Two enums with equal values are still
+ * two TYPES (enums are nominal), so `Type.I32` could not be passed where a
+ * `ValType` was expected. Now `ValType` is the value-type SUBSET of `Type`: every
+ * `ValType` is a `Type`, and a `Type` member that is a value type is a `ValType`.
+ * Use `typeof ValType.I32` where a member is needed as a TYPE.
+ *
+ * A NAME is never the value: print with {@link valTypeName}, parse with
+ * {@link valTypeFromName}, and never interpolate a `ValType` into a string or test
+ * it with `typeof === 'string'` -- both still compile, and both are wrong.
  */
-export enum ValType {
+export const ValType = {
   /** 32-bit integer */
-  I32 = 0x7f,
+  I32: WireType.I32,
   /** 64-bit integer */
-  I64 = 0x7e,
+  I64: WireType.I64,
   /** 32-bit float */
-  F32 = 0x7d,
+  F32: WireType.F32,
   /** 64-bit float */
-  F64 = 0x7c,
+  F64: WireType.F64,
   /** 128-bit SIMD vector */
-  V128 = 0x7b,
+  V128: WireType.V128,
   /** Nullable function reference */
-  FuncRef = 0x70,
+  FuncRef: WireType.FuncRef,
   /** Nullable external (host) reference */
-  ExternRef = 0x6f,
+  ExternRef: WireType.ExternRef,
   /** Nullable any reference (GC proposal) */
-  AnyRef = 0x6e,
+  AnyRef: WireType.AnyRef,
   /** Nullable eq reference (GC proposal) */
-  EqRef = 0x6d,
+  EqRef: WireType.EqRef,
   /** Nullable i31 reference (GC proposal) */
-  I31Ref = 0x6c,
+  I31Ref: WireType.I31Ref,
   /** Nullable struct reference (GC proposal) */
-  StructRef = 0x6b,
+  StructRef: WireType.StructRef,
   /** Nullable array reference (GC proposal) */
-  ArrayRef = 0x6a,
+  ArrayRef: WireType.ArrayRef,
   /** String reference (stringref proposal). 0x67 is that proposal's byte; neither encoder writes it. */
-  StringRef = 0x67,
+  StringRef: WireType.StringRef,
   /** Null function reference (bottom type) */
-  NullFuncRef = 0x73,
+  NullFuncRef: WireType.NullFuncRef,
   /** Null external reference (bottom type) */
-  NullExternRef = 0x72,
+  NullExternRef: WireType.NullExternRef,
   /** Null any reference (bottom type) */
-  NullRef = 0x71,
+  NullRef: WireType.NullRef,
   /** Exception reference (EH proposal) */
-  ExnRef = 0x69,
+  ExnRef: WireType.ExnRef,
   /** Null exception reference (bottom type, EH proposal) */
-  NullExnRef = 0x74,
-}
+  NullExnRef: WireType.NullExnRef,
+} as const;
+/** A scalar value type: the value-type SUBSET of wabt-ts's `Type`. */
+export type ValType = typeof ValType[keyof typeof ValType];
 
 // ---------------------------------------------------------------------------
 // Special sentinel types (not value types but appear in type positions)
@@ -138,41 +146,26 @@ export type Type = ValType | TupleType | None | Unreachable | RefType;
 // ---------------------------------------------------------------------------
 
 /**
- * Every scalar value type's text-format name. `Record<ValType, string>` makes a
- * member without a name a compile error, so this cannot fall behind the enum.
+ * The members, as a set — what "is a scalar value type" means. Built from the
+ * const object, so it cannot fall behind it.
  */
-const VAL_TYPE_NAMES: Readonly<Record<ValType, string>> = {
-  [ValType.I32]: 'i32',
-  [ValType.I64]: 'i64',
-  [ValType.F32]: 'f32',
-  [ValType.F64]: 'f64',
-  [ValType.V128]: 'v128',
-  [ValType.FuncRef]: 'funcref',
-  [ValType.ExternRef]: 'externref',
-  [ValType.AnyRef]: 'anyref',
-  [ValType.EqRef]: 'eqref',
-  [ValType.I31Ref]: 'i31ref',
-  [ValType.StructRef]: 'structref',
-  [ValType.ArrayRef]: 'arrayref',
-  [ValType.StringRef]: 'stringref',
-  [ValType.NullFuncRef]: 'nullfuncref',
-  [ValType.NullExternRef]: 'nullexternref',
-  [ValType.NullRef]: 'nullref',
-  [ValType.ExnRef]: 'exnref',
-  [ValType.NullExnRef]: 'nullexnref',
-};
+const VAL_TYPES: ReadonlySet<number> = new Set(Object.values(ValType));
 
 const VAL_TYPE_BY_NAME: ReadonlyMap<string, ValType> = new Map(
-  (Object.entries(VAL_TYPE_NAMES) as [string, string][]).map(([k, v]) => [v, Number(k) as ValType]),
+  (Object.values(ValType) as ValType[]).map((t) => [wireTypeName(t), t]),
 );
 
 /**
- * The text-format name of a scalar value type (`i32`, `funcref`, …). A value that
- * is not a member -- only ever reached on an error path, which is exactly where a
+ * The text-format name of a scalar value type (`i32`, `funcref`, …).
+ *
+ * 🔑 **wabt-ts's `typeName` IS the table.** Stage V1 wrote a second one here,
+ * member for member; once `ValType` became a subset of `Type` (V4) that copy was
+ * the "second copy of a fact" this codebase keeps being bitten by, and it went.
+ * A non-member -- only ever reached on an error path, which is exactly where a
  * readable message matters -- prints as itself rather than as `undefined`.
  */
 export function valTypeName(t: ValType): string {
-  return VAL_TYPE_NAMES[t] ?? `<value type 0x${Number(t).toString(16)}>`;
+  return isValType(t) ? wireTypeName(t) : `<value type 0x${Number(t).toString(16)}>`;
 }
 
 /** The scalar value type a text-format name spells, or `undefined`. */
@@ -183,10 +176,11 @@ export function valTypeFromName(name: string): ValType | undefined {
 /**
  * Whether `t` is a scalar value type -- the test that replaces
  * `typeof t === 'string'`, which stopped meaning this when the values became
- * bytes (`none` and `unreachable` are still strings).
+ * bytes (`none` and `unreachable` are still strings). Membership in the SUBSET:
+ * `Type.Void` is a `Type` and not a value type.
  */
 export function isValType(t: unknown): t is ValType {
-  return typeof t === 'number' && Object.hasOwn(VAL_TYPE_NAMES, t);
+  return typeof t === 'number' && VAL_TYPES.has(t);
 }
 
 // ---------------------------------------------------------------------------

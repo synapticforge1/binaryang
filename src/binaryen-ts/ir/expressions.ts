@@ -1138,7 +1138,7 @@ export interface MemoryGrowExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemoryGrow;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** delta — see the matching factory for semantics. */
   delta: Expression;
 }
@@ -1157,7 +1157,7 @@ export interface MemorySizeExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.MemorySize;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
 }
 
 /** {@link MemoryCopyExpr} — see {@link makeMemoryCopy} for the factory. */
@@ -1239,7 +1239,7 @@ export interface TableSizeExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.TableSize;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** Name of the table being measured. */
   table: Var;
 }
@@ -1249,7 +1249,7 @@ export interface TableGrowExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.TableGrow;
   /** Result type — the previous size, or -1 if the growth failed. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** Name of the table being grown. */
   table: Var;
   /** The reference value to fill the new slots with. */
@@ -1417,7 +1417,7 @@ export interface RefIsNullExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefIsNull;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** Value expression. */
   value: Expression;
 }
@@ -1494,7 +1494,7 @@ export interface RefEqExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefEq;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** Left-hand operand. */
   left: Expression;
   /** Right-hand operand. */
@@ -1514,7 +1514,7 @@ export interface I31GetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.I31Get;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** i31 — see the matching factory for semantics. */
   i31: Expression;
   /** true = i31.get_s (sign-extend). */
@@ -1732,7 +1732,7 @@ export interface ArrayLenExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.ArrayLen;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** ref — see the matching factory for semantics. */
   ref: Expression;
 }
@@ -1742,7 +1742,7 @@ export interface RefTestExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefTest;
   /** Result type — the value type yielded at runtime. */
-  type: ValType.I32;
+  type: typeof ValType.I32;
   /** ref — see the matching factory for semantics. */
   ref: Expression;
   /** Target reference type for the cast. */
