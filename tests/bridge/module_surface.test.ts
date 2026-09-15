@@ -99,6 +99,26 @@ describe('bridge — module surface', () => {
     assert(trapped, 'a passive segment must not populate the table');
   });
 
+  // An offset of more than one instruction has no single expression to hand
+  // over. Taking the first and ignoring the rest would place the segment at the
+  // WRONG INDEX with no complaint — the same silent class as dropping it. The
+  // WAT below really does parse to two offset exprs, so the guard is reachable.
+  it('refuses an offset it cannot represent, rather than using the first instruction', () => {
+    let threw = '';
+    try {
+      bridged(`(module
+        (table 4 funcref)
+        (func $f)
+        (elem (offset (i32.const 1) (i32.const 2)) $f))`);
+    } catch (err) {
+      threw = (err as Error).message;
+    }
+    assert(
+      /offset exprs/.test(threw),
+      `expected a refusal naming the offset, got: ${threw || 'no throw'}`,
+    );
+  });
+
   // binaryen-ts's ElementSegment holds function NAMES, so an entry that is not
   // a `ref.func` has no representation. Refuse it rather than drop it.
   it('refuses an element entry it cannot represent', () => {

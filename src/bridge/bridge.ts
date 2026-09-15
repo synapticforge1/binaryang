@@ -408,6 +408,15 @@ function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): 
     }
     return resolveVarName((only as RefFuncExpr).func, ctx.funcNames);
   });
+  // An offset built from more than one instruction has no single expression to
+  // hand over. Refuse it the way `bridgeDataSegment` does -- taking `[0]` and
+  // ignoring the rest would place the segment at the WRONG INDEX, silently,
+  // which is the same class of fault as dropping the segment entirely.
+  if (seg.kind === 'active' && seg.offset.length !== 1) {
+    throw new Error(
+      `Bridge: element segment ${seg.name} has ${seg.offset.length} offset exprs; expected 1`,
+    );
+  }
   b.addElement({
     name: seg.name,
     mode: seg.kind === 'declared' ? 'declarative' : seg.kind,
