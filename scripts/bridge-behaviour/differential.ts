@@ -255,7 +255,9 @@ export function check(file: string, wat: string): Row {
   }
 
   const sigByName = new Map<string, { params: ValueType[]; results: ValueType[] }>();
-  for (const fn of mod.functions) sigByName.set(fn.name, { params: fn.params, results: fn.results });
+  for (const fn of mod.functions) {
+    sigByName.set(fn.name, { params: fn.params, results: fn.results });
+  }
 
   const diffs: string[] = [];
   for (const exp of mod.exports) {
