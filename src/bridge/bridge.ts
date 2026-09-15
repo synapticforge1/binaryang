@@ -20,14 +20,19 @@
  *   throws — extend `bridgeExpr` as needed; the throw points to the missing
  *   case.
  *
- * **Out of scope (will throw):** exports of tag, multi-memory, start function,
- * custom sections. ⚠️ Two corrections, 2026-09-15: GC instructions ARE bridged
- * (`struct.*`, `array.*`, and the heap types registered above), and **element
- * segments are SILENTLY DROPPED, not thrown on** — `module.elemSegments` is
- * never read, so a bridged module's tables are empty and any `call_indirect`
- * traps with "null function". Invisible to `deno task bridge`, which compiles
- * the result and never runs it (open-work.md). The rest of this list is
- * unverified.
+ * **Out of scope (will throw):** exports of tag, multi-memory, custom
+ * sections, and an element-segment entry that is not a plain `ref.func`
+ * (binaryen-ts's ElementSegment holds function names). ⚠️ This list has been
+ * wrong twice, both times by claiming a throw where the bridge stayed silent —
+ * GC instructions ARE bridged (`struct.*`, `array.*`, and the heap types
+ * registered above), and element segments and the start function were SILENTLY
+ * DROPPED until 2026-09-15: `module.elemSegments` and `module.start` were never
+ * read, so a bridged module's tables were empty (every `call_indirect` trapped
+ * with "null function") and a start function never ran. Invisible to
+ * `deno task bridge`, which compiles the result and never runs it. Both are
+ * bridged now, under tests that RUN the module (tests/bridge/module_surface).
+ * The rest of this list is still unverified — a row here is a claim, not
+ * evidence.
  *
  * Direct recursion is the natural shape here: binaryen-ts constructors are
  * bottom-up (leaves passed into composite constructors), and wabt-ts's IR is
@@ -65,6 +70,7 @@ import type {
   Const,
   ConstExpr,
   DropExpr,
+  ElemSegment,
   Export as WabtExport,
   Expr,
   ExternConvertExpr,
@@ -347,9 +353,15 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
     bridgeFunc(b, module.funcs[i]!, ctx, ctx.funcNames[funcCursor + i]!);
   }
 
+  for (const seg of module.elemSegments) bridgeElemSegment(b, seg, ctx);
+
   for (const seg of module.dataSegments) bridgeDataSegment(b, seg, ctx);
 
   for (const exp of module.exports) bridgeExport(b, exp, ctx);
+
+  // The start function runs at instantiation, so dropping it changed what the
+  // module DOES before anything else could observe it.
+  if (module.start !== undefined) b.setStart(resolveVarName(module.start, ctx.funcNames));
 
   return b.build();
 }
@@ -368,6 +380,45 @@ function limitToNumber(v: bigint, what: string): number {
     throw new RangeError(`${what} is too large to bridge exactly: ${v}`);
   }
   return Number(v);
+}
+
+/**
+ * An element segment — the table's contents.
+ *
+ * 🔧 `module.elemSegments` was never read, so every bridged module's tables
+ * were EMPTY. That validates (an empty table is a valid table) and traps at run
+ * time with "null function" on the first `call_indirect` through it — invisible
+ * to `deno task bridge`, which compiles and never runs. Exactly the defect
+ * binaryen-ts's own WAT parser carried ("Element segments are complex; skip for
+ * MVP", 45 corpus modules); `tests/bridge/module_surface.test.ts` RUNS them.
+ *
+ * binaryen-ts's `ElementSegment.data` holds function NAMES, so an entry that is
+ * not a plain `ref.func` (a `ref.null`, or any other constant expression) has no
+ * representation here and is REFUSED rather than dropped.
+ */
+function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): void {
+  const data = seg.elemExprs.map((expr, i) => {
+    const only = expr.length === 1 ? expr[0] : undefined;
+    if (only === undefined || only.kind !== 'ref.func') {
+      const what = only === undefined ? `${expr.length} instructions` : only.kind;
+      throw new Error(
+        `Bridge: element segment ${seg.name} entry ${i} is ${what}; ` +
+          `binaryen-ts element segments hold ref.func entries only`,
+      );
+    }
+    return resolveVarName((only as RefFuncExpr).func, ctx.funcNames);
+  });
+  b.addElement({
+    name: seg.name,
+    mode: seg.kind === 'declared' ? 'declarative' : seg.kind,
+    // Passive and declarative segments reach no table; wabt still carries a
+    // `tableVar`, and binaryen-ts's field is not optional, so name table 0.
+    table: seg.kind === 'active'
+      ? resolveVarName(seg.tableVar, ctx.tableNames)
+      : (ctx.tableNames[0] ?? ''),
+    offset: seg.kind === 'active' ? bridgeExpr(seg.offset[0]!, ctx) : null,
+    data,
+  });
 }
 
 function bridgeTable(b: ModuleBuilder, t: WabtModule['tables'][number], name: string): void {
