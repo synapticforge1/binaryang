@@ -28,6 +28,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { BrOnOp } from '../../../src/wabt-ts/ir/ir.ts';
 
 function compile(wat: string): Uint8Array {
   const { binary, errors } = wat2wasm(wat);
@@ -87,7 +88,7 @@ describe('T7.12 — br_on_null carries branch values', () => {
     // S4 folded the three `br_on_*` kinds into one node plus a sub-op, so
     // the kind is the family and `op` is the instruction.
     assert(bon.kind === 'br_on', `expected br_on, got ${bon.kind}`);
-    assertEquals(bon.op, 'br_on_null');
+    assertEquals(bon.opcode, BrOnOp.Null);
     // $r is local 1 — the ref. $n is local 0 — the carried value.
     assert(bon.ref.kind === 'local.get');
     assertEquals(bon.ref.var, { kind: 'index', value: 1 });

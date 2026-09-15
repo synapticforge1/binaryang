@@ -118,6 +118,7 @@ import {
   varIndex,
   varName,
 } from '../ir/ir.ts';
+import { BrOnOp } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -2101,7 +2102,7 @@ export class BinaryReader {
           }
           const node: Expr = {
             kind: 'br_on',
-            op: op === Opcode.BrOnNull ? 'br_on_null' : 'br_on_non_null',
+            opcode: op === Opcode.BrOnNull ? BrOnOp.Null : BrOnOp.NonNull,
             target: varIndex(depth),
             ref,
             values,
@@ -3224,7 +3225,7 @@ export class BinaryReader {
         // that, a stack push here sank the branch past the rest of the block.
         stack.push({
           kind: 'br_on',
-          op: op === GcOpcode.BrOnCastFail ? 'br_on_cast_fail' : 'br_on_cast',
+          opcode: op === GcOpcode.BrOnCastFail ? BrOnOp.CastFail : BrOnOp.Cast,
           target: varIndex(depth),
           from: { heapType: fromHeap, nullable: (flags & 1) !== 0 },
           to: { heapType: toHeap, nullable: (flags & 2) !== 0 },

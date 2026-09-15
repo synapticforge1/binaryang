@@ -27,6 +27,7 @@ import type {
   Var,
 } from './ir.ts';
 import { varIndex } from './ir.ts';
+import { BrOnOp } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // LabelType — what kind of control structure created this label
@@ -326,10 +327,10 @@ export class ModuleContext {
         // `br_on_null` leaves the (now non-null) ref on the stack;
         // `br_on_non_null` branches away with it. The cast pair takes just
         // the ref.
-        if (expr.op === 'br_on_null') {
+        if (expr.opcode === BrOnOp.Null) {
           return { nargs: 1 + expr.values.length, nreturns: 1, unreachable: false };
         }
-        if (expr.op === 'br_on_non_null') {
+        if (expr.opcode === BrOnOp.NonNull) {
           return { nargs: 1 + expr.values.length, nreturns: 0, unreachable: false };
         }
         return { nargs: 1, nreturns: 1, unreachable: false };

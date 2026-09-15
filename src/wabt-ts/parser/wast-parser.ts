@@ -154,6 +154,7 @@ import {
   tokenTypeName,
   type TypeToken,
 } from './token.ts';
+import { BrOnOp } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // WAST Script types
@@ -3953,7 +3954,7 @@ export class WastParser {
         const values = operands.slice(0, -1).filter((x) => x.kind !== 'nop');
         return {
           kind: 'br_on',
-          op: tt === TokenType.BrOnNull ? 'br_on_null' : 'br_on_non_null',
+          opcode: tt === TokenType.BrOnNull ? BrOnOp.Null : BrOnOp.NonNull,
           target: v,
           ref,
           values,
@@ -3974,7 +3975,7 @@ export class WastParser {
         if (to === null) return null;
         return {
           kind: 'br_on',
-          op: tt === TokenType.BrOnCastFail ? 'br_on_cast_fail' : 'br_on_cast',
+          opcode: tt === TokenType.BrOnCastFail ? BrOnOp.CastFail : BrOnOp.Cast,
           target: v,
           from,
           to,

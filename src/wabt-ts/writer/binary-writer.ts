@@ -128,6 +128,7 @@ import {
 import { MemoryStream } from './stream.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
+import { BrOnOp } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -984,13 +985,13 @@ class BodyWriter implements ExprVisitorDelegate {
   onBrOnExpr(e: BrOnExpr): Result {
     // The null pair are single-byte opcodes; the cast pair are GC-prefixed
     // and carry both heap types. The sub-op says which.
-    if (e.op === 'br_on_null' || e.op === 'br_on_non_null') {
-      this.s.writeU8(e.op === 'br_on_null' ? Opcode.BrOnNull : Opcode.BrOnNonNull);
+    if (e.opcode === BrOnOp.Null || e.opcode === BrOnOp.NonNull) {
+      this.s.writeU8(e.opcode === BrOnOp.Null ? Opcode.BrOnNull : Opcode.BrOnNonNull);
       this.writeLabelVar(e.target);
       return Result.Ok;
     }
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.op === 'br_on_cast_fail' ? GcOpcode.BrOnCastFail : GcOpcode.BrOnCast);
+    this.s.writeU32Leb(e.opcode === BrOnOp.CastFail ? GcOpcode.BrOnCastFail : GcOpcode.BrOnCast);
     // Nullability of BOTH reference types travels in one flags byte rather
     // than in the heap types themselves: bit 0 = rt1 nullable, bit 1 = rt2.
     this.s.writeU8((e.from!.nullable ? 1 : 0) | (e.to!.nullable ? 2 : 0));

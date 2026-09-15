@@ -1068,7 +1068,7 @@ class WatWriter extends ModuleContext {
       },
       onBrOnExpr: (e) => {
         // The sub-op is the keyword, for all four.
-        this.putsSpace(e.op);
+        this.putsSpace(anyOpcodeName(e.opcode));
         if (e.from === undefined || e.to === undefined) {
           this.writeBrVar(e.target, NC.Newline);
           return Result.Ok;
