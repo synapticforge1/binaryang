@@ -999,13 +999,11 @@ export interface ArrayCopyExpr {
   readonly loc: Location;
 }
 /**
- * `array.init_data $t $d` (0xfb 0x12) / `array.init_elem $t $e` (0xfb 0x13) —
- * pops (ref null $t), i32 dest offset, i32 source offset, i32 size, and
- * copies from the named data/elem segment. `segmentKind` selects which
- * index space `segment` refers to.
+ * `array.init_data $t $d` (0xfb 0x12) — pops (ref null $t), i32 dest offset, i32
+ * source offset, i32 size, and copies from the named DATA segment.
  */
-export interface ArrayInitSegmentExpr {
-  readonly kind: 'array.init_data' | 'array.init_elem';
+export interface ArrayInitDataExpr {
+  readonly kind: 'array.init_data';
   readonly typeVar: Var;
   readonly segment: Var;
   readonly ref: Expr;
@@ -1014,6 +1012,26 @@ export interface ArrayInitSegmentExpr {
   readonly size: Expr;
   readonly loc: Location;
 }
+/**
+ * `array.init_elem $t $e` (0xfb 0x13) — the same shape, copying from the named
+ * ELEM segment.
+ *
+ * Two interfaces, as binaryen-ts has (S6 step 5): one interface with a KIND UNION
+ * could not be matched by kind, so the convergence ratchet read identical fields
+ * as different. {@link ArrayInitSegmentExpr} is the pair.
+ */
+export interface ArrayInitElemExpr {
+  readonly kind: 'array.init_elem';
+  readonly typeVar: Var;
+  readonly segment: Var;
+  readonly ref: Expr;
+  readonly destOffset: Expr;
+  readonly srcOffset: Expr;
+  readonly size: Expr;
+  readonly loc: Location;
+}
+/** Either `array.init_*` — the kind says which index space `segment` refers to. */
+export type ArrayInitSegmentExpr = ArrayInitDataExpr | ArrayInitElemExpr;
 /** `array.len` — pops (ref array), pushes i32 length. No type immediate. */
 export interface ArrayLenExpr {
   readonly kind: 'array.len';
@@ -1378,7 +1396,8 @@ export type Expr =
   | ArrayLenExpr
   | ArrayFillExpr
   | ArrayCopyExpr
-  | ArrayInitSegmentExpr
+  | ArrayInitDataExpr
+  | ArrayInitElemExpr
   | RefTestExpr
   | RefCastExpr
   | TableGetExpr
