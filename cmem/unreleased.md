@@ -31,6 +31,11 @@ their own bump — and nothing breaks by their standing still.
   `typeof t === 'string'` to spot a scalar, `Object.values(ValType)`) is not. New public exports
   (`./ir/binaryen-ts`): `valTypeName`, `valTypeFromName`, `isValType`. Every emitted byte is unchanged
   (baseline IDENTICAL). A patch release cannot carry this.
+  **Then stage V4:** `ValType` is a const object over wabt-ts's `Type` plus a same-named union type, not
+  an enum — the value-type SUBSET of `Type`, so `Type.I32` is assignable to `ValType` and back.
+  `ValType.I32` and `ValType` as a type work unchanged; an enum reverse lookup (`ValType[127]`) does
+  not, and a member used as a TYPE is `typeof ValType.I32`. wabt-ts's `Type` gains `StringRef`
+  (`./core/wabt-ts`).
 - ⚠️ **BREAKING: a heap type is a `HeapTypeRef` object** (S6 step 5 stage V2). binaryen-ts's
   `HeapType` was `AbstractHeapType | number`; it is now wabt-ts's `HeapTypeRef` —
   `{ kind: 'abstract', name }` or a `Var`. `RefType.heap`, `ref.test`/`ref.cast`'s `castType` and

@@ -50,18 +50,21 @@ const SHARED = [
 ] as const;
 
 describe('one scalar value-type representation', () => {
-  it('every ValType member has the VALUE of the wabt-ts Type member of the same name', () => {
-    // ⚠️ Equal values, still two TYPES: TypeScript enums are nominal, so
-    // `Type.I32` is not assignable to `ValType` (the compiler said so when this
-    // compared them directly). One representation in VALUE is this stage; one in
-    // TYPE needs `ValType` to BE `Type` -- a re-export, not a second enum.
-    for (const name of SHARED) assertEquals<number>(ValType[name], Type[name], name);
+  it('every ValType member IS the wabt-ts Type member of the same name', () => {
+    // V1 made the VALUES equal, and they were still two TYPES (enums are
+    // nominal: this line would not compile). V4 made `ValType` a const object
+    // over `Type`, so the plain comparison below type-checks -- see also the
+    // compile-time pins at the bottom of this file.
+    for (const name of SHARED) assertEquals(ValType[name], Type[name], name);
+    assertEquals(ValType.StringRef, Type.StringRef);
   });
 
-  it('and every binaryen-ts member is either in that list or knowingly absent from wabt-ts', () => {
-    // A numeric enum reverse-maps: its keys include '127' as well as 'I32'.
-    const members = Object.keys(ValType).filter((k) => Number.isNaN(Number(k)));
-    assertEquals(members.filter((k) => !(SHARED as readonly string[]).includes(k)), ['StringRef']);
+  it('and the only extra member is StringRef, which the wabt-ts Type now also has', () => {
+    // A const object does not reverse-map (the enum it replaced did).
+    assertEquals(Object.keys(ValType).filter((k) => !(SHARED as readonly string[]).includes(k)), [
+      'StringRef',
+    ]);
+    assertEquals(Object.values(ValType).length, SHARED.length + 1);
   });
 
   it('names round-trip through the one table', () => {
@@ -109,3 +112,18 @@ const _oneRefRecord: [Same<keyof RefType, keyof RefValueType>, Same<RefType, Ref
   true,
 ];
 void _oneRefRecord;
+
+// ---------------------------------------------------------------------------
+// Stage V4: ONE scalar TYPE -- ValType is the value-type subset of Type
+// ---------------------------------------------------------------------------
+
+/** Every `ValType` is a `Type` (compile-time: a widening assignment). */
+const _valTypeIsAType: Type = ValType.I32;
+/** And a value-type member of `Type` is a `ValType` -- which V1 could not do. */
+const _typeMemberIsAValType: ValType = Type.I32;
+/** But not every `Type` is a `ValType`: `Type.Void` is not a value type. */
+// @ts-expect-error -- Type.Void is not in the value-type subset
+const _voidIsNotAValType: ValType = Type.Void;
+void _valTypeIsAType;
+void _typeMemberIsAValType;
+void _voidIsNotAValType;

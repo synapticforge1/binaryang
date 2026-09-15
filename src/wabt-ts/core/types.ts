@@ -99,6 +99,8 @@ export enum Type {
    * `exnref` and nothing else.
    */
   NullExnRef = 0x74,
+  /** String reference (stringref proposal, byte 0x67). Neither encoder writes it. */
+  StringRef = 0x67,
   /** Non-nullable typed reference (GC proposal). */
   Ref = 0x64,
   /** Nullable typed reference (GC proposal). */
@@ -194,6 +196,8 @@ export function typeName(t: Type): string {
       return 'nullexternref';
     case Type.NullExnRef:
       return 'nullexnref';
+    case Type.StringRef:
+      return 'stringref';
     case Type.Ref:
       return 'ref';
     case Type.RefNull:

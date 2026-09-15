@@ -2279,8 +2279,29 @@ assignability alone — stayed GREEN when inverted with an OPTIONAL field added,
 optional still assigns. Equal KEY sets as well; inverted with an optional and with a required field.
 
 **So after V1–V3 the value types are one in SHAPE and VALUE on both sides**, and still two in TYPE
-where an enum is involved (`ValType` vs `Type`, nominal). Making them one declaration belongs to the
-alias stage.
+where an enum is involved (`ValType` vs `Type`, nominal).
+
+###### ✅ Stage V4 — ONE scalar TYPE: `ValType` is the value-type subset of `Type` (2026-09-15)
+
+A re-export was not enough: wabt-ts's `Type` also holds non-value members (`Void`, `Func`, `Struct`,
+`Ref`, …), so `ValType = Type` would have let `Type.Void` into every value position. Instead
+`ValType` is a CONST OBJECT whose members are `Type` members, with a same-named union type. Every
+`ValType` is a `Type`; a value-type member of `Type` is a `ValType`; `Type.Void` is not — each pinned
+at compile time in `tests/ir/value_types.test.ts` (the last as `@ts-expect-error`; inverted by
+adding `Void` to `ValType`: TS2578). wabt-ts's `Type` gained `StringRef` (0x67), binaryen-ts's one
+extra member.
+
+Trial: 34 errors, and 25 of them were one name collision (binaryen-ts's `types.ts` already exports
+a `Type`; the import is `WireType`). The rest: nine interface fields using an enum member as a TYPE
+(`type: ValType.I32` → `typeof ValType.I32`) and wabt-ts's exhaustive `typeName` switch.
+
+🔑 **V1's name table went.** `typeName` in wabt-ts was already the table, member for member; V1 had
+written a second copy because the two enums could not share one. With `ValType` a subset of `Type`,
+`valTypeName` delegates and `valTypeFromName` is built from it.
+
+Bytes unchanged; ci 1156/1156. The value types are now one in SHAPE, VALUE and TYPE — what remains is
+wabt-ts's `ValueType = Type | RefValueType` admitting `Type.Void`, which is wabt-ts's own looseness
+and belongs to the alias stage.
 
 **What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
