@@ -2056,6 +2056,37 @@ one-instruction arm always gave.
 
 ##### Step 5 — delete the bridge, and carry its type derivation forward
 
+📐 **RE-MEASURED 2026-09-15, at the start of the step — by the COMPILER, not by reading notes.** Of
+the 73 kinds with a node on both sides: **34 identical · 14 same field names but a differing type ·
+25 with a field on one side only.** Pinned in `tests/ir/expr_convergence.test.ts`, a compile-time
+ratchet: a wrong pin fails `deno task check` in either direction, so progress has to be recorded to
+land and regress cannot land silently (inverted three ways: a wrong pin, a new field in the source,
+a changed field type).
+
+- ⚠️ **"The (a) renames dissolve by definition when the types unify" was wrong about the NAMES.**
+  Only the element type dissolves. `unary.operand`/`value`, `call.func`/`target`,
+  `local.*.var`/`index`, the memory ops' `address`/`ptr`, `table.fill.start`/`dest`,
+  `table.grow.initValue`/`value`, `simd.shuffle.lanes`/`mask` are all still two fields.
+- **The node BASE differs on every kind**, and the ratchet deliberately excludes it: wabt-ts nodes
+  are `readonly` with a REQUIRED `loc`; binaryen-ts nodes are mutable, `loc?`, a string-ENUM `kind`,
+  and `type` REQUIRED on some kinds (`memory.*`, `table.fill`/`grow`, `ref.test`).
+- **What remains, by class:** pure renames (above); optionality only (`signed`, `isReturn`,
+  `defaultInit`, `memidx`, `br.condition`, `array.new.init`); label and function references —
+  `Var` on wabt-ts, `string` on binaryen-ts (`br`, `br_table`, `br_on`, `rethrow`, `ref.func`, the
+  try's delegate); and the structural ones — `const.value` (`Const` vs `Literal`), the block family
+  (`label`/`blockType`/`body` vs `name`/`params`/`typeIndex`/`children`, and `RegionExpr` bodies),
+  the catch records, `select.resultType`, and the heap-type fields.
+
+🛑 **The plan never scoped the bridge's OTHER half.** Roughly 900 of its lines translate
+expressions; roughly 1,000 translate the MODULE — imports, globals, tables, tags, segments, exports,
+start — and convert VALUE TYPES between two representations that are not unified either: wabt-ts's
+`Type | RefValueType { heapType: HeapTypeRef }` against binaryen-ts's `ValType | RefType { heap:
+HeapType }`, inside a `Module` against a `WasmModule`. One `Expression` removes the first half and
+leaves the second, so "delete the bridge" is not what one `Expression` achieves on its own — and §
+"What is NOT in scope" says merging the two IRs is not the goal. **What replaces the module half is
+an owner call**, and it is the last thing step 5 needs: everything before it is required whichever
+way it goes.
+
 1,923 lines plus 13 test files when this step was planned (2026-09-04); 1,803 lines on 2026-09-14.
 ⚠️ **The bridge is also where a wabt-ts tree acquires its types today**; that derivation
 (`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified tree, or binaryen-ts's passes
