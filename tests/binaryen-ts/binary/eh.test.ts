@@ -759,7 +759,7 @@ Deno.test('try_table: a catch destination names the ENCLOSING frame, not the try
 
   // The handler targets `$outer`. Resolving one frame too deep named `$inner`;
   // resolving inside the try_table's own frame named the try_table itself.
-  assertEquals((tt as TryTableExpr).catches[0].target, varName(outer.name!));
+  assertEquals((tt as TryTableExpr).catches[0].target, varName(outer.label!));
 
   assertEquals(await runF(encodeWasm(mod)), 7);
 });

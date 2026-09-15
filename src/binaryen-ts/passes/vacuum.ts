@@ -123,7 +123,7 @@ function _simplifyBlock(
   // is preserved (as the multi-child path does below).
   const only = filtered.length === 1 ? filtered[0] : undefined;
   if (
-    only !== undefined && block.name === null &&
+    only !== undefined && block.label === '' &&
     (only.type === block.type || only.type === Unreachable)
   ) {
     return only;

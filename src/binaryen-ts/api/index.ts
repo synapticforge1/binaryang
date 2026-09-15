@@ -394,7 +394,7 @@ function exprToWat(expr: Expression, _indent: number): string {
       return `(drop ${exprToWat(expr.value, _indent)})`;
     case ExpressionKind.Block: {
       requireNoParams(expr);
-      const label = expr.name ? ` $${expr.name}` : '';
+      const label = expr.label ? ` $${expr.label}` : '';
       const result = expr.type !== None && expr.type !== undefined
         ? ` (result ${typeToString(expr.type)})`
         : '';

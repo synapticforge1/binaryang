@@ -116,7 +116,7 @@ Deno.test('parseWat — block with label', () => {
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Block);
   const block = body as import('../../../src/binaryen-ts/ir/expressions.ts').BlockExpr;
-  assertEquals(block.name, '$b');
+  assertEquals(block.label, '$b');
   assertEquals(block.children[0].kind, ExpressionKind.Break);
 });
 

@@ -70,6 +70,12 @@ their own bump — and nothing breaks by their standing still.
   for FLOATS (raw IEEE 754), `{ type, bytes }` for v128; `Literal` is an alias of it. `'i32' in v` no
   longer works (and still compiles): test `v.type === ValType.I32`. New: `makeF32ConstBits`,
   `makeF64ConstBits`, `f32BitsOf`, `f64BitsOf`, `literalFloat`.
+  Then stage L2: a carrier's OWN label is **`label: string`**, `''` for none — `BlockExpr`,
+  `LoopExpr`, `IfExpr`, `TryExpr`, `TryTableExpr` (were `name`, spelled three ways:
+  `string | null`, `string`, and `string | undefined`). The `make*` factories still take
+  `string | null` and map `null` to `''`. ⚠️ **A null test against these still compiles**:
+  TypeScript exempts `=== null` from its no-overlap rule, so `block.name === null` becomes
+  `block.label === null`, which is always false — test `=== ''`, or truthiness.
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and

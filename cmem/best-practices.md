@@ -1102,6 +1102,52 @@ fallthru class. Not a regression — a second defect the first one had been hidi
 **A pass count is a sum over files; diff the per-file outcomes, not the totals.** "4 fixed, 1 moved
 class" and "5 fixed, 1 new regression" produce the same total.
 
+## 🆕 TypeScript does NOT flag `stringValued === null` — a nullability change is a silent one
+
+Comparisons against `null` and `undefined` are exempt from the "no overlap" rule (TS2367). Measured
+directly, as its own two-line file, because the whole conversion depended on it:
+
+```ts
+export interface B { label: string }
+export function f(b: B): boolean { return b.label === null; } // deno check: CLEAN
+```
+
+So S6 step 5's stage L2 — `name: string | null` → `label: string`, `''` for none — renamed the
+field, which the compiler caught at 68 sites, and changed its EMPTY VALUE, which the compiler
+caught at none. Ten `=== null` / `?? null` sites compiled clean as constants: a pass that strips
+unused labels that never fires, an `asRegion` that never collapses, an encoder that pushes `''`
+where it meant "no label".
+
+**When a field loses `null` from its type, the type checker stops helping.** List every null test
+against that field BEFORE the rename (`grep` for the field beside `null`/`undefined`/`??`), convert
+them by reading, and then MUTATE EACH ONE BACK and require a failure. Of ten, six failed, three
+were equivalent for reasons worth writing down, and the last one found a missing test — see below.
+The same exemption applies to `?? `: `x ?? y` on a non-nullable `x` is not an error either.
+
+## 🆕 A test named for a rule may never REACH that rule
+
+"Vacuum: unnamed single-child block collapses" passes with Vacuum's unnamed-block rule inverted to
+one that is never true. A region whose SOLE child is an unnamed block is flattened by `asRegion`,
+which `mapExpression` applies to every region slot it rebuilds — the block is gone before the pass
+under test decides anything. The test asserts the right OUTCOME; something else produces it.
+
+Two general points:
+
+- **A test's name is a claim about which code decides its outcome, and the name is not evidence.**
+  The only proof is a mutant: break the rule the test is named for and require THAT test to fail.
+  Where a whole suite is green against such a mutant, the rule is untested however many tests
+  mention it.
+- **The shortcut path is the usual reason.** A normalizing helper upstream of the code under test
+  (`asRegion` here) reaches the same result first. Reach the rule by choosing a fixture the
+  shortcut cannot take — a second sibling made the region unflattenable, and the same mutant then
+  failed.
+
+A sibling case from the same stage: no fixture reached `TranslateToExnref` with an UNLABELLED
+carrier, because both front ends invent a label (`$labelN` from the decoder, `$depthN` from the WAT
+parser). Only the public factory `makeTry(null, …)` produces one. **A front end that always fills a
+field hides every consumer's handling of that field's absence** — build the node directly, or strip
+the invented value, to test what a library caller can actually construct.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

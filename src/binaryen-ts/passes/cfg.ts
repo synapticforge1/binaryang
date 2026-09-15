@@ -225,9 +225,9 @@ class _CFGBuilder {
       // -------------------------------------------------------------------
       case ExpressionKind.Block: {
         const merge = this.newBlock();
-        if (e.name) this.pushLabel(e.name, merge);
+        if (e.label) this.pushLabel(e.label, merge);
         for (const child of e.children) this.visit(child);
-        if (e.name) this.popLabel();
+        if (e.label) this.popLabel();
         this.link(this.current, merge);
         this.current = merge;
         return;
@@ -251,7 +251,7 @@ class _CFGBuilder {
         const loopTop = this.newBlock();
         this.link(this.current, loopTop);
         this.current = loopTop;
-        this.pushLabel(e.name, loopTop);
+        this.pushLabel(e.label, loopTop);
         this.visit(e.body);
         this.popLabel();
         // current naturally falls through; the merge happens at whatever
@@ -368,7 +368,7 @@ class _CFGBuilder {
         // state at each throw point reaches the handler (see linkToHandlers /
         // throwingCallContinuation).
         // Same as try_table above: the try's own label targets its end.
-        if (e.name) this.pushLabel(e.name, merge);
+        if (e.label) this.pushLabel(e.label, merge);
         this.current = bodyEntry;
         this.handlerStack.push(catchEntries);
         this.visit(e.body);
@@ -386,7 +386,7 @@ class _CFGBuilder {
           this.link(this.current, merge);
         }
 
-        if (e.name) this.popLabel();
+        if (e.label) this.popLabel();
         this.current = merge;
         return;
       }
@@ -412,7 +412,7 @@ class _CFGBuilder {
         // the edge to `merge` is lost. No miscompile was reproducible from it
         // today, but an under-approximated CFG edge is a latent one: unreachable
         // is a property of today's code, not of the defect.
-        if (e.name) this.pushLabel(e.name, merge);
+        if (e.label) this.pushLabel(e.label, merge);
         this.current = bodyEntry;
         // The entry edge alone is NOT sufficient, and that gap is the defect
         // wasmtk reported on 2026-08-27: `-Oz` dropping a pre-try store.
@@ -436,7 +436,7 @@ class _CFGBuilder {
         this.handlerStack.push(targets);
         this.visit(e.body);
         this.handlerStack.pop();
-        if (e.name) this.popLabel();
+        if (e.label) this.popLabel();
         this.link(this.current, merge);
         this.current = merge;
         return;
