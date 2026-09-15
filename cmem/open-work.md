@@ -26,7 +26,61 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-14)
+## Start the next session here (handoff, 2026-09-15 — paused mid-stage)
+
+**Where the work stopped.** `main` is at `1a7b04145`, clean, nothing pushed, `deno.json` still
+1.5.4. The full gate ran on that committed tree and every step passed: fmt, lint, 1164 tests / 0
+failed, naming, portability, baseline **IDENTICAL**, publish dry-run, operators, spec (no misses),
+`bridge` **421/421**, `bridge-behaviour` **1806/1806** across 602 exports, `translate-eh` (every
+assertion holds in every world, 19 `assert_invalid`/`assert_malformed` skipped), `optimize-corpus`
+(every level of every module encodes and validates).
+
+S6 step 5's expression ratchet stands at **65 identical / 1 types / 7 names**. Nine stages landed
+on 2026-09-15 (A, A2, A3, B, V1–V4, S1–S3, L1, B1–B3, C1, L2). **No branch is open** — the next
+sub-stage was branched and the branch deleted unused, so start from `main`.
+
+### Tomorrow's list, in order
+
+1. **Block family (b) — the catch records.** The analysis is done, the trial is not. Two records,
+   two questions:
+   - **try_table's clause.** wabt-ts's `TableCatch` is a KIND UNION — `kind: CatchKind` (a string
+     enum of four) with `tag` required on two arms and absent on the other two, plus `target: Var`
+     and `loc`. binaryen-ts's `CatchClause` is `{ tag?: Var; target: Var; isRef: boolean }`.
+     🔑 **Both are closed shapes, and binaryen-ts's is closed without redundancy**: `tag` present or
+     absent × `isRef` is exactly the four cases, so there is no `kind` that could disagree with
+     `tag` — which is the very defect wabt-ts's union was split to prevent
+     ([ir-convergence.md](ir-convergence.md) § "TableCatch"). That argues the direction against the
+     raw counts, so RUN THE TRIAL before deciding: `CatchKind.` appears at 37 sites, `isRef` at 159
+     — but `isRef` spans BOTH catch records and both IRs, so that count is not the comparison.
+     The trial harness is written (`catch_trial.ts` in the session scratchpad; it rewrites one
+     declaration, runs `deno task check`, counts primary error locations outside the bridge, and
+     restores) — it was never run.
+   - **The legacy clause.** wabt-ts's `Catch` and binaryen-ts's `TryCatch` are ALREADY the same
+     three fields (`tag?: Var`, `isRef: boolean`, body) and differ only in `loc` (the node-base
+     stage) and the body's form (sub-stage (d)). So this one is a TYPE-NAME choice, not a shape
+     choice. ⚠️ Neither pair is parallel across the two: wabt has `Catch` / `TableCatch`,
+     binaryen has `TryCatch` / `CatchClause`. Pick one pair for both records.
+2. **Block family (c) — the block TYPE**: wabt-ts's `blockType: BlockType` against binaryen-ts's
+   `type` + `params?: BlockParams` + `typeIndex?: WrittenTypeIndex`. The largest of the four.
+3. **Block family (d) — the bodies**: `Expr[]` against `RegionExpr` (`children` against `body`).
+   Note this one also closes the last field difference in the LEGACY catch record.
+4. Then, still on the expression half: `call_indirect`'s type use (`typeVar` + `typeUse?` against
+   `typeIndex?`), `select.resultType`'s remaining `types` state (wabt-ts's `ValueType` admits
+   non-value `Type` members), and `ref.null.refType` (deferred by Group 3 to type derivation).
+5. Then the node base (`readonly`, `loc` required against optional, literal against enum `kind`,
+   `type` required on some binaryen kinds), the one-sided kinds (atomics, `call_ref`,
+   `code_metadata`, `region`), the alias, and the type-derivation pass
+   (`inferBinaryType` / `inferUnaryType`) carried forward out of the bridge.
+6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
+   `WasmModule`, on the expression half's terms; the bridge is deleted outright. 16 test files,
+   `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` come out with it.
+
+⚠️ **Carry the L2 discipline into every remaining stage**: when a field loses `null` or `undefined`
+from its type, the compiler stops helping (`stringValued === null` is not an error), so list the
+null tests first, convert by reading, and mutate each one back — see
+[best-practices.md](best-practices.md) § "TypeScript does NOT flag".
+
+---
 
 The 2026-09-14 session was **memory work, not code**. `src/` behaviour is unchanged (baseline
 IDENTICAL after every merge), and the full gate passed on the committed tree at `1cbe88be8`.
