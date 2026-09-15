@@ -3999,7 +3999,7 @@ export class WastParser {
           kind: 'br_table',
           targets,
           defaultTarget,
-          value: idx,
+          condition: idx,
           values: carried,
           loc,
         } as BrTableExpr;

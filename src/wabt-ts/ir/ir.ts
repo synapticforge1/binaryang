@@ -520,7 +520,7 @@ export interface BrTableExpr {
    * The i32 index selecting a target. It is the TOP operand — the values
    * carried to the target sit below it, exactly as with {@link BrIfExpr.condition}.
    */
-  readonly value: Expr;
+  readonly condition: Expr;
   /**
    * Values carried to the selected label, in stack order. In the LINEAR form
    * these are preceding statements, but the folded form

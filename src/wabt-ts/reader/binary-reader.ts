@@ -1621,7 +1621,7 @@ export class BinaryReader {
             kind: 'br_table',
             targets,
             defaultTarget,
-            value,
+            condition: value,
             values: [],
             loc,
           });

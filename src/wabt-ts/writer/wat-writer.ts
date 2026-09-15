@@ -1592,7 +1592,7 @@ class WatWriter extends ModuleContext {
         case 'return':
           return { operands: [...e.values], head: (d) => void d.onReturnExpr?.(e) };
         case 'br_table':
-          return { operands: [...e.values, e.value], head: (d) => void d.onBrTableExpr?.(e) };
+          return { operands: [...e.values, e.condition], head: (d) => void d.onBrTableExpr?.(e) };
 
         // ---- three operands ---------------------------------------------------
         case 'select':

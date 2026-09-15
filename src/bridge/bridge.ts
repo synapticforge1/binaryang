@@ -1143,7 +1143,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeSwitch(
         targets,
         defaultTarget,
-        bridgeExpr(brT.value, ctx),
+        bridgeExpr(brT.condition, ctx),
         bridgeValues(brT.values, ctx),
       );
     }
