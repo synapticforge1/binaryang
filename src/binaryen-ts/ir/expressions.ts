@@ -1348,7 +1348,7 @@ export interface CallExpr extends ExprBase {
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** isReturn — see the {@link make} factory for semantics. */
-  isReturn: boolean;
+  isReturn?: boolean;
 }
 
 /**
@@ -1397,7 +1397,7 @@ export interface CallIndirectExpr extends ExprBase {
    */
   sig: FuncSignature;
   /** isReturn — see the matching factory for semantics. */
-  isReturn: boolean;
+  isReturn?: boolean;
   /**
    * The type-section index the instruction NAMED — see {@link WrittenTypeIndex}
    * (7c). Without it the encoder derives one by structural match, which picks
@@ -1530,7 +1530,7 @@ export interface StructNewExpr extends ExprBase {
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** defaultInit — see the {@link make} factory for semantics. */
-  defaultInit: boolean;
+  defaultInit?: boolean;
 }
 
 /** {@link StructGetExpr} — see {@link makeStructGet} for the factory. */
