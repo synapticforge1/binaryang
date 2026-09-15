@@ -4253,7 +4253,7 @@ export class WastParser {
         return {
           kind: 'table.grow',
           table: v,
-          initValue: op0(),
+          value: op0(),
           delta: op1(),
           loc,
         } as TableGrowExpr;
@@ -4267,7 +4267,7 @@ export class WastParser {
         return {
           kind: 'table.fill',
           table: v,
-          start: op0(),
+          dest: op0(),
           value: op1(),
           size: op2(),
           loc,

@@ -2311,7 +2311,7 @@ export class BinaryReader {
         const tableIdx = this.readU32Leb();
         const delta = stack.pop() ?? operandPlaceholder(loc);
         const initValue = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'table.grow', table: varIndex(tableIdx), initValue, delta, loc });
+        stack.push({ kind: 'table.grow', table: varIndex(tableIdx), value: initValue, delta, loc });
         break;
       }
       case MiscOpcode.TableSize: {
@@ -2327,7 +2327,7 @@ export class BinaryReader {
         pushStmt(stack, stmts, {
           kind: 'table.fill',
           table: varIndex(tableIdx),
-          start,
+          dest: start,
           value,
           size,
           loc,
