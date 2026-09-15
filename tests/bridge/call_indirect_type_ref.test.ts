@@ -43,9 +43,9 @@ function bridged(wat: string): Uint8Array {
  * The signature the module's one `call_indirect` calls through, as the bridge
  * built it, plus how many operands it carries.
  *
- * ⚠️ These modules are COMPILED, not run: the bridge drops element segments
- * (open-work.md), so a table call would trap on an empty table. Validity is
- * what the bridge gate measures, and what this defect broke.
+ * ⚠️ These modules are COMPILED, not run: validity is what the bridge gate
+ * measures, and what this defect broke. Element segments now bridge too, so
+ * these modules COULD run (module_surface.test.ts does exactly that).
  */
 function theCall(bytes: Uint8Array): { params: number; results: number; operands: number } {
   new WebAssembly.Module(bytes as BufferSource); // V8 accepts it

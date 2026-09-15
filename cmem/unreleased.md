@@ -163,6 +163,16 @@ anonymous-function name collision turned `(call 1)` into infinite recursion.
 
 ## Not release-note material, but true of `main`
 
+- **The bridge carries element segments and the start function.** Both were SILENTLY dropped —
+  `module.elemSegments` and `module.start` were never read — so every bridged module's tables were
+  empty (any `call_indirect` trapped with "null function") and a start function never ran. The
+  module doc had claimed both "will throw"; it has now been wrong twice in the same direction, and
+  says so. `deno task bridge` stayed 421/421 across the fix, before AND after: it COMPILES what the
+  bridge builds and never runs it, so a module with an empty table is perfectly valid to it. Fixed
+  ahead of S6 step 5 deliberately, so bridged output can be RUN and its behaviour measured before
+  the bridge is deleted (owner, 2026-09-15). Tests: `tests/bridge/module_surface.test.ts`, which
+  instantiates and calls.
+
 - **`deno task bridge` reaches 421/421** (`ed38c084f`): the bridge resolves a `call_indirect`'s
   signature from the type it names. The bridge is internal and unexported, so nothing ships against
   it — but this is S6 step 5's acceptance criterion, met ahead of the step.

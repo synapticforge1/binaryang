@@ -122,14 +122,6 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ## Open defects and gaps
 
-- ⬚ **The bridge silently drops element segments** (found 2026-09-15, building the `call_indirect`
-  fixture; verified by reading `bridge.ts` — `module.elemSegments` is never read). A bridged
-  module's tables stay empty, so any `call_indirect` through one traps with "null function". The
-  module doc claimed element segments "will throw"; it was corrected in the same commit
-  (`ed38c084f`). **`deno task bridge` cannot see it**: it compiles what the bridge builds and never
-  runs it, which is also why "421/421" is a validity claim only. Moot if S6 step 5 deletes the
-  bridge; until then, anything that RUNS bridged output is unsound.
-
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
 - ⬚ **`scripts/release/` runs no cold type check before the tag push**, so a stale type cache is
