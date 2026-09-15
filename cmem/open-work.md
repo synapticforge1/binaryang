@@ -78,7 +78,14 @@ identical / 14 types / 25 names; stage A (six renames, `4d39bea0e`) and stage B 
 `19b7186fe`) took it to **52 / 5 / 16**, byte-identical and 1806/1806 behaviourally throughout. Two
 defects fixed on the way (a plain `struct.get` decoded as `get_u`; `(memory.size $b)` asking memory
 0). **Owner, 2026-09-15:** (a) locals are `var` (done, 55 / 5 / 13); (b) C — the bridge's MODULE
-half is decided AFTER one `Expression` and one value-type representation exist, with measured sizes. 🔑 Not a choice: one `Expression` needs one VALUE-TYPE
+half is decided AFTER one `Expression` and one value-type representation exist, with measured sizes.
+**Value types DONE the same day (stages V1–V4):** one representation in shape, value and type —
+scalars are wabt-ts's `Type` members (`ValType` a const subset), heap types `HeapTypeRef`, a ref
+type `{ heapType, nullable }`. ⚠️ Several are PUBLIC and breaking — [unreleased.md](unreleased.md).
+**Next:** the ratchet's remaining 5 `types` + 13 `names` kinds (the block family, `const`, `select`,
+labels as `Var`, `br_on`, `call_indirect`'s type use, `ref.null`/`cast`/`test`, `array.init_*`), then
+the node base (`readonly`, `loc`, literal vs enum `kind`), the one-sided kinds, the alias, and the
+type-derivation pass. 🔑 Not a choice: one `Expression` needs one VALUE-TYPE
 representation, because 12 wabt-ts node fields and binaryen-ts's `type` / `FuncSignature` embed
 each side's own — so value types are the next stage whichever way (b) goes.
 
