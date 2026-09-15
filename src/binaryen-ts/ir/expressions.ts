@@ -1468,7 +1468,7 @@ export interface RefFuncExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.RefFunc;
   /** func — see the {@link make} factory for semantics. */
-  func: string;
+  func: Var;
 }
 
 // ---------------------------------------------------------------------------
@@ -2788,7 +2788,7 @@ export function makeRefNull(type: ValueType): RefNullExpr {
 }
 
 /** Creates a `ref.func` expression. */
-export function makeRefFunc(func: string, type: ValType = ValType.FuncRef): RefFuncExpr {
+export function makeRefFunc(func: Var, type: ValType = ValType.FuncRef): RefFuncExpr {
   return { kind: ExpressionKind.RefFunc, type, func };
 }
 

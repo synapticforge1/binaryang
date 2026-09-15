@@ -23,7 +23,7 @@ import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import '../../../src/binaryen-ts/passes/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
 
 Deno.test('parseWat — empty module', () => {
@@ -488,11 +488,11 @@ Deno.test('parseWat — ref.null / ref.func / ref.is_null are parsed (not nop)',
 
   const tableSet = children[0] as {
     kind: ExpressionKind;
-    value: { kind: ExpressionKind; func?: string };
+    value: { kind: ExpressionKind; func?: Var };
   };
   assertEquals(tableSet.kind, ExpressionKind.TableSet);
   assertEquals(tableSet.value.kind, ExpressionKind.RefFunc);
-  assertEquals(tableSet.value.func, '$g');
+  assertEquals(tableSet.value.func, varName('$g'));
 
   const isNull = children[1] as { kind: ExpressionKind; value: { kind: ExpressionKind } };
   assertEquals(isNull.kind, ExpressionKind.RefIsNull);

@@ -165,9 +165,10 @@ function _collectCallTargets(
       }
     }
     if (e.kind === ExpressionKind.RefFunc) {
-      if (!live.has(e.func)) {
-        live.add(e.func);
-        if (!imported.has(e.func)) queue.push(e.func);
+      const target = requireName(e.func, 'ref.func');
+      if (!live.has(target)) {
+        live.add(target);
+        if (!imported.has(target)) queue.push(target);
       }
     }
   });

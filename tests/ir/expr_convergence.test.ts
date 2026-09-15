@@ -114,7 +114,7 @@ const PINNED: Computed = {
   'ref.as': 'identical',
   'ref.cast': 'identical',
   'ref.eq': 'identical',
-  'ref.func': 'types',
+  'ref.func': 'identical',
   'ref.i31': 'identical',
   'ref.is_null': 'identical',
   'ref.null': 'names',

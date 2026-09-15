@@ -2211,7 +2211,7 @@ class WasmEncoder {
       case ExpressionKind.RefFunc: {
         const e = expr as RefFuncExpr;
         w.writeU8(0xd2);
-        w.writeU32(this.resolveRef(this.funcIndex, varFromToken(e.func), 'ref.func'));
+        w.writeU32(this.resolveRef(this.funcIndex, e.func, 'ref.func'));
         break;
       }
 

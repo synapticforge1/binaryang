@@ -1413,7 +1413,7 @@ class WasmParser {
       }
       case 0xd2: { // ref.func
         const idx = this.r.readU32();
-        expr = makeRefFunc(this.names.func(idx));
+        expr = makeRefFunc(varName(this.names.func(idx)));
         break;
       }
       default:
@@ -2488,7 +2488,7 @@ class WasmParser {
           break;
         }
         case 0xd2: { // ref.func
-          push(makeRefFunc(ctx.names.func(r.readU32())));
+          push(makeRefFunc(varName(ctx.names.func(r.readU32()))));
           break;
         }
         case 0xd3: { // ref.eq
