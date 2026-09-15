@@ -16,7 +16,7 @@
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ExpressionKind, labelName } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type {
   BlockExpr,
   ThrowExpr,
@@ -310,9 +310,10 @@ Deno.test('EH parser: try_table catch clause dest resolves to outer block label'
   };
   const tt = findTryTable(body as { kind: unknown; children?: unknown[] });
   const dest = tt!.catches[0].target;
-  // The dest label should be non-null and refer to an outer block
-  assertEquals(typeof dest, 'string');
-  assertEquals(dest.startsWith('$'), true);
+  // The dest label is a NAME-form `Var` referring to an outer block (S6 step 5:
+  // label references are `Var`s, and a decoded one is always the name form).
+  assertEquals(dest.kind, 'name');
+  assertEquals(labelName(dest).startsWith('$'), true);
 });
 
 // ---------------------------------------------------------------------------
@@ -758,7 +759,7 @@ Deno.test('try_table: a catch destination names the ENCLOSING frame, not the try
 
   // The handler targets `$outer`. Resolving one frame too deep named `$inner`;
   // resolving inside the try_table's own frame named the try_table itself.
-  assertEquals((tt as TryTableExpr).catches[0].target, outer.name);
+  assertEquals((tt as TryTableExpr).catches[0].target, varName(outer.name!));
 
   assertEquals(await runF(encodeWasm(mod)), 7);
 });

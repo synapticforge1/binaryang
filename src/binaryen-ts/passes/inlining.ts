@@ -36,6 +36,7 @@ import {
   type Expression,
   ExpressionKind,
   type IfExpr,
+  labelName,
   type LocalGetExpr,
   type LocalSetExpr,
   makeBlock,
@@ -228,10 +229,13 @@ function getIf(e: Expression, i = 0): IfExpr | null {
 function hasBreakTo(e: Expression, label: string): boolean {
   let found = false;
   walkExpression(e, (n) => {
-    if (n.kind === ExpressionKind.Break && (n as BreakExpr).target === label) found = true;
+    if (n.kind === ExpressionKind.Break && labelName((n as BreakExpr).target) === label) {
+      found = true;
+    }
     if (n.kind === ExpressionKind.Switch) {
-      const sw = n as { targets: string[]; defaultTarget: string };
-      if (sw.targets.includes(label) || sw.defaultTarget === label) found = true;
+      if (n.targets.some((t) => labelName(t) === label) || labelName(n.defaultTarget) === label) {
+        found = true;
+      }
     }
   });
   return found;
@@ -522,10 +526,10 @@ function collectLabels(expr: Expression): Set<string> {
   walkExpression(expr, (e) => {
     if (e.kind === ExpressionKind.Block && e.name !== null) labels.add(e.name);
     if (e.kind === ExpressionKind.Loop) labels.add(e.name);
-    if (e.kind === ExpressionKind.Break) labels.add(e.target);
+    if (e.kind === ExpressionKind.Break) labels.add(labelName(e.target));
     if (e.kind === ExpressionKind.Switch) {
-      e.targets.forEach((t) => labels.add(t));
-      labels.add(e.defaultTarget);
+      e.targets.forEach((t) => labels.add(labelName(t)));
+      labels.add(labelName(e.defaultTarget));
     }
   });
   return labels;
@@ -645,7 +649,7 @@ function substituteBody(
         const br: BreakExpr = {
           kind: ExpressionKind.Break,
           type: Unreachable,
-          target: returnLabel,
+          target: varName(returnLabel),
           values: e.values,
         };
         return br;

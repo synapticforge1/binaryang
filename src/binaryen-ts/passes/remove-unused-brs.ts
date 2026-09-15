@@ -26,7 +26,13 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, makeDrop, makeNop } from '../ir/expressions.ts';
+import {
+  type Expression,
+  ExpressionKind,
+  labelName,
+  makeDrop,
+  makeNop,
+} from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { None } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
@@ -73,7 +79,7 @@ function _optimizeBlock(
     last.kind === ExpressionKind.Break &&
     last.condition === undefined &&
     last.values.length === 0 &&
-    last.target === block.name
+    labelName(last.target) === block.name
   ) {
     const rest = block.children.slice(0, -1);
     if (rest.length === 0) return makeNop();
@@ -88,7 +94,7 @@ function _optimizeBlock(
     last.kind === ExpressionKind.Break &&
     last.condition !== undefined &&
     last.values.length === 0 &&
-    last.target === block.name
+    labelName(last.target) === block.name
   ) {
     const drop = makeDrop(last.condition);
     const newChildren = [...block.children.slice(0, -1), drop];

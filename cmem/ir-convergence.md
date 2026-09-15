@@ -2321,7 +2321,34 @@ is invisible to it.** For that half the guards are the unit tests, `bridge-behav
 `select` stays `types` in the ratchet: wabt-ts's `ValueType = Type | RefValueType` admits non-value
 `Type` members — for the alias stage.
 
-**What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
+###### ✅ Stage L1 — every label reference is a `Var` (2026-09-15). Ratchet 58/4/11 → **60 / 2 / 11**
+
+`br.target`, `br_table.targets`/`defaultTarget`, `br_on.target`, `rethrow.target`, a catch clause's
+`target`, and the try's `delegate` (was `delegateTarget: string | null`) — `string` on binaryen-ts,
+`Var` on wabt-ts. The block/label notes had said "the merged tree still wants NAMES … with the
+as-written form beside it"; that was an observation, not a decision, and the worst-condition rule
+reads it as a `Var`: **both conditions bind, and a `Var` meets both.** Fidelity needs `br 0` and
+`br $l` to stay different text; optimization needs names, because a depth silently retargets when a
+pass inserts a block — and a name-form `Var` is a name.
+
+🔑 **The invariant: label references are NAME-form whenever a pass reads one.** The factories only
+build names (they still take strings); binaryen-ts's decoder already names every label; passes read
+through ONE helper, `labelName(v)`, which throws on a depth instead of guessing. The encoder, which
+inserts nothing, writes an index-form label as the depth it is (its label stack has a frame for
+every construct, named or not). `tests/binaryen-ts/ir/label_var.test.ts`; the encoder half inverted.
+
+Trial 41 errors. The sweeps that mattered were for what a `Var` makes silent — identity `===`, map
+and set keys, interpolation. ⚠️ **The first sweep reported ZERO `Var` operands and was wrong**: the
+checker does not report a union alias's name at a property access, so detection by alias found
+nothing. Rewritten STRUCTURALLY (a union of exactly the `index` and `name` arms): 79 sites, every one
+an `=== undefined`/`null` test — no identity comparison, no key, no interpolation, in either tree.
+🔑 **A sweep that finds nothing has to be shown it can find something.** One interpolation was
+caught by reading: TranslateEH's error message `${e.target}`.
+
+**What is left of `types` (2):** `const.value` and `select.resultType` (the latter only wabt-ts's
+`ValueType` admitting non-value `Type` members).
+
+**What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).
 

@@ -2331,7 +2331,7 @@ class WasmParser {
             // ABSENT tag means catch_all / catch_all_ref, as the legacy path
             // has always spelled it.
             ...(tag !== undefined ? { tag } : {}),
-            target: resolveLabel(frames, depth),
+            target: varName(resolveLabel(frames, depth)),
             isRef,
           }));
           frames.push({
