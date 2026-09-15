@@ -58,7 +58,7 @@ describe('binaryen-ts — abstract heap-type keywords', () => {
       // The printed form is the property that broke: the enum's VALUE is the
       // keyword, so a wrong value is invalid output rather than a wrong label.
       assertEquals(
-        refTypeToString({ heap: heapAbstract(heap), nullable: true }),
+        refTypeToString({ heapType: heapAbstract(heap), nullable: true }),
         `(ref null ${keyword})`,
       );
     });

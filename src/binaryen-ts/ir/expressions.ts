@@ -2833,7 +2833,7 @@ export function makeExternConvert(
   const heap = heapAbstract(
     kind === ExpressionKind.AnyConvertExtern ? AbstractHeapType.Any : AbstractHeapType.Ext,
   );
-  return { kind, type: { heap, nullable }, value };
+  return { kind, type: { heapType: heap, nullable }, value };
 }
 
 /** Creates an i31.get_s or i31.get_u expression. */

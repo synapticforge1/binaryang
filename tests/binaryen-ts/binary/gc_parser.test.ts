@@ -189,7 +189,7 @@ Deno.test('GC parser: func type in heapTypes has RefType result', () => {
   if (typeof result !== 'object') return;
   const ref = result as RefType;
   assertEquals(ref.nullable, false);
-  assertEquals(ref.heap, varIndex(0)); // non-nullable ref to type 0
+  assertEquals(ref.heapType, varIndex(0)); // non-nullable ref to type 0
 });
 
 Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr directly)', () => {

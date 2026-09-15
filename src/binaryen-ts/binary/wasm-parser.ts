@@ -432,7 +432,7 @@ const ABSTRACT_HEAP_TO_VALTYPE: Record<AbstractHeapType, ValType> = {
  */
 function readRefNullType(r: BinaryReader): ValueType {
   const ht = readHeapType(r);
-  if (ht.kind !== 'abstract') return { heap: ht, nullable: true };
+  if (ht.kind !== 'abstract') return { heapType: ht, nullable: true };
   return ABSTRACT_HEAP_TO_VALTYPE[ht.name];
 }
 
@@ -512,9 +512,9 @@ function readValueType(r: BinaryReader): ValType | RefType {
       return ValType.NullExnRef;
     // Typed reference: (ref null $T) = 0x63, (ref $T) = 0x64
     case 0x63:
-      return { heap: readHeapType(r), nullable: true };
+      return { heapType: readHeapType(r), nullable: true };
     case 0x64:
-      return { heap: readHeapType(r), nullable: false };
+      return { heapType: readHeapType(r), nullable: false };
     default:
       r.error(`unknown valtype byte 0x${b.toString(16)}`);
   }
@@ -2573,7 +2573,7 @@ class WasmParser {
 // ---------------------------------------------------------------------------
 
 function gcRefType(typeIndex: number): RefType {
-  return { heap: varIndex(typeIndex), nullable: false };
+  return { heapType: varIndex(typeIndex), nullable: false };
 }
 
 function decodeGcPrefix(
@@ -2769,12 +2769,12 @@ function decodeGcPrefix(
     }
     case 0x16: { // ref.cast $T
       const ht = readHeapType(r);
-      push(makeRefCast(pop(), ht, false, { heap: ht, nullable: false }));
+      push(makeRefCast(pop(), ht, false, { heapType: ht, nullable: false }));
       break;
     }
     case 0x17: { // ref.cast null $T
       const ht = readHeapType(r);
-      push(makeRefCast(pop(), ht, true, { heap: ht, nullable: true }));
+      push(makeRefCast(pop(), ht, true, { heapType: ht, nullable: true }));
       break;
     }
     case 0x18: { // br_on_cast flags label $T1 $T2
@@ -2825,7 +2825,7 @@ function decodeGcPrefix(
       break;
     }
     case 0x1c: { // ref.i31
-      push(makeRefI31(pop(), { heap: heapAbstract(AbstractHeapType.I31), nullable: false }));
+      push(makeRefI31(pop(), { heapType: heapAbstract(AbstractHeapType.I31), nullable: false }));
       break;
     }
     case 0x1d: { // i31.get_s

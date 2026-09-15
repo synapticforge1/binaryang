@@ -52,7 +52,7 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
     makeStructGet(
       varIndex(t),
       varIndex(0),
-      makeStructNew(varIndex(t), [makeI32Const(value)], { heap: varIndex(t), nullable: false }),
+      makeStructNew(varIndex(t), [makeI32Const(value)], { heapType: varIndex(t), nullable: false }),
       ValType.I32,
       signed,
     ),
@@ -73,7 +73,10 @@ function arrayModule(storage: StorageType, value: number, signed: boolean): Uint
     [ValType.I32],
     makeArrayGet(
       varIndex(t),
-      makeArrayNewFixed(varIndex(t), [makeI32Const(value)], { heap: varIndex(t), nullable: false }),
+      makeArrayNewFixed(varIndex(t), [makeI32Const(value)], {
+        heapType: varIndex(t),
+        nullable: false,
+      }),
       makeI32Const(0),
       ValType.I32,
       signed,
@@ -187,7 +190,7 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
     makeStructGet(
       varIndex(99),
       varIndex(0),
-      makeStructNew(varIndex(t), [makeI32Const(1)], { heap: varIndex(t), nullable: false }),
+      makeStructNew(varIndex(t), [makeI32Const(1)], { heapType: varIndex(t), nullable: false }),
       ValType.I32,
       false,
     ),
@@ -208,7 +211,7 @@ Deno.test('encoder throws on an out-of-range struct.get field index', () => {
     makeStructGet(
       varIndex(t),
       varIndex(7),
-      makeStructNew(varIndex(t), [makeI32Const(1)], { heap: varIndex(t), nullable: false }),
+      makeStructNew(varIndex(t), [makeI32Const(1)], { heapType: varIndex(t), nullable: false }),
       ValType.I32,
       false,
     ),
