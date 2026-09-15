@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14), the block/label family done. **Step 5 — delete the bridge — is next, and its ACCEPTANCE is already met**: `deno task bridge` reached **421/421** on 2026-09-15 (`ed38c084f`) |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **65 identical / 1 types / 7 names**, and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
@@ -2092,6 +2092,13 @@ representation first (both required either way — see stage B's note on the 12 
 then choose between A (a thin module adapter, the expression translation deleted) and B (unify
 `Module` too, delete the bridge outright) with measured sizes in hand.
 
+✅ **RESOLVED 2026-09-15 (owner): B — UNIFY, do not keep a shim.** Asked what remained of the
+bridge, the owner settled the deferred half without waiting for the sizes: *"on Item 2 we want to
+unify not keep a small shim."* So the module half is a unification of `Module` and `WasmModule`, on
+the same terms as the expression half — trial blast radius for direction, meaning breaking ties —
+and the bridge is DELETED outright rather than reduced. A is off the table; the size measurement C
+was waiting for is no longer a decision input, only a record of what the deletion removed.
+
 ###### ✅ Stage A — the six pure renames (2026-09-15). Ratchet 34/14/25 → **38 / 19 / 16**
 
 Direction by trial blast radius (rename in the interface only, count `deno task check` errors outside
@@ -2403,6 +2410,54 @@ bytes.
 `call_indirect`'s type use, and `ref.null` (deferred by Group 3 to the type-derivation stage).
 **`types` (1):** `select.resultType`, only because wabt-ts's `ValueType` admits non-value `Type`
 members.
+
+###### ✅ Stage L2 — a carrier's OWN label is `label: string` (2026-09-15). Ratchet unmoved at **65 / 1 / 7**
+
+The block family's first of four sub-stages: the label itself, before the catch records, the block
+type and the bodies. binaryen-ts spelled one thing three ways — `name: string | null`
+(block/try/try_table), `name: string` (loop), `name?: string | undefined` (if). wabt-ts spells all
+five `label: string`, `''` for none.
+
+| trial (rename in the interface, count `deno task check` errors, revert) | errors           |
+| ----------------------------------------------------------------------- | ------------------ |
+| binaryen `name` → `label`                                               | 68 (60 in src) ← |
+| wabt `label` → `name`                                                   | 81 (70 in src)   |
+| `null` → `''`                                                           | 5 ←              |
+| `''` → `null`                                                           | 29               |
+
+Meaning agrees with the count: `name` is what functions, globals, tags and segments carry, so on a
+carrier it was overloaded; `label` is what a `br` targets and nothing else. Probed first that the
+ambiguity is not live: wabt-ts's binary reader leaves `label: ''` on the node even when the name
+section names that label.
+
+🔑 **TypeScript does not flag `stringValued === null`.** Measured directly — `deno check` accepts
+`b.label === null` for `label: string`, because comparisons against `null`/`undefined` are exempt
+from the no-overlap rule. So the whole conversion was SILENT: 10 sites (`=== null` → `=== ''`,
+`?? null` → `|| null`) compiled clean as constants. Each was mutated back, one at a time, against a
+green 1161-test run: 6 KILLED, 3 survived as equivalents (an extra `''` in a set only probed for
+real names; a guard whose fallback rebuilds the same value; `''` vs `null` in a scope list searched
+only by real names), and **2 of the 6 kills are tests this stage had to add**, because the mutants
+survived the whole suite first:
+
+⚠️ **A test named for a rule may never reach that rule.** "Vacuum: unnamed single-child block
+collapses" does not test Vacuum: a region whose SOLE child is an unnamed block is flattened by
+`asRegion`, which `mapExpression` applies to every region slot, so the block is gone before
+`_simplifyBlock` decides anything. Inverting Vacuum's rule to one that is never true left all 1161
+tests green. A region with a SECOND child cannot be flattened that way, and now pins the rule both
+ways.
+
+⚠️ **Both front ends INVENT a label** (`$labelN` from the binary decoder's name-section fallback,
+`$depthN` from the WAT parser), so no fixture ever reached a pass with an unlabelled carrier — but
+`makeTry(null, …)` builds one. With `??` in place of `||`, TranslateToExnref names the block it
+wraps the `try_table` in `''`, and every `br` out of a catch then fails to resolve against it. The
+new fixture strips the invented label and RUNS the result.
+
+1164 tests green (1161 + 3 new); baseline IDENTICAL; `deno task bridge` 421/421;
+`bridge-behaviour` 1806/1806; spec, operators, optimize-corpus, translate-eh all green.
+The five carriers stay at `names`: the three remaining fields are the catch records
+(`Catch[]`/`TryCatch[]`, `TableCatch[]`/`CatchClause[]`), the block type (`blockType` against
+`type` + `params` + `typeIndex`) and the bodies (`Expr[]` against `RegionExpr`, `children` against
+`body`).
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
