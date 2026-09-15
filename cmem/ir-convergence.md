@@ -2459,6 +2459,35 @@ The five carriers stay at `names`: the three remaining fields are the catch reco
 `type` + `params` + `typeIndex`) and the bodies (`Expr[]` against `RegionExpr`, `children` against
 `body`).
 
+###### ⬚ Stage (b) — the catch records. ANALYSIS DONE, TRIAL NOT RUN (paused 2026-09-15)
+
+Two records, and only one of them is a shape question.
+
+**try_table's clause.** wabt-ts's `TableCatch` is a KIND UNION: `kind: CatchKind` (a string enum of
+four) with `tag` required on the `catch`/`catch_ref` arm and `tag?: undefined` on the
+`catch_all`/`catch_all_ref` arm, plus `target: Var` and `loc`. binaryen-ts's `CatchClause` is
+`{ tag?: Var; target: Var; isRef: boolean }`.
+
+🔑 **Both are closed, and binaryen-ts's is closed without redundancy.** `tag` present-or-absent ×
+`isRef` is exactly the four cases, so there is no `kind` field that could disagree with `tag` — and
+a `kind` disagreeing with `tag` is precisely the defect wabt-ts split its union to prevent (the
+writer reads them separately: `catchKindByte(c.kind)`, then `if (c.tag !== undefined)`, so
+`CatchAll` beside a tag would emit the `catch_all` byte followed by a stray tag index and slide
+every later clause by one field). The union CLOSES that shape; the two-field form cannot express it
+at all. That is an argument on meaning, and it runs against the raw counts, so the trial decides
+the cost side before anything is written.
+
+⚠️ **The raw counts are not the comparison**: `CatchKind.` appears at 37 sites and `isRef` at 159,
+but `isRef` spans BOTH catch records and both IRs. Run the declaration trial (rewrite the one
+declaration, `deno task check`, count primary error locations outside the bridge, restore).
+
+**The legacy clause is a NAMING question, not a shape one.** wabt-ts's `Catch` and binaryen-ts's
+`TryCatch` already carry the same three fields — `tag?: Var`, `isRef: boolean`, and the body — and
+differ only in `loc` (the node-base stage) and the body's form (sub-stage (d), `Expr[]` against
+`RegionExpr`). What is left is which pair of NAMES both records take: wabt-ts has
+`Catch` / `TableCatch`, binaryen-ts has `TryCatch` / `CatchClause`. Neither side is parallel with
+the other; pick one pair and use it for both.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).
