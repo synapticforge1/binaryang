@@ -2080,6 +2080,28 @@ derivation carried forward as a pass), and it now starts from a green bridge ins
 the bridge drops element segments (open-work.md) — so "421/421" is a validity claim, not a
 behavioural one.
 
+📏 **The pre-step-5 BEHAVIOURAL baseline** (`deno task bridge-behaviour`, 2026-09-15, the commit
+before step 5). The wabt-ts path and the bridge path are instantiated on identical import stubs and
+compared per call, plus a linear-memory hash:
+
+| | |
+|---|---|
+| modules compared | 421 |
+| agree | 420 |
+| DIVERGE | **0** |
+| timed out, nothing compared | 1 — `1_fib-zig-opt.wat` |
+| exports exercised | 602 |
+| calls compared | **1806** |
+| exports not exercised | 441, every one a non-function export |
+
+That is what step 5 is judged against — not "421 modules compiled". The gate was proved able to fail
+before it was believed: re-introducing the old element-segment drop takes it to **39 DIVERGE, exit
+1**, while `deno task bridge` reads **421/421** on that same mutant.
+
+⚠️ **And proved blind in one place, the same way.** Dropping the start function again leaves it
+fully green, because not one corpus module has a `(start …)` section. That case lives only in
+`tests/bridge/module_surface.test.ts`. A gate is evidence about what it reaches.
+
 ##### The bridge and the WAT routes into binaryen-ts — history, summarized
 
 Consolidated 2026-09-14 from `bridge.md` and `text-routes.md` under the cleanup policy

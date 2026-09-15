@@ -33,12 +33,20 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `sh scripts/check-portability.sh` · `deno task baseline` · `deno publish --dry-run --allow-dirty`
 
 then the project's own: `deno task operators` · `deno task spec <corpus>` · `deno task bridge` ·
-`deno task translate-eh <testsuite-main>/legacy <outDir>` · `deno task optimize-corpus`.
+`deno task bridge-behaviour` · `deno task translate-eh <testsuite-main>/legacy <outDir>` ·
+`deno task optimize-corpus`.
 
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
   (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes
   all 421 modules at `-O1` … `-Oz` and fails on any throw or any module `WebAssembly.validate`
   rejects.
+
+- ⚠️ **A gate that COMPILES is not a gate that RUNS.** `deno task bridge` read 421/421 for as long
+  as the bridge silently dropped every element segment, because an empty table is a valid table.
+  `deno task bridge-behaviour` runs both paths in lockstep on identical stubs and compares every
+  call plus a memory hash; on the mutant that restores the drop it reports 39 DIVERGE while
+  `deno task bridge` still reports 421/421. It calls corpus entry points, which is where the
+  coverage is (419 exports) and also why it needs a worker it can kill — one module never returns.
 
 - ⚠️ **Run it after the LAST edit.** If an edit follows the gate, the gate has not run — decision 5
   merged with `deno lint` red that way.
