@@ -1291,7 +1291,7 @@ class WatModuleParser {
       const ti = this.resolveTypeIndex(args[0]);
       const fi = Number(atomInt(args[1])) ?? 0;
       const ref = this.parseExpr(args[2], ctx);
-      const signed = head === 'struct.get_s';
+      const signed = head === 'struct.get' ? undefined : head === 'struct.get_s';
       this._checkPackedGet(head, 'struct', this._structFieldStorage(ti, fi));
       return makeStructGet(varIndex(ti), varIndex(fi), ref, this._structFieldType(ti, fi), signed);
     }
@@ -1322,7 +1322,7 @@ class WatModuleParser {
       const ti = this.resolveTypeIndex(args[0]);
       const ref = this.parseExpr(args[1], ctx);
       const index = this.parseExpr(args[2], ctx);
-      const signed = head === 'array.get_s';
+      const signed = head === 'array.get' ? undefined : head === 'array.get_s';
       this._checkPackedGet(head, 'array', this._arrayElementStorage(ti));
       return makeArrayGet(varIndex(ti), ref, index, this._arrayElementType(ti), signed);
     }

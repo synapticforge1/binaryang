@@ -608,7 +608,7 @@ class WasmEncoder {
   private packedGetSubop(
     typeIndex: number,
     fieldIndex: number,
-    signed: boolean,
+    signed: boolean | undefined,
     family: 'struct' | 'array',
   ): number {
     const def = this.heapTypes[typeIndex];
@@ -639,7 +639,10 @@ class WasmEncoder {
 
     const base = family === 'struct' ? 0x02 : 0x0b;
     if (!isPackedType(field.type)) return base;
-    return signed ? base + 1 : base + 2;
+    // A packed field with no recorded sign (`get` written where `get_s` or
+    // `get_u` was required) is invalid input; `get_u`, as before the IR could
+    // say "no sign" at all. The WAT parser refuses that input before it gets here.
+    return signed === true ? base + 1 : base + 2;
   }
 
   encode(): Uint8Array {

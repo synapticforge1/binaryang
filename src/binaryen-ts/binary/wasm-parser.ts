@@ -2606,7 +2606,8 @@ function decodeGcPrefix(
       const def = ctx.heapTypeDefs[ti];
       const ft = (def?.kind === 'struct') ? def.fields[fi] : undefined;
       const rt: Type = ft ? (isRefType(ft.type) ? ft.type : ft.type as ValType) : ValType.I32;
-      push(makeStructGet(varIndex(ti), varIndex(fi), ref, rt, false));
+      // Plain `get`: no sign, which is not the same as `get_u`.
+      push(makeStructGet(varIndex(ti), varIndex(fi), ref, rt));
       break;
     }
     case 0x03: { // struct.get_s $T $f
@@ -2672,7 +2673,8 @@ function decodeGcPrefix(
       const rt: Type = eft ? (isRefType(eft.type) ? eft.type : eft.type as ValType) : ValType.I32;
       const idx = pop();
       const ref = pop();
-      push(makeArrayGet(varIndex(ti), ref, idx, rt, false));
+      // Plain `get`: no sign, which is not the same as `get_u`.
+      push(makeArrayGet(varIndex(ti), ref, idx, rt));
       break;
     }
     case 0x0c: { // array.get_s $T

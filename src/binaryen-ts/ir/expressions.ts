@@ -1543,8 +1543,12 @@ export interface StructGetExpr extends ExprBase {
   fieldVar: Var;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
-  /** Whether the load is sign-extended (signed=true) or zero-extended. */
-  signed: boolean;
+  /**
+   * Which of the three spellings: absent is plain `get` (a non-packed field),
+   * `true` is `get_s`, `false` is `get_u`. Three states, not two -- see
+   * `tests/binaryen-ts/binary/get_signedness.test.ts`.
+   */
+  signed?: boolean;
 }
 
 /** {@link StructSetExpr} — see {@link makeStructSet} for the factory. */
@@ -1623,8 +1627,8 @@ export interface ArrayGetExpr extends ExprBase {
   ref: Expression;
   /** Numeric index into the relevant table. */
   index: Expression;
-  /** Whether the load is sign-extended (signed=true) or zero-extended. */
-  signed: boolean;
+  /** As {@link StructGetExpr.signed}: absent is plain `get`, `true` `get_s`, `false` `get_u`. */
+  signed?: boolean;
 }
 
 /** {@link ArraySetExpr} — see {@link makeArraySet} for the factory. */
@@ -2862,9 +2866,16 @@ export function makeStructGet(
   fieldVar: Var,
   ref: Expression,
   resultType: Type,
-  signed = false,
+  signed?: boolean,
 ): StructGetExpr {
-  return { kind: ExpressionKind.StructGet, type: resultType, typeVar, fieldVar, ref, signed };
+  return {
+    kind: ExpressionKind.StructGet,
+    type: resultType,
+    typeVar,
+    fieldVar,
+    ref,
+    ...(signed === undefined ? {} : { signed }),
+  };
 }
 
 /** Creates a struct.set expression. */
@@ -2947,9 +2958,16 @@ export function makeArrayGet(
   ref: Expression,
   index: Expression,
   resultType: Type,
-  signed = false,
+  signed?: boolean,
 ): ArrayGetExpr {
-  return { kind: ExpressionKind.ArrayGet, type: resultType, typeVar, ref, index, signed };
+  return {
+    kind: ExpressionKind.ArrayGet,
+    type: resultType,
+    typeVar,
+    ref,
+    index,
+    ...(signed === undefined ? {} : { signed }),
+  };
 }
 
 /** Creates an array.set expression. */

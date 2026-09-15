@@ -74,7 +74,7 @@ type Computed = { [K in Shared]: State<K> };
 const PINNED: Computed = {
   'array.copy': 'identical',
   'array.fill': 'identical',
-  'array.get': 'types',
+  'array.get': 'identical',
   'array.init_data': 'names',
   'array.init_elem': 'names',
   'array.len': 'identical',
@@ -129,7 +129,7 @@ const PINNED: Computed = {
   'simd.shuffle': 'identical',
   'simd.ternary': 'identical',
   'store': 'types',
-  'struct.get': 'types',
+  'struct.get': 'identical',
   'struct.new': 'identical',
   'struct.set': 'identical',
   'table.copy': 'identical',
