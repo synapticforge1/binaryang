@@ -2303,6 +2303,24 @@ Bytes unchanged; ci 1156/1156. The value types are now one in SHAPE, VALUE and T
 wabt-ts's `ValueType = Type | RefValueType` admitting `Type.Void`, which is wabt-ts's own looseness
 and belongs to the alias stage.
 
+###### ✅ Stages S1–S3 — the first structural kinds (2026-09-15). Ratchet 55/5/13 → **58 / 4 / 11**
+
+| stage | kind                  | taken                                         | deciding                                                                   |
+| ----- | --------------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
+| S1    | `ref.test`/`ref.cast` | `heapType` (binaryen-ts's `castType` renamed) | cost 6 vs 14; `{ heapType, nullable }` is the V3 record and br_on's pair   |
+| S2    | `ref.func`            | `func: Var` (binaryen-ts's `string`)          | step 4's "(b) `Var` controls"; binaryen-ts's `CallExpr.func` already was   |
+| S3    | `select`              | `resultType: ValueType[]`, empty = untyped    | FIDELITY: the encoding is a vector, and wabt-ts's reader keeps any count  |
+
+🛑 **S3's only risk was silent, and the byte baseline could not see it.** `resultType !== null` and
+`?? e.type` compile against an array, which is never null — every untyped select would have encoded
+as `0x1c 0x00`. Swept and converted before; the mutant fails `typed_select.test.ts` while `deno task
+baseline` stays IDENTICAL. 🔑 **The baseline measures wabt-ts's WRITER; a binaryen-ts ENCODER change
+is invisible to it.** For that half the guards are the unit tests, `bridge-behaviour` and
+`optimize-corpus`.
+
+`select` stays `types` in the ratchet: wabt-ts's `ValueType = Type | RefValueType` admits non-value
+`Type` members — for the alias stage.
+
 **What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

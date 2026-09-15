@@ -56,6 +56,9 @@ their own bump — and nothing breaks by their standing still.
   (absent = plain `get`) · `memidx` REQUIRED on every memory access (was optional, absent = 0).
   wabt-ts's `TableFillExpr.dest` (was `start`) and `TableGrowExpr.value` (was `initValue`) and
   `UnaryExpr.value` (was `operand`) moved on `./ir/wabt-ts`.
+  Then stages S1–S3: `RefTestExpr`/`RefCastExpr` `heapType` (was `castType`) · `RefFuncExpr.func` a
+  `Var` (was `string`; `makeRefFunc` takes a `Var`) · `SelectExpr.resultType` a `ValueType[]`, empty
+  for untyped (was `ValueType | null`; `makeSelect` still accepts `null` or one type).
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and
