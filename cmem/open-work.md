@@ -64,9 +64,21 @@ inlined. Measuring that found Inlining's `-O3` output invalid on 16 corpus modul
 upstream behaves (a multi-value callee's wrapper typed with its whole result type); the corpus's
 optimized output is now validated at every level by `deno task optimize-corpus`.
 
+**2026-09-15, before step 5, by owner decision** ("so we can measure the difference before and after
+the bridge is ineffective, and prior to the full delete"): the bridge was dropping every element
+segment and every start function, SILENTLY. Fixed (`031100942`), so bridged output can be run at
+all. Then `deno task bridge-behaviour` was built (`30acce91a`) and the pre-step-5 baseline taken —
+**1806 calls across 602 exports, 420 of 421 modules agreeing, 0 divergences**
+([ir-convergence.md](ir-convergence.md) § "Step 5"). `deno task bridge` had read 421/421 through
+both defects, because it compiles what the bridge builds and never runs it.
+
 **Suggested order:**
 
-1. **S6 step 5 — delete the bridge.** Its acceptance is already met (421/421, `ed38c084f`); the 20
+1. **S6 step 5 — delete the bridge.** Both acceptances are now in hand and neither can carry the
+   step: `deno task bridge` 421/421 (`ed38c084f`) and `deno task bridge-behaviour` 1806/1806
+   (`30acce91a`), both green BEFORE the unification. Step 5's job is therefore not to turn a gate
+   green but to keep both green while one `Expression` replaces two — and to carry the bridge's
+   type derivation (`inferBinaryType` / `inferUnaryType`) forward as a pass. The 20 old bridge
    misses were one `call_indirect` signature bug, and the stale `ref.as_non_null` refusal was NOT
    among them (checked 2026-09-15: 18 were "fallthru", 2 were operand-type mismatches).
 2. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
