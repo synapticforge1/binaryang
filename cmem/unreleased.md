@@ -31,6 +31,14 @@ their own bump — and nothing breaks by their standing still.
   `typeof t === 'string'` to spot a scalar, `Object.values(ValType)`) is not. New public exports
   (`./ir/binaryen-ts`): `valTypeName`, `valTypeFromName`, `isValType`. Every emitted byte is unchanged
   (baseline IDENTICAL). A patch release cannot carry this.
+- ⚠️ **BREAKING: a heap type is a `HeapTypeRef` object** (S6 step 5 stage V2). binaryen-ts's
+  `HeapType` was `AbstractHeapType | number`; it is now wabt-ts's `HeapTypeRef` —
+  `{ kind: 'abstract', name }` or a `Var`. `RefType.heap`, `ref.test`/`ref.cast`'s `castType` and
+  everything that reads them change shape: `{ heap: 0 }` is `{ heap: varIndex(0) }`, and
+  `{ heap: AbstractHeapType.Any }` is `{ heap: heapAbstract(AbstractHeapType.Any) }`. A compile error
+  for TypeScript consumers; for JavaScript consumers, `h === 0` / `typeof h === 'string'` silently
+  stop matching. New exports: `heapAbstract`, `sameHeap` (compare heap types with it, never `===`).
+  `isAbstractHeapType` now narrows to the abstract arm. Bytes unchanged.
 - **Field renames and optionality** (S6 step 5 stages A, A2, B — all on binaryen-ts nodes):
   `CallExpr.func` (was `target`) ·
   load/store/`simd.load*` `address` (was `ptr`) · `SIMDShuffleExpr.lanes` (was `mask`) ·

@@ -225,8 +225,19 @@ const _ID_TO_VAL: Record<number, ValType> = {
 function _valTypeToId(t: ValueType | undefined): number {
   if (t === undefined) return none;
   if (isRefType(t)) {
-    if (t.heap === AbstractHeapType.Func || t.heap === AbstractHeapType.NoFunc) return funcref;
-    if (t.heap === AbstractHeapType.Ext || t.heap === AbstractHeapType.NoExt) return externref;
+    const h = t.heap;
+    if (
+      h.kind === 'abstract' &&
+      (h.name === AbstractHeapType.Func || h.name === AbstractHeapType.NoFunc)
+    ) {
+      return funcref;
+    }
+    if (
+      h.kind === 'abstract' &&
+      (h.name === AbstractHeapType.Ext || h.name === AbstractHeapType.NoExt)
+    ) {
+      return externref;
+    }
     return anyref;
   }
   return _VAL_TO_ID[t] ?? none;

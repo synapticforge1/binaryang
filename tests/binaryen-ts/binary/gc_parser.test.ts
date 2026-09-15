@@ -14,6 +14,7 @@ import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { type Var, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { soleInstr } from '../region_helpers.ts';
+import type { RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -186,9 +187,9 @@ Deno.test('GC parser: func type in heapTypes has RefType result', () => {
   const result = funcDef.results[0];
   assertEquals(typeof result, 'object');
   if (typeof result !== 'object') return;
-  const ref = result as { heap: number; nullable: boolean };
+  const ref = result as RefType;
   assertEquals(ref.nullable, false);
-  assertEquals(ref.heap, 0); // non-nullable ref to type 0
+  assertEquals(ref.heap, varIndex(0)); // non-nullable ref to type 0
 });
 
 Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr directly)', () => {
@@ -228,7 +229,7 @@ Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
   const rt = body as { castType: unknown; nullable: boolean };
-  assertEquals(rt.castType, 0);
+  assertEquals(rt.castType, varIndex(0));
   assertEquals(rt.nullable, false);
 });
 
@@ -300,7 +301,7 @@ Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
   const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
   const rt = body as { castType: unknown; nullable: boolean };
-  assertEquals(rt.castType, 0);
+  assertEquals(rt.castType, varIndex(0));
   assertEquals(rt.nullable, false);
 });
 

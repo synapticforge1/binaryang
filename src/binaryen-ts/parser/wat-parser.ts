@@ -172,7 +172,7 @@ import {
   type SList,
 } from './sexpr.ts';
 import { type TextPos, tokenize } from './tokenizer.ts';
-import { varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -1270,7 +1270,7 @@ class WatModuleParser {
     }
     if (head === 'ref.i31') {
       const value = this.parseExpr(args[0], ctx);
-      return makeRefI31(value, { heap: AbstractHeapType.I31, nullable: false });
+      return makeRefI31(value, { heap: heapAbstract(AbstractHeapType.I31), nullable: false });
     }
     if (head === 'any.convert_extern' || head === 'extern.convert_any') {
       const kind = head === 'any.convert_extern'
@@ -1287,11 +1287,11 @@ class WatModuleParser {
     if (head === 'struct.new') {
       const ti = this.resolveTypeIndex(args[0]);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
-      return makeStructNew(varIndex(ti), operands, { heap: ti, nullable: false });
+      return makeStructNew(varIndex(ti), operands, { heap: varIndex(ti), nullable: false });
     }
     if (head === 'struct.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
-      return makeStructNewDefault(varIndex(ti), { heap: ti, nullable: false });
+      return makeStructNewDefault(varIndex(ti), { heap: varIndex(ti), nullable: false });
     }
     if (head === 'struct.get' || head === 'struct.get_s' || head === 'struct.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
@@ -1312,17 +1312,17 @@ class WatModuleParser {
       const ti = this.resolveTypeIndex(args[0]);
       const init = this.parseExpr(args[1], ctx);
       const length = this.parseExpr(args[2], ctx);
-      return makeArrayNew(varIndex(ti), init, length, { heap: ti, nullable: false });
+      return makeArrayNew(varIndex(ti), init, length, { heap: varIndex(ti), nullable: false });
     }
     if (head === 'array.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
       const length = this.parseExpr(args[1], ctx);
-      return makeArrayNewDefault(varIndex(ti), length, { heap: ti, nullable: false });
+      return makeArrayNewDefault(varIndex(ti), length, { heap: varIndex(ti), nullable: false });
     }
     if (head === 'array.new_fixed') {
       const ti = this.resolveTypeIndex(args[0]);
       const values = args.slice(1).map((a) => this.parseExpr(a, ctx));
-      return makeArrayNewFixed(varIndex(ti), values, { heap: ti, nullable: false });
+      return makeArrayNewFixed(varIndex(ti), values, { heap: varIndex(ti), nullable: false });
     }
     if (head === 'array.get' || head === 'array.get_s' || head === 'array.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
@@ -2960,11 +2960,11 @@ class WatModuleParser {
   }
 
   private parseHeapType(s: SExpr | undefined): HeapType {
-    if (!s) return AbstractHeapType.Any;
+    if (!s) return heapAbstract(AbstractHeapType.Any);
     const raw = atomText(s);
-    if (!raw) return AbstractHeapType.Any;
+    if (!raw) return heapAbstract(AbstractHeapType.Any);
     if (raw.startsWith('$')) {
-      return this.typeNames.get(raw) ?? this.err(`unknown heap type: ${raw}`, s.pos);
+      return varIndex(this.typeNames.get(raw) ?? this.err(`unknown heap type: ${raw}`, s.pos));
     }
     // The WAT keywords are `extern` / `noextern`; `ext` / `noext` are binaryen's
     // internal spellings and are not accepted by any WAT parser, so this map
@@ -2985,9 +2985,9 @@ class WatModuleParser {
       noexn: AbstractHeapType.NoExn,
     };
     const abstract = abstractMap[raw];
-    if (abstract !== undefined) return abstract;
+    if (abstract !== undefined) return heapAbstract(abstract);
     const n = Number(raw);
-    if (!isNaN(n)) return n; // numeric type index
+    if (!isNaN(n)) return varIndex(n); // numeric type index
     return this.err(`unknown heap type: ${raw}`, s.pos);
   }
 

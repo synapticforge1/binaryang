@@ -33,6 +33,7 @@ import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { isRefType, type RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /**
  * Hand-built GC module with a `(ref null 0)` LOCAL:
@@ -174,7 +175,7 @@ Deno.test('typed-ref local: the parser records a RefType, not AnyRef', () => {
     `local decoded as ${JSON.stringify(local.type)}, expected a RefType`,
   );
   const rt = local.type as RefType;
-  assertEquals(rt.heap, 0);
+  assertEquals(rt.heap, varIndex(0));
   assertEquals(rt.nullable, true);
 });
 
@@ -183,7 +184,7 @@ Deno.test('typed-ref: ModuleBuilder accepts a concrete ref for a local and a glo
   m.enableGC();
   const t = m.addHeapType({ kind: 'array', element: { type: ValType.I32, mutable: true } });
   m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
-  const arrRef: RefType = { heap: t, nullable: true };
+  const arrRef: RefType = { heap: varIndex(t), nullable: true };
 
   m.addGlobal('$g', arrRef, true, makeRefNull(arrRef));
   m.addFunction('read', [], [ValType.I32], makeI32Const(5), [{ type: arrRef }]);
@@ -204,8 +205,8 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
   m.enableGC();
   const a = m.addHeapType({ kind: 'array', element: { type: ValType.I32, mutable: true } });
   const b = m.addHeapType({ kind: 'array', element: { type: ValType.I64, mutable: true } });
-  const refA: RefType = { heap: a, nullable: true };
-  const refB: RefType = { heap: b, nullable: true };
+  const refA: RefType = { heap: varIndex(a), nullable: true };
+  const refB: RefType = { heap: varIndex(b), nullable: true };
 
   const fa = m.addHeapType({ kind: 'func', params: [refA], results: [] });
   const fb = m.addHeapType({ kind: 'func', params: [refB], results: [] });
@@ -223,8 +224,8 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
   const p0 = parsed.functions[0].params[0];
   const p1 = parsed.functions[1].params[0];
   assert(isRefType(p0) && isRefType(p1), 'params lost their concrete ref types');
-  assertEquals((p0 as RefType).heap, a);
-  assertEquals((p1 as RefType).heap, b);
+  assertEquals((p0 as RefType).heap, varIndex(a));
+  assertEquals((p1 as RefType).heap, varIndex(b));
 });
 
 Deno.test('WAT: (ref null $t) parses to a real RefType, not anyref', () => {
@@ -237,7 +238,7 @@ Deno.test('WAT: (ref null $t) parses to a real RefType, not anyref', () => {
   `);
   const local = mod.functions[0].locals[0];
   assert(isRefType(local.type), `WAT local decoded as ${JSON.stringify(local.type)}`);
-  assertEquals((local.type as RefType).heap, 0);
+  assertEquals((local.type as RefType).heap, varIndex(0));
   assertEquals((local.type as RefType).nullable, true);
 });
 
