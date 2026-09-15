@@ -306,7 +306,7 @@ Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data
   const setState = body.children[0] as GlobalSetExpr;
   assertEquals(setState.kind, ExpressionKind.GlobalSet);
   assertEquals(setState.var, varName(ASYNCIFY_STATE));
-  assertEquals((setState.value as { value: { i32: number } }).value.i32, State.Unwinding);
+  assertEquals((setState.value as { value: { value: number } }).value.value, State.Unwinding);
 
   // child 1: global.set $__asyncify_data (local.get 0)
   const setData = body.children[1] as GlobalSetExpr;
@@ -343,7 +343,7 @@ Deno.test('Asyncify Stage 1 — get_state returns the state global; stop_* reset
 
   const stop = region(funcByName(m, `$${ASYNCIFY_STOP_UNWIND}`)!.body);
   const setState = stop.children[0] as GlobalSetExpr;
-  assertEquals((setState.value as { value: { i32: number } }).value.i32, State.Normal);
+  assertEquals((setState.value as { value: { value: number } }).value.value, State.Normal);
 });
 
 // ---------------------------------------------------------------------------

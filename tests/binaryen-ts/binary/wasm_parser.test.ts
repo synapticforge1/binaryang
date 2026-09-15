@@ -197,7 +197,7 @@ Deno.test('parseWasm: global module has one global with init i32.const 42', () =
   assertEquals(g.mutable, true);
   assertEquals(g.init.kind, ExpressionKind.Const);
   if (g.init.kind === ExpressionKind.Const) {
-    assertEquals((g.init.value as { i32: number }).i32, 42);
+    assertEquals((g.init.value as { value: number }).value, 42);
   }
 });
 

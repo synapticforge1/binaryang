@@ -38,6 +38,7 @@
 import { anyOpcodeName, type Opcode } from '../../wabt-ts/core/opcode.ts';
 import {
   type BrOnOp,
+  type Const,
   heapAbstract,
   requireName,
   type Var,
@@ -166,15 +167,49 @@ export enum ExpressionKind {
 // ---------------------------------------------------------------------------
 
 /**
- * A WASM literal constant value.
- * Exactly one field is present, corresponding to the value type.
+ * A WASM literal constant value — wabt-ts's {@link Const}.
+ *
+ * ⚠️ **Floats are BITS** (S6 step 5, stage C1). This was `{ f32: number } | { f64:
+ * number } | …`, and a JS number does not keep a signalling NaN's payload: a bare
+ * decode → encode changed every signalling NaN constant probed, which
+ * `i32.reinterpret_f32` makes observable. Fidelity binds, so wabt-ts's form
+ * controls: `{ type, value }` for integers, `{ type, bits }` for floats (the raw
+ * IEEE 754 pattern — a u32, or an unsigned 64-bit bigint), `{ type, bytes }` for
+ * v128. Read a float as a number with {@link literalFloat}, and test the arm with
+ * `c.type === ValType.F32` — `'f32' in c` still COMPILES and is always false.
  */
-export type Literal =
-  | { i32: number }
-  | { i64: bigint }
-  | { f32: number }
-  | { f64: number }
-  | { v128: Uint8Array };
+export type Literal = Const;
+
+const F32_VIEW = new DataView(new ArrayBuffer(8));
+
+/** The IEEE 754 bit pattern of `n` as a float32 — a u32. (A NaN argument is canonical.) */
+export function f32BitsOf(n: number): number {
+  F32_VIEW.setFloat32(0, n, true);
+  return F32_VIEW.getUint32(0, true);
+}
+
+/** The IEEE 754 bit pattern of `n` as a float64 — an unsigned bigint. */
+export function f64BitsOf(n: number): bigint {
+  F32_VIEW.setFloat64(0, n, true);
+  return F32_VIEW.getBigUint64(0, true);
+}
+
+/**
+ * A float literal's value as a number, for arithmetic. Converting a signalling
+ * NaN's bits to a number may quiet it — which is why the NODE holds bits, and
+ * only code that computes with the value should come through here.
+ */
+export function literalFloat(c: Const): number {
+  if (c.type === ValType.F32) {
+    F32_VIEW.setUint32(0, c.bits >>> 0, true);
+    return F32_VIEW.getFloat32(0, true);
+  }
+  if (c.type === ValType.F64) {
+    F32_VIEW.setBigUint64(0, BigInt.asUintN(64, c.bits), true);
+    return F32_VIEW.getFloat64(0, true);
+  }
+  throw new Error(`literalFloat: not a float literal (type 0x${Number(c.type).toString(16)})`);
+}
 
 // ---------------------------------------------------------------------------
 // Operator enums
@@ -936,7 +971,7 @@ export interface ConstExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Const;
   /** Value expression. */
-  value: Literal;
+  value: Const;
 }
 
 /** {@link LocalGetExpr} — see {@link makeLocalGet} for the factory. */
@@ -2182,22 +2217,40 @@ export type Expression =
 
 /** Creates an `i32` constant expression. */
 export function makeI32Const(value: number): ConstExpr {
-  return { kind: ExpressionKind.Const, type: ValType.I32, value: { i32: value } };
+  return { kind: ExpressionKind.Const, type: ValType.I32, value: { type: ValType.I32, value } };
 }
 
 /** Creates an `i64` constant expression. */
 export function makeI64Const(value: bigint): ConstExpr {
-  return { kind: ExpressionKind.Const, type: ValType.I64, value: { i64: value } };
+  return { kind: ExpressionKind.Const, type: ValType.I64, value: { type: ValType.I64, value } };
 }
 
-/** Creates an `f32` constant expression. */
+/** Creates an `f32` constant expression from a NUMBER (a NaN argument is canonical). */
 export function makeF32Const(value: number): ConstExpr {
-  return { kind: ExpressionKind.Const, type: ValType.F32, value: { f32: value } };
+  return makeF32ConstBits(f32BitsOf(value));
 }
 
-/** Creates an `f64` constant expression. */
+/** Creates an `f32` constant expression from its exact IEEE 754 bits — a NaN payload is kept. */
+export function makeF32ConstBits(bits: number): ConstExpr {
+  return {
+    kind: ExpressionKind.Const,
+    type: ValType.F32,
+    value: { type: ValType.F32, bits: bits >>> 0 },
+  };
+}
+
+/** Creates an `f64` constant expression from a NUMBER (a NaN argument is canonical). */
 export function makeF64Const(value: number): ConstExpr {
-  return { kind: ExpressionKind.Const, type: ValType.F64, value: { f64: value } };
+  return makeF64ConstBits(f64BitsOf(value));
+}
+
+/** Creates an `f64` constant expression from its exact IEEE 754 bits — a NaN payload is kept. */
+export function makeF64ConstBits(bits: bigint): ConstExpr {
+  return {
+    kind: ExpressionKind.Const,
+    type: ValType.F64,
+    value: { type: ValType.F64, bits: BigInt.asUintN(64, bits) },
+  };
 }
 
 /** Creates a `global.get` expression. */
@@ -3212,7 +3265,7 @@ export function makePop(type: Type): PopExpr {
 
 /** Creates a `v128.const` expression from 16 raw bytes. */
 export function makeV128Const(bytes: Uint8Array): ConstExpr {
-  return { kind: ExpressionKind.Const, type: ValType.V128, value: { v128: bytes } };
+  return { kind: ExpressionKind.Const, type: ValType.V128, value: { type: ValType.V128, bytes } };
 }
 
 /** Creates a `*.extract_lane` SIMD expression. */

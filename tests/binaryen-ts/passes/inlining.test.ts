@@ -453,8 +453,8 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
   walkExpression(caller.body, (e) => {
     if (e.kind === ExpressionKind.LocalSet) {
       if (
-        e.value.kind === ExpressionKind.Const && 'i32' in e.value.value &&
-        e.value.value.i32 === 0
+        e.value.kind === ExpressionKind.Const && e.value.value.type === ValType.I32 &&
+        e.value.value.value === 0
       ) {
         foundZeroInit = true;
       }

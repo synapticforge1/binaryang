@@ -49,7 +49,7 @@ describe('br_on carries its branch values', () => {
   it('both walkers see a carried value', () => {
     const seen: number[] = [];
     walkExpression(brOnNullCarrying7(), (e) => {
-      if (e.kind === ExpressionKind.Const && 'i32' in e.value) seen.push(e.value.i32);
+      if (e.kind === ExpressionKind.Const && e.value.type === ValType.I32) seen.push(e.value.value);
     });
     assertEquals(seen, [7], 'walkExpression');
 
@@ -58,7 +58,9 @@ describe('br_on carries its branch values', () => {
       (e) => e.kind === ExpressionKind.Const ? makeI32Const(8) : e,
     ) as BrOnExpr;
     assertEquals(
-      mapped.values.map((v) => v.kind === ExpressionKind.Const && 'i32' in v.value && v.value.i32),
+      mapped.values.map((v) =>
+        v.kind === ExpressionKind.Const && v.value.type === ValType.I32 && v.value.value
+      ),
       [8],
     );
   });

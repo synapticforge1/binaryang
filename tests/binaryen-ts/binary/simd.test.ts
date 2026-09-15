@@ -93,7 +93,7 @@ Deno.test('SIMD: v128.const parsed correctly', () => {
   const expr = soleInstr(mod.functions[0].body) as ConstExpr;
   assertEquals(expr.kind, ExpressionKind.Const);
   assertEquals(expr.type, ValType.V128);
-  const v128 = (expr.value as { v128: Uint8Array }).v128;
+  const v128 = (expr.value as { bytes: Uint8Array }).bytes;
   assertEquals(v128.length, 16);
   for (let i = 0; i < 16; i++) assertEquals(v128[i], i);
 });

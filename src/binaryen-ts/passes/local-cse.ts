@@ -175,10 +175,13 @@ function _exprKey(expr: Expression): string | null {
   switch (expr.kind) {
     case ExpressionKind.Const: {
       const v = expr.value;
-      if ('i32' in v) return `i32:${v.i32}`;
-      if ('i64' in v) return `i64:${v.i64}`;
-      if ('f32' in v) return `f32:${v.f32}`;
-      if ('f64' in v) return `f64:${v.f64}`;
+      // On the arm's TYPE (S6 step 5, stage C1), and floats keyed by their BITS:
+      // a number key made `0.0` and `-0.0` one key (`${-0}` is "0"), and every
+      // NaN another.
+      if (v.type === ValType.I32) return `i32:${v.value}`;
+      if (v.type === ValType.I64) return `i64:${v.value}`;
+      if (v.type === ValType.F32) return `f32:${v.bits}`;
+      if (v.type === ValType.F64) return `f64:${v.bits}`;
       return null;
     }
     case ExpressionKind.LocalGet:

@@ -139,8 +139,8 @@ import {
   makeCallIndirect,
   makeDrop,
   makeExternConvert,
-  makeF32Const,
-  makeF64Const,
+  makeF32ConstBits,
+  makeF64ConstBits,
   makeGlobalGet,
   makeGlobalSet,
   makeI31Get,
@@ -1811,18 +1811,13 @@ function bridgeConst(c: Const): Expression {
       return makeI32Const(c.value);
     case Type.I64:
       return makeI64Const(c.value);
-    case Type.F32: {
-      // wabt-ts stores f32 as raw uint32 bit pattern; binaryen-ts wants the
-      // actual float. Reinterpret via a tiny shared buffer.
-      const u32 = new Uint32Array([c.bits >>> 0]);
-      const f32 = new Float32Array(u32.buffer);
-      return makeF32Const(f32[0]!);
-    }
-    case Type.F64: {
-      const buf = new ArrayBuffer(8);
-      new DataView(buf).setBigUint64(0, c.bits, true);
-      return makeF64Const(new Float64Array(buf)[0]!);
-    }
+    // Both sides hold the raw bit pattern since S6 step 5 stage C1, so the bits
+    // pass straight through. Going via a float here LOST a signalling NaN's
+    // payload -- silently, on the bridge path.
+    case Type.F32:
+      return makeF32ConstBits(c.bits);
+    case Type.F64:
+      return makeF64ConstBits(c.bits);
     case Type.V128:
       // wabt-ts stores v128 as 16 raw bytes; binaryen-ts wants the same.
       return makeV128Const(c.bytes);

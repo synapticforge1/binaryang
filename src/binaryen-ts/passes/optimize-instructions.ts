@@ -35,6 +35,7 @@ import {
   type Expression,
   ExpressionKind,
   type Literal,
+  makeF32ConstBits,
   makeI32Const,
   makeI64Const,
   UnaryOp,
@@ -156,8 +157,8 @@ function _simplifyRHS(
   left: Expression,
   rhs: Literal,
 ): Expression | null {
-  if ('i32' in rhs) {
-    const v = rhs.i32 as number;
+  if (rhs.type === ValType.I32) {
+    const v = rhs.value;
     switch (opcode) {
       case BinaryOp.AddI32:
         if (v === 0) return left;
@@ -204,8 +205,8 @@ function _simplifyRHS(
     }
   }
 
-  if ('i64' in rhs) {
-    const v = rhs.i64 as bigint;
+  if (rhs.type === ValType.I64) {
+    const v = rhs.value;
     switch (opcode) {
       case BinaryOp.AddI64:
         if (v === 0n) return left;
@@ -260,8 +261,8 @@ function _simplifyLHS(
   lhs: Literal,
   right: Expression,
 ): Expression | null {
-  if ('i32' in lhs) {
-    const v = lhs.i32 as number;
+  if (lhs.type === ValType.I32) {
+    const v = lhs.value;
     switch (opcode) {
       case BinaryOp.AddI32:
         if (v === 0) return right;
@@ -284,8 +285,8 @@ function _simplifyLHS(
     }
   }
 
-  if ('i64' in lhs) {
-    const v = lhs.i64 as bigint;
+  if (lhs.type === ValType.I64) {
+    const v = lhs.value;
     switch (opcode) {
       case BinaryOp.AddI64:
         if (v === 0n) return right;
@@ -335,9 +336,9 @@ function _foldBinary(
   rhs: Literal,
 ): Expression | null {
   // i32 × i32
-  if ('i32' in lhs && 'i32' in rhs) {
-    const a = lhs.i32 as number;
-    const b = rhs.i32 as number;
+  if (lhs.type === ValType.I32 && rhs.type === ValType.I32) {
+    const a = lhs.value;
+    const b = rhs.value;
     switch (opcode) {
       case BinaryOp.AddI32:
         return makeI32Const((a + b) | 0);
@@ -389,9 +390,9 @@ function _foldBinary(
   }
 
   // i64 × i64
-  if ('i64' in lhs && 'i64' in rhs) {
-    const a = lhs.i64 as bigint;
-    const b = rhs.i64 as bigint;
+  if (lhs.type === ValType.I64 && rhs.type === ValType.I64) {
+    const a = lhs.value;
+    const b = rhs.value;
     switch (opcode) {
       case BinaryOp.AddI64:
         return makeI64Const(BigInt.asIntN(64, a + b));
@@ -457,8 +458,8 @@ function _foldBinary(
 // ---------------------------------------------------------------------------
 
 function _foldUnary(opcode: UnaryOp, val: Literal): Expression | null {
-  if ('i32' in val) {
-    const v = val.i32 as number;
+  if (val.type === ValType.I32) {
+    const v = val.value;
     switch (opcode) {
       case UnaryOp.ClzI32:
         return makeI32Const(Math.clz32(v));
@@ -472,16 +473,16 @@ function _foldUnary(opcode: UnaryOp, val: Literal): Expression | null {
         return makeI32Const((v << 24) >> 24);
       case UnaryOp.ExtendS16I32:
         return makeI32Const((v << 16) >> 16);
-      case UnaryOp.ReinterpretI32: {
-        const buf = new ArrayBuffer(4);
-        new Int32Array(buf)[0]! = v;
-        return makeI32Const(new Float32Array(buf)[0]!);
-      }
+      case UnaryOp.ReinterpretI32:
+        // `f32.reinterpret_i32` yields an F32. This built an i32 CONSTANT holding a
+        // float, which -O2 then encoded as an invalid module (measured 2026-09-15).
+        // The bits are the value: no conversion, so no NaN payload is lost either.
+        return makeF32ConstBits(v >>> 0);
     }
   }
 
-  if ('i64' in val) {
-    const v = val.i64 as bigint;
+  if (val.type === ValType.I64) {
+    const v = val.value;
     switch (opcode) {
       case UnaryOp.WrapI64:
         return makeI32Const(Number(BigInt.asIntN(32, v)));
@@ -496,23 +497,17 @@ function _foldUnary(opcode: UnaryOp, val: Literal): Expression | null {
     }
   }
 
-  if ('f32' in val) {
-    const v = val.f32 as number;
+  if (val.type === ValType.F32) {
     if (opcode === UnaryOp.ReinterpretF32) {
-      const buf = new ArrayBuffer(4);
-      new Float32Array(buf)[0]! = v;
-      return makeI32Const(new Int32Array(buf)[0]!);
+      // Straight from the bits: going through a float LOST a signalling NaN's
+      // payload, so `i32.reinterpret_f32` of one folded to the wrong integer.
+      return makeI32Const(val.bits | 0);
     }
   }
 
-  if ('f64' in val) {
-    const v = val.f64 as number;
+  if (val.type === ValType.F64) {
     if (opcode === UnaryOp.ReinterpretF64) {
-      const buf = new ArrayBuffer(8);
-      new Float64Array(buf)[0] = v;
-      const lo = new Int32Array(buf)[0]!;
-      const hi = new Int32Array(buf)[1]!;
-      return makeI64Const(BigInt.asIntN(64, (BigInt(hi) << 32n) | BigInt(lo >>> 0)));
+      return makeI64Const(BigInt.asIntN(64, val.bits));
     }
   }
 

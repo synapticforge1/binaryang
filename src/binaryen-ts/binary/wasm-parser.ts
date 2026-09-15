@@ -33,8 +33,8 @@ import {
   makeDataDrop,
   makeDrop,
   makeElemDrop,
-  makeF32Const,
-  makeF64Const,
+  makeF32ConstBits,
+  makeF64ConstBits,
   makeGlobalGet,
   makeGlobalSet,
   makeI32Const,
@@ -1394,10 +1394,10 @@ class WasmParser {
         expr = makeI64Const(this.r.readI64());
         break;
       case 0x43:
-        expr = makeF32Const(this.r.readF32());
+        expr = makeF32ConstBits(this.r.readF32Bits());
         break;
       case 0x44:
-        expr = makeF64Const(this.r.readF64());
+        expr = makeF64ConstBits(this.r.readF64Bits());
         break;
       case 0x23: { // global.get
         const idx = this.r.readU32();
@@ -2473,10 +2473,10 @@ class WasmParser {
           push(makeI64Const(r.readI64()));
           break;
         case 0x43:
-          push(makeF32Const(r.readF32()));
+          push(makeF32ConstBits(r.readF32Bits()));
           break;
         case 0x44:
-          push(makeF64Const(r.readF64()));
+          push(makeF64ConstBits(r.readF64Bits()));
           break;
 
         case 0xd0: { // ref.null
