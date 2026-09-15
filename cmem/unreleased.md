@@ -63,6 +63,9 @@ their own bump — and nothing breaks by their standing still.
   `defaultTarget`, `BrOnExpr.target`, `RethrowExpr.target`, `CatchClause.target` (were `string`) —
   and `TryExpr.delegate?: Var` (was `delegateTarget: string | null`). The factories still take
   label NAMES. New export `labelName(v)`, which throws on an index-form reference.
+  Then stages B1–B3: wabt-ts's `BrTableExpr.condition` (was `value`) · wabt-ts's `BrOnExpr.opcode: Opcode`
+  (was `op`, a string union) with ONE `BrOnOp` const of numeric opcodes, re-exported by binaryen-ts
+  (wabt-ts's `BrOnOp` was the string union) · binaryen-ts's `BrOnExpr.values` (new).
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and
