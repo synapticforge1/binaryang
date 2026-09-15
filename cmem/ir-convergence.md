@@ -2128,6 +2128,41 @@ fields.
   let the spread carry the UNRESOLVED original operand through. Flagged every time here, because
   the new field was required — an OPTIONAL renamed field would not be.
 
+###### ✅ Stage B — optionality (2026-09-15). Ratchet 38/19/16 → **52 / 5 / 16**
+
+First question per field: does either form hold a state the other cannot? Only then cost.
+
+| field                                         | unified form        | deciding                                                            |
+| --------------------------------------------- | ------------------- | ------------------------------------------------------------------- |
+| `struct.get` / `array.get` `signed`           | `?boolean`, 3 states | **FIDELITY** — `get`, `get_s`, `get_u` are three instructions      |
+| `call` / `call_indirect` `isReturn`           | `?boolean`          | cost, 9 vs **0**                                                    |
+| `struct.new` `defaultInit`                    | `?boolean`          | tie at 0; the same shape as `isReturn`                             |
+| `array.new` `init`, `br` `condition`          | `?Expr`             | cost, 5 vs **3** and 5 vs **4**                                     |
+| `memidx` ×8, `memory.copy` dest/src           | required `Var`      | cost, 44 vs **8** and 5 vs **1**; binaryen-ts omitted it iff 0     |
+
+🛑 **`signed` was a LATENT FIDELITY DEFECT, not a style call.** binaryen-ts decoded a plain `get` to
+`false` — the value that means `get_u`. Its encoder derives the sub-opcode from storage type, so
+nothing noticed; but wabt-ts's writer prints `false` as `get_u`, and one node would have printed a
+valid module's `struct.get` of an i32 field as invalid text. `get_signedness.test.ts`, each half
+(decoder, WAT parser) inverted separately.
+
+🛑 **`null` → optional has a hazard no compile error names**: TypeScript allows `x !== null` after
+`null` leaves `x`'s type, so a surviving `.condition !== null` would make every `br` a `br_if`. Five
+comparisons swept BEFORE the change and each restored as a mutant: two fail tests, one fails
+type-check (narrowed to `Expression`). `makeBreak` still accepts `null` and omits the key.
+
+🛑 **"Make it required" trials can read ZERO and be wrong**: a cast that omits a required field
+compiles. binaryen-ts's WAT parser built four memory ops as `{ … } as MemorySizeExpr` with no
+`memidx` — and one was a DEFECT: `(memory.size $b)` ignored `$b` and asked memory 0 (2 pages vs 1,
+measured by running both). Now refused like its four siblings; `explicit_memory_index.test.ts`.
+
+⚠️ Two spellings of one fact now type-check for `isReturn` / `defaultInit` (`false` or absent).
+Nothing compares nodes generically today; an equality or hashing helper must read them `?? false`.
+
+**What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
+`string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
+`select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).
+
 1,923 lines plus 13 test files when this step was planned (2026-09-04); 1,803 lines on 2026-09-14.
 ⚠️ **The bridge is also where a wabt-ts tree acquires its types today**; that derivation
 (`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified tree, or binaryen-ts's passes
