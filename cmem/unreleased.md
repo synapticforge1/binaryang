@@ -3,7 +3,8 @@
 **`deno.json` reads 1.5.4 and is deliberately NOT bumped.** The version line arms a release
 ([publishing.md](publishing.md)), so the bump happens when the owner decides to ship, not while work
 runs. Everything below is merged to `main`, unpushed, and green as of 2026-09-12: **1043 tests / 0
-ignored, baseline IDENTICAL, spec 100% on four axes, bridge 401/421.** Re-derive before quoting.
+ignored, baseline IDENTICAL, spec 100% on four axes, bridge 421/421 since 2026-09-15.** Re-derive
+before quoting.
 
 Gathered 2026-09-14 from `open-work.md` and from machine-local memory, where half of it was the only
 copy. ⚠️ **Several of these are API-VISIBLE changes to a PUBLISHED package** — the next version is
@@ -162,6 +163,9 @@ anonymous-function name collision turned `(call 1)` into infinite recursion.
 
 ## Not release-note material, but true of `main`
 
+- **`deno task bridge` reaches 421/421** (`ed38c084f`): the bridge resolves a `call_indirect`'s
+  signature from the type it names. The bridge is internal and unexported, so nothing ships against
+  it — but this is S6 step 5's acceptance criterion, met ahead of the step.
 - `npm:binaryen` is pinned to **132** in the SOURCE (`dea8ff9cf`), where Deno enforces it — the lock
   had silently resolved 116. See [testing.md](testing.md) § "Independent oracles".
 - The corpus round trip over binaryen's own tests runs again and guards every index space

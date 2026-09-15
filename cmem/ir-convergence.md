@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14), the block/label family done. **Step 5 — delete the bridge — is next**; `deno task bridge` at 401/421 must reach 421/421                       |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14), the block/label family done. **Step 5 — delete the bridge — is next, and its ACCEPTANCE is already met**: `deno task bridge` reached **421/421** on 2026-09-15 (`ed38c084f`) |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
@@ -2065,6 +2065,21 @@ get nodes with no `type` to dispatch on.
 C10a's diagnosis was wrong and this whole step rests on a mistake — which is exactly what the gate
 was built to be able to say.
 
+✅ **MET 2026-09-15 (`ed38c084f`), and C10a's diagnosis holds — but the cure was not unification.**
+All 20 remaining failures had ONE cause, measured before fixing: wabt-ts leaves
+`CallIndirectExpr.sig` empty when the call names a type (`typeUse: 'resolved'`), because the
+signature lives at the type and its own validator looks it up at the use site. The bridge read
+`ci.sig` alone, built a call with no parameters, and left the operands on the stack. Resolving the
+signature from `ctx.types` fixed all 20 (`tests/bridge/call_indirect_type_ref.test.ts`).
+
+🔑 **What that changes for step 5.** The gate no longer carries the step: it is green BEFORE the
+unification, so it can no longer say whether the unified tree is right — it can only say it did not
+break this. The step's real content is unchanged (one `Expression`, the bridge deleted, its type
+derivation carried forward as a pass), and it now starts from a green bridge instead of a red one.
+⚠️ And the gate compiles what the bridge builds without RUNNING it, which is how it never saw that
+the bridge drops element segments (open-work.md) — so "421/421" is a validity claim, not a
+behavioural one.
+
 ##### The bridge and the WAT routes into binaryen-ts — history, summarized
 
 Consolidated 2026-09-14 from `bridge.md` and `text-routes.md` under the cleanup policy
@@ -2136,8 +2151,8 @@ elsewhere:
 
 **CI's steps first** — `deno fmt --check` · `deno lint` · `deno task ci` (check + test) ·
 `scripts/check-naming.sh` · `scripts/check-portability.sh` · `baseline` · `publish:dry` — then
-`operators` · `spec` · `bridge`. The bridge gate must never regress below **401** (raised from 397
-by decision 4) until step 5 raises it to 421.
+`operators` · `spec` · `bridge`. The bridge gate must never regress below **421** (397 → 401 by
+decision 4, → 421 on 2026-09-15 by the `call_indirect` signature fix, `ed38c084f`).
 
 🛑 This list used to start at `deno task test`, which runs `--no-check`. S6 step 4 left two
 `scripts/` files uncompiled and nothing here could see it; CI would have on the first push.

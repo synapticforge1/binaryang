@@ -20,8 +20,14 @@
  *   throws — extend `bridgeExpr` as needed; the throw points to the missing
  *   case.
  *
- * **Out of scope (will throw):** element segments, exports of tag,
- * multi-memory, GC instructions, start function, custom sections.
+ * **Out of scope (will throw):** exports of tag, multi-memory, start function,
+ * custom sections. ⚠️ Two corrections, 2026-09-15: GC instructions ARE bridged
+ * (`struct.*`, `array.*`, and the heap types registered above), and **element
+ * segments are SILENTLY DROPPED, not thrown on** — `module.elemSegments` is
+ * never read, so a bridged module's tables are empty and any `call_indirect`
+ * traps with "null function". Invisible to `deno task bridge`, which compiles
+ * the result and never runs it (open-work.md). The rest of this list is
+ * unverified.
  *
  * Direct recursion is the natural shape here: binaryen-ts constructors are
  * bottom-up (leaves passed into composite constructors), and wabt-ts's IR is
@@ -655,6 +661,33 @@ function wabtFieldTypeToValType(tIn: ValueType): ValType | 'i8' | 'i16' {
 }
 
 /**
+ * The signature a `call_indirect` calls through.
+ *
+ * 🔧 wabt-ts leaves the node's own `sig` EMPTY when the call names a type
+ * (`(call_indirect (type $t) …)`, `typeUse: 'resolved'`): the signature lives at
+ * the type, its validator looks it up at the use site, and its binary writer
+ * writes the reference as written. Reading `ci.sig` alone therefore built a
+ * call with no parameters, and the operands it should have consumed were left
+ * on the stack — every one of the 20 corpus modules the bridge gate could not
+ * round-trip (C10a). An INLINE signature is on the node, and wins; the lookup
+ * is the fallback (`tests/bridge/call_indirect_type_ref.test.ts`).
+ */
+function callIndirectSig(ci: CallIndirectExpr, ctx: BridgeCtx): FuncSignature {
+  if (ci.sig.params.length > 0 || ci.sig.results.length > 0) return ci.sig;
+  const idx = varIdx(ci.typeVar);
+  const entry = ctx.types[idx];
+  if (entry === undefined) {
+    throw new Error(`Bridge: call_indirect names type ${idx}, which the module does not define`);
+  }
+  if (entry.kind !== 'func') {
+    throw new Error(
+      `Bridge: call_indirect names type ${idx}, which is a ${entry.kind}, not a func`,
+    );
+  }
+  return entry.sig;
+}
+
+/**
  * Look up the binaryen-ts ValType to return from `array.get $type`. Packed
  * i8/i16 element types stack-promote to i32; everything else passes through.
  */
@@ -1075,12 +1108,13 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const operands = ci.operands.map((a) => bridgeExpr(a, ctx));
       // Both IRs carry the signature as one `sig` now; only its value types
       // differ between the two type systems. Multi-result calls are refused.
-      if (ci.sig.results.length > 1) {
+      const sig = callIndirectSig(ci, ctx);
+      if (sig.results.length > 1) {
         throw new Error('Bridge: multi-value call_indirect not yet supported');
       }
       return makeCallIndirect(varName(tableName), target, operands, {
-        params: ci.sig.params.map(wabtTypeToValType),
-        results: ci.sig.results.map(wabtTypeToValType),
+        params: sig.params.map(wabtTypeToValType),
+        results: sig.results.map(wabtTypeToValType),
       });
     }
 
