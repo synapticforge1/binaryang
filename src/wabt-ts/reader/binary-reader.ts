@@ -562,7 +562,7 @@ export class BinaryReader {
     // as a plain one-byte type left the heap type in the stream, desyncing
     // every subsequent field.
     if (b === Type.Ref || b === Type.RefNull) {
-      return { kind: 'ref', heapType: this.readHeapTypeVar(), nullable: b === Type.RefNull };
+      return { heapType: this.readHeapTypeVar(), nullable: b === Type.RefNull };
     }
     return b as Type;
   }
@@ -626,7 +626,6 @@ export class BinaryReader {
       // because a heap index that was never stored could never be range-checked.
       if (b === Type.Ref || b === Type.RefNull) {
         return blockTypeValue({
-          kind: 'ref',
           heapType: this.readHeapTypeVar(),
           nullable: b === Type.RefNull,
         });
@@ -1095,7 +1094,7 @@ export class BinaryReader {
       // Only flags 0 and 4 leave it implicit; the rest spell it out.
       let elemType: ValueType = usesExprs
         ? Type.FuncRef
-        : { kind: 'ref', heapType: heapAbstract('func'), nullable: false };
+        : { heapType: heapAbstract('func'), nullable: false };
       if (isPassive || hasExplicitIndex) {
         if (usesExprs) {
           elemType = this.readRefType();

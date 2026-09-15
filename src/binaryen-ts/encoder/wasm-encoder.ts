@@ -473,7 +473,7 @@ function writeHeapType(w: BinaryWriter, h: HeapType): void {
 function writeValueType(w: BinaryWriter, t: ValType | RefType): void {
   if (isRefType(t)) {
     w.writeU8(t.nullable ? 0x63 : 0x64);
-    writeHeapType(w, t.heap);
+    writeHeapType(w, t.heapType);
   } else {
     writeValType(w, t);
   }
@@ -2187,7 +2187,7 @@ class WasmEncoder {
         // the type index, which `writeHeapType` encodes as a signed LEB — the
         // single-byte abstract form only covers the built-in heap types.
         if (isRefType(e.type)) {
-          writeHeapType(w, e.type.heap);
+          writeHeapType(w, e.type.heapType);
         } else {
           w.writeU8(refHeapTypeByte(e.type as ValType));
         }

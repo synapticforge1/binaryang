@@ -1270,7 +1270,7 @@ class WatModuleParser {
     }
     if (head === 'ref.i31') {
       const value = this.parseExpr(args[0], ctx);
-      return makeRefI31(value, { heap: heapAbstract(AbstractHeapType.I31), nullable: false });
+      return makeRefI31(value, { heapType: heapAbstract(AbstractHeapType.I31), nullable: false });
     }
     if (head === 'any.convert_extern' || head === 'extern.convert_any') {
       const kind = head === 'any.convert_extern'
@@ -1287,11 +1287,11 @@ class WatModuleParser {
     if (head === 'struct.new') {
       const ti = this.resolveTypeIndex(args[0]);
       const operands = args.slice(1).map((a) => this.parseExpr(a, ctx));
-      return makeStructNew(varIndex(ti), operands, { heap: varIndex(ti), nullable: false });
+      return makeStructNew(varIndex(ti), operands, { heapType: varIndex(ti), nullable: false });
     }
     if (head === 'struct.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
-      return makeStructNewDefault(varIndex(ti), { heap: varIndex(ti), nullable: false });
+      return makeStructNewDefault(varIndex(ti), { heapType: varIndex(ti), nullable: false });
     }
     if (head === 'struct.get' || head === 'struct.get_s' || head === 'struct.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
@@ -1312,17 +1312,17 @@ class WatModuleParser {
       const ti = this.resolveTypeIndex(args[0]);
       const init = this.parseExpr(args[1], ctx);
       const length = this.parseExpr(args[2], ctx);
-      return makeArrayNew(varIndex(ti), init, length, { heap: varIndex(ti), nullable: false });
+      return makeArrayNew(varIndex(ti), init, length, { heapType: varIndex(ti), nullable: false });
     }
     if (head === 'array.new_default') {
       const ti = this.resolveTypeIndex(args[0]);
       const length = this.parseExpr(args[1], ctx);
-      return makeArrayNewDefault(varIndex(ti), length, { heap: varIndex(ti), nullable: false });
+      return makeArrayNewDefault(varIndex(ti), length, { heapType: varIndex(ti), nullable: false });
     }
     if (head === 'array.new_fixed') {
       const ti = this.resolveTypeIndex(args[0]);
       const values = args.slice(1).map((a) => this.parseExpr(a, ctx));
-      return makeArrayNewFixed(varIndex(ti), values, { heap: varIndex(ti), nullable: false });
+      return makeArrayNewFixed(varIndex(ti), values, { heapType: varIndex(ti), nullable: false });
     }
     if (head === 'array.get' || head === 'array.get_s' || head === 'array.get_u') {
       const ti = this.resolveTypeIndex(args[0]);
@@ -1389,7 +1389,7 @@ class WatModuleParser {
       const nullable = head === 'ref.cast_null';
       const ht = this.parseHeapType(args[0]);
       const ref = this.parseExpr(args[1], ctx);
-      const resultType: RefType = { heap: ht, nullable };
+      const resultType: RefType = { heapType: ht, nullable };
       return makeRefCast(ref, ht, nullable, resultType);
     }
 
@@ -3015,7 +3015,7 @@ class WatModuleParser {
         if (!heapExpr) {
           this.err(`(ref ...) is missing a heap type`, l.pos);
         }
-        return { heap: this.parseHeapType(heapExpr), nullable };
+        return { heapType: this.parseHeapType(heapExpr), nullable };
       }
       return null;
     }

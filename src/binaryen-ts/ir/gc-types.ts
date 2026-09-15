@@ -15,8 +15,8 @@
  * import { AbstractHeapType, heapAbstract, type RefType } from "@jrmarcum/binaryang/ir/binaryen-ts";
  * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
  *
- * const i31ref: RefType = { heap: heapAbstract(AbstractHeapType.I31), nullable: true };
- * const ref0: RefType   = { heap: varIndex(0), nullable: false }; // (ref $0)
+ * const i31ref: RefType = { heapType: heapAbstract(AbstractHeapType.I31), nullable: true };
+ * const ref0: RefType   = { heapType: varIndex(0), nullable: false }; // (ref $0)
  * ```
  *
  * @license MIT
@@ -102,14 +102,14 @@ export type HeapType = HeapTypeRef;
  *
  * @example
  * ```ts
- * const anyref: RefType = { heap: heapAbstract(AbstractHeapType.Any), nullable: true };
- * const nonNullI31: RefType = { heap: heapAbstract(AbstractHeapType.I31), nullable: false };
- * const userStruct: RefType = { heap: varIndex(0), nullable: false }; // (ref $0)
+ * const anyref: RefType = { heapType: heapAbstract(AbstractHeapType.Any), nullable: true };
+ * const nonNullI31: RefType = { heapType: heapAbstract(AbstractHeapType.I31), nullable: false };
+ * const userStruct: RefType = { heapType: varIndex(0), nullable: false }; // (ref $0)
  * ```
  */
 export interface RefType {
   /** The target heap type. */
-  heap: HeapType;
+  heapType: HeapType;
   /** Whether a null value is allowed. */
   nullable: boolean;
 }
@@ -235,10 +235,10 @@ export type TypeDef = StructTypeDef | ArrayTypeDef | FuncTypeDef;
 export function valueTypeKey(t: ValueType): string {
   // The NAME, not the value: keys stay the strings they always were.
   if (!isRefType(t)) return valTypeName(t);
-  // `heapTypeToString`, never `${t.heap}`: the heap is an OBJECT now, and would
+  // `heapTypeToString`, never `${t.heapType}`: the heap is an OBJECT now, and would
   // render every typed reference as `[object Object]` — the exact collapse this
   // function exists to prevent.
-  return `ref${t.nullable ? ' null' : ''} ${heapTypeToString(t.heap)}`;
+  return `ref${t.nullable ? ' null' : ''} ${heapTypeToString(t.heapType)}`;
 }
 
 /**
@@ -257,7 +257,7 @@ export function isRefType(t: unknown): t is RefType {
     typeof t === 'object' &&
     t !== null &&
     !Array.isArray(t) &&
-    'heap' in t &&
+    'heapType' in t &&
     'nullable' in t
   );
 }
@@ -301,12 +301,12 @@ export function heapTypeToString(h: HeapType): string {
  *
  * @example
  * ```ts
- * refTypeToString({ heap: heapAbstract('i31'), nullable: true }) // → "(ref null i31)"
- * refTypeToString({ heap: varIndex(0), nullable: false })          // → "(ref $type0)"
+ * refTypeToString({ heapType: heapAbstract('i31'), nullable: true }) // → "(ref null i31)"
+ * refTypeToString({ heapType: varIndex(0), nullable: false })          // → "(ref $type0)"
  * ```
  */
 export function refTypeToString(rt: RefType): string {
-  const inner = heapTypeToString(rt.heap);
+  const inner = heapTypeToString(rt.heapType);
   return rt.nullable ? `(ref null ${inner})` : `(ref ${inner})`;
 }
 
@@ -326,18 +326,21 @@ export function storageTypeToString(t: StorageType): string {
 // ---------------------------------------------------------------------------
 
 /** `anyref` = `(ref null any)` */
-export const anyref: RefType = { heap: heapAbstract(AbstractHeapType.Any), nullable: true };
+export const anyref: RefType = { heapType: heapAbstract(AbstractHeapType.Any), nullable: true };
 /** `eqref`  = `(ref null eq)`  */
-export const eqref: RefType = { heap: heapAbstract(AbstractHeapType.Eq), nullable: true };
+export const eqref: RefType = { heapType: heapAbstract(AbstractHeapType.Eq), nullable: true };
 /** `i31ref` = `(ref null i31)` */
-export const i31ref: RefType = { heap: heapAbstract(AbstractHeapType.I31), nullable: true };
+export const i31ref: RefType = { heapType: heapAbstract(AbstractHeapType.I31), nullable: true };
 /** `structref` = `(ref null struct)` */
-export const structref: RefType = { heap: heapAbstract(AbstractHeapType.Struct), nullable: true };
+export const structref: RefType = {
+  heapType: heapAbstract(AbstractHeapType.Struct),
+  nullable: true,
+};
 /** `arrayref` = `(ref null array)` */
-export const arrayref: RefType = { heap: heapAbstract(AbstractHeapType.Array), nullable: true };
+export const arrayref: RefType = { heapType: heapAbstract(AbstractHeapType.Array), nullable: true };
 /** `funcref` = `(ref null func)` */
-export const funcref: RefType = { heap: heapAbstract(AbstractHeapType.Func), nullable: true };
+export const funcref: RefType = { heapType: heapAbstract(AbstractHeapType.Func), nullable: true };
 /** `externref` = `(ref null ext)` */
-export const externref: RefType = { heap: heapAbstract(AbstractHeapType.Ext), nullable: true };
+export const externref: RefType = { heapType: heapAbstract(AbstractHeapType.Ext), nullable: true };
 /** `nullref` = `(ref null none)` */
-export const nullref: RefType = { heap: heapAbstract(AbstractHeapType.None), nullable: true };
+export const nullref: RefType = { heapType: heapAbstract(AbstractHeapType.None), nullable: true };

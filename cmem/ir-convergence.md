@@ -2255,6 +2255,33 @@ casts. It reached only an error message. Fixed; the `as string` class is now swe
 Bytes unchanged; ratchet unchanged (`ref.cast`/`ref.test` still differ by NAME, `heapType` against
 `castType` — now over the same type).
 
+###### ✅ Stage V3 — ONE reference-type record (2026-09-15)
+
+`{ heap, nullable }` against `{ kind: 'ref', heapType, nullable }`: two questions, each by trial.
+
+| question        | taken                  | trial                                                                                           |
+| --------------- | ---------------------- | ----------------------------------------------------------------------------------------------- |
+| the field name  | `heapType` (V3a)       | converting binaryen-ts 29 src + 25 tests, wabt-ts 42 src + 3 — cheaper where it counts, and br_on's `from`/`to` and ref.test/ref.cast already say `heapType` on both sides |
+| `kind: 'ref'`   | removed (V3b)          | removing from wabt-ts 17, no test breaks; adding to binaryen-ts 43. It carried nothing — the one OBJECT among value types |
+
+🛑 **String-keyed and representation-keyed checks, again the only real risk:**
+
+- `isRefType` recognised a ref by `'heap' in t` — compiles after the rename, would have made every
+  ref look scalar. Pre-swept; mutant fails 40 tests.
+- Two tests asserted the representation through JSON substrings (`"kind":"ref"`). One failed while
+  the annotation was intact in the dump; the other matched `'112' || "kind":"ref"` and its second
+  arm went silently dead. Both assert on the node now. 🔑 **An assertion on a serialization tests
+  the representation, and a representation change either breaks it for no reason or weakens it
+  without a signal.**
+
+`tests/ir/value_types.test.ts` pins ONE ref record at compile time. ⚠️ Its first draft — mutual
+assignability alone — stayed GREEN when inverted with an OPTIONAL field added, because an absent
+optional still assigns. Equal KEY sets as well; inverted with an optional and with a required field.
+
+**So after V1–V3 the value types are one in SHAPE and VALUE on both sides**, and still two in TYPE
+where an enum is involved (`ValType` vs `Type`, nominal). Making them one declaration belongs to the
+alias stage.
+
 **What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

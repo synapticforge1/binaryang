@@ -778,7 +778,7 @@ function lookupArrayElementType(typeVar: Var, ctx: BridgeCtx): ValType {
  */
 function wabtTypeToValueType(t: ValueType, ctx: BridgeCtx): BValueType {
   if (isRefValueType(t)) {
-    return { heap: heapTypeForBridge(t.heapType, ctx), nullable: t.nullable };
+    return { heapType: heapTypeForBridge(t.heapType, ctx), nullable: t.nullable };
   }
   return wabtTypeToValType(t);
 }
@@ -1319,12 +1319,12 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // One kind, two forms: the default takes no field values at all.
       if (sn.defaultInit) {
         return makeStructNewDefault(varIndex(heapIdx), {
-          heap: varIndex(heapIdx),
+          heapType: varIndex(heapIdx),
           nullable: false,
         });
       }
       return makeStructNew(varIndex(heapIdx), sn.operands.map((o) => bridgeExpr(o, ctx)), {
-        heap: varIndex(heapIdx),
+        heapType: varIndex(heapIdx),
         nullable: false,
       });
     }
@@ -1358,12 +1358,12 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // An absent initialiser IS the default form.
       if (an.init === undefined) {
         return makeArrayNewDefault(varIndex(heapIdx), bridgeExpr(an.length, ctx), {
-          heap: varIndex(heapIdx),
+          heapType: varIndex(heapIdx),
           nullable: false,
         });
       }
       return makeArrayNew(varIndex(heapIdx), bridgeExpr(an.init, ctx), bridgeExpr(an.length, ctx), {
-        heap: varIndex(heapIdx),
+        heapType: varIndex(heapIdx),
         nullable: false,
       });
     }
@@ -1371,7 +1371,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const anf = e as ArrayNewFixedExpr;
       const heapIdx = resolveHeapTypeIdx(anf.typeVar, ctx);
       return makeArrayNewFixed(varIndex(heapIdx), anf.operands.map((o) => bridgeExpr(o, ctx)), {
-        heap: varIndex(heapIdx),
+        heapType: varIndex(heapIdx),
         nullable: false,
       });
     }
@@ -1383,7 +1383,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         varIndex(varIdx(and2.dataVar)),
         bridgeExpr(and2.offset, ctx),
         bridgeExpr(and2.length, ctx),
-        { heap: varIndex(heapIdx), nullable: false },
+        { heapType: varIndex(heapIdx), nullable: false },
       );
     }
     case 'array.new_elem': {
@@ -1394,7 +1394,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         varIndex(varIdx(ane.elemVar)),
         bridgeExpr(ane.offset, ctx),
         bridgeExpr(ane.length, ctx),
-        { heap: varIndex(heapIdx), nullable: false },
+        { heapType: varIndex(heapIdx), nullable: false },
       );
     }
     case 'array.get': {
@@ -1436,7 +1436,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bridgeExpr(rc.ref, ctx),
         heap,
         rc.nullable,
-        { heap, nullable: rc.nullable },
+        { heapType: heap, nullable: rc.nullable },
       );
     }
 
@@ -1666,7 +1666,7 @@ function refTypeVarToValType(h: HeapTypeRef, ctx: BridgeCtx): BValueType {
   // registered binaryen heap type. The limitation outlived its cause.
   //
   // `ref.null` is nullable by definition, so nullable is unconditionally true.
-  return { heap: varIndex(resolveHeapTypeIdx(h, ctx)), nullable: true };
+  return { heapType: varIndex(resolveHeapTypeIdx(h, ctx)), nullable: true };
 }
 
 /**
