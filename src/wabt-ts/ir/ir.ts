@@ -622,7 +622,7 @@ export interface GlobalSetExpr {
 export interface UnaryExpr {
   readonly kind: 'unary';
   readonly opcode: Opcode;
-  readonly operand: Expr;
+  readonly value: Expr;
   readonly loc: Location;
 }
 /** Two-operand numeric op (`i32.add`, `f64.mul`, etc.). `opcode` identifies the specific op. */
@@ -1059,7 +1059,7 @@ export interface TableSetExpr {
 export interface TableGrowExpr {
   readonly kind: 'table.grow';
   readonly table: Var;
-  readonly initValue: Expr;
+  readonly value: Expr;
   readonly delta: Expr;
   readonly loc: Location;
 }
@@ -1073,7 +1073,7 @@ export interface TableSizeExpr {
 export interface TableFillExpr {
   readonly kind: 'table.fill';
   readonly table: Var;
-  readonly start: Expr;
+  readonly dest: Expr;
   readonly value: Expr;
   readonly size: Expr;
   readonly loc: Location;

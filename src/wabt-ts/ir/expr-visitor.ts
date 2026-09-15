@@ -331,7 +331,7 @@ export class ExprVisitor {
         return this.d.onGlobalSetExpr?.(e) ?? Result.Ok;
       }
       case 'unary': {
-        const r = this.dispatch(e.operand);
+        const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onUnaryExpr?.(e) ?? Result.Ok;
       }
@@ -553,7 +553,7 @@ export class ExprVisitor {
         return this.d.onTableSetExpr?.(e) ?? Result.Ok;
       }
       case 'table.grow': {
-        let r = this.dispatch(e.initValue);
+        let r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         r = this.dispatch(e.delta);
         if (r === Result.Error) return r;
@@ -657,7 +657,7 @@ export class ExprVisitor {
         return this.d.onTableCopyExpr?.(e) ?? Result.Ok;
       }
       case 'table.fill': {
-        let r = this.dispatch(e.start);
+        let r = this.dispatch(e.dest);
         if (r === Result.Error) return r;
         r = this.dispatch(e.value);
         if (r === Result.Error) return r;

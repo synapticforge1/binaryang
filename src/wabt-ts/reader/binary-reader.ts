@@ -1966,7 +1966,7 @@ export class BinaryReader {
         case Opcode.I64Extend16S:
         case Opcode.I64Extend32S: {
           const operand = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'unary', opcode: op as Opcode, operand, loc });
+          stack.push({ kind: 'unary', opcode: op as Opcode, value: operand, loc });
           break;
         }
 
@@ -2048,7 +2048,7 @@ export class BinaryReader {
         case Opcode.F32ReinterpretI32:
         case Opcode.F64ReinterpretI64: {
           const operand = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'unary', opcode: op as Opcode, operand, loc });
+          stack.push({ kind: 'unary', opcode: op as Opcode, value: operand, loc });
           break;
         }
 
@@ -2201,7 +2201,7 @@ export class BinaryReader {
       case MiscOpcode.I64TruncSatF64U: {
         const opcode = (PREFIX_MISC << 16) | op;
         const operand = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'unary', opcode: opcode as Opcode, operand, loc });
+        stack.push({ kind: 'unary', opcode: opcode as Opcode, value: operand, loc });
         break;
       }
       case MiscOpcode.MemoryInit: {
@@ -2311,7 +2311,7 @@ export class BinaryReader {
         const tableIdx = this.readU32Leb();
         const delta = stack.pop() ?? operandPlaceholder(loc);
         const initValue = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'table.grow', table: varIndex(tableIdx), initValue, delta, loc });
+        stack.push({ kind: 'table.grow', table: varIndex(tableIdx), value: initValue, delta, loc });
         break;
       }
       case MiscOpcode.TableSize: {
@@ -2327,7 +2327,7 @@ export class BinaryReader {
         pushStmt(stack, stmts, {
           kind: 'table.fill',
           table: varIndex(tableIdx),
-          start,
+          dest: start,
           value,
           size,
           loc,
@@ -2456,7 +2456,7 @@ export class BinaryReader {
     // splat ops (0x0f-0x14): unary, 1 pop, 1 push
     if (op >= 0x0f && op <= 0x14) {
       const operand = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'unary', opcode: opcode as Opcode, operand, loc });
+      stack.push({ kind: 'unary', opcode: opcode as Opcode, value: operand, loc });
       return;
     }
 
@@ -2563,7 +2563,7 @@ export class BinaryReader {
     if (SIMD_UNARY_OPS.has(op)) {
       // 1 pop, 1 push (abs/neg/sqrt/ceil/.../convert/not/any_true/...).
       const operand = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'unary', opcode: opcode as Opcode, operand, loc });
+      stack.push({ kind: 'unary', opcode: opcode as Opcode, value: operand, loc });
       return;
     }
     // Default: binary (2 pops, 1 push) — add/sub/mul/div/min/max/pmin/pmax,

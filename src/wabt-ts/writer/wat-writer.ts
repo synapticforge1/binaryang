@@ -1491,7 +1491,7 @@ class WatWriter extends ModuleContext {
 
         // ---- one operand ------------------------------------------------------
         case 'unary':
-          return { operands: [e.operand], head: (d) => void d.onUnaryExpr?.(e) };
+          return { operands: [e.value], head: (d) => void d.onUnaryExpr?.(e) };
         case 'drop':
           return { operands: [e.value], head: (d) => void d.onDropExpr?.(e) };
         case 'local.set':

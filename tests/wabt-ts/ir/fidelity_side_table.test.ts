@@ -45,7 +45,6 @@ const CHILD_FIELDS = [
   'ifFalse',
   'value',
   'values',
-  'operand',
   'condition',
   'address',
   'operands',

@@ -58,7 +58,7 @@ function refsIn(m: WasmModule, fn: string): string[] {
   const f = m.functions.find((x) => x.name === fn)!;
   walkExpression(f.body, (e) => {
     const o = e as unknown as Record<string, unknown>;
-    for (const k of ['target', 'name', 'tag', 'var']) {
+    for (const k of ['target', 'func', 'name', 'tag', 'var']) {
       const v = o[k];
       if (typeof v === 'string') out.push(`${e.kind}:${v}`);
       else if (v && typeof v === 'object' && 'name' in v) {

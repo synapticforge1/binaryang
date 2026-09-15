@@ -137,7 +137,7 @@ Deno.test('parseWat — call', () => {
   assertEquals(soleInstr(caller.body).kind, ExpressionKind.Call);
   assertEquals(
     (soleInstr(caller.body) as import('../../../src/binaryen-ts/ir/expressions.ts').CallExpr)
-      .target,
+      .func,
     varName('$callee'),
   );
 });

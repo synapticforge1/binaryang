@@ -143,7 +143,7 @@ interface Ctx {
  */
 function callEffectiveType(e: Expression, ctx: Ctx): Type {
   if (e.kind === ExpressionKind.Call) {
-    const target = requireName((e as CallExpr).target, 'call target');
+    const target = requireName((e as CallExpr).func, 'call target');
     const t = ctx.callResultTypes.get(target);
     if (t === undefined) {
       throw new Error(`Flatten: unresolved call target "${target}"`);

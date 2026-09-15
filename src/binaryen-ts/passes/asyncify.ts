@@ -476,8 +476,8 @@ export function resolveAsyncifyImports(module: WasmModule): boolean {
     func.body = mapExpression(func.body, (e) => {
       if (e.kind === ExpressionKind.Call) {
         const c = e as CallExpr;
-        const to = rename.get(requireName(c.target, 'call target'));
-        if (to !== undefined) return { ...c, target: varName(to) };
+        const to = rename.get(requireName(c.func, 'call target'));
+        if (to !== undefined) return { ...c, func: varName(to) };
       }
       return e;
     });
@@ -619,7 +619,7 @@ export function analyzeModule(
         if (call.isReturn) {
           throw new Error('asyncify: tail calls (return_call) are not yet supported.');
         }
-        const callee = requireName(call.target, 'call target');
+        const callee = requireName(call.func, 'call target');
         if (ASYNCIFY_STATE_STARTERS.has(callee)) isTop = true;
         else if (ASYNCIFY_RUNTIME_BOTTOM.has(callee)) isBottom = true;
         addEdge(callee, func.name);
@@ -774,7 +774,7 @@ function exprCanChangeState(expr: Expression, ctx: FlowCtx): boolean {
   let indirect = false;
   walkExpression(expr, (e) => {
     if (e.kind === ExpressionKind.Call) {
-      if (ctx.canChangeState.get(requireName((e as CallExpr).target, 'call target'))) {
+      if (ctx.canChangeState.get(requireName((e as CallExpr).func, 'call target'))) {
         changes = true;
       }
     } else if (e.kind === ExpressionKind.CallIndirect) {
@@ -984,7 +984,7 @@ function callChangesState(
   addedFromList: Set<string>,
 ): boolean {
   if (call.kind === ExpressionKind.Call) {
-    return canChangeState.get(requireName((call as CallExpr).target, 'call target')) === true;
+    return canChangeState.get(requireName((call as CallExpr).func, 'call target')) === true;
   }
   if (call.kind === ExpressionKind.CallIndirect) {
     return canIndirect || addedFromList.has(funcName);
@@ -1175,11 +1175,11 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
   return mapExpression(body, (e) => {
     if (e.kind === ExpressionKind.Call) {
       const c = e as CallExpr;
-      if (requireName(c.target, 'call target') === ASYNCIFY_UNWIND) {
+      if (requireName(c.func, 'call target') === ASYNCIFY_UNWIND) {
         // Break out of the body to the unwind block, carrying the call index.
         return makeBreak(ASYNCIFY_UNWIND_LABEL, null, c.operands.slice(0, 1));
       }
-      if (requireName(c.target, 'call target') === ASYNCIFY_GET_CALL_INDEX) {
+      if (requireName(c.func, 'call target') === ASYNCIFY_GET_CALL_INDEX) {
         // Pop the next index off the stack into $rewindIndex.
         return makeBlock([
           makeIncStackPos(-4),
@@ -1189,7 +1189,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
           ),
         ], null);
       }
-      if (requireName(c.target, 'call target') === ASYNCIFY_CHECK_CALL_INDEX) {
+      if (requireName(c.func, 'call target') === ASYNCIFY_CHECK_CALL_INDEX) {
         // Is this the call to resume into?  rewindIndex == index
         return makeBinary(
           BinaryOp.EqI32,

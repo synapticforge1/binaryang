@@ -2087,6 +2087,47 @@ leaves the second, so "delete the bridge" is not what one `Expression` achieves 
 an owner call**, and it is the last thing step 5 needs: everything before it is required whichever
 way it goes.
 
+###### ✅ Stage A — the six pure renames (2026-09-15). Ratchet 34/14/25 → **38 / 19 / 16**
+
+Direction by trial blast radius (rename in the interface only, count `deno task check` errors outside
+the bridge, revert) — the Group 3 method. Where cost tied, meaning or consistency decided, and each
+has precedent.
+
+| kind                         | taken     | trial (convert wabt-ts / binaryen-ts) | deciding                                               |
+| ---------------------------- | --------- | ------------------------------------- | ------------------------------------------------------ |
+| `unary`                      | `value`   | **11** / 18                           | cost                                                   |
+| `call`                       | `func`    | 25 / **24**                           | meaning — `target` means a LABEL in both IRs (`callee`) |
+| load, store, `simd.load*`    | `address` | 27 / **24**                           | cost, and wabt-ts's name on all ten memory accesses    |
+| `table.fill`                 | `dest`    | 5 / 5                                 | consistency — memory.fill, memory.copy, table.copy     |
+| `table.grow`                 | `value`   | 5 / 5                                 | consistency — table.fill's `value`                     |
+| `simd.shuffle`               | `lanes`   | 5 / **4**                             | cost, and the spec's `laneidx`                         |
+
+🗓️ **HELD FOR THE OWNER — locals: `var` or `index`?** The one pair where cost and meaning point
+opposite ways, which the `call_indirect` precedent says is not flipped unilaterally. **Cost says
+`index`**: converting wabt-ts is 21 source + 25 test sites, converting binaryen-ts 44 source + 3
+test (46 vs 50 in total, but 2× on source). **Meaning says `var`**: the field holds a `Var`, which
+may be a NAME — the same reason `rethrow.depth` became `target` ("described only one of a `Var`'s
+two forms") — and globals are already `var` on both sides. Either way it is one rename of three
+fields.
+
+🛑 **What the compiler could not see — found only by a residue sweep after each rename:**
+
+- **A spread whose old key exists on ANOTHER union member.** `asyncify.ts` returned
+  `{ ...c, target: varName(to) }` typed `Expression`; `target` is a Break field, so no
+  excess-property error, and the redirect would have kept the OLD function. Covered — against a
+  green baseline (134/134) restoring it fails 2 tests.
+- **A fixture under `as any`.** `asyncify.test.ts` built a Call with `target:`. ⚠️ An earlier
+  mutation run counted its 8 failures as proof the spread above was covered; redone against a green
+  baseline. **A mutant's red means nothing until the same tests were green without it.**
+- **A hand-rolled, string-keyed walker in a test.** Four exist (`fidelity_side_table`,
+  `block_type_ref`, `loop_result`, `multi_memory`). `multi_memory` passes with the stale `'ptr'` AND
+  with `'address'`: this class goes stale with no signal at all.
+- **A shorthand alone on its line** (`    ptr,`) — the position fixer renamed a local reference; the
+  compiler caught all four (TS18004). Written as `address: ptr`.
+- **`resolve-names.ts` rebuilds nodes as `{ ...e, <fields> }`.** An unflagged old key there would
+  let the spread carry the UNRESOLVED original operand through. Flagged every time here, because
+  the new field was required — an OPTIONAL renamed field would not be.
+
 1,923 lines plus 13 test files when this step was planned (2026-09-04); 1,803 lines on 2026-09-14.
 ⚠️ **The bridge is also where a wabt-ts tree acquires its types today**; that derivation
 (`inferBinaryType` / `inferUnaryType`) becomes a pass over the unified tree, or binaryen-ts's passes

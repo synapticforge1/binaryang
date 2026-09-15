@@ -30,7 +30,7 @@ function dump(e: any, depth: number, out: string[]): void {
   }
   const t = e.type !== undefined ? `:${JSON.stringify(e.type)}` : '';
   const extra: string[] = [];
-  for (const k of ['op', 'name', 'index', 'target']) {
+  for (const k of ['op', 'name', 'index', 'target', 'func']) {
     if (e[k] !== undefined && typeof e[k] !== 'object') extra.push(`${k}=${e[k]}`);
   }
   out.push('  '.repeat(depth) + `${e.kind}${t} ${extra.join(' ')}`);

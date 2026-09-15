@@ -1091,7 +1091,7 @@ export interface LoadExpr extends ExprBase {
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
 }
 
 /** Memory store node. */
@@ -1119,7 +1119,7 @@ export interface StoreExpr extends ExprBase {
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
   align: number;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
   /** Value expression. */
   value: Expression;
 }
@@ -1344,7 +1344,7 @@ export interface CallExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Call;
   /** Target label of the branch. */
-  target: Var;
+  func: Var;
   /** Argument expressions in declaration order. */
   operands: Expression[];
   /** isReturn — see the {@link make} factory for semantics. */
@@ -1949,7 +1949,7 @@ export interface SIMDShuffleExpr extends ExprBase {
   /** Right-hand operand. */
   right: Expression;
   /** 16-byte immediate lane-select mask. */
-  mask: Uint8Array;
+  lanes: Uint8Array;
 }
 
 /** `v128.bitselect` and relaxed ternary SIMD ops. */
@@ -2037,7 +2037,7 @@ export interface SIMDLoadExpr extends ExprBase {
   /** Operator code. */
   opcode: SIMDLoadOp;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
   /** Static byte offset added to the address operand. */
   offset: bigint;
   /** Power-of-two alignment hint (e.g. 0=byte, 2=i32). */
@@ -2060,7 +2060,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
   /** Operator code. */
   opcode: SIMDLoadStoreLaneOp;
   /** Address operand. */
-  ptr: Expression;
+  address: Expression;
   /** vec — see the {@link make} factory for semantics. */
   vec: Expression;
   /** Static byte offset added to the address operand. */
@@ -2276,7 +2276,7 @@ export function makeCall(
   resultType: Type,
   isReturn = false,
 ): CallExpr {
-  return { kind: ExpressionKind.Call, type: resultType, target, operands, isReturn };
+  return { kind: ExpressionKind.Call, type: resultType, func: target, operands, isReturn };
 }
 
 /** Creates an `if` expression. The optional `name` is the `if`'s branch-target label. */
@@ -2601,7 +2601,7 @@ export function makeLoad(
     opcode,
     offset,
     align,
-    ptr,
+    address: ptr,
     ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
 }
@@ -2622,7 +2622,7 @@ export function makeStore(
     opcode,
     offset,
     align,
-    ptr,
+    address: ptr,
     value,
     ...(indexOf(memidx) !== 0 ? { memidx } : {}),
   };
@@ -3175,7 +3175,7 @@ export function makeSIMDShuffle(
   right: Expression,
   mask: Uint8Array,
 ): SIMDShuffleExpr {
-  return { kind: ExpressionKind.SIMDShuffle, type: ValType.V128, left, right, mask };
+  return { kind: ExpressionKind.SIMDShuffle, type: ValType.V128, left, right, lanes: mask };
 }
 
 /** Creates a `v128.bitselect` or relaxed ternary SIMD expression. */
@@ -3200,7 +3200,7 @@ export function makeSIMDLoad(
     kind: ExpressionKind.SIMDLoad,
     type: ValType.V128,
     opcode,
-    ptr,
+    address: ptr,
     offset,
     align,
     ...(indexOf(memidx) !== 0 ? { memidx } : {}),
@@ -3225,7 +3225,7 @@ export function makeSIMDLoadStoreLane(
     kind: ExpressionKind.SIMDLoadStoreLane,
     type: isStore ? None : ValType.V128,
     opcode,
-    ptr,
+    address: ptr,
     vec,
     offset,
     align,

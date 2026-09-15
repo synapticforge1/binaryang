@@ -60,7 +60,6 @@ const CHILD_FIELDS = [
   'ifFalse',
   'value',
   'values',
-  'operand',
   'cond',
   'address',
   'args',

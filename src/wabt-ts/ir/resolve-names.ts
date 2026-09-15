@@ -565,8 +565,8 @@ class ResolveContext {
         return [result, { ...e, values }];
       }
       case 'unary': {
-        const [r, operand] = this.resolveExpr(e.operand);
-        return [r, { ...e, operand }];
+        const [r, operand] = this.resolveExpr(e.value);
+        return [r, { ...e, value: operand }];
       }
       case 'binary': {
         const [rL, left] = this.resolveExpr(e.left);
@@ -696,23 +696,23 @@ class ResolveContext {
         return [combine(rI, rV), { ...e, table: this.resolveTableVar(e.table, loc), index, value }];
       }
       case 'table.grow': {
-        const [rI, initValue] = this.resolveExpr(e.initValue);
+        const [rI, initValue] = this.resolveExpr(e.value);
         const [rD, delta] = this.resolveExpr(e.delta);
         return [combine(rI, rD), {
           ...e,
           table: this.resolveTableVar(e.table, loc),
-          initValue,
+          value: initValue,
           delta,
         }];
       }
       case 'table.fill': {
-        const [rS, start] = this.resolveExpr(e.start);
+        const [rS, start] = this.resolveExpr(e.dest);
         const [rV, value] = this.resolveExpr(e.value);
         const [rN, size] = this.resolveExpr(e.size);
         return [combine(rS, combine(rV, rN)), {
           ...e,
           table: this.resolveTableVar(e.table, loc),
-          start,
+          dest: start,
           value,
           size,
         }];
