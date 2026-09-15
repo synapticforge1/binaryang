@@ -1043,7 +1043,7 @@ export interface SelectExpr extends ExprBase {
   condition: Expression;
   /**
    * The DECLARED result type of a typed `select` (`0x1c`, `(select (result t))`),
-   * or `null` for an untyped one (S6 decision 7a).
+   * or EMPTY for an untyped one (S6 decision 7a).
    *
    * Semantics, not decoration: over references the declared type is what
    * validation checks, and it may be WIDER than either arm — a `ref.null` arm
@@ -1052,9 +1052,14 @@ export interface SelectExpr extends ExprBase {
    * lost it. Its presence also records that the source wrote the typed form,
    * so a numeric typed select re-encodes as written (divergence S1). Upstream
    * binaryen keeps neither: `wasm-opt` rewrites a numeric `0x1c` as `0x1b`.
-   * Validation requires exactly one type, so one is all this holds.
+   * ⚠️ **A list, and deliberately** (S6 step 5, stage S3). It held one `ValueType |
+   * null` because validation requires exactly one type. But the ENCODING is a
+   * vector, and wabt-ts's reader keeps whatever count a binary declares so its
+   * validator can report a wrong one — a count this could not represent. Fidelity
+   * binds, so wabt-ts's form controls; binaryen-ts's own front doors still refuse
+   * any count but one.
    */
-  resultType: ValueType | null;
+  resultType: ValueType[];
 }
 
 /** {@link DropExpr} — see {@link makeDrop} for the factory. */
@@ -2562,15 +2567,21 @@ export function makeSelect(
   ifTrue: Expression,
   ifFalse: Expression,
   condition: Expression,
-  resultType: ValueType | null = null,
+  // A single type or `null` is still accepted -- every caller wrote one.
+  declared: ValueType | readonly ValueType[] | null = null,
 ): SelectExpr {
+  const resultType: ValueType[] = declared === null
+    ? []
+    : Array.isArray(declared)
+    ? [...declared]
+    : [declared as ValueType];
   // The declared type wins when there is one. Otherwise a `select` always has
   // both arms, so its result type is the type of the reachable arm —
   // `unreachable` only when BOTH arms are unreachable. Taking `ifTrue.type`
   // blindly mistyped a select whose `ifTrue` is `unreachable` (e.g. it ends in
   // a trap/branch) even though `ifFalse` yields a real value, the same hazard
   // `makeIf` was fixed for.
-  const type: Type = resultType ??
+  const type: Type = (resultType.length === 1 ? resultType[0] : undefined) ??
     (typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue));
   return { kind: ExpressionKind.Select, type, val1: ifTrue, val2: ifFalse, condition, resultType };
 }

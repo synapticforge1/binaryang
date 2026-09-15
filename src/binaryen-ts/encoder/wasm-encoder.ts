@@ -1992,11 +1992,16 @@ class WasmEncoder {
         // Without one, the untyped form (0x1b) is legal only over numeric and
         // vector types; a select over references MUST be the typed form and
         // carry its type — upstream binaryen's rule for a select it built.
-        const t = e.resultType ?? e.type;
-        if (e.resultType !== null || (t !== undefined && isRef(t))) {
+        // `resultType` is a LIST (stage S3): EMPTY is the untyped form. Testing it
+        // against `null` would still compile and would always be true.
+        if (e.resultType.length > 0) {
+          w.writeU8(0x1c);
+          w.writeU32(e.resultType.length);
+          for (const declared of e.resultType) writeValueType(w, declared);
+        } else if (e.type !== undefined && isRef(e.type)) {
           w.writeU8(0x1c);
           w.writeU32(1);
-          writeValueType(w, t as ValType | RefType);
+          writeValueType(w, e.type as RefType);
         } else {
           w.writeU8(0x1b);
         }
