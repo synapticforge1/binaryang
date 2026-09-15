@@ -77,7 +77,7 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import type { Local, WasmFunction, WasmImport, WasmModule } from '../ir/module.ts';
-import { None, type Type, ValType } from '../ir/types.ts';
+import { None, type Type, typeToString, ValType } from '../ir/types.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { buildCFG, computeLiveness } from './cfg.ts';
 import { buildCallResultTypes, flattenFunction } from './flatten.ts';
@@ -803,7 +803,7 @@ function fakeGlobalFor(ctx: FlowCtx, type: Type): string {
   // the output.
   let name = ctx.fakeGlobals.get(type);
   if (!name) {
-    name = `$asyncify_fake_call_global_${type}`;
+    name = `$asyncify_fake_call_global_${typeToString(type)}`;
     ctx.fakeGlobals.set(type, name);
   }
   return name;
@@ -821,7 +821,9 @@ function makeZero(type: Type): Expression {
     case ValType.F64:
       return makeF64Const(0);
     default:
-      throw new Error(`asyncify: unsupported call-result type for fake global: ${type}`);
+      throw new Error(
+        `asyncify: unsupported call-result type for fake global: ${typeToString(type)}`,
+      );
   }
 }
 
@@ -1101,7 +1103,9 @@ function byteSize(type: Type): number {
     case ValType.F64:
       return 8;
     default:
-      throw new Error(`asyncify: cannot save/restore non-numeric local of type ${type}`);
+      throw new Error(
+        `asyncify: cannot save/restore non-numeric local of type ${typeToString(type)}`,
+      );
   }
 }
 
@@ -1124,7 +1128,9 @@ function localLoadOp(type: Type): Opcode {
     case ValType.F64:
       return Opcode.F64Load;
     default:
-      throw new Error(`asyncify: cannot save/restore non-numeric local of type ${type}`);
+      throw new Error(
+        `asyncify: cannot save/restore non-numeric local of type ${typeToString(type)}`,
+      );
   }
 }
 
@@ -1140,7 +1146,9 @@ function localStoreOp(type: Type): Opcode {
     case ValType.F64:
       return Opcode.F64Store;
     default:
-      throw new Error(`asyncify: cannot save/restore non-numeric local of type ${type}`);
+      throw new Error(
+        `asyncify: cannot save/restore non-numeric local of type ${typeToString(type)}`,
+      );
   }
 }
 

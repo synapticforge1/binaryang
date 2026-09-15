@@ -24,6 +24,21 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING at run time: `ValType`'s VALUES are the wire bytes** (S6 step 5 stage V1). Exported
+  from `./ir/binaryen-ts` and `./api`. `ValType.I32` is now `0x7f`, not `'i32'` — equal in value to
+  wabt-ts's `Type` member of the same name. Code that uses the members symbolically is unaffected;
+  code that relied on the STRING (printing a type, `JSON.stringify` of IR, `t === 'i32'`,
+  `typeof t === 'string'` to spot a scalar, `Object.values(ValType)`) is not. New public exports
+  (`./ir/binaryen-ts`): `valTypeName`, `valTypeFromName`, `isValType`. Every emitted byte is unchanged
+  (baseline IDENTICAL). A patch release cannot carry this.
+- **Field renames and optionality** (S6 step 5 stages A, A2, B — all on binaryen-ts nodes):
+  `CallExpr.func` (was `target`) ·
+  load/store/`simd.load*` `address` (was `ptr`) · `SIMDShuffleExpr.lanes` (was `mask`) ·
+  `LocalGet/Set/TeeExpr.var` (was `index`) · `isReturn?`, `defaultInit?`, `ArrayNewExpr.init?`,
+  `BreakExpr.condition?` (were required or `| null`) · `StructGet/ArrayGetExpr.signed?`, three states
+  (absent = plain `get`) · `memidx` REQUIRED on every memory access (was optional, absent = 0).
+  wabt-ts's `TableFillExpr.dest` (was `start`) and `TableGrowExpr.value` (was `initValue`) and
+  `UnaryExpr.value` (was `operand`) moved on `./ir/wabt-ts`.
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and

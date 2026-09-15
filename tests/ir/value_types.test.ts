@@ -1,0 +1,87 @@
+// Copyright (c) 2026 Jon Marcum
+// Licensed under the MIT License. See LICENSE-MIT in the repository root.
+//
+// S6 step 5, stage V1: ONE scalar value-type representation.
+//
+// binaryen-ts's `ValType` held text names (`'i32'`); wabt-ts's `Type` holds the
+// wire bytes (`0x7f`). Numeric was chosen by trial -- flipping binaryen-ts's
+// cost 20 compile errors and 13 failing tests, flipping wabt-ts's cost 27 and
+// 299, because its reader and writer use the values AS the bytes.
+//
+// These pin the equality member by member, and the three numeric-enum traps that
+// compile silently: a value interpolated into text, `typeof === 'string'`, and
+// the reverse mapping a numeric enum adds.
+
+import { describe, it } from '@std/testing/bdd';
+import { assert, assertEquals } from '@std/assert';
+
+import { Type } from '../../src/wabt-ts/core/types.ts';
+import {
+  isValType,
+  None,
+  typeToString,
+  Unreachable,
+  ValType,
+  valTypeFromName,
+  valTypeName,
+} from '../../src/binaryen-ts/ir/types.ts';
+
+/** Every binaryen-ts member that has a wabt-ts counterpart. `StringRef` does not. */
+const SHARED = [
+  'I32',
+  'I64',
+  'F32',
+  'F64',
+  'V128',
+  'FuncRef',
+  'ExternRef',
+  'AnyRef',
+  'EqRef',
+  'I31Ref',
+  'StructRef',
+  'ArrayRef',
+  'NullFuncRef',
+  'NullExternRef',
+  'NullRef',
+  'ExnRef',
+  'NullExnRef',
+] as const;
+
+describe('one scalar value-type representation', () => {
+  it('every ValType member has the VALUE of the wabt-ts Type member of the same name', () => {
+    // ⚠️ Equal values, still two TYPES: TypeScript enums are nominal, so
+    // `Type.I32` is not assignable to `ValType` (the compiler said so when this
+    // compared them directly). One representation in VALUE is this stage; one in
+    // TYPE needs `ValType` to BE `Type` -- a re-export, not a second enum.
+    for (const name of SHARED) assertEquals<number>(ValType[name], Type[name], name);
+  });
+
+  it('and every binaryen-ts member is either in that list or knowingly absent from wabt-ts', () => {
+    // A numeric enum reverse-maps: its keys include '127' as well as 'I32'.
+    const members = Object.keys(ValType).filter((k) => Number.isNaN(Number(k)));
+    assertEquals(members.filter((k) => !(SHARED as readonly string[]).includes(k)), ['StringRef']);
+  });
+
+  it('names round-trip through the one table', () => {
+    for (const name of SHARED) {
+      const t = ValType[name];
+      assertEquals(valTypeFromName(valTypeName(t)), t, name);
+    }
+    assertEquals(valTypeName(ValType.I32), 'i32');
+    assertEquals(typeToString([ValType.I32, ValType.F64]), '(i32 f64)');
+  });
+
+  it('a member NAME is not a type name, and a byte is not a name', () => {
+    // The trap `raw in ValType` fell into: `'I32' in ValType` is true.
+    assertEquals(valTypeFromName('I32'), undefined);
+    assertEquals(valTypeFromName('127'), undefined);
+  });
+
+  it('isValType is the scalar test, not typeof', () => {
+    assert(isValType(ValType.I32));
+    assert(!isValType(None), '`none` is still a string sentinel');
+    assert(!isValType(Unreachable), '`unreachable` is still a string sentinel');
+    assert(!isValType('i32'), 'a name is not a value');
+    assert(!isValType(0x40), 'a byte that is not a value type');
+  });
+});

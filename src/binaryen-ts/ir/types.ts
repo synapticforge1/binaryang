@@ -39,44 +39,58 @@ export type { RefType } from './gc-types.ts';
  *
  * These are the value types that WASM values carry at runtime. The set covers
  * the MVP types plus the SIMD and reference-types proposals.
+ *
+ * ⚠️ **The values ARE the wire bytes, and equal wabt-ts's `Type` member for
+ * member** (S6 step 5, stage V1). They were the text names (`'i32'`). Numeric was
+ * decided by trial: flipping these cost 20 compile errors and 13 failing tests;
+ * flipping wabt-ts's `Type` to strings cost 27 and **299** -- its reader and
+ * writer use the values AS the bytes -- and the operator representation was
+ * already the numeric wire encoding (stage 1). `tests/ir/value_types.test.ts`
+ * pins the equality.
+ *
+ * A NAME is therefore never the value: print with {@link valTypeName}, parse
+ * with {@link valTypeFromName}, and never interpolate a `ValType` into a string
+ * or test it with `typeof === 'string'` -- both still compile, and both are wrong.
+ * (A numeric enum also reverse-maps, so `Object.values(ValType)` yields the
+ * member NAMES as well as the numbers.)
  */
 export enum ValType {
   /** 32-bit integer */
-  I32 = 'i32',
+  I32 = 0x7f,
   /** 64-bit integer */
-  I64 = 'i64',
+  I64 = 0x7e,
   /** 32-bit float */
-  F32 = 'f32',
+  F32 = 0x7d,
   /** 64-bit float */
-  F64 = 'f64',
+  F64 = 0x7c,
   /** 128-bit SIMD vector */
-  V128 = 'v128',
+  V128 = 0x7b,
   /** Nullable function reference */
-  FuncRef = 'funcref',
+  FuncRef = 0x70,
   /** Nullable external (host) reference */
-  ExternRef = 'externref',
+  ExternRef = 0x6f,
   /** Nullable any reference (GC proposal) */
-  AnyRef = 'anyref',
+  AnyRef = 0x6e,
   /** Nullable eq reference (GC proposal) */
-  EqRef = 'eqref',
+  EqRef = 0x6d,
   /** Nullable i31 reference (GC proposal) */
-  I31Ref = 'i31ref',
+  I31Ref = 0x6c,
   /** Nullable struct reference (GC proposal) */
-  StructRef = 'structref',
+  StructRef = 0x6b,
   /** Nullable array reference (GC proposal) */
-  ArrayRef = 'arrayref',
-  /** String reference (stringref proposal) */
-  StringRef = 'stringref',
+  ArrayRef = 0x6a,
+  /** String reference (stringref proposal). 0x67 is that proposal's byte; neither encoder writes it. */
+  StringRef = 0x67,
   /** Null function reference (bottom type) */
-  NullFuncRef = 'nullfuncref',
+  NullFuncRef = 0x73,
   /** Null external reference (bottom type) */
-  NullExternRef = 'nullexternref',
+  NullExternRef = 0x72,
   /** Null any reference (bottom type) */
-  NullRef = 'nullref',
+  NullRef = 0x71,
   /** Exception reference (EH proposal) */
-  ExnRef = 'exnref',
+  ExnRef = 0x69,
   /** Null exception reference (bottom type, EH proposal) */
-  NullExnRef = 'nullexnref',
+  NullExnRef = 0x74,
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +134,62 @@ export type TupleType = (ValType | RefType)[];
 export type Type = ValType | TupleType | None | Unreachable | RefType;
 
 // ---------------------------------------------------------------------------
+// Names — the ONE table between a scalar value type and its text spelling
+// ---------------------------------------------------------------------------
+
+/**
+ * Every scalar value type's text-format name. `Record<ValType, string>` makes a
+ * member without a name a compile error, so this cannot fall behind the enum.
+ */
+const VAL_TYPE_NAMES: Readonly<Record<ValType, string>> = {
+  [ValType.I32]: 'i32',
+  [ValType.I64]: 'i64',
+  [ValType.F32]: 'f32',
+  [ValType.F64]: 'f64',
+  [ValType.V128]: 'v128',
+  [ValType.FuncRef]: 'funcref',
+  [ValType.ExternRef]: 'externref',
+  [ValType.AnyRef]: 'anyref',
+  [ValType.EqRef]: 'eqref',
+  [ValType.I31Ref]: 'i31ref',
+  [ValType.StructRef]: 'structref',
+  [ValType.ArrayRef]: 'arrayref',
+  [ValType.StringRef]: 'stringref',
+  [ValType.NullFuncRef]: 'nullfuncref',
+  [ValType.NullExternRef]: 'nullexternref',
+  [ValType.NullRef]: 'nullref',
+  [ValType.ExnRef]: 'exnref',
+  [ValType.NullExnRef]: 'nullexnref',
+};
+
+const VAL_TYPE_BY_NAME: ReadonlyMap<string, ValType> = new Map(
+  (Object.entries(VAL_TYPE_NAMES) as [string, string][]).map(([k, v]) => [v, Number(k) as ValType]),
+);
+
+/**
+ * The text-format name of a scalar value type (`i32`, `funcref`, …). A value that
+ * is not a member -- only ever reached on an error path, which is exactly where a
+ * readable message matters -- prints as itself rather than as `undefined`.
+ */
+export function valTypeName(t: ValType): string {
+  return VAL_TYPE_NAMES[t] ?? `<value type 0x${Number(t).toString(16)}>`;
+}
+
+/** The scalar value type a text-format name spells, or `undefined`. */
+export function valTypeFromName(name: string): ValType | undefined {
+  return VAL_TYPE_BY_NAME.get(name);
+}
+
+/**
+ * Whether `t` is a scalar value type -- the test that replaces
+ * `typeof t === 'string'`, which stopped meaning this when the values became
+ * bytes (`none` and `unreachable` are still strings).
+ */
+export function isValType(t: unknown): t is ValType {
+  return typeof t === 'number' && Object.hasOwn(VAL_TYPE_NAMES, t);
+}
+
+// ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
 
@@ -139,12 +209,12 @@ export function typeToString(t: Type): string {
   if (t === Unreachable) return 'unreachable';
   if (Array.isArray(t)) {
     if (t.length === 0) return '';
-    const strs = t.map((e) => isRefType(e) ? refTypeToString(e) : e as string);
+    const strs = t.map((e) => isRefType(e) ? refTypeToString(e) : valTypeName(e));
     if (strs.length === 1) return strs[0]!;
     return `(${strs.join(' ')})`;
   }
   if (isRefType(t)) return refTypeToString(t);
-  return t as string;
+  return valTypeName(t);
 }
 
 /**

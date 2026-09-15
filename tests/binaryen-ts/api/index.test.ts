@@ -11,7 +11,9 @@ import { createModule } from '../../../src/binaryen-ts/api/index.ts';
 import {
   asRegion,
   makeBlock,
+  makeF64Const,
   makeI32Const,
+  makeI64Const,
   makeLoop,
   makeNop,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
@@ -52,4 +54,37 @@ Deno.test('Module.optimize honors the -O level (was hardcoded to 2)', async () =
   const o0 = await build().optimize('-O0');
   const oz = await build().optimize('-Oz');
   assert(o0.length > oz.length, `expected -O0 (${o0.length}) > -Oz (${oz.length})`);
+});
+
+Deno.test('toWat: value types print as their NAMES, not as the bytes that represent them', () => {
+  // S6 step 5, stage V1: `ValType` holds the wire bytes now (`I32 = 0x7f`). This
+  // serializer interpolated types straight into the text -- `(param $p0 ${t})` --
+  // which compiles either way and would have printed `(param $p0 127)`. No test
+  // read its output, so nothing said so; a type-aware sweep found it.
+  const mod = createModule(() => {});
+  mod.ir.globals.push(
+    {
+      name: '$g',
+      type: ValType.F64,
+      mutable: true,
+      init: makeF64Const(1.5),
+    } as (typeof mod.ir.globals)[number],
+  );
+  mod.ir.functions.push({
+    name: '$f',
+    params: [ValType.I32],
+    results: [ValType.I64],
+    locals: [{ type: ValType.I32 }, { type: ValType.F32, name: '$x' }],
+    body: asRegion(makeBlock([makeI64Const(7n)], null, ValType.I64)),
+  });
+  const wat = mod.toWat();
+  for (
+    const want of ['(param $p0 i32)', '(result i64)', '(mut f64)', '(local $x f32)', '(result i64)']
+  ) {
+    assert(wat.includes(want), `expected ${want} in:\n${wat}`);
+  }
+  assert(
+    !/\b(1[0-2][0-9])\b/.test(wat.replace(/\$\w+/g, '')),
+    `a type printed as a byte in:\n${wat}`,
+  );
 });

@@ -577,7 +577,7 @@ Deno.test("parseWat — (call $import) infers the callee's declared result type 
     (import "e" "g" (func $g (result f64)))
     (func $f (result f64) (call $g)))`);
   const f = mod.functions.find((fn) => fn.name === '$f')!;
-  const call = soleInstr(f.body) as { kind: ExpressionKind; type: string };
+  const call = soleInstr(f.body) as { kind: ExpressionKind; type: unknown };
   assertEquals(call.kind, ExpressionKind.Call);
   assertEquals(call.type, ValType.F64);
 });
@@ -589,7 +589,7 @@ Deno.test('parseWat — (call $defined) infers result type across a forward refe
     (func $a (result i64) (call $b))
     (func $b (result i64) (i64.const 7)))`);
   const a = mod.functions.find((fn) => fn.name === '$a')!;
-  const call = soleInstr(a.body) as { kind: ExpressionKind; type: string };
+  const call = soleInstr(a.body) as { kind: ExpressionKind; type: unknown };
   assertEquals(call.kind, ExpressionKind.Call);
   assertEquals(call.type, ValType.I64);
 });
@@ -599,7 +599,7 @@ Deno.test("parseWat — (global.get $g) infers the global's declared type", () =
     (global $g f64 (f64.const 1))
     (func $f (result f64) (global.get $g)))`);
   const f = mod.functions.find((fn) => fn.name === '$f')!;
-  const gg = soleInstr(f.body) as { kind: ExpressionKind; type: string };
+  const gg = soleInstr(f.body) as { kind: ExpressionKind; type: unknown };
   assertEquals(gg.kind, ExpressionKind.GlobalGet);
   assertEquals(gg.type, ValType.F64);
 });
@@ -645,7 +645,7 @@ Deno.test('parseWat — (loop (result i32) …) is typed i32 and encodes to vali
   const mod = parseWat(
     `(module (func $f (export "f") (result i32) (loop $l (result i32) (i32.const 5))))`,
   );
-  const loop = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; type: string };
+  const loop = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; type: unknown };
   assertEquals(loop.kind, ExpressionKind.Loop);
   assertEquals(loop.type, ValType.I32);
   const inst = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource, {});
@@ -676,8 +676,8 @@ Deno.test("parseWat — struct.get result type follows the field's declared type
     (type $p (struct (field f64) (field i8)))
     (func $f (param (ref $p)) (result f64) (struct.get $p 0 (local.get 0)))
     (func $g (param (ref $p)) (result i32) (struct.get_u $p 1 (local.get 0))))`);
-  const get0 = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; type: string };
-  const get1 = soleInstr(mod.functions[1].body) as { kind: ExpressionKind; type: string };
+  const get0 = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; type: unknown };
+  const get1 = soleInstr(mod.functions[1].body) as { kind: ExpressionKind; type: unknown };
   assertEquals(get0.type, ValType.F64); // f64 field
   assertEquals(get1.type, ValType.I32); // packed i8 field unpacks to i32
 });
@@ -710,7 +710,7 @@ Deno.test('parseWat — (func (type $sig)) result type resolves for callers (for
     (func $caller (result i64) (call $f))
     (func $f (type $sig))
     (type $sig (func (result i64))))`);
-  const call = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; type: string };
+  const call = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; type: unknown };
   assertEquals(call.kind, ExpressionKind.Call);
   assertEquals(call.type, ValType.I64);
 });

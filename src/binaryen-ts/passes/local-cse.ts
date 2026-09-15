@@ -45,13 +45,11 @@ import {
   makeLocalGet,
 } from '../ir/expressions.ts';
 import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
-import { ValType } from '../ir/types.ts';
+import { isValType, ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { anyOpcodeName } from '../../wabt-ts/core/opcode.ts';
 import { requireIndex, requireName, varIndex } from '../../wabt-ts/ir/ir.ts';
-
-const _VAL_TYPES = new Set<string>(Object.values(ValType) as string[]);
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -399,8 +397,8 @@ function _rewriteExpr(
 
 function _exprType(expr: Expression): ValType {
   const t = expr.type;
-  if (typeof t === 'string' && _VAL_TYPES.has(t)) {
-    return t as ValType;
-  }
+  // `isValType`, not `typeof t === 'string'`: the values are bytes now, and that
+  // test would have sent EVERY scalar to the fallback below.
+  if (isValType(t)) return t;
   return ValType.I32; // fallback
 }

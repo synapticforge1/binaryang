@@ -140,7 +140,7 @@ import {
   type WasmExport,
   type WasmModule,
 } from '../ir/module.ts';
-import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
+import { None, type Type, Unreachable, ValType, valTypeFromName } from '../ir/types.ts';
 import { loadByName, type LoadShape, storeByName, type StoreShape } from '../ir/memory-access.ts';
 import {
   AbstractHeapType,
@@ -3021,29 +3021,10 @@ class WatModuleParser {
     }
     const raw = atomText(s);
     if (!raw) return null;
-    if (raw in ValType) return raw as ValType;
-    // Handle string variants
-    const map: Record<string, ValType> = {
-      i32: ValType.I32,
-      i64: ValType.I64,
-      f32: ValType.F32,
-      f64: ValType.F64,
-      v128: ValType.V128,
-      funcref: ValType.FuncRef,
-      externref: ValType.ExternRef,
-      anyref: ValType.AnyRef,
-      eqref: ValType.EqRef,
-      i31ref: ValType.I31Ref,
-      structref: ValType.StructRef,
-      arrayref: ValType.ArrayRef,
-      stringref: ValType.StringRef,
-      nullfuncref: ValType.NullFuncRef,
-      nullexternref: ValType.NullExternRef,
-      nullref: ValType.NullRef,
-      exnref: ValType.ExnRef,
-      nullexnref: ValType.NullExnRef,
-    };
-    return map[raw] ?? null;
+    // The one name table (types.ts). A local copy of it lived here, beside a
+    // `raw in ValType` test that matched MEMBER names (`I32`) and returned them
+    // as if they were values.
+    return valTypeFromName(raw) ?? null;
   }
 
   // -------------------------------------------------------------------------
@@ -3845,8 +3826,8 @@ function inferUnaryResultType(opcode: string): ValType {
   if (opcode.startsWith('f32')) return ValType.F32;
   if (opcode.startsWith('f64')) return ValType.F64;
   // Conversions: result type is in the prefix
-  const m = opcode.match(/^(i32|i64|f32|f64)\./);
-  return (m?.[1] as ValType) ?? ValType.I32;
+  const m = opcode.match(/^(i32|i64|f32|f64)./);
+  return (m ? valTypeFromName(m[1]!) : undefined) ?? ValType.I32;
 }
 
 function inferBinaryResultType(opcode: string): ValType {
