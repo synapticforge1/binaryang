@@ -206,7 +206,6 @@ import type {
 } from '../binaryen-ts/ir/index.ts';
 
 import { wabtTypeToValType } from './type-map.ts';
-import { anyOpcodeName } from '../wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -962,23 +961,21 @@ function bridgeFuncBody(body: Expr[], ctx: BridgeCtx): RegionExpr {
  * behind the sub-op.
  */
 function bridgeBrOnNull(bn: BrOnExpr, ctx: BridgeCtx): Expression {
-  if (bn.values.length > 0) {
-    // binaryen-ts's BrOn carries only the tested reference, with no slot for
-    // additional branch operands. Refused rather than silently dropped.
-    throw new Error(
-      `Bridge: ${
-        anyOpcodeName(bn.opcode)
-      } with ${bn.values.length} carried value(s) not yet supported`,
-    );
-  }
+  // Carried values were REFUSED here while binaryen-ts's `br_on` had no slot for
+  // them; since S6 step 5 stage B3 it has one, so they pass through. Values
+  // first, then the ref: the order wasm evaluates them in.
+  const values = bridgeValues(bn.values, ctx);
   const ref = bridgeExpr(bn.ref, ctx);
   // Same convention as the cast forms: the node carries the operand's type.
-  return makeBrOn(
-    bn.opcode === BrOnOp.Null ? BrOnOp.Null : BrOnOp.NonNull,
-    resolveLabel(ctx, bn.target),
-    ref,
-    typeOf(ref),
-  );
+  return {
+    ...makeBrOn(
+      bn.opcode === BrOnOp.Null ? BrOnOp.Null : BrOnOp.NonNull,
+      resolveLabel(ctx, bn.target),
+      ref,
+      typeOf(ref),
+    ),
+    values,
+  };
 }
 
 function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {

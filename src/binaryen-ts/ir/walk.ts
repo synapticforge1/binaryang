@@ -401,7 +401,8 @@ function _mapChildren(
       return { ...expr, ref: fn(expr.ref) };
 
     case ExpressionKind.BrOn:
-      return { ...expr, ref: fn(expr.ref) };
+      // Values before the ref: the order wasm evaluates them in.
+      return { ...expr, values: expr.values.map(fn), ref: fn(expr.ref) };
 
     case ExpressionKind.TryTable:
       return {
@@ -688,7 +689,11 @@ function _visitChildren(
     case ExpressionKind.ArrayLen:
     case ExpressionKind.RefTest:
     case ExpressionKind.RefCast:
+      visit(expr.ref);
+      break;
     case ExpressionKind.BrOn:
+      // Values before the ref: the order wasm evaluates them in.
+      expr.values.forEach(visit);
       visit(expr.ref);
       break;
     case ExpressionKind.TryTable:

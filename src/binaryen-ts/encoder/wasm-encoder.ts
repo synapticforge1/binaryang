@@ -2423,6 +2423,8 @@ class WasmEncoder {
       }
       case ExpressionKind.BrOn: {
         const e = expr as BrOnExpr;
+        // The carried values sit BELOW the ref (S6 step 5, stage B3).
+        for (const v of e.values) this.encodeExpr(w, v, labels);
         this.encodeExpr(w, e.ref, labels);
         const depth = this.resolveLabel(labels, e.target);
         if (e.opcode === BrOnOp.Null) {

@@ -1779,6 +1779,13 @@ export interface BrOnExpr extends ExprBase {
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /**
+   * The branch values carried below the ref, in stack order — decision 6's shape,
+   * extended to the last branch kind (S6 step 5, stage B3). binaryen-ts's decoder
+   * leaves them EMPTY (they stay as preceding stack entries); a wabt-ts tree folds
+   * them in, so everything that handles a `br_on` by hand must see them.
+   */
+  values: Expression[];
+  /**
    * `rt1` — the type the operand is expected to have. Cast variants only.
    *
    * 🔑 The heap type and its nullability are ONE reference type, so they are
@@ -3135,6 +3142,7 @@ export function makeBrOn(
     opcode,
     target: varName(label),
     ref,
+    values: [],
     ...(srcType !== undefined
       ? { from: { heapType: srcType, nullable: srcNullable ?? false } }
       : {}),
