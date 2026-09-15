@@ -27,7 +27,7 @@ import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-par
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { MEMORY_ACCESS_TABLE } from '../../../src/binaryen-ts/ir/memory-access.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { ValType, valTypeName } from '../../../src/binaryen-ts/ir/types.ts';
 
 const MALFORMED: [string, string][] = [
   ['i32.load32_s', '(drop (i32.load32_s (i32.const 0)))'],
@@ -39,7 +39,7 @@ const MALFORMED: [string, string][] = [
 
 /** A constant of `t`, as WAT. */
 function constOf(t: ValType): string {
-  return t === ValType.V128 ? '(v128.const i64x2 0 0)' : `(${t}.const 0)`;
+  return t === ValType.V128 ? '(v128.const i64x2 0 0)' : `(${valTypeName(t)}.const 0)`;
 }
 
 /** The single Load/Store node in function 0's body. */

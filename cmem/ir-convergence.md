@@ -2183,6 +2183,46 @@ failure, so visible).
 🔑 **Before renaming a field that another union member also has, list every spread and cast that
 writes it — the compiler is structurally blind to exactly those.**
 
+###### ✅ Stage V1 — ONE scalar value-type representation: numeric wire bytes (2026-09-15)
+
+Owner decision (b) C put value types next. The heap-type half was ALREADY decided (the owner's
+third form, `HeapTypeRef`, 2026-09-09) — binaryen-ts adopting it is V2. The scalar half was not:
+wabt-ts's `Type` is a numeric enum of wire bytes (`I32 = 0x7f`), binaryen-ts's `ValType` a string
+enum (`'i32'`). Neither binds on fidelity (both are finite name sets), so COST, by trial — flip one
+enum's values in place, member names kept, count compile errors AND failing tests:
+
+| trial                               | compile errors | failing tests          |
+| ----------------------------------- | -------------- | ---------------------- |
+| binaryen-ts `ValType` → wire bytes  | 20             | 13                     |
+| wabt-ts `Type` → strings            | 27             | **299** (1,678 steps)  |
+
+Reference counts had said "about even" (343+425 against 301+241). 🔑 **The cost of changing a
+representation is in code that depends on the VALUES, which compiles either way — only running the
+tests measures it.** wabt-ts's reader and writer use the enum values AS the bytes. Cost and the stage
+1 precedent (operators are already the numeric wire encoding) agree: numeric.
+
+Done: `ValType` holds the bytes; ONE name table in `types.ts` (`valTypeName`, `valTypeFromName`,
+`isValType`, exhaustive by `Record<ValType, string>`); the WAT parser's private copy of the names
+deleted. 🛑 **A numeric enum brings four silent classes, and the suite saw almost none of them:**
+
+- **`typeof t === 'string'`** — LocalCSE's scalar test. Would have sent every scalar to its
+  fallback. Mutant: 12 tests fail.
+- **`Object.values(ValType)`** — a numeric enum REVERSE-MAPS, so this yields member names as well as
+  numbers; and `raw in ValType` matched member names (`I32`). Replaced by the table.
+- **Interpolation** — a TYPE-AWARE sweep (TypeScript's checker over every template span, `+`
+  concatenation, `String()` and `join()` whose operand includes `ValType`) found **17 sites; the
+  suite had caught ONE** (a test helper). `serializeToWat` (public `Module.toWat()`) would have
+  printed `(param $p0 127)` — now tested, mutant fails; Asyncify's fake-global names (never
+  materialized, cosmetic); six error messages. Re-sweep: 0.
+- **`t as string` casts** — `typeToString` returned the value itself. Mutant: fails.
+
+⚠️ **Equal values are still two TYPES.** TypeScript enums are nominal: `Type.I32` is not assignable
+to `ValType`. V1 unifies the VALUE; unifying the TYPE needs `ValType` to BE `Type` (a re-export),
+which is part of the alias stage, not a second enum kept in step.
+
+⚠️ **Public, and breaking at run time** — `ValType` is exported from `./ir/binaryen-ts` and `./api`;
+recorded in [unreleased.md](unreleased.md). Bytes unchanged (baseline IDENTICAL).
+
 **What is left of `types` (5):** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

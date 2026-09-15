@@ -45,7 +45,7 @@ const DEFAULT_CORPUS = [
   'passes/fib2_dwarf.wasm', // small control
 ];
 
-const NUMERIC = new Set<string>([ValType.I32, ValType.I64, ValType.F32, ValType.F64]);
+const NUMERIC = new Set<ValType>([ValType.I32, ValType.I64, ValType.F32, ValType.F64]);
 const ENTRY_POINTS = new Set(['_start', 'main']); // skip whole-program drivers (hang risk)
 
 type Arg = number | bigint;

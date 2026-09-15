@@ -21,7 +21,7 @@
  * @license MIT
  */
 
-import type { ValType } from './types.ts';
+import { type ValType, valTypeName } from './types.ts';
 
 // ---------------------------------------------------------------------------
 // Heap types
@@ -222,7 +222,8 @@ export type TypeDef = StructTypeDef | ArrayTypeDef | FuncTypeDef;
  * signatures into one type-section entry.
  */
 export function valueTypeKey(t: ValueType): string {
-  if (!isRefType(t)) return t;
+  // The NAME, not the value: keys stay the strings they always were.
+  if (!isRefType(t)) return valTypeName(t);
   return `ref${t.nullable ? ' null' : ''} ${t.heap}`;
 }
 

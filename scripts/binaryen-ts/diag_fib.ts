@@ -11,6 +11,7 @@
  * @license MIT
  */
 
+import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import * as fs from 'node:fs/promises';
 import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
@@ -58,11 +59,11 @@ function fibOf(bytes: Uint8Array, n: number): string {
           ...(imp.max != null ? { maximum: imp.max } : {}),
         });
       } else if (imp.kind === 'global') {
-        const t = imp.type === 'i64'
+        const t = imp.type === ValType.I64
           ? 'i64'
-          : imp.type === 'f32'
+          : imp.type === ValType.F32
           ? 'f32'
-          : imp.type === 'f64'
+          : imp.type === ValType.F64
           ? 'f64'
           : 'i32';
         imports[imp.module][imp.base] = new WebAssembly.Global({

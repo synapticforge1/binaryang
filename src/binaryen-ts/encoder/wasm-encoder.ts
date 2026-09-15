@@ -90,7 +90,7 @@ import {
   writtenTypeIndexOf,
 } from '../ir/expressions.ts';
 import type { ExplicitNames, WasmFunction, WasmModule } from '../ir/module.ts';
-import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
+import { isRef, None, type Type, typeToString, Unreachable, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
 // it did not list, and it did not list `TupleMake` (the container multi-value
@@ -285,7 +285,7 @@ function valTypeByte(t: ValType): number {
     default:
       // Unknown ValType — silently encoding it as i32 (0x7f) would emit a
       // valid-but-wrong module. Fail loudly.
-      throw new WasmEncodeError(`cannot encode value type: ${t}`);
+      throw new WasmEncodeError(`cannot encode value type: ${typeToString(t)}`);
   }
 }
 
@@ -428,7 +428,7 @@ function refHeapTypeByte(t: ValType): number {
       // Reached only for a non-ref ValType, which is a bug in the IR producing
       // this RefNull. Previously this silently returned `any` (0x6e),
       // mis-typing the null; fail loudly instead.
-      throw new WasmEncodeError(`ref.null of non-reference type: ${t}`);
+      throw new WasmEncodeError(`ref.null of non-reference type: ${typeToString(t)}`);
   }
 }
 

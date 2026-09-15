@@ -47,7 +47,7 @@ import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
 /** The corpus both halves walk. */
 export const CORPUS = new URL('../../tests/wabt-ts/wasmtk/', import.meta.url);
 
-const NUMERIC = new Set<string>([ValType.I32, ValType.I64, ValType.F32, ValType.F64]);
+const NUMERIC = new Set<ValType>([ValType.I32, ValType.I64, ValType.F32, ValType.F64]);
 
 type Arg = number | bigint;
 

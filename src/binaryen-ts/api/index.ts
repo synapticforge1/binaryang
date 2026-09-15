@@ -59,7 +59,7 @@ import {
   type UnaryOp,
 } from '../ir/expressions.ts';
 import { ModuleBuilder, type WasmModule } from '../ir/module.ts';
-import { None, ValType } from '../ir/types.ts';
+import { None, typeToString, ValType } from '../ir/types.ts';
 import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
@@ -284,8 +284,8 @@ function serializeToWat(mod: WasmModule): string {
 
   for (const imp of mod.imports) {
     if (imp.kind === 'function') {
-      const params = (imp.params ?? []).map((t) => `(param ${t})`).join(' ');
-      const results = (imp.results ?? []).map((t) => `(result ${t})`).join(' ');
+      const params = (imp.params ?? []).map((t) => `(param ${typeToString(t)})`).join(' ');
+      const results = (imp.results ?? []).map((t) => `(result ${typeToString(t)})`).join(' ');
       const sig = [params, results].filter(Boolean).join(' ');
       lines.push(
         `  (import "${imp.module}" "${imp.base}" (func $${imp.name}${sig ? ' ' + sig : ''}))`,
@@ -299,18 +299,19 @@ function serializeToWat(mod: WasmModule): string {
   }
 
   for (const g of mod.globals) {
-    const mut = g.mutable ? `(mut ${g.type})` : g.type;
+    const ty = typeToString(g.type);
+    const mut = g.mutable ? `(mut ${ty})` : ty;
     lines.push(`  (global $${g.name} ${mut} ${exprToWat(g.init, 2)})`);
   }
 
   for (const fn of mod.functions) {
-    const params = fn.params.map((t, i) => `(param $p${i} ${t})`).join(' ');
-    const results = fn.results.map((t) => `(result ${t})`).join(' ');
+    const params = fn.params.map((t, i) => `(param $p${i} ${typeToString(t)})`).join(' ');
+    const results = fn.results.map((t) => `(result ${typeToString(t)})`).join(' ');
     const header = [params, results].filter(Boolean).join(' ');
     lines.push(`  (func $${fn.name}${header ? ' ' + header : ''}`);
     const extraLocals = fn.locals.slice(fn.params.length);
     for (const loc of extraLocals) {
-      lines.push(`    (local ${loc.name ?? ''} ${loc.type})`);
+      lines.push(`    (local ${loc.name ?? ''} ${typeToString(loc.type)})`);
     }
     lines.push(`    ${exprToWat(fn.body, 4)}`);
     lines.push('  )');
@@ -380,7 +381,9 @@ function exprToWat(expr: Expression, _indent: number): string {
     case ExpressionKind.Block: {
       requireNoParams(expr);
       const label = expr.name ? ` $${expr.name}` : '';
-      const result = expr.type !== None ? ` (result ${expr.type})` : '';
+      const result = expr.type !== None && expr.type !== undefined
+        ? ` (result ${typeToString(expr.type)})`
+        : '';
       const body = expr.children.map((c) => `  ${exprToWat(c, _indent + 2)}`).join('\n');
       return `(block${label}${result}\n${body}\n)`;
     }
@@ -391,7 +394,9 @@ function exprToWat(expr: Expression, _indent: number): string {
       return expr.children.map((c) => exprToWat(c, _indent)).join(`\n${' '.repeat(_indent)}`);
     case ExpressionKind.If: {
       requireNoParams(expr);
-      const result = expr.type !== None ? ` (result ${expr.type})` : '';
+      const result = expr.type !== None && expr.type !== undefined
+        ? ` (result ${typeToString(expr.type)})`
+        : '';
       const then = `(then ${exprToWat(expr.ifTrue, _indent)})`;
       const else_ = expr.ifFalse ? ` (else ${exprToWat(expr.ifFalse, _indent)})` : '';
       return `(if${result} ${exprToWat(expr.condition, _indent)} ${then}${else_})`;
