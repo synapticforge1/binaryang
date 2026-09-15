@@ -2388,7 +2388,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.ref, labels);
         w.writeU8(0xfb);
         w.writeU32(e.nullable ? 0x15 : 0x14);
-        writeHeapType(w, e.castType);
+        writeHeapType(w, e.heapType);
         break;
       }
       case ExpressionKind.RefCast: {
@@ -2396,7 +2396,7 @@ class WasmEncoder {
         this.encodeExpr(w, e.ref, labels);
         w.writeU8(0xfb);
         w.writeU32(e.nullable ? 0x17 : 0x16);
-        writeHeapType(w, e.castType);
+        writeHeapType(w, e.heapType);
         break;
       }
       case ExpressionKind.BrOn: {

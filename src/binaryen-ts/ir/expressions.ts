@@ -1746,7 +1746,7 @@ export interface RefTestExpr extends ExprBase {
   /** ref — see the matching factory for semantics. */
   ref: Expression;
   /** Target reference type for the cast. */
-  castType: HeapType;
+  heapType: HeapType;
   /** Whether the reference type is nullable. */
   nullable: boolean;
 }
@@ -1758,7 +1758,7 @@ export interface RefCastExpr extends ExprBase {
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /** Target reference type for the cast. */
-  castType: HeapType;
+  heapType: HeapType;
   /** Whether the reference type is nullable. */
   nullable: boolean;
 }
@@ -3070,7 +3070,7 @@ export function makeArrayLen(ref: Expression): ArrayLenExpr {
 
 /** Creates a ref.test or ref.test null expression. */
 export function makeRefTest(ref: Expression, castType: HeapType, nullable: boolean): RefTestExpr {
-  return { kind: ExpressionKind.RefTest, type: ValType.I32, ref, castType, nullable };
+  return { kind: ExpressionKind.RefTest, type: ValType.I32, ref, heapType: castType, nullable };
 }
 
 /** Creates a ref.cast or ref.cast null expression. */
@@ -3080,7 +3080,7 @@ export function makeRefCast(
   nullable: boolean,
   resultType: Type,
 ): RefCastExpr {
-  return { kind: ExpressionKind.RefCast, type: resultType, ref, castType, nullable };
+  return { kind: ExpressionKind.RefCast, type: resultType, ref, heapType: castType, nullable };
 }
 
 /** Creates a br_on_null, br_on_non_null, br_on_cast, or br_on_cast_fail expression. */
