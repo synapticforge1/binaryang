@@ -4983,6 +4983,19 @@ export class WastParser {
     return parseNatText(tok.literal.text);
   }
 
+  /**
+   * An integer-spelled float literal's value, with the sign of a ZERO kept.
+   *
+   * 🔧 `parseNatText` returns a bigint and `BigInt('-0')` is `0n`, so `f32.const -0`
+   * assembled to +0 where upstream `wat2wasm` writes the sign bit. Every other
+   * spelling (`-0.0`, `-0x0p0`, `-nan`, `-inf`) goes through the float path and was
+   * always right. The sign of a zero is observable — `copysign`, `1/x`, the bits —
+   * so this was a value change. `tests/wabt-ts/parser/negative_zero.test.ts`.
+   */
+  private signedZero(n: bigint, text: string): number {
+    return n === 0n && text.trimStart().startsWith('-') ? -0 : Number(n);
+  }
+
   private parseF32Bits(): number | null {
     const tt = this.peek();
     if (tt === TokenType.Float) {
@@ -5008,7 +5021,7 @@ export class WastParser {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) return null;
-      const bits = f32ValueToBits(Number(n));
+      const bits = f32ValueToBits(this.signedZero(n, tok.literal.text));
       if ((bits & 0x7fffffff) === 0x7f800000) {
         this.error(tok.loc, `f32 constant out of range: ${tok.literal.text}`);
         return null;
@@ -5048,7 +5061,7 @@ export class WastParser {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) return null;
-      const bits = f64ValueToBits(Number(n));
+      const bits = f64ValueToBits(this.signedZero(n, tok.literal.text));
       if ((bits & 0x7fffffffffffffffn) === 0x7ff0000000000000n) {
         this.error(tok.loc, `f64 constant out of range: ${tok.literal.text}`);
         return null;
