@@ -39,6 +39,10 @@ their own bump — and nothing breaks by their standing still.
   for TypeScript consumers; for JavaScript consumers, `h === 0` / `typeof h === 'string'` silently
   stop matching. New exports: `heapAbstract`, `sameHeap` (compare heap types with it, never `===`).
   `isAbstractHeapType` now narrows to the abstract arm. Bytes unchanged.
+- ⚠️ **BREAKING: one reference-type record** (S6 step 5 stage V3). binaryen-ts's `RefType.heap` is
+  `heapType`; wabt-ts's `RefValueType` (`./ir/wabt-ts`) no longer has `kind: 'ref'`. Both are
+  `{ heapType: HeapTypeRef; nullable: boolean }`. Code that built `{ kind: 'ref', … }` gets a compile
+  error; code that tested `vt.kind === 'ref'` must use `isRefValueType` / `isRefType`. Bytes unchanged.
 - **Field renames and optionality** (S6 step 5 stages A, A2, B — all on binaryen-ts nodes):
   `CallExpr.func` (was `target`) ·
   load/store/`simd.load*` `address` (was `ptr`) · `SIMDShuffleExpr.lanes` (was `mask`) ·
