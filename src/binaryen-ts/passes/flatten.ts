@@ -302,7 +302,7 @@ function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
     // the rebuilt node into pre), so nothing else to push.
   });
 
-  const flatBlock = makeBlock(list, block.name);
+  const flatBlock = makeBlock(list, block.label);
   return concrete
     ? { pre: [flatBlock], value: makeLocalGet(varIndex(resultTemp), block.type as ValType) }
     : { pre: [flatBlock], value: makeNop() };
@@ -324,9 +324,9 @@ function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
   const ifTrue = arm(iff.ifTrue);
   const ifFalse = iff.ifFalse ? arm(iff.ifFalse) : null;
   // 🔧 Through `makeIf`, carrying the `if`'s LABEL. This was a literal without
-  // `name`, so a `br` inside that targeted the `if` itself lost its target and
-  // the encoder threw "unresolved branch label" on a valid input.
-  const flatIf = makeIf(cond.value, ifTrue, ifFalse, iff.name);
+  // the label, so a `br` inside that targeted the `if` itself lost its target
+  // and the encoder threw "unresolved branch label" on a valid input.
+  const flatIf = makeIf(cond.value, ifTrue, ifFalse, iff.label);
 
   return concrete
     ? { pre: [...cond.pre, flatIf], value: makeLocalGet(varIndex(resultTemp), iff.type as ValType) }
@@ -344,7 +344,7 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
     stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
   }
 
-  const flatLoop = makeLoop(loop.name, makeRegion(stmts));
+  const flatLoop = makeLoop(loop.label, makeRegion(stmts));
 
   return concrete
     ? { pre: [flatLoop], value: makeLocalGet(varIndex(resultTemp), loop.type as ValType) }

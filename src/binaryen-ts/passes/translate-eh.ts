@@ -177,7 +177,7 @@ function analyze(fn: WasmFunction): Analysis {
           a.delegateDest.set(e, dest!); // scopes[0] is the function: the loop always settles
           if (dest !== CALLER) a.delegateTargets.add(dest!);
         }
-        within({ kind: 'try', label: e.name, node: e }, () => scan(e.body));
+        within({ kind: 'try', label: e.label, node: e }, () => scan(e.body));
         e.catches.forEach((c, clause) => {
           // Legacy EH has no `catch_ref`; a clause claiming one did not come from
           // a legacy module, and translating it would guess at its meaning.
@@ -186,7 +186,7 @@ function analyze(fn: WasmFunction): Analysis {
               'TranslateToExnref: a legacy try clause marked catch_ref is not legacy EH',
             );
           }
-          within({ kind: 'catch', label: e.name, node: e, clause }, () => scan(c.body));
+          within({ kind: 'catch', label: e.label, node: e, clause }, () => scan(c.body));
         });
         return;
       }
@@ -208,7 +208,7 @@ function analyze(fn: WasmFunction): Analysis {
         // The condition is evaluated before the `if` opens its label.
         e.params?.values.forEach(scan);
         scan(e.condition);
-        within({ kind: 'label', label: e.name ?? null }, () => {
+        within({ kind: 'label', label: e.label || null }, () => {
           scan(e.ifTrue);
           if (e.ifFalse) scan(e.ifFalse);
         });
@@ -216,7 +216,7 @@ function analyze(fn: WasmFunction): Analysis {
       case ExpressionKind.Block:
       case ExpressionKind.Loop:
       case ExpressionKind.TryTable:
-        within({ kind: 'label', label: e.name }, () => visitChildren(e, scan));
+        within({ kind: 'label', label: e.label }, () => visitChildren(e, scan));
         return;
       default:
         visitChildren(e, scan);
@@ -288,7 +288,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
     // The outermost replacement node takes the try's own label, so a `br` to the
     // try still lands at its end.
     let outer: string | null = null;
-    const outerName = (): string => outer ??= t.name ?? fresh('$eh_outer');
+    const outerName = (): string => outer ??= t.label || fresh('$eh_outer');
 
     // A delegate target: the delegates now branch to a trampoline inside its
     // body, which rethrows there — where this try's catches see it.
@@ -313,7 +313,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
           : trampolineOf(dest);
         catches.push({ target: varName(target), isRef: true });
       }
-      if (!isDelegateTarget) return makeTryTable(t.name, body, catches, type);
+      if (!isDelegateTarget) return makeTryTable(t.label, body, catches, type);
       return makeBlock([makeTryTable(null, body, catches, type)], outerName(), type);
     }
 

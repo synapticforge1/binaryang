@@ -827,7 +827,7 @@ export interface BlockExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Block;
   /** Optional label for branch targets. */
-  name: string | null;
+  label: string;
   /** Ordered list of child expressions. */
   children: Expression[];
   /** Entry parameters, when the block declares any — see {@link BlockParams}. */
@@ -886,7 +886,7 @@ export interface IfExpr extends ExprBase {
    * depth; without it a `br` to the `if` from deeper nesting resolves to the
    * wrong (innermost) target. Optional — most `if`s are not branch targets.
    */
-  name?: string | undefined;
+  label: string;
   /**
    * Entry parameters — see {@link BlockParams}. Evaluated before the
    * condition; BOTH arms start with them on their stack.
@@ -901,7 +901,7 @@ export interface LoopExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Loop;
   /** Branch label for `br` back-edges. */
-  name: string;
+  label: string;
   /** The loop's region. */
   body: RegionExpr;
   /**
@@ -1871,7 +1871,7 @@ export interface TryTableExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.TryTable;
   /** Optional label for the try_table block itself. */
-  name: string | null;
+  label: string;
   /** The protected region. */
   body: RegionExpr;
   /** catches — see the matching factory for semantics. */
@@ -1913,7 +1913,7 @@ export interface TryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: ExpressionKind.Try;
   /** Label (targetable by `delegate`). */
-  name: string | null;
+  label: string;
   /** The protected region. */
   body: RegionExpr;
   /** The catch clauses, in order. */
@@ -2357,7 +2357,7 @@ export function makeIf(
   condition: Expression,
   thenArm: RegionInput,
   elseArm: RegionInput | null = null,
-  name?: string,
+  name = '',
 ): IfExpr {
   const ifTrue = asRegion(thenArm);
   const ifFalse = elseArm === null ? null : asRegion(elseArm);
@@ -2385,7 +2385,7 @@ export function makeIf(
     condition,
     ifTrue,
     ifFalse,
-    name,
+    label: name,
   };
 }
 
@@ -2408,7 +2408,9 @@ export function makeBlock(
   return {
     kind: ExpressionKind.Block,
     type: type ?? (last ? typeOf(last) : None),
-    name,
+    // A label NAME in, `''` for none on the node (S6 step 5): one spelling of
+    // "unnamed", and the same one wabt-ts uses.
+    label: name ?? '',
     children,
   };
 }
@@ -2437,7 +2439,11 @@ export function makeRegion(children: Expression[], type?: Type): RegionExpr {
  * no label: nothing could branch to a region, so nothing can branch to it.
  */
 export function blockOf(region: RegionExpr, name: string | null = null): BlockExpr {
-  const block: BlockExpr = { kind: ExpressionKind.Block, name, children: region.children };
+  const block: BlockExpr = {
+    kind: ExpressionKind.Block,
+    label: name ?? '',
+    children: region.children,
+  };
   if (region.type !== undefined) block.type = region.type;
   return block;
 }
@@ -2550,12 +2556,12 @@ export function asRegion(input: RegionInput): RegionExpr {
   if (Array.isArray(input)) return makeRegion(input);
   if (input.kind === ExpressionKind.Region) {
     const only = input.children.length === 1 ? input.children[0]! : undefined;
-    if (only?.kind === ExpressionKind.Block && only.name === null) {
+    if (only?.kind === ExpressionKind.Block && only.label === '') {
       return makeRegion(only.children, input.type);
     }
     return input;
   }
-  if (input.kind === ExpressionKind.Block && input.name === null) {
+  if (input.kind === ExpressionKind.Block && input.label === '') {
     return makeRegion(input.children, input.type);
   }
   return makeRegion([input], input.type);
@@ -2578,7 +2584,7 @@ export function makeUnreachable(): UnreachableExpr {
 
 /** Creates a `loop` expression. */
 export function makeLoop(name: string, body: RegionInput, resultType: Type = None): LoopExpr {
-  return { kind: ExpressionKind.Loop, type: resultType, name, body: asRegion(body) };
+  return { kind: ExpressionKind.Loop, type: resultType, label: name, body: asRegion(body) };
 }
 
 /**
@@ -3212,7 +3218,13 @@ export function makeTryTable(
   catches: CatchClause[],
   resultType: Type,
 ): TryTableExpr {
-  return { kind: ExpressionKind.TryTable, type: resultType, name, body: asRegion(body), catches };
+  return {
+    kind: ExpressionKind.TryTable,
+    type: resultType,
+    label: name ?? '',
+    body: asRegion(body),
+    catches,
+  };
 }
 
 /** Creates a `try` expression (old EH). */
@@ -3226,7 +3238,7 @@ export function makeTry(
   return {
     kind: ExpressionKind.Try,
     type: resultType,
-    name,
+    label: name ?? '',
     body: asRegion(body),
     catches,
     ...(delegateTarget === null ? {} : { delegate: varName(delegateTarget) }),

@@ -176,6 +176,39 @@ Deno.test('Vacuum: unnamed single-child block collapses', () => {
   assertEquals(soleInstr(mod.functions[0].body).kind, ExpressionKind.Const);
 });
 
+// ⚠️ The test above does not actually reach Vacuum's rule: a region whose SOLE
+// child is an unnamed block is flattened by `asRegion`, which `mapExpression`
+// applies to every region slot it rebuilds — so the block is gone before
+// `_simplifyBlock` could decide anything. Measured: inverting Vacuum's
+// "unnamed?" test to one that is never true left the whole suite green.
+// A region with a SECOND child cannot be flattened that way, so only Vacuum can
+// collapse the block, and this fixture holds it to that.
+Deno.test('Vacuum: an unnamed single-child block collapses among SIBLINGS too', () => {
+  const mod = emptyModule();
+  const set = () => makeLocalSet(varIndex(0), makeI32Const(7));
+  mod.functions.push(makeTestFn('f', makeBlock([set(), makeBlock([set()])])));
+
+  new PassRunner(mod).add('Vacuum').run();
+
+  assertEquals(
+    region(mod.functions[0].body).children.map((c) => c.kind),
+    [ExpressionKind.LocalSet, ExpressionKind.LocalSet],
+  );
+});
+
+Deno.test('Vacuum: a NAMED single-child block among siblings is kept', () => {
+  const mod = emptyModule();
+  const set = () => makeLocalSet(varIndex(0), makeI32Const(7));
+  mod.functions.push(makeTestFn('f', makeBlock([set(), makeBlock([set()], '$keep')])));
+
+  new PassRunner(mod).add('Vacuum').run();
+
+  assertEquals(
+    region(mod.functions[0].body).children.map((c) => c.kind),
+    [ExpressionKind.LocalSet, ExpressionKind.Block],
+  );
+});
+
 // ---------------------------------------------------------------------------
 // OptimizeInstructions — algebraic identities
 // ---------------------------------------------------------------------------
@@ -322,7 +355,7 @@ Deno.test('RemoveUnusedBrs: br at tail of own block is removed', () => {
   const body: ReturnType<typeof makeBlock> = {
     kind: ExpressionKind.Block,
     type: None,
-    name: '$B',
+    label: '$B',
     children: [nop, br],
   };
   mod.functions.push(makeTestFn('f', body));
@@ -341,7 +374,7 @@ Deno.test('RemoveUnusedBrs: solo br to own block → nop', () => {
   const body: ReturnType<typeof makeBlock> = {
     kind: ExpressionKind.Block,
     type: None,
-    name: '$B',
+    label: '$B',
     children: [makeBreak('$B')],
   };
   mod.functions.push(makeTestFn('f', body));
@@ -1054,7 +1087,7 @@ Deno.test('Vacuum: single-child unnamed block keeps its declared type on a concr
   const block = {
     kind: ExpressionKind.Block,
     type: ValType.I32,
-    name: null,
+    label: '',
     children: [makeNop(), makeLocalSet(varIndex(0), makeI32Const(0))],
   } as unknown as Expression;
   mod.functions.push({

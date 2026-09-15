@@ -1830,8 +1830,8 @@ class WasmEncoder {
         this.encodeParamValues(w, e, labels);
         w.writeU8(0x02);
         this.writeCarrierType(w, e);
-        this.noteLabel(e.name);
-        labels.push(e.name ?? null);
+        this.noteLabel(e.label);
+        labels.push(e.label || null);
         for (const child of e.children) this.encodeExpr(w, child, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -1843,8 +1843,8 @@ class WasmEncoder {
         this.encodeParamValues(w, e, labels);
         w.writeU8(0x03);
         this.writeCarrierType(w, e);
-        this.noteLabel(e.name);
-        labels.push(e.name);
+        this.noteLabel(e.label);
+        labels.push(e.label);
         // A REGION, like the `if` arms — see `encodeRegionBody`. Encoding the
         // body directly emitted the parser's synthetic wrapper as a real nested
         // block, which was not merely 3 wasted bytes: the wrapper is unnamed, so
@@ -1864,8 +1864,8 @@ class WasmEncoder {
         this.encodeExpr(w, e.condition, labels);
         w.writeU8(0x04);
         this.writeCarrierType(w, e);
-        this.noteLabel(e.name);
-        labels.push(e.name ?? null); // the if's branch-target label (if any)
+        this.noteLabel(e.label);
+        labels.push(e.label || null); // the if's branch-target label (if any)
         // The arms are REGIONS, not blocks — see `encodeRegionBody`. An arm that
         // exits via `br` ends in an unreachable-typed child, so re-wrapping it
         // emitted a void blocktype that absorbed the unreachability and yielded
@@ -2491,8 +2491,8 @@ class WasmEncoder {
           }
           w.writeU32(this.resolveLabel(labels, c.target));
         }
-        this.noteLabel(e.name);
-        labels.push(e.name ?? null);
+        this.noteLabel(e.label);
+        labels.push(e.label || null);
         this.encodeRegionBody(w, e.body, labels);
         labels.pop();
         w.writeU8(0x0b);
@@ -2506,8 +2506,8 @@ class WasmEncoder {
           // try...delegate: emitted as try body + delegate opcode (no end)
           w.writeU8(0x06); // try
           this.writeCarrierType(w, e);
-          this.noteLabel(e.name);
-          labels.push(e.name ?? null);
+          this.noteLabel(e.label);
+          labels.push(e.label || null);
           this.encodeRegionBody(w, e.body, labels);
           labels.pop();
           w.writeU8(0x18); // delegate
@@ -2515,8 +2515,8 @@ class WasmEncoder {
         } else {
           w.writeU8(0x06); // try
           this.writeCarrierType(w, e);
-          this.noteLabel(e.name);
-          labels.push(e.name ?? null);
+          this.noteLabel(e.label);
+          labels.push(e.label || null);
           this.encodeRegionBody(w, e.body, labels);
           // The length guard that stood here — "try has N catch tags but M
           // bodies" — is gone with the parallel arrays that made the mismatch

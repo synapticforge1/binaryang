@@ -94,8 +94,8 @@ function _processBody(body: Expression): Expression {
 function _strip(expr: Expression, targets: Set<string>): Expression {
   if (expr.kind === ExpressionKind.Block) {
     const block = expr as BlockExpr;
-    if (block.name !== null && !targets.has(block.name)) {
-      return { ...block, name: null };
+    if (block.label !== '' && !targets.has(block.label)) {
+      return { ...block, label: '' };
     }
     return block;
   }
@@ -104,7 +104,7 @@ function _strip(expr: Expression, targets: Set<string>): Expression {
     const loop = expr as LoopExpr;
     // A loop with no back-edge br executes exactly once — replace with body.
     // Type guard: only replace when types match (always true for valid MVP WASM).
-    if (!targets.has(loop.name) && loop.type === loop.body.type) {
+    if (!targets.has(loop.label) && loop.type === loop.body.type) {
       // The body takes the LOOP's place — a statement or operand position,
       // which a region cannot occupy and which `Expression` would not refuse.
       return asStatement(loop.body);

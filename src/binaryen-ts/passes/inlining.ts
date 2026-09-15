@@ -307,7 +307,7 @@ class FunctionSplitter {
     // A block with a self-targeted break can't be safely outlined.
     if (body.kind === ExpressionKind.Block) {
       const b = body as BlockExpr;
-      if (b.name && hasBreakTo(body, b.name)) return 'Uninlineable';
+      if (b.label && hasBreakTo(body, b.label)) return 'Uninlineable';
     }
 
     const iff = getIf(body);
@@ -411,7 +411,7 @@ class FunctionSplitter {
     // Outlined function: body minus the first if.
     const outlinedBody = asRegion(makeBlock(
       body.children.slice(1).map((c) => deepCopy(c)),
-      body.name,
+      body.label,
     ));
     const outlined: WasmFunction = {
       name: `byn-split-outlined-A$${fn.name}`,
@@ -524,8 +524,8 @@ function deepCopy(expr: Expression): Expression {
 function collectLabels(expr: Expression): Set<string> {
   const labels = new Set<string>();
   walkExpression(expr, (e) => {
-    if (e.kind === ExpressionKind.Block && e.name !== null) labels.add(e.name);
-    if (e.kind === ExpressionKind.Loop) labels.add(e.name);
+    if (e.kind === ExpressionKind.Block && e.label !== '') labels.add(e.label);
+    if (e.kind === ExpressionKind.Loop) labels.add(e.label);
     if (e.kind === ExpressionKind.Break) labels.add(labelName(e.target));
     if (e.kind === ExpressionKind.Switch) {
       e.targets.forEach((t) => labels.add(labelName(t)));
@@ -752,7 +752,7 @@ function inlineCallSite(
   // values while declaring one: the same refusal, one level in.
   if (
     Array.isArray(retType) && substituted.kind === ExpressionKind.Block &&
-    substituted.name === null && substituted.type !== None && substituted.type !== Unreachable
+    substituted.label === '' && substituted.type !== None && substituted.type !== Unreachable
   ) {
     substituted = { ...substituted, type: retType };
   }
@@ -983,8 +983,8 @@ export class InliningPass implements Pass {
       // longest match to disambiguate a name that is a prefix of another.
       const bodyBefore = fn.body;
       walkExpression(bodyBefore, (e) => {
-        if (e.kind === ExpressionKind.Block && e.name?.startsWith('__inlined_func$')) {
-          const rest = e.name.slice('__inlined_func$'.length);
+        if (e.kind === ExpressionKind.Block && e.label.startsWith('__inlined_func$')) {
+          const rest = e.label.slice('__inlined_func$'.length);
           let calleeName: string | undefined;
           for (const name of inlineable.keys()) {
             if (rest === name || rest.startsWith(name + '$')) {

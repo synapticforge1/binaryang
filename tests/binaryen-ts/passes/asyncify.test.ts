@@ -53,7 +53,7 @@ function moduleWithImport(): WasmModule {
       body: {
         kind: ExpressionKind.Block,
         type: ValType.I32,
-        name: null,
+        label: '',
         children: [
           { kind: ExpressionKind.Call, type: 'none', func: varName('$sleep'), operands: [] },
           { kind: ExpressionKind.LocalGet, type: ValType.I32, var: varIndex(0) },

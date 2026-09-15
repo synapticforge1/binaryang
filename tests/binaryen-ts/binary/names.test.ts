@@ -59,10 +59,13 @@ function refsIn(m: WasmModule, fn: string): string[] {
   const f = m.functions.find((x) => x.name === fn)!;
   walkExpression(f.body, (e) => {
     const o = e as unknown as Record<string, unknown>;
-    for (const k of ['target', 'func', 'name', 'tag', 'var']) {
+    // `label` is a carrier's OWN label (S6 step 5 renamed it off `name`); `''`
+    // means unnamed, so it is not a reference to anything.
+    for (const k of ['target', 'func', 'name', 'label', 'tag', 'var']) {
       const v = o[k];
-      if (typeof v === 'string') out.push(`${e.kind}:${v}`);
-      else if (v && typeof v === 'object' && 'name' in v) {
+      if (typeof v === 'string') {
+        if (v !== '') out.push(`${e.kind}:${v}`);
+      } else if (v && typeof v === 'object' && 'name' in v) {
         out.push(`${e.kind}:${(v as { name: string }).name}`);
       }
     }
@@ -124,10 +127,10 @@ describe('P4 — the decoder names every entity from the name section', () => {
     const labels: string[] = [];
     const branches: string[] = [];
     walkExpression(m.functions[0]!.body, (e) => {
-      // A carrier's OWN label is `name`; a branch's REFERENCE is `target`.
+      // A carrier's OWN label is `label`; a branch's REFERENCE is `target`.
       // They used to share the field name, which is what the label-reference
       // rename separated — reading one field could not tell them apart.
-      const own = (e as { name?: string | null }).name;
+      const own = (e as { label?: string }).label;
       // A label reference is a `Var` (S6 step 5); only a NAME-form one counts here.
       const refVar = (e as { target?: Var }).target;
       const ref = refVar?.kind === 'name' ? refVar.name : undefined;

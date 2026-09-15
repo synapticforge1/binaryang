@@ -398,6 +398,36 @@ Deno.test('TranslateToExnref: a module with no legacy EH is left byte-identical'
   assertEquals(encodeWasm(mod), encodeWasm(control));
 });
 
+// A carrier's label is `label: string`, `''` for "no label" (S6 step 5). Both
+// front ends INVENT one — the binary decoder from the name section or `$labelN`,
+// the WAT parser `$depthN` — so no fixture above ever holds an unlabelled `try`.
+// `makeTry(null, …)` does, and the pass reads that label to name the block it
+// wraps the `try_table` in: with `??` in place of `||` the name is `''`, every
+// `br` out of a catch targets a block that has no name, and the encoder cannot
+// resolve it. Measured: reverting that one operator left all 1161 tests green.
+Deno.test('TranslateToExnref: a try with NO label still gets a nameable outer block', async () => {
+  const fx = FIXTURES[0]!;
+  const mod = parseWasm(assemble(fx.wat));
+  let stripped = 0;
+  for (const fn of mod.functions) {
+    walkExpression(fn.body, (e) => {
+      if (e.kind !== ExpressionKind.Try) return;
+      // Nothing branches to this try, so dropping its (invented) label is the
+      // tree `makeTry(null, …)` builds.
+      (e as { label: string }).label = '';
+      stripped++;
+    });
+  }
+  assertEquals(stripped, 1, 'the fixture must contain exactly one try to unlabel');
+
+  new PassRunner(mod).add('TranslateToExnref').run();
+  const translated = encodeWasm(mod);
+  assertNoLegacy(translated);
+  assertValid(translated);
+  assertEquals(outcomes(translated, fx.inputs), fx.expect);
+  await assertWasmtimeAgrees(translated, fx.inputs, fx.expect, 'f');
+});
+
 Deno.test('TranslateToExnref: the upstream kebab name resolves', () => {
   const mod = parseWasm(assemble(FIXTURES[0]!.wat));
   new PassRunner(mod).add('translate-to-exnref').run();

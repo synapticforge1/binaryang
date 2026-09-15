@@ -1552,10 +1552,10 @@ class WatModuleParser {
     // equals the inferred LUB whenever neither arm is unreachable.
     const node = makeIf(condition!, ifTrue, ifFalse);
     // Carry the branch-target label onto the node: the encoder pushes
-    // `e.name ?? ''`, so leaving it unset would put an empty name where the
+    // `e.label || null`, so leaving it unset would put an empty name where the
     // parser resolved branches against `ifLabel`, and every `br` into this `if`
     // would fail to resolve.
-    node.name = ifLabel;
+    node.label = ifLabel ?? '';
     if (results.length > 0 && node.type !== Unreachable) {
       node.type = this.declaredType(results, typeOf(node));
     }

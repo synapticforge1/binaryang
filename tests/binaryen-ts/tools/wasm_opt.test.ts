@@ -170,7 +170,7 @@ Deno.test('RemoveUnusedNames: strips unused block name', () => {
 
   const body = region(mod.functions[0].body).children[0] as BlockExpr;
   assertEquals(body.kind, ExpressionKind.Block);
-  assertEquals(body.name, null, 'unused block name should be stripped to null');
+  assertEquals(body.label, '', 'an unused block label is stripped to the empty label');
 });
 
 Deno.test('RemoveUnusedNames: keeps block name that is branched to', () => {
@@ -182,7 +182,7 @@ Deno.test('RemoveUnusedNames: keeps block name that is branched to', () => {
   new PassRunner(mod).add('RemoveUnusedNames').run();
 
   const newBody = soleOf(mod.functions[0].body, ExpressionKind.Block);
-  assertEquals(newBody.name, 'exit', 'used block name must be kept');
+  assertEquals(newBody.label, 'exit', 'used block name must be kept');
 });
 
 Deno.test('RemoveUnusedNames: replaces unused loop with body', () => {
@@ -233,9 +233,9 @@ Deno.test('RemoveUnusedNames: strips outer name but keeps inner used name', () =
 
   const newOuter = region(mod.functions[0].body).children[0] as BlockExpr;
   assertEquals(newOuter.kind, ExpressionKind.Block);
-  assertEquals(newOuter.name, null, 'outer unused name should be stripped');
+  assertEquals(newOuter.label, '', 'outer unused label should be stripped');
   const newInner = newOuter.children[0] as BlockExpr;
-  assertEquals(newInner.name, 'inner', 'inner used name should be kept');
+  assertEquals(newInner.label, 'inner', 'inner used name should be kept');
 });
 
 // ---------------------------------------------------------------------------

@@ -901,7 +901,7 @@ function processFlow(curr: Expression, ctx: FlowCtx): Expression {
 
   switch (curr.kind) {
     case ExpressionKind.Block:
-      return makeBlock(processFlowList(curr.children, ctx), curr.name);
+      return makeBlock(processFlowList(curr.children, ctx), curr.label);
 
     // Every loop / if-arm / function body. These were unnamed Blocks before
     // regions were a kind, and went through the case above.

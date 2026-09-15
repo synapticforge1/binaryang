@@ -70,7 +70,7 @@ function _removeUnusedBrsNode(expr: Expression): Expression {
 function _optimizeBlock(
   block: Extract<Expression, { kind: ExpressionKind.Block }>,
 ): Expression {
-  if (!block.name || block.children.length === 0) return block;
+  if (!block.label || block.children.length === 0) return block;
 
   const last = block.children[block.children.length - 1]!; // children is non-empty (guard above)
 
@@ -79,7 +79,7 @@ function _optimizeBlock(
     last.kind === ExpressionKind.Break &&
     last.condition === undefined &&
     last.values.length === 0 &&
-    labelName(last.target) === block.name
+    labelName(last.target) === block.label
   ) {
     const rest = block.children.slice(0, -1);
     if (rest.length === 0) return makeNop();
@@ -94,7 +94,7 @@ function _optimizeBlock(
     last.kind === ExpressionKind.Break &&
     last.condition !== undefined &&
     last.values.length === 0 &&
-    labelName(last.target) === block.name
+    labelName(last.target) === block.label
   ) {
     const drop = makeDrop(last.condition);
     const newChildren = [...block.children.slice(0, -1), drop];
