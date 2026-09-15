@@ -33,7 +33,6 @@ const CHILD_KEYS = [
   'values',
   'val1',
   'val2',
-  'operand',
   'cond',
   'address',
   'ref',

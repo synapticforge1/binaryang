@@ -4566,7 +4566,7 @@ export class WastParser {
 
       case TokenType.Unary: {
         const op = (tok as OpcodeToken).opcode;
-        return { kind: 'unary', opcode: op, operand: op0(), loc } as UnaryExpr;
+        return { kind: 'unary', opcode: op, value: op0(), loc } as UnaryExpr;
       }
       case TokenType.Binary: {
         const op = (tok as OpcodeToken).opcode;
@@ -4578,7 +4578,7 @@ export class WastParser {
       }
       case TokenType.Convert: {
         const op = (tok as OpcodeToken).opcode;
-        return { kind: 'unary', opcode: op, operand: op0(), loc } as UnaryExpr;
+        return { kind: 'unary', opcode: op, value: op0(), loc } as UnaryExpr;
       }
       case TokenType.Ternary: {
         const op = (tok as OpcodeToken).opcode;

@@ -565,8 +565,8 @@ class ResolveContext {
         return [result, { ...e, values }];
       }
       case 'unary': {
-        const [r, operand] = this.resolveExpr(e.operand);
-        return [r, { ...e, operand }];
+        const [r, operand] = this.resolveExpr(e.value);
+        return [r, { ...e, value: operand }];
       }
       case 'binary': {
         const [rL, left] = this.resolveExpr(e.left);

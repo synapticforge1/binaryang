@@ -1030,7 +1030,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     // --- Arithmetic / compare / convert -----------------------------------
     case 'unary': {
       const u = e as UnaryExpr;
-      return makeUnary(u.opcode, bridgeExpr(u.operand, ctx));
+      return makeUnary(u.opcode, bridgeExpr(u.value, ctx));
     }
     case 'binary': {
       const be = e as BinaryExpr;

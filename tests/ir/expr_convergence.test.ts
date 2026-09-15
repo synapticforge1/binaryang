@@ -143,7 +143,7 @@ const PINNED: Computed = {
   'throw_ref': 'identical',
   'try': 'names',
   'try_table': 'names',
-  'unary': 'names',
+  'unary': 'identical',
   'unreachable': 'identical',
 };
 

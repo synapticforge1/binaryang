@@ -622,7 +622,7 @@ export interface GlobalSetExpr {
 export interface UnaryExpr {
   readonly kind: 'unary';
   readonly opcode: Opcode;
-  readonly operand: Expr;
+  readonly value: Expr;
   readonly loc: Location;
 }
 /** Two-operand numeric op (`i32.add`, `f64.mul`, etc.). `opcode` identifies the specific op. */

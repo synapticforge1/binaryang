@@ -331,7 +331,7 @@ export class ExprVisitor {
         return this.d.onGlobalSetExpr?.(e) ?? Result.Ok;
       }
       case 'unary': {
-        const r = this.dispatch(e.operand);
+        const r = this.dispatch(e.value);
         if (r === Result.Error) return r;
         return this.d.onUnaryExpr?.(e) ?? Result.Ok;
       }
