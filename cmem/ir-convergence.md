@@ -2879,7 +2879,13 @@ phantom). Optimizer output **0 of 2,105 changed** (no corpus module uses these).
 ⚠️ **Alias trial still 37** — the 21 kind errors did not go away, they now name `code_metadata`:
 TypeScript reports the first union member that does not fit, which is now the one binaryen-ts lacks
 by decision. How binaryen-ts meets a wabt-ts-only kind in ONE union (refuse at `PassRunner`, strip,
-or carry) is item (6)'s first question.
+or carry) was item (6)'s first question — 🗓️ **OWNER, 2026-09-16: "binaryen will strip it in its
+optimization runs."** So in (6): `PassRunner` removes every `code_metadata` node before the first
+pass, beside `dropWrittenTypeIndex` and under the same condition (only when a pass is queued — a
+plain read-and-write keeps what it read). Not implementable before the alias: binaryen-ts's union has
+no such node to strip. ⚠️ To settle when implementing, not decided here: the RAW `metadata.code.*`
+custom section binaryen-ts already carries holds instruction OFFSETS, which optimization moves — a
+kept section would point at the wrong instructions.
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
