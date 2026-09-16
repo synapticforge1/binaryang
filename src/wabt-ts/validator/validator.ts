@@ -12,7 +12,7 @@ import {
   UNASSIGNED_TYPE_INDEX,
   valueTypeEquals,
 } from '../ir/ir.ts';
-import type { BlockType, Field, TypeEntry, ValueType } from '../ir/ir.ts';
+import type { BlockType, Field, StorageType, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import {
@@ -169,7 +169,7 @@ function canonicalTypeKeys(types: readonly TypeEntry[]): string[] {
     return memo[i] ?? `?${i}`;
   };
 
-  const vtKey = (vt: ValueType, start: number, size: number): string => {
+  const vtKey = (vt: StorageType, start: number, size: number): string => {
     if (!isRefValueType(vt)) return `t${vt.toString(16)}`;
     const h = vt.heapType;
     const n = vt.nullable ? '?' : '!';
@@ -322,7 +322,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     // run AFTER the whole type section is declared — a type may legally
     // reference one defined later.
     const seenTypes = m.types.length;
-    const checkVt = (vt: ValueType, what: string, loc: Location, bound?: number): void => {
+    const checkVt = (vt: StorageType, what: string, loc: Location, bound?: number): void => {
       this.acc(this.sv.checkValueType(loc, vt, what, bound));
     };
     // How far each type may reach: everything before it, plus the remainder of
@@ -873,6 +873,11 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onReturnCall(e.loc, varIdx(e.func));
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
+    // An inline signature is interned by `synthesizeTypes`; a node that reaches
+    // here without a type has nothing the writer could encode.
+    if (e.typeVar === undefined) {
+      return this.sv.printError(e.loc, 'call_indirect: no type index (run synthesizeTypes)');
+    }
     if (!e.isReturn) return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
     const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
     if (rf !== Result.Ok) this.acc(rf);

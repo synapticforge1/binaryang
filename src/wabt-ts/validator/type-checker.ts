@@ -5,6 +5,7 @@
 
 import { combineResults, Result } from '../core/result.ts';
 import { heapTypeNameToType, isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
+import type { ValType } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
 import { isRefValueType, valueTypeName } from '../ir/ir.ts';
 import type { ValueType } from '../ir/ir.ts';
@@ -36,11 +37,27 @@ export interface FuncType {
 // ---------------------------------------------------------------------------
 
 interface OpcodeTypeInfo {
-  p1: Type;
-  p2: Type;
-  p3: Type;
-  r1: Type;
+  p1: OpType;
+  p2: OpType;
+  p3: OpType;
+  r1: OpType;
   natAlign: number;
+}
+
+/** An opcode table slot: a scalar value type, or `Void` for "no param / result". */
+type OpType = ValType | typeof Type.Void;
+
+/**
+ * A type-stack entry: a value type, or `Any` — the polymorphic slot that
+ * unreachable code yields for anything it is asked for (S6 step 5, item 4 (b):
+ * `ValueType` no longer admits `Any`, so the stack names it).
+ */
+type StackType = ValueType | typeof Type.Any;
+
+/** An operand slot the opcode tables fill: never `Void` where it is popped. */
+function operand(t: OpType): ValType {
+  if (t === Type.Void) throw new Error('type checker: an opcode table popped a Void operand');
+  return t;
 }
 
 const _V = Type.Void;
@@ -64,7 +81,7 @@ function isWideAddSub(opcode: number): boolean {
   return sub === MiscOpcode.I64Add128 || sub === MiscOpcode.I64Sub128;
 }
 
-function oi(r1: Type, p1: Type, p2: Type, p3: Type, nat: number): OpcodeTypeInfo {
+function oi(r1: OpType, p1: OpType, p2: OpType, p3: OpType, nat: number): OpcodeTypeInfo {
   return { r1, p1, p2, p3, natAlign: nat };
 }
 
@@ -92,7 +109,7 @@ const S = (sub: number): number => (PREFIX_SIMD << 16) | sub;
  * is precisely what drifts — see the note on `S()` above, where exactly that
  * happened to the SIMD table.
  */
-const ATOMIC_WIDTH: readonly Type[] = [_I32, _I64, _I32, _I32, _I64, _I64, _I64];
+const ATOMIC_WIDTH: readonly ValType[] = [_I32, _I64, _I32, _I32, _I64, _I64, _I64];
 
 /**
  * Type info for a threads/atomics (0xfe) sub-opcode.
@@ -858,7 +875,7 @@ function brTypes(label: TCLabel): ValueType[] {
 // ---------------------------------------------------------------------------
 
 export class TypeChecker {
-  private typeStack: ValueType[] = [];
+  private typeStack: StackType[] = [];
   private labelStack: TCLabel[] = [];
   private brTableSig: ValueType[] | null = null;
   private errorCallback: (msg: string) => void = () => {};
@@ -964,7 +981,7 @@ export class TypeChecker {
   // Type stack operations
   // ---------------------------------------------------------------------------
 
-  private peekType(depth: number): ValueType {
+  private peekType(depth: number): StackType {
     const label = this.topLabel();
     if (!label) return Type.Any;
     const limit = label.typeStackLimit;
@@ -1002,7 +1019,7 @@ export class TypeChecker {
     return Result.Ok;
   }
 
-  private pushType(type: ValueType): void {
+  private pushType(type: StackType | typeof Type.Void): void {
     if (type !== Type.Void) {
       this.typeStack.push(type);
     }
@@ -1024,7 +1041,7 @@ export class TypeChecker {
    * index all the way here, so `$A <: $B` is answered by walking the declared
    * `(sub …)` chain rather than by giving up on the comparison.
    */
-  checkType(actual: ValueType, expected: ValueType): Result {
+  checkType(actual: StackType, expected: StackType): Result {
     if (expected === Type.Any || actual === Type.Any) return Result.Ok;
     if (actual === expected) return Result.Ok;
 
@@ -1036,7 +1053,7 @@ export class TypeChecker {
     return heapSatisfies(a.heap, e.heap, this.heapTypes) ? Result.Ok : Result.Error;
   }
 
-  private popAndCheck1Type(expected: ValueType, desc: string): Result {
+  private popAndCheck1Type(expected: StackType, desc: string): Result {
     const actual = this.peekType(0);
     const r = this.checkType(actual, expected);
     if (r === Result.Error) {
@@ -1049,7 +1066,7 @@ export class TypeChecker {
     return combineResults(r, this.dropTypes(1));
   }
 
-  private popAndCheck2Types(exp1: ValueType, exp2: ValueType, desc: string): Result {
+  private popAndCheck2Types(exp1: StackType, exp2: StackType, desc: string): Result {
     const a2 = this.peekType(0);
     const a1 = this.peekType(1);
     let r = this.checkType(a1, exp1);
@@ -1065,9 +1082,9 @@ export class TypeChecker {
   }
 
   private popAndCheck3Types(
-    exp1: ValueType,
-    exp2: ValueType,
-    exp3: ValueType,
+    exp1: StackType,
+    exp2: StackType,
+    exp3: StackType,
     desc: string,
   ): Result {
     const a3 = this.peekType(0);
@@ -1173,21 +1190,26 @@ export class TypeChecker {
 
   private checkOpcode1(opcode: number, is64Memory = false): Result {
     const info = applyMemory64(getOpcodeTypeInfo(opcode), is64Memory);
-    const r = this.popAndCheck1Type(info.p1, `opcode`);
+    const r = this.popAndCheck1Type(operand(info.p1), `opcode`);
     this.pushType(info.r1);
     return r;
   }
 
   private checkOpcode2(opcode: number, is64Memory = false): Result {
     const info = applyMemory64(getOpcodeTypeInfo(opcode), is64Memory);
-    const r = this.popAndCheck2Types(info.p1, info.p2, `opcode`);
+    const r = this.popAndCheck2Types(operand(info.p1), operand(info.p2), `opcode`);
     this.pushType(info.r1);
     return r;
   }
 
   private checkOpcode3(opcode: number, is64Memory = false): Result {
     const info = applyMemory64(getOpcodeTypeInfo(opcode), is64Memory);
-    const r = this.popAndCheck3Types(info.p1, info.p2, info.p3, `opcode`);
+    const r = this.popAndCheck3Types(
+      operand(info.p1),
+      operand(info.p2),
+      operand(info.p3),
+      `opcode`,
+    );
     this.pushType(info.r1);
     return r;
   }

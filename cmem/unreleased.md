@@ -79,6 +79,8 @@ their own bump — and nothing breaks by their standing still.
   Then stage (b), the catch records: **`TryCatch` → `Catch`, `CatchClause` → `TableCatch`**
   (`11e632b8e`, wabt-ts's and upstream wabt's names; the `tryCatch` / `tryCatchAll` factories keep
   theirs). The shapes did not change on this side.
+  Then item 4 (a): **`CallIndirectExpr.typeIndex?: number` → `typeVar?: Var`** (`34901c5fc`, owner
+  decision) — the decoder records `varIndex(i)`; read it with `requireIndex`.
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and
@@ -127,6 +129,17 @@ their own bump — and nothing breaks by their standing still.
   FOLLOWED, and written back into that gap (C3, `4c162c584`).
 
 ## API-visible — wabt-ts and the tools
+
+- ⚠️ **BREAKING: `ValueType` is a value type** (S6 step 5 item 4 (b), `eec6912fd`; `./ir/wabt-ts`).
+  It was `Type | RefValueType`; it is `ValType | RefValueType`, so `Type.Void`, `Type.Any`, the
+  packed `Type.I8` / `Type.I16` and the type-definition forms no longer fit. **`StorageType`** (new)
+  is a field's type — `Field.type` is one. `ValType` / `isValType` are now defined in
+  `./core/wabt-ts` (still re-exported by `./ir/binaryen-ts`). `valueTypeName` and `isRefValueType`
+  accept any `Type`.
+- ⚠️ **BREAKING: `CallIndirectExpr.typeVar` is optional and `typeUse` is gone** (item 4 (a),
+  `34901c5fc`; `./ir/wabt-ts`). An inline signature has no `typeVar` until `synthesizeTypes`
+  interns one (it was `varIndex(0)`); how the type was written is `FidelityEntry.typeUse`. The
+  binary writer THROWS and the validator REPORTS a `call_indirect` with no type.
 
 - ⚠️ **BREAKING: bodies are regions** (S6 step 5 stage (d), `ddc45cbb1` + `e9c029ffb`;
   `./ir/wabt-ts`). `BlockExpr.body` → **`children`**. `LoopExpr` / `TryExpr` / `TryTableExpr`
@@ -186,6 +199,12 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **wabt-ts REJECTS non-value types in value positions** (`eec6912fd`). It accepted modules V8 and
+  upstream reject: a binary local, param, result, global or block result of a packed (`0x78`) or
+  non-type byte (`0x40`, `0x60`), and text `(local i8)` / `(param i16)` / `(result i8)`. The reader now
+  reports upstream's "expected valid local type" / "… block signature type"; the text parser
+  "expected value type, got i8". ⚠️ A module that relied on the old leniency now fails to load —
+  but no valid module does (spec corpus unchanged at 100%).
 - **wabt-ts's binary round trip kept an explicit EMPTY `else`** (`e9c029ffb`): `04 40 01 05 0b` was
   written back as `04 40 01 0b`. Same behaviour, different bytes; binaryen-ts and `wasm-tools` keep it
   (divergence E1). Text is unchanged — `wat2wasm` still omits an empty `(else)`, as upstream.

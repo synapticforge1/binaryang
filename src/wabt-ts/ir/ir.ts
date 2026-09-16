@@ -17,7 +17,7 @@
  */
 
 import type { Location } from '../core/error.ts';
-import { Type, typeName } from '../core/types.ts';
+import { Type, typeName, type ValType } from '../core/types.ts';
 import type { AbstractHeap, Index } from '../core/types.ts';
 import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { GcOpcode, Opcode, PREFIX_GC } from '../core/opcode.ts';
@@ -886,9 +886,19 @@ export interface CallIndirectExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly sig: FuncSignature;
-  readonly typeVar: Var;
-  /** How the signature was named; see {@link TypeUse}. */
-  readonly typeUse?: TypeUse;
+  /**
+   * The type the instruction names — form beside `sig` (7c): which of several
+   * identical types. Absent until `synthesizeTypes` interns an INLINE signature
+   * (`call_indirect (param i32)`), and on a node built without one; the writers
+   * refuse to encode it absent. binaryen-ts's field, spelled the same (owner,
+   * 2026-09-16, S6 step 5 item 4 (a)).
+   *
+   * 🔧 It was required, defaulting to `varIndex(0)`, so index 0 meant both "no
+   * annotation" and "the source wrote `(type 0)`" — and a duplicate `typeUse`
+   * field said which. That text-form fact lives in the fidelity table
+   * ({@link FidelityEntry.typeUse}), which already held it.
+   */
+  readonly typeVar?: Var;
   readonly table: Var;
   readonly operands: Expr[];
   readonly callee: Expr;
@@ -1611,13 +1621,28 @@ export interface RefValueType {
 }
 
 /**
- * Anywhere a value type can appear: either an abstract {@link Type} (whose
- * enum value IS its wire byte) or a concrete {@link RefValueType}.
+ * Anywhere a value type can appear: a scalar {@link ValType} (whose value IS its
+ * wire byte) or a concrete {@link RefValueType} — binaryen-ts's `ValueType`.
+ *
+ * 🔧 It was `Type | RefValueType`, and `Type` also holds what is NOT a value type:
+ * the packed `I8` / `I16` (field storage only), `Void`, `Func` / `Struct` /
+ * `Array` (type-definition forms) and the validator's `Any`. Each of those had a
+ * use, and each lived in a slot that claimed to hold a value (S6 step 5, item 4
+ * (b)). They have their own names now: {@link StorageType} for fields, and the
+ * validator's stack type for `Any`.
  */
-export type ValueType = Type | RefValueType;
+export type ValueType = ValType | RefValueType;
+
+/**
+ * The storage type of a struct or array field: a value type, or a packed
+ * integer that is only valid there — binaryen-ts's `StorageType`. ⚠️ binaryen-ts
+ * spells the packed pair as the strings `'i8'` / `'i16'`, here they are wire
+ * bytes: unifying that is the module half's (GC type definitions).
+ */
+export type StorageType = ValueType | typeof Type.I8 | typeof Type.I16;
 
 /** Narrow a {@link ValueType} to the concrete typed-reference case. */
-export function isRefValueType(vt: ValueType): vt is RefValueType {
+export function isRefValueType(vt: ValueType | Type): vt is RefValueType {
   return typeof vt === 'object';
 }
 
@@ -1630,16 +1655,18 @@ export function isRefValueType(vt: ValueType): vt is RefValueType {
  * Encoders must NOT use this: emitting the coarsened byte is precisely the
  * bug this type exists to fix.
  */
-export function coarsenValueType(vt: ValueType): Type {
+export function coarsenValueType(vt: ValueType): ValType {
   return isRefValueType(vt) ? Type.StructRef : vt;
 }
 
 /**
  * Human-readable spelling of a {@link ValueType}, matching the WAT text
  * format. Abstract types delegate to `typeName`; a concrete typed reference
- * prints as `(ref $T)` / `(ref null $T)`.
+ * prints as `(ref $T)` / `(ref null $T)`. Printing is total over `Type`, so
+ * the validator's `any` stack slot and a field's packed `i8` / `i16` print
+ * through here too.
  */
-export function valueTypeName(vt: ValueType): string {
+export function valueTypeName(vt: ValueType | Type): string {
   if (!isRefValueType(vt)) return typeName(vt);
   const h = vt.heapType.kind === 'index' ? `${vt.heapType.value}` : vt.heapType.name;
   return `(ref ${vt.nullable ? 'null ' : ''}${h})`;
@@ -1699,7 +1726,8 @@ export function recGroups(
 /** A field in a GC struct or array type. */
 export interface Field {
   name: string;
-  type: ValueType;
+  /** A value type or a packed integer — see {@link StorageType}. */
+  type: StorageType;
   mutable: boolean;
 }
 

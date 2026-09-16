@@ -100,7 +100,7 @@ import {
   valueTypeEquals,
   valueTypeName,
 } from '../ir/ir.ts';
-import type { Custom, HeapTypeRef, TableCatch, TypeEntry } from '../ir/ir.ts';
+import type { Custom, HeapTypeRef, StorageType, TableCatch, TypeEntry } from '../ir/ir.ts';
 import { type AbstractHeap, heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
@@ -222,7 +222,8 @@ function abstractHeapTypeByteForName(name: AbstractHeap): number | null {
  * `writeU8(t as number)`, which silenced the type system and would have
  * written garbage once typed refs became representable.
  */
-function writeValueType(s: MemoryStream, vt: ValueType): void {
+/** A value type — or a field's storage type: a packed `i8` / `i16` is its byte too. */
+function writeValueType(s: MemoryStream, vt: StorageType): void {
   if (isRefValueType(vt)) {
     s.writeU8(vt.nullable ? Type.RefNull : Type.Ref);
     writeHeapType(s, vt.heapType);
@@ -813,6 +814,11 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
     this.s.writeU8(e.isReturn ? Opcode.ReturnCallIndirect : Opcode.CallIndirect);
+    // Refused rather than guessed: deriving it structurally picks the FIRST of
+    // several identical types (T1). `synthesizeTypes` assigns an inline one.
+    if (e.typeVar === undefined) {
+      throw new Error('call_indirect has no type index yet — run synthesizeTypes');
+    }
     writeVar(this.s, e.typeVar);
     writeVar(this.s, e.table);
     return Result.Ok;

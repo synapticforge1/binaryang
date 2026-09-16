@@ -21,6 +21,7 @@ import type {
   LocalSetExpr,
   Module,
   ReturnExpr,
+  ValueType,
 } from '../../../src/wabt-ts/ir/ir.ts';
 
 import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
@@ -56,10 +57,10 @@ function _makeReturn(value?: Expr): ReturnExpr {
 }
 
 function makeFunc(
-  params: Type[],
-  results: Type[],
+  params: ValueType[],
+  results: ValueType[],
   body: Expr[],
-  locals: { type: Type; count: number }[] = [],
+  locals: { type: ValueType; count: number }[] = [],
 ): Func {
   return {
     name: '',
@@ -74,10 +75,10 @@ function makeFunc(
 
 /** Builds a minimal module with one func type and one defined function. */
 function singleFuncModule(
-  params: Type[],
-  results: Type[],
+  params: ValueType[],
+  results: ValueType[],
   body: Expr[],
-  locals: { type: Type; count: number }[] = [],
+  locals: { type: ValueType; count: number }[] = [],
 ): Module {
   const m = makeModule();
   m.types.push({ kind: 'func', name: '', sig: { params, results }, loc: LOC });

@@ -157,7 +157,10 @@ describe('T13.20 — axis 2: module-level Var immediates are rewritten', () => {
          (func (call_indirect (type 0) (i32.const 0))))`,
       (n) => n.typeNames.set(0, '$sig'),
     );
-    assert(/\$sig/.test(text), `call_indirect typeVar not named:\n${text}`);
+    // ⚠️ Anchored to the instruction: `$sig` alone also matches the type
+    // DEFINITION, so a mutant that stopped naming the call_indirect survived
+    // (S6 step 5 item 4 (a)).
+    assert(/call_indirect \(type \$sig\)/.test(text), `call_indirect typeVar not named:\n${text}`);
   });
 });
 

@@ -35,7 +35,7 @@ failed, naming, portability, baseline **IDENTICAL**, publish dry-run, operators,
 assertion holds in every world, 19 `assert_invalid`/`assert_malformed` skipped), `optimize-corpus`
 (every level of every module encodes and validates).
 
-S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**66 / 6 / 2** after items 1–3 below, 2026-09-16). Nine stages landed
+S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**68 / 5 / 1** after items 1–4 below, 2026-09-16). Nine stages landed
 on 2026-09-15 (A, A2, A3, B, V1–V4, S1–S3, L1, B1–B3, C1, L2). **No branch is open** — the next
 sub-stage was branched and the branch deleted unused, so start from `main`.
 
@@ -55,13 +55,18 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    list is `children`; every region slot holds a `RegionExpr`, `ifFalse` is `RegionExpr | null`
    (an explicit empty `else` now survives wabt-ts's binary round trip — divergence E1). Ratchet
    **66 / 6 / 2**. Record: [ir-convergence.md](ir-convergence.md) § "Stage (d) — the bodies".
-4. Then, still on the expression half: `call_indirect`'s type use (`typeVar` + `typeUse?` against
-   `typeIndex?`), `select.resultType`'s remaining `types` state (wabt-ts's `ValueType` admits
-   non-value `Type` members), and `ref.null.refType` (deferred by Group 3 to type derivation).
+4. ✅ **Item 4 DONE 2026-09-16** (`eec6912fd` (b), `34901c5fc` (a)). wabt-ts's `ValueType` is a value
+   type (`StorageType` for fields) — and the narrowing found wabt-ts ACCEPTING invalid local / param /
+   block types, now rejected as upstream does; `call_indirect`'s type is `typeVar?: Var` in both IRs
+   (owner, A). `ref.null` stays deferred to item 5 (premise re-read, unchanged). Ratchet
+   **68 / 5 / 1**. Record: [ir-convergence.md](ir-convergence.md) § "Item 4 — value types,
+   `call_indirect`, and `ref.null`". Open from it: divergence **W7** (a bare `ref` before a type
+   keyword parses; upstream rejects).
 5. Then the node base (`readonly`, `loc` required against optional, literal against enum `kind`,
    `type` required on some binaryen kinds), the one-sided kinds (atomics, `call_ref`,
-   `code_metadata`, `region`), the alias, and the type-derivation pass
-   (`inferBinaryType` / `inferUnaryType`) carried forward out of the bridge.
+   `code_metadata`), the alias, and the type-derivation pass
+   (`inferBinaryType` / `inferUnaryType`) carried forward out of the bridge — which is also where
+   `ref.null`'s heap type gets an explicit field (Group 3: not before `type` is derived).
 6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
    `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
    `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the

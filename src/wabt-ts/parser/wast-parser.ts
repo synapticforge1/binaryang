@@ -17,7 +17,13 @@ import { Result } from '../core/result.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
 import { GcOpcode, naturalAlignForOpcode, Opcode, PREFIX_SIMD } from '../core/opcode.ts';
-import { heapTypeNameToType, Type, typeName, typeToHeapTypeName } from '../core/types.ts';
+import {
+  heapTypeNameToType,
+  isValType,
+  Type,
+  typeName,
+  typeToHeapTypeName,
+} from '../core/types.ts';
 import {
   type ArrayCopyExpr,
   type ArrayFillExpr,
@@ -111,6 +117,7 @@ import {
   type SimdLoadLaneExpr,
   type SimdReplaceExpr,
   type SimdShuffleOpExpr,
+  type StorageType,
   type StoreExpr,
   type StructGetExpr,
   type StructNewExpr,
@@ -1571,6 +1578,14 @@ export class WastParser {
     const tt = this.peek();
     if (tt === TokenType.ValueType) {
       const tok = this.consume() as TypeToken;
+      // 🔧 `i8` / `i16` are TypeTokens too, and were returned as value types:
+      // `(local i8)` and `(param i16)` parsed, and nothing downstream rejected
+      // them (upstream: "unexpected token i8"). A field's packed type is
+      // {@link parseStorageType}'s (S6 step 5, item 4 (b)).
+      if (!isValType(tok.valueType)) {
+        this.error(tok.loc, `expected value type, got ${typeName(tok.valueType)}`);
+        return null;
+      }
       return tok.valueType;
     }
     if (tt === TokenType.Func) {
@@ -1612,7 +1627,7 @@ export class WastParser {
   }
 
   /** Parse a ref type: `ref null? funcref/externref/...` */
-  private parseRefType(): Type | null {
+  private parseRefType(): ValueType | null {
     // consume 'ref'
     this.drop();
     // The flat `Type` enum can't carry nullability, so `(ref func)` and
@@ -1635,6 +1650,10 @@ export class WastParser {
     }
     if (tt === TokenType.ValueType) {
       const tok = this.consume() as TypeToken;
+      if (!isValType(tok.valueType)) {
+        this.error(tok.loc, `expected ref kind, got ${typeName(tok.valueType)}`);
+        return null;
+      }
       return tok.valueType;
     }
     this.error(this.loc(), 'expected ref kind');
@@ -2437,15 +2456,26 @@ export class WastParser {
    * Parse `mut? value-type`. The `mut` form is `(mut value-type)`; the bare
    * form is just a value-type.
    */
-  private parseFieldType(): { mutable: boolean; type: ValueType } {
+  private parseFieldType(): { mutable: boolean; type: StorageType } {
     if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Mut) {
       this.drop(); // (
       this.drop(); // mut
-      const t = this.parseValueType() ?? Type.I32;
+      const t = this.parseStorageType() ?? Type.I32;
       this.expect(TokenType.Rpar);
       return { mutable: true, type: t };
     }
-    return { mutable: false, type: this.parseValueType() ?? Type.I32 };
+    return { mutable: false, type: this.parseStorageType() ?? Type.I32 };
+  }
+
+  /** A struct / array field's STORAGE type: a value type, or packed `i8` / `i16`. */
+  private parseStorageType(): StorageType | null {
+    if (this.peek() === TokenType.ValueType) {
+      const at = this.pos;
+      const tok = this.consume() as TypeToken;
+      if (tok.valueType === Type.I8 || tok.valueType === Type.I16) return tok.valueType;
+      this.pos = at;
+    }
+    return this.parseValueType();
   }
 
   private parseImportModuleField(module: Module): Result {
@@ -4041,11 +4071,12 @@ export class WastParser {
         // encoded against whatever type happened to be first.
         return {
           kind: 'call_indirect',
-          ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
+          // How the type was named is TEXT form, and lives in the table. An
+          // inline signature has no `typeVar` until its type is interned.
           nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           table: tableVar,
           sig,
-          typeVar: typeVar ?? varIndex(0),
+          ...(typeVar !== null ? { typeVar } : {}),
           operands: args,
           callee,
           loc,
@@ -4087,10 +4118,9 @@ export class WastParser {
         return {
           kind: 'call_indirect',
           isReturn: true,
-          ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
           nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           sig,
-          typeVar: typeVar ?? varIndex(0),
+          ...(typeVar !== null ? { typeVar } : {}),
           table: tableVar,
           operands: args,
           callee,
@@ -5286,7 +5316,8 @@ export class WastParser {
       beginTryExpr: block,
       beginTryTableExpr: block,
       onCallIndirectExpr: (e) => {
-        if (e.typeUse === 'inline') (e as { typeVar: Var }).typeVar = varIndex(intern(e.sig));
+        // No `typeVar` IS the inline case: the parser sets one for every `(type …)`.
+        if (e.typeVar === undefined) (e as { typeVar?: Var }).typeVar = varIndex(intern(e.sig));
         return Result.Ok;
       },
     });

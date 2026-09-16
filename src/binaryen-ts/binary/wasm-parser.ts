@@ -2215,7 +2215,7 @@ class WasmParser {
                 params: cft.params,
                 results: cft.results,
               }),
-              typeIndex: typeIdx,
+              typeVar: varIndex(typeIdx),
             },
             cft.results,
           );
@@ -2254,7 +2254,7 @@ class WasmParser {
               { params: cft.params, results: cft.results },
               /* isReturn */ true,
             ),
-            typeIndex: typeIdx, // as written (7c) — see `call_indirect` above
+            typeVar: varIndex(typeIdx), // as written (7c) — see `call_indirect` above
           });
           break;
         }

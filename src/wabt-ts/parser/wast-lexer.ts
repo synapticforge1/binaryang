@@ -24,7 +24,7 @@ import {
   PREFIX_THREADS,
 } from '../core/opcode.ts';
 import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
-import { Type } from '../core/types.ts';
+import { isValType, Type } from '../core/types.ts';
 import { LexerSource } from './lexer-source.ts';
 import { isRefKindToken, LiteralType, TokenType } from './token.ts';
 import type { LiteralPayload, Token } from './token.ts';
@@ -932,6 +932,11 @@ export class WastLexer {
 
   private typeToken(tt: TokenType, v: Type): Token {
     if (isRefKindToken(tt)) {
+      // A ref-kind keyword abbreviates a nullable reference VALUE type; the
+      // keyword table is static, so anything else is this file's bug.
+      if (!isValType(v)) {
+        throw new Error(`lexer: ref kind token with non-value type 0x${v.toString(16)}`);
+      }
       return { loc: this.getLocation(), tokenType: tt, refType: v };
     }
     return { loc: this.getLocation(), tokenType: tt, valueType: v };

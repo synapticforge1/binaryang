@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **66 identical / 6 types / 2 names** (the block family, (b)–(d), done 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **68 identical / 5 types / 1 names** (the block family and item 4, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
@@ -2620,6 +2620,53 @@ alike.
 `ref.null` (item 4). `types` (6): `select.resultType` and the five carriers, whose remaining
 differences are `Expr` against `Expression`, `readonly`, the catch record's `loc` and the heap-type
 element types — the node-base and alias stages.
+
+###### ✅ Item 4 — value types, `call_indirect`, and `ref.null` (2026-09-16). Ratchet 66/6/2 → **68 / 5 / 1**
+
+**(b) A `ValueType` is a value type (`eec6912fd`).** wabt-ts's `ValueType` was `Type | RefValueType`,
+and `Type` also holds packed `I8`/`I16`, `Void`, `Func`/`Struct`/`Array` and the validator's `Any` —
+the last thing keeping `select` at `types`. `ValType`/`isValType` moved beside `Type` in wabt-ts's
+`core/types.ts` (binaryen-ts re-exports); wabt-ts `ValueType = ValType | RefValueType`, and
+`StorageType` names a field's type. Each non-value use got its own spelling: the type checker's stack
+`ValueType | Any`, its opcode tables' `ValType | Void`, a spelled `Void` placeholder for an undeclared
+elem type; field-level checks take `StorageType`. Trial: 68 errors (54 outside the bridge).
+
+🛑 **Narrowing a type turned two casts into lies, and each lie hid a VALIDITY defect.** wabt-ts ACCEPTED
+modules V8 and upstream reject: the binary reader returned any byte as a value type (`b as Type` — a
+local `i8`/`0x40`, a param `i8`, a block result `i8`/`0x60` all decoded, and nothing downstream
+checked), and the text parser returned the `i8`/`i16` keywords as value types (`(local i8)`,
+`(param i16)`). Spec 100% on four axes never saw it — the testsuite has no such case. Both now reject
+with upstream's messages ("expected valid local type", "expected valid block signature type"); fields
+read/parse storage types. Spec re-run before commit: no valid module newly rejected. 🔑 **A
+`b as T` cast on untrusted input is a validity check that was never written — narrowing `T` finds
+them.** A third leniency surfaced and was recorded, not fixed: a bare `ref` before a type keyword
+(`(local ref i32)`) parses, and both upstreams reject it — divergence **W7**, open.
+
+**(a) `call_indirect`'s type is `typeVar?: Var` in both IRs (`34901c5fc`).** 🗓️ **OWNER CALL,
+2026-09-16: A.** wabt-ts held `typeVar: Var` (required, `varIndex(0)` default) + a node `typeUse`;
+binaryen-ts `typeIndex?: number` (7c's field, which (c2) also gave the carriers). Trials: converting
+binaryen-ts ~8 source sites (5 + dropping wabt-ts's duplicate `typeUse`, 3), wabt-ts 14. For A: cost,
+a `Var` holds a NAME (`applyNames` writes `(type $sig)` — public, tested; `wasm2wat` prints `(type 0)`
+either way), and every GC kind's type use is `typeVar` on both sides. For B: 7c's literal name, and
+the carriers' `typeIndex` for the same idea. Implemented: binaryen-ts decodes `varIndex(idx)`,
+encodes `requireIndex` or derives, drops it before passes; wabt-ts's `typeVar` is OPTIONAL — an inline
+signature has none until interned, retiring the index-0 ambiguity — its `typeUse` lives only in the
+fidelity table (`synthesizeTypes` reads it there), and a typeless node is refused by the writer and
+validator, printed inline by the text writer.
+
+⚠️ **Two tests were vacuous, and only the mutants said so.** "a queued pass drops it" asserted the OLD
+field was `undefined` through a cast — true whatever the pass runner did — and its fixture's
+unexported function was deleted by -O2, so it checked nothing twice over. And T13.20's
+"names the type of a call_indirect" asserted `$sig` appeared anywhere, which the type DEFINITION
+satisfies. Both fixed; 10 mutants on (a) all killed, 7 on (b) all killed (two via tests added for them).
+
+**(c) `ref.null` — still deferred, premise unchanged.** binaryen-ts has no field because the node's
+`type` is `(ref null t)`; a `refType`/`heapType` field beside it would be the same fact twice. It
+lands with type derivation (item 5), when `type` stops being the only carrier — Group 3's finding,
+re-read and still true (neither node changed).
+
+**What is left:** `names` (1) — `ref.null`. `types` (5) — the five carriers (`Expr[]`/`RegionExpr`
+against `Expression`, `readonly`, the catch record's `loc`): the node base and alias stages.
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and

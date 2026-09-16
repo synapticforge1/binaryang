@@ -50,7 +50,8 @@ import {
   varIndex,
   varName,
 } from '../wabt-ts/ir/ir.ts';
-import type { HeapTypeRef, TableCatch, ValueType } from '../wabt-ts/ir/ir.ts';
+import type { HeapTypeRef, StorageType, TableCatch, ValueType } from '../wabt-ts/ir/ir.ts';
+import type { ValType as WabtValType } from '../wabt-ts/core/types.ts';
 import type {
   ArrayGetExpr,
   ArrayLenExpr,
@@ -713,11 +714,10 @@ function lookupStructFieldType(typeVar: Var, fieldVar: Var, ctx: BridgeCtx): Val
  * `addHeapType`. Packed i8/i16 are encoded as their own storage variants;
  * other types map to their ValType counterparts.
  */
-function wabtFieldTypeToValType(tIn: ValueType): ValType | 'i8' | 'i16' {
-  const t = coarsenValueType(tIn);
+function wabtFieldTypeToValType(t: StorageType): ValType | 'i8' | 'i16' {
   if (t === Type.I8) return 'i8';
   if (t === Type.I16) return 'i16';
-  return wabtTypeToValType(t);
+  return wabtTypeToValType(coarsenValueType(t));
 }
 
 /**
@@ -733,7 +733,9 @@ function wabtFieldTypeToValType(tIn: ValueType): ValType | 'i8' | 'i16' {
  * is the fallback (`tests/bridge/call_indirect_type_ref.test.ts`).
  */
 function callIndirectSig(ci: CallIndirectExpr, ctx: BridgeCtx): FuncSignature {
-  if (ci.sig.params.length > 0 || ci.sig.results.length > 0) return ci.sig;
+  if (ci.sig.params.length > 0 || ci.sig.results.length > 0 || ci.typeVar === undefined) {
+    return ci.sig;
+  }
   const idx = varIdx(ci.typeVar);
   const entry = ctx.types[idx];
   if (entry === undefined) {
@@ -1678,7 +1680,7 @@ function requireIndex(v: Var, label: string): number {
   return v.value;
 }
 
-function localType(ctx: BridgeCtx, idx: number): Type {
+function localType(ctx: BridgeCtx, idx: number): WabtValType {
   // The bridge's flat ValType surface cannot carry a concrete typed ref, so
   // coarsen — same loss wabtTypeToValType takes, and only here.
   return coarsenValueType(

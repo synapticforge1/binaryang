@@ -84,9 +84,11 @@ describe('7c / T1 — call_indirect keeps the type index it named', () => {
   });
 
   it('the node carries the written index', () => {
+    // A `Var` since S6 step 5 item 4 (a) (`typeVar`, was `typeIndex`); this read
+    // it through a cast, which went `undefined` rather than failing to compile.
     const calls = nodesOfKind(assemble(IDENTICAL_TYPES), ExpressionKind.CallIndirect);
     assertEquals(calls.length, 1);
-    assertEquals((calls[0] as { typeIndex?: number }).typeIndex, 1);
+    assertEquals((calls[0] as { typeVar?: unknown }).typeVar, { kind: 'index', value: 1 });
   });
 
   it('a module with ONE matching type needs no record to be right', () => {
@@ -210,7 +212,12 @@ describe('7c — the form is FIDELITY ONLY: a pass run drops it', () => {
   });
 
   it('a queued pass drops it — the node no longer carries an index', () => {
-    const m = parseWasm(assemble(IDENTICAL_TYPES));
+    // EXPORTED, with a runtime table slot: IDENTICAL_TYPES' function is dead code
+    // that -O2 removes, which left this test checking nothing at all.
+    const m = parseWasm(assemble(
+      '(module (type $a (func)) (type $b (func)) (table 1 funcref)' +
+        ' (func (export "f") (param i32) (call_indirect (type $b) (local.get 0))))',
+    ));
     new PassRunner(m, { optimizeLevel: 2, debugInfo: false }).addDefaultOptimizationPasses().run();
     const found: Expression[] = [];
     for (const fn of m.functions) {
@@ -218,7 +225,9 @@ describe('7c — the form is FIDELITY ONLY: a pass run drops it', () => {
         if (e.kind === ExpressionKind.CallIndirect) found.push(e);
       });
     }
-    for (const c of found) assertEquals((c as { typeIndex?: number }).typeIndex, undefined);
+    // `typeVar` since S6 step 5 item 4 (a); a cast reading the old `typeIndex` passed vacuously.
+    assert(found.length > 0, 'the fixture keeps a call_indirect through -O2');
+    for (const c of found) assertEquals((c as { typeVar?: unknown }).typeVar, undefined);
   });
 });
 

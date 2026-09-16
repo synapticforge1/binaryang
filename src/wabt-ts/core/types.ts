@@ -121,6 +121,84 @@ export enum Type {
   Any = 0x00,
 }
 
+/**
+ * Primitive WebAssembly value types.
+ *
+ * These are the value types that WASM values carry at runtime. The set covers
+ * the MVP types plus the SIMD and reference-types proposals.
+ *
+ * ⚠️ **The values ARE the wire bytes, and equal wabt-ts's `Type` member for
+ * member** (S6 step 5, stage V1). They were the text names (`'i32'`). Numeric was
+ * decided by trial: flipping these cost 20 compile errors and 13 failing tests;
+ * flipping wabt-ts's `Type` to strings cost 27 and **299** -- its reader and
+ * writer use the values AS the bytes -- and the operator representation was
+ * already the numeric wire encoding (stage 1). `tests/ir/value_types.test.ts`
+ * pins the equality.
+ *
+ * ⚠️ **And since stage V4 the members ARE `Type` members** — a const
+ * object over `Type`, not a second enum. Two enums with equal values are still
+ * two TYPES (enums are nominal), so `Type.I32` could not be passed where a
+ * `ValType` was expected. Now `ValType` is the value-type SUBSET of `Type`: every
+ * `ValType` is a `Type`, and a `Type` member that is a value type is a `ValType`.
+ * Use `typeof ValType.I32` where a member is needed as a TYPE.
+ *
+ * A NAME is never the value: print with {@link valTypeName}, parse with
+ * {@link valTypeFromName}, and never interpolate a `ValType` into a string or test
+ * it with `typeof === 'string'` -- both still compile, and both are wrong.
+ */
+export const ValType = {
+  /** 32-bit integer */
+  I32: Type.I32,
+  /** 64-bit integer */
+  I64: Type.I64,
+  /** 32-bit float */
+  F32: Type.F32,
+  /** 64-bit float */
+  F64: Type.F64,
+  /** 128-bit SIMD vector */
+  V128: Type.V128,
+  /** Nullable function reference */
+  FuncRef: Type.FuncRef,
+  /** Nullable external (host) reference */
+  ExternRef: Type.ExternRef,
+  /** Nullable any reference (GC proposal) */
+  AnyRef: Type.AnyRef,
+  /** Nullable eq reference (GC proposal) */
+  EqRef: Type.EqRef,
+  /** Nullable i31 reference (GC proposal) */
+  I31Ref: Type.I31Ref,
+  /** Nullable struct reference (GC proposal) */
+  StructRef: Type.StructRef,
+  /** Nullable array reference (GC proposal) */
+  ArrayRef: Type.ArrayRef,
+  /** String reference (stringref proposal). 0x67 is that proposal's byte; neither encoder writes it. */
+  StringRef: Type.StringRef,
+  /** Null function reference (bottom type) */
+  NullFuncRef: Type.NullFuncRef,
+  /** Null external reference (bottom type) */
+  NullExternRef: Type.NullExternRef,
+  /** Null any reference (bottom type) */
+  NullRef: Type.NullRef,
+  /** Exception reference (EH proposal) */
+  ExnRef: Type.ExnRef,
+  /** Null exception reference (bottom type, EH proposal) */
+  NullExnRef: Type.NullExnRef,
+} as const;
+/** A scalar value type: the value-type SUBSET of {@link Type}. */
+export type ValType = typeof ValType[keyof typeof ValType];
+
+const VAL_TYPES: ReadonlySet<number> = new Set(Object.values(ValType));
+
+/**
+ * Whether `t` is a scalar value type -- the test that replaces
+ * `typeof t === 'string'`, which stopped meaning this when the values became
+ * bytes (`none` and `unreachable` are still strings). Membership in the SUBSET:
+ * `Type.Void` is a `Type` and not a value type.
+ */
+export function isValType(t: unknown): t is ValType {
+  return typeof t === 'number' && VAL_TYPES.has(t);
+}
+
 // ---------------------------------------------------------------------------
 // Convenience predicates
 // ---------------------------------------------------------------------------
@@ -253,7 +331,7 @@ export type AbstractHeap =
   | 'array'
   | 'none';
 
-const ABSTRACT_HEAP_TYPES: ReadonlyArray<readonly [AbstractHeap, Type]> = [
+const ABSTRACT_HEAP_TYPES: ReadonlyArray<readonly [AbstractHeap, ValType]> = [
   ['func', Type.FuncRef],
   ['extern', Type.ExternRef],
   ['exn', Type.ExnRef],
@@ -268,7 +346,7 @@ const ABSTRACT_HEAP_TYPES: ReadonlyArray<readonly [AbstractHeap, Type]> = [
   ['noexn', Type.NullExnRef],
 ];
 
-const HEAP_TYPE_BY_NAME: ReadonlyMap<string, Type> = new Map(ABSTRACT_HEAP_TYPES);
+const HEAP_TYPE_BY_NAME: ReadonlyMap<string, ValType> = new Map(ABSTRACT_HEAP_TYPES);
 const HEAP_NAME_BY_TYPE: ReadonlyMap<Type, AbstractHeap> = new Map(
   ABSTRACT_HEAP_TYPES.map(([name, t]) => [t, name]),
 );
@@ -280,7 +358,7 @@ const HEAP_NAME_BY_TYPE: ReadonlyMap<Type, AbstractHeap> = new Map(
  * encoding. Returns `null` for anything else — notably a `$name` reference to
  * a user-defined heap type, which resolves to a type index instead.
  */
-export function heapTypeNameToType(name: string): Type | null {
+export function heapTypeNameToType(name: string): ValType | null {
   return HEAP_TYPE_BY_NAME.get(name) ?? null;
 }
 

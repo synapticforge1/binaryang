@@ -1446,11 +1446,15 @@ export interface CallIndirectExpr extends ExprBase {
   /** isReturn — see the matching factory for semantics. */
   isReturn?: boolean;
   /**
-   * The type-section index the instruction NAMED — see {@link WrittenTypeIndex}
-   * (7c). Without it the encoder derives one by structural match, which picks
-   * the FIRST identical type and so re-encodes `(type $b)` as `$a` (T1).
+   * The type the instruction NAMED — form beside `sig` (7c). Without it the
+   * encoder derives one by structural match, which picks the FIRST identical
+   * type and so re-encodes `(type $b)` as `$a` (T1).
+   *
+   * 🔧 It was `typeIndex?: WrittenTypeIndex`, a number. A `Var`, as wabt-ts holds
+   * it and as every GC kind's `typeVar` is on both sides (owner, 2026-09-16, S6
+   * step 5 item 4 (a)): a type use can be a NAME, which `applyNames` writes.
    */
-  typeIndex?: WrittenTypeIndex;
+  typeVar?: Var;
 }
 
 /** {@link RefNullExpr} — see {@link makeRefNull} for the factory. */
@@ -2498,7 +2502,6 @@ export function writtenTypeIndexOf(e: Expression): WrittenTypeIndex | undefined 
     case ExpressionKind.If:
     case ExpressionKind.Try:
     case ExpressionKind.TryTable:
-    case ExpressionKind.CallIndirect:
       return e.typeIndex;
     default:
       return undefined;
@@ -2517,8 +2520,10 @@ export function dropWrittenTypeIndex(e: Expression): void {
     case ExpressionKind.If:
     case ExpressionKind.Try:
     case ExpressionKind.TryTable:
-    case ExpressionKind.CallIndirect:
       delete e.typeIndex;
+      break;
+    case ExpressionKind.CallIndirect:
+      delete e.typeVar;
       break;
     default:
       break;

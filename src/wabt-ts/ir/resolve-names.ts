@@ -17,6 +17,7 @@
 
 import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
+import { Type } from '../core/types.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import type {
@@ -28,6 +29,7 @@ import type {
   HeapTypeRef,
   Module,
   RegionExpr,
+  StorageType,
   TableCatch,
   TypeUse,
   ValueType,
@@ -233,6 +235,8 @@ class ResolveContext {
   private resolveModuleValueTypes(): void {
     const vt = (t: ValueType): ValueType =>
       isRefValueType(t) ? { ...t, heapType: this.resolveHeapTypeVar(t.heapType) } : t;
+    // A field's storage type: a packed `i8` / `i16` names nothing to resolve.
+    const st = (t: StorageType): StorageType => (t === Type.I8 || t === Type.I16 ? t : vt(t));
     const sig = (s: FuncSignature): void => {
       s.params = s.params.map(vt);
       s.results = s.results.map(vt);
@@ -240,8 +244,8 @@ class ResolveContext {
 
     for (const t of this.module.types) {
       if (t.kind === 'func') sig(t.sig);
-      else if (t.kind === 'struct') { for (const f of t.fields) f.type = vt(f.type); }
-      else if (t.kind === 'array') t.field.type = vt(t.field.type);
+      else if (t.kind === 'struct') { for (const f of t.fields) f.type = st(f.type); }
+      else if (t.kind === 'array') t.field.type = st(t.field.type);
       // `(sub $super …)` supertypes are type-index references like any other;
       // left unresolved they hit the writer's fail-loud guard.
       if (t.sub !== undefined) {
@@ -340,10 +344,7 @@ class ResolveContext {
         return [combine(rA, rC), {
           ...e,
           table: this.resolveTableVar(e.table, loc),
-          typeVar: this.resolveTypeVar(e.typeVar, loc),
-          ...(typeof e.typeUse === 'object'
-            ? { typeUse: this.resolveTypeVar(e.typeUse, loc) }
-            : {}),
+          ...(e.typeVar !== undefined ? { typeVar: this.resolveTypeVar(e.typeVar, loc) } : {}),
           operands: args,
           callee,
         }];
