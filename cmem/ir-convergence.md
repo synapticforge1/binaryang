@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **65 identical / 1 types / 7 names**, and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **65 identical / 5 types / 3 names** (block family (b) and (c) done 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
@@ -2503,6 +2503,85 @@ failure, not a no-op** (working-rules.md § Tools), and it bit again.
 
 The ratchet does not move: `try` and `try_table` still differ by block type and body, and their
 `catches` fields by `loc`. What is left of the block family: (c) the block type, (d) the bodies.
+
+###### ✅ Stage (c) — the block type (2026-09-16). Ratchet 65/1/7 → **65 / 5 / 3**
+
+wabt-ts's `blockType: BlockType` (`void` | one value type | `func_type`, an index and nothing else)
+against binaryen-ts's `type` + `params?: { types, values }` + `typeIndex?`. Two sub-stages, each
+byte-neutral (baseline IDENTICAL), each gated, plus two defects found on the way.
+
+**Where the decision came from — and where it did not.** Decision 7 as the owner made it (7a,
+7b(i), 7c) put SEMANTICS on the node (declared results, block parameters) and the written INDEX
+beside them as form. So wabt-ts takes binaryen-ts's split; that is not a trial. What 7b(i) did NOT
+decide is where the entry VALUES live in the merged tree — "parameters stay on the node through the
+fidelity phase" was about binaryen-ts lowering them at decode, and `{ types, values }` was the
+implementer's shape. wabt-ts (and upstream wabt) leave them as preceding siblings. By the usual
+rule: fidelity does not bind (probe below), optimization does not bind (`PassRunner` lowers params
+before any pass), so meaning — **every other operand in both trees is a child of the node that
+consumes it, branch values included (6A); entry values were the one exception.** Cost was comparable
+by reading; a convention change is not a compile error, so it cannot be trialled by counting.
+
+🔬 **Probe, before either sub-stage** — nine fixtures through upstream `wat2wasm`, then decode →
+encode on both halves: params from a constant, from a 2-result call, a 1-param block over a
+2-result call, loop, `if` (value beneath the condition), an index-form header, duplicate identical
+types, a multi-result block, a param block in unreachable code. wabt-ts: 9/9 identical.
+binaryen-ts: 8/9 —
+
+🛑 **Defect, binaryen-ts encoder (`1d8a72be3`)**: a header WITH parameters naming the second of two
+identical types re-encoded naming the first (`02 01` → `02 00`). `writeCarrierType` took its
+parameter branch FIRST and derived the index by signature; the decoder had recorded
+`typeIndex: 1` and nothing read it. T1's defect on the one header shape 7c's tests missed. The
+written index is read first now — safe by 7c's own guarantee. ⚠️ The test's first fixtures were
+FOLDED `(block (type $b) (local.get 0))`, which supplies no entry value: invalid, and the encoder
+"failed" by filling the missing one. **A fixture that is not itself valid proves nothing** —
+rewritten linear, each `WebAssembly.validate`d first.
+
+**(c1) — a carrier owns its entry values (`38a47be36`).** wabt-ts gains `params?: BlockParams`.
+The reader and all eight parser branches pop the values at the header (`if`: beneath the
+condition); `ExprVisitor` dispatches them first, so the binary writer, validator and linear text
+writer needed nothing; the folded writer prints them as preceding siblings (inside `(if …)` before
+the condition, which the parser's folded `if` reads back); `resolveNames` resolves them in the
+ENCLOSING scope; `generateNames` numbers them first. 15 mutants, 14 killed; the survivor dropped
+resolveNames' resolved values, invisible because **the binary writer resolves LABEL names itself** —
+a `call $seven` / `global.get $g` value makes the writer refuse, and those tests now kill all five
+resolveNames arms, each by its own carrier.
+
+🛑 **c1 residue, found by a sweep after c1 was gated green (`0f2e32bd5`)**: `applyNames`' generic
+axis-1 walk recurses into an `Expr`, an `Expr[]`, or `{ body }` clauses — and `params` is an OBJECT
+holding an `Expr[]`, so a `global.get 0` among entry values kept its index. Public API, no internal
+caller (T13.20), so the whole gate could not see it; its table now has an entry-value row per
+carrier (5/5 failed before). 🔑 **After moving children into a new container shape, sweep every
+walker that enumerates fields generically** — the four test walkers that list fields by name would
+also skip `params`, but none of their fixtures has parameters.
+
+**(c2) — a carrier holds its signature (`f4e04989f`).** `type: BlockResult` (`'none'` | the value
+type | a list of two or more — one spelling per arity) and `typeIndex?` replace `blockType`;
+`FidelityEntry.blockType` is gone. The header a node writes is derived in ONE place, `blockTypeOf`
+(written index → inline → UNASSIGNED, which writers refuse), so the shared validator, both writers,
+`ir-util` and the bridge kept their `BlockType` logic. The parser interns an unassigned carrier's
+implicit type from the node.
+
+🔑 **The node now spells its signature twice where it names an index**, and the writers emit the
+index. So the validator's new `checkCarrierHeader` requires them to agree, and requires an
+index-less header to have an inline spelling. That redundancy is inherent: which of two identical
+types was named is unrecoverable from the signature.
+
+🛑 **Silent classes, swept before converting**: the validator's `blockTypesIn` (the ref.wast
+"unknown type" check) keyed on a `blockType` FIELD and would have found nothing; a corpus test
+pinning the removed table entry; an optional chain through a cast in `block_type_ref.test.ts`,
+which would have read `undefined`. And a semantic one: only a SINGLE result was resolved by
+resolveNames, because only that lived on the node — a list and `params.types` now are too.
+
+⚠️ **11 mutants, 8 killed first; the 3 survivors were tests that could not reach their target.**
+`wat2wasm` validates what it reads back from ITS OWN BYTES, and the header writes the index, so an
+unresolved `(ref $s)` left in the text tree's list or parameters reached no consumer; and
+`ModuleContext.getExprArity` is public with no internal caller. Tests now validate the resolved
+TEXT tree as it stands and call the arity directly; all 3 killed. 🔑 **A pipeline test is blind to
+any tree state its own serialization round trip erases.**
+
+**Ratchet**: `if`, `loop`, `try`, `try_table` → `types` (field names match; `Expr[]` against
+`RegionExpr` is (d)); `block` stays `names` (`body` against `children`). PUBLIC and breaking on
+`./ir/wabt-ts` — [unreleased.md](unreleased.md).
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and

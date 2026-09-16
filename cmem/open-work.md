@@ -35,7 +35,7 @@ failed, naming, portability, baseline **IDENTICAL**, publish dry-run, operators,
 assertion holds in every world, 19 `assert_invalid`/`assert_malformed` skipped), `optimize-corpus`
 (every level of every module encodes and validates).
 
-S6 step 5's expression ratchet stands at **65 identical / 1 types / 7 names**. Nine stages landed
+S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**65 / 5 / 3** after items 1–2 below, 2026-09-16). Nine stages landed
 on 2026-09-15 (A, A2, A3, B, V1–V4, S1–S3, L1, B1–B3, C1, L2). **No branch is open** — the next
 sub-stage was branched and the branch deleted unused, so start from `main`.
 
@@ -45,8 +45,12 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    try_table clause is `{ tag?, target, isRef }` on both sides (`CatchKind` deleted); both IRs name
    the pair `Catch` / `TableCatch`. Trials, mutants and inversions:
    [ir-convergence.md](ir-convergence.md) § "Stage (b) — the catch records". Ratchet unmoved.
-2. **Block family (c) — the block TYPE**: wabt-ts's `blockType: BlockType` against binaryen-ts's
-   `type` + `params?: BlockParams` + `typeIndex?: WrittenTypeIndex`. The largest of the four.
+2. ✅ **Block family (c) — the block TYPE. DONE 2026-09-16** (`38a47be36` c1, `f4e04989f` c2, plus
+   defects `1d8a72be3` and `0f2e32bd5`). wabt-ts's carriers own their entry values
+   (`params: { types, values }`) and hold their signature (`type`) with the written index
+   (`typeIndex?`); `blockType` and its fidelity entry are gone; the validator holds signature and
+   index to each other. Ratchet **65 / 5 / 3**. Record: [ir-convergence.md](ir-convergence.md) §
+   "Stage (c) — the block type".
 3. **Block family (d) — the bodies**: `Expr[]` against `RegionExpr` (`children` against `body`).
    Note this one also closes the last field difference in the LEGACY catch record.
 4. Then, still on the expression half: `call_indirect`'s type use (`typeVar` + `typeUse?` against
