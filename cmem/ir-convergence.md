@@ -2713,6 +2713,31 @@ node — only the node's `kind` differed. Corrected. Ratchet unchanged (base fie
 **Distance re-measured after (1)+(2): the alias trial is 2,012 → 301 errors.** Largest shapes:
 exact-optional assignability (103 + 61), argument types (74), missing properties (38).
 
+**(3) A carrier's `type` is what it DECLARES; reachability is derived.** 🗓️ **OWNER CALL,
+2026-09-16.** The five carriers' `type` meant two things: wabt-ts, the declared signature (c2);
+binaryen-ts, a computed type that may be `'unreachable'` — upstream binaryen's model, which its DCE
+and encoder read. Offered: B (declared, or `'unreachable'` on pass-built nodes), A (declared only),
+C (two fields). The owner rejected carrying `'unreachable'` at all — "an issue that can't ever be
+resolved … not our goal even if upstream has chosen that approach" — and agreed to: `type` is ALWAYS
+the declared `BlockResult`; "does control reach this construct's end" is a pure function of the tree
+(`fallsThrough`), never stored, so it cannot go stale. 🔑 **An `'unreachable'` carrier type is a CACHE
+of a control-flow fact, and every defect in this family was that cache disagreeing with wasm**: the
+decoder's inferred void `if` (DCE deleted a needed value, 30/70 legacy-EH assertions), the encoder's
+extra-`unreachable` patch for pass-built constructs, and (3a) below. Trial for narrowing binaryen-ts's
+carriers to declared-only: 13 errors (factories inferring from the last child; 4 readers).
+Plan: (3a) the text parser declares; (3b) `fallsThrough` and the 26 reads of `Unreachable` that ask
+about control flow; (3c) the carriers' `type` narrowed, factories declare, the encoder patch goes.
+
+**(3a) 🛑 Defect, binaryen-ts WAT parser — the decoder's hole on the text path.** `declaredType` took a
+FALLBACK for an unannotated construct: the last child's type (block, try, try_table) or `makeIf`'s
+inference from the arms (if — void OR typed, the typed case guarded only `!== Unreachable`). So
+`(block (unreachable))`, an `if` whose arms both trap, `(try_table (throw $e))` came out typed
+`unreachable`, and the encoder's extra `unreachable` followed an `end` the source did not. Valid, not
+the module written; the corpus and spec harness never reach this parser (they go through wabt-ts).
+Fixed: no fallback. Tests (`unreachable_construct.test.ts`, 6 carriers): text-path carrier types equal
+the decoder's, none `unreachable`, code sections byte-equal; 5 of 6 fail on the old parser (the loop
+passed — `parseLoop` alone already used `None`).
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

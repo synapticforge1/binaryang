@@ -208,6 +208,12 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **binaryen-ts's WAT parser gives a construct its DECLARED type** (S6 step 5 item 5 (3a)). An
+  unannotated `block` / `if` / `try` / `try_table` whose body ends unreachable — `(block
+  (unreachable))`, an `if` whose arms both trap, a typed `if` likewise — was typed `unreachable`, and
+  the encoder wrote an `unreachable` after its `end` that the source did not have. Valid output, one
+  byte per such construct longer; now identical to the binary decoder's.
+
 - **wabt-ts REJECTS non-value types in value positions** (`eec6912fd`). It accepted modules V8 and
   upstream reject: a binary local, param, result, global or block result of a packed (`0x78`) or
   non-type byte (`0x40`, `0x60`), and text `(local i8)` / `(param i16)` / `(result i8)`. The reader now

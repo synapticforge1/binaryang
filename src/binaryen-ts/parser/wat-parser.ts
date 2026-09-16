@@ -1447,7 +1447,7 @@ class WatModuleParser {
     const blockLabel = this.labelFor(label, ctx);
     const innerCtx = this.pushLabel(blockLabel, ctx);
     const bodyExprs = this.parseStatementList(children.slice(idx), innerCtx);
-    const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
+    const type = this.declaredType(results);
     return makeBlock(bodyExprs, blockLabel, type);
   }
 
@@ -1474,7 +1474,7 @@ class WatModuleParser {
     }
     // `makeLoop`'s `asRegion` would dissolve a sole UNNAMED block, but none
     // reaches it from here: `labelFor` names every block this parser builds.
-    return makeLoop(label, this.region(bodyExprs), this.declaredType(results, None));
+    return makeLoop(label, this.region(bodyExprs), this.declaredType(results));
   }
 
   private parseIf(list: SList, ctx: FuncContext): IfExpr {
@@ -1541,24 +1541,19 @@ class WatModuleParser {
       if (elseExprs.length > 0) ifFalse = this.region(elseExprs);
     }
 
-    // Route through makeIf so the result type is the LUB of the reachable
-    // arm(s), matching upstream `If::finalize`: with an `else`, the type is the
-    // type of whichever arm is reachable (unreachable only when BOTH arms are).
-    // The old `ifFalse ? ifTrue.type : None` blindly took `ifTrue.type`, so an
-    // `if` whose `then` ends in `return`/`br` (now correctly typed `unreachable`)
-    // but whose `else` falls through was mistyped `unreachable`, making DCE
-    // delete live code after the `if`. An explicit `(result ...)` annotation,
-    // when present, is honored for the value-typed case; for valid wasm it
-    // equals the inferred LUB whenever neither arm is unreachable.
+    // The `if`'s type is what it DECLARES, never what `makeIf` infers from the
+    // arms. Inference typed an `if` whose arms both end in `unreachable` /
+    // `br` / `return` as `unreachable` — void or not — and wasm validates it
+    // against the declared type: after its `end` the stack is not polymorphic.
+    // (Earlier, `ifFalse ? ifTrue.type : None` mistyped a one-sided one and DCE
+    // deleted live code after it; the binary decoder had the both-arms case.)
     const node = makeIf(condition!, ifTrue, ifFalse);
     // Carry the branch-target label onto the node: the encoder pushes
     // `e.label || null`, so leaving it unset would put an empty name where the
     // parser resolved branches against `ifLabel`, and every `br` into this `if`
     // would fail to resolve.
     node.label = ifLabel ?? '';
-    if (results.length > 0 && node.type !== Unreachable) {
-      node.type = this.declaredType(results, typeOf(node));
-    }
+    node.type = this.declaredType(results);
     return node;
   }
 
@@ -1687,7 +1682,7 @@ class WatModuleParser {
       bodyExprs.push(this.parseExpr(children[idx], innerCtx));
       idx++;
     }
-    const type = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
+    const type = this.declaredType(results);
     const body = this.region(bodyExprs);
     return makeTryTable(tryLabel, body, catches, type);
   }
@@ -1723,7 +1718,7 @@ class WatModuleParser {
         idx++;
       }
     }
-    const bodyType = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
+    const bodyType = this.declaredType(results);
     const body = this.region(bodyExprs);
     // Catch / catch_all / delegate clauses
     const catches: Catch[] = [];
@@ -3376,16 +3371,6 @@ class WatModuleParser {
   }
 
   /**
-   * The type a `(result ...)` annotation declares.
-   *
-   * `results[0]` alone silently TRUNCATED a multi-result construct to its first
-   * result: `(block (result i32 i32) ...)` produced a block typed `i32`, which
-   * the encoder then emitted with a single-result blocktype while the body
-   * pushed two — "expected 1 elements on the stack for fallthru, found 2" from a
-   * legal input. The IR has carried tuple types since multi-value landed, so a
-   * multi-result annotation becomes the array.
-   */
-  /**
    * A region from a body list, exactly as written. Its type is its CONTENTS'
    * type, inferred as {@link makeBlock} does; the construct's declared type
    * lives on the construct, which is also what writes the blocktype.
@@ -3400,9 +3385,26 @@ class WatModuleParser {
     return makeRegion(exprs);
   }
 
-  private declaredType(results: ValueType[], fallback: Type): Type {
+  /**
+   * The type a `(result ...)` annotation declares.
+   *
+   * `results[0]` alone silently TRUNCATED a multi-result construct to its first
+   * result: `(block (result i32 i32) ...)` produced a block typed `i32`, which
+   * the encoder then emitted with a single-result blocktype while the body
+   * pushed two — "expected 1 elements on the stack for fallthru, found 2" from a
+   * legal input. The IR has carried tuple types since multi-value landed, so a
+   * multi-result annotation becomes the array.
+   *
+   * 🔧 It took a FALLBACK for an unannotated construct — the last child's type
+   * (block, try, try_table) or the arms' (if) — so `(block (unreachable))` was
+   * typed `unreachable` where wasm declares it void, and the encoder wrote an
+   * `unreachable` after its `end` that the source never had. A construct's type
+   * is what it DECLARES, always; whether control reaches its end is a question
+   * about the tree, not a value on the node (owner, 2026-09-16).
+   */
+  private declaredType(results: ValueType[]): Type {
     if (results.length > 1) return results;
-    return results[0] ?? fallback;
+    return results[0] ?? None;
   }
 
   private err(msg: string, pos?: TextPos): never {
