@@ -111,7 +111,9 @@ export const ExpressionKind = {
   TableCopy: 'table.copy',
   ElemDrop: 'elem.drop',
   TableInit: 'table.init',
-  // Atomics
+  // Atomics (threads proposal)
+  AtomicLoad: 'atomic.load',
+  AtomicStore: 'atomic.store',
   AtomicRMW: 'atomic.rmw',
   AtomicCmpxchg: 'atomic.cmpxchg',
   AtomicWait: 'atomic.wait',
@@ -1229,6 +1231,102 @@ export interface MemoryGrowExpr extends ExprBase {
 }
 
 /** {@link MemorySizeExpr} — see {@link makeMemorySize} for the factory. */
+// ---------------------------------------------------------------------------
+// Threads / atomics, and call_ref (S6 step 5 item 5 (5); divergence K1)
+// ---------------------------------------------------------------------------
+//
+// wabt-ts's shapes, field for field: binaryen-ts had no node for any of these —
+// the decoder refused `0xfe` and `0x14` — so there was nothing to merge, only a
+// capability to port (S6 Bucket B). Each atomic keeps the instruction it was
+// written as in `opcode`, as `load` / `store` do; width and result type are
+// derived from it, never stored beside it.
+
+/** `i32.atomic.load*` / `i64.atomic.load*` (0xfe 0x10–0x16). */
+export interface AtomicLoadExpr extends ExprBase {
+  kind: typeof ExpressionKind.AtomicLoad;
+  /** The instruction, as written. */
+  opcode: Opcode;
+  align: number;
+  offset: bigint;
+  memidx: Var;
+  address: Expression;
+}
+
+/** `i32.atomic.store*` / `i64.atomic.store*` (0xfe 0x17–0x1d). */
+export interface AtomicStoreExpr extends ExprBase {
+  kind: typeof ExpressionKind.AtomicStore;
+  opcode: Opcode;
+  align: number;
+  offset: bigint;
+  memidx: Var;
+  address: Expression;
+  value: Expression;
+}
+
+/** Atomic read-modify-write — `*.atomic.rmw*.{add,sub,and,or,xor,xchg}` (0xfe 0x1e–0x47); yields the old value. */
+export interface AtomicRmwExpr extends ExprBase {
+  kind: typeof ExpressionKind.AtomicRMW;
+  opcode: Opcode;
+  align: number;
+  offset: bigint;
+  memidx: Var;
+  address: Expression;
+  value: Expression;
+}
+
+/** Atomic compare-exchange (0xfe 0x48–0x4e) — writes `replacement` iff memory holds `expected`; yields the old value. */
+export interface AtomicRmwCmpxchgExpr extends ExprBase {
+  kind: typeof ExpressionKind.AtomicCmpxchg;
+  opcode: Opcode;
+  align: number;
+  offset: bigint;
+  memidx: Var;
+  address: Expression;
+  expected: Expression;
+  replacement: Expression;
+}
+
+/** `memory.atomic.wait32` / `wait64` (0xfe 0x01 / 0x02) — yields 0 ok, 1 not-equal, 2 timed out. */
+export interface AtomicWaitExpr extends ExprBase {
+  kind: typeof ExpressionKind.AtomicWait;
+  opcode: Opcode;
+  align: number;
+  offset: bigint;
+  memidx: Var;
+  address: Expression;
+  expected: Expression;
+  timeout: Expression;
+}
+
+/** `memory.atomic.notify` (0xfe 0x00) — yields the number of waiters woken. */
+export interface AtomicNotifyExpr extends ExprBase {
+  kind: typeof ExpressionKind.AtomicNotify;
+  align: number;
+  offset: bigint;
+  memidx: Var;
+  address: Expression;
+  count: Expression;
+}
+
+/** `atomic.fence` (0xfe 0x03) — a consistency-model marker; no operands, no value. */
+export interface AtomicFenceExpr extends ExprBase {
+  kind: typeof ExpressionKind.AtomicFence;
+  consistencyModel: number;
+}
+
+/** `call_ref $t` (0x14) / `return_call_ref $t` (0x15) — calls the function reference `callee`. */
+export interface CallRefExpr extends ExprBase {
+  kind: typeof ExpressionKind.CallRef;
+  /** `return_call_ref` when true. */
+  isReturn?: boolean;
+  /** The function type the callee has — a type index, as written. */
+  sigType: Var;
+  /** Arguments, in declaration order. */
+  operands: Expression[];
+  /** The function reference, evaluated LAST. */
+  callee: Expression;
+}
+
 export interface MemorySizeExpr extends ExprBase {
   /**
    * Memory this access addresses. Omitted means 0, the only memory a
@@ -2220,6 +2318,13 @@ export type Expression =
   | DropExpr
   | LoadExpr
   | StoreExpr
+  | AtomicLoadExpr
+  | AtomicStoreExpr
+  | AtomicRmwExpr
+  | AtomicRmwCmpxchgExpr
+  | AtomicWaitExpr
+  | AtomicNotifyExpr
+  | AtomicFenceExpr
   | MemoryGrowExpr
   | MemorySizeExpr
   | TableInitExpr
@@ -2234,6 +2339,7 @@ export type Expression =
   | MemoryFillExpr
   | CallExpr
   | CallIndirectExpr
+  | CallRefExpr
   | RefNullExpr
   | RefIsNullExpr
   | RefAsExpr
@@ -2794,6 +2900,146 @@ export function makeStore(
     value,
     memidx,
   };
+}
+
+/** The scalar an atomic load / rmw / cmpxchg yields: `i64` for an `i64.*` instruction, else `i32`. */
+function atomicValueType(opcode: Opcode): typeof ValType.I32 | typeof ValType.I64 {
+  return anyOpcodeName(opcode).startsWith('i64.') ? ValType.I64 : ValType.I32;
+}
+
+/** Creates an atomic load. */
+export function makeAtomicLoad(
+  opcode: Opcode,
+  offset: bigint,
+  align: number,
+  address: Expression,
+  memidx: Var = varIndex(0),
+): AtomicLoadExpr {
+  const type = atomicValueType(opcode);
+  return { kind: ExpressionKind.AtomicLoad, type, opcode, align, offset, memidx, address };
+}
+
+/** Creates an atomic store. */
+export function makeAtomicStore(
+  opcode: Opcode,
+  offset: bigint,
+  align: number,
+  address: Expression,
+  value: Expression,
+  memidx: Var = varIndex(0),
+): AtomicStoreExpr {
+  return {
+    kind: ExpressionKind.AtomicStore,
+    type: None,
+    opcode,
+    align,
+    offset,
+    memidx,
+    address,
+    value,
+  };
+}
+
+/** Creates an atomic read-modify-write. */
+export function makeAtomicRmw(
+  opcode: Opcode,
+  offset: bigint,
+  align: number,
+  address: Expression,
+  value: Expression,
+  memidx: Var = varIndex(0),
+): AtomicRmwExpr {
+  const type = atomicValueType(opcode);
+  return { kind: ExpressionKind.AtomicRMW, type, opcode, align, offset, memidx, address, value };
+}
+
+/** Creates an atomic compare-exchange. */
+export function makeAtomicCmpxchg(
+  opcode: Opcode,
+  offset: bigint,
+  align: number,
+  address: Expression,
+  expected: Expression,
+  replacement: Expression,
+  memidx: Var = varIndex(0),
+): AtomicRmwCmpxchgExpr {
+  return {
+    kind: ExpressionKind.AtomicCmpxchg,
+    type: atomicValueType(opcode),
+    opcode,
+    align,
+    offset,
+    memidx,
+    address,
+    expected,
+    replacement,
+  };
+}
+
+/** Creates `memory.atomic.wait32` / `wait64` — the opcode says which. */
+export function makeAtomicWait(
+  opcode: Opcode,
+  offset: bigint,
+  align: number,
+  address: Expression,
+  expected: Expression,
+  timeout: Expression,
+  memidx: Var = varIndex(0),
+): AtomicWaitExpr {
+  return {
+    kind: ExpressionKind.AtomicWait,
+    type: ValType.I32,
+    opcode,
+    align,
+    offset,
+    memidx,
+    address,
+    expected,
+    timeout,
+  };
+}
+
+/** Creates `memory.atomic.notify`. */
+export function makeAtomicNotify(
+  offset: bigint,
+  align: number,
+  address: Expression,
+  count: Expression,
+  memidx: Var = varIndex(0),
+): AtomicNotifyExpr {
+  return {
+    kind: ExpressionKind.AtomicNotify,
+    type: ValType.I32,
+    align,
+    offset,
+    memidx,
+    address,
+    count,
+  };
+}
+
+/** Creates `atomic.fence`. */
+export function makeAtomicFence(consistencyModel: number): AtomicFenceExpr {
+  return { kind: ExpressionKind.AtomicFence, type: None, consistencyModel };
+}
+
+/**
+ * Creates `call_ref` / `return_call_ref`. `results` are the signature's —
+ * the node's type is their tuple, as {@link makeCall}'s is.
+ */
+export function makeCallRef(
+  sigType: Var,
+  callee: Expression,
+  operands: Expression[],
+  results: readonly ValueType[],
+  isReturn = false,
+): CallRefExpr {
+  const type: Type = results.length === 0
+    ? None
+    : results.length === 1
+    ? results[0]!
+    : [...results];
+  return { kind: ExpressionKind.CallRef, type, isReturn, sigType, operands, callee };
 }
 
 /** Creates a `memory.size` expression. */

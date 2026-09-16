@@ -311,6 +311,11 @@ function _invalidate(expr: Expression, cache: Map<string, number>): void {
       case ExpressionKind.GlobalSet:
       case ExpressionKind.Call:
       case ExpressionKind.CallIndirect:
+      // A callee can write any global a cached key reads. Missing when `call_ref`
+      // arrived (S6 step 5 item 5 (5)): a `global.get` sum was reused across a
+      // `call_ref` that set the global — 2 where the module computes 44. (The
+      // atomics write only MEMORY, which no key reads.)
+      case ExpressionKind.CallRef:
       case ExpressionKind.Store:
       case ExpressionKind.MemoryGrow:
       case ExpressionKind.MemoryCopy:

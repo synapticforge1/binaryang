@@ -35,7 +35,7 @@ failed, naming, portability, baseline **IDENTICAL**, publish dry-run, operators,
 assertion holds in every world, 19 `assert_invalid`/`assert_malformed` skipped), `optimize-corpus`
 (every level of every module encodes and validates).
 
-S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**68 / 5 / 1** after items 1–4 below, 2026-09-16). Nine stages landed
+S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**68 / 5 / 1** after items 1–4 below; **76 / 5 / 1** after item 5 (5), 2026-09-16). Nine stages landed
 on 2026-09-15 (A, A2, A3, B, V1–V4, S1–S3, L1, B1–B3, C1, L2). **No branch is open** — the next
 sub-stage was branched and the branch deleted unused, so start from `main`.
 
@@ -77,8 +77,10 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    `type?: BlockResult`; factories declare; the encoder's extra `unreachable` deleted and a construct
    typed `unreachable` refused. ✅ (4) the base: constructs' `type` required in both, every other
    node `type?: ExprType` (≡ binaryen-ts `Type`), catch records' `loc?`, `br_on` `from`/`to` exact
-   optionals — alias trial 305 → 37. Next: (5) the one-sided kinds (atomics, `call_ref`,
-   `code_metadata`; 21 of the 37), then (6) alias + `ref.null` + `readonly` (bigger than its 2).
+   optionals — alias trial 305 → 37. ✅ (5) atomics + `call_ref` ported into binaryen-ts (K1 closed;
+   two miscompiles found and pinned); `code_metadata` stays wabt-ts-only (owner) — ratchet **76 / 5 / 1**,
+   84 shared kinds, 1 one-sided. Next: (6) the alias — how binaryen-ts meets `code_metadata` (now the
+   21 kind errors), `ref.null`'s field, `readonly` (bigger than its 2), type derivation.
 6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
    `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
    `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the
@@ -199,8 +201,10 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   [ir-convergence.md](ir-convergence.md) § "Step 5".
 - ⬚ **S7 — the linear-form marker.** Independent of the rest. ⚠️ Changed by C3: binaryen-ts now
   keeps custom sections, so S7 must strip its own marker deliberately when optimization runs.
-- ⬚ **K1 — atomics and `call_ref` in binaryen-ts** (DEFECT, port gap). The decoder refuses them
-  loudly; pinned by `PHANTOM_BUDGET` and `ONE_SIDED_BUDGET`.
+- ✅ **K1 — atomics and `call_ref` in binaryen-ts** — ported 2026-09-16 (S6 step 5 item 5 (5)).
+  Left from it: Asyncify refuses `call_ref` (upstream instruments it as an indirect call).
+- ⬚ **W8 — wabt-ts drops `(@metadata.code.*)` text annotations** (DEFECT, silent). The `code_metadata`
+  node exists and nothing builds it; the binary section round-trips raw. wabt-ts-only (owner, K2).
 
 ### Follow-ups kept deliberately behaviour-neutral
 

@@ -452,7 +452,10 @@ class _CFGBuilder {
       // dead-set elimination in CoalesceLocals then drops that write, and the
       // index reads a stale slot → `call_indirect` dispatches to the wrong
       // (wrong-signature) function at runtime. Visit in true execution order.
-      case ExpressionKind.CallIndirect: {
+      // `call_ref` is the same shape — arguments, then the reference — and a call
+      // that may throw like the others (S6 step 5 item 5 (5)).
+      case ExpressionKind.CallIndirect:
+      case ExpressionKind.CallRef: {
         for (const opcode of e.operands) this.visit(opcode);
         this.visit(e.callee);
         if (this.current) {

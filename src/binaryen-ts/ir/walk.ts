@@ -336,6 +336,31 @@ function _mapChildren(
     case ExpressionKind.MemoryGrow:
       return { ...expr, delta: fn(expr.delta) };
 
+    // Atomics — operands in the order they are pushed (S6 step 5 item 5 (5)).
+    case ExpressionKind.AtomicLoad:
+      return { ...expr, address: fn(expr.address) };
+    case ExpressionKind.AtomicStore:
+    case ExpressionKind.AtomicRMW: {
+      const address = fn(expr.address);
+      return { ...expr, address, value: fn(expr.value) };
+    }
+    case ExpressionKind.AtomicCmpxchg: {
+      const address = fn(expr.address);
+      const expected = fn(expr.expected);
+      return { ...expr, address, expected, replacement: fn(expr.replacement) };
+    }
+    case ExpressionKind.AtomicWait: {
+      const address = fn(expr.address);
+      const expected = fn(expr.expected);
+      return { ...expr, address, expected, timeout: fn(expr.timeout) };
+    }
+    case ExpressionKind.AtomicNotify: {
+      const address = fn(expr.address);
+      return { ...expr, address, count: fn(expr.count) };
+    }
+    case ExpressionKind.AtomicFence:
+      return expr;
+
     case ExpressionKind.TableInit:
     case ExpressionKind.MemoryInit:
       return {
@@ -397,6 +422,13 @@ function _mapChildren(
       // Evaluation order is operands first, then the table index (target) last —
       // match wasm semantics so effect/eval-order-sensitive consumers (Flatten's
       // prelude hoisting, CFG construction) see children in the real order.
+      const operands = expr.operands.map((o) => fn(o));
+      const callee = fn(expr.callee);
+      return { ...expr, callee, operands };
+    }
+
+    case ExpressionKind.CallRef: {
+      // As call_indirect: the arguments, then the reference.
       const operands = expr.operands.map((o) => fn(o));
       const callee = fn(expr.callee);
       return { ...expr, callee, operands };
@@ -678,6 +710,30 @@ function _visitChildren(
     case ExpressionKind.MemoryGrow:
       visit(expr.delta);
       break;
+    case ExpressionKind.AtomicLoad:
+      visit(expr.address);
+      break;
+    case ExpressionKind.AtomicStore:
+    case ExpressionKind.AtomicRMW:
+      visit(expr.address);
+      visit(expr.value);
+      break;
+    case ExpressionKind.AtomicCmpxchg:
+      visit(expr.address);
+      visit(expr.expected);
+      visit(expr.replacement);
+      break;
+    case ExpressionKind.AtomicWait:
+      visit(expr.address);
+      visit(expr.expected);
+      visit(expr.timeout);
+      break;
+    case ExpressionKind.AtomicNotify:
+      visit(expr.address);
+      visit(expr.count);
+      break;
+    case ExpressionKind.AtomicFence:
+      break;
     case ExpressionKind.TableInit:
     case ExpressionKind.MemoryInit:
       visit(expr.dest);
@@ -716,7 +772,8 @@ function _visitChildren(
       expr.operands.forEach(visit);
       break;
     case ExpressionKind.CallIndirect:
-      // Operands evaluate before the table index (the callee) — visit in that order.
+    case ExpressionKind.CallRef:
+      // Operands evaluate before the table index / reference (the callee).
       expr.operands.forEach(visit);
       visit(expr.callee);
       break;
