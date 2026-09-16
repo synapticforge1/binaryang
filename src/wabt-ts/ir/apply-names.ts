@@ -343,7 +343,7 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
       return {
         ...e,
         table: rewriteVar(e.table, n.tableNames),
-        typeVar: rewriteVar(e.typeVar, n.typeNames),
+        ...(e.typeVar !== undefined ? { typeVar: rewriteVar(e.typeVar, n.typeNames) } : {}),
       };
     case 'call_ref':
       return { ...e, sigType: rewriteVar(e.sigType, n.typeNames) };

@@ -733,7 +733,9 @@ function wabtFieldTypeToValType(t: StorageType): ValType | 'i8' | 'i16' {
  * is the fallback (`tests/bridge/call_indirect_type_ref.test.ts`).
  */
 function callIndirectSig(ci: CallIndirectExpr, ctx: BridgeCtx): FuncSignature {
-  if (ci.sig.params.length > 0 || ci.sig.results.length > 0) return ci.sig;
+  if (ci.sig.params.length > 0 || ci.sig.results.length > 0 || ci.typeVar === undefined) {
+    return ci.sig;
+  }
   const idx = varIdx(ci.typeVar);
   const entry = ctx.types[idx];
   if (entry === undefined) {

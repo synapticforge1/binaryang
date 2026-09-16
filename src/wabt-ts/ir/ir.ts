@@ -886,9 +886,19 @@ export interface CallIndirectExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly sig: FuncSignature;
-  readonly typeVar: Var;
-  /** How the signature was named; see {@link TypeUse}. */
-  readonly typeUse?: TypeUse;
+  /**
+   * The type the instruction names — form beside `sig` (7c): which of several
+   * identical types. Absent until `synthesizeTypes` interns an INLINE signature
+   * (`call_indirect (param i32)`), and on a node built without one; the writers
+   * refuse to encode it absent. binaryen-ts's field, spelled the same (owner,
+   * 2026-09-16, S6 step 5 item 4 (a)).
+   *
+   * 🔧 It was required, defaulting to `varIndex(0)`, so index 0 meant both "no
+   * annotation" and "the source wrote `(type 0)`" — and a duplicate `typeUse`
+   * field said which. That text-form fact lives in the fidelity table
+   * ({@link FidelityEntry.typeUse}), which already held it.
+   */
+  readonly typeVar?: Var;
   readonly table: Var;
   readonly operands: Expr[];
   readonly callee: Expr;

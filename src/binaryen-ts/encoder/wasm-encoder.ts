@@ -2221,8 +2221,9 @@ class WasmEncoder {
         // hold several structurally identical function types, and deriving the
         // index picks the FIRST — re-encoding `(type $b)` as `(type $a)`, a
         // different instruction for the same behaviour (T1).
-        const ciIdx = e.typeIndex ??
-          (this.heapTypes.length > 0
+        const ciIdx = e.typeVar !== undefined
+          ? requireIndex(e.typeVar, e.kind)
+          : (this.heapTypes.length > 0
             ? this.gcFuncTypeIndex(e.sig.params, e.sig.results)
             : this.getTypeIndex(e.sig.params, e.sig.results));
         w.writeU32(ciIdx);

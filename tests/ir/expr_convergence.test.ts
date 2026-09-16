@@ -89,7 +89,7 @@ const PINNED: Computed = {
   'br_on': 'identical',
   'br_table': 'identical',
   'call': 'identical',
-  'call_indirect': 'names',
+  'call_indirect': 'identical',
   'const': 'identical',
   'data.drop': 'identical',
   'drop': 'identical',

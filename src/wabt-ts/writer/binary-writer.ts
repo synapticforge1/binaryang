@@ -814,6 +814,11 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
     this.s.writeU8(e.isReturn ? Opcode.ReturnCallIndirect : Opcode.CallIndirect);
+    // Refused rather than guessed: deriving it structurally picks the FIRST of
+    // several identical types (T1). `synthesizeTypes` assigns an inline one.
+    if (e.typeVar === undefined) {
+      throw new Error('call_indirect has no type index yet — run synthesizeTypes');
+    }
     writeVar(this.s, e.typeVar);
     writeVar(this.s, e.table);
     return Result.Ok;

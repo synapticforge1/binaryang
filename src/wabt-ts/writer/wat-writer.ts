@@ -866,9 +866,15 @@ class WatWriter extends ModuleContext {
       onCallIndirectExpr: (e) => {
         this.putsSpace(e.isReturn ? 'return_call_indirect' : 'call_indirect');
         this.writeVarUnlessZero(e.table, NC.Space);
-        this.openSpace('type');
-        this.writeVar(e.typeVar, NC.Newline);
-        this.closeNewline();
+        if (e.typeVar !== undefined) {
+          this.openSpace('type');
+          this.writeVar(e.typeVar, NC.Newline);
+          this.closeNewline();
+        } else {
+          // No type index yet: the inline signature says the same thing.
+          this.writeFuncSig(e.sig);
+          this.newline(true);
+        }
         return Result.Ok;
       },
       onCallRefExpr: (e) => {

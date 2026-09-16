@@ -124,7 +124,21 @@ export function synthesizeTypes(module: Module): void {
   // collected from every body — including the bodies of funcs deferred above.
   const collector = new ExprVisitor({
     onCallIndirectExpr: (e) => {
-      settle(e as unknown as typeof pending[number]);
+      // How the type was named is in the fidelity table, not on the node (S6
+      // step 5 item 4 (a)). `settle` and the pending pass assign `typeVar`
+      // through this view, which writes it back onto the node.
+      const node = e as { typeVar?: Var };
+      const typeUse = module.fidelity.get(e.nodeId)?.typeUse;
+      settle({
+        ...(typeUse !== undefined ? { typeUse } : {}),
+        sig: e.sig,
+        get typeVar(): Var {
+          return node.typeVar ?? varIndex(0);
+        },
+        set typeVar(v: Var) {
+          node.typeVar = v;
+        },
+      });
       return Result.Ok;
     },
   });

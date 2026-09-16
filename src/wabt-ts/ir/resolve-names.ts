@@ -344,10 +344,7 @@ class ResolveContext {
         return [combine(rA, rC), {
           ...e,
           table: this.resolveTableVar(e.table, loc),
-          typeVar: this.resolveTypeVar(e.typeVar, loc),
-          ...(typeof e.typeUse === 'object'
-            ? { typeUse: this.resolveTypeVar(e.typeUse, loc) }
-            : {}),
+          ...(e.typeVar !== undefined ? { typeVar: this.resolveTypeVar(e.typeVar, loc) } : {}),
           operands: args,
           callee,
         }];

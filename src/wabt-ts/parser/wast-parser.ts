@@ -4071,11 +4071,12 @@ export class WastParser {
         // encoded against whatever type happened to be first.
         return {
           kind: 'call_indirect',
-          ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
+          // How the type was named is TEXT form, and lives in the table. An
+          // inline signature has no `typeVar` until its type is interned.
           nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           table: tableVar,
           sig,
-          typeVar: typeVar ?? varIndex(0),
+          ...(typeVar !== null ? { typeVar } : {}),
           operands: args,
           callee,
           loc,
@@ -4117,10 +4118,9 @@ export class WastParser {
         return {
           kind: 'call_indirect',
           isReturn: true,
-          ...{ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse },
           nodeId: this.fid({ typeUse: (typeVar === null ? 'inline' : 'resolved') as TypeUse, sig }),
           sig,
-          typeVar: typeVar ?? varIndex(0),
+          ...(typeVar !== null ? { typeVar } : {}),
           table: tableVar,
           operands: args,
           callee,
@@ -5316,7 +5316,8 @@ export class WastParser {
       beginTryExpr: block,
       beginTryTableExpr: block,
       onCallIndirectExpr: (e) => {
-        if (e.typeUse === 'inline') (e as { typeVar: Var }).typeVar = varIndex(intern(e.sig));
+        // No `typeVar` IS the inline case: the parser sets one for every `(type …)`.
+        if (e.typeVar === undefined) (e as { typeVar?: Var }).typeVar = varIndex(intern(e.sig));
         return Result.Ok;
       },
     });

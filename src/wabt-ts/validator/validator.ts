@@ -873,6 +873,11 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onReturnCall(e.loc, varIdx(e.func));
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
+    // An inline signature is interned by `synthesizeTypes`; a node that reaches
+    // here without a type has nothing the writer could encode.
+    if (e.typeVar === undefined) {
+      return this.sv.printError(e.loc, 'call_indirect: no type index (run synthesizeTypes)');
+    }
     if (!e.isReturn) return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
     const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
