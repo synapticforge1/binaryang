@@ -6,8 +6,10 @@
  * Removes every EH construct from a module so the result no longer requires
  * the exception-handling feature:
  *
- * - `throw`, `throw_ref`, `rethrow` are replaced by a block that evaluates and
- *   drops each operand (preserving side effects), then traps via `unreachable`.
+ * - `throw`, `throw_ref`, `rethrow` are replaced by statements that evaluate
+ *   and drop each operand (preserving side effects), then trap via `unreachable`
+ *   — spliced where the throw stood, not wrapped in a block (see
+ *   `mapWithSequences`).
  *   Any exception that the original program would have thrown now traps.
  * - `try` and `try_table` are replaced by their body. Catch bodies are
  *   discarded along with the surrounding construct.
@@ -15,26 +17,26 @@
  *   `hasExceptionHandling` is set to
  *   `false` so downstream consumers stop emitting the EH feature.
  *
- * This mirrors `WebAssembly/binaryen/src/passes/StripEH.cpp`. The upstream pass invokes
- * `ReFinalize` to re-compute expression types after substitution; binaryen-ts
- * does not yet ship a ReFinalize utility, so callers that depend on tight
- * type recomputation should run subsequent cleanup passes (Vacuum,
- * OptimizeInstructions) which tolerate the unreachable-typed bodies this pass
- * may introduce.
+ * This mirrors `WebAssembly/binaryen/src/passes/StripEH.cpp`. The upstream pass
+ * invokes `ReFinalize`, typing the blocks it builds `unreachable` and relying on
+ * its writer to add an `unreachable` after them. Here nothing it builds is
+ * typed `unreachable`: a throw's replacement is spliced statements, and a try's
+ * body block declares the try's type (a construct's type is what it declares —
+ * owner, 2026-09-16).
  *
  * @license MIT
  */
 
 import {
   asStatement,
+  blockOf,
   type Expression,
   ExpressionKind,
-  makeBlock,
   makeDrop,
   makeUnreachable,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
-import { mapExpression } from '../ir/walk.ts';
+import { mapWithSequences, type Sequence } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 /** Removes all EH instructions and tags; throws become traps. */
@@ -46,7 +48,7 @@ export class StripEHPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
-      fn.body = mapExpression(fn.body, stripEHNode);
+      fn.body = mapWithSequences(fn.body, stripEHNode);
     }
     // Clear tags + disable the EH feature flag. Imported tags go too: every
     // instruction that could reference one has just been stripped, so leaving
@@ -69,9 +71,9 @@ registerPass(StripEHPass);
  *
  * Exported so other passes that want strip-style semantics on a single
  * function body (without running the whole module pass) can reuse it via
- * `mapExpression(fn.body, stripEHNode)`.
+ * `mapWithSequences(fn.body, stripEHNode)` — a throw becomes a {@link Sequence}.
  */
-export function stripEHNode(expr: Expression): Expression {
+export function stripEHNode(expr: Expression): Expression | Sequence {
   switch (expr.kind) {
     case ExpressionKind.Throw:
       return trapWithDroppedOperands(expr.operands);
@@ -84,14 +86,15 @@ export function stripEHNode(expr: Expression): Expression {
       return makeUnreachable();
 
     case ExpressionKind.Try:
-      // Replace with the body; catch bodies and delegate target are discarded.
-      // The body takes the TRY's place — a statement position a region cannot
-      // hold, and one `Expression` would not refuse.
-      return asStatement(expr.body);
-
     case ExpressionKind.TryTable:
-      // Replace with the body; catch destinations are discarded.
-      return asStatement(expr.body);
+      // Replace with the body; catch bodies, destinations and the delegate
+      // target are discarded. The body takes the TRY's place — a statement
+      // position a region cannot hold — as a block DECLARING the try's type:
+      // `asStatement` would type it by the body's last instruction, which is
+      // `unreachable` for `(try (result i32) (do (throw $e)) …)`.
+      // (One instruction stands as itself, and is already of the try's type.)
+      if (expr.body.children.length === 1) return asStatement(expr.body);
+      return { ...blockOf(expr.body), ...(expr.type === undefined ? {} : { type: expr.type }) };
 
     default:
       return expr;
@@ -99,12 +102,12 @@ export function stripEHNode(expr: Expression): Expression {
 }
 
 /**
- * Wrap each operand in `drop` (preserving side effects), then append
- * `unreachable`. If there are no operands, return a bare `unreachable`.
+ * Each operand dropped (preserving side effects), then `unreachable` — as a
+ * {@link Sequence}, which stands where the throw stood WITHOUT a block: the
+ * throw left the stack polymorphic, and a block's `end` would not (see
+ * {@link mapWithSequences}). No operands: a bare `unreachable`.
  */
-function trapWithDroppedOperands(operands: Expression[]): Expression {
+function trapWithDroppedOperands(operands: Expression[]): Expression | Sequence {
   if (operands.length === 0) return makeUnreachable();
-  const children: Expression[] = operands.map(makeDrop);
-  children.push(makeUnreachable());
-  return makeBlock(children);
+  return { sequence: [...operands.map(makeDrop), makeUnreachable()] };
 }

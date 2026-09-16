@@ -2738,6 +2738,43 @@ Fixed: no fallback. Tests (`unreachable_construct.test.ts`, 6 carriers): text-pa
 the decoder's, none `unreachable`, code sections byte-equal; 5 of 6 fail on the old parser (the loop
 passed — `parseLoop` alone already used `None`).
 
+🔧 **The plan's (3b) was wrong about the 26 reads, and reading them said so.** Nearly all of them ask
+whether an instruction is STACK-POLYMORPHIC after it (`unreachable`, `br`, `return`, `throw`, an
+operator over one) — a structural fact of the encoding, true of those nodes and NEVER of a construct,
+whose `end` resets the stack to what it declares. Once carriers are declared-only those reads are
+correct as written. "Does control reach the end" (`fallsThrough`) is a different question that no
+current read needs for correctness — it would only let DCE trim after a construct that never falls
+through, which upstream does. Not built; noted as a possible optimization.
+
+What DOES depend on the encoder's extra `unreachable` — measured by deleting that one line and
+running the suite, optimize-corpus and translate-eh: ONE test (StripEH, `block (result i32) (throw
+…)`); every -O level still validated, -O3 286 bytes smaller. So the work is the passes that PUT a
+construct where a polymorphic instruction stood.
+
+**(3b) `mapWithSequences` — a rewrite may be several statements.** A pass returns a `Sequence` (the
+statements, ending in one that never falls through) instead of a block typed `unreachable`. In a list
+it is spliced — no construct, no byte. In an operand slot the consumer never runs, so it is replaced
+by its operands evaluated before (one value dropped, none or several standing) and the sequence;
+later operands are dead; this climbs to the nearest list. A block's ENTRY VALUES are operands too
+(found by reading after the first draft: the list branch skipped `params`). No slot types needed, no
+marker node. Users:
+- **StripEH** — a throw's `drop`s + `unreachable` are a sequence; a try's body block DECLARES the try's
+  type (it took the body region's, which the text parser infers as `unreachable`).
+- **Inlining** — the body block declares the callee's results, which subsumes two repairs (the tuple
+  retype, and the `unreachable` appended after a `none`/`unreachable` body); a call whose operand never
+  returns, and a void `return_call`, are sequences.
+
+Measured: with the encoder line deleted, suite, corpus (all levels) and translate-eh all pass.
+Optimizer output: **143 of 2,105 module×level outputs changed, all -O3 (Inlining), all smaller, −903
+bytes**; differentially run old against new — 143/143 agree, 708 calls plus memory hash (the
+bridge-behaviour harness, pointed at the two -O3 binaries). Tests: `map_with_sequences.test.ts` (6:
+list, operand with a side effect before and a dead one after, `if` condition, block absorbs and keeps
+its type, entry value) and 4 pass rows in `unreachable_construct.test.ts` checked ON THE TREE (no
+carrier typed `unreachable`) — all 4 fail on the old passes. 10 mutants: 8 killed; 1 equivalent
+(regions never precede an operand, so `before` never sees one); 1 survived FOR A REASON — the binary
+fixture's try body region already carried the declared type, so a text-path test was added and kills
+it. A binary typed-try row that passed on the old code was removed rather than kept as a claim.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

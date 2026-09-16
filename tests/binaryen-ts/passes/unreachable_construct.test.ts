@@ -30,6 +30,7 @@ import { assert, assertEquals } from '@std/assert';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
+import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -174,3 +175,74 @@ for (const [name, wat] of Object.entries(TEXT_CARRIERS)) {
     assertEquals(codeSection(encodeWasm(fromText)), codeSection(bytes));
   });
 }
+
+// ---------------------------------------------------------------------------
+// Passes build no construct typed `unreachable` (2026-09-16, item 5 (3b)).
+//
+// StripEH and Inlining put blocks where a stack-polymorphic instruction stood
+// (a `throw`; a call whose operand never returns; a void `return_call`), typed
+// them `unreachable`, and relied on the encoder's extra `unreachable` byte for
+// validity. Now the throw's statements, and the call's, are a `Sequence` the
+// walk splices or hoists (`mapWithSequences`), and a try's body block — and an
+// inlined body's — DECLARES the construct's type. Checked on the TREE, so the
+// encoder's byte cannot be what makes these pass.
+// ---------------------------------------------------------------------------
+
+/** Each function whose carriers include one typed `unreachable`, with their types. */
+function unreachableCarriers(mod: WasmModule): string[] {
+  return mod.functions
+    .map((fn) => ({ name: fn.name, types: carrierTypes(fn.body) }))
+    .filter(({ types }) => types.includes('unreachable'))
+    .map(({ name, types }) => `${name}: ${JSON.stringify(types)}`);
+}
+
+const PASS_BUILT: [string, string, string, (bytes: Uint8Array) => unknown][] = [
+  [
+    'StripEH',
+    'a throw that is an OPERAND',
+    `(module (tag $e (param i32)) (func (export "f") (param i32) (result i32)
+      (i32.add (throw $e (local.get 0)) (i32.const 2))))`,
+    (out) => call(out, 1),
+  ],
+  [
+    'StripEH',
+    'a throw that is an if CONDITION',
+    `(module (tag $e (param i32)) (func (export "f") (param i32) (result i32)
+      (if (result i32) (throw $e (local.get 0)) (then (i32.const 1)) (else (i32.const 2)))))`,
+    (out) => call(out, 1),
+  ],
+  [
+    'Inlining',
+    'a void return_call where a value is due',
+    // The block's `i32` is supplied only by `return_call`'s polymorphic stack.
+    `(module (func $v) (func (export "f") (param i32)
+      (drop (block (result i32) (return_call $v)))))`,
+    (out) => WebAssembly.validate(out as BufferSource),
+  ],
+];
+
+for (const [pass, name, wat, observe] of PASS_BUILT) {
+  Deno.test(`${pass}: ${name} — no construct typed unreachable, and it validates`, () => {
+    const mod = parseWasm(assemble(wat));
+    new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add(pass).run();
+    assertEquals(unreachableCarriers(mod), []);
+    const out = encodeWasm(mod);
+    assert(WebAssembly.validate(out as BufferSource), `${pass} output validates`);
+    if (pass === 'StripEH') assertEquals(observe(out), 'trap');
+    else assertEquals(observe(out), true);
+  });
+}
+
+Deno.test("StripEH: a try's body block declares the TRY's type, not its body's last instruction's", () => {
+  // Through the TEXT parser, whose region takes its last instruction's type
+  // (`unreachable` here); the decoder's region already carries the declared one,
+  // so a binary fixture cannot tell the two apart. An operand, so the block is
+  // not the function's only statement (a sole unnamed block dissolves).
+  const mod = parseWat(`(module (tag $e) (func (export "f") (param i32) (result i32)
+    (i32.add
+      (try (result i32) (do (drop (local.get 0)) (throw $e)) (catch $e (i32.const 3)))
+      (i32.const 1))))`);
+  new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('StripEH').run();
+  assertEquals(unreachableCarriers(mod), []);
+  assertEquals(call(encodeWasm(mod), 1), 'trap');
+});
