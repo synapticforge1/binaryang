@@ -119,6 +119,7 @@ const PINNED: Computed = {
   'ref.is_null': 'identical',
   'ref.null': 'names',
   'ref.test': 'identical',
+  'region': 'identical',
   'rethrow': 'identical',
   'return': 'identical',
   'select': 'types',

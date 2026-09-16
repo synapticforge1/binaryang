@@ -88,7 +88,7 @@ describe('legacy try/catch — parser produces a real TryExpr', () => {
         (return (local.get $result))))`);
     const t = findTry(f!.body);
     assertEquals(t.kind, 'try');
-    assertEquals(t.body.length, 1, 'do-body has the single local.set');
+    assertEquals(t.body.children.length, 1, 'do-body has the single local.set');
     assertEquals(t.catches.length, 1, 'one catch clause');
     assert(t.catches[0]!.tag !== undefined, 'catch is tag-typed');
     assertEquals(t.delegate, undefined);

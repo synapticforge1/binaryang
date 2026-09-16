@@ -606,7 +606,9 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   afterIfTrueExpr(e: IfExpr): Result {
-    if (e.ifFalse.length > 0) this.s.writeU8(Opcode.Else);
+    // `null` is NO else; an empty region is an explicit empty one, and its byte
+    // is written back (S6 step 5 (d2): as a list the two were both `[]`).
+    if (e.ifFalse !== null) this.s.writeU8(Opcode.Else);
     return Result.Ok;
   }
   endIfExpr(_e: IfExpr): Result {

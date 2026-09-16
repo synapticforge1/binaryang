@@ -306,7 +306,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
           kind: string;
           targets?: NameVar[];
           defaultTarget?: NameVar;
-          body?: unknown[];
+          body?: unknown[] | { children: unknown[] };
           children?: unknown[];
         }[]
       ) {
@@ -316,6 +316,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
           if (e.defaultTarget?.kind === 'name') names.push(e.defaultTarget.name!);
         }
         if (Array.isArray(e.body)) walk(e.body);
+        else if (e.body !== undefined) walk(e.body.children); // a region (S6 step 5 (d2))
         if (Array.isArray(e.children)) walk(e.children);
       }
     };

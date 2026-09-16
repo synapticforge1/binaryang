@@ -73,9 +73,9 @@ describe('T10.6 — linear try_table keeps its catch clauses and its body', () =
     assertEquals(ret.kind, 'return');
     const tryTable = (ret as unknown as { values: { kind: string }[] }).values[0]!;
     assertEquals(tryTable.kind, 'try_table', 'built a block instead of a try_table');
-    const tt = tryTable as unknown as { catches: unknown[]; body: unknown[] };
+    const tt = tryTable as unknown as { catches: unknown[]; body: { children: unknown[] } };
     assertEquals(tt.catches.length, 1, 'catch clause was dropped');
-    assertEquals(tt.body.length, 1, 'body was skipped to `end`');
+    assertEquals(tt.body.children.length, 1, 'body was skipped to `end`');
   });
 
   it('reads a tagged catch and a numeric target the way the writer emits them', () => {

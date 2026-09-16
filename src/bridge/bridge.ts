@@ -1076,7 +1076,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const resultType = bridgeBlockType(blockTypeOf(lp), ctx);
       ctx.labelStack.push(name);
       try {
-        return makeLoop(name, bridgeRegion(lp.body, ctx), resultType);
+        return makeLoop(name, bridgeRegion(lp.body.children, ctx), resultType);
       } finally {
         ctx.labelStack.pop();
       }
@@ -1109,9 +1109,9 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // from `resolveNames`, which does push a frame here.
       ctx.labelStack.push(ifName ?? IF_FRAME);
       try {
-        const ifTrue = bridgeRegion(ife.ifTrue, ctx);
-        // wabt-ts holds an absent else and an empty one alike (`ifFalse: []`).
-        const ifFalse = ife.ifFalse.length === 0 ? null : bridgeRegion(ife.ifFalse, ctx);
+        const ifTrue = bridgeRegion(ife.ifTrue.children, ctx);
+        // `null` is no else; an empty region is an explicit empty one (S6 step 5 (d2)).
+        const ifFalse = ife.ifFalse === null ? null : bridgeRegion(ife.ifFalse.children, ctx);
         const built = makeIf(condition, ifTrue, ifFalse);
         return withDeclaredType(
           ifName === null ? built : { ...built, name: ifName },
@@ -1536,7 +1536,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const catches: BTableCatch[] = tt.catches.map((c) => buildCatchClause(c, ctx));
       ctx.labelStack.push(name);
       try {
-        const body = bridgeRegion(tt.body, ctx);
+        const body = bridgeRegion(tt.body.children, ctx);
         return withDeclaredType(
           makeTryTable(name, body, catches, bridgeBlockType(blockTypeOf(tt), ctx)),
           bridgeBlockType(blockTypeOf(tt), ctx),
@@ -1586,7 +1586,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const resultType = bridgeBlockType(blockTypeOf(tr), ctx);
       ctx.labelStack.push(name);
       try {
-        const body = bridgeRegion(tr.body, ctx);
+        const body = bridgeRegion(tr.body.children, ctx);
         // `catch_ref` / `catch_all_ref` used to throw "not yet supported" here,
         // because binaryen-ts's Try had no slot for the flag and dropping it
         // would change what the handler receives. The clause carries `isRef`
@@ -1594,7 +1594,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         const catches: BCatch[] = tr.catches.map((c) => ({
           ...(c.tag === undefined ? {} : { tag: varName(resolveVarName(c.tag, ctx.tagNames)) }),
           isRef: c.isRef,
-          body: bridgeRegion(c.body, ctx),
+          body: bridgeRegion(c.body.children, ctx),
         }));
         const delegateTarget = tr.delegate === undefined ? null : resolveLabel(ctx, tr.delegate);
         return makeTry(name, body, catches, delegateTarget, resultType);

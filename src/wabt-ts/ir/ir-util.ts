@@ -390,6 +390,10 @@ export class ModuleContext {
       case 'pop':
         // Stands for a value already on the stack: takes none, yields one.
         return { nargs: 0, nreturns: 1, unreachable: false };
+      case 'region':
+        // A region only ever sits in its construct's slot, which accounts for
+        // what it produces; as an operand it is not an instruction at all.
+        return { nargs: 0, nreturns: 0, unreachable: false };
       default: {
         const _exhaust: never = expr;
         return { nargs: 0, nreturns: 0, unreachable: false };

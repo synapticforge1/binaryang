@@ -65,6 +65,9 @@ describe('T13.20 — axis 1: every nested sub-expression is walked', () => {
     ['br_if', '(block (br_if 0 (global.get $g)))'],
     ['br_table', '(block (br_table 0 0 (global.get $g)))'],
     ['try body', '(try (do (drop (global.get $g))))'],
+    // S6 step 5 (d2): a catch's handler is a region, which the generic walk had
+    // recognised by `Array.isArray(c.body)` — false for a region, silently.
+    ['catch handler', '(try (do) (catch_all (drop (global.get $g))))'],
     ['block', '(block (drop (global.get $g)))'],
     ['loop', '(loop (drop (global.get $g)))'],
     ['if cond', '(if (global.get $g) (then (nop)))'],

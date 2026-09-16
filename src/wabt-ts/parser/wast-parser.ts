@@ -102,6 +102,7 @@ import {
   type RefIsNullExpr,
   type RefNullExpr,
   type RefTestExpr,
+  region,
   type RethrowExpr,
   type ReturnExpr,
   type SelectExpr,
@@ -3358,7 +3359,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          body: region(bodyCtx.stmts, loc),
           loc,
         };
       if (hasValue) ctx.stack.push(node);
@@ -3431,8 +3432,10 @@ export class WastParser {
         ...this.headerOf(blockType),
         ...(params ? { params } : {}),
         condition: condExpr,
-        ifTrue,
-        ifFalse,
+        ifTrue: region(ifTrue, loc),
+        // Text cannot tell an empty `else` from none, and upstream wat2wasm writes
+        // neither (W1) — so an empty one is NO else. Only a binary spells it.
+        ifFalse: ifFalse.length === 0 ? null : region(ifFalse, loc),
         loc,
       };
       const hasValue = blockType.kind !== 'void';
@@ -3470,7 +3473,7 @@ export class WastParser {
         label,
         ...this.headerOf(blockType),
         ...(params ? { params } : {}),
-        body: bodyCtx.stmts,
+        body: region(bodyCtx.stmts, loc),
         catches,
         loc,
       };
@@ -3514,12 +3517,12 @@ export class WastParser {
           const tag = this.parseVar() ?? varIndex(0);
           const handler: Expr[] = [];
           this.parseInstrListInto(handler);
-          catches.push({ loc: subLoc, tag, isRef: false, body: handler });
+          catches.push({ loc: subLoc, tag, isRef: false, body: region(handler, subLoc) });
         } else if (sub.tokenType === TokenType.CatchAll) {
           // `(catch_all handler...)` — matches any tag, no params.
           const handler: Expr[] = [];
           this.parseInstrListInto(handler);
-          catches.push({ loc: subLoc, isRef: false, body: handler });
+          catches.push({ loc: subLoc, isRef: false, body: region(handler, subLoc) });
         } else {
           // `(delegate $target)` — re-raise to an outer try; no body.
           delegate = this.parseVar() ?? varIndex(0);
@@ -3544,7 +3547,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          body: region(bodyCtx.stmts, loc),
           catches,
           loc,
         }
@@ -3553,7 +3556,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          body: region(bodyCtx.stmts, loc),
           catches,
           delegate,
           loc,
@@ -3668,7 +3671,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          body: region(bodyCtx.stmts, loc),
           loc,
         };
       const hasValue = blockType.kind !== 'void';
@@ -3712,8 +3715,10 @@ export class WastParser {
         ...this.headerOf(blockType),
         ...(params ? { params } : {}),
         condition: condExpr2,
-        ifTrue,
-        ifFalse,
+        ifTrue: region(ifTrue, loc),
+        // Text cannot tell an empty `else` from none, and upstream wat2wasm writes
+        // neither (W1) — so an empty one is NO else. Only a binary spells it.
+        ifFalse: ifFalse.length === 0 ? null : region(ifFalse, loc),
         loc,
       };
       const hasValue = blockType.kind !== 'void';
@@ -3748,10 +3753,10 @@ export class WastParser {
         if (isCatch) {
           const tag = this.parseVar() ?? varIndex(0);
           this.parseInstrListInto(handler);
-          catches.push({ loc: cLoc, tag, isRef: false, body: handler });
+          catches.push({ loc: cLoc, tag, isRef: false, body: region(handler, cLoc) });
         } else {
           this.parseInstrListInto(handler);
-          catches.push({ loc: cLoc, isRef: false, body: handler });
+          catches.push({ loc: cLoc, isRef: false, body: region(handler, cLoc) });
         }
       }
       if (this.peek() === TokenType.Delegate) {
@@ -3767,7 +3772,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          body: region(bodyCtx.stmts, loc),
           catches,
           loc,
         }
@@ -3776,7 +3781,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          body: region(bodyCtx.stmts, loc),
           catches,
           delegate,
           loc,
@@ -3821,7 +3826,7 @@ export class WastParser {
         label,
         ...this.headerOf(blockType),
         ...(params ? { params } : {}),
-        body: bodyCtx.stmts,
+        body: region(bodyCtx.stmts, loc),
         catches,
         loc,
       };

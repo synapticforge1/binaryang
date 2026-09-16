@@ -302,7 +302,8 @@ const ONE_SIDED_BUDGET = {
     'call_ref',
     'code_metadata',
   ],
-  binaryen: ['region'],
+  // `region` left this list at S6 step 5 (d2): wabt-ts holds it too.
+  binaryen: [] as string[],
 };
 
 const wabtKinds = wabtExprKinds(

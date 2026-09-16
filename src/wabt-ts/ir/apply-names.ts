@@ -254,8 +254,17 @@ function isExpr(v: unknown): v is Expr {
   return typeof k === 'string' && k !== 'index' && k !== 'name';
 }
 
-function hasExprBody(c: unknown): c is { body: Expr[] } {
-  return typeof c === 'object' && c !== null && Array.isArray((c as { body?: unknown }).body);
+/**
+ * A clause container's element — a catch clause — whose `body` is its handler.
+ *
+ * 🔧 This tested `Array.isArray(c.body)`. S6 step 5 stage (d2) made a catch's
+ * body a `RegionExpr`, which is NOT an array: every catch handler would have
+ * dropped out of the walk, silently, and a `global.get 0` inside one kept its
+ * index. The region is an `Expr`, so it is recognised as one.
+ */
+function hasExprBody(c: unknown): c is { body: Expr } {
+  return typeof c === 'object' && c !== null && !isExpr(c) &&
+    isExpr((c as { body?: unknown }).body);
 }
 
 /**
@@ -301,9 +310,9 @@ function rewriteChildren(e: Expr, ctx: ApplyContext): Expr {
       continue;
     }
     if (value.every(hasExprBody)) {
-      out[key] = (value as { body: Expr[] }[]).map((c) => ({
+      out[key] = (value as { body: Expr }[]).map((c) => ({
         ...c,
-        body: c.body.map((x) => rewriteExprVars(x, ctx)),
+        body: rewriteExprVars(c.body, ctx),
       }));
       changed = true;
     }
