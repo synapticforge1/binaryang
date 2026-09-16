@@ -122,7 +122,7 @@ const PINNED: Computed = {
   'region': 'identical',
   'rethrow': 'identical',
   'return': 'identical',
-  'select': 'types',
+  'select': 'identical',
   'simd.extract': 'identical',
   'simd.load': 'identical',
   'simd.load_store_lane': 'identical',

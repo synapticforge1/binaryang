@@ -30,7 +30,7 @@ import { Result } from '../../src/wabt-ts/core/result.ts';
 import { Type } from '../../src/wabt-ts/core/types.ts';
 import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 import { makeModule, varIndex } from '../../src/wabt-ts/ir/ir.ts';
-import type { Module as WabtModule } from '../../src/wabt-ts/ir/ir.ts';
+import type { FuncSignature, Module as WabtModule } from '../../src/wabt-ts/ir/ir.ts';
 
 import { bridgeToBinaryen } from '../../src/bridge/bridge.ts';
 import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
@@ -88,8 +88,8 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
     // bridge — to exercise the bridge's call_indirect path we build the
     // module IR directly.
     const LOC = unknownLocation();
-    const sigG = { params: [Type.I32], results: [Type.I32] }; // g's signature; also the call_indirect target sig
-    const sigF = { params: [Type.I32, Type.I32], results: [Type.I32] }; // f's signature
+    const sigG: FuncSignature = { params: [Type.I32], results: [Type.I32] }; // g's signature; also the call_indirect target sig
+    const sigF: FuncSignature = { params: [Type.I32, Type.I32], results: [Type.I32] }; // f's signature
     const m = makeModule();
     m.types.push({ kind: 'func', name: '', sig: sigG, loc: LOC });
     m.types.push({ kind: 'func', name: '', sig: sigF, loc: LOC });

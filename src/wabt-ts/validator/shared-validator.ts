@@ -5,7 +5,7 @@
 
 import { combineResults, Result } from '../core/result.ts';
 import { isReferenceType, Type } from '../core/types.ts';
-import type { Index } from '../core/types.ts';
+import type { Index, ValType } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { defaultFeatures } from '../core/feature.ts';
 import type { Features } from '../core/feature.ts';
@@ -14,7 +14,7 @@ import type { ErrorList, Location } from '../core/error.ts';
 import { TypeChecker } from './type-checker.ts';
 import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
-import type { BlockType, Field, Limits, SegmentKind, ValueType } from '../ir/ir.ts';
+import type { BlockType, Field, Limits, SegmentKind, StorageType, ValueType } from '../ir/ir.ts';
 import { isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
 import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
 
@@ -61,7 +61,11 @@ interface SVTagType {
   params: ValueType[];
 }
 interface SVElemType {
-  element: ValueType;
+  /**
+   * `Void` until `onElemSegmentElemType` declares it — a spelled placeholder,
+   * since `ValueType` does not admit `Void` (S6 step 5, item 4 (b)).
+   */
+  element: ValueType | typeof Type.Void;
   isActive: boolean;
   tableType: ValueType;
 }
@@ -80,10 +84,14 @@ interface SVLocalDecl {
  * compact memory but operates on i32 values on the stack — struct.new takes
  * i32 args for packed fields; struct.get_s/get_u return i32.
  */
-function packedToStackType(tIn: ValueType): ValueType {
-  const t = tIn;
-  if (t === Type.I8 || t === Type.I16) return Type.I32;
+function packedToStackType(t: StorageType): ValueType {
+  if (isPackedType(t)) return Type.I32;
   return t;
+}
+
+/** A field's packed `i8` / `i16` — storage only, never a value. */
+function isPackedType(t: StorageType): t is typeof Type.I8 | typeof Type.I16 {
+  return t === Type.I8 || t === Type.I16;
 }
 
 function isPowerOfTwo(x: number): boolean {
@@ -352,7 +360,11 @@ export class SharedValidator {
    * so module-level checks (declared `(sub …)` validity) can use the same
    * rules the instruction checks do.
    */
-  isSubtype(a: ValueType, b: ValueType): boolean {
+  isSubtype(a: StorageType, b: StorageType): boolean {
+    // Field subtyping compares STORAGE types. A packed type matches only itself —
+    // exactly what `checkType` answered when `ValueType` still admitted `I8` —
+    // so the type checker keeps to value types.
+    if (isPackedType(a) || isPackedType(b)) return a === b;
     return this.tc.checkType(a, b) === Result.Ok;
   }
 
@@ -448,7 +460,7 @@ export class SharedValidator {
     return r;
   }
 
-  checkValueType(loc: Location, vt: ValueType, what: string, bound = this.numTypes): Result {
+  checkValueType(loc: Location, vt: StorageType, what: string, bound = this.numTypes): Result {
     if (!isRefValueType(vt)) {
       // A GC abstract heap type is as much "using the proposal" as a
       // `struct.new` is. Gating only the INSTRUCTIONS left `(param anyref)`,
@@ -549,11 +561,11 @@ export class SharedValidator {
    * item is reported separately, and guessing `i64` there would produce a
    * second, misleading error.
    */
-  memoryIndexType(memIdx: Index): Type {
+  memoryIndexType(memIdx: Index): ValType {
     return this.memories[memIdx]?.limits.is64 ? Type.I64 : Type.I32;
   }
 
-  tableIndexType(tableIdx: Index): Type {
+  tableIndexType(tableIdx: Index): ValType {
     return this.tables[tableIdx]?.limits.is64 ? Type.I64 : Type.I32;
   }
 
@@ -563,9 +575,12 @@ export class SharedValidator {
    * `(ref $t)` does not, which is why `(table 0 (ref func))` needs an
    * initializer and `(local (ref $t))` needs a `local.set` before any read.
    */
-  static isDefaultable(t: ValueType): boolean {
+  static isDefaultable(t: StorageType): boolean {
     if (isRefValueType(t)) return t.nullable;
-    return !isReferenceType(t) || t !== Type.Ref;
+    // 🔧 This was `!isReferenceType(t) || t !== Type.Ref`. `Type.Ref` is not a
+    // value type, so no `StorageType` can be it: every scalar, packed and
+    // abstract (nullable) reference type has a default.
+    return true;
   }
 
   onTable(loc: Location, elemTypeIn: ValueType, limits: Limits, hasInit = true): Result {
@@ -1078,7 +1093,7 @@ export class SharedValidator {
   // Instruction handlers — constants
   // ---------------------------------------------------------------------------
 
-  onConst(loc: Location, type: Type): Result {
+  onConst(loc: Location, type: ValType): Result {
     this.currentLoc = loc;
     return this.tc.onConst(type);
   }
@@ -1670,7 +1685,7 @@ export class SharedValidator {
    */
   private checkPackedAccess(
     loc: Location,
-    fieldType: ValueType,
+    fieldType: StorageType,
     signed: boolean | undefined,
     op: string,
     what: string,
@@ -1763,11 +1778,11 @@ export class SharedValidator {
   /** The elem segment's element type must fit the array's. */
   private checkSegmentFitsArray(
     loc: Location,
-    segElem: ValueType,
-    arrayElem: ValueType,
+    segElem: ValueType | typeof Type.Void,
+    arrayElem: StorageType,
     what: string,
   ): Result {
-    if (this.isSubtype(segElem, arrayElem)) return Result.Ok;
+    if (segElem !== Type.Void && this.isSubtype(segElem, arrayElem)) return Result.Ok;
     return this.printError(
       loc,
       `type mismatch in ${what}: segment type ${valueTypeName(segElem)} is not a subtype of ${
@@ -1778,7 +1793,7 @@ export class SharedValidator {
 
   private checkArrayElemKind(
     loc: Location,
-    element: ValueType,
+    element: StorageType,
     wantReference: boolean,
     what: string,
   ): Result {
@@ -2018,7 +2033,7 @@ export class SharedValidator {
     const et = this.checkElemSegmentIndex(segIdx, loc);
     let r = (tt && et) ? Result.Ok : Result.Error;
     // Same as table.copy: the segment's element type must fit the table's.
-    if (tt && et && !this.isSubtype(et.element, tt.element)) {
+    if (tt && et && (et.element === Type.Void || !this.isSubtype(et.element, tt.element))) {
       r = combineResults(
         r,
         this.printError(

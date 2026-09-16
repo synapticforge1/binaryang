@@ -35,6 +35,7 @@ import type {
   Limits,
   Memory,
   Module,
+  StorageType,
   Table,
   TableCatch,
   Tag,
@@ -462,7 +463,8 @@ class WatWriter extends ModuleContext {
     }
   }
 
-  private writeType(t: ValueType, nc: NC): void {
+  /** A value type — or a field's storage type, which prints by name the same way. */
+  private writeType(t: StorageType, nc: NC): void {
     if (isRefValueType(t)) {
       // `(ref $T)` / `(ref null $T)`. Printing typeName() on a concrete typed
       // ref used to be impossible — the IR coarsened them away before they

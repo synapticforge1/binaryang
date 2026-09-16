@@ -28,78 +28,18 @@
  */
 
 import { isRefType, type RefType, refTypeToString } from './gc-types.ts';
-import { Type as WireType, typeName as wireTypeName } from '../../wabt-ts/core/types.ts';
+import { typeName as wireTypeName } from '../../wabt-ts/core/types.ts';
 export type { RefType } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
 // Value types (MVP + SIMD + reference types)
 // ---------------------------------------------------------------------------
 
-/**
- * Primitive WebAssembly value types.
- *
- * These are the value types that WASM values carry at runtime. The set covers
- * the MVP types plus the SIMD and reference-types proposals.
- *
- * ⚠️ **The values ARE the wire bytes, and equal wabt-ts's `Type` member for
- * member** (S6 step 5, stage V1). They were the text names (`'i32'`). Numeric was
- * decided by trial: flipping these cost 20 compile errors and 13 failing tests;
- * flipping wabt-ts's `Type` to strings cost 27 and **299** -- its reader and
- * writer use the values AS the bytes -- and the operator representation was
- * already the numeric wire encoding (stage 1). `tests/ir/value_types.test.ts`
- * pins the equality.
- *
- * ⚠️ **And since stage V4 the members ARE wabt-ts's `Type` members** — a const
- * object over `Type`, not a second enum. Two enums with equal values are still
- * two TYPES (enums are nominal), so `Type.I32` could not be passed where a
- * `ValType` was expected. Now `ValType` is the value-type SUBSET of `Type`: every
- * `ValType` is a `Type`, and a `Type` member that is a value type is a `ValType`.
- * Use `typeof ValType.I32` where a member is needed as a TYPE.
- *
- * A NAME is never the value: print with {@link valTypeName}, parse with
- * {@link valTypeFromName}, and never interpolate a `ValType` into a string or test
- * it with `typeof === 'string'` -- both still compile, and both are wrong.
- */
-export const ValType = {
-  /** 32-bit integer */
-  I32: WireType.I32,
-  /** 64-bit integer */
-  I64: WireType.I64,
-  /** 32-bit float */
-  F32: WireType.F32,
-  /** 64-bit float */
-  F64: WireType.F64,
-  /** 128-bit SIMD vector */
-  V128: WireType.V128,
-  /** Nullable function reference */
-  FuncRef: WireType.FuncRef,
-  /** Nullable external (host) reference */
-  ExternRef: WireType.ExternRef,
-  /** Nullable any reference (GC proposal) */
-  AnyRef: WireType.AnyRef,
-  /** Nullable eq reference (GC proposal) */
-  EqRef: WireType.EqRef,
-  /** Nullable i31 reference (GC proposal) */
-  I31Ref: WireType.I31Ref,
-  /** Nullable struct reference (GC proposal) */
-  StructRef: WireType.StructRef,
-  /** Nullable array reference (GC proposal) */
-  ArrayRef: WireType.ArrayRef,
-  /** String reference (stringref proposal). 0x67 is that proposal's byte; neither encoder writes it. */
-  StringRef: WireType.StringRef,
-  /** Null function reference (bottom type) */
-  NullFuncRef: WireType.NullFuncRef,
-  /** Null external reference (bottom type) */
-  NullExternRef: WireType.NullExternRef,
-  /** Null any reference (bottom type) */
-  NullRef: WireType.NullRef,
-  /** Exception reference (EH proposal) */
-  ExnRef: WireType.ExnRef,
-  /** Null exception reference (bottom type, EH proposal) */
-  NullExnRef: WireType.NullExnRef,
-} as const;
-/** A scalar value type: the value-type SUBSET of wabt-ts's `Type`. */
-export type ValType = typeof ValType[keyof typeof ValType];
+// `ValType` is defined beside the `Type` enum it is a subset of — wabt-ts's
+// `core/types.ts` — since S6 step 5, item 4 (b), where wabt-ts's `ValueType` came
+// to use it too. Re-exported here unchanged, value and type.
+export { isValType, ValType } from '../../wabt-ts/core/types.ts';
+import { isValType, ValType } from '../../wabt-ts/core/types.ts';
 
 // ---------------------------------------------------------------------------
 // Special sentinel types (not value types but appear in type positions)
@@ -149,8 +89,6 @@ export type Type = ValType | TupleType | None | Unreachable | RefType;
  * The members, as a set — what "is a scalar value type" means. Built from the
  * const object, so it cannot fall behind it.
  */
-const VAL_TYPES: ReadonlySet<number> = new Set(Object.values(ValType));
-
 const VAL_TYPE_BY_NAME: ReadonlyMap<string, ValType> = new Map(
   (Object.values(ValType) as ValType[]).map((t) => [wireTypeName(t), t]),
 );
@@ -171,16 +109,6 @@ export function valTypeName(t: ValType): string {
 /** The scalar value type a text-format name spells, or `undefined`. */
 export function valTypeFromName(name: string): ValType | undefined {
   return VAL_TYPE_BY_NAME.get(name);
-}
-
-/**
- * Whether `t` is a scalar value type -- the test that replaces
- * `typeof t === 'string'`, which stopped meaning this when the values became
- * bytes (`none` and `unreachable` are still strings). Membership in the SUBSET:
- * `Type.Void` is a `Type` and not a value type.
- */
-export function isValType(t: unknown): t is ValType {
-  return typeof t === 'number' && VAL_TYPES.has(t);
 }
 
 // ---------------------------------------------------------------------------

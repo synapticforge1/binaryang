@@ -7,7 +7,13 @@
 import type { Location } from '../core/error.ts';
 import { unknownLocation } from '../core/error.ts';
 import { addError, type ErrorList } from '../core/error.ts';
-import { type AbstractHeap, isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
+import {
+  type AbstractHeap,
+  isReferenceType,
+  isValType,
+  Type,
+  typeToHeapTypeName,
+} from '../core/types.ts';
 import {
   BinarySection,
   ExternalKind,
@@ -108,6 +114,7 @@ import {
   region,
   type RethrowExpr,
   type SectionMeta,
+  type StorageType,
   type StructGetExpr,
   type StructNewExpr,
   type StructSetExpr,
@@ -585,7 +592,18 @@ export class BinaryReader {
   // Type helpers
   // ---------------------------------------------------------------------------
 
-  private readValType(): ValueType {
+  /**
+   * A VALUE type, where `what` names the slot for the error (`param`, `local`…).
+   *
+   * 🔧 This returned `b as Type` for ANY byte: a local of type `i8` (`0x78`, a
+   * packed FIELD type) or `0x40` decoded, and nothing downstream checked it, so
+   * wabt-ts ACCEPTED modules V8 and upstream reject. Found when `ValueType`
+   * stopped admitting non-value `Type` members (S6 step 5, item 4 (b)) and this
+   * cast became a lie. Upstream's messages: "expected valid local type", "…
+   * param type (got -0x8)". A field's packed type is {@link readStorageType}.
+   */
+  private readValType(what = 'value'): ValueType {
+    const at = this.pos;
     const b = this.readU8();
     // `0x64` / `0x63` introduce a CONCRETE typed reference — `(ref H)` /
     // `(ref null H)` — whose heap type follows as a signed LEB. Reading them
@@ -594,7 +612,23 @@ export class BinaryReader {
     if (b === Type.Ref || b === Type.RefNull) {
       return { heapType: this.readHeapTypeVar(), nullable: b === Type.RefNull };
     }
-    return b as Type;
+    if (!isValType(b)) {
+      this.pos = at;
+      this.err(`expected valid ${what} type (got 0x${b.toString(16)})`);
+      this.pos = at + 1;
+      return Type.I32;
+    }
+    return b;
+  }
+
+  /** A struct / array field's STORAGE type: a value type, or packed `i8` / `i16`. */
+  private readStorageType(): StorageType {
+    const b = this.peekU8();
+    if (b === Type.I8 || b === Type.I16) {
+      this.pos++;
+      return b;
+    }
+    return this.readValType('field');
   }
 
   /**
@@ -660,13 +694,22 @@ export class BinaryReader {
           nullable: b === Type.RefNull,
         });
       }
-      if (b >= 0x40) return blockTypeValue(b as Type);
+      if (b >= 0x40) {
+        if (isValType(b)) return blockTypeValue(b);
+        this.err('expected valid block signature type');
+        return BLOCK_TYPE_VOID;
+      }
       return blockTypeFuncType(b);
     }
     // Multi-byte: read as s33 for type index
     const [v, n] = decodeS32Leb128(this.data, this.pos);
     this.pos += n;
-    if (v < 0) return blockTypeValue((-v & 0x7f) as Type);
+    if (v < 0) {
+      const b2 = -v & 0x7f;
+      if (isValType(b2)) return blockTypeValue(b2);
+      this.err('expected valid block signature type');
+      return BLOCK_TYPE_VOID;
+    }
     return blockTypeFuncType(v);
   }
 
@@ -854,22 +897,22 @@ export class BinaryReader {
     if (marker === 0x60) {
       const paramCount = this.readU32Leb();
       const params: ValueType[] = [];
-      for (let j = 0; j < paramCount; j++) params.push(this.readValType());
+      for (let j = 0; j < paramCount; j++) params.push(this.readValType('param'));
       const resultCount = this.readU32Leb();
       const results: ValueType[] = [];
-      for (let j = 0; j < resultCount; j++) results.push(this.readValType());
+      for (let j = 0; j < resultCount; j++) results.push(this.readValType('result'));
       m.types.push({ kind: 'func', name: '', sig: { params, results }, loc });
     } else if (marker === 0x5f) {
       const fieldCount = this.readU32Leb();
       const fields: Field[] = [];
       for (let j = 0; j < fieldCount; j++) {
-        const type = this.readValType();
+        const type = this.readStorageType();
         const mutable = this.readMutability();
         fields.push({ name: '', type, mutable });
       }
       m.types.push({ kind: 'struct', name: '', fields, loc });
     } else if (marker === 0x5e) {
-      const type = this.readValType();
+      const type = this.readStorageType();
       const mutable = this.readMutability();
       m.types.push({ kind: 'array', name: '', field: { name: '', type, mutable }, loc });
     } else {
@@ -934,7 +977,7 @@ export class BinaryReader {
           break;
         }
         case ExternalKind.Global: {
-          const type = this.readValType();
+          const type = this.readValType('global');
           const mutable = this.readMutability();
           const global: Global = { name: '', loc, type, mutable, init: [] };
           m.imports.push({ kind: ExternalKind.Global, module: module_, field, global });
@@ -1047,7 +1090,7 @@ export class BinaryReader {
     for (let i = 0; i < count && this.ok(); i++) {
       if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
-      const type = this.readValType();
+      const type = this.readValType('global');
       const mutable = this.readMutability();
       const init = this.readInitExpr(m);
       m.globals.push({ name: '', loc, type, mutable, init });
@@ -1253,7 +1296,7 @@ export class BinaryReader {
       let totalLocals = 0;
       for (let j = 0; j < localDeclCount; j++) {
         const declCount = this.readU32Leb();
-        const type = this.readValType();
+        const type = this.readValType('local');
         totalLocals += declCount;
         func.localDecls.push({ type, count: declCount });
       }
@@ -1779,7 +1822,7 @@ export class BinaryReader {
         case Opcode.SelectT: {
           const numTypes = this.readU32Leb();
           const resultType: ValueType[] = [];
-          for (let i = 0; i < numTypes; i++) resultType.push(this.readValType());
+          for (let i = 0; i < numTypes; i++) resultType.push(this.readValType('select'));
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);

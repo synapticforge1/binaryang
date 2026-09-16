@@ -6,6 +6,7 @@
 import type { Location } from '../core/error.ts';
 import type { Opcode } from '../core/opcode.ts';
 import { Type } from '../core/types.ts';
+import type { ValType } from '../core/types.ts';
 
 // ---------------------------------------------------------------------------
 // TokenType — mirrors token.def groups
@@ -309,7 +310,8 @@ export interface HeapTypeToken extends TokenBase {
 
 export interface RefKindToken extends TokenBase {
   readonly tokenType: TokenType; // refkind range
-  readonly refType: Type;
+  /** `func` / `extern` / … as the nullable reference value type they abbreviate. */
+  readonly refType: ValType;
 }
 
 export type Token = BareToken | LiteralToken | OpcodeToken | StringToken | TypeToken | RefKindToken;

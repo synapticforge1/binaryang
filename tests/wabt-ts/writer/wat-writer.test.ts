@@ -25,6 +25,7 @@ import type {
   Global,
   Memory,
   Table,
+  ValueType,
 } from '../../../src/wabt-ts/ir/ir.ts';
 import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
 
@@ -36,8 +37,8 @@ const LOC = unknownLocation();
 
 function makeFunc(opts: {
   name?: string;
-  params?: Type[];
-  results?: Type[];
+  params?: ValueType[];
+  results?: ValueType[];
   body?: Expr[];
 }): Func {
   return {
@@ -51,7 +52,7 @@ function makeFunc(opts: {
   };
 }
 
-function makeGlobal(type: Type, mutable: boolean, initValue: number): Global {
+function makeGlobal(type: ValueType, mutable: boolean, initValue: number): Global {
   return {
     name: '',
     loc: LOC,
