@@ -2220,6 +2220,56 @@ class WasmEncoder {
         break;
       }
 
+      case ExpressionKind.CallRef: {
+        // Arguments, then the reference; `0x14` / `0x15` and the type index as
+        // written — a GC-style type use, like `struct.new`'s (K1, S6 step 5
+        // item 5 (5)).
+        for (const operand of expr.operands) this.encodeExpr(w, operand, labels);
+        this.encodeExpr(w, expr.callee, labels);
+        w.writeU8(expr.isReturn ? 0x15 : 0x14);
+        w.writeU32(requireIndex(expr.sigType, 'call_ref type'));
+        break;
+      }
+
+      // Atomics (0xfe): operands in push order, the instruction as written, and
+      // its memarg — `atomic.fence` has neither operands nor memarg.
+      case ExpressionKind.AtomicLoad:
+        this.encodeExpr(w, expr.address, labels);
+        this.writeOperator(w, expr.opcode);
+        this.writeMemArg(w, expr.align, expr.offset, expr.memidx);
+        break;
+      case ExpressionKind.AtomicStore:
+      case ExpressionKind.AtomicRMW:
+        this.encodeExpr(w, expr.address, labels);
+        this.encodeExpr(w, expr.value, labels);
+        this.writeOperator(w, expr.opcode);
+        this.writeMemArg(w, expr.align, expr.offset, expr.memidx);
+        break;
+      case ExpressionKind.AtomicCmpxchg:
+        this.encodeExpr(w, expr.address, labels);
+        this.encodeExpr(w, expr.expected, labels);
+        this.encodeExpr(w, expr.replacement, labels);
+        this.writeOperator(w, expr.opcode);
+        this.writeMemArg(w, expr.align, expr.offset, expr.memidx);
+        break;
+      case ExpressionKind.AtomicWait:
+        this.encodeExpr(w, expr.address, labels);
+        this.encodeExpr(w, expr.expected, labels);
+        this.encodeExpr(w, expr.timeout, labels);
+        this.writeOperator(w, expr.opcode);
+        this.writeMemArg(w, expr.align, expr.offset, expr.memidx);
+        break;
+      case ExpressionKind.AtomicNotify:
+        this.encodeExpr(w, expr.address, labels);
+        this.encodeExpr(w, expr.count, labels);
+        this.writeOperator(w, (0xfe << 16) | 0x00);
+        this.writeMemArg(w, expr.align, expr.offset, expr.memidx);
+        break;
+      case ExpressionKind.AtomicFence:
+        this.writeOperator(w, (0xfe << 16) | 0x03);
+        w.writeU8(expr.consistencyModel);
+        break;
+
       case ExpressionKind.RefNull: {
         const e = expr as RefNullExpr;
         w.writeU8(0xd0);

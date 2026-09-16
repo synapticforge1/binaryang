@@ -109,18 +109,12 @@ function phantomKinds(exprSrc: string): string[] {
 }
 
 /**
- * The six that exist today. Any addition fails the gate, and so does a pinned
- * name that stops being a phantom (see `retired` below). `TupleExtract` left
- * with S6 decision 6A, deleted rather than implemented — nothing built it.
+ * None exist today. Any addition fails the gate. `TupleExtract` left with S6
+ * decision 6A, deleted rather than implemented — nothing built it; the six
+ * atomics / `CallRef` members left when S6 step 5 item 5 (5) implemented them
+ * (divergence K1).
  */
-const PHANTOM_BUDGET = [
-  'AtomicCmpxchg',
-  'AtomicFence',
-  'AtomicNotify',
-  'AtomicRMW',
-  'AtomicWait',
-  'CallRef',
-];
+const PHANTOM_BUDGET: string[] = [];
 
 async function knownInstructionNames(): Promise<Set<string>> {
   const src = await Deno.readTextFile(OPCODE_SRC);
@@ -297,29 +291,20 @@ function wabtExprKinds(irSrc: string): Set<string> {
  * one-sided kinds when they are one shared kind spelled for two audiences. A
  * scrape that did exactly that is what kept the stale "27 outstanding" alive.
  *
- * What is left is not renames. It is three facts:
+ * What is left is one fact:
  *
- * - **the atomics and `call_ref`** — binaryen-ts cannot represent them at all;
- *   six of the eight are the `PHANTOM_BUDGET` above, and `atomic.load` /
- *   `atomic.store` are not even declared. A capability gap, registered.
- * - **`code_metadata`** — wabt-ts's annotation pseudo-instruction.
- * - **`region`** — divergence R1, S6 decision 5. Intended, and permanent.
+ * - **`code_metadata`** — wabt-ts's annotation pseudo-instruction, and wabt-ts's
+ *   alone (owner, 2026-09-16: if fidelity needs it, it is needed on the wabt-ts
+ *   side only). Divergence K2.
+ *
+ * The atomics and `call_ref` left at S6 step 5 item 5 (5), when binaryen-ts
+ * gained them (K1); `region` at step 5 (d2), when wabt-ts did.
  *
  * `simd.shift` was a fourth until K3 (owner decision 2026-09-14) merged it into
  * `binary`, wabt-ts's shape. Should a `simd.shift` kind come back, this fails.
  */
 const ONE_SIDED_BUDGET = {
-  wabt: [
-    'atomic.cmpxchg',
-    'atomic.fence',
-    'atomic.load',
-    'atomic.notify',
-    'atomic.rmw',
-    'atomic.store',
-    'atomic.wait',
-    'call_ref',
-    'code_metadata',
-  ],
+  wabt: ['code_metadata'],
   // `region` left this list at S6 step 5 (d2): wabt-ts holds it too.
   binaryen: [] as string[],
 };

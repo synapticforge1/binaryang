@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **68 identical / 5 types / 1 names** (the block family and item 4, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **76 identical / 5 types / 1 names** (the block family, item 4, and item 5 (5)'s eight ported kinds, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
@@ -2833,6 +2833,53 @@ difference, so the alias does not see them; the merged declarations are wabt-ts'
 `readonly` — 2 `delete`s. ⚠️ `readonly` is BIGGER than 2: the trial swaps only the `Expression` UNION,
 so binaryen-ts code writing through its own member interfaces (`node.label = …`, `blk.type = …`) is
 not counted; it surfaces when those interfaces become wabt-ts's. The ratchet test itself — 6.
+
+**(5) The one-sided kinds — the atomics and `call_ref` PORTED; `code_metadata` wabt-ts's alone.**
+Ratchet 68/5/1 → **76 / 5 / 1**; 84 kinds shared, 1 one-sided; `PHANTOM_BUDGET` empty.
+
+*Scope, read first.* S5 had classified all nine as Bucket B — "wabt-ts's shape survives, no merge to
+perform". For eight of them that was a CAPABILITY to port (K1, a DEFECT: the decoder refused `0xfe`
+/ `0x14`); a trial putting them in binaryen-ts's union compiled with ONE error (the ratchet table),
+which measured nothing — binaryen-ts's walkers and encoder THROW on an unknown kind and its purity
+check is a whitelist, so the hazard is not a type error but a pass whose `default` quietly does the
+wrong thing. `code_metadata` was the other case: 🔍 **no producer at all** — no parser, no reader, no
+test; the binary writer skips it — while a `metadata.code.*` section already round-trips
+byte-identically as a raw custom section on BOTH halves (probed). Asked. 🗓️ **OWNER, 2026-09-16:**
+"if we need it for fidelity, we will need it in the wabt-ts side only." Measured whether fidelity
+needs it: **yes, for TEXT** — wabt-ts silently drops `(@metadata.code.branch_hint "\01")` (no section,
+every feature on), which upstream wabt carries through this node. So it stays, wabt-ts-only (K2), and
+the dropped annotation is recorded as **W8**, open.
+
+*The port* — wabt-ts's shapes field for field (mutable): `AtomicLoadExpr` … `AtomicFenceExpr`,
+`CallRefExpr { isReturn?, sigType: Var, operands, callee }`; two new kind members (`AtomicLoad`,
+`AtomicStore`); factories that type each node from its instruction (`i64.*` → `i64`, wait/notify →
+`i32`, call_ref → its results, a tuple for several); walker cases in push order; `decodeThreadsPrefix`
+(wabt-ts's `decodeAtomicOp`, sub for sub) and `0x14` / `0x15`; encoder cases writing the opcode as
+written. Probed and pinned: 5 fixtures round-trip byte for byte and compute the same at every -O level.
+
+*Every quiet `default` asked* — each file switching on `call` / `call_indirect` / a write:
+- 🛑 **LocalCSE** evicted cached keys on `call` and `call_indirect`, not `call_ref`: a `global.get`
+  sum reused across a `call_ref` whose callee sets the global — **2 where the module computes 44**
+  (probed before the fix). The atomics need no eviction: they write memory, and no key reads memory.
+- 🛑 **CFG** gave `call_ref` no call point and no exceptional edge, so inside a `try` CoalesceLocals
+  dropped a set that is live on the handler path — **0 for -1** (shape from the existing `call` test;
+  a first fixture could not show it).
+- **Asyncify** REFUSES `call_ref` (upstream instruments it as an indirect call; the flow and locals
+  stages were not ported for it) — a guess here would be an uninstrumented unwind.
+- **Flatten** refuses a multi-result `call_ref`, as it does `call_indirect` (reachable only by a built
+  node: the decoder puts a `pop` first, which Flatten refuses sooner).
+- No change needed: SimplifyLocals (adjacent set/get only), Vacuum / OptimizeInstructions (whitelists),
+  RemoveUnusedModuleElements (call TARGETS), the debug `exprToWat` (subset, throws).
+
+Tests: `atomics_call_ref.test.ts` (18). 16 mutants; 3 survived the first run — `wait`'s timeout in
+both walkers (the walk test had no `wait`) and every atomic typed `i32` (no test read a type) — tests
+added, all 16 killed. `deno task operators` inverted (removing `call_ref`'s declaration → 1 new
+phantom). Optimizer output **0 of 2,105 changed** (no corpus module uses these).
+
+⚠️ **Alias trial still 37** — the 21 kind errors did not go away, they now name `code_metadata`:
+TypeScript reports the first union member that does not fit, which is now the one binaryen-ts lacks
+by decision. How binaryen-ts meets a wabt-ts-only kind in ONE union (refuse at `PassRunner`, strip,
+or carry) is item (6)'s first question.
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and

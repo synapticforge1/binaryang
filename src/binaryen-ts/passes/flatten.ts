@@ -166,6 +166,16 @@ function callEffectiveType(e: Expression, ctx: Ctx): Type {
     }
     return r[0] ?? None;
   }
+  if (e.kind === ExpressionKind.CallRef) {
+    const t = typeOf(e);
+    if (Array.isArray(t) && t.length > 1) {
+      throw new Error(
+        `Flatten: call_ref returns ${t.length} values; ` +
+          `multi-result calls cannot be hoisted into a single local`,
+      );
+    }
+    return t;
+  }
   return typeOf(e);
 }
 

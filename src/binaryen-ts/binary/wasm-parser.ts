@@ -24,11 +24,19 @@ import {
   BinaryOp,
   type BlockParams,
   type Expression,
+  makeAtomicCmpxchg,
+  makeAtomicFence,
+  makeAtomicLoad,
+  makeAtomicNotify,
+  makeAtomicRmw,
+  makeAtomicStore,
+  makeAtomicWait,
   makeBinary,
   makeBlock,
   makeBreak,
   makeCall,
   makeCallIndirect,
+  makeCallRef,
   makeDataDrop,
   makeDrop,
   makeElemDrop,
@@ -2258,6 +2266,24 @@ class WasmParser {
           });
           break;
         }
+        case 0x14: // call_ref $t
+        case 0x15: { // return_call_ref $t (tail-call proposal)
+          // Was "unknown opcode 0x14" — divergence K1 (S6 step 5 item 5 (5)).
+          const typeIdx = r.readU32();
+          const cft = funcTypeAt(ctx.funcTypes, typeIdx, r, 'call_ref');
+          const callee = pop();
+          const operands = popN(cft.params.length);
+          const call = makeCallRef(
+            varIndex(typeIdx),
+            callee,
+            operands,
+            cft.results,
+            opcode === 0x15,
+          );
+          if (opcode === 0x15) push(call);
+          else pushMultiValueCall(call, cft.results);
+          break;
+        }
 
         case 0x18: { // delegate $depth (old EH — ends the try without end opcode)
           const depth = r.readU32();
@@ -2528,6 +2554,9 @@ class WasmParser {
           break;
         case 0xfd:
           decodeSIMDPrefix(r, push, pop);
+          break;
+        case 0xfe:
+          decodeThreadsPrefix(r, push, pop);
           break;
 
         default: {
@@ -2875,6 +2904,48 @@ function elemSegName(ctx: DecoderCtx, i: number): string {
 /** A table's name, by index. */
 function tableName(ctx: DecoderCtx, i: number): string {
   return ctx.names.table(i);
+}
+
+/**
+ * The threads proposal's `0xfe` instructions — wabt-ts's `decodeAtomicOp`, sub
+ * for sub. Each node keeps the full prefixed opcode it was written as. Was
+ * "unknown opcode 0xfe": binaryen-ts could not represent atomics at all
+ * (divergence K1, S6 step 5 item 5 (5)).
+ */
+function decodeThreadsPrefix(
+  r: BinaryReader,
+  push: (e: Expression) => void,
+  pop: () => Expression,
+): void {
+  const sub = r.readU32();
+  const opcode = ((0xfe << 16) | sub) as Opcode;
+  if (sub === 0x03) { // atomic.fence
+    push(makeAtomicFence(r.readU8()));
+    return;
+  }
+  const { align, offset, memory } = readMemArg(r);
+  if (sub === 0x00) { // memory.atomic.notify
+    const count = pop();
+    push(makeAtomicNotify(offset, align, pop(), count, memory));
+  } else if (sub === 0x01 || sub === 0x02) { // memory.atomic.wait32 / wait64
+    const timeout = pop();
+    const expected = pop();
+    push(makeAtomicWait(opcode, offset, align, pop(), expected, timeout, memory));
+  } else if (sub >= 0x10 && sub <= 0x16) { // *.atomic.load*
+    push(makeAtomicLoad(opcode, offset, align, pop(), memory));
+  } else if (sub >= 0x17 && sub <= 0x1d) { // *.atomic.store*
+    const value = pop();
+    push(makeAtomicStore(opcode, offset, align, pop(), value, memory));
+  } else if (sub >= 0x1e && sub <= 0x47) { // *.atomic.rmw*
+    const value = pop();
+    push(makeAtomicRmw(opcode, offset, align, pop(), value, memory));
+  } else if (sub >= 0x48 && sub <= 0x4e) { // *.atomic.rmw*.cmpxchg
+    const replacement = pop();
+    const expected = pop();
+    push(makeAtomicCmpxchg(opcode, offset, align, pop(), expected, replacement, memory));
+  } else {
+    r.error(`unknown atomic opcode 0xfe 0x${sub.toString(16)}`);
+  }
 }
 
 function decodeMiscPrefix(

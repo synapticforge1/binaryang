@@ -628,6 +628,11 @@ export function analyzeModule(
           throw new Error('asyncify: tail calls (return_call_indirect) are not yet supported.');
         }
         indirect = true;
+      } else if (e.kind === ExpressionKind.CallRef) {
+        // Upstream treats it as an indirect call. Refused rather than guessed
+        // until the flow and locals stages handle it: an uninstrumented call that
+        // unwinds corrupts the resume (S6 step 5 item 5 (5)).
+        throw new Error('asyncify: call_ref is not yet supported.');
       }
     });
     if (isTop) topMost.add(func.name);

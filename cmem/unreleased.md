@@ -24,6 +24,11 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- **binaryen-ts reads, writes and optimizes the threads proposal's atomics and `call_ref` /
+  `return_call_ref`** (S6 step 5 item 5 (5); divergence K1 closed). They were refused
+  (`unknown opcode 0xfe` / `0x14`). New nodes `AtomicLoadExpr` … `AtomicFenceExpr`, `CallRefExpr`
+  (wabt-ts's shapes), kind members `AtomicLoad` / `AtomicStore`, and factories `makeAtomicLoad` …
+  `makeAtomicFence`, `makeCallRef`. Byte-identical round trip. Asyncify refuses `call_ref`.
 - ⚠️ **BREAKING at run time: `ValType`'s VALUES are the wire bytes** (S6 step 5 stage V1). Exported
   from `./ir/binaryen-ts` and `./api`. `ValType.I32` is now `0x7f`, not `'i32'` — equal in value to
   wabt-ts's `Type` member of the same name. Code that uses the members symbolically is unaffected;
@@ -226,6 +231,10 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **Two optimizer passes had no case for `call_ref`**, found while porting it (item 5 (5)) — no
+  release carried `call_ref` through binaryen-ts, so no shipped output was affected: LocalCSE reused
+  a `global.get` across a `call_ref` that writes the global, and the CFG drew no exceptional edge
+  from a throwing `call_ref`, so CoalesceLocals dropped a set live on a `catch` path.
 - **binaryen-ts's WAT parser gives a construct its DECLARED type** (S6 step 5 item 5 (3a)). An
   unannotated `block` / `if` / `try` / `try_table` whose body ends unreachable — `(block
   (unreachable))`, an `if` whose arms both trap, a typed `if` likewise — was typed `unreachable`, and
