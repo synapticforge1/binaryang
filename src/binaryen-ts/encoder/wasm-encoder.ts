@@ -1031,19 +1031,23 @@ class WasmEncoder {
    * with parameters (S6 decision 7b(i)), else {@link writeBlockType}'s forms.
    */
   private writeCarrierType(w: BinaryWriter, e: Expression): void {
-    const params = blockParamsOf(e);
-    if (params !== undefined && params.types.length > 0) {
-      w.writeI32(this.blockTypeIndex(resultsOf(e.type), params.types));
-      return;
-    }
-    // A header the source wrote as an INDEX keeps that form (7c). `0x40` and an
-    // inline value type are the same type in fewer bytes, so a carrier that did
-    // not name an index still takes `writeBlockType`'s forms.
+    // A header the source wrote as an INDEX keeps that index (7c) — read FIRST.
+    // 🔧 The parameter branch below used to come first and derive the index by
+    // signature, so a header naming the second of two identical types came back
+    // naming the first. Safe to trust: the decoder records the index only while
+    // the node keeps that signature, and `PassRunner` drops it before any pass.
     const written = writtenTypeIndexOf(e);
     if (written !== undefined) {
       w.writeI32(written);
       return;
     }
+    const params = blockParamsOf(e);
+    if (params !== undefined && params.types.length > 0) {
+      w.writeI32(this.blockTypeIndex(resultsOf(e.type), params.types));
+      return;
+    }
+    // `0x40` and an inline value type are the same type in fewer bytes, so a
+    // carrier that did not name an index takes `writeBlockType`'s forms.
     writeBlockType(w, typeOf(e), (rs) => this.blockTypeIndex(rs));
   }
 
