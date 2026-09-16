@@ -90,7 +90,11 @@ function expressionKindMembers(exprSrc: string): [string, string][] {
  */
 function phantomKinds(exprSrc: string): string[] {
   const members = expressionKindMembers(exprSrc).map(([name]) => name);
-  // A kind is backed when some interface declares it — alone
+  // Since S6 step 5 item 5 (6c) a node type is an ALIAS —
+  // `export type BlockExpr = Extract<Expr, { kind: typeof ExpressionKind.Block }>;`
+  // — so a declaration ends `}>;` where an interface field ended `;`. The arm
+  // pattern below accepts both terminators.
+  // A kind is backed when some declaration names it — alone
   // (`kind: typeof ExpressionKind.X;`) OR as one arm of a union
   // (`kind: typeof ExpressionKind.A | typeof ExpressionKind.X;`). The
   // single-literal form was the only one recognised, so the extern conversions —
@@ -102,7 +106,7 @@ function phantomKinds(exprSrc: string): string[] {
   return members
     .filter((name) =>
       !new RegExp(
-        String.raw`kind:\s*(?:${arm}\s*\|\s*)*${kind}${name}\s*(?:\|\s*${arm}\s*)*;`,
+        String.raw`kind:\s*(?:${arm}\s*\|\s*)*${kind}${name}\s*(?:\|\s*${arm}\s*)*(?:;|\}\s*>;)`,
       ).test(exprSrc)
     )
     .sort();

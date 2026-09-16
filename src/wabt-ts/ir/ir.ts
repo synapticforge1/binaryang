@@ -564,9 +564,35 @@ export interface SelectExpr {
    * means "derive it".
    */
   readonly nodeId?: NodeId;
+  /**
+   * The value the instruction yields when the condition is NON-ZERO.
+   *
+   * Named as the spec names the operands, not `ifTrue` / `ifFalse`: a select
+   * is not a branch. BOTH operands are evaluated, always — that is the whole
+   * difference from an `if`, and the reason a select cannot host a trap or a
+   * side effect that only one side should see.
+   */
   readonly val1: Expr;
+  /** The value it yields when the condition is ZERO. Also always evaluated. */
   readonly val2: Expr;
   readonly condition: Expr;
+  /**
+   * The DECLARED result type of a typed `select` (`0x1c`, `(select (result t))`),
+   * or EMPTY for an untyped one (S6 decision 7a).
+   *
+   * Semantics, not decoration: over references the declared type is what
+   * validation checks, and it may be WIDER than either arm — a `ref.null` arm
+   * and a `(ref $a)` arm declared `(ref null $a)`. Its presence also records
+   * that the source wrote the typed form, so a numeric typed select re-encodes
+   * as written (divergence S1); upstream binaryen's `wasm-opt` rewrites a numeric
+   * `0x1c` as `0x1b`.
+   *
+   * ⚠️ **A list, and deliberately** (S6 step 5, stage S3). binaryen-ts held one
+   * `ValueType | null` because validation requires exactly one type. But the
+   * ENCODING is a vector, and this reader keeps whatever count a binary declares
+   * so the validator can report a wrong one. binaryen-ts's front doors refuse
+   * any count but one.
+   */
   readonly resultType: ValueType[];
   readonly type?: ExprType;
   readonly loc?: Location;
@@ -727,9 +753,23 @@ export interface BrOnExpr {
   readonly target: Var;
   /** The ref being tested — the TOP operand. */
   readonly ref: Expr;
-  /** Values carried to the branch target, in stack order, below the ref. */
+  /**
+   * Values carried to the branch target, in stack order, below the ref —
+   * decision 6's shape, extended to the last branch kind (S6 step 5, stage B3).
+   * binaryen-ts's decoder leaves them EMPTY (they stay preceding stack entries);
+   * this reader folds them in, so everything handling a `br_on` must see them.
+   */
   readonly values: Expr[];
-  /** `rt1` — the type the operand is expected to have. Cast variants only. */
+  /**
+   * `rt1` — the type the operand is expected to have. Cast variants only.
+   *
+   * 🔑 The heap type and its nullability are ONE reference type, so they are
+   * one field (S6 Group 3). binaryen-ts held four flat optionals — `srcType`,
+   * `srcNullable`, `castType`, `castNullable` — so a node could hold a
+   * nullability with no heap type beside it, and its encoder papered over exactly
+   * that with `?? AbstractHeapType.Any`. Paired, the incoherent state cannot be
+   * written down.
+   */
   readonly from?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
   /** `rt2` — the type being tested for. Cast variants only. */
   readonly to?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
@@ -948,6 +988,14 @@ export interface CallIndirectExpr {
   readonly isReturn?: boolean;
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
+  /**
+   * The signature the call expects the table entry to have.
+   *
+   * 🔧 binaryen-ts held flat `params` + `results`. S6 Group 3's one tie where
+   * cost and structure pointed opposite ways; the owner took this `sig`
+   * (2026-09-14), the form beside `typeVar` and the one `FidelityEntry.sig` keys
+   * on (cmem/ir-convergence.md § "Group 3").
+   */
   readonly sig: FuncSignature;
   /**
    * The type the instruction names — form beside `sig` (7c): which of several
@@ -963,7 +1011,16 @@ export interface CallIndirectExpr {
    */
   readonly typeVar?: Var;
   readonly table: Var;
+  /** Argument expressions, in declaration order. */
   readonly operands: Expr[];
+  /**
+   * The operand giving the table SLOT to call — the LAST operand.
+   *
+   * 🔧 binaryen-ts called it `target`, documented as "target label of the
+   * branch", which it is not: this instruction does not branch. `target` meant
+   * three different things across kinds there — the called function on `call`,
+   * a branch label on `br_on`, this operand here (S6 Group 3, on SAFETY).
+   */
   readonly callee: Expr;
   readonly type?: ExprType;
   readonly loc?: Location;
@@ -993,6 +1050,15 @@ export interface CallRefExpr {
 /** `ref.null funcref|externref|…` (0xd0) — pushes a null ref of the given type. */
 export interface RefNullExpr {
   readonly kind: 'ref.null';
+  /**
+   * The HEAP type the instruction names — `ref.null func`, `ref.null $T` — and
+   * what is written.
+   *
+   * 🔑 binaryen-ts did not carry it: the node's type `(ref null ht)` held it,
+   * and a field beside `type` would have been the same fact twice while `type`
+   * was the only carrier (S6 Group 3). It stopped being: `type` is optional and
+   * DERIVED, while this is the instruction's immediate (S6 step 5 item 5 (6b)).
+   */
   readonly refType: HeapTypeRef;
   readonly type?: ExprType;
   readonly loc?: Location;

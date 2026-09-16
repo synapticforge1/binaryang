@@ -2924,6 +2924,33 @@ checked a block's header index was dropped (only `call_indirect`'s), nor that Pa
 the outlined helpers (only that they exist); both assertions added, both killed. Deep alias trial
 14 → **5** — the ratchet test alone. Optimizer output 0 of 2,105 changed.
 
+**(6c-ii/iii) ✅ THE ALIAS — `Expression` IS `Expr`.** Every one of binaryen-ts's 84 node interfaces became
+`export type XExpr = Extract<Expr, { kind: typeof ExpressionKind.X }>` (its name kept, so no importer
+changes; the doc comment above each kept), and the union `export type Expression = Expr`. The merged
+node is wabt-ts's declaration: readonly, `loc?`, `type?`, `nodeId?`. −1,195 lines.
+- **Docs.** 552 doc lines lived inside those bodies; 14 carried history (🔧 🛑 ⚠️ 🔑), in six field docs
+  — `select`'s `val1` / `resultType`, `call_indirect`'s `callee` / `sig`, `ref.null`'s `refType`,
+  `br_on`'s `values` / `from` — moved onto wabt-ts's fields, which had one line or none. The rest
+  restated wabt-ts's; git keeps them.
+- **The ratchet retired.** Its last reading: 85 identical / 5 types / 0 names — the five constructs,
+  over the node base the ratchet ignored. A kind-by-kind comparison of a type with itself measures
+  nothing, so `expr_convergence.test.ts` now pins the IDENTITY: `Expression ≡ Expr`, `ExpressionKind ≡
+  Expr['kind']` (so every kind has a node — `Expr['kind']` is read off the nodes), five node aliases ≡
+  wabt-ts's declarations, and `readonly` directly (a `@ts-expect-error` write — `readonly` is invisible
+  to assignability, so an identity pin alone would pass a mutable redeclaration). Inverted against the
+  pre-alias file: TS2345 ×4 + TS2578. A first draft also pinned "no nodeless kind" via `Extract` per
+  kind — WRONG for the extern conversions, whose one node carries a two-kind union, and redundant with
+  the kind identity; removed.
+- **`deno task operators`** read interface bodies for its phantom scan; it accepts the alias form now
+  (`… }>;`, across lines as `deno fmt` breaks them). Inverted: `NopExpr = never` → 1 new phantom.
+- `RefTypeImmediate` (a separate interface with `from` / `to`'s two fields) became the alias
+  `NonNullable<BrOnExpr['from']>`.
+
+Suite 1,229, optimizer output **0 of 2,105 changed**, alias trials moot (they measured this).
+**What item 5 still holds:** type derivation carried out of the bridge (`inferBinaryType` /
+`inferUnaryType`) — binaryen-ts's passes read `type`, which a wabt-ts tree does not set. It matters
+when a wabt-ts tree reaches a pass WITHOUT the bridge, which is item 6 (the module half).
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

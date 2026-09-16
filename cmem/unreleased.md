@@ -24,6 +24,12 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING (types): binaryen-ts's expression types ARE wabt-ts's** (S6 step 5 item 5 (6c)).
+  `Expression` is `Expr`; each node type (`BlockExpr`, `LoadExpr`, …) is `Extract<Expr, { kind }>` —
+  same names, but READONLY: build a changed node (`{ ...e, field }`) rather than assigning into one.
+  `RefNullExpr` has `refType` (item 5 (6b)); `BrOnExpr.opcode` is an `Opcode`; `RefTypeImmediate` is
+  an alias of `br_on`'s `from`. `dropWrittenTypeIndex` returns the node instead of mutating it.
+  `CodeMetadataExpr` is in the union: an optimization run strips it, a plain `encodeWasm` throws.
 - **binaryen-ts reads, writes and optimizes the threads proposal's atomics and `call_ref` /
   `return_call_ref`** (S6 step 5 item 5 (5); divergence K1 closed). They were refused
   (`unknown opcode 0xfe` / `0x14`). New nodes `AtomicLoadExpr` … `AtomicFenceExpr`, `CallRefExpr`
