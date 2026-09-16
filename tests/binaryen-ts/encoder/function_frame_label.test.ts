@@ -36,7 +36,7 @@ const exitFunctionWith1 = () => makeBreak('', null, [makeI32Const(1)]);
 
 /** func (result i32): drop(<inner>); i32.const 2 — exported as `f`, then run. */
 function run(inner: Expression): number {
-  const body = makeBlock([makeDrop(inner), makeI32Const(2)], null);
+  const body = makeBlock([makeDrop(inner), makeI32Const(2)], null, ValType.I32);
   const mod = new ModuleBuilder()
     .addFunction('$f', [], [ValType.I32], body)
     .addExport('f', '$f')
@@ -48,13 +48,15 @@ function run(inner: Expression): number {
 
 describe('a br to the function frame is not captured by an unnamed construct', () => {
   it('unnamed block', () => {
-    const block = makeBlock([exitFunctionWith1()], null);
-    block.type = ValType.I32; // declared, as WAT's `(block (result i32) …)` would
-    assertEquals(run(block), 1);
+    // Declared, as WAT's `(block (result i32) …)` is.
+    assertEquals(run(makeBlock([exitFunctionWith1()], null, ValType.I32)), 1);
   });
 
   it('unnamed if', () => {
     // The then-arm exits the function; the else-arm falls through with 3.
-    assertEquals(run(makeIf(makeI32Const(1), exitFunctionWith1(), makeI32Const(3))), 1);
+    assertEquals(
+      run(makeIf(makeI32Const(1), exitFunctionWith1(), makeI32Const(3), '', ValType.I32)),
+      1,
+    );
   });
 });

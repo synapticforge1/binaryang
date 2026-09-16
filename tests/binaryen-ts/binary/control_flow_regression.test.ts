@@ -228,20 +228,23 @@ Deno.test('makeSwitch (br_table) is always unreachable', () => {
 // WT-2c — bugs the behavioral-equivalence harness surfaced
 // ---------------------------------------------------------------------------
 
-Deno.test("makeIf type is the reachable arm's type (LUB), not blindly the then-arm's", () => {
-  // then unreachable (ends in return), else falls through (none) -> if is none.
-  // The old code took ifTrue.type (unreachable), which made DCE delete the live
-  // code after such an `if` (silently breaking loops — `_fib` returned 0).
-  assertEquals(makeIf(makeI32Const(1), makeReturn([makeI32Const(1)]), makeNop()).type, None);
-  // then concrete, else unreachable -> take the then (i32).
+Deno.test("makeIf's type is what it DECLARES — never inferred from the arms", () => {
+  // WT-2c: the type was once `ifTrue.type`, so a then-arm ending in `return`
+  // typed the `if` `unreachable` while its else fell through, and DCE deleted
+  // the live code after it (`_fib` returned 0). The fix inferred the reachable
+  // arm's type instead — which still typed an `if` whose arms BOTH never fall
+  // through `unreachable`, where wasm gives it its declaration (S6 step 5 item
+  // 5 (3), owner 2026-09-16). Now nothing is inferred.
+  const ret = () => makeReturn([makeI32Const(1)]);
+  assertEquals(makeIf(makeI32Const(1), ret(), makeNop()).type, None);
+  assertEquals(makeIf(makeI32Const(1), ret(), ret()).type, None, 'both arms return: still void');
+  assertEquals(makeIf(makeI32Const(1), makeI32Const(7), makeI32Const(8)).type, None);
   assertEquals(
-    makeIf(makeI32Const(1), makeI32Const(7), makeReturn([makeI32Const(1)])).type,
+    makeIf(makeI32Const(1), ret(), ret(), '', ValType.I32).type,
     ValType.I32,
+    'declared i32, whatever the arms',
   );
-  // both arms concrete & equal -> that type.
-  assertEquals(makeIf(makeI32Const(1), makeI32Const(7), makeI32Const(8)).type, ValType.I32);
-  // no else -> none (the then may be skipped).
-  assertEquals(makeIf(makeI32Const(1), makeReturn([makeI32Const(1)])).type, None);
+  assertEquals(makeIf(makeI32Const(1), ret()).type, None);
 });
 
 Deno.test('regression: element segments + call_indirect survive round-trip and execute', async () => {
@@ -613,13 +616,8 @@ Deno.test('regression: scalar relational binary ops are typed i32, not operand t
     const e = makeBinary(opcode, makeI32Const(0), makeI32Const(0));
     assertEquals(e.type, ValType.I32, `${opcode} must yield i32`);
   }
-  // An `if` whose then-arm is an f64 comparison must itself be typed i32.
-  const ifExpr = makeIf(
-    makeBinary(BinaryOp.GeF64, makeI32Const(0), makeI32Const(0)),
-    makeBinary(BinaryOp.LeF64, makeI32Const(0), makeI32Const(0)),
-    makeI32Const(0),
-  );
-  assertEquals(ifExpr.type, ValType.I32, 'if with f64-comparison then-arm must be i32');
+  // (An `if` over such arms took its type from them; it DECLARES one now —
+  // S6 step 5 item 5 (3) — and the round trip below is what the report was.)
 });
 
 Deno.test('regression: (if (result i32)) with f64-comparison condition+arms round-trips valid', async () => {

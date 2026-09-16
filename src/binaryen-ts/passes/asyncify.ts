@@ -963,8 +963,10 @@ export function flowInstrumentFunction(func: WasmFunction, ctx: FlowCtx): void {
   const list: Expression[] = [
     makeIf(makeStateCheck(State.Rewinding), makeCall(varName(ASYNCIFY_GET_CALL_INDEX), [], None)),
     // The old body becomes a STATEMENT of the new one, which a region cannot
-    // be — upstream nests it as a block here, and so does this.
-    asStatement(processed),
+    // be — upstream nests it as a block here, and so does this. A block of it
+    // declares NOTHING: the body is flat by now, its values leave through
+    // `return`, and the fallthrough is closed by the `unreachable` below.
+    asStatement(processed, None),
   ];
   // Rewriting control flow may leave the value-producing tail conditional; a
   // trailing unreachable keeps a value-returning function well-formed (the
@@ -1323,7 +1325,9 @@ export function localsInstrumentFunction(
   // barrier. The old body is a STATEMENT here, which a region cannot be;
   // `children` is `Expression[]`, so the type would not have said so.
   const unwindBlock = makeBlock(
-    [asStatement(loweredBody), barrier],
+    // The body's block declares nothing — it leaves through `return` or the
+    // unwind `br`, never by falling through with values.
+    [asStatement(loweredBody, None), barrier],
     ASYNCIFY_UNWIND_LABEL,
     ValType.I32,
   );

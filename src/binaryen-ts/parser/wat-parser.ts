@@ -176,7 +176,7 @@ import {
   type SList,
 } from './sexpr.ts';
 import { type TextPos, tokenize } from './tokenizer.ts';
-import { heapAbstract, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { type BlockResult, heapAbstract, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -1547,13 +1547,12 @@ class WatModuleParser {
     // against the declared type: after its `end` the stack is not polymorphic.
     // (Earlier, `ifFalse ? ifTrue.type : None` mistyped a one-sided one and DCE
     // deleted live code after it; the binary decoder had the both-arms case.)
-    const node = makeIf(condition!, ifTrue, ifFalse);
+    const node = makeIf(condition!, ifTrue, ifFalse, '', this.declaredType(results));
     // Carry the branch-target label onto the node: the encoder pushes
     // `e.label || null`, so leaving it unset would put an empty name where the
     // parser resolved branches against `ifLabel`, and every `br` into this `if`
     // would fail to resolve.
     node.label = ifLabel ?? '';
-    node.type = this.declaredType(results);
     return node;
   }
 
@@ -3402,7 +3401,7 @@ class WatModuleParser {
    * is what it DECLARES, always; whether control reaches its end is a question
    * about the tree, not a value on the node (owner, 2026-09-16).
    */
-  private declaredType(results: ValueType[]): Type {
+  private declaredType(results: ValueType[]): BlockResult {
     if (results.length > 1) return results;
     return results[0] ?? None;
   }

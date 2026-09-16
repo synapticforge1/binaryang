@@ -21,15 +21,24 @@
 //      `block drop unreachable end` and nothing after it.
 //
 // Upstream binaryen's writer emits an extra `unreachable` after every construct
-// typed unreachable (`wasm-stack.h`, `visitBlock` / `visitIf` / `visitLoop` /
-// `visitTry` / `visitTryTable`); ours now does too. A DECODED construct carries
-// its declared type, so a plain decode → encode still writes no extra byte.
+// typed unreachable (`wasm-stack.h`), and ours did too, for a while. Then
+// (S6 step 5 item 5 (3), owner 2026-09-16): a construct's type is ALWAYS what it
+// declares — the text parser declares (3a), passes splice statements instead of
+// building such constructs (3b), the carriers' `type` cannot say `unreachable`
+// and the encoder refuses one that does (3c). The tree is what is written.
 
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import {
+  type Expression,
+  makeBlock,
+  makeI32Const,
+  makeIf,
+  makeUnreachable,
+} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
@@ -92,10 +101,11 @@ Deno.test('decode → encode: a void if with unreachable arms writes no extra by
   }
 });
 
-Deno.test('encoder: a construct a pass typed unreachable is followed by unreachable', () => {
-  // StripEH turns the throw into `block (drop …) (unreachable)` — typed
-  // unreachable, and the last instruction of a `block (result i32)`. (At a
-  // function's top level the region flattens it, so it must be nested.)
+Deno.test('StripEH: a throw that is the last instruction of a typed block still leaves it valid', () => {
+  // The throw's `drop`s + `unreachable` are spliced into the block, whose
+  // `i32` the `unreachable` then satisfies. (It was a void block typed
+  // `unreachable`, valid only because the encoder wrote an `unreachable` after
+  // it. At a function's top level the region flattens it, so it must be nested.)
   const out = runPass(
     assemble(`(module (tag $e (param i32))
       (func (export "f") (param i32) (result i32)
@@ -245,4 +255,23 @@ Deno.test("StripEH: a try's body block declares the TRY's type, not its body's l
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('StripEH').run();
   assertEquals(unreachableCarriers(mod), []);
   assertEquals(call(encodeWasm(mod), 1), 'trap');
+});
+
+Deno.test('encoder: a construct typed unreachable is REFUSED, not written as a void one', () => {
+  // Reachable only by building a node around the type (a cast, or JSON): the
+  // carriers' `type` is a `BlockResult`. Writing it as `0x40` gave the construct
+  // a declaration it never had.
+  const mod = parseWasm(assemble(PLAIN_BLOCK));
+  const block = mod.functions[0]!.body.children[0]!;
+  assertEquals(block.kind, 'block');
+  (block as { type?: unknown }).type = 'unreachable';
+  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'typed `unreachable`');
+});
+
+Deno.test('makeBlock / makeIf DECLARE — void when not told, whatever the children', () => {
+  const trap = makeBlock([makeUnreachable()]);
+  const value = makeBlock([makeI32Const(1)]);
+  const arms = makeIf(makeI32Const(1), makeUnreachable(), makeUnreachable());
+  assertEquals([trap.type, value.type, arms.type], [None, None, None]);
+  assertEquals(makeBlock([makeUnreachable()], null, ValType.I32).type, ValType.I32);
 });

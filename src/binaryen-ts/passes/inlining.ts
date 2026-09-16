@@ -31,7 +31,6 @@ import {
   asRegion,
   asStatement,
   type BlockExpr,
-  blockOf,
   type BreakExpr,
   type CallExpr,
   type Expression,
@@ -65,7 +64,7 @@ import { mapExpression, mapWithSequences, type Sequence, walkExpression } from '
 import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
-import { requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { blockResult, requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
 import { varName } from '../../wabt-ts/ir/ir.ts';
 import { requireName } from '../../wabt-ts/ir/ir.ts';
 
@@ -303,7 +302,7 @@ class FunctionSplitter {
     // shape, so the pattern logic below reads the body as it always did.
     // `doSplitA` / `doSplitB` must read it the same way — they re-find the ifs
     // this found.
-    const body = asStatement(fn.body);
+    const body = asStatement(fn.body, blockResult(fn.results));
 
     // A block with a self-targeted break can't be safely outlined.
     if (body.kind === ExpressionKind.Block) {
@@ -318,7 +317,7 @@ class FunctionSplitter {
     // ---- Pattern A: `if (simple) return; ...rest` ----
     if (
       !iff.ifFalse && fn.results.length === 0 &&
-      asStatement(iff.ifTrue).kind === ExpressionKind.Return
+      asStatement(iff.ifTrue, None).kind === ExpressionKind.Return
     ) {
       // Must be a block — otherwise the whole function is just the if and the
       // normal inliner would have taken it already.
@@ -406,7 +405,7 @@ class FunctionSplitter {
   private doSplitA(fn: WasmFunction): WasmFunction {
     // A block by construction: `getSplitMode` returns SplitPatternA only when
     // this same view of the body is one.
-    const body = asStatement(fn.body) as BlockExpr;
+    const body = asStatement(fn.body, blockResult(fn.results)) as BlockExpr;
     const originalIf = getIf(body)!;
 
     // Outlined function: body minus the first if.
@@ -449,7 +448,7 @@ class FunctionSplitter {
     const maxIfs = this.opts.partialInliningIfs;
     // Read the body the way `getSplitMode` did, or the ifs it counted are not
     // the ones found here.
-    const inlineableBody = deepCopy(asStatement(fn.body));
+    const inlineableBody = deepCopy(asStatement(fn.body, blockResult(fn.results)));
 
     for (let i = 0; i < maxIfs; i++) {
       const ifI = getIf(inlineableBody, i);
@@ -757,9 +756,7 @@ function inlineCallSite(
   // appended when the body ended in `none` or `unreachable` (a callee
   // returning only through `return` → `br`). Declaring the results is both.
   const body = asRegion(substituteBody(bodyCopy, mapping, label, !call.isReturn));
-  const substituted = body.children.length === 1
-    ? asStatement(body)
-    : { ...blockOf(body), type: retType };
+  const substituted = asStatement(body, retType);
   children.push(substituted);
 
   // 5. If the original call was unreachable (an operand was unreachable),

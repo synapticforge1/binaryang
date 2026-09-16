@@ -9,7 +9,7 @@
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
-import { heapAbstract, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { blockResult, heapAbstract, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
 import {
   type CustomSection,
@@ -1985,7 +1985,7 @@ class WasmParser {
           }
           const frame = popFrame(frames, r);
           const rts = frame.resultTypes;
-          const resultType: Type = resultTypeOf(rts);
+          const resultType = blockResult(rts);
           if (frame.kind === 'if' || frame.kind === 'else') {
             const cond = frame.ifCondition!;
             // Pivot on whether the `else` opcode (0x05) was seen for this frame:
@@ -2029,11 +2029,11 @@ class WasmParser {
             // empty, not polymorphic. DCE read the IR type and deleted the value
             // the enclosing block still needed (-Oz failed 30 of the 70 legacy
             // EH spec assertions; `unreachable_construct.test.ts`).
-            const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label);
+            const ifExpr = makeIf(cond, thenExpr, elseExpr, frame.label, resultType);
             // Every multi-result carrier seeds its extra values' `Pop`s, not only
             // `block` below: pushed bare, a later consumer's second pop found
             // nothing and took `unreachable` (`multivalue_constructs.test.ts`).
-            pushMultiValueCall(withParams({ ...ifExpr, type: resultType }, frame), rts);
+            pushMultiValueCall(withParams(ifExpr, frame), rts);
           } else if (frame.kind === 'loop') {
             const body = sealFrame(frame);
             pushMultiValueCall(withParams(makeLoop(frame.label, body, resultType), frame), rts);
@@ -2269,7 +2269,7 @@ class WasmParser {
             r.error(`delegate outside a try (enclosing frame is ${frame.kind})`);
           }
           const rts = frame.resultTypes;
-          const resultType: Type = resultTypeOf(rts);
+          const resultType = blockResult(rts);
           const tryBody = makeRegion(frame.exprs);
           pushMultiValueCall(
             withParams(

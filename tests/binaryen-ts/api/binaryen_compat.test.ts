@@ -342,13 +342,24 @@ Deno.test('control flow factories return well-formed nodes', () => {
   const mod = new binaryen.Module();
   const blk = mod.block('$L', [mod.nop(), mod.unreachable()]);
   assertEquals(blk.kind, 'block');
+  // Upstream's API types a construct from its contents; the IR's constructs
+  // DECLARE, so these factories take the declaration from the contents — a
+  // value when one is yielded, `none` otherwise, never `unreachable`
+  // (S6 step 5 item 5 (3)).
+  assertEquals(blk.type, 'none');
+  assertEquals(mod.block(null, [mod.nop(), mod.i32.const(1)]).type, ValType.I32);
 
   const cond = mod.i32.eqz(mod.i32.const(0));
   const ifExpr = mod.if(cond, mod.i32.const(1), mod.i32.const(2));
   assertEquals(ifExpr.kind, 'if');
+  assertEquals(ifExpr.type, ValType.I32);
+  assertEquals(mod.if(cond, mod.unreachable(), mod.i32.const(2)).type, ValType.I32);
+  assertEquals(mod.if(cond, mod.unreachable(), mod.unreachable()).type, 'none');
+  assertEquals(mod.if(cond, mod.nop()).type, 'none');
 
   const loop = mod.loop('$top', mod.br('$top'));
   assertEquals(loop.kind, 'loop');
+  assertEquals(loop.type, 'none');
 
   const ret = mod.return(mod.i32.const(7));
   assertEquals(ret.kind, 'return');

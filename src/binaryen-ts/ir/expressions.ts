@@ -46,6 +46,7 @@ import {
   varName,
 } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
+import type { BlockResult } from '../../wabt-ts/ir/ir.ts';
 import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
 import { loadShape, storeShape } from './memory-access.ts';
@@ -833,6 +834,15 @@ export type WrittenTypeIndex = number;
 export interface BlockExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: typeof ExpressionKind.Block;
+  /**
+   * What the block DECLARES it yields — never `unreachable`, even when control
+   * cannot reach its `end` (S6 step 5 item 5 (3), owner 2026-09-16). wasm types a
+   * construct by its declaration: after `end` the stack holds exactly this, so
+   * a type that said `unreachable` there was a cached control-flow fact that
+   * could disagree with validation — and did (see `unreachable_construct.test.ts`).
+   * Absent only where step 3's "unknown" applies.
+   */
+  type?: BlockResult;
   /** Optional label for branch targets. */
   label: string;
   /** Ordered list of child expressions. */
@@ -880,6 +890,15 @@ export interface RegionExpr extends ExprBase {
 export interface IfExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: typeof ExpressionKind.If;
+  /**
+   * What the `if` DECLARES it yields — never `unreachable`, even when control
+   * cannot reach its `end` (S6 step 5 item 5 (3), owner 2026-09-16). wasm types a
+   * construct by its declaration: after `end` the stack holds exactly this, so
+   * a type that said `unreachable` there was a cached control-flow fact that
+   * could disagree with validation — and did (see `unreachable_construct.test.ts`).
+   * Absent only where step 3's "unknown" applies.
+   */
+  type?: BlockResult;
   /** Condition expression (typed as i32). */
   condition: Expression;
   /** Branch taken when the condition is non-zero. */
@@ -907,6 +926,15 @@ export interface IfExpr extends ExprBase {
 export interface LoopExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: typeof ExpressionKind.Loop;
+  /**
+   * What the loop DECLARES it yields — never `unreachable`, even when control
+   * cannot reach its `end` (S6 step 5 item 5 (3), owner 2026-09-16). wasm types a
+   * construct by its declaration: after `end` the stack holds exactly this, so
+   * a type that said `unreachable` there was a cached control-flow fact that
+   * could disagree with validation — and did (see `unreachable_construct.test.ts`).
+   * Absent only where step 3's "unknown" applies.
+   */
+  type?: BlockResult;
   /** Branch label for `br` back-edges. */
   label: string;
   /** The loop's region. */
@@ -1881,6 +1909,15 @@ export interface TableCatch {
 export interface TryTableExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: typeof ExpressionKind.TryTable;
+  /**
+   * What the try_table DECLARES it yields — never `unreachable`, even when control
+   * cannot reach its `end` (S6 step 5 item 5 (3), owner 2026-09-16). wasm types a
+   * construct by its declaration: after `end` the stack holds exactly this, so
+   * a type that said `unreachable` there was a cached control-flow fact that
+   * could disagree with validation — and did (see `unreachable_construct.test.ts`).
+   * Absent only where step 3's "unknown" applies.
+   */
+  type?: BlockResult;
   /** Optional label for the try_table block itself. */
   label: string;
   /** The protected region. */
@@ -1923,6 +1960,15 @@ export interface Catch {
 export interface TryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: typeof ExpressionKind.Try;
+  /**
+   * What the try DECLARES it yields — never `unreachable`, even when control
+   * cannot reach its `end` (S6 step 5 item 5 (3), owner 2026-09-16). wasm types a
+   * construct by its declaration: after `end` the stack holds exactly this, so
+   * a type that said `unreachable` there was a cached control-flow fact that
+   * could disagree with validation — and did (see `unreachable_construct.test.ts`).
+   * Absent only where step 3's "unknown" applies.
+   */
+  type?: BlockResult;
   /** Label (targetable by `delegate`). */
   label: string;
   /** The protected region. */
@@ -2369,56 +2415,42 @@ export function makeIf(
   thenArm: RegionInput,
   elseArm: RegionInput | null = null,
   name = '',
+  type: BlockResult = None,
 ): IfExpr {
-  const ifTrue = asRegion(thenArm);
-  const ifFalse = elseArm === null ? null : asRegion(elseArm);
-  // Type follows upstream `If::finalize`:
-  //  - no `else` → `none` (the `then` may be skipped, so nothing flows out);
-  //  - with `else` → the result type of the REACHABLE arm. When one arm is
-  //    `unreachable` the type is the other arm's type; only when BOTH arms are
-  //    unreachable is the `if` itself unreachable.
-  // Blindly taking `ifTrue.type` mistyped an `if` as `unreachable` whenever its
-  // `then` arm ended in a control transfer (`br`/`return`, correctly typed
-  // `unreachable`) even though the `else` arm fell through — which made DCE
-  // treat everything after the `if` as dead and delete live code (e.g. a loop
-  // back-edge `br`, silently breaking the loop so it ran once and returned 0).
-  let type: Type;
-  if (!ifFalse) {
-    type = None;
-  } else if (ifTrue.type === Unreachable) {
-    type = typeOf(ifFalse);
-  } else {
-    type = typeOf(ifTrue);
-  }
+  // The type is DECLARED — `None` when not given, as `(if …)` without a
+  // `(result …)` is. 🔧 It was inferred from the arms, as upstream's
+  // `If::finalize` does, which typed an `if` whose arms both end in a transfer
+  // `unreachable`; before that, `ifTrue.type` alone mistyped a one-sided one
+  // and DCE deleted a loop's live back-edge. A declared type cannot drift.
   return {
     kind: ExpressionKind.If,
     type,
     condition,
-    ifTrue,
-    ifFalse,
+    ifTrue: asRegion(thenArm),
+    ifFalse: elseArm === null ? null : asRegion(elseArm),
     label: name,
   };
 }
 
 /**
- * Creates a `block` expression — typed `type` when given, else inferred from
- * its last child.
+ * Creates a `block` expression DECLARING `type` — `None` when not given, as
+ * `(block …)` without a `(result …)` is.
  *
- * A block's type is DECLARED in wasm, and inference from the last child is
- * wrong whenever the value leaves through a branch: asyncify's unwind block is
- * `i32` because its `br`s carry the call index, while its last child is a
- * barrier. Without the parameter every such site built the node as a literal
- * beside this factory, and a literal is a second copy of its rules.
+ * 🔧 An omitted type was INFERRED from the last child. That is wrong whenever
+ * the value leaves through a branch (asyncify's unwind block is `i32` because
+ * its `br`s carry the call index, while its last child is a barrier), and
+ * wrong in the other direction when the last child never falls through: the
+ * block came out typed `unreachable`, which wasm never gives a construct
+ * (S6 step 5 item 5 (3)).
  */
 export function makeBlock(
   children: Expression[],
   name: string | null = null,
-  type?: Type,
+  type: BlockResult = None,
 ): BlockExpr {
-  const last = children[children.length - 1];
   return {
     kind: ExpressionKind.Block,
-    type: type ?? (last ? typeOf(last) : None),
+    type,
     // A label NAME in, `''` for none on the node (S6 step 5): one spelling of
     // "unnamed", and the same one wabt-ts uses.
     label: name ?? '',
@@ -2446,17 +2478,20 @@ export function makeRegion(children: Expression[], type?: Type): RegionExpr {
  *
  * A region cannot be a statement (the encoder rejects one outside its slot), and
  * upstream binaryen nests the old body as a block in exactly these places, so
- * this is the faithful move. The block takes the region's type and, by default,
- * no label: nothing could branch to a region, so nothing can branch to it.
+ * this is the faithful move. By default the block has no label: nothing could
+ * branch to a region, so nothing can branch to it.
+ *
+ * `type` is REQUIRED: the type of what the block stands in for — the construct
+ * the body belonged to, or the function's results. 🔧 It took the REGION's
+ * type, which is inferred from its last instruction and so `unreachable` for a
+ * body ending in a transfer (S6 step 5 item 5 (3)).
  */
-export function blockOf(region: RegionExpr, name: string | null = null): BlockExpr {
-  const block: BlockExpr = {
-    kind: ExpressionKind.Block,
-    label: name ?? '',
-    children: region.children,
-  };
-  if (region.type !== undefined) block.type = region.type;
-  return block;
+export function blockOf(
+  region: RegionExpr,
+  type: BlockResult,
+  name: string | null = null,
+): BlockExpr {
+  return { kind: ExpressionKind.Block, type, label: name ?? '', children: region.children };
 }
 
 /**
@@ -2473,10 +2508,12 @@ export function blockOf(region: RegionExpr, name: string | null = null): BlockEx
  * One-or-block is deliberate: it is the shape every such call site produced
  * before regions were a kind (a body was its lone expression or a wrapper
  * block), and the shape upstream's passes see — so pass output is unchanged.
+ *
+ * `type` is what a built block DECLARES — see {@link blockOf}.
  */
-export function asStatement(e: Expression): Expression {
+export function asStatement(e: Expression, type: BlockResult): Expression {
   if (e.kind !== ExpressionKind.Region) return e;
-  return e.children.length === 1 ? e.children[0]! : blockOf(e);
+  return e.children.length === 1 ? e.children[0]! : blockOf(e, type);
 }
 
 /**
@@ -2595,7 +2632,11 @@ export function makeUnreachable(): UnreachableExpr {
 }
 
 /** Creates a `loop` expression. */
-export function makeLoop(name: string, body: RegionInput, resultType: Type = None): LoopExpr {
+export function makeLoop(
+  name: string,
+  body: RegionInput,
+  resultType: BlockResult = None,
+): LoopExpr {
   return { kind: ExpressionKind.Loop, type: resultType, label: name, body: asRegion(body) };
 }
 
@@ -3228,7 +3269,7 @@ export function makeTryTable(
   name: string | null,
   body: RegionInput,
   catches: TableCatch[],
-  resultType: Type,
+  resultType: BlockResult,
 ): TryTableExpr {
   return {
     kind: ExpressionKind.TryTable,
@@ -3245,7 +3286,7 @@ export function makeTry(
   body: RegionInput,
   catches: Catch[],
   delegateTarget: string | null,
-  resultType: Type,
+  resultType: BlockResult,
 ): TryExpr {
   return {
     kind: ExpressionKind.Try,

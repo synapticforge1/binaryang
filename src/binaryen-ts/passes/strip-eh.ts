@@ -29,13 +29,13 @@
 
 import {
   asStatement,
-  blockOf,
   type Expression,
   ExpressionKind,
   makeDrop,
   makeUnreachable,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
+import { None } from '../ir/types.ts';
 import { mapWithSequences, type Sequence } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
@@ -93,8 +93,7 @@ export function stripEHNode(expr: Expression): Expression | Sequence {
       // `asStatement` would type it by the body's last instruction, which is
       // `unreachable` for `(try (result i32) (do (throw $e)) …)`.
       // (One instruction stands as itself, and is already of the try's type.)
-      if (expr.body.children.length === 1) return asStatement(expr.body);
-      return { ...blockOf(expr.body), ...(expr.type === undefined ? {} : { type: expr.type }) };
+      return asStatement(expr.body, expr.type ?? None);
 
     default:
       return expr;
