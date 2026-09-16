@@ -41,11 +41,17 @@ import type {
   TypeEntry,
   Var,
 } from '../ir/ir.ts';
-import type { NodeId } from '../ir/fidelity.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { placementText } from '../core/custom-placement.ts';
 import { Type, typeName } from '../core/types.ts';
-import { type HeapTypeRef, indexOf, isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
+import {
+  blockTypeOf,
+  type HeapTypeRef,
+  indexOf,
+  isRefValueType,
+  recGroups,
+  type ValueType,
+} from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
@@ -192,15 +198,16 @@ class WatWriter extends ModuleContext {
   private readonly nameIndexMap = new Map<string, number>();
 
   /**
-   * What was WRITTEN for this block, falling back to what the node derived.
+   * The header this carrier WRITES — {@link blockTypeOf}, from the node.
    *
-   * The declared type and the derived type are not always the same — an `if`
-   * may declare a result its contents would not give it (a94154e21) — and the
-   * declaration has two legal spellings that differ in the binary. Both facts
-   * live in the table; the node field is the fallback that goes away at S6.
+   * 🔧 It read the fidelity table's `blockType`, falling back to the node's. The
+   * declared results and the index the header named are both on the node now
+   * (S6 step 5, stage (c2)), so there is no second place to consult: the
+   * declaration may differ from what the contents derive (a94154e21), and it
+   * has two spellings, an inline type and an index — the node holds both facts.
    */
-  private declaredBlockType(e: { nodeId?: NodeId; blockType: BlockType }): BlockType {
-    return this.module.fidelity.get(e.nodeId)?.blockType ?? e.blockType;
+  private declaredBlockType(e: Parameters<typeof blockTypeOf>[0]): BlockType {
+    return blockTypeOf(e);
   }
 
   constructor(module: Module, opts: WriteWatOptions) {

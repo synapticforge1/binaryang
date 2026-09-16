@@ -64,6 +64,8 @@ import {
   type BinaryExpr,
   BLOCK_TYPE_VOID,
   type BlockParams,
+  type BlockResult,
+  blockResult,
   type BlockType,
   blockTypeFuncType,
   blockTypeValue,
@@ -245,6 +247,17 @@ function blockParamCount(bt: BlockType, m: Module): number {
   const entry = m.types[bt.typeIdx];
   if (!entry || entry.kind !== 'func') return 0;
   return entry.sig.params.length;
+}
+
+/**
+ * A carrier's DECLARED results and the index its header named, if any (S6 step
+ * 5, stage (c2)). A decoded header names an index exactly when it is written as
+ * one, so `typeIndex` is present for every `func_type` header and no other.
+ */
+function headerOf(bt: BlockType, m: Module): { type: BlockResult; typeIndex?: number } {
+  if (bt.kind === 'void') return { type: 'none' };
+  if (bt.kind === 'value') return { type: bt.type };
+  return { type: blockResult(getTypeSig(m, bt.typeIdx).results), typeIndex: bt.typeIdx };
 }
 
 /**
@@ -1419,9 +1432,8 @@ export class BinaryReader {
           const tryExpr: Expr = {
             kind: 'try',
             label: frame.label,
-            blockType: frame.blockType,
+            ...headerOf(frame.blockType, m),
             ...(frame.params ? { params: frame.params } : {}),
-            nodeId: m.fidelity.record({ blockType: frame.blockType }),
             body: tryBody,
             catches: [],
             delegate: varIndex(depth),
@@ -1481,9 +1493,8 @@ export class BinaryReader {
               node = {
                 kind: 'block',
                 label: frame.label,
-                blockType: frame.blockType,
+                ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 loc: frame.loc,
               };
@@ -1492,9 +1503,8 @@ export class BinaryReader {
               node = {
                 kind: 'loop',
                 label: frame.label,
-                blockType: frame.blockType,
+                ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 loc: frame.loc,
               };
@@ -1503,9 +1513,8 @@ export class BinaryReader {
               node = {
                 kind: 'if',
                 label: frame.label,
-                blockType: frame.blockType,
+                ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 condition: frame.condition ?? operandPlaceholder(loc),
                 ifTrue: endBody,
                 ifFalse: [],
@@ -1516,9 +1525,8 @@ export class BinaryReader {
               node = {
                 kind: 'if',
                 label: frame.label,
-                blockType: frame.blockType,
+                ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 condition: frame.condition ?? operandPlaceholder(loc),
                 ifTrue: frame.ifTrue ?? [],
                 ifFalse: endBody,
@@ -1540,9 +1548,8 @@ export class BinaryReader {
               node = {
                 kind: 'try',
                 label: frame.label,
-                blockType: frame.blockType,
+                ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: tryBody,
                 catches,
                 loc: frame.loc,
@@ -1553,9 +1560,8 @@ export class BinaryReader {
               node = {
                 kind: 'try_table',
                 label: frame.label,
-                blockType: frame.blockType,
+                ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 catches: frame.tableCatches ?? [],
                 loc: frame.loc,

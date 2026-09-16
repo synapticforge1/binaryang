@@ -48,7 +48,7 @@
  * move across one family at a time, each step proven by the byte baseline.
  */
 
-import type { BlockType, FuncSignature, TypeUse, ValueType } from './ir.ts';
+import type { FuncSignature, TypeUse, ValueType } from './ir.ts';
 
 /**
  * An opaque handle identifying one expression node across immutable rebuilds.
@@ -75,16 +75,13 @@ export interface FidelityEntry {
    */
   readonly selectResultType?: readonly ValueType[];
 
-  /**
-   * The block type AS DECLARED, which is not always the block type as derived.
-   *
-   * binaryen-ts computes a block's type from its contents. That is a correct
-   * type and often not the written one — an `if` may DECLARE a result the
-   * derived type would not give it, which is the defect fixed in a94154e21.
-   * The declaration also has two legal spellings, an inline value type and a
-   * type index, and they encode to different bytes.
-   */
-  readonly blockType?: BlockType;
+  // ⚠️ `blockType` is deliberately NOT here any more (S6 step 5, stage (c2)).
+  // It recorded a block's type AS DECLARED — not always the derived one
+  // (a94154e21), and spelled either inline or as an index. Both facts are on the
+  // node now: the declared results in `type`, the index the header named in
+  // `typeIndex` (decision 7c put form on the node, since binaryen-ts's IR has no
+  // `NodeId` to key this table with). The table held a copy of the node field
+  // that no reader could tell apart from it.
 
   /**
    * The explicit `(type $t)` on a call or function, where the signature could

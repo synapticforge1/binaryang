@@ -144,11 +144,19 @@ describe('binary reader — a typed-reference block type', () => {
 
   it('keeps the heap type, rather than collapsing to the tag byte', () => {
     const mod = readBinaryIr(INLINE_REF_BLOCK, makeErrorList());
-    const drop = mod.funcs[0]!.body[0] as { value?: { blockType?: unknown } };
-    const bt = drop.value?.blockType as { kind: string; type?: unknown } | undefined;
-    assert(bt && bt.kind === 'value', 'the block must carry a value block type');
-    assert(isRefValueType(bt.type as never), 'the block type must be a typed reference');
-    assertEquals((bt.type as { heapType: { value: number } }).heapType.value, 0);
+    // S6 step 5 stage (c2): the declared result is the node's `type`, and an
+    // inline header has no `typeIndex`. (This read `blockType` through a cast; a
+    // cast reading a removed field is `undefined`, not an error — rewritten
+    // rather than left to fail on a message about the old shape.)
+    const drop = mod.funcs[0]!.body[0] as { value?: { type?: unknown; typeIndex?: unknown } };
+    const t = drop.value?.type;
+    assert(
+      t !== undefined && t !== 'none' && !Array.isArray(t),
+      'the block must declare ONE result',
+    );
+    assertEquals(drop.value?.typeIndex, undefined, 'written inline, not as a type index');
+    assert(isRefValueType(t as never), 'the result must be a typed reference');
+    assertEquals((t as { heapType: { value: number } }).heapType.value, 0);
   });
 
   // ⚠️ Kept even though it passed BEFORE the fix — it is the assertion that gave

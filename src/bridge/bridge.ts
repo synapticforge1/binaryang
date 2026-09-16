@@ -43,7 +43,13 @@
 
 import { ExternalKind } from '../wabt-ts/core/binary.ts';
 import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
-import { coarsenValueType, isRefValueType, varIndex, varName } from '../wabt-ts/ir/ir.ts';
+import {
+  blockTypeOf,
+  coarsenValueType,
+  isRefValueType,
+  varIndex,
+  varName,
+} from '../wabt-ts/ir/ir.ts';
 import type { HeapTypeRef, TableCatch, ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
@@ -1059,7 +1065,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         // (last child is br / return / unreachable) that comes out as
         // "unreachable", which loses the block's declared signature.
         // Override with the declared blockType.
-        return withDeclaredType(makeBlock(children, name), bridgeBlockType(blk.blockType, ctx));
+        return withDeclaredType(makeBlock(children, name), bridgeBlockType(blockTypeOf(blk), ctx));
       } finally {
         ctx.labelStack.pop();
       }
@@ -1067,7 +1073,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'loop': {
       const lp = e as LoopExpr;
       const name = nameForLabel(ctx, lp.label);
-      const resultType = bridgeBlockType(lp.blockType, ctx);
+      const resultType = bridgeBlockType(blockTypeOf(lp), ctx);
       ctx.labelStack.push(name);
       try {
         return makeLoop(name, bridgeRegion(lp.body, ctx), resultType);
@@ -1109,7 +1115,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         const built = makeIf(condition, ifTrue, ifFalse);
         return withDeclaredType(
           ifName === null ? built : { ...built, name: ifName },
-          bridgeBlockType(ife.blockType, ctx),
+          bridgeBlockType(blockTypeOf(ife), ctx),
         );
       } finally {
         ctx.labelStack.pop();
@@ -1532,8 +1538,8 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       try {
         const body = bridgeRegion(tt.body, ctx);
         return withDeclaredType(
-          makeTryTable(name, body, catches, bridgeBlockType(tt.blockType, ctx)),
-          bridgeBlockType(tt.blockType, ctx),
+          makeTryTable(name, body, catches, bridgeBlockType(blockTypeOf(tt), ctx)),
+          bridgeBlockType(blockTypeOf(tt), ctx),
         );
       } finally {
         ctx.labelStack.pop();
@@ -1577,7 +1583,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
     case 'try': {
       const tr = e as TryExpr;
       const name = nameForLabel(ctx, tr.label);
-      const resultType = bridgeBlockType(tr.blockType, ctx);
+      const resultType = bridgeBlockType(blockTypeOf(tr), ctx);
       ctx.labelStack.push(name);
       try {
         const body = bridgeRegion(tr.body, ctx);

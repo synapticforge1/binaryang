@@ -21,7 +21,7 @@ import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import type {
   BlockParams,
-  BlockType,
+  BlockResult,
   Expr,
   Func,
   FuncSignature,
@@ -32,8 +32,7 @@ import type {
   ValueType,
   Var,
 } from './ir.ts';
-import { blockTypeValue, isRefValueType, varIndex } from './ir.ts';
-import type { NodeId } from './fidelity.ts';
+import { isRefValueType, varIndex } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Name binding map
@@ -396,16 +395,16 @@ class ResolveContext {
       }
       case 'block':
       case 'loop': {
-        const blockType = this.resolveBlockType(e, loc);
-        const [rP, params] = this.resolveEntryParams(e);
+        const type = this.resolveBlockResult(e.type, loc);
+        const [rP, params] = this.resolveEntryParams(e, loc);
         this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
-        return [combine(rP, r), { ...e, blockType, ...params, body }];
+        return [combine(rP, r), { ...e, type, ...params, body }];
       }
       case 'if': {
-        const blockType = this.resolveBlockType(e, loc);
-        const [rP, params] = this.resolveEntryParams(e);
+        const type = this.resolveBlockResult(e.type, loc);
+        const [rP, params] = this.resolveEntryParams(e, loc);
         const [rC0, cond] = this.resolveExpr(e.condition);
         const rC = combine(rP, rC0);
         this.labelStack.push(e.label);
@@ -414,7 +413,7 @@ class ResolveContext {
         this.labelStack.pop();
         return [combine(rC, combine(rT, rE)), {
           ...e,
-          blockType,
+          type,
           ...params,
           condition: cond,
           ifTrue,
@@ -422,8 +421,8 @@ class ResolveContext {
         }];
       }
       case 'try': {
-        const blockType = this.resolveBlockType(e, loc);
-        const [rP, params] = this.resolveEntryParams(e);
+        const type = this.resolveBlockResult(e.type, loc);
+        const [rP, params] = this.resolveEntryParams(e, loc);
         this.labelStack.push(e.label);
         const [rB, body] = this.resolveExprArray(e.body);
         let result = combine(rP, rB);
@@ -446,14 +445,14 @@ class ResolveContext {
         if (e.delegate !== undefined) {
           return [result, {
             ...e,
-            blockType,
+            type,
             ...params,
             body,
             catches: newCatches,
             delegate: this.resolveLabelVar(e.delegate, loc),
           }];
         }
-        return [result, { ...e, blockType, ...params, body, catches: newCatches }];
+        return [result, { ...e, type, ...params, body, catches: newCatches }];
       }
       case 'try_table': {
         // The catch clauses' tag and branch target were never resolved at all,
@@ -474,13 +473,13 @@ class ResolveContext {
             ? { ...c, target }
             : { ...c, tag: this.resolveTagVar(c.tag, loc), target };
         });
-        const [rP, params] = this.resolveEntryParams(e);
+        const [rP, params] = this.resolveEntryParams(e, loc);
         this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
         return [combine(rP, r), {
           ...e,
-          blockType: this.resolveBlockType(e, loc),
+          type: this.resolveBlockResult(e.type, loc),
           ...params,
           catches,
           body,
@@ -1038,21 +1037,33 @@ class ResolveContext {
    */
   private resolveEntryParams(
     e: { readonly params?: BlockParams },
+    loc: Location,
   ): [Result, { params?: BlockParams }] {
     if (e.params === undefined) return [Result.Ok, {}];
     const [r, values] = this.resolveExprArray(e.params.values);
-    return [r, { params: { types: e.params.types, values } }];
+    const types = e.params.types.map((vt) => this.resolveValueTypeRef(vt, loc));
+    return [r, { params: { types, values } }];
   }
 
-  private resolveBlockType(e: { blockType: BlockType; nodeId?: NodeId }, loc: Location): BlockType {
-    const bt = e.blockType;
-    if (bt.kind !== 'value' || !isRefValueType(bt.type)) return bt;
-    const resolved = blockTypeValue({
-      ...bt.type,
-      heapType: this.resolveHeapTypeVar(bt.type.heapType, loc),
-    });
-    if (e.nodeId !== undefined) this.module.fidelity.set(e.nodeId, { blockType: resolved });
-    return resolved;
+  /** A typed reference's heap type, resolved; any other value type as it is. */
+  private resolveValueTypeRef(vt: ValueType, loc: Location): ValueType {
+    return isRefValueType(vt) ? { ...vt, heapType: this.resolveHeapTypeVar(vt.heapType, loc) } : vt;
+  }
+
+  /**
+   * A carrier's declared results, typed references resolved (stage (c2)).
+   *
+   * 🔧 Only a SINGLE result was resolved here, because only that one lived on the
+   * node: two or more were reachable only through the type-section entry the
+   * header named, which `resolveModuleValueTypes` resolves. The node holds every
+   * result now, and the validator compares them with that entry — an
+   * unresolved `(ref $t)` against the resolved `(ref 0)` would not match.
+   */
+  private resolveBlockResult(t: BlockResult, loc: Location): BlockResult {
+    if (t === 'none') return t;
+    return Array.isArray(t)
+      ? t.map((vt) => this.resolveValueTypeRef(vt, loc))
+      : this.resolveValueTypeRef(t, loc);
   }
 
   private resolveHeapTypeVar(
