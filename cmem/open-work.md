@@ -41,25 +41,10 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
 
 ### Tomorrow's list, in order
 
-1. **Block family (b) — the catch records.** The analysis is done, the trial is not. Two records,
-   two questions:
-   - **try_table's clause.** wabt-ts's `TableCatch` is a KIND UNION — `kind: CatchKind` (a string
-     enum of four) with `tag` required on two arms and absent on the other two, plus `target: Var`
-     and `loc`. binaryen-ts's `CatchClause` is `{ tag?: Var; target: Var; isRef: boolean }`.
-     🔑 **Both are closed shapes, and binaryen-ts's is closed without redundancy**: `tag` present or
-     absent × `isRef` is exactly the four cases, so there is no `kind` that could disagree with
-     `tag` — which is the very defect wabt-ts's union was split to prevent
-     ([ir-convergence.md](ir-convergence.md) § "TableCatch"). That argues the direction against the
-     raw counts, so RUN THE TRIAL before deciding: `CatchKind.` appears at 37 sites, `isRef` at 159
-     — but `isRef` spans BOTH catch records and both IRs, so that count is not the comparison.
-     The trial harness is written (`catch_trial.ts` in the session scratchpad; it rewrites one
-     declaration, runs `deno task check`, counts primary error locations outside the bridge, and
-     restores) — it was never run.
-   - **The legacy clause.** wabt-ts's `Catch` and binaryen-ts's `TryCatch` are ALREADY the same
-     three fields (`tag?: Var`, `isRef: boolean`, body) and differ only in `loc` (the node-base
-     stage) and the body's form (sub-stage (d)). So this one is a TYPE-NAME choice, not a shape
-     choice. ⚠️ Neither pair is parallel across the two: wabt has `Catch` / `TableCatch`,
-     binaryen has `TryCatch` / `CatchClause`. Pick one pair for both records.
+1. ✅ **Block family (b) — the catch records. DONE 2026-09-16** (`e9f6721e4`, `11e632b8e`). The
+   try_table clause is `{ tag?, target, isRef }` on both sides (`CatchKind` deleted); both IRs name
+   the pair `Catch` / `TableCatch`. Trials, mutants and inversions:
+   [ir-convergence.md](ir-convergence.md) § "Stage (b) — the catch records". Ratchet unmoved.
 2. **Block family (c) — the block TYPE**: wabt-ts's `blockType: BlockType` against binaryen-ts's
    `type` + `params?: BlockParams` + `typeIndex?: WrittenTypeIndex`. The largest of the four.
 3. **Block family (d) — the bodies**: `Expr[]` against `RegionExpr` (`children` against `body`).

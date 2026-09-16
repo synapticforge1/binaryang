@@ -144,7 +144,7 @@ listed defect fixed and one live gap, TranslateEH.
   against V8 only — the suite was green while the target runtime refused the output.
 - [decision] The old blocker ("behind multi-value") is gone: a `catch $tag` branches to a block carrying the tag's
   params, i.e. multi-result blocks, delivered in binaryen-ts Tiers 5–8. IR pieces exist (`TryExpr`, `TryTableExpr`,
-  `CatchClause.isRef`, `ThrowRef`, `Rethrow`, `Pop`, `ExnRef`).
+  `TableCatch.isRef`, `ThrowRef`, `Rethrow`, `Pop`, `ExnRef`).
 - [measured] **Step 0 DONE 2026-09-14** (for owner decision 7), on wasmtime **48.0.2**. Two modules were built
   with wabt-ts `wat2wasm`, then run through binaryen-ts decode → encode, plain and after `-Oz`: a `try_table`
   catching a tag payload, and a `catch_all_ref` → `throw_ref` rethrow caught by an outer `try_table`. **All 4
