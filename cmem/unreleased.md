@@ -136,6 +136,10 @@ their own bump — and nothing breaks by their standing still.
   is a field's type — `Field.type` is one. `ValType` / `isValType` are now defined in
   `./core/wabt-ts` (still re-exported by `./ir/binaryen-ts`). `valueTypeName` and `isRefValueType`
   accept any `Type`.
+- ⚠️ **BREAKING: an expression node's `loc` is optional** (S6 step 5 item 5 (1); `./ir/wabt-ts`).
+  Every `Expr` interface's `loc` is `loc?: Location`, as on binaryen-ts's nodes; absent means
+  unknown. wabt-ts's parser and reader still set it. **`locOf(e)`** (new) returns it or the
+  (frozen) unknown location — use it where a `Location` is required.
 - ⚠️ **BREAKING: `CallIndirectExpr.typeVar` is optional and `typeUse` is gone** (item 4 (a),
   `34901c5fc`; `./ir/wabt-ts`). An inline signature has no `typeVar` until `synthesizeTypes`
   interns one (it was `varIndex(0)`); how the type was written is `FidelityEntry.typeUse`. The

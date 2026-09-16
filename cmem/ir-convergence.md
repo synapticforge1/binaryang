@@ -2668,6 +2668,31 @@ re-read and still true (neither node changed).
 **What is left:** `names` (1) — `ref.null`. `types` (5) — the five carriers (`Expr[]`/`RegionExpr`
 against `Expression`, `readonly`, the catch record's `loc`): the node base and alias stages.
 
+#### Item 5 — the node base, the one-sided kinds, the alias 🚧
+
+**The distance, measured first (2026-09-16).** Trial: `Expression` = wabt-ts's `Expr`, check, restore
+→ **2,012 errors**. By cause: `loc` required against optional (≈1,637 elaborations — every binaryen-ts
+factory and pass builds a node without one), the carriers' `type` admitting `'unreachable'` against
+`BlockResult` (≈200), enum against literal `kind` (≈50), `ref.null`'s field (8). A second trial, `loc?`
+alone on wabt-ts's 84 node declarations: **163 errors**, all reads of `e.loc` where a `Location` is
+required (validator 145, parser 6, resolve-names 12 from one line). Direction by blast radius: make
+wabt-ts's optional (step 3 already decided "absent = unknown"), not binaryen-ts's required.
+
+Planned stages: (1) `loc?` + `locOf`; (2) the `kind` representation (V4's const object); (3) the
+carriers' `type` union with `'unreachable'`; (4) the rest of the base (binaryen-ts literals' required
+`type`, `nodeId`, the catch records' `loc`); (5) the one-sided kinds into binaryen-ts's union; (6) the
+alias, type derivation out of the bridge, `ref.null`'s explicit field.
+
+**(1) `loc` is optional on every wabt-ts expression node.** `locOf(e)` returns `e.loc` or ONE frozen
+unknown location (frozen because diagnostics hold the object — a shared mutable fallback would be a
+cross-talk channel). 151 reads rewritten mechanically on exactly the lines the compiler named, then
+checked by reading: no read of `loc` wrote it into a node. Every wabt-ts producer still sets it.
+Test `tests/wabt-ts/ir/loc_optional.test.ts`: a decoded module with EVERY node's `loc` deleted
+validates and writes byte- and text-identically; a validator defect and an unresolvable name in such
+a node report at the unknown location (a follow-on stack error correctly stays at the FUNCTION's).
+4 mutants (non-null `e.loc!` in `locOf` and in resolve-names, unfrozen fallback, fresh fallback per
+call) all killed. Ratchet unchanged — `loc` is a base field the gate excludes.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).
