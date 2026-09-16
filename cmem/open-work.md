@@ -83,12 +83,18 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    2026-09-16: binaryen-ts STRIPS it in optimization runs — ✅ (6a) done; the raw `metadata.code.*`
    section's stale offsets still to settle), ✅ (6b) `ref.null` `refType`, ✅ (6c) THE ALIAS —
    `Expression = Expr`, every node type wabt-ts's (readonly); the ratchet retired into an identity test.
-   Left of item 5: type derivation out of the bridge (needed once item 6 removes the bridge).
+   ✅ Item 5 DONE; type derivation moved to item 6 (it needs the unified module context).
 6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
    `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
    `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the
    function body; stage (d2) deferred it here). 16 test files,
    `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` come out with it.
+   ⚠️ Includes TYPE DERIVATION (moved here from item 5, 2026-09-16): the bridge is where a wabt-ts
+   tree gets the `type` binaryen-ts's passes read — it rebuilds through the factories, which derive
+   it. Without the bridge a tree needs a derivation over the whole function, and that needs MODULE
+   context (signatures, local / global / table types, tag params, heap types) that lives in two shapes
+   until this item unifies them; written now, against either, it is written twice. Its acceptance is
+   the bridge's: `bridge-behaviour` agreement, then deleted with it.
 
 ⚠️ **Carry the L2 discipline into every remaining stage**: when a field loses `null` or `undefined`
 from its type, the compiler stops helping (`stringValued === null` is not an error), so list the
