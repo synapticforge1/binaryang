@@ -58,7 +58,7 @@ function _simplifyNode(expr: Expression): Expression {
 }
 
 function _simplifyBlock(
-  block: Extract<Expression, { kind: ExpressionKind.Block | ExpressionKind.Region }>,
+  block: Extract<Expression, { kind: typeof ExpressionKind.Block | typeof ExpressionKind.Region }>,
 ): Expression {
   const children = block.children;
   const result: Expression[] = [];

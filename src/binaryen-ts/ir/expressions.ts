@@ -58,109 +58,116 @@ export type { HeapType, RefType, ValueType } from './gc-types.ts';
 /**
  * Discriminant tag for every expression variant.
  * Mirrors `BinaryenExpressionId` / `ExpressionId` in Binaryen.
+ *
+ * A const object with a same-named union type, not an enum (S6 step 5, item 5
+ * (2)): each member IS its literal string, which is wabt-ts's kind for the same
+ * node, so `'br'` is an `ExpressionKind` and a wabt-ts node's `kind` fits a
+ * binaryen-ts node's. In a TYPE position write `typeof ExpressionKind.Break`.
  */
-export enum ExpressionKind {
+export const ExpressionKind = {
   // Control flow
-  Nop = 'nop',
-  Block = 'block',
-  Region = 'region',
-  If = 'if',
-  Loop = 'loop',
-  Break = 'br',
-  Switch = 'br_table',
-  Return = 'return',
-  Unreachable = 'unreachable',
+  Nop: 'nop',
+  Block: 'block',
+  Region: 'region',
+  If: 'if',
+  Loop: 'loop',
+  Break: 'br',
+  Switch: 'br_table',
+  Return: 'return',
+  Unreachable: 'unreachable',
   // Locals / globals
-  LocalGet = 'local.get',
-  LocalSet = 'local.set',
-  LocalTee = 'local.tee',
-  GlobalGet = 'global.get',
-  GlobalSet = 'global.set',
+  LocalGet: 'local.get',
+  LocalSet: 'local.set',
+  LocalTee: 'local.tee',
+  GlobalGet: 'global.get',
+  GlobalSet: 'global.set',
   // Constants
-  Const = 'const',
+  Const: 'const',
   // Arithmetic / logic
-  Unary = 'unary',
-  Binary = 'binary',
-  Select = 'select',
-  Drop = 'drop',
+  Unary: 'unary',
+  Binary: 'binary',
+  Select: 'select',
+  Drop: 'drop',
   // Memory
-  Load = 'load',
-  Store = 'store',
-  MemorySize = 'memory.size',
-  MemoryGrow = 'memory.grow',
-  MemoryCopy = 'memory.copy',
-  MemoryFill = 'memory.fill',
-  MemoryInit = 'memory.init',
-  DataDrop = 'data.drop',
+  Load: 'load',
+  Store: 'store',
+  MemorySize: 'memory.size',
+  MemoryGrow: 'memory.grow',
+  MemoryCopy: 'memory.copy',
+  MemoryFill: 'memory.fill',
+  MemoryInit: 'memory.init',
+  DataDrop: 'data.drop',
   // Calls
-  Call = 'call',
-  CallIndirect = 'call_indirect',
-  CallRef = 'call_ref',
+  Call: 'call',
+  CallIndirect: 'call_indirect',
+  CallRef: 'call_ref',
   // Tables
-  TableGet = 'table.get',
-  TableSet = 'table.set',
-  TableSize = 'table.size',
-  TableGrow = 'table.grow',
-  TableFill = 'table.fill',
-  TableCopy = 'table.copy',
-  ElemDrop = 'elem.drop',
-  TableInit = 'table.init',
+  TableGet: 'table.get',
+  TableSet: 'table.set',
+  TableSize: 'table.size',
+  TableGrow: 'table.grow',
+  TableFill: 'table.fill',
+  TableCopy: 'table.copy',
+  ElemDrop: 'elem.drop',
+  TableInit: 'table.init',
   // Atomics
-  AtomicRMW = 'atomic.rmw',
-  AtomicCmpxchg = 'atomic.cmpxchg',
-  AtomicWait = 'atomic.wait',
-  AtomicNotify = 'atomic.notify',
-  AtomicFence = 'atomic.fence',
+  AtomicRMW: 'atomic.rmw',
+  AtomicCmpxchg: 'atomic.cmpxchg',
+  AtomicWait: 'atomic.wait',
+  AtomicNotify: 'atomic.notify',
+  AtomicFence: 'atomic.fence',
   // SIMD
-  SIMDExtract = 'simd.extract',
-  SIMDReplace = 'simd.replace',
-  SIMDShuffle = 'simd.shuffle',
-  SIMDTernary = 'simd.ternary',
-  Quaternary = 'quaternary',
+  SIMDExtract: 'simd.extract',
+  SIMDReplace: 'simd.replace',
+  SIMDShuffle: 'simd.shuffle',
+  SIMDTernary: 'simd.ternary',
+  Quaternary: 'quaternary',
   // No `simd.shift`: the lane shifts are `binary` (K3, cmem/ir-convergence.md).
-  SIMDLoad = 'simd.load',
-  SIMDLoadStoreLane = 'simd.load_store_lane',
+  SIMDLoad: 'simd.load',
+  SIMDLoadStoreLane: 'simd.load_store_lane',
   // References (GC + reference-types proposals)
-  RefNull = 'ref.null',
-  RefIsNull = 'ref.is_null',
-  RefAs = 'ref.as',
-  RefFunc = 'ref.func',
-  RefEq = 'ref.eq',
-  RefI31 = 'ref.i31',
-  AnyConvertExtern = 'any.convert_extern',
-  ExternConvertAny = 'extern.convert_any',
-  I31Get = 'i31.get',
-  RefTest = 'ref.test',
-  RefCast = 'ref.cast',
-  BrOn = 'br_on',
+  RefNull: 'ref.null',
+  RefIsNull: 'ref.is_null',
+  RefAs: 'ref.as',
+  RefFunc: 'ref.func',
+  RefEq: 'ref.eq',
+  RefI31: 'ref.i31',
+  AnyConvertExtern: 'any.convert_extern',
+  ExternConvertAny: 'extern.convert_any',
+  I31Get: 'i31.get',
+  RefTest: 'ref.test',
+  RefCast: 'ref.cast',
+  BrOn: 'br_on',
   // GC structs
-  StructNew = 'struct.new',
-  StructGet = 'struct.get',
-  StructSet = 'struct.set',
+  StructNew: 'struct.new',
+  StructGet: 'struct.get',
+  StructSet: 'struct.set',
   // GC arrays
-  ArrayNew = 'array.new',
-  ArrayNewFixed = 'array.new_fixed',
-  ArrayNewData = 'array.new_data',
-  ArrayNewElem = 'array.new_elem',
-  ArrayGet = 'array.get',
-  ArraySet = 'array.set',
-  ArrayLen = 'array.len',
-  ArrayCopy = 'array.copy',
-  ArrayFill = 'array.fill',
-  ArrayInitData = 'array.init_data',
-  ArrayInitElem = 'array.init_elem',
+  ArrayNew: 'array.new',
+  ArrayNewFixed: 'array.new_fixed',
+  ArrayNewData: 'array.new_data',
+  ArrayNewElem: 'array.new_elem',
+  ArrayGet: 'array.get',
+  ArraySet: 'array.set',
+  ArrayLen: 'array.len',
+  ArrayCopy: 'array.copy',
+  ArrayFill: 'array.fill',
+  ArrayInitData: 'array.init_data',
+  ArrayInitElem: 'array.init_elem',
   // Exception handling
-  Try = 'try',
-  TryTable = 'try_table',
-  Throw = 'throw',
-  ThrowRef = 'throw_ref',
-  Rethrow = 'rethrow',
-  Pop = 'pop',
+  Try: 'try',
+  TryTable: 'try_table',
+  Throw: 'throw',
+  ThrowRef: 'throw_ref',
+  Rethrow: 'rethrow',
+  Pop: 'pop',
   // 🔧 No `tuple.make` / `tuple.extract` (S6 decision 6A). `tuple.make` existed
   // only to pack a multi-value branch or return operand into one `value` slot;
   // those nodes now hold `values: Expression[]`. `tuple.extract` was declared
   // and never built. Neither is a wasm instruction.
-}
+} as const;
+/** The union of every expression kind string. */
+export type ExpressionKind = typeof ExpressionKind[keyof typeof ExpressionKind];
 
 // ---------------------------------------------------------------------------
 // Constant value union
@@ -766,7 +773,7 @@ export function typeOf(e: ExprBase): Type {
 /** {@link NopExpr} — see {@link makeNop} for the factory. */
 export interface NopExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Nop;
+  kind: typeof ExpressionKind.Nop;
   /** Result type — the value type yielded at runtime. */
   type: None;
 }
@@ -774,7 +781,7 @@ export interface NopExpr extends ExprBase {
 /** {@link UnreachableExpr} — see {@link makeUnreachable} for the factory. */
 export interface UnreachableExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Unreachable;
+  kind: typeof ExpressionKind.Unreachable;
   /** Result type — the value type yielded at runtime. */
   type: Unreachable;
 }
@@ -825,7 +832,7 @@ export type WrittenTypeIndex = number;
 /** {@link BlockExpr} — see {@link makeBlock} for the factory. */
 export interface BlockExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Block;
+  kind: typeof ExpressionKind.Block;
   /** Optional label for branch targets. */
   label: string;
   /** Ordered list of child expressions. */
@@ -864,7 +871,7 @@ export interface BlockExpr extends ExprBase {
  */
 export interface RegionExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Region;
+  kind: typeof ExpressionKind.Region;
   /** The instructions, in order, exactly as the region holds them. */
   children: Expression[];
 }
@@ -872,7 +879,7 @@ export interface RegionExpr extends ExprBase {
 /** {@link IfExpr} — see {@link makeIf} for the factory. */
 export interface IfExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.If;
+  kind: typeof ExpressionKind.If;
   /** Condition expression (typed as i32). */
   condition: Expression;
   /** Branch taken when the condition is non-zero. */
@@ -899,7 +906,7 @@ export interface IfExpr extends ExprBase {
 /** {@link LoopExpr} — see {@link makeLoop} for the factory. */
 export interface LoopExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Loop;
+  kind: typeof ExpressionKind.Loop;
   /** Branch label for `br` back-edges. */
   label: string;
   /** The loop's region. */
@@ -929,7 +936,7 @@ export interface LoopExpr extends ExprBase {
  */
 export interface BreakExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Break;
+  kind: typeof ExpressionKind.Break;
   /**
    * The label this branches to.
    *
@@ -947,7 +954,7 @@ export interface BreakExpr extends ExprBase {
 /** {@link SwitchExpr} — see {@link makeSwitch} for the factory. Values as {@link BreakExpr}. */
 export interface SwitchExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Switch;
+  kind: typeof ExpressionKind.Switch;
   /** Branch table targets. */
   targets: Var[];
   /** Default branch label when no index matches. */
@@ -961,7 +968,7 @@ export interface SwitchExpr extends ExprBase {
 /** {@link ReturnExpr} — see {@link makeReturn} for the factory. Values as {@link BreakExpr}. */
 export interface ReturnExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Return;
+  kind: typeof ExpressionKind.Return;
   /** The returned values, in stack order — normally one per function result. */
   values: Expression[];
 }
@@ -969,7 +976,7 @@ export interface ReturnExpr extends ExprBase {
 /** {@link ConstExpr} — see {@link makeI32Const}, {@link makeI64Const}, {@link makeF32Const}, {@link makeF64Const} for factories. */
 export interface ConstExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Const;
+  kind: typeof ExpressionKind.Const;
   /** Value expression. */
   value: Const;
 }
@@ -977,7 +984,7 @@ export interface ConstExpr extends ExprBase {
 /** {@link LocalGetExpr} — see {@link makeLocalGet} for the factory. */
 export interface LocalGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.LocalGet;
+  kind: typeof ExpressionKind.LocalGet;
   /** Local index. */
   var: Var;
 }
@@ -985,7 +992,7 @@ export interface LocalGetExpr extends ExprBase {
 /** {@link LocalSetExpr} — see {@link makeLocalSet} for the factory. */
 export interface LocalSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.LocalSet;
+  kind: typeof ExpressionKind.LocalSet;
   /** Numeric index into the relevant table. */
   var: Var;
   /** Value expression. */
@@ -995,7 +1002,7 @@ export interface LocalSetExpr extends ExprBase {
 /** {@link LocalTeeExpr} — see {@link makeLocalTee} for the factory. */
 export interface LocalTeeExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.LocalTee;
+  kind: typeof ExpressionKind.LocalTee;
   /** Numeric index into the relevant table. */
   var: Var;
   /** Value expression. */
@@ -1006,7 +1013,7 @@ export interface LocalTeeExpr extends ExprBase {
  *  `table.get $t index` — reads the element at `index` from table `$t`. */
 export interface TableGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TableGet;
+  kind: typeof ExpressionKind.TableGet;
   /** Internal name of the table being read. */
   table: Var;
   /** i32 index into the table. */
@@ -1017,7 +1024,7 @@ export interface TableGetExpr extends ExprBase {
  *  `table.set $t index value` — writes `value` to `index` in table `$t`. */
 export interface TableSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TableSet;
+  kind: typeof ExpressionKind.TableSet;
   /** Internal name of the table being written. */
   table: Var;
   /** i32 index into the table. */
@@ -1029,7 +1036,7 @@ export interface TableSetExpr extends ExprBase {
 /** {@link GlobalGetExpr} — see {@link makeGlobalGet} for the factory. */
 export interface GlobalGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.GlobalGet;
+  kind: typeof ExpressionKind.GlobalGet;
   /** The global addressed. Name-form until `resolveNames`; wabt-ts calls it `var`. */
   var: Var;
 }
@@ -1037,7 +1044,7 @@ export interface GlobalGetExpr extends ExprBase {
 /** {@link GlobalSetExpr} — see {@link makeGlobalSet} for the factory. */
 export interface GlobalSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.GlobalSet;
+  kind: typeof ExpressionKind.GlobalSet;
   /** The global addressed. Name-form until `resolveNames`; wabt-ts calls it `var`. */
   var: Var;
   /** Value expression. */
@@ -1047,7 +1054,7 @@ export interface GlobalSetExpr extends ExprBase {
 /** {@link UnaryExpr} — see {@link makeUnary} for the factory. */
 export interface UnaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Unary;
+  kind: typeof ExpressionKind.Unary;
   /** Operator code. */
   opcode: UnaryOp;
   /** Value expression. */
@@ -1057,7 +1064,7 @@ export interface UnaryExpr extends ExprBase {
 /** {@link BinaryExpr} — see {@link makeBinary} for the factory. */
 export interface BinaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Binary;
+  kind: typeof ExpressionKind.Binary;
   /** Operator code. */
   opcode: BinaryOp;
   /** Left-hand operand. */
@@ -1069,7 +1076,7 @@ export interface BinaryExpr extends ExprBase {
 /** {@link SelectExpr} — see {@link makeSelect} for the factory. */
 export interface SelectExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Select;
+  kind: typeof ExpressionKind.Select;
   /**
    * The value the instruction yields when the condition is NON-ZERO.
    *
@@ -1107,7 +1114,7 @@ export interface SelectExpr extends ExprBase {
 /** {@link DropExpr} — see {@link makeDrop} for the factory. */
 export interface DropExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Drop;
+  kind: typeof ExpressionKind.Drop;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Value expression. */
@@ -1126,7 +1133,7 @@ export interface LoadExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Load;
+  kind: typeof ExpressionKind.Load;
   /**
    * The instruction, as written. Width, signedness and result type are derived
    * from it by `loadShape` in `memory-access.ts` — never stored beside it, so
@@ -1153,7 +1160,7 @@ export interface StoreExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Store;
+  kind: typeof ExpressionKind.Store;
   /**
    * The instruction, as written. Width and operand type are derived from it by
    * `storeShape` in `memory-access.ts`. It used to be recomputed from `bytes`
@@ -1183,7 +1190,7 @@ export interface MemoryGrowExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.MemoryGrow;
+  kind: typeof ExpressionKind.MemoryGrow;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
   /** delta — see the matching factory for semantics. */
@@ -1202,7 +1209,7 @@ export interface MemorySizeExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.MemorySize;
+  kind: typeof ExpressionKind.MemorySize;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
 }
@@ -1216,7 +1223,7 @@ export interface MemorySizeExpr extends ExprBase {
  */
 export interface TableInitExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TableInit;
+  kind: typeof ExpressionKind.TableInit;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the element segment to copy from. */
@@ -1234,7 +1241,7 @@ export interface TableInitExpr extends ExprBase {
 /** `elem.drop` — release a passive element segment's storage. */
 export interface ElemDropExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ElemDrop;
+  kind: typeof ExpressionKind.ElemDrop;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the element segment to drop. */
@@ -1258,7 +1265,7 @@ export interface MemoryInitExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.MemoryInit;
+  kind: typeof ExpressionKind.MemoryInit;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the data segment to copy from. */
@@ -1274,7 +1281,7 @@ export interface MemoryInitExpr extends ExprBase {
 /** `data.drop` — release a passive data segment's storage. */
 export interface DataDropExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.DataDrop;
+  kind: typeof ExpressionKind.DataDrop;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the data segment to drop. */
@@ -1284,7 +1291,7 @@ export interface DataDropExpr extends ExprBase {
 /** `table.size` — the current number of elements in a table. */
 export interface TableSizeExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TableSize;
+  kind: typeof ExpressionKind.TableSize;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
   /** Name of the table being measured. */
@@ -1294,7 +1301,7 @@ export interface TableSizeExpr extends ExprBase {
 /** `table.grow` — append `delta` copies of `value`, yielding the previous size. */
 export interface TableGrowExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TableGrow;
+  kind: typeof ExpressionKind.TableGrow;
   /** Result type — the previous size, or -1 if the growth failed. */
   type: typeof ValType.I32;
   /** Name of the table being grown. */
@@ -1308,7 +1315,7 @@ export interface TableGrowExpr extends ExprBase {
 /** `table.fill` — write `value` into a range of a table. */
 export interface TableFillExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TableFill;
+  kind: typeof ExpressionKind.TableFill;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the table being written. */
@@ -1324,7 +1331,7 @@ export interface TableFillExpr extends ExprBase {
 /** `table.copy` — copy a range of elements between (possibly the same) tables. */
 export interface TableCopyExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TableCopy;
+  kind: typeof ExpressionKind.TableCopy;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Name of the table being written. */
@@ -1352,7 +1359,7 @@ export interface MemoryCopyExpr extends ExprBase {
   /** Memory the COPY READS FROM. Omitted means 0. `memory` is the destination. */
   srcMemidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.MemoryCopy;
+  kind: typeof ExpressionKind.MemoryCopy;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Destination address operand. */
@@ -1375,7 +1382,7 @@ export interface MemoryFillExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.MemoryFill;
+  kind: typeof ExpressionKind.MemoryFill;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Destination address operand. */
@@ -1389,7 +1396,7 @@ export interface MemoryFillExpr extends ExprBase {
 /** {@link CallExpr} — see {@link makeCall} for the factory. */
 export interface CallExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Call;
+  kind: typeof ExpressionKind.Call;
   /** Target label of the branch. */
   func: Var;
   /** Argument expressions in declaration order. */
@@ -1417,7 +1424,7 @@ export interface FuncSignature {
 /** {@link CallIndirectExpr} — see {@link makeCallIndirect} for the factory. */
 export interface CallIndirectExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.CallIndirect;
+  kind: typeof ExpressionKind.CallIndirect;
   /** Table index (defaults to 0). */
   table: Var;
   /**
@@ -1460,13 +1467,13 @@ export interface CallIndirectExpr extends ExprBase {
 /** {@link RefNullExpr} — see {@link makeRefNull} for the factory. */
 export interface RefNullExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefNull;
+  kind: typeof ExpressionKind.RefNull;
 }
 
 /** {@link RefIsNullExpr} — see {@link makeRefIsNull} for the factory. */
 export interface RefIsNullExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefIsNull;
+  kind: typeof ExpressionKind.RefIsNull;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
   /** Value expression. */
@@ -1500,7 +1507,7 @@ export interface RefIsNullExpr extends ExprBase {
  */
 export interface ExternConvertExpr extends ExprBase {
   /** Discriminant — also the direction of the conversion. */
-  kind: ExpressionKind.AnyConvertExtern | ExpressionKind.ExternConvertAny;
+  kind: typeof ExpressionKind.AnyConvertExtern | typeof ExpressionKind.ExternConvertAny;
   /** The reference being converted. */
   value: Expression;
 }
@@ -1508,7 +1515,7 @@ export interface ExternConvertExpr extends ExprBase {
 /** {@link RefAsExpr} — see {@link makeRefAsNonNull} for the factory. */
 export interface RefAsExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefAs;
+  kind: typeof ExpressionKind.RefAs;
   /** Which `ref.as_*` operation this node performs. */
   /** The reference operand. */
   value: Expression;
@@ -1517,7 +1524,7 @@ export interface RefAsExpr extends ExprBase {
 /** {@link RefFuncExpr} — see {@link makeRefFunc} for the factory. */
 export interface RefFuncExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefFunc;
+  kind: typeof ExpressionKind.RefFunc;
   /** func — see the {@link make} factory for semantics. */
   func: Var;
 }
@@ -1536,7 +1543,7 @@ export { BrOnOp } from '../../wabt-ts/ir/ir.ts';
 /** {@link RefEqExpr} — see {@link makeRefEq} for the factory. */
 export interface RefEqExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefEq;
+  kind: typeof ExpressionKind.RefEq;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
   /** Left-hand operand. */
@@ -1548,7 +1555,7 @@ export interface RefEqExpr extends ExprBase {
 /** {@link RefI31Expr} — see {@link makeRefI31} for the factory. */
 export interface RefI31Expr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefI31;
+  kind: typeof ExpressionKind.RefI31;
   /** Value expression. */
   value: Expression;
 }
@@ -1556,7 +1563,7 @@ export interface RefI31Expr extends ExprBase {
 /** {@link I31GetExpr} — see {@link makeI31Get} for the factory. */
 export interface I31GetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.I31Get;
+  kind: typeof ExpressionKind.I31Get;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
   /** i31 — see the matching factory for semantics. */
@@ -1568,7 +1575,7 @@ export interface I31GetExpr extends ExprBase {
 /** {@link StructNewExpr} — see {@link makeStructNew} for the factory. */
 export interface StructNewExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.StructNew;
+  kind: typeof ExpressionKind.StructNew;
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** Argument expressions in declaration order. */
@@ -1580,7 +1587,7 @@ export interface StructNewExpr extends ExprBase {
 /** {@link StructGetExpr} — see {@link makeStructGet} for the factory. */
 export interface StructGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.StructGet;
+  kind: typeof ExpressionKind.StructGet;
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** The struct field addressed. */
@@ -1598,7 +1605,7 @@ export interface StructGetExpr extends ExprBase {
 /** {@link StructSetExpr} — see {@link makeStructSet} for the factory. */
 export interface StructSetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.StructSet;
+  kind: typeof ExpressionKind.StructSet;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Index into the module heap-type table. */
@@ -1614,7 +1621,7 @@ export interface StructSetExpr extends ExprBase {
 /** {@link ArrayNewExpr} — see {@link makeArrayNew} for the factory. */
 export interface ArrayNewExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayNew;
+  kind: typeof ExpressionKind.ArrayNew;
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** init — see the matching factory for semantics. */
@@ -1626,7 +1633,7 @@ export interface ArrayNewExpr extends ExprBase {
 /** {@link ArrayNewFixedExpr} — see {@link makeArrayNewFixed} for the factory. */
 export interface ArrayNewFixedExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayNewFixed;
+  kind: typeof ExpressionKind.ArrayNewFixed;
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** values — see the matching factory for semantics. */
@@ -1636,7 +1643,7 @@ export interface ArrayNewFixedExpr extends ExprBase {
 /** {@link ArrayNewDataExpr} — see {@link makeArrayNewData} for the factory. */
 export interface ArrayNewDataExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayNewData;
+  kind: typeof ExpressionKind.ArrayNewData;
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** The data segment the array is initialised from. */
@@ -1650,7 +1657,7 @@ export interface ArrayNewDataExpr extends ExprBase {
 /** {@link ArrayNewElemExpr} — see {@link makeArrayNewElem} for the factory. */
 export interface ArrayNewElemExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayNewElem;
+  kind: typeof ExpressionKind.ArrayNewElem;
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** The element segment the array is initialised from. */
@@ -1664,7 +1671,7 @@ export interface ArrayNewElemExpr extends ExprBase {
 /** {@link ArrayGetExpr} — see {@link makeArrayGet} for the factory. */
 export interface ArrayGetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayGet;
+  kind: typeof ExpressionKind.ArrayGet;
   /** Index into the module heap-type table. */
   typeVar: Var;
   /** ref — see the matching factory for semantics. */
@@ -1678,7 +1685,7 @@ export interface ArrayGetExpr extends ExprBase {
 /** {@link ArraySetExpr} — see {@link makeArraySet} for the factory. */
 export interface ArraySetExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArraySet;
+  kind: typeof ExpressionKind.ArraySet;
   /** Result type — the value type yielded at runtime. */
   type: None;
   /** Index into the module heap-type table. */
@@ -1694,7 +1701,7 @@ export interface ArraySetExpr extends ExprBase {
 /** {@link ArrayFillExpr} — see {@link makeArrayFill} for the factory. */
 export interface ArrayFillExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayFill;
+  kind: typeof ExpressionKind.ArrayFill;
   /** Result type — `array.fill` yields nothing. */
   type: None;
   /** Index into the module heap-type table. */
@@ -1712,7 +1719,7 @@ export interface ArrayFillExpr extends ExprBase {
 /** {@link ArrayCopyExpr} — see {@link makeArrayCopy} for the factory. */
 export interface ArrayCopyExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayCopy;
+  kind: typeof ExpressionKind.ArrayCopy;
   /** Result type — `array.copy` yields nothing. */
   type: None;
   /** Heap-type index of the DESTINATION array. */
@@ -1734,7 +1741,7 @@ export interface ArrayCopyExpr extends ExprBase {
 /** {@link ArrayInitDataExpr} — see {@link makeArrayInitData} for the factory. */
 export interface ArrayInitDataExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayInitData;
+  kind: typeof ExpressionKind.ArrayInitData;
   /** Result type — `array.init_data` yields nothing. */
   type: None;
   /** Index into the module heap-type table. */
@@ -1754,7 +1761,7 @@ export interface ArrayInitDataExpr extends ExprBase {
 /** {@link ArrayInitElemExpr} — see {@link makeArrayInitElem} for the factory. */
 export interface ArrayInitElemExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayInitElem;
+  kind: typeof ExpressionKind.ArrayInitElem;
   /** Result type — `array.init_elem` yields nothing. */
   type: None;
   /** Index into the module heap-type table. */
@@ -1774,7 +1781,7 @@ export interface ArrayInitElemExpr extends ExprBase {
 /** {@link ArrayLenExpr} — see {@link makeArrayLen} for the factory. */
 export interface ArrayLenExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ArrayLen;
+  kind: typeof ExpressionKind.ArrayLen;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
   /** ref — see the matching factory for semantics. */
@@ -1784,7 +1791,7 @@ export interface ArrayLenExpr extends ExprBase {
 /** {@link RefTestExpr} — see {@link makeRefTest} for the factory. */
 export interface RefTestExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefTest;
+  kind: typeof ExpressionKind.RefTest;
   /** Result type — the value type yielded at runtime. */
   type: typeof ValType.I32;
   /** ref — see the matching factory for semantics. */
@@ -1798,7 +1805,7 @@ export interface RefTestExpr extends ExprBase {
 /** {@link RefCastExpr} — see {@link makeRefCast} for the factory. */
 export interface RefCastExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.RefCast;
+  kind: typeof ExpressionKind.RefCast;
   /** ref — see the {@link make} factory for semantics. */
   ref: Expression;
   /** Target reference type for the cast. */
@@ -1810,7 +1817,7 @@ export interface RefCastExpr extends ExprBase {
 /** {@link BrOnExpr} — see {@link makeBrOn} for the factory. */
 export interface BrOnExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.BrOn;
+  kind: typeof ExpressionKind.BrOn;
   /** Operator code. */
   opcode: BrOnOp;
   /** The label this branches to — see the matching factory for semantics. */
@@ -1873,7 +1880,7 @@ export interface TableCatch {
 /** `try_table` expression (new EH proposal). */
 export interface TryTableExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.TryTable;
+  kind: typeof ExpressionKind.TryTable;
   /** Optional label for the try_table block itself. */
   label: string;
   /** The protected region. */
@@ -1915,7 +1922,7 @@ export interface Catch {
 /** `try` expression (old/legacy EH). */
 export interface TryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Try;
+  kind: typeof ExpressionKind.Try;
   /** Label (targetable by `delegate`). */
   label: string;
   /** The protected region. */
@@ -1940,7 +1947,7 @@ export interface TryExpr extends ExprBase {
 /** `throw $tag operands*` expression. Always has type `unreachable`. */
 export interface ThrowExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Throw;
+  kind: typeof ExpressionKind.Throw;
   /** tag — see the {@link make} factory for semantics. */
   tag: Var;
   /** Argument expressions in declaration order. */
@@ -1950,7 +1957,7 @@ export interface ThrowExpr extends ExprBase {
 /** `throw_ref $exnref` expression (new EH). Always has type `unreachable`. */
 export interface ThrowRefExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.ThrowRef;
+  kind: typeof ExpressionKind.ThrowRef;
   /** exnref — see the {@link make} factory for semantics. */
   exnref: Expression;
 }
@@ -1958,7 +1965,7 @@ export interface ThrowRefExpr extends ExprBase {
 /** `rethrow $depth` expression (old EH). Always has type `unreachable`. */
 export interface RethrowExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Rethrow;
+  kind: typeof ExpressionKind.Rethrow;
   /** Label of the enclosing try whose caught exception to rethrow. */
   target: Var;
 }
@@ -1966,7 +1973,7 @@ export interface RethrowExpr extends ExprBase {
 /** `pop` pseudo-instruction — implicit value producer at start of catch handlers. */
 export interface PopExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Pop;
+  kind: typeof ExpressionKind.Pop;
 }
 
 // ---------------------------------------------------------------------------
@@ -1976,7 +1983,7 @@ export interface PopExpr extends ExprBase {
 /** `*.extract_lane` — extract a scalar lane from a v128. */
 export interface SIMDExtractExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.SIMDExtract;
+  kind: typeof ExpressionKind.SIMDExtract;
   /** Operator code. */
   opcode: SIMDExtractOp;
   /** vec — see the matching factory for semantics. */
@@ -1988,7 +1995,7 @@ export interface SIMDExtractExpr extends ExprBase {
 /** `*.replace_lane` — replace a scalar lane in a v128. */
 export interface SIMDReplaceExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.SIMDReplace;
+  kind: typeof ExpressionKind.SIMDReplace;
   /** Operator code. */
   opcode: SIMDReplaceOp;
   /** vec — see the matching factory for semantics. */
@@ -2002,7 +2009,7 @@ export interface SIMDReplaceExpr extends ExprBase {
 /** `i8x16.shuffle` — byte-level permute of two v128 operands. */
 export interface SIMDShuffleExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.SIMDShuffle;
+  kind: typeof ExpressionKind.SIMDShuffle;
   /** Left-hand operand. */
   left: Expression;
   /** Right-hand operand. */
@@ -2038,7 +2045,7 @@ export type QuaternaryOp = Opcode;
 /** Four-operand numeric node — the wide-arithmetic proposal. */
 export interface QuaternaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.Quaternary;
+  kind: typeof ExpressionKind.Quaternary;
   /** Two i64 results: the low and high halves of the 128-bit sum. */
   type: TupleType;
   opcode: QuaternaryOp;
@@ -2069,7 +2076,7 @@ export function makeQuaternary(
 
 export interface SIMDTernaryExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.SIMDTernary;
+  kind: typeof ExpressionKind.SIMDTernary;
   /** Operator code. */
   opcode: SIMDTernaryOp;
   /** First operand. */
@@ -2092,7 +2099,7 @@ export interface SIMDLoadExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.SIMDLoad;
+  kind: typeof ExpressionKind.SIMDLoad;
   /** Operator code. */
   opcode: SIMDLoadOp;
   /** Address operand. */
@@ -2115,7 +2122,7 @@ export interface SIMDLoadStoreLaneExpr extends ExprBase {
    */
   memidx: Var;
   /** Discriminant — identifies which expression variant this is. */
-  kind: ExpressionKind.SIMDLoadStoreLane;
+  kind: typeof ExpressionKind.SIMDLoadStoreLane;
   /** Operator code. */
   opcode: SIMDLoadStoreLaneOp;
   /** Address operand. */
@@ -2929,7 +2936,7 @@ export function makeRefI31(value: Expression, resultType: Type): RefI31Expr {
  * typing: `[(ref null? extern)] -> [(ref null? any)]` and back.
  */
 export function makeExternConvert(
-  kind: ExpressionKind.AnyConvertExtern | ExpressionKind.ExternConvertAny,
+  kind: typeof ExpressionKind.AnyConvertExtern | typeof ExpressionKind.ExternConvertAny,
   value: Expression,
 ): ExternConvertExpr {
   const t = value.type;
