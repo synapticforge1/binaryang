@@ -42,10 +42,13 @@ function annotated(): WasmModule {
     (if (result i32) (local.get 0) (then (i32.const 1)) (else (i32.const 2)))))`);
   assert(!hasErrors(r.errors), formatErrors(r.errors));
   const mod = parseWasm(r.binary);
-  const body = mod.functions[0]!.body;
-  const [block, iff] = body.children as [Expression, Expression];
+  const fn = mod.functions[0]!;
+  const [block, iff] = fn.body.children as [Expression, Expression];
   assert(block.kind === ExpressionKind.Block);
-  body.children = [{ ...block, children: [hint(), ...block.children] }, hint(), iff];
+  fn.body = {
+    ...fn.body,
+    children: [{ ...block, children: [hint(), ...block.children] }, hint(), iff],
+  };
   return mod;
 }
 

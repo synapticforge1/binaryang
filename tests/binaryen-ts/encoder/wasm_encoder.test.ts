@@ -374,8 +374,8 @@ function memModule(body: Expression): Uint8Array {
 
 Deno.test("encodeWasm: a load's bytes do not depend on its result type", () => {
   const encode = (retype: boolean) => {
-    const load = makeLoad(Opcode.I64Load8S, 0n, 0, makeI32Const(0));
-    if (retype) load.type = Unreachable;
+    const made = makeLoad(Opcode.I64Load8S, 0n, 0, makeI32Const(0));
+    const load = retype ? { ...made, type: Unreachable } : made;
     return memModule(makeDrop(load));
   };
   assertEquals(encode(true), encode(false));

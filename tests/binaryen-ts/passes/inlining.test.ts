@@ -1075,6 +1075,11 @@ Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', 
     mod.functions.some((f) => f.name === 'byn-split-outlined-B$two_branches$1'),
     'outlined-B$1 should exist',
   );
+  // …and what was inlined is the SHELL, whose if bodies CALL them — the heavy
+  // bodies stayed behind. (Nothing checked that: the rewrite of each if's body
+  // could be lost and the helpers would still exist.)
+  assert(hasCall(caller1.body, 'byn-split-outlined-B$two_branches$0'), 'the shell calls B$0');
+  assert(hasCall(caller1.body, 'byn-split-outlined-B$two_branches$1'), 'the shell calls B$1');
 });
 
 // ---------------------------------------------------------------------------

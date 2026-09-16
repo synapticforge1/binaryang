@@ -2697,24 +2697,32 @@ export function writtenTypeIndexOf(e: Expression): WrittenTypeIndex | undefined 
 }
 
 /**
- * Forget the as-written type index on ONE node — `PassRunner` does this to
+ * ONE node without its as-written type index — `PassRunner` maps this over
  * every node before the first pass runs, because a pass may retype a construct
  * and leave the index naming something else (7c).
+ *
+ * 🔧 It `delete`d the field in place. A node is not written through once the
+ * merged node is readonly (S6 step 5 item 5 (6c)): it returns the node without
+ * it — the same node when it had none.
  */
-export function dropWrittenTypeIndex(e: Expression): void {
+export function dropWrittenTypeIndex(e: Expression): Expression {
   switch (e.kind) {
     case ExpressionKind.Block:
     case ExpressionKind.Loop:
     case ExpressionKind.If:
     case ExpressionKind.Try:
-    case ExpressionKind.TryTable:
-      delete e.typeIndex;
-      break;
-    case ExpressionKind.CallIndirect:
-      delete e.typeVar;
-      break;
+    case ExpressionKind.TryTable: {
+      if (e.typeIndex === undefined) return e;
+      const { typeIndex: _, ...rest } = e;
+      return rest;
+    }
+    case ExpressionKind.CallIndirect: {
+      if (e.typeVar === undefined) return e;
+      const { typeVar: _, ...rest } = e;
+      return rest;
+    }
     default:
-      break;
+      return e;
   }
 }
 

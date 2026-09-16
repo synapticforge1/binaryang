@@ -2914,6 +2914,16 @@ The ratchet's last `names` row, `ref.null`, re-pinned `identical`: **77 / 5 / 0*
 disagree; the refusal); 3 mutants killed. Alias trials: union form 16 → **7**, deep form 36 → **14** —
 what is left is `readonly` (9 writes) and the ratchet test itself (5).
 
+**(6c-i) The nine writes, rebuilt.** Choosing the merged node's mutability by cost — neither fidelity
+nor optimization binds a TypeScript `readonly`: wabt-ts's declarations are readonly (84 interfaces),
+binaryen-ts wrote through its nodes in 9 places. So the nine rebuild: `dropWrittenTypeIndex` returns
+the node without the index (`PassRunner` maps it; it `delete`d in place), the text parser hands
+`makeIf` its label, Inlining's Pattern B rebuilds through a new `setItem` (it assigned `ifI.ifTrue`),
+and six test / script fixtures declare instead of stamping `.type`. Two mutants SURVIVED — no test
+checked a block's header index was dropped (only `call_indirect`'s), nor that Pattern B's shell calls
+the outlined helpers (only that they exist); both assertions added, both killed. Deep alias trial
+14 → **5** — the ratchet test alone. Optimizer output 0 of 2,105 changed.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).
