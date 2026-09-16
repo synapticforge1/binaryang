@@ -128,7 +128,7 @@ import {
   varIndex,
   varName,
 } from '../ir/ir.ts';
-import { BrOnOp } from '../ir/ir.ts';
+import { BrOnOp, locOf } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -1443,7 +1443,7 @@ export class BinaryReader {
             // only fills the final catch). Mirrors the catch_all case below.
             {
               const c = frame.catches[frame.catches.length - 1]!;
-              c.body = region(body, c.loc);
+              c.body = region(body, locOf(c));
             }
           }
           if (frame.catches) {
@@ -1461,7 +1461,7 @@ export class BinaryReader {
           if (frame.tryBody === undefined) frame.tryBody = body;
           else if (frame.catches && frame.catches.length > 0) {
             const prev = frame.catches[frame.catches.length - 1]!;
-            prev.body = region(body, prev.loc);
+            prev.body = region(body, locOf(prev));
           }
           if (frame.catches) frame.catches.push({ loc, isRef: false, body: region([], loc) });
           break;
@@ -1589,7 +1589,7 @@ export class BinaryReader {
               } else {
                 if (catches.length > 0) {
                   const last = catches[catches.length - 1]!;
-                  last.body = region(endBody, last.loc);
+                  last.body = region(endBody, locOf(last));
                 }
               }
               node = {

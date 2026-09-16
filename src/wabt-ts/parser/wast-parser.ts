@@ -6236,7 +6236,7 @@ function checkLabelScopes(
     endTryExpr: () => pop(),
     beginTryTableExpr: (e) => {
       // BEFORE the push, for the same reason in the other direction.
-      for (const c of e.catches) check(c.target, c.loc);
+      for (const c of e.catches) check(c.target, locOf(c));
       return push(e.label);
     },
     endTryTableExpr: () => pop(),
