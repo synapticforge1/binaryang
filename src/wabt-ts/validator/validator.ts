@@ -115,7 +115,7 @@ import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { SharedValidator } from './shared-validator.ts';
 import type { ValidateOptions } from './shared-validator.ts';
-import { BrOnOp } from '../ir/ir.ts';
+import { BrOnOp, locOf } from '../ir/ir.ts';
 
 /**
  * Canonical structural keys for every type-section entry.
@@ -648,21 +648,21 @@ class ModuleValidator implements ExprVisitorDelegate {
   // -------------------------------------------------------------------------
 
   onNopExpr(e: NopExpr): Result {
-    return this.sv.onNop(e.loc);
+    return this.sv.onNop(locOf(e));
   }
   onUnreachableExpr(e: UnreachableExpr): Result {
-    return this.sv.onUnreachable(e.loc);
+    return this.sv.onUnreachable(locOf(e));
   }
 
   onReturnExpr(e: ReturnExpr): Result {
-    return this.sv.onReturn(e.loc);
+    return this.sv.onReturn(locOf(e));
   }
   onDropExpr(e: DropExpr): Result {
-    return this.sv.onDrop(e.loc);
+    return this.sv.onDrop(locOf(e));
   }
 
   onSelectExpr(e: SelectExpr): Result {
-    return this.sv.onSelect(e.loc, e.resultType);
+    return this.sv.onSelect(locOf(e), e.resultType);
   }
 
   /**
@@ -681,7 +681,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     if (bt.kind !== 'func_type') return Result.Ok;
     if (bt.typeIdx === UNASSIGNED_TYPE_INDEX) {
       return this.sv.printError(
-        e.loc,
+        locOf(e),
         `${e.kind}: a header with parameters or several results needs a type index, and has none`,
       );
     }
@@ -693,7 +693,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       a.length === b.length && a.every((x, i) => valueTypeEquals(x, b[i]!));
     if (!same(params, entry.sig.params) || !same(results, entry.sig.results)) {
       return this.sv.printError(
-        e.loc,
+        locOf(e),
         `${e.kind}: its signature does not match type ${bt.typeIdx}, which its header names`,
       );
     }
@@ -701,38 +701,38 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   beginBlockExpr(e: BlockExpr): Result {
-    return combineResults(this.checkCarrierHeader(e), this.sv.onBlock(e.loc, blockTypeOf(e)));
+    return combineResults(this.checkCarrierHeader(e), this.sv.onBlock(locOf(e), blockTypeOf(e)));
   }
   endBlockExpr(e: BlockExpr): Result {
-    return this.sv.onEnd(e.loc);
+    return this.sv.onEnd(locOf(e));
   }
   beginLoopExpr(e: LoopExpr): Result {
-    return combineResults(this.checkCarrierHeader(e), this.sv.onLoop(e.loc, blockTypeOf(e)));
+    return combineResults(this.checkCarrierHeader(e), this.sv.onLoop(locOf(e), blockTypeOf(e)));
   }
   endLoopExpr(e: LoopExpr): Result {
-    return this.sv.onEnd(e.loc);
+    return this.sv.onEnd(locOf(e));
   }
   beginIfExpr(e: IfExpr): Result {
-    let r = combineResults(this.checkCarrierHeader(e), this.sv.onIf(e.loc, blockTypeOf(e)));
+    let r = combineResults(this.checkCarrierHeader(e), this.sv.onIf(locOf(e), blockTypeOf(e)));
     // A missing `else` is not modelled anywhere else, so the arity rule for a
     // one-armed if has to be checked from the IR.
     if (e.ifFalse === null) {
-      r = combineResults(r, this.sv.onOneArmedIf(e.loc, blockTypeOf(e)));
+      r = combineResults(r, this.sv.onOneArmedIf(locOf(e), blockTypeOf(e)));
     }
     return r;
   }
   afterIfTrueExpr(e: IfExpr): Result {
-    return e.ifFalse !== null ? this.sv.onElse(e.loc) : Result.Ok;
+    return e.ifFalse !== null ? this.sv.onElse(locOf(e)) : Result.Ok;
   }
   endIfExpr(e: IfExpr): Result {
-    return this.sv.onEnd(e.loc);
+    return this.sv.onEnd(locOf(e));
   }
 
   onBrExpr(e: BrExpr): Result {
     // A `br` carrying a condition IS `br_if`; the opcode follows the field.
     return e.condition !== undefined
-      ? this.sv.onBrIf(e.loc, varIdx(e.target))
-      : this.sv.onBr(e.loc, varIdx(e.target));
+      ? this.sv.onBrIf(locOf(e), varIdx(e.target))
+      : this.sv.onBr(locOf(e), varIdx(e.target));
   }
   onBrOnExpr(e: BrOnExpr): Result {
     // The null pair is typed function references; the cast pair is GC.
@@ -741,17 +741,17 @@ class ModuleValidator implements ExprVisitorDelegate {
       const rn = this.sv.requireFeature(
         'functionReferences',
         'typed function reference',
-        e.loc,
+        locOf(e),
       );
       if (rn !== Result.Ok) this.acc(rn);
       return e.opcode === BrOnOp.Null
-        ? this.sv.onBrOnNull(e.loc, varIdx(e.target))
-        : this.sv.onBrOnNonNull(e.loc, varIdx(e.target));
+        ? this.sv.onBrOnNull(locOf(e), varIdx(e.target))
+        : this.sv.onBrOnNonNull(locOf(e), varIdx(e.target));
     }
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onBrOnCast(
-      e.loc,
+      locOf(e),
       varIdx(e.target),
       e.opcode === BrOnOp.CastFail,
       { heapType: e.from!.heapType, nullable: e.from!.nullable },
@@ -760,33 +760,33 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onBrTableExpr(e: BrTableExpr): Result {
-    let r = this.sv.beginBrTable(e.loc);
+    let r = this.sv.beginBrTable(locOf(e));
     for (const t of e.targets) {
-      r = combineResults(r, this.sv.onBrTableTarget(e.loc, varIdx(t)));
+      r = combineResults(r, this.sv.onBrTableTarget(locOf(e), varIdx(t)));
     }
-    r = combineResults(r, this.sv.onBrTableTarget(e.loc, varIdx(e.defaultTarget)));
-    r = combineResults(r, this.sv.endBrTable(e.loc));
+    r = combineResults(r, this.sv.onBrTableTarget(locOf(e), varIdx(e.defaultTarget)));
+    r = combineResults(r, this.sv.endBrTable(locOf(e)));
     return r;
   }
 
   onConstExpr(e: ConstExpr): Result {
-    return this.sv.onConst(e.loc, e.value.type);
+    return this.sv.onConst(locOf(e), e.value.type);
   }
 
   onLocalGetExpr(e: LocalGetExpr): Result {
-    return this.sv.onLocalGet(e.loc, varIdx(e.var));
+    return this.sv.onLocalGet(locOf(e), varIdx(e.var));
   }
   onLocalSetExpr(e: LocalSetExpr): Result {
-    return this.sv.onLocalSet(e.loc, varIdx(e.var));
+    return this.sv.onLocalSet(locOf(e), varIdx(e.var));
   }
   onLocalTeeExpr(e: LocalTeeExpr): Result {
-    return this.sv.onLocalTee(e.loc, varIdx(e.var));
+    return this.sv.onLocalTee(locOf(e), varIdx(e.var));
   }
   onGlobalGetExpr(e: GlobalGetExpr): Result {
-    return this.sv.onGlobalGet(e.loc, varIdx(e.var));
+    return this.sv.onGlobalGet(locOf(e), varIdx(e.var));
   }
   onGlobalSetExpr(e: GlobalSetExpr): Result {
-    return this.sv.onGlobalSet(e.loc, varIdx(e.var));
+    return this.sv.onGlobalSet(locOf(e), varIdx(e.var));
   }
 
   /**
@@ -818,46 +818,46 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onUnaryExpr(e: UnaryExpr): Result {
-    this.gateOpcode(e.opcode as unknown as number, e.loc);
-    return this.sv.onUnary(e.loc, e.opcode);
+    this.gateOpcode(e.opcode as unknown as number, locOf(e));
+    return this.sv.onUnary(locOf(e), e.opcode);
   }
   onBinaryExpr(e: BinaryExpr): Result {
-    this.gateOpcode(e.opcode as unknown as number, e.loc);
-    return this.sv.onBinary(e.loc, e.opcode);
+    this.gateOpcode(e.opcode as unknown as number, locOf(e));
+    return this.sv.onBinary(locOf(e), e.opcode);
   }
   onTernaryExpr(e: TernaryExpr): Result {
-    this.gateOpcode(e.opcode as unknown as number, e.loc);
-    return this.sv.onTernary(e.loc, e.opcode);
+    this.gateOpcode(e.opcode as unknown as number, locOf(e));
+    return this.sv.onTernary(locOf(e), e.opcode);
   }
   onQuaternaryExpr(e: QuaternaryExpr): Result {
-    this.gateOpcode(e.opcode as unknown as number, e.loc);
-    return this.sv.onQuaternary(e.loc, e.opcode);
+    this.gateOpcode(e.opcode as unknown as number, locOf(e));
+    return this.sv.onQuaternary(locOf(e), e.opcode);
   }
 
   onLoadExpr(e: LoadExpr): Result {
-    return this.sv.onLoad(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onLoad(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onStoreExpr(e: StoreExpr): Result {
-    return this.sv.onStore(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onStore(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
 
   onMemorySizeExpr(e: MemorySizeExpr): Result {
-    return this.sv.onMemorySize(e.loc, varIdx(e.memidx));
+    return this.sv.onMemorySize(locOf(e), varIdx(e.memidx));
   }
   onMemoryGrowExpr(e: MemoryGrowExpr): Result {
-    return this.sv.onMemoryGrow(e.loc, varIdx(e.memidx));
+    return this.sv.onMemoryGrow(locOf(e), varIdx(e.memidx));
   }
   onMemoryCopyExpr(e: MemoryCopyExpr): Result {
-    return this.sv.onMemoryCopy(e.loc, varIdx(e.destMemidx), varIdx(e.srcMemidx));
+    return this.sv.onMemoryCopy(locOf(e), varIdx(e.destMemidx), varIdx(e.srcMemidx));
   }
   onMemoryFillExpr(e: MemoryFillExpr): Result {
-    return this.sv.onMemoryFill(e.loc, varIdx(e.memidx));
+    return this.sv.onMemoryFill(locOf(e), varIdx(e.memidx));
   }
   onMemoryInitExpr(e: MemoryInitExpr): Result {
-    return this.sv.onMemoryInit(e.loc, varIdx(e.segment), varIdx(e.memidx));
+    return this.sv.onMemoryInit(locOf(e), varIdx(e.segment), varIdx(e.memidx));
   }
   onDataDropExpr(e: DataDropExpr): Result {
-    return this.sv.onDataDrop(e.loc, varIdx(e.segment));
+    return this.sv.onDataDrop(locOf(e), varIdx(e.segment));
   }
 
   /**
@@ -867,220 +867,220 @@ class ModuleValidator implements ExprVisitorDelegate {
    * rather than leaving its own on the stack.
    */
   onCallExpr(e: CallExpr): Result {
-    if (!e.isReturn) return this.sv.onCall(e.loc, varIdx(e.func));
-    const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (!e.isReturn) return this.sv.onCall(locOf(e), varIdx(e.func));
+    const rf = this.sv.requireFeature('tailCall', 'tail call', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onReturnCall(e.loc, varIdx(e.func));
+    return this.sv.onReturnCall(locOf(e), varIdx(e.func));
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
     // An inline signature is interned by `synthesizeTypes`; a node that reaches
     // here without a type has nothing the writer could encode.
     if (e.typeVar === undefined) {
-      return this.sv.printError(e.loc, 'call_indirect: no type index (run synthesizeTypes)');
+      return this.sv.printError(locOf(e), 'call_indirect: no type index (run synthesizeTypes)');
     }
-    if (!e.isReturn) return this.sv.onCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
-    const rf = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (!e.isReturn) return this.sv.onCallIndirect(locOf(e), varIdx(e.typeVar), varIdx(e.table));
+    const rf = this.sv.requireFeature('tailCall', 'tail call', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onReturnCallIndirect(e.loc, varIdx(e.typeVar), varIdx(e.table));
+    return this.sv.onReturnCallIndirect(locOf(e), varIdx(e.typeVar), varIdx(e.table));
   }
   onCallRefExpr(e: CallRefExpr): Result {
-    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    if (!e.isReturn) return this.sv.onCallRef(e.loc, varIdx(e.sigType));
-    const rt = this.sv.requireFeature('tailCall', 'tail call', e.loc);
+    if (!e.isReturn) return this.sv.onCallRef(locOf(e), varIdx(e.sigType));
+    const rt = this.sv.requireFeature('tailCall', 'tail call', locOf(e));
     if (rt !== Result.Ok) this.acc(rt);
-    return this.sv.onReturnCallRef(e.loc, varIdx(e.sigType));
+    return this.sv.onReturnCallRef(locOf(e), varIdx(e.sigType));
   }
 
   onRefNullExpr(e: RefNullExpr): Result {
     // `refType` is a HEAP type, and `ref.null H` produces `(ref null H)`.
     // A user-defined `$T` used to coarsen to the abstract supertype of its
     // entry, which lost which type it was; it now travels as an index.
-    return this.sv.onRefNull(e.loc, { heapType: e.refType, nullable: true });
+    return this.sv.onRefNull(locOf(e), { heapType: e.refType, nullable: true });
   }
 
   onRefIsNullExpr(e: RefIsNullExpr): Result {
-    return this.sv.onRefIsNull(e.loc);
+    return this.sv.onRefIsNull(locOf(e));
   }
   onRefFuncExpr(e: RefFuncExpr): Result {
-    return this.sv.onRefFunc(e.loc, varIdx(e.func));
+    return this.sv.onRefFunc(locOf(e), varIdx(e.func));
   }
   onRefAsNonNullExpr(e: RefAsNonNullExpr): Result {
-    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', e.loc);
+    const rf = this.sv.requireFeature('functionReferences', 'typed function reference', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onRefAsNonNull(e.loc);
+    return this.sv.onRefAsNonNull(locOf(e));
   }
   onRefEqExpr(e: RefEqExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onRefEq(e.loc);
+    return this.sv.onRefEq(locOf(e));
   }
   onRefI31Expr(e: RefI31Expr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onRefI31(e.loc);
+    return this.sv.onRefI31(locOf(e));
   }
   onExternConvertExpr(e: ExternConvertExpr): Result {
-    return this.sv.onExternConvert(e.loc, e.kind === 'any.convert_extern');
+    return this.sv.onExternConvert(locOf(e), e.kind === 'any.convert_extern');
   }
   onI31GetExpr(e: I31GetExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onI31Get(e.loc);
+    return this.sv.onI31Get(locOf(e));
   }
   onStructNewExpr(e: StructNewExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     // The default form checks nothing about field values, because there are none.
     return e.defaultInit
-      ? this.sv.onStructNewDefault(e.loc, varIdx(e.typeVar))
-      : this.sv.onStructNew(e.loc, varIdx(e.typeVar));
+      ? this.sv.onStructNewDefault(locOf(e), varIdx(e.typeVar))
+      : this.sv.onStructNew(locOf(e), varIdx(e.typeVar));
   }
   onStructGetExpr(e: StructGetExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onStructGet(e.loc, varIdx(e.typeVar), varIdx(e.fieldVar), e.signed);
+    return this.sv.onStructGet(locOf(e), varIdx(e.typeVar), varIdx(e.fieldVar), e.signed);
   }
   onStructSetExpr(e: StructSetExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onStructSet(e.loc, varIdx(e.typeVar), varIdx(e.fieldVar));
+    return this.sv.onStructSet(locOf(e), varIdx(e.typeVar), varIdx(e.fieldVar));
   }
   onArrayNewExpr(e: ArrayNewExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     return e.init === undefined
-      ? this.sv.onArrayNewDefault(e.loc, varIdx(e.typeVar))
-      : this.sv.onArrayNew(e.loc, varIdx(e.typeVar));
+      ? this.sv.onArrayNewDefault(locOf(e), varIdx(e.typeVar))
+      : this.sv.onArrayNew(locOf(e), varIdx(e.typeVar));
   }
   onArrayNewFixedExpr(e: ArrayNewFixedExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayNewFixed(e.loc, varIdx(e.typeVar), e.operands.length);
+    return this.sv.onArrayNewFixed(locOf(e), varIdx(e.typeVar), e.operands.length);
   }
   onArrayNewDataExpr(e: ArrayNewDataExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayNewData(e.loc, varIdx(e.typeVar), varIdx(e.dataVar));
+    return this.sv.onArrayNewData(locOf(e), varIdx(e.typeVar), varIdx(e.dataVar));
   }
   onArrayNewElemExpr(e: ArrayNewElemExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayNewElem(e.loc, varIdx(e.typeVar), varIdx(e.elemVar));
+    return this.sv.onArrayNewElem(locOf(e), varIdx(e.typeVar), varIdx(e.elemVar));
   }
   onArrayGetExpr(e: ArrayGetExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayGet(e.loc, varIdx(e.typeVar), e.signed);
+    return this.sv.onArrayGet(locOf(e), varIdx(e.typeVar), e.signed);
   }
   onArraySetExpr(e: ArraySetExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArraySet(e.loc, varIdx(e.typeVar));
+    return this.sv.onArraySet(locOf(e), varIdx(e.typeVar));
   }
   onArrayFillExpr(e: ArrayFillExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayFill(e.loc, varIdx(e.typeVar));
+    return this.sv.onArrayFill(locOf(e), varIdx(e.typeVar));
   }
   onArrayCopyExpr(e: ArrayCopyExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayCopy(e.loc, varIdx(e.destTypeVar), varIdx(e.srcTypeVar));
+    return this.sv.onArrayCopy(locOf(e), varIdx(e.destTypeVar), varIdx(e.srcTypeVar));
   }
   onArrayInitSegmentExpr(e: ArrayInitSegmentExpr): Result {
     return this.sv.onArrayInitSegment(
-      e.loc,
+      locOf(e),
       varIdx(e.typeVar),
       e.kind === 'array.init_elem',
       varIdx(e.segment),
     );
   }
   onArrayLenExpr(e: ArrayLenExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onArrayLen(e.loc);
+    return this.sv.onArrayLen(locOf(e));
   }
   onRefTestExpr(e: RefTestExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     // Hand over the type being tested FOR — `(ref [null] H)` — so the operand
     // can be checked against it, exactly as `onRefCastExpr` does below.
-    return this.sv.onRefTest(e.loc, {
+    return this.sv.onRefTest(locOf(e), {
       heapType: e.heapType,
       nullable: e.nullable,
     });
   }
   onRefCastExpr(e: RefCastExpr): Result {
-    const rf = this.sv.requireFeature('gc', 'GC instruction', e.loc);
+    const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     // Hand over the type being cast TO — `(ref [null] H)` — so the result on
     // the stack is that type rather than an anonymous reference.
-    return this.sv.onRefCast(e.loc, {
+    return this.sv.onRefCast(locOf(e), {
       heapType: e.heapType,
       nullable: e.nullable,
     });
   }
 
   onTableGetExpr(e: TableGetExpr): Result {
-    return this.sv.onTableGet(e.loc, varIdx(e.table));
+    return this.sv.onTableGet(locOf(e), varIdx(e.table));
   }
   onTableSetExpr(e: TableSetExpr): Result {
-    return this.sv.onTableSet(e.loc, varIdx(e.table));
+    return this.sv.onTableSet(locOf(e), varIdx(e.table));
   }
   onTableGrowExpr(e: TableGrowExpr): Result {
-    return this.sv.onTableGrow(e.loc, varIdx(e.table));
+    return this.sv.onTableGrow(locOf(e), varIdx(e.table));
   }
   onTableSizeExpr(e: TableSizeExpr): Result {
-    return this.sv.onTableSize(e.loc, varIdx(e.table));
+    return this.sv.onTableSize(locOf(e), varIdx(e.table));
   }
   onTableFillExpr(e: TableFillExpr): Result {
-    return this.sv.onTableFill(e.loc, varIdx(e.table));
+    return this.sv.onTableFill(locOf(e), varIdx(e.table));
   }
   onTableCopyExpr(e: TableCopyExpr): Result {
-    return this.sv.onTableCopy(e.loc, varIdx(e.destTable), varIdx(e.sourceTable));
+    return this.sv.onTableCopy(locOf(e), varIdx(e.destTable), varIdx(e.sourceTable));
   }
   onTableInitExpr(e: TableInitExpr): Result {
-    return this.sv.onTableInit(e.loc, varIdx(e.segment), varIdx(e.table));
+    return this.sv.onTableInit(locOf(e), varIdx(e.segment), varIdx(e.table));
   }
   onElemDropExpr(e: ElemDropExpr): Result {
-    return this.sv.onElemDrop(e.loc, varIdx(e.segment));
+    return this.sv.onElemDrop(locOf(e), varIdx(e.segment));
   }
 
   onThrowExpr(e: ThrowExpr): Result {
-    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onThrow(e.loc, varIdx(e.tag));
+    return this.sv.onThrow(locOf(e), varIdx(e.tag));
   }
   onThrowRefExpr(e: ThrowRefExpr): Result {
-    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onThrowRef(e.loc);
+    return this.sv.onThrowRef(locOf(e));
   }
   onRethrowExpr(e: RethrowExpr): Result {
-    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onRethrow(e.loc, varIdx(e.target));
+    return this.sv.onRethrow(locOf(e), varIdx(e.target));
   }
 
   beginTryExpr(e: TryExpr): Result {
-    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return combineResults(this.checkCarrierHeader(e), this.sv.onTry(e.loc, blockTypeOf(e)));
+    return combineResults(this.checkCarrierHeader(e), this.sv.onTry(locOf(e), blockTypeOf(e)));
   }
   onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
     const isCatchAll = c.tag === undefined;
     return this.sv.onCatch(c.loc, c.tag ? varIdx(c.tag) : 0, isCatchAll);
   }
   onDelegateExpr(e: TryExpr): Result {
-    return this.sv.onDelegate(e.loc, e.delegate ? varIdx(e.delegate) : 0);
+    return this.sv.onDelegate(locOf(e), e.delegate ? varIdx(e.delegate) : 0);
   }
   endTryExpr(e: TryExpr): Result {
-    return this.sv.onEnd(e.loc);
+    return this.sv.onEnd(locOf(e));
   }
 
   beginTryTableExpr(e: TryTableExpr): Result {
-    const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
+    const rf = this.sv.requireFeature('exceptions', 'exception handling', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     // Catches are checked BEFORE the try_table's own label is pushed: their
     // depths are relative to the ENCLOSING scope. Checking them after
@@ -1092,7 +1092,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       r = combineResults(
         r,
         this.sv.onTryTableCatch(
-          e.loc,
+          locOf(e),
           c.tag !== undefined ? varIdx(c.tag) : undefined,
           c.isRef,
           varIdx(c.target),
@@ -1100,20 +1100,20 @@ class ModuleValidator implements ExprVisitorDelegate {
       );
     }
     r = combineResults(r, this.checkCarrierHeader(e));
-    return combineResults(r, this.sv.beginTryTable(e.loc, blockTypeOf(e)));
+    return combineResults(r, this.sv.beginTryTable(locOf(e), blockTypeOf(e)));
   }
   endTryTableExpr(e: TryTableExpr): Result {
-    return this.sv.onEnd(e.loc);
+    return this.sv.onEnd(locOf(e));
   }
 
   onSimdExtractExpr(e: SimdExtractExpr): Result {
-    return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
+    return this.sv.onSimdLaneOp(locOf(e), e.opcode, e.lane);
   }
   onSimdReplaceExpr(e: SimdReplaceExpr): Result {
-    return this.sv.onSimdLaneOp(e.loc, e.opcode, e.lane);
+    return this.sv.onSimdLaneOp(locOf(e), e.opcode, e.lane);
   }
   onSimdShuffleOpExpr(e: SimdShuffleOpExpr): Result {
-    return this.sv.onSimdShuffleOp(e.loc, OPCODE_I8X16_SHUFFLE, e.lanes);
+    return this.sv.onSimdShuffleOp(locOf(e), OPCODE_I8X16_SHUFFLE, e.lanes);
   }
   /**
    * `load_lane` and `store_lane` share one node; their STACK EFFECTS differ — a
@@ -1126,55 +1126,61 @@ class ModuleValidator implements ExprVisitorDelegate {
    */
   onSimdLoadLaneExpr(e: SimdLoadLaneExpr): Result {
     return anyOpcodeName(e.opcode).includes('store')
-      ? this.sv.onSimdStoreLane(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane)
-      : this.sv.onSimdLoadLane(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane);
+      ? this.sv.onSimdStoreLane(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane)
+      : this.sv.onSimdLoadLane(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset, e.lane);
   }
 
   /** Same split for `load_splat` and `load_zero`, which also share a node. */
   onLoadSplatExpr(e: LoadSplatExpr): Result {
     return anyOpcodeName(e.opcode).includes('_zero')
-      ? this.sv.onLoadZero(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset)
-      : this.sv.onLoadSplat(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+      ? this.sv.onLoadZero(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset)
+      : this.sv.onLoadSplat(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
 
   onAtomicLoadExpr(e: AtomicLoadExpr): Result {
-    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onAtomicLoad(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onAtomicLoad(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicStoreExpr(e: AtomicStoreExpr): Result {
-    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onAtomicStore(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onAtomicStore(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicRmwExpr(e: AtomicRmwExpr): Result {
-    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onAtomicRmw(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onAtomicRmw(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicRmwCmpxchgExpr(e: AtomicRmwCmpxchgExpr): Result {
-    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onAtomicRmwCmpxchg(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onAtomicRmwCmpxchg(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicWaitExpr(e: AtomicWaitExpr): Result {
-    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onAtomicWait(e.loc, e.opcode, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onAtomicWait(locOf(e), e.opcode, varIdx(e.memidx), e.align, e.offset);
   }
   onAtomicNotifyExpr(e: AtomicNotifyExpr): Result {
-    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     // memory.atomic.notify is a single fixed opcode: prefix 0xfe, secondary 0x00
     // `(0xfe << 8) | 0x00` was the pre-T7.7 packing; opcodes are `<< 16` now,
     // so this key matched nothing and memory.atomic.notify went unchecked.
     const ATOMIC_NOTIFY_OPCODE = (PREFIX_THREADS << 16) | 0x00;
-    return this.sv.onAtomicNotify(e.loc, ATOMIC_NOTIFY_OPCODE, varIdx(e.memidx), e.align, e.offset);
+    return this.sv.onAtomicNotify(
+      locOf(e),
+      ATOMIC_NOTIFY_OPCODE,
+      varIdx(e.memidx),
+      e.align,
+      e.offset,
+    );
   }
   onAtomicFenceExpr(e: AtomicFenceExpr): Result {
-    const rf = this.sv.requireFeature('threads', 'atomic instruction', e.loc);
+    const rf = this.sv.requireFeature('threads', 'atomic instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onAtomicFence(e.loc, e.consistencyModel);
+    return this.sv.onAtomicFence(locOf(e), e.consistencyModel);
   }
 
   onCodeMetadataExpr(_e: CodeMetadataExpr): Result {

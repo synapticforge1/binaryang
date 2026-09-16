@@ -165,7 +165,7 @@ import {
   tokenTypeName,
   type TypeToken,
 } from './token.ts';
-import { BrOnOp } from '../ir/ir.ts';
+import { BrOnOp, locOf } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // WAST Script types
@@ -6230,7 +6230,7 @@ function checkLabelScopes(
     onDelegateExpr: (e) => {
       pop();
       // AFTER the pop: `try … delegate $l` names a target OUTSIDE the try.
-      if (e.delegate !== undefined) check(e.delegate, e.loc);
+      if (e.delegate !== undefined) check(e.delegate, locOf(e));
       return Result.Ok;
     },
     endTryExpr: () => pop(),
@@ -6241,20 +6241,20 @@ function checkLabelScopes(
     },
     endTryTableExpr: () => pop(),
     onBrExpr: (e) => {
-      check(e.target, e.loc);
+      check(e.target, locOf(e));
       return Result.Ok;
     },
     onBrOnExpr: (e) => {
-      check(e.target, e.loc);
+      check(e.target, locOf(e));
       return Result.Ok;
     },
     onBrTableExpr: (e) => {
-      for (const t of e.targets) check(t, e.loc);
-      check(e.defaultTarget, e.loc);
+      for (const t of e.targets) check(t, locOf(e));
+      check(e.defaultTarget, locOf(e));
       return Result.Ok;
     },
     onRethrowExpr: (e) => {
-      check(e.target, e.loc);
+      check(e.target, locOf(e));
       return Result.Ok;
     },
   });

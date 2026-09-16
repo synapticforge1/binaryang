@@ -35,7 +35,7 @@ import type {
   ValueType,
   Var,
 } from './ir.ts';
-import { isRefValueType, varIndex } from './ir.ts';
+import { isRefValueType, locOf, varIndex } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Name binding map
@@ -315,7 +315,7 @@ class ResolveContext {
     // trap: `table.get` inherited `table.size`'s body that way and stopped
     // walking its own operand. The mechanical form of both checks is in
     // cmem/wabt-ts.md § "The audit definition".
-    const loc = e.loc;
+    const loc = locOf(e);
 
     switch (e.kind) {
       case 'local.get':
