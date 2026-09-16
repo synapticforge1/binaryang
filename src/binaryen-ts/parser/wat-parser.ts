@@ -41,7 +41,7 @@ import {
   type BreakExpr,
   type CallExpr,
   type CallIndirectExpr,
-  type CatchClause,
+  type Catch,
   type ConstExpr,
   type DropExpr,
   type Expression,
@@ -131,7 +131,7 @@ import {
   type SIMDTernaryExpr,
   SIMDTernaryOp,
   type StoreExpr,
-  type TryCatch,
+  type TableCatch,
   typeOf,
   type UnaryExpr,
   UnaryOp,
@@ -1652,7 +1652,7 @@ class WatModuleParser {
     const results = blockType.results;
     idx = blockType.idx;
     // Catch clauses before body
-    const catches: CatchClause[] = [];
+    const catches: TableCatch[] = [];
     const tryLabel = this.labelFor(label, ctx);
     const innerCtx = this.pushLabel(tryLabel, ctx);
     while (idx < children.length && children[idx]?.kind === 'list') {
@@ -1726,7 +1726,7 @@ class WatModuleParser {
     const bodyType = this.declaredType(results, bodyExprs[bodyExprs.length - 1]?.type ?? None);
     const body = this.region(bodyExprs);
     // Catch / catch_all / delegate clauses
-    const catches: TryCatch[] = [];
+    const catches: Catch[] = [];
     let delegateTarget: string | null = null;
     while (idx < children.length) {
       const clause = children[idx] as SList;

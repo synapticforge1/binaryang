@@ -9,9 +9,9 @@
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import {
+  type Catch,
   ExpressionKind,
   type SwitchExpr,
-  type TryCatch,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
@@ -374,7 +374,7 @@ Deno.test('parseWat — try with inline body and catch clause', () => {
       (try $t (result i32)
         (i32.const 1)
         (catch $e (i32.const 99)))))`);
-  const body = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; catches: TryCatch[] };
+  const body = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; catches: Catch[] };
   assertEquals(body.kind, ExpressionKind.Try);
   assertEquals(body.catches.map((c) => c.tag), [varName('$e')]);
 });
@@ -405,7 +405,7 @@ Deno.test('parseWat — try inline body still accepts catch_all and delegate cla
         (nop)
         (catch $e)
         (catch_all (nop)))))`);
-  const t = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; catches: TryCatch[] };
+  const t = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; catches: Catch[] };
   assertEquals(t.kind, ExpressionKind.Try);
   // ✅ There is no sentinel left to pin. A `catch_all` has NO tag, and this
   // asserts exactly that.
@@ -443,7 +443,7 @@ Deno.test('parseWat — (do ...) wrapped body still works (regression)', () => {
       (try $t
         (do (nop))
         (catch $e))))`);
-  const t = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; catches: TryCatch[] };
+  const t = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; catches: Catch[] };
   assertEquals(t.kind, ExpressionKind.Try);
   assertEquals(t.catches.map((c) => c.tag), [varName('$e')]);
 });

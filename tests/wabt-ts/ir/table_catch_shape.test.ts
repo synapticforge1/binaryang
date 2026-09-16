@@ -12,8 +12,10 @@
 // S6 step 5, stage (b), closed it the other way: there is no `kind` at all.
 // `tag` × `isRef` is exactly the four clauses, so nothing is left that could
 // disagree — the legacy `Catch` has always held them this way, and binaryen-ts's
-// `CatchClause` too. Chosen by trial: converting wabt-ts cost 6 source sites,
-// converting binaryen-ts 9, and meaning agreed.
+// clause too. Chosen by trial: converting wabt-ts cost 6 source sites,
+// converting binaryen-ts 9, and meaning agreed. Both IRs then took wabt-ts's
+// (and upstream wabt's) NAMES for the pair, `Catch` / `TableCatch` — binaryen-ts
+// had `TryCatch` / `CatchClause`; renaming its side cost 13 errors against 17.
 //
 // ⚠️ The pins at the bottom are checked by `deno task check`, not by the test
 // run: re-adding a `kind` (or any field) to either record fails the GATE.
@@ -24,8 +26,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import type { Expr, TableCatch } from '../../../src/wabt-ts/ir/ir.ts';
-import type { CatchClause } from '../../../src/binaryen-ts/ir/expressions.ts';
+import type { Catch, Expr, TableCatch } from '../../../src/wabt-ts/ir/ir.ts';
+import type {
+  Catch as BCatch,
+  TableCatch as BTableCatch,
+} from '../../../src/binaryen-ts/ir/expressions.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
@@ -156,9 +161,19 @@ const _twoBits: Same<keyof TableCatch, 'loc' | 'tag' | 'target' | 'isRef'> = tru
 
 /** And it is binaryen-ts's record, `loc` aside (the node-base stage). */
 const _oneClauseRecord: [
-  Same<keyof Omit<TableCatch, 'loc'>, keyof CatchClause>,
-  Same<Omit<TableCatch, 'loc'>, CatchClause>,
+  Same<keyof Omit<TableCatch, 'loc'>, keyof BTableCatch>,
+  Same<Omit<TableCatch, 'loc'>, BTableCatch>,
+] = [true, true];
+
+/**
+ * The legacy record agrees on every field but `body` (`Expr[]` against
+ * `RegionExpr`, sub-stage (d)) and `loc` — pinned so (d) has to re-pin it.
+ */
+const _legacyAllButBody: [
+  Same<keyof Catch, keyof BCatch | 'loc'>,
+  Same<Omit<Catch, 'loc' | 'body'>, Omit<BCatch, 'body'>>,
 ] = [true, true];
 
 void _twoBits;
 void _oneClauseRecord;
+void _legacyAllButBody;

@@ -54,7 +54,6 @@
  */
 
 import {
-  type CatchClause,
   type Expression,
   ExpressionKind,
   labelName,
@@ -69,6 +68,7 @@ import {
   makeTryTable,
   type RegionExpr,
   type RethrowExpr,
+  type TableCatch,
   type TryExpr,
   typeOf,
 } from '../ir/expressions.ts';
@@ -305,7 +305,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
     }
 
     if (t.delegate !== undefined || t.catches.length === 0) {
-      const catches: CatchClause[] = [];
+      const catches: TableCatch[] = [];
       if (t.delegate !== undefined) {
         const dest = a.delegateDest.get(t)!;
         const target = dest === CALLER
@@ -317,7 +317,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
       return makeBlock([makeTryTable(null, body, catches, type)], outerName(), type);
     }
 
-    const clauses: CatchClause[] = t.catches.map((c, i) => ({
+    const clauses: TableCatch[] = t.catches.map((c, i) => ({
       ...(c.tag === undefined ? {} : { tag: c.tag }),
       target: varName(fresh(c.tag === undefined ? '$eh_catch_all' : '$eh_catch')),
       isRef: a.refClauses.get(t)?.has(i) ?? false,

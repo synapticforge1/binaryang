@@ -184,16 +184,16 @@ import {
   ModuleBuilder,
   None,
   SIMDLoadOp,
-  type TryCatch,
   typeOf,
   ValType,
 } from '../binaryen-ts/ir/index.ts';
 import type {
-  CatchClause,
+  Catch as BCatch,
   Expression,
   HeapType,
   Local,
   RegionExpr,
+  TableCatch as BTableCatch,
   Type as BType,
   ValueType as BValueType,
   WasmModule,
@@ -1527,7 +1527,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       // target threw `unresolved branch label`. So this ordering and the pin
       // are ONE change; see T13.22 in cmem/ir-convergence.md § "The bridge and
       // the WAT routes into binaryen-ts".
-      const catches: CatchClause[] = tt.catches.map((c) => buildCatchClause(c, ctx));
+      const catches: BTableCatch[] = tt.catches.map((c) => buildCatchClause(c, ctx));
       ctx.labelStack.push(name);
       try {
         const body = bridgeRegion(tt.body, ctx);
@@ -1585,7 +1585,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         // because binaryen-ts's Try had no slot for the flag and dropping it
         // would change what the handler receives. The clause carries `isRef`
         // now and the encoder writes 0x08 / 0x18 for it.
-        const catches: TryCatch[] = tr.catches.map((c) => ({
+        const catches: BCatch[] = tr.catches.map((c) => ({
           ...(c.tag === undefined ? {} : { tag: varName(resolveVarName(c.tag, ctx.tagNames)) }),
           isRef: c.isRef,
           body: bridgeRegion(c.body, ctx),
@@ -1608,11 +1608,11 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
   }
 }
 
-/** Translate a wabt try_table catch into a binaryen-ts CatchClause. */
+/** Translate a wabt try_table catch into a binaryen-ts TableCatch. */
 function buildCatchClause(
   c: TableCatch,
   ctx: BridgeCtx,
-): CatchClause {
+): BTableCatch {
   const target = varName(resolveLabel(ctx, c.target));
   // The two records are one shape now (stage (b)); only the references resolve.
   return c.tag !== undefined

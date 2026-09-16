@@ -328,7 +328,7 @@ export interface Catch {
  * one field). This shape closes the same hole with nothing to disagree: there
  * is no `kind`, so the tag's presence IS the tagged/untagged half. It is also
  * the legacy {@link Catch}'s encoding of the same four clauses, and binaryen-ts's
- * `CatchClause` (S6 step 5, stage (b)).
+ * `TableCatch` — the same record under the same name (S6 step 5, stage (b)).
  */
 export interface TableCatch {
   loc: Location;
