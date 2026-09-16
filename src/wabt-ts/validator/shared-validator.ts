@@ -15,7 +15,7 @@ import { TypeChecker } from './type-checker.ts';
 import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, ValueType } from '../ir/ir.ts';
-import { CatchKind, isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
+import { isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
 import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -2108,22 +2108,25 @@ export class SharedValidator {
    * Only the tag was checked, so `(catch_ref 0 0)` into a label taking
    * nothing — V8: "catch kind generates 1 operand, target block expects 0" —
    * validated clean.
+   *
+   * `tag` absent is the `catch_all` pair, `isRef` the `_ref` pair — the same two
+   * bits the IR's `TableCatch` holds, so there is no kind here to disagree with
+   * the tag.
    */
   onTryTableCatch(
     loc: Location,
-    kind: CatchKind,
     tag: number | undefined,
+    isRef: boolean,
     depth?: number,
   ): Result {
     this.currentLoc = loc;
     let params: ValueType[] = [];
-    if (kind === CatchKind.Catch || kind === CatchKind.CatchRef) {
-      if (tag === undefined) return Result.Error;
+    if (tag !== undefined) {
       const tt = this.checkTagIndex(tag, loc);
       if (!tt) return Result.Error;
       params = [...tt.params];
     }
-    if (kind === CatchKind.CatchRef || kind === CatchKind.CatchAllRef) {
+    if (isRef) {
       // A caught exception reference is NON-NULL — `(ref exn)`, not the
       // nullable `exnref`. There is always an exception when the clause runs.
       params.push({ heapType: heapAbstract('exn'), nullable: false });

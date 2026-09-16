@@ -68,7 +68,6 @@ import {
   blockTypeValue,
   type BrOnExpr,
   type Catch,
-  CatchKind,
   type ConstExpr,
   constF32,
   constF64,
@@ -1416,40 +1415,23 @@ export class BinaryReader {
           const tableCatches: TableCatch[] = [];
           for (let i = 0; i < catchCount; i++) {
             const catchKind = this.readU8();
-            let kind: CatchKind;
-            let tag: Var | undefined;
-            switch (catchKind) {
-              case 0x00:
-                kind = CatchKind.Catch;
-                tag = varIndex(this.readU32Leb());
-                break;
-              case 0x01:
-                kind = CatchKind.CatchRef;
-                tag = varIndex(this.readU32Leb());
-                break;
-              case 0x02:
-                kind = CatchKind.CatchAll;
-                break;
-              case 0x03:
-                kind = CatchKind.CatchAllRef;
-                break;
-              default:
-                // Unknown catch-kind byte. The 0x00/0x01 cases read a tag
-                // varint and 0x02/0x03 don't; silently defaulting to Catch
-                // (without reading the tag) would desync the byte stream for
-                // everything after. Fail loud; the outer `this.ok()` guard then
-                // halts decoding (the partial IR is discarded by readBinaryIr).
-                this.err(`unknown try_table catch kind: 0x${catchKind.toString(16)}`);
-                kind = CatchKind.Catch; // sentinel to satisfy definite-assignment
-                break;
+            if (catchKind > 0x03) {
+              // Unknown catch-kind byte. 0x00/0x01 read a tag varint and
+              // 0x02/0x03 don't; guessing either would desync the byte stream
+              // for everything after. Fail loud; the outer `this.ok()` guard
+              // then halts decoding (the partial IR is discarded by readBinaryIr).
+              this.err(`unknown try_table catch kind: 0x${catchKind.toString(16)}`);
+              break; // stop on a malformed catch clause
             }
-            if (!this.ok()) break; // stop on a malformed catch clause
+            // catch 0x00, catch_ref 0x01, catch_all 0x02, catch_all_ref 0x03:
+            // the low bit is `_ref`, and only the first pair names a tag.
+            const isRef = (catchKind & 0x01) !== 0;
+            const tag = catchKind <= 0x01 ? varIndex(this.readU32Leb()) : undefined;
+            if (!this.ok()) break;
             const target = varIndex(this.readU32Leb());
-            // The kind decides the SHAPE (`TableCatch` is a union): the tagged
-            // kinds read a tag above, the `catch_all` pair cannot carry one.
-            const tc: TableCatch = kind === CatchKind.Catch || kind === CatchKind.CatchRef
-              ? { loc, kind, tag: tag!, target }
-              : { loc, kind, target };
+            const tc: TableCatch = tag !== undefined
+              ? { loc, tag, target, isRef }
+              : { loc, target, isRef };
             tableCatches.push(tc);
           }
           const f = new Frame('try_table', bt, '', loc);

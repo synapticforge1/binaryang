@@ -459,8 +459,8 @@ class ResolveContext {
         // 0/1/2 for that exact shape — only 0 is accepted. (An earlier pass
         // here pushed first, which reads naturally from the spec's
         // "C, label [t*] ⊢ catch*" rule but is off by one in the encoding.)
-        // Rebuilt per SHAPE: `TableCatch` is a union, so a tagged clause keeps
-        // its tag and a `catch_all` cannot acquire one here by spread.
+        // Two arms because a `catch_all` clause OMITS the tag key
+        // (`exactOptionalPropertyTypes`); the spread carries `isRef` through.
         const catches: TableCatch[] = e.catches.map((c) => {
           const target = this.resolveLabelVar(c.target, loc);
           return c.tag === undefined

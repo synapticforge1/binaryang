@@ -1330,21 +1330,12 @@ class WatWriter extends ModuleContext {
 
   private writeTableCatch(tc: TableCatch): void {
     this.puts('(', NC.None);
-    switch (tc.kind) {
-      case 'catch':
-        this.putsSpace('catch');
-        break;
-      case 'catch_ref':
-        this.putsSpace('catch_ref');
-        break;
-      case 'catch_all':
-        this.putsSpace('catch_all');
-        break;
-      case 'catch_all_ref':
-        this.putsSpace('catch_all_ref');
-        break;
+    if (tc.tag !== undefined) {
+      this.putsSpace(tc.isRef ? 'catch_ref' : 'catch');
+      this.writeVar(tc.tag, NC.Space);
+    } else {
+      this.putsSpace(tc.isRef ? 'catch_all_ref' : 'catch_all');
     }
-    if (tc.tag !== undefined) this.writeVar(tc.tag, NC.Space);
     this.writeBrVar(tc.target, NC.None);
     this.puts(')', NC.Newline);
   }

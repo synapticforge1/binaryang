@@ -43,13 +43,7 @@
 
 import { ExternalKind } from '../wabt-ts/core/binary.ts';
 import { heapTypeNameToType, Type } from '../wabt-ts/core/types.ts';
-import {
-  CatchKind,
-  coarsenValueType,
-  isRefValueType,
-  varIndex,
-  varName,
-} from '../wabt-ts/ir/ir.ts';
+import { coarsenValueType, isRefValueType, varIndex, varName } from '../wabt-ts/ir/ir.ts';
 import type { HeapTypeRef, TableCatch, ValueType } from '../wabt-ts/ir/ir.ts';
 import type {
   ArrayGetExpr,
@@ -1620,18 +1614,10 @@ function buildCatchClause(
   ctx: BridgeCtx,
 ): CatchClause {
   const target = varName(resolveLabel(ctx, c.target));
-  // Switching on `kind` narrows the union, so the tagged arms SEE a tag —
-  // the `c.tag!` assertions this used to need are gone.
-  switch (c.kind) {
-    case CatchKind.Catch:
-      return { tag: varName(resolveVarName(c.tag, ctx.tagNames)), target, isRef: false };
-    case CatchKind.CatchRef:
-      return { tag: varName(resolveVarName(c.tag, ctx.tagNames)), target, isRef: true };
-    case CatchKind.CatchAll:
-      return { target, isRef: false };
-    case CatchKind.CatchAllRef:
-      return { target, isRef: true };
-  }
+  // The two records are one shape now (stage (b)); only the references resolve.
+  return c.tag !== undefined
+    ? { tag: varName(resolveVarName(c.tag, ctx.tagNames)), target, isRef: c.isRef }
+    : { target, isRef: c.isRef };
 }
 
 /**
