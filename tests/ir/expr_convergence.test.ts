@@ -1,168 +1,60 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 //
-// S6 step 5's ratchet: how far wabt-ts's `Expr` and binaryen-ts's `Expression`
-// still are from being ONE type, kind by kind — checked by the compiler.
+// S6 step 5: wabt-ts's `Expr` and binaryen-ts's `Expression` are ONE type.
 //
-// Every kind both unions declare is pinned to one of three states:
+// This file was the RATCHET that got them there — every kind both unions
+// declared, pinned `identical` / `types` / `names` against the compiler, so
+// progress had to be recorded to land and regress could not land silently.
+// Measured when written (2026-09-15, `3a9462423`): 35 identical, 14 types, 23
+// names. Its last reading, the commit before the alias: 85 identical, 5 types
+// (the five constructs, over their node BASE), 0 names.
 //
-//   'identical' — the same field names, and every field the same type
-//   'types'     — the same field names, but at least one field's type differs
-//   'names'     — a field exists on one side and not the other
+// Item 5 (6c) made the alias: `Expression = Expr`, and every binaryen-ts node
+// type is `Extract<Expr, { kind: … }>` — wabt-ts's declaration, readonly. A
+// per-kind comparison of a type with itself measures nothing, so what is pinned
+// now is the identity, and the two ways it could quietly stop holding:
 //
-// "The same type" treats `Expr` and `Expression` as equal (that difference is
-// the one step 5 removes) and ignores the node BASE (`kind`, `loc`, `nodeId`,
-// `type`), whose differences are one decision for all kinds, not one per kind.
+// - a binaryen-ts node type redeclared instead of aliased (it would no longer be
+//   wabt-ts's);
+// - `ExpressionKind` naming a kind no node has, or missing one a node has (an
+//   `Extract` over a kind with no node is `never`, and compiles).
 //
-// ⚠️ **This is a compile-time test, and the pin table is the assertion.** The
-// table is assigned to the COMPUTED state of every kind, so a wrong pin fails
-// `deno task check` in either direction: a kind that converged and was not
-// re-pinned, and a kind that diverged again. A kind missing from the table, or
-// one that no longer exists, fails too. Progress has to be recorded to land,
-// and regress cannot land silently.
-//
-// Measured when written (2026-09-15, `3a9462423`): 35 identical, 14 types,
-// 23 names. cmem's earlier "the (a) renames dissolve by definition when the
-// types unify" was wrong about the NAMES — only the element type dissolves;
-// `unary.operand` and `unary.value` still have to become one field.
+// Compile-time; `deno task check` enforces it.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert } from '@std/assert';
+import { assertEquals } from '@std/assert';
 
-import type { Expr } from '../../src/wabt-ts/ir/ir.ts';
-import type { Expression } from '../../src/binaryen-ts/ir/expressions.ts';
-
-type Base = 'kind' | 'loc' | 'nodeId' | 'type';
-type W<K> = Extract<Expr, { kind: K }>;
-type B<K> = Extract<Expression, { kind: K }>;
-
-/** Kinds with a node on BOTH sides (a declared-only enum value has none). */
-type Shared = {
-  [K in Expr['kind']]: [B<K>] extends [never] ? never : K;
-}[Expr['kind']];
-
-/** `Expr` and `Expression` are the difference being removed, so they compare equal. */
-type Norm<T> = T extends Expression ? 'EXPR'
-  : T extends Expr ? 'EXPR'
-  : T extends ReadonlyArray<infer U> ? Norm<U>[]
-  : T;
+import type * as W from '../../src/wabt-ts/ir/ir.ts';
+import type * as B from '../../src/binaryen-ts/ir/expressions.ts';
+import { ExpressionKind } from '../../src/binaryen-ts/ir/expressions.ts';
 
 type Same<A, C> = [A] extends [C] ? ([C] extends [A] ? true : false) : false;
+const same = <A, C>(v: Same<A, C>): Same<A, C> => v;
 
-type FieldsOf<T> = Exclude<keyof T, Base>;
+describe('S6 step 5 — Expr and Expression are one type', () => {
+  it('the unions are the same type, over the same kinds', () => {
+    same<B.Expression, W.Expr>(true);
+    // `Expr['kind']` is read OFF the nodes, so this is also "every kind has a node,
+    // and every node's kind is a member" — the `never` case above.
+    same<B.ExpressionKind, W.Expr['kind']>(true);
+  });
 
-type NamesAgree<K> = Same<FieldsOf<W<K>>, FieldsOf<B<K>>>;
+  it("a binaryen-ts node type IS wabt-ts's declaration, readonly included", () => {
+    same<B.BlockExpr, W.BlockExpr>(true);
+    same<B.CallIndirectExpr, W.CallIndirectExpr>(true);
+    same<B.RefNullExpr, W.RefNullExpr>(true);
+    same<B.AtomicLoadExpr, W.AtomicLoadExpr>(true);
+    same<B.CodeMetadataExpr, W.CodeMetadataExpr>(true);
+    // `readonly` is invisible to assignability, so pin it directly: a mutable
+    // redeclaration would admit this write.
+    const blk = {} as B.BlockExpr;
+    // @ts-expect-error — the merged node is readonly
+    blk.label = 'x';
+  });
 
-type TypesAgree<K> = false extends {
-  [F in FieldsOf<W<K>> & FieldsOf<B<K>>]: Same<
-    Norm<W<K>[F & keyof W<K>]>,
-    Norm<B<K>[F & keyof B<K>]>
-  >;
-}[FieldsOf<W<K>> & FieldsOf<B<K>>] ? false
-  : true;
-
-type State<K> = NamesAgree<K> extends true ? (TypesAgree<K> extends true ? 'identical' : 'types')
-  : 'names';
-
-type Computed = { [K in Shared]: State<K> };
-
-/**
- * THE RATCHET. Re-pin a kind when step 5 converges it; never widen one back.
- * The goal state is every row `'identical'`, at which point the base is the
- * only difference left and the two types can be aliased.
- */
-const PINNED: Computed = {
-  'array.copy': 'identical',
-  'array.fill': 'identical',
-  'array.get': 'identical',
-  'array.init_data': 'identical',
-  'array.init_elem': 'identical',
-  'array.len': 'identical',
-  'array.new': 'identical',
-  'array.new_data': 'identical',
-  'array.new_elem': 'identical',
-  'array.new_fixed': 'identical',
-  'array.set': 'identical',
-  'atomic.cmpxchg': 'identical',
-  'atomic.fence': 'identical',
-  'atomic.load': 'identical',
-  'atomic.notify': 'identical',
-  'atomic.rmw': 'identical',
-  'atomic.store': 'identical',
-  'atomic.wait': 'identical',
-  'binary': 'identical',
-  'block': 'types',
-  'br': 'identical',
-  'br_on': 'identical',
-  'br_table': 'identical',
-  'call': 'identical',
-  'call_indirect': 'identical',
-  'call_ref': 'identical',
-  'code_metadata': 'identical',
-  'const': 'identical',
-  'data.drop': 'identical',
-  'drop': 'identical',
-  'elem.drop': 'identical',
-  'global.get': 'identical',
-  'global.set': 'identical',
-  'i31.get': 'identical',
-  'if': 'types',
-  'load': 'identical',
-  'local.get': 'identical',
-  'local.set': 'identical',
-  'local.tee': 'identical',
-  'loop': 'types',
-  'memory.copy': 'identical',
-  'memory.fill': 'identical',
-  'memory.grow': 'identical',
-  'memory.init': 'identical',
-  'memory.size': 'identical',
-  'nop': 'identical',
-  'pop': 'identical',
-  'quaternary': 'identical',
-  'ref.as': 'identical',
-  'ref.cast': 'identical',
-  'ref.eq': 'identical',
-  'ref.func': 'identical',
-  'ref.i31': 'identical',
-  'ref.is_null': 'identical',
-  'ref.null': 'identical',
-  'ref.test': 'identical',
-  'region': 'identical',
-  'rethrow': 'identical',
-  'return': 'identical',
-  'select': 'identical',
-  'simd.extract': 'identical',
-  'simd.load': 'identical',
-  'simd.load_store_lane': 'identical',
-  'simd.replace': 'identical',
-  'simd.shuffle': 'identical',
-  'simd.ternary': 'identical',
-  'store': 'identical',
-  'struct.get': 'identical',
-  'struct.new': 'identical',
-  'struct.set': 'identical',
-  'table.copy': 'identical',
-  'table.fill': 'identical',
-  'table.get': 'identical',
-  'table.grow': 'identical',
-  'table.init': 'identical',
-  'table.set': 'identical',
-  'table.size': 'identical',
-  'throw': 'identical',
-  'throw_ref': 'identical',
-  'try': 'types',
-  'try_table': 'types',
-  'unary': 'identical',
-  'unreachable': 'identical',
-};
-
-describe('S6 step 5 — Expr / Expression convergence ratchet', () => {
-  it('is enforced at compile time; this records the counts', () => {
-    const counts = { identical: 0, types: 0, names: 0 };
-    for (const s of Object.values(PINNED)) counts[s]++;
-    // The type check above is the real assertion. This one keeps the numbers in
-    // front of a reader of the test output.
-    assert(counts.identical + counts.types + counts.names === Object.keys(PINNED).length);
+  it('the kind object holds exactly the union kinds', () => {
+    // 85 kinds: the count the ratchet ended at, and `deno task operators`' shared count.
+    assertEquals(new Set(Object.values(ExpressionKind)).size, 85);
   });
 });

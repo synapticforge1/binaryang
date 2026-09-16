@@ -1547,13 +1547,11 @@ class WatModuleParser {
     // against the declared type: after its `end` the stack is not polymorphic.
     // (Earlier, `ifFalse ? ifTrue.type : None` mistyped a one-sided one and DCE
     // deleted live code after it; the binary decoder had the both-arms case.)
-    const node = makeIf(condition!, ifTrue, ifFalse, '', this.declaredType(results));
-    // Carry the branch-target label onto the node: the encoder pushes
+    // The branch-target LABEL goes on the node: the encoder pushes
     // `e.label || null`, so leaving it unset would put an empty name where the
     // parser resolved branches against `ifLabel`, and every `br` into this `if`
     // would fail to resolve.
-    node.label = ifLabel ?? '';
-    return node;
+    return makeIf(condition!, ifTrue, ifFalse, ifLabel ?? '', this.declaredType(results));
   }
 
   private parseBr(args: SExpr[], conditional: boolean, ctx: FuncContext, pos: TextPos): BreakExpr {

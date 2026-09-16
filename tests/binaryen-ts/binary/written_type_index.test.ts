@@ -229,6 +229,26 @@ describe('7c — the form is FIDELITY ONLY: a pass run drops it', () => {
     assert(found.length > 0, 'the fixture keeps a call_indirect through -O2');
     for (const c of found) assertEquals((c as { typeVar?: unknown }).typeVar, undefined);
   });
+
+  it("…and a block's header index too", () => {
+    const m = parseWasm(assemble(
+      '(module (type $t (func (result i32)))' +
+        ' (func (export "f") (param i32) (result i32)' +
+        ' (i32.add (block (type $t) (local.get 0)) (i32.const 1))))',
+    ));
+    const indices = (): unknown[] => {
+      const out: unknown[] = [];
+      for (const fn of m.functions) {
+        walkExpression(fn.body, (e) => {
+          if (e.kind === ExpressionKind.Block) out.push(e.typeIndex);
+        });
+      }
+      return out;
+    };
+    assertEquals(indices(), [0], 'decoded as written: an index header');
+    new PassRunner(m, { optimizeLevel: 0, debugInfo: false }).add('Vacuum').run();
+    assertEquals(indices(), [undefined]);
+  });
 });
 
 describe("7c / T2 — the type-section ORDER is the decoder's, not derived", () => {

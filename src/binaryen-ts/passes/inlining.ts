@@ -219,6 +219,19 @@ function getItem(e: Expression, i = 0): Expression | null {
   return i === 0 ? e : null;
 }
 
+/**
+ * `e` with its i-th item — as {@link getItem} reads it — replaced by `item`. A
+ * rebuild, not an assignment: a node is not written through (S6 step 5 item
+ * 5 (6c) — the merged node is readonly).
+ */
+function setItem(e: Expression, i: number, item: Expression): Expression {
+  if (e.kind === ExpressionKind.Block) {
+    return { ...e, children: e.children.map((c, j) => (j === i ? item : c)) };
+  }
+  if (i !== 0) throw new Error(`inlining: no item ${i} in a ${e.kind}`);
+  return item;
+}
+
 /** Returns the i-th item if it's an `IfExpr`, else `null`. */
 function getIf(e: Expression, i = 0): IfExpr | null {
   const item = getItem(e, i);
@@ -448,7 +461,7 @@ class FunctionSplitter {
     const maxIfs = this.opts.partialInliningIfs;
     // Read the body the way `getSplitMode` did, or the ifs it counted are not
     // the ones found here.
-    const inlineableBody = deepCopy(asStatement(fn.body, blockResult(fn.results)));
+    let inlineableBody = deepCopy(asStatement(fn.body, blockResult(fn.results)));
 
     for (let i = 0; i < maxIfs; i++) {
       const ifI = getIf(inlineableBody, i);
@@ -469,7 +482,10 @@ class FunctionSplitter {
 
       const callType = valueReturned ? (outlinedResults[0] as ValType) : None;
       const call = makeCall(varName(outlined.name), getForwardedArgs(fn), callType);
-      ifI.ifTrue = asRegion(valueReturned ? makeReturn([call]) : call);
+      inlineableBody = setItem(inlineableBody, i, {
+        ...ifI,
+        ifTrue: asRegion(valueReturned ? makeReturn([call]) : call),
+      });
     }
 
     return {

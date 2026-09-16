@@ -549,8 +549,10 @@ Deno.test('type collection reaches a call_indirect carried as a multi-value bran
     params: [],
     results: [ValType.I32],
   });
-  const blk = makeBlock([makeBreak('$l', null, [ci, makeI32Const(7)])], '$l');
-  blk.type = [ValType.I32, ValType.I32];
+  const blk = makeBlock([makeBreak('$l', null, [ci, makeI32Const(7)])], '$l', [
+    ValType.I32,
+    ValType.I32,
+  ]);
 
   b.addFunction('$f', [], [ValType.I32, ValType.I32], blk, []);
   b.addExport('f', '$f', 'function');

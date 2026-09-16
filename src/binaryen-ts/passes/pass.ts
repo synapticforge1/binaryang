@@ -26,7 +26,7 @@
 
 import type { WasmModule } from '../ir/module.ts';
 import { dropWrittenTypeIndex } from '../ir/expressions.ts';
-import { stripCodeMetadata, walkExpression } from '../ir/walk.ts';
+import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
 
@@ -303,7 +303,7 @@ export class PassRunner {
     // queued this is still a plain read-and-write, which keeps it.
     if (optimized) {
       for (const fn of this._module.functions) {
-        walkExpression(fn.body, dropWrittenTypeIndex);
+        fn.body = mapExpression(fn.body, dropWrittenTypeIndex);
         // Code-metadata annotations describe instructions a pass may move or
         // delete: binaryen-ts strips them in optimization runs (owner,
         // 2026-09-16). Under the same condition as the form above.

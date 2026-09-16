@@ -45,9 +45,9 @@ const body = makeBlock(
     makeBreak('$L', /* condition */ null, /* values */ [makeI32Const(42)]),
   ],
   '$L',
+  // The block needs a result type — declared (it is readonly once built).
+  ValType.I32,
 );
-// The block needs a result type — manually set it
-body.type = ValType.I32;
 
 const mod = new ModuleBuilder()
   .addFunction('test', [], [ValType.I32], body)
