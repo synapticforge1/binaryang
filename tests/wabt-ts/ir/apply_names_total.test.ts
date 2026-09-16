@@ -68,6 +68,17 @@ describe('T13.20 — axis 1: every nested sub-expression is walked', () => {
     ['block', '(block (drop (global.get $g)))'],
     ['loop', '(loop (drop (global.get $g)))'],
     ['if cond', '(if (global.get $g) (then (nop)))'],
+    // S6 step 5 stage (c1): a carrier's entry values live in `params.values`,
+    // an OBJECT field — neither an `Expr` nor a list, so the generic walk
+    // passed over it.
+    ['block entry value', '(global.get $g) (block (param i32) (result i32)) (drop)'],
+    ['loop entry value', '(global.get $g) (loop (param i32) (result i32)) (drop)'],
+    [
+      'if entry value',
+      '(if (param i32) (result i32) (global.get $g) (i32.const 1) (then) (else)) (drop)',
+    ],
+    ['try entry value', 'global.get $g try (param i32) (result i32) end drop'],
+    ['try_table entry value', '(global.get $g) (try_table (param i32) (result i32)) (drop)'],
   ];
 
   for (const [name, body] of NESTERS) {
