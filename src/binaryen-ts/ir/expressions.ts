@@ -47,7 +47,7 @@ import {
 } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
 import type { BlockResult } from '../../wabt-ts/ir/ir.ts';
-import { None, type TupleType, type Type, Unreachable, ValType } from './types.ts';
+import { None, type TupleType, type Type, typeToString, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
 import { loadShape, storeShape } from './memory-access.ts';
 export type { HeapType, RefType, ValueType } from './gc-types.ts';
@@ -119,6 +119,8 @@ export const ExpressionKind = {
   AtomicWait: 'atomic.wait',
   AtomicNotify: 'atomic.notify',
   AtomicFence: 'atomic.fence',
+  // Annotations (wabt-ts's — see CodeMetadataExpr)
+  CodeMetadata: 'code_metadata',
   // SIMD
   SIMDExtract: 'simd.extract',
   SIMDReplace: 'simd.replace',
@@ -1327,6 +1329,25 @@ export interface CallRefExpr extends ExprBase {
   callee: Expression;
 }
 
+/**
+ * A code-metadata annotation — `(@metadata.code.<name> "<data>")` — standing
+ * before the instruction it describes. wabt-ts's node, and wabt-ts's to build:
+ * it is the TEXT form of a `metadata.code.*` section, which binaryen-ts reads
+ * and writes as a raw custom section instead (divergence K2).
+ *
+ * 🗓️ Owner, 2026-09-16: binaryen-ts STRIPS it in its optimization runs —
+ * `stripCodeMetadata` (walk.ts), run by `PassRunner` before the first pass.
+ * Its encoder REFUSES one: it has no instruction bytes, and writing nothing for
+ * it is how an annotation is silently lost (W8).
+ */
+export interface CodeMetadataExpr extends ExprBase {
+  kind: typeof ExpressionKind.CodeMetadata;
+  /** The metadata kind — `branch_hint` for `@metadata.code.branch_hint`. */
+  name: string;
+  /** The annotation's payload bytes. */
+  data: Uint8Array;
+}
+
 export interface MemorySizeExpr extends ExprBase {
   /**
    * Memory this access addresses. Omitted means 0, the only memory a
@@ -1597,6 +1618,17 @@ export interface CallIndirectExpr extends ExprBase {
 export interface RefNullExpr extends ExprBase {
   /** Discriminant — identifies which expression variant this is. */
   kind: typeof ExpressionKind.RefNull;
+  /**
+   * The HEAP type the instruction names — `ref.null func`, `ref.null $T` —
+   * wabt-ts's field, and what is written (S6 step 5 item 5 (6b)).
+   *
+   * 🔑 It was not on the node: the type `(ref null ht)` held it, and Group 3
+   * found a field beside `type` would be the same fact twice — so it waited
+   * until `type` stopped being the only carrier. It has: a node's `type` is
+   * optional and DERIVED (step 3, item 5 (4)), while this is the instruction's
+   * immediate. {@link makeRefNull} sets both from one value type.
+   */
+  refType: HeapType;
 }
 
 /** {@link RefIsNullExpr} — see {@link makeRefIsNull} for the factory. */
@@ -2325,6 +2357,7 @@ export type Expression =
   | AtomicWaitExpr
   | AtomicNotifyExpr
   | AtomicFenceExpr
+  | CodeMetadataExpr
   | MemoryGrowExpr
   | MemorySizeExpr
   | TableInitExpr
@@ -3187,8 +3220,38 @@ export function makeMemoryFill(
  * encoder writes the corresponding heap type either way.
  */
 export function makeRefNull(type: ValueType): RefNullExpr {
-  return { kind: ExpressionKind.RefNull, type };
+  return { kind: ExpressionKind.RefNull, type, refType: nullableHeapOf(type) };
 }
+
+/**
+ * The heap type a nullable reference type names — a typed reference's own, or
+ * the abstract heap of a shorthand (`funcref` → `func`). A non-reference value
+ * type has none, and `ref.null` of one is refused, as the encoder refused it.
+ */
+function nullableHeapOf(type: ValueType): HeapType {
+  if (isRefType(type)) return type.heapType;
+  const name = REF_VALTYPE_HEAP[type];
+  if (name === undefined) {
+    throw new Error(`ref.null of a non-reference type: ${typeToString(type)}`);
+  }
+  return heapAbstract(name);
+}
+
+/** Each shorthand reference type's abstract heap — the byte they share on the wire. */
+const REF_VALTYPE_HEAP: Partial<Record<ValType, AbstractHeapType>> = {
+  [ValType.FuncRef]: AbstractHeapType.Func,
+  [ValType.ExternRef]: AbstractHeapType.Ext,
+  [ValType.AnyRef]: AbstractHeapType.Any,
+  [ValType.EqRef]: AbstractHeapType.Eq,
+  [ValType.I31Ref]: AbstractHeapType.I31,
+  [ValType.StructRef]: AbstractHeapType.Struct,
+  [ValType.ArrayRef]: AbstractHeapType.Array,
+  [ValType.NullRef]: AbstractHeapType.None,
+  [ValType.NullFuncRef]: AbstractHeapType.NoFunc,
+  [ValType.NullExternRef]: AbstractHeapType.NoExt,
+  [ValType.ExnRef]: AbstractHeapType.Exn,
+  [ValType.NullExnRef]: AbstractHeapType.NoExn,
+};
 
 /** Creates a `ref.func` expression. */
 export function makeRefFunc(func: Var, type: ValType = ValType.FuncRef): RefFuncExpr {

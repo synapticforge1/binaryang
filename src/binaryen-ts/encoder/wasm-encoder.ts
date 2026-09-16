@@ -411,40 +411,6 @@ function writeBlockType(
   }
 }
 
-function refHeapTypeByte(t: ValType): number {
-  switch (t) {
-    case ValType.FuncRef:
-      return 0x70;
-    case ValType.ExternRef:
-      return 0x6f;
-    case ValType.AnyRef:
-      return 0x6e;
-    case ValType.EqRef:
-      return 0x6d;
-    case ValType.I31Ref:
-      return 0x6c;
-    case ValType.StructRef:
-      return 0x6b;
-    case ValType.ArrayRef:
-      return 0x6a;
-    case ValType.NullRef:
-      return 0x71;
-    case ValType.NullFuncRef:
-      return 0x73;
-    case ValType.NullExternRef:
-      return 0x72;
-    case ValType.ExnRef:
-      return 0x69;
-    case ValType.NullExnRef:
-      return 0x74;
-    default:
-      // Reached only for a non-ref ValType, which is a bug in the IR producing
-      // this RefNull. Previously this silently returned `any` (0x6e),
-      // mis-typing the null; fail loudly instead.
-      throw new WasmEncodeError(`ref.null of non-reference type: ${typeToString(t)}`);
-  }
-}
-
 // ---------------------------------------------------------------------------
 // GC heap type / ref type encoding
 // ---------------------------------------------------------------------------
@@ -2265,6 +2231,15 @@ class WasmEncoder {
         this.writeOperator(w, (0xfe << 16) | 0x00);
         this.writeMemArg(w, expr.align, expr.offset, expr.memidx);
         break;
+      case ExpressionKind.CodeMetadata:
+        // No instruction bytes. Writing nothing is how the annotation would be
+        // silently lost (W8); an optimization run has already stripped any
+        // (owner, 2026-09-16), so one here came through a plain encode.
+        throw new WasmEncodeError(
+          `cannot encode code_metadata "${expr.name}": binaryen-ts writes code metadata only ` +
+            `as a raw metadata.code.* custom section; run a pass (which strips it) or use wabt-ts`,
+        );
+
       case ExpressionKind.AtomicFence:
         this.writeOperator(w, (0xfe << 16) | 0x03);
         w.writeU8(expr.consistencyModel);
@@ -2273,14 +2248,10 @@ class WasmEncoder {
       case ExpressionKind.RefNull: {
         const e = expr as RefNullExpr;
         w.writeU8(0xd0);
-        // `ref.null` takes a HEAP type. For a concrete `(ref null $T)` that is
-        // the type index, which `writeHeapType` encodes as a signed LEB — the
-        // single-byte abstract form only covers the built-in heap types.
-        if (isRefType(e.type)) {
-          writeHeapType(w, e.type.heapType);
-        } else {
-          w.writeU8(refHeapTypeByte(e.type as ValType));
-        }
+        // `ref.null` takes a HEAP type — the node's `refType` immediate (item 5
+        // (6b)), not re-derived from its type. For a concrete `$T` that is the
+        // type index, which `writeHeapType` encodes as a signed LEB.
+        writeHeapType(w, e.refType);
         break;
       }
       case ExpressionKind.RefIsNull: {

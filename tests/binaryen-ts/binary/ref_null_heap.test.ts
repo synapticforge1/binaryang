@@ -29,14 +29,18 @@
  * @license MIT
  */
 
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { ExpressionKind, makeRefNull } from '../../../src/binaryen-ts/ir/expressions.ts';
+import {
+  type Expression,
+  ExpressionKind,
+  makeRefNull,
+} from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { isRefType, type RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { AbstractHeapType, isRefType, type RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import { heapAbstract, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /**
  * `WebAssembly/binaryen/test/unit/input/gc_target_feature.wasm`, minus its custom sections:
@@ -214,4 +218,55 @@ Deno.test('stack-polymorphic decode is a round-trip fixed point', () => {
   const c = kinds(third.functions[0].body);
   assertEquals(b, a, 'IR changed on the first round-trip');
   assertEquals(c, b, 'IR changed on the second round-trip');
+});
+
+// ---------------------------------------------------------------------------
+// S6 step 5, item 5 (6b): `ref.null`'s heap type is a FIELD — wabt-ts's `refType`
+// — and is what the encoder writes. It was read back out of the node's type.
+// ---------------------------------------------------------------------------
+
+/** Each shorthand reference type, the abstract heap `ref.null` names, and its byte. */
+const SHORTHANDS: [ValType, AbstractHeapType, number][] = [
+  [ValType.FuncRef, AbstractHeapType.Func, 0x70],
+  [ValType.ExternRef, AbstractHeapType.Ext, 0x6f],
+  [ValType.AnyRef, AbstractHeapType.Any, 0x6e],
+  [ValType.EqRef, AbstractHeapType.Eq, 0x6d],
+  [ValType.I31Ref, AbstractHeapType.I31, 0x6c],
+  [ValType.StructRef, AbstractHeapType.Struct, 0x6b],
+  [ValType.ArrayRef, AbstractHeapType.Array, 0x6a],
+  [ValType.NullRef, AbstractHeapType.None, 0x71],
+  [ValType.NullFuncRef, AbstractHeapType.NoFunc, 0x73],
+  [ValType.NullExternRef, AbstractHeapType.NoExt, 0x72],
+  [ValType.ExnRef, AbstractHeapType.Exn, 0x69],
+  [ValType.NullExnRef, AbstractHeapType.NoExn, 0x74],
+];
+
+/** The global section of a module whose one global is `ref.null` built by `node`. */
+function globalSection(type: ValType, node: Expression): number[] {
+  const m = new ModuleBuilder();
+  m.enableGC();
+  m.addGlobal('$g', type, true, node);
+  return Array.from(section(encodeWasm(m.build()), 6));
+}
+
+Deno.test('makeRefNull sets refType, and the heap byte written is that heap type', () => {
+  for (const [vt, heap, byte] of SHORTHANDS) {
+    const node = makeRefNull(vt);
+    assertEquals(node.refType, heapAbstract(heap), `ref.null of ${vt}`);
+    const g = globalSection(vt, node);
+    // … 0xd0 <heap byte> 0x0b — the init expression ends the section.
+    assertEquals(g.slice(-3), [0xd0, byte, 0x0b], `ref.null of ${vt}`);
+  }
+  const refT: RefType = { heapType: varIndex(3), nullable: true };
+  assertEquals(makeRefNull(refT).refType, varIndex(3));
+});
+
+Deno.test('the encoder writes refType — the immediate — not a heap derived from type', () => {
+  // Disagreeing on purpose: the instruction names `func`; the type says anyref.
+  const node = { ...makeRefNull(ValType.AnyRef), refType: heapAbstract(AbstractHeapType.Func) };
+  assertEquals(globalSection(ValType.AnyRef, node).slice(-3), [0xd0, 0x70, 0x0b]);
+});
+
+Deno.test('ref.null of a non-reference type is refused', () => {
+  assertThrows(() => makeRefNull(ValType.I32), Error, 'non-reference type');
 });

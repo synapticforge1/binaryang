@@ -2887,6 +2887,33 @@ no such node to strip. ⚠️ To settle when implementing, not decided here: the
 custom section binaryen-ts already carries holds instruction OFFSETS, which optimization moves — a
 kept section would point at the wrong instructions.
 
+**(6) The alias** 🚧. A DEEPER trial first: not just `Expression` := wabt-ts's `Expr`, but EVERY binaryen-ts
+node interface := wabt-ts's node of the same kind (`s56_deep_trial.ts`) — the one that makes the
+`readonly` question visible. **36 errors**: `code_metadata` 22, the ratchet test 6, `readonly` only
+**8** (6 assignments, 2 `delete`s), `ref.null`'s `refType` 1. "Bigger than its 2" was right in
+direction and small in size.
+
+**(6a) `code_metadata` in binaryen-ts's union, per the owner.** A `CodeMetadataExpr` (wabt-ts's shape)
+and kind member; walker leaf cases; `stripCodeMetadata` (walk.ts) removes every one from statement
+lists and REFUSES one anywhere else; `PassRunner` runs it before the first pass, beside
+`dropWrittenTypeIndex` and under the same condition (a runner with nothing queued keeps it); the
+encoder REFUSES one (no bytes — writing nothing is W8's silent loss). `ONE_SIDED_BUDGET` is empty: 85
+kinds shared. Tests `code_metadata_strip.test.ts` (5); 5 mutants, all killed (one only after a
+fixture fix: a region's SOLE unnamed block dissolves, so the empty-block case needs a sibling).
+Alias trial (union form) 37 → **16**. ⚠️ Still open from the decision: the RAW `metadata.code.*`
+section an optimization run keeps.
+
+**(6b) `ref.null`'s heap type is a field — `refType`, wabt-ts's.** Group 3 deferred it: beside `type`
+it would be the same fact twice while `type` was the only carrier. It no longer is — `type` is optional
+and derived (step 3, (4)), `refType` is the instruction's immediate. `makeRefNull(type)` keeps its
+signature and sets both (a shorthand's abstract heap from a 12-row table; a non-reference type is
+refused, as the encoder refused it); the encoder writes `refType`, and its `refHeapTypeByte` — the
+same 12 facts spelled as bytes — went. Bytes unchanged: every shorthand's byte IS its abstract heap's.
+The ratchet's last `names` row, `ref.null`, re-pinned `identical`: **77 / 5 / 0**. Tests in
+`ref_null_heap.test.ts` (12 shorthands, byte by byte; the encoder writing `refType` when the two
+disagree; the refusal); 3 mutants killed. Alias trials: union form 16 → **7**, deep form 36 → **14** —
+what is left is `readonly` (9 writes) and the ratchet test itself (5).
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).
