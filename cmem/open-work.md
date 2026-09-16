@@ -79,8 +79,10 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    node `type?: ExprType` (≡ binaryen-ts `Type`), catch records' `loc?`, `br_on` `from`/`to` exact
    optionals — alias trial 305 → 37. ✅ (5) atomics + `call_ref` ported into binaryen-ts (K1 closed;
    two miscompiles found and pinned); `code_metadata` stays wabt-ts-only (owner) — ratchet **76 / 5 / 1**,
-   84 shared kinds, 1 one-sided. Next: (6) the alias — how binaryen-ts meets `code_metadata` (now the
-   21 kind errors), `ref.null`'s field, `readonly` (bigger than its 2), type derivation.
+   84 shared kinds, 1 one-sided. Next: (6) the alias — `code_metadata` (the 21 kind errors; 🗓️ owner
+   2026-09-16: binaryen-ts STRIPS it in optimization runs, in `PassRunner` beside
+   `dropWrittenTypeIndex`; the raw `metadata.code.*` section's stale offsets still to settle),
+   `ref.null`'s field, `readonly` (bigger than its 2), type derivation.
 6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
    `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
    `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the
