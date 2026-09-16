@@ -31,6 +31,7 @@ import {
   asRegion,
   asStatement,
   type BlockExpr,
+  blockOf,
   type BreakExpr,
   type CallExpr,
   type Expression,
@@ -60,7 +61,7 @@ import {
 import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
 import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
-import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { mapExpression, mapWithSequences, type Sequence, walkExpression } from '../ir/walk.ts';
 import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
@@ -678,7 +679,7 @@ function inlineCallSite(
   into: WasmFunction,
   labelHint: number,
   usedLabels: Set<string>,
-): Expression {
+): Expression | Sequence {
   // 1. Extend caller locals with a copy of all callee locals.
   const baseIndex = into.locals.length;
   const mapping: number[] = [];
@@ -745,45 +746,21 @@ function inlineCallSite(
 
   // The callee's body becomes a STATEMENT of the wrapper block, which a region
   // cannot be; `children` is `Expression[]`, so only the encoder would object.
-  let substituted = asStatement(substituteBody(bodyCopy, mapping, label, !call.isReturn));
-  // A body of several instructions becomes an unnamed block typed like the
-  // region — by its LAST instruction. When a multi-value callee's values come
-  // from several of them, that block must declare them all, or it holds two
-  // values while declaring one: the same refusal, one level in.
-  if (
-    Array.isArray(retType) && substituted.kind === ExpressionKind.Block &&
-    substituted.label === '' && substituted.type !== None && substituted.type !== Unreachable
-  ) {
-    substituted = { ...substituted, type: retType };
-  }
+  // A body of several instructions becomes an unnamed block DECLARING the
+  // callee's results — what that same list declared as a function body, so it
+  // validates here exactly as it did there. (One instruction stands as itself:
+  // as the whole body it already yields them, or never falls through.)
+  //
+  // 🔧 The block was typed like the region, by its LAST instruction, and two
+  // repairs followed from that: a multi-value callee's block was retyped when
+  // its values came from several instructions, and an `unreachable` was
+  // appended when the body ended in `none` or `unreachable` (a callee
+  // returning only through `return` → `br`). Declaring the results is both.
+  const body = asRegion(substituteBody(bodyCopy, mapping, label, !call.isReturn));
+  const substituted = body.children.length === 1
+    ? asStatement(body)
+    : { ...blockOf(body), type: retType };
   children.push(substituted);
-
-  // 4a. Guarantee a valid wrapper fallthrough.
-  //
-  // When the callee delivers its result solely through `return` (rewritten to
-  // `br $label`) rather than by falling off the end, the wrapper's structural
-  // fallthrough produces no value — yet the wrapper is typed `retType` to
-  // receive the value the `br` carries. The validator does NOT treat the
-  // wrapper's end as unreachable just because the body's last expression is a
-  // block that exits via `br` to the wrapper: a block exiting to an *outer*
-  // label still leaves the outer block's fallthrough reachable. So it would
-  // reject the wrapper with "expected 1 element on the stack for fallthru,
-  // found 0". Append an explicit `unreachable` to mark that fallthrough dead.
-  //
-  // Safe because the only live exits from the wrapper are the `br $label`s the
-  // returns became — the post-body position is dynamically never reached. We
-  // append whenever the body does not fall through with values (its type is
-  // `none` or `unreachable`); for a body that already ends unreachable the
-  // extra `unreachable` is redundant but harmless (Vacuum drops it).
-  //
-  // 🔧 This compared `substituted.type !== retType` by REFERENCE. A tuple type
-  // is an array, so a multi-value callee always "differed" and got an
-  // `unreachable` after a body that DOES fall through — valid, and a trap. A
-  // body whose values come from separate instructions is typed by its last one
-  // alone, too, so the question is only whether it yields values at all.
-  if (retType !== None && (substituted.type === None || substituted.type === Unreachable)) {
-    children.push(makeUnreachable());
-  }
 
   // 5. If the original call was unreachable (an operand was unreachable),
   //    propagate unreachability: wrap in sequence ending with unreachable.
@@ -791,15 +768,17 @@ function inlineCallSite(
 
   if (call.type === Unreachable && !call.isReturn) {
     // `drop` takes ONE value; a multi-value wrapper's values need no consumer
-    // before an `unreachable`, which discards whatever the stack holds.
-    return makeBlock(
-      [
+    // before an `unreachable`, which discards whatever the stack holds. A
+    // {@link Sequence}, not a block: the call left the stack polymorphic, and a
+    // block's `end` would not.
+    return {
+      sequence: [
         block.type !== None && !Array.isArray(block.type)
           ? { kind: ExpressionKind.Drop, type: None, value: block }
           : block,
         makeUnreachable(),
       ],
-    );
+    };
   }
 
   // Tail-call (`return_call`) inlining. The callee's frame semantically
@@ -813,7 +792,7 @@ function inlineCallSite(
   // caller as the caller's own return — matching tail-call semantics.
   if (call.isReturn) {
     if (retType === None) {
-      return makeBlock([block, { kind: ExpressionKind.Return, type: Unreachable, values: [] }]);
+      return { sequence: [block, { kind: ExpressionKind.Return, type: Unreachable, values: [] }] };
     }
     return { kind: ExpressionKind.Return, type: Unreachable, values: [block] };
   }
@@ -840,7 +819,7 @@ function inlineIntoFunction(
   const usedLabels = collectLabels(fn.body);
   let changed = false;
 
-  fn.body = mapExpression(fn.body, (e): Expression => {
+  fn.body = mapWithSequences(fn.body, (e): Expression | Sequence => {
     if (e.kind !== ExpressionKind.Call) return e;
     const call = e as CallExpr;
     if (requireName(call.func, 'call target') === fn.name) return e; // skip recursive calls

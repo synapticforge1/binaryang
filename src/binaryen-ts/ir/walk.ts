@@ -3,10 +3,12 @@
  *
  * Tree walking utilities for the binaryen-ts IR.
  *
- * Two operations are provided:
+ * The operations:
  *
  * - {@link mapExpression} — transform a tree bottom-up (children first, then
  *   the parent). Used by optimisation passes that rewrite nodes.
+ * - {@link mapWithSequences} — the same, where a rewrite may be several
+ *   statements standing where one expression stood (a trap replacing a throw).
  * - {@link walkExpression} — visit every node pre-order (parent before
  *   children). Used by analysis passes that only read the tree.
  *
@@ -18,6 +20,8 @@ import {
   type BlockParams,
   type Expression,
   ExpressionKind,
+  makeDrop,
+  makeRegion,
   type QuaternaryExpr,
   type RegionExpr,
   type SIMDExtractExpr,
@@ -27,6 +31,7 @@ import {
   type SIMDShuffleExpr,
   type SIMDTernaryExpr,
 } from './expressions.ts';
+import { None, Unreachable } from './types.ts';
 
 // ---------------------------------------------------------------------------
 // mapExpression — bottom-up tree transform
@@ -54,6 +59,106 @@ export function mapExpression(
   // the commonest line in the passes, and `fn` may legitimately replace the
   // region itself (DCE turns an unreachable one into `unreachable`).
   return expr.kind === ExpressionKind.Region ? asRegion(mapped) : mapped;
+}
+
+// ---------------------------------------------------------------------------
+// mapWithSequences — a bottom-up transform whose rewrite may be several statements
+// ---------------------------------------------------------------------------
+
+/**
+ * Statements that stand where ONE expression stood, the last of which never
+ * falls through (`unreachable`, `br`, `return`, a `throw`, …) — what a pass
+ * builds to replace a stack-polymorphic instruction with something that keeps
+ * its side effects, e.g. StripEH's `throw $e (x)` → `drop (x)`, `unreachable`.
+ */
+export interface Sequence {
+  readonly sequence: Expression[];
+}
+
+/**
+ * {@link mapExpression}, where `fn` may return a {@link Sequence}.
+ *
+ * 🔑 **Why not a block.** A block is a construct: wasm types it by what it
+ * DECLARES, and after its `end` the stack holds exactly that — never the
+ * polymorphic stack the replaced instruction left. A void block ending in
+ * `unreachable`, put where `throw` stood before a value its enclosing block
+ * returns, is invalid. That used to be patched by typing such a block
+ * `unreachable` and having the encoder write an `unreachable` after its `end`.
+ * A construct's type is what it declares (owner, 2026-09-16), so the tree says
+ * it instead:
+ *
+ * - in a LIST (a block's or a region's children) the statements are spliced
+ *   in place — no construct, no extra byte;
+ * - in an OPERAND slot the consumer never runs, so it is replaced in turn: by
+ *   its operands evaluated before (a single value dropped) and then the
+ *   sequence. Operands after it are dead and go. This climbs to the nearest
+ *   list, so a sequence never reaches the result as a node.
+ */
+export function mapWithSequences(
+  expr: RegionExpr,
+  fn: (e: Expression) => Expression | Sequence,
+): RegionExpr {
+  const r = _mapSeq(expr, fn);
+  return isSequence(r) ? makeRegion(r.sequence) : asRegion(r);
+}
+
+function isSequence(r: Expression | Sequence): r is Sequence {
+  return 'sequence' in r;
+}
+
+function _mapSeq(
+  expr: Expression,
+  fn: (e: Expression) => Expression | Sequence,
+): Expression | Sequence {
+  if (expr.kind === ExpressionKind.Block || expr.kind === ExpressionKind.Region) {
+    // A block's entry values are OPERANDS, evaluated before its list — and, like
+    // any operand, a sequence among them means the block never runs.
+    let params = expr.kind === ExpressionKind.Block ? expr.params : undefined;
+    if (params !== undefined) {
+      const values: Expression[] = [];
+      for (const v of params.values) {
+        const r = _mapSeq(v, fn);
+        if (isSequence(r)) return { sequence: [...values.map(asEvaluated), ...r.sequence] };
+        values.push(r);
+      }
+      params = { types: params.types, values };
+    }
+    const children: Expression[] = [];
+    for (const c of expr.children) {
+      const r = _mapSeq(c, fn);
+      if (isSequence(r)) children.push(...r.sequence);
+      else children.push(r);
+    }
+    return fn({ ...expr, children, ...(params === undefined ? {} : { params }) });
+  }
+  // Direct children in evaluation order: a carrier's entry values, then its
+  // operands, then its regions (which are lists, and absorb any sequence).
+  let before: Expression[] = [];
+  let hoisted: Expression[] | null = null;
+  const rebuilt = _mapChildren(expr, (c) => {
+    if (hoisted !== null) return c; // dead: the consumer never runs
+    const r = _mapSeq(c, fn);
+    if (isSequence(r)) {
+      if (c.kind === ExpressionKind.Region) return makeRegion(r.sequence);
+      hoisted = [...before, ...r.sequence];
+      return c;
+    }
+    if (c.kind !== ExpressionKind.Region) before = [...before, asEvaluated(r)];
+    return r;
+  });
+  if (hoisted !== null) return { sequence: hoisted };
+  return fn(rebuilt);
+}
+
+/**
+ * An operand as a statement that still evaluates it: one value is dropped, a
+ * valueless one stands as it is. A MULTI-value operand stands as it is too — the
+ * sequence it precedes ends by never falling through, which discards whatever
+ * the stack holds, and `drop` takes exactly one value.
+ */
+function asEvaluated(e: Expression): Expression {
+  const t = e.type;
+  return t === undefined || t === None || t === Unreachable || Array.isArray(t) ? e : makeDrop(e);
 }
 
 // ---------------------------------------------------------------------------

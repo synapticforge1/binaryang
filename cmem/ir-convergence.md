@@ -2713,6 +2713,68 @@ node — only the node's `kind` differed. Corrected. Ratchet unchanged (base fie
 **Distance re-measured after (1)+(2): the alias trial is 2,012 → 301 errors.** Largest shapes:
 exact-optional assignability (103 + 61), argument types (74), missing properties (38).
 
+**(3) A carrier's `type` is what it DECLARES; reachability is derived.** 🗓️ **OWNER CALL,
+2026-09-16.** The five carriers' `type` meant two things: wabt-ts, the declared signature (c2);
+binaryen-ts, a computed type that may be `'unreachable'` — upstream binaryen's model, which its DCE
+and encoder read. Offered: B (declared, or `'unreachable'` on pass-built nodes), A (declared only),
+C (two fields). The owner rejected carrying `'unreachable'` at all — "an issue that can't ever be
+resolved … not our goal even if upstream has chosen that approach" — and agreed to: `type` is ALWAYS
+the declared `BlockResult`; "does control reach this construct's end" is a pure function of the tree
+(`fallsThrough`), never stored, so it cannot go stale. 🔑 **An `'unreachable'` carrier type is a CACHE
+of a control-flow fact, and every defect in this family was that cache disagreeing with wasm**: the
+decoder's inferred void `if` (DCE deleted a needed value, 30/70 legacy-EH assertions), the encoder's
+extra-`unreachable` patch for pass-built constructs, and (3a) below. Trial for narrowing binaryen-ts's
+carriers to declared-only: 13 errors (factories inferring from the last child; 4 readers).
+Plan: (3a) the text parser declares; (3b) `fallsThrough` and the 26 reads of `Unreachable` that ask
+about control flow; (3c) the carriers' `type` narrowed, factories declare, the encoder patch goes.
+
+**(3a) 🛑 Defect, binaryen-ts WAT parser — the decoder's hole on the text path.** `declaredType` took a
+FALLBACK for an unannotated construct: the last child's type (block, try, try_table) or `makeIf`'s
+inference from the arms (if — void OR typed, the typed case guarded only `!== Unreachable`). So
+`(block (unreachable))`, an `if` whose arms both trap, `(try_table (throw $e))` came out typed
+`unreachable`, and the encoder's extra `unreachable` followed an `end` the source did not. Valid, not
+the module written; the corpus and spec harness never reach this parser (they go through wabt-ts).
+Fixed: no fallback. Tests (`unreachable_construct.test.ts`, 6 carriers): text-path carrier types equal
+the decoder's, none `unreachable`, code sections byte-equal; 5 of 6 fail on the old parser (the loop
+passed — `parseLoop` alone already used `None`).
+
+🔧 **The plan's (3b) was wrong about the 26 reads, and reading them said so.** Nearly all of them ask
+whether an instruction is STACK-POLYMORPHIC after it (`unreachable`, `br`, `return`, `throw`, an
+operator over one) — a structural fact of the encoding, true of those nodes and NEVER of a construct,
+whose `end` resets the stack to what it declares. Once carriers are declared-only those reads are
+correct as written. "Does control reach the end" (`fallsThrough`) is a different question that no
+current read needs for correctness — it would only let DCE trim after a construct that never falls
+through, which upstream does. Not built; noted as a possible optimization.
+
+What DOES depend on the encoder's extra `unreachable` — measured by deleting that one line and
+running the suite, optimize-corpus and translate-eh: ONE test (StripEH, `block (result i32) (throw
+…)`); every -O level still validated, -O3 286 bytes smaller. So the work is the passes that PUT a
+construct where a polymorphic instruction stood.
+
+**(3b) `mapWithSequences` — a rewrite may be several statements.** A pass returns a `Sequence` (the
+statements, ending in one that never falls through) instead of a block typed `unreachable`. In a list
+it is spliced — no construct, no byte. In an operand slot the consumer never runs, so it is replaced
+by its operands evaluated before (one value dropped, none or several standing) and the sequence;
+later operands are dead; this climbs to the nearest list. A block's ENTRY VALUES are operands too
+(found by reading after the first draft: the list branch skipped `params`). No slot types needed, no
+marker node. Users:
+- **StripEH** — a throw's `drop`s + `unreachable` are a sequence; a try's body block DECLARES the try's
+  type (it took the body region's, which the text parser infers as `unreachable`).
+- **Inlining** — the body block declares the callee's results, which subsumes two repairs (the tuple
+  retype, and the `unreachable` appended after a `none`/`unreachable` body); a call whose operand never
+  returns, and a void `return_call`, are sequences.
+
+Measured: with the encoder line deleted, suite, corpus (all levels) and translate-eh all pass.
+Optimizer output: **143 of 2,105 module×level outputs changed, all -O3 (Inlining), all smaller, −903
+bytes**; differentially run old against new — 143/143 agree, 708 calls plus memory hash (the
+bridge-behaviour harness, pointed at the two -O3 binaries). Tests: `map_with_sequences.test.ts` (6:
+list, operand with a side effect before and a dead one after, `if` condition, block absorbs and keeps
+its type, entry value) and 4 pass rows in `unreachable_construct.test.ts` checked ON THE TREE (no
+carrier typed `unreachable`) — all 4 fail on the old passes. 10 mutants: 8 killed; 1 equivalent
+(regions never precede an operand, so `before` never sees one); 1 survived FOR A REASON — the binary
+fixture's try body region already carried the declared type, so a text-path test was added and kills
+it. A binary typed-try row that passed on the old code was removed rather than kept as a claim.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

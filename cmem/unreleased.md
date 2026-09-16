@@ -203,10 +203,22 @@ their own bump — and nothing breaks by their standing still.
   (`mem1` where two collided on `mem0`).
 - **A name section's LOCAL subsection keeps the shape it was read with** (N6, `5d3ebb9ef`); 376 real
   WASI binaries went 366 → 374 byte-identical.
+- **StripEH and Inlining build no construct typed `unreachable`** (S6 step 5 item 5 (3b)): a replaced
+  `throw` (or an inlined call that never returns, or a void `return_call`) becomes statements spliced
+  in place, not a block the encoder followed with an extra `unreachable`; an inlined body's block
+  declares the callee's results. -O3 over the corpus: 143 modules smaller, −903 bytes, none larger;
+  old and new run identically (708 calls + memory). New public helper `mapWithSequences` / `Sequence`
+  (`binaryen-ts/ir/walk.ts`); `stripEHNode` returns `Expression | Sequence`.
 - **LocalCSE follows upstream's `isRelevant`** (`5b0cf25c6`): -Oz −3.9% over the corpus, 0 of 421
   modules larger.
 
 ## Correctness fixes that were silent before
+
+- **binaryen-ts's WAT parser gives a construct its DECLARED type** (S6 step 5 item 5 (3a)). An
+  unannotated `block` / `if` / `try` / `try_table` whose body ends unreachable — `(block
+  (unreachable))`, an `if` whose arms both trap, a typed `if` likewise — was typed `unreachable`, and
+  the encoder wrote an `unreachable` after its `end` that the source did not have. Valid output, one
+  byte per such construct longer; now identical to the binary decoder's.
 
 - **wabt-ts REJECTS non-value types in value positions** (`eec6912fd`). It accepted modules V8 and
   upstream reject: a binary local, param, result, global or block result of a packed (`0x78`) or
