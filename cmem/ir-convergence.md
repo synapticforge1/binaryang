@@ -2775,6 +2775,35 @@ carrier typed `unreachable`) — all 4 fail on the old passes. 10 mutants: 8 kil
 fixture's try body region already carried the declared type, so a text-path test was added and kills
 it. A binary typed-try row that passed on the old code was removed rather than kept as a claim.
 
+**(3c) The carriers' `type` is a `BlockResult`, and nothing infers one.** binaryen-ts's `BlockExpr` /
+`LoopExpr` / `IfExpr` / `TryExpr` / `TryTableExpr` declare `type?: BlockResult` — wabt-ts's type,
+imported. `makeBlock` / `makeIf` DECLARE (`None` when not told, as `(block …)` / `(if …)` without
+`(result …)` are) — no inference from the last child or the arms; `blockOf` / `asStatement` REQUIRE
+the type of what the body stands in for; the loop / try / try_table factories take a `BlockResult`.
+The decoder hands `makeIf` its declared type (`blockResult(rts)`), the text parser its `declaredType`.
+The encoder's extra `unreachable` is DELETED, and `writeBlockType` REFUSES a construct still typed
+`unreachable` (it wrote `0x40`, a declaration the construct never had). Per site:
+- **asyncify** (2): the flat body's block declares `None` — its values leave through `return` / the
+  unwind `br`. (First draft declared the function's results; the fixture's module was invalid —
+  the declaration has to be what FALLS THROUGH, not what the function returns.)
+- **flatten** (2): a multi-instruction region as a block declares its contents' type (`None` when they
+  never fall through); the function body declares the results only when it is returned as a value.
+- **RemoveUnusedNames**: a loop replaced by its body declares the loop's type.
+- **Inlining**: `asStatement(body, retType)`. **StripEH**: `asStatement(body, try.type)`.
+- **translate-eh**: the try's type can no longer be `unreachable`, so that branch went.
+- **compat API** (`block` / `if` / `loop`): upstream's C API types a construct from its contents, so
+  the declaration is taken from them — a value when one is yielded, `none` otherwise.
+- **bridge**: `bridgeBlockType` returns `BlockResult`.
+
+Tests changed because they PINNED inference: "makeIf type is the reachable arm's type (LUB)" is now
+"makeIf's type is what it DECLARES" (both arms `return` → still `none`); the f64-comparison `if`'s
+inferred type assertion went (its round-trip test is the report); `function_frame_label` fixtures
+declare `i32`. Four mutants SURVIVED the first run — each a site no test reached (a value loop with
+no back-edge; a multi-instruction value `if` arm through Flatten; compat `if` / `block` types).
+Reachability was confirmed by making each branch throw (nothing failed), tests were added, and all
+now die (14 mutants on (3c), 14 killed). Optimizer output: **0 of 2,105 changed** from (3b). Alias
+trial 301 → 305: the carriers' optional `type?` against wabt-ts's required `type` — (4)'s base work.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

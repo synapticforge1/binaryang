@@ -111,10 +111,10 @@ import {
   type WasmFunction,
   type WasmModule,
 } from '../ir/module.ts';
-import { None, type Type, ValType } from '../ir/types.ts';
+import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
 import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
-import { varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { type BlockResult, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { Opcode } from '../../wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
@@ -241,6 +241,16 @@ function _valTypeToId(t: ValueType | undefined): number {
     return anyref;
   }
   return _VAL_TO_ID[t] ?? none;
+}
+
+/**
+ * A type fit to be a construct's DECLARATION: the type itself, or `None` for
+ * `unreachable` / unknown. For the compat factories, whose upstream counterparts
+ * infer a construct's type from its contents; the IR's constructs declare theirs
+ * (S6 step 5 item 5 (3)), and one that never falls through declares nothing.
+ */
+function concreteOrNone(t: Type | undefined): BlockResult {
+  return t === undefined || t === Unreachable ? None : t;
 }
 
 function _idToValType(id: number): ValType | null {
@@ -1346,22 +1356,23 @@ export class Module {
    * {@link none} (the default) for void blocks.
    */
   block(label: string | null, children: Expression[], type: number = none): Expression {
-    const blk = makeBlock(children, label);
-    if (type !== none) {
-      const vt = _idToValType(type);
-      if (vt !== null) blk.type = vt as Type;
-    }
-    return blk;
+    const vt = type === none ? null : _idToValType(type);
+    return makeBlock(children, label, vt ?? concreteOrNone(children[children.length - 1]?.type));
   }
 
   /** `if` expression. `else_` may be omitted for a one-armed if (result type `none`). */
   if(cond: Expression, then: Expression, else_?: Expression | null): Expression {
-    return makeIf(cond, then, else_ ?? null);
+    // Upstream's C API types an `if` from its arms. The IR's `if` DECLARES its
+    // type, so the declaration is taken from them here: a value only when there
+    // is an `else` and an arm yields one.
+    const arms = else_ ? [then.type, else_.type] : [];
+    const declared = arms.map(concreteOrNone).find((t) => t !== None) ?? None;
+    return makeIf(cond, then, else_ ?? null, '', declared);
   }
 
   /** `loop` expression. */
   loop(label: string, body: Expression): Expression {
-    return makeLoop(label, body, body.type);
+    return makeLoop(label, body, concreteOrNone(body.type));
   }
 
   /**

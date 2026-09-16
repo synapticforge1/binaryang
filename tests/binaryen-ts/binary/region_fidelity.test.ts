@@ -33,6 +33,7 @@ import {
   makeRegion,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { None } from '../../../src/binaryen-ts/ir/types.ts';
 
 const HEADER = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 const VOID_TYPE = [0x01, 0x04, 0x01, 0x60, 0x00, 0x00];
@@ -160,9 +161,9 @@ describe('the region helpers', () => {
 
   it('asStatement: one instruction stands for itself, several become a block', () => {
     const c = makeI32Const(1);
-    assertEquals(asStatement(makeRegion([c])), c);
-    assertEquals(asStatement(makeRegion([makeNop(), makeNop()])).kind, ExpressionKind.Block);
-    assertEquals(asStatement(c), c);
+    assertEquals(asStatement(makeRegion([c]), None), c);
+    assertEquals(asStatement(makeRegion([makeNop(), makeNop()]), None).kind, ExpressionKind.Block);
+    assertEquals(asStatement(c, None), c);
   });
 
   it('the encoder refuses a region outside a region slot', () => {

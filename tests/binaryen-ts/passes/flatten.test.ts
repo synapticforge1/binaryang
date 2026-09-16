@@ -381,3 +381,16 @@ Deno.test('Flatten: an `if` keeps its label, so a `br` to the `if` still resolve
     [[0], [1]],
   );
 });
+
+Deno.test('flatten preserves semantics — a value if whose arms are several instructions', () => {
+  // A multi-instruction arm flattens as a block DECLARING the arm's value type
+  // (S6 step 5 item 5 (3)); declared void, its value is lost to the result temp.
+  assertEquivalent(
+    `(module (func (export "f") (param i32) (result i32)
+      (if (result i32) (local.get 0)
+        (then (drop (i32.const 0)) (i32.const 11))
+        (else (nop) (i32.const 22)))))`,
+    'f',
+    [[0], [1]],
+  );
+});

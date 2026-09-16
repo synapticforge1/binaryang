@@ -68,7 +68,7 @@ import { None, type Type, Unreachable, type ValType } from '../ir/types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { requireName, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { blockResult, requireName, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -261,8 +261,13 @@ function flattenControlFlow(e: Expression, ctx: Ctx): Flat {
     // several (`asStatement`) — the shapes upstream's parser hands its Flatten,
     // and the ones this port's parsers produced before regions were a kind, so
     // the Flat IR that asyncify mirrors against `wasm-opt` is unchanged.
+    // A block of several declares the region's contents' type — `None` when
+    // they never fall through, which is what such a block declares.
     case ExpressionKind.Region:
-      return flattenExpr(asStatement(e), ctx);
+      return flattenExpr(
+        asStatement(e, e.type === undefined || e.type === Unreachable ? None : e.type),
+        ctx,
+      );
     case ExpressionKind.If:
       return flattenIf(e as IfExpr, ctx);
     case ExpressionKind.Loop:
@@ -398,7 +403,7 @@ export function flattenFunction(
   // Unwrapped, not placed as is: `return` takes an OPERAND, which a region
   // cannot be — and `makeReturn(region)` type-checks, since a region is an
   // Expression.
-  const body = asStatement(func.body);
+  const body = asStatement(func.body, bodyIsValue ? blockResult(func.results) : None);
   const source = bodyIsValue ? makeReturn([body]) : body;
 
   const f = flattenExpr(source, ctx);

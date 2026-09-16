@@ -34,6 +34,7 @@ import {
   type TryTableExpr,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
+import { None } from '../ir/types.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
@@ -107,7 +108,7 @@ function _strip(expr: Expression, targets: Set<string>): Expression {
     if (!targets.has(loop.label) && loop.type === loop.body.type) {
       // The body takes the LOOP's place — a statement or operand position,
       // which a region cannot occupy and which `Expression` would not refuse.
-      return asStatement(loop.body);
+      return asStatement(loop.body, loop.type ?? None);
     }
     return loop;
   }

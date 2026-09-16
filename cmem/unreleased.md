@@ -36,6 +36,14 @@ their own bump — and nothing breaks by their standing still.
   `ValType.I32` and `ValType` as a type work unchanged; an enum reverse lookup (`ValType[127]`) does
   not, and a member used as a TYPE is `typeof ValType.I32`. wabt-ts's `Type` gains `StringRef`
   (`./core/wabt-ts`).
+- ⚠️ **BREAKING: a construct's type is what it DECLARES** (S6 step 5 item 5 (3); `./ir/binaryen-ts`).
+  `BlockExpr` / `LoopExpr` / `IfExpr` / `TryExpr` / `TryTableExpr` `type` is a `BlockResult` (`'none'`
+  | a value type | a list) — never `'unreachable'`. `makeBlock(children, name?, type?)` and
+  `makeIf(cond, then, else?, name?, type?)` no longer INFER a type from the children / arms: omitted
+  means `none`, as in text. `blockOf(region, type, name?)` and `asStatement(e, type)` take the type
+  as a required argument. `makeLoop` / `makeTry` / `makeTryTable` take a `BlockResult`. The encoder
+  no longer writes an `unreachable` after a construct typed `unreachable`; it throws. The compat
+  API's `block` / `if` / `loop` still take their type from their contents.
 - ⚠️ **BREAKING (types only): `ExpressionKind` is a const object plus a same-named union type**, not
   an enum (S6 step 5 item 5 (2); `./ir/binaryen-ts`). Values unchanged — they were already the kind
   strings. `ExpressionKind.Block` as a value and `ExpressionKind` as a type work unchanged, and a plain

@@ -50,7 +50,13 @@ import {
   varIndex,
   varName,
 } from '../wabt-ts/ir/ir.ts';
-import type { HeapTypeRef, StorageType, TableCatch, ValueType } from '../wabt-ts/ir/ir.ts';
+import type {
+  BlockResult,
+  HeapTypeRef,
+  StorageType,
+  TableCatch,
+  ValueType,
+} from '../wabt-ts/ir/ir.ts';
 import type { ValType as WabtValType } from '../wabt-ts/core/types.ts';
 import type {
   ArrayGetExpr,
@@ -614,7 +620,7 @@ function nameForLabel(ctx: BridgeCtx, label: string): string {
 }
 
 /** Map a wabt BlockType to a binaryen-ts result Type. */
-function bridgeBlockType(bt: BlockType, ctx: BridgeCtx): BType {
+function bridgeBlockType(bt: BlockType, ctx: BridgeCtx): BlockResult {
   switch (bt.kind) {
     case 'void':
       return None;

@@ -74,10 +74,10 @@ import {
 } from '../ir/expressions.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
-import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
+import { None, Unreachable, ValType } from '../ir/types.ts';
 import { mapChildrenShallow, visitChildren, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { type BlockResult, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 
 /** Translates legacy EH instructions into `try_table` / `throw_ref`. */
 export class TranslateToExnrefPass implements Pass {
@@ -284,7 +284,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
     if (targeted) depth--;
 
     const type = t.type!;
-    const concrete = type !== None && type !== Unreachable;
+    const concrete = type !== None;
     // The outermost replacement node takes the try's own label, so a `br` to the
     // try still lands at its end.
     let outer: string | null = null;
@@ -342,8 +342,6 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
 
     let items: Expression[] = concrete
       ? [makeBreak(out, null, [tryTable])]
-      : type === Unreachable
-      ? [tryTable]
       : [tryTable, makeBreak(out)];
     clauses.forEach((clause, i) => {
       const params = clause.tag === undefined ? [] : paramsOf(clause.tag);
@@ -389,7 +387,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
 // ---------------------------------------------------------------------------
 
 /** The type a list of values has together: none, the one value's, or a tuple. */
-function typeOfValues(values: readonly ValueType[]): Type {
+function typeOfValues(values: readonly ValueType[]): BlockResult {
   if (values.length === 0) return None;
   return values.length === 1 ? values[0]! : [...values];
 }

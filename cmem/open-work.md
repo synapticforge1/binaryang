@@ -73,8 +73,10 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    carrier's `type` is ALWAYS declared, never `'unreachable'`; reachability is derived
    (`fallsThrough`). ✅ (3a) the WAT parser declares. ✅ (3b) `mapWithSequences`; StripEH and
    Inlining build no construct typed `unreachable` (the 26 reads needed no change — they ask about
-   stack polymorphism; `fallsThrough` is only a possible DCE optimization). Next: (3c) narrow the
-   carriers' `type`, factories take a declared type, delete the encoder's extra `unreachable`.
+   stack polymorphism; `fallsThrough` is only a possible DCE optimization). ✅ (3c) carriers'
+   `type?: BlockResult`; factories declare; the encoder's extra `unreachable` deleted and a construct
+   typed `unreachable` refused. Next: (4) the rest of the base — binaryen-ts literals' required
+   `type`, `nodeId`, the catch records' `loc`, `type` required vs optional (alias trial 305).
 6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
    `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
    `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the

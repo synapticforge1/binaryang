@@ -354,20 +354,6 @@ function isBlockTypeCarrier(expr: Expression): boolean {
   }
 }
 
-/** A construct that closes with its own `end`, and so resets the stack to its declared type. */
-function isControlConstruct(e: Expression): boolean {
-  switch (e.kind) {
-    case ExpressionKind.Block:
-    case ExpressionKind.Loop:
-    case ExpressionKind.If:
-    case ExpressionKind.Try:
-    case ExpressionKind.TryTable:
-      return true;
-    default:
-      return false;
-  }
-}
-
 /**
  * A block-type carrier's RESULT list, from its type: empty for `none` and for
  * `unreachable` (a construct whose every path branches away declares no result
@@ -415,7 +401,13 @@ function writeBlockType(
     // two writers must agree.
     writeValueType(w, t as ValType | RefType);
   } else {
-    w.writeU8(0x40);
+    // Not written as `0x40`: that silently gave a construct a declaration it did
+    // not have. The IR's type says a construct DECLARES what it yields, and
+    // `unreachable` is not a declaration (S6 step 5 item 5 (3)).
+    throw new WasmEncodeError(
+      'a block / loop / if / try / try_table typed `unreachable`: a construct declares ' +
+        'its results (none, a value type, or several) — give it the type it stands for',
+    );
   }
 }
 
@@ -1792,22 +1784,19 @@ class WasmEncoder {
   }
 
   /**
-   * One expression — and, after a control construct TYPED unreachable, an extra
-   * `unreachable` opcode.
+   * One expression.
    *
-   * A `block` / `loop` / `if` / `try` / `try_table` is validated against its
-   * DECLARED type: after its `end` the stack holds exactly its results, never a
-   * polymorphic one, however surely every path inside throws or traps. The IR
-   * may type such a construct `unreachable`, and a pass reading that type may
-   * leave nothing after it — so without this a tree a pass built was invalid
-   * wherever a value had to follow (`unreachable_construct.test.ts`). Upstream's
-   * writer does exactly this (`wasm-stack.h`, `BinaryenIRWriter::visitBlock` and
-   * its siblings). A DECODED construct carries its declared type, so a plain
-   * decode → encode never reaches the extra byte.
+   * 🔧 After a control construct TYPED `unreachable` this wrote an extra
+   * `unreachable` opcode, as upstream's writer does (`wasm-stack.h`): a construct
+   * is validated against its declaration, so a pass-built one typed that way was
+   * invalid wherever a value had to follow. A construct's type is now ALWAYS its
+   * declaration (S6 step 5 item 5 (3), owner 2026-09-16) — passes that stand
+   * statements where a polymorphic instruction was splice them
+   * (`mapWithSequences`) — so the tree is exactly what is written.
+   * {@link writeBlockType} refuses a construct that still says `unreachable`.
    */
   private encodeExpr(w: BinaryWriter, expr: Expression, labels: LabelStack): void {
     this.encodeExprInner(w, expr, labels);
-    if (expr.type === Unreachable && isControlConstruct(expr)) w.writeU8(0x00);
   }
 
   private encodeExprInner(w: BinaryWriter, expr: Expression, labels: LabelStack): void {
