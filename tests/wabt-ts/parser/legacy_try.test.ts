@@ -132,8 +132,8 @@ describe('legacy try/catch — parser produces a real TryExpr', () => {
             (do (throw $exn))
             (delegate 0)))))`);
     // The try is nested inside the block.
-    const block = outer!.body.find((e) => e.kind === 'block') as Expr & { body: Expr[] };
-    const t = findTry(block.body);
+    const block = outer!.body.find((e) => e.kind === 'block') as Expr & { children: Expr[] };
+    const t = findTry(block.children);
     assertEquals(t.catches.length, 0);
     assert(t.delegate !== undefined, 'delegate target recorded');
   });

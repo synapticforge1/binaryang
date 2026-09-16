@@ -278,7 +278,7 @@ describe('writeWatModule — functions', () => {
       kind: 'block',
       label: '$blk',
       type: 'none',
-      body: [{ kind: 'nop', loc: LOC }],
+      children: [{ kind: 'nop', loc: LOC }],
       loc: LOC,
     };
     m.funcs.push(makeFunc({ body: [block] }));

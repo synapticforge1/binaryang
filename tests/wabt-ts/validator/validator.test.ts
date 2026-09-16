@@ -241,7 +241,7 @@ describe('validateModule', () => {
         kind: 'block',
         label: '',
         type: Type.I32,
-        body: blockBody,
+        children: blockBody,
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [block])), true);
@@ -252,7 +252,7 @@ describe('validateModule', () => {
         kind: 'block',
         label: '',
         type: 'none',
-        body: [{ kind: 'unreachable', loc: LOC }],
+        children: [{ kind: 'unreachable', loc: LOC }],
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [], [block])), true);
@@ -280,7 +280,7 @@ describe('validateModule', () => {
         kind: 'block',
         label: '',
         type: Type.I32,
-        body: [inner],
+        children: [inner],
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [block])), true);

@@ -512,7 +512,8 @@ export interface BlockExpr {
   readonly typeIndex?: Index;
   /** Entry parameters — see {@link BlockParams}. Absent means none. */
   readonly params?: BlockParams;
-  readonly body: Expr[];
+  /** The block's instructions, in order — a region's `children` (S6 step 5, stage (d1)). */
+  readonly children: Expr[];
   readonly loc: Location;
 }
 /** `loop` (0x03) — a labeled scope; `br $label` jumps to the LOOP HEADER, not its exit. */

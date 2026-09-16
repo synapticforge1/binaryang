@@ -3350,7 +3350,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          children: bodyCtx.stmts,
           loc,
         }
         : {
@@ -3660,7 +3660,7 @@ export class WastParser {
           label,
           ...this.headerOf(blockType),
           ...(params ? { params } : {}),
-          body: bodyCtx.stmts,
+          children: bodyCtx.stmts,
           loc,
         }
         : {

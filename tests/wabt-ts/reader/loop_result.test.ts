@@ -47,6 +47,7 @@ const CHILD_KEYS = [
   'args',
   'operands',
   'body',
+  'children', // a block's list (S6 step 5 (d1)); a region's too
   'ifTrue',
   'ifFalse',
 ] as const;

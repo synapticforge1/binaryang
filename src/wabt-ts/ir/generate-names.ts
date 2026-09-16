@@ -211,7 +211,7 @@ class NameGenerator {
         case 'block':
         case 'loop': {
           if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
-          this.generateLabelNames(e.body, counter);
+          this.generateLabelNames(e.kind === 'block' ? e.children : e.body, counter);
           break;
         }
         case 'if': {

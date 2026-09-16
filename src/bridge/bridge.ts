@@ -1060,7 +1060,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       const name = nameForLabel(ctx, blk.label);
       ctx.labelStack.push(name);
       try {
-        const children = blk.body.map((c) => bridgeExpr(c, ctx));
+        const children = blk.children.map((c) => bridgeExpr(c, ctx));
         // makeBlock infers type from the last child. For early-exit blocks
         // (last child is br / return / unreachable) that comes out as
         // "unreachable", which loses the block's declared signature.

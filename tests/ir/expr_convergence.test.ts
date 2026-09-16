@@ -84,7 +84,7 @@ const PINNED: Computed = {
   'array.new_fixed': 'identical',
   'array.set': 'identical',
   'binary': 'identical',
-  'block': 'names',
+  'block': 'types',
   'br': 'identical',
   'br_on': 'identical',
   'br_table': 'identical',

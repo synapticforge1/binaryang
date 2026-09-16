@@ -426,7 +426,7 @@ describe('readBinaryIr', () => {
           kind: 'block',
           label: '$l',
           type: 'none',
-          body: [{ kind: 'nop', loc: LOC }],
+          children: [{ kind: 'nop', loc: LOC }],
           loc: LOC,
         },
       ],
@@ -442,8 +442,8 @@ describe('readBinaryIr', () => {
     assertEquals(body.length, 1);
     assertEquals(body[0]!.kind, 'block');
     if (body[0]!.kind === 'block') {
-      assertEquals(body[0].body.length, 1);
-      assertEquals(body[0].body[0]!.kind, 'nop');
+      assertEquals(body[0].children.length, 1);
+      assertEquals(body[0].children[0]!.kind, 'nop');
     }
   });
 

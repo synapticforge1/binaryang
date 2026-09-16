@@ -307,6 +307,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
           targets?: NameVar[];
           defaultTarget?: NameVar;
           body?: unknown[];
+          children?: unknown[];
         }[]
       ) {
         if (e.kind === 'br_table') {
@@ -315,6 +316,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
           if (e.defaultTarget?.kind === 'name') names.push(e.defaultTarget.name!);
         }
         if (Array.isArray(e.body)) walk(e.body);
+        if (Array.isArray(e.children)) walk(e.children);
       }
     };
     for (const f of module.funcs) walk(f.body);

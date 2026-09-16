@@ -393,7 +393,17 @@ class ResolveContext {
           values,
         }];
       }
-      case 'block':
+      // ⚠️ Two arms, not one: `block` holds `children` and `loop` holds `body`
+      // (stage (d1)). A shared arm returning `{ ...e, body }` type-checks for a
+      // block — the spread adds a stray key — and leaves `children` unresolved.
+      case 'block': {
+        const type = this.resolveBlockResult(e.type, loc);
+        const [rP, params] = this.resolveEntryParams(e, loc);
+        this.labelStack.push(e.label);
+        const [r, children] = this.resolveExprArray(e.children);
+        this.labelStack.pop();
+        return [combine(rP, r), { ...e, type, ...params, children }];
+      }
       case 'loop': {
         const type = this.resolveBlockResult(e.type, loc);
         const [rP, params] = this.resolveEntryParams(e, loc);

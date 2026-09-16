@@ -80,7 +80,7 @@ describe('T7.12 — br_on_null carries branch values', () => {
     // block > return > call_ref > br_on_null
     const block = body[0]!;
     assert(block.kind === 'block');
-    const ret = block.body[0]!;
+    const ret = block.children[0]!;
     assert(ret.kind === 'return');
     const callRef = ret.values[0]!;
     assert(callRef.kind === 'call_ref');

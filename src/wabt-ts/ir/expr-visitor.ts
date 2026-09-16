@@ -767,7 +767,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginBlockExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body);
+        r = this.visitExprList(e.children);
         if (r === Result.Error) return r;
         return this.d.endBlockExpr?.(e) ?? Result.Ok;
       }

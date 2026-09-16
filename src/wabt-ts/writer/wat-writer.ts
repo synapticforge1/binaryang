@@ -1750,7 +1750,7 @@ class WatWriter extends ModuleContext {
           this.declaredBlockType(e),
         );
         this.indent += 2;
-        this.writeExprList(e.body);
+        this.writeExprList(isLoop ? e.body : e.children);
         this.endBlock();
         this.close(NC.Space);
         return true;

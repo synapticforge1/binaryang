@@ -1495,7 +1495,7 @@ export class BinaryReader {
                 label: frame.label,
                 ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                body: endBody,
+                children: endBody,
                 loc: frame.loc,
               };
               break;

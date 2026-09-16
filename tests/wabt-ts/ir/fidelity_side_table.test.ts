@@ -41,6 +41,7 @@ const CORPUS = new URL('../wasmtk/', import.meta.url);
 /** Named child fields — a generic walk would descend into types, which are not expressions. */
 const CHILD_FIELDS = [
   'body',
+  'children', // a block's list (S6 step 5 (d1)); a region's too
   'ifTrue',
   'ifFalse',
   'value',
