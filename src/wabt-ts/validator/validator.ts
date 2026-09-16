@@ -1040,8 +1040,8 @@ class ModuleValidator implements ExprVisitorDelegate {
         r,
         this.sv.onTryTableCatch(
           e.loc,
-          c.kind,
           c.tag !== undefined ? varIdx(c.tag) : undefined,
+          c.isRef,
           varIdx(c.target),
         ),
       );

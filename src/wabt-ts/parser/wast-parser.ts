@@ -48,7 +48,6 @@ import {
   type CallIndirectExpr,
   type CallRefExpr,
   type Catch,
-  CatchKind,
   type Const,
   type ConstExpr,
   constF32,
@@ -3572,30 +3571,17 @@ export class WastParser {
     const catchLoc = this.loc();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
     const kindTok = this.peek();
-    let kind: CatchKind;
-    switch (kindTok) {
-      case TokenType.Catch:
-        kind = CatchKind.Catch;
-        break;
-      case TokenType.CatchRef:
-        kind = CatchKind.CatchRef;
-        break;
-      case TokenType.CatchAll:
-        kind = CatchKind.CatchAll;
-        break;
-      case TokenType.CatchAllRef:
-        kind = CatchKind.CatchAllRef;
-        break;
-      default:
-        this.error(catchLoc, 'expected catch / catch_ref / catch_all / catch_all_ref');
-        return null;
+    if (
+      kindTok !== TokenType.Catch && kindTok !== TokenType.CatchRef &&
+      kindTok !== TokenType.CatchAll && kindTok !== TokenType.CatchAllRef
+    ) {
+      this.error(catchLoc, 'expected catch / catch_ref / catch_all / catch_all_ref');
+      return null;
     }
     this.drop(); // consume the catch keyword
-    // A tagged kind and its tag are built TOGETHER: `TableCatch` is two shapes,
-    // so the tag cannot be attached to a `catch_all` by accident.
-    const tagged = kind === CatchKind.Catch || kind === CatchKind.CatchRef;
+    const isRef = kindTok === TokenType.CatchRef || kindTok === TokenType.CatchAllRef;
     let tag: Var | undefined;
-    if (tagged) {
+    if (kindTok === TokenType.Catch || kindTok === TokenType.CatchRef) {
       const tv = this.parseVar();
       if (tv === null) {
         this.error(catchLoc, 'expected tag reference after catch / catch_ref');
@@ -3609,10 +3595,10 @@ export class WastParser {
       return null;
     }
     this.expect(TokenType.Rpar);
-    if (kind === CatchKind.Catch || kind === CatchKind.CatchRef) {
-      return { kind, tag: tag!, target, loc: catchLoc };
-    }
-    return { kind, target, loc: catchLoc };
+    // `exactOptionalPropertyTypes`: a catch_all clause OMITS the tag key.
+    return tag !== undefined
+      ? { tag, target, isRef, loc: catchLoc }
+      : { target, isRef, loc: catchLoc };
   }
 
   // -------------------------------------------------------------------------

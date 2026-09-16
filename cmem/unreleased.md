@@ -76,6 +76,9 @@ their own bump — and nothing breaks by their standing still.
   `string | null` and map `null` to `''`. ⚠️ **A null test against these still compiles**:
   TypeScript exempts `=== null` from its no-overlap rule, so `block.name === null` becomes
   `block.label === null`, which is always false — test `=== ''`, or truthiness.
+  Then stage (b), the catch records: **`TryCatch` → `Catch`, `CatchClause` → `TableCatch`**
+  (`11e632b8e`, wabt-ts's and upstream wabt's names; the `tryCatch` / `tryCatchAll` factories keep
+  theirs). The shapes did not change on this side.
 - **Region bodies** (S6 decision 5, `7f3ec1d6e`): every region slot — `LoopExpr.body`,
   `IfExpr.ifTrue` / `ifFalse`, `TryExpr.body`, `TryCatch.body`, `TryTableExpr.body`,
   `WasmFunction.body` — is a `RegionExpr` (new `ExpressionKind.Region`). Factories and
@@ -106,8 +109,6 @@ their own bump — and nothing breaks by their standing still.
   object — five arguments where there were six. `FuncSignature` is a new export. The compat
   facade's binaryen.js-shaped `call_indirect(table, target, operands, params, results)` is
   unchanged.
-- **`TableCatch` is a two-shape UNION** (`b1410d6e8`): a `catch_all` can no longer carry a tag — a
-  compile-time break for anyone constructing one.
 - **The SIMD lane shifts are a `binary`** (K3, 2026-09-14): `ExpressionKind.SIMDShift`,
   `SIMDShiftExpr`, `SIMDShiftOp` and `makeSIMDShift` are REMOVED. Build a shift with
   `makeBinary(BinaryOp.ShlVecI8x16, vec, count)` — the twelve members keep their names and opcodes,
@@ -126,6 +127,12 @@ their own bump — and nothing breaks by their standing still.
   FOLLOWED, and written back into that gap (C3, `4c162c584`).
 
 ## API-visible — wabt-ts and the tools
+
+- ⚠️ **BREAKING: `TableCatch` is `{ loc, tag?, target, isRef }`, and `CatchKind` is GONE** (S6
+  step 5 stage (b), `e9f6721e4`; exported from `./ir/wabt-ts`). 1.5.4 had
+  `{ kind: CatchKind; tag?; target }`. Read a clause as `tag !== undefined` (catch / catch_ref) ×
+  `isRef` (the `_ref` pair) — how the legacy `Catch` always held it, and binaryen-ts's `TableCatch`.
+  (An intermediate two-shape union, `b1410d6e8`, was never released.)
 
 - **`wat2wasm` output carries a name section** (N1, `7520ed7d3`) — +29.5% over the corpus, accepted
   by the owner. `WriteBinaryOptions.writeDebugNames` now works and defaults to true.

@@ -1058,7 +1058,7 @@ Covered the bridge's shape, the binaryen-ts 1.0.9 constructor surface, type mapp
 About 60 expression kinds plus the module surface, tested in `tests/bridge/`:
 - **Tier A** — core compute and control flow: locals/globals, unary/compare/convert, return, drop, nop, unreachable, block, loop, if, br, br_if, br_table (`tier_a.test.ts`)
 - **Tier B** — call, call_indirect, select, load, store, memory.size, memory.grow (`tier_b.test.ts`)
-- **Tier C** (`tier_c.test.ts`) — ref.null / ref.func / ref.is_null; SIMD basics (v128.const, splat, lane arithmetic, extract/replace_lane, shuffle); SIMD memory (load_splat / load_zero / load_lane / store_lane, via `simdLoadOpForOpcode`); EH (tags, throw, throw_ref, `try_table` with `buildCatchClause` over the four `CatchKind`s)
+- **Tier C** (`tier_c.test.ts`) — ref.null / ref.func / ref.is_null; SIMD basics (v128.const, splat, lane arithmetic, extract/replace_lane, shuffle); SIMD memory (load_splat / load_zero / load_lane / store_lane, via `simdLoadOpForOpcode`); EH (tags, throw, throw_ref, `try_table` with `buildCatchClause` over the four catch clauses)
 - **Tier D** — memory and table exports; active and passive data segments via `bridgeDataSegment` (`tier_d.test.ts`)
 - **GC tiers** (`gc_tier1`–`4.test.ts`) — Tier 1 i31, ref.eq; Tier 2 struct.\*, with `addHeapType` up front and `BridgeCtx.heapTypeIdx`; Tier 3 array.\*; Tier 4 ref.test / ref.cast
 

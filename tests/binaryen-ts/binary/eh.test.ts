@@ -277,7 +277,7 @@ Deno.test('EH parser: a catch tag is spelled the same in BOTH try forms', () => 
   walkExpression(mod.functions[0].body, (e) => {
     if (e.kind === ExpressionKind.TryTable) seen = (e as TryTableExpr).catches[0]?.tag;
   });
-  // A `Var`, like `TryCatch.tag` — not a bare string.
+  // A `Var`, like `Catch.tag` — not a bare string.
   assertEquals(typeof seen, 'object');
   assertEquals((seen as { kind: string }).kind, 'name');
 });

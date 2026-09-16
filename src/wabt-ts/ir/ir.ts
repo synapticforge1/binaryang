@@ -302,18 +302,6 @@ export function constV128(bytes: Uint8Array): Const {
 // Catch clauses — exception handling
 // ---------------------------------------------------------------------------
 
-/** The four `(catch …)` clause shapes in `try_table` (EH proposal). */
-export enum CatchKind {
-  /** `(catch $tag $label)` — branches to `$label` with the unpacked args. */
-  Catch = 'catch',
-  /** `(catch_ref $tag $label)` — branches with args + the exception ref. */
-  CatchRef = 'catch_ref',
-  /** `(catch_all $label)` — matches any tag, no args. */
-  CatchAll = 'catch_all',
-  /** `(catch_all_ref $label)` — matches any tag, branches with the exception ref. */
-  CatchAllRef = 'catch_all_ref',
-}
-
 /** A catch clause in a try/catch block (legacy exception handling). */
 export interface Catch {
   loc: Location;
@@ -325,33 +313,29 @@ export interface Catch {
 /**
  * A catch entry in a try_table block (new exception handling proposal).
  *
- * 🔑 Two SHAPES, not one interface with an optional tag, because `kind` and the
- * presence of `tag` are the same fact: `catch` / `catch_ref` name a tag,
- * `catch_all` / `catch_all_ref` cannot. Held as one interface, the pair could
- * disagree — and the writer reads them SEPARATELY (`catchKindByte(c.kind)`,
- * then `if (c.tag !== undefined)`), so `CatchAll` beside a tag would emit the
- * `catch_all` byte FOLLOWED by a stray tag index, sliding every later clause by
- * one field. Valid-looking bytes, different program, no diagnostic.
+ * The four clauses are two ORTHOGONAL bits, held as two fields:
  *
- * Split this way, the compiler refuses the combination at every construction
- * site instead. Nothing in the parser or reader built it — this closes the
- * shape, not a live defect.
+ * | clause          | byte | `tag`   | `isRef` |
+ * | --------------- | ---- | ------- | ------- |
+ * | `catch`         | 0x00 | present | false   |
+ * | `catch_ref`     | 0x01 | present | true    |
+ * | `catch_all`     | 0x02 | absent  | false   |
+ * | `catch_all_ref` | 0x03 | absent  | true    |
+ *
+ * 🔧 It was a union keyed by `kind: CatchKind`, split so that `kind` could not
+ * disagree with the presence of `tag` (a `catch_all` beside a tag wrote the
+ * `catch_all` byte FOLLOWED by a stray tag index, sliding every later clause by
+ * one field). This shape closes the same hole with nothing to disagree: there
+ * is no `kind`, so the tag's presence IS the tagged/untagged half. It is also
+ * the legacy {@link Catch}'s encoding of the same four clauses, and binaryen-ts's
+ * `TableCatch` — the same record under the same name (S6 step 5, stage (b)).
  */
-export type TableCatch =
-  | {
-    loc: Location;
-    /** `(catch $tag $label)` / `(catch_ref $tag $label)` — the tag is required. */
-    kind: CatchKind.Catch | CatchKind.CatchRef;
-    tag: Var;
-    target: Var; // branch target label
-  }
-  | {
-    loc: Location;
-    /** `(catch_all $label)` / `(catch_all_ref $label)` — there is no tag. */
-    kind: CatchKind.CatchAll | CatchKind.CatchAllRef;
-    tag?: undefined;
-    target: Var; // branch target label
-  };
+export interface TableCatch {
+  loc: Location;
+  tag?: Var; // undefined → catch_all / catch_all_ref
+  target: Var; // branch target label
+  isRef: boolean; // catch_ref / catch_all_ref: the handler also receives an exnref
+}
 
 // ---------------------------------------------------------------------------
 // Expr — the full discriminated union for WebAssembly instructions

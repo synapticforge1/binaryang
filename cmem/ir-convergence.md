@@ -1906,7 +1906,9 @@ messages. In landing order:
   `c.tag!` assertions in the bridge went (the switch now narrows). 🔑 **For an unrepresentability
   change the inversion is COMPILE-TIME**: the load-bearing assertions are `@ts-expect-error`,
   checked by `deno task check` — widening the union back makes four of them stop erroring and the
-  gate fails. Verified by doing it.
+  gate fails. Verified by doing it. ↪ **Superseded 2026-09-16** (step 5 stage (b), `e9f6721e4`):
+  the kind is now held ZERO times — `{ tag?, target, isRef }` — which closes the same hole with
+  nothing left to disagree.
 - **Every single-label reference is `target`, in BOTH IRs — `d85635eb1`** (`targets` /
   `defaultTarget` for the table, which already agreed). Measured: converting binaryen-ts's `name` /
   `label` / `dest` = 24 sites, the reverse = 45. wabt-ts's `rethrow.depth` → `target` too (9 sites):
@@ -2459,34 +2461,48 @@ The five carriers stay at `names`: the three remaining fields are the catch reco
 `type` + `params` + `typeIndex`) and the bodies (`Expr[]` against `RegionExpr`, `children` against
 `body`).
 
-###### ⬚ Stage (b) — the catch records. ANALYSIS DONE, TRIAL NOT RUN (paused 2026-09-15)
+###### ✅ Stage (b) — the catch records (2026-09-16). Ratchet unmoved at **65 / 1 / 7**
 
-Two records, and only one of them is a shape question.
+Two records, one shape question and one naming question. Both by the declaration trial (rewrite
+one declaration, `deno task check`, count primary error locations outside the bridge, restore;
+a no-op baseline read 0).
 
-**try_table's clause.** wabt-ts's `TableCatch` is a KIND UNION: `kind: CatchKind` (a string enum of
-four) with `tag` required on the `catch`/`catch_ref` arm and `tag?: undefined` on the
-`catch_all`/`catch_all_ref` arm, plus `target: Var` and `loc`. binaryen-ts's `CatchClause` is
-`{ tag?: Var; target: Var; isRef: boolean }`.
+| question                         | trial (convert wabt-ts / binaryen-ts) | taken                                              |
+| -------------------------------- | ------------------------------------- | -------------------------------------------------- |
+| try_table clause SHAPE (`e9f6721e4`) | 14 (**6 src** + 8 pins) / 12 (9 src + 3) | binaryen-ts's `{ tag?, target, isRef }`, `CatchKind` deleted |
+| the pair's NAMES (`11e632b8e`)   | 17 (13 src) / **13** (10 src)         | wabt-ts's `Catch` / `TableCatch`                   |
 
-🔑 **Both are closed, and binaryen-ts's is closed without redundancy.** `tag` present-or-absent ×
-`isRef` is exactly the four cases, so there is no `kind` field that could disagree with `tag` — and
-a `kind` disagreeing with `tag` is precisely the defect wabt-ts split its union to prevent (the
-writer reads them separately: `catchKindByte(c.kind)`, then `if (c.tag !== undefined)`, so
-`CatchAll` beside a tag would emit the `catch_all` byte followed by a stray tag index and slide
-every later clause by one field). The union CLOSES that shape; the two-field form cannot express it
-at all. That is an argument on meaning, and it runs against the raw counts, so the trial decides
-the cost side before anything is written.
+**Shape.** wabt-ts's `TableCatch` was a KIND UNION (`kind: CatchKind`, `tag` required on the tagged
+arm, `tag?: undefined` on the other). 🔑 **Both forms were closed; binaryen-ts's without
+redundancy** — tag present/absent × `isRef` is exactly the four clauses, so no `kind` is left to
+disagree with the tag, which is the defect `b1410d6e8` split the union to prevent. It is also how the
+legacy clause holds the same four on BOTH sides, and wabt-ts's own text writer already printed legacy
+catches from those two bits. The total leaned the other way only through the 8 `@ts-expect-error`
+pins the union needed and this shape does not; source cost and meaning agreed, so no owner call.
+The shared validator's `onTryTableCatch(loc, tag, isRef, depth)` lost its "tagged kind without a
+tag" error arm — unrepresentable now.
 
-⚠️ **The raw counts are not the comparison**: `CatchKind.` appears at 37 sites and `isRef` at 159,
-but `isRef` spans BOTH catch records and both IRs. Run the declaration trial (rewrite the one
-declaration, `deno task check`, count primary error locations outside the bridge, restore).
+**Names.** Upstream wabt's `ir.h` declares `struct Catch` and `struct TableCatch`; upstream binaryen
+has no record (parallel arrays), so it offers no competing name. Cost agreed. binaryen-ts's
+`TryCatch` → `Catch`, `CatchClause` → `TableCatch`; the bridge aliases them `BCatch` /
+`BTableCatch`, its existing convention. The factories `tryCatch` / `tryCatchAll` kept their names.
 
-**The legacy clause is a NAMING question, not a shape one.** wabt-ts's `Catch` and binaryen-ts's
-`TryCatch` already carry the same three fields — `tag?: Var`, `isRef: boolean`, and the body — and
-differ only in `loc` (the node-base stage) and the body's form (sub-stage (d), `Expr[]` against
-`RegionExpr`). What is left is which pair of NAMES both records take: wabt-ts has
-`Catch` / `TableCatch`, binaryen-ts has `TryCatch` / `CatchClause`. Neither side is parallel with
-the other; pick one pair and use it for both.
+🛑 **What the compiler could not see is the MAPPING** — which bit means which byte, keyword or exnref
+parameter type-checks either way. `table_catch_shape.test.ts` drives all four clauses through the
+text parser, binary writer, binary reader and text writer; 13 one-site mutants (parser, reader tag
+and ref halves, both writers, both validator halves, both bridge arms) were ALL killed against a
+green 1163, each by a catch-clause test (named per mutant). The record pins are compile-time — the
+clause's exact key set, wabt-ts's clause = binaryen-ts's bar `loc`, the legacy record equal bar
+`loc` and `body` — inverted four ways (a `kind` on either `TableCatch`, a field on `Catch`, its `tag`
+widened), each failing `deno task check` in that test.
+
+⚠️ Process: the harness's first cut of the mutation runner matched failing test FILES by a pattern
+bdd output does not use, so most kills listed nothing; and a `sed` fix to it replaced nothing and
+the rerun printed nothing — caught only because the output was read. **Zero replacements is a
+failure, not a no-op** (working-rules.md § Tools), and it bit again.
+
+The ratchet does not move: `try` and `try_table` still differ by block type and body, and their
+`catches` fields by `loc`. What is left of the block family: (c) the block type, (d) the bodies.
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and

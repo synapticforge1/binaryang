@@ -100,8 +100,7 @@ import {
   valueTypeEquals,
   valueTypeName,
 } from '../ir/ir.ts';
-import type { Custom, HeapTypeRef, TypeEntry } from '../ir/ir.ts';
-import { CatchKind } from '../ir/ir.ts';
+import type { Custom, HeapTypeRef, TableCatch, TypeEntry } from '../ir/ir.ts';
 import { type AbstractHeap, heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
@@ -432,17 +431,9 @@ function writeNameEntries(s: MemoryStream, entries: readonly [number, string][])
   }
 }
 
-function catchKindByte(k: CatchKind): number {
-  switch (k) {
-    case CatchKind.Catch:
-      return 0x00;
-    case CatchKind.CatchRef:
-      return 0x01;
-    case CatchKind.CatchAll:
-      return 0x02;
-    case CatchKind.CatchAllRef:
-      return 0x03;
-  }
+/** catch 0x00, catch_ref 0x01, catch_all 0x02, catch_all_ref 0x03. */
+function catchKindByte(c: TableCatch): number {
+  return (c.tag !== undefined ? 0x00 : 0x02) | (c.isRef ? 0x01 : 0x00);
 }
 
 // ---------------------------------------------------------------------------
@@ -666,7 +657,7 @@ class BodyWriter implements ExprVisitorDelegate {
     // with its own label off the scope stack.
     this.popLabel();
     for (const c of e.catches) {
-      this.s.writeU8(catchKindByte(c.kind));
+      this.s.writeU8(catchKindByte(c));
       if (c.tag !== undefined) writeVar(this.s, c.tag);
       this.writeLabelVar(c.target);
     }

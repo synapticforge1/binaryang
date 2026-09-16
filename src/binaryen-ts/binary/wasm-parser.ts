@@ -23,7 +23,6 @@ import {
 import {
   BinaryOp,
   type BlockParams,
-  type CatchClause,
   type Expression,
   makeBinary,
   makeBlock,
@@ -90,6 +89,7 @@ import {
   SIMDLoadStoreLaneOp,
   SIMDReplaceOp,
   SIMDTernaryOp,
+  type TableCatch,
   typeOf,
   UnaryOp,
 } from '../ir/expressions.ts';
@@ -177,7 +177,7 @@ interface ControlFrame {
   // try / catch state
   tryBody?: Expression[];
   /** Tags in arrival order; `undefined` marks a `catch_all`. Zipped with
-   *  `catchBodies` into TryCatch clauses at `end` — they accumulate separately
+   *  `catchBodies` into Catch clauses at `end` — they accumulate separately
    *  because the tag arrives at the `catch` opcode and the body after it. */
   catchTags?: (Var | undefined)[];
   catchBodies?: Expression[][];
@@ -204,7 +204,7 @@ interface ControlFrame {
    */
   paramTypes?: ValueType[];
   // try_table state
-  tryCatches?: CatchClause[];
+  tryCatches?: TableCatch[];
 }
 
 interface TagInfo {
@@ -2327,7 +2327,7 @@ class WasmParser {
           // itself. The encoder pushed the same phantom label, so a round-trip
           // stayed byte-identical and hid it; only the IR — and anything built
           // against it, such as the wabt-ts bridge — saw the wrong target.
-          const catches: CatchClause[] = catchData.map(({ tag, depth, isRef }) => ({
+          const catches: TableCatch[] = catchData.map(({ tag, depth, isRef }) => ({
             // ABSENT tag means catch_all / catch_all_ref, as the legacy path
             // has always spelled it.
             ...(tag !== undefined ? { tag } : {}),

@@ -1849,12 +1849,12 @@ export interface RefTypeImmediate {
  * A catch clause in a `try_table` expression.
  * Mirrors the four catch opcode variants (0x00–0x03) from the EH proposal.
  */
-export interface CatchClause {
+export interface TableCatch {
   /**
    * The tag caught. ABSENT means `catch_all` / `catch_all_ref`.
    *
    * 🔧 It was `string | null`, which spelled a catch tag differently from the
-   * legacy `TryCatch.tag?: Var` beside it — the same concept, two shapes in one
+   * legacy `Catch.tag?: Var` beside it — the same concept, two shapes in one
    * IR — and the encoder had to wrap it in `varFromToken()` to resolve what the
    * other path passes straight through. A tag is an INDEX-SPACE reference (a
    * label is not), so `Var` is also the form that can carry `0` as written.
@@ -1875,7 +1875,7 @@ export interface TryTableExpr extends ExprBase {
   /** The protected region. */
   body: RegionExpr;
   /** catches — see the matching factory for semantics. */
-  catches: CatchClause[];
+  catches: TableCatch[];
   /** Entry parameters — see {@link BlockParams}. Only the body is seeded. */
   params?: BlockParams;
   /** The type-section index its header NAMED — see {@link WrittenTypeIndex} (7c). */
@@ -1891,10 +1891,10 @@ export interface TryTableExpr extends ExprBase {
  * handler after it, corrupting the rest of the function body. A record cannot
  * be half-present, so that guard is gone rather than merely passing.
  *
- * `try_table`'s clauses were already records ({@link CatchClause}); the same
+ * `try_table`'s clauses were already records ({@link TableCatch}); the same
  * concept was modelled both ways in one file.
  */
-export interface TryCatch {
+export interface Catch {
   /**
    * The tag caught. ABSENT means `catch_all` / `catch_all_ref`.
    *
@@ -1917,7 +1917,7 @@ export interface TryExpr extends ExprBase {
   /** The protected region. */
   body: RegionExpr;
   /** The catch clauses, in order. */
-  catches: TryCatch[];
+  catches: Catch[];
   /**
    * Present for the `delegate` variant: the label it delegates to. A `Var`, and
    * wabt-ts's name and optionality (S6 step 5) — it was `delegateTarget: string |
@@ -3215,7 +3215,7 @@ export function makeBrOn(
 export function makeTryTable(
   name: string | null,
   body: RegionInput,
-  catches: CatchClause[],
+  catches: TableCatch[],
   resultType: Type,
 ): TryTableExpr {
   return {
@@ -3231,7 +3231,7 @@ export function makeTryTable(
 export function makeTry(
   name: string | null,
   body: RegionInput,
-  catches: TryCatch[],
+  catches: Catch[],
   delegateTarget: string | null,
   resultType: Type,
 ): TryExpr {
@@ -3246,12 +3246,12 @@ export function makeTry(
 }
 
 /** A `catch $tag` clause. */
-export function tryCatch(tag: Var, body: RegionInput): TryCatch {
+export function tryCatch(tag: Var, body: RegionInput): Catch {
   return { tag, isRef: false, body: asRegion(body) };
 }
 
 /** A `catch_all` clause — no tag, which is what absence means. */
-export function tryCatchAll(body: RegionInput): TryCatch {
+export function tryCatchAll(body: RegionInput): Catch {
   return { isRef: false, body: asRegion(body) };
 }
 
