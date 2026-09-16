@@ -293,6 +293,21 @@ export interface BlockParams {
  */
 export type BlockResult = 'none' | ValueType | ValueType[];
 
+/**
+ * An expression's RESULT type, where something has computed it — binaryen-ts's
+ * `Type`: a {@link BlockResult}, or `'unreachable'` for an instruction after
+ * which the stack is polymorphic (`unreachable`, `br`, `return`, a `throw`,
+ * an operator over one).
+ *
+ * OPTIONAL on every node that does not declare one (S6 step 5 item 5 (4)):
+ * step 3 decided the merged node carries `type?`, absent meaning "not derived
+ * yet". wabt-ts's reader and parser do not set it — its validator types the tree
+ * as it checks it — and binaryen-ts's factories always do. The five constructs
+ * are different: their `type` is a declaration (a {@link BlockResult}, required),
+ * never `'unreachable'` (owner, 2026-09-16).
+ */
+export type ExprType = BlockResult | 'unreachable';
+
 /** The {@link BlockResult} for `results`, in its one spelling. */
 export function blockResult(results: readonly ValueType[]): BlockResult {
   if (results.length === 0) return 'none';
@@ -378,7 +393,7 @@ export function constV128(bytes: Uint8Array): Const {
 
 /** A catch clause in a try/catch block (legacy exception handling). */
 export interface Catch {
-  loc: Location;
+  loc?: Location;
   tag?: Var; // undefined → catch_all / catch_all_ref
   isRef: boolean; // catch_ref vs catch (or catch_all_ref vs catch_all)
   /** The handler — see {@link RegionExpr}. */
@@ -406,7 +421,7 @@ export interface Catch {
  * `TableCatch` — the same record under the same name (S6 step 5, stage (b)).
  */
 export interface TableCatch {
-  loc: Location;
+  loc?: Location;
   tag?: Var; // undefined → catch_all / catch_all_ref
   target: Var; // branch target label
   isRef: boolean; // catch_ref / catch_all_ref: the handler also receives an exnref
@@ -425,6 +440,7 @@ export interface NopExpr {
   readonly kind: 'nop';
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -450,6 +466,7 @@ export interface NopExpr {
  */
 export interface PopExpr {
   readonly kind: 'pop';
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -502,6 +519,7 @@ export function operandPlaceholder(loc: Location): PopExpr {
 export interface RegionExpr {
   readonly kind: 'region';
   readonly children: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -512,6 +530,7 @@ export function region(children: Expr[], loc: Location): RegionExpr {
 /** `unreachable` (0x00) — traps unconditionally. Type-stack becomes polymorphic. */
 export interface UnreachableExpr {
   readonly kind: 'unreachable';
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `return` — returns the function's result values from the type stack (multi-value capable). */
@@ -526,12 +545,14 @@ export interface ReturnExpr {
    * tuple.
    */
   readonly values: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `drop` (0x1a) — discards the top stack value. */
 export interface DropExpr {
   readonly kind: 'drop';
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `select` (0x1b / 0x1c) — picks `val1` or `val2` based on a non-zero `cond`. */
@@ -547,6 +568,7 @@ export interface SelectExpr {
   readonly val2: Expr;
   readonly condition: Expr;
   readonly resultType: ValueType[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -637,6 +659,7 @@ export interface BrExpr {
    * operand and V8 rejected it. Same shape as {@link ReturnExpr.values}.
    */
   readonly values: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `br_table` (0x0e) — table-switch branch. The i32 value indexes `targets` (out-of-range → `defaultTarget`). */
@@ -657,6 +680,7 @@ export interface BrTableExpr {
    * real index was dropped.
    */
   readonly values: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -709,6 +733,7 @@ export interface BrOnExpr {
   readonly from?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
   /** `rt2` — the type being tested for. Cast variants only. */
   readonly to?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -717,6 +742,7 @@ export interface BrOnExpr {
 export interface ConstExpr {
   readonly kind: 'const';
   readonly value: Const;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -725,6 +751,7 @@ export interface ConstExpr {
 export interface LocalGetExpr {
   readonly kind: 'local.get';
   readonly var: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `local.set $var` (0x21) — pops the top stack value and writes it to a local. */
@@ -732,6 +759,7 @@ export interface LocalSetExpr {
   readonly kind: 'local.set';
   readonly var: Var;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `local.tee $var` (0x22) — like local.set but leaves the value on the stack. */
@@ -739,6 +767,7 @@ export interface LocalTeeExpr {
   readonly kind: 'local.tee';
   readonly var: Var;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -747,6 +776,7 @@ export interface LocalTeeExpr {
 export interface GlobalGetExpr {
   readonly kind: 'global.get';
   readonly var: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `global.set $var` (0x24) — pops the top stack value and writes it to a (mutable) global. */
@@ -754,6 +784,7 @@ export interface GlobalSetExpr {
   readonly kind: 'global.set';
   readonly var: Var;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -763,6 +794,7 @@ export interface UnaryExpr {
   readonly kind: 'unary';
   readonly opcode: Opcode;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Two-operand numeric op (`i32.add`, `f64.mul`, etc.). `opcode` identifies the specific op. */
@@ -771,6 +803,7 @@ export interface BinaryExpr {
   readonly opcode: Opcode;
   readonly left: Expr;
   readonly right: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Three-operand numeric op (rare; placeholder for relaxed-SIMD ternary instructions). */
@@ -780,6 +813,7 @@ export interface TernaryExpr {
   readonly a: Expr;
   readonly b: Expr;
   readonly c: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Four-operand numeric op (rare; placeholder for relaxed-SIMD quaternary instructions). */
@@ -790,6 +824,7 @@ export interface QuaternaryExpr {
   readonly b: Expr;
   readonly c: Expr;
   readonly d: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -805,6 +840,7 @@ export interface LoadExpr {
   readonly offset: bigint;
   readonly memidx: Var;
   readonly address: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Linear-memory store (`i32.store`, `f32.store`, etc.). `align` as for {@link LoadExpr}. */
@@ -816,6 +852,7 @@ export interface StoreExpr {
   readonly memidx: Var;
   readonly address: Expr;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -824,6 +861,7 @@ export interface StoreExpr {
 export interface MemorySizeExpr {
   readonly kind: 'memory.size';
   readonly memidx: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `memory.grow` (0x40) — grows memory by `delta` pages, returns the old size (or -1 on failure). */
@@ -831,6 +869,7 @@ export interface MemoryGrowExpr {
   readonly kind: 'memory.grow';
   readonly memidx: Var;
   readonly delta: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `memory.copy` (0xfc 0x0a) — copies `size` bytes from `src` to `dest` within memory. */
@@ -841,6 +880,7 @@ export interface MemoryCopyExpr {
   readonly dest: Expr;
   readonly source: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `memory.fill` (0xfc 0x0b) — fills `size` bytes starting at `dest` with `value`. */
@@ -850,6 +890,7 @@ export interface MemoryFillExpr {
   readonly dest: Expr;
   readonly value: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `memory.init $seg` (0xfc 0x08) — copies bytes from a passive data segment into memory. */
@@ -860,12 +901,14 @@ export interface MemoryInitExpr {
   readonly dest: Expr;
   readonly source: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `data.drop $seg` (0xfc 0x09) — declares a passive data segment as no longer needed. */
 export interface DataDropExpr {
   readonly kind: 'data.drop';
   readonly segment: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -886,6 +929,7 @@ export interface CallExpr {
   readonly isReturn?: boolean;
   readonly func: Var;
   readonly operands: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `call_indirect (type $T) [$table]` (0x11) — indirect call through a function table. */
@@ -921,6 +965,7 @@ export interface CallIndirectExpr {
   readonly table: Var;
   readonly operands: Expr[];
   readonly callee: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `call_ref $type` (0x14) — typed-function-references proposal: calls a `(ref $T)` value. */
@@ -940,6 +985,7 @@ export interface CallRefExpr {
   readonly sigType: Var;
   readonly operands: Expr[];
   readonly callee: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -948,24 +994,28 @@ export interface CallRefExpr {
 export interface RefNullExpr {
   readonly kind: 'ref.null';
   readonly refType: HeapTypeRef;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `ref.is_null` (0xd1) — pops a ref, pushes i32 (1 = null, 0 otherwise). */
 export interface RefIsNullExpr {
   readonly kind: 'ref.is_null';
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `ref.func $f` (0xd2) — pushes a funcref to the named function (must be declared in elem or export). */
 export interface RefFuncExpr {
   readonly kind: 'ref.func';
   readonly func: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `ref.as_non_null` (0xd4) — converts nullable ref to non-null (traps on null). */
 export interface RefAsNonNullExpr {
   readonly kind: 'ref.as';
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -975,12 +1025,14 @@ export interface RefEqExpr {
   readonly kind: 'ref.eq';
   readonly left: Expr;
   readonly right: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `ref.i31` — boxes an i32 value into an `i31ref`. */
 export interface RefI31Expr {
   readonly kind: 'ref.i31';
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -991,6 +1043,7 @@ export interface RefI31Expr {
 export interface ExternConvertExpr {
   readonly kind: 'any.convert_extern' | 'extern.convert_any';
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `i31.get_s` / `i31.get_u` — unboxes an `i31ref` to i32 (sign- or zero-extended). */
@@ -999,6 +1052,7 @@ export interface I31GetExpr {
   readonly i31: Expr;
   /** True for `i31.get_s` (sign-extended), false for `i31.get_u` (zero-extended). */
   readonly signed: boolean;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1017,6 +1071,7 @@ export interface StructNewExpr {
   readonly defaultInit?: boolean;
   readonly typeVar: Var;
   readonly operands: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1033,6 +1088,7 @@ export interface StructGetExpr {
    * (unpacked field); `true` for `struct.get_s`; `false` for `struct.get_u`.
    */
   readonly signed?: boolean;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `struct.set $type $field` — pops ref + value, no result. */
@@ -1042,6 +1098,7 @@ export interface StructSetExpr {
   readonly fieldVar: Var;
   readonly ref: Expr;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1053,6 +1110,7 @@ export interface ArrayNewExpr {
   /** Absent for `array.new_default`, where each element takes the type's default. */
   readonly init?: Expr;
   readonly length: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `array.new_fixed $T N` — pops N element values, pushes (ref $T). */
@@ -1060,6 +1118,7 @@ export interface ArrayNewFixedExpr {
   readonly kind: 'array.new_fixed';
   readonly typeVar: Var;
   readonly operands: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1072,6 +1131,7 @@ export interface ArrayNewDataExpr {
   readonly dataVar: Var;
   readonly offset: Expr;
   readonly length: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1084,6 +1144,7 @@ export interface ArrayNewElemExpr {
   readonly elemVar: Var;
   readonly offset: Expr;
   readonly length: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1097,6 +1158,7 @@ export interface ArrayGetExpr {
   readonly index: Expr;
   /** Signedness for i8/i16 packed element types. Undefined for unpacked. */
   readonly signed?: boolean;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `array.set $T` — pops (ref $T) + i32 index + element value, no result. */
@@ -1106,6 +1168,7 @@ export interface ArraySetExpr {
   readonly ref: Expr;
   readonly index: Expr;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1119,6 +1182,7 @@ export interface ArrayFillExpr {
   readonly offset: Expr;
   readonly value: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1134,6 +1198,7 @@ export interface ArrayCopyExpr {
   readonly srcRef: Expr;
   readonly srcOffset: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1148,6 +1213,7 @@ export interface ArrayInitDataExpr {
   readonly destOffset: Expr;
   readonly srcOffset: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1166,6 +1232,7 @@ export interface ArrayInitElemExpr {
   readonly destOffset: Expr;
   readonly srcOffset: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Either `array.init_*` — the kind says which index space `segment` refers to. */
@@ -1174,6 +1241,7 @@ export type ArrayInitSegmentExpr = ArrayInitDataExpr | ArrayInitElemExpr;
 export interface ArrayLenExpr {
   readonly kind: 'array.len';
   readonly ref: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1193,6 +1261,7 @@ export interface RefTestExpr {
   readonly heapType: HeapTypeRef;
   readonly nullable: boolean;
   readonly ref: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /**
@@ -1204,6 +1273,7 @@ export interface RefCastExpr {
   readonly heapType: HeapTypeRef;
   readonly nullable: boolean;
   readonly ref: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1213,6 +1283,7 @@ export interface TableGetExpr {
   readonly kind: 'table.get';
   readonly table: Var;
   readonly index: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `table.set $table` (0x26) — writes an element at the given index. */
@@ -1221,6 +1292,7 @@ export interface TableSetExpr {
   readonly table: Var;
   readonly index: Expr;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `table.grow $table` (0xfc 0x0f) — grows the table by `delta`, init with `initValue`. */
@@ -1229,12 +1301,14 @@ export interface TableGrowExpr {
   readonly table: Var;
   readonly value: Expr;
   readonly delta: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `table.size $table` (0xfc 0x10) — pushes the current table size. */
 export interface TableSizeExpr {
   readonly kind: 'table.size';
   readonly table: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `table.fill $table` (0xfc 0x11) — fills a range of the table with `value`. */
@@ -1244,6 +1318,7 @@ export interface TableFillExpr {
   readonly dest: Expr;
   readonly value: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `table.copy $dst $src` (0xfc 0x0e) — copies `size` elements between tables. */
@@ -1254,6 +1329,7 @@ export interface TableCopyExpr {
   readonly dest: Expr;
   readonly source: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `table.init $seg $table` (0xfc 0x0c) — copies elements from a passive elem segment. */
@@ -1264,12 +1340,14 @@ export interface TableInitExpr {
   readonly dest: Expr;
   readonly source: Expr;
   readonly size: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `elem.drop $seg` (0xfc 0x0d) — declares a passive element segment as no longer needed. */
 export interface ElemDropExpr {
   readonly kind: 'elem.drop';
   readonly segment: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1279,12 +1357,14 @@ export interface ThrowExpr {
   readonly kind: 'throw';
   readonly tag: Var;
   readonly operands: Expr[];
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `throw_ref` (0x0a) — re-throws an existing exception reference (EH proposal). */
 export interface ThrowRefExpr {
   readonly kind: 'throw_ref';
   readonly exnref: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `rethrow $depth` (0x09) — legacy EH: re-throws the exception caught by the labeled outer catch. */
@@ -1299,6 +1379,7 @@ export interface RethrowExpr {
    * Every other single-label reference in both IRs is `target`.
    */
   readonly target: Var;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1355,6 +1436,7 @@ export interface SimdExtractExpr {
   readonly lane: number;
   /** The vector being read. */
   readonly vec: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1367,6 +1449,7 @@ export interface SimdReplaceExpr {
   readonly vec: Expr;
   /** The scalar written into the lane. */
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** SIMD `i8x16.shuffle` — permutes 32 bytes from two v128 operands via 16 lane indices. */
@@ -1375,6 +1458,7 @@ export interface SimdShuffleOpExpr {
   readonly lanes: Uint8Array; // 16 lane indices
   readonly left: Expr;
   readonly right: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** SIMD `v128.load*_lane` — loads one lane of a v128 from memory, leaving others unchanged. */
@@ -1387,6 +1471,7 @@ export interface SimdLoadLaneExpr {
   readonly lane: number;
   readonly address: Expr;
   readonly vec: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** SIMD `v128.load*_splat` — loads a scalar and broadcasts it to every lane. */
@@ -1397,6 +1482,7 @@ export interface LoadSplatExpr {
   readonly offset: bigint;
   readonly memidx: Var;
   readonly address: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1409,6 +1495,7 @@ export interface AtomicLoadExpr {
   readonly offset: bigint;
   readonly memidx: Var;
   readonly address: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Atomic store — sequentially-consistent write to shared memory. */
@@ -1420,6 +1507,7 @@ export interface AtomicStoreExpr {
   readonly memidx: Var;
   readonly address: Expr;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Atomic read-modify-write (`i32.atomic.rmw.add`, etc.) — pops value, returns the prior memory contents. */
@@ -1431,6 +1519,7 @@ export interface AtomicRmwExpr {
   readonly memidx: Var;
   readonly address: Expr;
   readonly value: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** Atomic compare-exchange — writes `replacement` iff memory matches `expected`; returns the old value. */
@@ -1443,6 +1532,7 @@ export interface AtomicRmwCmpxchgExpr {
   readonly address: Expr;
   readonly expected: Expr;
   readonly replacement: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `memory.atomic.wait{32,64}` — blocks until memory at `address` changes or timeout expires. */
@@ -1455,6 +1545,7 @@ export interface AtomicWaitExpr {
   readonly address: Expr;
   readonly expected: Expr;
   readonly timeout: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `memory.atomic.notify` — wakes up to `count` waiters blocked on `address`. */
@@ -1465,12 +1556,14 @@ export interface AtomicNotifyExpr {
   readonly memidx: Var;
   readonly address: Expr;
   readonly count: Expr;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 /** `atomic.fence` (0xfe 0x03) — memory fence; `consistencyModel` is always 0 currently. */
 export interface AtomicFenceExpr {
   readonly kind: 'atomic.fence';
   readonly consistencyModel: number;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 
@@ -1480,6 +1573,7 @@ export interface CodeMetadataExpr {
   readonly kind: 'code_metadata';
   readonly name: string;
   readonly data: Uint8Array;
+  readonly type?: ExprType;
   readonly loc?: Location;
 }
 

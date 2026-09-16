@@ -75,8 +75,10 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    Inlining build no construct typed `unreachable` (the 26 reads needed no change — they ask about
    stack polymorphism; `fallsThrough` is only a possible DCE optimization). ✅ (3c) carriers'
    `type?: BlockResult`; factories declare; the encoder's extra `unreachable` deleted and a construct
-   typed `unreachable` refused. Next: (4) the rest of the base — binaryen-ts literals' required
-   `type`, `nodeId`, the catch records' `loc`, `type` required vs optional (alias trial 305).
+   typed `unreachable` refused. ✅ (4) the base: constructs' `type` required in both, every other
+   node `type?: ExprType` (≡ binaryen-ts `Type`), catch records' `loc?`, `br_on` `from`/`to` exact
+   optionals — alias trial 305 → 37. Next: (5) the one-sided kinds (atomics, `call_ref`,
+   `code_metadata`; 21 of the 37), then (6) alias + `ref.null` + `readonly` (bigger than its 2).
 6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
    `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
    `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the

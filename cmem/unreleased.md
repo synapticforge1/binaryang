@@ -38,7 +38,8 @@ their own bump — and nothing breaks by their standing still.
   (`./core/wabt-ts`).
 - ⚠️ **BREAKING: a construct's type is what it DECLARES** (S6 step 5 item 5 (3); `./ir/binaryen-ts`).
   `BlockExpr` / `LoopExpr` / `IfExpr` / `TryExpr` / `TryTableExpr` `type` is a `BlockResult` (`'none'`
-  | a value type | a list) — never `'unreachable'`. `makeBlock(children, name?, type?)` and
+  | a value type | a list) — never `'unreachable'`, and REQUIRED (item 5 (4)). `BrOnExpr.from` /
+  `to` are `?: RefTypeImmediate` (no present `undefined`). `makeBlock(children, name?, type?)` and
   `makeIf(cond, then, else?, name?, type?)` no longer INFER a type from the children / arms: omitted
   means `none`, as in text. `blockOf(region, type, name?)` and `asStatement(e, type)` take the type
   as a required argument. `makeLoop` / `makeTry` / `makeTryTable` take a `BlockResult`. The encoder
@@ -149,6 +150,9 @@ their own bump — and nothing breaks by their standing still.
   is a field's type — `Field.type` is one. `ValType` / `isValType` are now defined in
   `./core/wabt-ts` (still re-exported by `./ir/binaryen-ts`). `valueTypeName` and `isRefValueType`
   accept any `Type`.
+- **Every expression node may carry `type?: ExprType`** (S6 step 5 item 5 (4); `./ir/wabt-ts`) —
+  new, `ExprType` = binaryen-ts's `Type`; wabt-ts does not set it. ⚠️ **BREAKING:** `Catch.loc` and
+  `TableCatch.loc` are optional (read them through `locOf`).
 - ⚠️ **BREAKING: an expression node's `loc` is optional** (S6 step 5 item 5 (1); `./ir/wabt-ts`).
   Every `Expr` interface's `loc` is `loc?: Location`, as on binaryen-ts's nodes; absent means
   unknown. wabt-ts's parser and reader still set it. **`locOf(e)`** (new) returns it or the

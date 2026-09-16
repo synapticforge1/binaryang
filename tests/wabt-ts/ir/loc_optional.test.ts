@@ -28,6 +28,7 @@ import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
 import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
 
 /** Every node object under the function bodies that has a string `kind`. */
 function nodes(m: Module): Record<string, unknown>[] {
@@ -127,5 +128,31 @@ describe('a module whose nodes carry no location', () => {
     assertEquals(errors.length, 1, formatErrors(errors));
     assert(errors[0]!.message.includes('$nope'), errors[0]!.message);
     assertEquals(errors[0]!.loc, unknownLocation());
+  });
+});
+
+describe('a catch clause that carries no location (item 5 (4))', () => {
+  // `Catch` / `TableCatch` `loc` is optional too — binaryen-ts's records have
+  // none. A defect in such a clause reports at the unknown location.
+  it('the validator reports a bad catch tag at the unknown location', () => {
+    const r = wat2wasm(
+      '(module (tag $e) (func (try (do (nop)) (catch $e (nop)))))',
+    );
+    assert(!hasErrors(r.errors), formatErrors(r.errors));
+    const errors0 = makeErrorList();
+    const m = readBinaryIr(r.binary!, errors0);
+    assert(!hasErrors(errors0), formatErrors(errors0));
+    const tr = nodes(m).find((o) => o.kind === 'try')!;
+    const c = (tr.catches as Record<string, unknown>[])[0]!;
+    assert('loc' in c, 'the reader gave the clause a location');
+    delete c.loc;
+    c.tag = { kind: 'index', value: 9 };
+
+    const errors = makeErrorList();
+    validateModule(m, errors, { features: allFeatures() });
+    assert(hasErrors(errors), 'tag 9 does not exist');
+    const bad = errors.filter((e) => /tag/.test(e.message));
+    assert(bad.length > 0, formatErrors(errors));
+    for (const e of bad) assertEquals(e.loc, unknownLocation(), e.message);
   });
 });

@@ -1070,7 +1070,7 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
     const isCatchAll = c.tag === undefined;
-    return this.sv.onCatch(c.loc, c.tag ? varIdx(c.tag) : 0, isCatchAll);
+    return this.sv.onCatch(locOf(c), c.tag ? varIdx(c.tag) : 0, isCatchAll);
   }
   onDelegateExpr(e: TryExpr): Result {
     return this.sv.onDelegate(locOf(e), e.delegate ? varIdx(e.delegate) : 0);

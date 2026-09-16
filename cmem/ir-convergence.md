@@ -2804,6 +2804,36 @@ Reachability was confirmed by making each branch throw (nothing failed), tests w
 now die (14 mutants on (3c), 14 killed). Optimizer output: **0 of 2,105 changed** from (3b). Alias
 trial 301 → 305: the carriers' optional `type?` against wabt-ts's required `type` — (4)'s base work.
 
+**(4) The rest of the base — alias trial 305 → 37.** Classified first, by the innermost "property X"
+line of each error (`classify_alias.ts`, scratchpad): 201 were `type` optional (binaryen-ts) against
+required (wabt-ts's constructs), 47 a read of `e.type` on wabt-ts nodes that had none, 26 the catch
+records' `loc`, 9 `br_on`'s `from`/`to` — every one a base fact, decided already:
+- **(4a)** binaryen-ts's five constructs: `type: BlockResult` REQUIRED — the owner's (3) makes a
+  construct's type a declaration, so there is nothing to derive. Trial: **0 errors** (after (3c) every
+  producer sets it).
+- **(4b)** wabt-ts: every node that does not declare a type carries `readonly type?: ExprType` (79 of
+  84; the five constructs already declare). `ExprType = BlockResult | 'unreachable'` — pinned equal to
+  binaryen-ts's `Type` (step 3: `type?` on the merged node, absent = not derived yet). wabt-ts sets
+  none of them; its validator types the tree as it checks. 0 errors.
+- **(4c)** wabt-ts's `Catch` / `TableCatch` `loc?`, as the nodes' — 5 reads through `locOf`.
+- **(4d)** binaryen-ts `BrOnExpr.from` / `to`: `?: RefTypeImmediate`, not `?: … | undefined` — under
+  `exactOptionalPropertyTypes` a PRESENT `undefined` is a different type from an absent field. 0 errors.
+
+Tests: `tests/ir/node_type_base.test.ts` (compile-time: each (4a) pin, `ExprType ≡ Type`, (4b)'s
+optional `type`, and (4d) as `@ts-expect-error` on `{ from: undefined }`) — every pin fails on the old
+sources (TS2345 ×8, TS2578, TS2339/TS2344); one row (binaryen-ts `CallExpr.type` optional) is context
+and holds either way. (4c): `loc_optional.test.ts` gains a catch with no `loc` whose bad tag reports at
+the unknown location; the `c.loc!` mutant is killed.
+
+**Planned (4) items that needed nothing:** `nodeId` on binaryen-ts's base, and binaryen-ts literals'
+narrower required `type` (`UnreachableExpr.type: Unreachable`) — neither is an assignability
+difference, so the alias does not see them; the merged declarations are wabt-ts's, which have both.
+
+**The 37 left, by owner:** (5) atomics' kinds — 18 + 3 in tests; (6) `ref.null`'s field — 8, and
+`readonly` — 2 `delete`s. ⚠️ `readonly` is BIGGER than 2: the trial swaps only the `Expression` UNION,
+so binaryen-ts code writing through its own member interfaces (`node.label = …`, `blk.type = …`) is
+not counted; it surfaces when those interfaces become wabt-ts's. The ratchet test itself — 6.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

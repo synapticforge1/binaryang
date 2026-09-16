@@ -840,9 +840,10 @@ export interface BlockExpr extends ExprBase {
    * construct by its declaration: after `end` the stack holds exactly this, so
    * a type that said `unreachable` there was a cached control-flow fact that
    * could disagree with validation — and did (see `unreachable_construct.test.ts`).
-   * Absent only where step 3's "unknown" applies.
+   * REQUIRED: a construct always has a declaration, so there is nothing to
+   * derive (S6 step 5 item 5 (4)).
    */
-  type?: BlockResult;
+  type: BlockResult;
   /** Optional label for branch targets. */
   label: string;
   /** Ordered list of child expressions. */
@@ -896,9 +897,10 @@ export interface IfExpr extends ExprBase {
    * construct by its declaration: after `end` the stack holds exactly this, so
    * a type that said `unreachable` there was a cached control-flow fact that
    * could disagree with validation — and did (see `unreachable_construct.test.ts`).
-   * Absent only where step 3's "unknown" applies.
+   * REQUIRED: a construct always has a declaration, so there is nothing to
+   * derive (S6 step 5 item 5 (4)).
    */
-  type?: BlockResult;
+  type: BlockResult;
   /** Condition expression (typed as i32). */
   condition: Expression;
   /** Branch taken when the condition is non-zero. */
@@ -932,9 +934,10 @@ export interface LoopExpr extends ExprBase {
    * construct by its declaration: after `end` the stack holds exactly this, so
    * a type that said `unreachable` there was a cached control-flow fact that
    * could disagree with validation — and did (see `unreachable_construct.test.ts`).
-   * Absent only where step 3's "unknown" applies.
+   * REQUIRED: a construct always has a declaration, so there is nothing to
+   * derive (S6 step 5 item 5 (4)).
    */
-  type?: BlockResult;
+  type: BlockResult;
   /** Branch label for `br` back-edges. */
   label: string;
   /** The loop's region. */
@@ -1869,9 +1872,9 @@ export interface BrOnExpr extends ExprBase {
    * exactly that with `?? AbstractHeapType.Any`. Paired, the incoherent state
    * cannot be written down.
    */
-  from?: RefTypeImmediate | undefined;
+  from?: RefTypeImmediate;
   /** `rt2` — the type being tested for. Cast variants only. */
-  to?: RefTypeImmediate | undefined;
+  to?: RefTypeImmediate;
 }
 
 /** One reference type immediate: a heap type and whether it is nullable. */
@@ -1915,9 +1918,10 @@ export interface TryTableExpr extends ExprBase {
    * construct by its declaration: after `end` the stack holds exactly this, so
    * a type that said `unreachable` there was a cached control-flow fact that
    * could disagree with validation — and did (see `unreachable_construct.test.ts`).
-   * Absent only where step 3's "unknown" applies.
+   * REQUIRED: a construct always has a declaration, so there is nothing to
+   * derive (S6 step 5 item 5 (4)).
    */
-  type?: BlockResult;
+  type: BlockResult;
   /** Optional label for the try_table block itself. */
   label: string;
   /** The protected region. */
@@ -1966,9 +1970,10 @@ export interface TryExpr extends ExprBase {
    * construct by its declaration: after `end` the stack holds exactly this, so
    * a type that said `unreachable` there was a cached control-flow fact that
    * could disagree with validation — and did (see `unreachable_construct.test.ts`).
-   * Absent only where step 3's "unknown" applies.
+   * REQUIRED: a construct always has a declaration, so there is nothing to
+   * derive (S6 step 5 item 5 (4)).
    */
-  type?: BlockResult;
+  type: BlockResult;
   /** Label (targetable by `delegate`). */
   label: string;
   /** The protected region. */
