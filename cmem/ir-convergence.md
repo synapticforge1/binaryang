@@ -2947,9 +2947,14 @@ node is wabt-ts's declaration: readonly, `loc?`, `type?`, `nodeId?`. −1,195 li
   `NonNullable<BrOnExpr['from']>`.
 
 Suite 1,229, optimizer output **0 of 2,105 changed**, alias trials moot (they measured this).
-**What item 5 still holds:** type derivation carried out of the bridge (`inferBinaryType` /
-`inferUnaryType`) — binaryen-ts's passes read `type`, which a wabt-ts tree does not set. It matters
-when a wabt-ts tree reaches a pass WITHOUT the bridge, which is item 6 (the module half).
+**✅ Item 5 is DONE (2026-09-16) — with type derivation MOVED to item 6.** The plan put "the
+type-derivation pass carried forward out of the bridge" here. Read against the code: `inferBinaryType`
+/ `inferUnaryType` already live in binaryen-ts's factories, and the bridge derives types by REBUILDING
+through them. A derivation that replaces it walks a whole function and needs its module context —
+signatures by index, local / global / table types, tag params, heap types — which is exactly what the
+module half unifies. Written now it would target `Module` or `WasmModule` and be rewritten with them:
+S5's lesson that stages 2 and 3 were one piece of work. So it goes with item 6, whose acceptance
+(`bridge-behaviour` agreement before the bridge is deleted) is the test it needs.
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
