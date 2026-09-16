@@ -13,6 +13,7 @@ import {
   constI32,
   constI64,
   makeModule,
+  region,
   varIndex,
   varName,
 } from '../../../src/wabt-ts/ir/ir.ts';
@@ -278,7 +279,7 @@ describe('writeWatModule — functions', () => {
       kind: 'block',
       label: '$blk',
       type: 'none',
-      body: [{ kind: 'nop', loc: LOC }],
+      children: [{ kind: 'nop', loc: LOC }],
       loc: LOC,
     };
     m.funcs.push(makeFunc({ body: [block] }));
@@ -302,8 +303,8 @@ describe('writeWatModule — functions', () => {
       label: '',
       type: 'none',
       condition: cond,
-      ifTrue: [{ kind: 'nop', loc: LOC }],
-      ifFalse: [],
+      ifTrue: region([{ kind: 'nop', loc: LOC }], LOC),
+      ifFalse: null,
       loc: LOC,
     };
     m.funcs.push(makeFunc({ body: [ifExpr] }));
@@ -329,8 +330,8 @@ describe('writeWatModule — functions', () => {
       label: '',
       type: 'none',
       condition: cond,
-      ifTrue: [nop],
-      ifFalse: [unr],
+      ifTrue: region([nop], LOC),
+      ifFalse: region([unr], LOC),
       loc: LOC,
     };
     m.funcs.push(makeFunc({ params: [Type.I32], body: [ifExpr] }));

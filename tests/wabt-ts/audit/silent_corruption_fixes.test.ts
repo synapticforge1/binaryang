@@ -227,8 +227,8 @@ describe('#6 multi-catch body decode', () => {
     assert(tryExpr !== undefined && tryExpr.kind === 'try');
     assertEquals(tryExpr.catches.length, 2);
     // Each catch handler is `drop` (1 instr); the bug left all but the last empty.
-    assert(tryExpr.catches[0]!.body.length > 0, 'first catch body lost');
-    assert(tryExpr.catches[1]!.body.length > 0, 'second catch body lost');
+    assert(tryExpr.catches[0]!.body.children.length > 0, 'first catch body lost');
+    assert(tryExpr.catches[1]!.body.children.length > 0, 'second catch body lost');
   });
 });
 

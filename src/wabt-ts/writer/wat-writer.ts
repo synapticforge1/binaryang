@@ -1146,7 +1146,9 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       afterIfTrueExpr: (e) => {
-        if (e.ifFalse.length > 0) {
+        // Only an else WITH instructions is printed: text cannot spell an empty
+        // one apart from none, and upstream wasm2wat prints neither.
+        if ((e.ifFalse?.children.length ?? 0) > 0) {
           this.indent -= 2;
           this.putsSpace('else');
           this.indent += 2;
@@ -1750,7 +1752,7 @@ class WatWriter extends ModuleContext {
           this.declaredBlockType(e),
         );
         this.indent += 2;
-        this.writeExprList(e.body);
+        this.writeExprList(isLoop ? e.body.children : e.children);
         this.endBlock();
         this.close(NC.Space);
         return true;
@@ -1773,7 +1775,7 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace('do');
         this.indent += 2;
-        this.writeExprList(e.body);
+        this.writeExprList(e.body.children);
         this.close(NC.Newline);
 
         if (e.delegate !== undefined) {
@@ -1792,7 +1794,7 @@ class WatWriter extends ModuleContext {
               this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
             }
             this.indent += 2;
-            this.writeExprList(c.body);
+            this.writeExprList(c.body.children);
             this.close(NC.Newline);
           }
         }
@@ -1820,14 +1822,14 @@ class WatWriter extends ModuleContext {
         this.puts('(', NC.None);
         this.putsSpace('then');
         this.indent += 2;
-        this.writeExprList(e.ifTrue);
+        this.writeExprList(e.ifTrue.children);
         this.close(NC.Space);
-        if (e.ifFalse.length > 0) {
+        if (e.ifFalse !== null && e.ifFalse.children.length > 0) {
           this.newline(true);
           this.puts('(', NC.None);
           this.putsSpace('else');
           this.indent += 2;
-          this.writeExprList(e.ifFalse);
+          this.writeExprList(e.ifFalse.children);
           this.close(NC.Space);
         }
         this.endBlock();

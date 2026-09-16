@@ -380,7 +380,8 @@ export interface Catch {
   loc: Location;
   tag?: Var; // undefined → catch_all / catch_all_ref
   isRef: boolean; // catch_ref vs catch (or catch_all_ref vs catch_all)
-  body: Expr[];
+  /** The handler — see {@link RegionExpr}. */
+  body: RegionExpr;
 }
 
 /**
@@ -458,6 +459,37 @@ export interface PopExpr {
 export function operandPlaceholder(loc: Location): PopExpr {
   return { kind: 'pop', loc };
 }
+
+/**
+ * The instruction sequence of ONE REGION: the body of a `loop`, `try`,
+ * `try_table`, each `catch`, and each `if` arm — binaryen-ts's `RegionExpr`,
+ * which S6 Group 2 decision 5 (owner) put in every region slot of the merged
+ * tree (S6 step 5, stage (d2)).
+ *
+ * 🔑 A node of its own rather than a bare `Expr[]`: it is never a branch
+ * target and has no label; it never writes a block type (the construct owns
+ * that); it is ALWAYS present where its construct has the region, even for 0
+ * or 1 instructions, so a body has one spelling. `loc` is its construct's.
+ *
+ * 🔧 `if`'s `ifFalse` is `RegionExpr | null`: `null` is NO `else`, an empty
+ * region is an explicit empty one. As a list, both were `[]`, and the binary
+ * reader dropped a valid `else` byte (`04 40 01 05 0b` came back without the
+ * `05`) — the defect the region fixed in binaryen-ts too. Upstream wabt drops
+ * it as well; `wasm-tools` keeps it.
+ *
+ * The function body is a region in binaryen-ts; wabt-ts's `Func.body` is still
+ * a list, left to the module half, where `Func` and `WasmFunction` unify.
+ */
+export interface RegionExpr {
+  readonly kind: 'region';
+  readonly children: Expr[];
+  readonly loc: Location;
+}
+
+/** A {@link RegionExpr} holding `children`. */
+export function region(children: Expr[], loc: Location): RegionExpr {
+  return { kind: 'region', children, loc };
+}
 /** `unreachable` (0x00) — traps unconditionally. Type-stack becomes polymorphic. */
 export interface UnreachableExpr {
   readonly kind: 'unreachable';
@@ -512,7 +544,8 @@ export interface BlockExpr {
   readonly typeIndex?: Index;
   /** Entry parameters — see {@link BlockParams}. Absent means none. */
   readonly params?: BlockParams;
-  readonly body: Expr[];
+  /** The block's instructions, in order — a region's `children` (S6 step 5, stage (d1)). */
+  readonly children: Expr[];
   readonly loc: Location;
 }
 /** `loop` (0x03) — a labeled scope; `br $label` jumps to the LOOP HEADER, not its exit. */
@@ -527,7 +560,8 @@ export interface LoopExpr {
   readonly typeIndex?: Index;
   /** Entry parameters — see {@link BlockParams}. Absent means none. */
   readonly params?: BlockParams;
-  readonly body: Expr[];
+  /** The region — see {@link RegionExpr}. */
+  readonly body: RegionExpr;
   readonly loc: Location;
 }
 /** `if` / `else` / `end` (0x04 / 0x05) — conditional execution based on a non-zero `cond`. */
@@ -552,9 +586,12 @@ export interface IfExpr {
    * `then` carries a hazard of its own: an object with a `then` PROPERTY is
    * treated as a thenable by `await` and `Promise.resolve`.
    */
-  readonly ifTrue: Expr[];
-  /** The arm run when the condition is zero; empty when there is no `else`. */
-  readonly ifFalse: Expr[];
+  readonly ifTrue: RegionExpr;
+  /**
+   * The arm run when the condition is zero: `null` when there is NO `else`,
+   * an empty region when an empty one was written — see {@link RegionExpr}.
+   */
+  readonly ifFalse: RegionExpr | null;
   readonly loc: Location;
 }
 
@@ -1248,7 +1285,8 @@ export interface TryExpr {
   readonly typeIndex?: Index;
   /** Entry parameters — see {@link BlockParams}. Absent means none. */
   readonly params?: BlockParams;
-  readonly body: Expr[];
+  /** The region — see {@link RegionExpr}. */
+  readonly body: RegionExpr;
   readonly catches: Catch[];
   readonly delegate?: Var;
   readonly loc: Location;
@@ -1265,7 +1303,8 @@ export interface TryTableExpr {
   readonly typeIndex?: Index;
   /** Entry parameters — see {@link BlockParams}. Absent means none. */
   readonly params?: BlockParams;
-  readonly body: Expr[];
+  /** The region — see {@link RegionExpr}. */
+  readonly body: RegionExpr;
   readonly catches: TableCatch[];
   readonly loc: Location;
 }
@@ -1428,6 +1467,7 @@ export interface CodeMetadataExpr {
 export type Expr =
   | NopExpr
   | PopExpr
+  | RegionExpr
   | UnreachableExpr
   | ReturnExpr
   | DropExpr

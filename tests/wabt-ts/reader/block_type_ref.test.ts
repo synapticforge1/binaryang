@@ -56,6 +56,7 @@ import type { Expr } from '../../../src/wabt-ts/ir/ir.ts';
  */
 const CHILD_FIELDS = [
   'body',
+  'children', // a block's list (S6 step 5 (d1)); a region's too
   'ifTrue',
   'ifFalse',
   'value',

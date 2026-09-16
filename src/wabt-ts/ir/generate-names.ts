@@ -211,19 +211,19 @@ class NameGenerator {
         case 'block':
         case 'loop': {
           if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
-          this.generateLabelNames(e.body, counter);
+          this.generateLabelNames(e.kind === 'block' ? e.children : e.body.children, counter);
           break;
         }
         case 'if': {
           if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
-          this.generateLabelNames(e.ifTrue, counter);
-          this.generateLabelNames(e.ifFalse, counter);
+          this.generateLabelNames(e.ifTrue.children, counter);
+          this.generateLabelNames(e.ifFalse?.children ?? [], counter);
           break;
         }
         case 'try':
         case 'try_table': {
           if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
-          this.generateLabelNames(e.body, counter);
+          this.generateLabelNames(e.body.children, counter);
           break;
         }
       }

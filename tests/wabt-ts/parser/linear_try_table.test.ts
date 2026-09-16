@@ -69,13 +69,13 @@ describe('T10.6 — linear try_table keeps its catch clauses and its body', () =
     // return's operand slot rather than standing alone in the block body.
     const outer = module.funcs[0]!.body[0]!;
     assertEquals(outer.kind, 'block');
-    const ret = (outer as unknown as { body: { kind: string }[] }).body[0]!;
+    const ret = (outer as unknown as { children: { kind: string }[] }).children[0]!;
     assertEquals(ret.kind, 'return');
     const tryTable = (ret as unknown as { values: { kind: string }[] }).values[0]!;
     assertEquals(tryTable.kind, 'try_table', 'built a block instead of a try_table');
-    const tt = tryTable as unknown as { catches: unknown[]; body: unknown[] };
+    const tt = tryTable as unknown as { catches: unknown[]; body: { children: unknown[] } };
     assertEquals(tt.catches.length, 1, 'catch clause was dropped');
-    assertEquals(tt.body.length, 1, 'body was skipped to `end`');
+    assertEquals(tt.body.children.length, 1, 'body was skipped to `end`');
   });
 
   it('reads a tagged catch and a numeric target the way the writer emits them', () => {
@@ -88,8 +88,8 @@ describe('T10.6 — linear try_table keeps its catch clauses and its body', () =
           end
         end))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const outer = module.funcs[0]!.body[0]! as unknown as { body: { kind: string }[] };
-    const tt = outer.body[0]! as unknown as { kind: string; catches: unknown[] };
+    const outer = module.funcs[0]!.body[0]! as unknown as { children: { kind: string }[] };
+    const tt = outer.children[0]! as unknown as { kind: string; catches: unknown[] };
     assertEquals(tt.kind, 'try_table');
     assertEquals(tt.catches.length, 2);
   });
@@ -141,8 +141,8 @@ describe('T10.6 — linear try_table keeps its catch clauses and its body', () =
           (return))
         (i32.const 3)))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const outer = module.funcs[0]!.body[0]! as unknown as { body: { kind: string }[] };
-    const ret = outer.body[0]! as unknown as { kind: string; values: { kind: string }[] };
+    const outer = module.funcs[0]!.body[0]! as unknown as { children: { kind: string }[] };
+    const ret = outer.children[0]! as unknown as { kind: string; values: { kind: string }[] };
     assertEquals(ret.kind, 'return');
     assertEquals(ret.values[0]!.kind, 'try_table');
   });

@@ -10,7 +10,7 @@ import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import { hasErrors, makeErrorList, unknownLocation } from '../../../src/wabt-ts/core/error.ts';
 import type { ErrorList } from '../../../src/wabt-ts/core/error.ts';
 
-import { constF32, constI32, makeModule, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { constF32, constI32, makeModule, region, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import type {
   BinaryExpr,
   BlockExpr,
@@ -241,7 +241,7 @@ describe('validateModule', () => {
         kind: 'block',
         label: '',
         type: Type.I32,
-        body: blockBody,
+        children: blockBody,
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [block])), true);
@@ -252,7 +252,7 @@ describe('validateModule', () => {
         kind: 'block',
         label: '',
         type: 'none',
-        body: [{ kind: 'unreachable', loc: LOC }],
+        children: [{ kind: 'unreachable', loc: LOC }],
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [], [block])), true);
@@ -264,8 +264,8 @@ describe('validateModule', () => {
         label: '',
         type: Type.I32,
         condition: makeConst32(1),
-        ifTrue: [makeConst32(10)],
-        ifFalse: [makeConst32(20)],
+        ifTrue: region([makeConst32(10)], LOC),
+        ifFalse: region([makeConst32(20)], LOC),
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [ifExpr])), true);
@@ -280,7 +280,7 @@ describe('validateModule', () => {
         kind: 'block',
         label: '',
         type: Type.I32,
-        body: [inner],
+        children: [inner],
         loc: LOC,
       };
       assertEquals(isValid(singleFuncModule([], [Type.I32], [block])), true);

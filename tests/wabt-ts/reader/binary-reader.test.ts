@@ -14,7 +14,7 @@ import {
   unknownLocation,
 } from '../../../src/wabt-ts/core/error.ts';
 
-import { constI32, constI64, makeModule, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { constI32, constI64, makeModule, region, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import type { Module } from '../../../src/wabt-ts/ir/ir.ts';
 
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
@@ -426,7 +426,7 @@ describe('readBinaryIr', () => {
           kind: 'block',
           label: '$l',
           type: 'none',
-          body: [{ kind: 'nop', loc: LOC }],
+          children: [{ kind: 'nop', loc: LOC }],
           loc: LOC,
         },
       ],
@@ -442,8 +442,8 @@ describe('readBinaryIr', () => {
     assertEquals(body.length, 1);
     assertEquals(body[0]!.kind, 'block');
     if (body[0]!.kind === 'block') {
-      assertEquals(body[0].body.length, 1);
-      assertEquals(body[0].body[0]!.kind, 'nop');
+      assertEquals(body[0].children.length, 1);
+      assertEquals(body[0].children[0]!.kind, 'nop');
     }
   });
 
@@ -467,8 +467,8 @@ describe('readBinaryIr', () => {
           label: '',
           type: Type.I32,
           condition: { kind: 'local.get', var: varIndex(0), loc: LOC },
-          ifTrue: [{ kind: 'const', value: constI32(1), loc: LOC }],
-          ifFalse: [{ kind: 'const', value: constI32(0), loc: LOC }],
+          ifTrue: region([{ kind: 'const', value: constI32(1), loc: LOC }], LOC),
+          ifFalse: region([{ kind: 'const', value: constI32(0), loc: LOC }], LOC),
           loc: LOC,
         },
       ],
@@ -485,10 +485,10 @@ describe('readBinaryIr', () => {
     const e = body[0]!;
     assertEquals(e.kind, 'if');
     if (e.kind === 'if') {
-      assertEquals(e.ifTrue.length, 1);
-      assertEquals(e.ifFalse.length, 1);
-      assertEquals(e.ifTrue[0]!.kind, 'const');
-      assertEquals(e.ifFalse[0]!.kind, 'const');
+      assertEquals(e.ifTrue.children.length, 1);
+      assertEquals(e.ifFalse?.children.length, 1);
+      assertEquals(e.ifTrue.children[0]!.kind, 'const');
+      assertEquals(e.ifFalse?.children[0]?.kind, 'const');
     }
   });
 

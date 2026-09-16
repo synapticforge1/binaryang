@@ -18,6 +18,7 @@ import {
   isVarIndex,
   isVarName,
   makeModule,
+  region,
   sigEquals,
   totalFuncs,
   totalGlobals,
@@ -252,7 +253,7 @@ describe('ExprVisitor', () => {
       kind: 'block',
       label: '',
       type: 'none',
-      body: [makeConst(42)],
+      children: [makeConst(42)],
       loc: LOC,
     };
     const v = new ExprVisitor(delegate);
@@ -286,8 +287,8 @@ describe('ExprVisitor', () => {
       label: '',
       type: 'none',
       condition: makeConst(0),
-      ifTrue: [makeConst(1)],
-      ifFalse: [makeConst(2)],
+      ifTrue: region([makeConst(1)], LOC),
+      ifFalse: region([makeConst(2)], LOC),
       loc: LOC,
     };
     const v = new ExprVisitor(delegate);
@@ -342,6 +343,46 @@ describe('generateNames', () => {
     generateNames(m);
     assertEquals(m.funcs[0]?.name, '$f0');
     assertEquals(m.funcs[1]?.name, '$f1');
+  });
+
+  it('names a label NESTED inside a block, and every construct between', () => {
+    // S6 step 5 (d1): a block's list is `children`, a loop's is `body`. A walk
+    // reading only `body` still named the outer block — and nothing inside it,
+    // silently; no other test nests an unlabelled construct in a block.
+    const nop: Expr = { kind: 'nop', loc: LOC };
+    const inner: Expr = { kind: 'block', label: '', type: 'none', children: [nop], loc: LOC };
+    const loop: Expr = {
+      kind: 'loop',
+      label: '',
+      type: 'none',
+      body: region([inner], LOC),
+      loc: LOC,
+    };
+    const outer: Expr = { kind: 'block', label: '', type: 'none', children: [loop], loc: LOC };
+    const m = makeModule();
+    m.funcs.push(makeFuncBody([outer]));
+    generateNames(m);
+    const labels = [outer, loop, inner].map((e) => (e as { label: string }).label);
+    assertEquals(labels, ['$B0', '$B1', '$B2']);
+  });
+
+  it('names a label nested in EITHER if arm (the arms are regions, S6 step 5 (d2))', () => {
+    const inThen: Expr = { kind: 'block', label: '', type: 'none', children: [], loc: LOC };
+    const inElse: Expr = { kind: 'block', label: '', type: 'none', children: [], loc: LOC };
+    const ife: Expr = {
+      kind: 'if',
+      label: '',
+      type: 'none',
+      condition: makeConst(1),
+      ifTrue: region([inThen], LOC),
+      ifFalse: region([inElse], LOC),
+      loc: LOC,
+    };
+    const m = makeModule();
+    m.funcs.push(makeFuncBody([ife]));
+    generateNames(m);
+    const labels = [ife, inThen, inElse].map((e) => (e as { label: string }).label);
+    assertEquals(labels, ['$B0', '$B1', '$B2']);
   });
 
   it('leaves pre-existing names unchanged', () => {

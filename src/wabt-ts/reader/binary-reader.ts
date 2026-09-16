@@ -105,6 +105,7 @@ import {
   type RefI31Expr,
   type RefNullExpr,
   type RefTestExpr,
+  region,
   type RethrowExpr,
   type SectionMeta,
   type StructGetExpr,
@@ -1397,10 +1398,13 @@ export class BinaryReader {
             // to that catch before opening the new one — otherwise every catch
             // except the last is left with an empty body (the End finalizer
             // only fills the final catch). Mirrors the catch_all case below.
-            frame.catches[frame.catches.length - 1]!.body = body;
+            {
+              const c = frame.catches[frame.catches.length - 1]!;
+              c.body = region(body, c.loc);
+            }
           }
           if (frame.catches) {
-            frame.catches.push({ loc, tag: varIndex(tagIdx), isRef: false, body: [] });
+            frame.catches.push({ loc, tag: varIndex(tagIdx), isRef: false, body: region([], loc) });
           }
           break;
         }
@@ -1414,9 +1418,9 @@ export class BinaryReader {
           if (frame.tryBody === undefined) frame.tryBody = body;
           else if (frame.catches && frame.catches.length > 0) {
             const prev = frame.catches[frame.catches.length - 1]!;
-            prev.body = body;
+            prev.body = region(body, prev.loc);
           }
-          if (frame.catches) frame.catches.push({ loc, isRef: false, body: [] });
+          if (frame.catches) frame.catches.push({ loc, isRef: false, body: region([], loc) });
           break;
         }
         case Opcode.Delegate: {
@@ -1434,7 +1438,7 @@ export class BinaryReader {
             label: frame.label,
             ...headerOf(frame.blockType, m),
             ...(frame.params ? { params: frame.params } : {}),
-            body: tryBody,
+            body: region(tryBody, frame.loc),
             catches: [],
             delegate: varIndex(depth),
             loc: frame.loc,
@@ -1495,7 +1499,7 @@ export class BinaryReader {
                 label: frame.label,
                 ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                body: endBody,
+                children: endBody,
                 loc: frame.loc,
               };
               break;
@@ -1505,7 +1509,7 @@ export class BinaryReader {
                 label: frame.label,
                 ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                body: endBody,
+                body: region(endBody, frame.loc),
                 loc: frame.loc,
               };
               break;
@@ -1516,8 +1520,8 @@ export class BinaryReader {
                 ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
                 condition: frame.condition ?? operandPlaceholder(loc),
-                ifTrue: endBody,
-                ifFalse: [],
+                ifTrue: region(endBody, frame.loc),
+                ifFalse: null, // no `else` was written
                 loc: frame.loc,
               };
               break;
@@ -1528,8 +1532,8 @@ export class BinaryReader {
                 ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
                 condition: frame.condition ?? operandPlaceholder(loc),
-                ifTrue: frame.ifTrue ?? [],
-                ifFalse: endBody,
+                ifTrue: region(frame.ifTrue ?? [], frame.loc),
+                ifFalse: region(endBody, frame.loc), // even an EMPTY else was written
                 loc: frame.loc,
               };
               break;
@@ -1542,7 +1546,7 @@ export class BinaryReader {
               } else {
                 if (catches.length > 0) {
                   const last = catches[catches.length - 1]!;
-                  last.body = endBody;
+                  last.body = region(endBody, last.loc);
                 }
               }
               node = {
@@ -1550,7 +1554,7 @@ export class BinaryReader {
                 label: frame.label,
                 ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                body: tryBody,
+                body: region(tryBody, frame.loc),
                 catches,
                 loc: frame.loc,
               };
@@ -1562,7 +1566,7 @@ export class BinaryReader {
                 label: frame.label,
                 ...headerOf(frame.blockType, m),
                 ...(frame.params ? { params: frame.params } : {}),
-                body: endBody,
+                body: region(endBody, frame.loc),
                 catches: frame.tableCatches ?? [],
                 loc: frame.loc,
               };

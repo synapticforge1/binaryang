@@ -27,6 +27,7 @@ import type {
   FuncSignature,
   HeapTypeRef,
   Module,
+  RegionExpr,
   TableCatch,
   TypeUse,
   ValueType,
@@ -393,12 +394,22 @@ class ResolveContext {
           values,
         }];
       }
-      case 'block':
+      // ⚠️ Two arms, not one: `block` holds `children` and `loop` holds `body`
+      // (stage (d1)). A shared arm returning `{ ...e, body }` type-checks for a
+      // block — the spread adds a stray key — and leaves `children` unresolved.
+      case 'block': {
+        const type = this.resolveBlockResult(e.type, loc);
+        const [rP, params] = this.resolveEntryParams(e, loc);
+        this.labelStack.push(e.label);
+        const [r, children] = this.resolveExprArray(e.children);
+        this.labelStack.pop();
+        return [combine(rP, r), { ...e, type, ...params, children }];
+      }
       case 'loop': {
         const type = this.resolveBlockResult(e.type, loc);
         const [rP, params] = this.resolveEntryParams(e, loc);
         this.labelStack.push(e.label);
-        const [r, body] = this.resolveExprArray(e.body);
+        const [r, body] = this.resolveRegion(e.body);
         this.labelStack.pop();
         return [combine(rP, r), { ...e, type, ...params, body }];
       }
@@ -408,8 +419,10 @@ class ResolveContext {
         const [rC0, cond] = this.resolveExpr(e.condition);
         const rC = combine(rP, rC0);
         this.labelStack.push(e.label);
-        const [rT, ifTrue] = this.resolveExprArray(e.ifTrue);
-        const [rE, ifFalse] = this.resolveExprArray(e.ifFalse);
+        const [rT, ifTrue] = this.resolveRegion(e.ifTrue);
+        const [rE, ifFalse] = e.ifFalse === null
+          ? [Result.Ok, null]
+          : this.resolveRegion(e.ifFalse);
         this.labelStack.pop();
         return [combine(rC, combine(rT, rE)), {
           ...e,
@@ -424,11 +437,11 @@ class ResolveContext {
         const type = this.resolveBlockResult(e.type, loc);
         const [rP, params] = this.resolveEntryParams(e, loc);
         this.labelStack.push(e.label);
-        const [rB, body] = this.resolveExprArray(e.body);
+        const [rB, body] = this.resolveRegion(e.body);
         let result = combine(rP, rB);
         const newCatches = [];
         for (const c of e.catches) {
-          const [rC, catchBody] = this.resolveExprArray(c.body);
+          const [rC, catchBody] = this.resolveRegion(c.body);
           result = combine(result, rC);
           // Resolve the catch's tag reference ($name → tag index); the
           // binary writer / validator read c.tag as an index. catch_all
@@ -475,7 +488,7 @@ class ResolveContext {
         });
         const [rP, params] = this.resolveEntryParams(e, loc);
         this.labelStack.push(e.label);
-        const [r, body] = this.resolveExprArray(e.body);
+        const [r, body] = this.resolveRegion(e.body);
         this.labelStack.pop();
         return [combine(rP, r), {
           ...e,
@@ -956,9 +969,19 @@ class ResolveContext {
       // because returning `e` unchanged is indistinguishable from correctly
       // resolving a leaf. Do not add a node here to make a compile error go
       // away; give it an arm above.
+      // A region reached as an expression: its instructions. Not a leaf — the
+      // `default` below would return it unresolved.
+      case 'region':
+        return this.resolveRegion(e);
       default:
         return [Result.Ok, e];
     }
+  }
+
+  /** A region's instructions, resolved; the region itself carries no name. */
+  private resolveRegion(r: RegionExpr): [Result, RegionExpr] {
+    const [result, children] = this.resolveExprArray(r.children);
+    return [result, { ...r, children }];
   }
 
   private resolveExprArray(exprs: Expr[]): [Result, Expr[]] {

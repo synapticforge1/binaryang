@@ -35,7 +35,7 @@ failed, naming, portability, baseline **IDENTICAL**, publish dry-run, operators,
 assertion holds in every world, 19 `assert_invalid`/`assert_malformed` skipped), `optimize-corpus`
 (every level of every module encodes and validates).
 
-S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**65 / 5 / 3** after items 1–2 below, 2026-09-16). Nine stages landed
+S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**66 / 6 / 2** after items 1–3 below, 2026-09-16). Nine stages landed
 on 2026-09-15 (A, A2, A3, B, V1–V4, S1–S3, L1, B1–B3, C1, L2). **No branch is open** — the next
 sub-stage was branched and the branch deleted unused, so start from `main`.
 
@@ -51,8 +51,10 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    (`typeIndex?`); `blockType` and its fidelity entry are gone; the validator holds signature and
    index to each other. Ratchet **65 / 5 / 3**. Record: [ir-convergence.md](ir-convergence.md) §
    "Stage (c) — the block type".
-3. **Block family (d) — the bodies**: `Expr[]` against `RegionExpr` (`children` against `body`).
-   Note this one also closes the last field difference in the LEGACY catch record.
+3. ✅ **Block family (d) — the bodies. DONE 2026-09-16** (`ddc45cbb1` d1, `e9c029ffb` d2). A block's
+   list is `children`; every region slot holds a `RegionExpr`, `ifFalse` is `RegionExpr | null`
+   (an explicit empty `else` now survives wabt-ts's binary round trip — divergence E1). Ratchet
+   **66 / 6 / 2**. Record: [ir-convergence.md](ir-convergence.md) § "Stage (d) — the bodies".
 4. Then, still on the expression half: `call_indirect`'s type use (`typeVar` + `typeUse?` against
    `typeIndex?`), `select.resultType`'s remaining `types` state (wabt-ts's `ValueType` admits
    non-value `Type` members), and `ref.null.refType` (deferred by Group 3 to type derivation).
@@ -61,7 +63,9 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    `code_metadata`, `region`), the alias, and the type-derivation pass
    (`inferBinaryType` / `inferUnaryType`) carried forward out of the bridge.
 6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
-   `WasmModule`, on the expression half's terms; the bridge is deleted outright. 16 test files,
+   `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
+   `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the
+   function body; stage (d2) deferred it here). 16 test files,
    `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` come out with it.
 
 ⚠️ **Carry the L2 discipline into every remaining stage**: when a field loses `null` or `undefined`

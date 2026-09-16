@@ -767,7 +767,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginBlockExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body);
+        r = this.visitExprList(e.children);
         if (r === Result.Error) return r;
         return this.d.endBlockExpr?.(e) ?? Result.Ok;
       }
@@ -776,7 +776,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginLoopExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body);
+        r = this.visitExprList(e.body.children);
         if (r === Result.Error) return r;
         return this.d.endLoopExpr?.(e) ?? Result.Ok;
       }
@@ -788,11 +788,11 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginIfExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.ifTrue);
+        r = this.visitExprList(e.ifTrue.children);
         if (r === Result.Error) return r;
         r = this.d.afterIfTrueExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.ifFalse);
+        r = this.visitExprList(e.ifFalse?.children ?? []);
         if (r === Result.Error) return r;
         return this.d.endIfExpr?.(e) ?? Result.Ok;
       }
@@ -801,7 +801,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginTryExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body);
+        r = this.visitExprList(e.body.children);
         if (r === Result.Error) return r;
         if (e.delegate !== undefined) {
           return this.d.onDelegateExpr?.(e) ?? Result.Ok;
@@ -809,7 +809,7 @@ export class ExprVisitor {
         for (const [i, c] of e.catches.entries()) {
           r = this.d.onCatchExpr?.(e, c, i) ?? Result.Ok;
           if (r === Result.Error) return r;
-          r = this.visitExprList(c.body);
+          r = this.visitExprList(c.body.children);
           if (r === Result.Error) return r;
         }
         return this.d.endTryExpr?.(e) ?? Result.Ok;
@@ -819,10 +819,15 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginTryTableExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body);
+        r = this.visitExprList(e.body.children);
         if (r === Result.Error) return r;
         return this.d.endTryTableExpr?.(e) ?? Result.Ok;
       }
+
+      // A region reached as an expression (its slots are walked above, through
+      // 'children', so no hook fires twice): its instructions, nothing else.
+      case 'region':
+        return this.visitExprList(e.children);
 
       // A leaf: it stands for a value already on the stack, so there is
       // nothing below it to walk and no delegate hook to fire.
