@@ -119,6 +119,8 @@ export const ExpressionKind = {
   AtomicWait: 'atomic.wait',
   AtomicNotify: 'atomic.notify',
   AtomicFence: 'atomic.fence',
+  // Annotations (wabt-ts's — see CodeMetadataExpr)
+  CodeMetadata: 'code_metadata',
   // SIMD
   SIMDExtract: 'simd.extract',
   SIMDReplace: 'simd.replace',
@@ -1327,6 +1329,25 @@ export interface CallRefExpr extends ExprBase {
   callee: Expression;
 }
 
+/**
+ * A code-metadata annotation — `(@metadata.code.<name> "<data>")` — standing
+ * before the instruction it describes. wabt-ts's node, and wabt-ts's to build:
+ * it is the TEXT form of a `metadata.code.*` section, which binaryen-ts reads
+ * and writes as a raw custom section instead (divergence K2).
+ *
+ * 🗓️ Owner, 2026-09-16: binaryen-ts STRIPS it in its optimization runs —
+ * `stripCodeMetadata` (walk.ts), run by `PassRunner` before the first pass.
+ * Its encoder REFUSES one: it has no instruction bytes, and writing nothing for
+ * it is how an annotation is silently lost (W8).
+ */
+export interface CodeMetadataExpr extends ExprBase {
+  kind: typeof ExpressionKind.CodeMetadata;
+  /** The metadata kind — `branch_hint` for `@metadata.code.branch_hint`. */
+  name: string;
+  /** The annotation's payload bytes. */
+  data: Uint8Array;
+}
+
 export interface MemorySizeExpr extends ExprBase {
   /**
    * Memory this access addresses. Omitted means 0, the only memory a
@@ -2325,6 +2346,7 @@ export type Expression =
   | AtomicWaitExpr
   | AtomicNotifyExpr
   | AtomicFenceExpr
+  | CodeMetadataExpr
   | MemoryGrowExpr
   | MemorySizeExpr
   | TableInitExpr

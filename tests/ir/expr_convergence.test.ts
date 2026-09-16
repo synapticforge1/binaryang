@@ -98,6 +98,7 @@ const PINNED: Computed = {
   'call': 'identical',
   'call_indirect': 'identical',
   'call_ref': 'identical',
+  'code_metadata': 'identical',
   'const': 'identical',
   'data.drop': 'identical',
   'drop': 'identical',

@@ -359,6 +359,7 @@ function _mapChildren(
       return { ...expr, address, count: fn(expr.count) };
     }
     case ExpressionKind.AtomicFence:
+    case ExpressionKind.CodeMetadata:
       return expr;
 
     case ExpressionKind.TableInit:
@@ -733,6 +734,7 @@ function _visitChildren(
       visit(expr.count);
       break;
     case ExpressionKind.AtomicFence:
+    case ExpressionKind.CodeMetadata:
       break;
     case ExpressionKind.TableInit:
     case ExpressionKind.MemoryInit:
@@ -935,4 +937,34 @@ function _visitChildren(
           `(add a case to _visitChildren in walk.ts)`,
       );
   }
+}
+
+// ---------------------------------------------------------------------------
+// stripCodeMetadata — what an optimization run does with annotations
+// ---------------------------------------------------------------------------
+
+/**
+ * `region` without its `code_metadata` annotations — what `PassRunner` runs
+ * before the first pass (owner, 2026-09-16: binaryen-ts strips them in its
+ * optimization runs). An annotation describes the instruction after it, which a
+ * pass may move, rewrite or delete, so none is carried through.
+ *
+ * One stands in a STATEMENT list only — a block's or a region's children. One
+ * anywhere else is not an annotation this tree can place, and is refused.
+ */
+export function stripCodeMetadata(region: RegionExpr): RegionExpr {
+  const strip = (e: Expression): Expression => {
+    if (e.kind !== ExpressionKind.Block && e.kind !== ExpressionKind.Region) return e;
+    if (!e.children.some((c) => c.kind === ExpressionKind.CodeMetadata)) return e;
+    return { ...e, children: e.children.filter((c) => c.kind !== ExpressionKind.CodeMetadata) };
+  };
+  const out = mapExpression(region, strip);
+  walkExpression(out, (e) => {
+    if (e.kind === ExpressionKind.CodeMetadata) {
+      throw new Error(
+        `code_metadata "${e.name}" outside a statement list: an annotation stands before an instruction`,
+      );
+    }
+  });
+  return out;
 }

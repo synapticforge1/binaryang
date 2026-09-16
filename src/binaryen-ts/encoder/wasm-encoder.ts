@@ -2265,6 +2265,15 @@ class WasmEncoder {
         this.writeOperator(w, (0xfe << 16) | 0x00);
         this.writeMemArg(w, expr.align, expr.offset, expr.memidx);
         break;
+      case ExpressionKind.CodeMetadata:
+        // No instruction bytes. Writing nothing is how the annotation would be
+        // silently lost (W8); an optimization run has already stripped any
+        // (owner, 2026-09-16), so one here came through a plain encode.
+        throw new WasmEncodeError(
+          `cannot encode code_metadata "${expr.name}": binaryen-ts writes code metadata only ` +
+            `as a raw metadata.code.* custom section; run a pass (which strips it) or use wabt-ts`,
+        );
+
       case ExpressionKind.AtomicFence:
         this.writeOperator(w, (0xfe << 16) | 0x03);
         w.writeU8(expr.consistencyModel);

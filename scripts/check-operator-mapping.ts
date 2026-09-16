@@ -291,11 +291,10 @@ function wabtExprKinds(irSrc: string): Set<string> {
  * one-sided kinds when they are one shared kind spelled for two audiences. A
  * scrape that did exactly that is what kept the stale "27 outstanding" alive.
  *
- * What is left is one fact:
- *
- * - **`code_metadata`** — wabt-ts's annotation pseudo-instruction, and wabt-ts's
- *   alone (owner, 2026-09-16: if fidelity needs it, it is needed on the wabt-ts
- *   side only). Divergence K2.
+ * Nothing is left. `code_metadata` was the last (divergence K2): it is wabt-ts's
+ * to BUILD (owner, 2026-09-16: if fidelity needs it, it is needed on the wabt-ts
+ * side only), and binaryen-ts's union holds it so one tree can carry it —
+ * stripped in optimization runs, refused by a plain encode (owner, 2026-09-16).
  *
  * The atomics and `call_ref` left at S6 step 5 item 5 (5), when binaryen-ts
  * gained them (K1); `region` at step 5 (d2), when wabt-ts did.
@@ -304,7 +303,9 @@ function wabtExprKinds(irSrc: string): Set<string> {
  * `binary`, wabt-ts's shape. Should a `simd.shift` kind come back, this fails.
  */
 const ONE_SIDED_BUDGET = {
-  wabt: ['code_metadata'],
+  // `code_metadata` left at S6 step 5 item 5 (6): binaryen-ts's union holds it
+  // too, and strips it in optimization runs (owner, 2026-09-16).
+  wabt: [] as string[],
   // `region` left this list at S6 step 5 (d2): wabt-ts holds it too.
   binaryen: [] as string[],
 };

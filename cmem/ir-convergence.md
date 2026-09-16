@@ -2887,6 +2887,22 @@ no such node to strip. ⚠️ To settle when implementing, not decided here: the
 custom section binaryen-ts already carries holds instruction OFFSETS, which optimization moves — a
 kept section would point at the wrong instructions.
 
+**(6) The alias** 🚧. A DEEPER trial first: not just `Expression` := wabt-ts's `Expr`, but EVERY binaryen-ts
+node interface := wabt-ts's node of the same kind (`s56_deep_trial.ts`) — the one that makes the
+`readonly` question visible. **36 errors**: `code_metadata` 22, the ratchet test 6, `readonly` only
+**8** (6 assignments, 2 `delete`s), `ref.null`'s `refType` 1. "Bigger than its 2" was right in
+direction and small in size.
+
+**(6a) `code_metadata` in binaryen-ts's union, per the owner.** A `CodeMetadataExpr` (wabt-ts's shape)
+and kind member; walker leaf cases; `stripCodeMetadata` (walk.ts) removes every one from statement
+lists and REFUSES one anywhere else; `PassRunner` runs it before the first pass, beside
+`dropWrittenTypeIndex` and under the same condition (a runner with nothing queued keeps it); the
+encoder REFUSES one (no bytes — writing nothing is W8's silent loss). `ONE_SIDED_BUDGET` is empty: 85
+kinds shared. Tests `code_metadata_strip.test.ts` (5); 5 mutants, all killed (one only after a
+fixture fix: a region's SOLE unnamed block dissolves, so the empty-block case needs a sibling).
+Alias trial (union form) 37 → **16**. ⚠️ Still open from the decision: the RAW `metadata.code.*`
+section an optimization run keeps.
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).
