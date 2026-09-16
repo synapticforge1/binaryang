@@ -14,14 +14,7 @@ import {
   unknownLocation,
 } from '../../../src/wabt-ts/core/error.ts';
 
-import {
-  BLOCK_TYPE_VOID,
-  blockTypeValue,
-  constI32,
-  constI64,
-  makeModule,
-  varIndex,
-} from '../../../src/wabt-ts/ir/ir.ts';
+import { constI32, constI64, makeModule, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import type { Module } from '../../../src/wabt-ts/ir/ir.ts';
 
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
@@ -432,7 +425,7 @@ describe('readBinaryIr', () => {
         {
           kind: 'block',
           label: '$l',
-          blockType: BLOCK_TYPE_VOID,
+          type: 'none',
           body: [{ kind: 'nop', loc: LOC }],
           loc: LOC,
         },
@@ -472,7 +465,7 @@ describe('readBinaryIr', () => {
         {
           kind: 'if',
           label: '',
-          blockType: blockTypeValue(Type.I32),
+          type: Type.I32,
           condition: { kind: 'local.get', var: varIndex(0), loc: LOC },
           ifTrue: [{ kind: 'const', value: constI32(1), loc: LOC }],
           ifFalse: [{ kind: 'const', value: constI32(0), loc: LOC }],

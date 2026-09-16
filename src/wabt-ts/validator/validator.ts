@@ -3,7 +3,15 @@
 // Copyright 2016 WebAssembly Community Group participants
 // Licensed under the Apache License, Version 2.0
 
-import { indexOf, isRefValueType, requireIndex } from '../ir/ir.ts';
+import {
+  blockResults,
+  blockTypeOf,
+  indexOf,
+  isRefValueType,
+  requireIndex,
+  UNASSIGNED_TYPE_INDEX,
+  valueTypeEquals,
+} from '../ir/ir.ts';
 import type { BlockType, Field, TypeEntry, ValueType } from '../ir/ir.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
@@ -230,6 +238,8 @@ export function validateModule(
  * the same reasoning behind `walkExpression` throwing on an unhandled kind, and
  * the opposite of what let this check go missing in the first place.
  */
+const CARRIER_KINDS: ReadonlySet<string> = new Set(['block', 'loop', 'if', 'try', 'try_table']);
+
 function blockTypesIn(exprs: readonly unknown[]): BlockType[] {
   const out: BlockType[] = [];
   const seen = new Set<unknown>();
@@ -241,9 +251,12 @@ function blockTypesIn(exprs: readonly unknown[]): BlockType[] {
       return;
     }
     const rec = node as Record<string, unknown>;
-    const bt = rec['blockType'];
-    if (bt !== undefined && bt !== null && typeof bt === 'object' && 'kind' in bt) {
-      out.push(bt as BlockType);
+    // 🔧 This keyed on a `blockType` FIELD. Stage (c2) removed it, and a missing
+    // key is not an error — the walk would have found nothing, silently, and let
+    // `(block (result (ref 1)))` in a one-type module through again. It asks a
+    // carrier for its header instead.
+    if (typeof rec['kind'] === 'string' && CARRIER_KINDS.has(rec['kind'])) {
+      out.push(blockTypeOf(node as BlockExpr));
     }
     for (const value of Object.values(rec)) {
       if (value !== null && typeof value === 'object') visit(value);
@@ -652,24 +665,59 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onSelect(e.loc, e.resultType);
   }
 
+  /**
+   * A carrier's header as it will be WRITTEN, checked against the node's own
+   * signature (S6 step 5, stage (c2)).
+   *
+   * The node holds its signature — `type` and `params.types` — AND, where the
+   * header named one, the type index (`typeIndex`, form). Those are two
+   * spellings of one fact, and the writers emit the INDEX: a node whose index
+   * named a different signature would type-check here against one program and
+   * be written as another. So they must agree, and a header with no index must
+   * have an inline spelling — no parameters, at most one result.
+   */
+  private checkCarrierHeader(e: BlockExpr | LoopExpr | IfExpr | TryExpr | TryTableExpr): Result {
+    const bt = blockTypeOf(e);
+    if (bt.kind !== 'func_type') return Result.Ok;
+    if (bt.typeIdx === UNASSIGNED_TYPE_INDEX) {
+      return this.sv.printError(
+        e.loc,
+        `${e.kind}: a header with parameters or several results needs a type index, and has none`,
+      );
+    }
+    const entry = this.module.types[bt.typeIdx];
+    if (entry === undefined || entry.kind !== 'func') return Result.Ok; // reported by the header check
+    const params = e.params?.types ?? [];
+    const results = blockResults(e.type);
+    const same = (a: readonly ValueType[], b: readonly ValueType[]) =>
+      a.length === b.length && a.every((x, i) => valueTypeEquals(x, b[i]!));
+    if (!same(params, entry.sig.params) || !same(results, entry.sig.results)) {
+      return this.sv.printError(
+        e.loc,
+        `${e.kind}: its signature does not match type ${bt.typeIdx}, which its header names`,
+      );
+    }
+    return Result.Ok;
+  }
+
   beginBlockExpr(e: BlockExpr): Result {
-    return this.sv.onBlock(e.loc, e.blockType);
+    return combineResults(this.checkCarrierHeader(e), this.sv.onBlock(e.loc, blockTypeOf(e)));
   }
   endBlockExpr(e: BlockExpr): Result {
     return this.sv.onEnd(e.loc);
   }
   beginLoopExpr(e: LoopExpr): Result {
-    return this.sv.onLoop(e.loc, e.blockType);
+    return combineResults(this.checkCarrierHeader(e), this.sv.onLoop(e.loc, blockTypeOf(e)));
   }
   endLoopExpr(e: LoopExpr): Result {
     return this.sv.onEnd(e.loc);
   }
   beginIfExpr(e: IfExpr): Result {
-    let r = this.sv.onIf(e.loc, e.blockType);
+    let r = combineResults(this.checkCarrierHeader(e), this.sv.onIf(e.loc, blockTypeOf(e)));
     // A missing `else` is not modelled anywhere else, so the arity rule for a
     // one-armed if has to be checked from the IR.
     if (e.ifFalse.length === 0) {
-      r = combineResults(r, this.sv.onOneArmedIf(e.loc, e.blockType));
+      r = combineResults(r, this.sv.onOneArmedIf(e.loc, blockTypeOf(e)));
     }
     return r;
   }
@@ -1013,7 +1061,7 @@ class ModuleValidator implements ExprVisitorDelegate {
   beginTryExpr(e: TryExpr): Result {
     const rf = this.sv.requireFeature('exceptions', 'exception handling', e.loc);
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onTry(e.loc, e.blockType);
+    return combineResults(this.checkCarrierHeader(e), this.sv.onTry(e.loc, blockTypeOf(e)));
   }
   onCatchExpr(_e: TryExpr, c: Catch, _i: number): Result {
     const isCatchAll = c.tag === undefined;
@@ -1046,7 +1094,8 @@ class ModuleValidator implements ExprVisitorDelegate {
         ),
       );
     }
-    return combineResults(r, this.sv.beginTryTable(e.loc, e.blockType));
+    r = combineResults(r, this.checkCarrierHeader(e));
+    return combineResults(r, this.sv.beginTryTable(e.loc, blockTypeOf(e)));
   }
   endTryTableExpr(e: TryTableExpr): Result {
     return this.sv.onEnd(e.loc);

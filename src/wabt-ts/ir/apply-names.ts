@@ -259,6 +259,19 @@ function hasExprBody(c: unknown): c is { body: Expr[] } {
 }
 
 /**
+ * A carrier's `params` — `{ types, values }` — whose `values` are Exprs.
+ *
+ * 🔧 S6 step 5 stage (c1) moved the entry values into that OBJECT field, which
+ * is neither an `Expr` nor a list, so the generic walk below passed over it and
+ * a `global.get 0` among them kept its index. Found by the axis-1 table.
+ */
+function hasExprValues(c: unknown): c is { values: Expr[] } {
+  if (typeof c !== 'object' || c === null || Array.isArray(c) || isExpr(c)) return false;
+  const values = (c as { values?: unknown }).values;
+  return Array.isArray(values) && values.every(isExpr);
+}
+
+/**
  * Axis 1 — recurse into every `Expr`-typed field of `e`, whatever its kind.
  *
  * Generic on purpose: a per-kind list is exactly what let 50 kinds go
@@ -273,6 +286,11 @@ function rewriteChildren(e: Expr, ctx: ApplyContext): Expr {
     if (isVar(value)) continue; // axis 2 owns these, never a child
     if (isExpr(value)) {
       out[key] = rewriteExprVars(value, ctx);
+      changed = true;
+      continue;
+    }
+    if (hasExprValues(value)) {
+      out[key] = { ...value, values: value.values.map((x) => rewriteExprVars(x, ctx)) };
       changed = true;
       continue;
     }

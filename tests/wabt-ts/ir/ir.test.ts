@@ -251,7 +251,7 @@ describe('ExprVisitor', () => {
     const block: Expr = {
       kind: 'block',
       label: '',
-      blockType: BLOCK_TYPE_VOID,
+      type: 'none',
       body: [makeConst(42)],
       loc: LOC,
     };
@@ -284,7 +284,7 @@ describe('ExprVisitor', () => {
     const ifExpr: Expr = {
       kind: 'if',
       label: '',
-      blockType: BLOCK_TYPE_VOID,
+      type: 'none',
       condition: makeConst(0),
       ifTrue: [makeConst(1)],
       ifFalse: [makeConst(2)],

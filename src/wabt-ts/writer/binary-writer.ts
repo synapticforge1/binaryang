@@ -92,7 +92,7 @@ import type {
   ValueType,
   Var,
 } from '../ir/ir.ts';
-import type { FidelityTable, NodeId } from '../ir/fidelity.ts';
+import type { FidelityTable } from '../ir/fidelity.ts';
 import {
   isRefValueType,
   recGroups,
@@ -127,7 +127,7 @@ import {
 import { MemoryStream } from './stream.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
-import { BrOnOp } from '../ir/ir.ts';
+import { blockTypeOf, BrOnOp } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -528,15 +528,16 @@ class BodyWriter implements ExprVisitorDelegate {
   }
 
   /**
-   * What was WRITTEN for this block, falling back to what the node derived.
+   * The header this carrier WRITES — {@link blockTypeOf}, from the node.
    *
-   * The table is the source of truth for as-written data; the node field is the
-   * fallback that predates it and will go away at S6. Reading through here is
-   * what makes the table load-bearing, so the byte baseline proves it correct
-   * rather than merely populated.
+   * 🔧 It read the fidelity table's `blockType`, falling back to the node's. The
+   * declared results and the index the header named are both on the node now
+   * (S6 step 5, stage (c2)), so there is no second place to consult: the
+   * declaration may differ from what the contents derive (a94154e21), and it
+   * has two spellings, an inline type and an index — the node holds both facts.
    */
-  private declaredBlockType(e: { nodeId?: NodeId; blockType: BlockType }): BlockType {
-    return this.fidelity.get(e.nodeId)?.blockType ?? e.blockType;
+  private declaredBlockType(e: Parameters<typeof blockTypeOf>[0]): BlockType {
+    return blockTypeOf(e);
   }
 
   onNopExpr(_e: NopExpr): Result {

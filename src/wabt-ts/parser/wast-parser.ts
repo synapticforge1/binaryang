@@ -39,6 +39,10 @@ import {
   type BinaryExpr,
   BLOCK_TYPE_VOID,
   type BlockExpr,
+  type BlockParams,
+  type BlockResult,
+  blockResult,
+  blockResults,
   type BlockType,
   blockTypeValue,
   type BrExpr,
@@ -964,6 +968,9 @@ function instrProducesValue(tt: TokenType): boolean {
 // ---------------------------------------------------------------------------
 // ExprCtx — operand stack context for expression building
 // ---------------------------------------------------------------------------
+
+/** The five block-type carriers. */
+type Carrier = BlockExpr | LoopExpr | IfExpr | TryExpr | TryTableExpr;
 
 interface ExprCtx {
   stack: Expr[];
@@ -3328,6 +3335,7 @@ export class WastParser {
     if (tt === TokenType.Block || tt === TokenType.Loop) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
 
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
@@ -3340,16 +3348,16 @@ export class WastParser {
         ? {
           kind: 'block',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         }
         : {
           kind: 'loop',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         };
@@ -3395,6 +3403,8 @@ export class WastParser {
       if (cond === undefined && ctx.stack.length > 0) {
         cond = ctx.stack.pop();
       }
+      // The entry values sit BENEATH the condition.
+      const params = this.takeEntryParams(ctx, blockType, loc);
 
       // then branch
       const ifTrue: Expr[] = [];
@@ -3418,8 +3428,8 @@ export class WastParser {
       const node: IfExpr = {
         kind: 'if',
         label,
-        blockType,
-        nodeId: this.fid({ blockType }),
+        ...this.headerOf(blockType),
+        ...(params ? { params } : {}),
         condition: condExpr,
         ifTrue,
         ifFalse,
@@ -3445,6 +3455,7 @@ export class WastParser {
     if (tt === TokenType.TryTable) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const catches: TableCatch[] = [];
       while (this.peek() === TokenType.Lpar && isCatchKeyword(this.peek(1))) {
         const c = this.parseTryTableCatch();
@@ -3457,8 +3468,8 @@ export class WastParser {
       const node: TryTableExpr = {
         kind: 'try_table',
         label,
-        blockType,
-        nodeId: this.fid({ blockType }),
+        ...this.headerOf(blockType),
+        ...(params ? { params } : {}),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -3488,6 +3499,7 @@ export class WastParser {
     if (tt === TokenType.Try) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
       const catches: Catch[] = [];
       let delegate: Var | undefined;
@@ -3530,8 +3542,8 @@ export class WastParser {
         ? {
           kind: 'try',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           loc,
@@ -3539,8 +3551,8 @@ export class WastParser {
         : {
           kind: 'try',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           delegate,
@@ -3636,6 +3648,7 @@ export class WastParser {
     if (tt === TokenType.Block || tt === TokenType.Loop) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
       this.expect(TokenType.End);
@@ -3645,16 +3658,16 @@ export class WastParser {
         ? {
           kind: 'block',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         }
         : {
           kind: 'loop',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         };
@@ -3668,6 +3681,8 @@ export class WastParser {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
       const cond = ctx.stack.pop();
+      // The entry values sit BENEATH the condition.
+      const params = this.takeEntryParams(ctx, blockType, loc);
 
       const ifTrue: Expr[] = [];
       const then_Ctx = newCtx();
@@ -3694,8 +3709,8 @@ export class WastParser {
       const node: IfExpr = {
         kind: 'if',
         label,
-        blockType,
-        nodeId: this.fid({ blockType }),
+        ...this.headerOf(blockType),
+        ...(params ? { params } : {}),
         condition: condExpr2,
         ifTrue,
         ifFalse,
@@ -3719,6 +3734,7 @@ export class WastParser {
     if (tt === TokenType.Try) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
       flushStack(bodyCtx);
@@ -3749,8 +3765,8 @@ export class WastParser {
         ? {
           kind: 'try',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           loc,
@@ -3758,8 +3774,8 @@ export class WastParser {
         : {
           kind: 'try',
           label,
-          blockType,
-          nodeId: this.fid({ blockType }),
+          ...this.headerOf(blockType),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           delegate,
@@ -3789,6 +3805,7 @@ export class WastParser {
     if (tt === TokenType.TryTable) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const catches: TableCatch[] = [];
       while (this.peek() === TokenType.Lpar && isCatchKeyword(this.peek(1))) {
         const c = this.parseTryTableCatch();
@@ -3802,8 +3819,8 @@ export class WastParser {
       const node: TryTableExpr = {
         kind: 'try_table',
         label,
-        blockType,
-        nodeId: this.fid({ blockType }),
+        ...this.headerOf(blockType),
+        ...(params ? { params } : {}),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -5126,6 +5143,37 @@ export class WastParser {
     return written ? { params, results } : null;
   }
 
+  /**
+   * A carrier's entry parameters, popped from the enclosing `ctx` (S6 step 5,
+   * stage (c1)) — the values move INTO the node rather than staying behind as
+   * preceding siblings. An inline signature is known here (its index is not,
+   * yet); a `(type $t)` is resolved, because bodies are parsed after every
+   * module field. Where the stack runs out the value is a `pop`, which writes
+   * nothing.
+   */
+  /**
+   * The DECLARED results and written index of the carrier whose header was just
+   * parsed (stage (c2)). An inline signature that needs an index gets
+   * `UNASSIGNED_TYPE_INDEX` here and its real one in {@link assignImplicitTypes}.
+   */
+  private headerOf(bt: BlockType): { type: BlockResult; typeIndex?: number } {
+    if (bt.kind === 'void') return { type: 'none' };
+    if (bt.kind === 'value') return { type: bt.type };
+    const pending = this.pendingBlockSigs.get(bt);
+    const entry = pending === undefined ? this.currentModule?.types[bt.typeIdx] : undefined;
+    const results = pending?.results ?? (entry?.kind === 'func' ? entry.sig.results : []);
+    return { type: blockResult(results), typeIndex: bt.typeIdx };
+  }
+
+  private takeEntryParams(ctx: ExprCtx, bt: BlockType, loc: Location): BlockParams | undefined {
+    if (bt.kind !== 'func_type') return undefined;
+    const pending = this.pendingBlockSigs.get(bt);
+    const entry = pending === undefined ? this.currentModule?.types[bt.typeIdx] : undefined;
+    const types = pending?.params ?? (entry?.kind === 'func' ? entry.sig.params : []);
+    if (types.length === 0) return undefined;
+    return { types: [...types], values: popN(ctx, types.length, loc) };
+  }
+
   private parseBlockType(): BlockType {
     // Explicit `(type $t)`. The grammar is `(type $t)? (param …)* (result …)*`
     // and BOTH may appear — `(block (type $sig) (result i32) …)` is legal, the
@@ -5216,16 +5264,16 @@ export class WastParser {
    */
   private assignImplicitTypes(module: Module, blockSigs: Map<BlockType, FuncSignature>): void {
     const intern = makeTypeInterner(module);
-    const assignBlock = (bt: BlockType): void => {
-      const sig = blockSigs.get(bt);
-      if (sig === undefined) return;
-      (bt as { typeIdx: number }).typeIdx = intern(sig);
-      blockSigs.delete(bt);
-    };
-    const block = (e: { blockType: BlockType }): Result => {
-      assignBlock(e.blockType);
+    // An inline signature with no inline spelling left its carrier holding
+    // `UNASSIGNED_TYPE_INDEX`. The node holds the signature itself (stage (c2)),
+    // so the implicit type is interned from the node.
+    const block = (e: Carrier): Result => {
+      if (e.typeIndex !== UNASSIGNED_TYPE_INDEX) return Result.Ok;
+      const sig = { params: e.params?.types ?? [], results: blockResults(e.type) };
+      (e as { typeIndex: number }).typeIndex = intern(sig);
       return Result.Ok;
     };
+    blockSigs.clear();
     const walker = new ExprVisitor({
       beginBlockExpr: block,
       beginLoopExpr: block,
@@ -5259,9 +5307,8 @@ export class WastParser {
         intern(d.sig);
       }
     }
-    // A block no function body holds — none should exist — still gets an index,
-    // so the placeholder can never reach a writer.
-    for (const bt of [...blockSigs.keys()]) assignBlock(bt);
+    // A carrier no function body holds — none should exist — keeps
+    // `UNASSIGNED_TYPE_INDEX`, which every writer refuses rather than encode.
   }
 
   // -------------------------------------------------------------------------

@@ -10,14 +10,7 @@ import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import { hasErrors, makeErrorList, unknownLocation } from '../../../src/wabt-ts/core/error.ts';
 import type { ErrorList } from '../../../src/wabt-ts/core/error.ts';
 
-import {
-  BLOCK_TYPE_VOID,
-  blockTypeValue,
-  constF32,
-  constI32,
-  makeModule,
-  varIndex,
-} from '../../../src/wabt-ts/ir/ir.ts';
+import { constF32, constI32, makeModule, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import type {
   BinaryExpr,
   BlockExpr,
@@ -247,7 +240,7 @@ describe('validateModule', () => {
       const block: BlockExpr = {
         kind: 'block',
         label: '',
-        blockType: blockTypeValue(Type.I32),
+        type: Type.I32,
         body: blockBody,
         loc: LOC,
       };
@@ -258,7 +251,7 @@ describe('validateModule', () => {
       const block: BlockExpr = {
         kind: 'block',
         label: '',
-        blockType: BLOCK_TYPE_VOID,
+        type: 'none',
         body: [{ kind: 'unreachable', loc: LOC }],
         loc: LOC,
       };
@@ -269,7 +262,7 @@ describe('validateModule', () => {
       const ifExpr: Expr = {
         kind: 'if',
         label: '',
-        blockType: blockTypeValue(Type.I32),
+        type: Type.I32,
         condition: makeConst32(1),
         ifTrue: [makeConst32(10)],
         ifFalse: [makeConst32(20)],
@@ -286,7 +279,7 @@ describe('validateModule', () => {
       const block: BlockExpr = {
         kind: 'block',
         label: '',
-        blockType: blockTypeValue(Type.I32),
+        type: Type.I32,
         body: [inner],
         loc: LOC,
       };

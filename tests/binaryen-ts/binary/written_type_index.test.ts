@@ -147,6 +147,33 @@ describe('7c — a block header written as a type index keeps that form', () => 
   });
 });
 
+describe('7c — a header WITH parameters keeps the index it named, not the first match', () => {
+  // 🛑 Found probing S6 step 5 stage (c): the encoder's parameter branch came
+  // FIRST and derived the index by signature, so a header naming the second of
+  // two identical types re-encoded as the first (`02 01` → `02 00`). The
+  // decoder had recorded `typeIndex: 1`; nothing read it. T1's defect, on the
+  // one header shape 7c's tests did not cover.
+  const TYPES =
+    '(type $a (func (param i32) (result i32))) (type $b (func (param i32) (result i32)))';
+  // Linear form, so the entry value is really on the stack before the header.
+  const CASES: [string, string, string][] = [
+    ['block', 'local.get 0 block (type $b) end', '20 00 02 01 0b'],
+    ['loop', 'local.get 0 loop (type $b) end', '20 00 03 01 0b'],
+    ['if', 'local.get 0 local.get 0 if (type $b) else end', '20 00 20 00 04 01 0b'],
+    ['try_table', 'local.get 0 try_table (type $b) end', '20 00 1f 01 00 0b'],
+  ];
+
+  for (const [name, body, header] of CASES) {
+    it(`${name}: the fixture names type 1, and decode → encode keeps it`, () => {
+      const bytes = assemble(`(module ${TYPES} (func (type $a) ${body}))`);
+      assert(section(bytes, 10).includes(header), section(bytes, 10));
+      assert(WebAssembly.validate(new Uint8Array(bytes)), 'the fixture itself is valid');
+      const out = encodeWasm(parseWasm(bytes));
+      assert(same(out, bytes), `${section(bytes, 10)}\n   ${section(out, 10)}`);
+    });
+  }
+});
+
 describe('7c — the form is FIDELITY ONLY: a pass run drops it', () => {
   // 🔧 Recording it unconditionally broke every lowered block-parameter case:
   // the index names a type WITH parameters, and `lowerBlockParams` takes the

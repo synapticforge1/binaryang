@@ -261,6 +261,79 @@ export function blockTypeFuncType(typeIdx: Index): BlockType {
   return { kind: 'func_type', typeIdx };
 }
 
+/**
+ * A block-type carrier's entry PARAMETERS: the declared types, and the values
+ * that supply them — binaryen-ts's `BlockParams`, the shape S6 decision 7b(i)
+ * gave the merged tree (S6 step 5, stage (c1)).
+ *
+ * 🔧 The values used to be left OUTSIDE the construct, as the preceding
+ * siblings a linear body happens to have — the one place this tree did not
+ * fold an operand into the node that consumes it. They are operands of the
+ * construct as much as a `br`'s `values` are (decision 6A), so they are
+ * children here: evaluated before the construct, and before an `if`'s
+ * condition. Inside, whatever consumes a parameter holds a `pop` for it.
+ *
+ * Absent means none. A value the decoder could not match to an expression
+ * (the stack ran out) is a `pop`, which writes nothing — the same bytes.
+ */
+export interface BlockParams {
+  readonly types: ValueType[];
+  readonly values: Expr[];
+}
+
+/**
+ * A block-type carrier's DECLARED results, on the node as binaryen-ts holds
+ * them in its `type`: `'none'` for no result, the value type itself for one,
+ * a list for two or more (S6 step 5, stage (c2)). One spelling per arity —
+ * build it with {@link blockResult}, never a one-element list.
+ *
+ * Declared, not derived: an `if` may declare a result its arms would not give
+ * it, and a block ending in `unreachable` declares whatever it declares.
+ */
+export type BlockResult = 'none' | ValueType | ValueType[];
+
+/** The {@link BlockResult} for `results`, in its one spelling. */
+export function blockResult(results: readonly ValueType[]): BlockResult {
+  if (results.length === 0) return 'none';
+  if (results.length === 1) return results[0]!;
+  return [...results];
+}
+
+/** A {@link BlockResult} as a list, whatever its arity. */
+export function blockResults(t: BlockResult): ValueType[] {
+  if (t === 'none') return [];
+  return Array.isArray(t) ? t : [t];
+}
+
+/**
+ * The header a carrier WRITES, derived from the node (S6 step 5, stage (c2)).
+ *
+ * 🔧 It was a node field, `blockType`, which held the signature only BY
+ * REFERENCE for anything past one result: `func_type` named a type-section
+ * index and nothing else. The node now holds the signature itself — `type`
+ * (the results) and `params.types` — plus `typeIndex`, the index its header
+ * NAMED, which is FORM (decision 7c). This is the one place that turns the
+ * pair back into the three header spellings:
+ *
+ *   - a written index → that index (the node's signature must be the one it
+ *     names: the validator checks);
+ *   - no index, no parameters, at most one result → `0x40` or the inline type;
+ *   - anything else has no inline spelling, and with no index it cannot be
+ *     written: {@link UNASSIGNED_TYPE_INDEX}, which the writers refuse.
+ */
+export function blockTypeOf(e: {
+  readonly type: BlockResult;
+  readonly typeIndex?: Index;
+  readonly params?: BlockParams;
+}): BlockType {
+  if (e.typeIndex !== undefined) return blockTypeFuncType(e.typeIndex);
+  if ((e.params?.types.length ?? 0) === 0) {
+    if (e.type === 'none') return BLOCK_TYPE_VOID;
+    if (!Array.isArray(e.type)) return blockTypeValue(e.type);
+  }
+  return blockTypeFuncType(UNASSIGNED_TYPE_INDEX);
+}
+
 // ---------------------------------------------------------------------------
 // Const — a constant value (leaf node, no children)
 // ---------------------------------------------------------------------------
@@ -433,7 +506,12 @@ export interface BlockExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly label: string;
-  readonly blockType: BlockType;
+  /** The DECLARED results — see {@link BlockResult}. */
+  readonly type: BlockResult;
+  /** The type-section index its header NAMED, if it named one (7c) — see {@link blockTypeOf}. */
+  readonly typeIndex?: Index;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly loc: Location;
 }
@@ -443,7 +521,12 @@ export interface LoopExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly label: string;
-  readonly blockType: BlockType;
+  /** The DECLARED results — see {@link BlockResult}. */
+  readonly type: BlockResult;
+  /** The type-section index its header NAMED, if it named one (7c) — see {@link blockTypeOf}. */
+  readonly typeIndex?: Index;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly loc: Location;
 }
@@ -453,7 +536,12 @@ export interface IfExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly label: string;
-  readonly blockType: BlockType;
+  /** The DECLARED results — see {@link BlockResult}. */
+  readonly type: BlockResult;
+  /** The type-section index its header NAMED, if it named one (7c) — see {@link blockTypeOf}. */
+  readonly typeIndex?: Index;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly condition: Expr;
   /**
    * The arm run when the condition is non-zero — binaryen-ts's spelling, taken
@@ -1154,7 +1242,12 @@ export interface TryExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly label: string;
-  readonly blockType: BlockType;
+  /** The DECLARED results — see {@link BlockResult}. */
+  readonly type: BlockResult;
+  /** The type-section index its header NAMED, if it named one (7c) — see {@link blockTypeOf}. */
+  readonly typeIndex?: Index;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly catches: Catch[];
   readonly delegate?: Var;
@@ -1166,7 +1259,12 @@ export interface TryTableExpr {
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   readonly label: string;
-  readonly blockType: BlockType;
+  /** The DECLARED results — see {@link BlockResult}. */
+  readonly type: BlockResult;
+  /** The type-section index its header NAMED, if it named one (7c) — see {@link blockTypeOf}. */
+  readonly typeIndex?: Index;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly catches: TableCatch[];
   readonly loc: Location;

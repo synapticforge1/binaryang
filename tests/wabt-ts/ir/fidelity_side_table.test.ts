@@ -32,9 +32,9 @@ import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { makeModule } from '../../../src/wabt-ts/ir/ir.ts';
+import { blockTypeOf, makeModule, UNASSIGNED_TYPE_INDEX } from '../../../src/wabt-ts/ir/ir.ts';
 import { FidelityTable } from '../../../src/wabt-ts/ir/fidelity.ts';
-import type { Expr, Module, SelectExpr } from '../../../src/wabt-ts/ir/ir.ts';
+import type { BlockExpr, Expr, Module, SelectExpr } from '../../../src/wabt-ts/ir/ir.ts';
 
 const CORPUS = new URL('../wasmtk/', import.meta.url);
 
@@ -202,9 +202,21 @@ describe('S3 — all four families, recorded and consistent across the corpus', 
   // KIND, so it moves into the tree at S5 rather than beside it.
   const BLOCK_LIKE = new Set(['block', 'loop', 'if', 'try', 'try_table']);
 
-  it('every block-like node records its DECLARED block type', async () => {
+  // 🔧 This pinned a table ENTRY — `blockType`, recorded per block-like node.
+  // S6 step 5 stage (c2) moved both halves of that fact onto the node (`type`
+  // and `typeIndex`), where a spread carries them, so the table no longer holds
+  // it. What the test protected is unchanged: the header each node WRITES must
+  // survive the pass that rebuilds every node.
+  it('every block-like node keeps its DECLARED header through resolveNames', async () => {
     let checked = 0;
     const bad: string[] = [];
+    const headers = (mod: ReturnType<typeof readBinaryIr>): string[] => {
+      const out: string[] = [];
+      walk(mod, (e) => {
+        if (BLOCK_LIKE.has(e.kind)) out.push(JSON.stringify(blockTypeOf(e as BlockExpr)));
+      });
+      return out;
+    };
 
     for await (const entry of Deno.readDir(CORPUS)) {
       if (!entry.isFile || !entry.name.endsWith('.wat')) continue;
@@ -212,20 +224,22 @@ describe('S3 — all four families, recorded and consistent across the corpus', 
       const asm = wat2wasm(text, { filename: entry.name });
       if (!asm.binary) continue;
       const mod = readBinaryIr(asm.binary, makeErrorList());
+      const before = headers(mod);
 
       // The pass a WeakMap could not survive.
       resolveNames(mod);
 
-      walk(mod, (e) => {
-        if (!BLOCK_LIKE.has(e.kind)) return;
-        const node = e as unknown as { nodeId?: number; blockType: { kind: string } };
-        checked++;
-        const recorded = mod.fidelity.get(node.nodeId as never)?.blockType;
-        if (recorded === undefined) bad.push(`${entry.name}: ${e.kind} lost its entry`);
-        else if (recorded.kind !== node.blockType.kind) {
-          bad.push(`${entry.name}: ${e.kind} ${recorded.kind} != ${node.blockType.kind}`);
+      const after = headers(mod);
+      checked += after.length;
+      if (after.length !== before.length) {
+        bad.push(`${entry.name}: ${before.length} -> ${after.length}`);
+      }
+      for (const [i, h] of before.entries()) {
+        if (after[i] !== h) bad.push(`${entry.name} #${i}: ${h} -> ${after[i]}`);
+        if (h.includes(`"typeIdx":${UNASSIGNED_TYPE_INDEX}`)) {
+          bad.push(`${entry.name} #${i}: unwritable`);
         }
-      });
+      }
     }
 
     assertEquals(bad, [], bad.slice(0, 5).join('; '));

@@ -9,7 +9,6 @@ import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 import { unknownLocation } from '../../../src/wabt-ts/core/error.ts';
 import {
-  BLOCK_TYPE_VOID,
   constF32,
   constI32,
   constI64,
@@ -278,7 +277,7 @@ describe('writeWatModule — functions', () => {
     const block: Expr = {
       kind: 'block',
       label: '$blk',
-      blockType: BLOCK_TYPE_VOID,
+      type: 'none',
       body: [{ kind: 'nop', loc: LOC }],
       loc: LOC,
     };
@@ -301,7 +300,7 @@ describe('writeWatModule — functions', () => {
     const ifExpr: Expr = {
       kind: 'if',
       label: '',
-      blockType: BLOCK_TYPE_VOID,
+      type: 'none',
       condition: cond,
       ifTrue: [{ kind: 'nop', loc: LOC }],
       ifFalse: [],
@@ -328,7 +327,7 @@ describe('writeWatModule — functions', () => {
     const ifExpr: Expr = {
       kind: 'if',
       label: '',
-      blockType: BLOCK_TYPE_VOID,
+      type: 'none',
       condition: cond,
       ifTrue: [nop],
       ifFalse: [unr],

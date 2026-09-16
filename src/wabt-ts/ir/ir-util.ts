@@ -26,7 +26,7 @@ import type {
   TryTableExpr,
   Var,
 } from './ir.ts';
-import { varIndex } from './ir.ts';
+import { blockResults, varIndex } from './ir.ts';
 import { BrOnOp } from './ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -339,8 +339,10 @@ export class ModuleContext {
       case 'if':
       case 'try':
       case 'try_table': {
-        const bt = (expr as BlockExpr | LoopExpr | IfExpr | TryExpr | TryTableExpr).blockType;
-        return { nargs: 0, nreturns: this.blockTypeResultCount(bt), unreachable: false };
+        // The declared results are on the node (stage (c2)); the entry values
+        // are its children (c1), so it takes nothing from the stack.
+        const c = expr as BlockExpr | LoopExpr | IfExpr | TryExpr | TryTableExpr;
+        return { nargs: 0, nreturns: blockResults(c.type).length, unreachable: false };
       }
       case 'throw':
         return { nargs: this.getTagArity(expr.tag), nreturns: 0, unreachable: true };
@@ -401,14 +403,6 @@ export class ModuleContext {
     const te = this.module.types[bt.typeIdx];
     if (te?.kind === 'func') return { paramTypes: te.sig.params, resultTypes: te.sig.results };
     return { paramTypes: [], resultTypes: [] };
-  }
-
-  private blockTypeResultCount(bt: BlockType): number {
-    if (bt.kind === 'void') return 0;
-    if (bt.kind === 'value') return 1;
-    const te = this.module.types[bt.typeIdx];
-    if (te?.kind === 'func') return te.sig.results.length;
-    return 0;
   }
 
   private getFuncSig(v: Var): FuncSignature {

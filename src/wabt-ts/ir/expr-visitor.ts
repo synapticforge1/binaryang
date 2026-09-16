@@ -40,6 +40,7 @@ import type {
   AtomicWaitExpr,
   BinaryExpr,
   BlockExpr,
+  BlockParams,
   BrExpr,
   BrOnExpr,
   BrTableExpr,
@@ -254,6 +255,15 @@ export class ExprVisitor {
     for (const expr of exprs) {
       const r = this.visitExpr(expr);
       if (r === Result.Error) return Result.Error;
+    }
+    return Result.Ok;
+  }
+
+  /** A carrier's entry values (`params.values`), which run before it. */
+  private visitEntryValues(e: { readonly params?: BlockParams }): Result {
+    for (const v of e.params?.values ?? []) {
+      const r = this.dispatch(v);
+      if (r === Result.Error) return r;
     }
     return Result.Ok;
   }
@@ -753,21 +763,28 @@ export class ExprVisitor {
 
       // --- Block-like: Begin / body / End ---
       case 'block': {
-        let r = this.d.beginBlockExpr?.(e) ?? Result.Ok;
+        let r = this.visitEntryValues(e);
+        if (r === Result.Error) return r;
+        r = this.d.beginBlockExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
         r = this.visitExprList(e.body);
         if (r === Result.Error) return r;
         return this.d.endBlockExpr?.(e) ?? Result.Ok;
       }
       case 'loop': {
-        let r = this.d.beginLoopExpr?.(e) ?? Result.Ok;
+        let r = this.visitEntryValues(e);
+        if (r === Result.Error) return r;
+        r = this.d.beginLoopExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
         r = this.visitExprList(e.body);
         if (r === Result.Error) return r;
         return this.d.endLoopExpr?.(e) ?? Result.Ok;
       }
       case 'if': {
-        let r = this.dispatch(e.condition);
+        // Entry values sit BENEATH the condition on the stack.
+        let r = this.visitEntryValues(e);
+        if (r === Result.Error) return r;
+        r = this.dispatch(e.condition);
         if (r === Result.Error) return r;
         r = this.d.beginIfExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
@@ -780,7 +797,9 @@ export class ExprVisitor {
         return this.d.endIfExpr?.(e) ?? Result.Ok;
       }
       case 'try': {
-        let r = this.d.beginTryExpr?.(e) ?? Result.Ok;
+        let r = this.visitEntryValues(e);
+        if (r === Result.Error) return r;
+        r = this.d.beginTryExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
         r = this.visitExprList(e.body);
         if (r === Result.Error) return r;
@@ -796,7 +815,9 @@ export class ExprVisitor {
         return this.d.endTryExpr?.(e) ?? Result.Ok;
       }
       case 'try_table': {
-        let r = this.d.beginTryTableExpr?.(e) ?? Result.Ok;
+        let r = this.visitEntryValues(e);
+        if (r === Result.Error) return r;
+        r = this.d.beginTryTableExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
         r = this.visitExprList(e.body);
         if (r === Result.Error) return r;

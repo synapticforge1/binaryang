@@ -18,6 +18,7 @@
  */
 
 import type {
+  BlockParams,
   BlockType,
   Catch,
   Const,
@@ -40,11 +41,17 @@ import type {
   TypeEntry,
   Var,
 } from '../ir/ir.ts';
-import type { NodeId } from '../ir/fidelity.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { placementText } from '../core/custom-placement.ts';
 import { Type, typeName } from '../core/types.ts';
-import { type HeapTypeRef, indexOf, isRefValueType, recGroups, type ValueType } from '../ir/ir.ts';
+import {
+  blockTypeOf,
+  type HeapTypeRef,
+  indexOf,
+  isRefValueType,
+  recGroups,
+  type ValueType,
+} from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
@@ -191,15 +198,16 @@ class WatWriter extends ModuleContext {
   private readonly nameIndexMap = new Map<string, number>();
 
   /**
-   * What was WRITTEN for this block, falling back to what the node derived.
+   * The header this carrier WRITES — {@link blockTypeOf}, from the node.
    *
-   * The declared type and the derived type are not always the same — an `if`
-   * may declare a result its contents would not give it (a94154e21) — and the
-   * declaration has two legal spellings that differ in the binary. Both facts
-   * live in the table; the node field is the fallback that goes away at S6.
+   * 🔧 It read the fidelity table's `blockType`, falling back to the node's. The
+   * declared results and the index the header named are both on the node now
+   * (S6 step 5, stage (c2)), so there is no second place to consult: the
+   * declaration may differ from what the contents derive (a94154e21), and it
+   * has two spellings, an inline type and an index — the node holds both facts.
    */
-  private declaredBlockType(e: { nodeId?: NodeId; blockType: BlockType }): BlockType {
-    return this.module.fidelity.get(e.nodeId)?.blockType ?? e.blockType;
+  private declaredBlockType(e: Parameters<typeof blockTypeOf>[0]): BlockType {
+    return blockTypeOf(e);
   }
 
   constructor(module: Module, opts: WriteWatOptions) {
@@ -1728,6 +1736,9 @@ class WatWriter extends ModuleContext {
       case 'block':
       case 'loop': {
         const isLoop = e.kind === 'loop';
+        // Entry values run BEFORE the construct, so they fold as its preceding
+        // siblings: `(i32.const 7) (block (param i32) …)`.
+        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace(isLoop ? 'loop' : 'block');
         if (e.label) this.writeName(e.label, NC.Space);
@@ -1750,6 +1761,7 @@ class WatWriter extends ModuleContext {
         // Unlike `block`, the arms are named CLAUSES rather than a bare
         // sequence, so each gets its own paren. A `delegate` replaces the
         // handlers entirely.
+        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace('try');
         if (e.label) this.writeName(e.label, NC.Space);
@@ -1793,13 +1805,15 @@ class WatWriter extends ModuleContext {
         // `(if blocktype? folded-cond (then instr*) (else instr*)?)`. The
         // condition is an OPERAND, so a placeholder there — meaning the value is
         // already on the stack — has no folded spelling and declines.
-        if (!this.canFold(e.condition)) return false;
+        if (!this.canFold(e.condition) || !this.canFoldEntry(e)) return false;
         this.puts('(', NC.None);
         this.putsSpace('if');
         if (e.label) this.writeName(e.label, NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
         this.indent += 2;
+        // `(if bt foldedinstr* (then …))`: the entry values, then the condition.
+        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.writeFoldedExpr(e.condition);
         this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
         this.newline(true);
@@ -1825,6 +1839,14 @@ class WatWriter extends ModuleContext {
     }
   }
 
+  /**
+   * Whether a carrier's entry values fold. They are operands, so a `pop` among
+   * them (the value is already on the stack) has no folded spelling.
+   */
+  private canFoldEntry(e: { readonly params?: BlockParams }): boolean {
+    return (e.params?.values ?? []).every((v) => this.canFold(v));
+  }
+
   /** Whether `e` and every descendant can be folded — checked before committing output. */
   private canFold(e: Expr): boolean {
     // A folded block or loop wraps an instruction SEQUENCE, so its body may be
@@ -1832,8 +1854,8 @@ class WatWriter extends ModuleContext {
     // wrapper. `if` is different only because its condition is an operand.
     // `try` wraps CLAUSES, each holding an instruction sequence, so like block
     // and loop nothing in its contents can prevent the wrapper.
-    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try') return true;
-    if (e.kind === 'if') return this.canFold(e.condition);
+    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try') return this.canFoldEntry(e);
+    if (e.kind === 'if') return this.canFold(e.condition) && this.canFoldEntry(e);
     const spec = this.foldSpec(e);
     if (spec === null) return false;
     return spec.operands.every((op) => this.canFold(op));

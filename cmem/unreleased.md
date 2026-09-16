@@ -128,6 +128,15 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- ⚠️ **BREAKING: a block-type carrier holds its signature, not a header** (S6 step 5 stage (c),
+  `38a47be36` + `f4e04989f`; `./ir/wabt-ts`). On `BlockExpr`, `LoopExpr`, `IfExpr`, `TryExpr`,
+  `TryTableExpr`: `blockType` is GONE; `type: BlockResult` holds the declared results (`'none'`,
+  the value type, or a list of two or more), `typeIndex?` the type index the header named, and
+  `params?: { types, values }` the entry parameters — ⚠️ the entry VALUES are children of the
+  carrier now, no longer its preceding siblings in the body. `blockTypeOf(e)` gives the header
+  (`BlockType`) a node writes; `blockResult` / `blockResults` convert. `FidelityEntry.blockType` is
+  gone. The validator REJECTS a node whose `typeIndex` names a different signature than its `type`
+  and `params`, or that needs an index and has none.
 - ⚠️ **BREAKING: `TableCatch` is `{ loc, tag?, target, isRef }`, and `CatchKind` is GONE** (S6
   step 5 stage (b), `e9f6721e4`; exported from `./ir/wabt-ts`). 1.5.4 had
   `{ kind: CatchKind; tag?; target }`. Read a clause as `tag !== undefined` (catch / catch_ref) ×
@@ -170,6 +179,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **A binaryen-ts block header WITH parameters kept its written type index** only when that index was
+  the first match (`1d8a72be3`): with two identical types, `block (type $b)` re-encoded as
+  `block (type $a)` — `02 01` → `02 00`. Valid and the same behaviour; different bytes.
 - **Inlining a callee with several results produced invalid modules** at `-O3` — 16 corpus
   modules, whose string and math helpers return pairs: the wrapper declared only the first result.
   It now declares them all, as upstream; and a reference comparison that would have appended a
