@@ -36,6 +36,11 @@ their own bump — and nothing breaks by their standing still.
   `ValType.I32` and `ValType` as a type work unchanged; an enum reverse lookup (`ValType[127]`) does
   not, and a member used as a TYPE is `typeof ValType.I32`. wabt-ts's `Type` gains `StringRef`
   (`./core/wabt-ts`).
+- ⚠️ **BREAKING (types only): `ExpressionKind` is a const object plus a same-named union type**, not
+  an enum (S6 step 5 item 5 (2); `./ir/binaryen-ts`). Values unchanged — they were already the kind
+  strings. `ExpressionKind.Block` as a value and `ExpressionKind` as a type work unchanged, and a plain
+  `'block'` is now an `ExpressionKind`; a member used as a TYPE is `typeof ExpressionKind.Block`
+  (e.g. `Extract<Expression, { kind: typeof ExpressionKind.Block }>`).
 - ⚠️ **BREAKING: a heap type is a `HeapTypeRef` object** (S6 step 5 stage V2). binaryen-ts's
   `HeapType` was `AbstractHeapType | number`; it is now wabt-ts's `HeapTypeRef` —
   `{ kind: 'abstract', name }` or a `Var`. `RefType.heap`, `ref.test`/`ref.cast`'s `castType` and

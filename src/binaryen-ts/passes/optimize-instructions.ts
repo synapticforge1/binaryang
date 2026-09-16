@@ -96,7 +96,7 @@ function _optimizeNode(expr: Expression): Expression {
 // ---------------------------------------------------------------------------
 
 function _optimizeBinary(
-  expr: Extract<Expression, { kind: ExpressionKind.Binary }>,
+  expr: Extract<Expression, { kind: typeof ExpressionKind.Binary }>,
 ): Expression {
   const { opcode, left, right } = expr;
 
@@ -317,7 +317,7 @@ function _simplifyLHS(
 // ---------------------------------------------------------------------------
 
 function _optimizeUnary(
-  expr: Extract<Expression, { kind: ExpressionKind.Unary }>,
+  expr: Extract<Expression, { kind: typeof ExpressionKind.Unary }>,
 ): Expression {
   if (expr.value.kind === ExpressionKind.Const) {
     const folded = _foldUnary(expr.opcode, expr.value.value);

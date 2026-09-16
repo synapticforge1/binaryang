@@ -68,7 +68,7 @@ function _removeUnusedBrsNode(expr: Expression): Expression {
 }
 
 function _optimizeBlock(
-  block: Extract<Expression, { kind: ExpressionKind.Block }>,
+  block: Extract<Expression, { kind: typeof ExpressionKind.Block }>,
 ): Expression {
   if (!block.label || block.children.length === 0) return block;
 

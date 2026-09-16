@@ -646,13 +646,17 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
 
   // Navigate the rewritten IR: inner-catch `set` index vs outer-catch `get` index.
   const body = region(mod.functions[0].body);
-  const outerTry = body.children[1] as Extract<Expression, { kind: ExpressionKind.Try }>;
+  const outerTry = body.children[1] as Extract<Expression, { kind: typeof ExpressionKind.Try }>;
   const innerTry = soleOf(outerTry.body, ExpressionKind.Try);
   const innerCatch = region(innerTry.catches[0]!.body);
   const outerCatch = region(outerTry.catches[0]!.body);
-  const innerSet = innerCatch.children[0] as Extract<Expression, { kind: ExpressionKind.LocalSet }>;
-  const outerGet = (outerCatch.children[1] as Extract<Expression, { kind: ExpressionKind.Drop }>)
-    .value as Extract<Expression, { kind: ExpressionKind.LocalGet }>;
+  const innerSet = innerCatch.children[0] as Extract<
+    Expression,
+    { kind: typeof ExpressionKind.LocalSet }
+  >;
+  const outerGet =
+    (outerCatch.children[1] as Extract<Expression, { kind: typeof ExpressionKind.Drop }>)
+      .value as Extract<Expression, { kind: typeof ExpressionKind.LocalGet }>;
   // `e` (read in the outer catch) must not occupy the slot written by the inner catch.
   assertNotEquals(outerGet.var, innerSet.var);
 });

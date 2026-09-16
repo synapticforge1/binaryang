@@ -110,7 +110,7 @@ interface CSEState {
 }
 
 function _cseBlock(
-  block: Extract<Expression, { kind: ExpressionKind.Block | ExpressionKind.Region }>,
+  block: Extract<Expression, { kind: typeof ExpressionKind.Block | typeof ExpressionKind.Region }>,
   state: CSEState,
 ): Expression {
   // --- Pass 1: count occurrences of each keyed expression ---

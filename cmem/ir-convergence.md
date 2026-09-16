@@ -2693,6 +2693,26 @@ a node report at the unknown location (a follow-on stack error correctly stays a
 4 mutants (non-null `e.loc!` in `locOf` and in resolve-names, unfrozen fallback, fresh fallback per
 call) all killed. Ratchet unchanged — `loc` is a base field the gate excludes.
 
+**(2) `ExpressionKind` is a const object with a same-named union type** — V4's shape. The enum's
+VALUES were already wabt-ts's kind strings, but an enum is nominal: `'nop'` was not an
+`ExpressionKind`, and a binaryen-ts node's `kind` (`ExpressionKind.Nop`) could not take a wabt-ts
+node's `'nop'`. 82 members rewritten; the 74 interface `kind:` declarations and 12 other TYPE positions
+(`Extract<Expression, { kind: … }>`, the two union-typed extern-conversion kinds) became `typeof
+ExpressionKind.X`. First trial without those: 651 errors, nearly all cascades from the dozen type
+positions. Value uses (`case ExpressionKind.Nop:`, `=== ExpressionKind.Try`) unchanged.
+⚠️ **`deno task operators` READ THE ENUM'S SOURCE TEXT** — both its phantom scan and its one-sided
+scan. After the change it failed (every kind "one-sided"), but the phantom scan's `?? ''` would have
+read an unmatched declaration as NO kinds, and a list with no kinds has no phantoms. Now one parser,
+`expressionKindMembers`, THROWS when the declaration or its members are not found. Test
+`tests/ir/expression_kind.test.ts` — compile-time pins, all five inverted against the rebuilt enum
+(TS2322 ×2, TS2345 ×3); three mutants on the script's parser all killed (declaration not found, no
+members, 76 "phantoms" when the arm lost `typeof`). 🔑 A comment in the first draft of the test claimed
+`Extract<Expression, { kind: 'br' }>` was `never` under the enum; the inversion showed it FOUND the
+node — only the node's `kind` differed. Corrected. Ratchet unchanged (base field).
+
+**Distance re-measured after (1)+(2): the alias trial is 2,012 → 301 errors.** Largest shapes:
+exact-optional assignability (103 + 61), argument types (74), missing properties (38).
+
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
 `select.resultType` (`ValueType[]` against `ValueType | null`, over two different `ValueType`s).

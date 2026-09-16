@@ -50,9 +50,27 @@ const OPCODE_SRC = new URL('../src/wabt-ts/core/opcode.ts', import.meta.url);
  * reported 185 false orphans — every one of them a real SIMD instruction.
  */
 /**
+ * `ExpressionKind`'s members as `[identifier, kind string]`. It is a const
+ * object with a same-named union type (S6 step 5, item 5 (2)); it was an enum.
+ * An unmatched source THROWS rather than reading as "no kinds": an empty list
+ * has no phantoms and no one-sided kinds of its own, so both gates would pass
+ * on it by default — or fail with every kind "one-sided", for the wrong reason.
+ */
+function expressionKindMembers(exprSrc: string): [string, string][] {
+  const block = exprSrc.match(/export const ExpressionKind = \{([\s\S]*?)\n\} as const;/)?.[1];
+  if (block === undefined) {
+    throw new Error('ExpressionKind declaration not found in expressions.ts');
+  }
+  const members = [...block.matchAll(/^\s+([A-Za-z0-9_]+): '([^']+)',/gm)]
+    .map((m): [string, string] => [m[1]!, m[2]!]);
+  if (members.length === 0) throw new Error('ExpressionKind has no members as parsed');
+  return members;
+}
+
+/**
  * ExpressionKind members with no interface behind them.
  *
- * ⚠️ `AtomicRMW = 'atomic.rmw'` is an enum member and nothing else — no
+ * ⚠️ `AtomicRMW: 'atomic.rmw'` is a kind member and nothing else — no
  * interface, no factory, no reader case, no encoder case. It reads as atomics
  * support to anything that scans the enum, and binaryen-ts has none: there is
  * not even an atomic load or store KIND.
@@ -71,20 +89,20 @@ const OPCODE_SRC = new URL('../src/wabt-ts/core/opcode.ts', import.meta.url);
  * per-family string enums, which would need every missing name authored by hand.
  */
 function phantomKinds(exprSrc: string): string[] {
-  const block = exprSrc.match(/export enum ExpressionKind \{([\s\S]*?)\n\}/)?.[1] ?? '';
+  const members = expressionKindMembers(exprSrc).map(([name]) => name);
   // A kind is backed when some interface declares it — alone
-  // (`kind: ExpressionKind.X;`) OR as one arm of a union
-  // (`kind: ExpressionKind.A | ExpressionKind.X;`). The single-literal form was
-  // the only one recognised, so the extern conversions — one node, the
-  // direction in the kind, exactly wabt-ts's shape — were reported as phantoms
-  // while fully implemented. A union-typed `kind` was already a recorded blind
-  // spot of the kind counts in cmem/ir-convergence.md.
-  const arm = String.raw`ExpressionKind\.[A-Za-z0-9_]+`;
-  return [...block.matchAll(/^\s+([A-Za-z0-9_]+) = '[^']+',/gm)]
-    .map((m) => m[1]!)
+  // (`kind: typeof ExpressionKind.X;`) OR as one arm of a union
+  // (`kind: typeof ExpressionKind.A | typeof ExpressionKind.X;`). The
+  // single-literal form was the only one recognised, so the extern conversions —
+  // one node, the direction in the kind, exactly wabt-ts's shape — were reported
+  // as phantoms while fully implemented. A union-typed `kind` was already a
+  // recorded blind spot of the kind counts in cmem/ir-convergence.md.
+  const kind = String.raw`typeof ExpressionKind\.`;
+  const arm = String.raw`${kind}[A-Za-z0-9_]+`;
+  return members
     .filter((name) =>
       !new RegExp(
-        String.raw`kind:\s*(?:${arm}\s*\|\s*)*ExpressionKind\.${name}\s*(?:\|\s*${arm}\s*)*;`,
+        String.raw`kind:\s*(?:${arm}\s*\|\s*)*${kind}${name}\s*(?:\|\s*${arm}\s*)*;`,
       ).test(exprSrc)
     )
     .sort();
@@ -273,9 +291,9 @@ function wabtExprKinds(irSrc: string): Set<string> {
 /**
  * The kinds each tree has and the other does not — pinned at what S5 left.
  *
- * ⚠️ Compare the enum's VALUES, never its identifiers. `ExpressionKind` is a
- * string enum whose values already ARE wabt-ts's kind strings (`Break = 'br'`,
- * `Switch = 'br_table'`), so an identifier diff reports `br` and `Break` as two
+ * ⚠️ Compare the VALUES, never the identifiers. `ExpressionKind` is a
+ * const object whose values already ARE wabt-ts's kind strings (`Break: 'br'`,
+ * `Switch: 'br_table'`), so an identifier diff reports `br` and `Break` as two
  * one-sided kinds when they are one shared kind spelled for two audiences. A
  * scrape that did exactly that is what kept the stale "27 outstanding" alive.
  *
@@ -310,9 +328,9 @@ const wabtKinds = wabtExprKinds(
   await Deno.readTextFile(new URL('../src/wabt-ts/ir/ir.ts', import.meta.url)),
 );
 const binKinds = new Set(
-  [...exprSrc.matchAll(/^\s{2}([A-Za-z0-9_]+) = '([^']+)',/gm)]
-    .filter((m) => !phantoms.includes(m[1]!))
-    .map((m) => m[2]!),
+  expressionKindMembers(exprSrc)
+    .filter(([name]) => !phantoms.includes(name))
+    .map(([, kind]) => kind),
 );
 
 const oneSided = {

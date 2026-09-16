@@ -99,7 +99,7 @@ function _vacuumNode(expr: Expression): Expression {
 }
 
 function _simplifyBlock(
-  block: Extract<Expression, { kind: ExpressionKind.Block }>,
+  block: Extract<Expression, { kind: typeof ExpressionKind.Block }>,
 ): Expression {
   // Filter nops — they contribute nothing to a block body
   const filtered: Expression[] = [];
