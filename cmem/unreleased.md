@@ -128,6 +128,13 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- ⚠️ **BREAKING: bodies are regions** (S6 step 5 stage (d), `ddc45cbb1` + `e9c029ffb`;
+  `./ir/wabt-ts`). `BlockExpr.body` → **`children`**. `LoopExpr` / `TryExpr` / `TryTableExpr`
+  `body`, `Catch.body` and `IfExpr.ifTrue` are a **`RegionExpr`** (`{ kind: 'region', children,
+  loc }`, a new `Expr` kind, built with `region()`) — read `.children`. **`IfExpr.ifFalse` is
+  `RegionExpr | null`**: `null` is no `else` (it was `[]`), an empty region an explicit empty one.
+  `Func.body` is unchanged.
+
 - ⚠️ **BREAKING: a block-type carrier holds its signature, not a header** (S6 step 5 stage (c),
   `38a47be36` + `f4e04989f`; `./ir/wabt-ts`). On `BlockExpr`, `LoopExpr`, `IfExpr`, `TryExpr`,
   `TryTableExpr`: `blockType` is GONE; `type: BlockResult` holds the declared results (`'none'`,
@@ -179,6 +186,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **wabt-ts's binary round trip kept an explicit EMPTY `else`** (`e9c029ffb`): `04 40 01 05 0b` was
+  written back as `04 40 01 0b`. Same behaviour, different bytes; binaryen-ts and `wasm-tools` keep it
+  (divergence E1). Text is unchanged — `wat2wasm` still omits an empty `(else)`, as upstream.
 - **A binaryen-ts block header WITH parameters kept its written type index** only when that index was
   the first match (`1d8a72be3`): with two identical types, `block (type $b)` re-encoded as
   `block (type $a)` — `02 01` → `02 00`. Valid and the same behaviour; different bytes.

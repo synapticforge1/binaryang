@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **65 identical / 5 types / 3 names** (block family (b) and (c) done 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **66 identical / 6 types / 2 names** (the block family, (b)–(d), done 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
@@ -2582,6 +2582,44 @@ any tree state its own serialization round trip erases.**
 **Ratchet**: `if`, `loop`, `try`, `try_table` → `types` (field names match; `Expr[]` against
 `RegionExpr` is (d)); `block` stays `names` (`body` against `children`). PUBLIC and breaking on
 `./ir/wabt-ts` — [unreleased.md](unreleased.md).
+
+###### ✅ Stage (d) — the bodies (2026-09-16). Ratchet 65/5/3 → **66 / 6 / 2**
+
+The last of the block family, in two parts.
+
+**(d1) a block's list is `children` (`ddc45cbb1`).** Trial: converting wabt-ts 17 (8 src), binaryen-ts
+50 (41 src); meaning agrees — `children` is a region's list, `body` the SLOT holding one. 🛑 The sweep
+found the class stage A2 named: resolveNames rebuilt `block` and `loop` in ONE arm returning
+`{ ...e, body }`, which for a block type-checks (the spread adds a stray key) and leaves `children`
+unresolved — split before renaming; the mutant restoring it fails 34 tests. Survivor: generateNames
+skipping a block's children, because no test nested an unlabelled construct in a block — added.
+`block` → `types`.
+
+**(d2) every region slot holds a `RegionExpr` (`e9c029ffb`).** Decision 5 (owner) already decided the
+form; `region` joins wabt-ts's `Expr`, and `loop`/`try`/`try_table` bodies, each catch body and both
+`if` arms are regions. **`Func.body` stays a list** — it is a slot in binaryen-ts, but `Func` against
+`WasmFunction` is the module half ([open-work.md](open-work.md) item 6).
+
+🔬 **Probe first, and fidelity bound the one open sub-question.** As a list, `ifFalse: []` meant NO
+`else` and an explicit EMPTY one: wabt-ts's reader turned `04 40 01 05 0b` into `04 40 01 0b` — the
+defect decision 5's region had fixed in binaryen-ts. Upstream wabt drops it too (its IR cannot hold
+it); `wasm-tools` and `wasm-opt` keep it. So `ifFalse: RegionExpr | null`, binaryen-ts's form. Text
+cannot spell the difference and upstream `wat2wasm` omits an empty `else` in BOTH spellings (probed),
+so the parser reads one as `null` and `wasm2wat` prints an `else` only with instructions — wat2wasm
+and wasm2wat unchanged. Divergence E1 updated.
+
+🛑 **Silent classes**: `applyNames` recognised catch clauses by `Array.isArray(c.body)`, false for a
+region — every handler would have left the walk (row added to its table); resolveNames' leaf
+`default` would have returned a region unresolved (explicit arm); a test label walker checked
+`Array.isArray(e.body)`; `ONE_SIDED_BUDGET` listed `region` binaryen-only (failed until removed).
+8 mutants, 7 killed; the survivor (generateNames skipping the else arm) killed by a new test. Not
+run as equivalent: the validator's one-armed/else choice for an empty else — the spec validates both
+alike.
+
+**The block family is done.** What is left of `names` (2): `call_indirect`'s type use and
+`ref.null` (item 4). `types` (6): `select.resultType` and the five carriers, whose remaining
+differences are `Expr` against `Expression`, `readonly`, the catch record's `loc` and the heap-type
+element types — the node-base and alias stages.
 
 **What was left of `types` (5), before S1–S3 and L1:** `br.target`, `rethrow.target`, `ref.func.func` (`Var` against
 `string` — the label/function-reference family), `const.value` (`Const` against `Literal`), and
