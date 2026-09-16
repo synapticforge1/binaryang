@@ -261,6 +261,26 @@ export function blockTypeFuncType(typeIdx: Index): BlockType {
   return { kind: 'func_type', typeIdx };
 }
 
+/**
+ * A block-type carrier's entry PARAMETERS: the declared types, and the values
+ * that supply them — binaryen-ts's `BlockParams`, the shape S6 decision 7b(i)
+ * gave the merged tree (S6 step 5, stage (c1)).
+ *
+ * 🔧 The values used to be left OUTSIDE the construct, as the preceding
+ * siblings a linear body happens to have — the one place this tree did not
+ * fold an operand into the node that consumes it. They are operands of the
+ * construct as much as a `br`'s `values` are (decision 6A), so they are
+ * children here: evaluated before the construct, and before an `if`'s
+ * condition. Inside, whatever consumes a parameter holds a `pop` for it.
+ *
+ * Absent means none. A value the decoder could not match to an expression
+ * (the stack ran out) is a `pop`, which writes nothing — the same bytes.
+ */
+export interface BlockParams {
+  readonly types: ValueType[];
+  readonly values: Expr[];
+}
+
 // ---------------------------------------------------------------------------
 // Const — a constant value (leaf node, no children)
 // ---------------------------------------------------------------------------
@@ -434,6 +454,8 @@ export interface BlockExpr {
   readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly loc: Location;
 }
@@ -444,6 +466,8 @@ export interface LoopExpr {
   readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly loc: Location;
 }
@@ -454,6 +478,8 @@ export interface IfExpr {
   readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly condition: Expr;
   /**
    * The arm run when the condition is non-zero — binaryen-ts's spelling, taken
@@ -1155,6 +1181,8 @@ export interface TryExpr {
   readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly catches: Catch[];
   readonly delegate?: Var;
@@ -1167,6 +1195,8 @@ export interface TryTableExpr {
   readonly nodeId?: NodeId;
   readonly label: string;
   readonly blockType: BlockType;
+  /** Entry parameters — see {@link BlockParams}. Absent means none. */
+  readonly params?: BlockParams;
   readonly body: Expr[];
   readonly catches: TableCatch[];
   readonly loc: Location;

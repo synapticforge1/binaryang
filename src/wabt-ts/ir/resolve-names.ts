@@ -20,6 +20,7 @@ import { ExternalKind } from '../core/binary.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import type {
+  BlockParams,
   BlockType,
   Expr,
   Func,
@@ -396,14 +397,17 @@ class ResolveContext {
       case 'block':
       case 'loop': {
         const blockType = this.resolveBlockType(e, loc);
+        const [rP, params] = this.resolveEntryParams(e);
         this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
-        return [r, { ...e, blockType, body }];
+        return [combine(rP, r), { ...e, blockType, ...params, body }];
       }
       case 'if': {
         const blockType = this.resolveBlockType(e, loc);
-        const [rC, cond] = this.resolveExpr(e.condition);
+        const [rP, params] = this.resolveEntryParams(e);
+        const [rC0, cond] = this.resolveExpr(e.condition);
+        const rC = combine(rP, rC0);
         this.labelStack.push(e.label);
         const [rT, ifTrue] = this.resolveExprArray(e.ifTrue);
         const [rE, ifFalse] = this.resolveExprArray(e.ifFalse);
@@ -411,6 +415,7 @@ class ResolveContext {
         return [combine(rC, combine(rT, rE)), {
           ...e,
           blockType,
+          ...params,
           condition: cond,
           ifTrue,
           ifFalse,
@@ -418,9 +423,10 @@ class ResolveContext {
       }
       case 'try': {
         const blockType = this.resolveBlockType(e, loc);
+        const [rP, params] = this.resolveEntryParams(e);
         this.labelStack.push(e.label);
         const [rB, body] = this.resolveExprArray(e.body);
-        let result = rB;
+        let result = combine(rP, rB);
         const newCatches = [];
         for (const c of e.catches) {
           const [rC, catchBody] = this.resolveExprArray(c.body);
@@ -441,12 +447,13 @@ class ResolveContext {
           return [result, {
             ...e,
             blockType,
+            ...params,
             body,
             catches: newCatches,
             delegate: this.resolveLabelVar(e.delegate, loc),
           }];
         }
-        return [result, { ...e, blockType, body, catches: newCatches }];
+        return [result, { ...e, blockType, ...params, body, catches: newCatches }];
       }
       case 'try_table': {
         // The catch clauses' tag and branch target were never resolved at all,
@@ -467,10 +474,17 @@ class ResolveContext {
             ? { ...c, target }
             : { ...c, tag: this.resolveTagVar(c.tag, loc), target };
         });
+        const [rP, params] = this.resolveEntryParams(e);
         this.labelStack.push(e.label);
         const [r, body] = this.resolveExprArray(e.body);
         this.labelStack.pop();
-        return [r, { ...e, blockType: this.resolveBlockType(e, loc), catches, body }];
+        return [combine(rP, r), {
+          ...e,
+          blockType: this.resolveBlockType(e, loc),
+          ...params,
+          catches,
+          body,
+        }];
       }
       case 'throw': {
         const [r, args] = this.resolveExprArray(e.operands);
@@ -1017,6 +1031,19 @@ class ResolveContext {
    * nothing resolved it until this. Like `select`'s annotation, the side table
    * moves with the node: the writer reads the declared block type from there.
    */
+  /**
+   * A carrier's entry values, resolved in the ENCLOSING label scope — they run
+   * before the construct opens. Returned as a spread, so a carrier with none
+   * gains no `params` key.
+   */
+  private resolveEntryParams(
+    e: { readonly params?: BlockParams },
+  ): [Result, { params?: BlockParams }] {
+    if (e.params === undefined) return [Result.Ok, {}];
+    const [r, values] = this.resolveExprArray(e.params.values);
+    return [r, { params: { types: e.params.types, values } }];
+  }
+
   private resolveBlockType(e: { blockType: BlockType; nodeId?: NodeId }, loc: Location): BlockType {
     const bt = e.blockType;
     if (bt.kind !== 'value' || !isRefValueType(bt.type)) return bt;

@@ -39,6 +39,7 @@ import {
   type BinaryExpr,
   BLOCK_TYPE_VOID,
   type BlockExpr,
+  type BlockParams,
   type BlockType,
   blockTypeValue,
   type BrExpr,
@@ -3328,6 +3329,7 @@ export class WastParser {
     if (tt === TokenType.Block || tt === TokenType.Loop) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
 
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
@@ -3342,6 +3344,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         }
@@ -3350,6 +3353,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         };
@@ -3395,6 +3399,8 @@ export class WastParser {
       if (cond === undefined && ctx.stack.length > 0) {
         cond = ctx.stack.pop();
       }
+      // The entry values sit BENEATH the condition.
+      const params = this.takeEntryParams(ctx, blockType, loc);
 
       // then branch
       const ifTrue: Expr[] = [];
@@ -3420,6 +3426,7 @@ export class WastParser {
         label,
         blockType,
         nodeId: this.fid({ blockType }),
+        ...(params ? { params } : {}),
         condition: condExpr,
         ifTrue,
         ifFalse,
@@ -3445,6 +3452,7 @@ export class WastParser {
     if (tt === TokenType.TryTable) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const catches: TableCatch[] = [];
       while (this.peek() === TokenType.Lpar && isCatchKeyword(this.peek(1))) {
         const c = this.parseTryTableCatch();
@@ -3459,6 +3467,7 @@ export class WastParser {
         label,
         blockType,
         nodeId: this.fid({ blockType }),
+        ...(params ? { params } : {}),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -3488,6 +3497,7 @@ export class WastParser {
     if (tt === TokenType.Try) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
       const catches: Catch[] = [];
       let delegate: Var | undefined;
@@ -3532,6 +3542,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           loc,
@@ -3541,6 +3552,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           delegate,
@@ -3636,6 +3648,7 @@ export class WastParser {
     if (tt === TokenType.Block || tt === TokenType.Loop) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
       this.expect(TokenType.End);
@@ -3647,6 +3660,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         }
@@ -3655,6 +3669,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           loc,
         };
@@ -3668,6 +3683,8 @@ export class WastParser {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
       const cond = ctx.stack.pop();
+      // The entry values sit BENEATH the condition.
+      const params = this.takeEntryParams(ctx, blockType, loc);
 
       const ifTrue: Expr[] = [];
       const then_Ctx = newCtx();
@@ -3696,6 +3713,7 @@ export class WastParser {
         label,
         blockType,
         nodeId: this.fid({ blockType }),
+        ...(params ? { params } : {}),
         condition: condExpr2,
         ifTrue,
         ifFalse,
@@ -3719,6 +3737,7 @@ export class WastParser {
     if (tt === TokenType.Try) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
       this.parseInstrList(bodyCtx);
       flushStack(bodyCtx);
@@ -3751,6 +3770,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           loc,
@@ -3760,6 +3780,7 @@ export class WastParser {
           label,
           blockType,
           nodeId: this.fid({ blockType }),
+          ...(params ? { params } : {}),
           body: bodyCtx.stmts,
           catches,
           delegate,
@@ -3789,6 +3810,7 @@ export class WastParser {
     if (tt === TokenType.TryTable) {
       const label = this.parseBindVarOpt();
       const blockType = this.parseBlockType();
+      const params = this.takeEntryParams(ctx, blockType, loc);
       const catches: TableCatch[] = [];
       while (this.peek() === TokenType.Lpar && isCatchKeyword(this.peek(1))) {
         const c = this.parseTryTableCatch();
@@ -3804,6 +3826,7 @@ export class WastParser {
         label,
         blockType,
         nodeId: this.fid({ blockType }),
+        ...(params ? { params } : {}),
         body: bodyCtx.stmts,
         catches,
         loc,
@@ -5124,6 +5147,23 @@ export class WastParser {
       this.expect(TokenType.Rpar);
     }
     return written ? { params, results } : null;
+  }
+
+  /**
+   * A carrier's entry parameters, popped from the enclosing `ctx` (S6 step 5,
+   * stage (c1)) — the values move INTO the node rather than staying behind as
+   * preceding siblings. An inline signature is known here (its index is not,
+   * yet); a `(type $t)` is resolved, because bodies are parsed after every
+   * module field. Where the stack runs out the value is a `pop`, which writes
+   * nothing.
+   */
+  private takeEntryParams(ctx: ExprCtx, bt: BlockType, loc: Location): BlockParams | undefined {
+    if (bt.kind !== 'func_type') return undefined;
+    const pending = this.pendingBlockSigs.get(bt);
+    const entry = pending === undefined ? this.currentModule?.types[bt.typeIdx] : undefined;
+    const types = pending?.params ?? (entry?.kind === 'func' ? entry.sig.params : []);
+    if (types.length === 0) return undefined;
+    return { types: [...types], values: popN(ctx, types.length, loc) };
   }
 
   private parseBlockType(): BlockType {

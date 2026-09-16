@@ -201,6 +201,12 @@ class NameGenerator {
 
   private generateLabelNames(exprs: Expr[], counter: { count: number }): void {
     for (const e of exprs) {
+      // A carrier's entry values come first in the text, and were its preceding
+      // siblings before S6 step 5 stage (c1) moved them into the node — so a
+      // block among them is named, and numbered, before the carrier.
+      if ('params' in e && e.params !== undefined) {
+        this.generateLabelNames(e.params.values, counter);
+      }
       switch (e.kind) {
         case 'block':
         case 'loop': {

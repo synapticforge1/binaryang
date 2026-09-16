@@ -18,6 +18,7 @@
  */
 
 import type {
+  BlockParams,
   BlockType,
   Catch,
   Const,
@@ -1728,6 +1729,9 @@ class WatWriter extends ModuleContext {
       case 'block':
       case 'loop': {
         const isLoop = e.kind === 'loop';
+        // Entry values run BEFORE the construct, so they fold as its preceding
+        // siblings: `(i32.const 7) (block (param i32) …)`.
+        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace(isLoop ? 'loop' : 'block');
         if (e.label) this.writeName(e.label, NC.Space);
@@ -1750,6 +1754,7 @@ class WatWriter extends ModuleContext {
         // Unlike `block`, the arms are named CLAUSES rather than a bare
         // sequence, so each gets its own paren. A `delegate` replaces the
         // handlers entirely.
+        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace('try');
         if (e.label) this.writeName(e.label, NC.Space);
@@ -1793,13 +1798,15 @@ class WatWriter extends ModuleContext {
         // `(if blocktype? folded-cond (then instr*) (else instr*)?)`. The
         // condition is an OPERAND, so a placeholder there — meaning the value is
         // already on the stack — has no folded spelling and declines.
-        if (!this.canFold(e.condition)) return false;
+        if (!this.canFold(e.condition) || !this.canFoldEntry(e)) return false;
         this.puts('(', NC.None);
         this.putsSpace('if');
         if (e.label) this.writeName(e.label, NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
         this.indent += 2;
+        // `(if bt foldedinstr* (then …))`: the entry values, then the condition.
+        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.writeFoldedExpr(e.condition);
         this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
         this.newline(true);
@@ -1825,6 +1832,14 @@ class WatWriter extends ModuleContext {
     }
   }
 
+  /**
+   * Whether a carrier's entry values fold. They are operands, so a `pop` among
+   * them (the value is already on the stack) has no folded spelling.
+   */
+  private canFoldEntry(e: { readonly params?: BlockParams }): boolean {
+    return (e.params?.values ?? []).every((v) => this.canFold(v));
+  }
+
   /** Whether `e` and every descendant can be folded — checked before committing output. */
   private canFold(e: Expr): boolean {
     // A folded block or loop wraps an instruction SEQUENCE, so its body may be
@@ -1832,8 +1847,8 @@ class WatWriter extends ModuleContext {
     // wrapper. `if` is different only because its condition is an operand.
     // `try` wraps CLAUSES, each holding an instruction sequence, so like block
     // and loop nothing in its contents can prevent the wrapper.
-    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try') return true;
-    if (e.kind === 'if') return this.canFold(e.condition);
+    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try') return this.canFoldEntry(e);
+    if (e.kind === 'if') return this.canFold(e.condition) && this.canFoldEntry(e);
     const spec = this.foldSpec(e);
     if (spec === null) return false;
     return spec.operands.every((op) => this.canFold(op));

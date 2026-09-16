@@ -63,6 +63,7 @@ import {
   type AtomicFenceExpr,
   type BinaryExpr,
   BLOCK_TYPE_VOID,
+  type BlockParams,
   type BlockType,
   blockTypeFuncType,
   blockTypeValue,
@@ -169,6 +170,9 @@ class Frame {
   // try_table
   tableCatches: TableCatch[] | undefined = undefined;
 
+  // entry parameters, popped from the ENCLOSING stack at the opcode
+  params: BlockParams | undefined = undefined;
+
   constructor(kind: FrameKind, blockType: BlockType, label: string, loc: Location) {
     this.kind = kind;
     this.blockType = blockType;
@@ -241,6 +245,18 @@ function blockParamCount(bt: BlockType, m: Module): number {
   const entry = m.types[bt.typeIdx];
   if (!entry || entry.kind !== 'func') return 0;
   return entry.sig.params.length;
+}
+
+/**
+ * A carrier's entry parameters, popped from the enclosing `stack` (S6 step 5,
+ * stage (c1)): the values move INTO the node instead of staying behind as
+ * preceding siblings. Where the stack runs out the value is a `pop`, which
+ * writes nothing, so the bytes are what they were.
+ */
+function entryParams(bt: BlockType, stack: Expr[], m: Module): BlockParams | undefined {
+  const n = blockParamCount(bt, m);
+  if (n === 0 || bt.kind !== 'func_type') return undefined;
+  return { types: [...getTypeSig(m, bt.typeIdx).params], values: popN(stack, n) };
 }
 
 function brTargetResultCount(labelStack: Frame[], depth: number, m: Module): number {
@@ -1312,12 +1328,16 @@ export class BinaryReader {
         }
         case Opcode.Block: {
           const bt = this.readBlockType();
-          labelStack.push(new Frame('block', bt, '', loc));
+          const f = new Frame('block', bt, '', loc);
+          f.params = entryParams(bt, stack, m);
+          labelStack.push(f);
           break;
         }
         case Opcode.Loop: {
           const bt = this.readBlockType();
-          labelStack.push(new Frame('loop', bt, '', loc));
+          const f = new Frame('loop', bt, '', loc);
+          f.params = entryParams(bt, stack, m);
+          labelStack.push(f);
           break;
         }
         case Opcode.If: {
@@ -1325,6 +1345,8 @@ export class BinaryReader {
           const cond = stack.pop() ?? operandPlaceholder(loc);
           const f = new Frame('if_then', bt, '', loc);
           f.condition = cond;
+          // The entry values sit BENEATH the condition.
+          f.params = entryParams(bt, stack, m);
           labelStack.push(f);
           break;
         }
@@ -1342,6 +1364,7 @@ export class BinaryReader {
           m.featuresUsed.exceptions = true;
           const bt = this.readBlockType();
           const f = new Frame('try', bt, '', loc);
+          f.params = entryParams(bt, stack, m);
           f.catches = [];
           labelStack.push(f);
           break;
@@ -1397,6 +1420,7 @@ export class BinaryReader {
             kind: 'try',
             label: frame.label,
             blockType: frame.blockType,
+            ...(frame.params ? { params: frame.params } : {}),
             nodeId: m.fidelity.record({ blockType: frame.blockType }),
             body: tryBody,
             catches: [],
@@ -1435,6 +1459,7 @@ export class BinaryReader {
             tableCatches.push(tc);
           }
           const f = new Frame('try_table', bt, '', loc);
+          f.params = entryParams(bt, stack, m);
           f.tableCatches = tableCatches;
           labelStack.push(f);
           break;
@@ -1457,6 +1482,7 @@ export class BinaryReader {
                 kind: 'block',
                 label: frame.label,
                 blockType: frame.blockType,
+                ...(frame.params ? { params: frame.params } : {}),
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 loc: frame.loc,
@@ -1467,6 +1493,7 @@ export class BinaryReader {
                 kind: 'loop',
                 label: frame.label,
                 blockType: frame.blockType,
+                ...(frame.params ? { params: frame.params } : {}),
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 loc: frame.loc,
@@ -1477,6 +1504,7 @@ export class BinaryReader {
                 kind: 'if',
                 label: frame.label,
                 blockType: frame.blockType,
+                ...(frame.params ? { params: frame.params } : {}),
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 condition: frame.condition ?? operandPlaceholder(loc),
                 ifTrue: endBody,
@@ -1489,6 +1517,7 @@ export class BinaryReader {
                 kind: 'if',
                 label: frame.label,
                 blockType: frame.blockType,
+                ...(frame.params ? { params: frame.params } : {}),
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 condition: frame.condition ?? operandPlaceholder(loc),
                 ifTrue: frame.ifTrue ?? [],
@@ -1512,6 +1541,7 @@ export class BinaryReader {
                 kind: 'try',
                 label: frame.label,
                 blockType: frame.blockType,
+                ...(frame.params ? { params: frame.params } : {}),
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: tryBody,
                 catches,
@@ -1524,6 +1554,7 @@ export class BinaryReader {
                 kind: 'try_table',
                 label: frame.label,
                 blockType: frame.blockType,
+                ...(frame.params ? { params: frame.params } : {}),
                 nodeId: m.fidelity.record({ blockType: frame.blockType }),
                 body: endBody,
                 catches: frame.tableCatches ?? [],
