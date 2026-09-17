@@ -12,7 +12,7 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 > Measured on the new route: every corpus module, written by our `wasm2wat` in linear or folded
 > form, reads back 421/421 valid and byte-identical to decoding its original bytes.
 
-## Where it stands — 2026-09-14
+## Where it stands — 2026-09-17
 
 **The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
 PHASES, never both meaningful for the same module — once a pass runs there is no original to be
@@ -28,7 +28,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **76 identical / 5 types / 1 names** (the block family, item 4, and item 5 (5)'s eight ported kinds, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15) |
+| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **76 identical / 5 types / 1 names** (the block family, item 4, and item 5 (5)'s eight ported kinds, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15). **Item 6 (the module half) is at M7b**: M1–M7b landed 2026-09-16/17, module ratchet **24 / 7 / 19** (from 46 / 29 / 15), M7c and M8 left |
 | S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from

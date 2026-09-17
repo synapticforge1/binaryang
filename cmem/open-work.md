@@ -26,81 +26,81 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-16 — paused between stages)
+## Start the next session here (handoff, 2026-09-17 — paused between stages)
 
-**Where the work stopped.** `main` is at the merge of this handoff (code last changed at `d5becdccf`),
-clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (merged branches may be
-deleted). The full gate
-ran on the committed tree `777a09f9e` and every step passed: fmt, lint, **1249 tests / 0 failed**,
-naming, portability, baseline **IDENTICAL**, publish dry-run, operators, spec (no misses), `bridge`
-**421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh` **70/70**,
-`optimize-corpus` (every level encodes and validates). Optimizer output: **0 of 2,105** hashes changed
-through M2g.
+**Where the work stopped.** `main` is at the merge of this handoff (code last changed at
+`faeb7a604`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `faeb7a604` and every step passed: fmt, lint, **1268 tests / 0 failed**, naming,
+portability, baseline **IDENTICAL**, publish dry-run, operators, spec (no misses), `bridge` **421/421**,
+`bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh` **70/70 (and 70/70 at -Oz)**,
+`optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY stage of item 6.
 
-⚠️ **The gate needs upstream wabt 1.0.41 on PATH** (`wast2json` for `translate-eh`). A scoop update
-to 1.0.42 started mid-gate on 2026-09-16 and removed the shim; the owner reverted it. A red
-`translate-eh` with "Failed to spawn 'wast2json'" is the environment, not the code — check
-`wast2json --version` and rerun the WHOLE gate.
+⚠️ **The gate needs upstream wabt 1.0.41 on PATH** (`wast2json` for `translate-eh`). A scoop update to
+1.0.42 removed the shim on 2026-09-16 and the owner reverted it; a red `translate-eh` saying "Failed
+to spawn 'wast2json'" is the environment, not the code.
 
-**S6 step 5, items 1–5 are DONE** (the expression half: `Expression = Expr`, readonly, the identity
-test) — records in [ir-convergence.md](ir-convergence.md) §§ "Stage (b)" … "Item 5". **Item 6, the
-MODULE half, is in progress:** decided B, unify, no shim (owner, 2026-09-15); the bridge is deleted at
-the end, and TYPE DERIVATION (moved from item 5) goes with it. Scope, 8 stages, and every stage's
-record: [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
+**S6 step 5, items 1–5 are DONE** (the expression half). **Item 6, the MODULE half, is nearly done:**
+M1–M7b have landed; **M7c and M8 remain**. Scope and every stage's record:
+[ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
-**Module ratchet** (`tests/ir/module_convergence.test.ts`, fields only-wabt-ts / only-binaryen-ts /
-typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
+**Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
+typed-differently): M1 **46 / 29 / 15** → **24 / 7 / 19** now. The `differ` count ROSE on purpose: a
+field that converges in NAME but not yet in TYPE moves from a one-sided list into `differ`, and the
+entity collections stay there until the records themselves are one type (M8).
 
-### Done on 2026-09-16 (item 6)
+### Done on 2026-09-17 (item 6)
 
-| stage | merge       | what                                                                                                                                  |
-| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| M1    | —           | the module ratchet                                                                                                                    |
-| M2a/b | `31f5d07a6` | 🗓️ owner: a constant expression is a `RegionExpr`, absent = missing; wabt-ts's empty-table-initializer loss fixed                     |
-| M2c/d | `316981b00` | tag `sig` (results kept); export `var: Var`                                                                                           |
-| M2e   | `eb93d34dc` | export `kind: ExternalKind`; `toWat` printed `(function $f)`, now `(func $f)`; WAT parser refuses an unknown export keyword          |
-| M2f   | `dbced41c3` | custom `data: Uint8Array \| null` / `precedingSection?`; 🛑 wabt-ts moved the name section after `producers` (clang/rustc layout) — fixed |
-| M2g   | `d5becdccf` | `Limits` on tables / memories, table `elemType` + `init?`; 🛑 binaryen-ts narrowed table64 (11 binaries) and truncated multi-instruction constant expressions (43, now refused) — fixed |
+| stage   | merge       | what                                                                                                        |
+| ------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
+| M2h     | `7bcfb4171` | a global's `init` is optional in both — **M2 closed**                                                       |
+| const-seq | `0cb37d858` | binaryen-ts reads a constant expression of ANY length: **53 binaries refused → byte-identical**; exposed a silent element-type loss, now refused |
+| M3      | `01bc13a72` | segments are wabt-ts's records — element TYPES and entries kept: **348 improved, 175 of them had been re-encoding DIFFERENTLY** |
+| M4      | `acd8ceba0` | an import EMBEDS its entity (the union): imported table64 / page size / huge sizes read, **22 more byte-identical**; imports pinned for the first time |
+| M5a     | `83156ccff` | type entries keep `sub` and rec groups — **83 binaries were ALL wrong, 68 now byte-identical**              |
+| M5b     | `40d1caa60` | the module's table is `types`; a field carries its name — **M5 closed**                                      |
+| M6a+M6c | `b3b657ed0` | a function holds its `sig`; locals are ONE named list of slots — and flattening exposed an **OOM** on `binary.41`–`binary.44` (2^32 declared locals), now refused |
+| M6b     | `f1c7424ec` | a function's body is a `RegionExpr` — **M6 closed**                                                          |
+| M7a+M7b | `5ee759ea8` | the module's collections take binaryen-ts's names; the five `num*Imports` counts are DERIVED                 |
 
 ### Tomorrow's list, in order
 
-1. ✅ **M2 — the last leaf: global. DONE 2026-09-17** — `init?` in both (an imported global has
-   none); **M2 CLOSED**, ratchet **40 / 20 / 8**. Every leaf record now differs only in `loc` — settle it
-   once for module records (M7 / M8). Record: ir-convergence.md § "M2h".
-2. ✅ **binaryen-ts reads a constant expression of any length. DONE 2026-09-17** — 53 spec binaries
-   refused → byte-identical, 0 regressions. It exposed a silent element-segment loss (typed element
-   types read as one byte), now REFUSED until M3 — which therefore carries element TYPES as well as
-   expression entries. Record: ir-convergence.md § "binaryen-ts reads a constant expression of any
-   length".
-3. ✅ **M3 — segments. DONE 2026-09-17** — both records are wabt-ts's; element types and entries are
-   kept (348 binaries improved, 0 worse; 175 of them had been re-encoding DIFFERENTLY). Record:
-   ir-convergence.md § "M3 — the segments". ⚠️ From it: **83 corpus binaries lose their GC `rec` /
-   `sub` groups on re-encode, silently — M5 must carry them.**
-4. ✅ **M4 — imports: the union. DONE 2026-09-17** — each arm embeds its entity; imported table64 /
-   page size / large sizes are read (22 more binaries round-trip). Imports are pinned in the ratchet
-   for the first time. Record: ir-convergence.md § "M4 — an import embeds its entity".
-5. ✅ **M5 — the type section. DONE 2026-09-17** — (a) entries keep their `sub` and rec groups (83
-   binaries fixed, 68 now byte-identical), (b) the module's table is `types` and a field carries its
-   name. Records: ir-convergence.md §§ "M5a", "M5b". ⚠️ Left: each side still has its own
-   `StorageType`, which is why a field, a struct and an array entry still differ.
-6. ✅ **M6 — functions. DONE 2026-09-17** — (a) `sig`, (c) locals as one named list of slots (which
-   exposed an OOM on `binary.41`–`binary.44`: 2^32 declared locals, now refused by a decoder limit),
-   (b) the body is a `RegionExpr`. Ratchet **32 / 10 / 16**; a function differs only in wabt-ts's
-   `typeVar` / `typeUse` / `nodeId` / `tailcall` / `loc` and binaryen-ts's `bodyFrameLabel` — all M7 / M8.
-   Records: ir-convergence.md §§ "M6a", "M6c", "M6b".
-7. **M7 — module metadata**, then **M8 — the alias, type derivation, and the bridge's deletion.**
+1. **M7c — the module's metadata, the last of M7.** Three groups, each saying the same facts twice:
+   - **the data-count section**: wabt-ts `hasDataCountSection` against binaryen-ts `hasDataCount`;
+   - **the feature flags**: wabt-ts `featuresUsed` (a record) against binaryen-ts's five `has*`
+     booleans (`hasExceptionHandling`, `hasMemory64`, `hasMultiMemory`, `hasGC`);
+   - **the name-section bookkeeping**: wabt-ts `hasNameSection` + `localNamesListed` against
+     binaryen-ts `explicitNames` — ⚠️ and this one is where the M2f name-section PLACE, the M5
+     `name: ''` convention and N1's local names all meet, so read
+     [names.md](names.md) before choosing.
+   Left one-sided by design until M8: wabt-ts's `loc` / `name` / `filename` / `sectionMeta` /
+   `fidelity` (as-written metadata the optimizer has no use for).
+2. **M8 — the alias, type derivation, and the bridge's deletion.** `WasmModule = Module`; the type
+   derivation the bridge does today (it rebuilds through the factories, which derive `type`) becomes a
+   pass over a whole function with module context; then the bridge, its 16 test files,
+   `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` go. Its acceptance is the
+   bridge's own: `bridge-behaviour` agreement BEFORE deletion.
+3. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
+   changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
-- the text format has no spelling for where the `name` section sat — `wasm2wat` → `wat2wasm` puts it last (M2f)
+- binaryen-ts's decoder reads a `ref.null` / typed element segment but **refuses an element type other
+  than `funcref`** until the element model carries it — M3 left this deliberately
+- the text format has no spelling for where the `name` section sat (M2f); `wasm2wat` → `wat2wasm` puts it last
 - the WAT writer does not print an empty `(offset)` / `(item)` (M2a)
-- the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8** below
-- Asyncify refuses `call_ref` (K1, below)
+- the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8**
+- Asyncify refuses `call_ref` (K1)
 
-**Working method that held up today** (all in [working-rules.md](working-rules.md) /
-[best-practices.md](best-practices.md)): measure fidelity on the spec + WASI corpus BEFORE choosing a
-direction — three of today's six stages found a silent defect that way; after every type change, read
-every use the compiler CANNOT see (string interpolation, `as` casts, `Record<string, …>` lookups,
-a one-byte read never compared); invert each new test with mutants.
+**Working method that keeps paying** (the rules in [working-rules.md](working-rules.md) /
+[best-practices.md](best-practices.md) — today's evidence):
+- **measure on the corpus BEFORE choosing a direction.** Every silent defect this week was found that
+  way, not by reading: the table64 narrowing, the element-type loss, the rec-group flattening, the
+  name-section move, the locals OOM.
+- **after a type change, read every use the compiler CANNOT see** — string interpolation, `as` casts,
+  `Record<string, …>` lookups, a byte read and never compared.
+- **a blunt regex is a defect generator.** `...body` and `...funcs` (rest/spread) both contain
+  `.body` / `.funcs`; a node's `body` is not a function's; a `params:` rewrite hits parameter LISTS.
+  Scope every bulk edit to the lines the compiler named, and read the diff.
+- **an equivalent mutant is a finding, not a failure** — twice it pointed at dead code.
 
 ⚠️ **Carry the L2 discipline into every remaining stage**: when a field loses `null` or `undefined`
 from its type, the compiler stops helping (`stringValued === null` is not an error), so list the
