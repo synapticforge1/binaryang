@@ -91,7 +91,7 @@ describe('writeVar fail-loud', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
-      localDecls: [],
+      locals: [],
       // call to a NAME var that was never resolved to an index
       body: [{ kind: 'call', func: varName('ghost'), operands: [], loc: LOC }],
       tailcall: false,

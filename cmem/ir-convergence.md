@@ -3441,6 +3441,35 @@ struct / array / field). What is left there is ONE thing: each side still has it
 a field's `type` differs and drags the struct and array entries with it — the last value-type pair
 unmerged, for M6 / M7.
 
+**✅ M6a — a function holds its type as `sig` (2026-09-17).** `params` + `results` → `sig:
+FuncSignature`, the shape a tag has had since M2c: every signature this tree compares, interns or
+writes is a `{ params, results }` pair, and the function was the one place saying it twice. 197
+compile errors, all mechanical. Behaviour-neutral (baseline IDENTICAL, optimizer 0 of 2,105). Two
+bulk-edit slips, both caught by the COMPILER before they could run: the `params:` / `results:`
+rewrite also hit function PARAMETER lists, and `makeCallIndirect`'s signature argument — already a
+signature — was wrapped in a second `sig`. Ratchet **35 / 12 / 17**.
+
+**✅ M6c — a function's locals are ONE named list of slots (2026-09-17).** wabt-ts's `localDecls`
+(run-length groups, params excluded) + `localNames` (a sparse map covering params too) → `locals:
+Local[]`, binaryen-ts's shape: a slot per local, params first, each carrying its own name. Three
+shapes described one list; a pass adding a local touched two and put the name in the third, keyed by
+an index it computed. **Measured before choosing:** the grouping is NOT lost by flattening — the
+writer already re-derives it by coalescing runs, and 4,064 of 4,065 corpus functions with locals are
+written in exactly that canonical grouping (the exception, `binary.45`, uses zero-count groups and is
+an `assert_malformed` fixture). So the recorded plan's "grouping kept as form" turned out to be
+UNNECESSARY: keeping it would have been new behaviour, not preservation.
+🛑 **Found by the corpus run, which ran the decoder OUT OF MEMORY:** five bytes can declare 2^32
+locals, and `binary.41`–`binary.44` do exactly that on purpose. Materializing slots as the groups
+were read allocated before the "too many locals" check — which is on their SUM — could refuse the
+module. The groups are read first now, and a count past this decoder's limit
+(`MAX_MATERIALIZED_LOCALS` = 1,000,000) is REFUSED rather than materialized: a decoder that refuses
+beats one that dies. **Nothing covered either limit before**; `tests/wabt-ts/reader/local_limits.test.ts`
+now does. Baseline IDENTICAL, optimizer 0 of 2,105, corpus 0 improved / 0 worse. 8 mutants killed.
+Ratchet **32 / 10 / 17** — the LOCAL pair is now identical, and a function differs only in wabt-ts's
+`typeVar` / `typeUse` / `nodeId` / `tailcall` / `loc` and binaryen-ts's `bodyFrameLabel`.
+⬚ **M6b — the BODY** (wabt-ts's `Expr[]` against binaryen-ts's `RegionExpr`) is measured at ~174
+errors and left for its own commit.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

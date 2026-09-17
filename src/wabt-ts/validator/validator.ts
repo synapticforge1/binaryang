@@ -368,7 +368,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     for (const f of m.funcs) {
       for (const p of f.sig.params) checkVt(p, 'param', f.loc);
       for (const r of f.sig.results) checkVt(r, 'result', f.loc);
-      for (const d of f.localDecls) checkVt(d.type, 'local', f.loc);
+      for (const l of f.locals.slice(f.sig.params.length)) checkVt(l.type, 'local', f.loc);
       // ⚠️ And the BLOCK TYPES inside the body, which this loop used to miss.
       //
       // A `(block (result (ref 1)))` in a module whose type section has one
@@ -497,8 +497,10 @@ class ModuleValidator implements ExprVisitorDelegate {
     let globalFuncIdx = m.numFuncImports;
     for (const func of m.funcs) {
       this.acc(this.sv.beginFunctionBody(func.loc, globalFuncIdx++));
-      for (const decl of func.localDecls) {
-        this.acc(this.sv.onLocalDecl(func.loc, decl.count, decl.type));
+      // One declaration per slot: the shared validator counts locals, and the
+      // grouping the binary used is the writer's business (M6c).
+      for (const local of func.locals.slice(func.sig.params.length)) {
+        this.acc(this.sv.onLocalDecl(func.loc, 1, local.type));
       }
       this.acc(visitor.visitExprList(func.body));
       this.acc(this.sv.endFunctionBody(func.loc));

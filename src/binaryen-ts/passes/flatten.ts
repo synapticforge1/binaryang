@@ -387,10 +387,10 @@ export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
     return results.length === 1 ? results[0]! : (results as Type);
   };
   for (const imp of module.imports) {
-    if (imp.kind === ExternalKind.Func) map.set(imp.func.name, resultType(imp.func.results));
+    if (imp.kind === ExternalKind.Func) map.set(imp.func.name, resultType(imp.func.sig.results));
   }
   for (const f of module.functions) {
-    map.set(f.name, resultType(f.results));
+    map.set(f.name, resultType(f.sig.results));
   }
   return map;
 }
@@ -410,11 +410,11 @@ export function flattenFunction(
   // `return` (matching upstream) so the body block ends up void. Guard on the
   // result signature, not `body.type`, since a call-bodied function has
   // `body.type === none` from the parser.
-  const bodyIsValue = func.results.length > 0 && func.body.type !== Unreachable;
+  const bodyIsValue = func.sig.results.length > 0 && func.body.type !== Unreachable;
   // Unwrapped, not placed as is: `return` takes an OPERAND, which a region
   // cannot be — and `makeReturn(region)` type-checks, since a region is an
   // Expression.
-  const body = asStatement(func.body, bodyIsValue ? blockResult(func.results) : None);
+  const body = asStatement(func.body, bodyIsValue ? blockResult(func.sig.results) : None);
   const source = bodyIsValue ? makeReturn([body]) : body;
 
   const f = flattenExpr(source, ctx);

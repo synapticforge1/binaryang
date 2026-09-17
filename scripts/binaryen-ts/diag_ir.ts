@@ -20,8 +20,8 @@ const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const mod = parseWasm(orig);
 const fn = mod.functions[fnIdx];
 console.log(
-  `# ${rel} defined-fn #${fnIdx}: ${fn.name} params=${JSON.stringify(fn.params)} results=${
-    JSON.stringify(fn.results)
+  `# ${rel} defined-fn #${fnIdx}: ${fn.name} params=${JSON.stringify(fn.sig.params)} results=${
+    JSON.stringify(fn.sig.results)
   }`,
 );
 

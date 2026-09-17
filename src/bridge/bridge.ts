@@ -934,8 +934,8 @@ function bridgeFunc(b: ModuleBuilder, f: WabtFunc, baseCtx: BridgeCtx, name: str
   // Local[] surface.
   const locals: ValueType[] = [];
   const binaryenLocals: Local[] = [];
-  for (const decl of f.localDecls) {
-    for (let i = 0; i < decl.count; i++) {
+  for (const decl of f.locals.slice(f.sig.params.length)) {
+    {
       locals.push(decl.type);
       // T13.50: precise. `Local.type` is a ValueType, and the params/results
       // alongside are already precise — a local coarsened to structref makes

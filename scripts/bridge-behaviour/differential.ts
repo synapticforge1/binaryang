@@ -92,7 +92,7 @@ function makeImports(
   };
   for (const imp of mod.imports) {
     if (imp.kind === ExternalKind.Func) {
-      const rs = imp.func.results;
+      const rs = imp.func.sig.results;
       const i64 = rs.length === 1 && rs[0] === ValType.I64;
       put(imp.module, imp.field, (..._a: unknown[]) => (i64 ? 0n : 0));
     } else if (imp.kind === ExternalKind.Memory) {
@@ -262,7 +262,7 @@ export function check(file: string, wat: string): Row {
 
   const sigByName = new Map<string, { params: ValueType[]; results: ValueType[] }>();
   for (const fn of mod.functions) {
-    sigByName.set(fn.name, { params: fn.params, results: fn.results });
+    sigByName.set(fn.name, { params: fn.sig.params, results: fn.sig.results });
   }
 
   const diffs: string[] = [];

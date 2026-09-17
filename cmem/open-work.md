@@ -83,8 +83,10 @@ typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
    binaries fixed, 68 now byte-identical), (b) the module's table is `types` and a field carries its
    name. Records: ir-convergence.md §§ "M5a", "M5b". ⚠️ Left: each side still has its own
    `StorageType`, which is why a field, a struct and an array entry still differ.
-6. **M6 — functions** (`sig`, `typeVar` / `typeUse`, `body: RegionExpr`, locals — flat named list +
-   grouping as form, recorded, not an owner call).
+6. 🚧 **M6 — functions.** ✅ (a) `sig`; ✅ (c) locals are one named list of slots — and the flattening
+   exposed an OOM on `binary.41`–`binary.44` (2^32 declared locals), now refused by a decoder limit.
+   ⬚ **(b) the BODY**: wabt-ts's `Expr[]` against binaryen-ts's `RegionExpr`, ~174 errors, its own
+   commit. Records: ir-convergence.md §§ "M6a", "M6c".
 7. **M7 — module metadata**, then **M8 — the alias, type derivation, and the bridge's deletion.**
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):

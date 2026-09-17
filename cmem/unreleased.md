@@ -24,6 +24,8 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: `WasmFunction.params` / `.results` are `sig`** (S6 step 5 item 6 (M6a)) — one
+  `FuncSignature`, as a tag's has been since M2c. `ModuleBuilder.addFunction` is unchanged.
 - ⚠️ **BREAKING: `WasmModule.heapTypes` is `types`** (wabt-ts's name; S6 step 5 item 6 (M5b)), and
   `ModuleBuilder.addHeapType` is `addType`. `FieldType` gains `name` (`''` where the module gave none).
   Fixed with it: the WAT parser dropped a written field name.
@@ -197,6 +199,13 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- ⚠️ **BREAKING: `Func.localDecls` and `Func.localNames` are `Func.locals`** (S6 step 5 item 6 (M6c);
+  `./ir/wabt-ts`). One slot per local, PARAMS FIRST, each `{ type, name? }` — binaryen-ts's `Local`.
+  The run-length grouping was already re-derived by the writer, so emitted bytes are unchanged. New
+  export `localNameEntries(locals)` for the name-section / text-writer shape.
+- **A function declaring more than 1,000,000 locals is now REFUSED** (M6c). Five bytes can declare
+  2^32 locals; with a slot per local the decoder ran out of memory before the spec's own "too many
+  locals" check (on their sum) could refuse the module.
 - ⚠️ **BREAKING (types): `Custom.data` is `Uint8Array | null`** (S6 step 5 item 6 (M2f); `./ir/wabt-ts`).
   `null` marks the `name` section's PLACE: a binary read with names now keeps that entry in
   `module.customs`, and the writer generates the names there. Only a section named `name` may have

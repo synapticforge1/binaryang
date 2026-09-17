@@ -213,8 +213,8 @@ Deno.test('encodeWasm: empty module output is re-parseable', () => {
 Deno.test('round-trip: add module preserves function signature', () => {
   const mod2 = roundTrip(ADD_MODULE);
   assertEquals(mod2.functions.length, 1);
-  assertEquals(mod2.functions[0].params, [ValType.I32, ValType.I32]);
-  assertEquals(mod2.functions[0].results, [ValType.I32]);
+  assertEquals(mod2.functions[0].sig.params, [ValType.I32, ValType.I32]);
+  assertEquals(mod2.functions[0].sig.results, [ValType.I32]);
 });
 
 Deno.test('round-trip: add module preserves export', () => {
@@ -280,8 +280,8 @@ Deno.test('encodeWasm: ModuleBuilder add function round-trips', () => {
   const mod2 = parseWasm(bytes);
 
   assertEquals(mod2.functions.length, 1);
-  assertEquals(mod2.functions[0].params, [ValType.I32, ValType.I32]);
-  assertEquals(mod2.functions[0].results, [ValType.I32]);
+  assertEquals(mod2.functions[0].sig.params, [ValType.I32, ValType.I32]);
+  assertEquals(mod2.functions[0].sig.results, [ValType.I32]);
   assertEquals(mod2.exports[0].name, 'add');
 });
 

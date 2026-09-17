@@ -30,8 +30,7 @@ Deno.test('toWat: unsupported expression kind throws instead of a silent (;; TOD
   const mod = createModule(() => {});
   mod.ir.functions.push({
     name: '$f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeLoop('l', makeNop(), None)),
   });
@@ -46,8 +45,7 @@ Deno.test('Module.optimize honors the -O level (was hardcoded to 2)', async () =
     const mod = createModule(() => {});
     mod.ir.functions.push({
       name: '$f',
-      params: [],
-      results: [ValType.I32],
+      sig: { params: [], results: [ValType.I32] },
       locals: [],
       body: asRegion(makeBlock([makeNop(), makeI32Const(5)], null)),
     });
@@ -99,8 +97,7 @@ Deno.test('toWat: value types print as their NAMES, not as the bytes that repres
   );
   mod.ir.functions.push({
     name: '$f',
-    params: [ValType.I32],
-    results: [ValType.I64],
+    sig: { params: [ValType.I32], results: [ValType.I64] },
     locals: [{ type: ValType.I32 }, { type: ValType.F32, name: '$x' }],
     body: asRegion(makeBlock([makeI64Const(7n)], null, ValType.I64)),
   });

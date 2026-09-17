@@ -233,8 +233,8 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
   const parsed = parseWasm(bytes);
   assertEquals(parsed.functions.length, 2);
 
-  const p0 = parsed.functions[0].params[0];
-  const p1 = parsed.functions[1].params[0];
+  const p0 = parsed.functions[0].sig.params[0];
+  const p1 = parsed.functions[1].sig.params[0];
   assert(isRefType(p0) && isRefType(p1), 'params lost their concrete ref types');
   assertEquals((p0 as RefType).heapType, varIndex(a));
   assertEquals((p1 as RefType).heapType, varIndex(b));
@@ -261,7 +261,7 @@ Deno.test('WAT: (ref $t) is non-nullable', () => {
       (type $f (func (param (ref $a))))
       (func (export "f") (param (ref $a)) (nop)))
   `);
-  const p = mod.functions[0].params[0];
+  const p = mod.functions[0].sig.params[0];
   assert(isRefType(p), `WAT param decoded as ${JSON.stringify(p)}`);
   assertEquals((p as RefType).nullable, false);
 });

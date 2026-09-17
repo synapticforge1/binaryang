@@ -189,7 +189,8 @@ describe('parseWatModule — functions', () => {
     assertEquals(m.funcs.length, 1);
     const f = m.funcs[0] as Func;
     assertExists(f);
-    assertEquals(f.localDecls.length, 3);
+    // Three declared locals, each its own slot (M6c); the function has no params.
+    assertEquals(f.locals.length, 3);
   });
 
   it('parses function with export', () => {

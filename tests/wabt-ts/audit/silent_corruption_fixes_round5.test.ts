@@ -26,7 +26,7 @@ function emptyFunc(name: string): Func {
     loc: LOC,
     typeVar: { kind: 'index', value: 0 },
     sig: { params: [], results: [] },
-    localDecls: [],
+    locals: [],
     body: [{ kind: 'nop', loc: LOC }],
     tailcall: false,
   };

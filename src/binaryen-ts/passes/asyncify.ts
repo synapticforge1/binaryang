@@ -385,8 +385,7 @@ function addControlFunction(
   const internalName = `$${hostName}`;
   module.functions.push({
     name: internalName,
-    params: params.map((l) => l.type),
-    results,
+    sig: { params: params.map((l) => l.type), results },
     locals: [...params],
     body: asRegion(body),
   });
@@ -983,7 +982,7 @@ export function flowInstrumentFunction(func: WasmFunction, ctx: FlowCtx): void {
   // Rewriting control flow may leave the value-producing tail conditional; a
   // trailing unreachable keeps a value-returning function well-formed (the
   // optimizer removes it later).
-  if (func.results.length > 0) list.push(makeUnreachable());
+  if (func.sig.results.length > 0) list.push(makeUnreachable());
   func.body = makeRegion(list);
 }
 
@@ -1332,7 +1331,7 @@ export function localsInstrumentFunction(
   // On normal completion the body returns directly; on unwind it breaks to the
   // unwind block with the call index. Barrier after the body must be reached
   // only in the (impossible) fallthrough case.
-  const barrier = func.results.length === 0 ? makeReturn() : makeUnreachable();
+  const barrier = func.sig.results.length === 0 ? makeReturn() : makeUnreachable();
   // Typed i32 because its breaks carry the call index; its last child is the
   // barrier. The old body is a STATEMENT here, which a region cannot be;
   // `children` is `Expression[]`, so the type would not have said so.
@@ -1352,7 +1351,7 @@ export function localsInstrumentFunction(
   ];
   // On the unwind path the function must still "return" a value (ignored by the
   // host); provide a zero of the result type.
-  if (func.results[0] !== undefined) newList.push(makeZero(func.results[0]));
+  if (func.sig.results[0] !== undefined) newList.push(makeZero(func.sig.results[0]));
 
   func.body = makeRegion(newList);
 }

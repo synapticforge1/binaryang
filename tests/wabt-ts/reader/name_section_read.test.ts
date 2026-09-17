@@ -16,6 +16,7 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
+import { localNameEntries } from '../../../src/wabt-ts/ir/ir.ts';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
@@ -121,7 +122,7 @@ describe('the reader gives the name section to the module', () => {
       ],
     );
     assertEquals(m.funcs.map((f) => f.name), ['$named', '']);
-    assertEquals([...(m.funcs[0]!.localNames ?? [])], [[0, '$a'], [2, '$x']]);
+    assertEquals(localNameEntries(m.funcs[0]!.locals), [[0, '$a'], [2, '$x']]);
     assertEquals(m.types.map((t) => t.name).filter((n) => n !== ''), ['$sig', '$s']);
     const s = m.types.find((t) => t.name === '$s')!;
     assert(s.kind === 'struct');

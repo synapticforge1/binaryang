@@ -258,14 +258,19 @@ export function applyNameSection(m: Module, names: ModuleNames): boolean {
       exact = false;
       continue;
     }
-    const count = f.sig.params.length + f.localDecls.reduce((n, d) => n + d.count, 0);
+    const count = f.locals.length;
     const slots = Array.from({ length: count }, () => ({ name: '' }));
     give(slots, map);
     const localNames = new Map<number, string>();
     slots.forEach((s, i) => {
       if (s.name !== '') localNames.set(i, s.name);
     });
-    if (localNames.size > 0) f.localNames = localNames;
+    for (const [idx, name] of localNames) {
+      const slot = f.locals[idx];
+      // An index past the end names nothing — the section is not trusted to
+      // agree with the code section.
+      if (slot !== undefined) slot.name = name;
+    }
   }
 
   for (const [ti, map] of names.fieldNames) {

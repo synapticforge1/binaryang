@@ -78,7 +78,7 @@ registerPass(CoalesceLocalsPass);
 function _coalesceFunction(fn: WasmFunction): void {
   const numLocals = fn.locals.length;
   if (numLocals === 0) return;
-  const numParams = fn.params.length;
+  const numParams = fn.sig.params.length;
 
   // 1. CFG + liveness ------------------------------------------------------
   const cfg = buildCFG(fn.body);

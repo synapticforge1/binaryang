@@ -53,8 +53,7 @@ function moduleWithImport(): WasmModule {
   return {
     functions: [{
       name: '$foo',
-      params: [ValType.I32],
-      results: [ValType.I32],
+      sig: { params: [ValType.I32], results: [ValType.I32] },
       locals: [{ type: ValType.I32 }],
       body: {
         kind: ExpressionKind.Block,
@@ -77,7 +76,7 @@ function moduleWithImport(): WasmModule {
       module: 'env',
       field: 'sleep',
       kind: ExternalKind.Func,
-      func: { name: '$sleep', params: [], results: [], locals: [], body: makeRegion([]) },
+      func: { name: '$sleep', sig: { params: [], results: [] }, locals: [], body: makeRegion([]) },
     }],
     exports: [{ name: 'foo', var: varName('$foo'), kind: ExternalKind.Func }],
     start: null,
@@ -178,11 +177,11 @@ Deno.test('Asyncify Stage 1 — adds & exports the 5 control functions in order'
   ]);
 
   // Signatures.
-  assertEquals(funcByName(m, `$${ASYNCIFY_START_UNWIND}`)!.params, [ValType.I32]);
-  assertEquals(funcByName(m, `$${ASYNCIFY_START_UNWIND}`)!.results, []);
-  assertEquals(funcByName(m, `$${ASYNCIFY_START_REWIND}`)!.params, [ValType.I32]);
-  assertEquals(funcByName(m, `$${ASYNCIFY_STOP_UNWIND}`)!.params, []);
-  assertEquals(funcByName(m, `$${ASYNCIFY_GET_STATE}`)!.results, [ValType.I32]);
+  assertEquals(funcByName(m, `$${ASYNCIFY_START_UNWIND}`)!.sig.params, [ValType.I32]);
+  assertEquals(funcByName(m, `$${ASYNCIFY_START_UNWIND}`)!.sig.results, []);
+  assertEquals(funcByName(m, `$${ASYNCIFY_START_REWIND}`)!.sig.params, [ValType.I32]);
+  assertEquals(funcByName(m, `$${ASYNCIFY_STOP_UNWIND}`)!.sig.params, []);
+  assertEquals(funcByName(m, `$${ASYNCIFY_GET_STATE}`)!.sig.results, [ValType.I32]);
 });
 
 Deno.test('Asyncify Stage 1 — synthesizes a memory for a memoryless module (result validates)', () => {

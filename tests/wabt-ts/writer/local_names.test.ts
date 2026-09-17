@@ -16,6 +16,7 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
+import { localNameEntries } from '../../../src/wabt-ts/ir/ir.ts';
 
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
@@ -67,7 +68,7 @@ describe('param and local names through the WAT writer', () => {
   it('the written text reads back to the same names', () => {
     const again = parse(out);
     const f = again.funcs[0]!;
-    assertEquals([...(f.localNames ?? [])].sort(), [[0, '$a'], [2, '$c'], [3, '$x'], [5, '$y']]);
+    assertEquals(localNameEntries(f.locals).sort(), [[0, '$a'], [2, '$c'], [3, '$x'], [5, '$y']]);
   });
 
   it('with no names at all, params stay ONE group — the form this always wrote', () => {
