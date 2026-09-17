@@ -156,8 +156,13 @@ export interface WasmGlobal {
    * The initializer — a constant expression, held as a {@link RegionExpr} of
    * exactly the instructions it is (owner, 2026-09-16, S6 step 5 item 6 (M2);
    * wabt-ts's shape). It was one `Expression`, which cannot hold a sequence.
+   *
+   * OPTIONAL, as wabt-ts's `Global.init` is (M2h): the one record also describes
+   * an IMPORTED global, which has none, so absent means MISSING — never an empty
+   * region, which is a present-but-empty initializer. A defined global without
+   * one is refused by the encoder.
    */
-  init: RegionExpr;
+  init?: RegionExpr;
 }
 
 /**

@@ -10,10 +10,12 @@
 // hold more, and the encoder writes whatever it holds. That is what is pinned
 // here: the encoder writes the SEQUENCE, not its first instruction.
 
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { createModule } from '../../../src/binaryen-ts/api/index.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { makeI32Const, makeRegion } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
@@ -56,7 +58,7 @@ Deno.test('a global init and an active offset decode as one-instruction regions'
       .build(),
   );
   const mod = parseWasm(bytes);
-  assertEquals(mod.globals[0]!.init.children.map((e) => e.kind), ['const']);
+  assertEquals(mod.globals[0]!.init!.children.map((e) => e.kind), ['const']);
   assertEquals(mod.dataSegments[0]!.offset?.children.map((e) => e.kind), ['const']);
   assertEquals(encodeWasm(mod), bytes);
 });
@@ -70,3 +72,38 @@ Deno.test('a passive data segment has NO offset field (it was null)', () => {
   assert(seg.passive);
   assertEquals('offset' in seg, false);
 });
+
+// M2h: a global's `init` is OPTIONAL, as wabt-ts's is — the record also describes an
+// imported global, which has none. Absent means MISSING, so a DEFINED global
+// without one is refused where it would be written, and passes step over it.
+function withoutInit() {
+  const mod = new ModuleBuilder()
+    .addGlobal('$g', ValType.I32, false, makeI32Const(7))
+    .addFunction('$f', [], [], [])
+    .addExport('f', '$f')
+    .build();
+  delete mod.globals[0]!.init;
+  return mod;
+}
+
+Deno.test('a defined global with no initializer is refused by the encoder', () => {
+  assertThrows(
+    () => encodeWasm(withoutInit()),
+    WasmEncodeError,
+    'global $g: it has no initializer',
+  );
+});
+
+Deno.test('a defined global with no initializer is refused by toWat', () => {
+  const mod = createModule(() => {});
+  mod.ir.globals.push(withoutInit().globals[0]!);
+  assertThrows(() => mod.toWat(), Error, 'global $$g has no initializer');
+});
+
+for (const pass of ['vacuum', 'optimize-instructions', 'remove-unused-module-elements']) {
+  Deno.test(`${pass} steps over a global with no initializer`, () => {
+    const mod = withoutInit();
+    new PassRunner(mod, { optimizeLevel: 2 }).add(pass).run();
+    assertEquals(mod.globals.find((g) => g.name === '$g')?.init, undefined);
+  });
+}

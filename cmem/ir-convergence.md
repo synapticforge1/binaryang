@@ -3346,6 +3346,20 @@ and memory differ only in `loc`. Optimizer output 0 of 2,105 changed. 22 mutants
 `setMemory(…, shared)` survived until a `shared: true` test). ⚠️ **Open, recorded not done**:
 binaryen-ts reads ONE constant instruction (M2b's item) — now refused, not truncated, 43 binaries.
 
+**✅ M2h — a global's `init` is optional in both (2026-09-17). M2 CLOSED.** Trials near-tied
+(binaryen-ts → `init?` 17, wabt-ts → `init` 11); meaning decided — wabt-ts's `Import` embeds the same
+`Global` record, and an imported global HAS no initializer: requiring one would force a fake, and an
+empty region already means present-but-empty (the M2 owner call: absent = missing). binaryen-ts's
+encoder and `toWat` refuse a defined global without one; OptimizeInstructions, Vacuum and
+RemoveUnusedModuleElements step over it. Every other read already guarded or was a test. Ratchet
+**40 / 20 / 8**. Optimizer output 0 of 2,105 changed. 5 mutants killed, each by its own test.
+
+**Where M2 leaves the module.** Every leaf record — global, table, memory, tag, export, custom — now
+differs from its partner ONLY in wabt-ts's required `loc`; that one field is also why the module's
+`tables` / `memories` / `globals` / `tags` arrays still count as differing. `loc` is the node-base
+question the expression half answered with `loc?` + `locOf` (item 5 (1)); settle it for module
+records in M7 (metadata) or at the alias (M8), not per leaf.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

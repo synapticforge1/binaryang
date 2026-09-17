@@ -1340,6 +1340,10 @@ class WasmEncoder {
     for (const g of this.mod.globals) {
       writeValueType(w, g.type);
       w.writeU8(g.mutable ? 1 : 0);
+      // A DEFINED global must have one; absent is an imported global's shape (M2h).
+      if (g.init === undefined) {
+        throw new WasmEncodeError(`cannot encode global ${g.name}: it has no initializer`);
+      }
       this.encodeInitExpr(w, g.init);
     }
   }
