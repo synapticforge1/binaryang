@@ -1296,7 +1296,8 @@ export class Module {
       const data = seg.data instanceof Uint8Array ? seg.data : new Uint8Array(seg.data);
       this._inner.dataSegments.push({
         name: `$data${this._inner.dataSegments.length}`,
-        passive: seg.passive ?? false,
+        kind: seg.passive === true ? 'passive' : 'active',
+        memoryVar: varIndex(0),
         ...(seg.passive ? {} : { offset: asRegion(seg.offset ?? makeI32Const(0)) }),
         data,
       });

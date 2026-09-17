@@ -451,6 +451,15 @@ function writeHeapType(w: BinaryWriter, h: HeapType): void {
   }
 }
 
+/**
+ * Whether `t` is the non-nullable `(ref func)` — the type the funcidx element
+ * form itself yields, and the only one that form may be written for (M3).
+ */
+function isNonNullFuncRef(t: ValueType): boolean {
+  return typeof t === 'object' && !t.nullable && t.heapType.kind === 'abstract' &&
+    t.heapType.name === AbstractHeapType.Func;
+}
+
 function writeValueType(w: BinaryWriter, t: ValType | RefType): void {
   if (isRefType(t)) {
     w.writeU8(t.nullable ? 0x63 : 0x64);
@@ -654,7 +663,10 @@ class WasmEncoder {
       this.writeSection(out, 3, (w) => this.encodeFunctionSection(w));
     }
     this.writeCustoms(out, 3);
-    if (this.hasTables()) this.writeSection(out, 4, (w) => this.encodeTableSection(w));
+    // DEFINED tables only: an imported one lives in the import section, and a
+    // module with nothing but imported tables was given an EMPTY table section
+    // it did not have (elem.107; wabt-ts omits it).
+    if (this.mod.tables.length > 0) this.writeSection(out, 4, (w) => this.encodeTableSection(w));
     this.writeCustoms(out, 4);
     if (this.hasMemories()) this.writeSection(out, 5, (w) => this.encodeMemorySection(w));
     this.writeCustoms(out, 5);
@@ -1423,21 +1435,36 @@ class WasmEncoder {
   private encodeElementSection(w: BinaryWriter): void {
     w.writeU32(this.mod.elements.length);
     for (const seg of this.mod.elements) {
-      const tableIdx = seg.mode === 'active' ? this.tableRefIndex(varFromToken(seg.table)) : 0;
-      // Kind 2 (active with an explicit table index) is only needed for a table
-      // other than 0. Preferring kind 0 when we can keeps the common case one
-      // byte shorter and matches what wabt-ts emits.
-      const kind = seg.mode === 'passive'
-        ? 1
-        : seg.mode === 'declarative'
-        ? 3
-        : tableIdx === 0
-        ? 0
-        : 2;
-      w.writeU32(kind);
+      const tableIdx = seg.kind === 'active' ? this.tableRefIndex(seg.tableVar) : 0;
 
-      if (kind === 2) w.writeU32(tableIdx);
-      if (seg.mode === 'active') {
+      // Prefer the FUNCIDX form (flags 0-3) whenever every entry is a single
+      // `ref.func` AND the declared type is that form's own — the non-nullable
+      // `(ref func)`. It is not merely shorter: the expression form declares
+      // whatever reftype is written, and `funcref` is not a subtype of a
+      // `(ref func)` table, so writing one for the other silently widens the
+      // segment (wabt-ts's rule, probed against V8 — elem_form.test.ts).
+      const useFuncIdx = isNonNullFuncRef(seg.elemType) &&
+        seg.elemExprs.every((xs) =>
+          xs.children.length === 1 && xs.children[0]!.kind === ExpressionKind.RefFunc
+        );
+
+      let flags: number;
+      if (useFuncIdx) {
+        // Only flag 0 omits the elemkind byte.
+        flags = seg.kind === 'passive' ? 1 : seg.kind === 'declared' ? 3 : tableIdx === 0 ? 0 : 2;
+      } else if (seg.kind === 'active' && tableIdx === 0 && seg.elemType === ValType.FuncRef) {
+        // Flag 4 carries NO reftype byte — funcref is implied. Any other element
+        // type on table 0 must take flag 6, or the type is silently lost.
+        flags = 4;
+      } else if (seg.kind === 'active') {
+        flags = 6;
+      } else {
+        flags = seg.kind === 'passive' ? 5 : 7;
+      }
+      w.writeU32(flags);
+
+      if (flags === 2 || flags === 6) w.writeU32(tableIdx);
+      if (seg.kind === 'active') {
         if (seg.offset) this.encodeInitExpr(w, seg.offset);
         else {
           w.writeU8(0x41);
@@ -1445,15 +1472,20 @@ class WasmEncoder {
           w.writeU8(0x0b);
         }
       }
-      // Kinds 1, 2 and 3 carry an elemkind byte before the vector; kind 0 does
-      // not. 0x00 is `funcref`, the only elemkind the index forms allow.
-      if (kind !== 0) w.writeU8(0x00);
+      if (useFuncIdx) {
+        if (flags !== 0) w.writeU8(0x00); // elemkind: funcref
+      } else if (flags !== 4) {
+        writeValueType(w, seg.elemType);
+      }
 
-      w.writeU32(seg.data.length);
-      for (const fname of seg.data) {
-        w.writeU32(
-          this.resolveRef(this.funcIndex, varFromToken(fname), 'element-segment function'),
-        );
+      w.writeU32(seg.elemExprs.length);
+      for (const entry of seg.elemExprs) {
+        if (useFuncIdx) {
+          const ref = entry.children[0] as RefFuncExpr;
+          w.writeU32(this.resolveRef(this.funcIndex, ref.func, 'element-segment function'));
+        } else {
+          this.encodeInitExpr(w, entry);
+        }
       }
     }
   }
@@ -1492,14 +1524,20 @@ class WasmEncoder {
   private encodeDataSection(w: BinaryWriter): void {
     w.writeU32(this.mod.dataSegments.length);
     for (const seg of this.mod.dataSegments) {
-      if (seg.passive) {
+      if (seg.kind === 'declared') {
+        throw new WasmEncodeError(
+          `cannot encode data segment ${seg.name}: a data segment is active or passive, never declared`,
+        );
+      }
+      if (seg.kind === 'passive') {
         w.writeU32(1); // passive
         w.writeU32(seg.data.length);
         w.writeBytes(seg.data);
       } else {
-        if (seg.memory) {
+        const memIdx = memIndex(seg.memoryVar, `data segment ${seg.name}`);
+        if (memIdx !== 0) {
           w.writeU32(2); // active, explicit memory index
-          w.writeU32(seg.memory);
+          w.writeU32(memIdx);
         } else {
           w.writeU32(0); // active, memory 0
         }

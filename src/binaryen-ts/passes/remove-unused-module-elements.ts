@@ -30,7 +30,7 @@
  */
 
 import { type Expression, ExpressionKind } from '../ir/expressions.ts';
-import type { WasmModule } from '../ir/module.ts';
+import { elemFuncNames, type WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { walkExpression } from '../ir/walk.ts';
 import { requireName } from '../../wabt-ts/ir/ir.ts';
@@ -83,7 +83,7 @@ function _removeUnused(module: WasmModule): void {
 
   // Functions referenced in element segments (indirect-call targets)
   for (const seg of module.elements) {
-    for (const name of seg.data) liveFuncs.add(name);
+    for (const name of elemFuncNames(seg)) liveFuncs.add(name);
   }
 
   // The start function runs at instantiation, so it is a reachability root

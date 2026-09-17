@@ -13,6 +13,7 @@ import {
   blockResult,
   heapAbstract,
   type Limits,
+  type SegmentKind,
   type Var,
   varIndex,
   varName,
@@ -22,7 +23,7 @@ import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 import {
   type CustomSection,
   type ElementSegment,
-  type ElementSegmentMode,
+  elemFuncEntry,
   type Local,
   ModuleBuilder,
   type WasmFunction,
@@ -146,7 +147,7 @@ import {
   makeStructNewDefault,
   makeStructSet,
 } from '../ir/expressions.ts';
-import { None, type Type, typeToString, ValType } from '../ir/types.ts';
+import { None, type Type, ValType } from '../ir/types.ts';
 
 // ---------------------------------------------------------------------------
 // Section IDs
@@ -1279,10 +1280,10 @@ class WasmParser {
       // `table.init` would consume, or a declarative forward declaration whose
       // absence makes a re-encoded `ref.func` invalid.
       const flags = this.r.readU32();
-      const mode: ElementSegmentMode = (flags & 1) === 0
+      const kind: SegmentKind = (flags & 1) === 0
         ? 'active'
         : (flags & 2) !== 0
-        ? 'declarative'
+        ? 'declared'
         : 'passive';
 
       // An explicit table index is bit 1 WITHOUT bit 0. Reading it as `flags & 2`
@@ -1291,31 +1292,27 @@ class WasmParser {
       const hasTableIndex = (flags & 3) === 2;
       const useExpressions = (flags & 4) !== 0;
 
-      let tableIdx = 0;
-      if (hasTableIndex) tableIdx = this.r.readU32();
+      let tableVar: Var = varIndex(0);
+      if (hasTableIndex) tableVar = varIndex(this.r.readU32());
 
       // Only an active segment carries an offset.
-      const offset = mode === 'active' ? this.readInitExpr(ValType.I32) : undefined;
+      const offset = kind === 'active' ? this.readInitExpr(ValType.I32) : undefined;
 
-      // An elemkind byte (non-expr forms) or a REFERENCE TYPE (expr forms)
-      // precedes the vector for every flag except 0 and 4. The element model
-      // holds function names and writes `funcref` back, so anything else is
-      // refused until M3 carries the type.
-      // 🔧 This read ONE byte and discarded it. A reference type is not one
-      // byte: `(ref $0)` is `64 00`, so the `00` was read as the element COUNT,
-      // the entries were skipped by the section's end, and a passive segment
-      // came back EMPTY and `funcref` — silently (array.11.wasm; reached once
-      // constant expressions of more than one instruction were read).
+      // The element type each form IMPLIES, and the byte the rest spell out
+      // (M3, wabt-ts's reading). The funcidx forms yield NON-NULLABLE
+      // `(ref func)` — every entry is an index, so none can be null — while the
+      // expression form with no reftype byte (flag 4) means `funcref`. A table
+      // of `(ref func)` does not accept a `funcref` segment, so conflating them
+      // turns an invalid module valid, and back.
+      // 🔧 The reftype was read as ONE byte and discarded: `(ref $0)` is `64 00`,
+      // so the `00` was read as the entry COUNT and a passive segment came back
+      // EMPTY and `funcref` — silently (array.11.wasm).
+      let elemType: ValueType = useExpressions
+        ? ValType.FuncRef
+        : { heapType: heapAbstract(AbstractHeapType.Func), nullable: false };
       if (flags !== 0 && flags !== 4) {
         if (useExpressions) {
-          const refType = readValueType(this.r);
-          if (refType !== ValType.FuncRef) {
-            this.r.error(
-              `unsupported element segment: element type ${
-                typeToString(refType)
-              } (only funcref, until M3)`,
-            );
-          }
+          elemType = readValueType(this.r);
         } else {
           const elemKind = this.r.readU8();
           if (elemKind !== 0x00) {
@@ -1325,55 +1322,25 @@ class WasmParser {
       }
 
       const numElems = this.r.readU32();
-      const funcs: string[] = [];
+      const elemExprs: RegionExpr[] = [];
       for (let j = 0; j < numElems; j++) {
-        funcs.push(
-          useExpressions ? this.readElemExprFuncName() : this.names.func(this.r.readU32()),
+        elemExprs.push(
+          useExpressions
+            ? this.readInitExpr(elemType)
+            : elemFuncEntry(varName(this.names.func(this.r.readU32()))),
         );
       }
 
-      const tname = this.tableNames[tableIdx] ?? this.tableNames[0] ?? this.names.table(0);
       const seg: ElementSegment = {
         name: this.names.elem(i),
-        mode,
-        table: tname,
+        kind,
+        tableVar,
         ...(offset === undefined ? {} : { offset }),
-        data: funcs,
+        elemType,
+        elemExprs,
       };
       this.builder.addElement(seg);
     }
-  }
-
-  /**
-   * Read one element-list expression (flag-4/5/6/7 forms) and return the
-   * referenced function name.
-   */
-  private readElemExprFuncName(): string {
-    const opcode = this.r.readU8();
-    if (opcode === 0xd2) {
-      // ref.func <funcidx>
-      const name = this.names.func(this.r.readU32());
-      // Checked, as a constant expression's is (M2g): an entry of more than one
-      // instruction lost the rest, silently.
-      const end = this.r.readU8();
-      if (end !== 0x0b) {
-        this.r.error(`unsupported element-segment expression: more than one instruction`);
-      }
-      return name;
-    }
-    if (opcode === 0xd0) {
-      // ref.null <heaptype>. Our element model (`data: string[]`) cannot
-      // represent an empty (null) table slot. Silently omitting it shifted
-      // every later entry down one table index, so `call_indirect` reached the
-      // wrong function (or trapped). Fail loudly until null slots are
-      // representable.
-      this.r.error(
-        'unsupported element segment: a ref.null entry cannot be represented in the table model',
-      );
-    }
-    return this.r.error(
-      `unsupported element-segment expression opcode 0x${opcode.toString(16)}`,
-    );
   }
 
   /** What instruction decoding reads of the module decoded so far. */

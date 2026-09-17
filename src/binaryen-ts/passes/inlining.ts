@@ -57,7 +57,7 @@ import {
   type UnaryExpr,
   UnaryOp,
 } from '../ir/expressions.ts';
-import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
+import { elemFuncNames, type Local, type WasmFunction, type WasmModule } from '../ir/module.ts';
 import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
 import { mapExpression, mapWithSequences, type Sequence, walkExpression } from '../ir/walk.ts';
@@ -143,7 +143,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
 
   // Element segment references make a function globally used.
   for (const seg of module.elements) {
-    for (const name of seg.data) {
+    for (const name of elemFuncNames(seg)) {
       const entry = info.get(name);
       if (entry) {
         entry.usedGlobally = true;

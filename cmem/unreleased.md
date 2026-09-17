@@ -24,6 +24,10 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: segments are wabt-ts's records** (S6 step 5 item 6 (M3)). `DataSegment`
+  `{ passive, memory? }` is `{ kind: SegmentKind, memoryVar: Var }`; `ElementSegment`
+  `{ mode, table, data: string[] }` is `{ kind, tableVar: Var, elemType: ValueType, elemExprs: RegionExpr[] }`
+  — `declarative` is spelled `declared`. New exports `elemFuncEntry`, `elemFuncNames`.
 - ⚠️ **BREAKING (types): `WasmGlobal.init` is optional** (S6 step 5 item 6 (M2h)), as wabt-ts's
   `Global.init` is — absent means missing. `encodeWasm` and `Module.toWat()` throw for a defined global
   without one; `ModuleBuilder.addGlobal` still requires it.
@@ -275,6 +279,12 @@ their own bump — and nothing breaks by their standing still.
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
   spec binaries, some left invalid. Also now read, not refused: memory / table sizes past 2^32, table
   initializers; kept, not ignored: a custom page size.
+- **binaryen-ts keeps an element segment's ELEMENT TYPE and its entries** (S6 step 5 item 6 (M3)).
+  The type was discarded — a `(ref func)` or `externref` segment came back as `funcref`, which makes an
+  invalid module (a `funcref` segment against a `(ref func)` table) look valid — and an entry could only
+  be a function index: `ref.null` was refused, `global.get` unreadable. 175 spec binaries that
+  re-encoded DIFFERENTLY now round-trip byte for byte, and 97 that were refused do too. A module whose
+  only table is imported no longer gains an empty table section.
 - **binaryen-ts reads constant expressions of more than one instruction** (S6 step 5 item 6,
   2026-09-17): extended-const and GC initializers and offsets decode and round-trip byte for byte (53
   spec binaries that were refused). Found on the way and fixed: an element segment with a typed

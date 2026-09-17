@@ -86,8 +86,8 @@ describe('bridge — module surface', () => {
       (func (export "f") (param i32) (result i32) (call_indirect (type $u) (local.get 0))))`);
     const segs = parseWasm(bytes).elements;
     assertEquals(segs.length, 1);
-    assertEquals(segs[0]!.mode, 'passive');
-    assertEquals(segs[0]!.data.length, 1);
+    assertEquals(segs[0]!.kind, 'passive');
+    assertEquals(segs[0]!.elemExprs.length, 1);
     // Passive means the table is still empty: the call traps rather than running $five.
     const f = instantiate(bytes).f as (x: number) => number;
     let trapped = false;

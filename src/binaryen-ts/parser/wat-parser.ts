@@ -137,12 +137,7 @@ import {
   UnaryOp,
   type UnreachableExpr,
 } from '../ir/expressions.ts';
-import {
-  type ElementSegmentMode,
-  type Local,
-  ModuleBuilder,
-  type WasmModule,
-} from '../ir/module.ts';
+import { elemFuncEntry, type Local, ModuleBuilder, type WasmModule } from '../ir/module.ts';
 import { None, type Type, Unreachable, ValType, valTypeFromName } from '../ir/types.ts';
 import { loadByName, type LoadShape, storeByName, type StoreShape } from '../ir/memory-access.ts';
 import {
@@ -175,7 +170,14 @@ import {
   type SList,
 } from './sexpr.ts';
 import { type TextPos, tokenize } from './tokenizer.ts';
-import { type BlockResult, heapAbstract, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import {
+  type BlockResult,
+  heapAbstract,
+  type SegmentKind,
+  varFromToken,
+  varIndex,
+  varName,
+} from '../../wabt-ts/ir/ir.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 /** An export descriptor's text keyword → the IR's (binary) kind. A Map, so `toString` is no keyword. */
@@ -2602,18 +2604,17 @@ class WatModuleParser {
     // `mode` field: the encoder wrote kind 0 unconditionally, so storing one
     // would have emitted it as ACTIVE — writing into the table at instantiation
     // when the source forbade it.
-    const mode: ElementSegmentMode = declarative
-      ? 'declarative'
-      : offset === null
-      ? 'passive'
-      : 'active';
+    const kind: SegmentKind = declarative ? 'declared' : offset === null ? 'passive' : 'active';
 
     this.builder.addElement({
       name,
-      mode,
-      table: table ?? this.tableNames.keys().next().value ?? '$table0',
+      kind,
+      tableVar: varFromToken(table ?? this.tableNames.keys().next().value ?? '$table0'),
       ...(offset === null ? {} : { offset: makeRegion([offset]) }),
-      data,
+      // The text `(elem … func $a $b)` form, like the binary's funcidx form,
+      // types the segment as the non-nullable `(ref func)` (M3).
+      elemType: { heapType: heapAbstract(AbstractHeapType.Func), nullable: false },
+      elemExprs: data.map((f) => elemFuncEntry(f)),
     });
     this.elemOrder.push(name);
   }

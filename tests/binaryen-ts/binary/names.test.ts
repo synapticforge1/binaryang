@@ -25,7 +25,7 @@ import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { elemFuncNames, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 
@@ -108,7 +108,7 @@ describe('P4 — the decoder names every entity from the name section', () => {
   it('every reference site uses the same name as the definition', () => {
     assertEquals(m.start, '$init');
     assertEquals(m.exports.find((e) => e.name === 'main')?.var, varName('$main'));
-    assertEquals(m.elements[0]!.data, ['$helper']);
+    assertEquals(elemFuncNames(m.elements[0]!), ['$helper']);
     const main = refsIn(m, '$main');
     assert(main.includes('call:$helper'), main.join(' '));
     assert(main.some((r) => r.endsWith(':$counter')), main.join(' '));
