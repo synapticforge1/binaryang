@@ -217,6 +217,14 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ### Follow-ups kept deliberately behaviour-neutral
 
+- ⬚ **RemoveUnusedModuleElements's `importedFuncs` set changes nothing** (found by an M4 mutant,
+  2026-09-17, and confirmed EQUIVALENT rather than a test gap: emptying the set leaves every result
+  unchanged, because both branches of `_collectCallTargets` add the target to `live` and the queue
+  lookup then finds no body and skips). Either delete the set and the parameter, or make the guard
+  mean something — an imported name reaching `live` is arguably what `importedFuncs` was meant to
+  prevent. 🗓️ **Scheduled: the M7 / M8 cleanup pass**, where the pass is touched anyway and the
+  bridge's deletion re-checks liveness; doing it earlier would be a behaviour-neutral edit in the
+  middle of the module stages.
 - ⬚ `mapExpression` / `walkExpression` visit a branch's condition BEFORE its values — the reverse of
   wasm's evaluation order. Fixing it may move `-Oz` bytes, so it wants its own measured commit.
 - ⬚ LocalCSE treats a multi-value `return` as opaque (as it did the `tuple.make`).
