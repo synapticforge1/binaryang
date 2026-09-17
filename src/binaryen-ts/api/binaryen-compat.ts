@@ -114,7 +114,13 @@ import {
 import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
 import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
-import { type BlockResult, requireName, varFromToken, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import {
+  type BlockResult,
+  requireName,
+  varFromToken,
+  varIndex,
+  varName,
+} from '../../wabt-ts/ir/ir.ts';
 import { Opcode } from '../../wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
