@@ -86,12 +86,11 @@ describe('M2g — a table or memory keeps its limits through decode → encode',
 });
 
 describe('M2g — what cannot be held is refused, not dropped', () => {
-  it('an element segment of a type the element model cannot hold', () => {
-    // externref entries: the model writes funcref back (M3 carries the type).
+  it('an element segment keeps its element type (M3 carries it)', () => {
     const bytes = assemble(
       '(module (table 1 externref) (elem (table 0) (i32.const 0) externref (ref.null extern)))',
     );
-    assertThrows(() => parseWasm(bytes), WasmBinaryError, 'element type externref');
+    assertEquals(section(roundTrip(bytes), 9), section(bytes, 9));
   });
 
   it('an undefined limits flag bit', () => {

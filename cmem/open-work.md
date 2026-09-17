@@ -72,10 +72,10 @@ typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
    types read as one byte), now REFUSED until M3 — which therefore carries element TYPES as well as
    expression entries. Record: ir-convergence.md § "binaryen-ts reads a constant expression of any
    length".
-3. **M3 — segments.** Data (`kind`, `memoryVar` against `passive` / `memory?: number`) and element
-   (`kind`, `tableVar`, `elemType`, `elemExprs` against `table` / `data` / `mode`). ⚠️ binaryen-ts is
-   missing EXPRESSION element entries ("unsupported element-segment expression opcode") — a fidelity
-   defect to port, not a merge.
+3. ✅ **M3 — segments. DONE 2026-09-17** — both records are wabt-ts's; element types and entries are
+   kept (348 binaries improved, 0 worse; 175 of them had been re-encoding DIFFERENTLY). Record:
+   ir-convergence.md § "M3 — the segments". ⚠️ From it: **83 corpus binaries lose their GC `rec` /
+   `sub` groups on re-encode, silently — M5 must carry them.**
 4. **M4 — imports: the union** (`kind: ExternalKind` + the embedded entity). Carries what the flat
    record refuses today: imported table64 (23 spec binaries), imported page size, sizes past 2^53.
 5. **M5 — the type section** (one `types` table, T1 / T2; the largest).

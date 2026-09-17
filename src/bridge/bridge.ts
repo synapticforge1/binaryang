@@ -129,6 +129,7 @@ import type {
 
 import {
   BrOnOp,
+  elemFuncEntry,
   ExpressionKind,
   makeArrayGet,
   makeArrayLen,
@@ -423,16 +424,17 @@ function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): 
   }
   b.addElement({
     name: seg.name,
-    mode: seg.kind === 'declared' ? 'declarative' : seg.kind,
-    // Passive and declarative segments reach no table; wabt still carries a
+    kind: seg.kind,
+    // Passive and declared segments reach no table; wabt still carries a
     // `tableVar`, and binaryen-ts's field is not optional, so name table 0.
-    table: seg.kind === 'active'
-      ? resolveVarName(seg.tableVar, ctx.tableNames)
-      : (ctx.tableNames[0] ?? ''),
+    tableVar: seg.kind === 'active'
+      ? varName(resolveVarName(seg.tableVar, ctx.tableNames))
+      : varName(ctx.tableNames[0] ?? ''),
     ...(seg.kind === 'active'
       ? { offset: makeRegion([bridgeExpr(seg.offset!.children[0]!, ctx)]) }
       : {}),
-    data,
+    elemType: wabtTypeToValueType(seg.elemType, ctx),
+    elemExprs: data.map((f) => elemFuncEntry(f)),
   });
 }
 

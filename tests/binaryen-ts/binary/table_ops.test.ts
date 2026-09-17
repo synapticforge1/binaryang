@@ -7,8 +7,8 @@
  * @license MIT
  */
 
-import { assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
+import { assertEquals } from '@std/assert';
+import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import {
   type Expression,
@@ -17,6 +17,7 @@ import {
   type TableSetExpr,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { elemFuncNames } from '../../../src/binaryen-ts/ir/module.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode + table-index slot', () => {
@@ -206,7 +207,7 @@ Deno.test('element segment: flag-4 (expression-form) active funcref segment roun
   const mod = parseWasm(bytes);
   // The segment must survive parsing with both function references intact.
   assertEquals(mod.elements.length, 1);
-  assertEquals(mod.elements[0].data, ['$func0', '$func1']);
+  assertEquals(elemFuncNames(mod.elements[0]!), ['$func0', '$func1']);
 
   // And re-encoding must produce a binary whose table is actually populated,
   // so the `call_indirect` resolves at runtime instead of trapping.
@@ -236,13 +237,20 @@ function unwrap(e: Expression): Expression {
 
 const MAGIC = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
-Deno.test('element segment: a ref.null entry throws instead of silently shifting table indices', () => {
-  // Element section: 1 segment, flag 4 (active, expr-list), offset i32.const 0,
-  // one entry that is `ref.null func` (0xd0 0x70 0x0b). Omitting it used to
-  // shift every later entry down a table slot; now it fails loudly.
+// 🔧 This asserted that a `ref.null` entry was REFUSED — the element model held
+// function NAMES, and omitting the entry shifted every later table index, so
+// refusing was better than dropping. M3 holds each entry as the constant
+// expression it is, so the entry is kept, and the segment round-trips.
+Deno.test('element segment: a ref.null entry is kept, and re-encodes as itself', () => {
+  // 1 segment, flag 4 (active, expr-list), offset i32.const 0, one `ref.null func`.
   const body = [0x01, 0x04, 0x41, 0x00, 0x0b, 0x01, 0xd0, 0x70, 0x0b];
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError, 'ref.null');
+  const mod = parseWasm(bytes);
+  assertEquals(mod.elements[0]!.elemExprs.map((e) => e.children.map((c) => c.kind)), [[
+    'ref.null',
+  ]]);
+  assertEquals(elemFuncNames(mod.elements[0]!), []);
+  assertEquals(encodeWasm(mod), bytes);
 });
 
 // 🔧 This asserted that a PASSIVE segment was REJECTED. `ElementSegment.mode`
@@ -258,12 +266,12 @@ Deno.test('element segment: a passive segment is read as passive, not as active'
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
   const mod = parseWasm(bytes);
   assertEquals(mod.elements.length, 1, 'the segment must survive');
-  assertEquals(mod.elements[0]!.mode, 'passive');
+  assertEquals(mod.elements[0]!.kind, 'passive');
   // An active segment would have an offset; a passive one has nowhere to copy to.
   assertEquals('offset' in mod.elements[0]!, false, 'a passive segment has no offset');
 });
 
-Deno.test('element segment: a declarative segment is read as declarative', () => {
+Deno.test('element segment: a declared segment is read as declared', () => {
   // Flag 3 (declarative) — bit 0 and bit 1. ⚠️ The table-index test was
   // `flags & 2`, which would have consumed an index this segment does not have;
   // it is `(flags & 3) === 2` now. That expression was correct only while flags
@@ -272,5 +280,5 @@ Deno.test('element segment: a declarative segment is read as declarative', () =>
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
   const mod = parseWasm(bytes);
   assertEquals(mod.elements.length, 1);
-  assertEquals(mod.elements[0]!.mode, 'declarative');
+  assertEquals(mod.elements[0]!.kind, 'declared');
 });

@@ -439,7 +439,7 @@ Deno.test('encodeWasm: data segment round-trips', () => {
   const mod2 = parseWasm(bytes);
 
   assertEquals(mod2.dataSegments.length, 1);
-  assertEquals(mod2.dataSegments[0].passive, false);
+  assertEquals(mod2.dataSegments[0].kind, 'active');
   assertEquals(mod2.dataSegments[0].data, data);
 });
 
@@ -454,7 +454,7 @@ Deno.test('encodeWasm: passive data segment round-trips', () => {
   const mod2 = parseWasm(bytes);
 
   assertEquals(mod2.dataSegments.length, 1);
-  assertEquals(mod2.dataSegments[0].passive, true);
+  assertEquals(mod2.dataSegments[0].kind, 'passive');
   assertEquals(mod2.dataSegments[0].data, data);
 });
 

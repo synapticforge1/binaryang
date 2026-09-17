@@ -3377,6 +3377,27 @@ differ only in form (`ref.func` entries written as indices, flag 4 → 0: M3). O
 2,105 changed. 7 mutants killed — 3 survived until malformed-binary tests pinned the spill, elemkind
 and entry-`end` checks.
 
+**✅ M3 — the segments (2026-09-17).** Both take wabt-ts's records: a data segment's
+`kind: SegmentKind` + `memoryVar: Var` (was `passive: boolean` + `memory?: number`), an element
+segment's `kind` + `tableVar: Var` + `elemType: ValueType` + `elemExprs: RegionExpr[]` (was `mode` +
+`table: string` + `data: string[]`). Fidelity decided: function NAMES could hold neither a `ref.null`
+entry (refused — dropping one shifted every later table index) nor a `global.get` one, and the
+segment's ELEMENT TYPE was discarded, so a `(ref func)` or `externref` segment came back `funcref`.
+🛑 That is not cosmetic: a table of `(ref func)` does not accept a `funcref` segment, so an invalid
+module came back looking valid. The decoder now reads the type each form implies (funcidx → the
+non-null `(ref func)`, flag 4 → `funcref`) and each entry as a constant expression; the encoder picks
+the form by **wabt-ts's rule, probed against V8 there** (`elem_form.test.ts`): the funcidx form only
+when the declared type is its own AND every entry is one `ref.func`. Measured per binary against
+`main` (`rt_status.ts`, 5,576): **348 improved, 0 worse** — 97 refused → byte-identical, **175 that had
+come back DIFFERENT are now byte-identical**. Also fixed: the encoder wrote an EMPTY table section for
+a module whose only table is imported (`elem.107`; wabt-ts omits it). New helpers `elemFuncEntry` /
+`elemFuncNames` (a pass asking what a table reaches skips `ref.null` and index-form entries). Baseline
+IDENTICAL, optimizer output 0 of 2,105 changed. Ratchet **34 / 15 / 8**. 13 mutants killed — one
+"survivor" was a degenerate mutant of mine (`x ? entry : entry`), replaced with one that truncates an
+entry. ⚠️ **Found, recorded not done:** **83 corpus binaries carry GC REC GROUPS**, and all 83 re-encode
+with a different type section — `rec` / `sub` structure is flattened, silently. Pre-existing and not
+M3's (it is the type section's shape); **M5 must carry it**.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

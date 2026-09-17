@@ -23,11 +23,26 @@
  * @license MIT
  */
 
-import { asRegion, type RegionExpr, type RegionInput } from './expressions.ts';
+import {
+  asRegion,
+  type Expression,
+  makeRefFunc,
+  makeRegion,
+  type RegionExpr,
+  type RegionInput,
+} from './expressions.ts';
+import { visitChildren } from './walk.ts';
 import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
-import { type FuncSignature, type Limits, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
+import {
+  type FuncSignature,
+  type Limits,
+  type SegmentKind,
+  type Var,
+  varFromToken,
+  varIndex,
+} from '../../wabt-ts/ir/ir.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 export type { TypeDef } from './gc-types.ts';
 
@@ -171,15 +186,19 @@ export interface WasmGlobal {
 export interface DataSegment {
   /** Segment name (for WAT output). */
   name: string;
-  /** `true` for passive segments (not auto-applied at instantiation). */
-  passive: boolean;
   /**
-   * Memory an ACTIVE segment initialises. Omitted means 0.
-   *
-   * The binary distinguishes kind 0 (active, memory 0) from kind 2 (active,
-   * explicit memory index); the reader used to consume that index and drop it.
+   * How the segment reaches its memory — wabt-ts's `SegmentKind` (M3): `active`
+   * at instantiation, `passive` for `memory.init`. (`declared` is an element
+   * segment's; the encoder refuses it here.) It was `passive: boolean`.
    */
-  memory?: number;
+  kind: SegmentKind;
+  /**
+   * The memory an ACTIVE segment initializes, as written — a name or an index
+   * (M3; it was `memory?: number`, omitted meaning 0). The binary distinguishes
+   * kind 0 (active, memory 0) from kind 2 (active, explicit index); the reader
+   * used to consume that index and drop it.
+   */
+  memoryVar: Var;
   /**
    * The offset — a constant expression as a {@link RegionExpr}, present exactly
    * when the segment is active. ABSENT is a missing field, not `null` (M2).
@@ -259,25 +278,61 @@ export interface WasmTag {
  * source said it must not — so the parser refused both rather than corrupt a
  * table. That refusal is what this field lifts.
  */
-export type ElementSegmentMode = 'active' | 'passive' | 'declarative';
+export type ElementSegmentMode = SegmentKind;
 
 export interface ElementSegment {
   /** Segment name (for WAT output). */
   name: string;
-  /** How the segment reaches its table. */
-  mode: ElementSegmentMode;
-  /** Name of the target table that this segment initializes. */
-  table: string;
+  /**
+   * How the segment reaches its table — wabt-ts's `SegmentKind` (M3). It was
+   * `mode: ElementSegmentMode`, whose third member was spelled `declarative`.
+   */
+  kind: SegmentKind;
+  /** The table an ACTIVE segment initializes, as written — a name or an index (M3). */
+  tableVar: Var;
   /**
    * Offset expression — index into the target table where copying begins.
    *
-   * Present exactly when `mode` is `active`; the other two modes have nowhere
+   * Present exactly when `kind` is `active`; the other two kinds have nowhere
    * to copy to, and the field is MISSING (it was `null`). A constant expression,
    * held as a {@link RegionExpr} (M2).
    */
   offset?: RegionExpr;
-  /** Names of the functions referenced by this segment, in order. */
-  data: string[];
+  /**
+   * The segment's element type (M3). The funcidx form implies the NON-NULLABLE
+   * `(ref func)` — every entry is a function index, so none can be null — and
+   * the expression form with no reftype byte implies `funcref`; the spec draws
+   * that distinction between `(elem … $f)` and `(elem … funcref (ref.func $f))`,
+   * and a table of `(ref func)` does not accept a `funcref` segment.
+   */
+  elemType: ValueType;
+  /**
+   * Each entry, a constant expression held as a {@link RegionExpr} — wabt-ts's
+   * shape (M3). It was `data: string[]`, function names, which could hold
+   * neither a `ref.null` entry (refused: it would have shifted every later table
+   * index) nor a global.get / GC entry, and lost the segment's element type.
+   */
+  elemExprs: RegionExpr[];
+}
+
+/** One element-segment entry naming `func`: the `(ref.func $f)` region (M3). */
+export function elemFuncEntry(func: string | Var): RegionExpr {
+  return makeRegion([makeRefFunc(typeof func === 'string' ? varFromToken(func) : func)]);
+}
+
+/**
+ * Every function NAME an element segment's entries reference, for a pass asking
+ * what a table can reach. An entry that names a function by index, or does not
+ * name one at all (`ref.null`), contributes nothing (M3).
+ */
+export function elemFuncNames(seg: ElementSegment): string[] {
+  const out: string[] = [];
+  const visit = (e: Expression): void => {
+    if (e.kind === 'ref.func' && e.func.kind === 'name') out.push(e.func.name);
+    visitChildren(e, visit);
+  };
+  for (const entry of seg.elemExprs) visit(entry);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -561,13 +616,18 @@ export class ModuleBuilder {
    * @param offset - Constant offset expression (e.g. `makeI32Const(0)`).
    * @param data - Raw bytes.
    */
-  addDataSegment(name: string, offset: RegionInput, data: Uint8Array, memory = 0): this {
+  addDataSegment(
+    name: string,
+    offset: RegionInput,
+    data: Uint8Array,
+    memory: number | Var = 0,
+  ): this {
     this._dataSegments.push({
       name,
-      passive: false,
+      kind: 'active',
+      memoryVar: typeof memory === 'number' ? varIndex(memory) : memory,
       offset: asRegion(offset),
       data,
-      ...(memory !== 0 ? { memory } : {}),
     });
     return this;
   }
@@ -576,7 +636,7 @@ export class ModuleBuilder {
    * Adds a passive data segment (not auto-applied; used with `memory.init`).
    */
   addPassiveDataSegment(name: string, data: Uint8Array): this {
-    this._dataSegments.push({ name, passive: true, data });
+    this._dataSegments.push({ name, kind: 'passive', memoryVar: varIndex(0), data });
     return this;
   }
 

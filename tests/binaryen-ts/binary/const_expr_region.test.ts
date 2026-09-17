@@ -10,7 +10,7 @@
 // the decoder reads one too — with the function-body decoder, up to the `end`
 // (it read ONE instruction from a fixed set, and refused the rest).
 
-import { assert, assertEquals, assertThrows } from '@std/assert';
+import { assertEquals, assertThrows } from '@std/assert';
 
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
@@ -72,7 +72,7 @@ Deno.test('a passive data segment has NO offset field (it was null)', () => {
       .build(),
   );
   const seg = parseWasm(bytes).dataSegments[0]!;
-  assert(seg.passive);
+  assertEquals(seg.kind, 'passive');
   assertEquals('offset' in seg, false);
 });
 
@@ -171,14 +171,17 @@ Deno.test('an element segment elemkind other than funcref (0x00) is refused', ()
   assertThrows(() => parseWasm(bad), WasmBinaryError, 'elemkind 0x1');
 });
 
-Deno.test('an element-segment expression of more than one instruction is refused', () => {
-  // `(elem funcref (ref.func $f))`: flag 5 … `d2 00 0b`. A `nop` before the `end`,
-  // and the section one byte longer: it was read as the end, silently.
+Deno.test('an element-segment entry is a constant expression, of any length (M3)', () => {
+  // `(elem funcref (ref.func $f))`: flag 5 … `d2 00 0b`. An entry is read by the
+  // same decoder as any other constant expression, so a `nop` before its `end`
+  // is KEPT (it was read as the end, silently, before M2g made it an error).
   const bytes = wat2wasm('(module (func $f) (elem funcref (ref.func $f)))').binary;
   const sec = bytes.indexOf(0x09, 8);
   const end = bytes.indexOf(0x0b, sec);
   assertEquals([bytes[end - 2], bytes[end - 1]], [0xd2, 0x00]);
-  const bad = new Uint8Array([...bytes.subarray(0, end), 0x01, ...bytes.subarray(end)]);
-  bad[sec + 1]! += 1;
-  assertThrows(() => parseWasm(bad), WasmBinaryError, 'more than one instruction');
+  const longer = new Uint8Array([...bytes.subarray(0, end), 0x01, ...bytes.subarray(end)]);
+  longer[sec + 1]! += 1;
+  const mod = parseWasm(longer);
+  assertEquals(mod.elements[0]!.elemExprs[0]!.children.map((e) => e.kind), ['ref.func', 'nop']);
+  assertEquals(encodeWasm(mod), longer);
 });

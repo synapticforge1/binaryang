@@ -42,15 +42,17 @@ import {
   UnaryOp,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import {
+  elemFuncEntry,
   ModuleBuilder,
   type WasmFunction,
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
+import { AbstractHeapType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { heapAbstract, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
@@ -1194,10 +1196,11 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
   b.addTable('$t0', ValType.FuncRef, 2, 2);
   b.addElement({
     name: '$e',
-    mode: 'active',
-    table: '$t0',
+    kind: 'active',
+    tableVar: varName('$t0'),
     offset: asRegion(makeI32Const(0)),
-    data: ['$f0', '$f1'],
+    elemType: { heapType: heapAbstract(AbstractHeapType.Func), nullable: false },
+    elemExprs: [elemFuncEntry('$f0'), elemFuncEntry('$f1')],
   });
   // $dispatch: local 0 = param $obj, local 1 = $t
   b.addFunction(
