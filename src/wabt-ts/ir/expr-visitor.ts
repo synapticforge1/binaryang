@@ -269,7 +269,7 @@ export class ExprVisitor {
   }
 
   visitFunc(func: Func): Result {
-    return this.visitExprList(func.body);
+    return this.visitExprList(func.body.children);
   }
 
   visitExpr(expr: Expr): Result {

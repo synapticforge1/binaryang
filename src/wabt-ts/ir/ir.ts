@@ -2031,8 +2031,16 @@ export interface Func {
    * corpus). The name now sits on the slot it names.
    */
   locals: Local[];
-  /** Function body as a sequence of tree-structured expressions. */
-  body: Expr[];
+  /**
+   * The body — the {@link RegionExpr} its instructions are held in, as every
+   * other sequence in this tree is (S6 step 5 item 6 (M6b); decision 5, and
+   * binaryen-ts's shape). Its `children` are exactly the instructions read.
+   *
+   * It was a bare `Expr[]`: a list with nowhere to put the location it spans,
+   * and the one sequence a pass could not splice through the region helpers
+   * (`mapWithSequences`) that every other one uses.
+   */
+  body: RegionExpr;
   tailcall: boolean;
 }
 

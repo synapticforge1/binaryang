@@ -146,7 +146,7 @@ describe('the reader gives the name section to the module', () => {
         for (const [k, x] of Object.entries(o)) if (k !== 'loc') walk(x);
       }
     };
-    walk(m.funcs[0]!.body);
+    walk(m.funcs[0]!.body.children);
     assertEquals(
       labels.sort(),
       ['block:$cond', 'block:$inner', 'block:$outer', 'if:', 'loop:$in'].sort(),

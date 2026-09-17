@@ -47,7 +47,7 @@ type Carrier = Extract<Expr, { kind: 'block' | 'loop' | 'if' | 'try' | 'try_tabl
 
 /** The first carrier in function `fn`, however deeply nested. */
 function carrierOf(m: Module, fn = 0): Carrier {
-  const stack: unknown[] = [m.funcs[fn]!.body];
+  const stack: unknown[] = [m.funcs[fn]!.body.children];
   while (stack.length > 0) {
     const v = stack.pop();
     if (v === null || typeof v !== 'object') continue;
@@ -155,7 +155,7 @@ describe('the validator holds the two spellings to each other', () => {
     const errors = makeErrorList();
     const m = readBinaryIr(compile(WAT), errors);
     assert(!hasErrors(errors), formatErrors(errors));
-    const body = m.funcs[0]!.body as Expr[];
+    const body = m.funcs[0]!.body.children as Expr[];
     body[0] = patch(body[0] as BlockExpr);
     validateModule(m, errors, { features: allFeatures() });
     return hasErrors(errors)
@@ -245,7 +245,7 @@ describe('arity reads the declared results from the node', () => {
         : Object.values(e).flatMap((v) =>
           v !== null && typeof v === 'object' && 'kind' in v ? find(v as Expr) : []
         );
-    const carriers = (m.funcs[0]!.body as Expr[]).flatMap(find);
+    const carriers = (m.funcs[0]!.body.children as Expr[]).flatMap(find);
     assertEquals(carriers.map((c) => ctx.getExprArity(c).nreturns), [0, 1, 2]);
   });
 });

@@ -283,7 +283,7 @@ class ResolveContext {
 
   private resolveFunc(func: Func): Result {
     this.labelStack = [];
-    return this.resolveExprList(func.body);
+    return this.resolveExprList(func.body.children);
   }
 
   /** A constant expression's instructions, where there is one (S6 step 5 item 6 (M2)). */

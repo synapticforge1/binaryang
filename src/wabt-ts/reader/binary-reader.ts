@@ -963,7 +963,7 @@ export class BinaryReader {
             nodeId: m.fidelity.record({ typeUse: 'resolved', sig }),
             // An imported function has params but no body and no declared locals.
             locals: sig.params.map((type) => ({ type })),
-            body: [],
+            body: region([], loc),
             tailcall: false,
           };
           m.imports.push({ kind: ExternalKind.Func, module: module_, field, func });
@@ -1044,7 +1044,7 @@ export class BinaryReader {
         nodeId: m.fidelity.record({ typeUse: 'resolved', sig }),
         // The params occupy the first slots; the code section adds the rest.
         locals: sig.params.map((type) => ({ type })),
-        body: [],
+        body: region([], loc),
         tailcall: false,
       });
     }
@@ -1347,7 +1347,7 @@ export class BinaryReader {
         for (let k = 0; k < g.count; k++) func.locals.push({ type: g.type });
       }
 
-      func.body = this.decodeBody(bodyEnd, m, func);
+      func.body = region(this.decodeBody(bodyEnd, m, func), func.loc);
       if (this.ok() && this.pos !== bodyEnd) {
         this.err('unexpected end of section or function');
         return;

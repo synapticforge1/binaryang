@@ -67,7 +67,7 @@ function placeholders(wat: string): number {
       else if (v && typeof v === 'object' && 'kind' in v) walk(v as Expr);
     }
   };
-  for (const fn of m.funcs) for (const e of fn.body) walk(e);
+  for (const fn of m.funcs) for (const e of fn.body.children) walk(e);
   return n;
 }
 

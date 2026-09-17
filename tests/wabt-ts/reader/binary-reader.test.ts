@@ -146,7 +146,7 @@ describe('readBinaryIr', () => {
       typeVar: varIndex(0),
       sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
       locals: [],
-      body: [
+      body: region([
         {
           kind: 'binary',
           opcode: Opcode.I32Add,
@@ -154,7 +154,7 @@ describe('readBinaryIr', () => {
           right: { kind: 'local.get', var: varIndex(1), loc: LOC },
           loc: LOC,
         },
-      ],
+      ], LOC),
       tailcall: false,
     });
     m.exports.push({ name: 'add', kind: ExternalKind.Func, var: varIndex(0) });
@@ -169,8 +169,8 @@ describe('readBinaryIr', () => {
     assertEquals(m2.exports.length, 1);
 
     const f = m2.funcs[0]!;
-    assertEquals(f.body.length, 1);
-    const expr = f.body[0]!;
+    assertEquals(f.body.children.length, 1);
+    const expr = f.body.children[0]!;
     assertEquals(expr.kind, 'binary');
     if (expr.kind === 'binary') {
       assertEquals(expr.opcode, Opcode.I32Add);
@@ -201,7 +201,7 @@ describe('readBinaryIr', () => {
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I32] },
       locals: [],
-      body: [{ kind: 'const', value: constI32(42), loc: LOC }],
+      body: region([{ kind: 'const', value: constI32(42), loc: LOC }], LOC),
       tailcall: false,
     });
 
@@ -210,7 +210,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const body = m2.funcs[0]!.body;
+    const body = m2.funcs[0]!.body.children;
     assertEquals(body.length, 1);
     const e = body[0]!;
     assertEquals(e.kind, 'const');
@@ -234,7 +234,7 @@ describe('readBinaryIr', () => {
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I64] },
       locals: [],
-      body: [{ kind: 'const', value: constI64(0x1234567890abcdefn), loc: LOC }],
+      body: region([{ kind: 'const', value: constI64(0x1234567890abcdefn), loc: LOC }], LOC),
       tailcall: false,
     });
 
@@ -243,7 +243,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const e = m2.funcs[0]!.body[0]!;
+    const e = m2.funcs[0]!.body.children[0]!;
     assertEquals(e.kind, 'const');
     if (e.kind === 'const' && e.value.type === Type.I64) {
       assertEquals(e.value.value, 0x1234567890abcdefn);
@@ -324,7 +324,7 @@ describe('readBinaryIr', () => {
         typeVar: varIndex(0),
         sig: { params: [Type.I32], results: [Type.I32] },
         locals: [],
-        body: [],
+        body: region([], LOC),
         tailcall: false,
       },
     });
@@ -370,7 +370,7 @@ describe('readBinaryIr', () => {
         typeVar: varIndex(0),
         sig: { params: [Type.I32], results: [] },
         locals: [],
-        body: [],
+        body: region([], LOC),
         tailcall: false,
       },
     });
@@ -381,7 +381,7 @@ describe('readBinaryIr', () => {
       typeVar: varIndex(1),
       sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
       locals: [],
-      body: [
+      body: region([
         {
           kind: 'binary',
           opcode: Opcode.I32Add,
@@ -389,7 +389,7 @@ describe('readBinaryIr', () => {
           left: { kind: 'local.get', var: varIndex(0), loc: LOC },
           right: { kind: 'local.get', var: varIndex(1), loc: LOC },
         },
-      ],
+      ], LOC),
       tailcall: false,
     });
 
@@ -400,7 +400,7 @@ describe('readBinaryIr', () => {
 
     assertEquals(m2.imports.length, 1);
     assertEquals(m2.funcs.length, 1);
-    assertEquals(m2.funcs[0]!.body.length, 1, 'add function body decoded');
+    assertEquals(m2.funcs[0]!.body.children.length, 1, 'add function body decoded');
   });
 
   // -------------------------------------------------------------------------
@@ -421,7 +421,7 @@ describe('readBinaryIr', () => {
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
       locals: [],
-      body: [
+      body: region([
         {
           kind: 'block',
           label: '$l',
@@ -429,7 +429,7 @@ describe('readBinaryIr', () => {
           children: [{ kind: 'nop', loc: LOC }],
           loc: LOC,
         },
-      ],
+      ], LOC),
       tailcall: false,
     });
 
@@ -438,7 +438,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const body = m2.funcs[0]!.body;
+    const body = m2.funcs[0]!.body.children;
     assertEquals(body.length, 1);
     assertEquals(body[0]!.kind, 'block');
     if (body[0]!.kind === 'block') {
@@ -461,7 +461,7 @@ describe('readBinaryIr', () => {
       typeVar: varIndex(0),
       sig: { params: [Type.I32], results: [Type.I32] },
       locals: [],
-      body: [
+      body: region([
         {
           kind: 'if',
           label: '',
@@ -471,7 +471,7 @@ describe('readBinaryIr', () => {
           ifFalse: region([{ kind: 'const', value: constI32(0), loc: LOC }], LOC),
           loc: LOC,
         },
-      ],
+      ], LOC),
       tailcall: false,
     });
 
@@ -480,7 +480,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const body = m2.funcs[0]!.body;
+    const body = m2.funcs[0]!.body.children;
     assertEquals(body.length, 1);
     const e = body[0]!;
     assertEquals(e.kind, 'if');
@@ -568,7 +568,7 @@ describe('readBinaryIr', () => {
         { type: Type.I32 },
         { type: Type.F64 },
       ],
-      body: [{ kind: 'local.get', var: varIndex(0), loc: LOC }],
+      body: region([{ kind: 'local.get', var: varIndex(0), loc: LOC }], LOC),
       tailcall: false,
     });
 
@@ -600,7 +600,7 @@ describe('readBinaryIr', () => {
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
       locals: [],
-      body: [],
+      body: region([], LOC),
       tailcall: false,
     });
 

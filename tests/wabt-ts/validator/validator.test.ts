@@ -71,7 +71,7 @@ function makeFunc(
       ...params.map((type) => ({ type })),
       ...locals.flatMap((d) => Array.from({ length: d.count }, () => ({ type: d.type }))),
     ],
-    body,
+    body: region(body, LOC),
     tailcall: false,
   };
 }
@@ -303,7 +303,7 @@ describe('validateModule', () => {
         typeVar: varIndex(0),
         sig: { params: [], results: [Type.I32] },
         locals: [],
-        body: [makeConst32(1)],
+        body: region([makeConst32(1)], LOC),
         tailcall: false,
       });
       m.funcs.push({
@@ -312,13 +312,13 @@ describe('validateModule', () => {
         typeVar: varIndex(1),
         sig: { params: [], results: [] },
         locals: [],
-        body: [
+        body: region([
           {
             kind: 'drop',
             value: { kind: 'call', func: varIndex(0), operands: [], loc: LOC },
             loc: LOC,
           },
-        ],
+        ], LOC),
         tailcall: false,
       });
       assertEquals(isValid(m), true);

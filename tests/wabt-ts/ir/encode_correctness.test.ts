@@ -116,7 +116,7 @@ describe('br_table resolves its index expression', () => {
     resolveNames(module, errors);
     assert(!hasErrors(errors), formatErrors(errors));
     const f = module.funcs[2]!;
-    const json = JSON.stringify(f.body);
+    const json = JSON.stringify(f.body.children);
     assert(!json.includes('"name":"$pick"'), 'br_table.value still holds a name-var');
   });
 });
@@ -253,7 +253,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
         for (const item of v) survivors(item, key, out);
       }
     }
-    for (const f of module.funcs) for (const b of f.body) survivors(b, 'body', out);
+    for (const f of module.funcs) for (const b of f.body.children) survivors(b, 'body', out);
     return out;
   }
 
@@ -316,11 +316,11 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
           if (e.defaultTarget?.kind === 'name') names.push(e.defaultTarget.name!);
         }
         if (Array.isArray(e.body)) walk(e.body);
-        else if (e.body !== undefined) walk(e.body.children); // a region (S6 step 5 (d2))
+        else if (e.body?.children !== undefined) walk(e.body.children); // a region (S6 step 5 (d2))
         if (Array.isArray(e.children)) walk(e.children);
       }
     };
-    for (const f of module.funcs) walk(f.body);
+    for (const f of module.funcs) walk(f.body.children);
     assertEquals(names, ['$b', '$out']);
   });
 
@@ -357,7 +357,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
           if (Array.isArray(v) && k !== 'funcs') { for (const item of v) survivors(item, k, out); }
         }
         for (const f of cmd.scriptModule.module.funcs) {
-          for (const b of f.body) survivors(b, 'body', out);
+          for (const b of f.body.children) survivors(b, 'body', out);
         }
       }
     }

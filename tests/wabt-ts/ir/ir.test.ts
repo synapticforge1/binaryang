@@ -58,7 +58,7 @@ function makeFuncBody(body: Expr[]): Func {
     typeVar: varIndex(0),
     sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
     locals: [],
-    body,
+    body: region(body, LOC),
     tailcall: false,
   };
 }
@@ -441,7 +441,7 @@ describe('resolveNames', () => {
     assertEquals(r, Result.Ok);
     assertEquals(hasErrors(errors), false);
 
-    const resolved = m.funcs[1]?.body[0];
+    const resolved = m.funcs[1]?.body.children[0];
     assertExists(resolved);
     if (resolved.kind === 'call') {
       assertEquals(resolved.func.kind, 'index');
@@ -480,7 +480,7 @@ describe('resolveNames', () => {
     const errors = makeErrorList();
     const r = resolveNames(m, errors);
     assertEquals(r, Result.Ok);
-    const resolved = m.funcs[1]?.body[0];
+    const resolved = m.funcs[1]?.body.children[0];
     assertExists(resolved);
     if (resolved.kind === 'call' && resolved.func.kind === 'index') {
       assertEquals(resolved.func.value, 0);

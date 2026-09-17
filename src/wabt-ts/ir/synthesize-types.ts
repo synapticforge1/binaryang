@@ -142,7 +142,7 @@ export function synthesizeTypes(module: Module): void {
       return Result.Ok;
     },
   });
-  for (const f of module.funcs) collector.visitExprList(f.body);
+  for (const f of module.funcs) collector.visitExprList(f.body.children);
 
   for (const item of pending) {
     const p = item.typeUse;

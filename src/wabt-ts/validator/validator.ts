@@ -381,7 +381,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       // Found by the spec testsuite (`ref.wast:65,69`), and it is the failure
       // mode nothing else here could see: ACCEPTING something invalid. Every
       // other invariant in this project asks only whether valid input survives.
-      for (const bt of blockTypesIn(f.body)) {
+      for (const bt of blockTypesIn(f.body.children)) {
         if (bt.kind === 'value') checkVt(bt.type, 'block result', f.loc);
       }
     }
@@ -502,7 +502,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       for (const local of func.locals.slice(func.sig.params.length)) {
         this.acc(this.sv.onLocalDecl(func.loc, 1, local.type));
       }
-      this.acc(visitor.visitExprList(func.body));
+      this.acc(visitor.visitExprList(func.body.children));
       this.acc(this.sv.endFunctionBody(func.loc));
     }
 

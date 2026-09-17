@@ -70,7 +70,7 @@ function walk(mod: Module, visit: (e: Expr) => void): void {
       else if (v && typeof v === 'object') go(v);
     }
   };
-  for (const f of mod.funcs) for (const e of f.body) go(e);
+  for (const f of mod.funcs) for (const e of f.body.children) go(e);
 }
 
 function selectsOf(mod: Module): SelectExpr[] {

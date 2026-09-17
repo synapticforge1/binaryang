@@ -3467,8 +3467,20 @@ beats one that dies. **Nothing covered either limit before**; `tests/wabt-ts/rea
 now does. Baseline IDENTICAL, optimizer 0 of 2,105, corpus 0 improved / 0 worse. 8 mutants killed.
 Ratchet **32 / 10 / 17** — the LOCAL pair is now identical, and a function differs only in wabt-ts's
 `typeVar` / `typeUse` / `nodeId` / `tailcall` / `loc` and binaryen-ts's `bodyFrameLabel`.
-⬚ **M6b — the BODY** (wabt-ts's `Expr[]` against binaryen-ts's `RegionExpr`) is measured at ~174
-errors and left for its own commit.
+**✅ M6b — a function's body is a `RegionExpr` (2026-09-17). M6 CLOSED.** wabt-ts's `Func.body` was a
+bare `Expr[]`: a list with nowhere to put the location it spans, and the one sequence a pass could not
+splice through the region helpers (`mapWithSequences`) every other one uses. Behaviour-neutral —
+baseline IDENTICAL, optimizer 0 of 2,105, corpus unmoved. Ratchet **32 / 10 / 16**: `body` leaves
+`differ`, and a function now differs ONLY in wabt-ts's `typeVar` / `typeUse` / `nodeId` / `tailcall` /
+`loc` and binaryen-ts's `bodyFrameLabel`.
+⚠️ **Three bulk-edit slips, each caught by the compiler or a mutant** — worth remembering, because all
+three came from one blunt regex over `.body`:
+- `...body` (a REST PARAMETER) contains `.body`, so spreads became `...body.children` — a syntax error
+  in seven test helpers;
+- a loop's / try's / catch's `body` is ALREADY a region, and briefly grew a second `.children`;
+- the text parser's `const body: Expr[] = []` was only a seed — `parsePendingBodies` fills
+  `func.body.children` in place — so a mutant slicing it changed nothing. An EQUIVALENT mutant
+  pointing at DEAD CODE: the local is gone now, and the mutant that replaces the fill target is killed.
 
 ### S7 — the linear-form marker
 

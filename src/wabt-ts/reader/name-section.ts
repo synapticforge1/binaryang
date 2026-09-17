@@ -297,7 +297,7 @@ export function applyNameSection(m: Module, names: ModuleNames): boolean {
       continue;
     }
     const namer = new LabelNamer(map);
-    new ExprVisitor(namer).visitExprList(f.body);
+    new ExprVisitor(namer).visitExprList(f.body.children);
     for (const [li, n] of map) if (li >= namer.count || n === '') exact = false;
   }
 

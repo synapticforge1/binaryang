@@ -2196,7 +2196,7 @@ export class WastParser {
       this.pos = pb.pos;
       this.localScope = pb.scope;
       this.currentModule = module;
-      this.parseInstrListInto(pb.func.body);
+      this.parseInstrListInto(pb.func.body.children);
       if (this.pos !== pb.endPos) {
         // Unconsumed input between here and the function's `)`. The instr
         // loop stops at the first thing it cannot parse and `parseInstrList`
@@ -2207,7 +2207,7 @@ export class WastParser {
           `unexpected ${tokenName(this.peek())} in function body`,
         );
       }
-      checkLabelScopes(pb.func.body, (loc, msg) => this.error(loc, msg));
+      checkLabelScopes(pb.func.body.children, (loc, msg) => this.error(loc, msg));
     }
 
     this.funcParamCounts = savedCounts;
@@ -2518,7 +2518,7 @@ export class WastParser {
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         locals: slotsOf(sig.params, localNames),
-        body: [],
+        body: region([], loc),
         tailcall: false,
       };
       imp = { kind: ExternalKind.Func, module: moduleName, field: fieldName, func };
@@ -2645,7 +2645,7 @@ export class WastParser {
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         locals: slotsOf(sig.params, localNames),
-        body: [],
+        body: region([], loc),
         tailcall: false,
       };
       const imp: Import = {
@@ -2700,7 +2700,6 @@ export class WastParser {
       const bodyPos = this.pos;
       this.skipToGroupClose();
       const bodyEnd = this.pos;
-      const body: Expr[] = [];
 
       const localNames = namesByIndex(scope);
       const func: Func = {
@@ -2711,7 +2710,9 @@ export class WastParser {
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         locals: [...slotsOf(sig.params, localNames), ...declared],
-        body,
+        // Empty until `parsePendingBodies` fills `body.children` in place: a
+        // body is parsed once every function's arity is known (M6b).
+        body: region([], loc),
         tailcall: false,
       };
       module.funcs.push(func);
@@ -5367,7 +5368,7 @@ export class WastParser {
     for (const d of defs) {
       if ('func' in d) {
         if (d.func.typeUse === undefined) d.func.typeVar = varIndex(intern(d.func.sig));
-        walker.visitExprList(d.func.body);
+        walker.visitExprList(d.func.body.children);
       } else {
         intern(d.sig);
       }
