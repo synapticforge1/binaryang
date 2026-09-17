@@ -122,6 +122,7 @@ import {
   varName,
 } from '../../wabt-ts/ir/ir.ts';
 import { Opcode } from '../../wabt-ts/core/opcode.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Pass registry
@@ -373,14 +374,6 @@ export const ExternalMemory: number = 2;
 export const ExternalGlobal: number = 3;
 /** Export kind for a tag (EH proposal). */
 export const ExternalTag: number = 4;
-
-const _KIND_TO_ID: Record<WasmExport['kind'], number> = {
-  function: ExternalFunction,
-  table: ExternalTable,
-  memory: ExternalMemory,
-  global: ExternalGlobal,
-  tag: ExternalTag,
-};
 
 // ---------------------------------------------------------------------------
 // ExpressionId constants (parity with upstream binaryen.js)
@@ -1325,7 +1318,7 @@ export class Module {
   addExport(
     externalName: string,
     internalName: string,
-    kind: WasmExport['kind'] = 'function',
+    kind: WasmExport['kind'] = ExternalKind.Func,
   ): WasmExport {
     const exp: WasmExport = { name: externalName, var: varFromToken(internalName), kind };
     this._inner.exports.push(exp);
@@ -1334,22 +1327,22 @@ export class Module {
 
   /** Adds a function export. */
   addFunctionExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, 'function');
+    return this.addExport(externalName, internalName, ExternalKind.Func);
   }
 
   /** Adds a memory export. */
   addMemoryExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, 'memory');
+    return this.addExport(externalName, internalName, ExternalKind.Memory);
   }
 
   /** Adds a global export. */
   addGlobalExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, 'global');
+    return this.addExport(externalName, internalName, ExternalKind.Global);
   }
 
   /** Adds a table export. */
   addTableExport(internalName: string, externalName: string): WasmExport {
-    return this.addExport(externalName, internalName, 'table');
+    return this.addExport(externalName, internalName, ExternalKind.Table);
   }
 
   // -------------------------------------------------------------------------
@@ -1551,7 +1544,7 @@ export interface ExportInfo {
 /** Returns the kind/name/value triple for an export handle. */
 export function getExportInfo(exp: WasmExport): ExportInfo {
   return {
-    kind: _KIND_TO_ID[exp.kind],
+    kind: exp.kind,
     name: exp.name,
     value: requireName(exp.var, 'export'),
   };

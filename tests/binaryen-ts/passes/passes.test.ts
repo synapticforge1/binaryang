@@ -53,6 +53,7 @@ import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -876,7 +877,7 @@ Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
     elements: [],
     dataSegments: [],
     imports: [],
-    exports: [{ name: 'exported', var: varName('exported'), kind: 'function' }],
+    exports: [{ name: 'exported', var: varName('exported'), kind: ExternalKind.Func }],
     start: null,
     hasExceptionHandling: false,
     hasMemory64: false,
@@ -924,7 +925,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
     elements: [],
     dataSegments: [],
     imports: [],
-    exports: [{ name: 'root', var: varName('root'), kind: 'function' }],
+    exports: [{ name: 'root', var: varName('root'), kind: ExternalKind.Func }],
     start: null,
     hasExceptionHandling: false,
     hasMemory64: false,
@@ -962,8 +963,8 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
     dataSegments: [],
     imports: [],
     exports: [
-      { name: 'f', var: varName('f'), kind: 'function' },
-      { name: 'g_used', var: varName('g_used'), kind: 'global' },
+      { name: 'f', var: varName('f'), kind: ExternalKind.Func },
+      { name: 'g_used', var: varName('g_used'), kind: ExternalKind.Global },
     ],
     start: null,
     hasExceptionHandling: false,
@@ -1211,7 +1212,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     ),
     [{ type: ValType.I32 }],
   );
-  b.addExport('dispatch', '$dispatch', 'function');
+  b.addExport('dispatch', '$dispatch', ExternalKind.Func);
   const mod = b.build();
 
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('CoalesceLocals').run();

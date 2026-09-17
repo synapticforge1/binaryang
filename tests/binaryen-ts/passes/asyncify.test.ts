@@ -37,6 +37,7 @@ import {
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
 import { type Var, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { region, soleInstr } from '../region_helpers.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,7 +76,7 @@ function moduleWithImport(): WasmModule {
       params: [],
       results: [],
     }],
-    exports: [{ name: 'foo', var: varName('$foo'), kind: 'function' }],
+    exports: [{ name: 'foo', var: varName('$foo'), kind: ExternalKind.Func }],
     start: null,
     hasExceptionHandling: false,
     hasMemory64: false,
@@ -163,7 +164,7 @@ Deno.test('Asyncify Stage 1 — adds & exports the 5 control functions in order'
   });
 
   // Exports: original `foo` preserved + the 5 control functions, in upstream order.
-  const exportNames = m.exports.filter((e) => e.kind === 'function').map((e) => e.name);
+  const exportNames = m.exports.filter((e) => e.kind === ExternalKind.Func).map((e) => e.name);
   assertEquals(exportNames, [
     'foo',
     ASYNCIFY_START_UNWIND,
@@ -259,7 +260,9 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
   assert(fnNames.has('$' + ASYNCIFY_START_UNWIND), 'control fn start_unwind must be defined');
   assert(fnNames.has('$' + ASYNCIFY_STOP_REWIND), 'control fn stop_rewind must be defined');
   // Import mode → the control functions are NOT exported (module drives itself).
-  const exportNames = new Set(m.exports.filter((e) => e.kind === 'function').map((e) => e.name));
+  const exportNames = new Set(
+    m.exports.filter((e) => e.kind === ExternalKind.Func).map((e) => e.name),
+  );
   assert(!exportNames.has(ASYNCIFY_START_UNWIND), 'import mode must not export the control fns');
   assert(exportNames.has('main'), "the module's own export is preserved");
   // The transformed module validates.
@@ -370,7 +373,9 @@ Deno.test('Asyncify Stage 1 — runtime support encodes to valid wasm & round-tr
   // we emit no name section — assert on count, which was 0 before the pass).
   assertEquals(decoded.globals.length, 2);
   // The 5 control functions survive as host exports (export names ARE preserved).
-  const decodedFnExports = decoded.exports.filter((e) => e.kind === 'function').map((e) => e.name);
+  const decodedFnExports = decoded.exports.filter((e) => e.kind === ExternalKind.Func).map((e) =>
+    e.name
+  );
   for (
     const n of [
       ASYNCIFY_START_UNWIND,

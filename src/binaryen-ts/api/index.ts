@@ -65,6 +65,7 @@ import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
 import { requireIndex, requireName, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { externalKindKeyword } from '../../wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Expression builder (fluent helper passed to function body closures)
@@ -319,7 +320,11 @@ function serializeToWat(mod: WasmModule): string {
   }
 
   for (const exp of mod.exports) {
-    lines.push(`  (export "${exp.name}" (${exp.kind} ${requireName(exp.var, 'export')}))`);
+    lines.push(
+      `  (export "${exp.name}" (${externalKindKeyword(exp.kind)} ${
+        requireName(exp.var, 'export')
+      }))`,
+    );
   }
 
   lines.push(')');

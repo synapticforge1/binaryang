@@ -30,6 +30,7 @@ import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Shared binary fixtures (same as parser tests)
@@ -220,7 +221,7 @@ Deno.test('round-trip: add module preserves export', () => {
   const mod2 = roundTrip(ADD_MODULE);
   assertEquals(mod2.exports.length, 1);
   assertEquals(mod2.exports[0].name, 'add');
-  assertEquals(mod2.exports[0].kind, 'function');
+  assertEquals(mod2.exports[0].kind, ExternalKind.Func);
 });
 
 Deno.test('round-trip: add module body still contains binary opcode', () => {
@@ -525,10 +526,10 @@ Deno.test('encodeWasm: multiple tables throw (element segments + call_indirect e
 Deno.test('encoder: an unknown export kind throws instead of emitting a truncated entry', () => {
   const b = new ModuleBuilder();
   b.addFunction('$f', [], [ValType.I32], makeI32Const(1), []);
-  b.addExport('ok', '$f', 'function');
+  b.addExport('ok', '$f', ExternalKind.Func);
   const mod = b.build();
   // Reach past the type union the way a JS caller would.
-  (mod.exports[0] as { kind: string }).kind = 'elem';
+  (mod.exports[0] as unknown as { kind: number }).kind = 5;
 
   assertThrows(
     () => encodeWasm(mod),

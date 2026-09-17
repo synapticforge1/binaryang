@@ -43,6 +43,7 @@ import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts
 import { createPass, PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { soleOf } from '../region_helpers.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register built-in passes
 
 // ---------------------------------------------------------------------------
@@ -562,7 +563,7 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
   const mod = parseWasm(bytes);
   assertEquals(mod.tags.length, 1);
   assertEquals(mod.tags[0].sig.params, [ValType.I32, ValType.I32]);
-  const tagExport = mod.exports.find((e) => e.kind === 'tag');
+  const tagExport = mod.exports.find((e) => e.kind === ExternalKind.Tag);
   assert(tagExport, 'tag export must survive parse');
   assertEquals(tagExport!.name, 'exn');
 
@@ -572,7 +573,7 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
     .run();
   assertEquals(mod.tags.length, 1);
   assertEquals(mod.tags[0].sig.params, [ValType.I32, ValType.I32]);
-  const tagExport2 = mod.exports.find((e) => e.kind === 'tag');
+  const tagExport2 = mod.exports.find((e) => e.kind === ExternalKind.Tag);
   assert(tagExport2, 'tag export must survive RemoveUnusedModuleElements');
 
   // Encode → reparse must preserve everything.
@@ -580,7 +581,7 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
   const mod2 = parseWasm(reEncoded);
   assertEquals(mod2.tags.length, 1);
   assertEquals(mod2.tags[0].sig.params, [ValType.I32, ValType.I32]);
-  const tagExport3 = mod2.exports.find((e) => e.kind === 'tag');
+  const tagExport3 = mod2.exports.find((e) => e.kind === ExternalKind.Tag);
   assert(tagExport3, 'tag export must survive encode→reparse');
   assertEquals(tagExport3!.name, 'exn');
 });

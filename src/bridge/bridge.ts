@@ -1846,16 +1846,16 @@ function bridgeConst(c: Const): Expression {
 function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
   switch (exp.kind) {
     case ExternalKind.Func:
-      b.addExport(exp.name, resolveVarName(exp.var, ctx.funcNames), 'function');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.funcNames), ExternalKind.Func);
       return;
     case ExternalKind.Global:
-      b.addExport(exp.name, resolveVarName(exp.var, ctx.globalNames), 'global');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.globalNames), ExternalKind.Global);
       return;
     case ExternalKind.Memory:
-      b.addExport(exp.name, resolveVarName(exp.var, ctx.memoryNames), 'memory');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.memoryNames), ExternalKind.Memory);
       return;
     case ExternalKind.Table:
-      b.addExport(exp.name, resolveVarName(exp.var, ctx.tableNames), 'table');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.tableNames), ExternalKind.Table);
       return;
     case ExternalKind.Tag:
       // 🔧 This threw, citing binaryen-ts v1.0.9 having no "tag" export kind.
@@ -1863,7 +1863,7 @@ function bridgeExport(b: ModuleBuilder, exp: WabtExport, ctx: BridgeCtx): void {
       // stale, and the version it named is several releases old. A "not yet
       // supported" note is a claim about ANOTHER component's state, and nothing
       // rechecks it when that component moves.
-      b.addExport(exp.name, resolveVarName(exp.var, ctx.tagNames), 'tag');
+      b.addExport(exp.name, resolveVarName(exp.var, ctx.tagNames), ExternalKind.Tag);
       return;
   }
 }

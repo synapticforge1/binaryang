@@ -3293,6 +3293,19 @@ on it: the capability was already pinned. RemoveUnusedModuleElements now `requir
 target: an index-form export reaching it is loud (it had been looked up as the NAME `"0"`). Ratchet
 **44 / 27 / 13**; export differs only in `kind`. Optimizer output 0 of 2,105 changed.
 
+**✅ M2e — an export's `kind` is wabt-ts's `ExternalKind` (2026-09-16).** Cost near-tied (binaryen-ts
+→ `ExternalKind` 124, wabt-ts → strings 149); precedent decided — V1: the IR holds the binary's value
+(the kind byte), and M4's import union is keyed by `ExternalKind` already. The compiler named 92
+sites; a line-scoped script took the literals, the rest by hand. 🔍 **Silent, found by sweeping every
+`exp.kind` read:** `serializeToWat` interpolated the kind — it would print `(0 $f)`; it had been
+printing `(function $f)`, which is not WAT either (the keyword is `func`). Now
+`externalKindKeyword` (next to the enum). The text parser mapped `func` → `function` and CAST any
+other keyword into the IR; it now looks keywords up in a `Map` (a `Record` finds `toString`) and an
+unknown one is an error. The compat API's string → id table is gone: the kind IS upstream's
+`External*` id. Ratchet **44 / 27 / 11** — export identical, module `exports` converged. Optimizer
+output 0 of 2,105 changed. 10 mutants; the compat pass-through survived (only a function export was
+tested — `kind: 0` passed) until a per-kind `getExportInfo` test killed it.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

@@ -44,6 +44,7 @@ import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
 import { requireName } from '../../src/wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 
 /** The corpus both halves walk. */
 export const CORPUS = new URL('../../tests/wabt-ts/wasmtk/', import.meta.url);
@@ -262,7 +263,7 @@ export function check(file: string, wat: string): Row {
 
   const diffs: string[] = [];
   for (const exp of mod.exports) {
-    if (exp.kind !== 'function') {
+    if (exp.kind !== ExternalKind.Func) {
       bump('export is not a function');
       continue;
     }

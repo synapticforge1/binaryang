@@ -34,6 +34,7 @@ import type { WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { walkExpression } from '../ir/walk.ts';
 import { requireName } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -77,7 +78,7 @@ function _removeUnused(module: WasmModule): void {
   const liveFuncs = new Set<string>();
 
   for (const exp of module.exports) {
-    if (exp.kind === 'function') liveFuncs.add(requireName(exp.var, 'export'));
+    if (exp.kind === ExternalKind.Func) liveFuncs.add(requireName(exp.var, 'export'));
   }
 
   // Functions referenced in element segments (indirect-call targets)
@@ -118,7 +119,7 @@ function _removeUnused(module: WasmModule): void {
 
   // Always keep globals that are exported
   for (const exp of module.exports) {
-    if (exp.kind === 'global') liveGlobals.add(requireName(exp.var, 'export'));
+    if (exp.kind === ExternalKind.Global) liveGlobals.add(requireName(exp.var, 'export'));
   }
 
   // --- Step 4: prune non-live, non-imported definitions ---
@@ -135,7 +136,7 @@ function _removeUnused(module: WasmModule): void {
 
   // --- Step 5: prune exports pointing to removed functions/globals ---
   module.exports = module.exports.filter((exp) => {
-    if (exp.kind === 'function') return !removedFuncs.has(requireName(exp.var, 'export'));
+    if (exp.kind === ExternalKind.Func) return !removedFuncs.has(requireName(exp.var, 'export'));
     return true;
   });
 }

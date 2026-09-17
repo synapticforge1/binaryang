@@ -11,6 +11,7 @@ import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/inde
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -167,7 +168,7 @@ Deno.test("parseWasm: add function is exported as 'add'", () => {
   const mod = parseWasm(ADD_MODULE);
   assertEquals(mod.exports.length, 1);
   assertEquals(mod.exports[0].name, 'add');
-  assertEquals(mod.exports[0].kind, 'function');
+  assertEquals(mod.exports[0].kind, ExternalKind.Func);
 });
 
 Deno.test('parseWasm: add function body contains binary opcode', () => {

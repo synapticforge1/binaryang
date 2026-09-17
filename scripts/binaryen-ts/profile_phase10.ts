@@ -47,6 +47,7 @@ import {
 } from '../../src/binaryen-ts/ir/expressions.ts';
 
 import { createPass, type Pass, type PassOptions } from '../../src/binaryen-ts/passes/pass.ts';
+import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 // Side-effect import to register passes
 import '../../src/binaryen-ts/passes/index.ts';
 
@@ -179,7 +180,7 @@ function buildStressModule(numFunctions: number, chunksPerFn: number): WasmModul
     const body = buildStressFunction(chunksPerFn);
     builder.addFunction(`$f${f}`, [], [], body, locals);
   }
-  builder.addExport('f0', '$f0', 'function');
+  builder.addExport('f0', '$f0', ExternalKind.Func);
   return builder.build();
 }
 

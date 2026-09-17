@@ -11,6 +11,7 @@ import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
 import { blockResult, heapAbstract, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 import {
   type CustomSection,
   type ElementSegment,
@@ -1151,20 +1152,20 @@ class WasmParser {
       const index = this.r.readU32();
       switch (kind) {
         case 0x00: { // function
-          this.builder.addExport(name, this.names.func(index), 'function');
+          this.builder.addExport(name, this.names.func(index), ExternalKind.Func);
           break;
         }
         case 0x01: { // table
-          this.builder.addExport(name, this.names.table(index), 'table');
+          this.builder.addExport(name, this.names.table(index), ExternalKind.Table);
           break;
         }
         case 0x02: // memory
           // Named by index, matching the names addMemory assigns. Hardcoding
           // 'mem0' here silently re-pointed every memory export at memory 0.
-          this.builder.addExport(name, this.names.memory(index), 'memory');
+          this.builder.addExport(name, this.names.memory(index), ExternalKind.Memory);
           break;
         case 0x03: { // global
-          this.builder.addExport(name, this.names.global(index), 'global');
+          this.builder.addExport(name, this.names.global(index), ExternalKind.Global);
           break;
         }
         case 0x04: { // tag (EH proposal)
@@ -1176,7 +1177,7 @@ class WasmParser {
           // was silently dropped, which broke wasic-emitted modules that
           // export `__exn_tag` (and reproduced as "tag export stripped" in the
           // wasmtk team's bug report against v1.2.2).
-          this.builder.addExport(name, this.names.tag(index), 'tag');
+          this.builder.addExport(name, this.names.tag(index), ExternalKind.Tag);
           break;
         }
         default:
