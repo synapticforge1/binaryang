@@ -299,7 +299,7 @@ describe('readBinaryIr', () => {
     assertEquals(g.type, Type.I32);
     assertEquals(g.mutable, true);
     assertEquals(g.init?.children.length, 1);
-    assertEquals(g.init?.children[0]!.kind, 'const');
+    assertEquals(g.init?.children[0]?.kind, 'const');
   });
 
   // -------------------------------------------------------------------------
