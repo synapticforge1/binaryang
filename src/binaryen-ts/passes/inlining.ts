@@ -890,7 +890,7 @@ export class InliningPass implements Pass {
 
     // Build a set of defined (non-imported) function names for quick lookup.
     const importedNames = new Set(
-      module.imports.filter((i) => i.kind === 'function').map((i) => i.name),
+      module.imports.filter((i) => i.kind === ExternalKind.Func).map((i) => i.func.name),
     );
 
     // Collect inlineable functions. Two passes: first the standard

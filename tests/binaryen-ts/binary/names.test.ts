@@ -25,7 +25,8 @@ import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { elemFuncNames, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { elemFuncNames, importName, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 
@@ -96,7 +97,7 @@ describe('P4 — the decoder names every entity from the name section', () => {
   const m = parseWasm(assemble(PROBE));
 
   it('functions, imported and defined; globals, memories, tables, segments', () => {
-    assertEquals(m.imports.map((i) => i.name), ['$log', '$oops']);
+    assertEquals(m.imports.map(importName), ['$log', '$oops']);
     assertEquals(m.functions.map((f) => f.name), ['$helper', '$main', '$init']);
     assertEquals(m.globals.map((g) => g.name), ['$counter']);
     assertEquals(m.memories.map((x) => x.name), ['$mem']);
@@ -292,7 +293,7 @@ describe('found alongside: imported memories named by index', () => {
       (memory 1)
       (export "a" (memory 0)) (export "b" (memory 1)))`));
     const names = [
-      ...m.imports.filter((i) => i.kind === 'memory').map((i) => i.name),
+      ...m.imports.filter((i) => i.kind === ExternalKind.Memory).map((i) => i.memory.name),
       ...m.memories.map((x) => x.name),
     ];
     assertEquals(names, ['mem0', 'mem1']);

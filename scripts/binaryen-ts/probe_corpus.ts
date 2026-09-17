@@ -18,6 +18,7 @@ import * as path from 'node:path';
 import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
+import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
@@ -75,7 +76,7 @@ for (const file of files) {
     const mod = parseWasm(new Uint8Array(buf), file);
     result.ok = true;
     result.numFunctions = mod.functions.length;
-    result.numImportedFunctions = mod.imports.filter((i) => i.kind === 'function').length;
+    result.numImportedFunctions = mod.imports.filter((i) => i.kind === ExternalKind.Func).length;
     result.numExprs = countExprs(mod);
   } catch (e) {
     result.err = e instanceof Error ? e.message : String(e);

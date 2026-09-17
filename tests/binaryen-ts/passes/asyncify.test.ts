@@ -18,6 +18,7 @@ import {
   ExpressionKind,
   type GlobalSetExpr,
   type IfExpr,
+  makeRegion,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import {
   limitsOf,
@@ -74,11 +75,9 @@ function moduleWithImport(): WasmModule {
     dataSegments: [],
     imports: [{
       module: 'env',
-      base: 'sleep',
-      name: '$sleep',
-      kind: 'function',
-      params: [],
-      results: [],
+      field: 'sleep',
+      kind: ExternalKind.Func,
+      func: { name: '$sleep', params: [], results: [], locals: [], body: makeRegion([]) },
     }],
     exports: [{ name: 'foo', var: varName('$foo'), kind: ExternalKind.Func }],
     start: null,
@@ -221,7 +220,10 @@ Deno.test('Asyncify Stage 1 — import-globals imports the two globals instead o
   // The two globals are imported from env, not defined locally.
   assert(!m.globals.some((g) => g.name === ASYNCIFY_STATE), 'state global must not be defined');
   assert(!m.globals.some((g) => g.name === ASYNCIFY_DATA), 'data global must not be defined');
-  const importedGlobals = m.imports.filter((i) => i.kind === 'global').map((i) => i.name).sort();
+  const importedGlobals = m.imports
+    .filter((i) => i.kind === ExternalKind.Global)
+    .map((i) => i.global.name)
+    .sort();
   assertEquals(importedGlobals, [ASYNCIFY_DATA, ASYNCIFY_STATE].sort());
   assert(
     WebAssembly.validate(encodeWasm(m) as BufferSource),
@@ -256,7 +258,7 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
 
   // All asyncify.* imports are gone.
   assert(
-    !m.imports.some((i) => i.kind === 'function' && i.module === 'asyncify'),
+    !m.imports.some((i) => i.kind === ExternalKind.Func && i.module === 'asyncify'),
     'asyncify.* imports must be removed',
   );
   // The control functions exist internally, keyed by internal name.

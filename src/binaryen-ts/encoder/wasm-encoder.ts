@@ -89,7 +89,12 @@ import {
   type UnaryExpr,
   writtenTypeIndexOf,
 } from '../ir/expressions.ts';
-import type { ExplicitNames, WasmFunction, WasmModule } from '../ir/module.ts';
+import {
+  type ExplicitNames,
+  importName,
+  type WasmFunction,
+  type WasmModule,
+} from '../ir/module.ts';
 import { isRef, None, type Type, typeToString, Unreachable, ValType } from '../ir/types.ts';
 // The ONE authoritative child enumeration. The encoder used to keep a private
 // `walkChildren` copy for `collectExprTypes`; it silently `break`ed on any kind
@@ -813,9 +818,9 @@ class WasmEncoder {
         }
       });
     };
-    const imports = (kind: string): string[] =>
-      mod.imports.filter((i) => i.kind === kind).map((i) => i.name);
-    const funcSpace = [...imports('function'), ...mod.functions.map((f) => f.name)];
+    const imports = (kind: ExternalKind): string[] =>
+      mod.imports.filter((i) => i.kind === kind).map(importName);
+    const funcSpace = [...imports(ExternalKind.Func), ...mod.functions.map((f) => f.name)];
 
     const section = new BinaryWriter();
     section.writeUTF8('name');
@@ -825,13 +830,14 @@ class WasmEncoder {
     // with no record — every one, as upstream `wat2wasm --debug-names` does
     // (N6). `null` is a section that had no local subsection: write none.
     if (names.localsListed !== null) {
-      const importFuncs = mod.imports.filter((i) => i.kind === 'function');
+      const importFuncs = mod.imports.filter((i) => i.kind === ExternalKind.Func);
       const locals: [number, [number, string][]][] = [];
       const listed = names.localsListed;
       const wanted = (name: string) => listed.has(name);
       importFuncs.forEach((imp, i) => {
-        if (wanted(imp.name)) {
-          locals.push([i, sorted(names.importParams.get(imp.name) ?? new Map())]);
+        const fname = imp.func.name;
+        if (wanted(fname)) {
+          locals.push([i, sorted(names.importParams.get(fname) ?? new Map())]);
         }
       });
       mod.functions.forEach((fn, i) => {
@@ -860,9 +866,24 @@ class WasmEncoder {
       if (n !== undefined) typeList.push([i, n]);
     });
     if (typeList.length > 0) sub(section, 4, (b) => entries(b, typeList));
-    flat(section, 5, [...imports('table'), ...mod.tables.map((t) => t.name)], names.tables);
-    flat(section, 6, [...imports('memory'), ...mod.memories.map((m) => m.name)], names.memories);
-    flat(section, 7, [...imports('global'), ...mod.globals.map((g) => g.name)], names.globals);
+    flat(
+      section,
+      5,
+      [...imports(ExternalKind.Table), ...mod.tables.map((t) => t.name)],
+      names.tables,
+    );
+    flat(
+      section,
+      6,
+      [...imports(ExternalKind.Memory), ...mod.memories.map((m) => m.name)],
+      names.memories,
+    );
+    flat(
+      section,
+      7,
+      [...imports(ExternalKind.Global), ...mod.globals.map((g) => g.name)],
+      names.globals,
+    );
     flat(section, 8, mod.elements.map((e) => e.name), names.elements);
     flat(section, 9, mod.dataSegments.map((d) => d.name), names.dataSegments);
     indirect(
@@ -870,7 +891,7 @@ class WasmEncoder {
       10,
       this.heapTypes.map((def, i) => [i, sorted(names.fields.get(def) ?? new Map())]),
     );
-    flat(section, 11, [...imports('tag'), ...mod.tags.map((t) => t.name)], names.tags);
+    flat(section, 11, [...imports(ExternalKind.Tag), ...mod.tags.map((t) => t.name)], names.tags);
 
     out.writeU8(0);
     out.writeU32(section.byteLength);
@@ -884,7 +905,7 @@ class WasmEncoder {
   private buildIndices(): void {
     let fi = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === 'function') this.funcIndex.set(imp.name, fi++);
+      if (imp.kind === ExternalKind.Func) this.funcIndex.set(imp.func.name, fi++);
     }
     for (const fn of this.mod.functions) {
       this.funcIndex.set(fn.name, fi++);
@@ -892,7 +913,7 @@ class WasmEncoder {
 
     let gi = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === 'global') this.globalIndex.set(imp.name, gi++);
+      if (imp.kind === ExternalKind.Global) this.globalIndex.set(imp.global.name, gi++);
     }
     for (const g of this.mod.globals) {
       this.globalIndex.set(g.name, gi++);
@@ -901,8 +922,8 @@ class WasmEncoder {
     let ti = 0;
     let mi = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === 'table') this.tableIndex.set(imp.name, ti++);
-      if (imp.kind === 'memory') this.memoryIndex.set(imp.name, mi++);
+      if (imp.kind === ExternalKind.Table) this.tableIndex.set(imp.table.name, ti++);
+      if (imp.kind === ExternalKind.Memory) this.memoryIndex.set(imp.memory.name, mi++);
     }
     for (const t of this.mod.tables) {
       this.tableIndex.set(t.name, ti++);
@@ -913,7 +934,7 @@ class WasmEncoder {
 
     let tagi = 0;
     for (const imp of this.mod.imports) {
-      if (imp.kind === 'tag') this.tagIndex.set(imp.name, tagi++);
+      if (imp.kind === ExternalKind.Tag) this.tagIndex.set(imp.tag.name, tagi++);
     }
     for (const tag of this.mod.tags) {
       this.tagIndex.set(tag.name, tagi++);
@@ -935,14 +956,14 @@ class WasmEncoder {
     };
 
     for (const imp of this.mod.imports) {
-      if (imp.kind === 'function') addType(imp.params ?? [], imp.results ?? []);
+      if (imp.kind === ExternalKind.Func) addType(imp.func.params, imp.func.results);
     }
     for (const fn of this.mod.functions) {
       addType(fn.params, fn.results);
     }
     // Tags use function-type signatures (params only, no results)
     for (const imp of this.mod.imports) {
-      if (imp.kind === 'tag') addType(imp.params ?? [], []);
+      if (imp.kind === ExternalKind.Tag) addType(imp.tag.sig.params, imp.tag.sig.results);
     }
     for (const tag of this.mod.tags) {
       addType(tag.sig.params, tag.sig.results);
@@ -1100,11 +1121,13 @@ class WasmEncoder {
   }
 
   private hasTables(): boolean {
-    return this.mod.tables.length > 0 || this.mod.imports.some((i) => i.kind === 'table');
+    return this.mod.tables.length > 0 ||
+      this.mod.imports.some((i) => i.kind === ExternalKind.Table);
   }
 
   private hasMemories(): boolean {
-    return this.mod.memories.length > 0 || this.mod.imports.some((i) => i.kind === 'memory');
+    return this.mod.memories.length > 0 ||
+      this.mod.imports.some((i) => i.kind === ExternalKind.Memory);
   }
 
   /**
@@ -1167,7 +1190,7 @@ class WasmEncoder {
    * encoders thread the real table index.
    */
   private checkSingleTable(): void {
-    const importedTables = this.mod.imports.filter((i) => i.kind === 'table').length;
+    const importedTables = this.mod.imports.filter((i) => i.kind === ExternalKind.Table).length;
     if (importedTables + this.mod.tables.length > 1) {
       throw new WasmEncodeError(
         'multiple tables are not supported: element segments and call_indirect are ' +
@@ -1266,50 +1289,44 @@ class WasmEncoder {
     w.writeU32(this.mod.imports.length);
     for (const imp of this.mod.imports) {
       w.writeUTF8(imp.module);
-      w.writeUTF8(imp.base);
+      w.writeUTF8(imp.field);
       switch (imp.kind) {
-        case 'function': {
+        case ExternalKind.Func: {
           w.writeU8(0x00);
+          const { params, results } = imp.func;
           const idx = this.heapTypes.length > 0
-            ? this.gcFuncTypeIndex(imp.params ?? [], imp.results ?? [])
-            : this.getTypeIndex(imp.params ?? [], imp.results ?? []);
+            ? this.gcFuncTypeIndex(params, results)
+            : this.getTypeIndex(params, results);
           w.writeU32(idx);
           break;
         }
-        case 'table': {
+        case ExternalKind.Table: {
           w.writeU8(0x01);
-          writeValueType(w, imp.type ?? ValType.FuncRef);
-          const hasMax = imp.max !== null && imp.max !== undefined;
-          w.writeU8(hasMax ? 1 : 0);
-          w.writeU32(imp.initial ?? 0);
-          if (hasMax) w.writeU32(imp.max as number);
+          writeValueType(w, imp.table.elemType);
+          writeLimits(w, imp.table.limits, `imported table ${imp.table.name}`);
           break;
         }
-        case 'memory': {
+        case ExternalKind.Memory: {
           w.writeU8(0x02);
-          const flags = (imp.max !== null && imp.max !== undefined ? 0x01 : 0) |
-            (imp.shared ? 0x02 : 0) |
-            (imp.is64 ? 0x04 : 0);
-          w.writeU8(flags);
-          w.writeU32(imp.initial ?? 0);
-          if (imp.max !== null && imp.max !== undefined) w.writeU32(imp.max as number);
+          writeLimits(w, imp.memory.limits, `imported memory ${imp.memory.name}`);
           break;
         }
-        case 'global': {
+        case ExternalKind.Global: {
           w.writeU8(0x03);
-          writeValueType(w, imp.type ?? ValType.I32);
-          w.writeU8(imp.mutable ? 1 : 0);
+          writeValueType(w, imp.global.type);
+          w.writeU8(imp.global.mutable ? 1 : 0);
           break;
         }
-        case 'tag': {
+        case ExternalKind.Tag: {
           w.writeU8(0x04);
           w.writeU8(0); // reserved attribute byte
           // Same GC-mode split as the defined-tag section: with heap types
           // present the emitted type section IS `mod.heapTypes`, so an index
           // into the deduped `this.types` would point at the wrong slot.
+          const { params, results } = imp.tag.sig;
           const idx = this.heapTypes.length > 0
-            ? this.gcFuncTypeIndex(imp.params ?? [], [])
-            : this.getTypeIndex(imp.params ?? [], []);
+            ? this.gcFuncTypeIndex(params, results)
+            : this.getTypeIndex(params, results);
           w.writeU32(idx);
           break;
         }
@@ -1693,14 +1710,14 @@ class WasmEncoder {
     const name = v.name;
     const defined = this.mod.tables.findIndex((t) => t.name === name);
     if (defined >= 0) return defined + this.importedTableCount();
-    const imported = this.mod.imports.filter((i) => i.kind === 'table');
-    const ii = imported.findIndex((i) => i.name === name);
+    const imported = this.mod.imports.filter((i) => i.kind === ExternalKind.Table);
+    const ii = imported.findIndex((i) => i.table.name === name);
     if (ii >= 0) return ii;
     throw new WasmEncodeError(`unresolved table reference: "${name}"`);
   }
 
   private importedTableCount(): number {
-    return this.mod.imports.filter((i) => i.kind === 'table').length;
+    return this.mod.imports.filter((i) => i.kind === ExternalKind.Table).length;
   }
 
   /**

@@ -20,9 +20,10 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
-import { elemFuncNames, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { elemFuncNames, importName, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -30,6 +31,22 @@ function assemble(wat: string): Uint8Array {
   return r.binary;
 }
 const roundTrip = (b: Uint8Array) => encodeWasm(parseWasm(b));
+/** The body of known section `id`, as hex. */
+function section(bytes: Uint8Array, id: number): string {
+  let i = 8;
+  while (i < bytes.length) {
+    const sid = bytes[i++]!;
+    let size = 0;
+    for (let s = 0;; s += 7) {
+      const b = bytes[i++]!;
+      size += (b & 0x7f) * 2 ** s;
+      if ((b & 0x80) === 0) break;
+    }
+    if (sid === id) return hex(bytes.subarray(i, i + size));
+    i += size;
+  }
+  return '';
+}
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 
 describe('M3 — an element segment keeps what the binary said', () => {
@@ -131,5 +148,47 @@ describe('M3 — sections a module did not have are not invented', () => {
     // (elem.107): an empty section the input never had.
     const bytes = assemble('(module (import "m" "t" (table 1 funcref)))');
     assertEquals(hex(roundTrip(bytes)), hex(bytes));
+  });
+});
+
+describe('M4 — an import embeds the entity it names', () => {
+  const wat = `(module
+    (import "m" "f" (func $f (param i32)))
+    (import "m" "t" (table $t 1 funcref))
+    (import "m" "mem" (memory $mem 1))
+    (import "m" "g" (global $g i32))
+    (import "m" "e" (tag $e (param i32))))`;
+
+  it('every kind round-trips, with its own record', () => {
+    const bytes = assemble(wat);
+    // The import SECTION (2): the whole binary also carries a name section,
+    // whose own round trip is N1's business, not M4's.
+    assertEquals(section(roundTrip(bytes), 2), section(bytes, 2));
+    const imps = parseWasm(bytes).imports;
+    assertEquals(imps.map((i) => i.kind), [
+      ExternalKind.Func,
+      ExternalKind.Table,
+      ExternalKind.Memory,
+      ExternalKind.Global,
+      ExternalKind.Tag,
+    ]);
+    assertEquals(imps.map((i) => [i.module, i.field]), [
+      ['m', 'f'],
+      ['m', 't'],
+      ['m', 'mem'],
+      ['m', 'g'],
+      ['m', 'e'],
+    ]);
+  });
+
+  it('importName reads the name from the entity, kind by kind', () => {
+    // The names the module itself gives them (its name section).
+    assertEquals(parseWasm(assemble(wat)).imports.map(importName), [
+      '$f',
+      '$t',
+      '$mem',
+      '$g',
+      '$e',
+    ]);
   });
 });

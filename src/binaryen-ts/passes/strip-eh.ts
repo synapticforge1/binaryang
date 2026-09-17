@@ -35,6 +35,7 @@ import {
   makeUnreachable,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 import { None } from '../ir/types.ts';
 import { mapWithSequences, type Sequence } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
@@ -55,7 +56,7 @@ export class StripEHPass implements Pass {
     // them would keep the module demanding a tag from its host for nothing —
     // and would re-enable EH validation on an otherwise EH-free module.
     module.tags = [];
-    module.imports = module.imports.filter((imp) => imp.kind !== 'tag');
+    module.imports = module.imports.filter((imp) => imp.kind !== ExternalKind.Tag);
     module.hasExceptionHandling = false;
   }
 }

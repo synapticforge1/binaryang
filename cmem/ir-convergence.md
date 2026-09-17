@@ -3398,6 +3398,22 @@ entry. ⚠️ **Found, recorded not done:** **83 corpus binaries carry GC REC GR
 with a different type section — `rec` / `sub` structure is flattened, silently. Pre-existing and not
 M3's (it is the type section's shape); **M5 must carry it**.
 
+**✅ M4 — an import embeds its entity (2026-09-17).** binaryen-ts's `WasmImport` was ONE flat record
+with every kind's fields as optionals (`params?`, `initial?`, `shared?`, `is64?`, …); it is now
+wabt-ts's union — an imported table IS a `WasmTable`, an imported memory a `WasmMemory` — so an import
+and a definition are the same record, described once. `base` is wabt-ts's `field`; the internal name is
+the entity's own, with `importName(imp)` where the kind is not narrowed. Flat optionals admitted
+states no module can have (a memory import with `results`) and LOST what they had no field for: M2g's
+guard, which refused an imported table64 / page size / size past 2^53 rather than misread it, is gone
+WITH the record — those are read now. **22 more spec binaries round-trip byte for byte** (memory64
+and table64 imports); 0 regressions; optimizer output 0 of 2,105 changed. The change was the widest so
+far — 212 compile errors, most of them `.kind` / `.name` / `.module` / `.base`. Ratchet: imports are
+PINNED for the first time (M1 left them out — a union against a flat record is not comparable), arm by
+arm; each holds `kind` / `module` / `field` + the entity, so what differs is the embedded record —
+`loc` on four, the function record until M6. **34 / 15 / 13.** 9 mutants, 8 killed; the ninth
+(emptying RemoveUnusedModuleElements's imported-function set) is EQUIVALENT — both branches add the
+name to `live`, and the queue lookup finds no body — so it is recorded, not tested against.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

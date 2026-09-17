@@ -34,7 +34,7 @@
 import { parseWasm } from '../binary/wasm-parser.ts';
 import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import { blockParamsOf, type Expression } from '../ir/expressions.ts';
-import type { WasmModule } from '../ir/module.ts';
+import { importName, type WasmModule } from '../ir/module.ts';
 import { walkExpression } from '../ir/walk.ts';
 
 /** Whether any construct in `e` keeps block parameters. */
@@ -49,7 +49,7 @@ export function hasBlockParams(e: Expression): boolean {
 /** The name lists a function body can refer to, by namespace, for comparison. */
 function namesIn(m: WasmModule): Record<string, string[]> {
   return {
-    imports: m.imports.map((i) => `${i.kind}:${i.name}`),
+    imports: m.imports.map((i) => `${i.kind}:${importName(i)}`),
     functions: m.functions.map((f) => f.name),
     globals: m.globals.map((g) => g.name),
     memories: m.memories.map((x) => x.name),

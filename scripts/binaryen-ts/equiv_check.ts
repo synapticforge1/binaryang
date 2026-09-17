@@ -92,33 +92,41 @@ function makeImports(
     (obj[m] ??= {})[b] = v;
   };
   for (const imp of mod.imports) {
-    if (imp.kind === 'function') {
-      const i64Result = (imp.results ?? []).length === 1 && imp.results![0] === ValType.I64;
-      put(imp.module, imp.base, (..._a: unknown[]) => (i64Result ? 0n : 0));
-    } else if (imp.kind === 'memory') {
-      const desc: WebAssembly.MemoryDescriptor = { initial: imp.initial ?? 0 };
-      if (imp.max != null) desc.maximum = imp.max;
-      if (imp.shared) (desc as { shared?: boolean }).shared = true;
+    if (imp.kind === ExternalKind.Func) {
+      const rs = imp.func.results;
+      const i64Result = rs.length === 1 && rs[0] === ValType.I64;
+      put(imp.module, imp.field, (..._a: unknown[]) => (i64Result ? 0n : 0));
+    } else if (imp.kind === ExternalKind.Memory) {
+      const { limits } = imp.memory;
+      const desc: WebAssembly.MemoryDescriptor = { initial: Number(limits.initial) };
+      if (limits.max !== undefined) desc.maximum = Number(limits.max);
+      if (limits.isShared) (desc as { shared?: boolean }).shared = true;
       mem = new WebAssembly.Memory(desc);
-      put(imp.module, imp.base, mem);
-    } else if (imp.kind === 'global') {
-      const t = imp.type === ValType.I64
+      put(imp.module, imp.field, mem);
+    } else if (imp.kind === ExternalKind.Global) {
+      const vt = imp.global.type;
+      const t = vt === ValType.I64
         ? 'i64'
-        : imp.type === ValType.F32
+        : vt === ValType.F32
         ? 'f32'
-        : imp.type === ValType.F64
+        : vt === ValType.F64
         ? 'f64'
         : 'i32';
-      const init: Arg = imp.type === ValType.I64 ? 0n : 0;
-      put(imp.module, imp.base, new WebAssembly.Global({ value: t, mutable: !!imp.mutable }, init));
-    } else if (imp.kind === 'table') {
-      const element = imp.type === ValType.ExternRef ? 'externref' : 'anyfunc';
+      const init: Arg = vt === ValType.I64 ? 0n : 0;
+      put(
+        imp.module,
+        imp.field,
+        new WebAssembly.Global({ value: t, mutable: imp.global.mutable }, init),
+      );
+    } else if (imp.kind === ExternalKind.Table) {
+      const { limits, elemType } = imp.table;
+      const element = elemType === ValType.ExternRef ? 'externref' : 'anyfunc';
       const desc: WebAssembly.TableDescriptor = {
         element: element as 'anyfunc',
-        initial: imp.initial ?? 0,
+        initial: Number(limits.initial),
       };
-      if (imp.max != null) desc.maximum = imp.max;
-      put(imp.module, imp.base, new WebAssembly.Table(desc));
+      if (limits.max !== undefined) desc.maximum = Number(limits.max);
+      put(imp.module, imp.field, new WebAssembly.Table(desc));
     }
   }
   return { obj, mem };

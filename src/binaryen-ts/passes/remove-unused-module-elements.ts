@@ -62,13 +62,13 @@ function _removeUnused(module: WasmModule): void {
   // Set of imported function names — these must never be removed
   const importedFuncs = new Set<string>(
     module.imports
-      .filter((imp) => imp.kind === 'function')
-      .map((imp) => imp.name),
+      .filter((imp) => imp.kind === ExternalKind.Func)
+      .map((imp) => imp.func.name),
   );
   const importedGlobals = new Set<string>(
     module.imports
-      .filter((imp) => imp.kind === 'global')
-      .map((imp) => imp.name),
+      .filter((imp) => imp.kind === ExternalKind.Global)
+      .map((imp) => imp.global.name),
   );
 
   // Index local function definitions for quick lookup

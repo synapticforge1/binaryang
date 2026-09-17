@@ -16,6 +16,7 @@ import * as fs from 'node:fs/promises';
 import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
+import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 import '../../src/binaryen-ts/passes/index.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
@@ -53,30 +54,33 @@ function fibOf(bytes: Uint8Array, n: number): string {
     const imports: Record<string, Record<string, unknown>> = {};
     for (const imp of mod.imports) {
       imports[imp.module] ??= {};
-      if (imp.kind === 'memory') {
-        imports[imp.module][imp.base] = new WebAssembly.Memory({
-          initial: imp.initial ?? 1,
-          ...(imp.max != null ? { maximum: imp.max } : {}),
+      if (imp.kind === ExternalKind.Memory) {
+        const { limits } = imp.memory;
+        imports[imp.module][imp.field] = new WebAssembly.Memory({
+          initial: Number(limits.initial),
+          ...(limits.max !== undefined ? { maximum: Number(limits.max) } : {}),
         });
-      } else if (imp.kind === 'global') {
-        const t = imp.type === ValType.I64
+      } else if (imp.kind === ExternalKind.Global) {
+        const vt = imp.global.type;
+        const t = vt === ValType.I64
           ? 'i64'
-          : imp.type === ValType.F32
+          : vt === ValType.F32
           ? 'f32'
-          : imp.type === ValType.F64
+          : vt === ValType.F64
           ? 'f64'
           : 'i32';
-        imports[imp.module][imp.base] = new WebAssembly.Global({
+        imports[imp.module][imp.field] = new WebAssembly.Global({
           value: t as WebAssembly.ValueType,
-          mutable: !!imp.mutable,
+          mutable: imp.global.mutable,
         }, t === 'i64' ? 0n : 0);
-      } else if (imp.kind === 'table') {
-        imports[imp.module][imp.base] = new WebAssembly.Table({
+      } else if (imp.kind === ExternalKind.Table) {
+        const { limits } = imp.table;
+        imports[imp.module][imp.field] = new WebAssembly.Table({
           element: 'anyfunc',
-          initial: imp.initial ?? 0,
-          ...(imp.max != null ? { maximum: imp.max } : {}),
+          initial: Number(limits.initial),
+          ...(limits.max !== undefined ? { maximum: Number(limits.max) } : {}),
         });
-      } else imports[imp.module][imp.base] = () => 0;
+      } else imports[imp.module][imp.field] = () => 0;
     }
     void stubImports;
     const inst = new WebAssembly.Instance(

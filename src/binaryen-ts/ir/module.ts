@@ -108,31 +108,44 @@ export interface WasmFunction {
  * Import descriptor.
  * Mirrors `Import` in `WebAssembly/binaryen/src/wasm.h`.
  */
-export interface WasmImport {
-  /** Internal module name (`"env"`, `"wasi_snapshot_preview1"`, etc.). */
-  module: string;
-  /** The base name within that module. */
-  base: string;
-  /** Internal name used to reference this import within the module. */
-  name: string;
-  /** Which kind of entity is being imported. */
-  kind: 'function' | 'global' | 'table' | 'memory' | 'tag';
-  /** For function imports: parameter types. For tag imports: the tag's payload types. */
-  params?: ValueType[];
-  /** For function imports: result types. */
-  results?: ValueType[];
-  /** For global imports: value type. For table imports: element type. */
-  type?: ValueType;
-  /** For global imports: whether the global is mutable. */
-  mutable?: boolean;
-  /** For table/memory imports: minimum size (elements or pages). */
-  initial?: number;
-  /** For table/memory imports: maximum size, or null for unbounded. */
-  max?: number | null;
-  /** For memory imports: whether the memory is shared (threads proposal). */
-  shared?: boolean;
-  /** For memory imports: whether the memory uses 64-bit addressing. */
-  is64?: boolean;
+/**
+ * An import: the entity it names, EMBEDDED — wabt-ts's union (S6 step 5 item 6
+ * (M4)). An imported table is a {@link WasmTable}, an imported memory a
+ * {@link WasmMemory}, and so on, so an import and a definition are the same
+ * record, described once.
+ *
+ * 🔧 It was one flat record with every kind's fields as optionals
+ * (`params?`, `initial?`, `shared?`, …). Flat optionals admit states no module
+ * can have — a memory import with `results`, a global import with `shared` — and
+ * they LOST what they had no field for: an imported table's `is64` (23 spec
+ * binaries, refused since M2g rather than silently narrowed) and an imported
+ * memory's page size had nowhere to go.
+ *
+ * The entity's INTERNAL NAME is the entity's own (`imp.func.name`); `module` and
+ * `field` are the two names the host knows it by (wabt-ts's spelling; `field`
+ * was `base`).
+ */
+export type WasmImport =
+  | { kind: ExternalKind.Func; module: string; field: string; func: WasmFunction }
+  | { kind: ExternalKind.Table; module: string; field: string; table: WasmTable }
+  | { kind: ExternalKind.Memory; module: string; field: string; memory: WasmMemory }
+  | { kind: ExternalKind.Global; module: string; field: string; global: WasmGlobal }
+  | { kind: ExternalKind.Tag; module: string; field: string; tag: WasmTag };
+
+/** The internal name an import gives the entity it names (M4). */
+export function importName(imp: WasmImport): string {
+  switch (imp.kind) {
+    case ExternalKind.Func:
+      return imp.func.name;
+    case ExternalKind.Table:
+      return imp.table.name;
+    case ExternalKind.Memory:
+      return imp.memory.name;
+    case ExternalKind.Global:
+      return imp.global.name;
+    case ExternalKind.Tag:
+      return imp.tag.name;
+  }
 }
 
 /**
@@ -700,7 +713,14 @@ export class ModuleBuilder {
     params: ValueType[],
     results: ValueType[],
   ): this {
-    this._imports.push({ kind: 'function', name: internalName, module, base, params, results });
+    this._imports.push({
+      kind: ExternalKind.Func,
+      module,
+      field: base,
+      // An imported function has no body; the record is the same one a defined
+      // function uses, and its body is the empty region (M4).
+      func: { name: internalName, params, results, locals: [], body: makeRegion([]) },
+    });
     return this;
   }
 
@@ -720,7 +740,13 @@ export class ModuleBuilder {
     type: ValueType,
     mutable = false,
   ): this {
-    this._imports.push({ kind: 'global', name: internalName, module, base, type, mutable });
+    this._imports.push({
+      kind: ExternalKind.Global,
+      module,
+      field: base,
+      // No initializer: an imported global's value comes from the host (M2h).
+      global: { name: internalName, type, mutable },
+    });
     return this;
   }
 
@@ -738,11 +764,17 @@ export class ModuleBuilder {
     internalName: string,
     module: string,
     base: string,
-    type: ValueType = ValType.FuncRef,
-    initial = 0,
-    max: number | null = null,
+    elemType: ValueType = ValType.FuncRef,
+    initial: number | bigint | Limits = 0,
+    max: number | bigint | null = null,
   ): this {
-    this._imports.push({ kind: 'table', name: internalName, module, base, type, initial, max });
+    const limits = typeof initial === 'object' ? initial : limitsOf(initial, max);
+    this._imports.push({
+      kind: ExternalKind.Table,
+      module,
+      field: base,
+      table: { name: internalName, elemType, limits },
+    });
     return this;
   }
 
@@ -761,21 +793,21 @@ export class ModuleBuilder {
     internalName: string,
     module: string,
     base: string,
-    initial: number,
-    max: number | null = null,
+    initial: number | bigint | Limits,
+    max: number | bigint | null = null,
     shared = false,
     is64 = false,
   ): this {
+    const limits = typeof initial === 'object'
+      ? initial
+      : limitsOf(initial, max, { isShared: shared, is64 });
     this._imports.push({
-      kind: 'memory',
-      name: internalName,
+      kind: ExternalKind.Memory,
       module,
-      base,
-      initial,
-      max,
-      shared,
-      is64,
+      field: base,
+      memory: { name: internalName, limits },
     });
+    if (limits.is64) this._hasMemory64 = true;
     return this;
   }
 
@@ -826,7 +858,12 @@ export class ModuleBuilder {
     base: string,
     params: ValueType[],
   ): this {
-    this._imports.push({ kind: 'tag', name: internalName, module, base, params });
+    this._imports.push({
+      kind: ExternalKind.Tag,
+      module,
+      field: base,
+      tag: { name: internalName, sig: { params, results: [] } },
+    });
     this._hasEH = true;
     return this;
   }

@@ -34,6 +34,10 @@ type Differ<A, C> = {
 }[keyof A & keyof C];
 const pin = <A, C>(v: Same<A, C>): Same<A, C> => v;
 
+/** One arm of an import union, by kind — the pair is compared arm by arm (M4). */
+type ArmW<K extends W.Import['kind']> = Extract<W.Import, { kind: K }>;
+type ArmB<K extends B.WasmImport['kind']> = Extract<B.WasmImport, { kind: K }>;
+
 /** The pinned sets, entity by entity — also what the count below reads. */
 const PINNED = {
   module: {
@@ -93,6 +97,14 @@ const PINNED = {
   export: { onlyW: [], onlyB: [], differ: [] },
   custom: { onlyW: ['loc'], onlyB: [], differ: [] },
   local: { onlyW: ['count'], onlyB: ['name'], differ: [] },
+  // M4 made imports comparable: each arm holds `kind` / `module` / `field` and the
+  // entity itself, so what differs is the EMBEDDED record — `loc` on four of
+  // them, and the function record until M6.
+  importFunc: { onlyW: [], onlyB: [], differ: ['func'] },
+  importTable: { onlyW: [], onlyB: [], differ: ['table'] },
+  importMemory: { onlyW: [], onlyB: [], differ: ['memory'] },
+  importGlobal: { onlyW: [], onlyB: [], differ: ['global'] },
+  importTag: { onlyW: [], onlyB: [], differ: ['tag'] },
 } as const;
 
 type P = typeof PINNED;
@@ -143,12 +155,32 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     pin<OnlyA<W.LocalDecl, B.Local>, Of<'local', 'onlyW'>>(true);
     pin<OnlyA<B.Local, W.LocalDecl>, Of<'local', 'onlyB'>>(true);
     pin<Differ<W.LocalDecl, B.Local>, Of<'local', 'differ'>>(true);
+
+    pin<OnlyA<ArmW<0>, ArmB<0>>, Of<'importFunc', 'onlyW'>>(true);
+    pin<OnlyA<ArmB<0>, ArmW<0>>, Of<'importFunc', 'onlyB'>>(true);
+    pin<Differ<ArmW<0>, ArmB<0>>, Of<'importFunc', 'differ'>>(true);
+
+    pin<OnlyA<ArmW<1>, ArmB<1>>, Of<'importTable', 'onlyW'>>(true);
+    pin<OnlyA<ArmB<1>, ArmW<1>>, Of<'importTable', 'onlyB'>>(true);
+    pin<Differ<ArmW<1>, ArmB<1>>, Of<'importTable', 'differ'>>(true);
+
+    pin<OnlyA<ArmW<2>, ArmB<2>>, Of<'importMemory', 'onlyW'>>(true);
+    pin<OnlyA<ArmB<2>, ArmW<2>>, Of<'importMemory', 'onlyB'>>(true);
+    pin<Differ<ArmW<2>, ArmB<2>>, Of<'importMemory', 'differ'>>(true);
+
+    pin<OnlyA<ArmW<3>, ArmB<3>>, Of<'importGlobal', 'onlyW'>>(true);
+    pin<OnlyA<ArmB<3>, ArmW<3>>, Of<'importGlobal', 'onlyB'>>(true);
+    pin<Differ<ArmW<3>, ArmB<3>>, Of<'importGlobal', 'differ'>>(true);
+
+    pin<OnlyA<ArmW<4>, ArmB<4>>, Of<'importTag', 'onlyW'>>(true);
+    pin<OnlyA<ArmB<4>, ArmW<4>>, Of<'importTag', 'onlyB'>>(true);
+    pin<Differ<ArmW<4>, ArmB<4>>, Of<'importTag', 'differ'>>(true);
   });
 
   it('records the distance', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [34, 15, 8]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [34, 15, 13]);
   });
 });

@@ -272,7 +272,7 @@ export function synthesizeRuntimeSupport(
   // wrong memory (upstream fatals unless asyncify-memory@name selects one — which
   // this port does not yet thread through the load/store builders).
   const memoryCount = module.memories.length +
-    module.imports.filter((imp) => imp.kind === 'memory').length;
+    module.imports.filter((imp) => imp.kind === ExternalKind.Memory).length;
   if (memoryCount > 1 || module.hasMultiMemory) {
     throw new Error(
       'asyncify: multi-memory modules are not yet supported; the pass instruments memory 0.',
@@ -297,20 +297,16 @@ export function synthesizeRuntimeSupport(
   }
   if (options.importGlobals) {
     module.imports.push({
-      kind: 'global',
-      name: ASYNCIFY_STATE,
+      kind: ExternalKind.Global,
       module: 'env',
-      base: '__asyncify_state',
-      type: ValType.I32,
-      mutable: true,
+      field: '__asyncify_state',
+      global: { name: ASYNCIFY_STATE, type: ValType.I32, mutable: true },
     });
     module.imports.push({
-      kind: 'global',
-      name: ASYNCIFY_DATA,
+      kind: ExternalKind.Global,
       module: 'env',
-      base: '__asyncify_data',
-      type: ValType.I32,
-      mutable: true,
+      field: '__asyncify_data',
+      global: { name: ASYNCIFY_DATA, type: ValType.I32, mutable: true },
     });
   } else {
     module.globals.push({
@@ -473,12 +469,12 @@ const ASYNCIFY_RUNTIME_BOTTOM = new Set([`$${ASYNCIFY_STOP_UNWIND}`, `$${ASYNCIF
 export function resolveAsyncifyImports(module: WasmModule): boolean {
   const rename = new Map<string, string>();
   for (const imp of module.imports) {
-    if (imp.kind !== 'function' || imp.module !== ASYNCIFY_IMPORT_MODULE) continue;
-    const control = ASYNCIFY_IMPORT_TO_CONTROL[imp.base];
+    if (imp.kind !== ExternalKind.Func || imp.module !== ASYNCIFY_IMPORT_MODULE) continue;
+    const control = ASYNCIFY_IMPORT_TO_CONTROL[imp.field];
     if (control === undefined) {
-      throw new Error(`asyncify: unidentified asyncify import "asyncify.${imp.base}".`);
+      throw new Error(`asyncify: unidentified asyncify import "asyncify.${imp.field}".`);
     }
-    rename.set(imp.name, control);
+    rename.set(imp.func.name, control);
   }
   if (rename.size === 0) return false;
 
@@ -497,7 +493,7 @@ export function resolveAsyncifyImports(module: WasmModule): boolean {
   // a builder-backed array, so don't reassign the property).
   for (let i = module.imports.length - 1; i >= 0; i--) {
     const imp = module.imports[i]!; // bounded by the loop header
-    if (imp.kind === 'function' && imp.module === ASYNCIFY_IMPORT_MODULE) {
+    if (imp.kind === ExternalKind.Func && imp.module === ASYNCIFY_IMPORT_MODULE) {
       module.imports.splice(i, 1);
     }
   }
@@ -557,7 +553,7 @@ export function analyzeModule(
   // binary-parsed input (not yet done in wasmtk) requires name-section retention.
   const definedNames = new Set(module.functions.map((f) => f.name));
   const importFnNames = new Set(
-    module.imports.filter((i) => i.kind === 'function').map((i) => i.name),
+    module.imports.filter((i) => i.kind === ExternalKind.Func).map((i) => i.func.name),
   );
   for (
     const [label, list] of [
@@ -585,7 +581,7 @@ export function analyzeModule(
   const allImportsCanChange = options.imports.length === 0 && !options.ignoreImports;
   const canImportChangeState = (imp: WasmImport): boolean => {
     if (allImportsCanChange) return true;
-    const full = `${imp.module}.${imp.base}`;
+    const full = `${imp.module}.${imp.field}`;
     return options.imports.some((p) => wildcardMatch(p, full));
   };
 
@@ -606,8 +602,8 @@ export function analyzeModule(
 
   // Seed imports.
   for (const imp of module.imports) {
-    if (imp.kind === 'function') {
-      canChangeState.set(imp.name, canImportChangeState(imp));
+    if (imp.kind === ExternalKind.Func) {
+      canChangeState.set(imp.func.name, canImportChangeState(imp));
     }
   }
 
