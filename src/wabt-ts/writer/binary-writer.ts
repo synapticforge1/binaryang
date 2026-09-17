@@ -1626,9 +1626,21 @@ class BinaryWriter {
 
   private emitCustom(c: Custom): void {
     const { s } = this;
+    const data = c.data;
+    if (data === null) {
+      // The `name` section's place (M2f): generated here, under the same
+      // condition as the one `write` appends when no place was recorded.
+      if (c.name !== CUSTOM_SECTION_NAME_NAME) {
+        throw new Error(`binary writer: custom section "${c.name}" has no payload`);
+      }
+      if (this.writeDebugNames && (this.m.hasNameSection || this.namesAnything())) {
+        this.writeNameSection();
+      }
+      return;
+    }
     s.writeSection(BinarySection.Custom, () => {
       s.writeName(c.name);
-      s.writeBytes(c.data);
+      s.writeBytes(data);
     });
   }
 
@@ -1844,7 +1856,7 @@ class BinaryWriter {
     this.writeTrailingCustomSections();
     // A `name` section already among the customs is one the reader kept as raw
     // bytes — it was written verbatim above, so generating another would put a
-    // second name section beside it. Otherwise one is generated when the
+    // second name section beside it — or its PLACE, where it was generated (M2f). Otherwise one is generated when the
     // module had one or names anything (`Module.hasNameSection`): a binary
     // read WITHOUT names must not gain a section on the way back out, but one
     // the caller has since named must not lose the names.

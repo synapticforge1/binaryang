@@ -2124,7 +2124,14 @@ export interface Export {
 /** A custom section's raw bytes and name. */
 export interface Custom {
   name: string;
-  data: Uint8Array;
+  /**
+   * The payload, verbatim — or `null` for the `name` section's PLACE, and only
+   * for a section named `name`: its content is generated from the module's
+   * names, so the entry marks where it goes (S6 step 5 item 6 (M2f)). A binary
+   * laid out `.debug_*`, `name`, `producers` (clang's, rustc's) came back with
+   * the name section moved last when the reader dropped it on applying it.
+   */
+  data: Uint8Array | null;
   loc: Location;
   /**
    * The known section this custom section FOLLOWED in the source binary:

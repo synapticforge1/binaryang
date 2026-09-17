@@ -3306,6 +3306,21 @@ unknown one is an error. The compat API's string → id table is gone: the kind 
 output 0 of 2,105 changed. 10 mutants; the compat pass-through survived (only a function export was
 tested — `kind: 0` passed) until a per-kind `getExportInfo` test killed it.
 
+**✅ M2f — a custom section: `data: Uint8Array | null`, `precedingSection?: BinarySection | null`
+(2026-09-16).** Fidelity decided, and found a wabt-ts defect. binaryen-ts's `data: null` entry is the
+`name` section's PLACE (its content is generated from the names); wabt-ts had no such entry — its
+reader took the names and dropped the section, its writer generated one LAST. 🛑 **A binary laid out
+`name`, `producers` (clang's, rustc's) came back from wabt-ts as `producers`, `name`** — reproduced on
+a synthetic binary; binaryen-ts kept the order. The corpus never showed it: its one such binary
+(`1_fib-rs-test.wasm`) held names wabt-ts could not fully parse, so the section was kept as bytes,
+in place (5,576 binaries; order and byte results unchanged by this change). Now wabt-ts's reader
+leaves the place, its writer generates the names there, and both writers refuse a payload-less
+section not named `name`. `precedingSection`: wabt-ts's form — absent = position unknown (built by
+hand), written last; binaryen-ts's encoder gained that trailing pass. Only 3 compile errors: nothing
+else read a custom's payload. Ratchet **44 / 27 / 9** — custom differs only in `loc`. Optimizer
+output 0 of 2,105 changed. 7 mutants killed. ⚠️ **Open, recorded not done**: the text format has no
+spelling for where the name section sat, so `wasm2wat` → `wat2wasm` still puts it last.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

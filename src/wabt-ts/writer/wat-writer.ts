@@ -2303,6 +2303,10 @@ class WatWriter extends ModuleContext {
   }
 
   private writeCustom(c: Custom): void {
+    // The `name` section's place (M2f): its names are written as the `$` ids,
+    // and the text format has no spelling for where the section sat.
+    if (c.data === null) return;
+    const data = c.data;
     this.openSpace('@custom');
     this.writeQuotedString(c.name, NC.Space);
     // The position the section held (C2): printed so the text assembles back
@@ -2311,7 +2315,7 @@ class WatWriter extends ModuleContext {
     if (c.precedingSection !== undefined) {
       this.putsSpace(placementText(c.precedingSection));
     }
-    this.writeQuotedData(c.data);
+    this.writeQuotedData(data);
     this.closeNewline();
   }
 

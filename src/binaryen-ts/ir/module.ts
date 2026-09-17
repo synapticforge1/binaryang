@@ -28,7 +28,7 @@ import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
 import { type FuncSignature, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 export type { TypeDef } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -351,12 +351,13 @@ export interface CustomSection {
   /** Its payload, verbatim — or `null` for the `name` section's place. */
   data: Uint8Array | null;
   /**
-   * The id of the known section this one FOLLOWED, or `null` when it came
-   * before every known section. Ids are the binary's own (1 type … 13 tag), so
-   * a section is written back into the same gap even if the neighbour it was
-   * recorded against is gone.
+   * The known section this one FOLLOWED, or `null` when it came before every
+   * known section; ABSENT when the position is not known (built by hand), and
+   * then it is written last. Ids are the binary's own (1 type … 13 tag), so a
+   * section is written back into the same gap even if the neighbour it was
+   * recorded against is gone. wabt-ts's `Custom.precedingSection` (M2f).
    */
-  precedingSection: number | null;
+  precedingSection?: BinarySection | null;
 }
 
 /**

@@ -7,6 +7,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasmStrip } from '../../../src/wabt-ts/tools/wasm-strip.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
+import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { encodeU32Leb128 } from '../../../src/wabt-ts/core/leb128.ts';
 import { Result } from '../../../src/wabt-ts/core/result.ts';
@@ -183,5 +184,60 @@ describe('T13.41 — custom sections keep their position', () => {
     });
     const out = layout(writeBinaryIr(m));
     expect(out[out.length - 1]).toEqual('custom:handmade');
+  });
+});
+
+// S6 step 5 item 6 (M2f). The reader took the `name` section's names into the IR
+// and dropped the section; the writer generated one LAST. A binary laid out
+// `name`, `producers` — clang's and rustc's layout — came back as `producers`,
+// `name`. The reader now leaves the section's PLACE (`data: null`), and the
+// writer generates the names there.
+describe('M2f — the name section is generated at its place', () => {
+  // wat2wasm's binary ends in a name section naming `$f`; `producers` follows it.
+  const NAMED = new Uint8Array([
+    ...wat2wasm('(module (func $f))').binary!,
+    ...customSection('producers', [0]),
+  ]);
+  const read = (b: Uint8Array) => {
+    const errors = makeErrorList();
+    const m = readBinaryIr(b, errors, { readDebugNames: true });
+    expect(hasErrors(errors)).toBe(false);
+    return m;
+  };
+
+  it('the fixture has the name section BEFORE producers', () => {
+    expect(layout(NAMED).slice(-2)).toEqual(['custom:name', 'custom:producers']);
+  });
+
+  it('a binary round trip is byte-identical', () => {
+    expect(Array.from(writeBinaryIr(read(NAMED)))).toEqual(Array.from(NAMED));
+  });
+
+  it("the names are the IR's, and the customs hold the section's place", () => {
+    const m = read(NAMED);
+    expect(m.funcs[0]!.name).toEqual('$f');
+    expect(m.customs.map((c) => [c.name, c.data === null])).toEqual([
+      ['name', true],
+      ['producers', false],
+    ]);
+  });
+
+  it('writing without names drops the section and keeps the rest', () => {
+    const out = layout(writeBinaryIr(read(NAMED), { writeDebugNames: false }));
+    expect(out).not.toContain('custom:name');
+    expect(out[out.length - 1]).toEqual('custom:producers');
+  });
+
+  it('the text writer prints the names as ids, not the place as a section', () => {
+    const wat = writeWatModule(read(NAMED));
+    expect(wat).toContain('$f');
+    expect(wat).not.toContain('@custom "name"');
+    expect(wat).toContain('@custom "producers"');
+  });
+
+  it('a payload-less custom that is not the name section is refused', () => {
+    const m = read(NAMED);
+    m.customs.push({ name: 'producers2', data: null, loc: m.customs[0]!.loc });
+    expect(() => writeBinaryIr(m)).toThrow('custom section "producers2" has no payload');
   });
 });
