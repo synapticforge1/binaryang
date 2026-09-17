@@ -26,78 +26,74 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-15 — paused mid-stage)
+## Start the next session here (handoff, 2026-09-16 — paused between stages)
 
-**Where the work stopped.** `main` is at `1a7b04145`, clean, nothing pushed, `deno.json` still
-1.5.4. The full gate ran on that committed tree and every step passed: fmt, lint, 1164 tests / 0
-failed, naming, portability, baseline **IDENTICAL**, publish dry-run, operators, spec (no misses),
-`bridge` **421/421**, `bridge-behaviour` **1806/1806** across 602 exports, `translate-eh` (every
-assertion holds in every world, 19 `assert_invalid`/`assert_malformed` skipped), `optimize-corpus`
-(every level of every module encodes and validates).
+**Where the work stopped.** `main` is at the merge of this handoff (code last changed at `d5becdccf`),
+clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (merged branches may be
+deleted). The full gate
+ran on the committed tree `777a09f9e` and every step passed: fmt, lint, **1249 tests / 0 failed**,
+naming, portability, baseline **IDENTICAL**, publish dry-run, operators, spec (no misses), `bridge`
+**421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh` **70/70**,
+`optimize-corpus` (every level encodes and validates). Optimizer output: **0 of 2,105** hashes changed
+through M2g.
 
-S6 step 5's expression ratchet stood at **65 identical / 1 types / 7 names** (**68 / 5 / 1** after items 1–4 below; **76 / 5 / 1** after item 5 (5), 2026-09-16). Nine stages landed
-on 2026-09-15 (A, A2, A3, B, V1–V4, S1–S3, L1, B1–B3, C1, L2). **No branch is open** — the next
-sub-stage was branched and the branch deleted unused, so start from `main`.
+⚠️ **The gate needs upstream wabt 1.0.41 on PATH** (`wast2json` for `translate-eh`). A scoop update
+to 1.0.42 started mid-gate on 2026-09-16 and removed the shim; the owner reverted it. A red
+`translate-eh` with "Failed to spawn 'wast2json'" is the environment, not the code — check
+`wast2json --version` and rerun the WHOLE gate.
+
+**S6 step 5, items 1–5 are DONE** (the expression half: `Expression = Expr`, readonly, the identity
+test) — records in [ir-convergence.md](ir-convergence.md) §§ "Stage (b)" … "Item 5". **Item 6, the
+MODULE half, is in progress:** decided B, unify, no shim (owner, 2026-09-15); the bridge is deleted at
+the end, and TYPE DERIVATION (moved from item 5) goes with it. Scope, 8 stages, and every stage's
+record: [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
+
+**Module ratchet** (`tests/ir/module_convergence.test.ts`, fields only-wabt-ts / only-binaryen-ts /
+typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
+
+### Done on 2026-09-16 (item 6)
+
+| stage | merge       | what                                                                                                                                  |
+| ----- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| M1    | —           | the module ratchet                                                                                                                    |
+| M2a/b | `31f5d07a6` | 🗓️ owner: a constant expression is a `RegionExpr`, absent = missing; wabt-ts's empty-table-initializer loss fixed                     |
+| M2c/d | `316981b00` | tag `sig` (results kept); export `var: Var`                                                                                           |
+| M2e   | `eb93d34dc` | export `kind: ExternalKind`; `toWat` printed `(function $f)`, now `(func $f)`; WAT parser refuses an unknown export keyword          |
+| M2f   | `dbced41c3` | custom `data: Uint8Array \| null` / `precedingSection?`; 🛑 wabt-ts moved the name section after `producers` (clang/rustc layout) — fixed |
+| M2g   | `d5becdccf` | `Limits` on tables / memories, table `elemType` + `init?`; 🛑 binaryen-ts narrowed table64 (11 binaries) and truncated multi-instruction constant expressions (43, now refused) — fixed |
 
 ### Tomorrow's list, in order
 
-1. ✅ **Block family (b) — the catch records. DONE 2026-09-16** (`e9f6721e4`, `11e632b8e`). The
-   try_table clause is `{ tag?, target, isRef }` on both sides (`CatchKind` deleted); both IRs name
-   the pair `Catch` / `TableCatch`. Trials, mutants and inversions:
-   [ir-convergence.md](ir-convergence.md) § "Stage (b) — the catch records". Ratchet unmoved.
-2. ✅ **Block family (c) — the block TYPE. DONE 2026-09-16** (`38a47be36` c1, `f4e04989f` c2, plus
-   defects `1d8a72be3` and `0f2e32bd5`). wabt-ts's carriers own their entry values
-   (`params: { types, values }`) and hold their signature (`type`) with the written index
-   (`typeIndex?`); `blockType` and its fidelity entry are gone; the validator holds signature and
-   index to each other. Ratchet **65 / 5 / 3**. Record: [ir-convergence.md](ir-convergence.md) §
-   "Stage (c) — the block type".
-3. ✅ **Block family (d) — the bodies. DONE 2026-09-16** (`ddc45cbb1` d1, `e9c029ffb` d2). A block's
-   list is `children`; every region slot holds a `RegionExpr`, `ifFalse` is `RegionExpr | null`
-   (an explicit empty `else` now survives wabt-ts's binary round trip — divergence E1). Ratchet
-   **66 / 6 / 2**. Record: [ir-convergence.md](ir-convergence.md) § "Stage (d) — the bodies".
-4. ✅ **Item 4 DONE 2026-09-16** (`eec6912fd` (b), `34901c5fc` (a)). wabt-ts's `ValueType` is a value
-   type (`StorageType` for fields) — and the narrowing found wabt-ts ACCEPTING invalid local / param /
-   block types, now rejected as upstream does; `call_indirect`'s type is `typeVar?: Var` in both IRs
-   (owner, A). `ref.null` stays deferred to item 5 (premise re-read, unchanged). Ratchet
-   **68 / 5 / 1**. Record: [ir-convergence.md](ir-convergence.md) § "Item 4 — value types,
-   `call_indirect`, and `ref.null`". Open from it: divergence **W7** (a bare `ref` before a type
-   keyword parses; upstream rejects).
-5. Then the node base (`readonly`, `loc` required against optional, literal against enum `kind`,
-   `type` required on some binaryen kinds), the one-sided kinds (atomics, `call_ref`,
-   `code_metadata`), the alias, and the type-derivation pass
-   (`inferBinaryType` / `inferUnaryType`) carried forward out of the bridge — which is also where
-   `ref.null`'s heap type gets an explicit field (Group 3: not before `type` is derived).
-   🚧 **In progress** (2026-09-16), staged (1)–(6) in [ir-convergence.md](ir-convergence.md)
-   § "Item 5 — the node base, the one-sided kinds, the alias". ✅ (1) `loc?` + `locOf`. ✅ (2)
-   `ExpressionKind` a const object + union (alias trial 2,012 → 301). (3) 🗓️ owner, 2026-09-16: a
-   carrier's `type` is ALWAYS declared, never `'unreachable'`; reachability is derived
-   (`fallsThrough`). ✅ (3a) the WAT parser declares. ✅ (3b) `mapWithSequences`; StripEH and
-   Inlining build no construct typed `unreachable` (the 26 reads needed no change — they ask about
-   stack polymorphism; `fallsThrough` is only a possible DCE optimization). ✅ (3c) carriers'
-   `type?: BlockResult`; factories declare; the encoder's extra `unreachable` deleted and a construct
-   typed `unreachable` refused. ✅ (4) the base: constructs' `type` required in both, every other
-   node `type?: ExprType` (≡ binaryen-ts `Type`), catch records' `loc?`, `br_on` `from`/`to` exact
-   optionals — alias trial 305 → 37. ✅ (5) atomics + `call_ref` ported into binaryen-ts (K1 closed;
-   two miscompiles found and pinned); `code_metadata` stays wabt-ts-only (owner) — ratchet **76 / 5 / 1**,
-   84 shared kinds, 1 one-sided. Next: (6) the alias — `code_metadata` (the 21 kind errors; 🗓️ owner
-   2026-09-16: binaryen-ts STRIPS it in optimization runs — ✅ (6a) done; the raw `metadata.code.*`
-   section's stale offsets still to settle), ✅ (6b) `ref.null` `refType`, ✅ (6c) THE ALIAS —
-   `Expression = Expr`, every node type wabt-ts's (readonly); the ratchet retired into an identity test.
-   ✅ Item 5 DONE; type derivation moved to item 6 (it needs the unified module context).
-6. **Then the MODULE half — decided: B, unify, no shim** (owner, 2026-09-15). `Module` against
-   `WasmModule`, on the expression half's terms; the bridge is deleted outright. ⚠️ Includes
-   `Func.body`: still `Expr[]` on wabt-ts, a `RegionExpr` on binaryen-ts (decision 5 covers the
-   function body; stage (d2) deferred it here). 16 test files,
-   `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` come out with it.
-   ⚠️ Includes TYPE DERIVATION (moved here from item 5, 2026-09-16): the bridge is where a wabt-ts
-   tree gets the `type` binaryen-ts's passes read — it rebuilds through the factories, which derive
-   it. Without the bridge a tree needs a derivation over the whole function, and that needs MODULE
-   context (signatures, local / global / table types, tag params, heap types) that lives in two shapes
-   until this item unifies them; written now, against either, it is written twice. Its acceptance is
-   the bridge's: `bridge-behaviour` agreement, then deleted with it.
-   🚧 **SCOPED 2026-09-16** — 8 stages (M1 gate … M8 alias + deletion), two owner calls expected (the
-   form of a constant expression; locals), in [ir-convergence.md](ir-convergence.md) § "Item 6 — the
-   MODULE half".
+1. **M2 — the last leaf: global.** Ratchet `global: { onlyW: ['loc'], differ: ['init'] }` — wabt-ts's
+   `init?: RegionExpr` (absent for an IMPORTED global) against binaryen-ts's required one. Imports are
+   M4's union, so this likely settles THERE (an imported global has no init; a defined one must).
+   Decide by trial blast radius; if it only moves with M4, record that and close M2.
+2. **binaryen-ts: read a constant expression of MORE than one instruction** (capability; M2b's open
+   item). 43 spec binaries (extended-const, GC — `global.9`, `data.57`, `array.*`, `i31.*`) are now
+   REFUSED where they were silently truncated; the region already holds a sequence and the encoder
+   writes one. Could land before or alongside M3 — measure with `m2g_measure.ts`-style counts.
+3. **M3 — segments.** Data (`kind`, `memoryVar` against `passive` / `memory?: number`) and element
+   (`kind`, `tableVar`, `elemType`, `elemExprs` against `table` / `data` / `mode`). ⚠️ binaryen-ts is
+   missing EXPRESSION element entries ("unsupported element-segment expression opcode") — a fidelity
+   defect to port, not a merge.
+4. **M4 — imports: the union** (`kind: ExternalKind` + the embedded entity). Carries what the flat
+   record refuses today: imported table64 (23 spec binaries), imported page size, sizes past 2^53.
+5. **M5 — the type section** (one `types` table, T1 / T2; the largest).
+6. **M6 — functions** (`sig`, `typeVar` / `typeUse`, `body: RegionExpr`, locals — flat named list +
+   grouping as form, recorded, not an owner call).
+7. **M7 — module metadata**, then **M8 — the alias, type derivation, and the bridge's deletion.**
+
+**Open, recorded not done** (each in its stage's record in ir-convergence.md):
+- the text format has no spelling for where the `name` section sat — `wasm2wat` → `wat2wasm` puts it last (M2f)
+- the WAT writer does not print an empty `(offset)` / `(item)` (M2a)
+- the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8** below
+- Asyncify refuses `call_ref` (K1, below)
+
+**Working method that held up today** (all in [working-rules.md](working-rules.md) /
+[best-practices.md](best-practices.md)): measure fidelity on the spec + WASI corpus BEFORE choosing a
+direction — three of today's six stages found a silent defect that way; after every type change, read
+every use the compiler CANNOT see (string interpolation, `as` casts, `Record<string, …>` lookups,
+a one-byte read never compared); invert each new test with mutants.
 
 ⚠️ **Carry the L2 discipline into every remaining stage**: when a field loses `null` or `undefined`
 from its type, the compiler stops helping (`stringValued === null` is not an error), so list the
