@@ -589,7 +589,7 @@ class WatModuleParser {
   private resolvePendingFuncTypeRefs(): void {
     for (const { name, sig } of this.pendingFuncTypeRefs) {
       const def = this.funcTypeDefs.get(sig);
-      this.funcResults.set(name, def?.results[0] ?? None);
+      this.funcResults.set(name, def?.sig.results[0] ?? None);
     }
     this.pendingFuncTypeRefs.length = 0;
   }
@@ -675,11 +675,11 @@ class WatModuleParser {
       const def = this.funcTypeDefs.get(typeRef) ?? this.funcTypeByIndex(typeRef) ??
         this.err(`func: unknown type ${typeRef}`, list.pos);
       const inline = params.length > 0 || results.length > 0;
-      if (inline && funcTypeKey(params, results) !== funcTypeKey(def.params, def.results)) {
+      if (inline && funcTypeKey(params, results) !== funcTypeKey(def.sig.params, def.sig.results)) {
         this.err(`func: (type ${typeRef}) does not match its inline signature`, list.pos);
       }
-      params = [...def.params];
-      results = [...def.results];
+      params = [...def.sig.params];
+      results = [...def.sig.results];
     }
     // The function's own signature is its first type use; its body's follow.
     this.noteTypeUse(params, results);
@@ -1821,8 +1821,8 @@ class WatModuleParser {
           // Both sides are `ValueType[]` now — no cast, and no AnyRef
           // collapse. (This used to cast through `as ValType[]`, justified by
           // the collapse that UP-7 removed.)
-          typeRefParams = def.params;
-          typeRefResults = def.results;
+          typeRefParams = def.sig.params;
+          typeRefResults = def.sig.results;
         } else {
           // An unresolved `(type $sig)` used to fall through to the (empty)
           // inline signature, silently giving the indirect call zero args —
@@ -2664,7 +2664,7 @@ class WatModuleParser {
     // they must agree with per the spec.
     if (params.length === 0 && results.length === 0 && typeRef !== null) {
       const def = this.funcTypeByIndex(typeRef);
-      if (def !== null) return { name, params: [...def.params], results: [...def.results] };
+      if (def !== null) return { name, params: [...def.sig.params], results: [...def.sig.results] };
     }
     return { name, params, results };
   }
@@ -2685,17 +2685,20 @@ class WatModuleParser {
     const body = children[idx] as SList;
     const bodyHead = listHead(body);
     let def: TypeDef | null = null;
+    // The name as written, if the text gave one (M5; `''` where it did not,
+    // as a decoded entry has).
+    const declared = name ?? '';
     if (bodyHead === 'struct') {
-      def = { kind: 'struct', fields: this.parseStructFields(body) };
+      def = { name: declared, kind: 'struct', fields: this.parseStructFields(body) };
     } else if (bodyHead === 'array') {
-      const element = this.parseArrayElement(body);
-      if (element) def = { kind: 'array', element };
+      const field = this.parseArrayElement(body);
+      if (field) def = { name: declared, kind: 'array', field };
     } else if (bodyHead === 'func') {
       // (type $sig (func (param ...) (result ...))) — module-level function
       // signature declaration. parseFuncType accepts an unnamed func-shape
       // list (the inner body here has no $name atom in position 0).
       const ft = this.parseFuncType(body);
-      def = { kind: 'func', params: ft.params, results: ft.results };
+      def = { name: declared, kind: 'func', sig: { params: ft.params, results: ft.results } };
     }
     if (def) {
       const ti = this.builder.addHeapType(def);
@@ -2853,7 +2856,7 @@ class WatModuleParser {
   /** Declared storage type of `array.get $ti`'s element, or `null` if unknown. */
   private _arrayElementStorage(ti: number): StorageType | null {
     const def = this.heapTypeDefs.get(ti);
-    if (def?.kind === 'array') return def.element.type;
+    if (def?.kind === 'array') return def.field.type;
     return null;
   }
 
@@ -2900,7 +2903,7 @@ class WatModuleParser {
   /** Declared result type of `array.get $ti` (falls back to i32 if unknown). */
   private _arrayElementType(ti: number): ValType {
     const def = this.heapTypeDefs.get(ti);
-    if (def?.kind === 'array') return this._storageResultType(def.element.type);
+    if (def?.kind === 'array') return this._storageResultType(def.field.type);
     return ValType.I32;
   }
 
@@ -3204,11 +3207,11 @@ class WatModuleParser {
       const def = this.funcTypeDefs.get(typeRef) ?? this.funcTypeByIndex(typeRef) ??
         this.err(`block type: unknown type ${typeRef}`, pos);
       const inline = params.length > 0 || results.length > 0;
-      if (inline && funcTypeKey(params, results) !== funcTypeKey(def.params, def.results)) {
+      if (inline && funcTypeKey(params, results) !== funcTypeKey(def.sig.params, def.sig.results)) {
         this.err(`block type: (type ${typeRef}) does not match its inline signature`, pos);
       }
-      params = [...def.params];
-      results = [...def.results];
+      params = [...def.sig.params];
+      results = [...def.sig.results];
     }
     if (params.length > 0) {
       this.err(
@@ -3250,12 +3253,16 @@ class WatModuleParser {
     if (this.heapTypeDefs.size === 0) return;
     const have = new Set<string>();
     for (const d of this.heapTypeDefs.values()) {
-      if (d.kind === 'func') have.add(funcTypeKey(d.params, d.results));
+      if (d.kind === 'func') have.add(funcTypeKey(d.sig.params, d.sig.results));
     }
     for (const u of this.typeUses) {
       const key = funcTypeKey(u.params, u.results);
       if (have.has(key)) continue;
-      const def: TypeDef = { kind: 'func', params: u.params, results: u.results };
+      const def: TypeDef = {
+        name: '',
+        kind: 'func',
+        sig: { params: u.params, results: u.results },
+      };
       this.heapTypeDefs.set(this.builder.addHeapType(def), def);
       have.add(key);
     }

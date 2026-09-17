@@ -23,7 +23,7 @@
  */
 
 import { type ValType, valTypeName } from './types.ts';
-import { heapAbstract, type HeapTypeRef } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, type HeapTypeRef, type Var } from '../../wabt-ts/ir/ir.ts';
 export { heapAbstract, sameHeap } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -172,7 +172,37 @@ export interface FieldType {
  * };
  * ```
  */
-export interface StructTypeDef {
+/**
+ * What every type-section entry carries besides its shape — wabt-ts's
+ * `TypeEntryBase` (S6 step 5 item 6 (M5)).
+ */
+export interface TypeDefBase {
+  /** The entry's name, from the name section where it has one. */
+  name: string;
+  /**
+   * An explicit `(sub final? $super*)` declaration.
+   *
+   * ABSENT means the bare comptype shorthand, which the spec defines as
+   * `sub final` with no supertypes — so absent is NOT `{ final: true, supertypes: [] }`,
+   * and the two encode differently.
+   *
+   * 🔧 The decoder read the supertype list into NOWHERE and the encoder never
+   * wrote one, so every subtype relationship in a module was lost on the way
+   * through — silently (83 spec binaries; found measuring M3).
+   */
+  sub?: { final: boolean; supertypes: Var[] };
+  /**
+   * Set on the FIRST entry of an explicit `(rec …)` group: how many consecutive
+   * entries the group spans. Absent means a singleton.
+   *
+   * The type INDEX space counts entries, but the SECTION is a vector of rec
+   * groups — so a 2-entry group is one vector slot and two indices. The decoder
+   * flattened them, which changes the section's own count.
+   */
+  recGroupSize?: number;
+}
+
+export interface StructTypeDef extends TypeDefBase {
   /** Discriminant — identifies this entry as a struct type. */
   kind: 'struct';
   /** The ordered list of field declarations. */
@@ -190,24 +220,22 @@ export interface StructTypeDef {
  * };
  * ```
  */
-export interface ArrayTypeDef {
+export interface ArrayTypeDef extends TypeDefBase {
   /** Discriminant — identifies this entry as an array type. */
   kind: 'array';
-  /** The element field declaration. */
-  element: FieldType;
+  /** The element field declaration (wabt-ts's `field`; it was `element`). */
+  field: FieldType;
 }
 
 /**
  * A function type stored explicitly in the module's type section.
  * Used when GC types are present (so all type indices are stable).
  */
-export interface FuncTypeDef {
+export interface FuncTypeDef extends TypeDefBase {
   /** Discriminant — identifies this entry as a function type. */
   kind: 'func';
-  /** Parameter types in declaration order. */
-  params: (ValType | RefType)[];
-  /** Result types in declaration order (empty array = void). */
-  results: (ValType | RefType)[];
+  /** The signature, as every other function type in this tree holds it (M5). */
+  sig: { params: (ValType | RefType)[]; results: (ValType | RefType)[] };
 }
 
 /**

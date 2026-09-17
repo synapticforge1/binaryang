@@ -982,18 +982,32 @@ class WasmParser {
 
   private readTypeDef(): void {
     let tag = this.r.readU8();
-    // Sub / SubFinal wrappers: skip supertype list, read inner type
-    if (tag === 0x50 || tag === 0x4f) {
-      const n = this.r.readU32();
-      for (let i = 0; i < n; i++) this.r.readU32(); // supertype indices
-      tag = this.r.readU8(); // actual type form
-    }
-    // Rec group: read count then delegate to inner readTypeDef calls
+    // A rec group is ONE section entry spanning several type indices; its size
+    // is recorded on the first member, so the section is written back as it was.
+    // 🔧 It was flattened — the group's framing lost, silently (83 spec binaries,
+    // found measuring M3): `(rec (type …) (type …))` came back as two singletons,
+    // which is a different module wherever the two refer to each other.
     if (tag === 0x4e) {
       const n = this.r.readU32();
+      const first = this.heapTypeDefs.length;
       for (let i = 0; i < n; i++) this.readTypeDef();
-      return; // rec group itself doesn't produce a single TypeDef entry
+      const head = this.heapTypeDefs[first];
+      if (head !== undefined) head.recGroupSize = n;
+      return;
     }
+    // `(sub final? $super*)`: the supertype list was read into NOWHERE and never
+    // written back, so every declared subtype relationship was lost.
+    let sub: { final: boolean; supertypes: Var[] } | undefined;
+    if (tag === 0x50 || tag === 0x4f) {
+      const final = tag === 0x4f;
+      const n = this.r.readU32();
+      const supertypes: Var[] = [];
+      for (let i = 0; i < n; i++) supertypes.push(varIndex(this.r.readU32()));
+      sub = { final, supertypes };
+      tag = this.r.readU8(); // actual type form
+    }
+    // No name of its own: the name section supplies one, as it does in wabt-ts.
+    const base = { name: '', ...(sub === undefined ? {} : { sub }) };
     if (tag === 0x60) { // func type
       const paramCount = this.r.readU32();
       const params: (ValType | RefType)[] = [];
@@ -1001,7 +1015,7 @@ class WasmParser {
       const resultCount = this.r.readU32();
       const results: (ValType | RefType)[] = [];
       for (let j = 0; j < resultCount; j++) results.push(readValueType(this.r));
-      const def: TypeDef = { kind: 'func', params, results };
+      const def: TypeDef = { ...base, kind: 'func', sig: { params, results } };
       this.heapTypeDefs.push(def);
       // `funcTypes` mirrors the heap-type entry exactly — concrete typed
       // references included. It used to collapse them to AnyRef, which is what
@@ -1014,13 +1028,13 @@ class WasmParser {
       const fieldCount = this.r.readU32();
       const fields: FieldType[] = [];
       for (let j = 0; j < fieldCount; j++) fields.push(this.readFieldType());
-      this.heapTypeDefs.push({ kind: 'struct', fields });
+      this.heapTypeDefs.push({ ...base, kind: 'struct', fields });
       this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
     }
     if (tag === 0x5e) { // array type
-      const element = this.readFieldType();
-      this.heapTypeDefs.push({ kind: 'array', element });
+      const field = this.readFieldType();
+      this.heapTypeDefs.push({ ...base, kind: 'array', field });
       this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
     }
@@ -2740,7 +2754,7 @@ function decodeGcPrefix(
     case 0x0b: { // array.get $T
       const ti = r.readU32();
       const def = ctx.heapTypeDefs[ti];
-      const eft = (def?.kind === 'array') ? def.element : undefined;
+      const eft = (def?.kind === 'array') ? def.field : undefined;
       const rt: Type = eft ? (isRefType(eft.type) ? eft.type : eft.type as ValType) : ValType.I32;
       const idx = pop();
       const ref = pop();

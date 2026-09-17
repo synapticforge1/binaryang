@@ -43,8 +43,8 @@ import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 function structModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: 'struct', fields: [{ type: storage, mutable: true }] });
-  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ name: '', kind: 'struct', fields: [{ type: storage, mutable: true }] });
+  m.addHeapType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   m.addFunction(
     'read',
     [],
@@ -65,8 +65,8 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
 function arrayModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: 'array', element: { type: storage, mutable: true } });
-  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ name: '', kind: 'array', field: { type: storage, mutable: true } });
+  m.addHeapType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   m.addFunction(
     'read',
     [],
@@ -181,8 +181,8 @@ Deno.test('array.get_u survives a bare parse-encode round-trip', async () => {
 Deno.test('encoder throws on an out-of-range struct.get type index', () => {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: 'struct', fields: [{ type: 'i8', mutable: true }] });
-  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ name: '', kind: 'struct', fields: [{ type: 'i8', mutable: true }] });
+  m.addHeapType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   m.addFunction(
     'read',
     [],
@@ -202,8 +202,8 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
 Deno.test('encoder throws on an out-of-range struct.get field index', () => {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: 'struct', fields: [{ type: 'i8', mutable: true }] });
-  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ name: '', kind: 'struct', fields: [{ type: 'i8', mutable: true }] });
+  m.addHeapType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   m.addFunction(
     'read',
     [],
