@@ -291,10 +291,10 @@ class WatModuleParser {
   private memoryNames = new Map<string, number>();
   private tableNames = new Map<string, number>();
 
-  // GC type name → heapTypes index
+  // GC type name → types index
   private typeNames = new Map<string, number>();
 
-  // heapTypes index → its TypeDef. Backs struct.get/array.get result-type
+  // types index → its TypeDef. Backs struct.get/array.get result-type
   // resolution: without it those instructions hardcoded `i32`, mistyping any
   // non-i32 field/element in the built IR (valid output, but wrong `.type`
   // mis-drives type-sensitive passes).
@@ -2701,7 +2701,7 @@ class WatModuleParser {
       def = { name: declared, kind: 'func', sig: { params: ft.params, results: ft.results } };
     }
     if (def) {
-      const ti = this.builder.addHeapType(def);
+      const ti = this.builder.addType(def);
       this.heapTypeDefs.set(ti, def);
       if (name) {
         this.typeNames.set(name, ti);
@@ -2913,16 +2913,21 @@ class WatModuleParser {
       if (child.kind !== 'list' || listHead(child as SList) !== 'field') continue;
       const fChildren = listChildren(child as SList);
       let ci = 0;
-      // Skip optional field name
-      if (fChildren[ci]?.kind === 'atom' && atomText(fChildren[ci])?.startsWith('$')) ci++;
+      // The field's name, where the text gives one — it was SKIPPED, so
+      // `(field $x i32)` lost the `$x` (M5b).
+      let fieldName = '';
+      if (fChildren[ci]?.kind === 'atom' && atomText(fChildren[ci])?.startsWith('$')) {
+        fieldName = atomText(fChildren[ci]) ?? '';
+        ci++;
+      }
       // Check for (mut storageType)
       if (fChildren[ci]?.kind === 'list' && listHead(fChildren[ci] as SList) === 'mut') {
         const inner = listChildren(fChildren[ci] as SList)[0];
         const type = this.parseStorageTypeSExpr(inner);
-        fields.push({ type, mutable: true });
+        fields.push({ name: fieldName, type, mutable: true });
       } else if (fChildren[ci]) {
         const type = this.parseStorageTypeSExpr(fChildren[ci]);
-        fields.push({ type, mutable: false });
+        fields.push({ name: fieldName, type, mutable: false });
       }
     }
     return fields;
@@ -2934,9 +2939,9 @@ class WatModuleParser {
     // (array (mut storageType)) or (array storageType)
     if (children[0]?.kind === 'list' && listHead(children[0] as SList) === 'mut') {
       const inner = listChildren(children[0] as SList)[0];
-      return { type: this.parseStorageTypeSExpr(inner), mutable: true };
+      return { name: '', type: this.parseStorageTypeSExpr(inner), mutable: true };
     }
-    return { type: this.parseStorageTypeSExpr(children[0]), mutable: false };
+    return { name: '', type: this.parseStorageTypeSExpr(children[0]), mutable: false };
   }
 
   private parseStorageTypeSExpr(s: SExpr | undefined): StorageType {
@@ -3263,7 +3268,7 @@ class WatModuleParser {
         kind: 'func',
         sig: { params: u.params, results: u.results },
       };
-      this.heapTypeDefs.set(this.builder.addHeapType(def), def);
+      this.heapTypeDefs.set(this.builder.addType(def), def);
       have.add(key);
     }
   }

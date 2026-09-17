@@ -24,6 +24,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: `WasmModule.heapTypes` is `types`** (wabt-ts's name; S6 step 5 item 6 (M5b)), and
+  `ModuleBuilder.addHeapType` is `addType`. `FieldType` gains `name` (`''` where the module gave none).
+  Fixed with it: the WAT parser dropped a written field name.
 - ⚠️ **BREAKING: a type entry carries its `sub` and rec group** (wabt-ts's shape; S6 step 5 item 6
   (M5a)). `TypeDef` gains `name`, `sub?` and `recGroupSize?`; `FuncTypeDef.params` / `.results` are
   `sig.params` / `sig.results`, and `ArrayTypeDef.element` is `field`.

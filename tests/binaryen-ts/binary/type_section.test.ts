@@ -19,6 +19,12 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 
 function assemble(wat: string): Uint8Array {
@@ -67,7 +73,7 @@ describe('M5a — the type section comes back as it was', () => {
     const mod = parseWasm(
       assemble('(module (rec (type $p (sub (struct))) (type $c (sub $p (struct (field i32))))))'),
     );
-    const [p, c] = mod.heapTypes;
+    const [p, c] = mod.types;
     // The group is ONE section entry spanning two type indices, recorded on its
     // first member.
     assertEquals(p!.recGroupSize, 2);
@@ -80,12 +86,12 @@ describe('M5a — the type section comes back as it was', () => {
     // The bare comptype shorthand is not `(sub final)` with no supertypes: it is
     // one byte shorter, and writing one for the other changes the section.
     const mod = parseWasm(assemble('(module (type $s (struct (field i32))))'));
-    assertEquals(mod.heapTypes[0]!.sub, undefined);
+    assertEquals(mod.types[0]!.sub, undefined);
   });
 
   it('a function type holds its signature as `sig`', () => {
     const mod = parseWasm(assemble('(module (type $f (func (param i32) (result i64))))'));
-    const def = mod.heapTypes[0]!;
+    const def = mod.types[0]!;
     assert(def.kind === 'func');
     assertEquals(def.sig.params.length, 1);
     assertEquals(def.sig.results.length, 1);
@@ -93,9 +99,54 @@ describe('M5a — the type section comes back as it was', () => {
 
   it('an array type holds its element as `field`', () => {
     const mod = parseWasm(assemble('(module (type $a (array (mut i8))))'));
-    const def = mod.heapTypes[0]!;
+    const def = mod.types[0]!;
     assert(def.kind === 'array');
     assertEquals(def.field.mutable, true);
     assertEquals(def.field.type, 'i8');
+  });
+});
+
+describe('M5b — the module holds its own type table, and a field its name', () => {
+  it('a written field name is kept, mutable or not (the parser skipped it)', () => {
+    const mod = parseWat(
+      '(module (type $s (struct (field $x i32) (field $m (mut i64)) (field f32))))',
+    );
+    const def = mod.types[0]!;
+    assert(def.kind === 'struct');
+    assertEquals(def.fields.map((f) => [f.name, f.mutable]), [
+      ['$x', false],
+      ['$m', true],
+      ['', false],
+    ]);
+  });
+
+  it('the bridge carries a field name across', () => {
+    const { module, errors } = parseWatModule(
+      new LexerSource('(module (type $s (struct (field $x i32) (field $y (mut i64)))))', '<m5b>'),
+    );
+    assert(!hasErrors(errors), formatErrors(errors));
+    const errs = makeErrorList();
+    resolveNames(module, errs);
+    assert(!hasErrors(errs), formatErrors(errs));
+    const def = bridgeToBinaryen(module).types[0]!;
+    assert(def.kind === 'struct');
+    assertEquals(def.fields.map((f) => f.name), ['$x', '$y']);
+  });
+
+  it('a decoded field has no name of its own', () => {
+    // As in wabt-ts: the name section supplies field names, and inventing one
+    // here would be a name the module never had.
+    const mod = parseWasm(assemble('(module (type $s (struct (field i32))))'));
+    const def = mod.types[0]!;
+    assert(def.kind === 'struct');
+    assertEquals(def.fields.map((f) => f.name), ['']);
+  });
+
+  it('the table the module carries is the table written back', () => {
+    // Not re-derived: a module that declares a type nothing references still
+    // emits it, in its own order.
+    const bytes = assemble('(module (type $unused (func (param f64))) (func))');
+    assertEquals(typeSection(roundTrip(bytes)), typeSection(bytes));
+    assertEquals(parseWasm(bytes).types.length, 2);
   });
 });

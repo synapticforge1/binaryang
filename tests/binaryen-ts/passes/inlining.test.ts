@@ -58,7 +58,7 @@ function emptyModule(): WasmModule {
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,
-    heapTypes: [],
+    types: [],
     hasGC: false,
   };
 }

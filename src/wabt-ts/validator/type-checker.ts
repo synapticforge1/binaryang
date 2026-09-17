@@ -881,11 +881,11 @@ export class TypeChecker {
   private errorCallback: (msg: string) => void = () => {};
   readonly funcTypes: Map<number, FuncType>;
   /** Type-section entries, for defined-type subtyping. Filled as they decode. */
-  readonly heapTypes: Map<number, HeapTypeInfo>;
+  readonly types: Map<number, HeapTypeInfo>;
 
-  constructor(funcTypes: Map<number, FuncType>, heapTypes: Map<number, HeapTypeInfo>) {
+  constructor(funcTypes: Map<number, FuncType>, types: Map<number, HeapTypeInfo>) {
     this.funcTypes = funcTypes;
-    this.heapTypes = heapTypes;
+    this.types = types;
   }
 
   setErrorCallback(cb: (msg: string) => void): void {
@@ -1050,7 +1050,7 @@ export class TypeChecker {
     if (a === null || e === null) return Result.Error;
     // A nullable value cannot satisfy a non-nullable slot.
     if (a.nullable && !e.nullable) return Result.Error;
-    return heapSatisfies(a.heap, e.heap, this.heapTypes) ? Result.Ok : Result.Error;
+    return heapSatisfies(a.heap, e.heap, this.types) ? Result.Ok : Result.Error;
   }
 
   private popAndCheck1Type(expected: StackType, desc: string): Result {
@@ -1543,7 +1543,7 @@ export class TypeChecker {
    */
   private topHeapOf(h: Heap): Type | null {
     if (h.index !== undefined) {
-      const info = this.heapTypes.get(h.index);
+      const info = this.types.get(h.index);
       return info ? topOfAbstract(KIND_PARENT[info.kind]) : null;
     }
     return h.abstract === undefined ? null : topOfAbstract(h.abstract);

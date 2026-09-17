@@ -118,7 +118,7 @@ function summary(mod: WasmModule): Record<string, number> {
     memories: mod.memories.length,
     tags: mod.tags.length,
     elems: mod.elements.length,
-    types: mod.heapTypes.length,
+    types: mod.types.length,
     exprs,
   };
 }

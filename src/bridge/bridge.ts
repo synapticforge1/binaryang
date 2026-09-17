@@ -238,20 +238,22 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   for (let i = 0; i < module.types.length; i++) {
     const t = module.types[i]!;
     if (t.kind === 'struct') {
-      const heapIdx = b.addHeapType({
+      const heapIdx = b.addType({
         name: '',
         kind: 'struct',
         fields: t.fields.map((f) => ({
+          name: f.name,
           type: wabtFieldTypeToValType(f.type),
           mutable: f.mutable,
         })),
       });
       ctx.heapTypeIdx[i] = heapIdx;
     } else if (t.kind === 'array') {
-      const heapIdx = b.addHeapType({
+      const heapIdx = b.addType({
         name: '',
         kind: 'array',
         field: {
+          name: t.field.name,
           type: wabtFieldTypeToValType(t.field.type),
           mutable: t.field.mutable,
         },
@@ -263,7 +265,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   // Declare a `func` heap type for every function signature, but ONLY when the
   // module already has a struct/array heap type.
   //
-  // INTENT: binaryen-ts's encoder switches on `heapTypes.length > 0` -- once a
+  // INTENT: binaryen-ts's encoder switches on `types.length > 0` -- once a
   // module declares ANY heap type, EVERY function's type index is resolved by
   // `gcFuncTypeIndex`, which searches for a declared `func` entry matching the
   // signature exactly and throws `unresolved GC function type` when it finds
@@ -271,7 +273,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   // GC-typed signatures.
   //
   // The guard is load-bearing in the other direction: registering func types
-  // unconditionally would make `heapTypes` non-empty for EVERY module and
+  // unconditionally would make `types` non-empty for EVERY module and
   // switch non-GC modules onto the GC path as well. They must keep using
   // `getTypeIndex`.
   //
@@ -285,7 +287,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
       const key = JSON.stringify([p, r]);
       if (seen.has(key)) return;
       seen.add(key);
-      b.addHeapType({ name: '', kind: 'func', sig: { params: p, results: r } });
+      b.addType({ name: '', kind: 'func', sig: { params: p, results: r } });
     };
     for (const imp of module.imports) {
       if (imp.kind === ExternalKind.Func) declare(imp.func.sig.params, imp.func.sig.results);
@@ -728,7 +730,7 @@ function lookupStructFieldType(typeVar: Var, fieldVar: Var, ctx: BridgeCtx): Val
 
 /**
  * Map a struct/array field type to a binaryen-ts StorageType for use in
- * `addHeapType`. Packed i8/i16 are encoded as their own storage variants;
+ * `addType`. Packed i8/i16 are encoded as their own storage variants;
  * other types map to their ValType counterparts.
  */
 function wabtFieldTypeToValType(t: StorageType): ValType | 'i8' | 'i16' {
@@ -828,7 +830,7 @@ function heapTypeForBridge(h: HeapTypeRef, ctx: BridgeCtx): HeapType {
     );
   }
   // Index form — user-defined heap type; map through the up-front
-  // addHeapType registration in BridgeCtx.heapTypeIdx.
+  // addType registration in BridgeCtx.heapTypeIdx.
   return varIndex(resolveHeapTypeIdx(h, ctx));
 }
 

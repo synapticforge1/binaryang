@@ -493,7 +493,7 @@ Deno.test('if WITH INPUTS: the two arms do not share expression nodes', () => {
 // from the one the encoder's dedupe walk produces: the module declares
 // `() -> (i32 i32)` first, while the dedupe registers the function's own
 // `() -> (i32)` first. A parsed module carries its declared type list in
-// `heapTypes`, and that is the list the type section is emitted from — so
+// `types`, and that is the list the type section is emitted from — so
 // resolving the blocktype against the deduped table yielded a valid-but-wrong
 // index, and the block came out declaring one result while pushing two.
 //

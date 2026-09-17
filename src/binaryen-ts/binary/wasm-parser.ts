@@ -843,7 +843,7 @@ class WasmParser {
     const mod = this.builder.build();
     return {
       ...mod,
-      heapTypes: this.heapTypeDefs,
+      types: this.heapTypeDefs,
       hasGC: this.heapTypeDefs.length > 0,
       // Use the name `readTagSection` assigned, NOT a fresh `$tag${i}`:
       // with imported tags present the defined ones start above zero, and
@@ -977,7 +977,8 @@ class WasmParser {
   private readFieldType(): FieldType {
     const type = this.readStorageType();
     const mutable = this.r.readU8() !== 0;
-    return { type, mutable };
+    // No name of its own: the name section supplies one (M5b, as wabt-ts).
+    return { name: '', type, mutable };
   }
 
   private readTypeDef(): void {
