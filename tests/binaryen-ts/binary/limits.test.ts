@@ -86,10 +86,12 @@ describe('M2g — a table or memory keeps its limits through decode → encode',
 });
 
 describe('M2g — what cannot be held is refused, not dropped', () => {
-  it('a constant expression of two instructions', () => {
-    // `(table 1 i31ref (ref.i31 (i32.const 7)))`: `i32.const 7` `ref.i31` `end`.
-    const bytes = assemble('(module (table 1 i31ref (ref.i31 (i32.const 7))))');
-    assertThrows(() => parseWasm(bytes), WasmBinaryError, 'more than one instruction');
+  it('an element segment of a type the element model cannot hold', () => {
+    // externref entries: the model writes funcref back (M3 carries the type).
+    const bytes = assemble(
+      '(module (table 1 externref) (elem (table 0) (i32.const 0) externref (ref.null extern)))',
+    );
+    assertThrows(() => parseWasm(bytes), WasmBinaryError, 'element type externref');
   });
 
   it('an undefined limits flag bit', () => {

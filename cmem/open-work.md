@@ -67,10 +67,11 @@ typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
 1. ✅ **M2 — the last leaf: global. DONE 2026-09-17** — `init?` in both (an imported global has
    none); **M2 CLOSED**, ratchet **40 / 20 / 8**. Every leaf record now differs only in `loc` — settle it
    once for module records (M7 / M8). Record: ir-convergence.md § "M2h".
-2. **binaryen-ts: read a constant expression of MORE than one instruction** (capability; M2b's open
-   item). 43 spec binaries (extended-const, GC — `global.9`, `data.57`, `array.*`, `i31.*`) are now
-   REFUSED where they were silently truncated; the region already holds a sequence and the encoder
-   writes one. Could land before or alongside M3 — measure with `m2g_measure.ts`-style counts.
+2. ✅ **binaryen-ts reads a constant expression of any length. DONE 2026-09-17** — 53 spec binaries
+   refused → byte-identical, 0 regressions. It exposed a silent element-segment loss (typed element
+   types read as one byte), now REFUSED until M3 — which therefore carries element TYPES as well as
+   expression entries. Record: ir-convergence.md § "binaryen-ts reads a constant expression of any
+   length".
 3. **M3 — segments.** Data (`kind`, `memoryVar` against `passive` / `memory?: number`) and element
    (`kind`, `tableVar`, `elemType`, `elemExprs` against `table` / `data` / `mode`). ⚠️ binaryen-ts is
    missing EXPRESSION element entries ("unsupported element-segment expression opcode") — a fidelity

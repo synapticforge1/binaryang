@@ -275,6 +275,11 @@ their own bump — and nothing breaks by their standing still.
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
   spec binaries, some left invalid. Also now read, not refused: memory / table sizes past 2^32, table
   initializers; kept, not ignored: a custom page size.
+- **binaryen-ts reads constant expressions of more than one instruction** (S6 step 5 item 6,
+  2026-09-17): extended-const and GC initializers and offsets decode and round-trip byte for byte (53
+  spec binaries that were refused). Found on the way and fixed: an element segment with a typed
+  reference element type (`(ref $t)`, `externref`, …) was read with a ONE-byte type, and came back empty
+  or as `funcref` — silently; it is now refused until element types are carried.
 - **binaryen-ts no longer truncates a constant expression** (M2g). A global / offset / table
   initializer of more than one instruction (extended-const, GC) lost all but its first, silently; it is
   now refused (43 spec binaries) — reading them is still to come. An imported table64 is refused too.
