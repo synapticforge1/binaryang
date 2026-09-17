@@ -79,7 +79,10 @@ typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
 4. ✅ **M4 — imports: the union. DONE 2026-09-17** — each arm embeds its entity; imported table64 /
    page size / large sizes are read (22 more binaries round-trip). Imports are pinned in the ratchet
    for the first time. Record: ir-convergence.md § "M4 — an import embeds its entity".
-5. **M5 — the type section** (one `types` table, T1 / T2; the largest).
+5. ✅ **M5 — the type section. DONE 2026-09-17** — (a) entries keep their `sub` and rec groups (83
+   binaries fixed, 68 now byte-identical), (b) the module's table is `types` and a field carries its
+   name. Records: ir-convergence.md §§ "M5a", "M5b". ⚠️ Left: each side still has its own
+   `StorageType`, which is why a field, a struct and an array entry still differ.
 6. **M6 — functions** (`sig`, `typeVar` / `typeUse`, `body: RegionExpr`, locals — flat named list +
    grouping as form, recorded, not an owner call).
 7. **M7 — module metadata**, then **M8 — the alias, type derivation, and the bridge's deletion.**

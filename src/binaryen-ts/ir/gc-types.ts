@@ -82,7 +82,7 @@ export type AbstractHeapType = typeof AbstractHeapType[keyof typeof AbstractHeap
  * "third form", decided 2026-09-09). It was `AbstractHeapType | number`. Now:
  *
  * - `{ kind: 'abstract', name }` — one of the twelve built-ins;
- * - a `Var` — `{ kind: 'index', value }` into {@link WasmModule.heapTypes}, or
+ * - a `Var` — `{ kind: 'index', value }` into {@link WasmModule.types}, or
  *   a `{ kind: 'name', name }` not yet resolved.
  *
  * An OBJECT: never compare two with `===` (use `sameHeap`), never key a `Map`
@@ -148,6 +148,14 @@ export type ValueType = ValType | RefType;
  * A struct or array field declaration.
  */
 export interface FieldType {
+  /**
+   * The field's name — wabt-ts's `Field.name` (M5b). `''` where the module gave
+   * none; the name section supplies one for a decoded module.
+   *
+   * 🔧 The WAT parser SKIPPED a written field name, so `(field $x i32)` lost the
+   * `$x` with nowhere to report it.
+   */
+  name: string;
   /** The storage type of this field. */
   type: StorageType;
   /** Whether the field can be mutated after construction. */

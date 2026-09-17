@@ -390,7 +390,7 @@ export interface WasmModule {
   /** Whether the module uses the multi-memory proposal. */
   hasMultiMemory: boolean;
   /** User-defined heap types (struct, array, func) for the GC proposal. */
-  heapTypes: TypeDef[];
+  types: TypeDef[];
   /** Whether the module uses the GC proposal. */
   hasGC: boolean;
   /**
@@ -463,7 +463,7 @@ export interface CustomSection {
  * Entities are listed by the name they carry in the IR (after disambiguation),
  * so a pass that renames or removes one simply takes it out of the name section.
  * TYPES and their fields are keyed by the `TypeDef` OBJECT: the type section is
- * written from `heapTypes`, and a pass that rebuilds a type loses its name rather
+ * written from `types`, and a pass that rebuilds a type loses its name rather
  * than lending it to whatever takes its index.
  */
 export interface ExplicitNames {
@@ -533,7 +533,7 @@ export class ModuleBuilder {
   private _hasMemory64 = false;
   private _hasMultiMemory = false;
   private _hasGC = false;
-  private readonly _heapTypes: TypeDef[] = [];
+  private readonly _types: TypeDef[] = [];
 
   // -------------------------------------------------------------------------
   // Functions
@@ -908,22 +908,22 @@ export class ModuleBuilder {
    *
    * Calling this enables the GC proposal, which changes how the encoder emits
    * the type section: it stops deduplicating function signatures collected from
-   * the module and emits `heapTypes` verbatim instead. **Every function's own
+   * the module and emits `types` verbatim instead. **Every function's own
    * signature must therefore be declared here as a `{ kind: "func" }` entry**,
    * or `encodeWasm` throws `unresolved GC function type: () -> (i32)`.
    * `addFunction` alone is enough without GC and not enough with it:
    *
    * ```ts
-   * const t = m.addHeapType({ kind: "struct", fields: [{ type: "i8", mutable: true }] });
-   * m.addHeapType({ kind: "func", params: [], results: [ValType.I32] }); // required
+   * const t = m.addType({ kind: "struct", fields: [{ type: "i8", mutable: true }] });
+   * m.addType({ kind: "func", params: [], results: [ValType.I32] }); // required
    * m.addFunction("read", [], [ValType.I32], body);
    * ```
    *
    * @param def - The struct, array, or function type to declare.
    */
-  addHeapType(def: TypeDef): number {
-    const idx = this._heapTypes.length;
-    this._heapTypes.push(def);
+  addType(def: TypeDef): number {
+    const idx = this._types.length;
+    this._types.push(def);
     this._hasGC = true;
     return idx;
   }
@@ -933,7 +933,7 @@ export class ModuleBuilder {
    *
    * Note that this also puts the encoder into GC type-section mode, where each
    * function's signature must be declared explicitly via
-   * {@link ModuleBuilder.addHeapType} — see that method for details.
+   * {@link ModuleBuilder.addType} — see that method for details.
    */
   enableGC(): this {
     this._hasGC = true;
@@ -960,7 +960,7 @@ export class ModuleBuilder {
       exports: [...this._exports],
       tags: [...this._tags],
       start: this._start,
-      heapTypes: [...this._heapTypes],
+      types: [...this._types],
       hasExceptionHandling: this._hasEH,
       hasMemory64: this._hasMemory64,
       hasMultiMemory: this._hasMultiMemory,

@@ -86,7 +86,7 @@ function emptyModule(): WasmModule {
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,
-    heapTypes: [],
+    types: [],
     hasGC: false,
   };
 }
@@ -884,7 +884,7 @@ Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,
-    heapTypes: [],
+    types: [],
     hasGC: false,
   };
 
@@ -932,7 +932,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,
-    heapTypes: [],
+    types: [],
     hasGC: false,
   };
 
@@ -972,7 +972,7 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,
-    heapTypes: [],
+    types: [],
     hasGC: false,
   };
 

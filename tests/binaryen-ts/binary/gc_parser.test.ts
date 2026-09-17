@@ -165,9 +165,9 @@ const REF_TEST_MODULE = module(
 
 Deno.test('GC parser: struct type definition is decoded', () => {
   const mod = parseWasm(STRUCT_MODULE);
-  assertEquals(mod.heapTypes.length, 2);
+  assertEquals(mod.types.length, 2);
 
-  const structDef = mod.heapTypes[0];
+  const structDef = mod.types[0];
   assertEquals(structDef.kind, 'struct');
   if (structDef.kind !== 'struct') return;
   assertEquals(structDef.fields.length, 2);
@@ -177,9 +177,9 @@ Deno.test('GC parser: struct type definition is decoded', () => {
   assertEquals(structDef.fields[1].mutable, false);
 });
 
-Deno.test('GC parser: func type in heapTypes has RefType result', () => {
+Deno.test('GC parser: func type in types has RefType result', () => {
   const mod = parseWasm(STRUCT_MODULE);
-  const funcDef = mod.heapTypes[1];
+  const funcDef = mod.types[1];
   assertEquals(funcDef.kind, 'func');
   if (funcDef.kind !== 'func') return;
   assertEquals(funcDef.sig.params.length, 0);
@@ -206,9 +206,9 @@ Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr dire
 
 Deno.test('GC parser: array type definition is decoded', () => {
   const mod = parseWasm(ARRAY_MODULE);
-  assertEquals(mod.heapTypes.length, 2);
+  assertEquals(mod.types.length, 2);
 
-  const arrayDef = mod.heapTypes[0];
+  const arrayDef = mod.types[0];
   assertEquals(arrayDef.kind, 'array');
   if (arrayDef.kind !== 'array') return;
   assertEquals(arrayDef.field.type, ValType.I32);
@@ -246,9 +246,9 @@ Deno.test('GC encoder: struct module round-trips through encode+parse', () => {
   const mod = parseWasm(STRUCT_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
 
-  assertEquals(mod2.heapTypes.length, mod.heapTypes.length);
-  assertEquals(mod2.heapTypes[0].kind, 'struct');
-  assertEquals(mod2.heapTypes[1].kind, 'func');
+  assertEquals(mod2.types.length, mod.types.length);
+  assertEquals(mod2.types[0].kind, 'struct');
+  assertEquals(mod2.types[1].kind, 'func');
   assertEquals(mod2.functions.length, 1);
 });
 
@@ -256,7 +256,7 @@ Deno.test('GC encoder: struct fields preserved after round-trip', () => {
   const mod = parseWasm(STRUCT_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
 
-  const s0 = mod2.heapTypes[0];
+  const s0 = mod2.types[0];
   if (s0.kind !== 'struct') throw new Error('expected struct');
   assertEquals(s0.fields.length, 2);
   assertEquals(s0.fields[0].type, ValType.I32);
@@ -279,8 +279,8 @@ Deno.test('GC encoder: array module round-trips through encode+parse', () => {
   const mod = parseWasm(ARRAY_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
 
-  assertEquals(mod2.heapTypes.length, 2);
-  const a0 = mod2.heapTypes[0];
+  assertEquals(mod2.types.length, 2);
+  const a0 = mod2.types[0];
   if (a0.kind !== 'array') throw new Error('expected array');
   assertEquals(a0.field.type, ValType.I32);
   assertEquals(a0.field.mutable, true);
@@ -307,20 +307,20 @@ Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
 
 Deno.test('GC encoder: IR-built struct type encodes and parses', () => {
   const builder = new ModuleBuilder();
-  builder.addHeapType({
+  builder.addType({
     name: '',
     kind: 'struct',
     fields: [
-      { type: ValType.I32, mutable: false },
-      { type: ValType.F64, mutable: true },
+      { name: '', type: ValType.I32, mutable: false },
+      { name: '', type: ValType.F64, mutable: true },
     ],
   });
   const mod = builder.build();
-  assertEquals(mod.heapTypes.length, 1);
+  assertEquals(mod.types.length, 1);
 
   const mod2 = parseWasm(encodeWasm(mod));
-  assertEquals(mod2.heapTypes.length, 1);
-  const s = mod2.heapTypes[0];
+  assertEquals(mod2.types.length, 1);
+  const s = mod2.types[0];
   if (s.kind !== 'struct') throw new Error('expected struct');
   assertEquals(s.fields.length, 2);
   assertEquals(s.fields[0].type, ValType.I32);
@@ -331,16 +331,16 @@ Deno.test('GC encoder: IR-built struct type encodes and parses', () => {
 
 Deno.test('GC encoder: IR-built array type encodes and parses', () => {
   const builder = new ModuleBuilder();
-  builder.addHeapType({
+  builder.addType({
     name: '',
     kind: 'array',
-    field: { type: ValType.I64, mutable: true },
+    field: { name: '', type: ValType.I64, mutable: true },
   });
   const mod = builder.build();
 
   const mod2 = parseWasm(encodeWasm(mod));
-  assertEquals(mod2.heapTypes.length, 1);
-  const a = mod2.heapTypes[0];
+  assertEquals(mod2.types.length, 1);
+  const a = mod2.types[0];
   if (a.kind !== 'array') throw new Error('expected array');
   assertEquals(a.field.type, ValType.I64);
   assertEquals(a.field.mutable, true);

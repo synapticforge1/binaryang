@@ -26,6 +26,7 @@ import { assertEquals } from '@std/assert';
 
 import type * as W from '../../src/wabt-ts/ir/ir.ts';
 import type * as B from '../../src/binaryen-ts/ir/module.ts';
+import type * as BG from '../../src/binaryen-ts/ir/gc-types.ts';
 
 type Same<A, C> = [A] extends [C] ? ([C] extends [A] ? true : false) : false;
 type OnlyA<A, C> = Exclude<keyof A, keyof C>;
@@ -38,6 +39,10 @@ const pin = <A, C>(v: Same<A, C>): Same<A, C> => v;
 type ArmW<K extends W.Import['kind']> = Extract<W.Import, { kind: K }>;
 type ArmB<K extends B.WasmImport['kind']> = Extract<B.WasmImport, { kind: K }>;
 
+/** One shape of type entry, by its `kind` — the pair is compared shape by shape (M5). */
+type TypeW<K extends W.TypeEntry['kind']> = Extract<W.TypeEntry, { kind: K }>;
+type TypeB<K extends B.TypeDef['kind']> = Extract<B.TypeDef, { kind: K }>;
+
 /** The pinned sets, entity by entity — also what the count below reads. */
 const PINNED = {
   module: {
@@ -45,7 +50,6 @@ const PINNED = {
       'loc',
       'name',
       'filename',
-      'types',
       'funcs',
       'elemSegments',
       'customs',
@@ -67,7 +71,6 @@ const PINNED = {
       'hasExceptionHandling',
       'hasMemory64',
       'hasMultiMemory',
-      'heapTypes',
       'hasGC',
       'explicitNames',
       'hasDataCount',
@@ -81,6 +84,7 @@ const PINNED = {
       'globals',
       'tags',
       'dataSegments',
+      'types',
     ],
   },
   func: {
@@ -105,6 +109,13 @@ const PINNED = {
   importMemory: { onlyW: [], onlyB: [], differ: ['memory'] },
   importGlobal: { onlyW: [], onlyB: [], differ: ['global'] },
   importTag: { onlyW: [], onlyB: [], differ: ['tag'] },
+  // A type entry, by shape (M5). `loc` is wabt-ts's, as on every other record.
+  typeFunc: { onlyW: ['loc'], onlyB: [], differ: [] },
+  // A field's `type` is each side's own `StorageType` — the last value-type pair
+  // left unmerged, and what makes the struct / array entries differ too.
+  typeStruct: { onlyW: ['loc'], onlyB: [], differ: ['fields'] },
+  typeArray: { onlyW: ['loc'], onlyB: [], differ: ['field'] },
+  field: { onlyW: [], onlyB: [], differ: ['type'] },
 } as const;
 
 type P = typeof PINNED;
@@ -172,6 +183,22 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     pin<OnlyA<ArmB<3>, ArmW<3>>, Of<'importGlobal', 'onlyB'>>(true);
     pin<Differ<ArmW<3>, ArmB<3>>, Of<'importGlobal', 'differ'>>(true);
 
+    pin<OnlyA<TypeW<'func'>, TypeB<'func'>>, Of<'typeFunc', 'onlyW'>>(true);
+    pin<OnlyA<TypeB<'func'>, TypeW<'func'>>, Of<'typeFunc', 'onlyB'>>(true);
+    pin<Differ<TypeW<'func'>, TypeB<'func'>>, Of<'typeFunc', 'differ'>>(true);
+
+    pin<OnlyA<TypeW<'struct'>, TypeB<'struct'>>, Of<'typeStruct', 'onlyW'>>(true);
+    pin<OnlyA<TypeB<'struct'>, TypeW<'struct'>>, Of<'typeStruct', 'onlyB'>>(true);
+    pin<Differ<TypeW<'struct'>, TypeB<'struct'>>, Of<'typeStruct', 'differ'>>(true);
+
+    pin<OnlyA<TypeW<'array'>, TypeB<'array'>>, Of<'typeArray', 'onlyW'>>(true);
+    pin<OnlyA<TypeB<'array'>, TypeW<'array'>>, Of<'typeArray', 'onlyB'>>(true);
+    pin<Differ<TypeW<'array'>, TypeB<'array'>>, Of<'typeArray', 'differ'>>(true);
+
+    pin<OnlyA<W.Field, BG.FieldType>, Of<'field', 'onlyW'>>(true);
+    pin<OnlyA<BG.FieldType, W.Field>, Of<'field', 'onlyB'>>(true);
+    pin<Differ<W.Field, BG.FieldType>, Of<'field', 'differ'>>(true);
+
     pin<OnlyA<ArmW<4>, ArmB<4>>, Of<'importTag', 'onlyW'>>(true);
     pin<OnlyA<ArmB<4>, ArmW<4>>, Of<'importTag', 'onlyB'>>(true);
     pin<Differ<ArmW<4>, ArmB<4>>, Of<'importTag', 'differ'>>(true);
@@ -181,6 +208,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [34, 15, 13]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [36, 14, 17]);
   });
 });

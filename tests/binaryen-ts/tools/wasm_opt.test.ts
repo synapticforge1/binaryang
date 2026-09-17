@@ -62,7 +62,7 @@ function emptyModule(): WasmModule {
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,
-    heapTypes: [],
+    types: [],
     hasGC: false,
   };
 }
@@ -306,7 +306,7 @@ Deno.test('wasmOpt: empty module round-trips cleanly', async () => {
     hasExceptionHandling: false,
     hasMemory64: false,
     hasMultiMemory: false,
-    heapTypes: [],
+    types: [],
     hasGC: false,
   });
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 2 }));

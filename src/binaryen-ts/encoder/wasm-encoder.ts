@@ -503,16 +503,17 @@ class WasmEncoder {
   private memoryIndex = new Map<string, number>();
   private tagIndex = new Map<string, number>();
 
-  private types: FuncTypeEntry[] = [];
+  /** Signatures DERIVED and deduped for a module that carries no type table. */
+  private derivedTypes: FuncTypeEntry[] = [];
   private typeKeyToIndex = new Map<string, number>();
 
   /**
-   * Working copy of `mod.heapTypes` — the list the type section is emitted
+   * Working copy of `mod.types` — the list the type section is emitted
    * from in GC mode. It starts as a copy so a signature that only an
    * EXPRESSION needs (a multi-result block header) can be appended without
    * mutating the caller's module. See `ensureHeapFuncType`.
    */
-  private heapTypes: TypeDef[] = [];
+  private types: TypeDef[] = [];
 
   /**
    * Label names written so far, by function index — for the name section's
@@ -606,11 +607,11 @@ class WasmEncoder {
     signed: boolean | undefined,
     family: 'struct' | 'array',
   ): number {
-    const def = this.heapTypes[typeIndex];
+    const def = this.types[typeIndex];
     if (def === undefined) {
       throw new WasmEncodeError(
         `${family}.get: type index ${typeIndex} is out of range ` +
-          `(module declares ${this.heapTypes.length} heap types)`,
+          `(module declares ${this.types.length} heap types)`,
       );
     }
     if (def.kind !== family) {
@@ -859,9 +860,9 @@ class WasmEncoder {
     indirect(section, 3, [...this.labelNames].sort(([a], [b]) => a - b));
     // Types by the OBJECT they were read as: a type a pass rebuilt, or one the
     // encoder appended for an expression, has none. Only the GC-mode type
-    // section (`heapTypes`) is the decoder's own list; the derived one is not.
+    // section (`types`) is the decoder's own list; the derived one is not.
     const typeList: [number, string][] = [];
-    this.heapTypes.forEach((def, i) => {
+    this.types.forEach((def, i) => {
       const n = names.types.get(def);
       if (n !== undefined) typeList.push([i, n]);
     });
@@ -889,7 +890,7 @@ class WasmEncoder {
     indirect(
       section,
       10,
-      this.heapTypes.map((def, i) => [i, sorted(names.fields.get(def) ?? new Map())]),
+      this.types.map((def, i) => [i, sorted(names.fields.get(def) ?? new Map())]),
     );
     flat(section, 11, [...imports(ExternalKind.Tag), ...mod.tags.map((t) => t.name)], names.tags);
 
@@ -946,12 +947,12 @@ class WasmEncoder {
   // ---------------------------------------------------------------------------
 
   private collectTypes(): void {
-    this.heapTypes = [...this.mod.heapTypes];
+    this.types = [...this.mod.types];
     const addType = (params: ValueType[], results: ValueType[]): void => {
       const key = funcTypeKey(params, results);
       if (!this.typeKeyToIndex.has(key)) {
-        this.typeKeyToIndex.set(key, this.types.length);
-        this.types.push({ params, results });
+        this.typeKeyToIndex.set(key, this.derivedTypes.length);
+        this.derivedTypes.push({ params, results });
       }
     };
 
@@ -973,10 +974,10 @@ class WasmEncoder {
     for (const fn of this.mod.functions) {
       this.collectExprTypes(fn.body, (params, results) => {
         addType(params, results);
-        // In GC mode the emitted type section IS `this.heapTypes`, not the
-        // deduped `this.types` — so an expression-level signature has to
+        // In GC mode the emitted type section IS `this.types`, not the
+        // deduped `this.derivedTypes` — so an expression-level signature has to
         // exist THERE to be addressable by index.
-        if (this.heapTypes.length > 0) this.ensureHeapFuncType(params, results);
+        if (this.types.length > 0) this.ensureHeapFuncType(params, results);
       });
     }
   }
@@ -1058,19 +1059,19 @@ class WasmEncoder {
    * Resolves the type-section index for a multi-result block header.
    *
    * Which table that index addresses depends on which one `encodeTypeSection`
-   * emitted: `this.heapTypes` in GC mode, the deduped `this.types` otherwise.
+   * emitted: `this.types` in GC mode, the deduped `this.derivedTypes` otherwise.
    * Resolving against the wrong one yields a valid-but-wrong index — the same
    * class of bug that once retyped tag signatures (WT-2d). The two orderings
    * are unrelated, so they only coincide by luck.
    */
   private blockTypeIndex(results: ValueType[], params: ValueType[] = []): number {
-    return this.heapTypes.length > 0
+    return this.types.length > 0
       ? this.gcFuncTypeIndex(params, results)
       : this.getTypeIndex(params, results);
   }
 
   /**
-   * Returns the `this.heapTypes` index of `params -> results`, appending the
+   * Returns the `this.types` index of `params -> results`, appending the
    * entry when it is absent.
    *
    * A multi-result block header names a type-section entry, and the block may
@@ -1080,15 +1081,15 @@ class WasmEncoder {
    */
   private ensureHeapFuncType(params: ValueType[], results: ValueType[]): number {
     const want = funcTypeKey(params, results);
-    for (const [i, d] of this.heapTypes.entries()) {
+    for (const [i, d] of this.types.entries()) {
       if (d.kind === 'func' && funcTypeKey(d.sig.params, d.sig.results) === want) return i;
     }
-    this.heapTypes.push({
+    this.types.push({
       name: '',
       kind: 'func',
       sig: { params: [...params], results: [...results] },
     });
-    return this.heapTypes.length - 1;
+    return this.types.length - 1;
   }
 
   private getTypeIndex(params: ValueType[], results: ValueType[]): number {
@@ -1211,13 +1212,13 @@ class WasmEncoder {
    * How many entries {@link encodeTypeSection} will actually write.
    *
    * ⚠️ It must mirror that method's branch exactly. There are TWO lists — the
-   * GC `heapTypes` and the deduped `types` — and the section emits `heapTypes`
-   * when non-empty and `types` otherwise. Counting only `heapTypes` reported 0
+   * GC `types` and the deduped `types` — and the section emits `types`
+   * when non-empty and `types` otherwise. Counting only `types` reported 0
    * for every non-GC module and suppressed a section they needed, which showed
    * up as `type index 0 is out of range` across 81 tests.
    */
   private typeCount(): number {
-    return this.heapTypes.length > 0 ? this.heapTypes.length : this.types.length;
+    return this.types.length > 0 ? this.types.length : this.derivedTypes.length;
   }
 
   /** One entry's own form: its `sub` wrapper, if any, then its comptype. */
@@ -1253,12 +1254,12 @@ class WasmEncoder {
   }
 
   private encodeTypeSection(w: BinaryWriter): void {
-    if (this.heapTypes.length > 0) {
+    if (this.types.length > 0) {
       // The SECTION is a vector of rec groups, while the type INDEX space counts
       // entries: a 2-entry group is one vector slot and two indices (M5).
       const groups: { start: number; count: number; explicit: boolean }[] = [];
-      for (let i = 0; i < this.heapTypes.length;) {
-        const size = this.heapTypes[i]!.recGroupSize;
+      for (let i = 0; i < this.types.length;) {
+        const size = this.types[i]!.recGroupSize;
         if (size !== undefined) {
           groups.push({ start: i, count: size, explicit: true });
           i += Math.max(size, 1);
@@ -1274,12 +1275,12 @@ class WasmEncoder {
           w.writeU32(g.count);
         }
         for (let i = g.start; i < g.start + g.count; i++) {
-          this.encodeTypeDef(w, this.heapTypes[i]!);
+          this.encodeTypeDef(w, this.types[i]!);
         }
       }
     } else {
-      w.writeU32(this.types.length);
-      for (const { params, results } of this.types) {
+      w.writeU32(this.derivedTypes.length);
+      for (const { params, results } of this.derivedTypes) {
         w.writeU8(0x60);
         w.writeU32(params.length);
         for (const p of params) writeValueType(w, p);
@@ -1302,7 +1303,7 @@ class WasmEncoder {
   }
 
   /**
-   * Resolves a function signature to its index in `mod.heapTypes` (GC mode).
+   * Resolves a function signature to its index in `mod.types` (GC mode).
    *
    * This used to compare with every `RefType` collapsed to `AnyRef`, because
    * the binary parser stored ref-typed params/results as `AnyRef`. Two func
@@ -1314,7 +1315,7 @@ class WasmEncoder {
    */
   private gcFuncTypeIndex(params: ValueType[], results: ValueType[]): number {
     const want = funcTypeKey(params, results);
-    for (const [i, d] of this.heapTypes.entries()) {
+    for (const [i, d] of this.types.entries()) {
       if (d.kind !== 'func') continue;
       if (funcTypeKey(d.sig.params, d.sig.results) === want) return i;
     }
@@ -1332,7 +1333,7 @@ class WasmEncoder {
         case ExternalKind.Func: {
           w.writeU8(0x00);
           const { params, results } = imp.func;
-          const idx = this.heapTypes.length > 0
+          const idx = this.types.length > 0
             ? this.gcFuncTypeIndex(params, results)
             : this.getTypeIndex(params, results);
           w.writeU32(idx);
@@ -1359,10 +1360,10 @@ class WasmEncoder {
           w.writeU8(0x04);
           w.writeU8(0); // reserved attribute byte
           // Same GC-mode split as the defined-tag section: with heap types
-          // present the emitted type section IS `mod.heapTypes`, so an index
-          // into the deduped `this.types` would point at the wrong slot.
+          // present the emitted type section IS `mod.types`, so an index
+          // into the deduped `this.derivedTypes` would point at the wrong slot.
           const { params, results } = imp.tag.sig;
-          const idx = this.heapTypes.length > 0
+          const idx = this.types.length > 0
             ? this.gcFuncTypeIndex(params, results)
             : this.getTypeIndex(params, results);
           w.writeU32(idx);
@@ -1375,7 +1376,7 @@ class WasmEncoder {
   private encodeFunctionSection(w: BinaryWriter): void {
     w.writeU32(this.mod.functions.length);
     for (const fn of this.mod.functions) {
-      const idx = this.heapTypes.length > 0
+      const idx = this.types.length > 0
         ? this.gcFuncTypeIndex(fn.params, fn.results)
         : this.getTypeIndex(fn.params, fn.results);
       w.writeU32(idx);
@@ -1559,17 +1560,17 @@ class WasmEncoder {
     w.writeU32(this.mod.tags.length);
     for (const tag of this.mod.tags) {
       w.writeU8(0); // reserved attribute byte
-      // When `mod.heapTypes` is non-empty the emitted type section iterates
-      // `mod.heapTypes` directly (see `encodeTypeSection`), so an index into
+      // When `mod.types` is non-empty the emitted type section iterates
+      // `mod.types` directly (see `encodeTypeSection`), so an index into
       // it is the only correct reference. `getTypeIndex` looks up against
-      // the deduped `this.types` collection, whose ordering does NOT match
-      // `mod.heapTypes` when the input had extra (unused) type entries —
+      // the deduped `this.derivedTypes` collection, whose ordering does NOT match
+      // `mod.types` when the input had extra (unused) type entries —
       // pointing the tag at the wrong type slot. Imports and the function
       // section already switch via this same condition; the tag section was
       // the one site that didn't. (Surfaced by the wasmtk team's bug report
       // as "tag's type-index re-pointed to a different entry in the type
       // section after `RemoveUnusedModuleElements`".)
-      const idx = this.heapTypes.length > 0
+      const idx = this.types.length > 0
         ? this.gcFuncTypeIndex(tag.sig.params, tag.sig.results)
         : this.getTypeIndex(tag.sig.params, tag.sig.results);
       w.writeU32(idx);
@@ -2279,7 +2280,7 @@ class WasmEncoder {
         // different instruction for the same behaviour (T1).
         const ciIdx = e.typeVar !== undefined
           ? requireIndex(e.typeVar, e.kind)
-          : (this.heapTypes.length > 0
+          : (this.types.length > 0
             ? this.gcFuncTypeIndex(e.sig.params, e.sig.results)
             : this.getTypeIndex(e.sig.params, e.sig.results));
         w.writeU32(ciIdx);

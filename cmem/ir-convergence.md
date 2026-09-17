@@ -3427,6 +3427,20 @@ shorter than `(sub final)` with no supertypes, and the two must not be conflated
 `$typeN` would invent a name the module never had (caught in review of my own first draft). 8 mutants
 killed.
 
+**✅ M5b — the module's table is `types`; a field carries its name (2026-09-17). M5 CLOSED.**
+`heapTypes` → `types` (wabt-ts's name), `addHeapType` → `addType`, and the encoder's DERIVED deduped
+list — what it builds for a module carrying no table — is `derivedTypes`, so the two are no longer one
+word apart. `FieldType` gains `name`: 🔧 the WAT parser SKIPPED a written field name (`(field $x i32)`
+lost the `$x`) and the bridge had nowhere to carry wabt-ts's across. 🔧 **The rename recreated a
+defect the code's own comment records**: `typeCount()`'s two branches named the two tables, the rename
+collapsed them, and every non-GC module emitted an EMPTY type section — **127 tests caught it**, and
+the comment above that ternary already described the same failure from an earlier incarnation. Behaviour-
+neutral otherwise: baseline IDENTICAL, optimizer 0 of 2,105, corpus 0 improved / 0 worse. Ratchet
+**36 / 14 / 17** — `types` moves to `differ`, and the type entries are pinned shape by shape (func /
+struct / array / field). What is left there is ONE thing: each side still has its own `StorageType`, so
+a field's `type` differs and drags the struct and array entries with it — the last value-type pair
+unmerged, for M6 / M7.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was
