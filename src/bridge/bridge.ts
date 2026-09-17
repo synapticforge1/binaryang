@@ -335,13 +335,8 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
 
   for (let i = 0; i < module.memories.length; i++) {
     const m = module.memories[i]!;
-    b.addMemory(
-      ctx.memoryNames[memoryCursor + i]!,
-      limitToNumber(m.limits.initial, 'memory initial'),
-      m.limits.max === undefined ? null : limitToNumber(m.limits.max, 'memory maximum'),
-      m.limits.isShared,
-      m.limits.is64,
-    );
+    // The record itself (M2g): numbers dropped `pageSizeLog2`.
+    b.addMemory(ctx.memoryNames[memoryCursor + i]!, m.limits);
   }
 
   for (let i = 0; i < module.globals.length; i++) {
@@ -349,7 +344,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
   }
 
   for (let i = 0; i < module.tables.length; i++) {
-    bridgeTable(b, module.tables[i]!, ctx.tableNames[tableCursor + i]!);
+    bridgeTable(b, module.tables[i]!, ctx.tableNames[tableCursor + i]!, ctx);
   }
 
   for (let i = 0; i < module.tags.length; i++) {
@@ -441,12 +436,20 @@ function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): 
   });
 }
 
-function bridgeTable(b: ModuleBuilder, t: WabtModule['tables'][number], name: string): void {
+function bridgeTable(
+  b: ModuleBuilder,
+  t: WabtModule['tables'][number],
+  name: string,
+  ctx: BridgeCtx,
+): void {
+  // The limits record itself and the initializer (M2g): numbers dropped a
+  // table64's `is64`, and the initializer was not carried at all.
   b.addTable(
     name,
     wabtTypeToValType(t.elemType),
-    limitToNumber(t.limits.initial, 'table initial'),
-    t.limits.max === undefined ? null : limitToNumber(t.limits.max, 'table maximum'),
+    t.limits,
+    null,
+    t.init?.children.map((e) => bridgeExpr(e, ctx)),
   );
 }
 

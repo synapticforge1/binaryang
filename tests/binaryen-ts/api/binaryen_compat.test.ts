@@ -446,7 +446,11 @@ Deno.test('compat: Module.setMemory installs data segments without binding them 
   mod.setMemory(1, 1, null, [
     { offset: mod.i32.const(0), data: new Uint8Array([1, 2, 3]) },
   ]);
-  assertEquals(mod._inner.memories[0].shared, false);
+  assertEquals(mod._inner.memories[0].limits.isShared, false);
+  // And `shared` itself still reaches the record (M2g).
+  const shared = new binaryen.Module();
+  shared.setMemory(1, 1, null, [], true);
+  assertEquals(shared._inner.memories[0].limits.isShared, true);
   assertEquals(mod._inner.dataSegments.length, 1);
   assertEquals(Array.from(mod._inner.dataSegments[0].data), [1, 2, 3]);
 });

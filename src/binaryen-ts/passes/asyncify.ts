@@ -76,7 +76,13 @@ import {
   typeOf,
   UnaryOp,
 } from '../ir/expressions.ts';
-import type { Local, WasmFunction, WasmImport, WasmModule } from '../ir/module.ts';
+import {
+  limitsOf,
+  type Local,
+  type WasmFunction,
+  type WasmImport,
+  type WasmModule,
+} from '../ir/module.ts';
 import { None, type Type, typeToString, ValType } from '../ir/types.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { buildCFG, computeLiveness } from './cfg.ts';
@@ -279,13 +285,7 @@ export function synthesizeRuntimeSupport(
   // loads/stores against a nonexistent memory 0 (invalid, unvalidatable wasm).
   // TinyGo output always has a memory, so this is a robustness backstop.
   if (memoryCount === 0) {
-    module.memories.push({
-      name: '$__asyncify_memory',
-      initial: 1,
-      max: null,
-      shared: false,
-      is64: false,
-    });
+    module.memories.push({ name: '$__asyncify_memory', limits: limitsOf(1) });
   }
 
   // Globals: `__asyncify_state` and `__asyncify_data`, both mut i32.

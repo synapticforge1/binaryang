@@ -19,7 +19,11 @@ import {
   type GlobalSetExpr,
   type IfExpr,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
-import type { WasmFunction, WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import {
+  limitsOf,
+  type WasmFunction,
+  type WasmModule,
+} from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
@@ -63,7 +67,7 @@ function moduleWithImport(): WasmModule {
       } as any,
     }],
     globals: [],
-    memories: [{ name: '$mem', initial: 1, max: null, shared: false, is64: false }],
+    memories: [{ name: '$mem', limits: limitsOf(1) }],
     tables: [],
     tags: [],
     elements: [],
@@ -274,7 +278,7 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
 
 Deno.test('Asyncify Stage 1 — rejects multi-memory modules', () => {
   const m = moduleWithImport();
-  m.memories.push({ name: '$mem2', initial: 1, max: null, shared: false, is64: false });
+  m.memories.push({ name: '$mem2', limits: limitsOf(1) });
   assertThrows(
     () =>
       new AsyncifyPass().run(m, {

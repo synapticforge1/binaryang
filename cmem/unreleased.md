@@ -24,6 +24,11 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: a table or memory holds a `Limits` record** (wabt-ts's; S6 step 5 item 6 (M2g)).
+  `WasmMemory` `{ initial, max, shared, is64 }` is `{ limits }` — `initial` / `max?` as `bigint`, `isShared`,
+  `is64`, `pageSizeLog2?`; `WasmTable` `{ type, initial, max }` is `{ elemType, limits, init? }`. `max` is
+  ABSENT when unbounded, not `null`. `ModuleBuilder.addMemory` / `addTable` take a `Limits` or the old
+  numbers; new export `limitsOf`. Imports are unchanged (flat) for now.
 - ⚠️ **BREAKING (types): a custom section's `precedingSection` is optional** — `BinarySection | null`,
   absent when the position is not known (S6 step 5 item 6 (M2f)); such a section is written after
   every known section, as wabt-ts writes one.
@@ -263,6 +268,13 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
+  flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
+  spec binaries, some left invalid. Also now read, not refused: memory / table sizes past 2^32, table
+  initializers; kept, not ignored: a custom page size.
+- **binaryen-ts no longer truncates a constant expression** (M2g). A global / offset / table
+  initializer of more than one instruction (extended-const, GC) lost all but its first, silently; it is
+  now refused (43 spec binaries) — reading them is still to come. An imported table64 is refused too.
 - **wabt-ts keeps the `name` section where it was** (S6 step 5 item 6 (M2f)). A binary laid out `name`,
   then `producers` — clang's and rustc's layout — was written back with the name section moved last.
   (Names wabt-ts could not fully parse were already kept as bytes, in place.)
