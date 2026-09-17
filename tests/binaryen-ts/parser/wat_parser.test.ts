@@ -150,7 +150,7 @@ Deno.test('parseWat — export', () => {
     (export "add" (func $add)))`);
   assertEquals(mod.exports.length, 1);
   assertEquals(mod.exports[0].name, 'add');
-  assertEquals(mod.exports[0].value, '$add');
+  assertEquals(mod.exports[0].var, varName('$add'));
   // The standalone export descriptor keyword is `func`, but the IR kind must be
   // the canonical `function` (matching the binary parser / encoder / passes).
   // Regression: it used to pass `"func"` straight through.

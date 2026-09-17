@@ -27,7 +27,7 @@ import { asRegion, type RegionExpr, type RegionInput } from './expressions.ts';
 import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
-import type { FuncSignature } from '../../wabt-ts/ir/ir.ts';
+import { type FuncSignature, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
 export type { TypeDef } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -108,8 +108,13 @@ export interface WasmImport {
 export interface WasmExport {
   /** The name visible to the host. */
   name: string;
-  /** The internal name of the exported entity. */
-  value: string;
+  /**
+   * The exported entity — a NAME in this tree, as every reference a pass reads
+   * is (`requireName`); a `Var` so an index as written can be held too (S6
+   * step 5 item 6 (M2), wabt-ts's shape — the L1 / S2 precedent). It was
+   * `value: string`.
+   */
+  var: Var;
   /** Which kind of entity is being exported. */
   kind: 'function' | 'global' | 'table' | 'memory' | 'tag';
 }
@@ -686,7 +691,7 @@ export class ModuleBuilder {
     internalName: string,
     kind: WasmExport['kind'] = 'function',
   ): this {
-    this._exports.push({ name: externalName, value: internalName, kind });
+    this._exports.push({ name: externalName, var: varFromToken(internalName), kind });
     return this;
   }
 

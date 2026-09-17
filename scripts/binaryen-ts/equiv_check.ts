@@ -32,6 +32,7 @@ import * as ours from '../../src/binaryen-ts/api/binaryen-compat.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
+import { requireName } from '../../src/wabt-ts/ir/ir.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 
@@ -233,7 +234,7 @@ async function checkFile(rel: string): Promise<FileReport> {
 
   for (const exp of mod.exports) {
     if (exp.kind !== 'function' || ENTRY_POINTS.has(exp.name)) continue;
-    const sig = sigByName.get(exp.value);
+    const sig = sigByName.get(requireName(exp.var, 'export'));
     if (!sig) continue; // exported import, or unresolved
     if (sig.results.length > 1) continue;
     if (sig.results.some((t) => !NUMERIC.has(t as ValType))) continue;

@@ -122,7 +122,7 @@ Deno.test('tag import: an imported tag can be re-exported', () => {
   const exp = parsed.exports.find((e) => e.name === 'reexported');
   assert(exp !== undefined, 'tag export was dropped');
   assertEquals(exp.kind, 'tag');
-  assertEquals(exp.value, '$tag0');
+  assertEquals(exp.var, varName('$tag0'));
 });
 
 Deno.test('StripEH removes imported tags along with defined ones', () => {

@@ -319,7 +319,7 @@ function serializeToWat(mod: WasmModule): string {
   }
 
   for (const exp of mod.exports) {
-    lines.push(`  (export "${exp.name}" (${exp.kind} $${exp.value}))`);
+    lines.push(`  (export "${exp.name}" (${exp.kind} ${requireName(exp.var, 'export')}))`);
   }
 
   lines.push(')');

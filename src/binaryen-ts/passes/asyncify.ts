@@ -325,8 +325,12 @@ export function synthesizeRuntimeSupport(
       init: asRegion(makeI32Const(0)),
     });
     if (options.exportGlobals) {
-      module.exports.push({ name: '__asyncify_state', value: ASYNCIFY_STATE, kind: 'global' });
-      module.exports.push({ name: '__asyncify_data', value: ASYNCIFY_DATA, kind: 'global' });
+      module.exports.push({
+        name: '__asyncify_state',
+        var: varName(ASYNCIFY_STATE),
+        kind: 'global',
+      });
+      module.exports.push({ name: '__asyncify_data', var: varName(ASYNCIFY_DATA), kind: 'global' });
     }
   }
 
@@ -385,7 +389,9 @@ function addControlFunction(
     locals: [...params],
     body: asRegion(body),
   });
-  if (exported) module.exports.push({ name: hostName, value: internalName, kind: 'function' });
+  if (exported) {
+    module.exports.push({ name: hostName, var: varName(internalName), kind: 'function' });
+  }
 }
 
 // ---------------------------------------------------------------------------

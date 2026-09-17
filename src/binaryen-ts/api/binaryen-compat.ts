@@ -114,7 +114,7 @@ import {
 import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
 import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
-import { type BlockResult, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { type BlockResult, requireName, varFromToken, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { Opcode } from '../../wabt-ts/core/opcode.ts';
 
 // ---------------------------------------------------------------------------
@@ -1321,7 +1321,7 @@ export class Module {
     internalName: string,
     kind: WasmExport['kind'] = 'function',
   ): WasmExport {
-    const exp: WasmExport = { name: externalName, value: internalName, kind };
+    const exp: WasmExport = { name: externalName, var: varFromToken(internalName), kind };
     this._inner.exports.push(exp);
     return exp;
   }
@@ -1547,7 +1547,7 @@ export function getExportInfo(exp: WasmExport): ExportInfo {
   return {
     kind: _KIND_TO_ID[exp.kind],
     name: exp.name,
-    value: exp.value,
+    value: requireName(exp.var, 'export'),
   };
 }
 

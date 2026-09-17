@@ -1348,22 +1348,22 @@ class WasmEncoder {
       switch (exp.kind) {
         case 'function': {
           w.writeU8(0x00);
-          w.writeU32(this.resolveRef(this.funcIndex, varFromToken(exp.value), 'exported function'));
+          w.writeU32(this.resolveRef(this.funcIndex, exp.var, 'exported function'));
           break;
         }
         case 'table': {
           w.writeU8(0x01);
-          w.writeU32(this.resolveRef(this.tableIndex, varFromToken(exp.value), 'exported table'));
+          w.writeU32(this.resolveRef(this.tableIndex, exp.var, 'exported table'));
           break;
         }
         case 'memory': {
           w.writeU8(0x02);
-          w.writeU32(this.resolveRef(this.memoryIndex, varFromToken(exp.value), 'exported memory'));
+          w.writeU32(this.resolveRef(this.memoryIndex, exp.var, 'exported memory'));
           break;
         }
         case 'global': {
           w.writeU8(0x03);
-          w.writeU32(this.resolveRef(this.globalIndex, varFromToken(exp.value), 'exported global'));
+          w.writeU32(this.resolveRef(this.globalIndex, exp.var, 'exported global'));
           break;
         }
         case 'tag': {
@@ -1373,7 +1373,7 @@ class WasmEncoder {
           // export. (The matching `case 0x04` was also missing in the
           // parser, so tag exports never survived a round-trip.)
           w.writeU8(0x04);
-          w.writeU32(this.resolveRef(this.tagIndex, varFromToken(exp.value), 'exported tag'));
+          w.writeU32(this.resolveRef(this.tagIndex, exp.var, 'exported tag'));
           break;
         }
         default: {

@@ -43,6 +43,7 @@ import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
+import { requireName } from '../../src/wabt-ts/ir/ir.ts';
 
 /** The corpus both halves walk. */
 export const CORPUS = new URL('../../tests/wabt-ts/wasmtk/', import.meta.url);
@@ -265,7 +266,7 @@ export function check(file: string, wat: string): Row {
       bump('export is not a function');
       continue;
     }
-    const sig = sigByName.get(exp.value);
+    const sig = sigByName.get(requireName(exp.var, 'export'));
     if (!sig) {
       bump('signature not found (exported import?)');
       continue;
