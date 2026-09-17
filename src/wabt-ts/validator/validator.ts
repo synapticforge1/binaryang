@@ -364,8 +364,8 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
     for (const g of m.globals) checkVt(g.type, 'global', g.loc);
     for (const t of m.tables) checkVt(t.elemType, 'table', t.loc);
-    for (const el of m.elemSegments) checkVt(el.elemType, 'elem segment', el.loc);
-    for (const f of m.funcs) {
+    for (const el of m.elements) checkVt(el.elemType, 'elem segment', el.loc);
+    for (const f of m.functions) {
       for (const p of f.sig.params) checkVt(p, 'param', f.loc);
       for (const r of f.sig.results) checkVt(r, 'result', f.loc);
       for (const l of f.locals.slice(f.sig.params.length)) checkVt(l.type, 'local', f.loc);
@@ -420,7 +420,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
 
     // Defined functions (type registration only; bodies come later)
-    for (const func of m.funcs) {
+    for (const func of m.functions) {
       this.acc(this.sv.onFunction(func.loc, varIdx(func.typeVar)));
     }
 
@@ -470,7 +470,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
 
     // Elem segments
-    for (const elem of m.elemSegments) {
+    for (const elem of m.elements) {
       this.acc(this.sv.onElemSegment(elem.loc, varIdx(elem.tableVar), elem.kind));
       this.acc(this.sv.onElemSegmentElemType(elem.loc, elem.elemType));
       if (elem.kind === 'active') {
@@ -495,7 +495,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     // Function bodies
     const visitor = new ExprVisitor(this);
     let globalFuncIdx = m.numFuncImports;
-    for (const func of m.funcs) {
+    for (const func of m.functions) {
       this.acc(this.sv.beginFunctionBody(func.loc, globalFuncIdx++));
       // One declaration per slot: the shared validator counts locals, and the
       // grouping the binary used is the writer's business (M6c).

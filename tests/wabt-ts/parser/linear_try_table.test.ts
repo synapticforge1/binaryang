@@ -67,7 +67,7 @@ describe('T10.6 — linear try_table keeps its catch clauses and its body', () =
 
     // The try_table produces the i32 the `return` carries, so it lands in the
     // return's operand slot rather than standing alone in the block body.
-    const outer = module.funcs[0]!.body.children[0]!;
+    const outer = module.functions[0]!.body.children[0]!;
     assertEquals(outer.kind, 'block');
     const ret = (outer as unknown as { children: { kind: string }[] }).children[0]!;
     assertEquals(ret.kind, 'return');
@@ -88,7 +88,9 @@ describe('T10.6 — linear try_table keeps its catch clauses and its body', () =
           end
         end))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const outer = module.funcs[0]!.body.children[0]! as unknown as { children: { kind: string }[] };
+    const outer = module.functions[0]!.body.children[0]! as unknown as {
+      children: { kind: string }[];
+    };
     const tt = outer.children[0]! as unknown as { kind: string; catches: unknown[] };
     assertEquals(tt.kind, 'try_table');
     assertEquals(tt.catches.length, 2);
@@ -141,7 +143,9 @@ describe('T10.6 — linear try_table keeps its catch clauses and its body', () =
           (return))
         (i32.const 3)))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const outer = module.funcs[0]!.body.children[0]! as unknown as { children: { kind: string }[] };
+    const outer = module.functions[0]!.body.children[0]! as unknown as {
+      children: { kind: string }[];
+    };
     const ret = outer.children[0]! as unknown as { kind: string; values: { kind: string }[] };
     assertEquals(ret.kind, 'return');
     assertEquals(ret.values[0]!.kind, 'try_table');
@@ -162,7 +166,7 @@ describe('T10.6 — array.new_fixed takes its immediate count, not the stack', (
         global.set $g))`);
     assert(!hasErrors(errors), formatErrors(errors));
 
-    const body = module.funcs[0]!.body.children;
+    const body = module.functions[0]!.body.children;
     const drop = body.find((e) => e.kind === 'drop');
     assert(drop, 'expected the drop to survive');
     const anf = (drop as unknown as { value: { kind: string; operands: unknown[] } }).value;

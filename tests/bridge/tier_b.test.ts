@@ -94,7 +94,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
     const m = makeModule();
     m.types.push({ kind: 'func', name: '', sig: sigG, loc: LOC });
     m.types.push({ kind: 'func', name: '', sig: sigF, loc: LOC });
-    m.funcs.push({
+    m.functions.push({
       name: 'g',
       loc: LOC,
       typeVar: varIndex(0),
@@ -109,7 +109,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
       elemType: Type.FuncRef,
       limits: { initial: 1n, max: 1n, isShared: false, is64: false },
     });
-    m.funcs.push({
+    m.functions.push({
       name: 'f',
       loc: LOC,
       typeVar: varIndex(1),

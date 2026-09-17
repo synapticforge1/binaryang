@@ -70,7 +70,7 @@ function walk(mod: Module, visit: (e: Expr) => void): void {
       else if (v && typeof v === 'object') go(v);
     }
   };
-  for (const f of mod.funcs) for (const e of f.body.children) go(e);
+  for (const f of mod.functions) for (const e of f.body.children) go(e);
 }
 
 function selectsOf(mod: Module): SelectExpr[] {
@@ -259,7 +259,7 @@ describe('S3 — all four families, recorded and consistent across the corpus', 
       const mod = readBinaryIr(asm.binary, makeErrorList());
       resolveNames(mod);
 
-      for (const f of mod.funcs) {
+      for (const f of mod.functions) {
         checked++;
         const recorded = mod.fidelity.get(f.nodeId);
         if (recorded === undefined) bad.push(`${entry.name}: func lost its entry`);
@@ -281,7 +281,9 @@ describe('S3 — all four families, recorded and consistent across the corpus', 
       parsed.module.fidelity.size >= 4,
       `expected >= 4 entries, got ${parsed.module.fidelity.size}`,
     );
-    for (const f of parsed.module.funcs) assert(f.nodeId !== undefined, 'parser must id its funcs');
+    for (const f of parsed.module.functions) {
+      assert(f.nodeId !== undefined, 'parser must id its funcs');
+    }
     for (const sel of selectsOf(parsed.module)) {
       assert(sel.nodeId !== undefined, 'parser must id its selects');
       assert(parsed.module.fidelity.get(sel.nodeId) !== undefined, 'and record an entry');

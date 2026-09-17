@@ -127,11 +127,11 @@ class ResolveContext {
         result = combine(result, this.resolveFunc(imp.func));
       }
     }
-    for (const func of this.module.funcs) {
+    for (const func of this.module.functions) {
       result = combine(result, this.resolveFunc(func));
     }
 
-    for (const seg of this.module.elemSegments) {
+    for (const seg of this.module.elements) {
       // The active-segment table reference can be a named, non-zero table
       // (`(elem (table $t) …)`); resolve it or the writer emits index 0.
       seg.tableVar = this.resolveTableVar(seg.tableVar);
@@ -170,7 +170,7 @@ class ResolveContext {
         funcIdx++;
       }
     }
-    for (const [i, f] of this.module.funcs.entries()) {
+    for (const [i, f] of this.module.functions.entries()) {
       if (f.name) this.funcScope.bind(f.name, this.module.numFuncImports + i);
     }
 
@@ -218,7 +218,7 @@ class ResolveContext {
       if (t.name) this.tagScope.bind(t.name, this.module.numTagImports + i);
     }
 
-    for (const [i, s] of this.module.elemSegments.entries()) {
+    for (const [i, s] of this.module.elements.entries()) {
       if (s.name) this.elemSegScope.bind(s.name, i);
     }
     for (const [i, s] of this.module.dataSegments.entries()) {
@@ -265,7 +265,7 @@ class ResolveContext {
       else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
       else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
     }
-    for (const f of this.module.funcs) {
+    for (const f of this.module.functions) {
       sig(f.sig);
       // `(func $f (type $t) …)` names a type. This used to be hidden because
       // synthesizeTypes overwrote `typeVar` with a structurally-matched index
@@ -278,7 +278,7 @@ class ResolveContext {
     for (const t of this.module.tags) sig(t.sig);
     for (const g of this.module.globals) g.type = vt(g.type);
     for (const t of this.module.tables) t.elemType = vt(t.elemType);
-    for (const seg of this.module.elemSegments) seg.elemType = vt(seg.elemType);
+    for (const seg of this.module.elements) seg.elemType = vt(seg.elemType);
   }
 
   private resolveFunc(func: Func): Result {

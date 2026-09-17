@@ -68,7 +68,7 @@ function unresolvedAfterResolve(body: string): string[] {
   const errs = makeErrorList();
   resolveNames(module, errs);
   // The exported function is the last one defined.
-  return nameVars(module.funcs[module.funcs.length - 1]!.body.children);
+  return nameVars(module.functions[module.functions.length - 1]!.body.children);
 }
 
 const NAMED_OPERAND: [string, string][] = [

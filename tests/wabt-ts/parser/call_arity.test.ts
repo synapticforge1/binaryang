@@ -85,7 +85,7 @@ describe('T10.5 — a call takes its own arity, not the whole stack', () => {
     const { module, errors } = parseWatModule(STORE_AFTER_CALL);
     assert(!hasErrors(errors), formatErrors(errors));
 
-    const store = module.funcs[1]!.body.children[0]!;
+    const store = module.functions[1]!.body.children[0]!;
     assertEquals(store.kind, 'store');
     // The address is the i32.const, not a Nop stand-in.
     assertEquals((store as unknown as { address: { kind: string } }).address.kind, 'const');
@@ -112,7 +112,7 @@ describe('T10.5 — a call takes its own arity, not the whole stack', () => {
       (func $late (param f64 f64) (result i32) (i32.const 1)))`);
     assert(!hasErrors(errors), formatErrors(errors));
 
-    const store = module.funcs[0]!.body.children[0]!;
+    const store = module.functions[0]!.body.children[0]!;
     assertEquals((store as unknown as { address: { kind: string } }).address.kind, 'const');
   });
 
@@ -127,7 +127,7 @@ describe('T10.5 — a call takes its own arity, not the whole stack', () => {
         i32.store)
       (func (param f64 f64) (result i32) (i32.const 1)))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const store = module.funcs[0]!.body.children[0]!;
+    const store = module.functions[0]!.body.children[0]!;
     assertEquals((store as unknown as { address: { kind: string } }).address.kind, 'const');
   });
 
@@ -166,7 +166,7 @@ describe('T10.5 — a call takes its own arity, not the whole stack', () => {
         (local.set $a)
         (local.get $a)))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const setB = module.funcs[1]!.body.children.find((e) => e.kind === 'local.set');
+    const setB = module.functions[1]!.body.children.find((e) => e.kind === 'local.set');
     assert(setB);
     assertEquals((setB as unknown as { value: { kind: string } }).value.kind, 'call');
   });
@@ -179,7 +179,7 @@ describe('T10.5 — a call takes its own arity, not the whole stack', () => {
         (local.set $l (local.get $p))
         (local.get $l)))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const set = module.funcs[0]!.body.children[0]!;
+    const set = module.functions[0]!.body.children[0]!;
     const v = (set as unknown as { var: { kind: string; value?: number } }).var;
     assertEquals(v.kind, 'index');
     assertEquals(v.value, 1);

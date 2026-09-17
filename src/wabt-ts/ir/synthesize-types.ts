@@ -71,7 +71,7 @@ export function makeTypeInterner(module: Module): (sig: FuncSignature) => number
 }
 
 /**
- * Walk `module.imports`, `module.funcs`, and `module.tags`; ensure that
+ * Walk `module.imports`, `module.functions`, and `module.tags`; ensure that
  * `module.types` contains a `func`-kind entry matching each item's
  * signature, and update each item's `typeVar` to point at the matching
  * type index.
@@ -112,7 +112,7 @@ export function synthesizeTypes(module: Module): void {
     }
   }
 
-  for (const f of module.funcs) settle(f);
+  for (const f of module.functions) settle(f);
 
   for (const tag of module.tags) {
     const idx = ensureTypeFor(tag.sig);
@@ -142,7 +142,7 @@ export function synthesizeTypes(module: Module): void {
       return Result.Ok;
     },
   });
-  for (const f of module.funcs) collector.visitExprList(f.body.children);
+  for (const f of module.functions) collector.visitExprList(f.body.children);
 
   for (const item of pending) {
     const p = item.typeUse;

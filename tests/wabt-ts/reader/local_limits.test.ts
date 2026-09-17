@@ -69,7 +69,7 @@ describe("a function's declared locals", () => {
   it('a modest count is materialized, one slot per local', () => {
     const { m, errors } = read(moduleDeclaring(3));
     assert(!hasErrors(errors), formatErrors(errors));
-    assertEquals(m.funcs[0]!.locals.length, 3);
+    assertEquals(m.functions[0]!.locals.length, 3);
   });
 
   it("a count past the decoder's limit is refused, not allocated", () => {

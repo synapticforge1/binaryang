@@ -174,7 +174,7 @@ describe('makeModule', () => {
   it('produces a zero-filled module', () => {
     const m = makeModule();
     assertEquals(m.types.length, 0);
-    assertEquals(m.funcs.length, 0);
+    assertEquals(m.functions.length, 0);
     assertEquals(m.imports.length, 0);
     assertEquals(m.exports.length, 0);
     assertEquals(m.numFuncImports, 0);
@@ -185,7 +185,7 @@ describe('makeModule', () => {
   it('totalFuncs = imports + defined', () => {
     const m = makeModule();
     m.numFuncImports = 2;
-    m.funcs.push(makeFuncBody([]));
+    m.functions.push(makeFuncBody([]));
     assertEquals(totalFuncs(m), 3);
   });
 
@@ -338,11 +338,11 @@ describe('ExprVisitor', () => {
 describe('generateNames', () => {
   it('generates numeric names by default (with leading $)', () => {
     const m = makeModule();
-    m.funcs.push(makeFuncBody([]));
-    m.funcs.push(makeFuncBody([]));
+    m.functions.push(makeFuncBody([]));
+    m.functions.push(makeFuncBody([]));
     generateNames(m);
-    assertEquals(m.funcs[0]?.name, '$f0');
-    assertEquals(m.funcs[1]?.name, '$f1');
+    assertEquals(m.functions[0]?.name, '$f0');
+    assertEquals(m.functions[1]?.name, '$f1');
   });
 
   it('names a label NESTED inside a block, and every construct between', () => {
@@ -360,7 +360,7 @@ describe('generateNames', () => {
     };
     const outer: Expr = { kind: 'block', label: '', type: 'none', children: [loop], loc: LOC };
     const m = makeModule();
-    m.funcs.push(makeFuncBody([outer]));
+    m.functions.push(makeFuncBody([outer]));
     generateNames(m);
     const labels = [outer, loop, inner].map((e) => (e as { label: string }).label);
     assertEquals(labels, ['$B0', '$B1', '$B2']);
@@ -379,7 +379,7 @@ describe('generateNames', () => {
       loc: LOC,
     };
     const m = makeModule();
-    m.funcs.push(makeFuncBody([ife]));
+    m.functions.push(makeFuncBody([ife]));
     generateNames(m);
     const labels = [ife, inThen, inElse].map((e) => (e as { label: string }).label);
     assertEquals(labels, ['$B0', '$B1', '$B2']);
@@ -389,9 +389,9 @@ describe('generateNames', () => {
     const m = makeModule();
     const f = makeFuncBody([]);
     f.name = 'my_func';
-    m.funcs.push(f);
+    m.functions.push(f);
     generateNames(m);
-    assertEquals(m.funcs[0]?.name, 'my_func');
+    assertEquals(m.functions[0]?.name, 'my_func');
   });
 
   it('generates global names', () => {
@@ -410,9 +410,9 @@ describe('generateNames', () => {
 
   it('AlphaNames option uses alpha scheme (with $ + namespace prefix)', () => {
     const m = makeModule();
-    m.funcs.push(makeFuncBody([]));
+    m.functions.push(makeFuncBody([]));
     generateNames(m, NameOpts.AlphaNames);
-    assertEquals(m.funcs[0]?.name, '$fa');
+    assertEquals(m.functions[0]?.name, '$fa');
   });
 });
 
@@ -425,7 +425,7 @@ describe('resolveNames', () => {
     const m = makeModule();
     const callee = makeFuncBody([]);
     callee.name = 'add';
-    m.funcs.push(callee);
+    m.functions.push(callee);
 
     const callExpr: Expr = {
       kind: 'call',
@@ -434,14 +434,14 @@ describe('resolveNames', () => {
       loc: LOC,
     };
     const caller = makeFuncBody([callExpr]);
-    m.funcs.push(caller);
+    m.functions.push(caller);
 
     const errors = makeErrorList();
     const r = resolveNames(m, errors);
     assertEquals(r, Result.Ok);
     assertEquals(hasErrors(errors), false);
 
-    const resolved = m.funcs[1]?.body.children[0];
+    const resolved = m.functions[1]?.body.children[0];
     assertExists(resolved);
     if (resolved.kind === 'call') {
       assertEquals(resolved.func.kind, 'index');
@@ -457,7 +457,7 @@ describe('resolveNames', () => {
       operands: [],
       loc: LOC,
     };
-    m.funcs.push(makeFuncBody([callExpr]));
+    m.functions.push(makeFuncBody([callExpr]));
 
     const errors = makeErrorList();
     const r = resolveNames(m, errors);
@@ -468,19 +468,19 @@ describe('resolveNames', () => {
 
   it('index vars pass through unchanged', () => {
     const m = makeModule();
-    m.funcs.push(makeFuncBody([]));
+    m.functions.push(makeFuncBody([]));
     const callExpr: Expr = {
       kind: 'call',
       func: varIndex(0),
       operands: [],
       loc: LOC,
     };
-    m.funcs.push(makeFuncBody([callExpr]));
+    m.functions.push(makeFuncBody([callExpr]));
 
     const errors = makeErrorList();
     const r = resolveNames(m, errors);
     assertEquals(r, Result.Ok);
-    const resolved = m.funcs[1]?.body.children[0];
+    const resolved = m.functions[1]?.body.children[0];
     assertExists(resolved);
     if (resolved.kind === 'call' && resolved.func.kind === 'index') {
       assertEquals(resolved.func.value, 0);

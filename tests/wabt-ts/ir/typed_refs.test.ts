@@ -73,7 +73,7 @@ describe('typed refs survive as concrete types in the IR', () => {
       '(module (type $a (array (mut i32))) (func (param (ref null $a))))',
     );
     assert(!hasErrors(errors), formatErrors(errors));
-    const p = module.funcs[0]!.sig.params[0]!;
+    const p = module.functions[0]!.sig.params[0]!;
     assert(isRefValueType(p), `expected a concrete typed ref, got ${JSON.stringify(p)}`);
     assertEquals(p.nullable, true);
     assertEquals(p.heapType.kind === 'name' ? p.heapType.name : '', '$a');
@@ -83,7 +83,7 @@ describe('typed refs survive as concrete types in the IR', () => {
     const { module } = parseWatModule(
       '(module (type $a (array (mut i32))) (func (param (ref $a))))',
     );
-    const p = module.funcs[0]!.sig.params[0]!;
+    const p = module.functions[0]!.sig.params[0]!;
     assert(isRefValueType(p));
     assertEquals(p.nullable, false);
   });
@@ -92,7 +92,7 @@ describe('typed refs survive as concrete types in the IR', () => {
     // The abstract nullable form IS funcref; keeping it concrete would emit
     // two bytes where one is correct.
     const { module } = parseWatModule('(module (func (param (ref null func))))');
-    assertEquals(module.funcs[0]!.sig.params[0], Type.FuncRef);
+    assertEquals(module.functions[0]!.sig.params[0], Type.FuncRef);
   });
 });
 

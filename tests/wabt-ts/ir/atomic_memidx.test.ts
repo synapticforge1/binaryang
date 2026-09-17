@@ -58,7 +58,7 @@ function memidxAfterResolve(instr: string) {
   assert(!hasErrors(errors), formatErrors(errors));
   const errs = makeErrorList();
   resolveNames(module, errs);
-  return findMemidx(module.funcs[0]!.body.children[0]);
+  return findMemidx(module.functions[0]!.body.children[0]);
 }
 
 const NAMED_SECOND_MEMORY: [string, string][] = [

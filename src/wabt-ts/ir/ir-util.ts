@@ -105,7 +105,7 @@ export class ModuleContext {
         tagArity.push(imp.tag.sig.params.length);
       }
     }
-    for (const f of module.funcs) funcSigs.push(f.sig);
+    for (const f of module.functions) funcSigs.push(f.sig);
     for (const t of module.tags) tagArity.push(t.sig.params.length);
     this.funcSigsByIndex = funcSigs;
     this.tagArityByIndex = tagArity;

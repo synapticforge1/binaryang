@@ -164,7 +164,7 @@ describe('writeWatModule — imports', () => {
 describe('writeWatModule — functions', () => {
   it('writes an empty void function', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({}));
+    m.functions.push(makeFunc({}));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(func');
     assertStringIncludes(wat, '(;0;)');
@@ -172,7 +172,7 @@ describe('writeWatModule — functions', () => {
 
   it('writes function with params and result', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({ params: [Type.I32, Type.I32], results: [Type.I32] }));
+    m.functions.push(makeFunc({ params: [Type.I32, Type.I32], results: [Type.I32] }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(param i32 i32)');
     assertStringIncludes(wat, '(result i32)');
@@ -180,14 +180,14 @@ describe('writeWatModule — functions', () => {
 
   it('writes a named function', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({ name: '$add' }));
+    m.functions.push(makeFunc({ name: '$add' }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '$add');
   });
 
   it('writes i32.const instruction', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({
+    m.functions.push(makeFunc({
       results: [Type.I32],
       body: [{ kind: 'const', value: constI32(42), loc: LOC }],
     }));
@@ -198,7 +198,7 @@ describe('writeWatModule — functions', () => {
 
   it('writes i64.const instruction', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({
+    m.functions.push(makeFunc({
       results: [Type.I64],
       body: [{ kind: 'const', value: constI64(0x123456789an), loc: LOC }],
     }));
@@ -210,7 +210,7 @@ describe('writeWatModule — functions', () => {
   it('writes f32.const instruction', () => {
     const m = makeModule();
     // bit pattern for 1.0f: 0x3f800000
-    m.funcs.push(makeFunc({
+    m.functions.push(makeFunc({
       results: [Type.F32],
       body: [{ kind: 'const', value: constF32(0x3f800000), loc: LOC }],
     }));
@@ -224,7 +224,7 @@ describe('writeWatModule — functions', () => {
     const left: Expr = { kind: 'local.get', var: varIndex(0), loc: LOC };
     const right: Expr = { kind: 'local.get', var: varIndex(1), loc: LOC };
     const add: Expr = { kind: 'binary', opcode: Opcode.I32Add, left, right, loc: LOC };
-    m.funcs.push(makeFunc({
+    m.functions.push(makeFunc({
       params: [Type.I32, Type.I32],
       results: [Type.I32],
       body: [add],
@@ -240,7 +240,7 @@ describe('writeWatModule — functions', () => {
     const left: Expr = { kind: 'local.get', var: varIndex(0), loc: LOC };
     const right: Expr = { kind: 'local.get', var: varIndex(1), loc: LOC };
     const add: Expr = { kind: 'binary', opcode: Opcode.I32Add, left, right, loc: LOC };
-    m.funcs.push(makeFunc({
+    m.functions.push(makeFunc({
       params: [Type.I32, Type.I32],
       results: [Type.I32],
       body: [add],
@@ -261,14 +261,14 @@ describe('writeWatModule — functions', () => {
 
   it('writes nop instruction', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({ body: [{ kind: 'nop', loc: LOC }] }));
+    m.functions.push(makeFunc({ body: [{ kind: 'nop', loc: LOC }] }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, 'nop');
   });
 
   it('writes unreachable instruction', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({ body: [{ kind: 'unreachable', loc: LOC }] }));
+    m.functions.push(makeFunc({ body: [{ kind: 'unreachable', loc: LOC }] }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, 'unreachable');
   });
@@ -282,7 +282,7 @@ describe('writeWatModule — functions', () => {
       children: [{ kind: 'nop', loc: LOC }],
       loc: LOC,
     };
-    m.funcs.push(makeFunc({ body: [block] }));
+    m.functions.push(makeFunc({ body: [block] }));
     // LINEAR explicitly. This asserts a property only the linear form has --
     // operands emitted before their consumer, and an explicit `end` -- and
     // output has been folded by default since 1.5.4. Folded, the same module
@@ -307,7 +307,7 @@ describe('writeWatModule — functions', () => {
       ifFalse: null,
       loc: LOC,
     };
-    m.funcs.push(makeFunc({ body: [ifExpr] }));
+    m.functions.push(makeFunc({ body: [ifExpr] }));
     // LINEAR explicitly. This asserts a property only the linear form has --
     // operands emitted before their consumer, and an explicit `end` -- and
     // output has been folded by default since 1.5.4. Folded, the same module
@@ -334,7 +334,7 @@ describe('writeWatModule — functions', () => {
       ifFalse: region([unr], LOC),
       loc: LOC,
     };
-    m.funcs.push(makeFunc({ params: [Type.I32], body: [ifExpr] }));
+    m.functions.push(makeFunc({ params: [Type.I32], body: [ifExpr] }));
     // LINEAR explicitly. This asserts a property only the linear form has --
     // operands emitted before their consumer, and an explicit `end` -- and
     // output has been folded by default since 1.5.4. Folded, the same module
@@ -350,8 +350,8 @@ describe('writeWatModule — functions', () => {
 
   it('writes call instruction', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({}));
-    m.funcs.push(makeFunc({
+    m.functions.push(makeFunc({}));
+    m.functions.push(makeFunc({
       body: [{ kind: 'call', func: varIndex(0), operands: [], loc: LOC }],
     }));
     const wat = writeWatModule(m);
@@ -425,7 +425,7 @@ describe('writeWatModule — memories', () => {
 describe('writeWatModule — exports', () => {
   it('writes a standalone export when inlineExport=false', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({}));
+    m.functions.push(makeFunc({}));
     m.exports.push({ name: 'main', kind: ExternalKind.Func, var: varIndex(0) });
     const wat = writeWatModule(m, { inlineExport: false });
     assertStringIncludes(wat, '(export "main"');
@@ -434,7 +434,7 @@ describe('writeWatModule — exports', () => {
 
   it('writes inline export when inlineExport=true', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({}));
+    m.functions.push(makeFunc({}));
     m.exports.push({ name: 'main', kind: ExternalKind.Func, var: varIndex(0) });
     const wat = writeWatModule(m, { inlineExport: true });
     // inline export appears inside the func declaration
@@ -446,7 +446,7 @@ describe('writeWatModule — exports', () => {
 
   it('standalone export does not appear when inlined', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({}));
+    m.functions.push(makeFunc({}));
     m.exports.push({ name: 'run', kind: ExternalKind.Func, var: varIndex(0) });
     const wat = writeWatModule(m, { inlineExport: true });
     // The standalone (export "run" (func ...)) form should NOT appear
@@ -462,7 +462,7 @@ describe('writeWatModule — exports', () => {
 describe('writeWatModule — start', () => {
   it('writes a start function', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({}));
+    m.functions.push(makeFunc({}));
     m.start = varIndex(0);
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(start');
@@ -515,7 +515,7 @@ describe('writeWatModule — data segments', () => {
 describe('writeWatModule — element segments', () => {
   it('writes an active elem segment with func shorthand', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({}));
+    m.functions.push(makeFunc({}));
     m.tables.push(makeTable(1n));
     const refExpr: Expr = { kind: 'ref.func', func: varIndex(0), loc: LOC };
     const seg: ElemSegment = {
@@ -527,7 +527,7 @@ describe('writeWatModule — element segments', () => {
       elemType: Type.FuncRef,
       elemExprs: [region([refExpr], LOC)],
     };
-    m.elemSegments.push(seg);
+    m.elements.push(seg);
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(elem');
     assertStringIncludes(wat, 'func');
@@ -552,7 +552,7 @@ describe('writeWatModule — memory instructions', () => {
       address: addr,
       loc: LOC,
     };
-    m.funcs.push(makeFunc({ params: [Type.I32], results: [Type.I32], body: [load] }));
+    m.functions.push(makeFunc({ params: [Type.I32], results: [Type.I32], body: [load] }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, 'i32.load');
     // natural alignment should not produce an `align=` keyword
@@ -572,7 +572,7 @@ describe('writeWatModule — memory instructions', () => {
       address: addr,
       loc: LOC,
     };
-    m.funcs.push(makeFunc({ params: [Type.I32], results: [Type.I32], body: [load] }));
+    m.functions.push(makeFunc({ params: [Type.I32], results: [Type.I32], body: [load] }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, 'i32.load');
     assertStringIncludes(wat, 'align=1');
@@ -591,7 +591,7 @@ describe('writeWatModule — memory instructions', () => {
       address: addr,
       loc: LOC,
     };
-    m.funcs.push(makeFunc({ params: [Type.I32], results: [Type.I32], body: [load] }));
+    m.functions.push(makeFunc({ params: [Type.I32], results: [Type.I32], body: [load] }));
     const wat = writeWatModule(m);
     assertStringIncludes(wat, 'offset=8');
   });
@@ -611,7 +611,7 @@ describe('writeWatModule — section ordering', () => {
       func: makeFunc({}),
     });
     m.numFuncImports = 1;
-    m.funcs.push(makeFunc({ name: '$defined' }));
+    m.functions.push(makeFunc({ name: '$defined' }));
     const wat = writeWatModule(m);
     const importIdx = wat.indexOf('(import');
     const definedIdx = wat.indexOf('$defined');
@@ -620,7 +620,7 @@ describe('writeWatModule — section ordering', () => {
 
   it('emits exports after funcs', () => {
     const m = makeModule();
-    m.funcs.push(makeFunc({ name: '$f' }));
+    m.functions.push(makeFunc({ name: '$f' }));
     m.exports.push({ name: 'f', kind: ExternalKind.Func, var: varName('$f') });
     const wat = writeWatModule(m, { inlineExport: false });
     const funcIdx = wat.indexOf('$f');

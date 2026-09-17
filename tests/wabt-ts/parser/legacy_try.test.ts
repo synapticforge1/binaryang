@@ -39,7 +39,7 @@ import type { Expr, Func, TryExpr } from '../../../src/wabt-ts/ir/ir.ts';
 function definedFuncs(wat: string): Func[] {
   const { module, errors } = parseWatModule(wat);
   if (hasErrors(errors)) throw new Error(`parse:\n${formatErrors(errors)}`);
-  return module.funcs.slice(module.numFuncImports);
+  return module.functions.slice(module.numFuncImports);
 }
 
 function findTry(body: Expr[]): TryExpr {

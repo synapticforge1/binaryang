@@ -145,7 +145,7 @@ describe('multi-memory — name resolution', () => {
     );
     assert(!hasErrors(errors), formatErrors(errors));
     resolveNames(module, errors);
-    const e = module.funcs[0]!.body.children.find((x) => x.kind === 'memory.size');
+    const e = module.functions[0]!.body.children.find((x) => x.kind === 'memory.size');
     assert(e && e.kind === 'memory.size');
     // $b is memory index 1 — an unresolved name-var would still be 'name'
     // here and the writer would reject it.
@@ -194,7 +194,7 @@ describe('SIMD lane ops — memidx vs lane disambiguation', () => {
     const { module, errors } = parseWatModule(wat);
     if (hasErrors(errors)) throw new Error(formatErrors(errors));
     resolveNames(module, errors);
-    const e = module.funcs[0]!.body.children.find((x) => x.kind === 'simd.load_store_lane') as
+    const e = module.functions[0]!.body.children.find((x) => x.kind === 'simd.load_store_lane') as
       | SimdLoadLaneExpr
       | undefined;
     assert(e, 'expected a simd_load_lane');

@@ -26,7 +26,7 @@
  * wrong twice, both times by claiming a throw where the bridge stayed silent —
  * GC instructions ARE bridged (`struct.*`, `array.*`, and the heap types
  * registered above), and element segments and the start function were SILENTLY
- * DROPPED until 2026-09-15: `module.elemSegments` and `module.start` were never
+ * DROPPED until 2026-09-15: `module.elements` and `module.start` were never
  * read, so a bridged module's tables were empty (every `call_indirect` trapped
  * with "null function") and a start function never ran. Invisible to
  * `deno task bridge`, which compiles the result and never runs it. Both are
@@ -299,7 +299,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
       // `unresolved GC function type`. Green for the wrong reason.
       else if (imp.kind === ExternalKind.Tag) declare(imp.tag.sig.params, imp.tag.sig.results);
     }
-    for (const f of module.funcs) declare(f.sig.params, f.sig.results);
+    for (const f of module.functions) declare(f.sig.params, f.sig.results);
     for (const t of module.tags) declare(t.sig.params, t.sig.results);
     // A BLOCKTYPE spelled as a type index needs its func entry declared as
     // well. A block whose result is `(ref $T)` has no other spelling -- wabt's
@@ -356,11 +356,11 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
     bridgeTag(b, module.tags[i]!, ctx.tagNames[tagCursor + i]!, ctx);
   }
 
-  for (let i = 0; i < module.funcs.length; i++) {
-    bridgeFunc(b, module.funcs[i]!, ctx, ctx.funcNames[funcCursor + i]!);
+  for (let i = 0; i < module.functions.length; i++) {
+    bridgeFunc(b, module.functions[i]!, ctx, ctx.funcNames[funcCursor + i]!);
   }
 
-  for (const seg of module.elemSegments) bridgeElemSegment(b, seg, ctx);
+  for (const seg of module.elements) bridgeElemSegment(b, seg, ctx);
 
   for (const seg of module.dataSegments) bridgeDataSegment(b, seg, ctx);
 
@@ -392,7 +392,7 @@ function limitToNumber(v: bigint, what: string): number {
 /**
  * An element segment — the table's contents.
  *
- * 🔧 `module.elemSegments` was never read, so every bridged module's tables
+ * 🔧 `module.elements` was never read, so every bridged module's tables
  * were EMPTY. That validates (an empty table is a valid table) and traps at run
  * time with "null function" on the first `call_indirect` through it — invisible
  * to `deno task bridge`, which compiles and never runs. Exactly the defect
@@ -532,7 +532,7 @@ function makeRootCtx(module: WabtModule): BridgeCtx {
       tagNames.push(imp.tag.name);
     }
   }
-  for (const f of module.funcs) {
+  for (const f of module.functions) {
     funcNames.push(f.name);
     funcSigs.push(f.sig);
   }

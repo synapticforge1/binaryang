@@ -119,7 +119,7 @@ export function applyNames(module: Module, names: ModuleNames): Result {
   }
 
   // Defined funcs
-  for (const [i, func] of module.funcs.entries()) {
+  for (const [i, func] of module.functions.entries()) {
     const n = names.funcNames.get(module.numFuncImports + i);
     if (n) func.name = n;
   }
@@ -155,7 +155,7 @@ export function applyNames(module: Module, names: ModuleNames): Result {
   }
 
   // Segments
-  for (const [i, seg] of module.elemSegments.entries()) {
+  for (const [i, seg] of module.elements.entries()) {
     const n = names.elemSegmentNames.get(i);
     if (n) seg.name = n;
   }
@@ -175,7 +175,7 @@ export function applyNames(module: Module, names: ModuleNames): Result {
       applyFuncIdx++;
     }
   }
-  for (const [i, func] of module.funcs.entries()) {
+  for (const [i, func] of module.functions.entries()) {
     rewriteFuncVars(func, module.numFuncImports + i, ctx);
   }
 
@@ -185,7 +185,7 @@ export function applyNames(module: Module, names: ModuleNames): Result {
   }
 
   // Segment offsets
-  for (const seg of module.elemSegments) {
+  for (const seg of module.elements) {
     if (seg.offset) rewriteExprListVars(seg.offset.children, ctx);
     for (const elemExpr of seg.elemExprs) rewriteExprListVars(elemExpr.children, ctx);
   }

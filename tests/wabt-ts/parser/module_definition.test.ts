@@ -74,7 +74,7 @@ describe('(module definition …)', () => {
     const script = parseScript('(module definition $M (func) (func) (memory 1))');
     const cmd = script.commands[0];
     assert(cmd && cmd.kind === 'module' && cmd.scriptModule.kind === 'definition');
-    assertEquals(cmd.scriptModule.module.funcs.length, 2);
+    assertEquals(cmd.scriptModule.module.functions.length, 2);
     assertEquals(cmd.scriptModule.module.memories.length, 1);
   });
 });

@@ -76,7 +76,7 @@ describe('T7.12 — br_on_null carries branch values', () => {
         (block $l (result i32)
           (return (call_ref $t (br_on_null $l (local.get $n) (local.get $r)))))))`);
     assert(!hasErrors(errors), formatErrors(errors));
-    const body = module.funcs[0]!.body.children;
+    const body = module.functions[0]!.body.children;
     // block > return > call_ref > br_on_null
     const block = body[0]!;
     assert(block.kind === 'block');

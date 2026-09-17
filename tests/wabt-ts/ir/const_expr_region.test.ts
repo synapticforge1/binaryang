@@ -78,12 +78,12 @@ Deno.test('a passive segment and an imported global carry no expression at all',
       ' (data "x") (elem funcref (ref.func $f)) (global i32 (i32.const 7)))',
   );
   assertEquals('offset' in m.dataSegments[0]!, false);
-  assertEquals('offset' in m.elemSegments[0]!, false);
+  assertEquals('offset' in m.elements[0]!, false);
   const imported = m.imports[0]!;
   assert(imported.kind === ExternalKind.Global);
   assertEquals('init' in imported.global, false);
   assertEquals(m.globals[0]!.init?.children.map((e) => e.kind), ['const']);
-  assertEquals(m.elemSegments[0]!.elemExprs.map((r) => r.kind), ['region']);
+  assertEquals(m.elements[0]!.elemExprs.map((r) => r.kind), ['region']);
 });
 
 Deno.test('the writer refuses an ACTIVE segment with no offset rather than inventing one', () => {
@@ -169,7 +169,7 @@ Deno.test('a passive segment read from BINARY has no offset field', () => {
     0x01,
     0x78,
   ]);
-  assertEquals('offset' in m.elemSegments[0]!, false);
+  assertEquals('offset' in m.elements[0]!, false);
   assertEquals('offset' in m.dataSegments[0]!, false);
   roundTrips(bytes, m);
 });

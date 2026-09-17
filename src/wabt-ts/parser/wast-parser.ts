@@ -2020,7 +2020,7 @@ export class WastParser {
     // runs it, different answer (T12.2).
     let firstDefKind: string | null = null;
     const defCount = (): number =>
-      module.funcs.length + module.tables.length + module.memories.length +
+      module.functions.length + module.tables.length + module.memories.length +
       module.globals.length + module.tags.length;
 
     while (this.peekIsModuleField()) {
@@ -2037,7 +2037,7 @@ export class WastParser {
         this.error(loc, `import after ${firstDefKind}`);
       }
       if (firstDefKind === null && defCount() > defsBefore) {
-        firstDefKind = module.funcs.length > 0
+        firstDefKind = module.functions.length > 0
           ? 'function'
           : module.tables.length > 0
           ? 'table'
@@ -2129,13 +2129,13 @@ export class WastParser {
           break;
       }
     }
-    for (const f of module.funcs) bind('func', f.name, f.loc);
+    for (const f of module.functions) bind('func', f.name, f.loc);
     for (const t of module.tables) bind('table', t.name, t.loc);
     for (const mem of module.memories) bind('memory', mem.name, mem.loc);
     for (const g of module.globals) bind('global', g.name, g.loc);
     for (const tag of module.tags) bind('tag', tag.name, tag.loc);
     for (const t of module.types) bind('type', t.name, t.loc);
-    for (const e of module.elemSegments) bind('elem', e.name, e.loc);
+    for (const e of module.elements) bind('elem', e.name, e.loc);
     for (const d of module.dataSegments) bind('data', d.name, d.loc);
 
     // Struct field names are scoped to their own type, not to the module.
@@ -2188,7 +2188,7 @@ export class WastParser {
     for (const imp of module.imports) {
       if (imp.kind === ExternalKind.Func) record(imp.func.name, imp.func.sig.params.length);
     }
-    for (const f of module.funcs) record(f.name, f.sig.params.length);
+    for (const f of module.functions) record(f.name, f.sig.params.length);
     this.funcParamCounts = counts;
     this.funcParamCountsByName = byName;
 
@@ -2314,7 +2314,7 @@ export class WastParser {
 
     const data = this.parseTextList();
     if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
-    module.customs.push({ name, data, loc, precedingSection });
+    module.customSections.push({ name, data, loc, precedingSection });
     return Result.Ok;
   }
 
@@ -2612,7 +2612,7 @@ export class WastParser {
     }
     this.drop();
     const name = this.parseBindVarOpt();
-    const funcIdx = module.numFuncImports + module.funcs.length;
+    const funcIdx = module.numFuncImports + module.functions.length;
 
     // Inline exports
     while (this.matchLpar(TokenType.Export)) {
@@ -2715,7 +2715,7 @@ export class WastParser {
         body: region([], loc),
         tailcall: false,
       };
-      module.funcs.push(func);
+      module.functions.push(func);
       this.pendingBodies.push({ func, scope, pos: bodyPos, endPos: bodyEnd });
     }
 
@@ -2951,7 +2951,7 @@ export class WastParser {
           value: is64 ? constI64(0n) : constI32(0),
           loc,
         } as ConstExpr;
-        module.elemSegments.push({
+        module.elements.push({
           name: '',
           kind: 'active',
           tableVar: varIndex(tableIdx),
@@ -3161,7 +3161,7 @@ export class WastParser {
     this.expect(TokenType.Rpar);
 
     if (kind === 'active') {
-      module.elemSegments.push({
+      module.elements.push({
         name,
         kind,
         tableVar,
@@ -3171,7 +3171,7 @@ export class WastParser {
         loc,
       });
     } else if (kind === 'declared') {
-      module.elemSegments.push({
+      module.elements.push({
         name,
         kind,
         tableVar: varIndex(0),
@@ -3180,7 +3180,7 @@ export class WastParser {
         loc,
       });
     } else {
-      module.elemSegments.push({
+      module.elements.push({
         name,
         kind: 'passive',
         tableVar: varIndex(0),
@@ -5362,7 +5362,7 @@ export class WastParser {
     // Functions and tags interleave in the text; their source offsets say how.
     // (`sort` is stable, so items without a location keep their array order.)
     const defs: ({ offset: number; func: Func } | { offset: number; sig: FuncSignature })[] = [
-      ...module.funcs.map((func) => ({ offset: func.loc.offset, func })),
+      ...module.functions.map((func) => ({ offset: func.loc.offset, func })),
       ...module.tags.map((tag) => ({ offset: tag.loc.offset, sig: tag.sig })),
     ].sort((a, b) => a.offset - b.offset);
     for (const d of defs) {

@@ -126,7 +126,7 @@ describe('each try_table catch clause is its two bits, on every path', () => {
     it(`${c.name}: the text parser`, () => {
       const { module, errors } = parseWatModule(c.wat);
       assert(!hasErrors(errors), formatErrors(errors));
-      const [clause] = tryTableOf(module.funcs[0]!.body.children).catches;
+      const [clause] = tryTableOf(module.functions[0]!.body.children).catches;
       assertEquals(shapeOf(clause!), expected);
     });
 
@@ -139,7 +139,7 @@ describe('each try_table catch clause is its two bits, on every path', () => {
       const errors = makeErrorList();
       const module = readBinaryIr(compile(c.wat), errors);
       assert(!hasErrors(errors), formatErrors(errors));
-      const [clause] = tryTableOf(module.funcs[0]!.body.children).catches;
+      const [clause] = tryTableOf(module.functions[0]!.body.children).catches;
       assertEquals(shapeOf(clause!), expected);
     });
 

@@ -177,7 +177,7 @@ describe('T13.41 — custom sections keep their position', () => {
     const errors = makeErrorList();
     const m = readBinaryIr(BASE, errors, { readDebugNames: false });
     expect(hasErrors(errors)).toBe(false);
-    m.customs.push({
+    m.customSections.push({
       name: 'handmade',
       data: new Uint8Array([1, 2]),
       loc: { filename: '<test>', line: 0, column: 0, offset: 0 },
@@ -215,8 +215,8 @@ describe('M2f — the name section is generated at its place', () => {
 
   it("the names are the IR's, and the customs hold the section's place", () => {
     const m = read(NAMED);
-    expect(m.funcs[0]!.name).toEqual('$f');
-    expect(m.customs.map((c) => [c.name, c.data === null])).toEqual([
+    expect(m.functions[0]!.name).toEqual('$f');
+    expect(m.customSections.map((c) => [c.name, c.data === null])).toEqual([
       ['name', true],
       ['producers', false],
     ]);
@@ -237,7 +237,7 @@ describe('M2f — the name section is generated at its place', () => {
 
   it('a payload-less custom that is not the name section is refused', () => {
     const m = read(NAMED);
-    m.customs.push({ name: 'producers2', data: null, loc: m.customs[0]!.loc });
+    m.customSections.push({ name: 'producers2', data: null, loc: m.customSections[0]!.loc });
     expect(() => writeBinaryIr(m)).toThrow('custom section "producers2" has no payload');
   });
 });

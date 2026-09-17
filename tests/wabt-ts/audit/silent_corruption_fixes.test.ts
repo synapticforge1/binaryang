@@ -63,7 +63,7 @@ function validateWat(wat: string): boolean {
 }
 
 function firstFuncBody(m: Module): Expr[] {
-  const f = m.funcs[0];
+  const f = m.functions[0];
   assert(f !== undefined, 'expected a defined function');
   return f.body.children;
 }
@@ -177,11 +177,11 @@ describe('#4 call_ref sigType resolution', () => {
       body: region([callRef], LOC),
       tailcall: false,
     };
-    module.funcs.push(func);
+    module.functions.push(func);
 
     resolveNames(module);
 
-    const resolved = module.funcs[0]!.body.children[0] as CallRefExpr;
+    const resolved = module.functions[0]!.body.children[0] as CallRefExpr;
     assertEquals(resolved.sigType.kind, 'index');
     assertEquals((resolved.sigType as { value: number }).value, 1);
   });
@@ -316,7 +316,7 @@ describe('#9 applyNames local.get', () => {
       ], LOC),
       tailcall: false,
     };
-    module.funcs.push(func);
+    module.functions.push(func);
     module.types.push({
       kind: 'func',
       name: '',
@@ -329,7 +329,7 @@ describe('#9 applyNames local.get', () => {
 
     applyNames(module, names);
 
-    const lg = module.funcs[0]!.body.children[0] as { var: { kind: string; value?: number } };
+    const lg = module.functions[0]!.body.children[0] as { var: { kind: string; value?: number } };
     assertEquals(lg.var.kind, 'index');
     assertEquals(lg.var.value, 0);
   });
@@ -351,7 +351,7 @@ describe('#10 table init round-trip', () => {
       body: region([{ kind: 'nop', loc: LOC }], LOC),
       tailcall: false,
     };
-    module.funcs.push(func);
+    module.functions.push(func);
     module.types.push({ kind: 'func', name: '', sig: { params: [], results: [] }, loc: LOC });
     const table: Table = {
       name: '',

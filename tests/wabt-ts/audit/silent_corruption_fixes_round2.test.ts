@@ -37,7 +37,7 @@ function roundTrip(wat: string): Module {
 }
 
 function body(m: Module): readonly { kind: string }[] {
-  const f = m.funcs[0];
+  const f = m.functions[0];
   assert(f !== undefined, 'expected a function');
   return f.body.children;
 }
@@ -97,7 +97,7 @@ describe('writeVar fail-loud', () => {
       body: region([{ kind: 'call', func: varName('ghost'), operands: [], loc: LOC }], LOC),
       tailcall: false,
     };
-    module.funcs.push(f);
+    module.functions.push(f);
     assertThrows(() => writeBinaryIr(module), Error, 'ghost');
   });
 });
@@ -124,7 +124,7 @@ describe('resolveNames completeness (round-trip would throw if a name leaked)', 
       (table $t1 2 funcref)
       (func)
       (elem (table $t1) (i32.const 0) func 0))`);
-    assertEquals(m.elemSegments.length, 1);
+    assertEquals(m.elements.length, 1);
   });
 
   it('resolves a named, non-zero memory on an active data segment', () => {

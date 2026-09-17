@@ -2212,14 +2212,14 @@ export interface Module {
   imports: Import[];
 
   // Defined items (in binary order; indices start after imports)
-  funcs: Func[];
+  functions: Func[];
   tables: Table[];
   memories: Memory[];
   globals: Global[];
   tags: Tag[];
 
   // Segments
-  elemSegments: ElemSegment[];
+  elements: ElemSegment[];
   dataSegments: DataSegment[];
 
   // Exports
@@ -2229,7 +2229,7 @@ export interface Module {
   start?: Var;
 
   // Custom sections
-  customs: Custom[];
+  customSections: Custom[];
 
   // Import counts (used to compute final index-space positions)
   numFuncImports: number;
@@ -2310,15 +2310,15 @@ export function makeModule(): Module {
     loc: { filename: '', line: 0, column: 0, offset: 0 },
     types: [],
     imports: [],
-    funcs: [],
+    functions: [],
     tables: [],
     memories: [],
     globals: [],
     tags: [],
-    elemSegments: [],
+    elements: [],
     dataSegments: [],
     exports: [],
-    customs: [],
+    customSections: [],
     numFuncImports: 0,
     numTableImports: 0,
     numMemoryImports: 0,
@@ -2334,7 +2334,7 @@ export function makeModule(): Module {
 
 /** Total number of functions in index space (imports + defined). */
 export function totalFuncs(m: Module): number {
-  return m.numFuncImports + m.funcs.length;
+  return m.numFuncImports + m.functions.length;
 }
 /** Total number of tables in index space (imports + defined). */
 export function totalTables(m: Module): number {

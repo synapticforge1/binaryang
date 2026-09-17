@@ -129,7 +129,7 @@ describe('(func (type $t)) takes its signature from $t', () => {
       '(module (type $t (func (result i32))) (func $f (type $t) (i32.const 5)))',
     );
     assert(!hasErrors(errors), formatErrors(errors));
-    assertEquals(module.funcs[0]!.sig.results.length, 1);
+    assertEquals(module.functions[0]!.sig.results.length, 1);
     assert(v8Accepts('(module (type $t (func (result i32))) (func $f (type $t) (i32.const 5)))'));
   });
 
@@ -141,7 +141,7 @@ describe('(func (type $t)) takes its signature from $t', () => {
         (local.set $extra (i32.add (local.get 0) (local.get 1)))
         (local.get $extra)))`;
     const { module } = parseWatModule(wat);
-    assertEquals(module.funcs[0]!.sig.params.length, 2);
+    assertEquals(module.functions[0]!.sig.params.length, 2);
     const binary = compile(wat);
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
