@@ -92,14 +92,14 @@ const PINNED = {
     differ: [],
   },
   memory: { onlyW: ['loc', 'limits'], onlyB: ['initial', 'max', 'shared', 'is64'], differ: [] },
-  tag: { onlyW: ['loc', 'sig'], onlyB: ['params'], differ: [] },
+  tag: { onlyW: ['loc'], onlyB: [], differ: [] },
   elem: {
     onlyW: ['loc', 'kind', 'elemType', 'tableVar', 'elemExprs'],
     onlyB: ['table', 'data', 'mode'],
     differ: [],
   },
   data: { onlyW: ['loc', 'kind', 'memoryVar'], onlyB: ['memory', 'passive'], differ: [] },
-  export: { onlyW: ['var'], onlyB: ['value'], differ: ['kind'] },
+  export: { onlyW: [], onlyB: [], differ: ['kind'] },
   custom: { onlyW: ['loc'], onlyB: [], differ: ['data', 'precedingSection'] },
   local: { onlyW: ['count'], onlyB: ['name'], differ: [] },
 } as const;
@@ -158,6 +158,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [46, 29, 13]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [44, 27, 13]);
   });
 });

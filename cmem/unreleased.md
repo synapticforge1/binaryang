@@ -24,6 +24,11 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: `WasmExport.value` is `WasmExport.var`**, a `Var` (S6 step 5 item 6 (M2d)). A name is
+  `varName('$f')`, an index `varIndex(0)`. `ModuleBuilder.addExport` still takes a token (`"$f"` / `"0"`);
+  the compat API's `getExportInfo().value` is still the name.
+- ⚠️ **BREAKING: `WasmTag.params` is `WasmTag.sig`** (`{ params, results }`, S6 step 5 item 6 (M2c)). A tag
+  whose type has results (invalid) now re-encodes naming its own type instead of appending one.
 - ⚠️ **BREAKING: a constant expression is a `RegionExpr`** (S6 step 5 item 6 (M2)). `WasmGlobal.init`,
   `DataSegment.offset` and `ElementSegment.offset` were one `Expression` (offsets `| null`); read
   `.children`. An absent offset is a MISSING field. `ModuleBuilder.addGlobal` / `addDataSegment` still

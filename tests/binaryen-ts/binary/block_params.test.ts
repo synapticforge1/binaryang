@@ -33,6 +33,7 @@ import {
   hasBlockParams,
   lowerBlockParams,
 } from '../../../src/binaryen-ts/passes/lower-block-params.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 /**
@@ -175,7 +176,9 @@ describe('lowerBlockParams — where optimization starts', () => {
     const m = parseWasm(BLOCK);
     const old = m.functions[0]!.name;
     m.functions[0]!.name = '$renamed';
-    for (const e of m.exports) if (e.value === old) e.value = '$renamed';
+    for (const e of m.exports) {
+      if (e.var.kind === 'name' && e.var.name === old) e.var = varName('$renamed');
+    }
     assertThrows(() => lowerBlockParams(m), Error, 'names no longer match');
   });
 });

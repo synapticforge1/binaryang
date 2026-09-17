@@ -198,7 +198,7 @@ const THROW_REF_MODULE = module(
 Deno.test('EH parser: tag section decoded — tag count and params', () => {
   const mod = parseWasm(THROW_MODULE);
   assertEquals(mod.tags.length, 1);
-  assertEquals(mod.tags[0].params, [ValType.I32]);
+  assertEquals(mod.tags[0].sig.params, [ValType.I32]);
 });
 
 Deno.test('EH parser: hasExceptionHandling flag set when tag section present', () => {
@@ -346,7 +346,7 @@ Deno.test('EH encoder: throw module round-trips through encode+parse', () => {
   const mod = parseWasm(THROW_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
   assertEquals(mod2.tags.length, 1);
-  assertEquals(mod2.tags[0].params, [ValType.I32]);
+  assertEquals(mod2.tags[0].sig.params, [ValType.I32]);
   assertEquals(mod2.functions.length, 1);
   assertEquals(mod2.hasExceptionHandling, true);
 });
@@ -880,3 +880,35 @@ for (const [name, inner, msg] of STRAY_BODY) {
     assertThrows(() => parseWasm(mod), WasmBinaryError, msg);
   });
 }
+
+Deno.test("a tag's type keeps its RESULTS as read — the type index is not re-derived (M2)", () => {
+  // type 0: (func (result i32)); tag section: 1 tag, attribute 0, type 0.
+  // Invalid — a tag's type must have no results — and binary-expressible. The
+  // tag held `params` alone, so the encoder asked for `() -> ()`, found none,
+  // and appended a type the module never had.
+  const bytes = new Uint8Array([
+    0x00,
+    0x61,
+    0x73,
+    0x6d,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    0x01,
+    0x05,
+    0x01,
+    0x60,
+    0x00,
+    0x01,
+    0x7f,
+    0x0d,
+    0x03,
+    0x01,
+    0x00,
+    0x00,
+  ]);
+  const mod = parseWasm(bytes);
+  assertEquals(mod.tags[0]!.sig, { params: [], results: [ValType.I32] });
+  assertEquals(encodeWasm(mod), bytes);
+});

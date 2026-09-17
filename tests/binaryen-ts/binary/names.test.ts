@@ -27,7 +27,7 @@ import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import type { Var } from '../../../src/wabt-ts/ir/ir.ts';
+import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -107,7 +107,7 @@ describe('P4 — the decoder names every entity from the name section', () => {
 
   it('every reference site uses the same name as the definition', () => {
     assertEquals(m.start, '$init');
-    assertEquals(m.exports.find((e) => e.name === 'main')?.value, '$main');
+    assertEquals(m.exports.find((e) => e.name === 'main')?.var, varName('$main'));
     assertEquals(m.elements[0]!.data, ['$helper']);
     const main = refsIn(m, '$main');
     assert(main.includes('call:$helper'), main.join(' '));
@@ -297,6 +297,6 @@ describe('found alongside: imported memories named by index', () => {
     ];
     assertEquals(names, ['mem0', 'mem1']);
     assertNotEquals(names[0], names[1]);
-    assertEquals(m.exports.map((e) => e.value), ['mem0', 'mem1']);
+    assertEquals(m.exports.map((e) => e.var), [varName('mem0'), varName('mem1')]);
   });
 });

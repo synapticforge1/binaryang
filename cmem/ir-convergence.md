@@ -3276,6 +3276,23 @@ set (`readInitExpr`) — an extended-const or GC constant expression, or a malfo
 refused. The region can hold them; teaching the reader to is a capability change, not the
 representation.
 
+**✅ M2c — a tag holds its `sig` (2026-09-16).** Trials tied (binaryen-ts → `sig` 22, wabt-ts →
+`params` 25); fidelity decided — a tag's type is a function type, and an invalid binary can give it
+results a validator must see. `params` alone could not hold them: the encoder asked for `() -> ()`,
+found none, and APPENDED a type the module never had (pinned in `eh.test.ts`; fails on the old code).
+binaryen-ts's decoder keeps the type's results; `addTag(name, params, results = [])`. Ratchet
+**45 / 28 / 13**. Optimizer output 0 of 2,105 changed. Imported tags stay flat until M4.
+
+**✅ M2d — an export names its entity with a `var: Var` (2026-09-16).** Cost pointed the other way
+(binaryen-ts → `Var` 60, wabt-ts → `value: string` 30); precedent decided — L1 / S2: a `Var` holds a
+name or the index as written, and passes `requireName` it. binaryen-ts's string already smuggled an
+index as a TOKEN (`"0"`, resolved by `varFromToken` in the encoder); now the `Var` says which, and the
+builder and compat API convert the token once. 🔍 A first draft wrapped every token with `varName` —
+`"0"` became a name — and the existing "numeric entity references resolve as indices" tests failed
+on it: the capability was already pinned. RemoveUnusedModuleElements now `requireName`s an export
+target: an index-form export reaching it is loud (it had been looked up as the NAME `"0"`). Ratchet
+**44 / 27 / 13**; export differs only in `kind`. Optimizer output 0 of 2,105 changed.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

@@ -128,7 +128,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
   // Exports make a function globally used.
   for (const ex of module.exports) {
     if (ex.kind === 'function') {
-      const entry = info.get(ex.value);
+      const entry = info.get(requireName(ex.var, 'export'));
       if (entry) entry.usedGlobally = true;
     }
   }

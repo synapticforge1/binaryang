@@ -75,7 +75,7 @@ function moduleWithImport(): WasmModule {
       params: [],
       results: [],
     }],
-    exports: [{ name: 'foo', value: '$foo', kind: 'function' }],
+    exports: [{ name: 'foo', var: varName('$foo'), kind: 'function' }],
     start: null,
     hasExceptionHandling: false,
     hasMemory64: false,
