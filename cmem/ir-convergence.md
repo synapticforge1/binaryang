@@ -3223,6 +3223,30 @@ against the compiler. **46 / 29 / 15 — 90 field differences.** Inverted: dropp
 `loc`) fails the check. Imports are left out of the field pairing — a union against a flat record —
 until M4 makes them comparable.
 
+**M2 — 🗓️ OWNER CALL, 2026-09-16: a constant expression is a `RegionExpr`; absent = the field is
+missing.** Asked first with cost against meaning (binaryen-ts → `Expr[]` 50 errors; both → `RegionExpr`
+157). The owner: *"This is a fidelity issue. So breaking the wabt-ts side is not an option. Measure and
+recommend."* Measured (`m2_measure2.ts`, spec suite 5,902 binaries + 376 WASI):
+- valid modules: every required constant expression reads as ONE tree — a single node would do;
+- **32 spec modules** hold one that is not a single constant instruction — empty, 2 instructions,
+  `nop` / `unary` / `call` / `local.get` (all `assert_invalid`, kept so a validator can reject them).
+  wabt-ts round-trips **32 / 32** byte-identically; binaryen-ts's single `Expression` differs on 15 and
+  refuses 17. A single node loses fidelity; a sequence keeps it.
+- `Expr[]` spells ABSENT as `[]` — 2,045 times (table without initializer, passive / declared segment
+  offsets) — so a PRESENT-but-empty expression cannot be told from none: a table `40 00 70 00 01 0b`
+  (empty initializer) re-encodes as `70 00 01`. 🛑 **A wabt-ts fidelity defect today**, reproduced.
+- `RegionExpr` holds the sequence exactly (children = what was read) and, with absence as a missing
+  field, the empty-but-present case too. Same shape as bodies (decision 5).
+
+Recommended RegionExpr; the owner took it. Slots: global init, table init?, element offset? and
+entries, data offset?.
+
+Locals (M6) measured at the same time and NOT an owner call: real producers never write a
+non-canonical local grouping (0 of 4,648 functions over 376 WASI binaries; the spec suite has 1
+malformed case and 2 zero-count groups), so a flat named list (43 errors to convert wabt-ts, against
+185 the other way) with the as-written grouping kept as form where it is not canonical meets both
+conditions.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was
