@@ -3360,6 +3360,23 @@ differs from its partner ONLY in wabt-ts's required `loc`; that one field is als
 question the expression half answered with `loc?` + `locOf` (item 5 (1)); settle it for module
 records in M7 (metadata) or at the alias (M8), not per leaf.
 
+**✅ binaryen-ts reads a constant expression of any length (2026-09-17)** — M2b's open item. The
+decoder read ONE instruction from a fixed set; it now decodes with the function-body decoder
+(`decodeFunction(…, constExpr)`: no locals header, the frame typed by the expression's type, `end`
+required) into the region. Measured per binary, `main` against the branch (`rt_status.ts`, 5,576
+spec + WASI): **53 refused → byte-identical** (extended-const, GC: `array.*`, `global.*`, `i31.*`, …),
+**0 regressions**. 🛑 **It exposed a silent element-segment loss** the refusal had been hiding: for the
+expression forms the reader skipped ONE byte as the element type, but `(ref $0)` is `64 00` — the `00`
+was read as the entry COUNT, and a passive segment came back empty and `funcref` (`array.11`). Now
+the reference type is read whole and anything but `funcref` is REFUSED until M3 carries it —
+including **3 binaries that had been silently narrowed on `main`** (`array.8`, `array_init_elem.2`,
+`table-sub.2`: externref / typed segments written back as funcref). An elemkind other than `0x00`,
+an element-entry expression of more than one instruction (its `end` was never checked either), a
+constant expression with no `end`, and one needing a spill are all refused. 5 binaries now decode and
+differ only in form (`ref.func` entries written as indices, flag 4 → 0: M3). Optimizer output 0 of
+2,105 changed. 7 mutants killed — 3 survived until malformed-binary tests pinned the spill, elemkind
+and entry-`end` checks.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

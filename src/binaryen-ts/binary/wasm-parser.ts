@@ -146,7 +146,7 @@ import {
   makeStructNewDefault,
   makeStructSet,
 } from '../ir/expressions.ts';
-import { None, type Type, ValType } from '../ir/types.ts';
+import { None, type Type, typeToString, ValType } from '../ir/types.ts';
 
 // ---------------------------------------------------------------------------
 // Section IDs
@@ -175,6 +175,12 @@ interface FuncType {
   params: ValueType[];
   results: ValueType[];
 }
+
+/**
+ * The "function index" a constant expression is decoded under: none. The name
+ * section keys labels and locals by function index, and names nothing here.
+ */
+const CONST_EXPR_FUNC_IDX = -1;
 
 interface GlobalInfo {
   type: ValueType;
@@ -1291,10 +1297,32 @@ class WasmParser {
       // Only an active segment carries an offset.
       const offset = mode === 'active' ? this.readInitExpr(ValType.I32) : undefined;
 
-      // A 1-byte elemkind (non-expr forms) or reftype (expr forms) precedes the
-      // vector for every flag except 0 and 4. We only support funcref tables,
-      // so the byte is read and discarded.
-      if (flags !== 0 && flags !== 4) this.r.readU8();
+      // An elemkind byte (non-expr forms) or a REFERENCE TYPE (expr forms)
+      // precedes the vector for every flag except 0 and 4. The element model
+      // holds function names and writes `funcref` back, so anything else is
+      // refused until M3 carries the type.
+      // 🔧 This read ONE byte and discarded it. A reference type is not one
+      // byte: `(ref $0)` is `64 00`, so the `00` was read as the element COUNT,
+      // the entries were skipped by the section's end, and a passive segment
+      // came back EMPTY and `funcref` — silently (array.11.wasm; reached once
+      // constant expressions of more than one instruction were read).
+      if (flags !== 0 && flags !== 4) {
+        if (useExpressions) {
+          const refType = readValueType(this.r);
+          if (refType !== ValType.FuncRef) {
+            this.r.error(
+              `unsupported element segment: element type ${
+                typeToString(refType)
+              } (only funcref, until M3)`,
+            );
+          }
+        } else {
+          const elemKind = this.r.readU8();
+          if (elemKind !== 0x00) {
+            this.r.error(`malformed element segment: elemkind 0x${elemKind.toString(16)}`);
+          }
+        }
+      }
 
       const numElems = this.r.readU32();
       const funcs: string[] = [];
@@ -1325,7 +1353,12 @@ class WasmParser {
     if (opcode === 0xd2) {
       // ref.func <funcidx>
       const name = this.names.func(this.r.readU32());
-      this.r.readU8(); // 0x0b end
+      // Checked, as a constant expression's is (M2g): an entry of more than one
+      // instruction lost the rest, silently.
+      const end = this.r.readU8();
+      if (end !== 0x0b) {
+        this.r.error(`unsupported element-segment expression: more than one instruction`);
+      }
       return name;
     }
     if (opcode === 0xd0) {
@@ -1343,9 +1376,9 @@ class WasmParser {
     );
   }
 
-  private readCodeSection(): void {
-    const count = this.r.readU32();
-    const ctx: DecoderCtx = {
+  /** What instruction decoding reads of the module decoded so far. */
+  private decoderCtx(): DecoderCtx {
+    return {
       funcTypes: this.funcTypes,
       heapTypeDefs: this.heapTypeDefs,
       importedFuncCount: this.importedFuncCount,
@@ -1358,6 +1391,11 @@ class WasmParser {
       lowerBlockParams: this.lowerBlockParams,
       names: this.names,
     };
+  }
+
+  private readCodeSection(): void {
+    const count = this.r.readU32();
+    const ctx = this.decoderCtx();
     for (let i = 0; i < count; i++) {
       const bodySize = this.r.readU32();
       const bodyStart = this.r.position;
@@ -1461,80 +1499,60 @@ class WasmParser {
    * constant expression, or a malformed sequence, is refused here — the region
    * can hold them, this reader cannot yet.
    */
-  private readInitExpr(_expectedType: ValueType): RegionExpr {
-    const opcode = this.r.readU8();
-    let expr: Expression;
-    switch (opcode) {
-      case 0x41:
-        expr = makeI32Const(this.r.readI32());
-        break;
-      case 0x42:
-        expr = makeI64Const(this.r.readI64());
-        break;
-      case 0x43:
-        expr = makeF32ConstBits(this.r.readF32Bits());
-        break;
-      case 0x44:
-        expr = makeF64ConstBits(this.r.readF64Bits());
-        break;
-      case 0x23: { // global.get
-        const idx = this.r.readU32();
-        expr = makeGlobalGet(
-          varName(this.names.global(idx)),
-          globalTypeAt(this.globalInfos, idx, this.r),
-        );
-        break;
-      }
-      case 0xd0: { // ref.null
-        expr = makeRefNull(readRefNullType(this.r));
-        break;
-      }
-      case 0xd2: { // ref.func
-        const idx = this.r.readU32();
-        expr = makeRefFunc(varName(this.names.func(idx)));
-        break;
-      }
-      default:
-        // Unknown init-expression opcode. A silent `i32.const 0` here both
-        // mis-valued the global/offset AND left the operand bytes unconsumed,
-        // desyncing the reader for the rest of the section. Fail loudly.
-        this.r.error(`unsupported init-expression opcode: 0x${opcode.toString(16)}`);
+  /**
+   * A constant expression — every instruction up to its `end`, decoded by the
+   * function-body decoder into the {@link RegionExpr} it is held in (S6 step 5
+   * item 6). 🔧 This read ONE instruction from a fixed set: an extended-const
+   * (`i32.add`) or GC (`struct.new`, `ref.i31`, `array.new_fixed`) expression was
+   * refused — and, before M2g checked the `end` byte, silently truncated to its
+   * first instruction.
+   */
+  private readInitExpr(expectedType: ValueType): RegionExpr {
+    const start = this.r.position;
+    const sub = this.r.slice(start, this.r.length);
+    const expr = this.decodeFunction(
+      sub,
+      { params: [], results: [expectedType] },
+      CONST_EXPR_FUNC_IDX,
+      this.decoderCtx(),
+      true,
+    );
+    // A spill (a value popped from beneath a statement) makes a LOCAL, and a
+    // constant expression has none to make: only an invalid one can need it.
+    if (expr.locals.length > 0) {
+      this.r.error('malformed constant expression: a value consumed from beneath a statement');
     }
-    // 🔧 This read the byte and never looked at it: a constant expression of two
-    // instructions (`global.get 0` `ref.i31`, extended-const / GC) lost its
-    // second one, the section reader skipped the rest, and the module came back
-    // with a different initializer — silently (i31.3.wasm, M2g). Reading more
-    // than one is a capability; not reading it must be loud.
-    const end = this.r.readU8();
-    if (end !== 0x0b) {
-      this.r.error(
-        `unsupported constant expression: more than one instruction (0x${
-          end.toString(16)
-        } after the first)`,
-      );
-    }
-    return makeRegion([expr]);
+    this.r.seek(start + sub.position);
+    return expr.body;
   }
 
+  /**
+   * A function body — or, with `constExpr`, a constant expression: no locals
+   * header, the "function" frame typed by the expression's type, and its `end`
+   * required (a body is bounded by its size; a constant expression only by it).
+   */
   private decodeFunction(
     r: BinaryReader,
     ft: FuncType,
     funcIdx: number,
     ctx: DecoderCtx,
+    constExpr = false,
   ): WasmFunction {
     // Read locals
     const locals: Local[] = ft.params.map((t) => ({ type: t }));
-    const localGroupCount = r.readU32();
-    for (let i = 0; i < localGroupCount; i++) {
-      const n = r.readU32();
-      const t = readValTypeByte(r);
-      for (let j = 0; j < n; j++) locals.push({ type: t });
-    }
-    // Params and locals share one index space, as the name section's local
-    // subsection does. An index past the end names nothing.
-    for (const [i, name] of ctx.names.locals(funcIdx)) {
-      const local = locals[i];
-      if (local !== undefined) local.name = name;
+    if (!constExpr) {
+      const localGroupCount = r.readU32();
+      for (let i = 0; i < localGroupCount; i++) {
+        const n = r.readU32();
+        const t = readValTypeByte(r);
+        for (let j = 0; j < n; j++) locals.push({ type: t });
+      }
+      // Params and locals share one index space, as the name section's local
+      // subsection does. An index past the end names nothing.
+      for (const [i, name] of ctx.names.locals(funcIdx)) {
+        const local = locals[i];
+        if (local !== undefined) local.name = name;
+      }
     }
 
     const frames: ControlFrame[] = [];
@@ -1920,6 +1938,7 @@ class WasmParser {
       push(call);
     };
 
+    let ended = false;
     decode: while (!r.eof) {
       const opcode = r.readU8();
       switch (opcode) {
@@ -2071,6 +2090,7 @@ class WasmParser {
 
         case 0x0b: { // end
           if (topFrame(frames, r).kind === 'func') {
+            ended = true;
             break decode; // leave func frame on stack for body assembly
           }
           const frame = popFrame(frames, r);
@@ -2662,6 +2682,7 @@ class WasmParser {
       }
     }
 
+    if (constExpr && !ended) r.error('unexpected end of constant expression: no `end`');
     const funcFrame = frames[0] ?? { exprs: [], label: undefined };
     const body = makeRegion(funcFrame.exprs);
 
