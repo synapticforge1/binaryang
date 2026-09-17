@@ -434,7 +434,9 @@ function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): 
     table: seg.kind === 'active'
       ? resolveVarName(seg.tableVar, ctx.tableNames)
       : (ctx.tableNames[0] ?? ''),
-    offset: seg.kind === 'active' ? bridgeExpr(seg.offset!.children[0]!, ctx) : null,
+    ...(seg.kind === 'active'
+      ? { offset: makeRegion([bridgeExpr(seg.offset!.children[0]!, ctx)]) }
+      : {}),
     data,
   });
 }

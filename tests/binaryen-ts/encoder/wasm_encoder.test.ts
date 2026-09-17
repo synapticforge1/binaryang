@@ -243,9 +243,10 @@ Deno.test('round-trip: global module preserves global count and type', () => {
 Deno.test('round-trip: global module init expression preserved', () => {
   const mod2 = roundTrip(GLOBAL_MODULE);
   const g = mod2.globals[0];
-  assertEquals(g.init.kind, ExpressionKind.Const);
-  if (g.init.kind === ExpressionKind.Const) {
-    assertEquals((g.init.value as { value: number }).value, 42);
+  const init = g.init.children[0]!;
+  assertEquals(init.kind, ExpressionKind.Const);
+  if (init.kind === ExpressionKind.Const) {
+    assertEquals((init.value as { value: number }).value, 42);
   }
 });
 

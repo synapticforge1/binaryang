@@ -2605,7 +2605,7 @@ class WatModuleParser {
       name,
       mode,
       table: table ?? this.tableNames.keys().next().value ?? '$table0',
-      offset,
+      ...(offset === null ? {} : { offset: makeRegion([offset]) }),
       data,
     });
     this.elemOrder.push(name);
