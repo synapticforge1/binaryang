@@ -561,7 +561,7 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
   // survive — the tag must still hold `(param i32 i32)`.
   const mod = parseWasm(bytes);
   assertEquals(mod.tags.length, 1);
-  assertEquals(mod.tags[0].params, [ValType.I32, ValType.I32]);
+  assertEquals(mod.tags[0].sig.params, [ValType.I32, ValType.I32]);
   const tagExport = mod.exports.find((e) => e.kind === 'tag');
   assert(tagExport, 'tag export must survive parse');
   assertEquals(tagExport!.name, 'exn');
@@ -571,7 +571,7 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
     .addPass(createPass('RemoveUnusedModuleElements'))
     .run();
   assertEquals(mod.tags.length, 1);
-  assertEquals(mod.tags[0].params, [ValType.I32, ValType.I32]);
+  assertEquals(mod.tags[0].sig.params, [ValType.I32, ValType.I32]);
   const tagExport2 = mod.exports.find((e) => e.kind === 'tag');
   assert(tagExport2, 'tag export must survive RemoveUnusedModuleElements');
 
@@ -579,7 +579,7 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
   const reEncoded = encodeWasm(mod);
   const mod2 = parseWasm(reEncoded);
   assertEquals(mod2.tags.length, 1);
-  assertEquals(mod2.tags[0].params, [ValType.I32, ValType.I32]);
+  assertEquals(mod2.tags[0].sig.params, [ValType.I32, ValType.I32]);
   const tagExport3 = mod2.exports.find((e) => e.kind === 'tag');
   assert(tagExport3, 'tag export must survive encode→reparse');
   assertEquals(tagExport3!.name, 'exn');

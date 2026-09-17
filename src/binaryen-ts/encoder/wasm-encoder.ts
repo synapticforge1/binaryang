@@ -926,7 +926,7 @@ class WasmEncoder {
       if (imp.kind === 'tag') addType(imp.params ?? [], []);
     }
     for (const tag of this.mod.tags) {
-      addType(tag.params, []);
+      addType(tag.sig.params, tag.sig.results);
     }
     // One walk collects both kinds of expression-level type reference:
     // `call_indirect` signatures and multi-result block headers.
@@ -1476,8 +1476,8 @@ class WasmEncoder {
       // as "tag's type-index re-pointed to a different entry in the type
       // section after `RemoveUnusedModuleElements`".)
       const idx = this.heapTypes.length > 0
-        ? this.gcFuncTypeIndex(tag.params, [])
-        : this.getTypeIndex(tag.params, []);
+        ? this.gcFuncTypeIndex(tag.sig.params, tag.sig.results)
+        : this.getTypeIndex(tag.sig.params, tag.sig.results);
       w.writeU32(idx);
     }
   }

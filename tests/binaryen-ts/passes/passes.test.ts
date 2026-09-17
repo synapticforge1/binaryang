@@ -1269,7 +1269,7 @@ Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => 
   const mod = emptyModule();
   // throw $e (i32.const 42)
   mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [makeI32Const(42)])])));
-  mod.tags.push({ name: '$e', params: [ValType.I32] });
+  mod.tags.push({ name: '$e', sig: { params: [ValType.I32], results: [] } });
   mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
@@ -1286,7 +1286,7 @@ Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => 
 Deno.test('StripEH: throw with no operands becomes bare unreachable', () => {
   const mod = emptyModule();
   mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [])])));
-  mod.tags.push({ name: '$e', params: [] });
+  mod.tags.push({ name: '$e', sig: { params: [], results: [] } });
   mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
@@ -1301,7 +1301,7 @@ Deno.test('StripEH: try is replaced by its body; catch is discarded', () => {
   const catchBody = makeI32Const(99);
   const t = makeTry(null, tryBody, [tryCatch(varName('$e'), catchBody)], null, ValType.I32);
   mod.functions.push(makeTestFn('f', makeBlock([t])));
-  mod.tags.push({ name: '$e', params: [] });
+  mod.tags.push({ name: '$e', sig: { params: [], results: [] } });
   mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
@@ -1316,7 +1316,7 @@ Deno.test('StripEH: try_table is replaced by its body', () => {
   const mod = emptyModule();
   const tt = makeTryTable(null, makeI32Const(7), [], ValType.I32);
   mod.functions.push(makeTestFn('f', makeBlock([tt])));
-  mod.tags.push({ name: '$e', params: [] });
+  mod.tags.push({ name: '$e', sig: { params: [], results: [] } });
   mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
@@ -1329,8 +1329,8 @@ Deno.test('StripEH: try_table is replaced by its body', () => {
 Deno.test('StripEH: module.tags cleared and hasExceptionHandling reset', () => {
   const mod = emptyModule();
   mod.functions.push(makeTestFn('f', makeBlock([makeNop()])));
-  mod.tags.push({ name: '$e', params: [ValType.I32] });
-  mod.tags.push({ name: '$f', params: [] });
+  mod.tags.push({ name: '$e', sig: { params: [ValType.I32], results: [] } });
+  mod.tags.push({ name: '$f', sig: { params: [], results: [] } });
   mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();

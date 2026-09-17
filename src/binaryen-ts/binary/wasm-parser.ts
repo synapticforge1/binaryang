@@ -218,6 +218,7 @@ interface ControlFrame {
 interface TagInfo {
   name: string;
   params: ValueType[];
+  results: ValueType[];
 }
 
 interface DecoderCtx {
@@ -832,7 +833,10 @@ class WasmParser {
       // Use the name `readTagSection` assigned, NOT a fresh `$tag${i}`:
       // with imported tags present the defined ones start above zero, and
       // renumbering here would desync every throw / catch / tag export.
-      tags: this.tagInfos.map((t) => ({ name: t.name, params: t.params })),
+      tags: this.tagInfos.map((t) => ({
+        name: t.name,
+        sig: { params: t.params, results: t.results },
+      })),
       hasExceptionHandling: this.tagInfos.length > 0 || mod.hasExceptionHandling,
       ...(this.hasDataCount ? { hasDataCount: true } : {}),
       ...(this.customSections.length > 0 ? { customSections: this.customSections } : {}),
@@ -1352,6 +1356,8 @@ class WasmParser {
       this.tagInfos.push({
         name: this.names.tag(this.importedTagCount + this.tagInfos.length),
         params: ft.params,
+        // Kept as read: empty in a valid module, and the type's to say (M2).
+        results: ft.results,
       });
       this.tagParams.push(ft.params);
     }

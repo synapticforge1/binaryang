@@ -399,7 +399,7 @@ function tagParamsResolver(module: WasmModule): (tag: Var) => ValueType[] {
       name: i.name,
       params: i.params ?? [],
     })),
-    ...module.tags,
+    ...module.tags.map((t) => ({ name: t.name, params: t.sig.params })),
   ];
   const byName = new Map(all.map((t) => [t.name, t.params]));
   return (tag) => {

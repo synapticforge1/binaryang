@@ -3276,6 +3276,13 @@ set (`readInitExpr`) — an extended-const or GC constant expression, or a malfo
 refused. The region can hold them; teaching the reader to is a capability change, not the
 representation.
 
+**✅ M2c — a tag holds its `sig` (2026-09-16).** Trials tied (binaryen-ts → `sig` 22, wabt-ts →
+`params` 25); fidelity decided — a tag's type is a function type, and an invalid binary can give it
+results a validator must see. `params` alone could not hold them: the encoder asked for `() -> ()`,
+found none, and APPENDED a type the module never had (pinned in `eh.test.ts`; fails on the old code).
+binaryen-ts's decoder keeps the type's results; `addTag(name, params, results = [])`. Ratchet
+**45 / 28 / 13**. Optimizer output 0 of 2,105 changed. Imported tags stay flat until M4.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

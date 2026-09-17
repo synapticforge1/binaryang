@@ -27,6 +27,7 @@ import { asRegion, type RegionExpr, type RegionInput } from './expressions.ts';
 import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
+import type { FuncSignature } from '../../wabt-ts/ir/ir.ts';
 export type { TypeDef } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -192,8 +193,13 @@ export interface WasmTable {
 export interface WasmTag {
   /** Internal name (used in `throw` and `try_table` catch clauses). */
   name: string;
-  /** Exception payload parameter types. */
-  params: ValueType[];
+  /**
+   * The tag's function type: its `params` are the exception payload; its
+   * `results` are empty in a valid module and kept as read for a validator to
+   * refuse (S6 step 5 item 6 (M2), wabt-ts's shape). It was `params` alone,
+   * which could not hold what an invalid binary said.
+   */
+  sig: FuncSignature;
 }
 
 /**
@@ -721,9 +727,10 @@ export class ModuleBuilder {
    *
    * @param name - Internal tag name (e.g. `"$MyError"`).
    * @param params - The exception payload types.
+   * @param results - The type's results — empty in a valid module (M2).
    */
-  addTag(name: string, params: ValueType[]): this {
-    this._tags.push({ name, params });
+  addTag(name: string, params: ValueType[], results: ValueType[] = []): this {
+    this._tags.push({ name, sig: { params, results } });
     this._hasEH = true;
     return this;
   }
