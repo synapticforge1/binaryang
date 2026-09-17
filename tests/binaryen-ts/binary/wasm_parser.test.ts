@@ -195,9 +195,11 @@ Deno.test('parseWasm: global module has one global with init i32.const 42', () =
   const g = mod.globals[0];
   assertEquals(g.type, ValType.I32);
   assertEquals(g.mutable, true);
-  assertEquals(g.init.kind, ExpressionKind.Const);
-  if (g.init.kind === ExpressionKind.Const) {
-    assertEquals((g.init.value as { value: number }).value, 42);
+  const init = g.init.children[0]!;
+  assertEquals([g.init.kind, g.init.children.length], [ExpressionKind.Region, 1]);
+  assertEquals(init.kind, ExpressionKind.Const);
+  if (init.kind === ExpressionKind.Const) {
+    assertEquals((init.value as { value: number }).value, 42);
   }
 });
 

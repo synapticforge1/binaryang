@@ -316,13 +316,13 @@ export function synthesizeRuntimeSupport(
       name: ASYNCIFY_STATE,
       type: ValType.I32,
       mutable: true,
-      init: makeI32Const(0),
+      init: asRegion(makeI32Const(0)),
     });
     module.globals.push({
       name: ASYNCIFY_DATA,
       type: ValType.I32,
       mutable: true,
-      init: makeI32Const(0),
+      init: asRegion(makeI32Const(0)),
     });
     if (options.exportGlobals) {
       module.exports.push({ name: '__asyncify_state', value: ASYNCIFY_STATE, kind: 'global' });

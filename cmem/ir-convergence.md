@@ -3262,6 +3262,20 @@ IDENTICAL. Tests `const_expr_region.test.ts` (7); 4 mutants — 2 survived the f
 reader's passive offset, the validator's "has an initializer" for a non-null table), tests added,
 all killed.
 
+**✅ M2b — binaryen-ts's constant expressions are regions (2026-09-16).** `WasmGlobal.init: RegionExpr`,
+`DataSegment.offset?` and `ElementSegment.offset?: RegionExpr` (absent was `null`). `ModuleBuilder`'s
+`addGlobal` / `addDataSegment` take a `RegionInput` and wrap it, so their ~90 test callers are
+untouched; the encoder writes a region's instructions then `end`. ⚠️ **The compiler named 20 sites and
+missed the riskiest**: a `RegionExpr` IS an `Expression`, so `encodeExpr(w, g.init)` would have
+compiled and thrown at run time ("a region outside its slot"), and four tests that read `init.kind` /
+`offset === null` through loose asserts compiled and FAILED — all found by reading every `.init` /
+`.offset` read and by the suite. Ratchet: `offset` converged on both segments — **46 / 29 / 13**.
+Optimizer output 0 of 2,105 changed. Tests `binaryen-ts/binary/const_expr_region.test.ts` (3); 2 mutants
+killed. ⚠️ **Open, recorded not done**: binaryen-ts's decoder still reads ONE instruction from a fixed
+set (`readInitExpr`) — an extended-const or GC constant expression, or a malformed sequence, is
+refused. The region can hold them; teaching the reader to is a capability change, not the
+representation.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

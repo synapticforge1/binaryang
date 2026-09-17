@@ -23,7 +23,7 @@
  * @license MIT
  */
 
-import { asRegion, type Expression, type RegionExpr, type RegionInput } from './expressions.ts';
+import { asRegion, type RegionExpr, type RegionInput } from './expressions.ts';
 import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
@@ -123,8 +123,12 @@ export interface WasmGlobal {
   type: ValueType;
   /** Whether the global is writable via `global.set`. */
   mutable: boolean;
-  /** Constant initializer expression. */
-  init: Expression;
+  /**
+   * The initializer — a constant expression, held as a {@link RegionExpr} of
+   * exactly the instructions it is (owner, 2026-09-16, S6 step 5 item 6 (M2);
+   * wabt-ts's shape). It was one `Expression`, which cannot hold a sequence.
+   */
+  init: RegionExpr;
 }
 
 /**
@@ -142,8 +146,11 @@ export interface DataSegment {
    * explicit memory index); the reader used to consume that index and drop it.
    */
   memory?: number;
-  /** Offset expression (for active segments). */
-  offset: Expression | null;
+  /**
+   * The offset — a constant expression as a {@link RegionExpr}, present exactly
+   * when the segment is active. ABSENT is a missing field, not `null` (M2).
+   */
+  offset?: RegionExpr;
   /** Raw bytes copied into linear memory. */
   data: Uint8Array;
 }
@@ -220,10 +227,11 @@ export interface ElementSegment {
   /**
    * Offset expression — index into the target table where copying begins.
    *
-   * Meaningful only when `mode` is `active`; the other two modes have nowhere
-   * to copy to, and carry `null`.
+   * Present exactly when `mode` is `active`; the other two modes have nowhere
+   * to copy to, and the field is MISSING (it was `null`). A constant expression,
+   * held as a {@link RegionExpr} (M2).
    */
-  offset: Expression | null;
+  offset?: RegionExpr;
   /** Names of the functions referenced by this segment, in order. */
   data: string[];
 }
@@ -465,10 +473,11 @@ export class ModuleBuilder {
    * @param name - Internal global name.
    * @param type - Value type.
    * @param mutable - Whether the global can be mutated via `global.set`.
-   * @param init - Constant initializer expression.
+   * @param init - Constant initializer — an expression, a list, or a region; held
+   *   as the {@link RegionExpr} a constant expression is (S6 step 5 item 6 (M2)).
    */
-  addGlobal(name: string, type: ValueType, mutable: boolean, init: Expression): this {
-    this._globals.push({ name, type, mutable, init });
+  addGlobal(name: string, type: ValueType, mutable: boolean, init: RegionInput): this {
+    this._globals.push({ name, type, mutable, init: asRegion(init) });
     return this;
   }
 
@@ -504,11 +513,11 @@ export class ModuleBuilder {
    * @param offset - Constant offset expression (e.g. `makeI32Const(0)`).
    * @param data - Raw bytes.
    */
-  addDataSegment(name: string, offset: Expression, data: Uint8Array, memory = 0): this {
+  addDataSegment(name: string, offset: RegionInput, data: Uint8Array, memory = 0): this {
     this._dataSegments.push({
       name,
       passive: false,
-      offset,
+      offset: asRegion(offset),
       data,
       ...(memory !== 0 ? { memory } : {}),
     });
@@ -519,7 +528,7 @@ export class ModuleBuilder {
    * Adds a passive data segment (not auto-applied; used with `memory.init`).
    */
   addPassiveDataSegment(name: string, data: Uint8Array): this {
-    this._dataSegments.push({ name, passive: true, offset: null, data });
+    this._dataSegments.push({ name, passive: true, data });
     return this;
   }
 

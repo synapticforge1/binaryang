@@ -1507,8 +1507,9 @@ class WasmEncoder {
   // Init expression (constant-only)
   // ---------------------------------------------------------------------------
 
-  private encodeInitExpr(w: BinaryWriter, expr: Expression): void {
-    this.encodeExpr(w, expr, []);
+  /** A constant expression: the region's instructions, then `end` (M2). */
+  private encodeInitExpr(w: BinaryWriter, r: RegionExpr): void {
+    for (const e of r.children) this.encodeExpr(w, e, []);
     w.writeU8(0x0b); // end
   }
 

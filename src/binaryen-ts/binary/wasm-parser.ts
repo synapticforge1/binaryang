@@ -1227,7 +1227,7 @@ class WasmParser {
       if (hasTableIndex) tableIdx = this.r.readU32();
 
       // Only an active segment carries an offset.
-      const offset = mode === 'active' ? this.readInitExpr(ValType.I32) : null;
+      const offset = mode === 'active' ? this.readInitExpr(ValType.I32) : undefined;
 
       // A 1-byte elemkind (non-expr forms) or reftype (expr forms) precedes the
       // vector for every flag except 0 and 4. We only support funcref tables,
@@ -1247,7 +1247,7 @@ class WasmParser {
         name: this.names.elem(i),
         mode,
         table: tname,
-        offset,
+        ...(offset === undefined ? {} : { offset }),
         data: funcs,
       };
       this.builder.addElement(seg);
@@ -1391,7 +1391,13 @@ class WasmParser {
     this.r.seek(end);
   }
 
-  private readInitExpr(_expectedType: ValueType): Expression {
+  /**
+   * A constant expression, as the {@link RegionExpr} it is held in (S6 step 5
+   * item 6 (M2)). ⚠️ Still ONE instruction from a fixed set: an extended or GC
+   * constant expression, or a malformed sequence, is refused here — the region
+   * can hold them, this reader cannot yet.
+   */
+  private readInitExpr(_expectedType: ValueType): RegionExpr {
     const opcode = this.r.readU8();
     let expr: Expression;
     switch (opcode) {
@@ -1431,7 +1437,7 @@ class WasmParser {
         this.r.error(`unsupported init-expression opcode: 0x${opcode.toString(16)}`);
     }
     this.r.readU8(); // 0x0b end
-    return expr;
+    return makeRegion([expr]);
   }
 
   private decodeFunction(

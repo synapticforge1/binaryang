@@ -248,7 +248,7 @@ Deno.test('parseWat — global immutable i32 with const init', () => {
   assertEquals(g.name, '$g');
   assertEquals(g.type, ValType.I32);
   assertEquals(g.mutable, false);
-  assertEquals(g.init.kind, ExpressionKind.Const);
+  assertEquals(g.init.children.map((e) => e.kind), [ExpressionKind.Const]);
 });
 
 Deno.test('parseWat — global mutable i64', () => {
@@ -264,7 +264,7 @@ Deno.test('parseWat — global with global.get init referencing imported global'
   assertEquals(mod.imports.length, 1);
   assertEquals(mod.imports[0].kind, 'global');
   assertEquals(mod.globals.length, 1);
-  assertEquals(mod.globals[0].init.kind, ExpressionKind.GlobalGet);
+  assertEquals(mod.globals[0].init.children.map((e) => e.kind), [ExpressionKind.GlobalGet]);
 });
 
 Deno.test('parseWat — anonymous global gets synthesized name', () => {

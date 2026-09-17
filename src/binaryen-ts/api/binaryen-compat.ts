@@ -1193,7 +1193,7 @@ export class Module {
    */
   addGlobal(name: string, type: number, mutable: boolean, init: Expression): void {
     const vt = _idToValTypeStrict(type);
-    this._inner.globals.push({ name, type: vt, mutable, init });
+    this._inner.globals.push({ name, type: vt, mutable, init: asRegion(init) });
   }
 
   /**
@@ -1305,7 +1305,7 @@ export class Module {
       this._inner.dataSegments.push({
         name: `$data${this._inner.dataSegments.length}`,
         passive: seg.passive ?? false,
-        offset: seg.passive ? null : (seg.offset ?? makeI32Const(0)),
+        ...(seg.passive ? {} : { offset: asRegion(seg.offset ?? makeI32Const(0)) }),
         data,
       });
     }

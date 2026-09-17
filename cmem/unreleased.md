@@ -24,6 +24,10 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: a constant expression is a `RegionExpr`** (S6 step 5 item 6 (M2)). `WasmGlobal.init`,
+  `DataSegment.offset` and `ElementSegment.offset` were one `Expression` (offsets `| null`); read
+  `.children`. An absent offset is a MISSING field. `ModuleBuilder.addGlobal` / `addDataSegment` still
+  accept an expression (or a list, or a region).
 - ⚠️ **BREAKING (types): binaryen-ts's expression types ARE wabt-ts's** (S6 step 5 item 5 (6c)).
   `Expression` is `Expr`; each node type (`BlockExpr`, `LoadExpr`, …) is `Extract<Expr, { kind }>` —
   same names, but READONLY: build a changed node (`{ ...e, field }`) rather than assigning into one.

@@ -67,7 +67,7 @@ Deno.test('toWat: value types print as their NAMES, not as the bytes that repres
       name: '$g',
       type: ValType.F64,
       mutable: true,
-      init: makeF64Const(1.5),
+      init: asRegion(makeF64Const(1.5)),
     } as (typeof mod.ir.globals)[number],
   );
   mod.ir.functions.push({

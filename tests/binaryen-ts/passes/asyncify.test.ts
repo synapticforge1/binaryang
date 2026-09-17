@@ -147,7 +147,7 @@ Deno.test('Asyncify Stage 1 — adds the 2 globals with the ABI shape', () => {
     assert(g, `missing global ${name}`);
     assertEquals(g!.type, ValType.I32);
     assertEquals(g!.mutable, true);
-    assertEquals(g!.init.kind, ExpressionKind.Const);
+    assertEquals(g!.init.children.map((e) => e.kind), [ExpressionKind.Const]);
   }
 });
 

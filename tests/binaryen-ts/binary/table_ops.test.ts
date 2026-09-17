@@ -260,7 +260,7 @@ Deno.test('element segment: a passive segment is read as passive, not as active'
   assertEquals(mod.elements.length, 1, 'the segment must survive');
   assertEquals(mod.elements[0]!.mode, 'passive');
   // An active segment would have an offset; a passive one has nowhere to copy to.
-  assertEquals(mod.elements[0]!.offset, null, 'a passive segment has no offset');
+  assertEquals('offset' in mod.elements[0]!, false, 'a passive segment has no offset');
 });
 
 Deno.test('element segment: a declarative segment is read as declarative', () => {

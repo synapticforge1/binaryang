@@ -952,8 +952,8 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
       },
     ],
     globals: [
-      { name: 'g_used', type: ValType.I32, mutable: false, init: makeI32Const(1) },
-      { name: 'g_dead', type: ValType.I32, mutable: false, init: makeI32Const(2) },
+      { name: 'g_used', type: ValType.I32, mutable: false, init: asRegion(makeI32Const(1)) },
+      { name: 'g_dead', type: ValType.I32, mutable: false, init: asRegion(makeI32Const(2)) },
     ],
     memories: [],
     tables: [],
@@ -1195,7 +1195,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
     name: '$e',
     mode: 'active',
     table: '$t0',
-    offset: makeI32Const(0),
+    offset: asRegion(makeI32Const(0)),
     data: ['$f0', '$f1'],
   });
   // $dispatch: local 0 = param $obj, local 1 = $t
