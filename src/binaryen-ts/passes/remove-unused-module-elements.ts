@@ -113,7 +113,7 @@ function _removeUnused(module: WasmModule): void {
 
   // Globals referenced by other global initialisers (globals can depend on each other)
   for (const global of module.globals) {
-    if (importedGlobals.has(global.name)) continue;
+    if (importedGlobals.has(global.name) || global.init === undefined) continue;
     _collectGlobalRefs(global.init, liveGlobals);
   }
 

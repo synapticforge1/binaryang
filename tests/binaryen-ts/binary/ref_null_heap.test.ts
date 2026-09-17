@@ -164,8 +164,8 @@ Deno.test('ref.null preserves non-func, non-extern heap types byte-for-byte', as
 Deno.test('ref.null of `none` decodes to nullref, not externref', () => {
   const mod = parseWasm(REF_NULL_HEAP_MODULE);
   assertEquals(mod.globals.length, 2);
-  assertEquals(mod.globals[0].init.type, ValType.NullExternRef); // ref.null noextern
-  assertEquals(mod.globals[1].init.type, ValType.NullRef); //       ref.null none
+  assertEquals(mod.globals[0].init!.type, ValType.NullExternRef); // ref.null noextern
+  assertEquals(mod.globals[1].init!.type, ValType.NullRef); //       ref.null none
 });
 
 Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', () => {
@@ -185,7 +185,7 @@ Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', 
   m.addGlobal('$g', refT, true, makeRefNull(refT));
 
   const parsed = parseWasm(encodeWasm(m.build()));
-  const initType = parsed.globals[0].init.type;
+  const initType = parsed.globals[0].init!.type;
   assert(isRefType(initType), `ref.null decoded as ${JSON.stringify(initType)}`);
   assertEquals((initType as RefType).heapType, varIndex(target));
 });

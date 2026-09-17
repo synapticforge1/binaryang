@@ -42,7 +42,7 @@ export class VacuumPass implements Pass {
       fn.body = mapExpression(fn.body, _vacuumNode);
     }
     for (const global of module.globals) {
-      global.init = mapExpression(global.init, _vacuumNode);
+      if (global.init !== undefined) global.init = mapExpression(global.init, _vacuumNode);
     }
   }
 }

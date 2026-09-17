@@ -64,10 +64,9 @@ typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
 
 ### Tomorrow's list, in order
 
-1. **M2 — the last leaf: global.** Ratchet `global: { onlyW: ['loc'], differ: ['init'] }` — wabt-ts's
-   `init?: RegionExpr` (absent for an IMPORTED global) against binaryen-ts's required one. Imports are
-   M4's union, so this likely settles THERE (an imported global has no init; a defined one must).
-   Decide by trial blast radius; if it only moves with M4, record that and close M2.
+1. ✅ **M2 — the last leaf: global. DONE 2026-09-17** — `init?` in both (an imported global has
+   none); **M2 CLOSED**, ratchet **40 / 20 / 8**. Every leaf record now differs only in `loc` — settle it
+   once for module records (M7 / M8). Record: ir-convergence.md § "M2h".
 2. **binaryen-ts: read a constant expression of MORE than one instruction** (capability; M2b's open
    item). 43 spec binaries (extended-const, GC — `global.9`, `data.57`, `array.*`, `i31.*`) are now
    REFUSED where they were silently truncated; the region already holds a sequence and the encoder

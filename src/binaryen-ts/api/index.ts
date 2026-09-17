@@ -308,6 +308,9 @@ function serializeToWat(mod: WasmModule): string {
   for (const g of mod.globals) {
     const ty = typeToString(g.type);
     const mut = g.mutable ? `(mut ${ty})` : ty;
+    if (g.init === undefined) {
+      throw new Error(`serializeToWat: global $${g.name} has no initializer`);
+    }
     lines.push(`  (global $${g.name} ${mut} ${exprToWat(g.init, 2)})`);
   }
 

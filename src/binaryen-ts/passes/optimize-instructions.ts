@@ -62,7 +62,7 @@ export class OptimizeInstructionsPass implements Pass {
       fn.body = mapExpression(fn.body, _optimizeNode);
     }
     for (const global of module.globals) {
-      global.init = mapExpression(global.init, _optimizeNode);
+      if (global.init !== undefined) global.init = mapExpression(global.init, _optimizeNode);
     }
   }
 }

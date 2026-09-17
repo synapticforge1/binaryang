@@ -24,6 +24,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING (types): `WasmGlobal.init` is optional** (S6 step 5 item 6 (M2h)), as wabt-ts's
+  `Global.init` is — absent means missing. `encodeWasm` and `Module.toWat()` throw for a defined global
+  without one; `ModuleBuilder.addGlobal` still requires it.
 - ⚠️ **BREAKING: a table or memory holds a `Limits` record** (wabt-ts's; S6 step 5 item 6 (M2g)).
   `WasmMemory` `{ initial, max, shared, is64 }` is `{ limits }` — `initial` / `max?` as `bigint`, `isShared`,
   `is64`, `pageSizeLog2?`; `WasmTable` `{ type, initial, max }` is `{ elemType, limits, init? }`. `max` is
