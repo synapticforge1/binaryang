@@ -296,8 +296,13 @@ function serializeToWat(mod: WasmModule): string {
   }
 
   for (const mem of mod.memories) {
-    const maxStr = mem.max !== null ? ` ${mem.max}` : '';
-    lines.push(`  (memory $${mem.name} ${mem.initial}${maxStr})`);
+    const { limits } = mem;
+    const maxStr = limits.max !== undefined ? ` ${limits.max}` : '';
+    lines.push(
+      `  (memory $${mem.name} ${limits.is64 ? 'i64 ' : ''}${limits.initial}${maxStr}${
+        limits.isShared ? ' shared' : ''
+      })`,
+    );
   }
 
   for (const g of mod.globals) {

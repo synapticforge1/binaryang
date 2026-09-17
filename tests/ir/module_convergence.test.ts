@@ -85,12 +85,8 @@ const PINNED = {
     differ: ['body'],
   },
   global: { onlyW: ['loc'], onlyB: [], differ: ['init'] },
-  table: {
-    onlyW: ['loc', 'init', 'elemType', 'limits'],
-    onlyB: ['type', 'initial', 'max'],
-    differ: [],
-  },
-  memory: { onlyW: ['loc', 'limits'], onlyB: ['initial', 'max', 'shared', 'is64'], differ: [] },
+  table: { onlyW: ['loc'], onlyB: [], differ: [] },
+  memory: { onlyW: ['loc'], onlyB: [], differ: [] },
   tag: { onlyW: ['loc'], onlyB: [], differ: [] },
   elem: {
     onlyW: ['loc', 'kind', 'elemType', 'tableVar', 'elemExprs'],
@@ -157,6 +153,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [44, 27, 9]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [40, 20, 9]);
   });
 });

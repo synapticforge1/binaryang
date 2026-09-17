@@ -9,7 +9,14 @@
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
-import { blockResult, heapAbstract, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import {
+  blockResult,
+  heapAbstract,
+  type Limits,
+  type Var,
+  varIndex,
+  varName,
+} from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 import {
@@ -1045,21 +1052,20 @@ class WasmParser {
         }
         case 0x01: { // table
           const elemType = readValTypeByte(this.r);
-          const hasMax = this.r.readU8();
-          const initial = this.r.readU32();
-          const max = hasMax ? this.r.readU32() : null;
+          // Read as the table section reads them (M2g), then held in the flat
+          // import record until M4 — so what it cannot hold is REFUSED. The
+          // whole flag byte was "has a maximum": a table64 import misread.
+          const { initial, max } = this.flatImportLimits(this.readLimits(false), 'table');
           const tname = this.names.table(this.tableNames.length);
           this.tableNames.push(tname);
           this.builder.addTableImport(tname, module, base, elemType, initial, max);
           break;
         }
         case 0x02: { // memory
-          const flags = this.r.readU8();
-          const shared = (flags & 0x02) !== 0;
-          const is64 = (flags & 0x04) !== 0;
-          const hasMax = (flags & 0x01) !== 0;
-          const initial = this.r.readU32();
-          const max = hasMax ? this.r.readU32() : null;
+          const limits = this.readLimits(true);
+          const { initial, max } = this.flatImportLimits(limits, 'memory');
+          const shared = limits.isShared;
+          const is64 = limits.is64;
           // By index like every other memory. This was 'mem0' for EVERY
           // imported memory, which collided with the first defined one — named
           // `mem0` too — and with each other under multi-memory.
@@ -1106,29 +1112,80 @@ class WasmParser {
   private readTableSection(): void {
     const count = this.r.readU32();
     for (let i = 0; i < count; i++) {
+      // `0x40 0x00` opens a table WITH an initializer (function-references).
+      // Read as a value type byte, it was refused — "unknown valtype byte 0x40".
+      const hasInit = this.r.peekU8() === 0x40;
+      if (hasInit) {
+        this.r.readU8();
+        const reserved = this.r.readU8();
+        if (reserved !== 0x00) {
+          this.r.error(`malformed table: reserved byte 0x${reserved.toString(16)}`);
+        }
+      }
       const elemType = readValTypeByte(this.r);
-      const hasMax = this.r.readU8();
-      const initial = this.r.readU32();
-      const max = hasMax ? this.r.readU32() : null;
+      const limits = this.readLimits(false);
+      const init = hasInit ? this.readInitExpr(elemType) : undefined;
       const name = this.names.table(this.tableNames.length);
       this.tableNames.push(name);
-      this.builder.addTable(name, elemType, initial, max);
+      this.builder.addTable(name, elemType, limits, null, init);
     }
   }
 
   private readMemorySection(): void {
     const count = this.r.readU32();
     for (let i = 0; i < count; i++) {
-      const flags = this.r.readU8();
-      const shared = (flags & 0x02) !== 0;
-      const is64 = (flags & 0x04) !== 0;
-      const hasMax = (flags & 0x01) !== 0;
-      const initial = this.r.readU32();
-      const max = hasMax ? this.r.readU32() : null;
       // In the memory INDEX space, imports first — as the export section names
       // them. `mem${i}` counted defined memories only.
-      this.builder.addMemory(this.names.memory(this.memoryCount++), initial, max, shared, is64);
+      this.builder.addMemory(this.names.memory(this.memoryCount++), this.readLimits(true));
     }
+  }
+
+  /**
+   * An imported table's or memory's limits as the flat import record holds
+   * them — numbers, no table64, no page size — refusing what it cannot (M2g;
+   * the import union, M4, holds the record itself).
+   */
+  private flatImportLimits(
+    l: Limits,
+    what: 'table' | 'memory',
+  ): { initial: number; max: number | null } {
+    if (what === 'table' && l.is64) this.r.error('unsupported: an imported table64 (until M4)');
+    if (l.pageSizeLog2 !== undefined) {
+      this.r.error('unsupported: an imported memory with a custom page size (until M4)');
+    }
+    const num = (v: bigint): number => {
+      if (v > BigInt(Number.MAX_SAFE_INTEGER)) {
+        this.r.error(`unsupported: an imported ${what} size of ${v} (until M4)`);
+      }
+      return Number(v);
+    };
+    return { initial: num(l.initial), max: l.max === undefined ? null : num(l.max) };
+  }
+
+  /**
+   * A table's or memory's limits, as the binary holds them (S6 step 5 item 6
+   * (M2g), wabt-ts's reading). 🔧 The table reader took the whole flag byte as
+   * "has a maximum", so a table64 (`0x04`) read as a 32-bit table with a
+   * maximum and was written back as one — silently, 11 spec binaries; sizes
+   * were u32 even for a 64-bit memory ("LEB128 u32 overflow"); the
+   * custom-page-sizes flag (`0x08`) and its trailing field were ignored.
+   */
+  private readLimits(allowPageSize: boolean): Limits {
+    const flags = this.r.readU8();
+    if ((flags & ~0x0f) !== 0) this.r.error(`malformed limits flags: 0x${flags.toString(16)}`);
+    const is64 = (flags & 0x04) !== 0;
+    const readSize = (): bigint => (is64 ? this.r.readU64() : BigInt(this.r.readU32()));
+    const limits: Limits = { initial: readSize(), isShared: (flags & 0x02) !== 0, is64 };
+    if ((flags & 0x01) !== 0) limits.max = readSize();
+    // The page-size field TRAILS the sizes. Its legality (0 or 16) is a
+    // validator's call; only what the field must hold is bounded here.
+    if ((flags & 0x08) !== 0) {
+      if (!allowPageSize) this.r.error('malformed limits flags: a table has no page size');
+      const log2 = this.r.readU32();
+      if (log2 > 64) this.r.error(`invalid page size: 2^${log2}`);
+      limits.pageSizeLog2 = log2;
+    }
+    return limits;
   }
 
   private readGlobalSection(): void {
@@ -1443,7 +1500,19 @@ class WasmParser {
         // desyncing the reader for the rest of the section. Fail loudly.
         this.r.error(`unsupported init-expression opcode: 0x${opcode.toString(16)}`);
     }
-    this.r.readU8(); // 0x0b end
+    // 🔧 This read the byte and never looked at it: a constant expression of two
+    // instructions (`global.get 0` `ref.i31`, extended-const / GC) lost its
+    // second one, the section reader skipped the rest, and the module came back
+    // with a different initializer — silently (i31.3.wasm, M2g). Reading more
+    // than one is a capability; not reading it must be loud.
+    const end = this.r.readU8();
+    if (end !== 0x0b) {
+      this.r.error(
+        `unsupported constant expression: more than one instruction (0x${
+          end.toString(16)
+        } after the first)`,
+      );
+    }
     return makeRegion([expr]);
   }
 

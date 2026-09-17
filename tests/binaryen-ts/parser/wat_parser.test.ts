@@ -219,8 +219,7 @@ Deno.test('parseWat — inline export', () => {
 Deno.test('parseWat — memory', () => {
   const mod = parseWat(`(module (memory $mem 1 4))`);
   assertEquals(mod.memories.length, 1);
-  assertEquals(mod.memories[0].initial, 1);
-  assertEquals(mod.memories[0].max, 4);
+  assertEquals(mod.memories[0].limits, { initial: 1n, max: 4n, isShared: false, is64: false });
 });
 
 Deno.test('parseWat — function import', () => {

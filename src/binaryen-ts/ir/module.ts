@@ -27,13 +27,31 @@ import { asRegion, type RegionExpr, type RegionInput } from './expressions.ts';
 import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
-import { type FuncSignature, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
+import { type FuncSignature, type Limits, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 export type { TypeDef } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
 // Module-level definition types
 // ---------------------------------------------------------------------------
+
+/**
+ * {@link Limits} from sizes as the builder API takes them: a `number` or a
+ * `bigint`, and `null` for no maximum (M2g).
+ */
+export function limitsOf(
+  initial: number | bigint,
+  max: number | bigint | null = null,
+  flags: { isShared?: boolean; is64?: boolean } = {},
+): Limits {
+  const limits: Limits = {
+    initial: BigInt(initial),
+    isShared: flags.isShared ?? false,
+    is64: flags.is64 ?? false,
+  };
+  if (max !== null) limits.max = BigInt(max);
+  return limits;
+}
 
 /**
  * A single local variable declaration inside a function.
@@ -172,14 +190,12 @@ export interface DataSegment {
 export interface WasmMemory {
   /** Internal name used to reference the memory from instructions. */
   name: string;
-  /** Initial size in pages (64 KiB each). */
-  initial: number;
-  /** Maximum size in pages, or `null` for unbounded. */
-  max: number | null;
-  /** Whether this memory is shared (atomics proposal). */
-  shared: boolean;
-  /** Whether this memory uses 64-bit addressing (memory64 proposal). */
-  is64: boolean;
+  /**
+   * Its limits — wabt-ts's record (S6 step 5 item 6 (M2g)): sizes in pages as
+   * `bigint` (u64 on the wire for a 64-bit memory), `max` absent when unbounded,
+   * `isShared`, `is64`, and `pageSizeLog2` (custom-page-sizes) when declared.
+   */
+  limits: Limits;
 }
 
 /**
@@ -188,12 +204,19 @@ export interface WasmMemory {
 export interface WasmTable {
   /** Internal name used to reference the table from instructions. */
   name: string;
-  /** Element value type — typically a reference type. */
-  type: ValueType;
-  /** Initial number of slots. */
-  initial: number;
-  /** Maximum number of slots, or `null` for unbounded. */
-  max: number | null;
+  /** Element value type — a reference type. */
+  elemType: ValueType;
+  /**
+   * Its limits, in elements — wabt-ts's record (M2g). A table64's are u64 on the
+   * wire; a table never has `isShared` or `pageSizeLog2`.
+   */
+  limits: Limits;
+  /**
+   * The initializer every slot starts as, when the table declares one (the
+   * `0x40 0x00` form) — a constant expression, as the {@link RegionExpr} it is
+   * held in; ABSENT when it declares none (M2g, the M2 owner call).
+   */
+  init?: RegionExpr;
 }
 
 /**
@@ -513,13 +536,16 @@ export class ModuleBuilder {
    */
   addMemory(
     name: string,
-    initial: number,
-    max: number | null = null,
+    initial: number | bigint | Limits,
+    max: number | bigint | null = null,
     shared = false,
     is64 = false,
   ): this {
-    this._memories.push({ name, initial, max, shared, is64 });
-    if (is64) this._hasMemory64 = true;
+    const limits = typeof initial === 'object'
+      ? initial
+      : limitsOf(initial, max, { isShared: shared, is64 });
+    this._memories.push({ name, limits });
+    if (limits.is64) this._hasMemory64 = true;
     return this;
   }
 
@@ -563,11 +589,18 @@ export class ModuleBuilder {
    */
   addTable(
     name: string,
-    type: ValueType = ValType.FuncRef,
-    initial = 0,
-    max: number | null = null,
+    elemType: ValueType = ValType.FuncRef,
+    initial: number | bigint | Limits = 0,
+    max: number | bigint | null = null,
+    init?: RegionInput,
   ): this {
-    this._tables.push({ name, type, initial, max });
+    const limits = typeof initial === 'object' ? initial : limitsOf(initial, max);
+    this._tables.push({
+      name,
+      elemType,
+      limits,
+      ...(init !== undefined ? { init: asRegion(init) } : {}),
+    });
     return this;
   }
 

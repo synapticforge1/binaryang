@@ -425,8 +425,7 @@ Deno.test('encodeWasm: memory section round-trips', () => {
   const mod2 = parseWasm(bytes);
 
   assertEquals(mod2.memories.length, 1);
-  assertEquals(mod2.memories[0].initial, 1);
-  assertEquals(mod2.memories[0].max, 4);
+  assertEquals(mod2.memories[0].limits, { initial: 1n, max: 4n, isShared: false, is64: false });
 });
 
 Deno.test('encodeWasm: data segment round-trips', () => {

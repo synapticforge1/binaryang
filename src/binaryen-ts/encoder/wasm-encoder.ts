@@ -115,6 +115,7 @@ import {
 } from '../ir/gc-types.ts';
 import {
   heapAbstract,
+  type Limits,
   requireIndex,
   requireName,
   type Var,
@@ -1318,24 +1319,20 @@ class WasmEncoder {
     const localTables = this.mod.tables;
     w.writeU32(localTables.length);
     for (const t of localTables) {
-      writeValueType(w, t.type);
-      const hasMax = t.max !== null;
-      w.writeU8(hasMax ? 1 : 0);
-      w.writeU32(t.initial);
-      if (hasMax) w.writeU32(t.max as number);
+      if (t.init !== undefined) {
+        w.writeU8(0x40);
+        w.writeU8(0x00);
+      }
+      writeValueType(w, t.elemType);
+      writeLimits(w, t.limits, `table ${t.name}`);
+      if (t.init !== undefined) this.encodeInitExpr(w, t.init);
     }
   }
 
   private encodeMemorySection(w: BinaryWriter): void {
     const localMems = this.mod.memories;
     w.writeU32(localMems.length);
-    for (const m of localMems) {
-      const hasMax = m.max !== null;
-      const flags = (hasMax ? 0x01 : 0) | (m.shared ? 0x02 : 0) | (m.is64 ? 0x04 : 0);
-      w.writeU8(flags);
-      w.writeU32(m.initial);
-      if (hasMax) w.writeU32(m.max as number);
-    }
+    for (const m of localMems) writeLimits(w, m.limits, `memory ${m.name}`);
   }
 
   private encodeGlobalSection(w: BinaryWriter): void {
@@ -2708,6 +2705,28 @@ export class WasmEncodeError extends Error {
  * await writeFile("module.opt.wasm", optimized);
  * ```
  */
+/**
+ * A table's or memory's limits (S6 step 5 item 6 (M2g)): the flag byte — max
+ * `0x01`, shared `0x02`, 64-bit `0x04`, custom page size `0x08` — then the sizes,
+ * u64 for a 64-bit one, then the page size's log2. A 32-bit size past u32 is
+ * refused rather than truncated.
+ */
+function writeLimits(w: BinaryWriter, l: Limits, what: string): void {
+  const flags = (l.max !== undefined ? 0x01 : 0) | (l.isShared ? 0x02 : 0) | (l.is64 ? 0x04 : 0) |
+    (l.pageSizeLog2 !== undefined ? 0x08 : 0);
+  w.writeU8(flags);
+  const size = (v: bigint): void => {
+    if (l.is64) return w.writeU64(v);
+    if (v < 0n || v > 0xffff_ffffn) {
+      throw new WasmEncodeError(`cannot encode ${what}: size ${v} does not fit a 32-bit limit`);
+    }
+    w.writeU32(Number(v));
+  };
+  size(l.initial);
+  if (l.max !== undefined) size(l.max);
+  if (l.pageSizeLog2 !== undefined) w.writeU32(l.pageSizeLog2);
+}
+
 export function encodeWasm(mod: WasmModule): Uint8Array {
   return new WasmEncoder(mod).encode();
 }

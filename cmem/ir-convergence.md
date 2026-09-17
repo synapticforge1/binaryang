@@ -3321,6 +3321,31 @@ else read a custom's payload. Ratchet **44 / 27 / 9** — custom differs only in
 output 0 of 2,105 changed. 7 mutants killed. ⚠️ **Open, recorded not done**: the text format has no
 spelling for where the name section sat, so `wasm2wat` → `wat2wasm` still puts it last.
 
+**✅ M2g — a table or memory holds wabt-ts's `Limits`; a table its `elemType` and `init?` (2026-09-16).**
+Fidelity decided — the flat numbers were LOSING what the binary said. Measured (`m2g_measure.ts`,
+2,300 spec + WASI binaries with a table or memory), before → after:
+- 🛑 **table64 silently narrowed**: binaryen-ts's table reader took the whole flag byte as "has a
+  maximum", so a table64 read as a 32-bit table and was written back as one — **11 binaries changed,
+  no diagnostic** (a `call_indirect` through an i64 table came back invalid). Now 18 round-trip, 0
+  differ; 36 are refused for other reasons ("multiple tables").
+- sizes were u32 for a 64-bit memory / table ("LEB128 u32 overflow"): now u64 — memory64 396 → 400
+  same, every size ≥ 2^32 now round-trips.
+- a table initializer (`0x40 0x00`) was refused as a value type: now a `RegionExpr` — 23 of 30.
+- the custom-page-sizes flag and its trailing field were ignored: kept; a page size on a TABLE and an
+  undefined flag bit are errors (wabt-ts's reading, ported).
+- 🛑 **Found on the way:** binaryen-ts's constant-expression reader read its `end` byte and never
+  checked it — `global.get 0` `ref.i31` lost `ref.i31`, the section reader skipped the rest
+  (i31.3.wasm, surfaced once table initializers were read). Now an error: **43 spec binaries**
+  (extended-const, GC: `global.9`, `data.57`, `array.*`, …) are REFUSED that were silently truncated.
+- imports keep flat limits until M4, read through the same `readLimits`; what the flat record cannot
+  hold is refused (23 imported table64s, which had been misread).
+The bridge passes the record and the table's initializer (it passed numbers, dropping `is64` /
+`pageSizeLog2`, and never carried `init`). `ModuleBuilder.addMemory` / `addTable` take a `Limits` or the
+old numbers (`limitsOf`); the encoder refuses a 32-bit size past u32. Ratchet **40 / 20 / 9** — table
+and memory differ only in `loc`. Optimizer output 0 of 2,105 changed. 22 mutants killed (the compat
+`setMemory(…, shared)` survived until a `shared: true` test). ⚠️ **Open, recorded not done**:
+binaryen-ts reads ONE constant instruction (M2b's item) — now refused, not truncated, 43 binaries.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

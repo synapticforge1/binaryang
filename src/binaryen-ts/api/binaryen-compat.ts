@@ -106,6 +106,7 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import {
+  limitsOf,
   ModuleBuilder,
   type WasmExport,
   type WasmFunction,
@@ -1278,21 +1279,13 @@ export class Module {
     internalName = '0',
   ): void {
     const max = maximum === -1 || maximum === null ? null : maximum;
+    const limits = limitsOf(initial, max, { isShared: shared, is64 });
     const existing = this._inner.memories[0];
     if (existing) {
       existing.name = internalName;
-      existing.initial = initial;
-      existing.max = max;
-      existing.shared = shared;
-      existing.is64 = is64;
+      existing.limits = limits;
     } else {
-      this._inner.memories.push({
-        name: internalName,
-        initial,
-        max,
-        shared,
-        is64,
-      });
+      this._inner.memories.push({ name: internalName, limits });
     }
     if (is64) this._inner.hasMemory64 = true;
     if (exportName !== null) {
