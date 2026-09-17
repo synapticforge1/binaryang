@@ -288,7 +288,7 @@ function collectLocalGets(e: Expression): number[] {
  *  args bind the inlineable shell's params (which are identical to the original
  *  function's params) into the outlined call. */
 function getForwardedArgs(fn: WasmFunction): Expression[] {
-  return fn.params.map((type, i) => makeLocalGet(varIndex(i), type));
+  return fn.sig.params.map((type, i) => makeLocalGet(varIndex(i), type));
 }
 
 /** Per-pass cache of which functions we've split, and the inlineable templates
@@ -316,7 +316,7 @@ class FunctionSplitter {
     // shape, so the pattern logic below reads the body as it always did.
     // `doSplitA` / `doSplitB` must read it the same way — they re-find the ifs
     // this found.
-    const body = asStatement(fn.body, blockResult(fn.results));
+    const body = asStatement(fn.body, blockResult(fn.sig.results));
 
     // A block with a self-targeted break can't be safely outlined.
     if (body.kind === ExpressionKind.Block) {
@@ -330,7 +330,7 @@ class FunctionSplitter {
 
     // ---- Pattern A: `if (simple) return; ...rest` ----
     if (
-      !iff.ifFalse && fn.results.length === 0 &&
+      !iff.ifFalse && fn.sig.results.length === 0 &&
       asStatement(iff.ifTrue, None).kind === ExpressionKind.Return
     ) {
       // Must be a block — otherwise the whole function is just the if and the
@@ -419,7 +419,7 @@ class FunctionSplitter {
   private doSplitA(fn: WasmFunction): WasmFunction {
     // A block by construction: `getSplitMode` returns SplitPatternA only when
     // this same view of the body is one.
-    const body = asStatement(fn.body, blockResult(fn.results)) as BlockExpr;
+    const body = asStatement(fn.body, blockResult(fn.sig.results)) as BlockExpr;
     const originalIf = getIf(body)!;
 
     // Outlined function: body minus the first if.
@@ -429,8 +429,7 @@ class FunctionSplitter {
     ));
     const outlined: WasmFunction = {
       name: `byn-split-outlined-A$${fn.name}`,
-      params: fn.params.slice(),
-      results: fn.results.slice(),
+      sig: { params: fn.sig.params.slice(), results: fn.sig.results.slice() },
       locals: copyLocals(fn.locals),
       body: outlinedBody,
     };
@@ -447,8 +446,7 @@ class FunctionSplitter {
 
     return {
       name: `byn-split-inlineable-A$${fn.name}`,
-      params: fn.params.slice(),
-      results: fn.results.slice(),
+      sig: { params: fn.sig.params.slice(), results: fn.sig.results.slice() },
       locals: copyLocals(fn.locals),
       body: asRegion(shellIf),
     };
@@ -462,20 +460,19 @@ class FunctionSplitter {
     const maxIfs = this.opts.partialInliningIfs;
     // Read the body the way `getSplitMode` did, or the ifs it counted are not
     // the ones found here.
-    let inlineableBody = deepCopy(asStatement(fn.body, blockResult(fn.results)));
+    let inlineableBody = deepCopy(asStatement(fn.body, blockResult(fn.sig.results)));
 
     for (let i = 0; i < maxIfs; i++) {
       const ifI = getIf(inlineableBody, i);
       if (!ifI) break;
 
-      const valueReturned = fn.results.length > 0 && ifI.ifTrue.type !== None &&
+      const valueReturned = fn.sig.results.length > 0 && ifI.ifTrue.type !== None &&
         ifI.ifTrue.type !== Unreachable;
-      const outlinedResults = valueReturned ? fn.results.slice() : [];
+      const outlinedResults = valueReturned ? fn.sig.results.slice() : [];
 
       const outlined: WasmFunction = {
         name: `byn-split-outlined-B$${fn.name}$${i}`,
-        params: fn.params.slice(),
-        results: outlinedResults,
+        sig: { params: fn.sig.params.slice(), results: outlinedResults },
         locals: copyLocals(fn.locals),
         body: ifI.ifTrue,
       };
@@ -491,8 +488,7 @@ class FunctionSplitter {
 
     return {
       name: `byn-split-inlineable-B$${fn.name}`,
-      params: fn.params.slice(),
-      results: fn.results.slice(),
+      sig: { params: fn.sig.params.slice(), results: fn.sig.results.slice() },
       locals: copyLocals(fn.locals),
       body: asRegion(inlineableBody),
     };
@@ -720,10 +716,10 @@ function inlineCallSite(
   // params, and the inliner filled the difference with nothing. That is the
   // WT-2b "call need N got M" shape reached from the optimizer instead of the
   // decoder, so it gets the same treatment: refuse.
-  if (call.operands.length !== callee.params.length) {
+  if (call.operands.length !== callee.sig.params.length) {
     throw new Error(
       'Inlining: call to ' + callee.name + ' passes ' + call.operands.length +
-        ' operands but the function declares ' + callee.params.length + ' params',
+        ' operands but the function declares ' + callee.sig.params.length + ' params',
     );
   }
   for (const [i, operand] of call.operands.entries()) {
@@ -737,7 +733,7 @@ function inlineCallSite(
   }
 
   // Zero-initialise non-param locals (needed for correctness in loops).
-  const varBase = callee.params.length;
+  const varBase = callee.sig.params.length;
   for (let i = varBase; i < callee.locals.length; i++) {
     const zero = zeroForType(callee.locals[i]!.type);
     if (zero !== null) {
@@ -754,11 +750,11 @@ function inlineCallSite(
   //    upstream (`block->type = retType`). 🔧 It was `results[0]`, so a
   //    `(result i32 i32)` callee sat in a block declaring one value and the
   //    module was refused — 16 corpus modules at -O3 (`inlining_multivalue.test.ts`).
-  const retType: Type = callee.results.length === 0
+  const retType: Type = callee.sig.results.length === 0
     ? None
-    : callee.results.length === 1
-    ? callee.results[0]!
-    : [...callee.results];
+    : callee.sig.results.length === 1
+    ? callee.sig.results[0]!
+    : [...callee.sig.results];
 
   // The callee's body becomes a STATEMENT of the wrapper block, which a region
   // cannot be; `children` is `Expression[]`, so only the encoder would object.

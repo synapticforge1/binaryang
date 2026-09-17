@@ -128,8 +128,7 @@ Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
   // body size = 1 (single local.get) → always inline
   const callee: WasmFunction = {
     name: 'identity',
-    params: [ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeLocalGet(varIndex(0), ValType.I32)),
   };
@@ -137,8 +136,7 @@ Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
   // caller: (func $main (result i32) (call $identity (i32.const 5)))
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('identity'), [makeI32Const(5)], ValType.I32)])),
   };
@@ -163,8 +161,7 @@ Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
   // callee: adds two params — size 3 (add + local.get + local.get)
   const callee: WasmFunction = {
     name: 'add',
-    params: [ValType.I32, ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32, ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBinary(
       BinaryOp.AddI32,
@@ -175,8 +172,7 @@ Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(
       makeReturn([makeCall(varName('add'), [makeI32Const(3), makeI32Const(4)], ValType.I32)]),
@@ -204,8 +200,7 @@ Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
 Deno.test('Inlining: call operands become local.set in the inlined block', () => {
   const callee: WasmFunction = {
     name: 'inc',
-    params: [ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(
       makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
@@ -214,8 +209,7 @@ Deno.test('Inlining: call operands become local.set in the inlined block', () =>
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('inc'), [makeI32Const(10)], ValType.I32)])),
   };
@@ -240,16 +234,14 @@ Deno.test('Inlining: return in callee body becomes break to wrapper block', () =
   // callee has an explicit return
   const callee: WasmFunction = {
     name: 'ret_const',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeI32Const(42)])),
   };
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('ret_const'), [], ValType.I32)])),
   };
@@ -273,8 +265,7 @@ Deno.test('Inlining: recursive call is not inlined', () => {
   // factorial: size is small but calls itself
   const factorial: WasmFunction = {
     name: 'factorial',
-    params: [ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeReturn(
       [makeBinary(
@@ -311,8 +302,7 @@ Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (reg
   // leading `$` that production modules actually use.
   const callee: WasmFunction = {
     name: '$add',
-    params: [ValType.I32, ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32, ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBinary(
       BinaryOp.AddI32,
@@ -322,8 +312,7 @@ Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (reg
   };
   const caller: WasmFunction = {
     name: '$main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(
       makeReturn([makeCall(varName('$add'), [makeI32Const(3), makeI32Const(4)], ValType.I32)]),
@@ -345,16 +334,14 @@ Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (reg
 Deno.test('Inlining: exported callee stays in module even after inlining', () => {
   const callee: WasmFunction = {
     name: 'helper',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeI32Const(99)),
   };
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('helper'), [], ValType.I32)])),
   };
@@ -389,16 +376,14 @@ Deno.test('Inlining: large function is not inlined at optimizeLevel 2', () => {
 
   const callee: WasmFunction = {
     name: 'big',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([expr])),
   };
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('big'), [], ValType.I32)])),
   };
@@ -422,8 +407,7 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
   // callee has a non-param local it writes to and returns
   const callee: WasmFunction = {
     name: 'localfn',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }], // one non-param local
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(7)),
@@ -433,8 +417,7 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('localfn'), [], ValType.I32)])),
   };
@@ -471,8 +454,7 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
 Deno.test('Inlining: multi-caller callee kept when inlined at multiple sites', () => {
   const callee: WasmFunction = {
     name: 'helper',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeI32Const(1)),
   };
@@ -480,15 +462,13 @@ Deno.test('Inlining: multi-caller callee kept when inlined at multiple sites', (
   // Two callers each call helper once.
   const caller1: WasmFunction = {
     name: 'f1',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('helper'), [], ValType.I32)])),
   };
   const caller2: WasmFunction = {
     name: 'f2',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('helper'), [], ValType.I32)])),
   };
@@ -514,16 +494,14 @@ Deno.test('Inlining: multi-caller callee kept when inlined at multiple sites', (
 Deno.test('Inlining: void callee inlined correctly', () => {
   const callee: WasmFunction = {
     name: 'side_effect',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeNop()),
   };
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeBlock([
       makeCall(varName('side_effect'), [], None),
@@ -547,16 +525,14 @@ Deno.test('Inlining: void callee inlined correctly', () => {
 Deno.test('Inlining: unreachable before call keeps body unreachable', () => {
   const callee: WasmFunction = {
     name: 'tiny',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeI32Const(0)),
   };
 
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeBlock([
       makeUnreachable(),
@@ -582,15 +558,13 @@ Deno.test('Inlining: unreachable before call keeps body unreachable', () => {
 Deno.test('InliningOptimizing: runs without error on simple module', () => {
   const callee: WasmFunction = {
     name: 'const_fn',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeI32Const(42)),
   };
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('const_fn'), [], ValType.I32)])),
   };
@@ -616,15 +590,13 @@ Deno.test('InliningOptimizing: cleans up inlined body — Binary fold', () => {
   function makeCalleeAndCaller(): [WasmFunction, WasmFunction] {
     const callee: WasmFunction = {
       name: 'two_plus_three',
-      params: [],
-      results: [ValType.I32],
+      sig: { params: [], results: [ValType.I32] },
       locals: [],
       body: asRegion(makeBinary(BinaryOp.AddI32, makeI32Const(2), makeI32Const(3))),
     };
     const caller: WasmFunction = {
       name: 'main',
-      params: [],
-      results: [ValType.I32],
+      sig: { params: [], results: [ValType.I32] },
       locals: [],
       body: asRegion(makeReturn([makeCall(varName('two_plus_three'), [], ValType.I32)])),
     };
@@ -661,15 +633,13 @@ Deno.test('InliningOptimizing: cleans up inlined body — Vacuum drops nop', () 
   function makeMod(): { mod: WasmModule; caller: WasmFunction } {
     const callee: WasmFunction = {
       name: 'nop_then_const',
-      params: [],
-      results: [ValType.I32],
+      sig: { params: [], results: [ValType.I32] },
       locals: [],
       body: asRegion(makeBlock([makeNop(), makeI32Const(7)])),
     };
     const caller: WasmFunction = {
       name: 'main',
-      params: [],
-      results: [ValType.I32],
+      sig: { params: [], results: [ValType.I32] },
       locals: [],
       body: asRegion(makeReturn([makeCall(varName('nop_then_const'), [], ValType.I32)])),
     };
@@ -718,23 +688,20 @@ function makePatternABody(padNops: number): Expression {
 Deno.test('split-inlining: disabled by default — Pattern A function is untouched', () => {
   const callee: WasmFunction = {
     name: 'early_exit',
-    params: [ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makePatternABody(25)),
   };
   // Two callers → multi-caller, normal inliner only fires at size <= 2.
   const caller1: WasmFunction = {
     name: 'c1',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('early_exit'), [makeI32Const(0)], None)),
   };
   const caller2: WasmFunction = {
     name: 'c2',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('early_exit'), [makeI32Const(1)], None)),
   };
@@ -758,22 +725,19 @@ Deno.test('split-inlining: disabled by default — Pattern A function is untouch
 Deno.test('split-inlining: Pattern A — caller gets shell, outlined function added', () => {
   const callee: WasmFunction = {
     name: 'early_exit',
-    params: [ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makePatternABody(25)),
   };
   const caller1: WasmFunction = {
     name: 'c1',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('early_exit'), [makeI32Const(0)], None)),
   };
   const caller2: WasmFunction = {
     name: 'c2',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('early_exit'), [makeI32Const(1)], None)),
   };
@@ -804,22 +768,19 @@ Deno.test('split-inlining: Pattern A with simple outlined chunk collapses to Ful
   // The whole callee gets inlined; no split-* functions appear.
   const callee: WasmFunction = {
     name: 'tiny_early_exit',
-    params: [ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makePatternABody(1)),
   };
   const caller1: WasmFunction = {
     name: 'c1',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('tiny_early_exit'), [makeI32Const(0)], None)),
   };
   const caller2: WasmFunction = {
     name: 'c2',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('tiny_early_exit'), [makeI32Const(1)], None)),
   };
@@ -844,8 +805,7 @@ Deno.test('split-inlining: non-simple condition rejects Pattern A', () => {
   // Splitter must classify as Uninlineable; calls remain.
   const callee: WasmFunction = {
     name: 'complex_cond',
-    params: [ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       {
@@ -864,15 +824,13 @@ Deno.test('split-inlining: non-simple condition rejects Pattern A', () => {
   };
   const caller1: WasmFunction = {
     name: 'c1',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('complex_cond'), [makeI32Const(0)], None)),
   };
   const caller2: WasmFunction = {
     name: 'c2',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('complex_cond'), [makeI32Const(1)], None)),
   };
@@ -899,15 +857,13 @@ Deno.test('return-call inlining: callee return propagates as caller return (valu
   // wrapper-block label like a plain inline would do.
   const callee: WasmFunction = {
     name: 'const42',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeI32Const(42)), // size 1 → always inline
   };
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeCall(varName('const42'), [], ValType.I32, /* isReturn */ true)),
   };
@@ -931,15 +887,13 @@ Deno.test('return-call inlining: void callee — body executes then return', () 
   // explicit return rewritten to a break (because rewriteReturns=false).
   const callee: WasmFunction = {
     name: 'side_effect',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeNop()), // size 1 → always inline; void
   };
   const caller: WasmFunction = {
     name: 'main',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('side_effect'), [], None, /* isReturn */ true)),
   };
@@ -962,8 +916,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
   // inlining the return stays as a Return — it propagates out of the caller.
   const callee: WasmFunction = {
     name: 'early_42',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeI32Const(42)])), // size 2 → always inline
   };
@@ -972,8 +925,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
   {
     const caller: WasmFunction = {
       name: 'main',
-      params: [],
-      results: [ValType.I32],
+      sig: { params: [], results: [ValType.I32] },
       locals: [],
       body: asRegion(makeCall(varName('early_42'), [], ValType.I32, /* isReturn */ false)),
     };
@@ -993,8 +945,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
   {
     const caller: WasmFunction = {
       name: 'main',
-      params: [],
-      results: [ValType.I32],
+      sig: { params: [], results: [ValType.I32] },
       locals: [],
       body: asRegion(makeCall(varName('early_42'), [], ValType.I32, /* isReturn */ true)),
     };
@@ -1024,8 +975,7 @@ Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', 
   const heavy2: Expression[] = Array.from({ length: 12 }, () => makeNop());
   const callee: WasmFunction = {
     name: 'two_branches',
-    params: [ValType.I32, ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32, ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBlock([
       {
@@ -1046,15 +996,13 @@ Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', 
   };
   const caller1: WasmFunction = {
     name: 'c1',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('two_branches'), [makeI32Const(0), makeI32Const(0)], None)),
   };
   const caller2: WasmFunction = {
     name: 'c2',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeCall(varName('two_branches'), [makeI32Const(1), makeI32Const(1)], None)),
   };

@@ -49,7 +49,7 @@ import { requireIndex } from '../../wabt-ts/ir/ir.ts';
 export function uncoveredNonNullableLocals(fn: WasmFunction): Set<number> {
   const bad = new Set<number>();
   const interesting = new Set<number>();
-  for (let i = fn.params.length; i < fn.locals.length; i++) {
+  for (let i = fn.sig.params.length; i < fn.locals.length; i++) {
     const t = fn.locals[i]!.type;
     if (isRefType(t) && !t.nullable) interesting.add(i);
   }

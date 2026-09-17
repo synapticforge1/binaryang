@@ -68,7 +68,7 @@ function emptyModule(): WasmModule {
 }
 
 function makeTestFn(name: string, body: Expression): WasmFunction {
-  return { name, params: [], results: [], locals: [], body: asRegion(body) };
+  return { name, sig: { params: [], results: [] }, locals: [], body: asRegion(body) };
 }
 
 /** Encode a simple add(i32,i32)->i32 module as a WASM binary. */

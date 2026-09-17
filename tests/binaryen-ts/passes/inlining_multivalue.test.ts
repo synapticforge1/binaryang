@@ -75,7 +75,7 @@ Deno.test('Inlining a two-result callee whose body is ONE named block: no trappi
   const r = wat2wasm(CASES['falls through with two values']!);
   assert(!hasErrors(r.errors), formatErrors(r.errors));
   const mod = parseWasm(r.binary);
-  const callee = mod.functions.find((fn) => fn.results.length === 2)!;
+  const callee = mod.functions.find((fn) => fn.sig.results.length === 2)!;
   callee.body = makeRegion(
     [makeBlock(callee.body.children, '$named', [ValType.I32, ValType.I32])],
     [ValType.I32, ValType.I32],

@@ -363,7 +363,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
   fn.body = txRegion(fn.body);
 
   if (callerTrampoline !== null) {
-    const results = fn.results;
+    const results = fn.sig.results;
     const resultType = typeOfValues(results);
     const trampoline = makeBlock(
       results.length > 0

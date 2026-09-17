@@ -1147,8 +1147,7 @@ export class Module {
     ];
     const fn: WasmFunction = {
       name,
-      params: paramVts,
-      results: resultVts,
+      sig: { params: paramVts, results: resultVts },
       locals,
       // binaryen.js callers pass one expression, usually an unnamed block;
       // `asRegion` takes that block's contents, as binaryen's writer does.
@@ -1180,8 +1179,7 @@ export class Module {
       field: externalBase,
       func: {
         name: internalName,
-        params: _idToValTypeArray(params),
-        results: _idToValTypeArray(results),
+        sig: { params: _idToValTypeArray(params), results: _idToValTypeArray(results) },
         locals: [],
         body: makeRegion([]),
       },
@@ -1585,15 +1583,15 @@ export interface FunctionInfo {
  * here; `module`/`base` are therefore always `""` for any handle this accepts.
  */
 export function getFunctionInfo(func: WasmFunction): FunctionInfo {
-  const results = func.results.map(_valTypeToId);
+  const results = func.sig.results.map(_valTypeToId);
   return {
     name: func.name,
     module: '',
     base: '',
     type: createType(results),
-    params: func.params.map(_valTypeToId),
+    params: func.sig.params.map(_valTypeToId),
     results,
-    vars: func.locals.slice(func.params.length).map((l) => _valTypeToId(l.type)),
+    vars: func.locals.slice(func.sig.params.length).map((l) => _valTypeToId(l.type)),
     body: func.body,
   };
 }

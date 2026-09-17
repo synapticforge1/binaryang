@@ -957,10 +957,10 @@ class WasmEncoder {
     };
 
     for (const imp of this.mod.imports) {
-      if (imp.kind === ExternalKind.Func) addType(imp.func.params, imp.func.results);
+      if (imp.kind === ExternalKind.Func) addType(imp.func.sig.params, imp.func.sig.results);
     }
     for (const fn of this.mod.functions) {
-      addType(fn.params, fn.results);
+      addType(fn.sig.params, fn.sig.results);
     }
     // Tags use function-type signatures (params only, no results)
     for (const imp of this.mod.imports) {
@@ -1332,7 +1332,7 @@ class WasmEncoder {
       switch (imp.kind) {
         case ExternalKind.Func: {
           w.writeU8(0x00);
-          const { params, results } = imp.func;
+          const { params, results } = imp.func.sig;
           const idx = this.types.length > 0
             ? this.gcFuncTypeIndex(params, results)
             : this.getTypeIndex(params, results);
@@ -1377,8 +1377,8 @@ class WasmEncoder {
     w.writeU32(this.mod.functions.length);
     for (const fn of this.mod.functions) {
       const idx = this.types.length > 0
-        ? this.gcFuncTypeIndex(fn.params, fn.results)
-        : this.getTypeIndex(fn.params, fn.results);
+        ? this.gcFuncTypeIndex(fn.sig.params, fn.sig.results)
+        : this.getTypeIndex(fn.sig.params, fn.sig.results);
       w.writeU32(idx);
     }
   }
@@ -1620,7 +1620,7 @@ class WasmEncoder {
 
   private encodeFunctionBody(w: BinaryWriter, fn: WasmFunction): void {
     // Locals: non-param locals only, run-length encoded
-    const nonParamLocals = fn.locals.slice(fn.params.length);
+    const nonParamLocals = fn.locals.slice(fn.sig.params.length);
     // Run-length grouping compares by KEY, not by `===`: a `RefType` is an
     // object, so two structurally-identical `(ref null $T)` locals are never
     // reference-equal and would each get their own group — correct output, but

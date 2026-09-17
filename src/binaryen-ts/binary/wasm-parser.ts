@@ -1361,12 +1361,12 @@ class WasmParser {
       const fn = this.decodeFunction(bodyReader, ft, funcIdx, ctx);
       this.builder.addFunction(
         fn.name,
-        fn.params,
-        fn.results,
+        fn.sig.params,
+        fn.sig.results,
         fn.body,
-        fn.locals.slice(fn.params.length),
+        fn.locals.slice(fn.sig.params.length),
         fn.bodyFrameLabel,
-        fn.locals.slice(0, fn.params.length).map((l) => l.name),
+        fn.locals.slice(0, fn.sig.params.length).map((l) => l.name),
       );
       this.r.seek(bodyEnd);
     }
@@ -2646,8 +2646,7 @@ class WasmParser {
       // function. A region carries no label, so record it here for the encoder
       // to seed; otherwise such a branch mis-resolves.
       bodyFrameLabel: funcFrame.label,
-      params: ft.params,
-      results: ft.results,
+      sig: { params: ft.params, results: ft.results },
       locals,
       body,
     };

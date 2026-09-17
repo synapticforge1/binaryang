@@ -86,10 +86,15 @@ export interface Local {
 export interface WasmFunction {
   /** Internal name (used for calls and exports). */
   name: string;
-  /** Parameter types (subset of locals at indices 0..params.length-1). */
-  params: ValueType[];
-  /** Result types (empty = void). */
-  results: ValueType[];
+  /**
+   * The function's type — wabt-ts's `FuncSignature` (S6 step 5 item 6 (M6a)),
+   * as a tag's is since M2c. It was `params` and `results` side by side, which
+   * said the same thing in a second shape: every signature this tree compares,
+   * interns or writes is a `{ params, results }` pair.
+   *
+   * The params are also the first `locals`, by index — that has not changed.
+   */
+  sig: FuncSignature;
   /** All locals including params. Additional locals start at params.length. */
   locals: Local[];
   /** The function's region — see {@link RegionExpr}. */
@@ -567,8 +572,7 @@ export class ModuleBuilder {
     });
     this._functions.push({
       name,
-      params,
-      results,
+      sig: { params, results },
       locals: [...paramLocals, ...locals],
       body: asRegion(body),
       bodyFrameLabel,
@@ -719,7 +723,7 @@ export class ModuleBuilder {
       field: base,
       // An imported function has no body; the record is the same one a defined
       // function uses, and its body is the empty region (M4).
-      func: { name: internalName, params, results, locals: [], body: makeRegion([]) },
+      func: { name: internalName, sig: { params, results }, locals: [], body: makeRegion([]) },
     });
     return this;
   }

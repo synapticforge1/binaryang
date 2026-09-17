@@ -160,8 +160,8 @@ Deno.test('parseWasm: add function has correct signature', () => {
   const mod = parseWasm(ADD_MODULE);
   assertEquals(mod.functions.length, 1);
   const fn = mod.functions[0];
-  assertEquals(fn.params, [ValType.I32, ValType.I32]);
-  assertEquals(fn.results, [ValType.I32]);
+  assertEquals(fn.sig.params, [ValType.I32, ValType.I32]);
+  assertEquals(fn.sig.results, [ValType.I32]);
 });
 
 Deno.test("parseWasm: add function is exported as 'add'", () => {

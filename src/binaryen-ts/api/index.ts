@@ -287,8 +287,8 @@ function serializeToWat(mod: WasmModule): string {
 
   for (const imp of mod.imports) {
     if (imp.kind === ExternalKind.Func) {
-      const params = imp.func.params.map((t) => `(param ${typeToString(t)})`).join(' ');
-      const results = imp.func.results.map((t) => `(result ${typeToString(t)})`).join(' ');
+      const params = imp.func.sig.params.map((t) => `(param ${typeToString(t)})`).join(' ');
+      const results = imp.func.sig.results.map((t) => `(result ${typeToString(t)})`).join(' ');
       const sig = [params, results].filter(Boolean).join(' ');
       lines.push(
         `  (import "${imp.module}" "${imp.field}" (func $${imp.func.name}${sig ? ' ' + sig : ''}))`,
@@ -316,11 +316,11 @@ function serializeToWat(mod: WasmModule): string {
   }
 
   for (const fn of mod.functions) {
-    const params = fn.params.map((t, i) => `(param $p${i} ${typeToString(t)})`).join(' ');
-    const results = fn.results.map((t) => `(result ${typeToString(t)})`).join(' ');
+    const params = fn.sig.params.map((t, i) => `(param $p${i} ${typeToString(t)})`).join(' ');
+    const results = fn.sig.results.map((t) => `(result ${typeToString(t)})`).join(' ');
     const header = [params, results].filter(Boolean).join(' ');
     lines.push(`  (func $${fn.name}${header ? ' ' + header : ''}`);
-    const extraLocals = fn.locals.slice(fn.params.length);
+    const extraLocals = fn.locals.slice(fn.sig.params.length);
     for (const loc of extraLocals) {
       lines.push(`    (local ${loc.name ?? ''} ${typeToString(loc.type)})`);
     }

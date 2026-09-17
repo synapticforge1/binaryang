@@ -29,7 +29,7 @@ new PassRunner(after, { optimizeLevel: 2, shrinkLevel: 2 }).addPass(createPass('
 const fibAfter = after.functions.find((f) => f.name === '$func5')!;
 
 console.log(`# _fib locals before: ${fibBefore.locals.length}, after: ${fibAfter.locals.length}`);
-console.log(`# (params: ${fibBefore.params.length})`);
+console.log(`# (params: ${fibBefore.sig.params.length})`);
 console.log();
 
 // Walk both trees in pre-order, recording every local.set / local.tee / drop

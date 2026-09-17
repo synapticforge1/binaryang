@@ -39,8 +39,8 @@ Deno.test('parseWat — single function, no body', () => {
   const mod = parseWat(`(module (func $f))`);
   assertEquals(mod.functions.length, 1);
   assertEquals(mod.functions[0].name, '$f');
-  assertEquals(mod.functions[0].params, []);
-  assertEquals(mod.functions[0].results, []);
+  assertEquals(mod.functions[0].sig.params, []);
+  assertEquals(mod.functions[0].sig.results, []);
 });
 
 Deno.test('parseWat — function with params and result', () => {
@@ -49,8 +49,8 @@ Deno.test('parseWat — function with params and result', () => {
       (i32.add (local.get 0) (local.get 1))))`);
   const fn = mod.functions[0];
   assertEquals(fn.name, '$add');
-  assertEquals(fn.params, [ValType.I32, ValType.I32]);
-  assertEquals(fn.results, [ValType.I32]);
+  assertEquals(fn.sig.params, [ValType.I32, ValType.I32]);
+  assertEquals(fn.sig.results, [ValType.I32]);
   assertEquals(soleInstr(fn.body).kind, ExpressionKind.Binary);
 });
 
@@ -230,7 +230,7 @@ Deno.test('parseWat — function import', () => {
   assertEquals(imp.module, 'env');
   assertEquals(imp.field, 'log');
   assert(imp.kind === ExternalKind.Func);
-  assertEquals(imp.func.params, [ValType.I32]);
+  assertEquals(imp.func.sig.params, [ValType.I32]);
 });
 
 Deno.test('parseWat — full add module', () => {

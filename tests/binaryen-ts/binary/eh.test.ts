@@ -323,7 +323,7 @@ Deno.test('EH parser: try_table catch clause dest resolves to outer block label'
 Deno.test('EH parser: exnref value type decoded in function params', () => {
   const mod = parseWasm(THROW_REF_MODULE);
   assertEquals(mod.functions.length, 1);
-  assertEquals(mod.functions[0].params[0], ValType.ExnRef);
+  assertEquals(mod.functions[0].sig.params[0], ValType.ExnRef);
 });
 
 Deno.test('EH parser: throw_ref decoded as ThrowRefExpr', () => {
@@ -392,7 +392,7 @@ Deno.test('EH encoder: throw_ref module round-trips through encode+parse', () =>
   const mod = parseWasm(THROW_REF_MODULE);
   const mod2 = parseWasm(encodeWasm(mod));
   assertEquals(mod2.functions.length, 1);
-  assertEquals(mod2.functions[0].params[0], ValType.ExnRef);
+  assertEquals(mod2.functions[0].sig.params[0], ValType.ExnRef);
   const body = mod2.functions[0].body;
   const trExpr = region(body).children.find((c) => c.kind === ExpressionKind.ThrowRef) as
     | ThrowRefExpr

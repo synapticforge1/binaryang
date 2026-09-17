@@ -64,8 +64,7 @@ import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 function makeTestFn(name: string, body: ReturnType<typeof makeBlock>): WasmFunction {
   return {
     name,
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(body),
   };
@@ -153,8 +152,7 @@ Deno.test('Vacuum: drop(local.get) becomes nop', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([makeDrop(makeLocalGet(varIndex(0), ValType.I32))])),
   };
@@ -220,8 +218,7 @@ Deno.test('OptimizeInstructions: add(x, 0) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeReturn(
@@ -242,8 +239,7 @@ Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeReturn(
       [makeBinary(BinaryOp.MulI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1))],
@@ -261,8 +257,7 @@ Deno.test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeBinary(BinaryOp.AddI32, makeI32Const(3), makeI32Const(4))])),
   });
@@ -278,8 +273,7 @@ Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeBinary(BinaryOp.MulI32, makeI32Const(6), makeI32Const(7))])),
   });
@@ -295,8 +289,7 @@ Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [],
     body: asRegion(makeReturn([makeUnary(UnaryOp.EqzI32, makeI32Const(0))])),
   });
@@ -312,8 +305,7 @@ Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [ValType.I32],
-    results: [ValType.I32],
+    sig: { params: [ValType.I32], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeReturn(
       [makeBinary(BinaryOp.AndI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(-1))],
@@ -331,8 +323,7 @@ Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [ValType.I64],
-    results: [ValType.I64],
+    sig: { params: [ValType.I64], results: [ValType.I64] },
     locals: [{ type: ValType.I64 }],
     body: asRegion(makeReturn(
       [makeBinary(BinaryOp.AddI64, makeLocalGet(varIndex(0), ValType.I64), makeI64Const(0n))],
@@ -395,8 +386,7 @@ Deno.test('SimplifyLocals: local.set + local.get → local.tee', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(42)),
@@ -415,8 +405,7 @@ Deno.test('SimplifyLocals: non-matching indices are not merged', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(1)),
@@ -442,8 +431,7 @@ Deno.test('CoalesceLocals: dead local.set becomes drop', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     // local 0 is set but never read
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([makeLocalSet(varIndex(0), makeI32Const(99))])),
@@ -460,8 +448,7 @@ Deno.test('CoalesceLocals: used local.set is preserved', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(5)),
@@ -491,8 +478,7 @@ Deno.test('CoalesceLocals: two locals with disjoint live ranges coalesce', () =>
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(1)),
@@ -516,8 +502,7 @@ Deno.test('CoalesceLocals: two locals with overlapping live ranges stay distinct
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(1)),
@@ -541,8 +526,7 @@ Deno.test("CoalesceLocals: single local with two value lifetimes doesn't blow up
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(1)),
@@ -572,8 +556,7 @@ Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value liv
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }], // $r
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(-1)),
@@ -607,8 +590,7 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }], // e, catchE, outerErr
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(100)), // e = 100
@@ -676,8 +658,7 @@ Deno.test('CoalesceLocals: loop-carried value interferes via back-edge', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(42)),
@@ -710,8 +691,7 @@ Deno.test(
     const mod = emptyModule();
     const fn: WasmFunction = {
       name: 'f',
-      params: [],
-      results: [],
+      sig: { params: [], results: [] },
       locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
       body: asRegion(makeBlock([
         makeLoop(
@@ -743,8 +723,7 @@ Deno.test('CoalesceLocals: loop counter live across back-edge stays distinct fro
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLocalSet(varIndex(0), makeI32Const(0)),
@@ -785,8 +764,7 @@ Deno.test('CoalesceLocals: if-else with overlapping liveness on merge stays dist
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }, { type: ValType.I32 }, { type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeIf(
@@ -820,8 +798,7 @@ Deno.test('CoalesceLocals: dead set inside loop is replaced with drop', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeLoop(
@@ -859,15 +836,13 @@ Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
     functions: [
       {
         name: 'exported',
-        params: [],
-        results: [],
+        sig: { params: [], results: [] },
         locals: [],
         body: asRegion(makeNop()),
       },
       {
         name: 'dead',
-        params: [],
-        results: [],
+        sig: { params: [], results: [] },
         locals: [],
         body: asRegion(makeNop()),
       },
@@ -899,8 +874,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
     functions: [
       {
         name: 'root',
-        params: [],
-        results: [],
+        sig: { params: [], results: [] },
         locals: [],
         body: asRegion(makeBlock([
           {
@@ -914,8 +888,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
       },
       {
         name: 'helper',
-        params: [],
-        results: [],
+        sig: { params: [], results: [] },
         locals: [],
         body: asRegion(makeNop()),
       },
@@ -948,8 +921,7 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
     functions: [
       {
         name: 'f',
-        params: [],
-        results: [],
+        sig: { params: [], results: [] },
         locals: [],
         body: asRegion(makeNop()),
       },
@@ -992,8 +964,7 @@ Deno.test('LocalCSE: repeated pure expression is extracted to local', () => {
   // Two occurrences of add(local.get(0), 1) in a block
   const fn: WasmFunction = {
     name: 'f',
-    params: [ValType.I32],
-    results: [],
+    sig: { params: [ValType.I32], results: [] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(makeBlock([
       makeDrop(
@@ -1022,8 +993,7 @@ Deno.test("LocalCSE: caches only what upstream's isRelevant would (divergence C1
     const mod = emptyModule();
     mod.functions.push({
       name: 'f',
-      params: [ValType.I32],
-      results: [],
+      sig: { params: [ValType.I32], results: [] },
       locals: [],
       body: asRegion(makeBlock([makeDrop(repeated()), makeDrop(repeated()), makeDrop(repeated())])),
     });
@@ -1066,8 +1036,7 @@ Deno.test('PassRunner: DCE + Vacuum chain removes unreachable code', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
-    params: [],
-    results: [],
+    sig: { params: [], results: [] },
     locals: [],
     body: asRegion(makeBlock([
       makeUnreachable(),
@@ -1099,8 +1068,7 @@ Deno.test('Vacuum: single-child unnamed block keeps its declared type on a concr
   } as unknown as Expression;
   mod.functions.push({
     name: 'f',
-    params: [],
-    results: [ValType.I32],
+    sig: { params: [], results: [ValType.I32] },
     locals: [{ type: ValType.I32 }],
     body: asRegion(block),
   });
