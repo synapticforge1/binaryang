@@ -168,7 +168,7 @@ describe('parseWatModule — functions', () => {
     assertExists(f);
     assertEquals(f.sig.params.length, 0);
     assertEquals(f.sig.results.length, 0);
-    assertEquals(f.body.length, 0);
+    assertEquals(f.body.children.length, 0);
   });
 
   it('parses a named function', () => {
@@ -181,7 +181,7 @@ describe('parseWatModule — functions', () => {
     assertEquals(f.name, '$add');
     assertEquals(f.sig.params, [Type.I32, Type.I32]);
     assertEquals(f.sig.results, [Type.I32]);
-    assert(f.body.length > 0);
+    assert(f.body.children.length > 0);
   });
 
   it('parses function locals', () => {
@@ -422,7 +422,7 @@ describe('parseWatModule — instructions (folded)', () => {
   it('parses i32.const in folded form', () => {
     const m = parseModule('(module (func (result i32) (i32.const 42)))');
     assertEquals(m.funcs.length, 1);
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     const expr = body[0];
     assertExists(expr);
@@ -435,7 +435,7 @@ describe('parseWatModule — instructions (folded)', () => {
   it('parses i32.add in folded form', () => {
     const m = parseModule('(module (func (result i32) (i32.add (i32.const 1) (i32.const 2))))');
     assertEquals(m.funcs.length, 1);
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     const expr = body[0];
     assertExists(expr);
@@ -444,14 +444,14 @@ describe('parseWatModule — instructions (folded)', () => {
 
   it('parses block in folded form', () => {
     const m = parseModule('(module (func (block (nop))))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'block');
   });
 
   it('parses if in folded form', () => {
     const m = parseModule('(module (func (if (i32.const 1) (then (nop)) (else (nop)))))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'if');
   });
@@ -464,28 +464,28 @@ describe('parseWatModule — instructions (folded)', () => {
 describe('parseWatModule — instructions (linear)', () => {
   it('parses nop in linear form', () => {
     const m = parseModule('(module (func nop))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'nop');
   });
 
   it('parses unreachable in linear form', () => {
     const m = parseModule('(module (func unreachable))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'unreachable');
   });
 
   it('parses return in linear form', () => {
     const m = parseModule('(module (func return))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'return');
   });
 
   it('parses local.get / local.set in linear form', () => {
     const m = parseModule('(module (func (param i32) local.get 0))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'local.get');
   });
@@ -494,7 +494,7 @@ describe('parseWatModule — instructions (linear)', () => {
     const m = parseModule(
       '(module (memory 1) (func (param i32) (result i32) local.get 0 i32.load offset=4))',
     );
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assert(body.length > 0);
     const load = body.find((e) => e.kind === 'load');
     assertExists(load);
@@ -505,14 +505,14 @@ describe('parseWatModule — instructions (linear)', () => {
 
   it('parses block / loop / end in linear form', () => {
     const m = parseModule('(module (func block nop end))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'block');
   });
 
   it('parses if / then / else / end in linear form', () => {
     const m = parseModule('(module (func (param i32) local.get 0 if nop else nop end))');
-    const body = m.funcs[0]?.body ?? [];
+    const body = m.funcs[0]?.body.children ?? [];
     // after stack flush: local.get goes to stmts, if is separate
     const ifNode = body.find((e) => e.kind === 'if');
     assertExists(ifNode);

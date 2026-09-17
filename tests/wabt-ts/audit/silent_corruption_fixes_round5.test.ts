@@ -9,6 +9,7 @@
  */
 
 import { describe, it } from '@std/testing/bdd';
+import { region } from '../../../src/wabt-ts/ir/ir.ts';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
@@ -27,7 +28,7 @@ function emptyFunc(name: string): Func {
     typeVar: { kind: 'index', value: 0 },
     sig: { params: [], results: [] },
     locals: [],
-    body: [{ kind: 'nop', loc: LOC }],
+    body: region([{ kind: 'nop', loc: LOC }], LOC),
     tailcall: false,
   };
 }

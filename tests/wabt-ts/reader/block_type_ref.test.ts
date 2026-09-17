@@ -140,7 +140,7 @@ describe('binary reader — a typed-reference block type', () => {
     const fn = mod.funcs[0]!;
     // drop( block( unreachable ) ). The heap-type byte becoming a SECOND
     // `unreachable` is the defect this pins.
-    assertEquals(kindsIn(fn.body), ['drop', 'block', 'unreachable']);
+    assertEquals(kindsIn(fn.body.children), ['drop', 'block', 'unreachable']);
   });
 
   it('keeps the heap type, rather than collapsing to the tag byte', () => {
@@ -149,7 +149,9 @@ describe('binary reader — a typed-reference block type', () => {
     // inline header has no `typeIndex`. (This read `blockType` through a cast; a
     // cast reading a removed field is `undefined`, not an error — rewritten
     // rather than left to fail on a message about the old shape.)
-    const drop = mod.funcs[0]!.body[0] as { value?: { type?: unknown; typeIndex?: unknown } };
+    const drop = mod.funcs[0]!.body.children[0] as {
+      value?: { type?: unknown; typeIndex?: unknown };
+    };
     const t = drop.value?.type;
     assert(
       t !== undefined && t !== 'none' && !Array.isArray(t),

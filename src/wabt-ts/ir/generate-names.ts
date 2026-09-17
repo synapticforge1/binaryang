@@ -195,7 +195,7 @@ class NameGenerator {
     for (const func of m.funcs) allFuncs.push(func);
 
     for (const func of allFuncs) {
-      this.generateLabelNames(func.body, { count: 0 });
+      this.generateLabelNames(func.body.children, { count: 0 });
     }
   }
 

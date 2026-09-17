@@ -86,7 +86,7 @@ describe('legacy try/catch — parser produces a real TryExpr', () => {
             (local.set $e_ptr)
             (i32.store (i32.const 0) (local.get $e_ptr))))
         (return (local.get $result))))`);
-    const t = findTry(f!.body);
+    const t = findTry(f!.body.children);
     assertEquals(t.kind, 'try');
     assertEquals(t.body.children.length, 1, 'do-body has the single local.set');
     assertEquals(t.catches.length, 1, 'one catch clause');
@@ -106,7 +106,7 @@ describe('legacy try/catch — parser produces a real TryExpr', () => {
           local.set $c
         end
         local.get $c))`);
-    const t = findTry(f!.body);
+    const t = findTry(f!.body.children);
     assertEquals(t.catches.length, 1);
     assert(t.catches[0]!.tag !== undefined);
   });
@@ -118,7 +118,7 @@ describe('legacy try/catch — parser produces a real TryExpr', () => {
         (try
           (do (throw $exn))
           (catch_all (nop)))))`);
-    const t = findTry(f!.body);
+    const t = findTry(f!.body.children);
     assertEquals(t.catches.length, 1);
     assertEquals(t.catches[0]!.tag, undefined, 'catch_all carries no tag');
   });
@@ -132,7 +132,9 @@ describe('legacy try/catch — parser produces a real TryExpr', () => {
             (do (throw $exn))
             (delegate 0)))))`);
     // The try is nested inside the block.
-    const block = outer!.body.find((e) => e.kind === 'block') as Expr & { children: Expr[] };
+    const block = outer!.body.children.find((e) => e.kind === 'block') as Expr & {
+      children: Expr[];
+    };
     const t = findTry(block.children);
     assertEquals(t.catches.length, 0);
     assert(t.delegate !== undefined, 'delegate target recorded');
@@ -148,7 +150,7 @@ describe('legacy try/catch — parser produces a real TryExpr', () => {
           (catch $a (drop))
           (catch $b (drop))
           (catch_all (nop)))))`);
-    const t = findTry(f!.body);
+    const t = findTry(f!.body.children);
     assertEquals(t.catches.length, 3);
     assert(t.catches[0]!.tag !== undefined);
     assert(t.catches[1]!.tag !== undefined);

@@ -47,7 +47,7 @@ function makeFunc(opts: {
     typeVar: varIndex(0),
     sig: { params: opts.params ?? [], results: opts.results ?? [] },
     locals: [],
-    body: opts.body ?? [],
+    body: region(opts.body ?? [], LOC),
     tailcall: false,
   };
 }

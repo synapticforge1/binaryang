@@ -2105,7 +2105,7 @@ class WatWriter extends ModuleContext {
     // Body
     this.beginFunc(func);
     this.bodyLocalNames = localNames;
-    this.writeExprList(func.body);
+    this.writeExprList(func.body.children);
     this.bodyLocalNames = undefined;
     this.endFunc();
     this.closeNewline();

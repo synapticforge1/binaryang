@@ -13,6 +13,7 @@
  */
 
 import { describe, it } from '@std/testing/bdd';
+import { region } from '../../src/wabt-ts/ir/ir.ts';
 import { assertEquals } from '@std/assert';
 
 import { LexerSource } from '../../src/wabt-ts/parser/lexer-source.ts';
@@ -99,7 +100,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
       typeVar: varIndex(0),
       sig: sigG,
       locals: [],
-      body: [{ kind: 'local.get', var: varIndex(0), loc: LOC }],
+      body: region([{ kind: 'local.get', var: varIndex(0), loc: LOC }], LOC),
       tailcall: false,
     });
     m.tables.push({
@@ -114,7 +115,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
       typeVar: varIndex(1),
       sig: sigF,
       locals: [],
-      body: [
+      body: region([
         {
           kind: 'call_indirect',
           table: varIndex(0),
@@ -124,7 +125,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
           callee: { kind: 'local.get', var: varIndex(1), loc: LOC },
           loc: LOC,
         },
-      ],
+      ], LOC),
       tailcall: false,
     });
     m.exports.push({ name: 'f', kind: ExternalKind.Func, var: varIndex(1) });

@@ -61,7 +61,7 @@ describe('WAT folded-form parsing — regression tests', () => {
       (global $heap (mut i32) (i32.const 0))
       (func $f (param $ptr i32)
         (local.set $ptr (global.get $heap))))`);
-    const body = module.funcs[0]!.body;
+    const body = module.funcs[0]!.body.children;
     assertEquals(body.length, 1, 'one statement in the body');
     const stmt = body[0]!;
     assert(stmt.kind === 'local.set', 'top-level is local.set');
@@ -120,7 +120,7 @@ describe('WAT folded-form parsing — regression tests', () => {
         (local $tmp i32) (local $other i32)
         (local.set $tmp (local.get $b))
         (local.set $other (local.get $a))))`);
-    const body = module.funcs[0]!.body;
+    const body = module.funcs[0]!.body.children;
     // First stmt: local.set $tmp (slot 2) from local.get $b (slot 1)
     const stmt0 = body[0] as Extract<(typeof body)[number], { kind: 'local.set' }>;
     assertEquals(stmt0.var, { kind: 'index', value: 2 });

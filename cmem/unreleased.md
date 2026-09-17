@@ -199,6 +199,8 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- ⚠️ **BREAKING: `Func.body` is a `RegionExpr`** (S6 step 5 item 6 (M6b); `./ir/wabt-ts`) — read
+  `.children` for the instruction list, as every other sequence in the tree is read.
 - ⚠️ **BREAKING: `Func.localDecls` and `Func.localNames` are `Func.locals`** (S6 step 5 item 6 (M6c);
   `./ir/wabt-ts`). One slot per local, PARAMS FIRST, each `{ type, name? }` — binaryen-ts's `Local`.
   The run-length grouping was already re-derived by the writer, so emitted bytes are unchanged. New

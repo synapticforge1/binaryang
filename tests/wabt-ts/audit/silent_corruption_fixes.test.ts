@@ -8,6 +8,7 @@
  */
 
 import { describe, it } from '@std/testing/bdd';
+import type { Expr } from '../../../src/wabt-ts/ir/ir.ts';
 import { assert, assertEquals } from '@std/assert';
 
 import { Opcode, PREFIX_SIMD } from '../../../src/wabt-ts/core/opcode.ts';
@@ -61,10 +62,10 @@ function validateWat(wat: string): boolean {
   return hasErrors(errs);
 }
 
-function firstFuncBody(m: Module): Func['body'] {
+function firstFuncBody(m: Module): Expr[] {
   const f = m.funcs[0];
   assert(f !== undefined, 'expected a defined function');
-  return f.body;
+  return f.body.children;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,14 +174,14 @@ describe('#4 call_ref sigType resolution', () => {
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I32] },
       locals: [],
-      body: [callRef],
+      body: region([callRef], LOC),
       tailcall: false,
     };
     module.funcs.push(func);
 
     resolveNames(module);
 
-    const resolved = module.funcs[0]!.body[0] as CallRefExpr;
+    const resolved = module.funcs[0]!.body.children[0] as CallRefExpr;
     assertEquals(resolved.sigType.kind, 'index');
     assertEquals((resolved.sigType as { value: number }).value, 1);
   });
@@ -310,9 +311,9 @@ describe('#9 applyNames local.get', () => {
       typeVar: varIndex(0),
       sig: { params: [Type.I32], results: [Type.I32] },
       locals: [],
-      body: [
+      body: region([
         { kind: 'local.get', var: varIndex(0), loc: LOC },
-      ],
+      ], LOC),
       tailcall: false,
     };
     module.funcs.push(func);
@@ -328,7 +329,7 @@ describe('#9 applyNames local.get', () => {
 
     applyNames(module, names);
 
-    const lg = module.funcs[0]!.body[0] as { var: { kind: string; value?: number } };
+    const lg = module.funcs[0]!.body.children[0] as { var: { kind: string; value?: number } };
     assertEquals(lg.var.kind, 'index');
     assertEquals(lg.var.value, 0);
   });
@@ -347,7 +348,7 @@ describe('#10 table init round-trip', () => {
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
       locals: [],
-      body: [{ kind: 'nop', loc: LOC }],
+      body: region([{ kind: 'nop', loc: LOC }], LOC),
       tailcall: false,
     };
     module.funcs.push(func);

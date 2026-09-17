@@ -52,9 +52,9 @@ function bodies(wat: string): [string, readonly Expr[]][] {
   assert(!hasErrors(errors), formatErrors(errors));
   const text = parseWatModule(wat);
   assert(!hasErrors(text.errors), formatErrors(text.errors));
-  return [['binary reader', fromBinary.funcs[0]!.body], [
+  return [['binary reader', fromBinary.funcs[0]!.body.children], [
     'text parser',
-    text.module.funcs[0]!.body,
+    text.module.funcs[0]!.body.children,
   ]];
 }
 

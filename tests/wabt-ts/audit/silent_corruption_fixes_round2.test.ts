@@ -9,6 +9,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
+import { region } from '../../../src/wabt-ts/ir/ir.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
@@ -38,7 +39,7 @@ function roundTrip(wat: string): Module {
 function body(m: Module): readonly { kind: string }[] {
   const f = m.funcs[0];
   assert(f !== undefined, 'expected a function');
-  return f.body;
+  return f.body.children;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +94,7 @@ describe('writeVar fail-loud', () => {
       sig: { params: [], results: [] },
       locals: [],
       // call to a NAME var that was never resolved to an index
-      body: [{ kind: 'call', func: varName('ghost'), operands: [], loc: LOC }],
+      body: region([{ kind: 'call', func: varName('ghost'), operands: [], loc: LOC }], LOC),
       tailcall: false,
     };
     module.funcs.push(f);

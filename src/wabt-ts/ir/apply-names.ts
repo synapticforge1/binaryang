@@ -211,7 +211,7 @@ function lookupName(map: NameMap, idx: number): Var {
 }
 
 function rewriteFuncVars(func: Func, _funcIdx: number, ctx: ApplyContext): void {
-  rewriteExprListVars(func.body, ctx);
+  rewriteExprListVars(func.body.children, ctx);
 }
 
 function rewriteExprListVars(exprs: Expr[], ctx: ApplyContext): void {

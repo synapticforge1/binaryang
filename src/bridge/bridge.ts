@@ -953,7 +953,7 @@ function bridgeFunc(b: ModuleBuilder, f: WabtFunc, baseCtx: BridgeCtx, name: str
     currentLocals: locals,
   };
 
-  const body = bridgeFuncBody(f.body, ctx);
+  const body = bridgeFuncBody(f.body.children, ctx);
 
   b.addFunction(
     name,

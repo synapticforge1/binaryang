@@ -1502,7 +1502,7 @@ class BinaryWriter {
     const seen = new DataIndexUse();
     const visitor = new ExprVisitor(seen);
     for (const f of this.m.funcs) {
-      visitor.visitExprList(f.body);
+      visitor.visitExprList(f.body.children);
       if (seen.found) return true;
     }
     return false;
@@ -1570,7 +1570,7 @@ class BinaryWriter {
 
     // Body
     this.bodyWriter.beginFunctionBody();
-    this.visitor.visitExprList(func.body);
+    this.visitor.visitExprList(func.body.children);
     if (this.bodyWriter.labelNames.length > 0) {
       this.labelNames.set(funcIndex, this.bodyWriter.labelNames);
     }
