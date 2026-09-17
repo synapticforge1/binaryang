@@ -23,7 +23,7 @@ import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { ModuleContext } from '../../../src/wabt-ts/ir/ir-util.ts';
 import { applyNames, makeModuleNames } from '../../../src/wabt-ts/ir/apply-names.ts';
-import { makeModule, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { makeModule, region, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import type {
   CallRefExpr,
   Func,
@@ -357,7 +357,7 @@ describe('#10 table init round-trip', () => {
       loc: LOC,
       elemType: Type.FuncRef,
       limits: { initial: 1n, max: 1n, isShared: false, is64: false },
-      init: [{ kind: 'ref.func', func: varIndex(0), loc: LOC }],
+      init: region([{ kind: 'ref.func', func: varIndex(0), loc: LOC }], LOC),
     };
     module.tables.push(table);
 
@@ -365,6 +365,6 @@ describe('#10 table init round-trip', () => {
     const readErrs = makeErrorList();
     const back = readBinaryIr(binary, readErrs);
     assert(!hasErrors(readErrs), 'read should succeed');
-    assertEquals(back.tables[0]!.init.length, 1, 'table init expr was dropped');
+    assertEquals(back.tables[0]!.init?.children.length, 1, 'table init expr was dropped');
   });
 });

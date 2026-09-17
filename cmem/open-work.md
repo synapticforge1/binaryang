@@ -95,6 +95,9 @@ sub-stage was branched and the branch deleted unused, so start from `main`.
    context (signatures, local / global / table types, tag params, heap types) that lives in two shapes
    until this item unifies them; written now, against either, it is written twice. Its acceptance is
    the bridge's: `bridge-behaviour` agreement, then deleted with it.
+   🚧 **SCOPED 2026-09-16** — 8 stages (M1 gate … M8 alias + deletion), two owner calls expected (the
+   form of a constant expression; locals), in [ir-convergence.md](ir-convergence.md) § "Item 6 — the
+   MODULE half".
 
 ⚠️ **Carry the L2 discipline into every remaining stage**: when a field loses `null` or `undefined`
 from its type, the compiler stops helping (`stringValued === null` is not an error), so list the

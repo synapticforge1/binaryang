@@ -155,6 +155,11 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- ⚠️ **BREAKING: a constant expression is a `RegionExpr`** (S6 step 5 item 6 (M2), owner 2026-09-16;
+  `./ir/wabt-ts`). `Global.init`, `Table.init`, `ElemSegment.offset` / `elemExprs[i]` and
+  `DataSegment.offset` were `Expr[]`; read `.children`. Where one may be absent it is an OPTIONAL
+  field and absent means MISSING — an imported global, a table without an initializer, a passive or
+  declared segment — no longer `[]`. The binary writer throws for a required one that is missing.
 - ⚠️ **BREAKING: `ValueType` is a value type** (S6 step 5 item 4 (b), `eec6912fd`; `./ir/wabt-ts`).
   It was `Type | RefValueType`; it is `ValType | RefValueType`, so `Type.Void`, `Type.Any`, the
   packed `Type.I8` / `Type.I16` and the type-definition forms no longer fit. **`StorageType`** (new)
@@ -237,6 +242,8 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **wabt-ts keeps a table's PRESENT-but-empty initializer** (S6 step 5 item 6 (M2)). `40 00 70 00 01 0b`
+  was written back as `70 00 01`: an empty initializer read as none. Invalid modules only.
 - **Two optimizer passes had no case for `call_ref`**, found while porting it (item 5 (5)) — no
   release carried `call_ref` through binaryen-ts, so no shipped output was affected: LocalCSE reused
   a `global.get` across a `call_ref` that writes the global, and the CFG drew no exceptional edge

@@ -3164,6 +3164,104 @@ was wrong.
 ⚠️ **If S6 is ever abandoned, C10a comes back with it.** The decision not to fix them is conditional
 on the step that removes them actually happening.
 
+#### Item 6 — the MODULE half: `Module` and `WasmModule` become one, the bridge is deleted 🚧
+
+**Scoped 2026-09-16.** Decided already: B, unify, no shim (owner, 2026-09-15); includes `Func.body`
+(stage (d2)) and type derivation (moved from item 5). Direction by the same rules as the expression
+half: trial blast radius; the worst condition (fidelity / optimization) decides; cost when neither binds;
+owner calls stay owner calls.
+
+**Usage, measured** (files / references): wabt-ts `.funcs` 51 f / 238, `Module` 108 f; binaryen-ts
+`.functions` 86 f / 470, `WasmModule` 56 f, `ModuleBuilder` 35 f / 132. Neither half is cheap to
+convert wholesale, so entity by entity, as the node kinds were.
+
+**Where the two differ** (declarations read side by side):
+
+| entity | wabt-ts | binaryen-ts | what binds |
+| --- | --- | --- | --- |
+| module | `types`, `funcs`, `elemSegments`, `customs`, `start?: Var`, `num*Imports` ×5, `featuresUsed`, `hasNameSection`, `localNamesListed`, `hasDataCountSection`, `name` / `filename` / `loc` / `sectionMeta` / `fidelity` | `functions`, `elements`, `heapTypes` (GC only), `customSections?`, `start: string \| null`, `hasGC` / `hasExceptionHandling` / `hasMemory64` / `hasMultiMemory`, `hasDataCount?`, `explicitNames?` | names; `num*Imports` is derivable (one fact twice) |
+| type section | `types: TypeEntry[]` — every entry, names, `sub`, `recGroupSize` | GC `heapTypes` only; function types DERIVED by the encoder | 🛑 FIDELITY — T2 (order reordered), T1 (identical types) |
+| function | `sig`, `typeVar` (+ `typeUse` form), `localDecls` (run-length), `localNames`, `body: Expr[]`, `tailcall`, `loc`, `nodeId` | `params` + `results`, `locals: Local[]` (params included, named), `body: RegionExpr`, `bodyFrameLabel?` | `sig`: Group 3 precedent (owner took it for `call_indirect`); body: decision 5; locals: ❓ |
+| global | `init: Expr[]` | `init: Expression` | ❓ a constant expression's form |
+| table | `elemType`, `limits` (bigint), `init: Expr[]` | `type`, `initial` / `max` (number) | 🛑 FIDELITY — no table initializer on binaryen-ts |
+| memory | `limits`: bigint, `isShared`, `is64`, `pageSizeLog2?` | `initial` / `max` number, `shared`, `is64` | 🛑 FIDELITY — custom page sizes; u64 limits |
+| tag | `sig` | `params` | `sig`, as function |
+| elem segment | `kind`, `tableVar`, `offset: Expr[]`, `elemType`, `elemExprs: Expr[][]` | `mode`, `table: string`, `offset: Expression \| null`, `data: string[]` (function NAMES) | 🛑 FIDELITY — binaryen-ts REFUSES a `ref.null` entry (`wasm-parser.ts` "cannot be represented in the table model") |
+| data segment | `kind`, `memoryVar`, `offset: Expr[]` | `passive`, `memory?: number`, `offset: Expression \| null` | `Var` (L1 / S2 precedent) |
+| export | `kind: ExternalKind`, `var: Var` | `kind` string, `value: string` | `Var` — a name OR an index as written; passes `requireName` |
+| import | a union embedding the entity (`func: Func`, `table: Table`, …) | flat, kind-specific OPTIONAL fields | the union: flat optionals admit incoherent states (`br_on` `from` / `to` precedent) |
+| custom | `loc`, `precedingSection?: BinarySection` | `data: Uint8Array \| null`, `precedingSection: number \| null` | small |
+
+**Stages** — each ends green, in the expression half's order (gate first, leaves before structure):
+1. **M1 — the gate.** A compile-time module ratchet, as `expr_convergence.test.ts` was: per entity, the
+   fields only on one side and the shared fields whose types differ, pinned.
+2. **M2 — leaf records:** export (`var`), custom, tag (`sig`), memory / table limits (bigint,
+   `pageSizeLog2`), and the FORM OF A CONSTANT EXPRESSION (global `init`, segment `offset`, table
+   `init`, element entries) — ❓ owner call expected: `Expr[]` (wabt-ts; a binary const expr is a
+   sequence), `Expression` (binaryen-ts), or a `RegionExpr` (decision 5 reads "an instruction sequence
+   is a region").
+3. **M3 — segments:** data (`kind`, `memoryVar`) and element (`kind`, `tableVar`, `elemType`, entries)
+   — ports binaryen-ts's missing expression entries (a fidelity DEFECT, not a merge).
+4. **M4 — imports:** the union.
+5. **M5 — the type section:** one `types` table; binaryen-ts's encoder writes it rather than deriving
+   (T1 / T2), and a pass that makes a signature interns it (`synthesizeTypes` exists). The largest.
+6. **M6 — functions:** `sig`, `typeVar` / `typeUse`, `body: RegionExpr`, `tailcall`, `bodyFrameLabel`,
+   and LOCALS — ❓ owner call expected: run-length `localDecls` (the binary's grouping) against a flat,
+   named list (what passes index), or semantics flat + grouping as form (decision 7's split).
+7. **M7 — module metadata:** feature flags, name-section bookkeeping (`explicitNames` against
+   `hasNameSection` / `localNamesListed` / `localNames`), `num*Imports` derived, `name` / `filename` /
+   `loc` / `sectionMeta` / `fidelity`.
+8. **M8 — the alias and the deletion:** `WasmModule = Module`; type derivation for a tree no bridge
+   typed (item 5's leftover — its acceptance is `bridge-behaviour`'s agreement before it goes);
+   `ModuleBuilder` builds the one module; the bridge, its 16 tests, and `check-bridge-corpus.ts` /
+   `check-bridge-behaviour.ts` are deleted — their front-end-to-optimizer checks kept as direct gates.
+
+**✅ M1 — the gate (2026-09-16).** `tests/ir/module_convergence.test.ts`: for 11 entity pairs (module,
+function, global, table, memory, tag, element / data segment, export, custom section, local), the
+fields only on wabt-ts, only on binaryen-ts, and shared-but-typed-differently, each pinned EXACTLY
+against the compiler. **46 / 29 / 15 — 90 field differences.** Inverted: dropping one pin (a global's
+`loc`) fails the check. Imports are left out of the field pairing — a union against a flat record —
+until M4 makes them comparable.
+
+**M2 — 🗓️ OWNER CALL, 2026-09-16: a constant expression is a `RegionExpr`; absent = the field is
+missing.** Asked first with cost against meaning (binaryen-ts → `Expr[]` 50 errors; both → `RegionExpr`
+157). The owner: *"This is a fidelity issue. So breaking the wabt-ts side is not an option. Measure and
+recommend."* Measured (`m2_measure2.ts`, spec suite 5,902 binaries + 376 WASI):
+- valid modules: every required constant expression reads as ONE tree — a single node would do;
+- **32 spec modules** hold one that is not a single constant instruction — empty, 2 instructions,
+  `nop` / `unary` / `call` / `local.get` (all `assert_invalid`, kept so a validator can reject them).
+  wabt-ts round-trips **32 / 32** byte-identically; binaryen-ts's single `Expression` differs on 15 and
+  refuses 17. A single node loses fidelity; a sequence keeps it.
+- `Expr[]` spells ABSENT as `[]` — 2,045 times (table without initializer, passive / declared segment
+  offsets) — so a PRESENT-but-empty expression cannot be told from none: a table `40 00 70 00 01 0b`
+  (empty initializer) re-encodes as `70 00 01`. 🛑 **A wabt-ts fidelity defect today**, reproduced.
+- `RegionExpr` holds the sequence exactly (children = what was read) and, with absence as a missing
+  field, the empty-but-present case too. Same shape as bodies (decision 5).
+
+Recommended RegionExpr; the owner took it. Slots: global init, table init?, element offset? and
+entries, data offset?.
+
+Locals (M6) measured at the same time and NOT an owner call: real producers never write a
+non-canonical local grouping (0 of 4,648 functions over 376 WASI binaries; the spec suite has 1
+malformed case and 2 zero-count groups), so a flat named list (43 errors to convert wabt-ts, against
+185 the other way) with the as-written grouping kept as form where it is not canonical meets both
+conditions.
+
+**✅ M2a — wabt-ts's constant expressions are regions (2026-09-16).** `Global.init?`, `Table.init?`,
+`ElemSegment.offset?` / `elemExprs: RegionExpr[]`, `DataSegment.offset?`. Absent means MISSING: an
+imported global, a table without an initializer, a passive / declared segment. The reader's
+`readInitExpr` returns the region `decodeBody` read (the same decoder as a function body); the parser
+wraps its lists at construction; resolve / apply names walk `children`; the validator checks a MISSING
+required one as an empty one; the binary writer writes a present one — empty included — and REFUSES
+a required one that is missing (writing a bare `end` would invent it); the text writer's output is
+unchanged (missing and empty print nothing, as `[]` did — text CAN spell an empty `(offset)` /
+`(item)`, a separate fidelity follow-up). 🔧 **Fixed**: a table's present-but-empty initializer now
+round-trips (it was written without one). Measured after: wabt-ts's section round trips unchanged on
+both corpora (WASI 356 / 356; spec 1,285 identical, the same 84 differing as before). Baseline
+IDENTICAL. Tests `const_expr_region.test.ts` (7); 4 mutants — 2 survived the first run (the binary
+reader's passive offset, the validator's "has an initializer" for a non-null table), tests added,
+all killed.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

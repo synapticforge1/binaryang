@@ -225,7 +225,7 @@ describe('parseWatModule — globals', () => {
     assertExists(g);
     assertEquals(g.type, Type.I32);
     assertEquals(g.mutable, false);
-    assertEquals(g.init.length, 1);
+    assertEquals(g.init?.children.length, 1);
   });
 
   it('parses a mutable global', () => {
@@ -525,7 +525,7 @@ describe('parseWatModule — instructions (linear)', () => {
 describe('parseWatModule — const expressions', () => {
   it('parses i32.const', () => {
     const m = parseModule('(module (global i32 (i32.const 100)))');
-    const init = m.globals[0]?.init ?? [];
+    const init = m.globals[0]?.init?.children ?? [];
     assertEquals(init.length, 1);
     const expr = init[0];
     assertExists(expr);
@@ -537,7 +537,7 @@ describe('parseWatModule — const expressions', () => {
 
   it('parses i64.const', () => {
     const m = parseModule('(module (global i64 (i64.const 9999999999)))');
-    const init = m.globals[0]?.init ?? [];
+    const init = m.globals[0]?.init?.children ?? [];
     const expr = init[0];
     assertExists(expr);
     if (expr?.kind === 'const') {
@@ -547,7 +547,7 @@ describe('parseWatModule — const expressions', () => {
 
   it('parses f32.const', () => {
     const m = parseModule('(module (global f32 (f32.const 3.14)))');
-    const init = m.globals[0]?.init ?? [];
+    const init = m.globals[0]?.init?.children ?? [];
     const expr = init[0];
     assertExists(expr);
     if (expr?.kind === 'const') {
@@ -557,7 +557,7 @@ describe('parseWatModule — const expressions', () => {
 
   it('parses f64.const', () => {
     const m = parseModule('(module (global f64 (f64.const 1.5)))');
-    const init = m.globals[0]?.init ?? [];
+    const init = m.globals[0]?.init?.children ?? [];
     const expr = init[0];
     assertExists(expr);
     if (expr?.kind === 'const') {

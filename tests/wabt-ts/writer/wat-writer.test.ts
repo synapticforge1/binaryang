@@ -58,7 +58,7 @@ function makeGlobal(type: ValueType, mutable: boolean, initValue: number): Globa
     loc: LOC,
     type,
     mutable,
-    init: [{ kind: 'const', value: constI32(initValue), loc: LOC }],
+    init: region([{ kind: 'const', value: constI32(initValue), loc: LOC }], LOC),
   };
 }
 
@@ -78,7 +78,6 @@ function makeTable(initial: bigint): Table {
     loc: LOC,
     elemType: Type.FuncRef,
     limits: { initial, isShared: false, is64: false },
-    init: [],
   };
 }
 
@@ -484,7 +483,7 @@ describe('writeWatModule — data segments', () => {
       loc: LOC,
       kind: 'active',
       memoryVar: varIndex(0),
-      offset: [{ kind: 'const', value: constI32(0), loc: LOC }],
+      offset: region([{ kind: 'const', value: constI32(0), loc: LOC }], LOC),
       data: new Uint8Array([0x68, 0x65, 0x6c, 0x6c, 0x6f]), // "hello"
     };
     m.dataSegments.push(seg);
@@ -500,7 +499,6 @@ describe('writeWatModule — data segments', () => {
       loc: LOC,
       kind: 'passive',
       memoryVar: varIndex(0),
-      offset: [],
       data: new Uint8Array([0x61, 0x62, 0x63]), // "abc"
     };
     m.dataSegments.push(seg);
@@ -525,9 +523,9 @@ describe('writeWatModule — element segments', () => {
       loc: LOC,
       kind: 'active',
       tableVar: varIndex(0),
-      offset: [{ kind: 'const', value: constI32(0), loc: LOC }],
+      offset: region([{ kind: 'const', value: constI32(0), loc: LOC }], LOC),
       elemType: Type.FuncRef,
-      elemExprs: [[refExpr]],
+      elemExprs: [region([refExpr], LOC)],
     };
     m.elemSegments.push(seg);
     const wat = writeWatModule(m);

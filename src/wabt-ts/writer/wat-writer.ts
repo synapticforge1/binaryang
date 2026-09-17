@@ -35,6 +35,7 @@ import type {
   Limits,
   Memory,
   Module,
+  RegionExpr,
   StorageType,
   Table,
   TableCatch,
@@ -560,7 +561,12 @@ class WatWriter extends ModuleContext {
     }
   }
 
-  private writeInitExpr(exprs: Expr[]): void {
+  // The three below take a constant expression as the region it is held in
+  // (S6 step 5 item 6 (M2)). Text output is unchanged by that: a MISSING one
+  // and an EMPTY one print nothing, as `[]` did. (Text can spell an empty
+  // `(offset)` / `(item)`; printing them is a separate fidelity change.)
+  private writeInitExpr(r: RegionExpr | undefined): void {
+    const exprs = r?.children ?? [];
     if (exprs.length === 0) return;
     // A constant expression is `instr*`. Wrapping the WHOLE list in one paren
     // is only correct for a SINGLE instruction: `(i32.const 1)` is a folded
@@ -586,7 +592,8 @@ class WatWriter extends ModuleContext {
    * `(offset …)` wraps a whole instruction SEQUENCE, so it stays correct for
    * multi-instruction offsets where a plain paren would not.
    */
-  private writeElemExpr(exprs: Expr[]): void {
+  private writeElemExpr(r: RegionExpr): void {
+    const exprs = r.children;
     if (exprs.length === 0) return;
     // `(item instr*)` wraps a whole instruction SEQUENCE. The bare folded
     // abbreviation `(ref.func 0)` only works when the element expression is a
@@ -597,7 +604,8 @@ class WatWriter extends ModuleContext {
     this.closeSpace();
   }
 
-  private writeOffsetExpr(exprs: Expr[]): void {
+  private writeOffsetExpr(r: RegionExpr | undefined): void {
+    const exprs = r?.children ?? [];
     if (exprs.length === 0) return;
     this.openSpace('offset');
     this.writeExprList(exprs);
@@ -2172,20 +2180,21 @@ class WatWriter extends ModuleContext {
     // The table grammar takes ONE FOLDED instruction here and has no
     // `(item …)` wrapper to hold a linear sequence, which is why this needed
     // `writeFoldedConstExpr` rather than the usual `writeInitExpr`.
-    if (t.init.length === 1) {
-      if (!this.writeFoldedConstExpr(t.init[0]!)) {
+    const init = t.init?.children ?? [];
+    if (init.length === 1) {
+      if (!this.writeFoldedConstExpr(init[0]!)) {
         throw new Error(
           `wat writer: table initializer is not a constant expression ` +
-            `(${t.init[0]!.kind}); it cannot be written in the folded form ` +
+            `(${init[0]!.kind}); it cannot be written in the folded form ` +
             `the table grammar requires`,
         );
       }
-    } else if (t.init.length > 1) {
+    } else if (init.length > 1) {
       // A constant expression is `instr*`, but the table slot holds exactly
       // one folded instruction — and the IR stores one expression TREE per
       // element, so more than one is a decoder bug rather than valid input.
       throw new Error(
-        `wat writer: table initializer has ${t.init.length} expressions; ` +
+        `wat writer: table initializer has ${init.length} expressions; ` +
           `the table grammar holds exactly one`,
       );
     }
@@ -2254,12 +2263,12 @@ class WatWriter extends ModuleContext {
     // re-encode came back a different segment.
     const useFuncShorthand = isRefValueType(seg.elemType) && !seg.elemType.nullable &&
       seg.elemType.heapType.kind === 'abstract' && seg.elemType.heapType.name === 'func' &&
-      seg.elemExprs.every((ee) => ee.length === 1 && ee[0]?.kind === 'ref.func');
+      seg.elemExprs.every((ee) => ee.children.length === 1 && ee.children[0]?.kind === 'ref.func');
 
     if (useFuncShorthand) {
       this.putsSpace('func');
       for (const ee of seg.elemExprs) {
-        const e = ee[0];
+        const e = ee.children[0];
         if (e?.kind === 'ref.func') this.writeVar(e.func, NC.Space);
       }
     } else {

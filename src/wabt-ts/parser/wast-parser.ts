@@ -109,6 +109,7 @@ import {
   type RefNullExpr,
   type RefTestExpr,
   region,
+  type RegionExpr,
   type RethrowExpr,
   type ReturnExpr,
   type SelectExpr,
@@ -2516,7 +2517,7 @@ export class WastParser {
       const name = this.parseBindVarOpt();
       const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
       const elemType = this.parseValueType() ?? Type.FuncRef;
-      const table: Table = { name, loc, elemType, limits, init: [] };
+      const table: Table = { name, loc, elemType, limits };
       imp = { kind: ExternalKind.Table, module: moduleName, field: fieldName, table };
       module.imports.push(imp);
       module.numTableImports++;
@@ -2532,7 +2533,7 @@ export class WastParser {
       this.drop();
       const name = this.parseBindVarOpt();
       const { type, isMut } = this.parseGlobalType();
-      const global: Global = { name, loc, type, mutable: isMut, init: [] };
+      const global: Global = { name, loc, type, mutable: isMut };
       imp = { kind: ExternalKind.Global, module: moduleName, field: fieldName, global };
       module.imports.push(imp);
       module.numGlobalImports++;
@@ -2738,7 +2739,7 @@ export class WastParser {
     const { type, isMut } = this.parseGlobalType();
 
     if (inlineImp !== null) {
-      const global: Global = { name, loc, type, mutable: isMut, init: [] };
+      const global: Global = { name, loc, type, mutable: isMut };
       const imp: Import = {
         kind: ExternalKind.Global,
         module: inlineImp.moduleName,
@@ -2750,7 +2751,7 @@ export class WastParser {
     } else {
       const init: Expr[] = [];
       this.parseInstrListInto(init);
-      const global: Global = { name, loc, type, mutable: isMut, init };
+      const global: Global = { name, loc, type, mutable: isMut, init: region(init, loc) };
       module.globals.push(global);
     }
 
@@ -2820,7 +2821,7 @@ export class WastParser {
         name: '',
         kind: 'active',
         memoryVar: varIndex(memIdx),
-        offset: [offsetExpr],
+        offset: region([offsetExpr], loc),
         data,
         loc,
       });
@@ -2852,7 +2853,7 @@ export class WastParser {
     if (inlineImp !== null) {
       const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
       const elemType = this.parseValueType() ?? Type.FuncRef;
-      const table: Table = { name, loc, elemType, limits, init: [] };
+      const table: Table = { name, loc, elemType, limits };
       const imp: Import = {
         kind: ExternalKind.Table,
         module: inlineImp.moduleName,
@@ -2885,15 +2886,21 @@ export class WastParser {
         const elemType = this.parseValueType() ?? Type.FuncRef;
         // Optional initializer expression: `(table $t 10 funcref (ref.null func))`
         // fills every slot with the given value.
-        const init: Expr[] = [];
+        let init: RegionExpr | undefined;
         if (this.peek() === TokenType.Lpar) {
           const ctx = newCtx();
           if (this.parseOneInstr(ctx) === Result.Ok) {
             flushStack(ctx);
-            init.push(...ctx.stmts);
+            init = region([...ctx.stmts], loc);
           }
         }
-        module.tables.push({ name, loc, elemType, limits, init });
+        module.tables.push({
+          name,
+          loc,
+          elemType,
+          limits,
+          ...(init === undefined ? {} : { init }),
+        });
       } else {
         // Abbreviated form: reftype followed by an inline `(elem ...)`.
         let is64 = false;
@@ -2927,7 +2934,7 @@ export class WastParser {
           isShared: false,
           is64,
         };
-        module.tables.push({ name, loc, elemType, limits, init: [] });
+        module.tables.push({ name, loc, elemType, limits });
         const offsetExpr: Expr = {
           kind: 'const',
           value: is64 ? constI64(0n) : constI32(0),
@@ -2937,9 +2944,9 @@ export class WastParser {
           name: '',
           kind: 'active',
           tableVar: varIndex(tableIdx),
-          offset: [offsetExpr],
+          offset: region([offsetExpr], loc),
           elemType,
-          elemExprs: inits,
+          elemExprs: inits.map((e) => region(e, loc)),
           loc,
         });
       }
@@ -3010,13 +3017,19 @@ export class WastParser {
     this.expect(TokenType.Rpar);
 
     if (kind === 'active') {
-      module.dataSegments.push({ name, kind, memoryVar: memVar, offset, data, loc });
+      module.dataSegments.push({
+        name,
+        kind,
+        memoryVar: memVar,
+        offset: region(offset, loc),
+        data,
+        loc,
+      });
     } else {
       module.dataSegments.push({
         name,
         kind: 'passive',
         memoryVar: varIndex(0),
-        offset: [],
         data,
         loc,
       });
@@ -3137,15 +3150,22 @@ export class WastParser {
     this.expect(TokenType.Rpar);
 
     if (kind === 'active') {
-      module.elemSegments.push({ name, kind, tableVar, offset, elemType, elemExprs: inits, loc });
+      module.elemSegments.push({
+        name,
+        kind,
+        tableVar,
+        offset: region(offset, loc),
+        elemType,
+        elemExprs: inits.map((e) => region(e, loc)),
+        loc,
+      });
     } else if (kind === 'declared') {
       module.elemSegments.push({
         name,
         kind,
         tableVar: varIndex(0),
-        offset: [],
         elemType,
-        elemExprs: inits,
+        elemExprs: inits.map((e) => region(e, loc)),
         loc,
       });
     } else {
@@ -3153,9 +3173,8 @@ export class WastParser {
         name,
         kind: 'passive',
         tableVar: varIndex(0),
-        offset: [],
         elemType,
-        elemExprs: inits,
+        elemExprs: inits.map((e) => region(e, loc)),
         loc,
       });
     }
