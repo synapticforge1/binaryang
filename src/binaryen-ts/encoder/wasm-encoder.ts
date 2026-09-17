@@ -120,7 +120,7 @@ import {
   type Var,
   varFromToken,
 } from '../../wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -686,6 +686,8 @@ class WasmEncoder {
       this.writeSection(out, 11, (w) => this.encodeDataSection(w));
     }
     this.writeCustoms(out, 11);
+    // Customs with no recorded position (built by hand), appended (M2f).
+    this.writeCustoms(out, undefined);
     // Last, as the spec places it — and after the code, which is where the
     // label names were counted. A module DECODED with a name section already
     // wrote it above, at the place it held among the other custom sections.
@@ -710,10 +712,13 @@ class WasmEncoder {
    * ones, keeping only `dylink.0` first; restoring the recorded position covers
    * that case and every other (register C6).
    */
-  private writeCustoms(out: BinaryWriter, after: number | null): void {
+  private writeCustoms(out: BinaryWriter, after: BinarySection | null | undefined): void {
     for (const c of this.mod.customSections ?? []) {
       if (c.precedingSection !== after) continue;
       if (c.data === null) {
+        if (c.name !== 'name') {
+          throw new WasmEncodeError(`cannot encode custom section "${c.name}": it has no payload`);
+        }
         if (this.mod.explicitNames === undefined) continue;
         this.writeNameSection(out, this.mod.explicitNames);
         this.wroteNameSection = true;

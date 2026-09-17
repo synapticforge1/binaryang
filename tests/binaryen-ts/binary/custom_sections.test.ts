@@ -18,12 +18,12 @@
 // `-g`, `-O2`, `-O2 -g`.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 
@@ -146,6 +146,28 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
       ['name@10:null'],
     );
     assert(same(encodeWasm(parseWasm(bytes)), bytes));
+  });
+
+  // S6 step 5 item 6 (M2f): wabt-ts's convention — a custom with no recorded
+  // position was built by hand, and goes last.
+  it('a custom with no recorded position is appended after every known section', () => {
+    const b = new ModuleBuilder();
+    b.addFunction('$f', [], [], []);
+    const mod = b.build();
+    mod.customSections = [{ name: 'handmade', data: new Uint8Array([1]) }];
+    assertEquals(layout(encodeWasm(mod)), '1 3 10 "handmade"');
+  });
+
+  it('a payload-less custom that is not the name section is refused', () => {
+    const b = new ModuleBuilder();
+    b.addFunction('$f', [], [], []);
+    const mod = b.build();
+    mod.customSections = [{ name: 'producers', data: null, precedingSection: null }];
+    assertThrows(
+      () => encodeWasm(mod),
+      WasmEncodeError,
+      'custom section "producers": it has no payload',
+    );
   });
 
   it('a module built through the API has none, and still writes no section', () => {

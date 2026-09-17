@@ -1364,6 +1364,10 @@ export class BinaryReader {
     const another = m.customs.some((c) => c.name === 'name');
     if (!(applied && parsed.complete) || another) {
       m.customs.splice(pending.at, 0, pending.custom);
+    } else {
+      // The names are the IR's now; the section's PLACE is kept, so the writer
+      // generates it where it was rather than last (M2f).
+      m.customs.splice(pending.at, 0, { ...pending.custom, data: null });
     }
   }
 
@@ -2826,7 +2830,7 @@ export class BinaryReader {
    * The last `name` section so far, held until the module is complete: its raw form,
    * and where among `m.customs` it would go if it has to be kept as bytes.
    */
-  private pendingNames: { custom: Custom; at: number } | null = null;
+  private pendingNames: { custom: Custom & { data: Uint8Array }; at: number } | null = null;
 
   readModule(): Module {
     const m = makeModule();
@@ -2925,12 +2929,12 @@ export class BinaryReader {
           }
           const dataStart = this.pos;
           const data = this.data.slice(dataStart, sectionEnd);
-          const custom: Custom = {
+          const custom = {
             name,
             data,
             loc: this.loc(),
             precedingSection: lastKnownSection,
-          };
+          } satisfies Custom;
           // The LAST name section is read for its names once the module is
           // complete (`applyPendingNames`) — as upstream wasm2wat and
           // wasm-tools both do; an earlier one is just bytes, put back at

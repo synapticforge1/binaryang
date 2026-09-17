@@ -24,6 +24,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING (types): a custom section's `precedingSection` is optional** — `BinarySection | null`,
+  absent when the position is not known (S6 step 5 item 6 (M2f)); such a section is written after
+  every known section, as wabt-ts writes one.
 - ⚠️ **BREAKING: `WasmExport.kind` is wabt-ts's `ExternalKind`** (`Func = 0` … `Tag = 4`, the binary's
   kind byte; S6 step 5 item 6 (M2e)), was `'function' | 'table' | 'memory' | 'global' | 'tag'`.
   `ModuleBuilder.addExport`'s kind argument likewise. Fixed on the way: `Module.toWat()` wrote an export
@@ -169,6 +172,10 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- ⚠️ **BREAKING (types): `Custom.data` is `Uint8Array | null`** (S6 step 5 item 6 (M2f); `./ir/wabt-ts`).
+  `null` marks the `name` section's PLACE: a binary read with names now keeps that entry in
+  `module.customs`, and the writer generates the names there. Only a section named `name` may have
+  no payload; the writer throws for any other.
 - ⚠️ **BREAKING: a constant expression is a `RegionExpr`** (S6 step 5 item 6 (M2), owner 2026-09-16;
   `./ir/wabt-ts`). `Global.init`, `Table.init`, `ElemSegment.offset` / `elemExprs[i]` and
   `DataSegment.offset` were `Expr[]`; read `.children`. Where one may be absent it is an OPTIONAL
@@ -256,6 +263,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **wabt-ts keeps the `name` section where it was** (S6 step 5 item 6 (M2f)). A binary laid out `name`,
+  then `producers` — clang's and rustc's layout — was written back with the name section moved last.
+  (Names wabt-ts could not fully parse were already kept as bytes, in place.)
 - **wabt-ts keeps a table's PRESENT-but-empty initializer** (S6 step 5 item 6 (M2)). `40 00 70 00 01 0b`
   was written back as `70 00 01`: an empty initializer read as none. Invalid modules only.
 - **Two optimizer passes had no case for `call_ref`**, found while porting it (item 5 (5)) — no

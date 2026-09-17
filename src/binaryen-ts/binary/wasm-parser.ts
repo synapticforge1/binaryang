@@ -11,7 +11,7 @@ import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
 import { blockResult, heapAbstract, type Var, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
-import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 import {
   type CustomSection,
   type ElementSegment,
@@ -806,7 +806,7 @@ class WasmParser {
   /** Where in {@link customSections} the `name` section's place sits, if any. */
   private nameSectionAt: number | null = null;
   /** The last KNOWN section read — what a custom section's position is recorded against. */
-  private lastKnownSection: number | null = null;
+  private lastKnownSection: BinarySection | null = null;
   /** Imported functions' names, by function index. */
   private readonly importFuncNames: string[] = [];
   private readonly lowerBlockParams: boolean;
@@ -935,7 +935,7 @@ class WasmParser {
           break;
       }
 
-      if (id !== SECTION_CUSTOM) this.lastKnownSection = id;
+      if (id !== SECTION_CUSTOM) this.lastKnownSection = id as BinarySection;
       if (this.r.position !== end) this.r.seek(end);
     }
   }
