@@ -62,7 +62,7 @@ describe('Phase 7 bridge: wabt IR → binaryen-ts → wasm', () => {
     assertEquals(wabtMod.imports.length, 1);
     assertEquals(wabtMod.globals.length, 1);
     assertEquals(wabtMod.memories.length, 1);
-    assertEquals(wabtMod.funcs.length, 1);
+    assertEquals(wabtMod.functions.length, 1);
     assertEquals(wabtMod.exports.length, 1);
 
     const binaryenMod = bridgeToBinaryen(wabtMod);

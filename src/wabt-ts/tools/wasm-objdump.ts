@@ -37,6 +37,7 @@ import type { ErrorList } from '../core/error.ts';
 import type { Module, SectionMeta } from '../ir/ir.ts';
 import { cliRead } from '../../cli/io.ts';
 import process from 'node:process';
+import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -173,10 +174,10 @@ function appendDetails(lines: string[], m: Module): void {
   }
 
   // Function section
-  const totalFuncImports = m.numFuncImports;
-  if (m.funcs.length > 0) {
-    lines.push(`Function[${m.funcs.length}]:`);
-    for (const [i, f] of m.funcs.entries()) {
+  const totalFuncImports = countImports(m, ExternalKind.Func);
+  if (m.functions.length > 0) {
+    lines.push(`Function[${m.functions.length}]:`);
+    for (const [i, f] of m.functions.entries()) {
       const name = f.name ? ` <${f.name}>` : '';
       lines.push(` - func[${totalFuncImports + i}]${name}`);
     }
@@ -206,8 +207,8 @@ function hex8(n: number): string {
 function sectionLabel(meta: SectionMeta, m: Module): string {
   if (meta.section === BinarySection.Custom) {
     // Match by byte offset — custom sections that were parsed (e.g. name
-    // section with readDebugNames:true) won't be in m.customs; fall back.
-    const custom = m.customs.find((c) =>
+    // section with readDebugNames:true) won't be in m.customSections; fall back.
+    const custom = m.customSections.find((c) =>
       c.loc.offset >= meta.offset && c.loc.offset < meta.offset + meta.size
     );
     return custom ? `"${custom.name}"` : 'custom';
@@ -222,7 +223,7 @@ function sectionCount(meta: SectionMeta, m: Module): number {
     case BinarySection.Import:
       return m.imports.length;
     case BinarySection.Function:
-      return m.funcs.length;
+      return m.functions.length;
     case BinarySection.Table:
       return m.tables.length;
     case BinarySection.Memory:
@@ -232,9 +233,9 @@ function sectionCount(meta: SectionMeta, m: Module): number {
     case BinarySection.Export:
       return m.exports.length;
     case BinarySection.Elem:
-      return m.elemSegments.length;
+      return m.elements.length;
     case BinarySection.Code:
-      return m.funcs.length;
+      return m.functions.length;
     case BinarySection.Data:
       return m.dataSegments.length;
     case BinarySection.Tag:

@@ -50,14 +50,6 @@ const PINNED = {
       'loc',
       'name',
       'filename',
-      'funcs',
-      'elemSegments',
-      'customs',
-      'numFuncImports',
-      'numTableImports',
-      'numMemoryImports',
-      'numGlobalImports',
-      'numTagImports',
       'sectionMeta',
       'fidelity',
       'hasNameSection',
@@ -66,15 +58,12 @@ const PINNED = {
       'featuresUsed',
     ],
     onlyB: [
-      'functions',
-      'elements',
       'hasExceptionHandling',
       'hasMemory64',
       'hasMultiMemory',
       'hasGC',
       'explicitNames',
       'hasDataCount',
-      'customSections',
     ],
     differ: [
       'start',
@@ -85,6 +74,9 @@ const PINNED = {
       'tags',
       'dataSegments',
       'types',
+      'functions',
+      'elements',
+      'customSections',
     ],
   },
   func: {
@@ -208,6 +200,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [32, 10, 16]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [24, 7, 19]);
   });
 });

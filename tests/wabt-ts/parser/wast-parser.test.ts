@@ -16,6 +16,7 @@ import type {
   Memory,
   Table,
 } from '../../../src/wabt-ts/ir/ir.ts';
+import { countImports } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,7 +35,7 @@ describe('parseWatModule', () => {
   it('parses an empty module', () => {
     const m = parseModule('(module)');
     assertExists(m);
-    assertEquals(m.funcs.length, 0);
+    assertEquals(m.functions.length, 0);
     assertEquals(m.imports.length, 0);
     assertEquals(m.exports.length, 0);
   });
@@ -105,7 +106,7 @@ describe('parseWatModule — imports', () => {
       assertEquals(imp.func.sig.params, [Type.I32]);
       assertEquals(imp.func.sig.results, [Type.I32]);
     }
-    assertEquals(m.numFuncImports, 1);
+    assertEquals(countImports(m, ExternalKind.Func), 1);
   });
 
   it('parses a memory import', () => {
@@ -163,8 +164,8 @@ describe('parseWatModule — imports', () => {
 describe('parseWatModule — functions', () => {
   it('parses a simple function', () => {
     const m = parseModule('(module (func))');
-    assertEquals(m.funcs.length, 1);
-    const f = m.funcs[0] as Func;
+    assertEquals(m.functions.length, 1);
+    const f = m.functions[0] as Func;
     assertExists(f);
     assertEquals(f.sig.params.length, 0);
     assertEquals(f.sig.results.length, 0);
@@ -175,8 +176,8 @@ describe('parseWatModule — functions', () => {
     const m = parseModule(
       '(module (func $add (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))',
     );
-    assertEquals(m.funcs.length, 1);
-    const f = m.funcs[0] as Func;
+    assertEquals(m.functions.length, 1);
+    const f = m.functions[0] as Func;
     assertExists(f);
     assertEquals(f.name, '$add');
     assertEquals(f.sig.params, [Type.I32, Type.I32]);
@@ -186,8 +187,8 @@ describe('parseWatModule — functions', () => {
 
   it('parses function locals', () => {
     const m = parseModule('(module (func (local i32) (local f64 f64)))');
-    assertEquals(m.funcs.length, 1);
-    const f = m.funcs[0] as Func;
+    assertEquals(m.functions.length, 1);
+    const f = m.functions[0] as Func;
     assertExists(f);
     // Three declared locals, each its own slot (M6c); the function has no params.
     assertEquals(f.locals.length, 3);
@@ -195,7 +196,7 @@ describe('parseWatModule — functions', () => {
 
   it('parses function with export', () => {
     const m = parseModule('(module (func (export "main")))');
-    assertEquals(m.funcs.length, 1);
+    assertEquals(m.functions.length, 1);
     assertEquals(m.exports.length, 1);
     assertEquals(m.exports[0]?.name, 'main');
     assertEquals(m.exports[0]?.kind, ExternalKind.Func);
@@ -203,7 +204,7 @@ describe('parseWatModule — functions', () => {
 
   it('parses inline func import', () => {
     const m = parseModule('(module (func $f (import "env" "f") (param i32)))');
-    assertEquals(m.funcs.length, 0);
+    assertEquals(m.functions.length, 0);
     assertEquals(m.imports.length, 1);
     const imp = m.imports[0];
     assertExists(imp);
@@ -357,7 +358,7 @@ describe('parseWatModule — tags', () => {
     const m = parseModule('(module (tag $t (import "env" "t") (param i32)))');
     assertEquals(m.imports.length, 1);
     assertEquals(m.imports[0]?.kind, ExternalKind.Tag);
-    assertEquals(m.numTagImports, 1);
+    assertEquals(countImports(m, ExternalKind.Tag), 1);
     assertEquals(m.tags.length, 0);
   });
 });
@@ -405,8 +406,8 @@ describe('parseWatModule — elem segments', () => {
   it('parses an active elem segment', () => {
     // Use explicit (table N) form which the parser handles
     const m = parseModule('(module (func) (func) (table funcref (elem 0 1)))');
-    assertEquals(m.elemSegments.length, 1);
-    const es = m.elemSegments[0] as ElemSegment;
+    assertEquals(m.elements.length, 1);
+    const es = m.elements[0] as ElemSegment;
     assertExists(es);
     assertEquals(es.kind, 'active');
     assertEquals(es.elemType, Type.FuncRef);
@@ -421,8 +422,8 @@ describe('parseWatModule — elem segments', () => {
 describe('parseWatModule — instructions (folded)', () => {
   it('parses i32.const in folded form', () => {
     const m = parseModule('(module (func (result i32) (i32.const 42)))');
-    assertEquals(m.funcs.length, 1);
-    const body = m.funcs[0]?.body.children ?? [];
+    assertEquals(m.functions.length, 1);
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     const expr = body[0];
     assertExists(expr);
@@ -434,8 +435,8 @@ describe('parseWatModule — instructions (folded)', () => {
 
   it('parses i32.add in folded form', () => {
     const m = parseModule('(module (func (result i32) (i32.add (i32.const 1) (i32.const 2))))');
-    assertEquals(m.funcs.length, 1);
-    const body = m.funcs[0]?.body.children ?? [];
+    assertEquals(m.functions.length, 1);
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     const expr = body[0];
     assertExists(expr);
@@ -444,14 +445,14 @@ describe('parseWatModule — instructions (folded)', () => {
 
   it('parses block in folded form', () => {
     const m = parseModule('(module (func (block (nop))))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'block');
   });
 
   it('parses if in folded form', () => {
     const m = parseModule('(module (func (if (i32.const 1) (then (nop)) (else (nop)))))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'if');
   });
@@ -464,28 +465,28 @@ describe('parseWatModule — instructions (folded)', () => {
 describe('parseWatModule — instructions (linear)', () => {
   it('parses nop in linear form', () => {
     const m = parseModule('(module (func nop))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'nop');
   });
 
   it('parses unreachable in linear form', () => {
     const m = parseModule('(module (func unreachable))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'unreachable');
   });
 
   it('parses return in linear form', () => {
     const m = parseModule('(module (func return))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'return');
   });
 
   it('parses local.get / local.set in linear form', () => {
     const m = parseModule('(module (func (param i32) local.get 0))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'local.get');
   });
@@ -494,7 +495,7 @@ describe('parseWatModule — instructions (linear)', () => {
     const m = parseModule(
       '(module (memory 1) (func (param i32) (result i32) local.get 0 i32.load offset=4))',
     );
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assert(body.length > 0);
     const load = body.find((e) => e.kind === 'load');
     assertExists(load);
@@ -505,14 +506,14 @@ describe('parseWatModule — instructions (linear)', () => {
 
   it('parses block / loop / end in linear form', () => {
     const m = parseModule('(module (func block nop end))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     assertEquals(body.length, 1);
     assertEquals(body[0]?.kind, 'block');
   });
 
   it('parses if / then / else / end in linear form', () => {
     const m = parseModule('(module (func (param i32) local.get 0 if nop else nop end))');
-    const body = m.funcs[0]?.body.children ?? [];
+    const body = m.functions[0]?.body.children ?? [];
     // after stack flush: local.get goes to stmts, if is separate
     const ifNode = body.find((e) => e.kind === 'if');
     assertExists(ifNode);
@@ -580,8 +581,8 @@ describe('parseWatModule — multiple fields', () => {
     )`;
     const m = parseModule(src);
     assertEquals(m.imports.length, 3);
-    assertEquals(m.numFuncImports, 2);
-    assertEquals(m.numMemoryImports, 1);
+    assertEquals(countImports(m, ExternalKind.Func), 2);
+    assertEquals(countImports(m, ExternalKind.Memory), 1);
   });
 
   it('parses a module with funcs + exports', () => {
@@ -592,7 +593,7 @@ describe('parseWatModule — multiple fields', () => {
       (export "b" (func $b))
     )`;
     const m = parseModule(src);
-    assertEquals(m.funcs.length, 2);
+    assertEquals(m.functions.length, 2);
     assertEquals(m.exports.length, 2);
   });
 });

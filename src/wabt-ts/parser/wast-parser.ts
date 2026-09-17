@@ -166,6 +166,7 @@ import {
   type TypeToken,
 } from './token.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
+import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // WAST Script types
@@ -2020,7 +2021,7 @@ export class WastParser {
     // runs it, different answer (T12.2).
     let firstDefKind: string | null = null;
     const defCount = (): number =>
-      module.funcs.length + module.tables.length + module.memories.length +
+      module.functions.length + module.tables.length + module.memories.length +
       module.globals.length + module.tags.length;
 
     while (this.peekIsModuleField()) {
@@ -2037,7 +2038,7 @@ export class WastParser {
         this.error(loc, `import after ${firstDefKind}`);
       }
       if (firstDefKind === null && defCount() > defsBefore) {
-        firstDefKind = module.funcs.length > 0
+        firstDefKind = module.functions.length > 0
           ? 'function'
           : module.tables.length > 0
           ? 'table'
@@ -2129,13 +2130,13 @@ export class WastParser {
           break;
       }
     }
-    for (const f of module.funcs) bind('func', f.name, f.loc);
+    for (const f of module.functions) bind('func', f.name, f.loc);
     for (const t of module.tables) bind('table', t.name, t.loc);
     for (const mem of module.memories) bind('memory', mem.name, mem.loc);
     for (const g of module.globals) bind('global', g.name, g.loc);
     for (const tag of module.tags) bind('tag', tag.name, tag.loc);
     for (const t of module.types) bind('type', t.name, t.loc);
-    for (const e of module.elemSegments) bind('elem', e.name, e.loc);
+    for (const e of module.elements) bind('elem', e.name, e.loc);
     for (const d of module.dataSegments) bind('data', d.name, d.loc);
 
     // Struct field names are scoped to their own type, not to the module.
@@ -2188,7 +2189,7 @@ export class WastParser {
     for (const imp of module.imports) {
       if (imp.kind === ExternalKind.Func) record(imp.func.name, imp.func.sig.params.length);
     }
-    for (const f of module.funcs) record(f.name, f.sig.params.length);
+    for (const f of module.functions) record(f.name, f.sig.params.length);
     this.funcParamCounts = counts;
     this.funcParamCountsByName = byName;
 
@@ -2314,7 +2315,7 @@ export class WastParser {
 
     const data = this.parseTextList();
     if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
-    module.customs.push({ name, data, loc, precedingSection });
+    module.customSections.push({ name, data, loc, precedingSection });
     return Result.Ok;
   }
 
@@ -2523,7 +2524,6 @@ export class WastParser {
       };
       imp = { kind: ExternalKind.Func, module: moduleName, field: fieldName, func };
       module.imports.push(imp);
-      module.numFuncImports++;
     } else if (tt === TokenType.Table) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2532,7 +2532,6 @@ export class WastParser {
       const table: Table = { name, loc, elemType, limits };
       imp = { kind: ExternalKind.Table, module: moduleName, field: fieldName, table };
       module.imports.push(imp);
-      module.numTableImports++;
     } else if (tt === TokenType.Memory) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2540,7 +2539,6 @@ export class WastParser {
       const memory: Memory = { name, loc, limits };
       imp = { kind: ExternalKind.Memory, module: moduleName, field: fieldName, memory };
       module.imports.push(imp);
-      module.numMemoryImports++;
     } else if (tt === TokenType.Global) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2548,7 +2546,6 @@ export class WastParser {
       const global: Global = { name, loc, type, mutable: isMut };
       imp = { kind: ExternalKind.Global, module: moduleName, field: fieldName, global };
       module.imports.push(imp);
-      module.numGlobalImports++;
     } else if (tt === TokenType.Tag) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2556,7 +2553,6 @@ export class WastParser {
       const tag: Tag = { name, loc, sig };
       imp = { kind: ExternalKind.Tag, module: moduleName, field: fieldName, tag };
       module.imports.push(imp);
-      module.numTagImports++;
     } else {
       this.error(this.loc(), 'expected import kind (func/table/memory/global/tag)');
       return Result.Error;
@@ -2612,7 +2608,7 @@ export class WastParser {
     }
     this.drop();
     const name = this.parseBindVarOpt();
-    const funcIdx = module.numFuncImports + module.funcs.length;
+    const funcIdx = countImports(module, ExternalKind.Func) + module.functions.length;
 
     // Inline exports
     while (this.matchLpar(TokenType.Export)) {
@@ -2655,7 +2651,6 @@ export class WastParser {
         func,
       };
       module.imports.push(imp);
-      module.numFuncImports++;
     } else {
       const declared: { type: ValueType; name?: string }[] = [];
 
@@ -2715,7 +2710,7 @@ export class WastParser {
         body: region([], loc),
         tailcall: false,
       };
-      module.funcs.push(func);
+      module.functions.push(func);
       this.pendingBodies.push({ func, scope, pos: bodyPos, endPos: bodyEnd });
     }
 
@@ -2738,7 +2733,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Global) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const globalIdx = module.numGlobalImports + module.globals.length;
+    const globalIdx = countImports(module, ExternalKind.Global) + module.globals.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -2758,7 +2753,6 @@ export class WastParser {
         global,
       };
       module.imports.push(imp);
-      module.numGlobalImports++;
     } else {
       const init: Expr[] = [];
       this.parseInstrListInto(init);
@@ -2775,7 +2769,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Memory) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const memIdx = module.numMemoryImports + module.memories.length;
+    const memIdx = countImports(module, ExternalKind.Memory) + module.memories.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -2795,7 +2789,6 @@ export class WastParser {
         memory,
       };
       module.imports.push(imp);
-      module.numMemoryImports++;
     } else if (
       (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Data) ||
       (this.peek() === TokenType.ValueType && this.peek(1) === TokenType.Lpar &&
@@ -2851,7 +2844,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Table) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const tableIdx = module.numTableImports + module.tables.length;
+    const tableIdx = countImports(module, ExternalKind.Table) + module.tables.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -2872,7 +2865,6 @@ export class WastParser {
         table,
       };
       module.imports.push(imp);
-      module.numTableImports++;
     } else {
       // A table definition has two shapes:
       //
@@ -2951,7 +2943,7 @@ export class WastParser {
           value: is64 ? constI64(0n) : constI32(0),
           loc,
         } as ConstExpr;
-        module.elemSegments.push({
+        module.elements.push({
           name: '',
           kind: 'active',
           tableVar: varIndex(tableIdx),
@@ -3161,7 +3153,7 @@ export class WastParser {
     this.expect(TokenType.Rpar);
 
     if (kind === 'active') {
-      module.elemSegments.push({
+      module.elements.push({
         name,
         kind,
         tableVar,
@@ -3171,7 +3163,7 @@ export class WastParser {
         loc,
       });
     } else if (kind === 'declared') {
-      module.elemSegments.push({
+      module.elements.push({
         name,
         kind,
         tableVar: varIndex(0),
@@ -3180,7 +3172,7 @@ export class WastParser {
         loc,
       });
     } else {
-      module.elemSegments.push({
+      module.elements.push({
         name,
         kind: 'passive',
         tableVar: varIndex(0),
@@ -3197,7 +3189,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Tag) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const tagIdx = module.numTagImports + module.tags.length;
+    const tagIdx = countImports(module, ExternalKind.Tag) + module.tags.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -3229,7 +3221,6 @@ export class WastParser {
         tag,
       };
       module.imports.push(imp);
-      module.numTagImports++;
     } else {
       module.tags.push(tag);
     }
@@ -5362,7 +5353,7 @@ export class WastParser {
     // Functions and tags interleave in the text; their source offsets say how.
     // (`sort` is stable, so items without a location keep their array order.)
     const defs: ({ offset: number; func: Func } | { offset: number; sig: FuncSignature })[] = [
-      ...module.funcs.map((func) => ({ offset: func.loc.offset, func })),
+      ...module.functions.map((func) => ({ offset: func.loc.offset, func })),
       ...module.tags.map((tag) => ({ offset: tag.loc.offset, sig: tag.sig })),
     ].sort((a, b) => a.offset - b.offset);
     for (const d of defs) {

@@ -29,7 +29,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
 
 function firstCallIndirect(m: Module): CallIndirectExpr {
-  const stack: unknown[] = [m.funcs.map((f) => f.body.children)];
+  const stack: unknown[] = [m.functions.map((f) => f.body.children)];
   while (stack.length > 0) {
     const v = stack.pop();
     if (v === null || typeof v !== 'object') continue;

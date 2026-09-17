@@ -124,7 +124,7 @@ describe('binary-writer segment encoding', () => {
       elemExprs: [],
       loc: LOC,
     };
-    module.elemSegments.push(seg);
+    module.elements.push(seg);
     assertThrows(() => writeBinaryIr(module), Error, 'elem segment table');
   });
 
@@ -164,13 +164,13 @@ describe('binary-writer segment encoding', () => {
       elemExprs: [],
       loc: LOC,
     };
-    module.elemSegments.push(seg);
+    module.elements.push(seg);
 
     const binary = writeBinaryIr(module);
     const errs = makeErrorList();
     const back = readBinaryIr(binary, errs);
     assert(!hasErrors(errs), 'round-trip decode should succeed');
     // The old flags-4 path dropped the reftype, decoding it back as funcref.
-    assertEquals(back.elemSegments[0]?.elemType, Type.ExternRef);
+    assertEquals(back.elements[0]?.elemType, Type.ExternRef);
   });
 });

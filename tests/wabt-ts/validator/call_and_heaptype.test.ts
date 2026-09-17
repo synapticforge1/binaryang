@@ -177,8 +177,11 @@ describe('T9.10 — a select result annotation is encoded as a value type', () =
     // Asserted on the NODE, not on a JSON substring: this used to look for
     // `"kind":"ref"`, a discriminator S6 step 5 stage V3b removed while the
     // annotation itself stayed exactly as it was.
-    const sel = back.funcs[0]!.body.children.find((e) => e.kind === 'select');
-    assert(sel?.kind === 'select', `no select in: ${JSON.stringify(back.funcs[0]!.body.children)}`);
+    const sel = back.functions[0]!.body.children.find((e) => e.kind === 'select');
+    assert(
+      sel?.kind === 'select',
+      `no select in: ${JSON.stringify(back.functions[0]!.body.children)}`,
+    );
     const [rt] = sel.resultType;
     assert(
       rt !== undefined && isRefValueType(rt),
@@ -203,8 +206,8 @@ describe('T9.10 — a select result annotation is encoded as a value type', () =
     );
     // On the node: this matched `'112'` (funcref's byte) or `"kind":"ref"` in a
     // JSON dump, and the second arm went dead when stage V3b removed that key.
-    const sel = back.funcs[0]!.body.children.find((e) => e.kind === 'select');
-    assert(sel?.kind === 'select', JSON.stringify(back.funcs[0]!.body.children));
+    const sel = back.functions[0]!.body.children.find((e) => e.kind === 'select');
+    assert(sel?.kind === 'select', JSON.stringify(back.functions[0]!.body.children));
     const [rt] = sel.resultType;
     const isFuncref = rt === Type.FuncRef ||
       (rt !== undefined && isRefValueType(rt) && rt.nullable &&
@@ -216,6 +219,6 @@ describe('T9.10 — a select result annotation is encoded as a value type', () =
     const m = parseWatModule(
       '(module (type $t (func)) (func (param (ref null $t)) (unreachable)))',
     );
-    assert(isRefValueType(m.module.funcs[0]!.sig.params[0]!));
+    assert(isRefValueType(m.module.functions[0]!.sig.params[0]!));
   });
 });

@@ -85,7 +85,7 @@ function singleFuncModule(
 ): Module {
   const m = makeModule();
   m.types.push({ kind: 'func', name: '', sig: { params, results }, loc: LOC });
-  m.funcs.push(makeFunc(params, results, body, locals));
+  m.functions.push(makeFunc(params, results, body, locals));
   return m;
 }
 
@@ -174,7 +174,7 @@ describe('validateModule', () => {
         mutable: false,
         init: region([makeConst32(0)], LOC),
       });
-      m.funcs.push(makeFunc([], [Type.I32], [
+      m.functions.push(makeFunc([], [Type.I32], [
         { kind: 'global.get', var: varIndex(0), loc: LOC },
       ]));
       assertEquals(isValid(m), true);
@@ -190,7 +190,7 @@ describe('validateModule', () => {
         mutable: false,
         init: region([makeConst32(0)], LOC),
       });
-      m.funcs.push(makeFunc([], [], [
+      m.functions.push(makeFunc([], [], [
         { kind: 'global.set', var: varIndex(0), value: makeConst32(1), loc: LOC },
       ]));
       assertEquals(isInvalid(m), true);
@@ -297,7 +297,7 @@ describe('validateModule', () => {
       const m = makeModule();
       m.types.push({ kind: 'func', name: '', sig: { params: [], results: [Type.I32] }, loc: LOC });
       m.types.push({ kind: 'func', name: '', sig: { params: [], results: [] }, loc: LOC });
-      m.funcs.push({
+      m.functions.push({
         name: '',
         loc: LOC,
         typeVar: varIndex(0),
@@ -306,7 +306,7 @@ describe('validateModule', () => {
         body: region([makeConst32(1)], LOC),
         tailcall: false,
       });
-      m.funcs.push({
+      m.functions.push({
         name: '',
         loc: LOC,
         typeVar: varIndex(1),

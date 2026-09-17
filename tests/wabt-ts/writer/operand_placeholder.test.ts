@@ -87,7 +87,7 @@ describe('T10.8 — a synthesized operand slot-filler is not an instruction', ()
   it('marks the parser-made placeholder as one', () => {
     const { module, errors } = parseWatModule(MULTI_VALUE);
     assert(!hasErrors(errors), formatErrors(errors));
-    const sets = module.funcs[1]!.body.children.filter((e) => e.kind === 'local.set');
+    const sets = module.functions[1]!.body.children.filter((e) => e.kind === 'local.set');
     assertEquals(sets.length, 2);
     // The first local.set in source order takes the call; the second is left
     // with nothing, and that stand-in must say it is one.
@@ -104,7 +104,7 @@ describe('T10.8 — a synthesized operand slot-filler is not an instruction', ()
     const module = readBinaryIr(compile(MULTI_VALUE), errs);
     assert(!hasErrors(errs), formatErrors(errs));
     assert(module);
-    const starved = module.funcs[1]!.body.children
+    const starved = module.functions[1]!.body.children
       .filter((e) => e.kind === 'local.set')
       .map((e) => (e as unknown as { value: { kind: string } }).value)
       .find((v) => v.kind === 'pop');

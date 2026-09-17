@@ -48,7 +48,7 @@ function read(bytes: Uint8Array): Module {
 }
 
 function firstOf<K extends Expr['kind']>(m: Module, kind: K): Extract<Expr, { kind: K }> {
-  const stack: unknown[] = [m.funcs[0]!.body.children];
+  const stack: unknown[] = [m.functions[0]!.body.children];
   while (stack.length > 0) {
     const v = stack.pop();
     if (v === null || typeof v !== 'object') continue;

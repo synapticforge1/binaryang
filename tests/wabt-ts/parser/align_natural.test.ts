@@ -61,7 +61,7 @@ function aligns(m: Module): number[] {
       for (const [k, x] of Object.entries(o)) if (k !== 'loc') walk(x);
     }
   };
-  for (const f of m.funcs) walk(f.body.children);
+  for (const f of m.functions) walk(f.body.children);
   return out;
 }
 
@@ -143,7 +143,7 @@ describe('the text-only path — parse, WAT writer — re-assembles', () => {
 describe('no sentinel is resolved any more', () => {
   it('the binary writer throws on an alignment that is not a power of two', () => {
     const m = parse('(module (memory 1) (func (drop (i32.load (i32.const 0)))))');
-    const drop = m.funcs[0]!.body.children[0] as unknown as { value: { align: number } };
+    const drop = m.functions[0]!.body.children[0] as unknown as { value: { align: number } };
     drop.value.align = 0;
     assertThrows(() => writeBinaryIr(m), Error, 'power-of-two');
   });

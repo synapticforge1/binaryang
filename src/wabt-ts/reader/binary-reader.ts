@@ -130,6 +130,7 @@ import {
   varName,
 } from '../ir/ir.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
+import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -142,7 +143,7 @@ export interface ReadBinaryOptions {
   /**
    * If true (default), the `name` custom section is parsed and the names
    * land on `func.name`, `global.name`, etc. If false, the section stays
-   * in `module.customs` unparsed (used by `wasm-strip`).
+   * in `module.customSections` unparsed (used by `wasm-strip`).
    */
   readDebugNames?: boolean;
   /** If true, the reader aborts on the first error rather than continuing. */
@@ -290,13 +291,13 @@ function brTargetResultCount(labelStack: Frame[], depth: number, m: Module): num
 }
 
 function getFuncSig(m: Module, funcIdx: number): FuncSignature {
-  const totalImports = m.numFuncImports;
+  const totalImports = countImports(m, ExternalKind.Func);
   if (funcIdx < totalImports) {
     const imp = m.imports[funcIdx];
     if (imp && imp.kind === ExternalKind.Func) return imp.func.sig;
     return { params: [], results: [] };
   }
-  const def = m.funcs[funcIdx - totalImports];
+  const def = m.functions[funcIdx - totalImports];
   return def ? def.sig : { params: [], results: [] };
 }
 
@@ -307,7 +308,7 @@ function getTypeSig(m: Module, typeIdx: number): FuncSignature {
 }
 
 function getTagSig(m: Module, tagIdx: number): FuncSignature {
-  const totalImports = m.numTagImports;
+  const totalImports = countImports(m, ExternalKind.Tag);
   if (tagIdx < totalImports) {
     const imp = m.imports[tagIdx];
     if (imp && imp.kind === ExternalKind.Tag) return imp.tag.sig;
@@ -967,7 +968,6 @@ export class BinaryReader {
             tailcall: false,
           };
           m.imports.push({ kind: ExternalKind.Func, module: module_, field, func });
-          m.numFuncImports++;
           break;
         }
         case ExternalKind.Table: {
@@ -975,7 +975,6 @@ export class BinaryReader {
           const limits = this.readLimits(false);
           const table: Table = { name: '', loc, elemType, limits };
           m.imports.push({ kind: ExternalKind.Table, module: module_, field, table });
-          m.numTableImports++;
           break;
         }
         case ExternalKind.Memory: {
@@ -983,7 +982,6 @@ export class BinaryReader {
           if (limits.isShared) m.featuresUsed.threads = true;
           const memory: Memory = { name: '', loc, limits };
           m.imports.push({ kind: ExternalKind.Memory, module: module_, field, memory });
-          m.numMemoryImports++;
           break;
         }
         case ExternalKind.Global: {
@@ -991,7 +989,6 @@ export class BinaryReader {
           const mutable = this.readMutability();
           const global: Global = { name: '', loc, type, mutable };
           m.imports.push({ kind: ExternalKind.Global, module: module_, field, global });
-          m.numGlobalImports++;
           break;
         }
         case ExternalKind.Tag: {
@@ -1004,7 +1001,6 @@ export class BinaryReader {
           const sig = getTypeSig(m, sigIdx);
           const tag: Tag = { name: '', loc, sig };
           m.imports.push({ kind: ExternalKind.Tag, module: module_, field, tag });
-          m.numTagImports++;
           m.featuresUsed.exceptions = true;
           break;
         }
@@ -1036,7 +1032,7 @@ export class BinaryReader {
       const loc = this.loc();
       const sigIdx = this.readU32Leb();
       const sig = getTypeSig(m, sigIdx);
-      m.funcs.push({
+      m.functions.push({
         name: '',
         loc,
         typeVar: varIndex(sigIdx),
@@ -1206,7 +1202,7 @@ export class BinaryReader {
         }
       }
 
-      m.elemSegments.push({
+      m.elements.push({
         name: '',
         loc,
         kind,
@@ -1281,11 +1277,11 @@ export class BinaryReader {
   private readCodeSection(m: Module, end: number): void {
     const count = this.readU32Leb();
     // The code section has exactly one entry per DEFINED function, and
-    // `m.funcs` holds exactly those (imports live in `m.imports`), so the two
+    // `m.functions` holds exactly those (imports live in `m.imports`), so the two
     // counts must agree. Neither side checked, so a
     // module declaring three functions and supplying two bodies decoded to a
     // function with an EMPTY body rather than an error.
-    if (count !== m.funcs.length) {
+    if (count !== m.functions.length) {
       this.err('function and code section have inconsistent lengths');
       return;
     }
@@ -1303,11 +1299,11 @@ export class BinaryReader {
       }
 
       // The code section has one entry per DEFINED function (imports excluded),
-      // so it lines up 1:1 with m.funcs. A previous version added
-      // m.numFuncImports to the index, which fired only when a module had
+      // so it lines up 1:1 with m.functions. A previous version added
+      // countImports(m, ExternalKind.Func) to the index, which fired only when a module had
       // both imports and defined funcs — unexercised by tests until the
       // Phase 7 dry-run bridged a wabt IR through binaryen-ts.
-      const func = m.funcs[i];
+      const func = m.functions[i];
       if (!func) {
         this.err(`code section function index out of range: ${i}`);
         this.pos = bodyEnd;
@@ -1386,13 +1382,13 @@ export class BinaryReader {
         ? new Set(parsed.names.localNames.keys())
         : null;
     }
-    const another = m.customs.some((c) => c.name === 'name');
+    const another = m.customSections.some((c) => c.name === 'name');
     if (!(applied && parsed.complete) || another) {
-      m.customs.splice(pending.at, 0, pending.custom);
+      m.customSections.splice(pending.at, 0, pending.custom);
     } else {
       // The names are the IR's now; the section's PLACE is kept, so the writer
       // generates it where it was rather than last (M2f).
-      m.customs.splice(pending.at, 0, { ...pending.custom, data: null });
+      m.customSections.splice(pending.at, 0, { ...pending.custom, data: null });
     }
   }
 
@@ -2853,7 +2849,7 @@ export class BinaryReader {
 
   /**
    * The last `name` section so far, held until the module is complete: its raw form,
-   * and where among `m.customs` it would go if it has to be kept as bytes.
+   * and where among `m.customSections` it would go if it has to be kept as bytes.
    */
   private pendingNames: { custom: Custom & { data: Uint8Array }; at: number } | null = null;
 
@@ -2970,11 +2966,11 @@ export class BinaryReader {
           // subsections and never found one.
           if (name === 'name' && this.opts.readDebugNames) {
             const earlier = this.pendingNames;
-            if (earlier !== null) m.customs.splice(earlier.at, 0, earlier.custom);
-            this.pendingNames = { custom, at: m.customs.length };
+            if (earlier !== null) m.customSections.splice(earlier.at, 0, earlier.custom);
+            this.pendingNames = { custom, at: m.customSections.length };
             m.hasNameSection = true;
           } else {
-            m.customs.push(custom);
+            m.customSections.push(custom);
           }
           this.pos = sectionEnd;
           break;
@@ -3045,7 +3041,7 @@ export class BinaryReader {
     // A function section with no code section at all is the same mismatch the
     // code reader checks when both are present -- but that reader never runs,
     // so the module decoded to functions with empty bodies.
-    if (this.ok() && m.funcs.length > 0 && !seen.has(BinarySection.Code)) {
+    if (this.ok() && m.functions.length > 0 && !seen.has(BinarySection.Code)) {
       this.err('function and code section have inconsistent lengths');
     }
     if (this.ok()) this.applyPendingNames(m);

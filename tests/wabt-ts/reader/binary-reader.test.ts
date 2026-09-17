@@ -94,7 +94,7 @@ describe('readBinaryIr', () => {
     const m = readBinaryIr(data, errors);
     assertEquals(hasErrors(errors), false);
     assertEquals(m.types.length, 0);
-    assertEquals(m.funcs.length, 0);
+    assertEquals(m.functions.length, 0);
     assertEquals(m.imports.length, 0);
     assertEquals(m.exports.length, 0);
   });
@@ -140,7 +140,7 @@ describe('readBinaryIr', () => {
       sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
       loc: LOC,
     });
-    m.funcs.push({
+    m.functions.push({
       name: 'add',
       loc: LOC,
       typeVar: varIndex(0),
@@ -165,10 +165,10 @@ describe('readBinaryIr', () => {
 
     assertEquals(hasErrors(errors), false);
     assertEquals(m2.types.length, 1);
-    assertEquals(m2.funcs.length, 1);
+    assertEquals(m2.functions.length, 1);
     assertEquals(m2.exports.length, 1);
 
-    const f = m2.funcs[0]!;
+    const f = m2.functions[0]!;
     assertEquals(f.body.children.length, 1);
     const expr = f.body.children[0]!;
     assertEquals(expr.kind, 'binary');
@@ -195,7 +195,7 @@ describe('readBinaryIr', () => {
       sig: { params: [], results: [Type.I32] },
       loc: LOC,
     });
-    m.funcs.push({
+    m.functions.push({
       name: '',
       loc: LOC,
       typeVar: varIndex(0),
@@ -210,7 +210,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const body = m2.funcs[0]!.body.children;
+    const body = m2.functions[0]!.body.children;
     assertEquals(body.length, 1);
     const e = body[0]!;
     assertEquals(e.kind, 'const');
@@ -228,7 +228,7 @@ describe('readBinaryIr', () => {
       sig: { params: [], results: [Type.I64] },
       loc: LOC,
     });
-    m.funcs.push({
+    m.functions.push({
       name: '',
       loc: LOC,
       typeVar: varIndex(0),
@@ -243,7 +243,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const e = m2.funcs[0]!.body.children[0]!;
+    const e = m2.functions[0]!.body.children[0]!;
     assertEquals(e.kind, 'const');
     if (e.kind === 'const' && e.value.type === Type.I64) {
       assertEquals(e.value.value, 0x1234567890abcdefn);
@@ -328,7 +328,6 @@ describe('readBinaryIr', () => {
         tailcall: false,
       },
     });
-    m.numFuncImports = 1;
 
     const binary = writeBinaryIr(m);
     const errors = makeErrorList();
@@ -344,7 +343,7 @@ describe('readBinaryIr', () => {
 
   it('round-trips a function import alongside a defined function', () => {
     // Regression test: this combination was unexercised before Phase 7 and
-    // hit a `funcBase + i` off-by-one in `readCodeSection` (treated `m.funcs`
+    // hit a `funcBase + i` off-by-one in `readCodeSection` (treated `m.functions`
     // as if it were indexed by absolute func index instead of just defined
     // funcs).
     const m = makeModule();
@@ -374,8 +373,7 @@ describe('readBinaryIr', () => {
         tailcall: false,
       },
     });
-    m.numFuncImports = 1;
-    m.funcs.push({
+    m.functions.push({
       name: 'add',
       loc: LOC,
       typeVar: varIndex(1),
@@ -399,8 +397,8 @@ describe('readBinaryIr', () => {
     assertEquals(hasErrors(errors), false, formatErrors(errors));
 
     assertEquals(m2.imports.length, 1);
-    assertEquals(m2.funcs.length, 1);
-    assertEquals(m2.funcs[0]!.body.children.length, 1, 'add function body decoded');
+    assertEquals(m2.functions.length, 1);
+    assertEquals(m2.functions[0]!.body.children.length, 1, 'add function body decoded');
   });
 
   // -------------------------------------------------------------------------
@@ -415,7 +413,7 @@ describe('readBinaryIr', () => {
       sig: { params: [], results: [] },
       loc: LOC,
     });
-    m.funcs.push({
+    m.functions.push({
       name: '',
       loc: LOC,
       typeVar: varIndex(0),
@@ -438,7 +436,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const body = m2.funcs[0]!.body.children;
+    const body = m2.functions[0]!.body.children;
     assertEquals(body.length, 1);
     assertEquals(body[0]!.kind, 'block');
     if (body[0]!.kind === 'block') {
@@ -455,7 +453,7 @@ describe('readBinaryIr', () => {
       sig: { params: [Type.I32], results: [Type.I32] },
       loc: LOC,
     });
-    m.funcs.push({
+    m.functions.push({
       name: '',
       loc: LOC,
       typeVar: varIndex(0),
@@ -480,7 +478,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const body = m2.funcs[0]!.body.children;
+    const body = m2.functions[0]!.body.children;
     assertEquals(body.length, 1);
     const e = body[0]!;
     assertEquals(e.kind, 'if');
@@ -557,7 +555,7 @@ describe('readBinaryIr', () => {
       sig: { params: [Type.I32], results: [Type.I32] },
       loc: LOC,
     });
-    m.funcs.push({
+    m.functions.push({
       name: '',
       loc: LOC,
       typeVar: varIndex(0),
@@ -577,7 +575,7 @@ describe('readBinaryIr', () => {
     const m2 = readBinaryIr(binary, errors);
     assertEquals(hasErrors(errors), false);
 
-    const f = m2.funcs[0]!;
+    const f = m2.functions[0]!;
     // Params first, then the declared locals — one slot each (M6c).
     assertEquals(f.locals.map((l) => l.type), [Type.I32, Type.I32, Type.I32, Type.F64]);
   });
@@ -594,7 +592,7 @@ describe('readBinaryIr', () => {
       sig: { params: [], results: [] },
       loc: LOC,
     });
-    m.funcs.push({
+    m.functions.push({
       name: '',
       loc: LOC,
       typeVar: varIndex(0),

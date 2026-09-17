@@ -218,7 +218,7 @@ export function applyNameSection(m: Module, names: ModuleNames): boolean {
     else if (imp.kind === ExternalKind.Global) globals.push(imp.global);
     else if (imp.kind === ExternalKind.Tag) tags.push(imp.tag);
   }
-  funcs.push(...m.funcs);
+  funcs.push(...m.functions);
   tables.push(...m.tables);
   memories.push(...m.memories);
   globals.push(...m.globals);
@@ -248,7 +248,7 @@ export function applyNameSection(m: Module, names: ModuleNames): boolean {
   give(tables, names.tableNames);
   give(memories, names.memoryNames);
   give(globals, names.globalNames);
-  give(m.elemSegments, names.elemSegmentNames);
+  give(m.elements, names.elemSegmentNames);
   give(m.dataSegments, names.dataSegmentNames);
   give(tags, names.tagNames);
 
@@ -292,7 +292,7 @@ export function applyNameSection(m: Module, names: ModuleNames): boolean {
   for (const [fi, map] of names.labelNames) {
     const f = funcs[fi];
     // An imported function has no body, so no labels to name.
-    if (f === undefined || fi < funcs.length - m.funcs.length) {
+    if (f === undefined || fi < funcs.length - m.functions.length) {
       if (map.size > 0) exact = false;
       continue;
     }

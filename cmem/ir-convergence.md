@@ -3482,6 +3482,20 @@ three came from one blunt regex over `.body`:
   `func.body.children` in place — so a mutant slicing it changed nothing. An EQUIVALENT mutant
   pointing at DEAD CODE: the local is gone now, and the mutant that replaces the fill target is killed.
 
+**✅ M7a — the module's collections take binaryen-ts's names (2026-09-17).** `funcs` → `functions`,
+`elemSegments` → `elements`, `customs` → `customSections`. **Blast radius chose the direction**, as the
+rules say: renaming wabt-ts's costs 247 sites, renaming binaryen-ts's 538. Behaviour-neutral
+(baseline IDENTICAL). Ratchet **29 / 7 / 19** — the three leave the one-sided lists for `differ`,
+where they stay until a wabt-ts `Func` IS a `WasmFunction` (M8). The `...funcs` spread trap from M6b
+repeated, and two classes have their own private `funcs`; the compiler named all six.
+
+**✅ M7b — the import counts are DERIVED (2026-09-17).** `numFuncImports` and its four siblings are
+gone; `countImports(m, kind)` counts the list itself. They were a second source of truth beside the
+list they counted — every reader and parser had to remember to increment one, and a pass that added
+an import and forgot would shift every index in that space silently. Behaviour-neutral (baseline
+IDENTICAL, optimizer 0 of 2,105). Ratchet **24 / 7 / 19**. 🔍 Two tests SET a count to state their
+premise; they now add the imports themselves, which is the premise they meant.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

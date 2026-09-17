@@ -199,6 +199,10 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- ⚠️ **BREAKING: the module's collections are `functions` / `elements` / `customSections`**
+  (binaryen-ts's names; S6 step 5 item 6 (M7a)) — they were `funcs` / `elemSegments` / `customs`.
+- ⚠️ **BREAKING: `Module.numFuncImports` and its four siblings are gone** (S6 step 5 item 6 (M7b)).
+  Use the new `countImports(m, kind)`: the counts are derived from `imports`, not stored beside it.
 - ⚠️ **BREAKING: `Func.body` is a `RegionExpr`** (S6 step 5 item 6 (M6b); `./ir/wabt-ts`) — read
   `.children` for the instruction list, as every other sequence in the tree is read.
 - ⚠️ **BREAKING: `Func.localDecls` and `Func.localNames` are `Func.locals`** (S6 step 5 item 6 (M6c);

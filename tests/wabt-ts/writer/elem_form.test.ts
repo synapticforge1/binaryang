@@ -191,7 +191,7 @@ describe('T7.11 — a leading (ref …) opens an elemlist, not an offset', () =>
     it(`${name} parses as PASSIVE`, () => {
       const { module, errors } = parseWatModule(wat);
       assert(!hasErrors(errors), formatErrors(errors));
-      const seg = module.elemSegments[0];
+      const seg = module.elements[0];
       assert(seg);
       assertEquals(seg.kind, 'passive');
       assertEquals(seg.offset, undefined, 'a passive segment has NO offset, not an empty one');
@@ -203,7 +203,7 @@ describe('T7.11 — a leading (ref …) opens an elemlist, not an offset', () =>
       '(module (func $f) (func $g) (table 2 funcref) (elem (i32.const 0) $f $g))',
     );
     assert(!hasErrors(errors), formatErrors(errors));
-    const seg = module.elemSegments[0];
+    const seg = module.elements[0];
     assert(seg);
     assertEquals(seg.kind, 'active');
     assertEquals(seg.offset?.children.length, 1);

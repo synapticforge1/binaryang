@@ -66,7 +66,7 @@ function funcTypeIndices(wat: string): number[] {
   if (hasErrors(errors)) throw new Error(formatErrors(errors));
   resolveNames(module, makeErrorList());
   synthesizeTypes(module);
-  return module.funcs.map((f) => (f.typeVar.kind === 'index' ? f.typeVar.value : -1));
+  return module.functions.map((f) => (f.typeVar.kind === 'index' ? f.typeVar.value : -1));
 }
 
 // type-subtyping.wast's own module: four `() -> ()` types in one subtype
@@ -135,7 +135,7 @@ describe('T7.14 — resolveNames resolves a defined func type-use', () => {
     );
     assert(!hasErrors(errors), formatErrors(errors));
     resolveNames(module, makeErrorList());
-    assertEquals(module.funcs[0]!.typeVar.kind, 'index');
+    assertEquals(module.functions[0]!.typeVar.kind, 'index');
   });
 
   it('and on an imported one', () => {

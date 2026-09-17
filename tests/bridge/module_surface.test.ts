@@ -3,7 +3,7 @@
 //
 // The bridge's MODULE surface: element segments and the start function.
 //
-// Both were silently dropped — `module.elemSegments` and `module.start` were
+// Both were silently dropped — `module.elements` and `module.start` were
 // never read, while the module doc claimed element segments and the start
 // function "will throw". A bridged module's tables were therefore empty, so
 // every `call_indirect` through one trapped with "null function", and a start

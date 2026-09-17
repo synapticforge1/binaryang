@@ -1272,10 +1272,10 @@ class BinaryWriter {
 
   private writeFunctionSection(): void {
     const { m, s } = this;
-    if (m.funcs.length === 0) return;
+    if (m.functions.length === 0) return;
     s.writeSection(BinarySection.Function, () => {
-      s.writeU32Leb(m.funcs.length);
-      for (const f of m.funcs) writeVar(s, f.typeVar);
+      s.writeU32Leb(m.functions.length);
+      for (const f of m.functions) writeVar(s, f.typeVar);
     });
   }
 
@@ -1428,10 +1428,10 @@ class BinaryWriter {
 
   private writeElemSection(): void {
     const { m, s } = this;
-    if (m.elemSegments.length === 0) return;
+    if (m.elements.length === 0) return;
     s.writeSection(BinarySection.Elem, () => {
-      s.writeU32Leb(m.elemSegments.length);
-      for (const seg of m.elemSegments) {
+      s.writeU32Leb(m.elements.length);
+      for (const seg of m.elements) {
         const tableIdx = varIndexValue(seg.tableVar, 'elem segment table');
 
         // Prefer the FUNCIDX form (flags 0-3) whenever every element is a
@@ -1501,7 +1501,7 @@ class BinaryWriter {
   private usesDataIndex(): boolean {
     const seen = new DataIndexUse();
     const visitor = new ExprVisitor(seen);
-    for (const f of this.m.funcs) {
+    for (const f of this.m.functions) {
       visitor.visitExprList(f.body.children);
       if (seen.found) return true;
     }
@@ -1583,11 +1583,11 @@ class BinaryWriter {
 
   private writeCodeSection(): void {
     const { m, s } = this;
-    if (m.funcs.length === 0) return;
+    if (m.functions.length === 0) return;
     const firstDefined = m.imports.filter((i) => i.kind === ExternalKind.Func).length;
     s.writeSection(BinarySection.Code, () => {
-      s.writeU32Leb(m.funcs.length);
-      m.funcs.forEach((f, i) => this.writeFuncBody(f, firstDefined + i));
+      s.writeU32Leb(m.functions.length);
+      m.functions.forEach((f, i) => this.writeFuncBody(f, firstDefined + i));
     });
   }
 
@@ -1655,7 +1655,7 @@ class BinaryWriter {
    * append-at-the-end behaviour for hand-built IR.
    */
   private writeCustomSectionsAfter(after: BinarySection | null): void {
-    for (const c of this.m.customs) {
+    for (const c of this.m.customSections) {
       if (c.precedingSection === undefined) continue;
       if (c.precedingSection === after) this.emitCustom(c);
     }
@@ -1663,7 +1663,7 @@ class BinaryWriter {
 
   /** Customs with no recorded position, appended last. */
   private writeTrailingCustomSections(): void {
-    for (const c of this.m.customs) {
+    for (const c of this.m.customSections) {
       if (c.precedingSection === undefined) this.emitCustom(c);
     }
   }
@@ -1710,13 +1710,13 @@ class BinaryWriter {
       }
     });
     return m.name !== '' || importNamed || this.labelNames.size > 0 ||
-      m.funcs.some((f) => named(f) || f.locals.some((l) => l.name !== undefined)) ||
+      m.functions.some((f) => named(f) || f.locals.some((l) => l.name !== undefined)) ||
       m.types.some((t) =>
         named(t) ||
         (t.kind === 'struct' && t.fields.some(named)) ||
         (t.kind === 'array' && named(t.field))
       ) ||
-      [m.tables, m.memories, m.globals, m.tags, m.elemSegments, m.dataSegments]
+      [m.tables, m.memories, m.globals, m.tags, m.elements, m.dataSegments]
         .some((items: readonly { name: string }[]) => items.some(named));
   }
 
@@ -1746,7 +1746,7 @@ class BinaryWriter {
           break;
       }
     }
-    funcs.push(...m.funcs);
+    funcs.push(...m.functions);
     tables.push(...m.tables);
     memories.push(...m.memories);
     globals.push(...m.globals);
@@ -1804,7 +1804,7 @@ class BinaryWriter {
       nameMap(NameSectionSubsection.Table, tables);
       nameMap(NameSectionSubsection.Memory, memories);
       nameMap(NameSectionSubsection.Global, globals);
-      nameMap(NameSectionSubsection.ElemSegment, m.elemSegments);
+      nameMap(NameSectionSubsection.ElemSegment, m.elements);
       nameMap(NameSectionSubsection.DataSegment, m.dataSegments);
       indirectMap(
         NameSectionSubsection.Field,
@@ -1864,7 +1864,7 @@ class BinaryWriter {
     // the caller has since named must not lose the names.
     if (
       this.writeDebugNames &&
-      !this.m.customs.some((c) => c.name === CUSTOM_SECTION_NAME_NAME) &&
+      !this.m.customSections.some((c) => c.name === CUSTOM_SECTION_NAME_NAME) &&
       (this.m.hasNameSection || this.namesAnything())
     ) {
       this.writeNameSection();

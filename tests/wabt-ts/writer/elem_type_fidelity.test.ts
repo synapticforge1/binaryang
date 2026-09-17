@@ -76,8 +76,8 @@ function label(t: ValueType): string {
 
 /** The element type of the first segment, as parsed and as decoded again. */
 function elemTypes(wat: string): { source: string; decoded: string } {
-  const src = parseWatModule(wat).module.elemSegments[0]!.elemType;
-  const back = readBinaryIr(compile(wat), makeErrorList(), {}).elemSegments[0]!.elemType;
+  const src = parseWatModule(wat).module.elements[0]!.elemType;
+  const back = readBinaryIr(compile(wat), makeErrorList(), {}).elements[0]!.elemType;
   return { source: label(src), decoded: label(back) };
 }
 

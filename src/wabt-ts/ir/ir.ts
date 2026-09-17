@@ -1797,6 +1797,12 @@ export interface Local {
  * The named slots of `locals`, by index — the shape the name section's local
  * subsection and the text writer both want (M6c).
  */
+export function countImports(m: { imports: readonly Import[] }, kind: ExternalKind): number {
+  let n = 0;
+  for (const imp of m.imports) if (imp.kind === kind) n++;
+  return n;
+}
+
 export function localNameEntries(locals: readonly Local[]): [Index, string][] {
   const out: [Index, string][] = [];
   locals.forEach((l, i) => {
@@ -2212,14 +2218,14 @@ export interface Module {
   imports: Import[];
 
   // Defined items (in binary order; indices start after imports)
-  funcs: Func[];
+  functions: Func[];
   tables: Table[];
   memories: Memory[];
   globals: Global[];
   tags: Tag[];
 
   // Segments
-  elemSegments: ElemSegment[];
+  elements: ElemSegment[];
   dataSegments: DataSegment[];
 
   // Exports
@@ -2229,14 +2235,7 @@ export interface Module {
   start?: Var;
 
   // Custom sections
-  customs: Custom[];
-
-  // Import counts (used to compute final index-space positions)
-  numFuncImports: number;
-  numTableImports: number;
-  numMemoryImports: number;
-  numGlobalImports: number;
-  numTagImports: number;
+  customSections: Custom[];
 
   // Section layout metadata (byte offsets, sizes — for wasm-objdump)
   sectionMeta: SectionMeta[];
@@ -2310,20 +2309,15 @@ export function makeModule(): Module {
     loc: { filename: '', line: 0, column: 0, offset: 0 },
     types: [],
     imports: [],
-    funcs: [],
+    functions: [],
     tables: [],
     memories: [],
     globals: [],
     tags: [],
-    elemSegments: [],
+    elements: [],
     dataSegments: [],
     exports: [],
-    customs: [],
-    numFuncImports: 0,
-    numTableImports: 0,
-    numMemoryImports: 0,
-    numGlobalImports: 0,
-    numTagImports: 0,
+    customSections: [],
     sectionMeta: [],
     fidelity: new FidelityTable(),
     hasNameSection: true,
@@ -2334,21 +2328,21 @@ export function makeModule(): Module {
 
 /** Total number of functions in index space (imports + defined). */
 export function totalFuncs(m: Module): number {
-  return m.numFuncImports + m.funcs.length;
+  return countImports(m, ExternalKind.Func) + m.functions.length;
 }
 /** Total number of tables in index space (imports + defined). */
 export function totalTables(m: Module): number {
-  return m.numTableImports + m.tables.length;
+  return countImports(m, ExternalKind.Table) + m.tables.length;
 }
 /** Total number of memories in index space (imports + defined). */
 export function totalMemories(m: Module): number {
-  return m.numMemoryImports + m.memories.length;
+  return countImports(m, ExternalKind.Memory) + m.memories.length;
 }
 /** Total number of globals in index space (imports + defined). */
 export function totalGlobals(m: Module): number {
-  return m.numGlobalImports + m.globals.length;
+  return countImports(m, ExternalKind.Global) + m.globals.length;
 }
 /** Total number of tags in index space (imports + defined). */
 export function totalTags(m: Module): number {
-  return m.numTagImports + m.tags.length;
+  return countImports(m, ExternalKind.Tag) + m.tags.length;
 }

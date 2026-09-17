@@ -236,7 +236,7 @@ class WatWriter extends ModuleContext {
       if (name) this.nameIndexMap.set(`${kind}:${name}`, idx);
     };
     for (const imp of this.module.imports) record(imp.kind, importItemName(imp));
-    for (const f of this.module.funcs) record(ExternalKind.Func, f.name);
+    for (const f of this.module.functions) record(ExternalKind.Func, f.name);
     for (const g of this.module.globals) record(ExternalKind.Global, g.name);
     for (const t of this.module.tables) record(ExternalKind.Table, t.name);
     for (const m of this.module.memories) record(ExternalKind.Memory, m.name);
@@ -679,7 +679,7 @@ class WatWriter extends ModuleContext {
       if (isImport) imported.add(key);
     };
     for (const imp of this.module.imports) visit(imp.kind, true);
-    for (let i = 0; i < this.module.funcs.length; i++) visit(ExternalKind.Func, false);
+    for (let i = 0; i < this.module.functions.length; i++) visit(ExternalKind.Func, false);
     for (let i = 0; i < this.module.tables.length; i++) visit(ExternalKind.Table, false);
     for (let i = 0; i < this.module.memories.length; i++) {
       visit(ExternalKind.Memory, false);
@@ -2365,7 +2365,7 @@ class WatWriter extends ModuleContext {
     }
 
     // 3. Defined funcs
-    for (const func of this.module.funcs) {
+    for (const func of this.module.functions) {
       this.writeFunc(func);
     }
 
@@ -2400,7 +2400,7 @@ class WatWriter extends ModuleContext {
     }
 
     // 10. Element segments
-    for (const seg of this.module.elemSegments) {
+    for (const seg of this.module.elements) {
       this.writeElemSegment(seg);
     }
 
@@ -2410,7 +2410,7 @@ class WatWriter extends ModuleContext {
     }
 
     // 12. Custom sections
-    for (const custom of this.module.customs) {
+    for (const custom of this.module.customSections) {
       this.writeCustom(custom);
     }
 

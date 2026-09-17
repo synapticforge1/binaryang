@@ -52,11 +52,11 @@ describe('generateNames synthetic-name validity', () => {
   it('disambiguates a synthetic name against a colliding user name', () => {
     const m = makeModule();
     m.types.push({ kind: 'func', name: '', sig: { params: [], results: [] }, loc: LOC });
-    m.funcs.push(emptyFunc('')); // index 0 — unnamed
-    m.funcs.push(emptyFunc('$f0')); // index 1 — user named it $f0
+    m.functions.push(emptyFunc('')); // index 0 — unnamed
+    m.functions.push(emptyFunc('$f0')); // index 1 — user named it $f0
     generateNames(m);
-    const n0 = m.funcs[0]!.name;
-    const n1 = m.funcs[1]!.name;
+    const n0 = m.functions[0]!.name;
+    const n1 = m.functions[1]!.name;
     assertEquals(n1, '$f0'); // user name preserved
     assert(n0 !== n1, `synthetic name must not collide with user $f0 (got ${n0})`);
     assertEquals(n0, '$f0_1');

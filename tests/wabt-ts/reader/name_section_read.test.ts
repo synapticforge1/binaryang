@@ -121,8 +121,8 @@ describe('the reader gives the name section to the module', () => {
         '$it',
       ],
     );
-    assertEquals(m.funcs.map((f) => f.name), ['$named', '']);
-    assertEquals(localNameEntries(m.funcs[0]!.locals), [[0, '$a'], [2, '$x']]);
+    assertEquals(m.functions.map((f) => f.name), ['$named', '']);
+    assertEquals(localNameEntries(m.functions[0]!.locals), [[0, '$a'], [2, '$x']]);
     assertEquals(m.types.map((t) => t.name).filter((n) => n !== ''), ['$sig', '$s']);
     const s = m.types.find((t) => t.name === '$s')!;
     assert(s.kind === 'struct');
@@ -132,7 +132,7 @@ describe('the reader gives the name section to the module', () => {
       '$glob',
       '$tg',
     ]);
-    assertEquals([m.elemSegments[0]!.name, m.dataSegments[0]!.name], ['$e', '$d']);
+    assertEquals([m.elements[0]!.name, m.dataSegments[0]!.name], ['$e', '$d']);
   });
 
   it("labels, by the writer's binary-order index — a folded if's condition block first", () => {
@@ -146,7 +146,7 @@ describe('the reader gives the name section to the module', () => {
         for (const [k, x] of Object.entries(o)) if (k !== 'loc') walk(x);
       }
     };
-    walk(m.funcs[0]!.body.children);
+    walk(m.functions[0]!.body.children);
     assertEquals(
       labels.sort(),
       ['block:$cond', 'block:$inner', 'block:$outer', 'if:', 'loop:$in'].sort(),
@@ -206,13 +206,13 @@ describe('names the text format cannot spell plainly', () => {
     const text = wasm2wat(bytes).text;
     assert(text.includes('(func $"foo bar"') && text.includes('(func $"a(b)c"'), text);
     const back = read(assemble(text));
-    assertEquals(back.funcs.slice(0, 2).map((f) => f.name), ['$foo bar', '$a(b)c']);
+    assertEquals(back.functions.slice(0, 2).map((f) => f.name), ['$foo bar', '$a(b)c']);
   });
 
   it('a duplicate is disambiguated as upstream does — and the section is kept as it was', () => {
     const bytes = withNames(funcNames([[2, 'dup'], [3, 'dup']]));
     const m = read(bytes);
-    assertEquals(m.funcs.slice(2, 4).map((f) => f.name), ['$dup', '$dup.1']);
+    assertEquals(m.functions.slice(2, 4).map((f) => f.name), ['$dup', '$dup.1']);
     // The module cannot hold two funcs named `dup`, so the section is kept raw
     // and a binary round trip writes it back exactly.
     assert(same(writeBinaryIr(m), bytes));
@@ -229,14 +229,14 @@ describe('a binary round trip keeps what it was given', () => {
   it('a name section with a subsection beyond the twelve is kept, and its names still read', () => {
     const bytes = withNames([...funcNames([[0, 'kept']]), 0x20, 0x01, 0x00]);
     const m = read(bytes);
-    assertEquals(m.funcs[0]!.name, '$kept');
+    assertEquals(m.functions[0]!.name, '$kept');
     assert(same(writeBinaryIr(m), bytes));
   });
 
   it('a malformed name section is kept as bytes, and names nothing', () => {
     const bytes = withNames([0x01, 0x05, 0x01, 0x00, 0x09]); // a name running past its subsection
     const m = read(bytes);
-    assertEquals(m.funcs.map((f) => f.name), ['', '', '', '', '']);
+    assertEquals(m.functions.map((f) => f.name), ['', '', '', '', '']);
     assert(same(writeBinaryIr(m), bytes));
   });
 });

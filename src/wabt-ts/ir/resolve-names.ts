@@ -36,6 +36,7 @@ import type {
   Var,
 } from './ir.ts';
 import { isRefValueType, locOf, varIndex } from './ir.ts';
+import { countImports } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Name binding map
@@ -127,11 +128,11 @@ class ResolveContext {
         result = combine(result, this.resolveFunc(imp.func));
       }
     }
-    for (const func of this.module.funcs) {
+    for (const func of this.module.functions) {
       result = combine(result, this.resolveFunc(func));
     }
 
-    for (const seg of this.module.elemSegments) {
+    for (const seg of this.module.elements) {
       // The active-segment table reference can be a named, non-zero table
       // (`(elem (table $t) …)`); resolve it or the writer emits index 0.
       seg.tableVar = this.resolveTableVar(seg.tableVar);
@@ -170,8 +171,8 @@ class ResolveContext {
         funcIdx++;
       }
     }
-    for (const [i, f] of this.module.funcs.entries()) {
-      if (f.name) this.funcScope.bind(f.name, this.module.numFuncImports + i);
+    for (const [i, f] of this.module.functions.entries()) {
+      if (f.name) this.funcScope.bind(f.name, countImports(this.module, ExternalKind.Func) + i);
     }
 
     let globalIdx = 0;
@@ -182,7 +183,7 @@ class ResolveContext {
       }
     }
     for (const [i, g] of this.module.globals.entries()) {
-      if (g.name) this.globalScope.bind(g.name, this.module.numGlobalImports + i);
+      if (g.name) this.globalScope.bind(g.name, countImports(this.module, ExternalKind.Global) + i);
     }
 
     let tableIdx = 0;
@@ -193,7 +194,7 @@ class ResolveContext {
       }
     }
     for (const [i, t] of this.module.tables.entries()) {
-      if (t.name) this.tableScope.bind(t.name, this.module.numTableImports + i);
+      if (t.name) this.tableScope.bind(t.name, countImports(this.module, ExternalKind.Table) + i);
     }
 
     let memIdx = 0;
@@ -204,7 +205,7 @@ class ResolveContext {
       }
     }
     for (const [i, m] of this.module.memories.entries()) {
-      if (m.name) this.memScope.bind(m.name, this.module.numMemoryImports + i);
+      if (m.name) this.memScope.bind(m.name, countImports(this.module, ExternalKind.Memory) + i);
     }
 
     let tagIdx = 0;
@@ -215,10 +216,10 @@ class ResolveContext {
       }
     }
     for (const [i, t] of this.module.tags.entries()) {
-      if (t.name) this.tagScope.bind(t.name, this.module.numTagImports + i);
+      if (t.name) this.tagScope.bind(t.name, countImports(this.module, ExternalKind.Tag) + i);
     }
 
-    for (const [i, s] of this.module.elemSegments.entries()) {
+    for (const [i, s] of this.module.elements.entries()) {
       if (s.name) this.elemSegScope.bind(s.name, i);
     }
     for (const [i, s] of this.module.dataSegments.entries()) {
@@ -265,7 +266,7 @@ class ResolveContext {
       else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
       else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
     }
-    for (const f of this.module.funcs) {
+    for (const f of this.module.functions) {
       sig(f.sig);
       // `(func $f (type $t) …)` names a type. This used to be hidden because
       // synthesizeTypes overwrote `typeVar` with a structurally-matched index
@@ -278,7 +279,7 @@ class ResolveContext {
     for (const t of this.module.tags) sig(t.sig);
     for (const g of this.module.globals) g.type = vt(g.type);
     for (const t of this.module.tables) t.elemType = vt(t.elemType);
-    for (const seg of this.module.elemSegments) seg.elemType = vt(seg.elemType);
+    for (const seg of this.module.elements) seg.elemType = vt(seg.elemType);
   }
 
   private resolveFunc(func: Func): Result {

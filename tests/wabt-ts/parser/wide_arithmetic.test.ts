@@ -125,7 +125,7 @@ function compile(wat: string): Uint8Array {
 function operandKinds(src: string): string[] {
   const { module, errors } = parseWatModule(src);
   assert(!hasErrors(errors), formatErrors(errors));
-  const q = module.funcs[0]!.body.children.find((e) => e.kind === 'quaternary');
+  const q = module.functions[0]!.body.children.find((e) => e.kind === 'quaternary');
   assert(q, 'no quaternary node in the body');
   const n = q as unknown as Record<string, { kind: string; placeholder?: boolean }>;
   return ['a', 'b', 'c', 'd'].map((k) => (n[k]!.placeholder ? 'placeholder' : n[k]!.kind));

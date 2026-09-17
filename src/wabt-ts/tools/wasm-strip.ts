@@ -27,7 +27,7 @@
  * ```
  *
  * Pipeline: `readBinaryIr` with `readDebugNames: false` (so the name section
- * stays in `module.customs`) → clear `module.customs` → `writeBinaryIr` with
+ * stays in `module.customSections`) → clear `module.customSections` → `writeBinaryIr` with
  * `writeDebugNames: false` (so no name section is generated in its place).
  */
 
@@ -81,7 +81,7 @@ export interface WasmStripResult {
 export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): WasmStripResult {
   const errors = makeErrorList();
 
-  // Read without parsing the name section so it stays in module.customs.
+  // Read without parsing the name section so it stays in module.customSections.
   const readOpts: ReadBinaryOptions = { readDebugNames: false };
   if (opts.filename !== undefined) readOpts.filename = opts.filename;
 
@@ -102,9 +102,9 @@ export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): Wasm
   // relocate a section it was not asked to touch.
   if (opts.sections) {
     const remove = new Set(opts.sections);
-    module.customs = module.customs.filter((c) => !remove.has(c.name));
+    module.customSections = module.customSections.filter((c) => !remove.has(c.name));
   } else {
-    module.customs = [];
+    module.customSections = [];
   }
 
   // The binary writer is deliberately FAIL-LOUD (T10.7): it throws rather than

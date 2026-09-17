@@ -137,7 +137,7 @@ describe('binary reader — a typed-reference block type', () => {
   it('decodes with NO phantom instruction in the body', () => {
     assert(WebAssembly.validate(INLINE_REF_BLOCK as BufferSource), 'fixture must be valid wasm');
     const mod = readBinaryIr(INLINE_REF_BLOCK, makeErrorList());
-    const fn = mod.funcs[0]!;
+    const fn = mod.functions[0]!;
     // drop( block( unreachable ) ). The heap-type byte becoming a SECOND
     // `unreachable` is the defect this pins.
     assertEquals(kindsIn(fn.body.children), ['drop', 'block', 'unreachable']);
@@ -149,7 +149,7 @@ describe('binary reader — a typed-reference block type', () => {
     // inline header has no `typeIndex`. (This read `blockType` through a cast; a
     // cast reading a removed field is `undefined`, not an error — rewritten
     // rather than left to fail on a message about the old shape.)
-    const drop = mod.funcs[0]!.body.children[0] as {
+    const drop = mod.functions[0]!.body.children[0] as {
       value?: { type?: unknown; typeIndex?: unknown };
     };
     const t = drop.value?.type;

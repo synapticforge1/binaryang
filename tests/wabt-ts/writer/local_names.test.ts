@@ -67,7 +67,7 @@ describe('param and local names through the WAT writer', () => {
 
   it('the written text reads back to the same names', () => {
     const again = parse(out);
-    const f = again.funcs[0]!;
+    const f = again.functions[0]!;
     assertEquals(localNameEntries(f.locals).sort(), [[0, '$a'], [2, '$c'], [3, '$x'], [5, '$y']]);
   });
 

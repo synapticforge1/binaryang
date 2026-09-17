@@ -27,6 +27,7 @@ import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { Expr, Func, HeapTypeRef, Module, Var } from './ir.ts';
 import { indexOf, varIndex, varName } from './ir.ts';
+import { countImports } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Name maps — populated by the name-section reader
@@ -119,32 +120,32 @@ export function applyNames(module: Module, names: ModuleNames): Result {
   }
 
   // Defined funcs
-  for (const [i, func] of module.funcs.entries()) {
-    const n = names.funcNames.get(module.numFuncImports + i);
+  for (const [i, func] of module.functions.entries()) {
+    const n = names.funcNames.get(countImports(module, ExternalKind.Func) + i);
     if (n) func.name = n;
   }
 
   // Defined globals
   for (const [i, global] of module.globals.entries()) {
-    const n = names.globalNames.get(module.numGlobalImports + i);
+    const n = names.globalNames.get(countImports(module, ExternalKind.Global) + i);
     if (n) global.name = n;
   }
 
   // Defined tables
   for (const [i, table] of module.tables.entries()) {
-    const n = names.tableNames.get(module.numTableImports + i);
+    const n = names.tableNames.get(countImports(module, ExternalKind.Table) + i);
     if (n) table.name = n;
   }
 
   // Defined memories
   for (const [i, memory] of module.memories.entries()) {
-    const n = names.memoryNames.get(module.numMemoryImports + i);
+    const n = names.memoryNames.get(countImports(module, ExternalKind.Memory) + i);
     if (n) memory.name = n;
   }
 
   // Defined tags
   for (const [i, tag] of module.tags.entries()) {
-    const n = names.tagNames.get(module.numTagImports + i);
+    const n = names.tagNames.get(countImports(module, ExternalKind.Tag) + i);
     if (n) tag.name = n;
   }
 
@@ -155,7 +156,7 @@ export function applyNames(module: Module, names: ModuleNames): Result {
   }
 
   // Segments
-  for (const [i, seg] of module.elemSegments.entries()) {
+  for (const [i, seg] of module.elements.entries()) {
     const n = names.elemSegmentNames.get(i);
     if (n) seg.name = n;
   }
@@ -175,8 +176,8 @@ export function applyNames(module: Module, names: ModuleNames): Result {
       applyFuncIdx++;
     }
   }
-  for (const [i, func] of module.funcs.entries()) {
-    rewriteFuncVars(func, module.numFuncImports + i, ctx);
+  for (const [i, func] of module.functions.entries()) {
+    rewriteFuncVars(func, countImports(module, ExternalKind.Func) + i, ctx);
   }
 
   // Global init exprs
@@ -185,7 +186,7 @@ export function applyNames(module: Module, names: ModuleNames): Result {
   }
 
   // Segment offsets
-  for (const seg of module.elemSegments) {
+  for (const seg of module.elements) {
     if (seg.offset) rewriteExprListVars(seg.offset.children, ctx);
     for (const elemExpr of seg.elemExprs) rewriteExprListVars(elemExpr.children, ctx);
   }
