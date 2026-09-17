@@ -130,6 +130,7 @@ import {
   varName,
 } from '../ir/ir.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
+import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -290,7 +291,7 @@ function brTargetResultCount(labelStack: Frame[], depth: number, m: Module): num
 }
 
 function getFuncSig(m: Module, funcIdx: number): FuncSignature {
-  const totalImports = m.numFuncImports;
+  const totalImports = countImports(m, ExternalKind.Func);
   if (funcIdx < totalImports) {
     const imp = m.imports[funcIdx];
     if (imp && imp.kind === ExternalKind.Func) return imp.func.sig;
@@ -307,7 +308,7 @@ function getTypeSig(m: Module, typeIdx: number): FuncSignature {
 }
 
 function getTagSig(m: Module, tagIdx: number): FuncSignature {
-  const totalImports = m.numTagImports;
+  const totalImports = countImports(m, ExternalKind.Tag);
   if (tagIdx < totalImports) {
     const imp = m.imports[tagIdx];
     if (imp && imp.kind === ExternalKind.Tag) return imp.tag.sig;
@@ -967,7 +968,6 @@ export class BinaryReader {
             tailcall: false,
           };
           m.imports.push({ kind: ExternalKind.Func, module: module_, field, func });
-          m.numFuncImports++;
           break;
         }
         case ExternalKind.Table: {
@@ -975,7 +975,6 @@ export class BinaryReader {
           const limits = this.readLimits(false);
           const table: Table = { name: '', loc, elemType, limits };
           m.imports.push({ kind: ExternalKind.Table, module: module_, field, table });
-          m.numTableImports++;
           break;
         }
         case ExternalKind.Memory: {
@@ -983,7 +982,6 @@ export class BinaryReader {
           if (limits.isShared) m.featuresUsed.threads = true;
           const memory: Memory = { name: '', loc, limits };
           m.imports.push({ kind: ExternalKind.Memory, module: module_, field, memory });
-          m.numMemoryImports++;
           break;
         }
         case ExternalKind.Global: {
@@ -991,7 +989,6 @@ export class BinaryReader {
           const mutable = this.readMutability();
           const global: Global = { name: '', loc, type, mutable };
           m.imports.push({ kind: ExternalKind.Global, module: module_, field, global });
-          m.numGlobalImports++;
           break;
         }
         case ExternalKind.Tag: {
@@ -1004,7 +1001,6 @@ export class BinaryReader {
           const sig = getTypeSig(m, sigIdx);
           const tag: Tag = { name: '', loc, sig };
           m.imports.push({ kind: ExternalKind.Tag, module: module_, field, tag });
-          m.numTagImports++;
           m.featuresUsed.exceptions = true;
           break;
         }
@@ -1304,7 +1300,7 @@ export class BinaryReader {
 
       // The code section has one entry per DEFINED function (imports excluded),
       // so it lines up 1:1 with m.functions. A previous version added
-      // m.numFuncImports to the index, which fired only when a module had
+      // countImports(m, ExternalKind.Func) to the index, which fired only when a module had
       // both imports and defined funcs — unexercised by tests until the
       // Phase 7 dry-run bridged a wabt IR through binaryen-ts.
       const func = m.functions[i];

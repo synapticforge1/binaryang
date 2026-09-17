@@ -135,7 +135,6 @@ describe('writeWatModule — imports', () => {
       field: 'log',
       func: makeFunc({ params: [Type.I32], results: [] }),
     });
-    m.numFuncImports = 1;
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(import "env" "log"');
     assertStringIncludes(wat, '(func');
@@ -150,7 +149,6 @@ describe('writeWatModule — imports', () => {
       field: 'mem',
       memory: makeMemory(1n, 10n),
     });
-    m.numMemoryImports = 1;
     const wat = writeWatModule(m);
     assertStringIncludes(wat, '(import "env" "mem"');
     assertStringIncludes(wat, '(memory');
@@ -610,7 +608,6 @@ describe('writeWatModule — section ordering', () => {
       field: 'log',
       func: makeFunc({}),
     });
-    m.numFuncImports = 1;
     m.functions.push(makeFunc({ name: '$defined' }));
     const wat = writeWatModule(m);
     const importIdx = wat.indexOf('(import');

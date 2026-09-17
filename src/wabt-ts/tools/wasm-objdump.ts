@@ -37,6 +37,7 @@ import type { ErrorList } from '../core/error.ts';
 import type { Module, SectionMeta } from '../ir/ir.ts';
 import { cliRead } from '../../cli/io.ts';
 import process from 'node:process';
+import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -173,7 +174,7 @@ function appendDetails(lines: string[], m: Module): void {
   }
 
   // Function section
-  const totalFuncImports = m.numFuncImports;
+  const totalFuncImports = countImports(m, ExternalKind.Func);
   if (m.functions.length > 0) {
     lines.push(`Function[${m.functions.length}]:`);
     for (const [i, f] of m.functions.entries()) {

@@ -166,6 +166,7 @@ import {
   type TypeToken,
 } from './token.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
+import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // WAST Script types
@@ -2523,7 +2524,6 @@ export class WastParser {
       };
       imp = { kind: ExternalKind.Func, module: moduleName, field: fieldName, func };
       module.imports.push(imp);
-      module.numFuncImports++;
     } else if (tt === TokenType.Table) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2532,7 +2532,6 @@ export class WastParser {
       const table: Table = { name, loc, elemType, limits };
       imp = { kind: ExternalKind.Table, module: moduleName, field: fieldName, table };
       module.imports.push(imp);
-      module.numTableImports++;
     } else if (tt === TokenType.Memory) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2540,7 +2539,6 @@ export class WastParser {
       const memory: Memory = { name, loc, limits };
       imp = { kind: ExternalKind.Memory, module: moduleName, field: fieldName, memory };
       module.imports.push(imp);
-      module.numMemoryImports++;
     } else if (tt === TokenType.Global) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2548,7 +2546,6 @@ export class WastParser {
       const global: Global = { name, loc, type, mutable: isMut };
       imp = { kind: ExternalKind.Global, module: moduleName, field: fieldName, global };
       module.imports.push(imp);
-      module.numGlobalImports++;
     } else if (tt === TokenType.Tag) {
       this.drop();
       const name = this.parseBindVarOpt();
@@ -2556,7 +2553,6 @@ export class WastParser {
       const tag: Tag = { name, loc, sig };
       imp = { kind: ExternalKind.Tag, module: moduleName, field: fieldName, tag };
       module.imports.push(imp);
-      module.numTagImports++;
     } else {
       this.error(this.loc(), 'expected import kind (func/table/memory/global/tag)');
       return Result.Error;
@@ -2612,7 +2608,7 @@ export class WastParser {
     }
     this.drop();
     const name = this.parseBindVarOpt();
-    const funcIdx = module.numFuncImports + module.functions.length;
+    const funcIdx = countImports(module, ExternalKind.Func) + module.functions.length;
 
     // Inline exports
     while (this.matchLpar(TokenType.Export)) {
@@ -2655,7 +2651,6 @@ export class WastParser {
         func,
       };
       module.imports.push(imp);
-      module.numFuncImports++;
     } else {
       const declared: { type: ValueType; name?: string }[] = [];
 
@@ -2738,7 +2733,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Global) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const globalIdx = module.numGlobalImports + module.globals.length;
+    const globalIdx = countImports(module, ExternalKind.Global) + module.globals.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -2758,7 +2753,6 @@ export class WastParser {
         global,
       };
       module.imports.push(imp);
-      module.numGlobalImports++;
     } else {
       const init: Expr[] = [];
       this.parseInstrListInto(init);
@@ -2775,7 +2769,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Memory) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const memIdx = module.numMemoryImports + module.memories.length;
+    const memIdx = countImports(module, ExternalKind.Memory) + module.memories.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -2795,7 +2789,6 @@ export class WastParser {
         memory,
       };
       module.imports.push(imp);
-      module.numMemoryImports++;
     } else if (
       (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Data) ||
       (this.peek() === TokenType.ValueType && this.peek(1) === TokenType.Lpar &&
@@ -2851,7 +2844,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Table) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const tableIdx = module.numTableImports + module.tables.length;
+    const tableIdx = countImports(module, ExternalKind.Table) + module.tables.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -2872,7 +2865,6 @@ export class WastParser {
         table,
       };
       module.imports.push(imp);
-      module.numTableImports++;
     } else {
       // A table definition has two shapes:
       //
@@ -3197,7 +3189,7 @@ export class WastParser {
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Tag) !== Result.Ok) return Result.Error;
     const name = this.parseBindVarOpt();
-    const tagIdx = module.numTagImports + module.tags.length;
+    const tagIdx = countImports(module, ExternalKind.Tag) + module.tags.length;
 
     while (this.matchLpar(TokenType.Export)) {
       const expName = this.parseQuotedText() ?? '';
@@ -3229,7 +3221,6 @@ export class WastParser {
         tag,
       };
       module.imports.push(imp);
-      module.numTagImports++;
     } else {
       module.tags.push(tag);
     }

@@ -116,6 +116,7 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { SharedValidator } from './shared-validator.ts';
 import type { ValidateOptions } from './shared-validator.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
+import { countImports } from '../ir/ir.ts';
 
 /**
  * Canonical structural keys for every type-section entry.
@@ -444,7 +445,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     // Globals. `onGlobal` registers it first, so the in-scope count for its
     // OWN initializer is one less than the total — a global cannot name
     // itself.
-    let globalIdx = m.numGlobalImports;
+    let globalIdx = countImports(m, ExternalKind.Global);
     for (const global of m.globals) {
       this.acc(this.sv.onGlobal(global.loc, global.type, global.mutable));
       this.acc(this.sv.beginGlobalInitExpr(global.loc, global.type, globalIdx++));
@@ -494,7 +495,7 @@ class ModuleValidator implements ExprVisitorDelegate {
 
     // Function bodies
     const visitor = new ExprVisitor(this);
-    let globalFuncIdx = m.numFuncImports;
+    let globalFuncIdx = countImports(m, ExternalKind.Func);
     for (const func of m.functions) {
       this.acc(this.sv.beginFunctionBody(func.loc, globalFuncIdx++));
       // One declaration per slot: the shared validator counts locals, and the

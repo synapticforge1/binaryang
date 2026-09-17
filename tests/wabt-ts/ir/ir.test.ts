@@ -36,6 +36,8 @@ import {
   NameOpts,
 } from '../../../src/wabt-ts/ir/generate-names.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
+import { countImports } from '../../../src/wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,9 +53,9 @@ function makeAdd(left: Expr, right: Expr): BinaryExpr {
   return { kind: 'binary', opcode: Opcode.I32Add, left, right, loc: LOC };
 }
 
-function makeFuncBody(body: Expr[]): Func {
+function makeFuncBody(body: Expr[], name = ''): Func {
   return {
-    name: '',
+    name,
     loc: LOC,
     typeVar: varIndex(0),
     sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
@@ -177,21 +179,33 @@ describe('makeModule', () => {
     assertEquals(m.functions.length, 0);
     assertEquals(m.imports.length, 0);
     assertEquals(m.exports.length, 0);
-    assertEquals(m.numFuncImports, 0);
+    assertEquals(countImports(m, ExternalKind.Func), 0);
     assertEquals(m.featuresUsed.simd, false);
     assertEquals(m.start, undefined);
   });
 
   it('totalFuncs = imports + defined', () => {
     const m = makeModule();
-    m.numFuncImports = 2;
+    for (const name of ['$i0', '$i1']) {
+      m.imports.push({
+        kind: ExternalKind.Func,
+        module: 'env',
+        field: name,
+        func: makeFuncBody([], name),
+      });
+    }
     m.functions.push(makeFuncBody([]));
     assertEquals(totalFuncs(m), 3);
   });
 
   it('totalGlobals = imports + defined', () => {
     const m = makeModule();
-    m.numGlobalImports = 1;
+    m.imports.push({
+      kind: ExternalKind.Global,
+      module: 'env',
+      field: 'g0',
+      global: { name: '$g0', loc: LOC, type: Type.I32, mutable: false },
+    });
     m.globals.push({ name: 'g', loc: LOC, type: Type.I32, mutable: false });
     assertEquals(totalGlobals(m), 2);
   });

@@ -35,11 +35,13 @@ import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { Result } from '../../../src/wabt-ts/core/result.ts';
 import type { Expr, Func, TryExpr } from '../../../src/wabt-ts/ir/ir.ts';
+import { countImports } from '../../../src/wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 function definedFuncs(wat: string): Func[] {
   const { module, errors } = parseWatModule(wat);
   if (hasErrors(errors)) throw new Error(`parse:\n${formatErrors(errors)}`);
-  return module.functions.slice(module.numFuncImports);
+  return module.functions.slice(countImports(module, ExternalKind.Func));
 }
 
 function findTry(body: Expr[]): TryExpr {

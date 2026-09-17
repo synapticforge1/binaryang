@@ -19,6 +19,7 @@
 import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { Expr, Func, Module } from './ir.ts';
+import { countImports } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // NameOpts
@@ -128,7 +129,9 @@ class NameGenerator {
       }
     }
     for (const [i, func] of m.functions.entries()) {
-      if (!func.name) func.name = this.uniqueName(used.func, 'f', m.numFuncImports + i);
+      if (!func.name) {
+        func.name = this.uniqueName(used.func, 'f', countImports(m, ExternalKind.Func) + i);
+      }
     }
 
     // Globals
@@ -140,7 +143,9 @@ class NameGenerator {
       }
     }
     for (const [i, g] of m.globals.entries()) {
-      if (!g.name) g.name = this.uniqueName(used.global, 'g', m.numGlobalImports + i);
+      if (!g.name) {
+        g.name = this.uniqueName(used.global, 'g', countImports(m, ExternalKind.Global) + i);
+      }
     }
 
     // Tables
@@ -152,7 +157,9 @@ class NameGenerator {
       }
     }
     for (const [i, t] of m.tables.entries()) {
-      if (!t.name) t.name = this.uniqueName(used.table, 'T', m.numTableImports + i);
+      if (!t.name) {
+        t.name = this.uniqueName(used.table, 'T', countImports(m, ExternalKind.Table) + i);
+      }
     }
 
     // Memories
@@ -164,7 +171,9 @@ class NameGenerator {
       }
     }
     for (const [i, mem] of m.memories.entries()) {
-      if (!mem.name) mem.name = this.uniqueName(used.memory, 'M', m.numMemoryImports + i);
+      if (!mem.name) {
+        mem.name = this.uniqueName(used.memory, 'M', countImports(m, ExternalKind.Memory) + i);
+      }
     }
 
     // Tags
@@ -176,7 +185,9 @@ class NameGenerator {
       }
     }
     for (const [i, tag] of m.tags.entries()) {
-      if (!tag.name) tag.name = this.uniqueName(used.tag, 'e', m.numTagImports + i);
+      if (!tag.name) {
+        tag.name = this.uniqueName(used.tag, 'e', countImports(m, ExternalKind.Tag) + i);
+      }
     }
 
     // Segments

@@ -328,7 +328,6 @@ describe('readBinaryIr', () => {
         tailcall: false,
       },
     });
-    m.numFuncImports = 1;
 
     const binary = writeBinaryIr(m);
     const errors = makeErrorList();
@@ -374,7 +373,6 @@ describe('readBinaryIr', () => {
         tailcall: false,
       },
     });
-    m.numFuncImports = 1;
     m.functions.push({
       name: 'add',
       loc: LOC,

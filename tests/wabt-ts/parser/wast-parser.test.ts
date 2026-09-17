@@ -16,6 +16,7 @@ import type {
   Memory,
   Table,
 } from '../../../src/wabt-ts/ir/ir.ts';
+import { countImports } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -105,7 +106,7 @@ describe('parseWatModule — imports', () => {
       assertEquals(imp.func.sig.params, [Type.I32]);
       assertEquals(imp.func.sig.results, [Type.I32]);
     }
-    assertEquals(m.numFuncImports, 1);
+    assertEquals(countImports(m, ExternalKind.Func), 1);
   });
 
   it('parses a memory import', () => {
@@ -357,7 +358,7 @@ describe('parseWatModule — tags', () => {
     const m = parseModule('(module (tag $t (import "env" "t") (param i32)))');
     assertEquals(m.imports.length, 1);
     assertEquals(m.imports[0]?.kind, ExternalKind.Tag);
-    assertEquals(m.numTagImports, 1);
+    assertEquals(countImports(m, ExternalKind.Tag), 1);
     assertEquals(m.tags.length, 0);
   });
 });
@@ -580,8 +581,8 @@ describe('parseWatModule — multiple fields', () => {
     )`;
     const m = parseModule(src);
     assertEquals(m.imports.length, 3);
-    assertEquals(m.numFuncImports, 2);
-    assertEquals(m.numMemoryImports, 1);
+    assertEquals(countImports(m, ExternalKind.Func), 2);
+    assertEquals(countImports(m, ExternalKind.Memory), 1);
   });
 
   it('parses a module with funcs + exports', () => {

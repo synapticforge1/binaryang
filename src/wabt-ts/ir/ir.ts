@@ -1797,6 +1797,12 @@ export interface Local {
  * The named slots of `locals`, by index — the shape the name section's local
  * subsection and the text writer both want (M6c).
  */
+export function countImports(m: { imports: readonly Import[] }, kind: ExternalKind): number {
+  let n = 0;
+  for (const imp of m.imports) if (imp.kind === kind) n++;
+  return n;
+}
+
 export function localNameEntries(locals: readonly Local[]): [Index, string][] {
   const out: [Index, string][] = [];
   locals.forEach((l, i) => {
@@ -2231,13 +2237,6 @@ export interface Module {
   // Custom sections
   customSections: Custom[];
 
-  // Import counts (used to compute final index-space positions)
-  numFuncImports: number;
-  numTableImports: number;
-  numMemoryImports: number;
-  numGlobalImports: number;
-  numTagImports: number;
-
   // Section layout metadata (byte offsets, sizes — for wasm-objdump)
   sectionMeta: SectionMeta[];
 
@@ -2319,11 +2318,6 @@ export function makeModule(): Module {
     dataSegments: [],
     exports: [],
     customSections: [],
-    numFuncImports: 0,
-    numTableImports: 0,
-    numMemoryImports: 0,
-    numGlobalImports: 0,
-    numTagImports: 0,
     sectionMeta: [],
     fidelity: new FidelityTable(),
     hasNameSection: true,
@@ -2334,21 +2328,21 @@ export function makeModule(): Module {
 
 /** Total number of functions in index space (imports + defined). */
 export function totalFuncs(m: Module): number {
-  return m.numFuncImports + m.functions.length;
+  return countImports(m, ExternalKind.Func) + m.functions.length;
 }
 /** Total number of tables in index space (imports + defined). */
 export function totalTables(m: Module): number {
-  return m.numTableImports + m.tables.length;
+  return countImports(m, ExternalKind.Table) + m.tables.length;
 }
 /** Total number of memories in index space (imports + defined). */
 export function totalMemories(m: Module): number {
-  return m.numMemoryImports + m.memories.length;
+  return countImports(m, ExternalKind.Memory) + m.memories.length;
 }
 /** Total number of globals in index space (imports + defined). */
 export function totalGlobals(m: Module): number {
-  return m.numGlobalImports + m.globals.length;
+  return countImports(m, ExternalKind.Global) + m.globals.length;
 }
 /** Total number of tags in index space (imports + defined). */
 export function totalTags(m: Module): number {
-  return m.numTagImports + m.tags.length;
+  return countImports(m, ExternalKind.Tag) + m.tags.length;
 }

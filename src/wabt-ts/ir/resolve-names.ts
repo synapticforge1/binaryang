@@ -36,6 +36,7 @@ import type {
   Var,
 } from './ir.ts';
 import { isRefValueType, locOf, varIndex } from './ir.ts';
+import { countImports } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Name binding map
@@ -171,7 +172,7 @@ class ResolveContext {
       }
     }
     for (const [i, f] of this.module.functions.entries()) {
-      if (f.name) this.funcScope.bind(f.name, this.module.numFuncImports + i);
+      if (f.name) this.funcScope.bind(f.name, countImports(this.module, ExternalKind.Func) + i);
     }
 
     let globalIdx = 0;
@@ -182,7 +183,7 @@ class ResolveContext {
       }
     }
     for (const [i, g] of this.module.globals.entries()) {
-      if (g.name) this.globalScope.bind(g.name, this.module.numGlobalImports + i);
+      if (g.name) this.globalScope.bind(g.name, countImports(this.module, ExternalKind.Global) + i);
     }
 
     let tableIdx = 0;
@@ -193,7 +194,7 @@ class ResolveContext {
       }
     }
     for (const [i, t] of this.module.tables.entries()) {
-      if (t.name) this.tableScope.bind(t.name, this.module.numTableImports + i);
+      if (t.name) this.tableScope.bind(t.name, countImports(this.module, ExternalKind.Table) + i);
     }
 
     let memIdx = 0;
@@ -204,7 +205,7 @@ class ResolveContext {
       }
     }
     for (const [i, m] of this.module.memories.entries()) {
-      if (m.name) this.memScope.bind(m.name, this.module.numMemoryImports + i);
+      if (m.name) this.memScope.bind(m.name, countImports(this.module, ExternalKind.Memory) + i);
     }
 
     let tagIdx = 0;
@@ -215,7 +216,7 @@ class ResolveContext {
       }
     }
     for (const [i, t] of this.module.tags.entries()) {
-      if (t.name) this.tagScope.bind(t.name, this.module.numTagImports + i);
+      if (t.name) this.tagScope.bind(t.name, countImports(this.module, ExternalKind.Tag) + i);
     }
 
     for (const [i, s] of this.module.elements.entries()) {
