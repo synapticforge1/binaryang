@@ -97,6 +97,7 @@ import {
   makeMemoryGrow,
   makeMemorySize,
   makeNop,
+  makeRegion,
   makeReturn,
   makeSelect,
   makeStore,
@@ -1174,12 +1175,16 @@ export class Module {
     results: number | number[],
   ): void {
     this._inner.imports.push({
-      kind: 'function',
-      name: internalName,
+      kind: ExternalKind.Func,
       module: externalModule,
-      base: externalBase,
-      params: _idToValTypeArray(params),
-      results: _idToValTypeArray(results),
+      field: externalBase,
+      func: {
+        name: internalName,
+        params: _idToValTypeArray(params),
+        results: _idToValTypeArray(results),
+        locals: [],
+        body: makeRegion([]),
+      },
     });
   }
 
@@ -1214,12 +1219,10 @@ export class Module {
   ): void {
     const vt = _idToValTypeStrict(type);
     this._inner.imports.push({
-      kind: 'global',
-      name: internalName,
+      kind: ExternalKind.Global,
       module: externalModule,
-      base: externalBase,
-      type: vt,
-      mutable,
+      field: externalBase,
+      global: { name: internalName, type: vt, mutable },
     });
   }
 
@@ -1238,14 +1241,10 @@ export class Module {
     shared = false,
   ): void {
     this._inner.imports.push({
-      kind: 'memory',
-      name: internalName,
+      kind: ExternalKind.Memory,
       module: externalModule,
-      base: externalBase,
-      initial: 0,
-      max: null,
-      shared,
-      is64: false,
+      field: externalBase,
+      memory: { name: internalName, limits: limitsOf(0, null, { isShared: shared }) },
     });
   }
 

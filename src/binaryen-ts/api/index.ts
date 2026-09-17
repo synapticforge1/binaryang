@@ -66,6 +66,7 @@ import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
 import { requireIndex, requireName, varIndex } from '../../wabt-ts/ir/ir.ts';
 import { externalKindKeyword } from '../../wabt-ts/core/binary.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Expression builder (fluent helper passed to function body closures)
@@ -285,12 +286,12 @@ function serializeToWat(mod: WasmModule): string {
   const lines: string[] = ['(module'];
 
   for (const imp of mod.imports) {
-    if (imp.kind === 'function') {
-      const params = (imp.params ?? []).map((t) => `(param ${typeToString(t)})`).join(' ');
-      const results = (imp.results ?? []).map((t) => `(result ${typeToString(t)})`).join(' ');
+    if (imp.kind === ExternalKind.Func) {
+      const params = imp.func.params.map((t) => `(param ${typeToString(t)})`).join(' ');
+      const results = imp.func.results.map((t) => `(result ${typeToString(t)})`).join(' ');
       const sig = [params, results].filter(Boolean).join(' ');
       lines.push(
-        `  (import "${imp.module}" "${imp.base}" (func $${imp.name}${sig ? ' ' + sig : ''}))`,
+        `  (import "${imp.module}" "${imp.field}" (func $${imp.func.name}${sig ? ' ' + sig : ''}))`,
       );
     }
   }

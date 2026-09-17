@@ -23,6 +23,7 @@ import {
   parseAsyncifyOptions,
   resolveAsyncifyImports,
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Differential harness
@@ -177,7 +178,7 @@ Deno.test('resolveAsyncifyImports — in-wasm asyncify.* import mode: topMost ex
   const importMode = resolveAsyncifyImports(mod);
   assert(importMode, 'should detect the in-wasm asyncify-import mode');
   assert(
-    !mod.imports.some((i) => i.kind === 'function' && i.module === 'asyncify'),
+    !mod.imports.some((i) => i.kind === ExternalKind.Func && i.module === 'asyncify'),
     'the asyncify.* import must be removed',
   );
   const res = analyzeModule(mod, parseAsyncifyOptions({}));

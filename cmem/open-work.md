@@ -76,8 +76,9 @@ typed-differently): M1 46 / 29 / 15 → **40 / 20 / 9** today.
    kept (348 binaries improved, 0 worse; 175 of them had been re-encoding DIFFERENTLY). Record:
    ir-convergence.md § "M3 — the segments". ⚠️ From it: **83 corpus binaries lose their GC `rec` /
    `sub` groups on re-encode, silently — M5 must carry them.**
-4. **M4 — imports: the union** (`kind: ExternalKind` + the embedded entity). Carries what the flat
-   record refuses today: imported table64 (23 spec binaries), imported page size, sizes past 2^53.
+4. ✅ **M4 — imports: the union. DONE 2026-09-17** — each arm embeds its entity; imported table64 /
+   page size / large sizes are read (22 more binaries round-trip). Imports are pinned in the ratchet
+   for the first time. Record: ir-convergence.md § "M4 — an import embeds its entity".
 5. **M5 — the type section** (one `types` table, T1 / T2; the largest).
 6. **M6 — functions** (`sig`, `typeVar` / `typeUse`, `body: RegionExpr`, locals — flat named list +
    grouping as form, recorded, not an owner call).

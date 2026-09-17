@@ -226,9 +226,11 @@ Deno.test('parseWat — function import', () => {
   const mod = parseWat(`(module
     (import "env" "log" (func $log (param i32))))`);
   assertEquals(mod.imports.length, 1);
-  assertEquals(mod.imports[0].module, 'env');
-  assertEquals(mod.imports[0].base, 'log');
-  assertEquals(mod.imports[0].params, [ValType.I32]);
+  const imp = mod.imports[0]!;
+  assertEquals(imp.module, 'env');
+  assertEquals(imp.field, 'log');
+  assert(imp.kind === ExternalKind.Func);
+  assertEquals(imp.func.params, [ValType.I32]);
 });
 
 Deno.test('parseWat — full add module', () => {
@@ -281,7 +283,7 @@ Deno.test('parseWat — global with global.get init referencing imported global'
     (import "env" "base" (global $base i32))
     (global $g i32 (global.get $base)))`);
   assertEquals(mod.imports.length, 1);
-  assertEquals(mod.imports[0].kind, 'global');
+  assertEquals(mod.imports[0]!.kind, ExternalKind.Global);
   assertEquals(mod.globals.length, 1);
   assertEquals(mod.globals[0].init!.children.map((e) => e.kind), [ExpressionKind.GlobalGet]);
 });
@@ -299,55 +301,56 @@ Deno.test('parseWat — anonymous global gets synthesized name', () => {
 
 Deno.test('parseWat — import global immutable', () => {
   const mod = parseWat(`(module (import "env" "g" (global $g i32)))`);
-  const imp = mod.imports[0];
-  assertEquals(imp.kind, 'global');
-  assertEquals(imp.name, '$g');
+  const imp = mod.imports[0]!;
+  assert(imp.kind === ExternalKind.Global);
+  assertEquals(imp.global.name, '$g');
   assertEquals(imp.module, 'env');
-  assertEquals(imp.base, 'g');
-  assertEquals(imp.type, ValType.I32);
-  assertEquals(imp.mutable, false);
+  assertEquals(imp.field, 'g');
+  assertEquals(imp.global.type, ValType.I32);
+  assertEquals(imp.global.mutable, false);
 });
 
 Deno.test('parseWat — import global mutable', () => {
   const mod = parseWat(`(module (import "env" "c" (global $counter (mut i32))))`);
-  const imp = mod.imports[0];
-  assertEquals(imp.mutable, true);
+  const imp = mod.imports[0]!;
+  assert(imp.kind === ExternalKind.Global);
+  assertEquals(imp.global.mutable, true);
 });
 
 Deno.test('parseWat — import memory with initial and max', () => {
   const mod = parseWat(`(module (import "env" "mem" (memory $m 1 10)))`);
-  const imp = mod.imports[0];
-  assertEquals(imp.kind, 'memory');
-  assertEquals(imp.name, '$m');
-  assertEquals(imp.initial, 1);
-  assertEquals(imp.max, 10);
+  const imp = mod.imports[0]!;
+  assert(imp.kind === ExternalKind.Memory);
+  assertEquals(imp.memory.name, '$m');
+  assertEquals(imp.memory.limits.initial, 1n);
+  assertEquals(imp.memory.limits.max, 10n);
 });
 
 Deno.test('parseWat — import memory with initial only (no max)', () => {
   const mod = parseWat(`(module (import "env" "mem" (memory 2)))`);
-  const imp = mod.imports[0];
-  assertEquals(imp.kind, 'memory');
-  assertEquals(imp.initial, 2);
-  assertEquals(imp.max, null);
+  const imp = mod.imports[0]!;
+  assert(imp.kind === ExternalKind.Memory);
+  assertEquals(imp.memory.limits.initial, 2n);
+  assertEquals(imp.memory.limits.max, undefined);
 });
 
 Deno.test('parseWat — import table funcref with limits', () => {
   const mod = parseWat(`(module (import "env" "t" (table $t 0 100 funcref)))`);
-  const imp = mod.imports[0];
-  assertEquals(imp.kind, 'table');
-  assertEquals(imp.name, '$t');
-  assertEquals(imp.initial, 0);
-  assertEquals(imp.max, 100);
-  assertEquals(imp.type, ValType.FuncRef);
+  const imp = mod.imports[0]!;
+  assert(imp.kind === ExternalKind.Table);
+  assertEquals(imp.table.name, '$t');
+  assertEquals(imp.table.limits.initial, 0n);
+  assertEquals(imp.table.limits.max, 100n);
+  assertEquals(imp.table.elemType, ValType.FuncRef);
 });
 
 Deno.test('parseWat — import table without explicit max', () => {
   const mod = parseWat(`(module (import "env" "t" (table 5 externref)))`);
-  const imp = mod.imports[0];
-  assertEquals(imp.kind, 'table');
-  assertEquals(imp.initial, 5);
-  assertEquals(imp.max, null);
-  assertEquals(imp.type, ValType.ExternRef);
+  const imp = mod.imports[0]!;
+  assert(imp.kind === ExternalKind.Table);
+  assertEquals(imp.table.limits.initial, 5n);
+  assertEquals(imp.table.limits.max, undefined);
+  assertEquals(imp.table.elemType, ValType.ExternRef);
 });
 
 // ---------------------------------------------------------------------------

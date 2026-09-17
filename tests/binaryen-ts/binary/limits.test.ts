@@ -29,6 +29,7 @@ import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/in
 import { WasmBinaryError } from '../../../src/binaryen-ts/binary/reader.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { limitsOf, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import { createModule } from '../../../src/binaryen-ts/api/index.ts';
 
 function assemble(wat: string): Uint8Array {
@@ -118,14 +119,23 @@ describe('M2g — what cannot be held is refused, not dropped', () => {
     assertThrows(() => parseWasm(bad), WasmBinaryError, 'a table has no page size');
   });
 
-  it('an imported table64 (the flat import record cannot hold it until M4)', () => {
+  // 🔧 These two were REFUSED while the flat import record had nowhere to put a
+  // table's `is64` or a memory's page size (M2g). M4 embeds the entity itself,
+  // so the import carries the same `Limits` a definition does.
+  it('an imported table64 keeps its 64-bit limits (M4)', () => {
     const bytes = assemble('(module (import "m" "t" (table i64 1 funcref)))');
-    assertThrows(() => parseWasm(bytes), WasmBinaryError, 'an imported table64');
+    assertEquals(section(roundTrip(bytes), 2), section(bytes, 2));
+    const imp = parseWasm(bytes).imports[0]!;
+    assert(imp.kind === ExternalKind.Table);
+    assertEquals(imp.table.limits, { initial: 1n, isShared: false, is64: true });
   });
 
-  it('an imported memory with a custom page size', () => {
+  it('an imported memory keeps its custom page size (M4)', () => {
     const bytes = assemble('(module (import "m" "mem" (memory 1 (pagesize 1))))');
-    assertThrows(() => parseWasm(bytes), WasmBinaryError, 'custom page size');
+    assertEquals(section(roundTrip(bytes), 2), section(bytes, 2));
+    const imp = parseWasm(bytes).imports[0]!;
+    assert(imp.kind === ExternalKind.Memory);
+    assertEquals(imp.memory.limits.pageSizeLog2, 0);
   });
 
   it('an imported memory64 keeps its flags and sizes', () => {

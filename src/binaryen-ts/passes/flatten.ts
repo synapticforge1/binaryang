@@ -69,6 +69,7 @@ import type { ValueType } from '../ir/gc-types.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { blockResult, requireName, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -386,7 +387,7 @@ export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
     return results.length === 1 ? results[0]! : (results as Type);
   };
   for (const imp of module.imports) {
-    if (imp.kind === 'function') map.set(imp.name, resultType(imp.results));
+    if (imp.kind === ExternalKind.Func) map.set(imp.func.name, resultType(imp.func.results));
   }
   for (const f of module.functions) {
     map.set(f.name, resultType(f.results));

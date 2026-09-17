@@ -1059,25 +1059,19 @@ class WasmParser {
         }
         case 0x01: { // table
           const elemType = readValTypeByte(this.r);
-          // Read as the table section reads them (M2g), then held in the flat
-          // import record until M4 — so what it cannot hold is REFUSED. The
-          // whole flag byte was "has a maximum": a table64 import misread.
-          const { initial, max } = this.flatImportLimits(this.readLimits(false), 'table');
+          const limits = this.readLimits(false);
           const tname = this.names.table(this.tableNames.length);
           this.tableNames.push(tname);
-          this.builder.addTableImport(tname, module, base, elemType, initial, max);
+          this.builder.addTableImport(tname, module, base, elemType, limits);
           break;
         }
         case 0x02: { // memory
           const limits = this.readLimits(true);
-          const { initial, max } = this.flatImportLimits(limits, 'memory');
-          const shared = limits.isShared;
-          const is64 = limits.is64;
           // By index like every other memory. This was 'mem0' for EVERY
           // imported memory, which collided with the first defined one — named
           // `mem0` too — and with each other under multi-memory.
           const mname = this.names.memory(this.memoryCount++);
-          this.builder.addMemoryImport(mname, module, base, initial, max, shared, is64);
+          this.builder.addMemoryImport(mname, module, base, limits);
           break;
         }
         case 0x03: { // global
@@ -1145,28 +1139,6 @@ class WasmParser {
       // them. `mem${i}` counted defined memories only.
       this.builder.addMemory(this.names.memory(this.memoryCount++), this.readLimits(true));
     }
-  }
-
-  /**
-   * An imported table's or memory's limits as the flat import record holds
-   * them — numbers, no table64, no page size — refusing what it cannot (M2g;
-   * the import union, M4, holds the record itself).
-   */
-  private flatImportLimits(
-    l: Limits,
-    what: 'table' | 'memory',
-  ): { initial: number; max: number | null } {
-    if (what === 'table' && l.is64) this.r.error('unsupported: an imported table64 (until M4)');
-    if (l.pageSizeLog2 !== undefined) {
-      this.r.error('unsupported: an imported memory with a custom page size (until M4)');
-    }
-    const num = (v: bigint): number => {
-      if (v > BigInt(Number.MAX_SAFE_INTEGER)) {
-        this.r.error(`unsupported: an imported ${what} size of ${v} (until M4)`);
-      }
-      return Number(v);
-    };
-    return { initial: num(l.initial), max: l.max === undefined ? null : num(l.max) };
   }
 
   /**

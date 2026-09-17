@@ -75,18 +75,21 @@ Deno.test('tag import: survives a parse-encode round-trip', () => {
   const out = encodeWasm(parseWasm(encodeWasm(moduleWithImportedAndDefinedTag())));
   const mod = parseWasm(out);
 
-  const tagImports = mod.imports.filter((i) => i.kind === 'tag');
+  const tagImports = mod.imports.filter((i) => i.kind === ExternalKind.Tag);
   assertEquals(tagImports.length, 1);
-  assertEquals(tagImports[0].module, 'env');
-  assertEquals(tagImports[0].base, 'imported');
-  assertEquals(tagImports[0].params, [ValType.I32]);
+  assertEquals(tagImports[0]!.module, 'env');
+  assertEquals(tagImports[0]!.field, 'imported');
+  assertEquals(tagImports[0]!.tag.sig.params, [ValType.I32]);
 });
 
 Deno.test('tag import: imported tags take the low end of the tag index space', () => {
   const mod = parseWasm(encodeWasm(moduleWithImportedAndDefinedTag()));
 
   // The import is $tag0; the defined tag is numbered after it, not from zero.
-  assertEquals(mod.imports.filter((i) => i.kind === 'tag').map((i) => i.name), ['$tag0']);
+  assertEquals(
+    mod.imports.filter((i) => i.kind === ExternalKind.Tag).map((i) => i.tag.name),
+    ['$tag0'],
+  );
   assertEquals(mod.tags.map((t) => t.name), ['$tag1']);
 });
 
@@ -131,6 +134,6 @@ Deno.test('StripEH removes imported tags along with defined ones', () => {
   new PassRunner(mod, {}).add('StripEH').run();
 
   assertEquals(mod.tags, []);
-  assertEquals(mod.imports.filter((i) => i.kind === 'tag'), []);
+  assertEquals(mod.imports.filter((i) => i.kind === ExternalKind.Tag), []);
   assertEquals(mod.hasExceptionHandling, false);
 });

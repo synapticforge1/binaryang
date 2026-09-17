@@ -74,6 +74,7 @@ import {
 } from '../ir/expressions.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 import { None, Unreachable, ValType } from '../ir/types.ts';
 import { mapChildrenShallow, visitChildren, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
@@ -395,9 +396,9 @@ function typeOfValues(values: readonly ValueType[]): BlockResult {
 /** A tag reference's parameter types — imported tags first in the index space, as the encoder numbers them. */
 function tagParamsResolver(module: WasmModule): (tag: Var) => ValueType[] {
   const all = [
-    ...module.imports.filter((i) => i.kind === 'tag').map((i) => ({
-      name: i.name,
-      params: i.params ?? [],
+    ...module.imports.filter((i) => i.kind === ExternalKind.Tag).map((i) => ({
+      name: i.tag.name,
+      params: i.tag.sig.params,
     })),
     ...module.tags.map((t) => ({ name: t.name, params: t.sig.params })),
   ];

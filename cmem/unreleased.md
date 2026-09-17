@@ -24,6 +24,13 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: an import EMBEDS its entity** (wabt-ts's union; S6 step 5 item 6 (M4)).
+  `WasmImport` was flat (`kind: 'function' | …`, `params?`, `initial?`, `shared?`, …); it is now
+  `{ kind: ExternalKind.Func; module; field; func: WasmFunction }` and one arm per kind. `base` is
+  `field`; the internal name lives on the entity (`imp.func.name`), or use the new `importName(imp)`.
+  `ModuleBuilder.add*Import` signatures are unchanged (table / memory also take a `Limits`).
+  binaryen-ts now reads an imported table64, an imported custom page size, and imported sizes past
+  2^53 — all refused since M2g.
 - ⚠️ **BREAKING: segments are wabt-ts's records** (S6 step 5 item 6 (M3)). `DataSegment`
   `{ passive, memory? }` is `{ kind: SegmentKind, memoryVar: Var }`; `ElementSegment`
   `{ mode, table, data: string[] }` is `{ kind, tableVar: Var, elemType: ValueType, elemExprs: RegionExpr[] }`

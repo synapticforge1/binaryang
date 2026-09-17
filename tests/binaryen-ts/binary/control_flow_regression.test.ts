@@ -125,7 +125,7 @@ Deno.test('regression: call to imported function resolves to correct index after
   assertEquals(call!.func, varName('$func1'));
   assertEquals(call!.operands.length, 2);
   // The import the call points at must itself be the 2-arg import.
-  const target = mod.imports.find((i) => i.kind === 'function' && i.name === '$func1');
+  const target = mod.imports.find((i) => i.kind === ExternalKind.Func && i.func.name === '$func1');
   assert(target, 'import named $func1 must exist (unified naming)');
 });
 
