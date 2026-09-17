@@ -182,9 +182,9 @@ Deno.test('GC parser: func type in heapTypes has RefType result', () => {
   const funcDef = mod.heapTypes[1];
   assertEquals(funcDef.kind, 'func');
   if (funcDef.kind !== 'func') return;
-  assertEquals(funcDef.params.length, 0);
-  assertEquals(funcDef.results.length, 1);
-  const result = funcDef.results[0];
+  assertEquals(funcDef.sig.params.length, 0);
+  assertEquals(funcDef.sig.results.length, 1);
+  const result = funcDef.sig.results[0];
   assertEquals(typeof result, 'object');
   if (typeof result !== 'object') return;
   const ref = result as RefType;
@@ -211,8 +211,8 @@ Deno.test('GC parser: array type definition is decoded', () => {
   const arrayDef = mod.heapTypes[0];
   assertEquals(arrayDef.kind, 'array');
   if (arrayDef.kind !== 'array') return;
-  assertEquals(arrayDef.element.type, ValType.I32);
-  assertEquals(arrayDef.element.mutable, true);
+  assertEquals(arrayDef.field.type, ValType.I32);
+  assertEquals(arrayDef.field.mutable, true);
 });
 
 Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init', () => {
@@ -282,8 +282,8 @@ Deno.test('GC encoder: array module round-trips through encode+parse', () => {
   assertEquals(mod2.heapTypes.length, 2);
   const a0 = mod2.heapTypes[0];
   if (a0.kind !== 'array') throw new Error('expected array');
-  assertEquals(a0.element.type, ValType.I32);
-  assertEquals(a0.element.mutable, true);
+  assertEquals(a0.field.type, ValType.I32);
+  assertEquals(a0.field.mutable, true);
 });
 
 Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
@@ -308,6 +308,7 @@ Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
 Deno.test('GC encoder: IR-built struct type encodes and parses', () => {
   const builder = new ModuleBuilder();
   builder.addHeapType({
+    name: '',
     kind: 'struct',
     fields: [
       { type: ValType.I32, mutable: false },
@@ -331,8 +332,9 @@ Deno.test('GC encoder: IR-built struct type encodes and parses', () => {
 Deno.test('GC encoder: IR-built array type encodes and parses', () => {
   const builder = new ModuleBuilder();
   builder.addHeapType({
+    name: '',
     kind: 'array',
-    element: { type: ValType.I64, mutable: true },
+    field: { type: ValType.I64, mutable: true },
   });
   const mod = builder.build();
 
@@ -340,6 +342,6 @@ Deno.test('GC encoder: IR-built array type encodes and parses', () => {
   assertEquals(mod2.heapTypes.length, 1);
   const a = mod2.heapTypes[0];
   if (a.kind !== 'array') throw new Error('expected array');
-  assertEquals(a.element.type, ValType.I64);
-  assertEquals(a.element.mutable, true);
+  assertEquals(a.field.type, ValType.I64);
+  assertEquals(a.field.mutable, true);
 });

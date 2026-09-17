@@ -24,6 +24,9 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: a type entry carries its `sub` and rec group** (wabt-ts's shape; S6 step 5 item 6
+  (M5a)). `TypeDef` gains `name`, `sub?` and `recGroupSize?`; `FuncTypeDef.params` / `.results` are
+  `sig.params` / `sig.results`, and `ArrayTypeDef.element` is `field`.
 - ⚠️ **BREAKING: an import EMBEDS its entity** (wabt-ts's union; S6 step 5 item 6 (M4)).
   `WasmImport` was flat (`kind: 'function' | …`, `params?`, `initial?`, `shared?`, …); it is now
   `{ kind: ExternalKind.Func; module; field; func: WasmFunction }` and one arm per kind. `base` is
@@ -286,6 +289,11 @@ their own bump — and nothing breaks by their standing still.
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
   spec binaries, some left invalid. Also now read, not refused: memory / table sizes past 2^32, table
   initializers; kept, not ignored: a custom page size.
+- **binaryen-ts keeps a type's SUBTYPING and its rec groups** (S6 step 5 item 6 (M5a)). A
+  `(sub $super)` declaration was read into nowhere and never written, and a `(rec …)` group was
+  flattened into singletons — both silent, and both change what the module MEANS. 83 spec binaries
+  carry rec groups; all 83 re-encoded differently before this, and 68 whole binaries now round-trip
+  byte for byte that did not.
 - **binaryen-ts keeps an element segment's ELEMENT TYPE and its entries** (S6 step 5 item 6 (M3)).
   The type was discarded — a `(ref func)` or `externref` segment came back as `funcref`, which makes an
   invalid module (a `funcref` segment against a `(ref func)` table) look valid — and an entry could only

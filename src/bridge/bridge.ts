@@ -239,6 +239,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
     const t = module.types[i]!;
     if (t.kind === 'struct') {
       const heapIdx = b.addHeapType({
+        name: '',
         kind: 'struct',
         fields: t.fields.map((f) => ({
           type: wabtFieldTypeToValType(f.type),
@@ -248,8 +249,9 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
       ctx.heapTypeIdx[i] = heapIdx;
     } else if (t.kind === 'array') {
       const heapIdx = b.addHeapType({
+        name: '',
         kind: 'array',
-        element: {
+        field: {
           type: wabtFieldTypeToValType(t.field.type),
           mutable: t.field.mutable,
         },
@@ -283,7 +285,7 @@ export function bridgeToBinaryen(module: WabtModule): WasmModule {
       const key = JSON.stringify([p, r]);
       if (seen.has(key)) return;
       seen.add(key);
-      b.addHeapType({ kind: 'func', params: p, results: r });
+      b.addHeapType({ name: '', kind: 'func', sig: { params: p, results: r } });
     };
     for (const imp of module.imports) {
       if (imp.kind === ExternalKind.Func) declare(imp.func.sig.params, imp.func.sig.results);

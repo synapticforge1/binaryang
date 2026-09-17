@@ -176,7 +176,11 @@ Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', 
   m.enableGC();
   let target = -1;
   for (let i = 0; i < 70; i++) {
-    const idx = m.addHeapType({ kind: 'array', element: { type: ValType.I32, mutable: true } });
+    const idx = m.addHeapType({
+      name: '',
+      kind: 'array',
+      field: { type: ValType.I32, mutable: true },
+    });
     if (i === 64) target = idx;
   }
   assert(target >= 64, `expected a heap type index >= 64, got ${target}`);

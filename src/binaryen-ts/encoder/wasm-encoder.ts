@@ -629,7 +629,7 @@ class WasmEncoder {
         );
       }
     } else {
-      field = def.element;
+      field = def.field;
     }
 
     const base = family === 'struct' ? 0x02 : 0x0b;
@@ -1081,9 +1081,13 @@ class WasmEncoder {
   private ensureHeapFuncType(params: ValueType[], results: ValueType[]): number {
     const want = funcTypeKey(params, results);
     for (const [i, d] of this.heapTypes.entries()) {
-      if (d.kind === 'func' && funcTypeKey(d.params, d.results) === want) return i;
+      if (d.kind === 'func' && funcTypeKey(d.sig.params, d.sig.results) === want) return i;
     }
-    this.heapTypes.push({ kind: 'func', params: [...params], results: [...results] });
+    this.heapTypes.push({
+      name: '',
+      kind: 'func',
+      sig: { params: [...params], results: [...results] },
+    });
     return this.heapTypes.length - 1;
   }
 
@@ -1216,27 +1220,61 @@ class WasmEncoder {
     return this.heapTypes.length > 0 ? this.heapTypes.length : this.types.length;
   }
 
+  /** One entry's own form: its `sub` wrapper, if any, then its comptype. */
+  private encodeTypeDef(w: BinaryWriter, def: TypeDef): void {
+    if (def.sub !== undefined) {
+      // 0x4f is `sub final`, 0x50 plain `sub`. ABSENT is neither: the bare
+      // comptype shorthand, which is what the spec calls `sub final` with no
+      // supertypes — and encodes in one byte less (M5).
+      w.writeU8(def.sub.final ? 0x4f : 0x50);
+      w.writeU32(def.sub.supertypes.length);
+      for (const s of def.sub.supertypes) {
+        w.writeU32(requireIndex(s, 'supertype'));
+      }
+    }
+    if (def.kind === 'func') {
+      w.writeU8(0x60);
+      w.writeU32(def.sig.params.length);
+      for (const p of def.sig.params) writeValueType(w, p);
+      w.writeU32(def.sig.results.length);
+      for (const r of def.sig.results) writeValueType(w, r);
+    } else if (def.kind === 'struct') {
+      w.writeU8(0x5f);
+      w.writeU32(def.fields.length);
+      for (const f of def.fields) {
+        this.writeStorageType(w, f.type);
+        w.writeU8(f.mutable ? 1 : 0);
+      }
+    } else {
+      w.writeU8(0x5e);
+      this.writeStorageType(w, def.field.type);
+      w.writeU8(def.field.mutable ? 1 : 0);
+    }
+  }
+
   private encodeTypeSection(w: BinaryWriter): void {
     if (this.heapTypes.length > 0) {
-      w.writeU32(this.heapTypes.length);
-      for (const def of this.heapTypes) {
-        if (def.kind === 'func') {
-          w.writeU8(0x60);
-          w.writeU32(def.params.length);
-          for (const p of def.params) writeValueType(w, p);
-          w.writeU32(def.results.length);
-          for (const r of def.results) writeValueType(w, r);
-        } else if (def.kind === 'struct') {
-          w.writeU8(0x5f);
-          w.writeU32(def.fields.length);
-          for (const f of def.fields) {
-            this.writeStorageType(w, f.type);
-            w.writeU8(f.mutable ? 1 : 0);
-          }
+      // The SECTION is a vector of rec groups, while the type INDEX space counts
+      // entries: a 2-entry group is one vector slot and two indices (M5).
+      const groups: { start: number; count: number; explicit: boolean }[] = [];
+      for (let i = 0; i < this.heapTypes.length;) {
+        const size = this.heapTypes[i]!.recGroupSize;
+        if (size !== undefined) {
+          groups.push({ start: i, count: size, explicit: true });
+          i += Math.max(size, 1);
         } else {
-          w.writeU8(0x5e);
-          this.writeStorageType(w, def.element.type);
-          w.writeU8(def.element.mutable ? 1 : 0);
+          groups.push({ start: i, count: 1, explicit: false });
+          i += 1;
+        }
+      }
+      w.writeU32(groups.length);
+      for (const g of groups) {
+        if (g.explicit) {
+          w.writeU8(0x4e);
+          w.writeU32(g.count);
+        }
+        for (let i = g.start; i < g.start + g.count; i++) {
+          this.encodeTypeDef(w, this.heapTypes[i]!);
         }
       }
     } else {
@@ -1278,7 +1316,7 @@ class WasmEncoder {
     const want = funcTypeKey(params, results);
     for (const [i, d] of this.heapTypes.entries()) {
       if (d.kind !== 'func') continue;
-      if (funcTypeKey(d.params, d.results) === want) return i;
+      if (funcTypeKey(d.sig.params, d.sig.results) === want) return i;
     }
     throw new WasmEncodeError(
       `unresolved GC function type: ${funcSigString(params, results)}`,

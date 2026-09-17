@@ -3414,6 +3414,19 @@ arm; each holds `kind` / `module` / `field` + the entity, so what differs is the
 (emptying RemoveUnusedModuleElements's imported-function set) is EQUIVALENT — both branches add the
 name to `live`, and the queue lookup finds no body — so it is recorded, not tested against.
 
+**✅ M5a — a type entry keeps its `sub` and its rec group (2026-09-17).** `TypeDef` takes wabt-ts's
+shape: `name`, `sub?: { final, supertypes }`, `recGroupSize?` on a group's first member; a func entry's
+signature is `sig`, an array's element is `field`. 🛑 **Both new fields were LOST silently** by every
+module that had them — the decoder read a `(sub …)` supertype list into NOWHERE and the encoder never
+wrote one; a `(rec …)` group was FLATTENED into singletons, which is a different module wherever two
+entries refer to each other. This is the loss M3's measurement found (**83 binaries, all 83 wrong**).
+Now 83 / 83 keep their section, **68 whole binaries go differs → byte-identical, 0 worse**, optimizer
+output 0 of 2,105 changed. An entry with NO `sub` keeps none: the bare comptype shorthand is a byte
+shorter than `(sub final)` with no supertypes, and the two must not be conflated. A decoded entry's
+`name` is `''` — wabt-ts's reader leaves it so and the name section supplies one; synthesizing
+`$typeN` would invent a name the module never had (caught in review of my own first draft). 8 mutants
+killed.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

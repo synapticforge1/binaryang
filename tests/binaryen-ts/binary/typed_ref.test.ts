@@ -182,8 +182,8 @@ Deno.test('typed-ref local: the parser records a RefType, not AnyRef', () => {
 Deno.test('typed-ref: ModuleBuilder accepts a concrete ref for a local and a global', async () => {
   const m = new ModuleBuilder();
   m.enableGC();
-  const t = m.addHeapType({ kind: 'array', element: { type: ValType.I32, mutable: true } });
-  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
+  const t = m.addHeapType({ name: '', kind: 'array', field: { type: ValType.I32, mutable: true } });
+  m.addHeapType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   const arrRef: RefType = { heapType: varIndex(t), nullable: true };
 
   m.addGlobal('$g', arrRef, true, makeRefNull(arrRef));
@@ -203,13 +203,13 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
   // `gcFuncTypeIndex` found two matches and threw "ambiguous GC function type".
   const m = new ModuleBuilder();
   m.enableGC();
-  const a = m.addHeapType({ kind: 'array', element: { type: ValType.I32, mutable: true } });
-  const b = m.addHeapType({ kind: 'array', element: { type: ValType.I64, mutable: true } });
+  const a = m.addHeapType({ name: '', kind: 'array', field: { type: ValType.I32, mutable: true } });
+  const b = m.addHeapType({ name: '', kind: 'array', field: { type: ValType.I64, mutable: true } });
   const refA: RefType = { heapType: varIndex(a), nullable: true };
   const refB: RefType = { heapType: varIndex(b), nullable: true };
 
-  const fa = m.addHeapType({ kind: 'func', params: [refA], results: [] });
-  const fb = m.addHeapType({ kind: 'func', params: [refB], results: [] });
+  const fa = m.addHeapType({ name: '', kind: 'func', sig: { params: [refA], results: [] } });
+  const fb = m.addHeapType({ name: '', kind: 'func', sig: { params: [refB], results: [] } });
   assert(fa !== fb);
 
   m.addFunction('takesA', [refA], [], makeI32Const(0));

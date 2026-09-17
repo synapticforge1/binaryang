@@ -56,10 +56,11 @@ function gcBuilder(): { m: ModuleBuilder; arrayType: number } {
   const m = new ModuleBuilder();
   m.enableGC();
   const arrayType = m.addHeapType({
+    name: '',
     kind: 'array',
-    element: { type: ValType.I32, mutable: true },
+    field: { type: ValType.I32, mutable: true },
   });
-  m.addHeapType({ kind: 'func', params: [], results: [ValType.I32] });
+  m.addHeapType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   return { m, arrayType };
 }
 
@@ -351,8 +352,9 @@ Deno.test('array.copy keeps dest and src type immediates in the right order', ()
   // when both are the same type, so assert the decoded node directly.
   const { m, arrayType } = gcBuilder();
   const second = m.addHeapType({
+    name: '',
     kind: 'array',
-    element: { type: ValType.I32, mutable: true },
+    field: { type: ValType.I32, mutable: true },
   });
   m.addFunction(
     'read',
