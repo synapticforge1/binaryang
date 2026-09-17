@@ -145,7 +145,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
-      localDecls: [],
+      locals: [],
       body: [
         {
           kind: 'binary',
@@ -200,7 +200,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I32] },
-      localDecls: [],
+      locals: [],
       body: [{ kind: 'const', value: constI32(42), loc: LOC }],
       tailcall: false,
     });
@@ -233,7 +233,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I64] },
-      localDecls: [],
+      locals: [],
       body: [{ kind: 'const', value: constI64(0x1234567890abcdefn), loc: LOC }],
       tailcall: false,
     });
@@ -323,7 +323,7 @@ describe('readBinaryIr', () => {
         loc: LOC,
         typeVar: varIndex(0),
         sig: { params: [Type.I32], results: [Type.I32] },
-        localDecls: [],
+        locals: [],
         body: [],
         tailcall: false,
       },
@@ -369,7 +369,7 @@ describe('readBinaryIr', () => {
         loc: LOC,
         typeVar: varIndex(0),
         sig: { params: [Type.I32], results: [] },
-        localDecls: [],
+        locals: [],
         body: [],
         tailcall: false,
       },
@@ -380,7 +380,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(1),
       sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
-      localDecls: [],
+      locals: [],
       body: [
         {
           kind: 'binary',
@@ -420,7 +420,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
-      localDecls: [],
+      locals: [],
       body: [
         {
           kind: 'block',
@@ -460,7 +460,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [Type.I32], results: [Type.I32] },
-      localDecls: [],
+      locals: [],
       body: [
         {
           kind: 'if',
@@ -562,9 +562,11 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [Type.I32], results: [Type.I32] },
-      localDecls: [
-        { type: Type.I32, count: 2 },
-        { type: Type.F64, count: 1 },
+      locals: [
+        { type: Type.I32 }, // the param
+        { type: Type.I32 },
+        { type: Type.I32 },
+        { type: Type.F64 },
       ],
       body: [{ kind: 'local.get', var: varIndex(0), loc: LOC }],
       tailcall: false,
@@ -576,11 +578,8 @@ describe('readBinaryIr', () => {
     assertEquals(hasErrors(errors), false);
 
     const f = m2.funcs[0]!;
-    assertEquals(f.localDecls.length, 2);
-    assertEquals(f.localDecls[0]!.type, Type.I32);
-    assertEquals(f.localDecls[0]!.count, 2);
-    assertEquals(f.localDecls[1]!.type, Type.F64);
-    assertEquals(f.localDecls[1]!.count, 1);
+    // Params first, then the declared locals — one slot each (M6c).
+    assertEquals(f.locals.map((l) => l.type), [Type.I32, Type.I32, Type.I32, Type.F64]);
   });
 
   // -------------------------------------------------------------------------
@@ -600,7 +599,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
-      localDecls: [],
+      locals: [],
       body: [],
       tailcall: false,
     });

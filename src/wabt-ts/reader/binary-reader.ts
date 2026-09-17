@@ -423,6 +423,14 @@ const SIMD_UNARY_OPS: ReadonlySet<number> = new Set([
   0xff, // i32x4.trunc_sat_f64x2_*_zero, f64x2.convert_low_*
 ]);
 
+/**
+ * The most locals one function may declare and still be decoded (M6c). The spec's
+ * own cap is the SUM at 2^32-1, which says nothing about memory: every slot is a
+ * record here, so a legal-but-hostile 2^31 would exhaust the heap. A decoder that
+ * refuses is better than one that dies.
+ */
+const MAX_MATERIALIZED_LOCALS = 1_000_000;
+
 export class BinaryReader {
   private data: Uint8Array;
   private pos = 0;
@@ -953,7 +961,8 @@ export class BinaryReader {
             typeVar: varIndex(sigIdx),
             sig,
             nodeId: m.fidelity.record({ typeUse: 'resolved', sig }),
-            localDecls: [],
+            // An imported function has params but no body and no declared locals.
+            locals: sig.params.map((type) => ({ type })),
             body: [],
             tailcall: false,
           };
@@ -1033,7 +1042,8 @@ export class BinaryReader {
         typeVar: varIndex(sigIdx),
         sig,
         nodeId: m.fidelity.record({ typeUse: 'resolved', sig }),
-        localDecls: [],
+        // The params occupy the first slots; the code section adds the rest.
+        locals: sig.params.map((type) => ({ type })),
         body: [],
         tailcall: false,
       });
@@ -1310,16 +1320,31 @@ export class BinaryReader {
       // SUM at 2^32-1, so four groups of 2^30 overflow while no single one
       // does -- summing in a JS number keeps the check exact.
       const localDeclCount = this.readU32Leb();
+      const groups: { type: ValueType; count: number }[] = [];
       let totalLocals = 0;
       for (let j = 0; j < localDeclCount; j++) {
         const declCount = this.readU32Leb();
         const type = this.readValType('local');
         totalLocals += declCount;
-        func.localDecls.push({ type, count: declCount });
+        groups.push({ type, count: declCount });
       }
       if (totalLocals > 0xffff_ffff) {
         this.err('too many locals');
         return;
+      }
+      // The groups are read BEFORE any slot is made: a single group may declare
+      // 2^32 locals in five bytes (binary.41–44 do, deliberately), and the check
+      // above is on their SUM. Materializing as they were read allocated a slot
+      // per declared local and ran the decoder out of memory before the module
+      // could be called malformed (M6c).
+      if (totalLocals > MAX_MATERIALIZED_LOCALS) {
+        this.err(
+          `too many locals: ${totalLocals} exceeds this decoder's limit of ${MAX_MATERIALIZED_LOCALS}`,
+        );
+        return;
+      }
+      for (const g of groups) {
+        for (let k = 0; k < g.count; k++) func.locals.push({ type: g.type });
       }
 
       func.body = this.decodeBody(bodyEnd, m, func);

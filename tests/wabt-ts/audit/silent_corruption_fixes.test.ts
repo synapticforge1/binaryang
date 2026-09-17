@@ -172,7 +172,7 @@ describe('#4 call_ref sigType resolution', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [Type.I32] },
-      localDecls: [],
+      locals: [],
       body: [callRef],
       tailcall: false,
     };
@@ -309,7 +309,7 @@ describe('#9 applyNames local.get', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [Type.I32], results: [Type.I32] },
-      localDecls: [],
+      locals: [],
       body: [
         { kind: 'local.get', var: varIndex(0), loc: LOC },
       ],
@@ -346,7 +346,7 @@ describe('#10 table init round-trip', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: { params: [], results: [] },
-      localDecls: [],
+      locals: [],
       body: [{ kind: 'nop', loc: LOC }],
       tailcall: false,
     };

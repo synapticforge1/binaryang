@@ -67,7 +67,10 @@ function makeFunc(
     loc: LOC,
     typeVar: varIndex(0),
     sig: { params, results },
-    localDecls: locals,
+    locals: [
+      ...params.map((type) => ({ type })),
+      ...locals.flatMap((d) => Array.from({ length: d.count }, () => ({ type: d.type }))),
+    ],
     body,
     tailcall: false,
   };
@@ -299,7 +302,7 @@ describe('validateModule', () => {
         loc: LOC,
         typeVar: varIndex(0),
         sig: { params: [], results: [Type.I32] },
-        localDecls: [],
+        locals: [],
         body: [makeConst32(1)],
         tailcall: false,
       });
@@ -308,7 +311,7 @@ describe('validateModule', () => {
         loc: LOC,
         typeVar: varIndex(1),
         sig: { params: [], results: [] },
-        localDecls: [],
+        locals: [],
         body: [
           {
             kind: 'drop',

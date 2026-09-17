@@ -51,6 +51,7 @@ import {
   type HeapTypeRef,
   indexOf,
   isRefValueType,
+  localNameEntries,
   recGroups,
   type ValueType,
 } from '../ir/ir.ts';
@@ -2071,7 +2072,7 @@ class WatWriter extends ModuleContext {
     this.writeNameOrIndex(func.name, this.funcIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
     this.writeFuncTypeUse(func);
-    this.writeParams(func.sig.params, func.localNames);
+    this.writeParams(func.sig.params, new Map(localNameEntries(func.locals)));
     this.writeTypes(func.sig.results, 'result');
     this.funcIdx++;
   }
@@ -2083,29 +2084,27 @@ class WatWriter extends ModuleContext {
     this.writeFuncTypeUse(func);
     this.funcIdx++;
     // Params: a named one on its own, consecutive unnamed ones as one group.
-    this.writeParams(func.sig.params, func.localNames);
+    const localNames = new Map(localNameEntries(func.locals));
+    this.writeParams(func.sig.params, localNames);
     this.writeTypes(func.sig.results, 'result');
     this.newline(false);
     // Locals. 🔧 N1: a NAMED local is written with its name — it had none to
     // write, the parser having discarded it ("local might have no name —
     // that's fine" stood here). An unnamed one keeps this writer's one-per-group
     // form.
-    if (func.localDecls.length > 0) {
-      let idx = func.sig.params.length;
-      for (const decl of func.localDecls) {
-        for (let k = 0; k < decl.count; k++) {
-          this.openSpace('local');
-          const name = func.localNames?.get(idx++);
-          if (name !== undefined) this.writeName(name, NC.Space);
-          this.writeType(decl.type, NC.Space);
-          this.closeSpace();
-        }
+    const declared = func.locals.slice(func.sig.params.length);
+    if (declared.length > 0) {
+      for (const local of declared) {
+        this.openSpace('local');
+        if (local.name !== undefined) this.writeName(local.name, NC.Space);
+        this.writeType(local.type, NC.Space);
+        this.closeSpace();
       }
       this.newline(false);
     }
     // Body
     this.beginFunc(func);
-    this.bodyLocalNames = func.localNames;
+    this.bodyLocalNames = localNames;
     this.writeExprList(func.body);
     this.bodyLocalNames = undefined;
     this.endFunc();

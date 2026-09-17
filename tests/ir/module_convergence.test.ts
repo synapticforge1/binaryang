@@ -88,8 +88,8 @@ const PINNED = {
     ],
   },
   func: {
-    onlyW: ['loc', 'nodeId', 'typeVar', 'typeUse', 'localDecls', 'localNames', 'tailcall'],
-    onlyB: ['locals', 'bodyFrameLabel'],
+    onlyW: ['loc', 'nodeId', 'typeVar', 'typeUse', 'tailcall'],
+    onlyB: ['bodyFrameLabel'],
     differ: ['body'],
   },
   global: { onlyW: ['loc'], onlyB: [], differ: [] },
@@ -100,7 +100,7 @@ const PINNED = {
   data: { onlyW: ['loc'], onlyB: [], differ: [] },
   export: { onlyW: [], onlyB: [], differ: [] },
   custom: { onlyW: ['loc'], onlyB: [], differ: [] },
-  local: { onlyW: ['count'], onlyB: ['name'], differ: [] },
+  local: { onlyW: [], onlyB: [], differ: [] },
   // M4 made imports comparable: each arm holds `kind` / `module` / `field` and the
   // entity itself, so what differs is the EMBEDDED record — `loc` on four of
   // them, and the function record until M6.
@@ -163,9 +163,9 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     pin<OnlyA<B.CustomSection, W.Custom>, Of<'custom', 'onlyB'>>(true);
     pin<Differ<W.Custom, B.CustomSection>, Of<'custom', 'differ'>>(true);
 
-    pin<OnlyA<W.LocalDecl, B.Local>, Of<'local', 'onlyW'>>(true);
-    pin<OnlyA<B.Local, W.LocalDecl>, Of<'local', 'onlyB'>>(true);
-    pin<Differ<W.LocalDecl, B.Local>, Of<'local', 'differ'>>(true);
+    pin<OnlyA<W.Local, B.Local>, Of<'local', 'onlyW'>>(true);
+    pin<OnlyA<B.Local, W.Local>, Of<'local', 'onlyB'>>(true);
+    pin<Differ<W.Local, B.Local>, Of<'local', 'differ'>>(true);
 
     pin<OnlyA<ArmW<0>, ArmB<0>>, Of<'importFunc', 'onlyW'>>(true);
     pin<OnlyA<ArmB<0>, ArmW<0>>, Of<'importFunc', 'onlyB'>>(true);
@@ -208,6 +208,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [35, 12, 17]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [32, 10, 17]);
   });
 });

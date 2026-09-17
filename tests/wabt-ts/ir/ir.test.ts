@@ -57,7 +57,7 @@ function makeFuncBody(body: Expr[]): Func {
     loc: LOC,
     typeVar: varIndex(0),
     sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
-    localDecls: [],
+    locals: [],
     body,
     tailcall: false,
   };

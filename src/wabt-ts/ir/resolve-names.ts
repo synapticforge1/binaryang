@@ -273,7 +273,7 @@ class ResolveContext {
       // explicit type-use, the name-var reached the binary writer.
       f.typeVar = this.resolveTypeVar(f.typeVar, f.loc);
       this.resolveTypeUse(f, f.loc);
-      for (const d of f.localDecls) d.type = vt(d.type);
+      for (const l of f.locals) l.type = vt(l.type);
     }
     for (const t of this.module.tags) sig(t.sig);
     for (const g of this.module.globals) g.type = vt(g.type);

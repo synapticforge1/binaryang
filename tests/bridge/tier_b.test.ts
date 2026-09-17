@@ -98,7 +98,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
       loc: LOC,
       typeVar: varIndex(0),
       sig: sigG,
-      localDecls: [],
+      locals: [],
       body: [{ kind: 'local.get', var: varIndex(0), loc: LOC }],
       tailcall: false,
     });
@@ -113,7 +113,7 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
       loc: LOC,
       typeVar: varIndex(1),
       sig: sigF,
-      localDecls: [],
+      locals: [],
       body: [
         {
           kind: 'call_indirect',

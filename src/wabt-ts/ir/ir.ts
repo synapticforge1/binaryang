@@ -1774,9 +1774,35 @@ export function sigEquals(a: FuncSignature, b: FuncSignature): boolean {
 }
 
 /** A local variable declaration (type + count, matching LocalTypes in C++). */
-export interface LocalDecl {
+/**
+ * One local slot — a parameter or a declared local, in the one index space they
+ * share (S6 step 5 item 6 (M6c); binaryen-ts's `Local`).
+ *
+ * 🔧 This was `LocalDecl` — run-length `{ type, count }` groups, excluding
+ * params, beside a sparse `localNames` map covering both. Three shapes for one
+ * list: a pass that added a local had to touch two of them, and the name of the
+ * local it added had to go in the third, keyed by an index it had to compute.
+ * The GROUPING is not lost by flattening: it is the binary's own form, and the
+ * writer already re-derived it (it coalesces runs, which is why the emitted
+ * bytes are unchanged — measured: 4,064 of 4,065 corpus functions with locals
+ * are written in exactly that canonical grouping).
+ */
+export interface Local {
   type: ValueType;
-  count: Index;
+  /** Its name, where it has one — `$`-prefixed, as every name here is. */
+  name?: string;
+}
+
+/**
+ * The named slots of `locals`, by index — the shape the name section's local
+ * subsection and the text writer both want (M6c).
+ */
+export function localNameEntries(locals: readonly Local[]): [Index, string][] {
+  const out: [Index, string][] = [];
+  locals.forEach((l, i) => {
+    if (l.name !== undefined) out.push([i, l.name]);
+  });
+  return out;
 }
 
 /**
@@ -1994,21 +2020,17 @@ export interface Func {
   /** How the signature was named; see {@link TypeUse}. */
   typeUse?: TypeUse;
   sig: FuncSignature;
-  /** Local variable declarations (not including params). */
-  localDecls: LocalDecl[];
   /**
-   * The names of params and locals, by index in their SHARED index space
-   * (params first), `$`-prefixed like every name here — only those that have
-   * one. Absent means none.
+   * Every local slot the function has, PARAMS FIRST — the one index space a
+   * `local.get` addresses, each slot carrying its own name where it has one
+   * (M6c). The params are also {@link sig}'s, by index.
    *
-   * 🔧 N1 (cmem/names.md): there was nowhere to keep these. The parser
-   * resolved `$arg` to a slot and discarded the name, so no writer could put it
-   * back and WAT → wasm2wat lost every param and local name (24,694 of them in
-   * the corpus). `LocalDecl` is run-length `{ type, count }` and cannot hold a
-   * name per local; a sparse index map can, and matches the name section's
-   * local subsection, which is indexed the same way.
+   * 🔧 N1 (cmem/names.md): a name had nowhere to live. The parser resolved
+   * `$arg` to a slot and discarded the name, so no writer could put it back and
+   * WAT → wasm2wat lost every param and local name (24,694 of them in the
+   * corpus). The name now sits on the slot it names.
    */
-  localNames?: Map<Index, string>;
+  locals: Local[];
   /** Function body as a sequence of tree-structured expressions. */
   body: Expr[];
   tailcall: boolean;

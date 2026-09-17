@@ -84,7 +84,6 @@ import {
   type Import,
   type Limits,
   type LoadExpr,
-  type LocalDecl,
   type LocalGetExpr,
   type LocalSetExpr,
   type LocalTeeExpr,
@@ -996,6 +995,20 @@ function newCtx(): ExprCtx {
  * local reference to a slot through the scope; this is what keeps the NAMES
  * once that is done (N1, cmem/names.md).
  */
+/**
+ * The param slots of a function, named where the text named them (M6c): the
+ * names come from the scope map the parser already builds, keyed by slot.
+ */
+function slotsOf(
+  params: readonly ValueType[],
+  names: Map<number, string> | undefined,
+): { type: ValueType; name?: string }[] {
+  return params.map((type, i) => {
+    const name = names?.get(i);
+    return name === undefined ? { type } : { type, name };
+  });
+}
+
 function namesByIndex(scope: Map<string, number>): Map<number, string> | undefined {
   if (scope.size === 0) return undefined;
   const names = new Map<number, string>();
@@ -2504,8 +2517,7 @@ export class WastParser {
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
-        localDecls: [],
-        ...(localNames !== undefined ? { localNames } : {}),
+        locals: slotsOf(sig.params, localNames),
         body: [],
         tailcall: false,
       };
@@ -2632,8 +2644,7 @@ export class WastParser {
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
-        localDecls: [],
-        ...(localNames !== undefined ? { localNames } : {}),
+        locals: slotsOf(sig.params, localNames),
         body: [],
         tailcall: false,
       };
@@ -2646,7 +2657,7 @@ export class WastParser {
       module.imports.push(imp);
       module.numFuncImports++;
     } else {
-      const localDecls: LocalDecl[] = [];
+      const declared: { type: ValueType; name?: string }[] = [];
 
       // Build the function-local scope (params first, then locals) so that
       // `local.get $name` / `local.set $name` / `local.tee $name` inside the
@@ -2669,14 +2680,14 @@ export class WastParser {
             if (scope.has(localName)) this.error(nameTok.loc, `duplicate local ${localName}`);
             scope.set(localName, slot);
             slot++;
-            localDecls.push({ type: t, count: 1 });
+            declared.push({ type: t, name: localName });
           }
         } else {
           while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
             const t = this.parseValueType();
             if (t !== null) {
               slot++;
-              localDecls.push({ type: t, count: 1 });
+              declared.push({ type: t });
             } else break;
           }
         }
@@ -2699,8 +2710,7 @@ export class WastParser {
         ...(typeUse !== null ? { typeUse } : {}),
         sig,
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
-        localDecls,
-        ...(localNames !== undefined ? { localNames } : {}),
+        locals: [...slotsOf(sig.params, localNames), ...declared],
         body,
         tailcall: false,
       };

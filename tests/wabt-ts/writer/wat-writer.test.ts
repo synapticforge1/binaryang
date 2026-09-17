@@ -46,7 +46,7 @@ function makeFunc(opts: {
     loc: LOC,
     typeVar: varIndex(0),
     sig: { params: opts.params ?? [], results: opts.results ?? [] },
-    localDecls: [],
+    locals: [],
     body: opts.body ?? [],
     tailcall: false,
   };

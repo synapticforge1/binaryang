@@ -128,7 +128,7 @@ import {
 import { MemoryStream } from './stream.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
-import { blockTypeOf, BrOnOp } from '../ir/ir.ts';
+import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1555,10 +1555,12 @@ class BinaryWriter {
     // `i32, i64, i32` stays three groups, which is why that shape already agreed
     // between the two writers.
     const coalesced: { type: ValueType; count: number }[] = [];
-    for (const decl of func.localDecls) {
+    // The DECLARED locals: the first `sig.params.length` slots are the params,
+    // which the type section already gave (M6c).
+    for (const local of func.locals.slice(func.sig.params.length)) {
       const last = coalesced[coalesced.length - 1];
-      if (last !== undefined && last.type === decl.type) last.count += decl.count;
-      else coalesced.push({ type: decl.type, count: decl.count });
+      if (last !== undefined && last.type === local.type) last.count += 1;
+      else coalesced.push({ type: local.type, count: 1 });
     }
     s.writeU32Leb(coalesced.length);
     for (const decl of coalesced) {
@@ -1696,7 +1698,7 @@ class BinaryWriter {
     const importNamed = m.imports.some((imp) => {
       switch (imp.kind) {
         case ExternalKind.Func:
-          return named(imp.func) || (imp.func.localNames?.size ?? 0) > 0;
+          return named(imp.func) || imp.func.locals.some((l) => l.name !== undefined);
         case ExternalKind.Table:
           return named(imp.table);
         case ExternalKind.Memory:
@@ -1708,7 +1710,7 @@ class BinaryWriter {
       }
     });
     return m.name !== '' || importNamed || this.labelNames.size > 0 ||
-      m.funcs.some((f) => named(f) || (f.localNames?.size ?? 0) > 0) ||
+      m.funcs.some((f) => named(f) || f.locals.some((l) => l.name !== undefined)) ||
       m.types.some((t) =>
         named(t) ||
         (t.kind === 'struct' && t.fields.some(named)) ||
@@ -1790,7 +1792,7 @@ class BinaryWriter {
           s.writeU32Leb(entries.length);
           for (const [i, f] of entries) {
             s.writeU32Leb(i);
-            writeNameEntries(s, namedEntries([...(f.localNames ?? [])]));
+            writeNameEntries(s, namedEntries(localNameEntries(f.locals)));
           }
         });
       }
