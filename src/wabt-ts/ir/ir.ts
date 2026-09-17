@@ -2020,7 +2020,14 @@ export interface Global {
   loc: Location;
   type: ValueType;
   mutable: boolean;
-  init: Expr[]; // initializer expression (constant expr)
+  /**
+   * The initializer — ABSENT on an imported global, which has none — a constant
+   * expression, held as a {@link RegionExpr}: its children
+   * are exactly the instructions read, 0, 1 or many (owner, 2026-09-16, S6
+   * step 5 item 6 (M2)). A malformed one — empty, two values, a `nop` — is kept
+   * for the validator to report, as the binary said it.
+   */
+  init?: RegionExpr;
 }
 
 /** A table. */
@@ -2029,7 +2036,18 @@ export interface Table {
   loc: Location;
   elemType: ValueType;
   limits: Limits;
-  init: Expr[]; // initializer expression (for table with init value)
+  /**
+   * The initializer, when the table declares one — a constant expression, held as a {@link RegionExpr}: its children
+   * are exactly the instructions read, 0, 1 or many (owner, 2026-09-16, S6
+   * step 5 item 6 (M2)). A malformed one — empty, two values, a `nop` — is kept
+   * for the validator to report, as the binary said it.
+   */
+  /**
+   * ABSENT when it declares none. 🔧 It was `Expr[]` with `[]` for none, so a
+   * PRESENT-but-empty initializer (`40 00 70 00 01 0b`) read as none and was
+   * written without one — three bytes and the initializer lost.
+   */
+  init?: RegionExpr;
 }
 
 /** A linear memory. */
@@ -2060,9 +2078,16 @@ export interface ElemSegment {
   loc: Location;
   kind: SegmentKind;
   tableVar: Var; // only for active
-  offset: Expr[]; // only for active (constant expr)
+  /**
+   * The offset — present exactly when the segment is active — a constant expression, held as a {@link RegionExpr}: its children
+   * are exactly the instructions read, 0, 1 or many (owner, 2026-09-16, S6
+   * step 5 item 6 (M2)). A malformed one — empty, two values, a `nop` — is kept
+   * for the validator to report, as the binary said it.
+   */
+  offset?: RegionExpr;
   elemType: ValueType;
-  elemExprs: Expr[][]; // each element is a constant expression
+  /** Each entry, a constant expression (a {@link RegionExpr}, as `offset`). */
+  elemExprs: RegionExpr[];
 }
 
 /** A data segment (active or passive). */
@@ -2071,7 +2096,13 @@ export interface DataSegment {
   loc: Location;
   kind: SegmentKind;
   memoryVar: Var; // only for active
-  offset: Expr[]; // only for active (constant expr)
+  /**
+   * The offset — present exactly when the segment is active — a constant expression, held as a {@link RegionExpr}: its children
+   * are exactly the instructions read, 0, 1 or many (owner, 2026-09-16, S6
+   * step 5 item 6 (M2)). A malformed one — empty, two values, a `nop` — is kept
+   * for the validator to report, as the binary said it.
+   */
+  offset?: RegionExpr;
   data: Uint8Array;
 }
 

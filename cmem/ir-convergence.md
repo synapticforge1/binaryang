@@ -3247,6 +3247,21 @@ malformed case and 2 zero-count groups), so a flat named list (43 errors to conv
 185 the other way) with the as-written grouping kept as form where it is not canonical meets both
 conditions.
 
+**✅ M2a — wabt-ts's constant expressions are regions (2026-09-16).** `Global.init?`, `Table.init?`,
+`ElemSegment.offset?` / `elemExprs: RegionExpr[]`, `DataSegment.offset?`. Absent means MISSING: an
+imported global, a table without an initializer, a passive / declared segment. The reader's
+`readInitExpr` returns the region `decodeBody` read (the same decoder as a function body); the parser
+wraps its lists at construction; resolve / apply names walk `children`; the validator checks a MISSING
+required one as an empty one; the binary writer writes a present one — empty included — and REFUSES
+a required one that is missing (writing a bare `end` would invent it); the text writer's output is
+unchanged (missing and empty print nothing, as `[]` did — text CAN spell an empty `(offset)` /
+`(item)`, a separate fidelity follow-up). 🔧 **Fixed**: a table's present-but-empty initializer now
+round-trips (it was written without one). Measured after: wabt-ts's section round trips unchanged on
+both corpora (WASI 356 / 356; spec 1,285 identical, the same 84 differing as before). Baseline
+IDENTICAL. Tests `const_expr_region.test.ts` (7); 4 mutants — 2 survived the first run (the binary
+reader's passive offset, the validator's "has an initializer" for a non-null table), tests added,
+all killed.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

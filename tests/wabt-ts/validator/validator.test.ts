@@ -169,7 +169,7 @@ describe('validateModule', () => {
         loc: LOC,
         type: Type.I32,
         mutable: false,
-        init: [makeConst32(0)],
+        init: region([makeConst32(0)], LOC),
       });
       m.funcs.push(makeFunc([], [Type.I32], [
         { kind: 'global.get', var: varIndex(0), loc: LOC },
@@ -185,7 +185,7 @@ describe('validateModule', () => {
         loc: LOC,
         type: Type.I32,
         mutable: false,
-        init: [makeConst32(0)],
+        init: region([makeConst32(0)], LOC),
       });
       m.funcs.push(makeFunc([], [], [
         { kind: 'global.set', var: varIndex(0), value: makeConst32(1), loc: LOC },

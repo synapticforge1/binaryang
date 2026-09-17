@@ -121,7 +121,11 @@ describe('T10.3 — a table initializer survives a wasm2wat round-trip', () => {
       ...module,
       tables: [{
         ...table,
-        init: [{ kind: 'local.get', var: { kind: 'index', value: 0 }, loc: table.loc }],
+        init: {
+          kind: 'region',
+          children: [{ kind: 'local.get', var: { kind: 'index', value: 0 }, loc: table.loc }],
+          loc: table.loc,
+        },
       }],
     } as typeof module;
     assertThrows(() => writeWatModule(broken), Error, 'not a constant expression');

@@ -112,6 +112,7 @@ import {
   type RefNullExpr,
   type RefTestExpr,
   region,
+  type RegionExpr,
   type RethrowExpr,
   type SectionMeta,
   type StorageType,
@@ -963,7 +964,7 @@ export class BinaryReader {
         case ExternalKind.Table: {
           const elemType = this.readRefType();
           const limits = this.readLimits(false);
-          const table: Table = { name: '', loc, elemType, limits, init: [] };
+          const table: Table = { name: '', loc, elemType, limits };
           m.imports.push({ kind: ExternalKind.Table, module: module_, field, table });
           m.numTableImports++;
           break;
@@ -979,7 +980,7 @@ export class BinaryReader {
         case ExternalKind.Global: {
           const type = this.readValType('global');
           const mutable = this.readMutability();
-          const global: Global = { name: '', loc, type, mutable, init: [] };
+          const global: Global = { name: '', loc, type, mutable };
           m.imports.push({ kind: ExternalKind.Global, module: module_, field, global });
           m.numGlobalImports++;
           break;
@@ -1069,7 +1070,7 @@ export class BinaryReader {
       } else {
         const elemType = this.readRefType();
         const limits = this.readLimits(false);
-        m.tables.push({ name: '', loc, elemType, limits, init: [] });
+        m.tables.push({ name: '', loc, elemType, limits });
       }
     }
   }
@@ -1149,7 +1150,7 @@ export class BinaryReader {
       }
 
       let tableVar: Var = varIndex(0);
-      let offset: Expr[] = [];
+      let offset: RegionExpr | undefined;
 
       if (!isPassive) {
         if (hasExplicitIndex) tableVar = varIndex(this.readU32Leb());
@@ -1179,7 +1180,7 @@ export class BinaryReader {
         }
       }
 
-      const elemExprs: Expr[][] = [];
+      const elemExprs: RegionExpr[] = [];
       const elemCount = this.readU32Leb();
 
       if (usesExprs) {
@@ -1189,12 +1190,21 @@ export class BinaryReader {
       } else {
         for (let j = 0; j < elemCount; j++) {
           const funcIdx = this.readU32Leb();
-          const refExpr: Expr = { kind: 'ref.func', func: varIndex(funcIdx), loc: this.loc() };
-          elemExprs.push([refExpr]);
+          const entryLoc = this.loc();
+          const refExpr: Expr = { kind: 'ref.func', func: varIndex(funcIdx), loc: entryLoc };
+          elemExprs.push(region([refExpr], entryLoc));
         }
       }
 
-      m.elemSegments.push({ name: '', loc, kind, tableVar, offset, elemType, elemExprs });
+      m.elemSegments.push({
+        name: '',
+        loc,
+        kind,
+        tableVar,
+        ...(offset === undefined ? {} : { offset }),
+        elemType,
+        elemExprs,
+      });
     }
   }
 
@@ -1237,7 +1247,7 @@ export class BinaryReader {
 
       const kind: 'active' | 'passive' = isPassive ? 'passive' : 'active';
       let memoryVar: Var = varIndex(0);
-      let offset: Expr[] = [];
+      let offset: RegionExpr | undefined;
 
       if (!isPassive) {
         if (hasExplicitMemIdx) memoryVar = varIndex(this.readU32Leb());
@@ -1247,7 +1257,14 @@ export class BinaryReader {
       const dataLen = this.readU32Leb();
       const data = this.readBytes(dataLen);
 
-      m.dataSegments.push({ name: '', loc, kind, memoryVar, offset, data });
+      m.dataSegments.push({
+        name: '',
+        loc,
+        kind,
+        memoryVar,
+        ...(offset === undefined ? {} : { offset }),
+        data,
+      });
     }
   }
 
@@ -1354,8 +1371,13 @@ export class BinaryReader {
   // Init expression decoder (constant expressions)
   // ---------------------------------------------------------------------------
 
-  private readInitExpr(m: Module): Expr[] {
-    return this.decodeBody(this.data.length, m, null);
+  /**
+   * A constant expression, as the {@link RegionExpr} it is held in — exactly the
+   * instructions read, however many (owner, 2026-09-16, S6 step 5 item 6 (M2)).
+   */
+  private readInitExpr(m: Module): RegionExpr {
+    const loc = this.loc();
+    return region(this.decodeBody(this.data.length, m, null), loc);
   }
 
   // ---------------------------------------------------------------------------

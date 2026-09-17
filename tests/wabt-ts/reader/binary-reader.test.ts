@@ -286,7 +286,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       type: Type.I32,
       mutable: true,
-      init: [{ kind: 'const', value: constI32(99), loc: LOC }],
+      init: region([{ kind: 'const', value: constI32(99), loc: LOC }], LOC),
     });
 
     const binary = writeBinaryIr(m);
@@ -298,8 +298,8 @@ describe('readBinaryIr', () => {
     const g = m2.globals[0]!;
     assertEquals(g.type, Type.I32);
     assertEquals(g.mutable, true);
-    assertEquals(g.init.length, 1);
-    assertEquals(g.init[0]!.kind, 'const');
+    assertEquals(g.init?.children.length, 1);
+    assertEquals(g.init?.children[0]!.kind, 'const');
   });
 
   // -------------------------------------------------------------------------
@@ -503,7 +503,6 @@ describe('readBinaryIr', () => {
       loc: LOC,
       kind: 'passive',
       memoryVar: varIndex(0),
-      offset: [],
       data: new Uint8Array([1, 2, 3, 4, 5]),
     });
 
@@ -530,7 +529,7 @@ describe('readBinaryIr', () => {
       loc: LOC,
       kind: 'active',
       memoryVar: varIndex(0),
-      offset: [{ kind: 'const', value: constI32(0), loc: LOC }],
+      offset: region([{ kind: 'const', value: constI32(0), loc: LOC }], LOC),
       data: new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f]), // "Hello"
     });
 

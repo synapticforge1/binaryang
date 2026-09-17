@@ -106,14 +106,14 @@ class ResolveContext {
     let result = Result.Ok;
 
     for (const g of this.module.globals) {
-      result = combine(result, this.resolveExprList(g.init));
+      result = combine(result, this.resolveConstExpr(g.init));
     }
 
     // Table initializer expressions (reference-types `(table … (init …))` /
     // the binary 0x40 form) carry name-bearing refs (e.g. `ref.func $f`) that
     // must be resolved, or the writer emits index 0 for them.
     for (const t of this.module.tables) {
-      result = combine(result, this.resolveExprList(t.init));
+      result = combine(result, this.resolveConstExpr(t.init));
     }
 
     // Concrete typed references — `(ref $T)` / `(ref null $T)` — carry a heap
@@ -135,16 +135,16 @@ class ResolveContext {
       // The active-segment table reference can be a named, non-zero table
       // (`(elem (table $t) …)`); resolve it or the writer emits index 0.
       seg.tableVar = this.resolveTableVar(seg.tableVar);
-      result = combine(result, this.resolveExprList(seg.offset));
+      result = combine(result, this.resolveConstExpr(seg.offset));
       for (const elemExpr of seg.elemExprs) {
-        result = combine(result, this.resolveExprList(elemExpr));
+        result = combine(result, this.resolveConstExpr(elemExpr));
       }
     }
 
     for (const seg of this.module.dataSegments) {
       // Likewise the active-segment memory reference (`(data (memory $m) …)`).
       seg.memoryVar = this.resolveByKind(seg.memoryVar, ExternalKind.Memory);
-      result = combine(result, this.resolveExprList(seg.offset));
+      result = combine(result, this.resolveConstExpr(seg.offset));
     }
 
     for (const exp of this.module.exports) {
@@ -284,6 +284,11 @@ class ResolveContext {
   private resolveFunc(func: Func): Result {
     this.labelStack = [];
     return this.resolveExprList(func.body);
+  }
+
+  /** A constant expression's instructions, where there is one (S6 step 5 item 6 (M2)). */
+  private resolveConstExpr(r: RegionExpr | undefined): Result {
+    return r === undefined ? Result.Ok : this.resolveExprList(r.children);
   }
 
   private resolveExprList(exprs: Expr[]): Result {

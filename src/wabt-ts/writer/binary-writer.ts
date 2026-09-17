@@ -64,6 +64,7 @@ import type {
   RefIsNullExpr,
   RefNullExpr,
   RefTestExpr,
+  RegionExpr,
   RethrowExpr,
   ReturnExpr,
   SelectExpr,
@@ -1192,8 +1193,15 @@ class BinaryWriter {
   }
 
   // Emit a constant-expression sequence (init expr) followed by End.
-  private writeInitExpr(exprs: import('../ir/ir.ts').Expr[]): void {
-    this.visitor.visitExprList(exprs);
+  /**
+   * A constant expression: its instructions, then `end` — exactly the region
+   * read, however many (S6 step 5 item 6 (M2)). `what` names the slot when one
+   * the format REQUIRES is missing, which is refused: writing a bare `end`
+   * would invent an empty expression nobody wrote.
+   */
+  private writeInitExpr(r: RegionExpr | undefined, what: string): void {
+    if (r === undefined) throw new Error(`binary writer: ${what} has no constant expression`);
+    this.visitor.visitExprList(r.children);
     this.s.writeU8(Opcode.End);
   }
 
@@ -1281,7 +1289,8 @@ class BinaryWriter {
     s.writeSection(BinarySection.Table, () => {
       s.writeU32Leb(m.tables.length);
       for (const t of m.tables) {
-        if (t.init.length > 0) {
+        // PRESENT, not non-empty (M2): an empty initializer is written as one.
+        if (t.init !== undefined) {
           // table-with-initializer form (reference-types proposal):
           // 0x40 0x00 reftype limits init_expr. The binary reader decodes
           // this shape (readTableSection); emitting only `reftype limits`
@@ -1290,7 +1299,7 @@ class BinaryWriter {
           s.writeU8(0x00);
           writeValueType(s, t.elemType);
           writeLimits(s, t.limits);
-          this.writeInitExpr(t.init);
+          this.writeInitExpr(t.init, 'a table initializer');
         } else {
           writeValueType(s, t.elemType);
           writeLimits(s, t.limits);
@@ -1379,7 +1388,7 @@ class BinaryWriter {
       for (const g of m.globals) {
         writeValueType(s, g.type);
         s.writeU8(g.mutable ? 1 : 0);
-        this.writeInitExpr(g.init);
+        this.writeInitExpr(g.init, `global ${g.name || '(unnamed)'}'s initializer`);
       }
     });
   }
@@ -1439,7 +1448,9 @@ class BinaryWriter {
         // spec calls invalid (a `funcref` segment against a `(ref func)`
         // table) comes back out looking valid.
         const useFuncIdx = isNonNullFuncRef(seg.elemType) &&
-          seg.elemExprs.every((xs) => xs.length === 1 && xs[0]!.kind === 'ref.func');
+          seg.elemExprs.every((xs) =>
+            xs.children.length === 1 && xs.children[0]!.kind === 'ref.func'
+          );
 
         let flags: number;
         if (useFuncIdx) {
@@ -1464,7 +1475,9 @@ class BinaryWriter {
 
         s.writeU32Leb(flags);
         if (flags === 2 || flags === 6) writeVar(s, seg.tableVar);
-        if (seg.kind === 'active') this.writeInitExpr(seg.offset);
+        if (seg.kind === 'active') {
+          this.writeInitExpr(seg.offset, 'an active element segment offset');
+        }
         if (useFuncIdx) {
           if (flags !== 0) s.writeU8(0x00); // elemkind: funcref
         } else if (flags !== 4) {
@@ -1473,8 +1486,8 @@ class BinaryWriter {
 
         s.writeU32Leb(seg.elemExprs.length);
         for (const elemExpr of seg.elemExprs) {
-          if (useFuncIdx) writeVar(s, (elemExpr[0] as RefFuncExpr).func);
-          else this.writeInitExpr(elemExpr);
+          if (useFuncIdx) writeVar(s, (elemExpr.children[0] as RefFuncExpr).func);
+          else this.writeInitExpr(elemExpr, 'an element entry');
         }
       }
     });
@@ -1589,13 +1602,13 @@ class BinaryWriter {
         const memIdx = varIndexValue(seg.memoryVar, 'data segment memory');
         if (seg.kind === 'active' && memIdx === 0) {
           s.writeU32Leb(0); // flags = 0: active, memory 0
-          this.writeInitExpr(seg.offset);
+          this.writeInitExpr(seg.offset, 'an active data segment offset');
         } else if (seg.kind === 'passive') {
           s.writeU32Leb(1); // flags = 1: passive
         } else if (seg.kind === 'active') {
           s.writeU32Leb(2); // flags = 2: active, explicit memory
           writeVar(s, seg.memoryVar);
-          this.writeInitExpr(seg.offset);
+          this.writeInitExpr(seg.offset, 'an active data segment offset');
         } else {
           // 'declared' is an elem-segment-only kind; it is meaningless for
           // data. Fail loud rather than silently re-encoding it as passive.

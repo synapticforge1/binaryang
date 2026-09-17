@@ -426,10 +426,12 @@ class ModuleValidator implements ExprVisitorDelegate {
 
     // Tables
     for (const table of m.tables) {
-      this.acc(this.sv.onTable(table.loc, table.elemType, table.limits, table.init.length > 0));
-      if (table.init.length > 0) {
+      // PRESENT, not non-empty: an empty initializer is one — and invalid, so the
+      // validator must see it rather than a table without one (M2).
+      this.acc(this.sv.onTable(table.loc, table.elemType, table.limits, table.init !== undefined));
+      if (table.init !== undefined) {
         this.acc(this.sv.beginInitExpr(table.loc, table.elemType));
-        this.visitConstExpr(table.init, table.loc);
+        this.visitConstExpr(table.init.children, table.loc);
         this.acc(this.sv.endInitExpr());
       }
     }
@@ -446,7 +448,8 @@ class ModuleValidator implements ExprVisitorDelegate {
     for (const global of m.globals) {
       this.acc(this.sv.onGlobal(global.loc, global.type, global.mutable));
       this.acc(this.sv.beginGlobalInitExpr(global.loc, global.type, globalIdx++));
-      this.visitConstExpr(global.init, global.loc);
+      // A defined global with no initializer is checked as an empty one: invalid.
+      this.visitConstExpr(global.init?.children ?? [], global.loc);
       this.acc(this.sv.endInitExpr());
     }
 
@@ -476,12 +479,12 @@ class ModuleValidator implements ExprVisitorDelegate {
         // active segment with "type mismatch in function".
         const offsetType = this.sv.tableIndexType(varIdx(elem.tableVar));
         this.acc(this.sv.beginInitExpr(elem.loc, offsetType));
-        this.visitConstExpr(elem.offset, elem.loc);
+        this.visitConstExpr(elem.offset?.children ?? [], elem.loc);
         this.acc(this.sv.endInitExpr());
       }
       for (const elemExpr of elem.elemExprs) {
         this.acc(this.sv.beginInitExpr(elem.loc, elem.elemType));
-        this.visitConstExpr(elemExpr, elem.loc);
+        this.visitConstExpr(elemExpr.children, elem.loc);
         this.acc(this.sv.endInitExpr());
       }
     }
@@ -507,7 +510,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       if (seg.kind === 'active') {
         // Same for data: the offset is in the MEMORY's index type.
         this.acc(this.sv.beginInitExpr(seg.loc, this.sv.memoryIndexType(varIdx(seg.memoryVar))));
-        this.visitConstExpr(seg.offset, seg.loc);
+        this.visitConstExpr(seg.offset?.children ?? [], seg.loc);
         this.acc(this.sv.endInitExpr());
       }
     }

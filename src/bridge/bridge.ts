@@ -405,9 +405,9 @@ function limitToNumber(v: bigint, what: string): number {
  */
 function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): void {
   const data = seg.elemExprs.map((expr, i) => {
-    const only = expr.length === 1 ? expr[0] : undefined;
+    const only = expr.children.length === 1 ? expr.children[0] : undefined;
     if (only === undefined || only.kind !== 'ref.func') {
-      const what = only === undefined ? `${expr.length} instructions` : only.kind;
+      const what = only === undefined ? `${expr.children.length} instructions` : only.kind;
       throw new Error(
         `Bridge: element segment ${seg.name} entry ${i} is ${what}; ` +
           `binaryen-ts element segments hold ref.func entries only`,
@@ -419,9 +419,11 @@ function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): 
   // hand over. Refuse it the way `bridgeDataSegment` does -- taking `[0]` and
   // ignoring the rest would place the segment at the WRONG INDEX, silently,
   // which is the same class of fault as dropping the segment entirely.
-  if (seg.kind === 'active' && seg.offset.length !== 1) {
+  if (seg.kind === 'active' && seg.offset?.children.length !== 1) {
     throw new Error(
-      `Bridge: element segment ${seg.name} has ${seg.offset.length} offset exprs; expected 1`,
+      `Bridge: element segment ${seg.name} has ${
+        seg.offset?.children.length ?? 0
+      } offset exprs; expected 1`,
     );
   }
   b.addElement({
@@ -432,7 +434,7 @@ function bridgeElemSegment(b: ModuleBuilder, seg: ElemSegment, ctx: BridgeCtx): 
     table: seg.kind === 'active'
       ? resolveVarName(seg.tableVar, ctx.tableNames)
       : (ctx.tableNames[0] ?? ''),
-    offset: seg.kind === 'active' ? bridgeExpr(seg.offset[0]!, ctx) : null,
+    offset: seg.kind === 'active' ? bridgeExpr(seg.offset!.children[0]!, ctx) : null,
     data,
   });
 }
@@ -896,12 +898,19 @@ function bridgeImport(
 // ---------------------------------------------------------------------------
 
 function bridgeGlobal(b: ModuleBuilder, g: WabtGlobal, ctx: BridgeCtx, name: string): void {
-  if (g.init.length !== 1) {
-    throw new Error(`Bridge: global ${name} has ${g.init.length} init exprs; expected 1`);
+  if (g.init?.children.length !== 1) {
+    throw new Error(
+      `Bridge: global ${name} has ${g.init?.children.length ?? 0} init exprs; expected 1`,
+    );
   }
   // T13.50: precise, not coarsening. A global declared `(ref null $T)` and
   // coarsened to `structref` mismatches every use that kept the precise type.
-  b.addGlobal(name, wabtTypeToValueType(g.type, ctx), g.mutable, bridgeExpr(g.init[0]!, ctx));
+  b.addGlobal(
+    name,
+    wabtTypeToValueType(g.type, ctx),
+    g.mutable,
+    bridgeExpr(g.init.children[0]!, ctx),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1877,9 +1886,11 @@ function bridgeDataSegment(
     return;
   }
   // Active segment: must have a single-expression constant offset.
-  if (seg.offset.length !== 1) {
+  if (seg.offset?.children.length !== 1) {
     throw new Error(
-      `Bridge: data segment ${seg.name} has ${seg.offset.length} offset exprs; expected 1`,
+      `Bridge: data segment ${seg.name} has ${
+        seg.offset?.children.length ?? 0
+      } offset exprs; expected 1`,
     );
   }
   // wabt's IR allows a per-segment memoryVar; binaryen-ts's addDataSegment
@@ -1889,5 +1900,5 @@ function bridgeDataSegment(
       `Bridge: data segment ${seg.name} targets non-zero memory ${seg.memoryVar.value} (multi-memory not yet supported)`,
     );
   }
-  b.addDataSegment(seg.name, bridgeExpr(seg.offset[0]!, ctx), seg.data);
+  b.addDataSegment(seg.name, bridgeExpr(seg.offset.children[0]!, ctx), seg.data);
 }

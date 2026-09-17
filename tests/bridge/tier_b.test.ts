@@ -107,7 +107,6 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
       loc: LOC,
       elemType: Type.FuncRef,
       limits: { initial: 1n, max: 1n, isShared: false, is64: false },
-      init: [],
     });
     m.funcs.push({
       name: 'f',

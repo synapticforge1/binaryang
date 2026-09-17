@@ -192,7 +192,7 @@ describe('makeModule', () => {
   it('totalGlobals = imports + defined', () => {
     const m = makeModule();
     m.numGlobalImports = 1;
-    m.globals.push({ name: 'g', loc: LOC, type: Type.I32, mutable: false, init: [] });
+    m.globals.push({ name: 'g', loc: LOC, type: Type.I32, mutable: false });
     assertEquals(totalGlobals(m), 2);
   });
 });
@@ -396,7 +396,7 @@ describe('generateNames', () => {
 
   it('generates global names', () => {
     const m = makeModule();
-    m.globals.push({ name: '', loc: LOC, type: Type.I32, mutable: false, init: [] });
+    m.globals.push({ name: '', loc: LOC, type: Type.I32, mutable: false });
     generateNames(m);
     assertEquals(m.globals[0]?.name, '$g0');
   });

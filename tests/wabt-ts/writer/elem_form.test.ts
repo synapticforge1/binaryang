@@ -194,7 +194,7 @@ describe('T7.11 — a leading (ref …) opens an elemlist, not an offset', () =>
       const seg = module.elemSegments[0];
       assert(seg);
       assertEquals(seg.kind, 'passive');
-      assertEquals(seg.offset.length, 0);
+      assertEquals(seg.offset, undefined, 'a passive segment has NO offset, not an empty one');
     });
   }
 
@@ -206,7 +206,7 @@ describe('T7.11 — a leading (ref …) opens an elemlist, not an offset', () =>
     const seg = module.elemSegments[0];
     assert(seg);
     assertEquals(seg.kind, 'active');
-    assertEquals(seg.offset.length, 1);
+    assertEquals(seg.offset?.children.length, 1);
     assertEquals(seg.elemExprs.length, 2);
   });
 

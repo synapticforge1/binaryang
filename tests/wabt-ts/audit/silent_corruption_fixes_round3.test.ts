@@ -24,7 +24,7 @@ import {
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { makeModule, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { makeModule, region, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import type { DataSegment, ElemSegment } from '../../../src/wabt-ts/ir/ir.ts';
 import { Type } from '../../../src/wabt-ts/core/types.ts';
 import { Result } from '../../../src/wabt-ts/core/result.ts';
@@ -114,13 +114,12 @@ describe('binary-writer segment encoding', () => {
       loc: LOC,
       elemType: Type.FuncRef,
       limits: { initial: 1n, isShared: false, is64: false },
-      init: [],
     });
     const seg: ElemSegment = {
       name: '',
       kind: 'active',
       tableVar: varName('t'), // unresolved name-var
-      offset: [{ kind: 'const', value: { type: Type.I32, value: 0 }, loc: LOC }],
+      offset: region([{ kind: 'const', value: { type: Type.I32, value: 0 }, loc: LOC }], LOC),
       elemType: Type.FuncRef,
       elemExprs: [],
       loc: LOC,
@@ -155,13 +154,12 @@ describe('binary-writer segment encoding', () => {
       loc: LOC,
       elemType: Type.ExternRef,
       limits: { initial: 1n, isShared: false, is64: false },
-      init: [],
     });
     const seg: ElemSegment = {
       name: '',
       kind: 'active',
       tableVar: varIndex(0),
-      offset: [{ kind: 'const', value: { type: Type.I32, value: 0 }, loc: LOC }],
+      offset: region([{ kind: 'const', value: { type: Type.I32, value: 0 }, loc: LOC }], LOC),
       elemType: Type.ExternRef,
       elemExprs: [],
       loc: LOC,

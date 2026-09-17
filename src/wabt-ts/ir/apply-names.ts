@@ -181,16 +181,16 @@ export function applyNames(module: Module, names: ModuleNames): Result {
 
   // Global init exprs
   for (const global of module.globals) {
-    rewriteExprListVars(global.init, ctx);
+    if (global.init) rewriteExprListVars(global.init.children, ctx);
   }
 
   // Segment offsets
   for (const seg of module.elemSegments) {
-    rewriteExprListVars(seg.offset, ctx);
-    for (const elemExpr of seg.elemExprs) rewriteExprListVars(elemExpr, ctx);
+    if (seg.offset) rewriteExprListVars(seg.offset.children, ctx);
+    for (const elemExpr of seg.elemExprs) rewriteExprListVars(elemExpr.children, ctx);
   }
   for (const seg of module.dataSegments) {
-    rewriteExprListVars(seg.offset, ctx);
+    if (seg.offset) rewriteExprListVars(seg.offset.children, ctx);
   }
 
   return Result.Ok;
