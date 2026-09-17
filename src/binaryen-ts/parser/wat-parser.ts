@@ -141,7 +141,6 @@ import {
   type ElementSegmentMode,
   type Local,
   ModuleBuilder,
-  type WasmExport,
   type WasmModule,
 } from '../ir/module.ts';
 import { None, type Type, Unreachable, ValType, valTypeFromName } from '../ir/types.ts';
@@ -177,6 +176,16 @@ import {
 } from './sexpr.ts';
 import { type TextPos, tokenize } from './tokenizer.ts';
 import { type BlockResult, heapAbstract, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+
+/** An export descriptor's text keyword → the IR's (binary) kind. A Map, so `toString` is no keyword. */
+const EXPORT_KIND_BY_KEYWORD: ReadonlyMap<string, ExternalKind> = new Map([
+  ['func', ExternalKind.Func],
+  ['table', ExternalKind.Table],
+  ['memory', ExternalKind.Memory],
+  ['global', ExternalKind.Global],
+  ['tag', ExternalKind.Tag],
+]);
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -546,7 +555,7 @@ class WatModuleParser {
     // name and names are unique — but it was the last byte difference between
     // this encoder's output and wabt-ts's.
     for (const exportName of this.takeInlineDecorations(children, idx).names) {
-      this.builder.addExport(exportName, fname, 'function');
+      this.builder.addExport(exportName, fname, ExternalKind.Func);
     }
     this.rawFunctions.push({ name: fname, list, funcIndex });
   }
@@ -2177,7 +2186,7 @@ class WatModuleParser {
       const init = this.parseExpr(initNode, this.constExprContext());
       this.builder.addGlobal(internalName, type, mutable, init);
     }
-    for (const n of inline.names) this.builder.addExport(n, internalName, 'global');
+    for (const n of inline.names) this.builder.addExport(n, internalName, ExternalKind.Global);
   }
 
   /** Parses a global's type node: bare `<type>` or `(mut <type>)`. */
@@ -2223,7 +2232,7 @@ class WatModuleParser {
     } else {
       this.builder.addMemory(internalName, initial, max);
     }
-    for (const n of inline.names) this.builder.addExport(n, internalName, 'memory');
+    for (const n of inline.names) this.builder.addExport(n, internalName, ExternalKind.Memory);
   }
 
   private collectTable(list: SList): void {
@@ -2270,7 +2279,7 @@ class WatModuleParser {
     } else {
       this.builder.addTable(tableInternal, refType, initial, max);
     }
-    for (const n of inline.names) this.builder.addExport(n, tableInternal, 'table');
+    for (const n of inline.names) this.builder.addExport(n, tableInternal, ExternalKind.Table);
   }
 
   private collectTag(list: SList): void {
@@ -2297,7 +2306,7 @@ class WatModuleParser {
     } else {
       this.builder.addTag(tagInternal, params);
     }
-    for (const n of inline.names) this.builder.addExport(n, tagInternal, 'tag');
+    for (const n of inline.names) this.builder.addExport(n, tagInternal, ExternalKind.Tag);
   }
 
   // -------------------------------------------------------------------------
@@ -2314,15 +2323,13 @@ class WatModuleParser {
     const internalRef = atomText(desc.children[1]) ??
       this.err('export: expected internal name', list.pos);
     if (!head) this.err('export: missing kind', list.pos);
-    // The WAT descriptor keyword is `func`, but the IR (and binary parser /
-    // encoder) use `function`. The other kinds (`memory` / `global` / `table` /
-    // `tag`) are spelled identically in both. Without this mapping a standalone
-    // `(export "x" (func $f))` produced kind `"func"`, which the encoder's
-    // export-section switch and the inliner's `usedGlobally` check both fail to
-    // match — corrupting the export section on encode and letting Inlining
-    // delete the (apparently unreferenced) exported function. The inline
-    // `(func (export "x") ...)` form was unaffected (it hard-codes "function").
-    const kind = (head === 'func' ? 'function' : head) as WasmExport['kind'];
+    // The IR's kind is the binary's kind byte (M2e). An unmapped keyword once
+    // produced kind `"func"`, which the encoder's export-section switch and the
+    // inliner's `usedGlobally` check both failed to match — corrupting the
+    // export section on encode and letting Inlining delete the exported
+    // function; an unknown keyword is therefore an error, never a cast.
+    const kind = EXPORT_KIND_BY_KEYWORD.get(head) ??
+      this.err(`export: unknown kind "${head}"`, list.pos);
     this.builder.addExport(exportName, internalRef, kind);
   }
 

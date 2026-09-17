@@ -18,6 +18,8 @@ import {
   makeNop,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // register built-in passes
 
 Deno.test('toWat: unsupported expression kind throws instead of a silent (;; TODO ;) placeholder', () => {
@@ -54,6 +56,31 @@ Deno.test('Module.optimize honors the -O level (was hardcoded to 2)', async () =
   const o0 = await build().optimize('-O0');
   const oz = await build().optimize('-Oz');
   assert(o0.length > oz.length, `expected -O0 (${o0.length}) > -Oz (${oz.length})`);
+});
+
+Deno.test('toWat: an export prints its kind KEYWORD, not the byte that represents it', () => {
+  // S6 step 5 item 6 (M2e): `WasmExport.kind` is the binary's kind byte now. The
+  // serializer interpolated it -- `(${exp.kind} ...)` -- which compiles either
+  // way and would print `(0 $f)`. Before M2e it printed `(function $f)`, which
+  // is not WAT either: the keyword is `func`.
+  const mod = createModule(() => {});
+  const kinds: [ExternalKind, string][] = [
+    [ExternalKind.Func, 'func'],
+    [ExternalKind.Table, 'table'],
+    [ExternalKind.Memory, 'memory'],
+    [ExternalKind.Global, 'global'],
+    [ExternalKind.Tag, 'tag'],
+  ];
+  for (const [kind, kw] of kinds) mod.ir.exports.push({ name: kw, var: varName(`$${kw}`), kind });
+  const wat = mod.toWat();
+  for (const [, kw] of kinds) {
+    const want = `(export "${kw}" (${kw} $${kw}))`;
+    assert(
+      wat.includes(want),
+      `expected ${want} in:
+${wat}`,
+    );
+  }
 });
 
 Deno.test('toWat: value types print as their NAMES, not as the bytes that represent them', () => {

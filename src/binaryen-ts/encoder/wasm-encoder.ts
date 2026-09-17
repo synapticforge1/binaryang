@@ -120,6 +120,7 @@ import {
   type Var,
   varFromToken,
 } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -1346,27 +1347,27 @@ class WasmEncoder {
     for (const exp of this.mod.exports) {
       w.writeUTF8(exp.name);
       switch (exp.kind) {
-        case 'function': {
+        case ExternalKind.Func: {
           w.writeU8(0x00);
           w.writeU32(this.resolveRef(this.funcIndex, exp.var, 'exported function'));
           break;
         }
-        case 'table': {
+        case ExternalKind.Table: {
           w.writeU8(0x01);
           w.writeU32(this.resolveRef(this.tableIndex, exp.var, 'exported table'));
           break;
         }
-        case 'memory': {
+        case ExternalKind.Memory: {
           w.writeU8(0x02);
           w.writeU32(this.resolveRef(this.memoryIndex, exp.var, 'exported memory'));
           break;
         }
-        case 'global': {
+        case ExternalKind.Global: {
           w.writeU8(0x03);
           w.writeU32(this.resolveRef(this.globalIndex, exp.var, 'exported global'));
           break;
         }
-        case 'tag': {
+        case ExternalKind.Tag: {
           // EH proposal: export kind 0x04 = tag, payload is tag index.
           // Without this case the switch fell through, writing the export
           // name then NO kind/index bytes — corrupting every subsequent

@@ -49,6 +49,7 @@ import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
@@ -555,7 +556,7 @@ Deno.test('type collection reaches a call_indirect carried as a multi-value bran
   ]);
 
   b.addFunction('$f', [], [ValType.I32, ValType.I32], blk, []);
-  b.addExport('f', '$f', 'function');
+  b.addExport('f', '$f', ExternalKind.Func);
 
   // Threw `unresolved function type: () -> (i32)` before the fix.
   const out = encodeWasm(b.build());

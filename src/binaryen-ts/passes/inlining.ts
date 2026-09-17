@@ -67,6 +67,7 @@ import { vacuumNode } from './vacuum.ts';
 import { blockResult, requireIndex, varIndex } from '../../wabt-ts/ir/ir.ts';
 import { varName } from '../../wabt-ts/ir/ir.ts';
 import { requireName } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Size thresholds (matching upstream defaults in pass.h)
@@ -127,7 +128,7 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
 
   // Exports make a function globally used.
   for (const ex of module.exports) {
-    if (ex.kind === 'function') {
+    if (ex.kind === ExternalKind.Func) {
       const entry = info.get(requireName(ex.var, 'export'));
       if (entry) entry.usedGlobally = true;
     }

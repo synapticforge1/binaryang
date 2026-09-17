@@ -25,6 +25,7 @@ import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: registers the pass registry
 
 /**
@@ -114,14 +115,14 @@ Deno.test('tag import: a throw of a DEFINED tag still resolves past the import',
 Deno.test('tag import: an imported tag can be re-exported', () => {
   const mod = new ModuleBuilder()
     .addTagImport('$tag0', 'env', 'imported', [ValType.I32])
-    .addExport('reexported', '$tag0', 'tag')
+    .addExport('reexported', '$tag0', ExternalKind.Tag)
     .build();
 
   const out = encodeWasm(mod);
   const parsed = parseWasm(out);
   const exp = parsed.exports.find((e) => e.name === 'reexported');
   assert(exp !== undefined, 'tag export was dropped');
-  assertEquals(exp.kind, 'tag');
+  assertEquals(exp.kind, ExternalKind.Tag);
   assertEquals(exp.var, varName('$tag0'));
 });
 

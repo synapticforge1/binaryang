@@ -28,6 +28,7 @@ import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
 import { type FuncSignature, type Var, varFromToken } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 export type { TypeDef } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -115,8 +116,12 @@ export interface WasmExport {
    * `value: string`.
    */
   var: Var;
-  /** Which kind of entity is being exported. */
-  kind: 'function' | 'global' | 'table' | 'memory' | 'tag';
+  /**
+   * Which kind of entity is exported — wabt-ts's `ExternalKind`, whose value IS
+   * the binary's kind byte (S6 step 5 item 6 (M2e); the V1 precedent). It was a
+   * string (`'function'`, …) spelling the same five facts a second way.
+   */
+  kind: ExternalKind;
 }
 
 /**
@@ -689,7 +694,7 @@ export class ModuleBuilder {
   addExport(
     externalName: string,
     internalName: string,
-    kind: WasmExport['kind'] = 'function',
+    kind: WasmExport['kind'] = ExternalKind.Func,
   ): this {
     this._exports.push({ name: externalName, var: varFromToken(internalName), kind });
     return this;

@@ -193,3 +193,21 @@ export enum ExternalKind {
   Global = 3,
   Tag = 4,
 }
+
+/** The text format's keyword for an external kind: `func`, `table`, `memory`, `global`, `tag`. */
+export function externalKindKeyword(
+  kind: ExternalKind,
+): 'func' | 'table' | 'memory' | 'global' | 'tag' {
+  switch (kind) {
+    case ExternalKind.Func:
+      return 'func';
+    case ExternalKind.Table:
+      return 'table';
+    case ExternalKind.Memory:
+      return 'memory';
+    case ExternalKind.Global:
+      return 'global';
+    case ExternalKind.Tag:
+      return 'tag';
+  }
+}

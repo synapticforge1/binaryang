@@ -24,6 +24,11 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — binaryen-ts IR (`./ir/binaryen-ts`) and its factories
 
+- ⚠️ **BREAKING: `WasmExport.kind` is wabt-ts's `ExternalKind`** (`Func = 0` … `Tag = 4`, the binary's
+  kind byte; S6 step 5 item 6 (M2e)), was `'function' | 'table' | 'memory' | 'global' | 'tag'`.
+  `ModuleBuilder.addExport`'s kind argument likewise. Fixed on the way: `Module.toWat()` wrote an export
+  as `(function $f)` — not WAT — and now writes `(func $f)`; the text parser refuses an unknown export
+  keyword instead of storing it.
 - ⚠️ **BREAKING: `WasmExport.value` is `WasmExport.var`**, a `Var` (S6 step 5 item 6 (M2d)). A name is
   `varName('$f')`, an index `varIndex(0)`. `ModuleBuilder.addExport` still takes a token (`"$f"` / `"0"`);
   the compat API's `getExportInfo().value` is still the name.

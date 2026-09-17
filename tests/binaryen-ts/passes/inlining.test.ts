@@ -37,6 +37,7 @@ import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { nameOf } from '../../../src/wabt-ts/ir/ir.ts';
 import { region, soleOf } from '../region_helpers.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -144,7 +145,7 @@ Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -184,7 +185,7 @@ Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -221,7 +222,7 @@ Deno.test('Inlining: call operands become local.set in the inlined block', () =>
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -255,7 +256,7 @@ Deno.test('Inlining: return in callee body becomes break to wrapper block', () =
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -288,7 +289,7 @@ Deno.test('Inlining: recursive call is not inlined', () => {
 
   const mod = emptyModule();
   mod.functions.push(factorial);
-  mod.exports.push({ name: 'factorial', var: varName('factorial'), kind: 'function' });
+  mod.exports.push({ name: 'factorial', var: varName('factorial'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -331,7 +332,7 @@ Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (reg
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('$main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('$main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -362,8 +363,8 @@ Deno.test('Inlining: exported callee stays in module even after inlining', () =>
   mod.functions.push(caller, callee);
   // Both exported.
   mod.exports.push(
-    { name: 'main', var: varName('main'), kind: 'function' },
-    { name: 'helper', var: varName('helper'), kind: 'function' },
+    { name: 'main', var: varName('main'), kind: ExternalKind.Func },
+    { name: 'helper', var: varName('helper'), kind: ExternalKind.Func },
   );
 
   new PassRunner(mod).add('Inlining').run();
@@ -404,7 +405,7 @@ Deno.test('Inlining: large function is not inlined at optimizeLevel 2', () => {
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   // optimizeLevel 2 — FLEXIBLE threshold not active, only ALWAYS and ONE_CALLER
   new PassRunner(mod, { optimizeLevel: 2 }).add('Inlining').run();
@@ -440,7 +441,7 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -495,8 +496,8 @@ Deno.test('Inlining: multi-caller callee kept when inlined at multiple sites', (
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
   mod.exports.push(
-    { name: 'f1', var: varName('f1'), kind: 'function' },
-    { name: 'f2', var: varName('f2'), kind: 'function' },
+    { name: 'f1', var: varName('f1'), kind: ExternalKind.Func },
+    { name: 'f2', var: varName('f2'), kind: ExternalKind.Func },
   );
 
   new PassRunner(mod).add('Inlining').run();
@@ -532,7 +533,7 @@ Deno.test('Inlining: void callee inlined correctly', () => {
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -565,7 +566,7 @@ Deno.test('Inlining: unreachable before call keeps body unreachable', () => {
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   // Run DCE first to remove dead call, then Inlining (DCE should remove it).
   new PassRunner(mod).add('DCE').add('Inlining').run();
@@ -596,7 +597,7 @@ Deno.test('InliningOptimizing: runs without error on simple module', () => {
 
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('InliningOptimizing').run();
 
@@ -635,7 +636,7 @@ Deno.test('InliningOptimizing: cleans up inlined body — Binary fold', () => {
     const [callee, caller] = makeCalleeAndCaller();
     const mod = emptyModule();
     mod.functions.push(caller, callee);
-    mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+    mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
     new PassRunner(mod).add('Inlining').run();
     assertEquals(hasCall(caller.body, 'two_plus_three'), false);
     assertEquals(countKind(caller.body, ExpressionKind.Binary), 1);
@@ -646,7 +647,7 @@ Deno.test('InliningOptimizing: cleans up inlined body — Binary fold', () => {
     const [callee, caller] = makeCalleeAndCaller();
     const mod = emptyModule();
     mod.functions.push(caller, callee);
-    mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+    mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
     new PassRunner(mod).add('InliningOptimizing').run();
     assertEquals(hasCall(caller.body, 'two_plus_three'), false);
     assertEquals(countKind(caller.body, ExpressionKind.Binary), 0);
@@ -674,7 +675,7 @@ Deno.test('InliningOptimizing: cleans up inlined body — Vacuum drops nop', () 
     };
     const mod = emptyModule();
     mod.functions.push(caller, callee);
-    mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+    mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
     return { mod, caller };
   }
 
@@ -739,8 +740,8 @@ Deno.test('split-inlining: disabled by default — Pattern A function is untouch
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
-  mod.exports.push({ name: 'c1', var: varName('c1'), kind: 'function' });
-  mod.exports.push({ name: 'c2', var: varName('c2'), kind: 'function' });
+  mod.exports.push({ name: 'c1', var: varName('c1'), kind: ExternalKind.Func });
+  mod.exports.push({ name: 'c2', var: varName('c2'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -778,8 +779,8 @@ Deno.test('split-inlining: Pattern A — caller gets shell, outlined function ad
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
-  mod.exports.push({ name: 'c1', var: varName('c1'), kind: 'function' });
-  mod.exports.push({ name: 'c2', var: varName('c2'), kind: 'function' });
+  mod.exports.push({ name: 'c1', var: varName('c1'), kind: ExternalKind.Func });
+  mod.exports.push({ name: 'c2', var: varName('c2'), kind: ExternalKind.Func });
 
   new PassRunner(mod, { partialInliningIfs: 4 }).add('Inlining').run();
 
@@ -824,8 +825,8 @@ Deno.test('split-inlining: Pattern A with simple outlined chunk collapses to Ful
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
-  mod.exports.push({ name: 'c1', var: varName('c1'), kind: 'function' });
-  mod.exports.push({ name: 'c2', var: varName('c2'), kind: 'function' });
+  mod.exports.push({ name: 'c1', var: varName('c1'), kind: ExternalKind.Func });
+  mod.exports.push({ name: 'c2', var: varName('c2'), kind: ExternalKind.Func });
 
   new PassRunner(mod, { partialInliningIfs: 4 }).add('Inlining').run();
 
@@ -877,8 +878,8 @@ Deno.test('split-inlining: non-simple condition rejects Pattern A', () => {
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
-  mod.exports.push({ name: 'c1', var: varName('c1'), kind: 'function' });
-  mod.exports.push({ name: 'c2', var: varName('c2'), kind: 'function' });
+  mod.exports.push({ name: 'c1', var: varName('c1'), kind: ExternalKind.Func });
+  mod.exports.push({ name: 'c2', var: varName('c2'), kind: ExternalKind.Func });
 
   new PassRunner(mod, { partialInliningIfs: 4 }).add('Inlining').run();
 
@@ -912,7 +913,7 @@ Deno.test('return-call inlining: callee return propagates as caller return (valu
   };
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -944,7 +945,7 @@ Deno.test('return-call inlining: void callee — body executes then return', () 
   };
   const mod = emptyModule();
   mod.functions.push(caller, callee);
-  mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
 
   new PassRunner(mod).add('Inlining').run();
 
@@ -978,7 +979,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
     };
     const mod = emptyModule();
     mod.functions.push(caller, callee);
-    mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+    mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
     new PassRunner(mod).add('Inlining').run();
     assert(
       countKind(caller.body, ExpressionKind.Break) >= 1,
@@ -999,7 +1000,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
     };
     const mod = emptyModule();
     mod.functions.push(caller, callee);
-    mod.exports.push({ name: 'main', var: varName('main'), kind: 'function' });
+    mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
     new PassRunner(mod).add('Inlining').run();
     // The substituted body still contains the callee's explicit Return.
     assert(
@@ -1059,8 +1060,8 @@ Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', 
   };
   const mod = emptyModule();
   mod.functions.push(caller1, caller2, callee);
-  mod.exports.push({ name: 'c1', var: varName('c1'), kind: 'function' });
-  mod.exports.push({ name: 'c2', var: varName('c2'), kind: 'function' });
+  mod.exports.push({ name: 'c1', var: varName('c1'), kind: ExternalKind.Func });
+  mod.exports.push({ name: 'c2', var: varName('c2'), kind: ExternalKind.Func });
 
   new PassRunner(mod, { partialInliningIfs: 4 }).add('Inlining').run();
 
@@ -1123,7 +1124,7 @@ Deno.test('Inlining: callee that returns via a block-wrapped `return` yields a v
     ),
     [],
   );
-  b.addExport('caller', '$caller', 'function');
+  b.addExport('caller', '$caller', ExternalKind.Func);
   const mod = b.build();
 
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('Inlining').run();

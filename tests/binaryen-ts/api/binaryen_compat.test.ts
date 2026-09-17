@@ -145,6 +145,17 @@ Deno.test('getNumExports + getExportByIndex + getExportInfo', () => {
   );
 });
 
+Deno.test('getExportInfo: each export kind reports its upstream External* id', () => {
+  // S6 step 5 item 6 (M2e): the IR's kind IS the id now, so the facade passes it
+  // through; a function export alone could not tell a pass-through from a constant.
+  const mod = new binaryen.Module();
+  mod.addMemoryExport('m', 'm');
+  mod.addGlobalExport('g', 'g');
+  mod.addTableExport('t', 't');
+  const kinds = [0, 1, 2].map((i) => binaryen.getExportInfo(mod.getExportByIndex(i)).kind);
+  assertEquals(kinds, [binaryen.ExternalMemory, binaryen.ExternalGlobal, binaryen.ExternalTable]);
+});
+
 // ---------------------------------------------------------------------------
 // Inspection: getFunction / getFunctionInfo / expandType
 // ---------------------------------------------------------------------------

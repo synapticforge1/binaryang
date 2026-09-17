@@ -26,6 +26,7 @@ import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
 import { type ConstExpr, literalFloat } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 Deno.test('parseWat — empty module', () => {
   const mod = parseWat('(module)');
@@ -151,10 +152,29 @@ Deno.test('parseWat — export', () => {
   assertEquals(mod.exports.length, 1);
   assertEquals(mod.exports[0].name, 'add');
   assertEquals(mod.exports[0].var, varName('$add'));
-  // The standalone export descriptor keyword is `func`, but the IR kind must be
-  // the canonical `function` (matching the binary parser / encoder / passes).
-  // Regression: it used to pass `"func"` straight through.
-  assertEquals(mod.exports[0].kind, 'function');
+  // The standalone export descriptor keyword is `func`; the IR kind is the
+  // binary's (M2e). Regression: it used to pass `"func"` straight through.
+  assertEquals(mod.exports[0].kind, ExternalKind.Func);
+});
+
+Deno.test('parseWat — each export keyword maps to its binary kind; an unknown one is an error', () => {
+  const mod = parseWat(`(module
+    (export "t" (table $t)) (export "m" (memory $m)) (export "g" (global $g)) (export "e" (tag $e)))`);
+  assertEquals(mod.exports.map((e) => e.kind), [
+    ExternalKind.Table,
+    ExternalKind.Memory,
+    ExternalKind.Global,
+    ExternalKind.Tag,
+  ]);
+  // An unmapped keyword was once cast straight into the IR (M2e: never a cast).
+  // `toString` is inherited by every object: the lookup must not find it.
+  for (const kw of ['function', 'elem', 'toString']) {
+    assertThrows(
+      () => parseWat(`(module (export "x" (${kw} $f)))`),
+      WatParseError,
+      `unknown kind "${kw}"`,
+    );
+  }
 });
 
 Deno.test('parseWat — standalone (export ... (func)) encodes + survives Inlining', async () => {

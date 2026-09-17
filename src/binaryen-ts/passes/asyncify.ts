@@ -84,6 +84,7 @@ import { buildCallResultTypes, flattenFunction } from './flatten.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { requireIndex, requireName, varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import { Opcode } from '../../wabt-ts/core/opcode.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // ABI constants (mirror Asyncify.cpp lines 366-386)
@@ -328,9 +329,13 @@ export function synthesizeRuntimeSupport(
       module.exports.push({
         name: '__asyncify_state',
         var: varName(ASYNCIFY_STATE),
-        kind: 'global',
+        kind: ExternalKind.Global,
       });
-      module.exports.push({ name: '__asyncify_data', var: varName(ASYNCIFY_DATA), kind: 'global' });
+      module.exports.push({
+        name: '__asyncify_data',
+        var: varName(ASYNCIFY_DATA),
+        kind: ExternalKind.Global,
+      });
     }
   }
 
@@ -390,7 +395,7 @@ function addControlFunction(
     body: asRegion(body),
   });
   if (exported) {
-    module.exports.push({ name: hostName, var: varName(internalName), kind: 'function' });
+    module.exports.push({ name: hostName, var: varName(internalName), kind: ExternalKind.Func });
   }
 }
 
