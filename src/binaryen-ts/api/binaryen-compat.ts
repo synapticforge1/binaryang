@@ -119,6 +119,7 @@ import { createPass, listPasses as _listPasses, PassRunner } from '../passes/ind
 import {
   type BlockResult,
   requireName,
+  type Var,
   varFromToken,
   varIndex,
   varName,
@@ -1012,14 +1013,23 @@ export class GlobalOps {
 }
 
 /** `mod.memory.*` namespace — memory query/grow factories. Singleton. */
+/** A memory named by the caller, or memory 0 when none is. */
+function memoryRef(name: string | undefined): Var {
+  return name === undefined ? varIndex(0) : varName(name);
+}
+
 export class MemoryOps {
-  /** `memory.size` — returns the current memory size in pages. */
-  size(): Expression {
-    return makeMemorySize();
+  /**
+   * `memory.size` — the current memory size in pages. Upstream's signature:
+   * `name` picks the memory (default: the first), and `memory64` says it is a
+   * 64-bit memory, whose size is an `i64` (it was always typed `i32`).
+   */
+  size(name?: string, memory64 = false): Expression {
+    return makeMemorySize(memoryRef(name), memory64 ? ValType.I64 : ValType.I32);
   }
-  /** `memory.grow delta` — grows linear memory by `delta` pages. */
-  grow(delta: Expression): Expression {
-    return makeMemoryGrow(delta);
+  /** `memory.grow delta` — grows linear memory by `delta` pages (`name` / `memory64` as for {@link size}). */
+  grow(delta: Expression, name?: string, memory64 = false): Expression {
+    return makeMemoryGrow(delta, memoryRef(name), memory64 ? ValType.I64 : ValType.I32);
   }
 }
 

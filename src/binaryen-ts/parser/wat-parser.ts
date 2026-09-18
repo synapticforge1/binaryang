@@ -197,6 +197,13 @@ const EXPORT_KIND_BY_KEYWORD: ReadonlyMap<string, ExternalKind> = new Map([
 /**
  * Error thrown when the WAT IR parser encounters a structural problem.
  */
+/**
+ * The address type of every memory and table this parser builds: it reads no
+ * `i64` memory or table (memory64 / table64), so `memory.size` / `grow` and
+ * `table.size` / `grow` are `i32` here by construction, not by default.
+ */
+const THIRTY_TWO_BIT = ValType.I32;
+
 export class WatParseError extends Error {
   constructor(
     message: string,
@@ -917,7 +924,7 @@ class WatModuleParser {
         // factory was fixed for.
         return makeReturn();
       case 'memory.size':
-        return makeMemorySize();
+        return makeMemorySize(varIndex(0), THIRTY_TWO_BIT);
     }
     // Number literal?
     if (atom.token.kind === 'integer') {
@@ -1112,11 +1119,11 @@ class WatModuleParser {
       if (args.length > 0) {
         this.err('memory.size: an explicit memory index is not supported by this parser', list.pos);
       }
-      return makeMemorySize();
+      return makeMemorySize(varIndex(0), THIRTY_TWO_BIT);
     }
     if (head === 'memory.grow') {
       const delta = this.parseExpr(args[0], ctx);
-      return makeMemoryGrow(delta);
+      return makeMemoryGrow(delta, varIndex(0), THIRTY_TWO_BIT);
     }
     // Bulk memory and table operations.
     //
@@ -1157,7 +1164,7 @@ class WatModuleParser {
       return makeDataDrop(varName(this.dataRefName(atomText(args[0]) ?? '0')));
     }
     if (head === 'table.size') {
-      return makeTableSize(varName(this.tableRefName(atomText(args[0]))));
+      return makeTableSize(varName(this.tableRefName(atomText(args[0]))), THIRTY_TWO_BIT);
     }
     if (head === 'table.grow') {
       // An optional leading table reference, then value and delta.
@@ -1167,6 +1174,7 @@ class WatModuleParser {
         varName(this.tableRefName(named ? atomText(args[0]) : null)),
         this.parseExpr(args[i], ctx),
         this.parseExpr(args[i + 1], ctx),
+        THIRTY_TWO_BIT,
       );
     }
     if (head === 'table.fill') {

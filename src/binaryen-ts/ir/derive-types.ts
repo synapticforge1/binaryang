@@ -36,6 +36,7 @@ import type * as W from '../../wabt-ts/ir/ir.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 import { anyOpcodeName } from '../../wabt-ts/core/opcode.ts';
 import {
+  addressTypeOf,
   type Expression,
   ExpressionKind,
   makeAtomicCmpxchg,
@@ -46,9 +47,13 @@ import {
   makeCallIndirect,
   makeExternConvert,
   makeLoad,
+  makeMemoryGrow,
+  makeMemorySize,
   makeSelect,
   makeSIMDExtract,
   makeSIMDLoadStoreLane,
+  makeTableGrow,
+  makeTableSize,
   makeUnary,
   refNullType,
   typeOf,
@@ -394,10 +399,14 @@ class Deriver {
       case ExpressionKind.SIMDShuffle:
       case ExpressionKind.SIMDTernary:
         return ValType.V128;
-      // The factories' rule: `i32` whatever the memory's index type.
       case ExpressionKind.MemorySize:
+        return typeOf(
+          makeMemorySize(e.memidx, addressTypeOf(this.m.memories.get(e.memidx).limits)),
+        );
       case ExpressionKind.MemoryGrow:
-        return ValType.I32;
+        return typeOf(
+          makeMemoryGrow(e.delta, e.memidx, addressTypeOf(this.m.memories.get(e.memidx).limits)),
+        );
       case ExpressionKind.AtomicLoad:
         return typeOf(makeAtomicLoad(e.opcode, e.offset, e.align, e.address));
       case ExpressionKind.AtomicRMW:
@@ -423,8 +432,16 @@ class Deriver {
       case ExpressionKind.TableGet:
         return this.m.tables.get(e.table).elemType;
       case ExpressionKind.TableSize:
+        return typeOf(makeTableSize(e.table, addressTypeOf(this.m.tables.get(e.table).limits)));
       case ExpressionKind.TableGrow:
-        return ValType.I32;
+        return typeOf(
+          makeTableGrow(
+            e.table,
+            e.value,
+            e.delta,
+            addressTypeOf(this.m.tables.get(e.table).limits),
+          ),
+        );
 
       case ExpressionKind.RefNull:
         return refNullType(e.refType);
@@ -507,7 +524,8 @@ function carrierParams(e: Expression): { types: readonly ValueType[] } | undefin
 class Module {
   readonly funcs: Space<{ name: string; sig: W.FuncSignature }>;
   readonly globals: Space<{ name: string; type: ValueType }>;
-  readonly tables: Space<{ name: string; elemType: ValueType }>;
+  readonly tables: Space<{ name: string; elemType: ValueType; limits: W.Limits }>;
+  readonly memories: Space<{ name: string; limits: W.Limits }>;
   readonly tags: Space<{ name: string; sig: W.FuncSignature }>;
   readonly types: Space<W.TypeEntry>;
   private readonly typeNames: readonly string[];
@@ -536,6 +554,13 @@ class Module {
       ),
       ...m.tables,
     ], 'table');
+    this.memories = new Space([
+      ...imported(
+        ExternalKind.Memory,
+        (i) => (i as Extract<W.Import, { kind: ExternalKind.Memory }>).memory,
+      ),
+      ...m.memories,
+    ], 'memory');
     this.tags = new Space([
       ...imported(
         ExternalKind.Tag,
