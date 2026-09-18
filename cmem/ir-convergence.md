@@ -3648,6 +3648,21 @@ and upstream binaryen both hold bytes, so the direction is not a judgement call:
 converts. (Bytes' own limit: a binary's exponent past 1023 is `2 ** e` = `Infinity`; T13.26 already
 made the wabt-ts reader use `2 **`. Measure it in the stage, not here.)
 
+**✅ M8a1 — `align` is BYTES in binaryen-ts too (2026-09-18, `47d69438f` + `bae82ae75`).** The
+decoder gives `2 ** exponent` and refuses an exponent past 8, as upstream binaryen does; the encoder
+writes log2 and refuses a non-power-of-two or anything past 256 (an exponent of 64+ would also have
+hit the memory-index flag, bit 6); Asyncify's `STACK_ALIGN_LOG2 = 2` is `STACK_ALIGN = 4`; the WAT
+parser's `alignExponent` returns bytes (`alignOf`); the bridge's conversion is gone. 🔧 **The compat
+API was broken by it**: binaryen.js's `load(offset, align, ptr)` takes BYTES and was passed straight
+into the exponent field — `i32.load(0, 4, ptr)` came out 16-aligned and V8 refused the module
+(probed on `main`). ⚠️ **Three tests meant exponent 2 and kept PASSING meaning 2 bytes** — valid,
+silently different; set to 4. And **Asyncify's constant survived its mutant** (2 bytes is legal);
+pinned. Against `main`: decode → encode 0 of 1,023, optimizer + `wat2wasm` 0 of 2,526, the bridge's
+`align` difference 52,293 → 0; spec: 6 of 5,924 binaryen-ts decodes go byte-identical → refused
+(`align.108`–`114`, exponents 31–256, all V8-rejected). 🛑 **Found measuring it**: `binary.43` / `.44`
+exhaust memory in binaryen-ts's decoder (2^32 declared locals, materialized) — M6c's defect in the
+OTHER decoder, on `main`; fixed next, on its own.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
