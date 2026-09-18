@@ -1445,6 +1445,34 @@ export class WastParser {
           : this.funcParamCountsByName.get(v.name);
         return count ?? -1;
       }
+      case TokenType.CallIndirect:
+      case TokenType.ReturnCallIndirect: {
+        // T10.5's fix for `call`, which these two never got (found by M8d,
+        // 2026-09-18): their arity is the SIGNATURE's param count plus the
+        // callee, and draining instead handed the call a value that belonged
+        // to a later instruction — a `br_if`'s carried value, in the corpus.
+        // Peek the immediates: the table, then a `(type …)` and / or an inline
+        // signature, which wins when present (as the bridge read it).
+        const savedPos = this.pos;
+        const savedErrors = this.errors.length;
+        this.parseVarOpt(varIndex(0));
+        const typeVar = this.parseTypeUseOpt();
+        const { sig } = this.parseFuncSignature();
+        this.pos = savedPos;
+        this.errors.length = savedErrors;
+        if (sig.params.length > 0 || sig.results.length > 0 || typeVar === null) {
+          return sig.params.length + 1;
+        }
+        const params = this.declaredParamCount(typeVar);
+        return params === undefined ? -1 : params + 1;
+      }
+      case TokenType.CallRef:
+      case TokenType.ReturnCallRef: {
+        // The same for `call_ref $t`: the type's params, plus the callee.
+        const v = this.peekVar();
+        const params = v === null ? undefined : this.declaredParamCount(v);
+        return params === undefined ? -1 : params + 1;
+      }
       case TokenType.ArrayNewFixed: {
         // `array.new_fixed $T N elem1 … elemN` carries its arity as the
         // second immediate, so no module context is needed. Draining instead
@@ -1462,6 +1490,18 @@ export class WastParser {
       default:
         return -1;
     }
+  }
+
+  /**
+   * How many params the declared function type `v` takes, or `undefined`
+   * when the module is not yet known or `v` names no function type — the
+   * caller then keeps the draining behaviour.
+   */
+  private declaredParamCount(v: Var): number | undefined {
+    const types = this.currentModule?.types;
+    if (types === undefined) return undefined;
+    const entry = v.kind === 'index' ? types[v.value] : types.find((t) => t.name === v.name);
+    return entry?.kind === 'func' ? entry.sig.params.length : undefined;
   }
 
   parseVarOpt(defaultVar: Var): Var {
