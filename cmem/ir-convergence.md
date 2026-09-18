@@ -3549,6 +3549,10 @@ a name always plus a record of which are real (binaryen-ts; then wabt-ts's reade
 fault N1 removed from `wasm2wat`). It decides M8's shape and meets the N1 owner decisions, so it is
 asked, not chosen.
 
+**🗓️ OWNER CALL, 2026-09-18: "We want the binaryen-ts naming practice."** Every nameable entity has a
+name; `explicitNames` records which are real; only real names are written. Recorded as decision 4 in
+[names.md](names.md).
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was

@@ -225,3 +225,15 @@ entity and branch REFERENCES by index (`call 0`, `br_if 1 (;@1;)`) where upstrea
    use it as a key; that case is not a fidelity target.
 3. **The size is accepted** for fidelity's sake: "when we send it through the optimization it just
    goes away" — optimized output follows `debugInfo`, default off. No opt-out beyond `wasm-strip`.
+
+## ✅ Owner decision (2026-09-18) — the one module names every entity
+
+4. **binaryen-ts's naming practice** (S6 step 5 item 6, M7c3): in the one module every entity a
+   reference can name carries a name — the name section's where it gave one, a made-up one
+   (`$func3`, disambiguated `.N`) where it did not — and a record (`explicitNames`) says which names
+   are REAL. Only real names are ever written: to a name section, and to text. Asked with the
+   alternative (wabt-ts's `name: ''`, names assigned on entry to a pass run) in
+   [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half", the M7c3 record. ⚠️ The
+   consequence for wabt-ts: its reader makes names up, so every writer that asked `name !== ''`
+   must ask the record instead — the fault N1 removed from `wasm2wat` (`generateNames` printing
+   invented names) must not come back through that door.
