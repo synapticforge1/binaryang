@@ -233,11 +233,6 @@ Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
   assertEquals(rt.nullable, false);
 });
 
-Deno.test('GC parser: hasGC flag is set for GC modules', () => {
-  const mod = parseWasm(STRUCT_MODULE);
-  assertEquals(mod.hasGC, true);
-});
-
 // ---------------------------------------------------------------------------
 // Tests — binary encoder round-trip
 // ---------------------------------------------------------------------------

@@ -55,11 +55,7 @@ function emptyModule(): WasmModule {
     imports: [],
     exports: [],
     start: null,
-    hasExceptionHandling: false,
-    hasMemory64: false,
-    hasMultiMemory: false,
     types: [],
-    hasGC: false,
     hasDataCountSection: false,
   };
 }

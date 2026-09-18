@@ -101,7 +101,6 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
       sig: sigG,
       locals: [],
       body: region([{ kind: 'local.get', var: varIndex(0), loc: LOC }], LOC),
-      tailcall: false,
     });
     m.tables.push({
       name: 't',
@@ -126,7 +125,6 @@ describe('Phase 7 Tier B: calls, select, memory ops', () => {
           loc: LOC,
         },
       ], LOC),
-      tailcall: false,
     });
     m.exports.push({ name: 'f', kind: ExternalKind.Func, var: varIndex(1) });
 

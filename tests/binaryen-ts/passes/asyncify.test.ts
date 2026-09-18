@@ -80,11 +80,7 @@ function moduleWithImport(): WasmModule {
     }],
     exports: [{ name: 'foo', var: varName('$foo'), kind: ExternalKind.Func }],
     start: null,
-    hasExceptionHandling: false,
-    hasMemory64: false,
-    hasMultiMemory: false,
     types: [],
-    hasGC: false,
     hasDataCountSection: false,
   };
 }
@@ -295,6 +291,44 @@ Deno.test('Asyncify Stage 1 — rejects multi-memory modules', () => {
     'multi-memory',
   );
 });
+
+// The memory64 refusal reads the memories themselves (M7c): there is no flag
+// beside them to set, or to leave stale. A defined 64-bit memory and an
+// IMPORTED one are both refused — each is the module's only memory.
+for (
+  const [label, make] of [
+    ['a defined 64-bit memory', (m: WasmModule) => {
+      m.memories = [{ name: '$mem', limits: limitsOf(1, null, { is64: true }) }];
+    }],
+    ['an imported 64-bit memory', (m: WasmModule) => {
+      m.memories = [];
+      m.imports.push({
+        kind: ExternalKind.Memory,
+        module: 'env',
+        field: 'mem',
+        memory: { name: '$mem', limits: limitsOf(1, null, { is64: true }) },
+      });
+    }],
+  ] as const
+) {
+  Deno.test(`Asyncify Stage 1 — rejects ${label}`, () => {
+    const m = moduleWithImport();
+    make(m);
+    assertThrows(
+      () =>
+        new AsyncifyPass().run(m, {
+          optimizeLevel: 2,
+          shrinkLevel: 0,
+          debugInfo: false,
+          closedWorld: false,
+          passArgs: {},
+          partialInliningIfs: 0,
+        }),
+      Error,
+      'memory64',
+    );
+  });
+}
 
 Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data set, gt_u check)', () => {
   const m = moduleWithImport();

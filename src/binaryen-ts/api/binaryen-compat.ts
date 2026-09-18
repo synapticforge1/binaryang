@@ -1284,7 +1284,6 @@ export class Module {
     } else {
       this._inner.memories.push({ name: internalName, limits });
     }
-    if (is64) this._inner.hasMemory64 = true;
     if (exportName !== null) {
       this.addMemoryExport(internalName, exportName);
     }

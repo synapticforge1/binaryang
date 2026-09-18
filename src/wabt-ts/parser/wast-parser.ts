@@ -2520,7 +2520,6 @@ export class WastParser {
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         locals: slotsOf(sig.params, localNames),
         body: region([], loc),
-        tailcall: false,
       };
       imp = { kind: ExternalKind.Func, module: moduleName, field: fieldName, func };
       module.imports.push(imp);
@@ -2642,7 +2641,6 @@ export class WastParser {
         nodeId: this.fid({ ...(typeUse !== null ? { typeUse } : {}), sig }),
         locals: slotsOf(sig.params, localNames),
         body: region([], loc),
-        tailcall: false,
       };
       const imp: Import = {
         kind: ExternalKind.Func,
@@ -2708,7 +2706,6 @@ export class WastParser {
         // Empty until `parsePendingBodies` fills `body.children` in place: a
         // body is parsed once every function's arity is known (M6b).
         body: region([], loc),
-        tailcall: false,
       };
       module.functions.push(func);
       this.pendingBodies.push({ func, scope, pos: bodyPos, endPos: bodyEnd });

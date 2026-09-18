@@ -54,7 +54,6 @@ import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 /** i32 array heap type + a `() -> i32` func type, in that order. */
 function gcBuilder(): { m: ModuleBuilder; arrayType: number } {
   const m = new ModuleBuilder();
-  m.enableGC();
   const arrayType = m.addType({
     name: '',
     kind: 'array',

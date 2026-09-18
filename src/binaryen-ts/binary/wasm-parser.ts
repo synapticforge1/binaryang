@@ -844,7 +844,6 @@ class WasmParser {
     return {
       ...mod,
       types: this.heapTypeDefs,
-      hasGC: this.heapTypeDefs.length > 0,
       // Use the name `readTagSection` assigned, NOT a fresh `$tag${i}`:
       // with imported tags present the defined ones start above zero, and
       // renumbering here would desync every throw / catch / tag export.
@@ -852,7 +851,6 @@ class WasmParser {
         name: t.name,
         sig: { params: t.params, results: t.results },
       })),
-      hasExceptionHandling: this.tagInfos.length > 0 || mod.hasExceptionHandling,
       hasDataCountSection: this.hasDataCountSection,
       ...(this.customSections.length > 0 ? { customSections: this.customSections } : {}),
       // Only when the binary HAD a name section: one without must not gain one.

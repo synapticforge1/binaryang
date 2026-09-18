@@ -61,7 +61,6 @@ function makeFuncBody(body: Expr[], name = ''): Func {
     sig: { params: [Type.I32, Type.I32], results: [Type.I32] },
     locals: [],
     body: region(body, LOC),
-    tailcall: false,
   };
 }
 
@@ -180,7 +179,6 @@ describe('makeModule', () => {
     assertEquals(m.imports.length, 0);
     assertEquals(m.exports.length, 0);
     assertEquals(countImports(m, ExternalKind.Func), 0);
-    assertEquals(m.featuresUsed.simd, false);
     assertEquals(m.start, undefined);
   });
 

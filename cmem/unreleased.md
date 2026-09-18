@@ -192,6 +192,12 @@ their own bump — and nothing breaks by their standing still.
   runs it.
 - **Wide arithmetic** in binaryen-ts: `i64.add128` / `sub128` (a new `Quaternary` node) and
   `i64.mul_wide_s` / `_u` (two new `BinaryOp` members).
+- ⚠️ **BREAKING: `WasmModule.hasDataCount?` is `hasDataCountSection: boolean`** (wabt-ts's field;
+  S6 step 5 item 6 (M7c1)) — required, `false` from `ModuleBuilder.build`.
+- ⚠️ **BREAKING: `WasmModule.hasExceptionHandling` / `hasMemory64` / `hasMultiMemory` / `hasGC` are
+  gone, with `ModuleBuilder.enableExceptionHandling()` / `enableGC()`** (S6 step 5 item 6 (M7c2)).
+  Each restated the module's own content (tags, memories, types); read that instead. `hasGC` had
+  drifted to meaning "has a type section" since M5b; `hasMultiMemory` was never set.
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
   names and re-encodes them; `ModuleBuilder.addFunction` takes optional `paramNames`.
 - **`WasmModule.customSections`**: every custom section is kept, each with the known section it
@@ -203,6 +209,8 @@ their own bump — and nothing breaks by their standing still.
   (binaryen-ts's names; S6 step 5 item 6 (M7a)) — they were `funcs` / `elemSegments` / `customs`.
 - ⚠️ **BREAKING: `Module.numFuncImports` and its four siblings are gone** (S6 step 5 item 6 (M7b)).
   Use the new `countImports(m, kind)`: the counts are derived from `imports`, not stored beside it.
+- ⚠️ **BREAKING: `Module.featuresUsed` and `Func.tailcall` are gone** (S6 step 5 item 6 (M7c2)).
+  Nothing read them; upstream's only consumer is wasm2c, which is not ported.
 - ⚠️ **BREAKING: `Func.body` is a `RegionExpr`** (S6 step 5 item 6 (M6b); `./ir/wabt-ts`) — read
   `.children` for the instruction list, as every other sequence in the tree is read.
 - ⚠️ **BREAKING: `Func.localDecls` and `Func.localNames` are `Func.locals`** (S6 step 5 item 6 (M6c);

@@ -173,7 +173,6 @@ Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', 
   // reads back as -64 under the signed `s33` decode and resolves to an abstract
   // heap type, silently retargeting the null.
   const m = new ModuleBuilder();
-  m.enableGC();
   let target = -1;
   for (let i = 0; i < 70; i++) {
     const idx = m.addType({
@@ -248,7 +247,6 @@ const SHORTHANDS: [ValType, AbstractHeapType, number][] = [
 /** The global section of a module whose one global is `ref.null` built by `node`. */
 function globalSection(type: ValType, node: Expression): number[] {
   const m = new ModuleBuilder();
-  m.enableGC();
   m.addGlobal('$g', type, true, node);
   return Array.from(section(encodeWasm(m.build()), 6));
 }
