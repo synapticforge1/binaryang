@@ -35,7 +35,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import type { StorageType } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import { Packed, type StorageType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
@@ -111,13 +111,13 @@ const STRUCT_GETS = [0x02, 0x03, 0x04];
 const ARRAY_GETS = [0x0b, 0x0c, 0x0d];
 
 Deno.test('packed struct field: signed=false encodes struct.get_u and zero-extends', async () => {
-  const bytes = structModule('i8', 200, false);
+  const bytes = structModule(Packed.I8, 200, false);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x04);
   assertEquals(await runRead(bytes), 200);
 });
 
 Deno.test('packed struct field: signed=true encodes struct.get_s and sign-extends', async () => {
-  const bytes = structModule('i8', 200, true);
+  const bytes = structModule(Packed.I8, 200, true);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x03);
   assertEquals(await runRead(bytes), -56);
 });
@@ -129,13 +129,13 @@ Deno.test('non-packed struct field encodes the plain struct.get', async () => {
 });
 
 Deno.test('packed array element: signed=false encodes array.get_u and zero-extends', async () => {
-  const bytes = arrayModule('i8', 200, false);
+  const bytes = arrayModule(Packed.I8, 200, false);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0d);
   assertEquals(await runRead(bytes), 200);
 });
 
 Deno.test('packed array element: signed=true encodes array.get_s and sign-extends', async () => {
-  const bytes = arrayModule('i8', 200, true);
+  const bytes = arrayModule(Packed.I8, 200, true);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0c);
   assertEquals(await runRead(bytes), -56);
 });
@@ -149,7 +149,7 @@ Deno.test('non-packed array element encodes the plain array.get', async () => {
 Deno.test('struct.get_u survives a bare parse-encode round-trip', async () => {
   // Build the get_s form, then patch 0x03 -> 0x04 to obtain a VALID module
   // using get_u, which is what an external producer would emit.
-  const input = Uint8Array.from(structModule('i8', 200, true));
+  const input = Uint8Array.from(structModule(Packed.I8, 200, true));
   let patched = false;
   for (let i = 0; i < input.length - 1; i++) {
     if (input[i] === 0xfb && input[i + 1] === 0x03) {
@@ -167,7 +167,7 @@ Deno.test('struct.get_u survives a bare parse-encode round-trip', async () => {
 });
 
 Deno.test('array.get_u survives a bare parse-encode round-trip', async () => {
-  const input = Uint8Array.from(arrayModule('i8', 200, true));
+  const input = Uint8Array.from(arrayModule(Packed.I8, 200, true));
   let patched = false;
   for (let i = 0; i < input.length - 1; i++) {
     if (input[i] === 0xfb && input[i + 1] === 0x0c) {
@@ -189,7 +189,7 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
   const t = m.addType({
     name: '',
     kind: 'struct',
-    fields: [{ name: '', type: 'i8', mutable: true }],
+    fields: [{ name: '', type: Packed.I8, mutable: true }],
   });
   m.addType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   m.addFunction(
@@ -213,7 +213,7 @@ Deno.test('encoder throws on an out-of-range struct.get field index', () => {
   const t = m.addType({
     name: '',
     kind: 'struct',
-    fields: [{ name: '', type: 'i8', mutable: true }],
+    fields: [{ name: '', type: Packed.I8, mutable: true }],
   });
   m.addType({ name: '', kind: 'func', sig: { params: [], results: [ValType.I32] } });
   m.addFunction(

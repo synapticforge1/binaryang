@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M8a closed; M8b next)
+## Start the next session here (handoff, 2026-09-18 — M8b1 + M8b2 merged; M8b3 (`loc`) next)
 
-**Where the work stopped.** `main` is at the merge of M8a3 (code last changed at
-`fd103dda8`, M8a3 with the oracle fix), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `fd103dda8` (as on every stage before it) and every step exited 0: fmt, lint, **1276 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of M8b1 + M8b2 (code last changed at
+`b93735920`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `b93735920` (as on every stage before it) and every step exited 0: fmt, lint, **1278 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -60,7 +60,7 @@ M1–M7 and M8a have landed — **M8b–M8e remain**. Scope and every stage's re
 [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
 **Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
-typed-differently): M1 **46 / 29 / 15** → **18 / 1 / 19** now. The `differ` count ROSE on purpose: a
+typed-differently): M1 **46 / 29 / 15** → **18 / 1 / 15** now. The `differ` count ROSE on purpose: a
 field that converges in NAME but not yet in TYPE moves from a one-sided list into `differ`, and the
 entity collections stay there until the records themselves are one type (M8).
 
@@ -91,6 +91,7 @@ entity collections stay there until the records themselves are one type (M8).
 | M8a2    | `cd4937027` | a call's `isReturn` is `true` or absent — `false` unrepresentable (2026-09-18) |
 | engine oracle | `57b16a115` | the corpus round trip holds a binary V8 cannot judge stably to byte identity (2026-09-18) |
 | M8a3    | (this merge) | a named-type `call_indirect` carries its signature — **M8a closed** (2026-09-18) |
+| M8b1 + M8b2 | (this merge) | `start?: Var` in both; packed field types are the binary's codes in both (2026-09-18) |
 
 ### Next, in order
 

@@ -118,7 +118,7 @@ Deno.test('start section: survives a bare parse→encode round-trip', async () =
 
 Deno.test('start section: parser records the start function under $func naming', () => {
   const mod = parseWasm(START_MODULE);
-  assertEquals(mod.start, '$func0');
+  assertEquals(mod.start, varName('$func0'));
 });
 
 Deno.test('start section: a non-exported start function survives full -Oz', async () => {
@@ -129,7 +129,7 @@ Deno.test('start section: a non-exported start function survives full -Oz', asyn
     .addDefaultOptimizationPasses()
     .run();
 
-  assertEquals(mod.start, '$func0');
+  assertEquals(mod.start, varName('$func0'));
   assert(
     mod.functions.some((f) => f.name === '$func0'),
     '-Oz deleted the start function',
@@ -145,7 +145,7 @@ Deno.test('start section: absent start emits no section 8', () => {
     .addGlobal('$g', ValType.I32, true, makeI32Const(0))
     .addFunction('$f', [], [], makeGlobalSet(varName('$g'), makeI32Const(1)))
     .build();
-  assertEquals(mod.start, null);
+  assertEquals(mod.start, undefined); // absent, not null (M8b1)
   assert(!hasSection(encodeWasm(mod), 8));
 });
 

@@ -117,6 +117,7 @@ import {
   type FieldType,
   type HeapType,
   isRefType,
+  Packed,
   type RefType,
   type StorageType,
   type TypeDef,
@@ -969,11 +970,11 @@ class WasmParser {
     const b = this.r.peekU8();
     if (b === 0x78) {
       this.r.readU8();
-      return 'i8';
+      return Packed.I8;
     }
     if (b === 0x77) {
       this.r.readU8();
-      return 'i16';
+      return Packed.I16;
     }
     return readValueType(this.r);
   }

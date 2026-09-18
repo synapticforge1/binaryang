@@ -24,6 +24,7 @@
 
 import { type ValType, valTypeName } from './types.ts';
 import { heapAbstract, type HeapTypeRef, type Var } from '../../wabt-ts/ir/ir.ts';
+import { Type } from '../../wabt-ts/core/types.ts';
 export { heapAbstract, sameHeap } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -121,8 +122,19 @@ export interface RefType {
 /**
  * Packed integer storage types for struct and array fields.
  * These are not valid value types — they are only valid inside field declarations.
+ *
+ * The binary's type codes, `Type.I8` (0x78) and `Type.I16` (0x77) — wabt-ts's
+ * spelling, by the V1 precedent (the IR holds the binary's value; M8b2). They
+ * were the STRINGS `'i8'` / `'i16'`, the last value-type pair the two IRs
+ * spelled differently.
  */
-export type PackedType = 'i8' | 'i16';
+export type PackedType = typeof Type.I8 | typeof Type.I16;
+
+/**
+ * The two packed codes by name, for modules where `Type` already means
+ * binaryen-ts's expression type.
+ */
+export const Packed = { I8: Type.I8, I16: Type.I16 } as const;
 
 /**
  * The storage type of a struct or array field: a value type, a packed integer,
@@ -315,7 +327,7 @@ export function isAbstractHeapType(
  * Returns `true` if the storage type is a packed integer (`i8` or `i16`).
  */
 export function isPackedType(t: StorageType): t is PackedType {
-  return t === 'i8' || t === 'i16';
+  return t === Type.I8 || t === Type.I16;
 }
 
 // ---------------------------------------------------------------------------
@@ -351,7 +363,9 @@ export function refTypeToString(rt: RefType): string {
  */
 export function storageTypeToString(t: StorageType): string {
   if (isRefType(t)) return refTypeToString(t);
-  if (isPackedType(t)) return t;
+  // Named, never returned: it is a type CODE now, and returning it would print
+  // `120` — the V1 slip this function already had once (below).
+  if (isPackedType(t)) return t === Type.I8 ? 'i8' : 'i16';
   // ⚠️ Was `t as string`, which stage V1 turned into the BYTE (`127`) -- a cast,
   // so V1's sweep of interpolations did not see it; found in V2.
   return valTypeName(t);

@@ -136,8 +136,8 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
 
   // The start function is called by the host at instantiation, so it is
   // globally used even when no call site references it.
-  if (module.start !== null) {
-    const entry = info.get(module.start);
+  if (module.start !== undefined) {
+    const entry = info.get(requireName(module.start, 'start'));
     if (entry) entry.usedGlobally = true;
   }
 

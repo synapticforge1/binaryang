@@ -1158,6 +1158,12 @@ mutant (the test edits survived only because they were outside `src`). Commit th
 branch first, then mutate, and restore ONE file per mutant (`git checkout -- <that file>`) — the
 restore then cannot reach anything but the mutant.
 
+**Target a mutant by CONTENT, not by line number — and print its diff.** M8b2's decoder and encoder
+mutants were `sed '972s/…/'`; an import added earlier in the stage had shifted both lines by one, the
+substitution matched nothing, and the suite "passed" against unmutated code. Only the empty diffstat
+each run prints gave it away. A mutant that changed nothing is not a survivor and not a kill — it is
+no run at all.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

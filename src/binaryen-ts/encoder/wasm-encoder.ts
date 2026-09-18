@@ -112,6 +112,7 @@ import {
   type HeapType,
   isPackedType,
   isRefType,
+  Packed,
   type RefType,
   type StorageType,
   type TypeDef,
@@ -124,7 +125,6 @@ import {
   requireIndex,
   requireName,
   type Var,
-  varFromToken,
 } from '../../wabt-ts/ir/ir.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 
@@ -688,7 +688,7 @@ class WasmEncoder {
     // unambiguously means "no start function" — there is nothing to fail
     // loudly about. A `!== null` check would treat `undefined` as a real
     // name and emit a section referencing a function called "undefined".
-    if (this.mod.start != null) this.writeSection(out, 8, (w) => this.encodeStartSection(w));
+    if (this.mod.start !== undefined) this.writeSection(out, 8, (w) => this.encodeStartSection(w));
     this.writeCustoms(out, 8);
     if (this.mod.elements.length > 0) {
       this.writeSection(out, 9, (w) => this.encodeElementSection(w));
@@ -1314,11 +1314,11 @@ class WasmEncoder {
   }
 
   private writeStorageType(w: BinaryWriter, t: StorageType): void {
-    if (t === 'i8') {
+    if (t === Packed.I8) {
       w.writeU8(0x78);
       return;
     }
-    if (t === 'i16') {
+    if (t === Packed.I16) {
       w.writeU8(0x77);
       return;
     }
@@ -1493,7 +1493,7 @@ class WasmEncoder {
 
   private encodeStartSection(w: BinaryWriter): void {
     w.writeU32(
-      this.resolveRef(this.funcIndex, varFromToken(this.mod.start as string), 'start function'),
+      this.resolveRef(this.funcIndex, this.mod.start!, 'start function'),
     );
   }
 

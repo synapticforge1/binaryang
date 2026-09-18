@@ -420,13 +420,16 @@ export interface WasmModule {
   /** Exception tags (EH proposal). */
   tags: WasmTag[];
   /**
-   * Name of the start function (section 8), or `null` if the module has none.
+   * The start function (section 8) — a `Var`, wabt-ts's `Module.start` (M8b1):
+   * a name as every reference a pass reads is (`requireName`), or an index as
+   * written. ABSENT when the module has none (the M2 rule: absent = missing).
+   * It was `string | null`, a name or a numeric TOKEN in one string.
    *
    * The start function runs at instantiation time, before any export is
    * callable. It is a root of the module's reachability graph exactly like an
    * export, so passes that prune unreachable definitions must seed from it.
    */
-  start: string | null;
+  start?: Var;
   /** User-defined heap types (struct, array, func) for the GC proposal. */
   types: TypeDef[];
   /**
@@ -534,7 +537,7 @@ export class ModuleBuilder {
   private readonly _imports: WasmImport[] = [];
   private readonly _exports: WasmExport[] = [];
   private readonly _tags: WasmTag[] = [];
-  private _start: string | null = null;
+  private _start: Var | undefined;
   private readonly _types: TypeDef[] = [];
 
   // -------------------------------------------------------------------------
@@ -903,7 +906,8 @@ export class ModuleBuilder {
    * @param name - Internal function name, or `null` to remove the start function.
    */
   setStart(name: string | null): this {
-    this._start = name;
+    // A numeric token names an index, as every builder reference does.
+    this._start = name === null ? undefined : varFromToken(name);
     return this;
   }
 
@@ -953,7 +957,7 @@ export class ModuleBuilder {
       imports: [...this._imports],
       exports: [...this._exports],
       tags: [...this._tags],
-      start: this._start,
+      ...(this._start !== undefined ? { start: this._start } : {}),
       types: [...this._types],
       hasDataCountSection: false,
       hasNameSection: false,

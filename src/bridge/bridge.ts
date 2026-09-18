@@ -733,9 +733,9 @@ function lookupStructFieldType(typeVar: Var, fieldVar: Var, ctx: BridgeCtx): Val
  * `addType`. Packed i8/i16 are encoded as their own storage variants;
  * other types map to their ValType counterparts.
  */
-function wabtFieldTypeToValType(t: StorageType): ValType | 'i8' | 'i16' {
-  if (t === Type.I8) return 'i8';
-  if (t === Type.I16) return 'i16';
+function wabtFieldTypeToValType(t: StorageType): ValType | typeof Type.I8 | typeof Type.I16 {
+  // Packed codes pass through: both IRs spell them `Type.I8` / `Type.I16` (M8b2).
+  if (t === Type.I8 || t === Type.I16) return t;
   return wabtTypeToValType(coarsenValueType(t));
 }
 

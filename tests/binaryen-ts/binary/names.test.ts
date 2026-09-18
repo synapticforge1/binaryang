@@ -113,7 +113,7 @@ describe('P4 — the decoder names every entity from the name section', () => {
   });
 
   it('every reference site uses the same name as the definition', () => {
-    assertEquals(m.start, '$init');
+    assertEquals(m.start, varName('$init'));
     assertEquals(m.exports.find((e) => e.name === 'main')?.var, varName('$main'));
     assertEquals(elemFuncNames(m.elements[0]!), ['$helper']);
     const main = refsIn(m, '$main');
