@@ -151,6 +151,33 @@ Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
   assertEquals(countKind(caller.body, ExpressionKind.Block) >= 1, true);
 });
 
+// The START function is called by the host at instantiation, so it is used
+// even when one call site is its only reference: inlining that call must not
+// remove it. Nothing pinned this — a mutant dropping the seed survived (M8b1).
+Deno.test('Inlining: a single-caller START function is inlined but kept', () => {
+  const init: WasmFunction = {
+    name: 'init',
+    sig: { params: [], results: [] },
+    locals: [],
+    body: asRegion(makeNop()),
+  };
+  const caller: WasmFunction = {
+    name: 'main',
+    sig: { params: [], results: [] },
+    locals: [],
+    body: asRegion(makeCall(varName('init'), [], None)),
+  };
+  const mod = emptyModule();
+  mod.functions.push(caller, init);
+  mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
+  mod.start = varName('init');
+
+  new PassRunner(mod).add('Inlining').run();
+
+  assert(mod.functions.some((f) => f.name === 'init'), 'the start function was removed');
+  assertEquals(mod.start, varName('init'));
+});
+
 // ---------------------------------------------------------------------------
 // One-caller inline: single-ref function under threshold
 // ---------------------------------------------------------------------------
