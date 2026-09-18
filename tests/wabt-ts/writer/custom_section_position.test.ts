@@ -237,7 +237,7 @@ describe('M2f — the name section is generated at its place', () => {
 
   it('a payload-less custom that is not the name section is refused', () => {
     const m = read(NAMED);
-    m.customSections.push({ name: 'producers2', data: null, loc: m.customSections[0]!.loc });
+    m.customSections.push({ name: 'producers2', data: null });
     expect(() => writeBinaryIr(m)).toThrow('custom section "producers2" has no payload');
   });
 });
