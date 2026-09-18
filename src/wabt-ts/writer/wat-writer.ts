@@ -347,6 +347,17 @@ class WatWriter extends ModuleContext {
    * write it as though the author had: the fault N1 took out of
    * `generateNames`.
    */
+  /** The function whose body is being written — for its labels' record. */
+  private labelFunc = '';
+
+  /**
+   * A carrier's label if it is REAL, else `''` — a made-up label prints as an
+   * unnamed one always did, `;; label = @N` and all (M7c3c).
+   */
+  private shownLabel(label: string): string {
+    return this.shown((r) => r.labels.get(this.labelFunc), label);
+  }
+
   private shown(set: (r: ExplicitNames) => ReadonlySet<string> | undefined, name: string): string {
     const r = this.module.explicitNames;
     return isRealName(r, r === undefined ? undefined : set(r), name) ? name : '';
@@ -1134,11 +1145,11 @@ class WatWriter extends ModuleContext {
       // --- Block-like ---
       beginBlockExpr: (e) => {
         this.putsSpace('block');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Block, this.declaredBlockType(e));
+        this.beginBlock(this.shownLabel(e.label), LabelType.Block, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1151,11 +1162,11 @@ class WatWriter extends ModuleContext {
 
       beginLoopExpr: (e) => {
         this.putsSpace('loop');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Loop, this.declaredBlockType(e));
+        this.beginBlock(this.shownLabel(e.label), LabelType.Loop, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1168,11 +1179,11 @@ class WatWriter extends ModuleContext {
 
       beginIfExpr: (e) => {
         this.putsSpace('if');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
-        this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
+        this.beginBlock(this.shownLabel(e.label), LabelType.If, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1196,10 +1207,10 @@ class WatWriter extends ModuleContext {
 
       beginTryExpr: (e) => {
         this.putsSpace('try');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Try, this.declaredBlockType(e));
+        this.beginBlock(this.shownLabel(e.label), LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
         return Result.Ok;
       },
@@ -1224,15 +1235,15 @@ class WatWriter extends ModuleContext {
 
       beginTryTableExpr: (e) => {
         this.putsSpace('try_table');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!e.label) this.writef(` ;; label = @${this.labelStackSize}`);
+        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
         this.newline(true);
         this.indent += 2;
         for (const tc of e.catches) {
           this.writeTableCatch(tc);
         }
-        this.beginBlock(e.label, LabelType.TryTable, this.declaredBlockType(e));
+        this.beginBlock(this.shownLabel(e.label), LabelType.TryTable, this.declaredBlockType(e));
         return Result.Ok;
       },
       endTryTableExpr: () => {
@@ -1774,11 +1785,11 @@ class WatWriter extends ModuleContext {
         for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace(isLoop ? 'loop' : 'block');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
         this.beginBlock(
-          e.label,
+          this.shownLabel(e.label),
           isLoop ? LabelType.Loop : LabelType.Block,
           this.declaredBlockType(e),
         );
@@ -1797,10 +1808,10 @@ class WatWriter extends ModuleContext {
         for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace('try');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
-        this.beginBlock(e.label, LabelType.Try, this.declaredBlockType(e));
+        this.beginBlock(this.shownLabel(e.label), LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
 
         this.puts('(', NC.None);
@@ -1841,14 +1852,14 @@ class WatWriter extends ModuleContext {
         if (!this.canFold(e.condition) || !this.canFoldEntry(e)) return false;
         this.puts('(', NC.None);
         this.putsSpace('if');
-        if (e.label) this.writeName(e.label, NC.Space);
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
         this.newline(true);
         this.indent += 2;
         // `(if bt foldedinstr* (then …))`: the entry values, then the condition.
         for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
         this.writeFoldedExpr(e.condition);
-        this.beginBlock(e.label, LabelType.If, this.declaredBlockType(e));
+        this.beginBlock(this.shownLabel(e.label), LabelType.If, this.declaredBlockType(e));
         this.newline(true);
         this.puts('(', NC.None);
         this.putsSpace('then');
@@ -2120,6 +2131,7 @@ class WatWriter extends ModuleContext {
     }
     // Body
     this.beginFunc(func);
+    this.labelFunc = func.name;
     this.bodyLocalNames = localNames;
     this.writeExprList(func.body.children);
     this.bodyLocalNames = undefined;
