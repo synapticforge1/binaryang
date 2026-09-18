@@ -135,7 +135,7 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
     // Hand-built, so there is no `name` section either — `wat2wasm` writes one
     // for every module now (N1), and its place is a custom entry.
     const bytes = mk([], [], []);
-    assertEquals(parseWasm(bytes).customSections, undefined);
+    assertEquals(parseWasm(bytes).customSections, []); // [], not absent (M8b5)
     assert(same(encodeWasm(parseWasm(bytes)), bytes), layout(encodeWasm(parseWasm(bytes))));
   });
 

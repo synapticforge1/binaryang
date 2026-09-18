@@ -3736,6 +3736,18 @@ the ratchet's header always said to. A mutant writing index 0 for a missing `typ
 a test pinned the refusal. Ratchet **4 / 0 / 1** — only the module's as-written metadata and
 `customSections`' optionality remain (M8b5).
 
+**✅ M8b5 — the module carries the as-written metadata; `Module` and `WasmModule` are ONE TYPE
+(2026-09-18, `7f43b4156`).** Trials: binaryen-ts carries `loc` / `filename` / `sectionMeta` /
+`fidelity` REQUIRED with `makeModule`'s empty defaults — 8 errors; optional in both — 44 (a guard on
+every `m.fidelity` read). Taken: required — the design `fidelity.ts` already recorded ("dropped
+wholesale by binaryen-ts's passes"), so not an owner question. `noAsWrittenMetadata()` gives the
+defaults; `PassRunner` clears `fidelity` and `sectionMeta` after a run with at least one pass (an
+optimized module has no original), keeps them with none. `customSections` is `[]` for none (was
+optional). One site only the run found (a generic `assertEquals(…, undefined)`). **Module ratchet
+0 / 0 / 0** (46 / 29 / 15 at M1) — every pair pinned whole-record. Mutants: a pass run keeping the
+table, and clearing with no pass, both killed (the second `sed` hit two `if (optimized)` lines — a
+blunter mutant than meant; recorded rather than claimed). Hashes unchanged.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop

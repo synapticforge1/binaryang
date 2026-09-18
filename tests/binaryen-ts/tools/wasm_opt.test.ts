@@ -32,6 +32,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import {
   ModuleBuilder,
+  noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
@@ -62,6 +63,7 @@ function emptyModule(): WasmModule {
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   };
 }
 
@@ -304,6 +306,7 @@ Deno.test('wasmOpt: empty module round-trips cleanly', async () => {
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   });
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 2 }));
   assertInstanceOf(result, Uint8Array);

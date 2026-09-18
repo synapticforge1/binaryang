@@ -25,6 +25,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import {
   ModuleBuilder,
+  noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
@@ -58,6 +59,7 @@ function emptyModule(): WasmModule {
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   };
 }
 

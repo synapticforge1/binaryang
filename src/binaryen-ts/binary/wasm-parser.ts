@@ -875,7 +875,7 @@ class WasmParser {
         sig: { params: t.params, results: t.results },
       })),
       hasDataCountSection: this.hasDataCountSection,
-      ...(this.customSections.length > 0 ? { customSections: this.customSections } : {}),
+      customSections: this.customSections,
       // A binary without a name section must not gain one (b1a: the section is
       // its own fact now). The record is ALWAYS set: this decoder makes names up
       // either way, and with no section none of them is real.

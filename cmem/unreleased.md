@@ -220,6 +220,10 @@ their own bump — and nothing breaks by their standing still.
   `string | null`; absent when there is none. `ModuleBuilder.setStart(name | null)` is unchanged.
 - ⚠️ **BREAKING: a packed field type is `Type.I8` / `Type.I16`** (M8b2), was the string `'i8'` /
   `'i16'`; `Packed.I8` / `Packed.I16` are exported from `gc-types` for convenience.
+- ⚠️ **BREAKING: `WasmModule` carries the as-written metadata** (M8b5): required `loc`, `filename`,
+  `sectionMeta`, `fidelity` (empty from `ModuleBuilder.build`; `noAsWrittenMetadata()` gives the
+  defaults for a hand-written literal), and `customSections` is required (`[]` for none). A pass run
+  clears `fidelity` / `sectionMeta`. **`WasmModule` and wabt-ts's `Module` are now the same type.**
 - **A function keeps the type index its binary wrote** (M8b4): `WasmFunction.typeVar?` (also
   `loc?`, `nodeId?`, `typeUse?`, and `loc?` on every other record). With two identical types, decode
   → encode re-derived the FIRST; 51 spec binaries now round-trip byte-identically. On wabt-ts,
