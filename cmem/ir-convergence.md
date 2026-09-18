@@ -3496,6 +3496,59 @@ an import and forgot would shift every index in that space silently. Behaviour-n
 IDENTICAL, optimizer 0 of 2,105). Ratchet **24 / 7 / 19**. 🔍 Two tests SET a count to state their
 premise; they now add the imports themselves, which is the premise they meant.
 
+**✅ M7c1 — the DataCount flag is `hasDataCountSection: boolean` in both (2026-09-18).** binaryen-ts's
+`hasDataCount?` took wabt-ts's field. Trials near-tied (binaryen-ts → required 8 errors, 2 of them the
+ratchet's pins; wabt-ts → optional 5); meaning decided, the M2h precedent: an optional boolean spells
+false twice (absent, `false`) and every reader wrote `=== true`; the name says it is the SECTION, as
+`hasNameSection` does. ⚠️ **The decoder set it through a conditional spread**
+(`...(x ? { hasDataCount: true } : {})`), which no excess-property check reaches — found by reading,
+not by the compiler. 3 mutants killed by `data_count.test.ts`. Ratchet **23 / 6 / 19**.
+
+**✅ M7c2 — the feature flags are gone from both (2026-09-18).** wabt-ts `featuresUsed` (+ `Func.tailcall`)
+and binaryen-ts `hasExceptionHandling` / `hasMemory64` / `hasMultiMemory` / `hasGC` each restated the
+module's content — M7b's case. Read before choosing: `featuresUsed` was written at 18 reader sites and
+read NOWHERE (upstream's `features_used` feeds only `c-writer.cc`, wasm2c, not ported; `Func.tailcall`
+was never set true); `hasGC` was read nowhere and had DRIFTED — since M5b `types` holds every entry, so
+the decoder set it on all 511 wasmtk binaries ("has a type section", not "has GC types"), and
+`enableGC()`'s doc claimed an encoder mode the encoder takes from `types.length`;
+`hasExceptionHandling` was read only by the decoder OR-ing it into itself; `hasMultiMemory` was never
+set true. The one real read, Asyncify's memory64 refusal, now reads the memories (imported and
+defined) — a flag could go stale when a pass removed a memory. Measured stored against derived over
+421 bridged corpus modules + 511 decoded binaries: **0 mismatches**. `enableGC()` /
+`enableExceptionHandling()` removed with them (BREAKING, in unreleased.md). NEW tests: Asyncify refuses
+a defined and an imported 64-bit memory — nothing covered the refusal; 2 mutants killed. Ratchet
+**21 / 2 / 19**. M7c1 + M7c2: baseline IDENTICAL, optimizer output 0 of 2,105 and `wat2wasm` output 0
+of 421 changed (scratch `opt_hashes.ts`, `main` against the branch).
+
+**🗓️ M7c3 — the name-section bookkeeping: measured, NOT built — an owner question (2026-09-18).**
+What is left on the module is wabt-ts `hasNameSection` + `localNamesListed` against binaryen-ts
+`explicitNames` (the ratchet's last 2 one-sided module fields besides wabt-ts's as-written metadata).
+Read side by side, `ExplicitNames` is two different things in one record:
+
+1. **Names binaryen-ts ALSO has a home for — a second copy, removable without a decision:**
+   - `types` / `fields` (`Map<TypeDef, …>`): `TypeDef.name` / `FieldType.name` exist since M5a/M5b,
+     and the WAT parser and the bridge FILL them; the decoder leaves them `''` and puts the section's
+     names here instead. One name, two homes, chosen by the route the module came in by. Types are
+     referenced by index, so nothing needs these names to be unique keys.
+   - `importParams`: an imported function's param names. Since M4 an import embeds a `WasmFunction`,
+     but `addFunctionImport` builds it with `locals: []` — breaking `WasmFunction`'s own invariant
+     ("all locals including params"); wabt-ts gives it `locals` = its params, where the names live.
+   - `module`: wabt-ts `Module.name` (one-sided on the ratchet).
+2. **Which names are REAL** — `functions` / `tables` / `memories` / `globals` / `elements` /
+   `dataSegments` / `tags` / `labels` sets. binaryen-ts refers BY NAME, so its decoder names every
+   unnamed entity (`$func3`) and must record which names the section gave; wabt-ts leaves an unnamed
+   entity `name: ''` and refers by `Var`. Presence (`hasNameSection` default TRUE from `makeModule`,
+   the N1 rule; `explicitNames` absent = none written) and `localsListed` (by function INDEX in wabt-ts,
+   by NAME in binaryen-ts, so a pass removing a function cannot shift an entry) belong to the same
+   question.
+
+Group 1 can land as M7c3a, behaviour-neutral, each name moving to the record wabt-ts already keeps it
+on. Group 2 is the representation of an UNNAMED entity in the one module — `name: ''` (wabt-ts; then
+binaryen-ts's by-name references need names assigned on entry to a pass run and dropped on exit), or
+a name always plus a record of which are real (binaryen-ts; then wabt-ts's reader invents names, the
+fault N1 removed from `wasm2wat`). It decides M8's shape and meets the N1 owner decisions, so it is
+asked, not chosen.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was
