@@ -1245,7 +1245,7 @@ class BinaryWriter {
         s.writeU8(imp.kind as number);
         switch (imp.kind) {
           case ExternalKind.Func:
-            writeVar(s, imp.func.typeVar);
+            writeVar(s, requireFuncType(imp.func));
             break;
           case ExternalKind.Table:
             writeValueType(s, imp.table.elemType);
@@ -1276,7 +1276,7 @@ class BinaryWriter {
     if (m.functions.length === 0) return;
     s.writeSection(BinarySection.Function, () => {
       s.writeU32Leb(m.functions.length);
-      for (const f of m.functions) writeVar(s, f.typeVar);
+      for (const f of m.functions) writeVar(s, requireFuncType(f));
     });
   }
 
@@ -1895,6 +1895,17 @@ class BinaryWriter {
 
     return s.toUint8Array();
   }
+}
+
+/**
+ * A function's type index, or a refusal: deriving one structurally would pick
+ * the FIRST of several identical types (T1), as for `call_indirect` (M8b4).
+ */
+function requireFuncType(f: Func): Var {
+  if (f.typeVar === undefined) {
+    throw new Error(`function ${f.name} has no type index yet — run synthesizeTypes`);
+  }
+  return f.typeVar;
 }
 
 // ---------------------------------------------------------------------------

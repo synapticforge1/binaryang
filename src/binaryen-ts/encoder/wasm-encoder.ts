@@ -1336,6 +1336,28 @@ class WasmEncoder {
    * references end-to-end, the comparison is exact and that whole failure mode
    * is gone.
    */
+  /**
+   * The type index to write for a function: the one it was READ with (`typeVar`,
+   * M8b4) while that still names a function type with its signature, else the
+   * index derived from the signature.
+   */
+  private funcTypeIndexFor(fn: WasmFunction): number {
+    const { params, results } = fn.sig;
+    const tv = fn.typeVar;
+    if (tv !== undefined && tv.kind === 'index' && this.types.length > 0) {
+      const d = this.types[tv.value];
+      if (
+        d !== undefined && d.kind === 'func' &&
+        funcTypeKey(d.sig.params, d.sig.results) === funcTypeKey(params, results)
+      ) {
+        return tv.value;
+      }
+    }
+    return this.types.length > 0
+      ? this.gcFuncTypeIndex(params, results)
+      : this.getTypeIndex(params, results);
+  }
+
   private gcFuncTypeIndex(params: ValueType[], results: ValueType[]): number {
     const want = funcTypeKey(params, results);
     for (const [i, d] of this.types.entries()) {
@@ -1355,11 +1377,7 @@ class WasmEncoder {
       switch (imp.kind) {
         case ExternalKind.Func: {
           w.writeU8(0x00);
-          const { params, results } = imp.func.sig;
-          const idx = this.types.length > 0
-            ? this.gcFuncTypeIndex(params, results)
-            : this.getTypeIndex(params, results);
-          w.writeU32(idx);
+          w.writeU32(this.funcTypeIndexFor(imp.func));
           break;
         }
         case ExternalKind.Table: {
@@ -1398,12 +1416,7 @@ class WasmEncoder {
 
   private encodeFunctionSection(w: BinaryWriter): void {
     w.writeU32(this.mod.functions.length);
-    for (const fn of this.mod.functions) {
-      const idx = this.types.length > 0
-        ? this.gcFuncTypeIndex(fn.sig.params, fn.sig.results)
-        : this.getTypeIndex(fn.sig.params, fn.sig.results);
-      w.writeU32(idx);
-    }
+    for (const fn of this.mod.functions) w.writeU32(this.funcTypeIndexFor(fn));
   }
 
   private encodeTableSection(w: BinaryWriter): void {

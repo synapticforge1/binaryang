@@ -92,9 +92,10 @@ export function synthesizeTypes(module: Module): void {
   // picks the wrong type whenever several share one — `(sub (func))` and
   // `(sub final (func))` are both `() -> ()`, and type-subtyping.wast has four
   // such types in a row.
-  const pending: { typeUse?: TypeUse; sig: FuncSignature; typeVar: Var }[] = [];
+  // `typeVar` may be absent on the way in: this pass is what assigns it.
+  const pending: { typeUse?: TypeUse; sig: FuncSignature; typeVar?: Var }[] = [];
 
-  const settle = (item: { typeUse?: TypeUse; sig: FuncSignature; typeVar: Var }): void => {
+  const settle = (item: { typeUse?: TypeUse; sig: FuncSignature; typeVar?: Var }): void => {
     if (item.typeUse === 'resolved') return;
     if (item.typeUse !== undefined) {
       pending.push(item);

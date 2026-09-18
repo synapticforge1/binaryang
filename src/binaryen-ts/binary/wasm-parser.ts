@@ -852,6 +852,17 @@ class WasmParser {
     this.readHeader();
     this.readSections();
     const mod = this.builder.build();
+    // Each function keeps the type index its binary wrote (M8b4): with two
+    // identical types, re-deriving from the signature picks the first.
+    let fi = 0;
+    for (const imp of mod.imports) {
+      if (imp.kind === ExternalKind.Func) {
+        imp.func.typeVar = varIndex(this.importedFuncTypeIndices[fi++]!);
+      }
+    }
+    mod.functions.forEach((f, i) => {
+      f.typeVar = varIndex(this.funcTypeIndices[i]!);
+    });
     return {
       ...mod,
       name: this.names.moduleName(),

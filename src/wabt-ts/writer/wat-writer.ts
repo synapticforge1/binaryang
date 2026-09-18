@@ -2083,7 +2083,8 @@ class WatWriter extends ModuleContext {
    * wabt's own `wasm2wat` prints it for the same reason.
    */
   private writeFuncTypeUse(func: Func): void {
-    if (func.typeVar.kind !== 'index') return;
+    // Absent: no type index yet, and the inline signature says it all.
+    if (func.typeVar === undefined || func.typeVar.kind !== 'index') return;
     this.openSpace('type');
     this.writeVar(func.typeVar, NC.None);
     this.closeSpace();

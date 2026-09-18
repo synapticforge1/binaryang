@@ -2033,8 +2033,14 @@ export interface Func {
   loc?: Location;
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. */
   nodeId?: NodeId;
-  /** Type-section reference (index or name). Filled during decode. */
-  typeVar: Var;
+  /**
+   * Type-section reference (index or name) — which of several identical types
+   * the function uses (T1). Set by the reader, and by `synthesizeTypes` for an
+   * inline signature; ABSENT before that, and on a function built without one,
+   * as a `call_indirect`'s is (M8b4 — binaryen-ts's function holds the same
+   * optional field). The writers refuse to encode a function without one.
+   */
+  typeVar?: Var;
   /** How the signature was named; see {@link TypeUse}. */
   typeUse?: TypeUse;
   sig: FuncSignature;
@@ -2059,6 +2065,12 @@ export interface Func {
    * (`mapWithSequences`) that every other one uses.
    */
   body: RegionExpr;
+  /**
+   * The label of the function's implicit outermost block — binaryen-ts's field
+   * (M8b4): a branch that exits the whole function names it. wabt-ts refers to
+   * that frame by depth and never sets it.
+   */
+  bodyFrameLabel?: string | undefined;
 }
 
 /** A global variable. */

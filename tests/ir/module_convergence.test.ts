@@ -56,36 +56,36 @@ const PINNED = {
     // Since M8b3 a leaf record's only extra field is wabt-ts's OPTIONAL `loc`,
     // so its collection is one type; what still differs holds a function — and
     // `customSections`, required in wabt-ts and optional in binaryen-ts.
-    differ: ['imports', 'functions', 'customSections'],
+    differ: ['customSections'],
   },
   func: {
-    onlyW: ['loc', 'nodeId', 'typeVar', 'typeUse'],
-    onlyB: ['bodyFrameLabel'],
+    onlyW: [],
+    onlyB: [],
     differ: [],
   },
-  global: { onlyW: ['loc'], onlyB: [], differ: [] },
-  table: { onlyW: ['loc'], onlyB: [], differ: [] },
-  memory: { onlyW: ['loc'], onlyB: [], differ: [] },
-  tag: { onlyW: ['loc'], onlyB: [], differ: [] },
-  elem: { onlyW: ['loc'], onlyB: [], differ: [] },
-  data: { onlyW: ['loc'], onlyB: [], differ: [] },
+  global: { onlyW: [], onlyB: [], differ: [] },
+  table: { onlyW: [], onlyB: [], differ: [] },
+  memory: { onlyW: [], onlyB: [], differ: [] },
+  tag: { onlyW: [], onlyB: [], differ: [] },
+  elem: { onlyW: [], onlyB: [], differ: [] },
+  data: { onlyW: [], onlyB: [], differ: [] },
   export: { onlyW: [], onlyB: [], differ: [] },
-  custom: { onlyW: ['loc'], onlyB: [], differ: [] },
+  custom: { onlyW: [], onlyB: [], differ: [] },
   local: { onlyW: [], onlyB: [], differ: [] },
   // M4 made imports comparable: each arm holds `kind` / `module` / `field` and the
   // entity itself, so what differs is the EMBEDDED record — `loc` on four of
   // them, and the function record until M6.
-  importFunc: { onlyW: [], onlyB: [], differ: ['func'] },
+  importFunc: { onlyW: [], onlyB: [], differ: [] },
   importTable: { onlyW: [], onlyB: [], differ: [] },
   importMemory: { onlyW: [], onlyB: [], differ: [] },
   importGlobal: { onlyW: [], onlyB: [], differ: [] },
   importTag: { onlyW: [], onlyB: [], differ: [] },
   // A type entry, by shape (M5). `loc` is wabt-ts's, as on every other record.
-  typeFunc: { onlyW: ['loc'], onlyB: [], differ: [] },
+  typeFunc: { onlyW: [], onlyB: [], differ: [] },
   // A field's `type` was each side's own `StorageType` — the packed codes were
   // strings in binaryen-ts. One type since M8b2; only wabt-ts's `loc` is left.
-  typeStruct: { onlyW: ['loc'], onlyB: [], differ: [] },
-  typeArray: { onlyW: ['loc'], onlyB: [], differ: [] },
+  typeStruct: { onlyW: [], onlyB: [], differ: [] },
+  typeArray: { onlyW: [], onlyB: [], differ: [] },
   field: { onlyW: [], onlyB: [], differ: [] },
 } as const;
 
@@ -175,10 +175,35 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     pin<Differ<ArmW<4>, ArmB<4>>, Of<'importTag', 'differ'>>(true);
   });
 
+  // M8b4: every pair below is ONE type — the whole record, not just field by
+  // field. The field-level check reads `A[K]`, which is `T | undefined` for both
+  // `f?: T` and `f?: T | undefined`, so it cannot see a difference in optional
+  // EXACTNESS (`exactOptionalPropertyTypes`): `bodyFrameLabel` differed that way
+  // while every field pin said equal, and only a whole-record `Same` caught it.
+  it('the converged pairs are one type, whole-record (compile-time)', () => {
+    pin<W.Func, B.WasmFunction>(true);
+    pin<W.Global, B.WasmGlobal>(true);
+    pin<W.Table, B.WasmTable>(true);
+    pin<W.Memory, B.WasmMemory>(true);
+    pin<W.Tag, B.WasmTag>(true);
+    pin<W.ElemSegment, B.ElementSegment>(true);
+    pin<W.DataSegment, B.DataSegment>(true);
+    pin<W.Export, B.WasmExport>(true);
+    pin<W.Custom, B.CustomSection>(true);
+    pin<W.Local, B.Local>(true);
+    pin<W.Import, B.WasmImport>(true);
+    pin<W.TypeEntry, B.TypeDef>(true);
+    pin<W.Field, BG.FieldType>(true);
+    // The collections that hold them, too.
+    pin<W.Module['functions'], B.WasmModule['functions']>(true);
+    pin<W.Module['imports'], B.WasmModule['imports']>(true);
+    pin<W.Module['types'], B.WasmModule['types']>(true);
+  });
+
   it('records the distance', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [18, 1, 4]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [4, 0, 1]);
   });
 });
