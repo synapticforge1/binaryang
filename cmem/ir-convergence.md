@@ -3628,6 +3628,43 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
 3. **Open inside it:** references stay the `Var`s they are, and the text path makes up no names —
    both M8's, where references become names and the resolution order is decided anyway.
 
+**🚧 M8 — scoped 2026-09-18: what the bridge still does, MEASURED.** The expression half is one type
+already (`Expression = Expr`, item 5), so what the bridge adds is the real scope. Walking every
+corpus function as wabt-ts parsed it and as the bridge rebuilt it, in parallel, field by field
+(scratch `m8_bridge_diff.ts`; 421 modules, 7,620 functions), and ignoring the three KNOWN
+transformations — the derived `type`, `Var` index → name, labels — plus `loc`, the bridge changes
+exactly three things:
+
+| field | nodes | parsed (wabt-ts) | bridged (binaryen-ts) |
+| --- | --: | --- | --- |
+| load / store `align` | 52,293 | BYTES (`4`) | the EXPONENT (`2`) |
+| call / call_indirect `isReturn` | 24,737 | absent | `false` |
+| call_indirect `typeVar` / `sig` | 222 | the written type index; `sig` EMPTY | `typeVar` DROPPED; `sig` filled |
+
+🛑 **`align` is a silent divergence INSIDE one declared type.** The node is wabt-ts's declaration,
+whose doc says "`align` is in BYTES"; binaryen-ts stores the exponent in that same field. Same name,
+same `number`, different meaning — the compiler cannot see it, and nothing else did. Upstream wabt
+and upstream binaryen both hold bytes, so the direction is not a judgement call: binaryen-ts
+converts. (Bytes' own limit: a binary's exponent past 1023 is `2 ** e` = `Infinity`; T13.26 already
+made the wabt-ts reader use `2 **`. Measure it in the stage, not here.)
+
+**Stages**, each ending green, the same order as before (value conventions before structure):
+1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
+   spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
+   is a fidelity question — check the encoder's use first).
+2. **M8b — the records:** `loc?` on binaryen-ts's records (the node base's `loc?` + `locOf`
+   precedent, item 5 (1)); `start: Var`; one `StorageType`; a function's `typeVar` / `typeUse` /
+   `nodeId` against `bodyFrameLabel`; the module's as-written metadata → then `WasmModule = Module`.
+3. **M8c — names on the text path, and references as names:** after `resolveNames`, make up names
+   and labels for unnamed entities and record the real ones (safe then — nothing left to resolve);
+   a pass turns every index `Var` into its target's name, which decision 4 made possible (every
+   entity has one).
+4. **M8d — type derivation:** a pass over a whole function with module context fills every node's
+   `type` as the factories do. Acceptance: equal to the bridged tree's types over the corpus.
+5. **M8e — the bridge goes:** the optimizer pipeline runs on M8c + M8d instead; `bridge-behaviour`
+   agreement BEFORE deletion; then the bridge, its 16 test files and both scripts are deleted, their
+   front-end-to-optimizer checks kept as direct gates.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was
