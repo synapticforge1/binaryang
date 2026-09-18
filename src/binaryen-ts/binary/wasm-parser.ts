@@ -102,6 +102,7 @@ import {
   makeUnreachable,
   makeV128Const,
   QuaternaryOp,
+  refNullType,
   type RegionExpr,
   SIMDExtractOp,
   SIMDLoadOp,
@@ -423,21 +424,6 @@ const BINARY_OPCODE: Record<number, BinaryOp> = {
 // ---------------------------------------------------------------------------
 
 /** Read a heap type from a SLEB128-encoded signed integer. */
-/** Abstract heap type → the abstract `ValType` that spells `(ref null <ht>)`. */
-const ABSTRACT_HEAP_TO_VALTYPE: Record<AbstractHeapType, ValType> = {
-  [AbstractHeapType.Func]: ValType.FuncRef,
-  [AbstractHeapType.NoFunc]: ValType.NullFuncRef,
-  [AbstractHeapType.Ext]: ValType.ExternRef,
-  [AbstractHeapType.NoExt]: ValType.NullExternRef,
-  [AbstractHeapType.Any]: ValType.AnyRef,
-  [AbstractHeapType.Eq]: ValType.EqRef,
-  [AbstractHeapType.I31]: ValType.I31Ref,
-  [AbstractHeapType.Struct]: ValType.StructRef,
-  [AbstractHeapType.Array]: ValType.ArrayRef,
-  [AbstractHeapType.None]: ValType.NullRef,
-  [AbstractHeapType.Exn]: ValType.ExnRef,
-  [AbstractHeapType.NoExn]: ValType.NullExnRef,
-};
 
 /**
  * Decodes the heap-type operand of `ref.null` into the null's own type.
@@ -458,9 +444,9 @@ const ABSTRACT_HEAP_TO_VALTYPE: Record<AbstractHeapType, ValType> = {
  * a real `RefType`.
  */
 function readRefNullType(r: BinaryReader): ValueType {
-  const ht = readHeapType(r);
-  if (ht.kind !== 'abstract') return { heapType: ht, nullable: true };
-  return ABSTRACT_HEAP_TO_VALTYPE[ht.name];
+  // The one rule, shared with M8d's type derivation (it was a copy of the
+  // table `makeRefNull` inverts).
+  return refNullType(readHeapType(r));
 }
 
 function readHeapType(r: BinaryReader): HeapType {
