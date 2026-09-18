@@ -31,7 +31,7 @@ import {
   ModuleBuilder,
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
-import { makeRegion } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { makeBlock, makeNop, makeRegion } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
@@ -321,6 +321,14 @@ describe('M7c3b b1a — the section is one fact, which names are real another', 
     const back = parseWasm(encodeWasm(m));
     assertEquals(back.hasNameSection, true);
     assertEquals([...back.explicitNames!.functions], ['$helper']);
+  });
+
+  it('…labels too', () => {
+    const body = makeRegion([makeBlock([makeNop()], '$l')]);
+    const m = new ModuleBuilder().addFunction('$f', [], [], body).build();
+    m.hasNameSection = true;
+    const back = parseWasm(encodeWasm(m));
+    assertEquals([...back.explicitNames!.labels.get('$f')!], ['$l']);
   });
 
   it('clearing the section drops it though the record is still there', () => {
