@@ -3935,6 +3935,16 @@ Each item is its own branch, measured, tested, mutated and gated.
    - Mutants: 6 / 6 killed. The first test called `readWat` as "the WAT reader", but it is the
      decoder route, so the parser's 3 mutants survived until the parser was called directly.
    - Gate on `4f2841e66`: exit 0, 1255 tests.
+2. ✅ **A multi-value `call_indirect` is typed by every result** (`4b2488540`).
+   - The defect: `makeCallIndirect` typed it `sig.results[0] ?? None`, where `makeCall` /
+     `makeCallRef` give the tuple. `deriveTypes` had corrected it on its own; it now calls the
+     factory, so the rule is in one place.
+   - Measured: bytes unchanged (0 / 1,023, 0 / 2,526, 0 / 5,924). M8d's decoder comparison is left
+     with only the 6 `if`-with-params regions, a tree-shape difference.
+   - The test also optimizes a multi-value indirect call at -O3 and runs it. Its first module was
+     INVALID (`wat2wasm` does not validate) and read as an optimizer defect until checked: a test
+     module is now asserted valid before it is judged.
+   - Mutants 2 / 2 killed. Gate on `4b2488540`: exit 0, 1256 tests.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
