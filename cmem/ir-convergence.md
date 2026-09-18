@@ -3748,6 +3748,28 @@ optional). One site only the run found (a generic `assertEquals(…, undefined)`
 table, and clearing with no pass, both killed (the second `sed` hit two `if (optimized)` lines — a
 blunter mutant than meant; recorded rather than claimed). Hashes unchanged.
 
+**✅ M8b6 — `WasmModule = Module`: binaryen-ts's module declarations are ALIASES (2026-09-18,
+`addd7586b`). M8b CLOSED.** `WasmModule`, `WasmFunction`, `WasmGlobal`, `WasmTable`, `WasmMemory`,
+`WasmTag`, `ElementSegment`, `DataSegment`, `WasmExport`, `CustomSection`, `Local`, `WasmImport`,
+`FieldType`, `TypeDef`, `TypeDefBase` and the struct / array / func shapes now name wabt-ts's
+declarations. A script moved every binaryen-ts interface doc and EVERY field doc verbatim into the
+alias's doc, field by field, and the result was read — no history lost. Found beside it: the struct
+type's doc block was orphaned above `TypeDefBase`, and both GC `@example`s were stale (`element:`,
+no `name`); moved and fixed (`deno check --doc` errors in the file 8 → 5, the rest unimported snippet
+names). Drop-in, as the ratchet guaranteed: check, lint, publish dry-run, 1281 tests. ⚠️ The ratchet's
+pins are definitional now — they catch a redeclaration that DRIFTS, not one that is merely
+identical; said in its header.
+
+**M8c — scoped 2026-09-18, measured: which references the bridge turns into NAMES.** Over the
+corpus's 7,620 functions (scratch `m8_var_diff.ts`): `call.func` 24,515, `global.get` / `global.set`
+7,000, branch targets (`br` 2,193, `br_table` 244, `rethrow` 2), `call_indirect.table` 222,
+`throw` / `catch` tags 47 — and it names 1,735 unlabelled blocks / loops / trys (`$L0`…). Locals and
+memories stay indices. So M8c is ONE pass, `nameReferences`, run only on the route to the optimizer
+(never in `wat2wasm` / `wasm2wat`, whose text would move): name every entity and label on the text
+path AFTER `resolveNames` + `synthesizeTypes` (M7c3's machinery — safe once nothing is left to
+resolve), then rewrite exactly those reference kinds to names. Its acceptance, in M8e: the bridged
+tree and the named tree agree.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
