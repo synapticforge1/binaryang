@@ -22,7 +22,7 @@ import { assert, assertEquals } from '@std/assert';
 
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { withoutNameSection } from '../../binaryen-ts/wabt_reference.ts';
+import { withoutNameSection } from '../../binaryen-ts/nameless_reference.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);

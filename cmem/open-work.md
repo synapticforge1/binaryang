@@ -36,12 +36,11 @@ misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports ag
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
 stage of item 6; `wat2wasm` output 0 of 421.
 
-🛑 **The naming step would FAIL in CI, and has since `138148881` (2026-09-11).** `check-naming.sh`
-exits 0 but prints `tests/binaryen-ts/wabt_reference.ts` — a bare `wabt` component — and CI's step
-fails on ANY output (`ci.yml`: `if [ -n "$out" ] … exit 1`; the script's header: "Empty output means
-the rule holds"). The rule in [working-rules.md](working-rules.md) ("prints a filename on SUCCESS —
-read `$?`") is a misreading that hid it: here the OUTPUT is the verdict. Found 2026-09-18, not fixed —
-owner call (rename the helper, and correct the rule). Invisible so far only because nothing is pushed.
+✅ **The naming step is clean again (fixed 2026-09-18, owner-approved).** From `138148881`
+(2026-09-11) `check-naming.sh` printed `tests/binaryen-ts/wabt_reference.ts`, a bare `wabt`
+component, which CI's step fails on; a misread rule ("prints a filename on SUCCESS — read `$?`") hid
+it. The helper is now `nameless_reference.ts`, and [working-rules.md](working-rules.md) says how the
+step is judged: by its OUTPUT.
 
 ⚠️ **`corpus_roundtrip.test.ts` has a flaky oracle** (found 2026-09-18). It judges validity with
 `WebAssembly.compile`, which V8 validates LAZILY: it failed once on binaryen's
@@ -94,13 +93,12 @@ entity collections stay there until the records themselves are one type (M8).
    is in [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half", its M7c3b record.
    Left one-sided by design until M8: wabt-ts's `loc` / `name` / `filename` / `sectionMeta` /
    `fidelity` (as-written metadata the optimizer has no use for).
-2. **🗓️ The naming-check finding** above: rename `wabt_reference.ts`, correct the working rule.
-3. **M8 — the alias, type derivation, and the bridge's deletion.** `WasmModule = Module`; the type
+2. **M8 — the alias, type derivation, and the bridge's deletion.** `WasmModule = Module`; the type
    derivation the bridge does today (it rebuilds through the factories, which derive `type`) becomes a
    pass over a whole function with module context; then the bridge, its 16 test files,
    `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` go. Its acceptance is the
    bridge's own: `bridge-behaviour` agreement BEFORE deletion.
-4. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
+3. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
    changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):

@@ -122,7 +122,7 @@ except to keep pinning them.
 ⚠️ **"P1–P3 are independent of P4–P5" was wrong.** Nothing in binaryen-ts changed, but its tests
 compare binaryen-ts's output with wabt-ts's BYTES, and those bytes gained a name section in P2 —
 nine test files failed on the name section alone. They now compare against
-`tests/binaryen-ts/wabt_reference.ts` (wabt-ts's bytes with the name section cut out, byte-level).
+`tests/binaryen-ts/nameless_reference.ts` (was `wabt_reference.ts`, renamed 2026-09-18 for the naming rule; wabt-ts's bytes with the name section cut out, byte-level).
 That is a deliberate, temporary narrowing: once P5 writes names, binaryen-ts's output has a section
 the reference lacks and every one of those comparisons FAILS — the signal to delete the helper, not
 to strip binaryen-ts's side too. (Its decode → encode users feed the stripped bytes in and would
@@ -153,7 +153,7 @@ keep passing, which is why P5's row names the file.)
 - **`-O2 -g` differs from upstream** (register N4): we keep the local and label names the passes
   leave; upstream drops every local name, params included, and writes no labels. What optimization
   may do with names is the owner's future discussion, so this is recorded, not decided.
-- **`wabt_reference.ts` stays — for `parseWat` only.** `parseWat` carries no names by design (W4,
+- **`nameless_reference.ts` (then `wabt_reference.ts`) stays — for `parseWat` only.** `parseWat` carries no names by design (W4,
   not extended), so comparing its output with wabt-ts needs wabt-ts's bytes without a name section.
   The three DECODE → ENCODE tests that used it went back to full `wat2wasm` bytes, which they now
   round-trip exactly. It retires with `parseWat` (S6), not with P5 as first planned.

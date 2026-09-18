@@ -427,8 +427,10 @@ are **cited identically**; neither carries a date or a way to fail.
 - **A commit's effect**: `git show <sha> -- <path>`. Read the diff, not the prose. That very
   commit's own takeaway was "check `git diff deno.lock` after version archaeology" — not applied to
   itself.
-- **A gate**: the EXIT CODE, per step. `check-naming.sh` prints a filename on success, which trains
-  you to read gate output as prose; that habit is how a non-zero exit passed unnoticed.
+- **A gate**: its VERDICT, per step, read the way CI reads it — for most steps the exit code, for
+  `check-naming.sh` the output (it always exits 0; a printed line IS the violation). ⚠️ This line
+  once said that script "prints a filename on success", which was wrong and hid a real violation
+  for a week (2026-09-11 → 18). Check how CI judges a step before deciding what "green" means.
 - **A pin**: put the version where the tool ENFORCES it. A bare `import('npm:binaryen')` names no
   version, so the lockfile may answer anything; `const BINARYEN = 'npm:binaryen@132'` in the source
   cannot drift. `deno lint`'s `no-unversioned-import` was flagging exactly this.
