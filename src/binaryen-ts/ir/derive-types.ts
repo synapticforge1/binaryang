@@ -43,6 +43,7 @@ import {
   makeAtomicRmw,
   makeBinary,
   makeBreak,
+  makeCallIndirect,
   makeExternConvert,
   makeLoad,
   makeSelect,
@@ -411,10 +412,8 @@ class Deriver {
 
       case ExpressionKind.Call:
         return resultOf(this.m.funcs.get(e.func).sig.results);
-      // As `call`'s: every result. (The factory keeps only the first, which
-      // mistypes a multi-value `call_indirect`.)
       case ExpressionKind.CallIndirect:
-        return resultOf(e.sig.results);
+        return typeOf(makeCallIndirect(e.table, e.callee, e.operands, e.sig));
       case ExpressionKind.CallRef: {
         const t = this.typeEntry(e.sigType);
         if (t.kind !== 'func') throw new Error('derive-types: call_ref names a non-function type');

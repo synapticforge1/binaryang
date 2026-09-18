@@ -1795,7 +1795,10 @@ export function makeCallIndirect(
   sig: FuncSignature,
   isReturn = false,
 ): CallIndirectExpr {
-  const type: Type = sig.results[0] ?? None;
+  // Every result, as `makeCall` and `makeCallRef` type theirs. 🔧 It was
+  // `sig.results[0] ?? None`: a multi-value `call_indirect` was typed by its
+  // first result alone (found by M8d, 2026-09-18).
+  const type: Type = sig.results.length <= 1 ? (sig.results[0] ?? None) : [...sig.results];
   return {
     kind: ExpressionKind.CallIndirect,
     type,
