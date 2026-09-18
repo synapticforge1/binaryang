@@ -39,10 +39,13 @@ import {
   type FuncSignature,
   type Limits,
   type SegmentKind,
+  type TypeUse,
   type Var,
   varFromToken,
   varIndex,
 } from '../../wabt-ts/ir/ir.ts';
+import type { Location } from '../../wabt-ts/core/error.ts';
+import type { NodeId } from '../../wabt-ts/ir/fidelity.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 import type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
 export type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
@@ -118,6 +121,12 @@ export interface Local {
 export interface WasmFunction {
   /** Internal name (used for calls and exports). */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
+  /** Handle into wabt-ts's fidelity table (`Module.fidelity`); a pass never sets it. */
+  nodeId?: NodeId;
+  /** How the source text named the signature (wabt-ts's; text-form only). */
+  typeUse?: TypeUse;
   /**
    * The function's type — wabt-ts's `FuncSignature` (S6 step 5 item 6 (M6a)),
    * as a tag's is since M2c. It was `params` and `results` side by side, which
@@ -127,6 +136,14 @@ export interface WasmFunction {
    * The params are also the first `locals`, by index — that has not changed.
    */
   sig: FuncSignature;
+  /**
+   * The type index the binary WROTE for this function — which of several
+   * identical types it uses (M8b4; wabt-ts's `Func.typeVar`). The encoder writes
+   * it while it still names a function type with this function's signature,
+   * and derives the index from `sig` otherwise — absent (built by the API), or
+   * stale (a pass changed the signature).
+   */
+  typeVar?: Var;
   /** All locals including params. Additional locals start at params.length. */
   locals: Local[];
   /** The function's region — see {@link RegionExpr}. */
@@ -213,6 +230,8 @@ export interface WasmExport {
 export interface WasmGlobal {
   /** Internal name used to reference this global from instructions. */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
   /** Value type of the global. */
   type: ValueType;
   /** Whether the global is writable via `global.set`. */
@@ -236,6 +255,8 @@ export interface WasmGlobal {
 export interface DataSegment {
   /** Segment name (for WAT output). */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
   /**
    * How the segment reaches its memory — wabt-ts's `SegmentKind` (M3): `active`
    * at instantiation, `passive` for `memory.init`. (`declared` is an element
@@ -264,6 +285,8 @@ export interface DataSegment {
 export interface WasmMemory {
   /** Internal name used to reference the memory from instructions. */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
   /**
    * Its limits — wabt-ts's record (S6 step 5 item 6 (M2g)): sizes in pages as
    * `bigint` (u64 on the wire for a 64-bit memory), `max` absent when unbounded,
@@ -278,6 +301,8 @@ export interface WasmMemory {
 export interface WasmTable {
   /** Internal name used to reference the table from instructions. */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
   /** Element value type — a reference type. */
   elemType: ValueType;
   /**
@@ -300,6 +325,8 @@ export interface WasmTable {
 export interface WasmTag {
   /** Internal name (used in `throw` and `try_table` catch clauses). */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
   /**
    * The tag's function type: its `params` are the exception payload; its
    * `results` are empty in a valid module and kept as read for a validator to
@@ -333,6 +360,8 @@ export type ElementSegmentMode = SegmentKind;
 export interface ElementSegment {
   /** Segment name (for WAT output). */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
   /**
    * How the segment reaches its table — wabt-ts's `SegmentKind` (M3). It was
    * `mode: ElementSegmentMode`, whose third member was spelled `declarative`.
@@ -496,6 +525,8 @@ export interface WasmModule {
 export interface CustomSection {
   /** The section's name: `producers`, `target_features`, `dylink.0`, `.debug_info`, … */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
+  loc?: Location;
   /** Its payload, verbatim — or `null` for the `name` section's place. */
   data: Uint8Array | null;
   /**

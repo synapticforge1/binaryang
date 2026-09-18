@@ -25,6 +25,7 @@
 import { type ValType, valTypeName } from './types.ts';
 import { heapAbstract, type HeapTypeRef, type Var } from '../../wabt-ts/ir/ir.ts';
 import { Type } from '../../wabt-ts/core/types.ts';
+import type { Location } from '../../wabt-ts/core/error.ts';
 export { heapAbstract, sameHeap } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -199,6 +200,8 @@ export interface FieldType {
 export interface TypeDefBase {
   /** The entry's name, from the name section where it has one. */
   name: string;
+  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b4). */
+  loc?: Location;
   /**
    * An explicit `(sub final? $super*)` declaration.
    *

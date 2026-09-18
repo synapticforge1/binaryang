@@ -392,6 +392,15 @@ class ModuleValidator implements ExprVisitorDelegate {
     for (const imp of m.imports) {
       switch (imp.kind) {
         case ExternalKind.Func: {
+          if (imp.func.typeVar === undefined) {
+            this.acc(
+              this.sv.printError(
+                locOf(imp.func),
+                'imported function: no type index (run synthesizeTypes)',
+              ),
+            );
+            break;
+          }
           const sigIdx = varIdx(imp.func.typeVar);
           this.acc(this.sv.onFunction(locOf(imp.func), sigIdx));
           funcImportIdx++;
@@ -422,6 +431,10 @@ class ModuleValidator implements ExprVisitorDelegate {
 
     // Defined functions (type registration only; bodies come later)
     for (const func of m.functions) {
+      if (func.typeVar === undefined) {
+        this.acc(this.sv.printError(locOf(func), 'function: no type index (run synthesizeTypes)'));
+        continue;
+      }
       this.acc(this.sv.onFunction(locOf(func), varIdx(func.typeVar)));
     }
 
