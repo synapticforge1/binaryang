@@ -429,9 +429,10 @@ const SIMD_UNARY_OPS: ReadonlySet<number> = new Set([
  * The most locals one function may declare and still be decoded (M6c). The spec's
  * own cap is the SUM at 2^32-1, which says nothing about memory: every slot is a
  * record here, so a legal-but-hostile 2^31 would exhaust the heap. A decoder that
- * refuses is better than one that dies.
+ * refuses is better than one that dies. Shared with binaryen-ts's decoder, which had
+ * the same defect (found at M8a1).
  */
-const MAX_MATERIALIZED_LOCALS = 1_000_000;
+export const MAX_MATERIALIZED_LOCALS = 1_000_000;
 
 export class BinaryReader {
   private data: Uint8Array;

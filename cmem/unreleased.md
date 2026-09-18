@@ -216,6 +216,9 @@ their own bump — and nothing breaks by their standing still.
   alignment exponent past 8, as upstream binaryen does; the encoder refuses a non-power-of-two.
   🔧 Fixes the compat API: `i32.load(offset, 4, ptr)` (upstream's byte spelling) produced a module
   V8 rejected.
+- **Fixed: `parseWasm` ran out of memory on a function declaring ~2^32 locals** (five bytes; spec
+  `binary.43` / `.44`) — it killed the process; it now throws "too many locals", as wabt-ts's reader
+  has since M6c (limit 1,000,000 declared locals per function, shared).
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
   names and re-encodes them; `ModuleBuilder.addFunction` takes optional `paramNames`.
 - **`WasmModule.customSections`**: every custom section is kept, each with the known section it
