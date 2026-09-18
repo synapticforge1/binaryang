@@ -16,5 +16,7 @@ export * from './ir.ts';
 export * from './ir-util.ts';
 export * from './expr-visitor.ts';
 export * from './generate-names.ts';
+// Whether a name is REAL or one a reader made up (owner decision 4; M7c3b b1b).
+export { isRealName } from './made-up-names.ts';
 export * from './resolve-names.ts';
 export * from './apply-names.ts';
