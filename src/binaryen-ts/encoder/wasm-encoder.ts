@@ -695,7 +695,7 @@ class WasmEncoder {
     this.writeCustoms(out, 9);
     // BEFORE the code section, which is the point of it: a validator needs the
     // segment count while type-checking `memory.init` / `data.drop`.
-    if (this.mod.hasDataCount === true || this.usesDataIndex()) {
+    if (this.mod.hasDataCountSection || this.usesDataIndex()) {
       this.writeSection(out, 12, (w) => this.encodeDataCountSection(w));
     }
     this.writeCustoms(out, 12);
@@ -1772,7 +1772,7 @@ class WasmEncoder {
    * were fixed in one change rather than separately.
    *
    * Emitted when a function body names a data segment, or when the module was
-   * decoded from a binary that had one (`WasmModule.hasDataCount`) — the rule
+   * decoded from a binary that had one (`WasmModule.hasDataCountSection`) — the rule
    * wabt-ts's writer follows, because two tools in this repo disagreeing about
    * the section list for the same module is its own defect.
    *

@@ -813,8 +813,8 @@ class WasmParser {
   private importedTagCount = 0;
   /** Memories so far, imported and defined — the memory index space. */
   private memoryCount = 0;
-  /** Whether the binary had a DataCount section. See {@link WasmModule.hasDataCount}. */
-  private hasDataCount = false;
+  /** Whether the binary had a DataCount section. See {@link WasmModule.hasDataCountSection}. */
+  private hasDataCountSection = false;
   /** Custom sections, in binary order. See {@link WasmModule.customSections} (C3). */
   private readonly customSections: CustomSection[] = [];
   /** Where in {@link customSections} the `name` section's place sits, if any. */
@@ -853,7 +853,7 @@ class WasmParser {
         sig: { params: t.params, results: t.results },
       })),
       hasExceptionHandling: this.tagInfos.length > 0 || mod.hasExceptionHandling,
-      ...(this.hasDataCount ? { hasDataCount: true } : {}),
+      hasDataCountSection: this.hasDataCountSection,
       ...(this.customSections.length > 0 ? { customSections: this.customSections } : {}),
       // Only when the binary HAD a name section: one without must not gain one.
       ...(this.names.hasSection
@@ -927,7 +927,7 @@ class WasmParser {
         case SECTION_DATA_COUNT:
           this.r.readU32();
           // Kept so the encoder re-emits a DataCount the module did not need (W6).
-          this.hasDataCount = true;
+          this.hasDataCountSection = true;
           break;
         case SECTION_TAG:
           this.readTagSection();

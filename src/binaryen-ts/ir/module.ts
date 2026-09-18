@@ -418,9 +418,11 @@ export interface WasmModule {
    * Whether the module was decoded from a binary with a DataCount section (id
    * 12) — W6. The encoder writes one when a function body names a data segment
    * (then the format requires it), or when this is set, so a binary that
-   * carried one it did not need re-encodes with it. Absent means false.
+   * carried one it did not need re-encodes with it. False from
+   * {@link ModuleBuilder.build}. wabt-ts's `Module.hasDataCountSection` (M7c):
+   * one name, and one spelling of false.
    */
-  hasDataCount?: boolean;
+  hasDataCountSection: boolean;
   /**
    * The custom sections the module was decoded from, in binary order — C3
    * (cmem/divergences.md).
@@ -969,6 +971,7 @@ export class ModuleBuilder {
       hasMemory64: this._hasMemory64,
       hasMultiMemory: this._hasMultiMemory,
       hasGC: this._hasGC,
+      hasDataCountSection: false,
     };
   }
 

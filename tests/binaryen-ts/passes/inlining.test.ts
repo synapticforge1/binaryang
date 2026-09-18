@@ -60,6 +60,7 @@ function emptyModule(): WasmModule {
     hasMultiMemory: false,
     types: [],
     hasGC: false,
+    hasDataCountSection: false,
   };
 }
 

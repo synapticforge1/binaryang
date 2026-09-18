@@ -85,6 +85,7 @@ function moduleWithImport(): WasmModule {
     hasMultiMemory: false,
     types: [],
     hasGC: false,
+    hasDataCountSection: false,
   };
 }
 
