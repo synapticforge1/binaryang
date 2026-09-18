@@ -36,20 +36,16 @@ import { None, type Type, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
 import {
-  type FuncSignature,
   type Limits,
   type SegmentKind,
-  type TypeUse,
   type Var,
   varFromToken,
   varIndex,
 } from '../../wabt-ts/ir/ir.ts';
-import type { Location } from '../../wabt-ts/core/error.ts';
-import { FidelityTable, type NodeId } from '../../wabt-ts/ir/fidelity.ts';
-import type { SectionMeta } from '../../wabt-ts/ir/ir.ts';
+import { FidelityTable } from '../../wabt-ts/ir/fidelity.ts';
 import { unknownLocation } from '../../wabt-ts/core/error.ts';
-import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
-import type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import type * as W from '../../wabt-ts/ir/ir.ts';
 export type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
 export type { TypeDef } from './gc-types.ts';
 
@@ -108,57 +104,50 @@ export function limitsOf(
 /**
  * A single local variable declaration inside a function.
  * Params are also represented as locals (indices 0..params.length-1).
+ *
+ * ONE TYPE with wabt-ts's `Local` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `type` — Type of the local — a scalar/abstract type or a concrete typed reference.
+ * - `name` — Optional name (for WAT output readability).
  */
-export interface Local {
-  /** Type of the local — a scalar/abstract type or a concrete typed reference. */
-  type: ValueType;
-  /** Optional name (for WAT output readability). */
-  name?: string;
-}
+export type Local = W.Local;
 
 /**
  * A WASM function definition.
  * Mirrors `Function` in `WebAssembly/binaryen/src/wasm.h`.
+ *
+ * ONE TYPE with wabt-ts's `Func` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — Internal name (used for calls and exports).
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `nodeId` — Handle into wabt-ts's fidelity table (`Module.fidelity`); a pass never sets it.
+ * - `typeUse` — How the source text named the signature (wabt-ts's; text-form only).
+ * - `sig` — The function's type — wabt-ts's `FuncSignature` (S6 step 5 item 6 (M6a)),
+ *   as a tag's is since M2c. It was `params` and `results` side by side, which
+ *   said the same thing in a second shape: every signature this tree compares,
+ *   interns or writes is a `{ params, results }` pair.
+ *
+ *   The params are also the first `locals`, by index — that has not changed.
+ * - `typeVar` — The type index the binary WROTE for this function — which of several
+ *   identical types it uses (M8b4; wabt-ts's `Func.typeVar`). The encoder writes
+ *   it while it still names a function type with this function's signature,
+ *   and derives the index from `sig` otherwise — absent (built by the API), or
+ *   stale (a pass changed the signature).
+ * - `locals` — All locals including params. Additional locals start at params.length.
+ * - `body` — The function's region — see {@link RegionExpr}.
+ * - `bodyFrameLabel` — Label of the function's implicit outermost block — the target of a `br`
+ *   that exits the whole function (depth = number of enclosing blocks). The
+ *   binary parser records the frame's label here; the encoder seeds it at the
+ *   bottom of its label stack so such a branch resolves to the correct depth
+ *   instead of silently collapsing to the innermost frame. Optional.
  */
-export interface WasmFunction {
-  /** Internal name (used for calls and exports). */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /** Handle into wabt-ts's fidelity table (`Module.fidelity`); a pass never sets it. */
-  nodeId?: NodeId;
-  /** How the source text named the signature (wabt-ts's; text-form only). */
-  typeUse?: TypeUse;
-  /**
-   * The function's type — wabt-ts's `FuncSignature` (S6 step 5 item 6 (M6a)),
-   * as a tag's is since M2c. It was `params` and `results` side by side, which
-   * said the same thing in a second shape: every signature this tree compares,
-   * interns or writes is a `{ params, results }` pair.
-   *
-   * The params are also the first `locals`, by index — that has not changed.
-   */
-  sig: FuncSignature;
-  /**
-   * The type index the binary WROTE for this function — which of several
-   * identical types it uses (M8b4; wabt-ts's `Func.typeVar`). The encoder writes
-   * it while it still names a function type with this function's signature,
-   * and derives the index from `sig` otherwise — absent (built by the API), or
-   * stale (a pass changed the signature).
-   */
-  typeVar?: Var;
-  /** All locals including params. Additional locals start at params.length. */
-  locals: Local[];
-  /** The function's region — see {@link RegionExpr}. */
-  body: RegionExpr;
-  /**
-   * Label of the function's implicit outermost block — the target of a `br`
-   * that exits the whole function (depth = number of enclosing blocks). The
-   * binary parser records the frame's label here; the encoder seeds it at the
-   * bottom of its label stack so such a branch resolves to the correct depth
-   * instead of silently collapsing to the innermost frame. Optional.
-   */
-  bodyFrameLabel?: string | undefined;
-}
+export type WasmFunction = W.Func;
 
 /**
  * Import descriptor.
@@ -180,13 +169,10 @@ export interface WasmFunction {
  * The entity's INTERNAL NAME is the entity's own (`imp.func.name`); `module` and
  * `field` are the two names the host knows it by (wabt-ts's spelling; `field`
  * was `base`).
+ *
+ * ONE TYPE with wabt-ts's `Import` — an alias since M8b6.
  */
-export type WasmImport =
-  | { kind: ExternalKind.Func; module: string; field: string; func: WasmFunction }
-  | { kind: ExternalKind.Table; module: string; field: string; table: WasmTable }
-  | { kind: ExternalKind.Memory; module: string; field: string; memory: WasmMemory }
-  | { kind: ExternalKind.Global; module: string; field: string; global: WasmGlobal }
-  | { kind: ExternalKind.Tag; module: string; field: string; tag: WasmTag };
+export type WasmImport = W.Import;
 
 /** The internal name an import gives the entity it names (M4). */
 export function importName(imp: WasmImport): string {
@@ -207,136 +193,121 @@ export function importName(imp: WasmImport): string {
 /**
  * Export descriptor.
  * Mirrors `Export` in `WebAssembly/binaryen/src/wasm.h`.
+ *
+ * ONE TYPE with wabt-ts's `Export` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — The name visible to the host.
+ * - `var` — The exported entity — a NAME in this tree, as every reference a pass reads
+ *   is (`requireName`); a `Var` so an index as written can be held too (S6
+ *   step 5 item 6 (M2), wabt-ts's shape — the L1 / S2 precedent). It was
+ *   `value: string`.
+ * - `kind` — Which kind of entity is exported — wabt-ts's `ExternalKind`, whose value IS
+ *   the binary's kind byte (S6 step 5 item 6 (M2e); the V1 precedent). It was a
+ *   string (`'function'`, …) spelling the same five facts a second way.
  */
-export interface WasmExport {
-  /** The name visible to the host. */
-  name: string;
-  /**
-   * The exported entity — a NAME in this tree, as every reference a pass reads
-   * is (`requireName`); a `Var` so an index as written can be held too (S6
-   * step 5 item 6 (M2), wabt-ts's shape — the L1 / S2 precedent). It was
-   * `value: string`.
-   */
-  var: Var;
-  /**
-   * Which kind of entity is exported — wabt-ts's `ExternalKind`, whose value IS
-   * the binary's kind byte (S6 step 5 item 6 (M2e); the V1 precedent). It was a
-   * string (`'function'`, …) spelling the same five facts a second way.
-   */
-  kind: ExternalKind;
-}
+export type WasmExport = W.Export;
 
 /**
  * A WASM global variable.
+ *
+ * ONE TYPE with wabt-ts's `Global` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — Internal name used to reference this global from instructions.
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `type` — Value type of the global.
+ * - `mutable` — Whether the global is writable via `global.set`.
+ * - `init` — The initializer — a constant expression, held as a {@link RegionExpr} of
+ *   exactly the instructions it is (owner, 2026-09-16, S6 step 5 item 6 (M2);
+ *   wabt-ts's shape). It was one `Expression`, which cannot hold a sequence.
+ *
+ *   OPTIONAL, as wabt-ts's `Global.init` is (M2h): the one record also describes
+ *   an IMPORTED global, which has none, so absent means MISSING — never an empty
+ *   region, which is a present-but-empty initializer. A defined global without
+ *   one is refused by the encoder.
  */
-export interface WasmGlobal {
-  /** Internal name used to reference this global from instructions. */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /** Value type of the global. */
-  type: ValueType;
-  /** Whether the global is writable via `global.set`. */
-  mutable: boolean;
-  /**
-   * The initializer — a constant expression, held as a {@link RegionExpr} of
-   * exactly the instructions it is (owner, 2026-09-16, S6 step 5 item 6 (M2);
-   * wabt-ts's shape). It was one `Expression`, which cannot hold a sequence.
-   *
-   * OPTIONAL, as wabt-ts's `Global.init` is (M2h): the one record also describes
-   * an IMPORTED global, which has none, so absent means MISSING — never an empty
-   * region, which is a present-but-empty initializer. A defined global without
-   * one is refused by the encoder.
-   */
-  init?: RegionExpr;
-}
+export type WasmGlobal = W.Global;
 
 /**
  * A data segment (initializes a region of linear memory).
+ *
+ * ONE TYPE with wabt-ts's `DataSegment` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — Segment name (for WAT output).
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `kind` — How the segment reaches its memory — wabt-ts's `SegmentKind` (M3): `active`
+ *   at instantiation, `passive` for `memory.init`. (`declared` is an element
+ *   segment's; the encoder refuses it here.) It was `passive: boolean`.
+ * - `memoryVar` — The memory an ACTIVE segment initializes, as written — a name or an index
+ *   (M3; it was `memory?: number`, omitted meaning 0). The binary distinguishes
+ *   kind 0 (active, memory 0) from kind 2 (active, explicit index); the reader
+ *   used to consume that index and drop it.
+ * - `offset` — The offset — a constant expression as a {@link RegionExpr}, present exactly
+ *   when the segment is active. ABSENT is a missing field, not `null` (M2).
+ * - `data` — Raw bytes copied into linear memory.
  */
-export interface DataSegment {
-  /** Segment name (for WAT output). */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /**
-   * How the segment reaches its memory — wabt-ts's `SegmentKind` (M3): `active`
-   * at instantiation, `passive` for `memory.init`. (`declared` is an element
-   * segment's; the encoder refuses it here.) It was `passive: boolean`.
-   */
-  kind: SegmentKind;
-  /**
-   * The memory an ACTIVE segment initializes, as written — a name or an index
-   * (M3; it was `memory?: number`, omitted meaning 0). The binary distinguishes
-   * kind 0 (active, memory 0) from kind 2 (active, explicit index); the reader
-   * used to consume that index and drop it.
-   */
-  memoryVar: Var;
-  /**
-   * The offset — a constant expression as a {@link RegionExpr}, present exactly
-   * when the segment is active. ABSENT is a missing field, not `null` (M2).
-   */
-  offset?: RegionExpr;
-  /** Raw bytes copied into linear memory. */
-  data: Uint8Array;
-}
+export type DataSegment = W.DataSegment;
 
 /**
  * A linear memory definition.
+ *
+ * ONE TYPE with wabt-ts's `Memory` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — Internal name used to reference the memory from instructions.
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `limits` — Its limits — wabt-ts's record (S6 step 5 item 6 (M2g)): sizes in pages as
+ *   `bigint` (u64 on the wire for a 64-bit memory), `max` absent when unbounded,
+ *   `isShared`, `is64`, and `pageSizeLog2` (custom-page-sizes) when declared.
  */
-export interface WasmMemory {
-  /** Internal name used to reference the memory from instructions. */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /**
-   * Its limits — wabt-ts's record (S6 step 5 item 6 (M2g)): sizes in pages as
-   * `bigint` (u64 on the wire for a 64-bit memory), `max` absent when unbounded,
-   * `isShared`, `is64`, and `pageSizeLog2` (custom-page-sizes) when declared.
-   */
-  limits: Limits;
-}
+export type WasmMemory = W.Memory;
 
 /**
  * A table definition (for indirect calls and reference types).
+ *
+ * ONE TYPE with wabt-ts's `Table` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — Internal name used to reference the table from instructions.
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `elemType` — Element value type — a reference type.
+ * - `limits` — Its limits, in elements — wabt-ts's record (M2g). A table64's are u64 on the
+ *   wire; a table never has `isShared` or `pageSizeLog2`.
+ * - `init` — The initializer every slot starts as, when the table declares one (the
+ *   `0x40 0x00` form) — a constant expression, as the {@link RegionExpr} it is
+ *   held in; ABSENT when it declares none (M2g, the M2 owner call).
  */
-export interface WasmTable {
-  /** Internal name used to reference the table from instructions. */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /** Element value type — a reference type. */
-  elemType: ValueType;
-  /**
-   * Its limits, in elements — wabt-ts's record (M2g). A table64's are u64 on the
-   * wire; a table never has `isShared` or `pageSizeLog2`.
-   */
-  limits: Limits;
-  /**
-   * The initializer every slot starts as, when the table declares one (the
-   * `0x40 0x00` form) — a constant expression, as the {@link RegionExpr} it is
-   * held in; ABSENT when it declares none (M2g, the M2 owner call).
-   */
-  init?: RegionExpr;
-}
+export type WasmTable = W.Table;
 
 /**
  * A WASM exception tag (EH proposal).
  * A tag defines the type of an exception — its payload is a list of value types.
+ *
+ * ONE TYPE with wabt-ts's `Tag` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — Internal name (used in `throw` and `try_table` catch clauses).
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `sig` — The tag's function type: its `params` are the exception payload; its
+ *   `results` are empty in a valid module and kept as read for a validator to
+ *   refuse (S6 step 5 item 6 (M2), wabt-ts's shape). It was `params` alone,
+ *   which could not hold what an invalid binary said.
  */
-export interface WasmTag {
-  /** Internal name (used in `throw` and `try_table` catch clauses). */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /**
-   * The tag's function type: its `params` are the exception payload; its
-   * `results` are empty in a valid module and kept as read for a validator to
-   * refuse (S6 step 5 item 6 (M2), wabt-ts's shape). It was `params` alone,
-   * which could not hold what an invalid binary said.
-   */
-  sig: FuncSignature;
-}
+export type WasmTag = W.Tag;
 
 /**
  * An element segment (populates a table).
@@ -359,42 +330,33 @@ export interface WasmTag {
  */
 export type ElementSegmentMode = SegmentKind;
 
-export interface ElementSegment {
-  /** Segment name (for WAT output). */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /**
-   * How the segment reaches its table — wabt-ts's `SegmentKind` (M3). It was
-   * `mode: ElementSegmentMode`, whose third member was spelled `declarative`.
-   */
-  kind: SegmentKind;
-  /** The table an ACTIVE segment initializes, as written — a name or an index (M3). */
-  tableVar: Var;
-  /**
-   * Offset expression — index into the target table where copying begins.
-   *
-   * Present exactly when `kind` is `active`; the other two kinds have nowhere
-   * to copy to, and the field is MISSING (it was `null`). A constant expression,
-   * held as a {@link RegionExpr} (M2).
-   */
-  offset?: RegionExpr;
-  /**
-   * The segment's element type (M3). The funcidx form implies the NON-NULLABLE
-   * `(ref func)` — every entry is a function index, so none can be null — and
-   * the expression form with no reftype byte implies `funcref`; the spec draws
-   * that distinction between `(elem … $f)` and `(elem … funcref (ref.func $f))`,
-   * and a table of `(ref func)` does not accept a `funcref` segment.
-   */
-  elemType: ValueType;
-  /**
-   * Each entry, a constant expression held as a {@link RegionExpr} — wabt-ts's
-   * shape (M3). It was `data: string[]`, function names, which could hold
-   * neither a `ref.null` entry (refused: it would have shifted every later table
-   * index) nor a global.get / GC entry, and lost the segment's element type.
-   */
-  elemExprs: RegionExpr[];
-}
+/**
+ * ONE TYPE with wabt-ts's `ElemSegment` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — Segment name (for WAT output).
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `kind` — How the segment reaches its table — wabt-ts's `SegmentKind` (M3). It was
+ *   `mode: ElementSegmentMode`, whose third member was spelled `declarative`.
+ * - `tableVar` — The table an ACTIVE segment initializes, as written — a name or an index (M3).
+ * - `offset` — Offset expression — index into the target table where copying begins.
+ *
+ *   Present exactly when `kind` is `active`; the other two kinds have nowhere
+ *   to copy to, and the field is MISSING (it was `null`). A constant expression,
+ *   held as a {@link RegionExpr} (M2).
+ * - `elemType` — The segment's element type (M3). The funcidx form implies the NON-NULLABLE
+ *   `(ref func)` — every entry is a function index, so none can be null — and
+ *   the expression form with no reftype byte implies `funcref`; the spec draws
+ *   that distinction between `(elem … $f)` and `(elem … funcref (ref.func $f))`,
+ *   and a table of `(ref func)` does not accept a `funcref` segment.
+ * - `elemExprs` — Each entry, a constant expression held as a {@link RegionExpr} — wabt-ts's
+ *   shape (M3). It was `data: string[]`, function names, which could hold
+ *   neither a `ref.null` entry (refused: it would have shifted every later table
+ *   index) nor a global.get / GC entry, and lost the segment's element type.
+ */
+export type ElementSegment = W.ElemSegment;
 
 /** One element-segment entry naming `func`: the `(ref.func $f)` region (M3). */
 export function elemFuncEntry(func: string | Var): RegionExpr {
@@ -423,110 +385,81 @@ export function elemFuncNames(seg: ElementSegment): string[] {
 /**
  * The root container for all WASM definitions.
  * Analogous to `Module` in `WebAssembly/binaryen/src/wasm.h`.
+ *
+ * ONE TYPE with wabt-ts's `Module` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — The module's own name, `$`-prefixed — `''` when it has none. wabt-ts's
+ *   `Module.name`, and upstream binaryen's `Module::name` (M7c3a). It is never
+ *   made up, so it needs no entry in {@link WasmModule.explicitNames}; it is
+ *   written (name subsection 0) when a name section is.
+ * - `functions` — All locally-defined functions in declaration order.
+ * - `globals` — All locally-defined globals in declaration order.
+ * - `memories` — All linear-memory definitions (typically 0 or 1 entry pre-multi-memory).
+ * - `tables` — All table definitions in declaration order.
+ * - `elements` — Element segments that initialize tables.
+ * - `dataSegments` — Data segments that initialize linear memory.
+ * - `imports` — Imported entities (functions, globals, memories, tables).
+ * - `exports` — Names exported to the host.
+ * - `tags` — Exception tags (EH proposal).
+ * - `start` — The start function (section 8) — a `Var`, wabt-ts's `Module.start` (M8b1):
+ *   a name as every reference a pass reads is (`requireName`), or an index as
+ *   written. ABSENT when the module has none (the M2 rule: absent = missing).
+ *   It was `string | null`, a name or a numeric TOKEN in one string.
+ *
+ *   The start function runs at instantiation time, before any export is
+ *   callable. It is a root of the module's reachability graph exactly like an
+ *   export, so passes that prune unreachable definitions must seed from it.
+ * - `types` — User-defined heap types (struct, array, func) for the GC proposal.
+ * - `explicitNames` — The names the module was READ with — its `name` section — as opposed to
+ *   the ones the decoder made up. N1 steps P4–P5 (cmem/names.md).
+ *
+ *   Every entity here is keyed by a name, so the decoder names the unnamed ones
+ *   `$func3`, `$global0`, … The encoder must not write those into a name
+ *   section — that would invent names, the fault `wasm2wat`'s `generateNames`
+ *   had — so it writes only what is listed here. Upstream binaryen keeps the
+ *   same distinction as `hasExplicitName`.
+ *
+ *   ONLY that (M7c3b b1a): whether a section is written is
+ *   {@link WasmModule.hasNameSection}. Every producer that MAKES UP names sets
+ *   it — the decoder always does, section or not. Absent means nothing was made
+ *   up, so every non-empty name is real.
+ * - `hasNameSection` — Whether a `name` section is written — wabt-ts's `Module.hasNameSection`
+ *   (M7c3b b1a). It was the PRESENCE of {@link WasmModule.explicitNames}, one
+ *   field holding two facts. The decoder sets it to whether the binary had one
+ *   (a binary without must not gain one); `ModuleBuilder.build` to `false`, so
+ *   an API-built module encodes as before; `PassRunner` clears it at the end of
+ *   a run unless `debugInfo` is set — optimized output follows `-g`, as
+ *   upstream. ⚠️ Set on a module with no record, it takes every non-empty name
+ *   as real — including a type name `addType` made up.
+ * - `hasDataCountSection` — Whether the module was decoded from a binary with a DataCount section (id
+ *   12) — W6. The encoder writes one when a function body names a data segment
+ *   (then the format requires it), or when this is set, so a binary that
+ *   carried one it did not need re-encodes with it. False from
+ *   {@link ModuleBuilder.build}. wabt-ts's `Module.hasDataCountSection` (M7c):
+ *   one name, and one spelling of false.
+ * - `customSections` — The custom sections the module was decoded from, in binary order — C3
+ *   (cmem/divergences.md).
+ *
+ *   🔧 The decoder collected NONE, so a decode → encode dropped `producers`,
+ *   `target_features`, `dylink.0` and every DWARF section outright, with no
+ *   diagnostic. Upstream `wasm-opt` keeps them all, through `-O2`.
+ *
+ *   Each one records the position it held, so the module comes back as it went
+ *   in — where upstream APPENDS them after the known sections and special-cases
+ *   only `dylink.0` (which must come first). An API-built module has none: `[]`
+ *   (required since M8b5, as wabt-ts's — one spelling of "none").
+ * - `loc` — The module's AS-WRITTEN metadata — wabt-ts's `Module` fields, carried by
+ *   the one module (M8b5): where it was defined, the file it came from, each
+ *   section's byte range (`wasm-objdump`), and the text-form side table
+ *   (`fidelity.ts`). Empty from {@link ModuleBuilder.build}, as
+ *   `makeModule` leaves them. `PassRunner` clears `fidelity` and
+ *   `sectionMeta` after a run with at least one pass: an optimized module has
+ *   no original for them to describe — the design `fidelity.ts` records.
  */
-export interface WasmModule {
-  /**
-   * The module's own name, `$`-prefixed — `''` when it has none. wabt-ts's
-   * `Module.name`, and upstream binaryen's `Module::name` (M7c3a). It is never
-   * made up, so it needs no entry in {@link WasmModule.explicitNames}; it is
-   * written (name subsection 0) when a name section is.
-   */
-  name: string;
-  /** All locally-defined functions in declaration order. */
-  functions: WasmFunction[];
-  /** All locally-defined globals in declaration order. */
-  globals: WasmGlobal[];
-  /** All linear-memory definitions (typically 0 or 1 entry pre-multi-memory). */
-  memories: WasmMemory[];
-  /** All table definitions in declaration order. */
-  tables: WasmTable[];
-  /** Element segments that initialize tables. */
-  elements: ElementSegment[];
-  /** Data segments that initialize linear memory. */
-  dataSegments: DataSegment[];
-  /** Imported entities (functions, globals, memories, tables). */
-  imports: WasmImport[];
-  /** Names exported to the host. */
-  exports: WasmExport[];
-  /** Exception tags (EH proposal). */
-  tags: WasmTag[];
-  /**
-   * The start function (section 8) — a `Var`, wabt-ts's `Module.start` (M8b1):
-   * a name as every reference a pass reads is (`requireName`), or an index as
-   * written. ABSENT when the module has none (the M2 rule: absent = missing).
-   * It was `string | null`, a name or a numeric TOKEN in one string.
-   *
-   * The start function runs at instantiation time, before any export is
-   * callable. It is a root of the module's reachability graph exactly like an
-   * export, so passes that prune unreachable definitions must seed from it.
-   */
-  start?: Var;
-  /** User-defined heap types (struct, array, func) for the GC proposal. */
-  types: TypeDef[];
-  /**
-   * The names the module was READ with — its `name` section — as opposed to
-   * the ones the decoder made up. N1 steps P4–P5 (cmem/names.md).
-   *
-   * Every entity here is keyed by a name, so the decoder names the unnamed ones
-   * `$func3`, `$global0`, … The encoder must not write those into a name
-   * section — that would invent names, the fault `wasm2wat`'s `generateNames`
-   * had — so it writes only what is listed here. Upstream binaryen keeps the
-   * same distinction as `hasExplicitName`.
-   *
-   * ONLY that (M7c3b b1a): whether a section is written is
-   * {@link WasmModule.hasNameSection}. Every producer that MAKES UP names sets
-   * it — the decoder always does, section or not. Absent means nothing was made
-   * up, so every non-empty name is real.
-   */
-  explicitNames?: ExplicitNames;
-  /**
-   * Whether a `name` section is written — wabt-ts's `Module.hasNameSection`
-   * (M7c3b b1a). It was the PRESENCE of {@link WasmModule.explicitNames}, one
-   * field holding two facts. The decoder sets it to whether the binary had one
-   * (a binary without must not gain one); `ModuleBuilder.build` to `false`, so
-   * an API-built module encodes as before; `PassRunner` clears it at the end of
-   * a run unless `debugInfo` is set — optimized output follows `-g`, as
-   * upstream. ⚠️ Set on a module with no record, it takes every non-empty name
-   * as real — including a type name `addType` made up.
-   */
-  hasNameSection: boolean;
-  /**
-   * Whether the module was decoded from a binary with a DataCount section (id
-   * 12) — W6. The encoder writes one when a function body names a data segment
-   * (then the format requires it), or when this is set, so a binary that
-   * carried one it did not need re-encodes with it. False from
-   * {@link ModuleBuilder.build}. wabt-ts's `Module.hasDataCountSection` (M7c):
-   * one name, and one spelling of false.
-   */
-  hasDataCountSection: boolean;
-  /**
-   * The custom sections the module was decoded from, in binary order — C3
-   * (cmem/divergences.md).
-   *
-   * 🔧 The decoder collected NONE, so a decode → encode dropped `producers`,
-   * `target_features`, `dylink.0` and every DWARF section outright, with no
-   * diagnostic. Upstream `wasm-opt` keeps them all, through `-O2`.
-   *
-   * Each one records the position it held, so the module comes back as it went
-   * in — where upstream APPENDS them after the known sections and special-cases
-   * only `dylink.0` (which must come first). An API-built module has none: `[]`
-   * (required since M8b5, as wabt-ts's — one spelling of "none").
-   */
-  customSections: CustomSection[];
-  /**
-   * The module's AS-WRITTEN metadata — wabt-ts's `Module` fields, carried by
-   * the one module (M8b5): where it was defined, the file it came from, each
-   * section's byte range (`wasm-objdump`), and the text-form side table
-   * (`fidelity.ts`). Empty from {@link ModuleBuilder.build}, as
-   * `makeModule` leaves them. `PassRunner` clears `fidelity` and
-   * `sectionMeta` after a run with at least one pass: an optimized module has
-   * no original for them to describe — the design `fidelity.ts` records.
-   */
-  loc: Location;
-  filename: string;
-  sectionMeta: SectionMeta[];
-  fidelity: FidelityTable;
-}
+export type WasmModule = W.Module;
 
 /**
  * One custom section a module carried: its bytes and where they sat.
@@ -536,23 +469,22 @@ export interface WasmModule {
  * with `data: null`. That is how a binary whose customs straddle the name
  * section (`.debug_*`, `name`, `producers` — clang's layout) re-encodes in the
  * order it arrived.
+ *
+ * ONE TYPE with wabt-ts's `Custom` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — The section's name: `producers`, `target_features`, `dylink.0`, `.debug_info`, …
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
+ * - `data` — Its payload, verbatim — or `null` for the `name` section's place.
+ * - `precedingSection` — The known section this one FOLLOWED, or `null` when it came before every
+ *   known section; ABSENT when the position is not known (built by hand), and
+ *   then it is written last. Ids are the binary's own (1 type … 13 tag), so a
+ *   section is written back into the same gap even if the neighbour it was
+ *   recorded against is gone. wabt-ts's `Custom.precedingSection` (M2f).
  */
-export interface CustomSection {
-  /** The section's name: `producers`, `target_features`, `dylink.0`, `.debug_info`, … */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4). */
-  loc?: Location;
-  /** Its payload, verbatim — or `null` for the `name` section's place. */
-  data: Uint8Array | null;
-  /**
-   * The known section this one FOLLOWED, or `null` when it came before every
-   * known section; ABSENT when the position is not known (built by hand), and
-   * then it is written last. Ids are the binary's own (1 type … 13 tag), so a
-   * section is written back into the same gap even if the neighbour it was
-   * recorded against is gone. wabt-ts's `Custom.precedingSection` (M2f).
-   */
-  precedingSection?: BinarySection | null;
-}
+export type CustomSection = W.Custom;
 
 /**
  * The as-written metadata of a module that was not read from anything — what

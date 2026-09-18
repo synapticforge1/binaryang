@@ -23,9 +23,9 @@
  */
 
 import { type ValType, valTypeName } from './types.ts';
-import { heapAbstract, type HeapTypeRef, type Var } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, type HeapTypeRef } from '../../wabt-ts/ir/ir.ts';
 import { Type } from '../../wabt-ts/core/types.ts';
-import type { Location } from '../../wabt-ts/core/error.ts';
+import type * as W from '../../wabt-ts/ir/ir.ts';
 export { heapAbstract, sameHeap } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -159,78 +159,74 @@ export type ValueType = ValType | RefType;
 
 /**
  * A struct or array field declaration.
+ *
+ * ONE TYPE with wabt-ts's `Field` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — The field's name — wabt-ts's `Field.name` (M5b). `''` where the module gave
+ *   none; the name section supplies one for a decoded module.
+ *
+ *   🔧 The WAT parser SKIPPED a written field name, so `(field $x i32)` lost the
+ *   `$x` with nowhere to report it.
+ * - `type` — The storage type of this field.
+ * - `mutable` — Whether the field can be mutated after construction.
  */
-export interface FieldType {
-  /**
-   * The field's name — wabt-ts's `Field.name` (M5b). `''` where the module gave
-   * none; the name section supplies one for a decoded module.
-   *
-   * 🔧 The WAT parser SKIPPED a written field name, so `(field $x i32)` lost the
-   * `$x` with nowhere to report it.
-   */
-  name: string;
-  /** The storage type of this field. */
-  type: StorageType;
-  /** Whether the field can be mutated after construction. */
-  mutable: boolean;
-}
+export type FieldType = W.Field;
 
 // ---------------------------------------------------------------------------
 // User-defined type definitions
 // ---------------------------------------------------------------------------
 
 /**
- * A user-defined struct type.
+ * What every type-section entry carries besides its shape — wabt-ts's
+ * `TypeEntryBase` (S6 step 5 item 6 (M5)).
+ *
+ * ONE TYPE with wabt-ts's `TypeEntryBase` — an alias since S6 step 5 item 6 (M8b6),
+ * after M1–M8b5 converged the two declarations field by field (the ratchet,
+ * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
+ * own declaration said is kept below, field by field.
+ *
+ * - `name` — The entry's name, from the name section where it has one.
+ * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b4).
+ * - `sub` — An explicit `(sub final? $super*)` declaration.
+ *
+ *   ABSENT means the bare comptype shorthand, which the spec defines as
+ *   `sub final` with no supertypes — so absent is NOT `{ final: true, supertypes: [] }`,
+ *   and the two encode differently.
+ *
+ *   🔧 The decoder read the supertype list into NOWHERE and the encoder never
+ *   wrote one, so every subtype relationship in a module was lost on the way
+ *   through — silently (83 spec binaries; found measuring M3).
+ * - `recGroupSize` — Set on the FIRST entry of an explicit `(rec …)` group: how many consecutive
+ *   entries the group spans. Absent means a singleton.
+ *
+ *   The type INDEX space counts entries, but the SECTION is a vector of rec
+ *   groups — so a 2-entry group is one vector slot and two indices. The decoder
+ *   flattened them, which changes the section's own count.
+ */
+export type TypeDefBase = W.TypeEntryBase;
+
+/**
+ * A user-defined struct type — wabt-ts's entry, by shape (an alias since M8b6).
  *
  * @example
  * ```ts
  * const pointType: StructTypeDef = {
- *   kind: "struct",
+ *   name: '$point',
+ *   kind: 'struct',
  *   fields: [
- *     { type: ValType.I32, mutable: false }, // x
- *     { type: ValType.I32, mutable: false }, // y
+ *     { name: '$x', type: ValType.I32, mutable: false },
+ *     { name: '$y', type: ValType.I32, mutable: false },
  *   ],
  * };
  * ```
+ *
+ * - `kind` — Discriminant — identifies this entry as a struct type.
+ * - `fields` — The ordered list of field declarations.
  */
-/**
- * What every type-section entry carries besides its shape — wabt-ts's
- * `TypeEntryBase` (S6 step 5 item 6 (M5)).
- */
-export interface TypeDefBase {
-  /** The entry's name, from the name section where it has one. */
-  name: string;
-  /** Where the source defined it — wabt-ts's `loc`, optional in both (M8b4). */
-  loc?: Location;
-  /**
-   * An explicit `(sub final? $super*)` declaration.
-   *
-   * ABSENT means the bare comptype shorthand, which the spec defines as
-   * `sub final` with no supertypes — so absent is NOT `{ final: true, supertypes: [] }`,
-   * and the two encode differently.
-   *
-   * 🔧 The decoder read the supertype list into NOWHERE and the encoder never
-   * wrote one, so every subtype relationship in a module was lost on the way
-   * through — silently (83 spec binaries; found measuring M3).
-   */
-  sub?: { final: boolean; supertypes: Var[] };
-  /**
-   * Set on the FIRST entry of an explicit `(rec …)` group: how many consecutive
-   * entries the group spans. Absent means a singleton.
-   *
-   * The type INDEX space counts entries, but the SECTION is a vector of rec
-   * groups — so a 2-entry group is one vector slot and two indices. The decoder
-   * flattened them, which changes the section's own count.
-   */
-  recGroupSize?: number;
-}
-
-export interface StructTypeDef extends TypeDefBase {
-  /** Discriminant — identifies this entry as a struct type. */
-  kind: 'struct';
-  /** The ordered list of field declarations. */
-  fields: FieldType[];
-}
+export type StructTypeDef = Extract<W.TypeEntry, { kind: 'struct' }>;
 
 /**
  * A user-defined array type.
@@ -238,33 +234,35 @@ export interface StructTypeDef extends TypeDefBase {
  * @example
  * ```ts
  * const intArrayType: ArrayTypeDef = {
- *   kind: "array",
- *   element: { type: ValType.I32, mutable: true },
+ *   name: '$ints',
+ *   kind: 'array',
+ *   field: { name: '$field0', type: ValType.I32, mutable: true },
  * };
  * ```
+ *
+ * An alias of wabt-ts's array entry since M8b6.
+ *
+ * - `kind` — Discriminant — identifies this entry as an array type.
+ * - `field` — The element field declaration (wabt-ts's `field`; it was `element`).
  */
-export interface ArrayTypeDef extends TypeDefBase {
-  /** Discriminant — identifies this entry as an array type. */
-  kind: 'array';
-  /** The element field declaration (wabt-ts's `field`; it was `element`). */
-  field: FieldType;
-}
+export type ArrayTypeDef = Extract<W.TypeEntry, { kind: 'array' }>;
 
 /**
  * A function type stored explicitly in the module's type section.
  * Used when GC types are present (so all type indices are stable).
+ *
+ * An alias of wabt-ts's function entry since M8b6.
+ *
+ * - `kind` — Discriminant — identifies this entry as a function type.
+ * - `sig` — The signature, as every other function type in this tree holds it (M5).
  */
-export interface FuncTypeDef extends TypeDefBase {
-  /** Discriminant — identifies this entry as a function type. */
-  kind: 'func';
-  /** The signature, as every other function type in this tree holds it (M5). */
-  sig: { params: (ValType | RefType)[]; results: (ValType | RefType)[] };
-}
+export type FuncTypeDef = Extract<W.TypeEntry, { kind: 'func' }>;
 
 /**
- * A user-defined type entry in the module's type section.
+ * A user-defined type entry in the module's type section — wabt-ts's
+ * `TypeEntry`, ONE TYPE with it since M8b6.
  */
-export type TypeDef = StructTypeDef | ArrayTypeDef | FuncTypeDef;
+export type TypeDef = W.TypeEntry;
 
 // ---------------------------------------------------------------------------
 // Type guard utilities
