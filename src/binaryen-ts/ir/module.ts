@@ -51,6 +51,36 @@ export type { TypeDef } from './gc-types.ts';
 // ---------------------------------------------------------------------------
 
 /**
+ * `def` with every name filled: a type given as `''` becomes `$typeN` (clear of
+ * `used`), a field given as `''` becomes `$fieldN` — owner decision 4 names
+ * every entity, types and fields included (M7c3b b0). The made-up names are in
+ * no `explicitNames` set, so they are never written. A copy: the caller's
+ * object is left as it was.
+ */
+function namedTypeDef(def: TypeDef, idx: number, used: ReadonlySet<string>): TypeDef {
+  let name = def.name;
+  if (name === '') {
+    name = `$type${idx}`;
+    for (let n = 1; used.has(name); n++) name = `$type${idx}.${n}`;
+  }
+  if (def.kind === 'func') return { ...def, name };
+  const fields = def.kind === 'struct' ? def.fields : [def.field];
+  // Unique within the type: a made-up `$field0` must not take the spelling of a
+  // field the caller really named `$field0`, or it would be written as real.
+  const fieldsUsed = new Set(fields.map((f) => f.name).filter((n) => n !== ''));
+  const named = fields.map((f, j) => {
+    if (f.name !== '') return f;
+    let n = `$field${j}`;
+    for (let k = 1; fieldsUsed.has(n); k++) n = `$field${j}.${k}`;
+    fieldsUsed.add(n);
+    return { ...f, name: n };
+  });
+  return def.kind === 'struct'
+    ? { ...def, name, fields: named }
+    : { ...def, name, field: named[0]! };
+}
+
+/**
  * {@link Limits} from sizes as the builder API takes them: a `number` or a
  * `bigint`, and `null` for no maximum (M2g).
  */
@@ -468,9 +498,9 @@ export interface CustomSection {
  *
  * Entities are listed by the name they carry in the IR (after disambiguation),
  * so a pass that renames or removes one simply takes it out of the name section.
- * TYPES and their fields are keyed by the `TypeDef` OBJECT: the type section is
- * written from `types`, and a pass that rebuilds a type loses its name rather
- * than lending it to whatever takes its index.
+ * Every entity HAS a name — types and fields too (owner decision 4, M7c3b b0;
+ * they were keyed by the `TypeDef` object, their names held here) — and these
+ * sets say which ones are real: only those are written.
  */
 export interface ExplicitNames {
   /** Functions, imported and defined (1). */
@@ -488,8 +518,11 @@ export interface ExplicitNames {
   localsListed: ReadonlySet<string> | null;
   /** Label names, by function name (3) — the names of the blocks, loops, ifs and trys that had one. */
   labels: ReadonlyMap<string, ReadonlySet<string>>;
-  /** Type names (4). */
-  types: ReadonlyMap<TypeDef, string>;
+  /**
+   * Which type names are real (4) — the names are on the `TypeDef`s, made up
+   * where the section gave none (owner decision 4; M7c3b b0).
+   */
+  types: ReadonlySet<string>;
   /** Tables (5), memories (6), globals (7), element (8) and data (9) segments, tags (11). */
   tables: ReadonlySet<string>;
   memories: ReadonlySet<string>;
@@ -497,8 +530,8 @@ export interface ExplicitNames {
   elements: ReadonlySet<string>;
   dataSegments: ReadonlySet<string>;
   tags: ReadonlySet<string>;
-  /** Struct field names, by type (10). */
-  fields: ReadonlyMap<TypeDef, ReadonlyMap<number, string>>;
+  /** Which field names are real (10), by their TYPE's name — as `labels` are by function. */
+  fields: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -925,7 +958,7 @@ export class ModuleBuilder {
    */
   addType(def: TypeDef): number {
     const idx = this._types.length;
-    this._types.push(def);
+    this._types.push(namedTypeDef(def, idx, new Set(this._types.map((t) => t.name))));
     return idx;
   }
 

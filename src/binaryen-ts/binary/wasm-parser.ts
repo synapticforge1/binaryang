@@ -855,10 +855,7 @@ class WasmParser {
       // Only when the binary HAD a name section: one without must not gain one.
       ...(this.names.hasSection
         ? {
-          explicitNames: this.names.explicit(
-            (i) => this.names.func(i),
-            this.heapTypeDefs,
-          ),
+          explicitNames: this.names.explicit((i) => this.names.func(i)),
         }
         : {}),
     };
@@ -970,11 +967,11 @@ class WasmParser {
     return readValueType(this.r);
   }
 
-  private readFieldType(): FieldType {
+  /** Field `j` of the type about to be pushed — named as every entity is (b0). */
+  private readFieldType(j: number): FieldType {
     const type = this.readStorageType();
     const mutable = this.r.readU8() !== 0;
-    // No name of its own: the name section supplies one (M5b, as wabt-ts).
-    return { name: '', type, mutable };
+    return { name: this.names.field(this.heapTypeDefs.length, j), type, mutable };
   }
 
   private readTypeDef(): void {
@@ -1003,8 +1000,12 @@ class WasmParser {
       sub = { final, supertypes };
       tag = this.r.readU8(); // actual type form
     }
-    // No name of its own: the name section supplies one, as it does in wabt-ts.
-    const base = { name: '', ...(sub === undefined ? {} : { sub }) };
+    // The section's name, or a made-up `$typeN` — owner decision 4 covers types
+    // (M7c3b b0); `explicitNames.types` says which. It was `''` (M5a).
+    const base = {
+      name: this.names.type(this.heapTypeDefs.length),
+      ...(sub === undefined ? {} : { sub }),
+    };
     if (tag === 0x60) { // func type
       const paramCount = this.r.readU32();
       const params: (ValType | RefType)[] = [];
@@ -1024,13 +1025,13 @@ class WasmParser {
     if (tag === 0x5f) { // struct type
       const fieldCount = this.r.readU32();
       const fields: FieldType[] = [];
-      for (let j = 0; j < fieldCount; j++) fields.push(this.readFieldType());
+      for (let j = 0; j < fieldCount; j++) fields.push(this.readFieldType(j));
       this.heapTypeDefs.push({ ...base, kind: 'struct', fields });
       this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
     }
     if (tag === 0x5e) { // array type
-      const field = this.readFieldType();
+      const field = this.readFieldType(0);
       this.heapTypeDefs.push({ ...base, kind: 'array', field });
       this.funcTypes.push(null); // not a function type; keeps indices aligned
       return;
