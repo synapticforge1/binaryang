@@ -43,7 +43,7 @@ import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wabtReference } from '../wabt_reference.ts';
+import { wabtReference } from '../nameless_reference.ts';
 
 type Lane = 'i8x16' | 'i16x8' | 'i32x4' | 'i64x2';
 type Op = 'shl' | 'shr_s' | 'shr_u';

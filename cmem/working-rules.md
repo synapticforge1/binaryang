@@ -50,9 +50,15 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` · `d
 
 - ⚠️ **Run it after the LAST edit.** If an edit follows the gate, the gate has not run — decision 5
   merged with `deno lint` red that way.
-- ⚠️ **`check-naming.sh` prints a filename on SUCCESS.** Read `$?`, not the output. `deno lint` was
-  failing on `main` for two commits whose messages reported it green (`456423b54`, `cec3a3381`;
-  fixed `fc91cf409`).
+- ⚠️ **`check-naming.sh`'s verdict is its OUTPUT, not its exit code** — it always exits 0, and any
+  line it prints is a violation (its header: "Empty output means the rule holds"; CI's step fails
+  on non-empty output). Run it as CI does:
+  `out=$(sh scripts/check-naming.sh); [ -z "$out" ]`. ⚠️ This rule used to say the opposite —
+  "prints a filename on SUCCESS, read `$?`" — and that misreading hid a real violation
+  (`tests/binaryen-ts/wabt_reference.ts`, from `138148881` 2026-09-11 until its rename 2026-09-18).
+  The general lesson stands for every OTHER step: read each exit code — `deno lint` was failing on
+  `main` for two commits whose messages reported it green (`456423b54`, `cec3a3381`; fixed
+  `fc91cf409`).
 - ⚠️ **`deno task test` alone is not the gate** — it runs `--no-check`. `deno task ci` is check +
   test. Dropping `check` left `main` red by CI's standard for 65 unpushed commits (`80a45bffe`).
 - **The spec corpus is per-session scratch.** A new session rebuilds it first:
