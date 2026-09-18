@@ -10,6 +10,7 @@
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
 import { MADE_UP } from '../../wabt-ts/ir/made-up-names.ts';
+import { MAX_MATERIALIZED_LOCALS } from '../../wabt-ts/reader/binary-reader.ts';
 import {
   blockResult,
   heapAbstract,
@@ -1508,11 +1509,29 @@ class WasmParser {
     // Read locals
     const locals: Local[] = ft.params.map((t) => ({ type: t }));
     if (!constExpr) {
+      // The groups are read BEFORE any slot is made. 🔧 They were materialized
+      // as read, so five bytes declaring 2^32 locals (spec `binary.43` / `.44`)
+      // ran this decoder OUT OF MEMORY — the process died instead of the module
+      // being refused. wabt-ts's reader had the same defect (M6c) and the same
+      // fix; the limit is shared. The spec caps the SUM at 2^32-1, and four
+      // groups of 2^30 overflow where no single one does, so the sum is checked.
       const localGroupCount = r.readU32();
+      const groups: { type: ValueType; count: number }[] = [];
+      let totalLocals = 0;
       for (let i = 0; i < localGroupCount; i++) {
-        const n = r.readU32();
-        const t = readValTypeByte(r);
-        for (let j = 0; j < n; j++) locals.push({ type: t });
+        const count = r.readU32();
+        const type = readValTypeByte(r);
+        totalLocals += count;
+        groups.push({ type, count });
+      }
+      if (totalLocals > 0xffff_ffff) return r.error('too many locals');
+      if (totalLocals > MAX_MATERIALIZED_LOCALS) {
+        return r.error(
+          `too many locals: ${totalLocals} exceeds this decoder's limit of ${MAX_MATERIALIZED_LOCALS}`,
+        );
+      }
+      for (const g of groups) {
+        for (let j = 0; j < g.count; j++) locals.push({ type: g.type });
       }
       // Params and locals share one index space, as the name section's local
       // subsection does. An index past the end names nothing.
