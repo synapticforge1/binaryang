@@ -2175,6 +2175,26 @@ const REF_VALTYPE_HEAP: Partial<Record<ValType, AbstractHeapType>> = {
   [ValType.NullExnRef]: AbstractHeapType.NoExn,
 };
 
+/**
+ * The type of `ref.null <heap>`: an abstract heap's shorthand (`func` →
+ * `funcref`), else `(ref null $T)`. The one rule the decoder and M8d's type
+ * derivation both read — the inverse of {@link REF_VALTYPE_HEAP}.
+ */
+export function refNullType(heap: HeapType): ValueType {
+  if (heap.kind !== 'abstract') return { heapType: heap, nullable: true };
+  const t = HEAP_REF_VALTYPE.get(heap.name);
+  if (t === undefined) throw new Error(`ref.null of an unknown abstract heap: ${heap.name}`);
+  return t;
+}
+
+/** {@link REF_VALTYPE_HEAP} inverted: each abstract heap's shorthand reference type. */
+const HEAP_REF_VALTYPE: ReadonlyMap<AbstractHeapType, ValType> = new Map(
+  Object.values(ValType).flatMap((t) => {
+    const h = REF_VALTYPE_HEAP[t as ValType];
+    return h === undefined ? [] : [[h, t as ValType] as const];
+  }),
+);
+
 /** Creates a `ref.func` expression. */
 export function makeRefFunc(func: Var, type: ValType = ValType.FuncRef): RefFuncExpr {
   return { kind: ExpressionKind.RefFunc, type, func };

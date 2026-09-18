@@ -3812,6 +3812,75 @@ wires in at M8e, on the optimizer route only.
   change there; measure it.
 - **Gate** on `400135262`: every step exit 0, 1283 tests.
 
+**✅ M8d — `deriveTypes`: every node's type, derived over the whole module (2026-09-18, branch
+`m8d-derive-types`).** `src/binaryen-ts/ir/derive-types.ts`, not yet called by any route. It
+wires in at M8e, after `nameReferences`.
+- **Rules:** where a factory derives a type from the node itself (opcode, children), the factory is
+  CALLED and its `type` taken. Where the type comes from context (locals, globals, callee results,
+  GC types, tables), it is supplied as binaryen-ts's decoder supplies it, the decoder being the
+  authority where it and the bridge differ. A carrier's `type` is declared and read; a region's is
+  its last instruction's (`makeRegion`'s rule).
+- **Where the pass departs from both, on purpose:**
+  - a multi-value `call_indirect` is typed by every result, as `call` is; the factory keeps only
+    the first;
+  - `table.get` gets the table's element type; the decoder never passes it, so the factory's
+    default `funcref` stands;
+  - a `br_if` is typed by its target's values.
+- **`pop`, by simulating each region's value stack in emission order:**
+  - The encoder writes a `pop` as nothing, so its value is what the stack holds when its parent is
+    emitted.
+  - Operands CLAIM one value per `pop` and per value-producing operand. The parser pads
+    placeholders into the deepest positions, so the `pop`s take the deepest claimed values.
+  - An instruction REMOVES what it claims, except a `br_if`, which removes its target's values and
+    the condition.
+  - A `br_if` leaves its target's values, and a `br_on_*` leaves its carried values plus the ref
+    (except `br_on_non_null`). Both are wasm's rule, whatever the tree holds as their operands.
+  - Seeds: a carrier's params, a catch's tag values (+ exnref for `_ref`). Labels carry their types,
+    the frame at the bottom.
+  - A reachable `pop` with nothing to take is REFUSED, naming the line. In unreachable code it is
+    `unreachable`.
+- **Acceptance 1, against the bridge:** 421 modules, 7,620 functions. Every node agrees with the
+  bridged tree, apart from the call_indirect `typeVar` the bridge drops (known) and **1,885 `pop`s**
+  the bridge typed `i32` blindly. Checked independently against their slots: all **2,137** `pop`s in
+  a `local.set` / `local.tee` / `global.set` agree.
+- **Acceptance 2, against the AUTHORITY:** the **2,490 V8-valid spec binaries**, read by wabt-ts,
+  compared with binaryen-ts's decoder node by node wherever the trees' shapes line up. About 50,000
+  nodes over ~75 kinds (GC, SIMD, EH, tail calls, atomics) agree, and **none is refused**. The
+  differences are all explained:
+  - 235 `table.get`, plus 98 `br_on` / 1 `ref.as` downstream: the decoder's `funcref` default, a
+    **decoder defect**;
+  - 1 multi-value `call_indirect`: a **factory defect**;
+  - 6 regions of an `if` with params: the decoder materializes the params as `pop`s in the region,
+    and the wabt-ts tree leaves them implicit.
+  - The 3,426 V8-invalid binaries are excluded: refusing them is right.
+- **Tests:** `tests/binaryen-ts/ir/derive_types.test.ts` (19 steps). **Mutants: 24, all killed.**
+  The first run had 6 survivors:
+  - 2 were code nothing could observe, now deleted: unconditional transfers' consumption, and a
+    `br_if` case in `leave`;
+  - 3 were gaps, now tested;
+  - 1 hid a guess (a missing field typed `i32`), now refused together with a packed field read
+    without a sign.
+- **With it:** the decoder reads `ref.null`'s type through the same `refNullType` (decoder output
+  0 of 1,023 / 0 of 5,924 changed).
+- **Two wabt-ts PARSER defects it exposed, each fixed on its own branch first** (bytes unchanged;
+  wabt-ts outputs 0 of 2,888):
+  - **the phantom branch value** (`e819a92c3`): since S5 (`f27bfd5ca`, 2026-09-04) the linear-form
+    padding placeholder is a `pop`, and `br_if` / `br_on_null` still dropped only `nop`. So every
+    value-less linear `br_if` carried one (1,433 corpus `pop`s), and the bridge typed each such
+    `br_if` by it;
+  - **linear indirect-call arity** (`9b786de22`): T10.5 gave `call` its signature's arity;
+    `call_indirect` / `return_call_indirect` / `call_ref` still drained the stack (2 of 222 corpus
+    nodes).
+- **Left as found, for later:**
+  - `br_table`'s filter has the same stale `'nop'` check but never meets a placeholder;
+  - the parser does not know a branch target's arity, so a `br_if` value that really comes from
+    outside the region drops out, as it did before S5;
+  - wabt-ts's BINARY reader does not treat a `br_if` as producing a value (the pass follows wasm's
+    rule regardless);
+  - `makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64;
+  - the decoder's `table.get` default and the factory's multi-value `call_indirect`.
+- **Gate** on `8aca27cbd`: every step exit 0, 1288 tests.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
