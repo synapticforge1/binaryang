@@ -28,7 +28,7 @@ import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { Packed } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import { Packed, storageTypeToString } from '../../../src/binaryen-ts/ir/gc-types.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -200,5 +200,16 @@ describe('M7c3b b0 — the builder names every type and field', () => {
     };
     new ModuleBuilder().addType(def);
     assertEquals([def.name, def.field.name], ['', '']);
+  });
+});
+
+describe('M8b2 — packed field types are the binary codes, printed by NAME', () => {
+  // A packed type is a NUMBER now (`Type.I8` is 0x78). Returning it from the
+  // printer would say `120` — the V1 slip this function had once through a
+  // cast. A mutant doing exactly that survived every other test.
+  it('storageTypeToString names i8 / i16, never the code', () => {
+    assertEquals(storageTypeToString(Packed.I8), 'i8');
+    assertEquals(storageTypeToString(Packed.I16), 'i16');
+    assertEquals(storageTypeToString(ValType.I32), 'i32');
   });
 });
