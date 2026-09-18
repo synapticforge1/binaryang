@@ -90,11 +90,11 @@ const PINNED = {
   importTag: { onlyW: [], onlyB: [], differ: ['tag'] },
   // A type entry, by shape (M5). `loc` is wabt-ts's, as on every other record.
   typeFunc: { onlyW: ['loc'], onlyB: [], differ: [] },
-  // A field's `type` is each side's own `StorageType` — the last value-type pair
-  // left unmerged, and what makes the struct / array entries differ too.
-  typeStruct: { onlyW: ['loc'], onlyB: [], differ: ['fields'] },
-  typeArray: { onlyW: ['loc'], onlyB: [], differ: ['field'] },
-  field: { onlyW: [], onlyB: [], differ: ['type'] },
+  // A field's `type` was each side's own `StorageType` — the packed codes were
+  // strings in binaryen-ts. One type since M8b2; only wabt-ts's `loc` is left.
+  typeStruct: { onlyW: ['loc'], onlyB: [], differ: [] },
+  typeArray: { onlyW: ['loc'], onlyB: [], differ: [] },
+  field: { onlyW: [], onlyB: [], differ: [] },
 } as const;
 
 type P = typeof PINNED;
@@ -187,6 +187,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [18, 1, 18]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [18, 1, 15]);
   });
 });

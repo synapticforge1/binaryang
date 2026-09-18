@@ -148,6 +148,7 @@ import {
   type HeapType,
   isPackedType,
   isRefType,
+  Packed,
   type RefType,
   type StorageType,
   storageTypeToString,
@@ -2832,7 +2833,7 @@ class WatModuleParser {
    *  type: packed `i8`/`i16` fields unpack to `i32` (the `_s`/`_u` variants
    *  select the extension), every other storage type reads back as itself. */
   private _storageResultType(storage: StorageType): ValType {
-    return storage === 'i8' || storage === 'i16' ? ValType.I32 : storage as ValType;
+    return isPackedType(storage) ? ValType.I32 : storage as ValType;
   }
 
   /** Declared result type of `struct.get $ti fi` (falls back to i32 if the type
@@ -2952,8 +2953,8 @@ class WatModuleParser {
       return this.err('expected a storage type, found nothing', this._opPos);
     }
     const raw = atomText(s);
-    if (raw === 'i8') return 'i8';
-    if (raw === 'i16') return 'i16';
+    if (raw === 'i8') return Packed.I8;
+    if (raw === 'i16') return Packed.I16;
     return this.tryParseValType(s) ?? this.err(`unknown storage type: ${sExprToString(s)}`, s.pos);
   }
 

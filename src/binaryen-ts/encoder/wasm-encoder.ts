@@ -112,6 +112,7 @@ import {
   type HeapType,
   isPackedType,
   isRefType,
+  Packed,
   type RefType,
   type StorageType,
   type TypeDef,
@@ -1313,11 +1314,11 @@ class WasmEncoder {
   }
 
   private writeStorageType(w: BinaryWriter, t: StorageType): void {
-    if (t === 'i8') {
+    if (t === Packed.I8) {
       w.writeU8(0x78);
       return;
     }
-    if (t === 'i16') {
+    if (t === Packed.I16) {
       w.writeU8(0x77);
       return;
     }

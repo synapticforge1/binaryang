@@ -28,6 +28,7 @@ import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { Packed } from '../../../src/binaryen-ts/ir/gc-types.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -104,7 +105,7 @@ describe('M5a — the type section comes back as it was', () => {
     const def = mod.types[0]!;
     assert(def.kind === 'array');
     assertEquals(def.field.mutable, true);
-    assertEquals(def.field.type, 'i8');
+    assertEquals(def.field.type, Packed.I8);
   });
 });
 
