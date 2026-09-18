@@ -61,6 +61,7 @@ function emptyModule(): WasmModule {
     start: null,
     types: [],
     hasDataCountSection: false,
+    name: '',
   };
 }
 
@@ -302,6 +303,7 @@ Deno.test('wasmOpt: empty module round-trips cleanly', async () => {
     start: null,
     types: [],
     hasDataCountSection: false,
+    name: '',
   });
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 2 }));
   assertInstanceOf(result, Uint8Array);

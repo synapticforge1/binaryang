@@ -198,6 +198,10 @@ their own bump — and nothing breaks by their standing still.
   gone, with `ModuleBuilder.enableExceptionHandling()` / `enableGC()`** (S6 step 5 item 6 (M7c2)).
   Each restated the module's own content (tags, memories, types); read that instead. `hasGC` had
   drifted to meaning "has a type section" since M5b; `hasMultiMemory` was never set.
+- ⚠️ **BREAKING: `WasmModule.name: string`** (required; `''` = none) holds the module's own name,
+  and an imported function's `locals` are its params, carrying their names — both were in
+  `ExplicitNames` (`module`, `importParams`, now gone). `ModuleBuilder.addFunctionImport` takes
+  optional `paramNames` (S6 step 5 item 6 (M7c3a)).
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
   names and re-encodes them; `ModuleBuilder.addFunction` takes optional `paramNames`.
 - **`WasmModule.customSections`**: every custom section is kept, each with the known section it

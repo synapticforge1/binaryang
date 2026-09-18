@@ -178,6 +178,21 @@ export class DecodedNames {
     return this.datas.name(i);
   }
 
+  /** The module's own name, `$`-prefixed, or `''` — {@link WasmModule.name}. */
+  moduleName(): string {
+    const n = this.raw?.moduleName;
+    return n ? '$' + n : '';
+  }
+
+  /**
+   * An imported function's param names, as `addFunctionImport` takes them —
+   * `undefined` for an unnamed one (M7c3a).
+   */
+  importParamNames(funcIdx: number, count: number): (string | undefined)[] {
+    const l = this.locals(funcIdx);
+    return Array.from({ length: count }, (_, i) => l.get(i));
+  }
+
   /** Names of function `funcIdx`'s params and locals, by index, disambiguated. */
   locals(funcIdx: number): Map<number, string> {
     const out = new Map<number, string>();
@@ -236,20 +251,14 @@ export class DecodedNames {
   /**
    * What the module was read with, for {@link WasmModule.explicitNames}.
    * `funcName` maps a function index to its IR name; `typeDefs` are the decoded
-   * types, index for index; `importFuncs` lists each imported function's name
-   * by index.
+   * types, index for index. The module's name and every param's name live on
+   * the module and the functions themselves (M7c3a), not here.
    */
   explicit(
     funcName: (i: number) => string,
     typeDefs: readonly TypeDef[],
-    importFuncs: readonly string[],
   ): ExplicitNames {
     const n = this.raw;
-    const importParams = new Map<string, ReadonlyMap<number, string>>();
-    importFuncs.forEach((name, i) => {
-      const l = this.locals(i);
-      if (l.size > 0) importParams.set(name, l);
-    });
     const labels = new Map<string, ReadonlySet<string>>();
     for (const fi of n?.labelNames.keys() ?? []) {
       this.givenLabels(fi);
@@ -272,9 +281,7 @@ export class DecodedNames {
       if (out.size > 0) fields.set(def, out);
     }
     return {
-      ...(n?.moduleName ? { module: '$' + n.moduleName } : {}),
       functions: this.funcs.explicit,
-      importParams,
       // By NAME, so a pass that reorders or removes a function does not shift
       // someone else's entry into its place (N6).
       localsListed: this.localsListed === null

@@ -118,10 +118,12 @@ describe('P4 — the decoder names every entity from the name section', () => {
     assert(helper.some((r) => r.endsWith(':$oops')), helper.join(' '));
   });
 
-  it("params and locals, as Local names; an import's params in explicitNames", () => {
+  it("params and locals, as Local names — an import's params too (M7c3a)", () => {
     const helper = m.functions[0]!;
     assertEquals(helper.locals.map((l) => l.name), ['$x', '$tmp']);
-    assertEquals([...m.explicitNames!.importParams.get('$log')!], [[0, '$msg']]);
+    const log = m.imports.find((i) => i.kind === ExternalKind.Func && i.func.name === '$log');
+    assert(log?.kind === ExternalKind.Func);
+    assertEquals(log.func.locals, [{ type: log.func.sig.params[0]!, name: '$msg' }]);
   });
 
   it('labels, by binary order — the condition block before the if', () => {
@@ -148,9 +150,9 @@ describe('P4 — the decoder names every entity from the name section', () => {
     assertEquals([...m.explicitNames!.labels.get('$helper')!].sort(), ['$cond', '$done']);
   });
 
-  it('records which names are REAL — the module name too', () => {
+  it("records which names are REAL; the module's own name is on the module (M7c3a)", () => {
     const x = m.explicitNames!;
-    assertEquals(x.module, '$mod');
+    assertEquals(m.name, '$mod');
     assertEquals([...x.functions].sort(), ['$helper', '$init', '$log', '$main']);
   });
 });

@@ -362,6 +362,13 @@ export function elemFuncNames(seg: ElementSegment): string[] {
  * Analogous to `Module` in `WebAssembly/binaryen/src/wasm.h`.
  */
 export interface WasmModule {
+  /**
+   * The module's own name, `$`-prefixed — `''` when it has none. wabt-ts's
+   * `Module.name`, and upstream binaryen's `Module::name` (M7c3a). It is never
+   * made up, so it needs no entry in {@link WasmModule.explicitNames}; it is
+   * written (name subsection 0) when a name section is.
+   */
+  name: string;
   /** All locally-defined functions in declaration order. */
   functions: WasmFunction[];
   /** All locally-defined globals in declaration order. */
@@ -466,12 +473,8 @@ export interface CustomSection {
  * than lending it to whatever takes its index.
  */
 export interface ExplicitNames {
-  /** The module's own name (subsection 0). */
-  module?: string;
   /** Functions, imported and defined (1). */
   functions: ReadonlySet<string>;
-  /** Param names of IMPORTED functions, by import name (2) — a defined function's are `Local.name`. */
-  importParams: ReadonlyMap<string, ReadonlyMap<number, string>>;
   /**
    * Which functions the local subsection (2) LISTED, by IR name — or `null`
    * when the section had no local subsection at all. N6.
@@ -698,6 +701,8 @@ export class ModuleBuilder {
    * @param base - External function name.
    * @param params - Parameter types.
    * @param results - Return types.
+   * @param paramNames - The params' names, by index; `undefined` for an unnamed
+   *   one — as {@link ModuleBuilder.addFunction} takes them.
    */
   addFunctionImport(
     internalName: string,
@@ -705,14 +710,26 @@ export class ModuleBuilder {
     base: string,
     params: ValueType[],
     results: ValueType[],
+    paramNames?: readonly (string | undefined)[],
   ): this {
     this._imports.push({
       kind: ExternalKind.Func,
       module,
       field: base,
       // An imported function has no body; the record is the same one a defined
-      // function uses, and its body is the empty region (M4).
-      func: { name: internalName, sig: { params, results }, locals: [], body: makeRegion([]) },
+      // function uses, and its body is the empty region (M4). Its locals are
+      // its params, as a defined function's begin with them — which is where
+      // their names live (M7c3a; it was `locals: []`, the names kept apart in
+      // `ExplicitNames.importParams`).
+      func: {
+        name: internalName,
+        sig: { params, results },
+        locals: params.map((type, i) => {
+          const name = paramNames?.[i];
+          return name === undefined ? { type } : { type, name };
+        }),
+        body: makeRegion([]),
+      },
     });
     return this;
   }
@@ -922,6 +939,7 @@ export class ModuleBuilder {
    */
   build(): WasmModule {
     return {
+      name: '',
       functions: [...this._functions],
       globals: [...this._globals],
       memories: [...this._memories],

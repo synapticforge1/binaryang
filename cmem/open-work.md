@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — waiting on an owner question)
+## Start the next session here (handoff, 2026-09-18 — M7c3b next)
 
-**Where the work stopped.** `main` is at the merge of M7c1 + M7c2 (code last changed at
-`3d8c14b83`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `3d8c14b83` and every step exited 0: fmt, lint, **1268 tests / 0 failed**,
+**Where the work stopped.** `main` is at the merge of decision 4 + M7c3a (code last changed at
+`d654da455`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `d654da455` (as on `3d8c14b83` before it) and every step exited 0: fmt, lint, **1268 tests / 0 failed**,
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -48,11 +48,11 @@ owner call (rename the helper, and correct the rule). Invisible so far only beca
 to spawn 'wast2json'" is the environment, not the code.
 
 **S6 step 5, items 1–5 are DONE** (the expression half). **Item 6, the MODULE half, is nearly done:**
-M1–M7c2 have landed; **M7c3 (waiting on the owner) and M8 remain**. Scope and every stage's record:
+M1–M7c3a have landed; **M7c3b and M8 remain**. Scope and every stage's record:
 [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
 **Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
-typed-differently): M1 **46 / 29 / 15** → **21 / 2 / 19** now. The `differ` count ROSE on purpose: a
+typed-differently): M1 **46 / 29 / 15** → **20 / 2 / 19** now. The `differ` count ROSE on purpose: a
 field that converges in NAME but not yet in TYPE moves from a one-sided list into `differ`, and the
 entity collections stay there until the records themselves are one type (M8).
 
@@ -71,14 +71,16 @@ entity collections stay there until the records themselves are one type (M8).
 | M7a+M7b | `5ee759ea8` | the module's collections take binaryen-ts's names; the five `num*Imports` counts are DERIVED                 |
 | M7c1    | `803a4a1bf` | the DataCount flag is `hasDataCountSection: boolean` in both (2026-09-18)                                     |
 | M7c2    | `3d8c14b83` | the feature flags are gone from both — `hasGC` had silently drifted to "has a type section"; `featuresUsed` was never read (2026-09-18) |
+| decision 4 | `ab80982a8` | 🗓️ owner: the one module follows binaryen-ts's naming practice (2026-09-18)                               |
+| M7c3a   | `d654da455` | an import's param names and the module's name live on their records, not in `explicitNames` (2026-09-18)   |
 
 ### Next, in order
 
-1. **🗓️ M7c3 — the owner question** in [ir-convergence.md](ir-convergence.md) § "Item 6 — the
-   MODULE half", its M7c3 record: how the ONE module represents an entity the binary did not name —
-   `name: ''` (wabt-ts) or a name always plus a record of which are real (binaryen-ts). Group 1 of
-   that record (type / field / import-param / module names that binaryen-ts keeps in `explicitNames`
-   beside a home it already has) is behaviour-neutral and can land as M7c3a whichever way it goes.
+1. **M7c3b — wabt-ts takes binaryen-ts's naming practice** (owner decision 4 in
+   [names.md](names.md), 2026-09-18: every entity named, `explicitNames` records the real ones, only
+   real names written). M7c3a has landed; the plan for b1 (names everywhere in wabt-ts, writers ask
+   the record — start with a TRIAL) and b2 (`hasNameSection` / `localNamesListed` → `explicitNames`)
+   is in [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half", its M7c3b record.
    Left one-sided by design until M8: wabt-ts's `loc` / `name` / `filename` / `sectionMeta` /
    `fidelity` (as-written metadata the optimizer has no use for).
 2. **🗓️ The naming-check finding** above: rename `wabt_reference.ts`, correct the working rule.
