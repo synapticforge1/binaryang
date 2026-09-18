@@ -1887,7 +1887,7 @@ class WatModuleParser {
     const ptr = this.parseExpr(args[argIdx], ctx);
     // The access width is the natural alignment for every load form:
     // `i64.load32_s` touches 4 bytes and is naturally 4-aligned, `i64.load` 8.
-    const align = this.alignExponent(alignBytes, shape.bytes, list.pos);
+    const align = this.alignOf(alignBytes, shape.bytes, list.pos);
     return makeLoad(shape.opcode, BigInt(offset), align, ptr);
   }
 
@@ -1924,7 +1924,7 @@ class WatModuleParser {
     const written = args.length - argIdx;
     const ptr = written >= 2 ? this.parseExpr(args[argIdx], ctx) : makePop(ValType.I32);
     const value = this.parseExpr(args[argIdx + (written >= 2 ? 1 : 0)], ctx);
-    const align = this.alignExponent(alignBytes, shape.bytes, list.pos);
+    const align = this.alignOf(alignBytes, shape.bytes, list.pos);
     return makeStore(shape.opcode, BigInt(offset), align, ptr, value);
   }
 
@@ -2016,7 +2016,7 @@ class WatModuleParser {
       break;
     }
     const ptr = this.parseExpr(args[argIdx], ctx);
-    const align = this.alignExponent(alignBytes, this.simdNaturalBytes(head));
+    const align = this.alignOf(alignBytes, this.simdNaturalBytes(head));
     return makeSIMDLoad(SIMD_LOAD_OPS[head] as SIMDLoadOp, ptr, BigInt(offset), align);
   }
 
@@ -2061,7 +2061,7 @@ class WatModuleParser {
     }
     const ptr = this.parseExpr(args[argIdx], ctx);
     const vec = this.parseExpr(args[argIdx + 1], ctx);
-    const align = this.alignExponent(alignBytes, this.simdNaturalBytes(head));
+    const align = this.alignOf(alignBytes, this.simdNaturalBytes(head));
     return makeSIMDLoadStoreLane(
       SIMD_LANE_OPS[head] as SIMDLoadStoreLaneOp,
       ptr,
@@ -3274,10 +3274,12 @@ class WatModuleParser {
   }
 
   /**
-   * The alignment EXPONENT for a memory access, from the optional `align=N`.
+   * The alignment for a memory access, in BYTES, from the optional `align=N`.
    *
-   * ⚠️ `align=N` in the TEXT format is a BYTE COUNT; the IR field and the binary
-   * format both hold log2 of it. This parser stored the byte count raw, so
+   * The IR field holds BYTES since M8a1 — the node declaration's contract,
+   * upstream's, and the text format's own unit — and only the binary holds the
+   * exponent. Before that the IR held the exponent, which is what the history
+   * below was about: `align=N` is a BYTE COUNT, and this parser stored it raw, so
    * `i64.store align=4` encoded an exponent of 4 — sixteen bytes — and the
    * module was REJECTED by every engine: *"invalid alignment; expected maximum
    * alignment is 3, actual alignment is 4"*. 3 of 421 corpus modules re-encoded
@@ -3293,12 +3295,12 @@ class WatModuleParser {
    * Passing `null` means the immediate was absent, which is NOT the same as
    * `align=0` — that is malformed and rejected here.
    */
-  private alignExponent(alignBytes: number | null, naturalBytes: number, pos?: TextPos): number {
+  private alignOf(alignBytes: number | null, naturalBytes: number, pos?: TextPos): number {
     const n = alignBytes ?? naturalBytes;
     if (!Number.isInteger(n) || n <= 0 || (n & (n - 1)) !== 0) {
       this.err(`alignment must be a positive power of two, got ${n}`, pos);
     }
-    return Math.log2(n);
+    return n;
   }
 
   /**

@@ -1239,13 +1239,13 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
           simdOp,
           bridgeExpr(ld.address, ctx),
           ld.offset,
-          alignBytesToExponent(ld.align, 'load'),
+          ld.align,
         );
       }
       return makeLoad(
         ld.opcode,
         ld.offset,
-        alignBytesToExponent(ld.align, 'load'),
+        ld.align,
         bridgeExpr(ld.address, ctx),
       );
     }
@@ -1257,7 +1257,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         ls.opcode,
         bridgeExpr(ls.address, ctx),
         ls.offset,
-        alignBytesToExponent(ls.align, 'simd.load'),
+        ls.align,
       );
     }
     case 'simd.load_store_lane': {
@@ -1268,7 +1268,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
         bridgeExpr(sll.address, ctx),
         bridgeExpr(sll.vec, ctx),
         sll.offset,
-        alignBytesToExponent(sll.align, 'simd.load_store_lane'),
+        sll.align,
         sll.lane,
       );
     }
@@ -1278,7 +1278,7 @@ function bridgeExpr(e: Expr, ctx: BridgeCtx): Expression {
       return makeStore(
         st.opcode,
         st.offset,
-        alignBytesToExponent(st.align, 'store'),
+        st.align,
         bridgeExpr(st.address, ctx),
         bridgeExpr(st.value, ctx),
       );
@@ -1762,25 +1762,10 @@ function requireDefaultMemory(memidx: Var, opLabel: string): void {
 // which type-checks and preserves the exact loss the change existed to remove.
 // A wrapper that satisfies the compiler is not evidence that the value survived.
 
-/**
- * Convert wabt-ts's byte-valued alignment into the wasm `memarg.align`
- * exponent that binaryen-ts's encoder writes to the binary (`4` → `2`).
- *
- * wabt-ts's parser used to store `0` for "no explicit align", and this
- * function resolved it to the natural byte count the caller passed. The
- * parser now stores the natural alignment itself, so every producer hands
- * over a real power of two and anything else is a producer bug — thrown,
- * because log2 of it is not an exponent and the optimizer reads the field
- * as a hard constraint.
- */
-function alignBytesToExponent(wabtAlign: number, opLabel: string): number {
-  // (Math.log2 is exact on powers of two; a bitwise test would wrap past 2^31.)
-  const exponent = Math.log2(wabtAlign);
-  if (!Number.isInteger(exponent) || exponent < 0) {
-    throw new Error(`Bridge: ${opLabel} align ${wabtAlign} is not a positive power of two`);
-  }
-  return exponent;
-}
+// `alignBytesToExponent` stood here, converting wabt-ts's BYTE alignment into
+// the exponent binaryen-ts's nodes held. Both hold bytes since M8a1 — the one
+// declaration's contract — so it passes straight through, and the encoder
+// refuses a value that is not a power of two.
 
 /**
  * Classify a 0xfd-prefixed SIMD load opcode against binaryen-ts's

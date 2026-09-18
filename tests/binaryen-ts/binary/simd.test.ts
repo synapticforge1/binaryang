@@ -388,7 +388,7 @@ Deno.test('SIMD: v128.load8x8_s (SIMDLoad) parsed correctly', () => {
   const expr = soleInstr(mod.functions[0].body) as SIMDLoadExpr;
   assertEquals(expr.kind, ExpressionKind.SIMDLoad);
   assertEquals(expr.opcode, SIMDLoadOp.Load8x8SVec128);
-  assertEquals(expr.align, 1);
+  assertEquals(expr.align, 2); // bytes (M8a1): the binary's exponent 1
   assertEquals(expr.offset, BigInt(0));
   assertEquals(expr.type, ValType.V128);
 });

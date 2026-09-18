@@ -376,7 +376,7 @@ function memModule(body: Expression): Uint8Array {
 
 Deno.test("encodeWasm: a load's bytes do not depend on its result type", () => {
   const encode = (retype: boolean) => {
-    const made = makeLoad(Opcode.I64Load8S, 0n, 0, makeI32Const(0));
+    const made = makeLoad(Opcode.I64Load8S, 0n, 1, makeI32Const(0));
     const load = retype ? { ...made, type: Unreachable } : made;
     return memModule(makeDrop(load));
   };
@@ -389,7 +389,7 @@ Deno.test('encodeWasm: a store whose operand is untyped still encodes, as the st
   // the neighbouring opcode shows the ONE byte that differs is the opcode itself,
   // with the value each node holds — not a whole-binary scan for a byte.
   const encode = (op: Opcode) =>
-    memModule(makeStore(op, 0n, 0, makeI32Const(0), makeUnreachable()));
+    memModule(makeStore(op, 0n, 1, makeI32Const(0), makeUnreachable()));
   const a = encode(Opcode.I64Store8);
   const b = encode(Opcode.I64Store16);
   assert(WebAssembly.validate(a as BufferSource), 'V8 rejected the i64.store8 module');

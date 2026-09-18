@@ -54,7 +54,7 @@ function assertSameBytes(wat: string): Uint8Array {
 
 const mem = (body: string) => `(module (memory 1) (func (export "f") ${body}))`;
 
-describe('WAT parser — memarg alignment is an EXPONENT, not a byte count', () => {
+describe('WAT parser — the node holds BYTES, the binary memarg the EXPONENT (M8a1)', () => {
   // Natural alignment. `i32.store8` is the control that would pass either way.
   it('an omitted align= means NATURAL alignment, not 1 byte', () => {
     assertSameBytes(mem('(drop (i32.load (i32.const 0)))'));

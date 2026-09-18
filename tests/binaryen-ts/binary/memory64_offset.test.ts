@@ -73,7 +73,7 @@ function moduleWithLoadOffset(offset: bigint): ReturnType<ModuleBuilder['build']
       '$f',
       [],
       [ValType.I32],
-      makeLoad(Opcode.I32Load, offset, 2, makeI32Const(0)),
+      makeLoad(Opcode.I32Load, offset, 4, makeI32Const(0)),
     )
     .build();
 }
@@ -96,7 +96,7 @@ describe('memarg offsets survive the full 64-bit range', () => {
         '$f',
         [],
         [],
-        makeStore(Opcode.I32Store, offset, 2, makeI32Const(0), makeI32Const(7)),
+        makeStore(Opcode.I32Store, offset, 4, makeI32Const(0), makeI32Const(7)),
       )
       .build();
     const back = parseWasm(encodeWasm(mod));

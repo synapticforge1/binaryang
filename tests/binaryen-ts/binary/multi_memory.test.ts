@@ -93,7 +93,8 @@ describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
     assert(store, 'a store must be present');
     // The defect returned align 0x42 (66) and offset 1 — the memory index read
     // as the offset. Pinning all three is what makes this discriminating.
-    assertEquals(store['align'], 2, 'align is the exponent with bit 6 masked off');
+    // Bytes since M8a1 (the binary's exponent 2); bit 6 is the memory-index flag.
+    assertEquals(store['align'], 4, 'align is 2 ** the exponent, with bit 6 masked off');
     assertEquals(store['offset'], 0n, 'offset is the real offset, not the memory index');
     assertEquals(store.memidx, varIndex(1), 'and the memory index is kept');
   });
