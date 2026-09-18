@@ -131,8 +131,8 @@ class Deriver {
   constructor(
     private readonly m: Module,
     private readonly locals: readonly W.Local[],
-    /** The function's results — what `return`, and a branch to the frame, carry. */
-    private readonly results: readonly ValueType[],
+    /** The function's results — what a branch to the frame carries. */
+    results: readonly ValueType[],
     frameLabel: string,
   ) {
     this.labels = [{ name: frameLabel, types: results }];
@@ -200,26 +200,24 @@ class Deriver {
    * its node type is the ref's alone, as the decoder gives it.
    */
   private leave(e: Expression, stack: Stack): void {
-    if (e.kind === ExpressionKind.Break && e.condition !== undefined) {
-      stack.push(resultOf(this.carried(e.target)));
-    } else if (e.kind === ExpressionKind.BrOn) {
+    // A `br_if`'s node type IS its target's values (see `typeOfNode`).
+    if (e.kind === ExpressionKind.BrOn) {
       for (const v of e.values) stack.push(typeOf(v));
       if (e.opcode !== BrOnOp.NonNull) stack.push(typeOf(e));
     } else stack.push(typeOf(e));
   }
 
-  /** How many values `e` removes from the stack, given what its operands claim. */
+  /**
+   * How many values `e` removes from the stack, given what its operands
+   * claim: a `br_if`, its target's values and the condition, whether or not
+   * the tree holds the values. (An unconditional transfer — `br`,
+   * `br_table`, `return` — leaves the stack polymorphic, so what it removes
+   * is never observed.)
+   */
   private consumes(e: Expression, claimed: number): number {
-    switch (e.kind) {
-      case ExpressionKind.Break:
-        return this.carried(e.target).length + (e.condition === undefined ? 0 : 1);
-      case ExpressionKind.Switch:
-        return this.carried(e.defaultTarget).length + 1;
-      case ExpressionKind.Return:
-        return this.results.length;
-      default:
-        return claimed;
-    }
+    return e.kind === ExpressionKind.Break && e.condition !== undefined
+      ? this.carried(e.target).length + 1
+      : claimed;
   }
 
   /** A node's operands: its direct children other than its regions (a carrier's entry values, an if's condition). */
@@ -299,11 +297,18 @@ class Deriver {
     return { heapType: v.kind === 'index' ? v : W_index(this.m.typeIndex(v)), nullable: false };
   }
 
-  /** A field's value on the stack: a packed field is `i32`. */
-  private fieldValue(f: W.Field | undefined): ValueType {
-    if (f === undefined) return ValType.I32;
+  /**
+   * A field's value on the stack, for a read WITHOUT a sign (a signed read is
+   * `i32`). A packed field can only be read with one, and a field must
+   * exist; either failing is invalid code, refused rather than typed.
+   */
+  private fieldValue(f: W.Field | undefined, what: string): ValueType {
+    if (f === undefined) throw new Error(`derive-types: ${what} names no such field`);
     const t = f.type;
-    return t === Packed.I8 || t === Packed.I16 ? ValType.I32 : t as ValueType;
+    if (t === Packed.I8 || t === Packed.I16) {
+      throw new Error(`derive-types: ${what} reads a packed field without a sign`);
+    }
+    return t as ValueType;
   }
 
   private typeOfNode(e: Expression): Type {
@@ -460,13 +465,13 @@ class Deriver {
         if (t.kind !== 'struct') {
           throw new Error('derive-types: struct.get names a non-struct type');
         }
-        return this.fieldValue(fieldAt(t.fields, e.fieldVar));
+        return this.fieldValue(fieldAt(t.fields, e.fieldVar), 'struct.get');
       }
       case ExpressionKind.ArrayGet: {
         if (e.signed !== undefined) return ValType.I32;
         const t = this.typeEntry(e.typeVar);
         if (t.kind !== 'array') throw new Error('derive-types: array.get names a non-array type');
-        return this.fieldValue(t.field);
+        return this.fieldValue(t.field, 'array.get');
       }
 
       case ExpressionKind.Pop:

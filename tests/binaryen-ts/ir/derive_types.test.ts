@@ -296,4 +296,64 @@ describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape 
     assertEquals(all(f, 'br').map((b) => b.type), [None, Unreachable]);
     assertEquals(all(f, 'return')[0].type, Unreachable);
   });
+
+  it("a br_if removes its target's values even when the tree does not hold them", () => {
+    // The reader leaves the inner br_if as a sibling; the outer br_if still
+    // consumes its value, so the second drop reaches the i64 below.
+    const m = fromBinary(`(module (func (result i32)
+      (block (result i32)
+        i64.const 9
+        i32.const 1
+        i32.const 2
+        br_if 0
+        i32.const 3
+        br_if 0
+        drop
+        drop
+        i32.const 4)))`);
+    assertEquals(all(m.functions[0]!.body, 'pop').map((p) => p.type), [ValType.I32, ValType.I64]);
+  });
+
+  it("a br_if to a LOOP carries the loop's params, not its results", () => {
+    const m = fromText(`(module (func (param i32) (result i32)
+      loop (result i32)
+        local.get 0
+        br_if 0
+        i32.const 1
+      end))`);
+    assertEquals(all(m.functions[0]!.body, 'br')[0].type, None);
+  });
+
+  it('br_on_non_null falls through with its carried values only — the ref goes to the target', () => {
+    const m = fromText(`(module (func (param i32 externref) (result i32 (ref extern))
+      block (result i32 (ref extern))
+        local.get 0
+        local.get 1
+        br_on_non_null 0
+        drop
+        unreachable
+      end))`);
+    assertEquals(all(m.functions[0]!.body, 'pop').map((p) => p.type), [ValType.I32]);
+  });
+
+  it('a field read that invalid code only can make is refused, not typed', () => {
+    const packed = fromText(
+      `(module (type $s (struct (field i8)))
+      (func (param (ref $s)) (drop (struct.get $s 0 (local.get 0)))))`,
+      false,
+    );
+    assertThrows(
+      () => deriveTypes(packed),
+      Error,
+      'struct.get reads a packed field without a sign',
+    );
+    const missing = fromText(
+      `(module (type $s (struct (field i32)))
+      (func (param (ref $s)) (drop (struct.get $s 0 (local.get 0)))))`,
+      false,
+    );
+    const get = all(missing.functions[0]!.body, 'struct.get')[0];
+    get.fieldVar = { kind: 'index', value: 5 };
+    assertThrows(() => deriveTypes(missing), Error, 'struct.get names no such field');
+  });
 });
