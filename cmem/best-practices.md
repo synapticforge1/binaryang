@@ -1164,6 +1164,14 @@ substitution matched nothing, and the suite "passed" against unmutated code. Onl
 each run prints gave it away. A mutant that changed nothing is not a survivor and not a kill — it is
 no run at all.
 
+## 🆕 A gate that only PRINTS its verdict is not a gate (2026-09-18)
+
+`scripts/check-bridge-corpus.ts` printed "TOTAL" when every module passed and a list when some did not,
+and exited 0 either way. Every gate run judged it by exit code (working-rules.md says to), so a failing
+bridge would have read green, and the owner-facing summary "bridge 421/421" came from reading its output
+by eye. Its replacement, `deno task direct`, exits 1. When writing or inheriting a gate, invert it once
+and read the EXIT CODE the mutant produces, not just the text.
+
 ## 🆕 A byte gate cannot see a TREE defect whose node writes no bytes (2026-09-18)
 
 Since S5 made the parser's padding placeholder a `pop`, every value-less `br_if` in linear text had

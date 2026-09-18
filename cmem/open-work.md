@@ -26,13 +26,13 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M8d done: `deriveTypes`; M8e (the bridge goes) next)
+## Start the next session here (handoff, 2026-09-18 — M8e done: the bridge is gone; S6 step 5 CLOSED)
 
-**Where the work stopped.** `main` is at the merge of M8d (code last changed at
-`8aca27cbd`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `8aca27cbd` (as on every stage before it) and every step exited 0: fmt, lint, **1288 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of M8e (code last changed at
+`84a128f82`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `84a128f82` (as on every stage before it) and every step exited 0: fmt, lint, **1254 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
-misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
+misses**, `direct` **421/421 byte-identical to wat2wasm, valid at every level**, `direct-behaviour` **1806 calls / 602 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
 stage of item 6; `wat2wasm` output 0 of 421.
 
@@ -55,8 +55,7 @@ flaking, probe it the same way before adding it.
 1.0.42 removed the shim on 2026-09-16 and the owner reverted it; a red `translate-eh` saying "Failed
 to spawn 'wast2json'" is the environment, not the code.
 
-**S6 step 5, items 1–5 are DONE** (the expression half). **Item 6, the MODULE half, is nearly done:**
-M1–M7 and M8a–M8d have landed. **M8e remains.** M8c's `nameReferences` and M8d's `deriveTypes` are written but not yet called; M8e wires them into the optimizer route and deletes the bridge. Scope and every stage's record:
+**S6 step 5 is DONE (2026-09-18):** items 1–5, the expression half, and item 6, the MODULE half (M1–M8e). The bridge is deleted; `prepareForPasses` (names M8c + types M8d) makes a wabt-ts tree ready for binaryen-ts in place, and the `direct` / `direct-behaviour` gates hold it. Scope and every stage's record:
 [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
 **Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
@@ -99,22 +98,15 @@ entity collections stay there until the records themselves are one type (M8).
 | M8c     | `62503981a` | `nameReferences`: every reference the bridge named is named on the module, and all 49,335 corpus references agree with the bridge; 2 more bridge defects found (`delegate` one frame too deep, a named `if` losing its label) (2026-09-18) |
 | phantom value | `e819a92c3` | a linear `br_if` / `br_on_null` carries no phantom value: an S5 regression (`f27bfd5ca`) no byte gate could see, found by M8d (2026-09-18) |
 | call_indirect arity | `9b786de22` | a linear `call_indirect` / `call_ref` takes its signature's arguments: T10.5's other half, found by M8d (2026-09-18) |
-| M8d     | (this merge) | `deriveTypes`: every node typed by the factories' rules and the decoder's context. Agrees with the bridge except the bridge's `i32` `pop`s, and with the decoder over 2,490 valid spec binaries except the decoder's defects (2026-09-18) |
+| M8d     | `0846a44da` | `deriveTypes`: every node typed by the factories' rules and the decoder's context. Agrees with the bridge except the bridge's `i32` `pop`s, and with the decoder over 2,490 valid spec binaries except the decoder's defects (2026-09-18) |
+| M8e     | (this merge) | the bridge goes: `prepareForPasses`; the direct path's bytes ARE `wat2wasm`'s (421/421), its -O3 output behaves the same (1,806 calls); `direct` / `direct-behaviour` gates — **item 6 and S6 step 5 CLOSED** (2026-09-18) |
 
 ### Next, in order
 
-1. **M8 — the alias, type derivation, and the bridge's deletion — M8a–M8d done; M8e (the bridge goes) next;
-   stages in [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half", its M8 record.** `WasmModule = Module`; the type
-   derivation the bridge does today (it rebuilds through the factories, which derive `type`) becomes a
-   pass over a whole function with module context; then the bridge, its 16 test files,
-   `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` go. Its acceptance is the
-   bridge's own: `bridge-behaviour` agreement BEFORE deletion.
-   **Inherited from M7c3b** (its record in [ir-convergence.md](ir-convergence.md)): references are
-   still `Var`s, and binaryen-ts's passes need NAMES; the wabt-ts TEXT path makes up no names (a
-   made-up `$func0` must not satisfy a WAT reference to a nonexistent one — name after resolution);
-   text-path LABELS likewise (the binary readers both make them up since M7c3c); `addType`'s made-up names are unrecorded. The
-   module's last one-sided fields are wabt-ts's as-written metadata (`loc`, `filename`,
-   `sectionMeta`, `fidelity`) — decide at the alias whether the one module carries them.
+1. **S6 step 5 is closed.** What remains open is below ("Open, recorded not done"), including the
+   defects M8d found; the next STEP is the owner's call (S7, the linear-form marker, is independent
+   and ready). The direct path is internal: whether `prepareForPasses` becomes public API — so a
+   caller holding a wabt-ts tree can optimize it without a binary round trip — is an owner call.
 2. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
    changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
