@@ -1449,7 +1449,15 @@ export function makeCall(
   resultType: Type,
   isReturn = false,
 ): CallExpr {
-  return { kind: ExpressionKind.Call, type: resultType, func: target, operands, isReturn };
+  // `isReturn` is written only when true — absent is the one spelling of a
+  // plain call (M8a2); `false` is not representable.
+  return {
+    kind: ExpressionKind.Call,
+    type: resultType,
+    func: target,
+    operands,
+    ...(isReturn ? { isReturn: true as const } : {}),
+  };
 }
 
 /** Creates an `if` expression. The optional `name` is the `if`'s branch-target label. */
@@ -1794,7 +1802,7 @@ export function makeCallIndirect(
     callee,
     operands,
     sig,
-    isReturn,
+    ...(isReturn ? { isReturn: true as const } : {}),
   };
 }
 
@@ -1979,7 +1987,14 @@ export function makeCallRef(
     : results.length === 1
     ? results[0]!
     : [...results];
-  return { kind: ExpressionKind.CallRef, type, isReturn, sigType, operands, callee };
+  return {
+    kind: ExpressionKind.CallRef,
+    type,
+    ...(isReturn ? { isReturn: true as const } : {}),
+    sigType,
+    operands,
+    callee,
+  };
 }
 
 /** Creates a `memory.size` expression. */
