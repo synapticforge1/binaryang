@@ -821,8 +821,6 @@ class WasmParser {
   private nameSectionAt: number | null = null;
   /** The last KNOWN section read — what a custom section's position is recorded against. */
   private lastKnownSection: BinarySection | null = null;
-  /** Imported functions' names, by function index. */
-  private readonly importFuncNames: string[] = [];
   private readonly lowerBlockParams: boolean;
   /**
    * Every entity's name, from the name section where it has one — read FIRST,
@@ -843,6 +841,7 @@ class WasmParser {
     const mod = this.builder.build();
     return {
       ...mod,
+      name: this.names.moduleName(),
       types: this.heapTypeDefs,
       // Use the name `readTagSection` assigned, NOT a fresh `$tag${i}`:
       // with imported tags present the defined ones start above zero, and
@@ -859,7 +858,6 @@ class WasmParser {
           explicitNames: this.names.explicit(
             (i) => this.names.func(i),
             this.heapTypeDefs,
-            this.importFuncNames,
           ),
         }
         : {}),
@@ -1064,8 +1062,14 @@ class WasmParser {
           // 0 (wrong target, wrong arity → "call need N got M"). The shared
           // naming is now `this.names`, which every site asks by index.
           const name = this.names.func(this.importedFuncCount);
-          this.importFuncNames.push(name);
-          this.builder.addFunctionImport(name, module, base, ft.params, ft.results);
+          this.builder.addFunctionImport(
+            name,
+            module,
+            base,
+            ft.params,
+            ft.results,
+            this.names.importParamNames(this.importedFuncCount, ft.params.length),
+          );
           this.importedFuncTypeIndices.push(typeIdx);
           this.importedFuncCount++;
           break;

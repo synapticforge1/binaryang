@@ -825,29 +825,27 @@ class WasmEncoder {
 
     const section = new BinaryWriter();
     section.writeUTF8('name');
-    if (names.module !== undefined) sub(section, 0, (b) => b.writeUTF8(bare(names.module!)));
+    if (mod.name !== '') sub(section, 0, (b) => b.writeUTF8(bare(mod.name)));
     flat(section, 1, funcSpace, names.functions);
     // Which functions the subsection lists: the ones the section listed, or —
     // with no record — every one, as upstream `wat2wasm --debug-names` does
     // (N6). `null` is a section that had no local subsection: write none.
     if (names.localsListed !== null) {
-      const importFuncs = mod.imports.filter((i) => i.kind === ExternalKind.Func);
+      // Imported functions first, as the index space has them: an import's
+      // locals are its params, named as a defined function's are (M7c3a).
+      const funcs = [
+        ...mod.imports.flatMap((i) => i.kind === ExternalKind.Func ? [i.func] : []),
+        ...mod.functions,
+      ];
       const locals: [number, [number, string][]][] = [];
       const listed = names.localsListed;
-      const wanted = (name: string) => listed.has(name);
-      importFuncs.forEach((imp, i) => {
-        const fname = imp.func.name;
-        if (wanted(fname)) {
-          locals.push([i, sorted(names.importParams.get(fname) ?? new Map())]);
-        }
-      });
-      mod.functions.forEach((fn, i) => {
-        if (!wanted(fn.name)) return;
+      funcs.forEach((fn, i) => {
+        if (!listed.has(fn.name)) return;
         const list: [number, string][] = [];
         fn.locals.forEach((l, j) => {
           if (l.name !== undefined && l.name !== '') list.push([j, l.name]);
         });
-        locals.push([importFuncs.length + i, list]);
+        locals.push([i, list]);
       });
       sub(section, 2, (b) => {
         b.writeU32(locals.length);
