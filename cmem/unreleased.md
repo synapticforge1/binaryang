@@ -216,6 +216,10 @@ their own bump — and nothing breaks by their standing still.
   alignment exponent past 8, as upstream binaryen does; the encoder refuses a non-power-of-two.
   🔧 Fixes the compat API: `i32.load(offset, 4, ptr)` (upstream's byte spelling) produced a module
   V8 rejected.
+- ⚠️ **BREAKING: `WasmModule.start` is `start?: Var`** (S6 step 5 item 6 (M8b1)), was
+  `string | null`; absent when there is none. `ModuleBuilder.setStart(name | null)` is unchanged.
+- ⚠️ **BREAKING: a packed field type is `Type.I8` / `Type.I16`** (M8b2), was the string `'i8'` /
+  `'i16'`; `Packed.I8` / `Packed.I16` are exported from `gc-types` for convenience.
 - ⚠️ **BREAKING (types): a call's `isReturn` is `true` or absent** (S6 step 5 item 6 (M8a2)) —
   `isReturn?: true` on Call / CallIndirect / CallRef; a plain call omits it (binaryen-ts wrote
   `false`). The factories' `isReturn = false` parameter is unchanged.

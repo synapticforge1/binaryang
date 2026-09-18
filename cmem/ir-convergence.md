@@ -3693,6 +3693,25 @@ its own table, which for a non-GC module is today a derived list; that resolves 
 bridge's `sig` differences 381 → 0. **What the bridge now changes in a body, beyond derived types,
 names and labels: only the `typeVar` drop.**
 
+**✅ M8b1 — the start function is `start?: Var` in both (2026-09-18, `0e2ac6dc1` + `76d478672`).**
+binaryen-ts's `start: string | null` (a name OR a numeric token in one string) took wabt-ts's form:
+a name as passes read it (`requireName`), or an index as written; absent = missing (M2). ⚠️ **Two
+sites the compiler could not see**: RemoveUnusedModuleElements and Inlining tested
+`module.start !== null` — always true after the change, an absent start seeded as a live root;
+and a test's `assertEquals(mod.start, null)` (generic) failed only when run. 🔍 A mutant disabling
+Inlining's "start is used globally" seed SURVIVED — nothing had a single-caller start function, which
+inlining would remove; pinned. Ratchet **18 / 1 / 18**.
+
+**✅ M8b2 — packed field types are the binary's codes (2026-09-18, `093b3f21b` + `b93735920`).**
+binaryen-ts's `PackedType` was the strings `'i8'` / `'i16'`; now `Type.I8` / `Type.I16`, wabt-ts's (V1
+precedent), as `Packed.I8` / `Packed.I16` where `Type` means the expression type. The last value-type
+pair spelled two ways: the field, struct and array entries are one type — ratchet **18 / 1 / 15**.
+`storageTypeToString` NAMES the code (returning it would print `120`, the V1 slip this function had
+once) — and a mutant doing exactly that survived until a test pinned it. ⚠️ The first decoder /
+encoder mutants hit lines one off (an added import shifted them), changed nothing and "passed" —
+caught only because each mutant prints its diffstat; re-run, killed. Against `main`: decode → encode,
+optimizer + `wat2wasm`, and all 5,924 spec decodes (the GC ones carry packed fields) unchanged.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
