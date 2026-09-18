@@ -1148,6 +1148,14 @@ parser). Only the public factory `makeTry(null, …)` produces one. **A front en
 field hides every consumer's handling of that field's absence** — build the node directly, or strip
 the invented value, to test what a library caller can actually construct.
 
+## 🆕 Commit the change BEFORE mutating it (2026-09-18)
+
+A mutant loop that restores with `git checkout -- src` restores to the last COMMIT, not to the last
+edit: M7c1's first mutant run discarded every uncommitted source edit of the stage along with the
+mutant (the test edits survived only because they were outside `src`). Commit the stage on its
+branch first, then mutate, and restore ONE file per mutant (`git checkout -- <that file>`) — the
+restore then cannot reach anything but the mutant.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

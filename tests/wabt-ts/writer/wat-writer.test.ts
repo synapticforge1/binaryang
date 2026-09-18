@@ -48,7 +48,6 @@ function makeFunc(opts: {
     sig: { params: opts.params ?? [], results: opts.results ?? [] },
     locals: [],
     body: region(opts.body ?? [], LOC),
-    tailcall: false,
   };
 }
 

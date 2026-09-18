@@ -201,11 +201,6 @@ Deno.test('EH parser: tag section decoded — tag count and params', () => {
   assertEquals(mod.tags[0].sig.params, [ValType.I32]);
 });
 
-Deno.test('EH parser: hasExceptionHandling flag set when tag section present', () => {
-  const mod = parseWasm(THROW_MODULE);
-  assertEquals(mod.hasExceptionHandling, true);
-});
-
 // ---------------------------------------------------------------------------
 // Tests — binary parser: throw instruction
 // ---------------------------------------------------------------------------
@@ -348,7 +343,6 @@ Deno.test('EH encoder: throw module round-trips through encode+parse', () => {
   assertEquals(mod2.tags.length, 1);
   assertEquals(mod2.tags[0].sig.params, [ValType.I32]);
   assertEquals(mod2.functions.length, 1);
-  assertEquals(mod2.hasExceptionHandling, true);
 });
 
 Deno.test('EH encoder: throw expression preserved after round-trip', () => {

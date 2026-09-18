@@ -72,7 +72,6 @@ function makeFunc(
       ...locals.flatMap((d) => Array.from({ length: d.count }, () => ({ type: d.type }))),
     ],
     body: region(body, LOC),
-    tailcall: false,
   };
 }
 
@@ -304,7 +303,6 @@ describe('validateModule', () => {
         sig: { params: [], results: [Type.I32] },
         locals: [],
         body: region([makeConst32(1)], LOC),
-        tailcall: false,
       });
       m.functions.push({
         name: '',
@@ -319,7 +317,6 @@ describe('validateModule', () => {
             loc: LOC,
           },
         ], LOC),
-        tailcall: false,
       });
       assertEquals(isValid(m), true);
     });

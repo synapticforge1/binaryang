@@ -155,7 +155,6 @@ describe('readBinaryIr', () => {
           loc: LOC,
         },
       ], LOC),
-      tailcall: false,
     });
     m.exports.push({ name: 'add', kind: ExternalKind.Func, var: varIndex(0) });
 
@@ -202,7 +201,6 @@ describe('readBinaryIr', () => {
       sig: { params: [], results: [Type.I32] },
       locals: [],
       body: region([{ kind: 'const', value: constI32(42), loc: LOC }], LOC),
-      tailcall: false,
     });
 
     const binary = writeBinaryIr(m);
@@ -235,7 +233,6 @@ describe('readBinaryIr', () => {
       sig: { params: [], results: [Type.I64] },
       locals: [],
       body: region([{ kind: 'const', value: constI64(0x1234567890abcdefn), loc: LOC }], LOC),
-      tailcall: false,
     });
 
     const binary = writeBinaryIr(m);
@@ -325,7 +322,6 @@ describe('readBinaryIr', () => {
         sig: { params: [Type.I32], results: [Type.I32] },
         locals: [],
         body: region([], LOC),
-        tailcall: false,
       },
     });
 
@@ -370,7 +366,6 @@ describe('readBinaryIr', () => {
         sig: { params: [Type.I32], results: [] },
         locals: [],
         body: region([], LOC),
-        tailcall: false,
       },
     });
     m.functions.push({
@@ -388,7 +383,6 @@ describe('readBinaryIr', () => {
           right: { kind: 'local.get', var: varIndex(1), loc: LOC },
         },
       ], LOC),
-      tailcall: false,
     });
 
     const binary = writeBinaryIr(m);
@@ -428,7 +422,6 @@ describe('readBinaryIr', () => {
           loc: LOC,
         },
       ], LOC),
-      tailcall: false,
     });
 
     const binary = writeBinaryIr(m);
@@ -470,7 +463,6 @@ describe('readBinaryIr', () => {
           loc: LOC,
         },
       ], LOC),
-      tailcall: false,
     });
 
     const binary = writeBinaryIr(m);
@@ -567,7 +559,6 @@ describe('readBinaryIr', () => {
         { type: Type.F64 },
       ],
       body: region([{ kind: 'local.get', var: varIndex(0), loc: LOC }], LOC),
-      tailcall: false,
     });
 
     const binary = writeBinaryIr(m);
@@ -599,7 +590,6 @@ describe('readBinaryIr', () => {
       sig: { params: [], results: [] },
       locals: [],
       body: region([], LOC),
-      tailcall: false,
     });
 
     const binary = writeBinaryIr(m);

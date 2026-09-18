@@ -135,5 +135,4 @@ Deno.test('StripEH removes imported tags along with defined ones', () => {
 
   assertEquals(mod.tags, []);
   assertEquals(mod.imports.filter((i) => i.kind === ExternalKind.Tag), []);
-  assertEquals(mod.hasExceptionHandling, false);
 });

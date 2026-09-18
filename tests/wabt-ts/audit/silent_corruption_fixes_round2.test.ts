@@ -95,7 +95,6 @@ describe('writeVar fail-loud', () => {
       locals: [],
       // call to a NAME var that was never resolved to an index
       body: region([{ kind: 'call', func: varName('ghost'), operands: [], loc: LOC }], LOC),
-      tailcall: false,
     };
     module.functions.push(f);
     assertThrows(() => writeBinaryIr(module), Error, 'ghost');

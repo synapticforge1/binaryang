@@ -965,7 +965,6 @@ export class BinaryReader {
             // An imported function has params but no body and no declared locals.
             locals: sig.params.map((type) => ({ type })),
             body: region([], loc),
-            tailcall: false,
           };
           m.imports.push({ kind: ExternalKind.Func, module: module_, field, func });
           break;
@@ -979,7 +978,6 @@ export class BinaryReader {
         }
         case ExternalKind.Memory: {
           const limits = this.readLimits();
-          if (limits.isShared) m.featuresUsed.threads = true;
           const memory: Memory = { name: '', loc, limits };
           m.imports.push({ kind: ExternalKind.Memory, module: module_, field, memory });
           break;
@@ -1001,7 +999,6 @@ export class BinaryReader {
           const sig = getTypeSig(m, sigIdx);
           const tag: Tag = { name: '', loc, sig };
           m.imports.push({ kind: ExternalKind.Tag, module: module_, field, tag });
-          m.featuresUsed.exceptions = true;
           break;
         }
         default:
@@ -1041,7 +1038,6 @@ export class BinaryReader {
         // The params occupy the first slots; the code section adds the rest.
         locals: sig.params.map((type) => ({ type })),
         body: region([], loc),
-        tailcall: false,
       });
     }
   }
@@ -1087,7 +1083,6 @@ export class BinaryReader {
       if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const limits = this.readLimits();
-      if (limits.isShared) m.featuresUsed.threads = true;
       m.memories.push({ name: '', loc, limits });
     }
   }
@@ -1223,7 +1218,6 @@ export class BinaryReader {
       const sigIdx = this.readU32Leb();
       const sig = getTypeSig(m, sigIdx);
       m.tags.push({ name: '', loc, sig });
-      m.featuresUsed.exceptions = true;
     }
   }
 
@@ -1465,7 +1459,6 @@ export class BinaryReader {
           break;
         }
         case Opcode.Try: {
-          m.featuresUsed.exceptions = true;
           const bt = this.readBlockType();
           const f = new Frame('try', bt, '', loc);
           f.params = entryParams(bt, stack, m);
@@ -1475,7 +1468,6 @@ export class BinaryReader {
         }
         case Opcode.Catch: {
           const tagIdx = this.readU32Leb();
-          m.featuresUsed.exceptions = true;
           if (frame.kind !== 'try') {
             this.err('catch outside try');
             break;
@@ -1499,7 +1491,6 @@ export class BinaryReader {
           break;
         }
         case Opcode.CatchAll: {
-          m.featuresUsed.exceptions = true;
           if (frame.kind !== 'try') {
             this.err('catch_all outside try');
             break;
@@ -1514,7 +1505,6 @@ export class BinaryReader {
           break;
         }
         case Opcode.Delegate: {
-          m.featuresUsed.exceptions = true;
           const depth = this.readU32Leb();
           if (frame.kind !== 'try') {
             this.err('delegate outside try');
@@ -1539,7 +1529,6 @@ export class BinaryReader {
           break;
         }
         case Opcode.TryTable: {
-          m.featuresUsed.exceptions = true;
           const bt = this.readBlockType();
           const catchCount = this.readU32Leb();
           const tableCatches: TableCatch[] = [];
@@ -1797,7 +1786,6 @@ export class BinaryReader {
           break;
         }
         case Opcode.ReturnCall: {
-          m.featuresUsed.tailcall = true;
           const funcIdx = this.readU32Leb();
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
@@ -1811,7 +1799,6 @@ export class BinaryReader {
           break;
         }
         case Opcode.ReturnCallIndirect: {
-          m.featuresUsed.tailcall = true;
           const typeIdx = this.readU32Leb();
           const tableIdx = this.readU32Leb();
           const sig = getTypeSig(m, typeIdx);
@@ -1834,7 +1821,6 @@ export class BinaryReader {
           break;
         }
         case Opcode.ReturnCallRef: {
-          m.featuresUsed.tailcall = true;
           const typeIdx = this.readU32Leb();
           const sig = getTypeSig(m, typeIdx);
           const callee = stack.pop() ?? operandPlaceholder(loc);
@@ -2233,7 +2219,6 @@ export class BinaryReader {
 
         // --- Exceptions ---
         case Opcode.Throw: {
-          m.featuresUsed.exceptions = true;
           const tagIdx = this.readU32Leb();
           const sig = getTagSig(m, tagIdx);
           const args = popN(stack, sig.params.length);
@@ -2241,13 +2226,11 @@ export class BinaryReader {
           break;
         }
         case Opcode.ThrowRef: {
-          m.featuresUsed.exceptions = true;
           const exnref = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, { kind: 'throw_ref', exnref, loc });
           break;
         }
         case Opcode.Rethrow: {
-          m.featuresUsed.exceptions = true;
           const depth = this.readU32Leb();
           pushStmt(stack, stmts, { kind: 'rethrow', target: varIndex(depth), loc } as RethrowExpr);
           break;
@@ -2262,7 +2245,6 @@ export class BinaryReader {
 
         // --- Prefix: SIMD (0xfd) ---
         case PREFIX_SIMD: {
-          m.featuresUsed.simd = true;
           const simdOp = this.readU32Leb();
           this.decodeSimdOp(simdOp, stack, stmts, m, loc);
           break;
@@ -2270,7 +2252,6 @@ export class BinaryReader {
 
         // --- Prefix: Threads/Atomics (0xfe) ---
         case PREFIX_THREADS: {
-          m.featuresUsed.threads = true;
           const atomicOp = this.readU32Leb();
           this.decodeAtomicOp(atomicOp, stack, stmts, m, loc);
           break;
@@ -3054,7 +3035,6 @@ export class BinaryReader {
   // ---------------------------------------------------------------------------
 
   private decodeGcOp(op: number, stack: Expr[], stmts: Expr[], m: Module, loc: Location): void {
-    m.featuresUsed.gc = true;
     const nop = (): PopExpr => operandPlaceholder(loc);
     switch (op) {
       case GcOpcode.RefI31: {

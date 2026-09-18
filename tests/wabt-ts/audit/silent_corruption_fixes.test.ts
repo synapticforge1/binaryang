@@ -175,7 +175,6 @@ describe('#4 call_ref sigType resolution', () => {
       sig: { params: [], results: [Type.I32] },
       locals: [],
       body: region([callRef], LOC),
-      tailcall: false,
     };
     module.functions.push(func);
 
@@ -314,7 +313,6 @@ describe('#9 applyNames local.get', () => {
       body: region([
         { kind: 'local.get', var: varIndex(0), loc: LOC },
       ], LOC),
-      tailcall: false,
     };
     module.functions.push(func);
     module.types.push({
@@ -349,7 +347,6 @@ describe('#10 table init round-trip', () => {
       sig: { params: [], results: [] },
       locals: [],
       body: region([{ kind: 'nop', loc: LOC }], LOC),
-      tailcall: false,
     };
     module.functions.push(func);
     module.types.push({ kind: 'func', name: '', sig: { params: [], results: [] }, loc: LOC });

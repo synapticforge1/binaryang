@@ -42,7 +42,6 @@ import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 /** A one-field mutable struct holding `value`, read back via struct.get. */
 function structModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
   const m = new ModuleBuilder();
-  m.enableGC();
   const t = m.addType({
     name: '',
     kind: 'struct',
@@ -68,7 +67,6 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
 /** A one-element mutable array holding `value`, read back via array.get. */
 function arrayModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
   const m = new ModuleBuilder();
-  m.enableGC();
   const t = m.addType({
     name: '',
     kind: 'array',
@@ -188,7 +186,6 @@ Deno.test('array.get_u survives a bare parse-encode round-trip', async () => {
 
 Deno.test('encoder throws on an out-of-range struct.get type index', () => {
   const m = new ModuleBuilder();
-  m.enableGC();
   const t = m.addType({
     name: '',
     kind: 'struct',
@@ -213,7 +210,6 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
 
 Deno.test('encoder throws on an out-of-range struct.get field index', () => {
   const m = new ModuleBuilder();
-  m.enableGC();
   const t = m.addType({
     name: '',
     kind: 'struct',
@@ -243,9 +239,9 @@ Deno.test('encoder throws on an out-of-range struct.get field index', () => {
 // come out as `struct.get_u`). The parser rejects the mismatch instead, so the
 // front door keeps its accept-or-throw contract.
 
-// Note the explicit `(type $f (func (result i32)))`: with GC enabled the
+// Note the explicit `(type $f (func (result i32)))`: with types declared the
 // function's own signature must exist as a heap type, or the encoder throws
-// `unresolved GC function type`. See the note on `enableGC` / `addType`.
+// `unresolved GC function type`. See the note on `addType`.
 function packedWat(opcode: string): string {
   return `
     (module

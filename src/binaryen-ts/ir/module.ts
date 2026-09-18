@@ -388,16 +388,8 @@ export interface WasmModule {
    * export, so passes that prune unreachable definitions must seed from it.
    */
   start: string | null;
-  /** Whether the module uses the WASM exception-handling proposal. */
-  hasExceptionHandling: boolean;
-  /** Whether the module uses the memory64 proposal. */
-  hasMemory64: boolean;
-  /** Whether the module uses the multi-memory proposal. */
-  hasMultiMemory: boolean;
   /** User-defined heap types (struct, array, func) for the GC proposal. */
   types: TypeDef[];
-  /** Whether the module uses the GC proposal. */
-  hasGC: boolean;
   /**
    * The names the module was READ with — its `name` section — as opposed to
    * the ones the decoder made up. N1 steps P4–P5 (cmem/names.md).
@@ -418,9 +410,11 @@ export interface WasmModule {
    * Whether the module was decoded from a binary with a DataCount section (id
    * 12) — W6. The encoder writes one when a function body names a data segment
    * (then the format requires it), or when this is set, so a binary that
-   * carried one it did not need re-encodes with it. Absent means false.
+   * carried one it did not need re-encodes with it. False from
+   * {@link ModuleBuilder.build}. wabt-ts's `Module.hasDataCountSection` (M7c):
+   * one name, and one spelling of false.
    */
-  hasDataCount?: boolean;
+  hasDataCountSection: boolean;
   /**
    * The custom sections the module was decoded from, in binary order — C3
    * (cmem/divergences.md).
@@ -534,10 +528,6 @@ export class ModuleBuilder {
   private readonly _exports: WasmExport[] = [];
   private readonly _tags: WasmTag[] = [];
   private _start: string | null = null;
-  private _hasEH = false;
-  private _hasMemory64 = false;
-  private _hasMultiMemory = false;
-  private _hasGC = false;
   private readonly _types: TypeDef[] = [];
 
   // -------------------------------------------------------------------------
@@ -622,7 +612,6 @@ export class ModuleBuilder {
       ? initial
       : limitsOf(initial, max, { isShared: shared, is64 });
     this._memories.push({ name, limits });
-    if (limits.is64) this._hasMemory64 = true;
     return this;
   }
 
@@ -811,7 +800,6 @@ export class ModuleBuilder {
       field: base,
       memory: { name: internalName, limits },
     });
-    if (limits.is64) this._hasMemory64 = true;
     return this;
   }
 
@@ -868,7 +856,6 @@ export class ModuleBuilder {
       field: base,
       tag: { name: internalName, sig: { params, results: [] } },
     });
-    this._hasEH = true;
     return this;
   }
 
@@ -881,7 +868,6 @@ export class ModuleBuilder {
    */
   addTag(name: string, params: ValueType[], results: ValueType[] = []): this {
     this._tags.push({ name, sig: { params, results } });
-    this._hasEH = true;
     return this;
   }
 
@@ -900,22 +886,17 @@ export class ModuleBuilder {
     return this;
   }
 
-  /** Enables the exception-handling proposal. */
-  enableExceptionHandling(): this {
-    this._hasEH = true;
-    return this;
-  }
-
   /**
    * Adds a user-defined heap type (struct, array, or func) to the type section.
    * Returns the 0-based index for use in GC instructions.
    *
-   * Calling this enables the GC proposal, which changes how the encoder emits
-   * the type section: it stops deduplicating function signatures collected from
-   * the module and emits `types` verbatim instead. **Every function's own
+   * A module with any entry here changes how the encoder emits the type
+   * section: it stops deduplicating function signatures collected from the
+   * module and emits `types` verbatim instead. **Every function's own
    * signature must therefore be declared here as a `{ kind: "func" }` entry**,
    * or `encodeWasm` throws `unresolved GC function type: () -> (i32)`.
-   * `addFunction` alone is enough without GC and not enough with it:
+   * `addFunction` alone is enough with no types declared and not enough with
+   * them:
    *
    * ```ts
    * const t = m.addType({ kind: "struct", fields: [{ type: "i8", mutable: true }] });
@@ -928,20 +909,7 @@ export class ModuleBuilder {
   addType(def: TypeDef): number {
     const idx = this._types.length;
     this._types.push(def);
-    this._hasGC = true;
     return idx;
-  }
-
-  /**
-   * Enables the GC proposal.
-   *
-   * Note that this also puts the encoder into GC type-section mode, where each
-   * function's signature must be declared explicitly via
-   * {@link ModuleBuilder.addType} — see that method for details.
-   */
-  enableGC(): this {
-    this._hasGC = true;
-    return this;
   }
 
   // -------------------------------------------------------------------------
@@ -965,10 +933,7 @@ export class ModuleBuilder {
       tags: [...this._tags],
       start: this._start,
       types: [...this._types],
-      hasExceptionHandling: this._hasEH,
-      hasMemory64: this._hasMemory64,
-      hasMultiMemory: this._hasMultiMemory,
-      hasGC: this._hasGC,
+      hasDataCountSection: false,
     };
   }
 

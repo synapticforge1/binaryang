@@ -260,7 +260,13 @@ export function synthesizeRuntimeSupport(
   options: AsyncifyOptions,
   importMode = false,
 ): void {
-  if (module.hasMemory64) {
+  // Every memory, imported and defined — read from the module itself, not from
+  // a flag beside it that a pass could leave stale (M7c).
+  const memories = [
+    ...module.imports.flatMap((imp) => imp.kind === ExternalKind.Memory ? [imp.memory] : []),
+    ...module.memories,
+  ];
+  if (memories.some((m) => m.limits.is64)) {
     throw new Error(
       'asyncify: wasm64 (memory64) is not yet supported in this port; ' +
         'the driving use case (TinyGo goroutines) is wasm32.',
@@ -271,9 +277,8 @@ export function synthesizeRuntimeSupport(
   // can only ever target memory 0. Reject rather than silently instrumenting the
   // wrong memory (upstream fatals unless asyncify-memory@name selects one — which
   // this port does not yet thread through the load/store builders).
-  const memoryCount = module.memories.length +
-    module.imports.filter((imp) => imp.kind === ExternalKind.Memory).length;
-  if (memoryCount > 1 || module.hasMultiMemory) {
+  const memoryCount = memories.length;
+  if (memoryCount > 1) {
     throw new Error(
       'asyncify: multi-memory modules are not yet supported; the pass instruments memory 0.',
     );

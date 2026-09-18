@@ -82,11 +82,8 @@ function emptyModule(): WasmModule {
     imports: [],
     exports: [],
     start: null,
-    hasExceptionHandling: false,
-    hasMemory64: false,
-    hasMultiMemory: false,
     types: [],
-    hasGC: false,
+    hasDataCountSection: false,
   };
 }
 
@@ -856,11 +853,8 @@ Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
     imports: [],
     exports: [{ name: 'exported', var: varName('exported'), kind: ExternalKind.Func }],
     start: null,
-    hasExceptionHandling: false,
-    hasMemory64: false,
-    hasMultiMemory: false,
     types: [],
-    hasGC: false,
+    hasDataCountSection: false,
   };
 
   new PassRunner(mod).add('RemoveUnusedModuleElements').run();
@@ -902,11 +896,8 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
     imports: [],
     exports: [{ name: 'root', var: varName('root'), kind: ExternalKind.Func }],
     start: null,
-    hasExceptionHandling: false,
-    hasMemory64: false,
-    hasMultiMemory: false,
     types: [],
-    hasGC: false,
+    hasDataCountSection: false,
   };
 
   new PassRunner(mod).add('RemoveUnusedModuleElements').run();
@@ -941,11 +932,8 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
       { name: 'g_used', var: varName('g_used'), kind: ExternalKind.Global },
     ],
     start: null,
-    hasExceptionHandling: false,
-    hasMemory64: false,
-    hasMultiMemory: false,
     types: [],
-    hasGC: false,
+    hasDataCountSection: false,
   };
 
   new PassRunner(mod).add('RemoveUnusedModuleElements').run();
@@ -1242,7 +1230,6 @@ Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => 
   // throw $e (i32.const 42)
   mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [makeI32Const(42)])])));
   mod.tags.push({ name: '$e', sig: { params: [ValType.I32], results: [] } });
-  mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
 
@@ -1259,7 +1246,6 @@ Deno.test('StripEH: throw with no operands becomes bare unreachable', () => {
   const mod = emptyModule();
   mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [])])));
   mod.tags.push({ name: '$e', sig: { params: [], results: [] } });
-  mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
 
@@ -1274,7 +1260,6 @@ Deno.test('StripEH: try is replaced by its body; catch is discarded', () => {
   const t = makeTry(null, tryBody, [tryCatch(varName('$e'), catchBody)], null, ValType.I32);
   mod.functions.push(makeTestFn('f', makeBlock([t])));
   mod.tags.push({ name: '$e', sig: { params: [], results: [] } });
-  mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
 
@@ -1289,7 +1274,6 @@ Deno.test('StripEH: try_table is replaced by its body', () => {
   const tt = makeTryTable(null, makeI32Const(7), [], ValType.I32);
   mod.functions.push(makeTestFn('f', makeBlock([tt])));
   mod.tags.push({ name: '$e', sig: { params: [], results: [] } });
-  mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
 
@@ -1298,17 +1282,15 @@ Deno.test('StripEH: try_table is replaced by its body', () => {
   assertEquals((outer.children[0] as { value: { value: number } }).value.value, 7);
 });
 
-Deno.test('StripEH: module.tags cleared and hasExceptionHandling reset', () => {
+Deno.test('StripEH: module.tags cleared', () => {
   const mod = emptyModule();
   mod.functions.push(makeTestFn('f', makeBlock([makeNop()])));
   mod.tags.push({ name: '$e', sig: { params: [ValType.I32], results: [] } });
   mod.tags.push({ name: '$f', sig: { params: [], results: [] } });
-  mod.hasExceptionHandling = true;
 
   new PassRunner(mod).add('StripEH').run();
 
   assertEquals(mod.tags.length, 0);
-  assertEquals(mod.hasExceptionHandling, false);
 });
 
 // ---------------------------------------------------------------------------

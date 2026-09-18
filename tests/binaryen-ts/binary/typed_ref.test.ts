@@ -181,7 +181,6 @@ Deno.test('typed-ref local: the parser records a RefType, not AnyRef', () => {
 
 Deno.test('typed-ref: ModuleBuilder accepts a concrete ref for a local and a global', async () => {
   const m = new ModuleBuilder();
-  m.enableGC();
   const t = m.addType({
     name: '',
     kind: 'array',
@@ -206,7 +205,6 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
   // Before UP-7 both signatures collapsed to `(anyref) -> ()`, so
   // `gcFuncTypeIndex` found two matches and threw "ambiguous GC function type".
   const m = new ModuleBuilder();
-  m.enableGC();
   const a = m.addType({
     name: '',
     kind: 'array',

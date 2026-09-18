@@ -2047,7 +2047,6 @@ export interface Func {
    * (`mapWithSequences`) that every other one uses.
    */
   body: RegionExpr;
-  tailcall: boolean;
 }
 
 /** A global variable. */
@@ -2290,15 +2289,6 @@ export interface Module {
    * no way to ask for one.
    */
   hasDataCountSection: boolean;
-
-  // Features used by this module (tracked during decode)
-  featuresUsed: {
-    simd: boolean;
-    exceptions: boolean;
-    threads: boolean;
-    tailcall: boolean;
-    gc: boolean;
-  };
 }
 
 /** Returns an empty, zeroed Module ready to be populated by a reader. */
@@ -2322,7 +2312,6 @@ export function makeModule(): Module {
     fidelity: new FidelityTable(),
     hasNameSection: true,
     hasDataCountSection: false,
-    featuresUsed: { simd: false, exceptions: false, threads: false, tailcall: false, gc: false },
   };
 }
 

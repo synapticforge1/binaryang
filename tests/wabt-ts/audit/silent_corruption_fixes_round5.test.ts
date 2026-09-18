@@ -29,7 +29,6 @@ function emptyFunc(name: string): Func {
     sig: { params: [], results: [] },
     locals: [],
     body: region([{ kind: 'nop', loc: LOC }], LOC),
-    tailcall: false,
   };
 }
 
