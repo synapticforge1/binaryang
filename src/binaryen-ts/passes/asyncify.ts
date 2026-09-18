@@ -224,8 +224,8 @@ function makeStackOverflowCheck(): Expression {
   return makeIf(
     makeBinary(
       BinaryOp.GtUI32,
-      makeLoad(Opcode.I32Load, BigInt(DataOffset.StackPos), 2, dataPtr()),
-      makeLoad(Opcode.I32Load, BigInt(DataOffset.StackEnd), 2, dataPtr()),
+      makeLoad(Opcode.I32Load, BigInt(DataOffset.StackPos), 4, dataPtr()),
+      makeLoad(Opcode.I32Load, BigInt(DataOffset.StackEnd), 4, dataPtr()),
     ),
     makeUnreachable(),
   );
@@ -1084,8 +1084,8 @@ export function computeRelevantLocals(
 
 /** Byte offset within `$__asyncify_data` of the current stack position. */
 const STACK_POS_OFFSET = BigInt(DataOffset.StackPos);
-/** log2 alignment for i32 stack accesses (STACK_ALIGN = 4 bytes). */
-const STACK_ALIGN_LOG2 = 2;
+/** Alignment of the i32 stack accesses, in BYTES — the node's unit (M8a1; it was the log2, 2). */
+const STACK_ALIGN = 4;
 /** Branch label of the unwind block (breaks here to unwind out of the body). */
 const ASYNCIFY_UNWIND_LABEL = '$__asyncify_unwind';
 
@@ -1094,7 +1094,7 @@ function makeGetStackPos(): Expression {
   return makeLoad(
     Opcode.I32Load,
     STACK_POS_OFFSET,
-    STACK_ALIGN_LOG2,
+    STACK_ALIGN,
     makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
   );
 }
@@ -1105,7 +1105,7 @@ function makeIncStackPos(by: number): Expression {
   return makeStore(
     Opcode.I32Store,
     STACK_POS_OFFSET,
-    STACK_ALIGN_LOG2,
+    STACK_ALIGN,
     makeGlobalGet(varName(ASYNCIFY_DATA), ValType.I32),
     makeBinary(BinaryOp.AddI32, makeGetStackPos(), makeI32Const(by)),
   );
@@ -1211,7 +1211,7 @@ function lowerIntrinsics(body: Expression, ctx: LocalsCtx): Expression {
           makeIncStackPos(-4),
           makeLocalSet(
             varIndex(ctx.rewindIndex),
-            makeLoad(Opcode.I32Load, BigInt(0), STACK_ALIGN_LOG2, makeGetStackPos()),
+            makeLoad(Opcode.I32Load, BigInt(0), STACK_ALIGN, makeGetStackPos()),
           ),
         ], null);
       }
@@ -1244,7 +1244,7 @@ function makeCallIndexPush(unwindIndex: number): Expression {
     makeStore(
       Opcode.I32Store,
       BigInt(0),
-      STACK_ALIGN_LOG2,
+      STACK_ALIGN,
       makeGetStackPos(),
       makeLocalGet(varIndex(unwindIndex), ValType.I32),
     ),
@@ -1269,7 +1269,7 @@ function makeLocalLoading(func: WasmFunction, saved: number[]): Expression {
       makeLoad(
         localLoadOp(t),
         BigInt(offset),
-        STACK_ALIGN_LOG2,
+        STACK_ALIGN,
         makeLocalGet(varIndex(temp), ValType.I32),
       ),
     ));
@@ -1289,7 +1289,7 @@ function makeLocalSaving(func: WasmFunction, saved: number[]): Expression {
     list.push(makeStore(
       localStoreOp(t),
       BigInt(offset),
-      STACK_ALIGN_LOG2,
+      STACK_ALIGN,
       makeLocalGet(varIndex(temp), ValType.I32),
       makeLocalGet(varIndex(i), t as ValType),
     ));

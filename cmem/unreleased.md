@@ -210,6 +210,12 @@ their own bump — and nothing breaks by their standing still.
 - ⚠️ **BREAKING: `WasmModule.hasNameSection: boolean`** (required) says whether a name section is
   written; `explicitNames` says only which names are real, and a decoded module always has it
   (S6 step 5 item 6 (M7c3b b1a)). Test `hasNameSection`, not `explicitNames !== undefined`.
+- ⚠️ **BREAKING: a node's `align` is in BYTES** (S6 step 5 item 6 (M8a1)), as its declaration
+  always said and upstream holds it; binaryen-ts held the exponent. `makeLoad` / `makeStore` / the
+  atomic and SIMD factories take bytes (`4` for a natural `i32.load`, was `2`). The decoder refuses an
+  alignment exponent past 8, as upstream binaryen does; the encoder refuses a non-power-of-two.
+  🔧 Fixes the compat API: `i32.load(offset, 4, ptr)` (upstream's byte spelling) produced a module
+  V8 rejected.
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
   names and re-encodes them; `ModuleBuilder.addFunction` takes optional `paramNames`.
 - **`WasmModule.customSections`**: every custom section is kept, each with the known section it

@@ -1184,13 +1184,26 @@ class WasmEncoder {
     w.writeU32(opcode & 0xffff);
   }
 
+  /**
+   * `align` is in BYTES (M8a1 — the node declaration's contract, and upstream
+   * binaryen's); the binary holds its exponent. A value that is not a power of
+   * two has no exponent, and is refused rather than rounded into one; past 256
+   * (exponent 8) it is refused as the decoder refuses it — and an exponent of
+   * 64 or more would collide with the memory-index flag, bit 6.
+   */
   private writeMemArg(w: BinaryWriter, align: number, offset: bigint, memory?: Var): void {
+    const exponent = Math.log2(align);
+    if (!Number.isInteger(exponent) || exponent < 0 || exponent > 8) {
+      throw new WasmEncodeError(
+        `cannot encode alignment ${align}: not a power of two up to 256 (exponent 8, the decoder's bound)`,
+      );
+    }
     const mem = memIndex(memory, 'memarg');
     if (mem !== 0) {
-      w.writeU32(align | 0x40);
+      w.writeU32(exponent | 0x40);
       w.writeU32(mem);
     } else {
-      w.writeU32(align);
+      w.writeU32(exponent);
     }
     w.writeU64(offset);
   }

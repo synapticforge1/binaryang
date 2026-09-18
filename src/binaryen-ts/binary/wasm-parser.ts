@@ -667,7 +667,14 @@ function funcTypeAt(
 }
 
 /**
- * A memarg: alignment exponent, optional memory index, offset.
+ * A memarg: alignment, optional memory index, offset. The binary holds the
+ * alignment's EXPONENT; the node holds BYTES (M8a1) — the one declaration's
+ * contract ("`align` is in BYTES"), and upstream wabt's and binaryen's. It held
+ * the exponent in that same field, a divergence no type could see.
+ *
+ * An exponent past 8 is refused, as upstream binaryen refuses it ("Alignment
+ * must be of a reasonable size"): no instruction's natural alignment is above
+ * 16 bytes, and `2 ** e` stops being exact past 1023.
  *
  * ⚠️ **Bit 6 of the align field means "an explicit memory index follows"**
  * (multi-memory). Reading align and offset straight through, as this did, is a
@@ -689,7 +696,10 @@ function readMemArg(r: BinaryReader): { align: number; offset: bigint; memory: V
   // Wrapping the result in `BigInt(...)` at each call site would widen the
   // TYPE while keeping the loss.
   const offset = r.readU64();
-  return { align: flags & ~0x40, offset, memory };
+  // Unsigned: `flags & ~0x40` would go through a signed 32-bit int.
+  const exponent = flags - (flags & 0x40);
+  if (exponent > 8) return r.error(`alignment must be of a reasonable size (exponent ${exponent})`);
+  return { align: 2 ** exponent, offset, memory };
 }
 
 /**
