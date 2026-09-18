@@ -84,6 +84,7 @@ function emptyModule(): WasmModule {
     start: null,
     types: [],
     hasDataCountSection: false,
+    hasNameSection: false,
     name: '',
   };
 }
@@ -856,6 +857,7 @@ Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
     start: null,
     types: [],
     hasDataCountSection: false,
+    hasNameSection: false,
     name: '',
   };
 
@@ -900,6 +902,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
     start: null,
     types: [],
     hasDataCountSection: false,
+    hasNameSection: false,
     name: '',
   };
 
@@ -937,6 +940,7 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
     start: null,
     types: [],
     hasDataCountSection: false,
+    hasNameSection: false,
     name: '',
   };
 

@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M7c3b b1 next)
+## Start the next session here (handoff, 2026-09-18 — M7c3b b1b next)
 
-**Where the work stopped.** `main` is at the merge of M7c3b b0 (code last changed at
-`66ccfe236`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `66ccfe236` (as on `d654da455` and `3d8c14b83` before it) and every step exited 0: fmt, lint, **1269 tests / 0 failed**,
+**Where the work stopped.** `main` is at the merge of M7c3b b1a (code last changed at
+`9a9c17ade`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `9a9c17ade` (as on every stage before it) and every step exited 0: fmt, lint, **1270 tests / 0 failed**,
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -56,11 +56,11 @@ oracle (`new WebAssembly.Module`), which may move that file between buckets; dec
 to spawn 'wast2json'" is the environment, not the code.
 
 **S6 step 5, items 1–5 are DONE** (the expression half). **Item 6, the MODULE half, is nearly done:**
-M1–M7c3a have landed; **M7c3b and M8 remain**. Scope and every stage's record:
+M1–M7c3b b1a have landed; **M7c3b b1b + b2 and M8 remain**. Scope and every stage's record:
 [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
 **Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
-typed-differently): M1 **46 / 29 / 15** → **20 / 2 / 19** now. The `differ` count ROSE on purpose: a
+typed-differently): M1 **46 / 29 / 15** → **19 / 2 / 19** now. The `differ` count ROSE on purpose: a
 field that converges in NAME but not yet in TYPE moves from a one-sided list into `differ`, and the
 entity collections stay there until the records themselves are one type (M8).
 
@@ -82,6 +82,7 @@ entity collections stay there until the records themselves are one type (M8).
 | decision 4 | `ab80982a8` | 🗓️ owner: the one module follows binaryen-ts's naming practice (2026-09-18)                               |
 | M7c3a   | `d654da455` | an import's param names and the module's name live on their records, not in `explicitNames` (2026-09-18)   |
 | M7c3b b0 | `66ccfe236` | 🗓️ owner: names cover types and fields — binaryen-ts's types and fields always named; `explicitNames` lists the real ones by name (2026-09-18) |
+| M7c3b b1a | `5e4a1cbdd` | the name section is its own fact: `hasNameSection` in both; `explicitNames` only says which names are real (2026-09-18) |
 
 ### Next, in order
 
