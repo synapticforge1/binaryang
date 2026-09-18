@@ -51,7 +51,6 @@ const PINNED = {
       'filename',
       'sectionMeta',
       'fidelity',
-      'hasNameSection',
       'localNamesListed',
     ],
     onlyB: [
@@ -192,6 +191,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [20, 2, 19]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [19, 2, 19]);
   });
 });

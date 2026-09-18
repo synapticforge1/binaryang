@@ -523,7 +523,8 @@ class WasmEncoder {
    */
   private readonly labelNames = new Map<number, [number, string][]>();
   /** The current function's labels that came from a name section, and its count so far. */
-  private funcLabels: ReadonlySet<string> | undefined;
+  /** Whether a label name in the current function is real (b1a: no record, every one). */
+  private funcLabelReal: (name: string) => boolean = () => false;
   private funcLabelsOut: [number, string][] = [];
   private labelCount = 0;
 
@@ -539,7 +540,7 @@ class WasmEncoder {
    */
   private noteLabel(name: string | null | undefined): void {
     const index = this.labelCount++;
-    if (name != null && this.funcLabels?.has(name)) this.funcLabelsOut.push([index, name]);
+    if (name != null && this.funcLabelReal(name)) this.funcLabelsOut.push([index, name]);
   }
 
   /**
@@ -710,7 +711,7 @@ class WasmEncoder {
     // Last, as the spec places it — and after the code, which is where the
     // label names were counted. A module DECODED with a name section already
     // wrote it above, at the place it held among the other custom sections.
-    if (this.mod.explicitNames !== undefined && !this.wroteNameSection) {
+    if (this.mod.hasNameSection && !this.wroteNameSection) {
       this.writeNameSection(out, this.mod.explicitNames);
     }
 
@@ -738,7 +739,7 @@ class WasmEncoder {
         if (c.name !== 'name') {
           throw new WasmEncodeError(`cannot encode custom section "${c.name}": it has no payload`);
         }
-        if (this.mod.explicitNames === undefined) continue;
+        if (!this.mod.hasNameSection) continue;
         this.writeNameSection(out, this.mod.explicitNames);
         this.wroteNameSection = true;
       } else {
@@ -771,8 +772,14 @@ class WasmEncoder {
    * local subsection is always written, with an entry for every function; names
    * without the `$`. So wabt-ts's bytes decode and re-encode to themselves.
    */
-  private writeNameSection(out: BinaryWriter, names: ExplicitNames): void {
+  private writeNameSection(out: BinaryWriter, names: ExplicitNames | undefined): void {
     const { mod } = this;
+    /**
+     * Whether `name` is REAL: listed in the record — or, with no record, any
+     * name at all, since nothing was made up (M7c3b b1a).
+     */
+    const real = (set: ReadonlySet<string> | undefined, name: string): boolean =>
+      names === undefined ? name !== '' : set?.has(name) === true;
     const bare = (s: string): string => (s.startsWith('$') ? s.slice(1) : s);
     const entries = (w: BinaryWriter, list: readonly [number, string][]): void => {
       w.writeU32(list.length);
@@ -793,11 +800,11 @@ class WasmEncoder {
       w: BinaryWriter,
       id: number,
       space: readonly string[],
-      set: ReadonlySet<string>,
+      set: ReadonlySet<string> | undefined,
     ) => {
       const list: [number, string][] = [];
       space.forEach((name, i) => {
-        if (set.has(name)) list.push([i, name]);
+        if (real(set, name)) list.push([i, name]);
       });
       if (list.length > 0) sub(w, id, (b) => entries(b, list));
     };
@@ -824,11 +831,12 @@ class WasmEncoder {
     const section = new BinaryWriter();
     section.writeUTF8('name');
     if (mod.name !== '') sub(section, 0, (b) => b.writeUTF8(bare(mod.name)));
-    flat(section, 1, funcSpace, names.functions);
+    flat(section, 1, funcSpace, names?.functions);
     // Which functions the subsection lists: the ones the section listed, or —
     // with no record — every one, as upstream `wat2wasm --debug-names` does
     // (N6). `null` is a section that had no local subsection: write none.
-    if (names.localsListed !== null) {
+    const listed = names === undefined ? undefined : names.localsListed;
+    if (listed !== null) {
       // Imported functions first, as the index space has them: an import's
       // locals are its params, named as a defined function's are (M7c3a).
       const funcs = [
@@ -836,9 +844,8 @@ class WasmEncoder {
         ...mod.functions,
       ];
       const locals: [number, [number, string][]][] = [];
-      const listed = names.localsListed;
       funcs.forEach((fn, i) => {
-        if (!listed.has(fn.name)) return;
+        if (listed !== undefined && !listed.has(fn.name)) return;
         const list: [number, string][] = [];
         fn.locals.forEach((l, j) => {
           if (l.name !== undefined && l.name !== '') list.push([j, l.name]);
@@ -859,43 +866,43 @@ class WasmEncoder {
     // the derived one names nothing.
     const typeList: [number, string][] = [];
     this.types.forEach((def, i) => {
-      if (names.types.has(def.name)) typeList.push([i, def.name]);
+      if (real(names?.types, def.name)) typeList.push([i, def.name]);
     });
     if (typeList.length > 0) sub(section, 4, (b) => entries(b, typeList));
     flat(
       section,
       5,
       [...imports(ExternalKind.Table), ...mod.tables.map((t) => t.name)],
-      names.tables,
+      names?.tables,
     );
     flat(
       section,
       6,
       [...imports(ExternalKind.Memory), ...mod.memories.map((m) => m.name)],
-      names.memories,
+      names?.memories,
     );
     flat(
       section,
       7,
       [...imports(ExternalKind.Global), ...mod.globals.map((g) => g.name)],
-      names.globals,
+      names?.globals,
     );
-    flat(section, 8, mod.elements.map((e) => e.name), names.elements);
-    flat(section, 9, mod.dataSegments.map((d) => d.name), names.dataSegments);
+    flat(section, 8, mod.elements.map((e) => e.name), names?.elements);
+    flat(section, 9, mod.dataSegments.map((d) => d.name), names?.dataSegments);
     indirect(
       section,
       10,
       this.types.map((def, i) => {
-        const real = names.fields.get(def.name);
+        const realFields = names?.fields.get(def.name);
         const fields = def.kind === 'struct' ? def.fields : def.kind === 'array' ? [def.field] : [];
         const list: [number, string][] = [];
         fields.forEach((f, j) => {
-          if (real?.has(f.name)) list.push([j, f.name]);
+          if (real(realFields, f.name)) list.push([j, f.name]);
         });
         return [i, list];
       }),
     );
-    flat(section, 11, [...imports(ExternalKind.Tag), ...mod.tags.map((t) => t.name)], names.tags);
+    flat(section, 11, [...imports(ExternalKind.Tag), ...mod.tags.map((t) => t.name)], names?.tags);
 
     out.writeU8(0);
     out.writeU32(section.byteLength);
@@ -1652,7 +1659,11 @@ class WasmEncoder {
     // unchanged.
     const labels: LabelStack = [fn.bodyFrameLabel ?? ''];
     // Label indices count from 0 in each function (N1 P5).
-    this.funcLabels = this.mod.explicitNames?.labels.get(fn.name);
+    const record = this.mod.explicitNames;
+    const realLabels = record?.labels.get(fn.name);
+    this.funcLabelReal = record === undefined
+      ? (n) => n !== ''
+      : (n) => realLabels?.has(n) === true;
     this.funcLabelsOut = [];
     this.labelCount = 0;
     // The same rule as every other region, through the same helper. This was a

@@ -57,6 +57,7 @@ function emptyModule(): WasmModule {
     start: null,
     types: [],
     hasDataCountSection: false,
+    hasNameSection: false,
     name: '',
   };
 }

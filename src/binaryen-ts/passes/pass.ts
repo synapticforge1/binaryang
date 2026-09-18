@@ -321,7 +321,7 @@ export class PassRunner {
     // left to be faithful to (N1, cmem/names.md). With no pass run this is still
     // a plain read-and-write, which keeps them — the owner's rule, over
     // upstream `wasm-opt`, which strips them even then.
-    if (optimized && !this._options.debugInfo) delete this._module.explicitNames;
+    if (optimized && !this._options.debugInfo) this._module.hasNameSection = false;
   }
 
   /** The current pass queue (read-only). */

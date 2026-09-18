@@ -82,6 +82,7 @@ function moduleWithImport(): WasmModule {
     start: null,
     types: [],
     hasDataCountSection: false,
+    hasNameSection: false,
     name: '',
   };
 }

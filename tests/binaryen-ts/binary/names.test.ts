@@ -25,7 +25,13 @@ import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { elemFuncNames, importName, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import {
+  elemFuncNames,
+  importName,
+  ModuleBuilder,
+  type WasmModule,
+} from '../../../src/binaryen-ts/ir/module.ts';
+import { makeRegion } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
@@ -183,7 +189,10 @@ describe('P4 — what the section does not name', () => {
   it('a binary with NO name section decodes as before and gains none', () => {
     const bare = withFuncNames(2, null);
     const m = parseWasm(bare);
-    assertEquals(m.explicitNames, undefined);
+    // The section is its own fact; the record is still set, and says the
+    // made-up names are not real (M7c3b b1a).
+    assertEquals(m.hasNameSection, false);
+    assertEquals([...m.explicitNames!.functions], []);
     assertEquals(m.functions.map((f) => f.name), ['$func0', '$func1']);
     assert(same(encodeWasm(m), bare));
   });
@@ -301,5 +310,25 @@ describe('found alongside: imported memories named by index', () => {
     assertEquals(names, ['mem0', 'mem1']);
     assertNotEquals(names[0], names[1]);
     assertEquals(m.exports.map((e) => e.var), [varName('mem0'), varName('mem1')]);
+  });
+});
+
+describe('M7c3b b1a — the section is one fact, which names are real another', () => {
+  it('a section with NO record writes every name: nothing was made up', () => {
+    const m = new ModuleBuilder().addFunction('$helper', [], [], makeRegion([])).build();
+    assertEquals(m.explicitNames, undefined);
+    m.hasNameSection = true;
+    const back = parseWasm(encodeWasm(m));
+    assertEquals(back.hasNameSection, true);
+    assertEquals([...back.explicitNames!.functions], ['$helper']);
+  });
+
+  it('clearing the section drops it though the record is still there', () => {
+    const named = parseWasm(assemble('(module (func $helper))'));
+    assert(named.hasNameSection);
+    named.hasNameSection = false;
+    const back = parseWasm(encodeWasm(named));
+    assertEquals(back.hasNameSection, false);
+    assertEquals(back.functions.map((f) => f.name), ['$func0']);
   });
 });

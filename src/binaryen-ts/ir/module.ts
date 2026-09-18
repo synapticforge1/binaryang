@@ -437,12 +437,23 @@ export interface WasmModule {
    * had — so it writes only what is listed here. Upstream binaryen keeps the
    * same distinction as `hasExplicitName`.
    *
-   * Absent means the module had no name section, and none is written: a module
-   * built through the API, or by the internal `parseWat`, encodes as before.
-   * `PassRunner` drops it at the end of a run unless `debugInfo` is set —
-   * optimized output follows `-g`, as upstream.
+   * ONLY that (M7c3b b1a): whether a section is written is
+   * {@link WasmModule.hasNameSection}. Every producer that MAKES UP names sets
+   * it — the decoder always does, section or not. Absent means nothing was made
+   * up, so every non-empty name is real.
    */
   explicitNames?: ExplicitNames;
+  /**
+   * Whether a `name` section is written — wabt-ts's `Module.hasNameSection`
+   * (M7c3b b1a). It was the PRESENCE of {@link WasmModule.explicitNames}, one
+   * field holding two facts. The decoder sets it to whether the binary had one
+   * (a binary without must not gain one); `ModuleBuilder.build` to `false`, so
+   * an API-built module encodes as before; `PassRunner` clears it at the end of
+   * a run unless `debugInfo` is set — optimized output follows `-g`, as
+   * upstream. ⚠️ Set on a module with no record, it takes every non-empty name
+   * as real — including a type name `addType` made up.
+   */
+  hasNameSection: boolean;
   /**
    * Whether the module was decoded from a binary with a DataCount section (id
    * 12) — W6. The encoder writes one when a function body names a data segment
@@ -985,6 +996,7 @@ export class ModuleBuilder {
       start: this._start,
       types: [...this._types],
       hasDataCountSection: false,
+      hasNameSection: false,
     };
   }
 
