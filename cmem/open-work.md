@@ -26,7 +26,7 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M8e done: the bridge is gone; S6 step 5 CLOSED)
+## Start the next session here (handoff, 2026-09-18 — S6 step 5 CLOSED; post-M8 fixes in progress, 1 of 7 done)
 
 **Where the work stopped.** `main` is at the merge of M8e (code last changed at
 `84a128f82`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
@@ -103,10 +103,19 @@ entity collections stay there until the records themselves are one type (M8).
 
 ### Next, in order
 
-1. **S6 step 5 is closed.** What remains open is below ("Open, recorded not done"), including the
-   defects M8d found; the next STEP is the owner's call (S7, the linear-form marker, is independent
-   and ready). The direct path is internal: whether `prepareForPasses` becomes public API — so a
-   caller holding a wabt-ts tree can optimize it without a binary round trip — is an owner call.
+1. **Post-M8 fixes (owner, 2026-09-18): the defects M8d found, and the mutant M8e noted.** The list,
+   with each item's record, is [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes":
+   - ✅ `table.get` typed by its table;
+   - `makeCallIndirect`'s multi-value type;
+   - 64-bit index types for `memory.size` / `memory.grow` (and `table.size` / `table.grow` for
+     table64);
+   - wabt-ts's binary reader and `br_if` as a value;
+   - the WAT parser's branch arity;
+   - `br_table`'s stale filter;
+   - the dropped-start mutant only the test caught.
+
+   **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was. S6 step 5 is
+   closed; the next STEP after these fixes is the owner's call (S7 is independent and ready).
 2. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
    changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
@@ -117,8 +126,8 @@ entity collections stay there until the records themselves are one type (M8).
 - the WAT writer does not print an empty `(offset)` / `(item)` (M2a)
 - the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8**
 - Asyncify refuses `call_ref` (K1)
-- found by M8d (its record): binaryen-ts's **decoder types every `table.get` `funcref`**, whatever the
-  table (it never passes the element type); **`makeCallIndirect` types a multi-value call by its
+- found by M8d (its record), being fixed now (item 1 above): ~~the decoder types every `table.get` `funcref`~~ (fixed
+  `ddd5f6163`); **`makeCallIndirect` types a multi-value call by its
   first result**; `makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64. Also: the WAT
   parser does not know a branch target's arity, and wabt-ts's binary reader does not treat a `br_if`
   as producing a value. Tree-shape imprecision, bytes right.

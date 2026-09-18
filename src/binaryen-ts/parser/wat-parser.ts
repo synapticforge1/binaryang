@@ -291,6 +291,8 @@ class WatModuleParser {
   private globalNames = new Map<string, number>();
   private memoryNames = new Map<string, number>();
   private tableNames = new Map<string, number>();
+  /** Each table's element type, by internal name — what `table.get` yields (see `table.get`). */
+  private tableElemTypes = new Map<string, ValueType>();
 
   // GC type name → types index
   private typeNames = new Map<string, number>();
@@ -495,6 +497,7 @@ class WatModuleParser {
       const refType = tChildren[tIdx]
         ? (this.tryParseValType(tChildren[tIdx]) ?? ValType.FuncRef)
         : ValType.FuncRef;
+      this.tableElemTypes.set(internalName, refType);
       this.builder.addTableImport(internalName, modName, baseName, refType, initial, max);
     } else {
       this.err(`unknown import descriptor: ${head}`, descList.pos);
@@ -996,14 +999,13 @@ class WatModuleParser {
       const { table, rest } = this._takeOptionalTableRef(args);
       if (rest.length < 1) this.err('table.get: missing index operand', list.pos);
       const index = this.parseExpr(rest[0], ctx);
-      return {
-        kind: ExpressionKind.TableGet,
-        // Element type defaults to funcref — the most common table type and
-        // what the binary parser assumes when it can't see the table decl.
-        type: ValType.FuncRef,
-        table: varName(table),
-        index,
-      };
+      // The TABLE's element type. 🔧 It was `funcref` for every table ("what
+      // the binary parser assumes"): the decoder did the same, and both were
+      // wrong for an `externref` or `anyref` table (found by M8d, 2026-09-18).
+      // Tables are collected in the first pass, so the type is known here.
+      const type = this.tableElemTypes.get(table);
+      if (type === undefined) this.err(`table.get: unknown table ${table}`, list.pos);
+      return { kind: ExpressionKind.TableGet, type, table: varName(table), index };
     }
     if (head === 'table.set') {
       // `(table.set [$t] <index> <value>)`.
@@ -2269,6 +2271,7 @@ class WatModuleParser {
     // while it is cheap.
     const tableInternal = name ?? `$table${tableIndex}`;
     this.tableNames.set(tableInternal, tableIndex);
+    this.tableElemTypes.set(tableInternal, refType);
     if (inline.imp) {
       this.builder.addTableImport(
         tableInternal,

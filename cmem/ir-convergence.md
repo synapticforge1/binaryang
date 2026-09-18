@@ -3884,8 +3884,10 @@ wires in at M8e, after `nameReferences`.
 **✅ M8e — the bridge goes (2026-09-18, `84a128f82`). ITEM 6 IS DONE, and with it S6 step 5.**
 - **`prepareForPasses(m)`** (`src/binaryen-ts/ir/prepare.ts`) is the bridge's replacement:
   `nameReferences` then `deriveTypes`, in place, on the one module type. It is not public (the
-  bridge was not either). No PRODUCT route used the bridge (`wasm-opt` reads text through
-  binaryen-ts's own `read-wat.ts`); its users were two gates and 21 test files.
+  bridge was not either), and stays internal (**owner, 2026-09-18**). No PRODUCT route used the
+  bridge; its users were two gates and 21 test files. (`wasm-opt` reads text through
+  `read-wat.ts`, which is `wat2wasm` then the DECODER. Corrected 2026-09-18: this said "binaryen-ts's
+  own", but that WAT parser, `src/binaryen-ts/parser`, is reached only by tests.)
 - **Measured BEFORE the deletion**, over the 421-module corpus:
   - **unoptimized, the direct path's bytes ARE `wat2wasm`'s: 421 / 421.** The bridge's matched on
     none. This also settles M8c's open note: the made-up labels are not written;
@@ -3920,6 +3922,19 @@ wires in at M8e, after `nameReferences`.
   - dropping the start function fails only the test. No corpus module has a `(start …)`, as the
     behaviour gate's doc says; the fixture's start module is the witness.
 - **Gate** on `84a128f82`: every step exit 0, 1254 tests (1288, minus the 16 bridge files, plus one).
+
+**Post-M8 fixes (owner, 2026-09-18): "fix the defects that were found and the mutants noted."**
+Each item is its own branch, measured, tested, mutated and gated.
+1. ✅ **`table.get` is typed by its table's element type** (`ddd5f6163` + `4f2841e66`).
+   - The defect: the decoder never passed the element type to `makeTableGet`, whose default was
+     `funcref`, and binaryen-ts's own WAT parser wrote `funcref` outright.
+   - The fix: both now record each table's element type and read it. An unknown or out-of-range
+     table is refused. `makeTableGet` takes a `ValueType` and has no default.
+   - Measured: bytes unchanged (decode→encode 0 / 1,023, optimizer 0 / 2,526, spec 0 / 5,924).
+     M8d's decoder comparison lost its 235 + 99 disagreements.
+   - Mutants: 6 / 6 killed. The first test called `readWat` as "the WAT reader", but it is the
+     decoder route, so the parser's 3 mutants survived until the parser was called directly.
+   - Gate on `4f2841e66`: exit 0, 1255 tests.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one

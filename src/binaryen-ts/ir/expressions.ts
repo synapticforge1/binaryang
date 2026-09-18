@@ -1378,14 +1378,15 @@ export function makeLocalTee(index: Var, value: Expression, type: ValueType): Lo
   return { kind: ExpressionKind.LocalTee, type, var: index, value };
 }
 
-/** Creates a `table.get` expression. Default element type is `funcref` (the
- *  most common reference table); pass `externref` for tables holding host
- *  references. */
-export function makeTableGet(
-  table: Var,
-  index: Expression,
-  type: ValType = ValType.FuncRef,
-): TableGetExpr {
+/**
+ * Creates a `table.get` expression, typed by the TABLE's element type.
+ *
+ * 🔧 `type` defaulted to `funcref`, and the decoder never passed it, so every
+ * `table.get` it read was `funcref` — an `externref` or `anyref` table's
+ * included (found by M8d, 2026-09-18). A default that is right for the common
+ * case is how the wrong case went unseen; the caller states it.
+ */
+export function makeTableGet(table: Var, index: Expression, type: ValueType): TableGetExpr {
   return { kind: ExpressionKind.TableGet, type, table, index };
 }
 
