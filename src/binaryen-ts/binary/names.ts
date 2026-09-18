@@ -27,6 +27,9 @@ import { parseNameSection } from '../../wabt-ts/reader/name-section.ts';
 import { NameSectionSubsection } from '../../wabt-ts/core/binary.ts';
 import type { ModuleNames, NameMap } from '../../wabt-ts/ir/apply-names.ts';
 import type { ExplicitNames } from '../ir/module.ts';
+// The made-up names and the disambiguation rule are SHARED with wabt-ts's
+// reader, which names every entity the same way (M7c3b b1b).
+import { MADE_UP, unique } from '../../wabt-ts/ir/made-up-names.ts';
 
 function leb(bytes: Uint8Array, p: { i: number }): number | null {
   let r = 0;
@@ -103,14 +106,6 @@ class Namespace {
   }
 }
 
-/** `name`, or `name.1`, `name.2`, … — the first not in `used`; recorded there. */
-function unique(used: Set<string>, name: string): string {
-  let u = name;
-  for (let n = 1; used.has(u); n++) u = `${name}.${n}`;
-  used.add(u);
-  return u;
-}
-
 /** The decoder's names for one module. See the module doc. */
 export class DecodedNames {
   /** Whether the binary had a name section at all. */
@@ -148,14 +143,14 @@ export class DecodedNames {
       ? new Set(parsed.names.localNames.keys())
       : null;
     const n = this.raw;
-    this.funcs = new Namespace(n?.funcNames, (i) => `$func${i}`);
-    this.tables = new Namespace(n?.tableNames, (i) => `$table${i}`);
-    this.memories = new Namespace(n?.memoryNames, (i) => `mem${i}`);
-    this.globals = new Namespace(n?.globalNames, (i) => `$global${i}`);
-    this.tags = new Namespace(n?.tagNames, (i) => `$tag${i}`);
-    this.elems = new Namespace(n?.elemSegmentNames, (i) => `$elem${i}`);
-    this.datas = new Namespace(n?.dataSegmentNames, (i) => `$data${i}`);
-    this.types = new Namespace(n?.typeNames, (i) => `$type${i}`);
+    this.funcs = new Namespace(n?.funcNames, MADE_UP.func);
+    this.tables = new Namespace(n?.tableNames, MADE_UP.table);
+    this.memories = new Namespace(n?.memoryNames, MADE_UP.memory);
+    this.globals = new Namespace(n?.globalNames, MADE_UP.global);
+    this.tags = new Namespace(n?.tagNames, MADE_UP.tag);
+    this.elems = new Namespace(n?.elemSegmentNames, MADE_UP.elem);
+    this.datas = new Namespace(n?.dataSegmentNames, MADE_UP.data);
+    this.types = new Namespace(n?.typeNames, MADE_UP.type);
   }
 
   /** Every index below is in its index space — imports first. */
@@ -192,7 +187,7 @@ export class DecodedNames {
   field(ti: number, j: number): string {
     let ns = this.fieldSpaces.get(ti);
     if (ns === undefined) {
-      ns = new Namespace(this.raw?.fieldNames.get(ti), (k) => `$field${k}`);
+      ns = new Namespace(this.raw?.fieldNames.get(ti), MADE_UP.field);
       this.fieldSpaces.set(ti, ns);
     }
     return ns.name(j);

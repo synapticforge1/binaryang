@@ -25,6 +25,7 @@ import type {
   Custom,
   DataSegment,
   ElemSegment,
+  ExplicitNames,
   Export,
   Expr,
   Field,
@@ -45,6 +46,7 @@ import type {
 } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { placementText } from '../core/custom-placement.ts';
+import { isRealName } from '../ir/made-up-names.ts';
 import { Type, typeName } from '../core/types.ts';
 import {
   blockTypeOf,
@@ -336,6 +338,18 @@ class WatWriter extends ModuleContext {
         : String.fromCharCode(b);
     }
     this.puts(quoted + '"', nc);
+  }
+
+  /**
+   * `name` if it is REAL, else `''` — so a name a reader made up prints as the
+   * `(;N;)` an unnamed entity always did (owner decision 4; M7c3b b1b).
+   * Without it, `wasm2wat` would print `$func3` and the next `wat2wasm` would
+   * write it as though the author had: the fault N1 took out of
+   * `generateNames`.
+   */
+  private shown(set: (r: ExplicitNames) => ReadonlySet<string> | undefined, name: string): string {
+    const r = this.module.explicitNames;
+    return isRealName(r, r === undefined ? undefined : set(r), name) ? name : '';
   }
 
   private writeNameOrIndex(name: string, idx: number, nc: NC): void {
@@ -1945,7 +1959,7 @@ class WatWriter extends ModuleContext {
 
   private writeTypeEntry(te: TypeEntry): void {
     this.openSpace('type');
-    this.writeNameOrIndex(te.name, this.typeIdx++, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.types, te.name), this.typeIdx++, NC.Space);
     // `(sub final? $super*)` wraps the comptype. Absent means the bare
     // shorthand, which already implies `sub final` with no supertypes.
     if (te.sub !== undefined) {
@@ -1964,22 +1978,23 @@ class WatWriter extends ModuleContext {
         let fi = 0;
         for (const f of te.fields) {
           this.openSpace('field');
-          this.writeNameOrIndex(f.name, fi++, NC.Space);
+          this.writeNameOrIndex(this.shown((r) => r.fields.get(te.name), f.name), fi++, NC.Space);
           this.writeField(f);
           this.closeSpace();
         }
         this.closeSpace();
         break;
       }
-      case 'array':
+      case 'array': {
         this.openSpace('array');
         // The spec's form is `(array fieldtype)`, and `wasm-tools` takes only
         // that — so the `(field …)` wrapper goes in ONLY when the field has a
         // name, which that form is the sole way to write (A1). Upstream wabt
         // and binaryen read both.
-        if (te.field.name !== '') {
+        const fieldName = this.shown((r) => r.fields.get(te.name), te.field.name);
+        if (fieldName !== '') {
           this.openSpace('field');
-          this.writeName(te.field.name, NC.Space);
+          this.writeName(fieldName, NC.Space);
           this.writeField(te.field);
           this.closeSpace();
         } else {
@@ -1987,6 +2002,7 @@ class WatWriter extends ModuleContext {
         }
         this.closeSpace();
         break;
+      }
     }
     if (te.sub !== undefined) this.closeSpace(); // closes (sub …)
     this.closeNewline();
@@ -2069,7 +2085,7 @@ class WatWriter extends ModuleContext {
    */
   private writeFuncBegin(func: Func, _isImport: boolean): void {
     this.openSpace('func');
-    this.writeNameOrIndex(func.name, this.funcIdx, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.functions, func.name), this.funcIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
     this.writeFuncTypeUse(func);
     this.writeParams(func.sig.params, new Map(localNameEntries(func.locals)));
@@ -2079,7 +2095,7 @@ class WatWriter extends ModuleContext {
 
   private writeFunc(func: Func): void {
     this.openSpace('func');
-    this.writeNameOrIndex(func.name, this.funcIdx, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.functions, func.name), this.funcIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
     this.writeFuncTypeUse(func);
     this.funcIdx++;
@@ -2147,7 +2163,7 @@ class WatWriter extends ModuleContext {
 
   private writeGlobalBegin(g: Global, _isImport: boolean): void {
     this.openSpace('global');
-    this.writeNameOrIndex(g.name, this.globalIdx, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.globals, g.name), this.globalIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Global, this.globalIdx);
     this.globalIdx++;
     if (g.mutable) {
@@ -2167,7 +2183,7 @@ class WatWriter extends ModuleContext {
 
   private writeTableDecl(t: Table): void {
     this.openSpace('table');
-    this.writeNameOrIndex(t.name, this.tableIdx, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.tables, t.name), this.tableIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Table, this.tableIdx);
     this.tableIdx++;
     this.writeLimits(t.limits);
@@ -2202,7 +2218,7 @@ class WatWriter extends ModuleContext {
 
   private writeMemoryDecl(m: Memory): void {
     this.openSpace('memory');
-    this.writeNameOrIndex(m.name, this.memoryIdx, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.memories, m.name), this.memoryIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Memory, this.memoryIdx);
     this.memoryIdx++;
     this.writeLimits(m.limits);
@@ -2211,7 +2227,7 @@ class WatWriter extends ModuleContext {
 
   private writeTagDecl(tag: Tag): void {
     this.openSpace('tag');
-    this.writeNameOrIndex(tag.name, this.tagIdx, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.tags, tag.name), this.tagIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Tag, this.tagIdx);
     this.tagIdx++;
     this.writeFuncSig(tag.sig);
@@ -2239,7 +2255,7 @@ class WatWriter extends ModuleContext {
 
   private writeElemSegment(seg: ElemSegment): void {
     this.openSpace('elem');
-    this.writeNameOrIndex(seg.name, this.elemSegIdx++, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.elements, seg.name), this.elemSegIdx++, NC.Space);
 
     if (seg.kind === 'active') {
       // Emit table ref unless it's table 0
@@ -2281,7 +2297,7 @@ class WatWriter extends ModuleContext {
 
   private writeDataSegment(seg: DataSegment): void {
     this.openSpace('data');
-    this.writeNameOrIndex(seg.name, this.dataSegIdx++, NC.Space);
+    this.writeNameOrIndex(this.shown((r) => r.dataSegments, seg.name), this.dataSegIdx++, NC.Space);
     if (seg.kind === 'active') {
       const memIdx = this.resolveVarIndex(seg.memoryVar, ExternalKind.Memory);
       if (memIdx !== 0) {

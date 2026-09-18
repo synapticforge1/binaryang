@@ -44,6 +44,8 @@ import {
   varIndex,
 } from '../../wabt-ts/ir/ir.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
+import type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
+export type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
 export type { TypeDef } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -501,48 +503,6 @@ export interface CustomSection {
    * recorded against is gone. wabt-ts's `Custom.precedingSection` (M2f).
    */
   precedingSection?: BinarySection | null;
-}
-
-/**
- * A module's names from its `name` section, as {@link WasmModule.explicitNames}
- * holds them. Every name is `$`-prefixed like the IR's own.
- *
- * Entities are listed by the name they carry in the IR (after disambiguation),
- * so a pass that renames or removes one simply takes it out of the name section.
- * Every entity HAS a name — types and fields too (owner decision 4, M7c3b b0;
- * they were keyed by the `TypeDef` object, their names held here) — and these
- * sets say which ones are real: only those are written.
- */
-export interface ExplicitNames {
-  /** Functions, imported and defined (1). */
-  functions: ReadonlySet<string>;
-  /**
-   * Which functions the local subsection (2) LISTED, by IR name — or `null`
-   * when the section had no local subsection at all. N6.
-   *
-   * 🔧 The encoder listed every function, upstream `wat2wasm --debug-names`'s
-   * shape; a producer lists only the ones that HAVE a named local, so
-   * re-encoding a clang or rustc binary gained entries it never had. Keyed by
-   * name, like every other entry here: a function a pass removed simply leaves
-   * the section, and one a pass added was never in it.
-   */
-  localsListed: ReadonlySet<string> | null;
-  /** Label names, by function name (3) — the names of the blocks, loops, ifs and trys that had one. */
-  labels: ReadonlyMap<string, ReadonlySet<string>>;
-  /**
-   * Which type names are real (4) — the names are on the `TypeDef`s, made up
-   * where the section gave none (owner decision 4; M7c3b b0).
-   */
-  types: ReadonlySet<string>;
-  /** Tables (5), memories (6), globals (7), element (8) and data (9) segments, tags (11). */
-  tables: ReadonlySet<string>;
-  memories: ReadonlySet<string>;
-  globals: ReadonlySet<string>;
-  elements: ReadonlySet<string>;
-  dataSegments: ReadonlySet<string>;
-  tags: ReadonlySet<string>;
-  /** Which field names are real (10), by their TYPE's name — as `labels` are by function. */
-  fields: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 // ---------------------------------------------------------------------------
