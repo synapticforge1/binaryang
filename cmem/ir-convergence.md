@@ -3712,6 +3712,15 @@ encoder mutants hit lines one off (an added import shifted them), changed nothin
 caught only because each mutant prints its diffstat; re-run, killed. Against `main`: decode → encode,
 optimizer + `wat2wasm`, and all 5,924 spec decodes (the GC ones carry packed fields) unchanged.
 
+**✅ M8b3 — a module record's `loc` is optional, read through `locOf` (2026-09-18, `e97e7bd33`).**
+The node base's answer (item 5 (1)) for the records: type entry, function, global, table, memory,
+tag, both segments, custom. Trials: wabt-ts `loc?` 69 errors (63 reads → `locOf`, converted on the
+compiler-named lines only and read back); binaryen-ts required `loc` 100+, and a made-up location on
+every API- or pass-built record. With `loc` optional a leaf record IS its partner: ratchet
+**18 / 1 / 4** — what still differs holds a function (`imports`, `functions`), plus
+`customSections` (required in wabt-ts, optional in binaryen-ts — M8b5). wabt-ts outputs 0 of 2,888
+and objdump 0 of 602 changed. The module's own `loc` waits for M8b5.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
