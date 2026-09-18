@@ -3,7 +3,7 @@
 
 /**
  * @module
- * The killable half of `deno task bridge-behaviour`.
+ * The killable half of `deno task direct-behaviour`.
  *
  * `differential.ts` calls corpus entry points, and some of them never return
  * under stub imports. There is no way to bound a synchronous wasm call from

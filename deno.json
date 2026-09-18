@@ -52,7 +52,7 @@
   },
   "tasks": {
     "check": "deno check src/**/*.ts main.ts tests/**/*.ts scripts/**/*.ts",
-    "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/ tests/bridge/ tests/ir/",
+    "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/ tests/ir/",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
     "lint": "deno lint",
@@ -66,8 +66,8 @@
     "operators": "deno run --allow-read scripts/check-operator-mapping.ts",
     "spec:prepare": "deno run --allow-read --allow-write --allow-run --allow-env scripts/spec-prepare.ts",
     "spec": "deno run --allow-read --allow-write --allow-env scripts/spec-testsuite.ts",
-    "bridge": "deno run --allow-read scripts/check-bridge-corpus.ts",
-    "bridge-behaviour": "deno run --allow-read scripts/check-bridge-behaviour.ts",
+    "direct": "deno run --allow-read scripts/check-direct-corpus.ts",
+    "direct-behaviour": "deno run --allow-read scripts/check-direct-behaviour.ts",
     "translate-eh": "deno run --allow-read --allow-write --allow-run --allow-env scripts/check-translate-eh.ts",
     "optimize-corpus": "deno run --allow-read scripts/check-optimize-corpus.ts"
   },

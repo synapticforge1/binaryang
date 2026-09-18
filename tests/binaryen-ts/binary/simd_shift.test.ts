@@ -8,14 +8,14 @@
 // form, because LocalCSE keys a `Binary` and never keyed a `SIMDShift`.
 //
 // This is the gate the scoping asked for. The 421-module corpus holds ZERO SIMD
-// shifts, so `deno task baseline` and `deno task bridge` cannot see K3 at all.
+// shifts, so `deno task baseline` and `deno task direct` cannot see K3 at all.
 // Every entry path is covered, because before the merge binaryen-ts held TWO
 // shapes for one instruction depending on how the module arrived (the bridge
 // built `binary`, the decoder and parseWat built `simd.shift`):
 //
 //   - binaryen-ts's internal `parseWat`, against wabt-ts's bytes;
 //   - the decoder, decode → encode byte-identical;
-//   - the bridge;
+//   - the direct path (`prepareForPasses`; the bridge until M8e);
 //   - LocalCSE reusing a repeated shift, as upstream `wasm-opt --local-cse` does.
 //
 // Each module is RUN in V8. A shift is non-commutative and its operands have
@@ -37,7 +37,8 @@ import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
+import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
@@ -174,17 +175,18 @@ for (const [lane, op] of CASES) {
     run(bytes, lane, op);
   });
 
-  // A GUARD, not coverage of K3: the bridge already built `binary` before the
+  // A GUARD, not coverage of K3: the bridge (the direct path since M8e) already built `binary` before the
   // merge, so this passed on both sides. It pins that the three entry paths now
   // agree, which is what K3 removed the exception to.
-  Deno.test(`K3: ${name} — the bridge builds the same binary`, () => {
+  Deno.test(`K3: ${name} — the direct path builds the same binary`, () => {
     const { module, errors } = parseWatModule(new LexerSource(watFor(lane, op), '<k3>'));
     assert(!hasErrors(errors), formatErrors(errors));
     const rerrs = makeErrorList();
     resolveNames(module, rerrs);
     assert(!hasErrors(rerrs), formatErrors(rerrs));
-    const mod = bridgeToBinaryen(module);
-    assertBinaryShift(nodesWithOpcode(mod, opcode)[0], opcode, 'bridge');
+    synthesizeTypes(module);
+    const mod = prepareForPasses(module);
+    assertBinaryShift(nodesWithOpcode(mod, opcode)[0], opcode, 'direct');
     run(encodeWasm(mod), lane, op);
   });
 

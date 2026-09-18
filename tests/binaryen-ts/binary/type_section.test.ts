@@ -24,7 +24,8 @@ import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
+import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
@@ -125,7 +126,7 @@ describe('M5b — the module holds its own type table, and a field its name', ()
     ]);
   });
 
-  it('the bridge carries a field name across', () => {
+  it('the direct path (the bridge until M8e) carries a field name across', () => {
     const { module, errors } = parseWatModule(
       new LexerSource('(module (type $s (struct (field $x i32) (field $y (mut i64)))))', '<m5b>'),
     );
@@ -133,7 +134,8 @@ describe('M5b — the module holds its own type table, and a field its name', ()
     const errs = makeErrorList();
     resolveNames(module, errs);
     assert(!hasErrors(errs), formatErrors(errs));
-    const def = bridgeToBinaryen(module).types[0]!;
+    synthesizeTypes(module);
+    const def = prepareForPasses(module).types[0]!;
     assert(def.kind === 'struct');
     assertEquals(def.fields.map((f) => f.name), ['$x', '$y']);
   });

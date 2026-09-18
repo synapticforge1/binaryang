@@ -470,6 +470,10 @@ anonymous-function name collision turned `(call 1)` into infinite recursion.
 
 ## Not release-note material, but true of `main`
 
+- **The bridge is gone** (S6 step 5, M8e, 2026-09-18). `src/bridge` was internal (no `exports` subpath),
+  so nothing published changes. `prepareForPasses` (`src/binaryen-ts/ir/prepare.ts`, also internal)
+  replaced it. The dev tasks `deno task bridge` / `bridge-behaviour` are now `direct` /
+  `direct-behaviour`. The entries about the bridge below are history.
 - **The bridge carries element segments and the start function.** Both were SILENTLY dropped —
   `module.elemSegments` and `module.start` were never read — so every bridged module's tables were
   empty (any `call_indirect` trapped with "null function") and a start function never ran. The

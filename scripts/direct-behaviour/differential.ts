@@ -4,19 +4,20 @@
 /**
  * @module
  * One corpus module, run down BOTH paths and compared. The library half of
- * `deno task bridge-behaviour`; the driver is `../check-bridge-behaviour.ts`
+ * `deno task direct-behaviour`; the driver is `../check-direct-behaviour.ts`
  * and the worker that isolates a hang is `worker.ts`.
  *
- * `deno task bridge` asks whether the bridge's output COMPILES. That question
- * cannot see a module that compiles and then does the wrong thing — which is
- * exactly what happened: the bridge dropped every element segment and every
- * start function, and the gate read 421/421 straight through it, because a
+ * A gate that asks whether output COMPILES cannot see a module that compiles
+ * and then does the wrong thing — which is exactly what happened: the bridge
+ * (deleted in S6 step 5, M8e) dropped every element segment and every start
+ * function, and its compile gate read 421/421 straight through it, because a
  * module with an empty table is perfectly valid.
  *
  * So this asks the other question. For each corpus module it builds:
  *
  *   A — `wat2wasm`: wabt-ts parse -> resolve -> synthesize -> wabt-ts writer
- *   B — the bridge: the same front end -> bridge -> binaryen-ts encoder
+ *   B — the OPTIMIZER on that tree: the same front end -> `prepareForPasses`
+ *       (names + types, M8c/M8d) -> binaryen-ts's -O3 pipeline -> its encoder
  *
  * instantiates BOTH against structurally identical, deterministic import stubs,
  * calls every numerically-typed export on both in lockstep with the same
@@ -26,18 +27,22 @@
  * identical, for the differential to be valid. (The method is `equiv_check.ts`'s;
  * the two sides are different here.)
  *
- * ⚠️ **This is S6 step 5's before/after instrument, and it outlives the step.**
- * Step 5 deletes the bridge by making the two IRs one type; B then becomes the
- * binaryen-ts encoder over that one IR, and the differential still means what
- * it means. Whatever this prints on the commit before step 5 is the baseline
- * step 5 is judged against — not "421 modules compiled", but "N calls agreed".
+ * ⚠️ **This was S6 step 5's before/after instrument, and it outlives the step.**
+ * B was the bridge until M8e deleted it (1,806 calls across 602 exports agreed,
+ * the baseline). Unoptimized, the direct path's bytes ARE `wat2wasm`'s
+ * (`deno task direct` holds that), so B runs the optimizer: this is now the one
+ * gate that checks what the optimizer does to a text-read tree by RUNNING it.
+ * -O3 because that is where this route's output differs from the decoder
+ * route's (the inliner sizes `pop`s and the decoder's local spills
+ * differently).
  */
 
 import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../src/wabt-ts/ir/synthesize-types.ts';
 import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
-import { bridgeToBinaryen } from '../../src/bridge/bridge.ts';
+import { prepareForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { PassRunner } from '../../src/binaryen-ts/passes/index.ts';
 import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
 import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
@@ -215,16 +220,19 @@ export function check(file: string, wat: string): Row {
   const a = wat2wasm(wat, { filename: file });
   if (a.binary.length === 0) return { ...row, status: 'skip', detail: 'wat2wasm could not' };
 
-  // B: the same front end, then the bridge.
+  // B: the same front end, then the optimizer at -O3.
   const parsed = parseWatModule(wat);
   if (!parsed.module) return { ...row, status: 'skip', detail: 'no module' };
   resolveNames(parsed.module);
   synthesizeTypes(parsed.module);
   let b: Uint8Array;
   try {
-    b = encodeWasm(bridgeToBinaryen(parsed.module));
+    const prepared = prepareForPasses(parsed.module);
+    new PassRunner(prepared, { optimizeLevel: 3, shrinkLevel: 0 }).addDefaultOptimizationPasses()
+      .run();
+    b = encodeWasm(prepared);
   } catch (e) {
-    return { ...row, status: 'DIVERGE', detail: `bridge path threw: ${(e as Error).message}` };
+    return { ...row, status: 'DIVERGE', detail: `optimizer path threw: ${(e as Error).message}` };
   }
 
   let mod: WasmModule;
@@ -302,7 +310,7 @@ export function check(file: string, wat: string): Row {
       const rb = call(fb, args);
       row.calls++;
       if (ra.trap !== rb.trap || ra.ret !== rb.ret) {
-        diffs.push(`${exp.name}(${args.join(',')}): wabt=${ra.ret} bridge=${rb.ret}`);
+        diffs.push(`${exp.name}(${args.join(',')}): wabt=${ra.ret} optimized=${rb.ret}`);
       }
     }
   }

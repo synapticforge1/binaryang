@@ -3,13 +3,14 @@
 
 /**
  * @module
- * S6's BEHAVIOURAL gate: the bridge path and the wabt-ts path, run in lockstep.
+ * The BEHAVIOURAL gate: `wat2wasm`'s output and the optimizer's output over
+ * the same text-read tree (`prepareForPasses`, then -O3), run in lockstep.
  *
- * `deno task bridge` compiles both and runs neither, which is how the bridge
- * came to drop every element segment and every start function while that gate
- * read 421/421 — an empty table is perfectly valid. This one instantiates and
- * calls. What each module does, and why the comparison is sound, is in
- * `bridge-behaviour/differential.ts`.
+ * A compile gate runs nothing, which is how the bridge (deleted in S6 step 5,
+ * M8e) came to drop every element segment and every start function while its
+ * gate read 421/421 — an empty table is perfectly valid. This one instantiates
+ * and calls. What each module does, and why the comparison is sound, is in
+ * `direct-behaviour/differential.ts`.
  *
  * This file is only the driver, and the driver exists for one reason: some
  * corpus entry points (`_start`, `main`) do not terminate under stub imports,
@@ -22,21 +23,21 @@
  * much less than it looks like it means.
  *
  * **What it catches, measured 2026-09-15 by mutating the bridge:**
- * restoring the old element-segment drop takes it to **39 DIVERGE, exit 1** —
- * while `deno task bridge` reads a clean **421/421** on that same mutant. That
- * is the whole reason this file exists.
+ * restoring the old element-segment drop took it to **39 DIVERGE, exit 1** —
+ * while the bridge's compile gate read a clean **421/421** on that same mutant.
+ * That is the whole reason this file exists.
  *
  * ⚠️ **What it CANNOT see, measured the same way:** dropping the start function
  * again leaves it fully green, because not one of the 421 corpus modules has a
- * `(start …)` section. Only `tests/bridge/module_surface.test.ts` covers that.
+ * `(start …)` section. Only `tests/binaryen-ts/ir/prepare.test.ts` covers that.
  * A gate is evidence about what it reaches, and this one does not reach start
  * sections — nor the 441 exports that are memories, globals and tables rather
  * than functions, which it reports on every run.
  *
- * Usage: `deno task bridge-behaviour`
+ * Usage: `deno task direct-behaviour`
  */
 
-import { CORPUS, type Row, type Status } from './bridge-behaviour/differential.ts';
+import { CORPUS, type Row, type Status } from './direct-behaviour/differential.ts';
 
 /**
  * Per-module budget. Generous on purpose: the cost of being wrong here is a
@@ -46,7 +47,7 @@ import { CORPUS, type Row, type Status } from './bridge-behaviour/differential.t
  */
 const BUDGET_MS = 20_000;
 
-const WORKER = new URL('./bridge-behaviour/worker.ts', import.meta.url);
+const WORKER = new URL('./direct-behaviour/worker.ts', import.meta.url);
 
 const files: string[] = [];
 for await (const entry of Deno.readDir(CORPUS)) {
@@ -126,7 +127,7 @@ for (const r of rows) {
   for (const [k, n] of Object.entries(r.notRun)) notRun.set(k, (notRun.get(k) ?? 0) + n);
 }
 
-console.log('  === bridge path vs wabt-ts path, RUN in lockstep ===');
+console.log('  === wat2wasm vs the optimizer (-O3) over the same tree, RUN in lockstep ===');
 console.log(`    modules compared        ${String(rows.length).padStart(5)}`);
 console.log(`    agree                   ${String(by('agree').length).padStart(5)}`);
 console.log(`    DIVERGE                 ${String(diverged.length).padStart(5)}`);

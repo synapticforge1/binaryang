@@ -3164,7 +3164,7 @@ was wrong.
 ⚠️ **If S6 is ever abandoned, C10a comes back with it.** The decision not to fix them is conditional
 on the step that removes them actually happening.
 
-#### Item 6 — the MODULE half: `Module` and `WasmModule` become one, the bridge is deleted 🚧
+#### Item 6 — the MODULE half: `Module` and `WasmModule` become one, the bridge is deleted ✅ (2026-09-18)
 
 **Scoped 2026-09-16.** Decided already: B, unify, no shim (owner, 2026-09-15); includes `Func.body`
 (stage (d2)) and type derivation (moved from item 5). Direction by the same rules as the expression
@@ -3880,6 +3880,46 @@ wires in at M8e, after `nameReferences`.
   - `makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64;
   - the decoder's `table.get` default and the factory's multi-value `call_indirect`.
 - **Gate** on `8aca27cbd`: every step exit 0, 1288 tests.
+
+**✅ M8e — the bridge goes (2026-09-18, `84a128f82`). ITEM 6 IS DONE, and with it S6 step 5.**
+- **`prepareForPasses(m)`** (`src/binaryen-ts/ir/prepare.ts`) is the bridge's replacement:
+  `nameReferences` then `deriveTypes`, in place, on the one module type. It is not public (the
+  bridge was not either). No PRODUCT route used the bridge (`wasm-opt` reads text through
+  binaryen-ts's own `read-wat.ts`); its users were two gates and 21 test files.
+- **Measured BEFORE the deletion**, over the 421-module corpus:
+  - **unoptimized, the direct path's bytes ARE `wat2wasm`'s: 421 / 421.** The bridge's matched on
+    none. This also settles M8c's open note: the made-up labels are not written;
+  - **the optimizer over the prepared tree:** valid at -O1 through -Oz. Its output is IDENTICAL to
+    the decoder route's (`wat2wasm` → `parseWasm` → passes) on all 421 at -O1, -O2, -Os and -Oz;
+  - **at -O3, 12 differ, all valid, +16.5 KB in total.** They are the 12 modules with wabt-ts
+    `pop`s, and bisected pass by pass, the first difference is Inlining. It sizes a function by
+    node count, and the two trees represent multi-value code differently (`pop`s vs the decoder's
+    local spills), so the same function lands on different sides of a size threshold. That's a
+    representation difference, not a defect;
+  - **behaviour:** `wat2wasm` against the direct path OPTIMIZED at -O3, **1,806 calls across 602
+    exports agree**. That equals the bridge's baseline, which was unoptimized.
+- **Gates:**
+  - `deno task bridge` becomes **`deno task direct`**: byte-identity with `wat2wasm`, plus
+    engine-validity at every level. It **exits 1** on failure; the bridge's gate never set an exit
+    code, so a failing run read as green to anything judging it by exit code;
+  - `deno task bridge-behaviour` becomes **`deno task direct-behaviour`**: path B is the -O3
+    optimizer over the prepared tree.
+- **Deleted:** `src/bridge` (`bridge.ts`, `type-map.ts`) and the 16 `tests/bridge` files.
+  Their inputs live on in `tests/binaryen-ts/ir/prepare.test.ts` and its fixture:
+  - every VALID module they built (118, tagged by file), `br_on_cast`'s four, and a `br` to an
+    `if` (the bridge refused it);
+  - each held to byte-identity, -O3 validity, and the same results when run.
+  - 3 of their modules were invalid on purpose (the bridge's refusals). The direct path does not
+    refuse them; its output is as invalid as `wat2wasm`'s, so nothing is silently repaired.
+  - Five other tests that crossed the bridge (typed_select, limits, simd_shift, type_section,
+    folded) use the direct path.
+- **Inverted:**
+  - dropping element segments in `prepareForPasses` fails the test, `direct` (exit 1) and
+    `direct-behaviour` (39 DIVERGE, as with the bridge);
+  - skipping `deriveTypes` fails all three;
+  - dropping the start function fails only the test. No corpus module has a `(start …)`, as the
+    behaviour gate's doc says; the fixture's start module is the witness.
+- **Gate** on `84a128f82`: every step exit 0, 1254 tests (1288, minus the 16 bridge files, plus one).
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one

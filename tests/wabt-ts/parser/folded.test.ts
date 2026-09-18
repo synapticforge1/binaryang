@@ -32,7 +32,8 @@ import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { Result } from '../../../src/wabt-ts/core/result.ts';
-import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
+import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 
 function parseClean(wat: string): { module: ReturnType<typeof parseWatModule>['module'] } {
@@ -41,11 +42,12 @@ function parseClean(wat: string): { module: ReturnType<typeof parseWatModule>['m
   return { module };
 }
 
-/** Full pipeline: parse → resolveNames → bridge → encode → decode → validate. */
+/** Full pipeline: parse → resolveNames → synthesizeTypes → prepareForPasses → encode → decode → validate. */
 function endToEnd(wat: string): void {
   const { module } = parseClean(wat);
   resolveNames(module, makeErrorList());
-  const wasm = encodeWasm(bridgeToBinaryen(module));
+  synthesizeTypes(module);
+  const wasm = encodeWasm(prepareForPasses(module));
   const errs = makeErrorList();
   const decoded = readBinaryIr(wasm, errs);
   if (hasErrors(errs)) throw new Error(`Decode:\n${formatErrors(errs)}`);
