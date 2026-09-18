@@ -45,19 +45,8 @@ type TypeB<K extends B.TypeDef['kind']> = Extract<B.TypeDef, { kind: K }>;
 
 /** The pinned sets, entity by entity — also what the count below reads. */
 const PINNED = {
-  module: {
-    onlyW: [
-      'loc',
-      'filename',
-      'sectionMeta',
-      'fidelity',
-    ],
-    onlyB: [],
-    // Since M8b3 a leaf record's only extra field is wabt-ts's OPTIONAL `loc`,
-    // so its collection is one type; what still differs holds a function — and
-    // `customSections`, required in wabt-ts and optional in binaryen-ts.
-    differ: ['customSections'],
-  },
+  // M8b5: the module pair is one type — whole-record identity pinned below.
+  module: { onlyW: [], onlyB: [], differ: [] },
   func: {
     onlyW: [],
     onlyB: [],
@@ -181,6 +170,7 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
   // EXACTNESS (`exactOptionalPropertyTypes`): `bodyFrameLabel` differed that way
   // while every field pin said equal, and only a whole-record `Same` caught it.
   it('the converged pairs are one type, whole-record (compile-time)', () => {
+    pin<W.Module, B.WasmModule>(true);
     pin<W.Func, B.WasmFunction>(true);
     pin<W.Global, B.WasmGlobal>(true);
     pin<W.Table, B.WasmTable>(true);
@@ -204,6 +194,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [4, 0, 1]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [0, 0, 0]);
   });
 });

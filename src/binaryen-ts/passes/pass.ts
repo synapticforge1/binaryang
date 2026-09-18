@@ -29,6 +29,7 @@ import { dropWrittenTypeIndex } from '../ir/expressions.ts';
 import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
+import { FidelityTable } from '../../wabt-ts/ir/fidelity.ts';
 
 // ---------------------------------------------------------------------------
 // Pass interface
@@ -322,6 +323,13 @@ export class PassRunner {
     // a plain read-and-write, which keeps them — the owner's rule, over
     // upstream `wasm-opt`, which strips them even then.
     if (optimized && !this._options.debugInfo) this._module.hasNameSection = false;
+    // The as-written metadata describes an original the passes have replaced
+    // (M8b5; `fidelity.ts`): the side table's node handles and the section
+    // offsets would point at code that is not there any more.
+    if (optimized) {
+      this._module.fidelity = new FidelityTable();
+      this._module.sectionMeta = [];
+    }
   }
 
   /** The current pass queue (read-only). */

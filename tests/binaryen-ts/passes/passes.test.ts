@@ -44,6 +44,7 @@ import {
 import {
   elemFuncEntry,
   ModuleBuilder,
+  noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
@@ -85,6 +86,7 @@ function emptyModule(): WasmModule {
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   };
 }
 
@@ -857,6 +859,7 @@ Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   };
 
   new PassRunner(mod).add('RemoveUnusedModuleElements').run();
@@ -900,6 +903,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   };
 
   new PassRunner(mod).add('RemoveUnusedModuleElements').run();
@@ -937,6 +941,7 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   };
 
   new PassRunner(mod).add('RemoveUnusedModuleElements').run();

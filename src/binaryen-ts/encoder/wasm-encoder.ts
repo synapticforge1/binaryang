@@ -733,7 +733,7 @@ class WasmEncoder {
    * that case and every other (register C6).
    */
   private writeCustoms(out: BinaryWriter, after: BinarySection | null | undefined): void {
-    for (const c of this.mod.customSections ?? []) {
+    for (const c of this.mod.customSections) {
       if (c.precedingSection !== after) continue;
       if (c.data === null) {
         if (c.name !== 'name') {

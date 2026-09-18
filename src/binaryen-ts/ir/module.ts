@@ -45,7 +45,9 @@ import {
   varIndex,
 } from '../../wabt-ts/ir/ir.ts';
 import type { Location } from '../../wabt-ts/core/error.ts';
-import type { NodeId } from '../../wabt-ts/ir/fidelity.ts';
+import { FidelityTable, type NodeId } from '../../wabt-ts/ir/fidelity.ts';
+import type { SectionMeta } from '../../wabt-ts/ir/ir.ts';
+import { unknownLocation } from '../../wabt-ts/core/error.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
 import type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
 export type { ExplicitNames } from '../../wabt-ts/ir/ir.ts';
@@ -507,10 +509,23 @@ export interface WasmModule {
    *
    * Each one records the position it held, so the module comes back as it went
    * in — where upstream APPENDS them after the known sections and special-cases
-   * only `dylink.0` (which must come first). Absent means a module built
-   * through the API, which has none.
+   * only `dylink.0` (which must come first). An API-built module has none: `[]`
+   * (required since M8b5, as wabt-ts's — one spelling of "none").
    */
-  customSections?: CustomSection[];
+  customSections: CustomSection[];
+  /**
+   * The module's AS-WRITTEN metadata — wabt-ts's `Module` fields, carried by
+   * the one module (M8b5): where it was defined, the file it came from, each
+   * section's byte range (`wasm-objdump`), and the text-form side table
+   * (`fidelity.ts`). Empty from {@link ModuleBuilder.build}, as
+   * `makeModule` leaves them. `PassRunner` clears `fidelity` and
+   * `sectionMeta` after a run with at least one pass: an optimized module has
+   * no original for them to describe — the design `fidelity.ts` records.
+   */
+  loc: Location;
+  filename: string;
+  sectionMeta: SectionMeta[];
+  fidelity: FidelityTable;
 }
 
 /**
@@ -537,6 +552,23 @@ export interface CustomSection {
    * recorded against is gone. wabt-ts's `Custom.precedingSection` (M2f).
    */
   precedingSection?: BinarySection | null;
+}
+
+/**
+ * The as-written metadata of a module that was not read from anything — what
+ * `ModuleBuilder.build` gives, and what wabt-ts's `makeModule` gives (M8b5).
+ */
+export function noAsWrittenMetadata(): Pick<
+  WasmModule,
+  'loc' | 'filename' | 'sectionMeta' | 'fidelity' | 'customSections'
+> {
+  return {
+    loc: unknownLocation(),
+    filename: '',
+    sectionMeta: [],
+    fidelity: new FidelityTable(),
+    customSections: [],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -992,6 +1024,7 @@ export class ModuleBuilder {
       types: [...this._types],
       hasDataCountSection: false,
       hasNameSection: false,
+      ...noAsWrittenMetadata(),
     };
   }
 

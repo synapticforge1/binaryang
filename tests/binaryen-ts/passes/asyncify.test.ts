@@ -22,6 +22,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import {
   limitsOf,
+  noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
@@ -84,6 +85,7 @@ function moduleWithImport(): WasmModule {
     hasDataCountSection: false,
     hasNameSection: false,
     name: '',
+    ...noAsWrittenMetadata(),
   };
 }
 
