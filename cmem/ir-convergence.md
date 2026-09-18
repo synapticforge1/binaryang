@@ -3663,6 +3663,15 @@ pinned. Against `main`: decode → encode 0 of 1,023, optimizer + `wat2wasm` 0 o
 exhaust memory in binaryen-ts's decoder (2^32 declared locals, materialized) — M6c's defect in the
 OTHER decoder, on `main`; fixed next, on its own.
 
+**✅ binaryen-ts's decoder refuses 2^32 locals instead of dying (2026-09-18, `e8002cb3b`).** M6c's
+fix, in the other decoder: the groups are read first, the SUM checked against the spec's 2^32-1 and
+the shared `MAX_MATERIALIZED_LOCALS` (now exported from wabt-ts's reader, not copied), then slots
+made. `parseWasm` — a published entry point — had killed its caller's process on five bytes. All
+5,924 spec binaries now decode with no skip list; only `binary.43` / `.44` change (out-of-memory →
+refused). New `tests/binaryen-ts/binary/local_limits.test.ts` fails, then OOMs, against `main`. The
+u32-sum check is an EQUIVALENT mutant while the limit (10^6) is far below 2^32 — the spec's rule,
+kept as wabt-ts keeps it.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
