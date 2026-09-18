@@ -1164,6 +1164,17 @@ substitution matched nothing, and the suite "passed" against unmutated code. Onl
 each run prints gave it away. A mutant that changed nothing is not a survivor and not a kill — it is
 no run at all.
 
+## 🆕 A byte gate cannot see a TREE defect whose node writes no bytes (2026-09-18)
+
+Since S5 made the parser's padding placeholder a `pop`, every value-less `br_if` in linear text had
+carried a phantom value for two weeks, and a linear `call_indirect` had swallowed a later
+instruction's value since before that. Neither changed a byte, because a `pop` is written as nothing
+and operands are emitted in order. So baseline, spec, round trips and bridge-behaviour all stayed
+green. They were found by M8d, the first consumer that checks the tree against wasm's stack rule and
+REFUSES what doesn't add up, rather than defaulting (the bridge typed every `pop` `i32` and went on).
+When a node kind writes nothing, the tree around it has no byte-level witness. Build one that
+checks the tree itself, and make it refuse, not default.
+
 ## 🆕 The code being replaced is not the specification of the replacement (2026-09-18)
 
 M8c's `nameReferences` replaces what the bridge does with references, so its label scoping was

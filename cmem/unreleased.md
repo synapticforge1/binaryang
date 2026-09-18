@@ -358,6 +358,16 @@ their own bump — and nothing breaks by their standing still.
 
 ## Correctness fixes that were silent before
 
+- **The WAT parser's TREE for linear-form branches and indirect calls** (found by M8d, 2026-09-18).
+  Visible to anyone reading `parseWatModule`'s tree, not in any bytes (wabt-ts outputs 0 of 2,888
+  changed by either):
+  - a value-less `br_if` / `br_on_null` / `br_on_non_null` in linear text carried a PHANTOM value.
+    That's the linear-form padding placeholder, which the filter stopped dropping when S5 (`f27bfd5ca`,
+    2026-09-04) made the placeholder a `pop`;
+  - a linear `call_indirect` / `return_call_indirect` / `call_ref` took the WHOLE operand stack as
+    its arguments, T10.5's defect for `call`, which they never got the fix for. A value belonging to
+    a later instruction became an extra argument.
+
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
   spec binaries, some left invalid. Also now read, not refused: memory / table sizes past 2^32, table
