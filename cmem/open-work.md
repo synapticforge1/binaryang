@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M7c3b b1b next)
+## Start the next session here (handoff, 2026-09-18 — M7c closed; M8 next)
 
-**Where the work stopped.** `main` is at the merge of M7c3b b1a (code last changed at
-`9a9c17ade`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `9a9c17ade` (as on every stage before it) and every step exited 0: fmt, lint, **1270 tests / 0 failed**,
+**Where the work stopped.** `main` is at the merge of M7c3b b1b (code last changed at
+the `isRealName` export after `c5ad07eac`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `c5ad07eac` (as on every stage before it) and every step exited 0: fmt, lint, **1271 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -55,11 +55,11 @@ oracle (`new WebAssembly.Module`), which may move that file between buckets; dec
 to spawn 'wast2json'" is the environment, not the code.
 
 **S6 step 5, items 1–5 are DONE** (the expression half). **Item 6, the MODULE half, is nearly done:**
-M1–M7c3b b1a have landed; **M7c3b b1b + b2 and M8 remain**. Scope and every stage's record:
+M1–M7c have landed — **M7 is closed; M8 remains**. Scope and every stage's record:
 [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
 **Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
-typed-differently): M1 **46 / 29 / 15** → **19 / 2 / 19** now. The `differ` count ROSE on purpose: a
+typed-differently): M1 **46 / 29 / 15** → **18 / 1 / 19** now. The `differ` count ROSE on purpose: a
 field that converges in NAME but not yet in TYPE moves from a one-sided list into `differ`, and the
 entity collections stay there until the records themselves are one type (M8).
 
@@ -82,23 +82,22 @@ entity collections stay there until the records themselves are one type (M8).
 | M7c3a   | `d654da455` | an import's param names and the module's name live on their records, not in `explicitNames` (2026-09-18)   |
 | M7c3b b0 | `66ccfe236` | 🗓️ owner: names cover types and fields — binaryen-ts's types and fields always named; `explicitNames` lists the real ones by name (2026-09-18) |
 | M7c3b b1a | `5e4a1cbdd` | the name section is its own fact: `hasNameSection` in both; `explicitNames` only says which names are real (2026-09-18) |
+| M7c3b b1b | `c5ad07eac` | wabt-ts's reader names every entity, every writer writes only real names; `localNamesListed` → `explicitNames.localsListed` — **M7c CLOSED** (2026-09-18) |
 
 ### Next, in order
 
-1. **M7c3b — wabt-ts takes binaryen-ts's naming practice** (owner decision 4 in
-   [names.md](names.md), 2026-09-18: every entity named, `explicitNames` records the real ones, only
-   real names written; types and fields included). M7c3a and b0 have landed; the plan for b1 (names
-   everywhere in wabt-ts, writers ask the record — the trial is done: 36 tests move, one
-   mechanism, so naming and the writers land together) and b2 (`hasNameSection` / `localNamesListed` → `explicitNames`)
-   is in [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half", its M7c3b record.
-   Left one-sided by design until M8: wabt-ts's `loc` / `name` / `filename` / `sectionMeta` /
-   `fidelity` (as-written metadata the optimizer has no use for).
-2. **M8 — the alias, type derivation, and the bridge's deletion.** `WasmModule = Module`; the type
+1. **M8 — the alias, type derivation, and the bridge's deletion.** `WasmModule = Module`; the type
    derivation the bridge does today (it rebuilds through the factories, which derive `type`) becomes a
    pass over a whole function with module context; then the bridge, its 16 test files,
    `scripts/check-bridge-corpus.ts` and `scripts/check-bridge-behaviour.ts` go. Its acceptance is the
    bridge's own: `bridge-behaviour` agreement BEFORE deletion.
-3. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
+   **Inherited from M7c3b** (its record in [ir-convergence.md](ir-convergence.md)): references are
+   still `Var`s, and binaryen-ts's passes need NAMES; the wabt-ts TEXT path makes up no names (a
+   made-up `$func0` must not satisfy a WAT reference to a nonexistent one — name after resolution);
+   labels are made up by binaryen-ts's decoder only; `addType`'s made-up names are unrecorded. The
+   module's last one-sided fields are wabt-ts's as-written metadata (`loc`, `filename`,
+   `sectionMeta`, `fidelity`) — decide at the alias whether the one module carries them.
+2. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
    changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):

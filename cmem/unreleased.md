@@ -221,6 +221,12 @@ their own bump — and nothing breaks by their standing still.
   (binaryen-ts's names; S6 step 5 item 6 (M7a)) — they were `funcs` / `elemSegments` / `customs`.
 - ⚠️ **BREAKING: `Module.numFuncImports` and its four siblings are gone** (S6 step 5 item 6 (M7b)).
   Use the new `countImports(m, kind)`: the counts are derived from `imports`, not stored beside it.
+- ⚠️ **BREAKING: a module READ from a binary names every entity** (S6 step 5 item 6 (M7c3b b1b)).
+  An entity the name section did not name was `name: ''`; it is now a made-up `$func3` / `$type0` /
+  `mem0` …, and `Module.explicitNames` (new; the same `ExplicitNames` binaryen-ts has) lists the REAL
+  names. Ask `isRealName` (new export) rather than `name !== ''`. `Module.localNamesListed` (by
+  function index) is gone: `explicitNames.localsListed`, by function name. Output bytes and text are
+  unchanged. Fixed with it: wasm-objdump would have printed made-up names; it prints real ones only.
 - ⚠️ **BREAKING: `Module.featuresUsed` and `Func.tailcall` are gone** (S6 step 5 item 6 (M7c2)).
   Nothing read them; upstream's only consumer is wasm2c, which is not ported.
 - ⚠️ **BREAKING: `Func.body` is a `RegionExpr`** (S6 step 5 item 6 (M6b); `./ir/wabt-ts`) — read
