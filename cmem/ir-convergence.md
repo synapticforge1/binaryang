@@ -3682,6 +3682,17 @@ Against `main` every hash unchanged (decode → encode, optimizer + `wat2wasm`, 
 bridge's `isReturn` difference 24,737 → 0. `tests/ir/is_return.test.ts`: `false` is a compile error
 (`@ts-expect-error`, inverted by reverting the type), and the factories omit the key.
 
+**✅ M8a3 — a `call_indirect` that names its type carries its signature (2026-09-18, `eda639acf`).
+M8a CLOSED.** The text parser kept the INLINE signature in the required `sig` — empty `() -> ()` for
+`(call_indirect (type $t) …)` on 222 corpus nodes; wabt-ts's readers use `typeVar` and never noticed.
+`synthesizeTypes` now sets `sig` to the named func type's (a fresh object — the fidelity table keeps
+what the text wrote); a dangling or non-func reference is left for the validator. The binary reader
+was already right. The bridge still DROPS `typeVar` — binaryen-ts's encoder reads it as an index into
+its own table, which for a non-GC module is today a derived list; that resolves with one type table
+(M8b / M8e). Against `main`: wabt-ts outputs 0 of 2,888, optimizer + `wat2wasm` 0 of 2,526; the
+bridge's `sig` differences 381 → 0. **What the bridge now changes in a body, beyond derived types,
+names and labels: only the `typeVar` drop.**
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop
