@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M8b4 merged; M8b5 (module metadata) next)
+## Start the next session here (handoff, 2026-09-18 — M8b5 merged: `Module` and `WasmModule` are ONE type; the alias next)
 
-**Where the work stopped.** `main` is at the merge of M8b4 (code last changed at
-`ed6a54128`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `ed6a54128` (as on every stage before it) and every step exited 0: fmt, lint, **1280 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of M8b5 (code last changed at
+`7f43b4156`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `7f43b4156` (as on every stage before it) and every step exited 0: fmt, lint, **1281 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -60,7 +60,7 @@ M1–M7 and M8a have landed — **M8b–M8e remain**. Scope and every stage's re
 [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
 **Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
-typed-differently): M1 **46 / 29 / 15** → **4 / 0 / 1** now. The `differ` count ROSE on purpose: a
+typed-differently): M1 **46 / 29 / 15** → **0 / 0 / 0** now — every pair one type, pinned whole-record. The `differ` count ROSE on purpose: a
 field that converges in NAME but not yet in TYPE moves from a one-sided list into `differ`, and the
 entity collections stay there until the records themselves are one type (M8).
 
@@ -94,6 +94,7 @@ entity collections stay there until the records themselves are one type (M8).
 | M8b1 + M8b2 | (this merge) | `start?: Var` in both; packed field types are the binary's codes in both (2026-09-18) |
 | M8b3    | (this merge) | a module record's `loc` is optional (`locOf`): every leaf record IS its binaryen-ts partner (2026-09-18) |
 | M8b4    | (this merge) | the function record is one type; `typeVar` kept and written back (51 spec binaries now byte-identical); whole-record identity pins (2026-09-18) |
+| M8b5    | (this merge) | the module carries the as-written metadata (a pass run clears it); **module ratchet 0 / 0 / 0** (2026-09-18) |
 
 ### Next, in order
 
