@@ -90,7 +90,7 @@ function _removeUnused(module: WasmModule): void {
   // exactly like an export. Without this seed a start function that nothing
   // else references is pruned here, and the encoder then fails to resolve
   // `mod.start` — or, worse, the module instantiates without ever running it.
-  if (module.start !== null) liveFuncs.add(module.start);
+  if (module.start !== undefined) liveFuncs.add(requireName(module.start, 'start'));
 
   // --- Step 2: fixed-point reachability walk ---
   const queue = [...liveFuncs].filter((n) => !importedFuncs.has(n));

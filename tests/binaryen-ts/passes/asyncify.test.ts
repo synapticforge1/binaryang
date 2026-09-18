@@ -80,7 +80,6 @@ function moduleWithImport(): WasmModule {
       func: { name: '$sleep', sig: { params: [], results: [] }, locals: [], body: makeRegion([]) },
     }],
     exports: [{ name: 'foo', var: varName('$foo'), kind: ExternalKind.Func }],
-    start: null,
     types: [],
     hasDataCountSection: false,
     hasNameSection: false,

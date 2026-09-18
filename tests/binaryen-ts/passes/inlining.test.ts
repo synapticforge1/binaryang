@@ -54,7 +54,6 @@ function emptyModule(): WasmModule {
     dataSegments: [],
     imports: [],
     exports: [],
-    start: null,
     types: [],
     hasDataCountSection: false,
     hasNameSection: false,
