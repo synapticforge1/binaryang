@@ -202,6 +202,11 @@ their own bump — and nothing breaks by their standing still.
   and an imported function's `locals` are its params, carrying their names — both were in
   `ExplicitNames` (`module`, `importParams`, now gone). `ModuleBuilder.addFunctionImport` takes
   optional `paramNames` (S6 step 5 item 6 (M7c3a)).
+- ⚠️ **BREAKING: every type and field is named** (S6 step 5 item 6 (M7c3b b0)). A decoded
+  `TypeDef` / `FieldType` the name section did not name is `$typeN` / `$fieldN` (was `''`), and
+  `ModuleBuilder.addType` names an unnamed one likewise. `ExplicitNames.types` is a
+  `ReadonlySet<string>` of the real type names (was `Map<TypeDef, string>`); `.fields` maps a type's
+  name to its real field names (was `Map<TypeDef, Map<number, string>>`).
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
   names and re-encodes them; `ModuleBuilder.addFunction` takes optional `paramNames`.
 - **`WasmModule.customSections`**: every custom section is kept, each with the known section it

@@ -26,6 +26,8 @@ import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -116,7 +118,9 @@ describe('M5b — the module holds its own type table, and a field its name', ()
     assertEquals(def.fields.map((f) => [f.name, f.mutable]), [
       ['$x', false],
       ['$m', true],
-      ['', false],
+      // Unnamed in the text: named anyway, as every entity is (owner decision 4,
+      // M7c3b b0) — `$fieldN` by its index.
+      ['$field2', false],
     ]);
   });
 
@@ -133,13 +137,29 @@ describe('M5b — the module holds its own type table, and a field its name', ()
     assertEquals(def.fields.map((f) => f.name), ['$x', '$y']);
   });
 
-  it('a decoded field has no name of its own', () => {
-    // As in wabt-ts: the name section supplies field names, and inventing one
-    // here would be a name the module never had.
+  it('a decoded field the section did not name gets a MADE-UP name, never recorded as real', () => {
+    // Owner decision 4 (M7c3b b0) — it was `''` (M5a). The made-up name is in no
+    // `explicitNames` set, so it is never written; the type's own name is real.
     const mod = parseWasm(assemble('(module (type $s (struct (field i32))))'));
     const def = mod.types[0]!;
     assert(def.kind === 'struct');
-    assertEquals(def.fields.map((f) => f.name), ['']);
+    assertEquals(def.name, '$s');
+    assertEquals(def.fields.map((f) => f.name), ['$field0']);
+    assertEquals([...mod.explicitNames!.types], ['$s']);
+    assertEquals(mod.explicitNames!.fields.get('$s'), undefined);
+    // And it is never written: the round trip is exact.
+    assertEquals(encodeWasm(mod), assemble('(module (type $s (struct (field i32))))'));
+  });
+
+  it('an unnamed TYPE is made up too, and not written', () => {
+    const bytes = assemble('(module (type (struct (field $f i32))))');
+    const mod = parseWasm(bytes);
+    const def = mod.types[0]!;
+    assertEquals(def.name, '$type0');
+    assertEquals([...mod.explicitNames!.types], []);
+    assert(def.kind === 'struct');
+    assertEquals([...mod.explicitNames!.fields.get('$type0')!], ['$f']);
+    assertEquals(encodeWasm(mod), bytes);
   });
 
   it('the table the module carries is the table written back', () => {
@@ -148,5 +168,36 @@ describe('M5b — the module holds its own type table, and a field its name', ()
     const bytes = assemble('(module (type $unused (func (param f64))) (func))');
     assertEquals(typeSection(roundTrip(bytes)), typeSection(bytes));
     assertEquals(parseWasm(bytes).types.length, 2);
+  });
+});
+
+describe('M7c3b b0 — the builder names every type and field', () => {
+  it('a made-up name never takes the spelling of a real one', () => {
+    const m = new ModuleBuilder();
+    m.addType({ name: '$type1', kind: 'func', sig: { params: [], results: [] } });
+    m.addType({
+      name: '',
+      kind: 'struct',
+      fields: [
+        { name: '', type: ValType.I32, mutable: false },
+        { name: '$field0', type: ValType.I32, mutable: false },
+      ],
+    });
+    const [a, b] = m.build().types;
+    assertEquals(a!.name, '$type1');
+    // Index 1's made-up `$type1` is taken, so it moves aside.
+    assertEquals(b!.name, '$type1.1');
+    assert(b!.kind === 'struct');
+    assertEquals(b.fields.map((f) => f.name), ['$field0.1', '$field0']);
+  });
+
+  it("leaves the caller's object as it was", () => {
+    const def = {
+      name: '',
+      kind: 'array' as const,
+      field: { name: '', type: ValType.I32, mutable: true },
+    };
+    new ModuleBuilder().addType(def);
+    assertEquals([def.name, def.field.name], ['', '']);
   });
 });

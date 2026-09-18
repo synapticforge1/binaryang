@@ -774,8 +774,6 @@ class WasmEncoder {
   private writeNameSection(out: BinaryWriter, names: ExplicitNames): void {
     const { mod } = this;
     const bare = (s: string): string => (s.startsWith('$') ? s.slice(1) : s);
-    const sorted = (m: ReadonlyMap<number, string>): [number, string][] =>
-      [...m].filter(([, n]) => n !== '').sort(([a], [b]) => a - b);
     const entries = (w: BinaryWriter, list: readonly [number, string][]): void => {
       w.writeU32(list.length);
       for (const [i, n] of list) {
@@ -856,13 +854,12 @@ class WasmEncoder {
       });
     }
     indirect(section, 3, [...this.labelNames].sort(([a], [b]) => a - b));
-    // Types by the OBJECT they were read as: a type a pass rebuilt, or one the
-    // encoder appended for an expression, has none. Only the GC-mode type
-    // section (`types`) is the decoder's own list; the derived one is not.
+    // A type's name is on its `TypeDef`; the record says whether it is real
+    // (b0). Only the GC-mode type section (`types`) is the module's own list;
+    // the derived one names nothing.
     const typeList: [number, string][] = [];
     this.types.forEach((def, i) => {
-      const n = names.types.get(def);
-      if (n !== undefined) typeList.push([i, n]);
+      if (names.types.has(def.name)) typeList.push([i, def.name]);
     });
     if (typeList.length > 0) sub(section, 4, (b) => entries(b, typeList));
     flat(
@@ -888,7 +885,15 @@ class WasmEncoder {
     indirect(
       section,
       10,
-      this.types.map((def, i) => [i, sorted(names.fields.get(def) ?? new Map())]),
+      this.types.map((def, i) => {
+        const real = names.fields.get(def.name);
+        const fields = def.kind === 'struct' ? def.fields : def.kind === 'array' ? [def.field] : [];
+        const list: [number, string][] = [];
+        fields.forEach((f, j) => {
+          if (real?.has(f.name)) list.push([j, f.name]);
+        });
+        return [i, list];
+      }),
     );
     flat(section, 11, [...imports(ExternalKind.Tag), ...mod.tags.map((t) => t.name)], names.tags);
 

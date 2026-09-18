@@ -27,7 +27,6 @@ import { parseNameSection } from '../../wabt-ts/reader/name-section.ts';
 import { NameSectionSubsection } from '../../wabt-ts/core/binary.ts';
 import type { ModuleNames, NameMap } from '../../wabt-ts/ir/apply-names.ts';
 import type { ExplicitNames } from '../ir/module.ts';
-import type { TypeDef } from '../ir/gc-types.ts';
 
 function leb(bytes: Uint8Array, p: { i: number }): number | null {
   let r = 0;
@@ -124,6 +123,9 @@ export class DecodedNames {
   private readonly tags: Namespace;
   private readonly elems: Namespace;
   private readonly datas: Namespace;
+  private readonly types: Namespace;
+  /** Each struct / array type's fields, by type index — made on first ask. */
+  private readonly fieldSpaces = new Map<number, Namespace>();
   /** Labels a function has used so far, by function index — the section's and the made-up ones. */
   private readonly labelsUsed = new Map<number, Set<string>>();
   private readonly labelsGiven = new Map<number, Map<number, string>>();
@@ -153,6 +155,7 @@ export class DecodedNames {
     this.tags = new Namespace(n?.tagNames, (i) => `$tag${i}`);
     this.elems = new Namespace(n?.elemSegmentNames, (i) => `$elem${i}`);
     this.datas = new Namespace(n?.dataSegmentNames, (i) => `$data${i}`);
+    this.types = new Namespace(n?.typeNames, (i) => `$type${i}`);
   }
 
   /** Every index below is in its index space — imports first. */
@@ -176,6 +179,23 @@ export class DecodedNames {
   }
   data(i: number): string {
     return this.datas.name(i);
+  }
+  /**
+   * Type `i`'s name — the section's, or a made-up `$typeN` (owner decision 4
+   * covers types and fields; M7c3b b0). It was left `''`, the name held apart
+   * in `ExplicitNames.types` keyed by the `TypeDef` object.
+   */
+  type(i: number): string {
+    return this.types.name(i);
+  }
+  /** Field `j` of type `ti`'s name — the section's, or a made-up `$fieldN`. */
+  field(ti: number, j: number): string {
+    let ns = this.fieldSpaces.get(ti);
+    if (ns === undefined) {
+      ns = new Namespace(this.raw?.fieldNames.get(ti), (k) => `$field${k}`);
+      this.fieldSpaces.set(ti, ns);
+    }
+    return ns.name(j);
   }
 
   /** The module's own name, `$`-prefixed, or `''` — {@link WasmModule.name}. */
@@ -250,14 +270,12 @@ export class DecodedNames {
 
   /**
    * What the module was read with, for {@link WasmModule.explicitNames}.
-   * `funcName` maps a function index to its IR name; `typeDefs` are the decoded
-   * types, index for index. The module's name and every param's name live on
-   * the module and the functions themselves (M7c3a), not here.
+   * `funcName` maps a function index to its IR name. The module's name and
+   * every param's name live on the module and the functions themselves
+   * (M7c3a); every other entry is a SET of the real names — the names
+   * themselves are on the entities, types and fields included (b0).
    */
-  explicit(
-    funcName: (i: number) => string,
-    typeDefs: readonly TypeDef[],
-  ): ExplicitNames {
+  explicit(funcName: (i: number) => string): ExplicitNames {
     const n = this.raw;
     const labels = new Map<string, ReadonlySet<string>>();
     for (const fi of n?.labelNames.keys() ?? []) {
@@ -265,20 +283,11 @@ export class DecodedNames {
       const set = this.labelsExplicit.get(fi);
       if (set !== undefined && set.size > 0) labels.set(funcName(fi), set);
     }
-    const types = new Map<TypeDef, string>();
-    const typesUsed = new Set<string>();
-    for (const [i, name] of n?.typeNames ?? []) {
-      const def = typeDefs[i];
-      if (def !== undefined && name !== '') types.set(def, unique(typesUsed, '$' + name));
-    }
-    const fields = new Map<TypeDef, ReadonlyMap<number, string>>();
-    for (const [i, map] of n?.fieldNames ?? []) {
-      const def = typeDefs[i];
-      if (def === undefined || (def.kind !== 'struct' && def.kind !== 'array')) continue;
-      const out = new Map<number, string>();
-      const used = new Set<string>();
-      for (const [j, name] of map) if (name !== '') out.set(j, unique(used, '$' + name));
-      if (out.size > 0) fields.set(def, out);
+    // Fields by their TYPE's name, for the types the decoder asked about — a
+    // struct or array; a func type has no fields to name.
+    const fields = new Map<string, ReadonlySet<string>>();
+    for (const [ti, ns] of this.fieldSpaces) {
+      if (ns.explicit.size > 0) fields.set(this.type(ti), ns.explicit);
     }
     return {
       functions: this.funcs.explicit,
@@ -288,7 +297,7 @@ export class DecodedNames {
         ? null
         : new Set([...this.localsListed].map((i) => funcName(i))),
       labels,
-      types,
+      types: this.types.explicit,
       tables: this.tables.explicit,
       memories: this.memories.explicit,
       globals: this.globals.explicit,

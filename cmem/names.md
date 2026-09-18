@@ -237,3 +237,7 @@ entity and branch REFERENCES by index (`call 0`, `br_if 1 (;@1;)`) where upstrea
    consequence for wabt-ts: its reader makes names up, so every writer that asked `name !== ''`
    must ask the record instead — the fault N1 removed from `wasm2wat` (`generateNames` printing
    invented names) must not come back through that door.
+   **Types and fields too** (owner, 2026-09-18: "yes names should cover types and fields"): every
+   type entry and every struct / array field carries a name, made up where the section gave none,
+   and the record lists the real ones. This reverses M5a's `name: ''` for a decoded type — which was
+   right while nothing recorded which names were real, and is not once something does.
