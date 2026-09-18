@@ -55,6 +55,7 @@ import {
 import { AbstractHeapType, isRefType, Packed, type ValueType } from './gc-types.ts';
 import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
 import { None, type Type, Unreachable, ValType } from './types.ts';
+import { BrOnOp } from '../../wabt-ts/ir/ir.ts';
 import { visitChildren } from './walk.ts';
 import type { WasmModule } from './module.ts';
 
@@ -124,8 +125,8 @@ class Stack {
 
 /** Derives every node's type in one function (or one constant expression). */
 class Deriver {
-  /** The branch targets in scope, innermost last: each label and how many values a branch to it carries. */
-  private readonly labels: { name: string; arity: number }[];
+  /** The branch targets in scope, innermost last: each label and the values a branch to it carries. */
+  private readonly labels: { name: string; types: readonly ValueType[] }[];
 
   constructor(
     private readonly m: Module,
@@ -134,16 +135,16 @@ class Deriver {
     private readonly results: readonly ValueType[],
     frameLabel: string,
   ) {
-    this.labels = [{ name: frameLabel, arity: results.length }];
+    this.labels = [{ name: frameLabel, types: results }];
   }
 
-  /** How many values a branch to `v` carries. */
-  private arity(v: W.Var): number {
+  /** The values a branch to `v` carries. */
+  private carried(v: W.Var): readonly ValueType[] {
     const l = v.kind === 'index'
       ? this.labels[this.labels.length - 1 - v.value]
       : this.labels.findLast((x) => x.name === v.name);
     if (l === undefined) throw new Error(`derive-types: no label ${JSON.stringify(v)}`);
-    return l.arity;
+    return l.types;
   }
 
   /** A region's instructions, on a stack seeded with `seed`; the region's type by the factories' rule. */
@@ -186,16 +187,34 @@ class Deriver {
     const params = carrierParams(e);
     if (params !== undefined) this.carrierBody(e, params.types);
     (e as Mut<typeof e>).type = this.typeOfNode(e);
-    stack.push(typeOf(e));
+    this.leave(e, stack);
+  }
+
+  /**
+   * What `e` leaves on the stack — its type, except where wasm's rule and the
+   * tree can disagree. A `br_if` falls through with exactly its target's
+   * values, whether or not the tree holds them as its operands (wabt-ts's
+   * binary reader does not treat a `br_if` as producing a value, so
+   * `(br_if 0 (br_if 0 …) …)` reads as two siblings). A `br_on_*` falls
+   * through with its carried values AND — except `br_on_non_null` — the ref;
+   * its node type is the ref's alone, as the decoder gives it.
+   */
+  private leave(e: Expression, stack: Stack): void {
+    if (e.kind === ExpressionKind.Break && e.condition !== undefined) {
+      stack.push(resultOf(this.carried(e.target)));
+    } else if (e.kind === ExpressionKind.BrOn) {
+      for (const v of e.values) stack.push(typeOf(v));
+      if (e.opcode !== BrOnOp.NonNull) stack.push(typeOf(e));
+    } else stack.push(typeOf(e));
   }
 
   /** How many values `e` removes from the stack, given what its operands claim. */
   private consumes(e: Expression, claimed: number): number {
     switch (e.kind) {
       case ExpressionKind.Break:
-        return this.arity(e.target) + (e.condition === undefined ? 0 : 1);
+        return this.carried(e.target).length + (e.condition === undefined ? 0 : 1);
       case ExpressionKind.Switch:
-        return this.arity(e.defaultTarget) + 1;
+        return this.carried(e.defaultTarget).length + 1;
       case ExpressionKind.Return:
         return this.results.length;
       default:
@@ -227,10 +246,8 @@ class Deriver {
   private carrierBody(e: Expression, params: readonly ValueType[]): void {
     // A branch to a loop carries its parameters; to any other carrier, its results.
     const label = (e as { label: string }).label;
-    const arity = e.kind === ExpressionKind.Loop
-      ? params.length
-      : slots(typeOf(e as Expression)).length;
-    this.labels.push({ name: label, arity });
+    const types = e.kind === ExpressionKind.Loop ? params : slots(typeOf(e as Expression));
+    this.labels.push({ name: label, types });
     try {
       this.carrierRegions(e, params);
     } finally {
@@ -333,7 +350,12 @@ class Deriver {
       case ExpressionKind.Rethrow:
         return Unreachable;
       case ExpressionKind.Break:
-        return typeOf(makeBreak('', e.condition, e.values));
+        // A `br_if` falls through with its target's values — what the
+        // factory's rule (its operands' types) gives on a well-formed tree, and
+        // right on one whose value the reader left as a sibling (see `leave`).
+        return e.condition === undefined
+          ? typeOf(makeBreak('', e.condition, e.values))
+          : resultOf(this.carried(e.target));
 
       case ExpressionKind.LocalGet:
       case ExpressionKind.LocalTee:
