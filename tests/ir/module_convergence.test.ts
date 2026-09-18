@@ -20,6 +20,12 @@
 // Measured when written (2026-09-16): 46 onlyW, 29 onlyB, 15 differ — 90 field
 // differences over 11 entity pairs. Imports are not paired field by field: one
 // side is a union embedding the entity, the other flat (stage M4).
+//
+// ✅ 0 / 0 / 0 since M8b5 (2026-09-18), and since M8b6 binaryen-ts's module
+// declarations ARE aliases of wabt-ts's (`WasmModule = Module`, …). The pins
+// below are definitional now: what they still catch is a REDECLARATION — a
+// binaryen-ts type written out again instead of aliased, which would start to
+// drift the moment it was.
 
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
