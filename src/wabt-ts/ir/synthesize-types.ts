@@ -122,13 +122,15 @@ export function synthesizeTypes(module: Module): void {
   // Instruction-level type-uses on `call_indirect`, tail-call variant included
   // (the same kind now, distinguished by `isReturn`),
   // collected from every body — including the bodies of funcs deferred above.
+  const calls: { typeVar?: Var; sig: FuncSignature }[] = [];
   const collector = new ExprVisitor({
     onCallIndirectExpr: (e) => {
       // How the type was named is in the fidelity table, not on the node (S6
       // step 5 item 4 (a)). `settle` and the pending pass assign `typeVar`
       // through this view, which writes it back onto the node.
-      const node = e as { typeVar?: Var };
+      const node = e as { typeVar?: Var; sig: FuncSignature };
       const typeUse = module.fidelity.get(e.nodeId)?.typeUse;
+      calls.push(node);
       settle({
         ...(typeUse !== undefined ? { typeUse } : {}),
         sig: e.sig,
@@ -176,6 +178,21 @@ export function synthesizeTypes(module: Module): void {
     item.sig.params.push(...entry.sig.params);
     item.sig.results.push(...entry.sig.results);
     item.typeVar = varIndex(idx);
+  }
+
+  // A call_indirect that NAMED its type (`(type $t)`, no inline signature)
+  // carries the type's signature too (M8a3). The parser left `sig` as the empty
+  // inline one — a REQUIRED field saying `() -> ()` for a call whose type said
+  // otherwise, on 222 corpus nodes. wabt-ts's own readers use `typeVar` and never
+  // noticed; binaryen-ts reads `sig`, and the bridge was filling it. A reference
+  // to a type that does not exist, or is not a function type, is left alone for
+  // the validator to report.
+  for (const call of calls) {
+    const tv = call.typeVar;
+    if (tv === undefined || tv.kind !== 'index') continue;
+    const entry = module.types[tv.value];
+    if (entry === undefined || entry.kind !== 'func') continue;
+    call.sig = { params: [...entry.sig.params], results: [...entry.sig.results] };
   }
 }
 
