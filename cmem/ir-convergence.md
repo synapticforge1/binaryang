@@ -3770,6 +3770,48 @@ path AFTER `resolveNames` + `synthesizeTypes` (M7c3's machinery — safe once no
 resolve), then rewrite exactly those reference kinds to names. Its acceptance, in M8e: the bridged
 tree and the named tree agree.
 
+**✅ M8c — `nameReferences`: the references the bridge named, named on the module (2026-09-18,
+`381221432` + `400135262`).** `src/wabt-ts/ir/name-references.ts`, not yet called by any route. It
+wires in at M8e, on the optimizer route only.
+- **Naming:** a module with no `explicitNames` (text) is named first with `nameEveryEntity`, after
+  `resolveNames` + `synthesizeTypes`, with every function listed for its locals (what the encoder
+  did with no record). A binary's reader already named it, and its record is kept, not remade.
+- **Rewriting:** exactly the bridge's reference kinds become names: `call` / `ref.func`,
+  `global.get` / `global.set`, `call_indirect` tables, `throw` / `catch` / `try_table` tags, every
+  branch target (`br`, `br_if`, `br_table`, `br_on_*`, `rethrow`, `delegate`, `try_table` catches),
+  `start`, every export, an active element segment's table, and every constant expression (global
+  and table initializers, segment offsets and entries). Locals, memories, types and segment
+  references stay indices, as the bridge left them.
+- **Labels:** they resolve through a stack walked in `ExprVisitor` order. A `try_table`'s catch
+  targets resolve before its label is pushed. A `try`'s catches resolve inside it, and its
+  `delegate` outside it.
+- **The function frame** is ALWAYS named, as the decoder names it: `MADE_UP.frame(funcIdx)` =
+  `$l<N>_frame`, clear of the function's labels, set as `bodyFrameLabel`. A branch out of the whole
+  body is now expressible (the bridge refused it), and so is a branch to an `if` (the bridge
+  refused that too).
+- **Acceptance, by scratch `m8c_vs_bridge.ts`:** on the bridge corpus (421 modules, 7,620
+  functions), every one of **49,335** references resolves to the same entity index or the same
+  carrier as in the bridged tree, and **0 differ**. By kind: call 24,515, br 16,016, global.get
+  4,958, global.set 2,041, export 1,045, call_indirect table 222, ref.func 200, br_table 198 + 46
+  defaults, elem table 45, throw 33, catch 14, rethrow 2.
+- **Tests:** `tests/ir/name_references.test.ts` (15 steps) holds what the corpus never reaches:
+  `delegate`, `br_on_*`, `try_table` catches, `start`, a branch to the frame, a branch to an `if`,
+  the frame label clear of a `$l0_frame` the author wrote, imports first in every space, and an
+  out-of-range index refused.
+- **Mutants:** 26 run. 3 survived the first tests (the frame numbered without imports, an imported
+  memory missing from its space, a global's initializer left unnamed); each is held now, and all 26
+  are killed.
+- **⚠️ Two more bridge defects, found by reading its consumers:**
+  - It resolves `delegate` with the `try`'s own label in scope, one frame too deep. `resolveNames`,
+    the binary writer and binaryen-ts's encoder all resolve it outside. The pass was first written
+    from the bridge and had the same defect; see best-practices.md.
+  - A named `if` got `{ ...built, name }`, so its label was lost.
+  - Neither appears in the corpus.
+- **For M8e:** the bridge's `$L<n>` labels reached the encoder as REAL names (no record), while the
+  pass's made-up labels are not real and are never written. Optimizer output with names kept may
+  change there; measure it.
+- **Gate** on `400135262`: every step exit 0, 1283 tests.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop

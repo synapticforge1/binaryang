@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M8b closed: `WasmModule = Module`; M8c (references as names) next)
+## Start the next session here (handoff, 2026-09-18 — M8c done: `nameReferences`; M8d (type derivation) next)
 
-**Where the work stopped.** `main` is at the merge of M8b6 (code last changed at
-`addd7586b`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `addd7586b` (as on every stage before it) and every step exited 0: fmt, lint, **1281 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of M8c (code last changed at
+`400135262`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `400135262` (as on every stage before it) and every step exited 0: fmt, lint, **1283 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -56,7 +56,7 @@ flaking, probe it the same way before adding it.
 to spawn 'wast2json'" is the environment, not the code.
 
 **S6 step 5, items 1–5 are DONE** (the expression half). **Item 6, the MODULE half, is nearly done:**
-M1–M7, M8a and M8b have landed — **M8c–M8e remain** (M8c scoped in its record). Scope and every stage's record:
+M1–M7 and M8a–M8c have landed. **M8d and M8e remain.** M8c's `nameReferences` is written but not yet called; it wires in at M8e. Scope and every stage's record:
 [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 
 **Module ratchet** (`tests/ir/module_convergence.test.ts`; only-wabt-ts / only-binaryen-ts /
@@ -96,10 +96,11 @@ entity collections stay there until the records themselves are one type (M8).
 | M8b4    | (this merge) | the function record is one type; `typeVar` kept and written back (51 spec binaries now byte-identical); whole-record identity pins (2026-09-18) |
 | M8b5    | (this merge) | the module carries the as-written metadata (a pass run clears it); **module ratchet 0 / 0 / 0** (2026-09-18) |
 | M8b6    | (this merge) | `WasmModule = Module` — binaryen-ts's module declarations are aliases, their docs kept field by field — **M8b closed** (2026-09-18) |
+| M8c     | (this merge) | `nameReferences`: every reference the bridge named is named on the module, and all 49,335 corpus references agree with the bridge; 2 more bridge defects found (`delegate` one frame too deep, a named `if` losing its label) (2026-09-18) |
 
 ### Next, in order
 
-1. **M8 — the alias, type derivation, and the bridge's deletion — M8a done; M8b (the records) next;
+1. **M8 — the alias, type derivation, and the bridge's deletion — M8a–M8c done; M8d (type derivation) next;
    stages in [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half", its M8 record.** `WasmModule = Module`; the type
    derivation the bridge does today (it rebuilds through the factories, which derive `type`) becomes a
    pass over a whole function with module context; then the bridge, its 16 test files,
