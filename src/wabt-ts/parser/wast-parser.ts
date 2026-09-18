@@ -3986,14 +3986,22 @@ export class WastParser {
         // after the branch, produced a stack V8 rejected). `cond` is always
         // the last operand; `value` the one before it, when there is one.
         // In the linear form `operands` is padded to nInputs=2 with a leading
-        // Nop when no value is on the stack, so a Nop in the value slot means
-        // "no carried value" (a Nop can never be a real branch value).
+        // PLACEHOLDER (`pop`) when no value is on the stack, so a placeholder in
+        // the value slot means "no carried value".
         const cond = operands[operands.length - 1] ??
           operandPlaceholder(loc);
         // Everything below cond is a carried value, in stack order — a
-        // multi-value target takes several. A padded Nop can never be a real
-        // branch value (it produces nothing), so it drops out.
-        const values = operands.slice(0, -1).filter((e) => e.kind !== 'nop');
+        // multi-value target takes several. The padding placeholder drops out.
+        //
+        // 🔧 This filtered `'nop'`: the padding WAS a nop until S5
+        // (`f27bfd5ca`) made the placeholder a `pop`, and from then on every
+        // value-less `br_if` in linear text carried a phantom value. Its bytes
+        // were right (a `pop` is written as nothing), so no gate saw it; the
+        // bridge typed each such `br_if` by that value instead of `none`.
+        // ⚠️ The parser does not know the target's arity, so a value that
+        // genuinely comes from outside the region (a block parameter) drops
+        // out too — as it did before S5.
+        const values = operands.slice(0, -1).filter((e) => e.kind !== 'pop');
         return { kind: 'br', target: v, condition: cond, values, loc } as BrExpr;
       }
       case TokenType.BrOnNull:
@@ -4004,10 +4012,10 @@ export class WastParser {
         // any values the target carries sit BELOW it, exactly as for `br_if`.
         // Taking op0() read the bottom operand as the ref, so
         // `(br_on_null $l (local.get $n) (local.get $r))` tested $n and
-        // dropped $r entirely. A padded Nop can never be a real carried value,
-        // so it drops out.
+        // dropped $r entirely. The padding placeholder is not a carried value,
+        // so it drops out (the filter read `'nop'` after S5 — see `br_if`).
         const ref = operands[operands.length - 1] ?? operandPlaceholder(loc);
-        const values = operands.slice(0, -1).filter((x) => x.kind !== 'nop');
+        const values = operands.slice(0, -1).filter((x) => x.kind !== 'pop');
         return {
           kind: 'br_on',
           opcode: tt === TokenType.BrOnNull ? BrOnOp.Null : BrOnOp.NonNull,
