@@ -1078,7 +1078,6 @@ class WatModuleParser {
         type: resultType,
         func: varName(funcName),
         operands,
-        isReturn: false,
       } as CallExpr;
     }
     if (head === 'return_call') {
@@ -1858,7 +1857,7 @@ class WatModuleParser {
       callee: target,
       operands,
       sig: { params, results },
-      isReturn,
+      ...(isReturn ? { isReturn: true as const } : {}),
     };
   }
 

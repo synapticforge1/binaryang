@@ -101,7 +101,8 @@ Deno.test('Phase 13: parser distinguishes call vs return_call', () => {
   const mod = parseWasm(plainCallModule);
   const target = unwrapSingle(mod.functions[0].body);
   assertEquals(target.kind, ExpressionKind.Call);
-  assertEquals((target as CallExpr).isReturn, false);
+  // ABSENT, not `false` (M8a2): absent is the one spelling of a plain call.
+  assertEquals((target as CallExpr).isReturn, undefined);
 });
 
 Deno.test('Phase 13: encoder emits 0x12 for isReturn=true Call', () => {

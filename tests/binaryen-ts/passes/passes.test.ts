@@ -880,7 +880,6 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
             type: None,
             func: varName('helper'),
             operands: [],
-            isReturn: false,
           },
         ])),
       },

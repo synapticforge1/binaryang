@@ -965,8 +965,12 @@ export interface CallExpr {
    * `isReturn` on Call and CallIndirect. What it changes is real and lives in
    * the consumers -- a different opcode, the `tailCall` feature gate, and the
    * fact that a tail call makes the rest of the block unreachable.
+   *
+   * `true` or ABSENT, never `false` (M8a2): absent is the one spelling of a
+   * plain call. binaryen-ts wrote `false` where wabt-ts wrote nothing — two
+   * spellings of one fact on 24,737 corpus nodes.
    */
-  readonly isReturn?: boolean;
+  readonly isReturn?: true;
   readonly func: Var;
   readonly operands: Expr[];
   readonly type?: ExprType;
@@ -984,8 +988,12 @@ export interface CallIndirectExpr {
    * `isReturn` on Call and CallIndirect. What it changes is real and lives in
    * the consumers -- a different opcode, the `tailCall` feature gate, and the
    * fact that a tail call makes the rest of the block unreachable.
+   *
+   * `true` or ABSENT, never `false` (M8a2): absent is the one spelling of a
+   * plain call. binaryen-ts wrote `false` where wabt-ts wrote nothing — two
+   * spellings of one fact on 24,737 corpus nodes.
    */
-  readonly isReturn?: boolean;
+  readonly isReturn?: true;
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. Absent means "derive it". */
   readonly nodeId?: NodeId;
   /**
@@ -1037,8 +1045,12 @@ export interface CallRefExpr {
    * `isReturn` on Call and CallIndirect. What it changes is real and lives in
    * the consumers -- a different opcode, the `tailCall` feature gate, and the
    * fact that a tail call makes the rest of the block unreachable.
+   *
+   * `true` or ABSENT, never `false` (M8a2): absent is the one spelling of a
+   * plain call. binaryen-ts wrote `false` where wabt-ts wrote nothing — two
+   * spellings of one fact on 24,737 corpus nodes.
    */
-  readonly isReturn?: boolean;
+  readonly isReturn?: true;
   readonly sigType: Var;
   readonly operands: Expr[];
   readonly callee: Expr;
