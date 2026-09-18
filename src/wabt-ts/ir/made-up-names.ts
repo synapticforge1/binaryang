@@ -33,6 +33,8 @@ export const MADE_UP = {
   data: (i: number) => `$data${i}`,
   type: (i: number) => `$type${i}`,
   field: (i: number) => `$field${i}`,
+  /** Label `i` of function `funcIdx` — per function, so a label never collides across two. */
+  label: (funcIdx: number, i: number) => `$l${funcIdx}_${i}`,
 } as const;
 
 /** `name`, or `name.1`, `name.2`, … — the first not in `used`; recorded there. */
@@ -95,6 +97,67 @@ class LabelCollector implements ExprVisitorDelegate {
   }
 }
 
+/**
+ * Names every UNNAMED carrier of one function with a made-up label, clear of
+ * the labels it already has (M7c3c). Labels may repeat in a function — a
+ * nested `$b` shadows an outer one — so only a made-up label is kept unique.
+ */
+class LabelMaker implements ExprVisitorDelegate {
+  private count = 0;
+  constructor(private readonly funcIdx: number, private readonly used: Set<string>) {}
+  private take(e: { label: string }): Result {
+    if (e.label === '') e.label = unique(this.used, MADE_UP.label(this.funcIdx, this.count));
+    this.count++;
+    return Result.Ok;
+  }
+  beginBlockExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginLoopExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginIfExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginTryExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginTryTableExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+}
+
+/** Clears every label of one function that `keep` does not accept. */
+class LabelClearer implements ExprVisitorDelegate {
+  constructor(private readonly keep: (label: string) => boolean) {}
+  private take(e: { label: string }): Result {
+    if (!this.keep(e.label)) e.label = '';
+    return Result.Ok;
+  }
+  beginBlockExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginLoopExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginIfExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginTryExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+  beginTryTableExpr(e: { label: string }): Result {
+    return this.take(e);
+  }
+}
+
+/** The non-empty labels of one function. */
+function labelsOf(f: Func): Set<string> {
+  const c = new LabelCollector();
+  new ExprVisitor(c).visitFunc(f);
+  return c.found;
+}
+
 /** One index space, imports first — as the binary numbers it. */
 function space<K extends ExternalKind>(
   m: Module,
@@ -118,7 +181,7 @@ function space<K extends ExternalKind>(
  * `localsListed` is the local subsection's shape by function INDEX (`null`:
  * the section had none); the record keys it by NAME, once every function has
  * one, so a pass that removes a function cannot shift an entry onto another.
- * Labels and locals are not made up — a reference to either is an index.
+ * Locals are not made up — a reference to one is an index; labels are (M7c3c).
  */
 export function nameEveryEntity(m: Module, localsListed: ReadonlySet<number> | null): void {
   const funcs = space(m, ExternalKind.Func, (i) => i.func, m.functions) as Func[];
@@ -143,11 +206,7 @@ export function nameEveryEntity(m: Module, localsListed: ReadonlySet<number> | n
     types: real(m.types),
   };
   const realFields = m.types.map((t) => real(fieldsOf(t)));
-  const realLabels = m.functions.map((f) => {
-    const c = new LabelCollector();
-    new ExprVisitor(c).visitFunc(f);
-    return c.found;
-  });
+  const realLabels = m.functions.map(labelsOf);
 
   makeUpNames(funcs, MADE_UP.func);
   makeUpNames(tables, MADE_UP.table);
@@ -158,6 +217,11 @@ export function nameEveryEntity(m: Module, localsListed: ReadonlySet<number> | n
   makeUpNames(m.dataSegments, MADE_UP.data);
   makeUpNames(m.types, MADE_UP.type);
   for (const t of m.types) makeUpNames(fieldsOf(t), MADE_UP.field);
+  // Labels too (M7c3c) — numbered per function by the binary's label order.
+  const importedFuncs = funcs.length - m.functions.length;
+  m.functions.forEach((f, i) => {
+    new ExprVisitor(new LabelMaker(importedFuncs + i, new Set(realLabels[i]!))).visitFunc(f);
+  });
 
   // Keyed by the FINAL names: a type or function the section did not name is
   // known here by its made-up one.
@@ -207,15 +271,22 @@ export function forgetMadeUpNames(m: Module): ReadonlySet<number> | null | undef
   const listed = r.localsListed === null
     ? null
     : new Set(funcs.flatMap((f, i) => (r.localsListed!.has(f.name) ? [i] : [])));
-  for (const [items, set] of flatSpaces(m)) {
-    for (const it of items) {
-      if (!isRealName(r, r[set] as ReadonlySet<string>, it.name)) it.name = '';
-    }
+  // Labels and fields FIRST: the record keys them by their function's / type's
+  // NAME, and a made-up one of those is about to be cleared.
+  for (const f of m.functions) {
+    const real = r.labels.get(f.name);
+    new ExprVisitor(new LabelClearer((l) => isRealName(r, real, l))).visitFunc(f);
   }
+  // Fields likewise: keyed by their TYPE's name.
   for (const t of m.types) {
     const real = r.fields.get(t.name);
     const fields = t.kind === 'struct' ? t.fields : t.kind === 'array' ? [t.field] : [];
     for (const f of fields) if (!isRealName(r, real, f.name)) f.name = '';
+  }
+  for (const [items, set] of flatSpaces(m)) {
+    for (const it of items) {
+      if (!isRealName(r, r[set] as ReadonlySet<string>, it.name)) it.name = '';
+    }
   }
   return listed;
 }
@@ -246,6 +317,10 @@ export function recordEveryNameReal(
     ...r,
     ...Object.fromEntries(spaces.map(([items, set]) => [set, all(items)])),
     fields,
+    labels: new Map(m.functions.flatMap((f) => {
+      const set = labelsOf(f);
+      return set.size > 0 ? [[f.name, set] as const] : [];
+    })),
     localsListed: listed === null
       ? null
       : new Set([...listed].flatMap((i) => funcs[i] === undefined ? [] : [funcs[i]!.name])),

@@ -153,10 +153,19 @@ describe('the reader gives the name section to the module', () => {
       }
     };
     walk(m.functions[0]!.body.children);
+    // The `if` had no name: it gets a MADE-UP one (M7c3c) — function 1 (after
+    // one import), its fourth label in binary order — and the record lists
+    // only the section's four.
     assertEquals(
       labels.sort(),
-      ['block:$cond', 'block:$inner', 'block:$outer', 'if:', 'loop:$in'].sort(),
+      ['block:$cond', 'block:$inner', 'block:$outer', 'if:$l1_3', 'loop:$in'].sort(),
     );
+    assertEquals([...m.explicitNames!.labels.get('$named')!].sort(), [
+      '$cond',
+      '$in',
+      '$inner',
+      '$outer',
+    ]);
   });
 });
 
@@ -202,6 +211,24 @@ describe("the owner's test: WAT → wat2wasm → wasm2wat gives the WAT back", (
 
   it('still invents them when asked, as upstream --generate-names', () => {
     const text = wasm2wat(assemble('(module (func))'), { generateNames: true }).text;
+    assert(text.includes('$f0'), text);
+  });
+
+  // The record keys a field by its TYPE's name and a label by its FUNCTION's.
+  // Clearing the made-up type / function name first made that lookup miss, and
+  // the REAL field or label was cleared with it (found in M7c3c; the field
+  // half was already on main from b1b).
+  it('--generate-names keeps a real field name on an UNNAMED type', () => {
+    const text =
+      wasm2wat(assemble('(module (type (struct (field $f i32))))'), { generateNames: true }).text;
+    assert(/field \$f\b/.test(text), text);
+  });
+
+  it('--generate-names keeps a real label in an UNNAMED function', () => {
+    const text = wasm2wat(assemble('(module (func (block $b (br $b))))'), {
+      generateNames: true,
+    }).text;
+    assert(text.includes('block $b'), text);
     assert(text.includes('$f0'), text);
   });
 });

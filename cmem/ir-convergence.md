@@ -3596,8 +3596,23 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    metadata only (`loc`, `filename`, `sectionMeta`, `fidelity`).
    ⚠️ **Not done, on purpose:** the TEXT parser makes up no names — a made-up `$func0` would let a
    WAT reference to a nonexistent `$func0` resolve silently where it is an error today; text
-   modules carry no record, so every name in them is real. Labels and locals are not made up in
-   either reader (their references are indices).
+   modules carry no record, so every name in them is real. Locals are made up by neither reader;
+   labels were, at b1b, by binaryen-ts's decoder only (this line first said "neither" — wrong;
+   corrected at M7c3c, which made wabt-ts's reader match).
+   **✅ M7c3c — wabt-ts's reader makes up labels too (2026-09-18, `328a6763e`).** Owner agreed:
+   before M8, binary-reader half only; the TEXT half stays in M8 with text-path names. Every unnamed
+   block / loop / if / try / try_table gets `MADE_UP.label` (`$l<func>_<n>`, binaryen-ts's decoder's
+   spelling, now shared); the section's labels are recorded real. The WAT writer reads all 28 label
+   uses through `shownLabel` — the printed label, the `;; label = @N` comment, and the label stack
+   `labelNameAtDepth` prints a branch target from. b1b's equivalent mutant (the binary writer's label
+   filter) is now killed by a test. 🔧 **Found reviewing this stage's own code, on `main` since
+   b1b:** `forgetMadeUpNames` (before `--generate-names`) cleared made-up TYPE names before their
+   fields, and the record keys fields by type name — so an unnamed type's REAL field names missed the
+   lookup and were cleared (`(module (type (struct (field $f i32))))` lost `$f`). Labels, keyed by
+   function name, would have repeated it; both now clear first. Two tests pin it, both failing on
+   `main`'s code. The corpus has no unnamed type with a named field — which is how it hid, and why
+   every hash stayed put: wabt-ts 0 of 2,888, objdump 0 of 602, decode → encode 0 of 1,023,
+   optimizer + `wat2wasm` 0 of 2,526. 6 mutants killed.
 0. **✅ b0 — binaryen-ts's types and fields take the practice (2026-09-18, `66ccfe236`).** Every
    `TypeDef` and field carries a name — the section's, or `$typeN` / `$fieldN`, clear of every
    section name — and `explicitNames.types` is a set of the real type names, `.fields` a map from a

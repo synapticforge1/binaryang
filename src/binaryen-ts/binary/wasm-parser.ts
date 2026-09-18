@@ -9,6 +9,7 @@
 
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
+import { MADE_UP } from '../../wabt-ts/ir/made-up-names.ts';
 import {
   blockResult,
   heapAbstract,
@@ -1519,7 +1520,8 @@ class WasmParser {
     let binaryLabelIdx = 0;
 
     // A made-up label, clear of every label the section gives this function.
-    const freshLabel = (): string => ctx.names.freshLabel(funcIdx, `$l${funcIdx}_${labelIdx++}`);
+    const freshLabel = (): string =>
+      ctx.names.freshLabel(funcIdx, MADE_UP.label(funcIdx, labelIdx++));
     // A label-introducing instruction's label: the section's, else a made-up one.
     const instrLabel = (): string => {
       const fresh = freshLabel();
