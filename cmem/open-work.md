@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — M7c3b next)
+## Start the next session here (handoff, 2026-09-18 — M7c3b b1 next)
 
-**Where the work stopped.** `main` is at the merge of decision 4 + M7c3a (code last changed at
-`d654da455`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `d654da455` (as on `3d8c14b83` before it) and every step exited 0: fmt, lint, **1268 tests / 0 failed**,
+**Where the work stopped.** `main` is at the merge of M7c3b b0 (code last changed at
+`66ccfe236`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `66ccfe236` (as on `d654da455` and `3d8c14b83` before it) and every step exited 0: fmt, lint, **1269 tests / 0 failed**,
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -42,6 +42,14 @@ fails on ANY output (`ci.yml`: `if [ -n "$out" ] … exit 1`; the script's heade
 the rule holds"). The rule in [working-rules.md](working-rules.md) ("prints a filename on SUCCESS —
 read `$?`") is a misreading that hid it: here the OUTPUT is the verdict. Found 2026-09-18, not fixed —
 owner call (rename the helper, and correct the rule). Invisible so far only because nothing is pushed.
+
+⚠️ **`corpus_roundtrip.test.ts` has a flaky oracle** (found 2026-09-18). It judges validity with
+`WebAssembly.compile`, which V8 validates LAZILY: it failed once on binaryen's
+`lit/control-flow-input.wast.wasm` saying the output did not validate though the input did — with
+input and output BYTE-IDENTICAL. The binary is invalid (legacy and new EH mixed;
+`new WebAssembly.Module` rejects it on `main`). Passes on rerun. Not fixed — the fix is an eager
+oracle (`new WebAssembly.Module`), which may move that file between buckets; decide with its
+`MIN_ROUNDTRIPPING` bound in view.
 
 ⚠️ **The gate needs upstream wabt 1.0.41 on PATH** (`wast2json` for `translate-eh`). A scoop update to
 1.0.42 removed the shim on 2026-09-16 and the owner reverted it; a red `translate-eh` saying "Failed
@@ -73,13 +81,15 @@ entity collections stay there until the records themselves are one type (M8).
 | M7c2    | `3d8c14b83` | the feature flags are gone from both — `hasGC` had silently drifted to "has a type section"; `featuresUsed` was never read (2026-09-18) |
 | decision 4 | `ab80982a8` | 🗓️ owner: the one module follows binaryen-ts's naming practice (2026-09-18)                               |
 | M7c3a   | `d654da455` | an import's param names and the module's name live on their records, not in `explicitNames` (2026-09-18)   |
+| M7c3b b0 | `66ccfe236` | 🗓️ owner: names cover types and fields — binaryen-ts's types and fields always named; `explicitNames` lists the real ones by name (2026-09-18) |
 
 ### Next, in order
 
 1. **M7c3b — wabt-ts takes binaryen-ts's naming practice** (owner decision 4 in
    [names.md](names.md), 2026-09-18: every entity named, `explicitNames` records the real ones, only
-   real names written). M7c3a has landed; the plan for b1 (names everywhere in wabt-ts, writers ask
-   the record — start with a TRIAL) and b2 (`hasNameSection` / `localNamesListed` → `explicitNames`)
+   real names written; types and fields included). M7c3a and b0 have landed; the plan for b1 (names
+   everywhere in wabt-ts, writers ask the record — the trial is done: 36 tests move, one
+   mechanism, so naming and the writers land together) and b2 (`hasNameSection` / `localNamesListed` → `explicitNames`)
    is in [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half", its M7c3b record.
    Left one-sided by design until M8: wabt-ts's `loc` / `name` / `filename` / `sectionMeta` /
    `fidelity` (as-written metadata the optimizer has no use for).

@@ -3587,10 +3587,18 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    (`makeModule` gives an EMPTY record, so text still gets upstream's section — the N1 rule);
    `localNamesListed` (by index) → `localsListed` (by name — possible once every function has one).
    Ratchet: the module's last one-sided name fields converge.
-0. **b0 — binaryen-ts's types and fields take the practice first** (owner, above): every `TypeDef`
-   and field carries a name (made up where none), and `explicitNames.types` / `.fields` record the
-   REAL ones by name — as every other entity's are — instead of holding the names themselves
-   keyed by the `TypeDef` object.
+0. **✅ b0 — binaryen-ts's types and fields take the practice (2026-09-18, `66ccfe236`).** Every
+   `TypeDef` and field carries a name — the section's, or `$typeN` / `$fieldN`, clear of every
+   section name — and `explicitNames.types` is a set of the real type names, `.fields` a map from a
+   type's NAME to its real field names (as `labels` is by function). They had held the names
+   themselves, keyed by the `TypeDef` OBJECT, while the decoder left the records `''` — one name,
+   two homes, by route. `addType` names what it is given unnamed (a copy), unique among earlier
+   types and within the type's fields. Decode → encode over 1,023 binaries (wasmtk, binaryen's
+   upstream tests, our corpus), `main` against the branch: 0 changed. 5 mutants killed.
+   🔍 Found beside it, not caused by it: `corpus_roundtrip.test.ts`'s validity oracle is
+   `WebAssembly.compile`, which V8 validates LAZILY — it failed once on
+   `lit/control-flow-input.wast.wasm` with input and output byte-identical (the binary mixes legacy
+   and new EH; `new WebAssembly.Module` rejects it). A flaky oracle; see open-work.md.
 3. **Open inside it:** references stay the `Var`s they are — whether they become names is M8's.
 
 ### S7 — the linear-form marker
