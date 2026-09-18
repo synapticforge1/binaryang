@@ -1164,6 +1164,17 @@ substitution matched nothing, and the suite "passed" against unmutated code. Onl
 each run prints gave it away. A mutant that changed nothing is not a survivor and not a kill — it is
 no run at all.
 
+## 🆕 The code being replaced is not the specification of the replacement (2026-09-18)
+
+M8c's `nameReferences` replaces what the bridge does with references, so its label scoping was
+first COPIED from the bridge, including a `delegate` resolved with its own `try`'s label still in
+scope. `resolveNames`, the binary writer and binaryen-ts's encoder all resolve it one frame further
+out, and they are the ones that decide what the bytes say. The bridge was wrong and nothing
+noticed, because no corpus module delegates (the same held for a named `if`, whose label the
+bridge dropped). An agreement check against the old code (49,335 references, 0 differ) proves
+agreement, not correctness, over exactly the cases the corpus reaches. For every case it does
+not reach, read the CONSUMERS' rule and test it directly.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

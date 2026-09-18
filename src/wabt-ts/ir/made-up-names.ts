@@ -35,6 +35,8 @@ export const MADE_UP = {
   field: (i: number) => `$field${i}`,
   /** Label `i` of function `funcIdx` — per function, so a label never collides across two. */
   label: (funcIdx: number, i: number) => `$l${funcIdx}_${i}`,
+  /** Function `funcIdx`'s frame — the target of a branch out of the whole body (M8c). */
+  frame: (funcIdx: number) => `$l${funcIdx}_frame`,
 } as const;
 
 /** `name`, or `name.1`, `name.2`, … — the first not in `used`; recorded there. */
@@ -152,7 +154,7 @@ class LabelClearer implements ExprVisitorDelegate {
 }
 
 /** The non-empty labels of one function. */
-function labelsOf(f: Func): Set<string> {
+export function labelsOf(f: Func): Set<string> {
   const c = new LabelCollector();
   new ExprVisitor(c).visitFunc(f);
   return c.found;
