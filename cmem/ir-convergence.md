@@ -3672,6 +3672,16 @@ refused). New `tests/binaryen-ts/binary/local_limits.test.ts` fails, then OOMs, 
 u32-sum check is an EQUIVALENT mutant while the limit (10^6) is far below 2^32 — the spec's rule,
 kept as wabt-ts keeps it.
 
+**✅ M8a2 — a call's `isReturn` is `true` or absent (2026-09-18, `d70988ad0`).** binaryen-ts wrote
+`false` on every plain call, wabt-ts nothing — two spellings on 24,737 corpus nodes, read alike
+everywhere. Trials: a required `boolean` 12 errors, and blind to wabt-ts's `{ kind: 'call', … } as
+CallExpr` literals (a cast does not flag a missing required field); `isReturn?: true` 5 errors,
+wabt-ts's existing practice — taken. The factories write the key only when true. ⚠️ **One site only
+the RUN found**: `assertEquals(x.isReturn, false)` type-checked (generic) and failed when executed.
+Against `main` every hash unchanged (decode → encode, optimizer + `wat2wasm`, wabt-ts outputs); the
+bridge's `isReturn` difference 24,737 → 0. `tests/ir/is_return.test.ts`: `false` is a compile error
+(`@ts-expect-error`, inverted by reverting the type), and the factories omit the key.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop

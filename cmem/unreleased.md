@@ -216,6 +216,9 @@ their own bump — and nothing breaks by their standing still.
   alignment exponent past 8, as upstream binaryen does; the encoder refuses a non-power-of-two.
   🔧 Fixes the compat API: `i32.load(offset, 4, ptr)` (upstream's byte spelling) produced a module
   V8 rejected.
+- ⚠️ **BREAKING (types): a call's `isReturn` is `true` or absent** (S6 step 5 item 6 (M8a2)) —
+  `isReturn?: true` on Call / CallIndirect / CallRef; a plain call omits it (binaryen-ts wrote
+  `false`). The factories' `isReturn = false` parameter is unchanged.
 - **Fixed: `parseWasm` ran out of memory on a function declaring ~2^32 locals** (five bytes; spec
   `binary.43` / `.44`) — it killed the process; it now throws "too many locals", as wabt-ts's reader
   has since M6c (limit 1,000,000 declared locals per function, shared).
