@@ -252,6 +252,13 @@ interface DecoderCtx {
   funcTypeIndices: number[];
   globalInfos: GlobalInfo[];
   tableNames: string[];
+  /**
+   * Each table's element type, in the table index space (imports first) —
+   * what `table.get` yields. It was not recorded, so every `table.get` was
+   * typed `funcref` (the factory's default) whatever the table held — an
+   * `externref` or `anyref` table's included (found by M8d, 2026-09-18).
+   */
+  tableElemTypes: ValueType[];
   tagInfos: TagInfo[];
   /**
    * Every tag's payload types, in the tag INDEX space — imports first. `tagInfos`
@@ -806,6 +813,7 @@ class WasmParser {
   private funcTypeIndices: number[] = [];
   private globalInfos: GlobalInfo[] = [];
   private tableNames: string[] = [];
+  private tableElemTypes: ValueType[] = [];
   private tagInfos: TagInfo[] = [];
   /** See {@link DecoderCtx.tagParams}. */
   private readonly tagParams: ValueType[][] = [];
@@ -1089,6 +1097,7 @@ class WasmParser {
           const limits = this.readLimits(false);
           const tname = this.names.table(this.tableNames.length);
           this.tableNames.push(tname);
+          this.tableElemTypes.push(elemType);
           this.builder.addTableImport(tname, module, base, elemType, limits);
           break;
         }
@@ -1155,6 +1164,7 @@ class WasmParser {
       const init = hasInit ? this.readInitExpr(elemType) : undefined;
       const name = this.names.table(this.tableNames.length);
       this.tableNames.push(name);
+      this.tableElemTypes.push(elemType);
       this.builder.addTable(name, elemType, limits, null, init);
     }
   }
@@ -1352,6 +1362,7 @@ class WasmParser {
       funcTypeIndices: this.funcTypeIndices,
       globalInfos: this.globalInfos,
       tableNames: this.tableNames,
+      tableElemTypes: this.tableElemTypes,
       tagInfos: this.tagInfos,
       tagParams: this.tagParams,
       lowerBlockParams: this.lowerBlockParams,
@@ -2518,8 +2529,14 @@ class WasmParser {
         case 0x25: { // table.get $t
           const tidx = r.readU32();
           const table = ctx.names.table(tidx);
+          const elemType = ctx.tableElemTypes[tidx];
+          if (elemType === undefined) {
+            return r.error(
+              `table index ${tidx} is out of range (module declares ${ctx.tableElemTypes.length})`,
+            );
+          }
           const indexExpr = pop();
-          push(makeTableGet(varName(table), indexExpr));
+          push(makeTableGet(varName(table), indexExpr, elemType));
           break;
         }
         case 0x26: { // table.set $t
