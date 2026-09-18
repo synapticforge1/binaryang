@@ -16,6 +16,7 @@
  * scheme from the C++ source: `a`, `b`, …, `z`, `aa`, `ba`, …
  */
 
+import { forgetMadeUpNames, recordEveryNameReal } from './made-up-names.ts';
 import { Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { Expr, Func, Module } from './ir.ts';
@@ -43,8 +44,13 @@ export enum NameOpts {
  * `$g0`, `$l0`, … so the WAT writer can emit human-readable text.
  */
 export function generateNames(module: Module, opts: NameOpts = NameOpts.None): Result {
+  // A name a reader MADE UP is no name (owner decision 4; M7c3b b1b): clear
+  // those first, so upstream's `$f0` scheme fills them, and record every name
+  // real afterwards — they are all the output's now.
+  const listed = forgetMadeUpNames(module);
   const namer = new NameGenerator(module, opts);
   namer.run();
+  recordEveryNameReal(module, listed);
   return Result.Ok;
 }
 

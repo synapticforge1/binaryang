@@ -130,7 +130,8 @@ import {
   varName,
 } from '../ir/ir.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
-import { countImports } from '../ir/ir.ts';
+import { countImports, totalFuncs } from '../ir/ir.ts';
+import { nameEveryEntity } from '../ir/made-up-names.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -1364,18 +1365,23 @@ export class BinaryReader {
    * have been lost (C2 found it). Every one is then kept as bytes, each at its
    * own position.
    */
-  private applyPendingNames(m: Module): void {
+  /**
+   * Returns the SHAPE of the local subsection, which its names alone do not
+   * carry — a producer lists only the functions that have a named local (N6):
+   * the function indices it listed, `null` when the section had no local
+   * subsection, `undefined` when no section was read (then every function is
+   * listed, as upstream `--debug-names` does).
+   */
+  private applyPendingNames(m: Module): ReadonlySet<number> | null | undefined {
     const pending = this.pendingNames;
-    if (pending === null) return;
+    if (pending === null) return undefined;
     const parsed = parseNameSection(pending.custom.data);
     const applied = parsed !== null && applyNameSection(m, parsed.names);
-    if (parsed !== null) {
-      // The SHAPE of the local subsection, which its names alone do not carry:
-      // a producer lists only the functions that have a named local (N6).
-      m.localNamesListed = parsed.subsections.has(NameSectionSubsection.Local)
-        ? new Set(parsed.names.localNames.keys())
-        : null;
-    }
+    const listed = parsed === null
+      ? undefined
+      : parsed.subsections.has(NameSectionSubsection.Local)
+      ? new Set(parsed.names.localNames.keys())
+      : null;
     const another = m.customSections.some((c) => c.name === 'name');
     if (!(applied && parsed.complete) || another) {
       m.customSections.splice(pending.at, 0, pending.custom);
@@ -1384,6 +1390,7 @@ export class BinaryReader {
       // generates it where it was rather than last (M2f).
       m.customSections.splice(pending.at, 0, { ...pending.custom, data: null });
     }
+    return listed;
   }
 
   // ---------------------------------------------------------------------------
@@ -3025,7 +3032,16 @@ export class BinaryReader {
     if (this.ok() && m.functions.length > 0 && !seen.has(BinarySection.Code)) {
       this.err('function and code section have inconsistent lengths');
     }
-    if (this.ok()) this.applyPendingNames(m);
+    if (this.ok()) {
+      const listed = this.applyPendingNames(m);
+      // Every entity named, the real names recorded (owner decision 4; M7c3b
+      // b1b) — as binaryen-ts's decoder does. No section read: every function
+      // is listed in the local subsection, as before.
+      nameEveryEntity(
+        m,
+        listed !== undefined ? listed : new Set(Array.from({ length: totalFuncs(m) }, (_, i) => i)),
+      );
+    }
 
     return m;
   }

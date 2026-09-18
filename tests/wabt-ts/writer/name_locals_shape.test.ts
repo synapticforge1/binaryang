@@ -176,11 +176,10 @@ describe("N6 — a producer's name section keeps its shape", () => {
     assertEquals(m.functions[1]!.locals[0]!.name, '$p');
   });
 
-  it('the module records which functions were listed', () => {
+  it('the module records which functions were listed — by NAME (M7c3b b1b)', () => {
     const errors = makeErrorList();
-    assertEquals([...readBinaryIr(PRODUCER, errors, { readDebugNames: true }).localNamesListed!], [
-      1,
-    ]);
+    const m = readBinaryIr(PRODUCER, errors, { readDebugNames: true });
+    assertEquals([...m.explicitNames!.localsListed!], ['$b']);
   });
 });
 

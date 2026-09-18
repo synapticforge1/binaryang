@@ -3564,7 +3564,7 @@ Types and fields stay in `explicitNames.types` / `.fields` for now: whether deci
 always" reaches TYPES (referenced by index in both IRs, `name: ''` in both since M5a) is part of
 M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
 
-**🚧 M7c3b — wabt-ts takes the practice. The plan (2026-09-18), not started.**
+**✅ M7c3b — both IRs take the practice (2026-09-18): b0, b1a, b1b (with b2) landed; M7c CLOSED.**
    **✅ b1a — the name section is its own fact (2026-09-18, `5e4a1cbdd` + `9a9c17ade`).** Found
    designing b1: binaryen-ts's `explicitNames` held TWO facts — its presence meant "write a section",
    its content "which names are real". binaryen-ts now has wabt-ts's `hasNameSection: boolean`
@@ -3575,27 +3575,29 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    M8. Decode → encode 0 of 1,023 changed, optimizer + `wat2wasm` 0 of 2,526. 6 mutants — the label
    case survived until a test named a label. Ratchet **19 / 2 / 19**. ⚠️ `addType`'s made-up type
    names are unrecorded, so they would be written if someone sets `hasNameSection` on a built module.
-1. **b1b — names everywhere in wabt-ts, and one record of which are real.** The binary reader and
-   the text parser give every unnamed function / table / memory / global / element / data segment /
-   tag a made-up name by binaryen-ts's scheme (`binary/names.ts`: `$func3`, a section name wins,
-   `.N` on collision — shared, not copied), and labels theirs; they record the real ones in
-   `explicitNames` (moved to wabt-ts's IR, as `Limits` and `Var` were). Every writer that asked
-   `name !== ''` asks the record: the binary writer's name section, the WAT writer
-   (`writeNameOrIndex`, 11 call sites — an unnamed entity still prints `(;N;)`), `wasm-objdump`,
-   `generateNames` (upstream's `$f0` scheme stays; it marks what it names REAL). A regex over
-   `name === ''`-style tests finds 23 sites in 6 files; it cannot see `writeNameOrIndex`-style
-   helpers, so the measure is a TRIAL: name everything, then count what moves. **Trial run
-   2026-09-18** (the binary reader alone naming every unnamed function / table / memory / global /
-   tag / segment, `$func3`-style, no writer changed; reverted): **36 tests / 173 steps fail, ONE
-   mechanism** — the made-up names reach `wasm2wat`'s text, and the text's re-assembly writes them
-   as real (every "folded → linear → folded", "round-trips byte-identically", "`wasm2wat` →
-   `wat2wasm`" test, plus the compat round trip). Exactly decision 4's warning; so naming and the
-   writers' switch to the record must land TOGETHER, and those 36 are the acceptance set. Acceptance:
-   baseline IDENTICAL, `wasm2wat` text unchanged over the corpus, spec unchanged, round trips
-   unchanged.
-2. **b2 — the local listing.** `localNamesListed` (by index) → `explicitNames.localsListed` (by
-   name — possible once every function has one). The presence half of the old b2 is b1a, done the
-   other way round: both sides keep `hasNameSection`; `explicitNames` is only the record.
+1. **✅ b1b — wabt-ts names every entity; every writer writes only real names (2026-09-18,
+   `c5ad07eac`). b2 folded in.** `ExplicitNames` moved into wabt-ts's IR — one record, both IRs —
+   and wabt-ts's `Module` carries it (`explicitNames?`; absent = nothing made up). The binary reader,
+   after applying the name section, records what it holds as REAL and makes up the rest
+   (`nameEveryEntity`: functions, tables, memories, globals, tags, segments, types, fields), with the
+   scheme and `unique` binaryen-ts's decoder used, now SHARED from `wabt-ts/ir/made-up-names.ts`.
+   `localNamesListed` (by index) became the record's `localsListed` (by name) — b2. Every writer asks
+   `isRealName`: the name section and `namesAnything` (else every binary read without a section
+   would gain one), the WAT writer (`shown` — a made-up name prints `(;N;)` as an unnamed one did),
+   wasm-objdump, and `generateNames` (forgets made-up names first, records all real after).
+   **Trial first** (reader naming alone, reverted): 36 tests / 173 steps failed by ONE mechanism —
+   made-up names reaching `wasm2wat`'s text and re-assembling as real — so naming and the writers
+   landed together. After: wabt-ts outputs **0 of 2,888** changed against `main` (`wat2wasm`,
+   `wasm2wat` folded / linear / `--generate-names` over the corpus; read → write and `wasm2wat` over
+   602 binaries), wasm-objdump 0 of 602. 🔧 **wasm-objdump printed `<$func1>`** for an unnamed
+   function once the reader named it — no test covered objdump's function names; one does now.
+   7 mutants killed; the binary writer's label filter is an EQUIVALENT mutant for now (nothing makes
+   up a label yet). Ratchet **18 / 1 / 19** — the module's one-sided fields are wabt-ts's as-written
+   metadata only (`loc`, `filename`, `sectionMeta`, `fidelity`).
+   ⚠️ **Not done, on purpose:** the TEXT parser makes up no names — a made-up `$func0` would let a
+   WAT reference to a nonexistent `$func0` resolve silently where it is an error today; text
+   modules carry no record, so every name in them is real. Labels and locals are not made up in
+   either reader (their references are indices).
 0. **✅ b0 — binaryen-ts's types and fields take the practice (2026-09-18, `66ccfe236`).** Every
    `TypeDef` and field carries a name — the section's, or `$typeN` / `$fieldN`, clear of every
    section name — and `explicitNames.types` is a set of the real type names, `.fields` a map from a
@@ -3608,7 +3610,8 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    `WebAssembly.compile`, which V8 validates LAZILY — it failed once on
    `lit/control-flow-input.wast.wasm` with input and output byte-identical (the binary mixes legacy
    and new EH; `new WebAssembly.Module` rejects it). A flaky oracle; see open-work.md.
-3. **Open inside it:** references stay the `Var`s they are — whether they become names is M8's.
+3. **Open inside it:** references stay the `Var`s they are, and the text path makes up no names —
+   both M8's, where references become names and the resolution order is decided anyway.
 
 ### S7 — the linear-form marker
 

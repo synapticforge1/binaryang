@@ -121,9 +121,15 @@ describe('the reader gives the name section to the module', () => {
         '$it',
       ],
     );
-    assertEquals(m.functions.map((f) => f.name), ['$named', '']);
+    // The unnamed one gets a MADE-UP name, recorded as not real (owner
+    // decision 4; M7c3b b1b) — it was `''`.
+    assertEquals(m.functions.map((f) => f.name), ['$named', '$func2']);
+    assert(!m.explicitNames!.functions.has('$func2'));
     assertEquals(localNameEntries(m.functions[0]!.locals), [[0, '$a'], [2, '$x']]);
-    assertEquals(m.types.map((t) => t.name).filter((n) => n !== ''), ['$sig', '$s']);
+    assertEquals(m.types.map((t) => t.name).filter((n) => m.explicitNames!.types.has(n)), [
+      '$sig',
+      '$s',
+    ]);
     const s = m.types.find((t) => t.name === '$s')!;
     assert(s.kind === 'struct');
     assertEquals(s.fields.map((f) => f.name), ['$x', '$y']);
@@ -236,7 +242,15 @@ describe('a binary round trip keeps what it was given', () => {
   it('a malformed name section is kept as bytes, and names nothing', () => {
     const bytes = withNames([0x01, 0x05, 0x01, 0x00, 0x09]); // a name running past its subsection
     const m = read(bytes);
-    assertEquals(m.functions.map((f) => f.name), ['', '', '', '', '']);
+    // Every name made up, none real (M7c3b b1b) — they were all `''`.
+    assertEquals([...m.explicitNames!.functions], []);
+    assertEquals(m.functions.map((f) => f.name), [
+      '$func0',
+      '$func1',
+      '$func2',
+      '$func3',
+      '$func4',
+    ]);
     assert(same(writeBinaryIr(m), bytes));
   });
 });

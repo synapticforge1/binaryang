@@ -129,6 +129,7 @@ import { MemoryStream } from './stream.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
+import { isRealName } from '../ir/made-up-names.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1571,9 +1572,12 @@ class BinaryWriter {
     // Body
     this.bodyWriter.beginFunctionBody();
     this.visitor.visitExprList(func.body.children);
-    if (this.bodyWriter.labelNames.length > 0) {
-      this.labelNames.set(funcIndex, this.bodyWriter.labelNames);
-    }
+    // Only REAL labels (owner decision 4; M7c3b b1b).
+    const record = this.m.explicitNames;
+    const realLabels = this.bodyWriter.labelNames.filter(([, n]) =>
+      isRealName(record, record?.labels.get(func.name), n)
+    );
+    if (realLabels.length > 0) this.labelNames.set(funcIndex, realLabels);
 
     // End
     s.writeU8(Opcode.End);
@@ -1694,30 +1698,38 @@ class BinaryWriter {
   /** Whether anything in the module has a name — labels as collected by the code section. */
   private namesAnything(): boolean {
     const { m } = this;
-    const named = (x: { name: string }) => x.name !== '';
+    // A made-up name is not a name the module HAS (owner decision 4; M7c3b
+    // b1b): only real ones count, or every binary read without a section would
+    // gain one.
+    const r = m.explicitNames;
+    const real = (set: ReadonlySet<string> | undefined) => (x: { name: string }) =>
+      isRealName(r, set, x.name);
     const importNamed = m.imports.some((imp) => {
       switch (imp.kind) {
         case ExternalKind.Func:
-          return named(imp.func) || imp.func.locals.some((l) => l.name !== undefined);
+          return real(r?.functions)(imp.func) || imp.func.locals.some((l) => l.name !== undefined);
         case ExternalKind.Table:
-          return named(imp.table);
+          return real(r?.tables)(imp.table);
         case ExternalKind.Memory:
-          return named(imp.memory);
+          return real(r?.memories)(imp.memory);
         case ExternalKind.Global:
-          return named(imp.global);
+          return real(r?.globals)(imp.global);
         case ExternalKind.Tag:
-          return named(imp.tag);
+          return real(r?.tags)(imp.tag);
       }
     });
     return m.name !== '' || importNamed || this.labelNames.size > 0 ||
-      m.functions.some((f) => named(f) || f.locals.some((l) => l.name !== undefined)) ||
-      m.types.some((t) =>
-        named(t) ||
-        (t.kind === 'struct' && t.fields.some(named)) ||
-        (t.kind === 'array' && named(t.field))
+      m.functions.some((f) =>
+        real(r?.functions)(f) || f.locals.some((l) => l.name !== undefined)
       ) ||
-      [m.tables, m.memories, m.globals, m.tags, m.elements, m.dataSegments]
-        .some((items: readonly { name: string }[]) => items.some(named));
+      m.types.some((t) =>
+        real(r?.types)(t) ||
+        (t.kind === 'struct' && t.fields.some(real(r?.fields.get(t.name)))) ||
+        (t.kind === 'array' && real(r?.fields.get(t.name))(t.field))
+      ) ||
+      m.tables.some(real(r?.tables)) || m.memories.some(real(r?.memories)) ||
+      m.globals.some(real(r?.globals)) || m.tags.some(real(r?.tags)) ||
+      m.elements.some(real(r?.elements)) || m.dataSegments.some(real(r?.dataSegments));
   }
 
   private writeNameSection(): void {
@@ -1753,8 +1765,16 @@ class BinaryWriter {
     tags.push(...m.tags);
 
     /** A flat name map: `vec(index, name)` over the named entries only. */
-    const nameMap = (id: NameSectionSubsection, items: readonly { name: string }[]): void => {
-      const named = namedEntries(items.map((it, i) => [i, it.name]));
+    const r = m.explicitNames;
+    /** Only REAL names are written (owner decision 4; M7c3b b1b). */
+    const realOnly = (set: ReadonlySet<string> | undefined, name: string): string =>
+      isRealName(r, set, name) ? name : '';
+    const nameMap = (
+      id: NameSectionSubsection,
+      items: readonly { name: string }[],
+      set: ReadonlySet<string> | undefined,
+    ): void => {
+      const named = namedEntries(items.map((it, i) => [i, realOnly(set, it.name)]));
       if (named.length === 0) return;
       s.writeSection(id, () => writeNameEntries(s, named));
     };
@@ -1780,14 +1800,15 @@ class BinaryWriter {
       if (m.name !== '') {
         s.writeSection(NameSectionSubsection.Module, () => s.writeName(bareName(m.name)));
       }
-      nameMap(NameSectionSubsection.Function, funcs);
+      nameMap(NameSectionSubsection.Function, funcs, r?.functions);
       // Which functions the subsection lists: every one, which is upstream
       // `wat2wasm --debug-names`'s shape — unless the module was READ from a
       // section that listed only some, as every producer's does (N6).
-      const listed = m.localNamesListed;
+      // By NAME in the record (M7c3b b1b); no record: every function.
+      const listed = r === undefined ? undefined : r.localsListed;
       if (listed !== null) {
         const entries = funcs.map((f, i) => [i, f] as const)
-          .filter(([i]) => listed === undefined || listed.has(i));
+          .filter(([, f]) => listed === undefined || listed.has(f.name));
         s.writeSection(NameSectionSubsection.Local, () => {
           s.writeU32Leb(entries.length);
           for (const [i, f] of entries) {
@@ -1800,24 +1821,26 @@ class BinaryWriter {
         NameSectionSubsection.Label,
         [...this.labelNames].sort(([a], [b]) => a - b),
       );
-      nameMap(NameSectionSubsection.Type, m.types);
-      nameMap(NameSectionSubsection.Table, tables);
-      nameMap(NameSectionSubsection.Memory, memories);
-      nameMap(NameSectionSubsection.Global, globals);
-      nameMap(NameSectionSubsection.ElemSegment, m.elements);
-      nameMap(NameSectionSubsection.DataSegment, m.dataSegments);
+      nameMap(NameSectionSubsection.Type, m.types, r?.types);
+      nameMap(NameSectionSubsection.Table, tables, r?.tables);
+      nameMap(NameSectionSubsection.Memory, memories, r?.memories);
+      nameMap(NameSectionSubsection.Global, globals, r?.globals);
+      nameMap(NameSectionSubsection.ElemSegment, m.elements, r?.elements);
+      nameMap(NameSectionSubsection.DataSegment, m.dataSegments, r?.dataSegments);
       indirectMap(
         NameSectionSubsection.Field,
         m.types.map((t, i) => [
           i,
           t.kind === 'struct'
-            ? t.fields.map((f, j) => [j, f.name] as [number, string])
+            ? t.fields.map((f, j) =>
+              [j, realOnly(r?.fields.get(t.name), f.name)] as [number, string]
+            )
             : t.kind === 'array'
-            ? [[0, t.field.name]]
+            ? [[0, realOnly(r?.fields.get(t.name), t.field.name)]]
             : [],
         ]),
       );
-      nameMap(NameSectionSubsection.Tag, tags);
+      nameMap(NameSectionSubsection.Tag, tags, r?.tags);
     });
   }
 

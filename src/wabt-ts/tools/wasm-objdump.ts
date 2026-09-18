@@ -30,6 +30,7 @@
 
 import { indexOf, valueTypeName } from '../ir/ir.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
+import { isRealName } from '../ir/made-up-names.ts';
 import { Result } from '../core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
@@ -178,7 +179,10 @@ function appendDetails(lines: string[], m: Module): void {
   if (m.functions.length > 0) {
     lines.push(`Function[${m.functions.length}]:`);
     for (const [i, f] of m.functions.entries()) {
-      const name = f.name ? ` <${f.name}>` : '';
+      // Only a REAL name (owner decision 4; M7c3b b1b): the reader makes one up
+      // for every function the name section did not name.
+      const real = isRealName(m.explicitNames, m.explicitNames?.functions, f.name);
+      const name = real ? ` <${f.name}>` : '';
       lines.push(` - func[${totalFuncImports + i}]${name}`);
     }
     lines.push('');
