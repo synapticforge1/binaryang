@@ -28,9 +28,9 @@ bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
 ## Start the next session here (handoff, 2026-09-18 — M7c closed; M8 next)
 
-**Where the work stopped.** `main` is at the merge of M7c3b b1b (code last changed at
-the `isRealName` export after `c5ad07eac`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `c5ad07eac` (as on every stage before it) and every step exited 0: fmt, lint, **1271 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of M7c3c (code last changed at
+`328a6763e`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `328a6763e` (as on every stage before it) and every step exited 0: fmt, lint, **1271 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `bridge` **421/421**, `bridge-behaviour` **1806 calls / 602 exports agree**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -83,6 +83,7 @@ entity collections stay there until the records themselves are one type (M8).
 | M7c3b b0 | `66ccfe236` | 🗓️ owner: names cover types and fields — binaryen-ts's types and fields always named; `explicitNames` lists the real ones by name (2026-09-18) |
 | M7c3b b1a | `5e4a1cbdd` | the name section is its own fact: `hasNameSection` in both; `explicitNames` only says which names are real (2026-09-18) |
 | M7c3b b1b | `c5ad07eac` | wabt-ts's reader names every entity, every writer writes only real names; `localNamesListed` → `explicitNames.localsListed` — **M7c CLOSED** (2026-09-18) |
+| M7c3c   | `328a6763e` | wabt-ts's reader makes up LABELS too; fixed `--generate-names` dropping an unnamed type's real field names (a b1b bug) (2026-09-18) |
 
 ### Next, in order
 
@@ -94,7 +95,7 @@ entity collections stay there until the records themselves are one type (M8).
    **Inherited from M7c3b** (its record in [ir-convergence.md](ir-convergence.md)): references are
    still `Var`s, and binaryen-ts's passes need NAMES; the wabt-ts TEXT path makes up no names (a
    made-up `$func0` must not satisfy a WAT reference to a nonexistent one — name after resolution);
-   labels are made up by binaryen-ts's decoder only; `addType`'s made-up names are unrecorded. The
+   text-path LABELS likewise (the binary readers both make them up since M7c3c); `addType`'s made-up names are unrecorded. The
    module's last one-sided fields are wabt-ts's as-written metadata (`loc`, `filename`,
    `sectionMeta`, `fidelity`) — decide at the alias whether the one module carries them.
 2. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set

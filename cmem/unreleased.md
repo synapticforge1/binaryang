@@ -227,6 +227,10 @@ their own bump — and nothing breaks by their standing still.
   names. Ask `isRealName` (new export) rather than `name !== ''`. `Module.localNamesListed` (by
   function index) is gone: `explicitNames.localsListed`, by function name. Output bytes and text are
   unchanged. Fixed with it: wasm-objdump would have printed made-up names; it prints real ones only.
+  Labels too since M7c3c: an unnamed block / loop / if / try carries a made-up `$l<func>_<n>`.
+- **Fixed: `wasm2wat --generate-names` dropped the real field names of an UNNAMED type**
+  (`(type (struct (field $f i32)))` lost `$f`) — introduced and fixed within this unreleased run
+  (M7c3b b1b → M7c3c); never in a published version.
 - ⚠️ **BREAKING: `Module.featuresUsed` and `Func.tailcall` are gone** (S6 step 5 item 6 (M7c2)).
   Nothing read them; upstream's only consumer is wasm2c, which is not ported.
 - ⚠️ **BREAKING: `Func.body` is a `RegionExpr`** (S6 step 5 item 6 (M6b); `./ir/wabt-ts`) — read
