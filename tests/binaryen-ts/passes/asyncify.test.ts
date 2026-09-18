@@ -42,6 +42,7 @@ import {
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
 import { type Var, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { region, soleInstr } from '../region_helpers.ts';
+import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
@@ -132,6 +133,32 @@ Deno.test('parseAsyncifyOptions — splits list payloads on newlines as well as 
 // ---------------------------------------------------------------------------
 // Runtime-support synthesis (ABI shape)
 // ---------------------------------------------------------------------------
+
+// M8a1: a node's `align` is in BYTES. Asyncify built its stack and data accesses
+// with the EXPONENT 2; converting it to 4 is invisible to validation (2 bytes is
+// a legal alignment too), so the value itself is pinned — a mutant setting it
+// back to 2 survived every other test.
+Deno.test('Asyncify — every load and store it builds is 4-byte aligned, in bytes', () => {
+  const m = moduleWithImport();
+  new AsyncifyPass().run(m, {
+    optimizeLevel: 2,
+    shrinkLevel: 0,
+    debugInfo: false,
+    closedWorld: false,
+    passArgs: {},
+    partialInliningIfs: 0,
+  });
+  const aligns: number[] = [];
+  for (const f of m.functions) {
+    walkExpression(f.body, (e) => {
+      if (e.kind === ExpressionKind.Load || e.kind === ExpressionKind.Store) {
+        aligns.push((e as { align: number }).align);
+      }
+    });
+  }
+  assert(aligns.length > 0, 'the pass built no memory accesses to check');
+  assertEquals([...new Set(aligns)], [4]);
+});
 
 Deno.test('Asyncify Stage 1 — adds the 2 globals with the ABI shape', () => {
   const m = moduleWithImport();
