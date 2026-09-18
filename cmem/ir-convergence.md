@@ -3574,7 +3574,13 @@ M7c3b.
    (`writeNameOrIndex`, 11 call sites — an unnamed entity still prints `(;N;)`), `wasm-objdump`,
    `generateNames` (upstream's `$f0` scheme stays; it marks what it names REAL). A regex over
    `name === ''`-style tests finds 23 sites in 6 files; it cannot see `writeNameOrIndex`-style
-   helpers, so the measure is a TRIAL: name everything, then count what moves. Acceptance:
+   helpers, so the measure is a TRIAL: name everything, then count what moves. **Trial run
+   2026-09-18** (the binary reader alone naming every unnamed function / table / memory / global /
+   tag / segment, `$func3`-style, no writer changed; reverted): **36 tests / 173 steps fail, ONE
+   mechanism** — the made-up names reach `wasm2wat`'s text, and the text's re-assembly writes them
+   as real (every "folded → linear → folded", "round-trips byte-identically", "`wasm2wat` →
+   `wat2wasm`" test, plus the compat round trip). Exactly decision 4's warning; so naming and the
+   writers' switch to the record must land TOGETHER, and those 36 are the acceptance set. Acceptance:
    baseline IDENTICAL, `wasm2wat` text unchanged over the corpus, spec unchanged, round trips
    unchanged.
 2. **b2 — presence and the local listing.** `hasNameSection` → `explicitNames` present
