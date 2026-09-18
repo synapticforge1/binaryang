@@ -95,18 +95,24 @@ class Stack {
   constructor(seed: readonly ValueType[]) {
     this.values = [...seed];
   }
-  /** The top `n` values, deepest first — `unreachable` for each one a dead stack lacks. */
-  take(n: number, what: string): Type[] {
-    const got: Type[] = this.values.splice(Math.max(0, this.values.length - n));
-    if (got.length < n) {
-      if (!this.dead) {
-        throw new Error(
-          `derive-types: ${what} consumes ${n} value(s) and the stack holds ${got.length}`,
-        );
-      }
-      got.unshift(...new Array<Type>(n - got.length).fill(Unreachable));
+  /**
+   * The top `n` values, deepest first, WITHOUT removing them — `unreachable`
+   * for each one a dead stack lacks. A live stack that lacks one is refused.
+   */
+  peek(n: number, what: string): Type[] {
+    const got: Type[] = this.values.slice(Math.max(0, this.values.length - n));
+    this.require(n, got.length, what);
+    return [...new Array<Type>(n - got.length).fill(Unreachable), ...got];
+  }
+  /** Remove the top `n` values. */
+  drop(n: number, what: string): void {
+    this.require(n, this.values.length, what);
+    this.values.length = Math.max(0, this.values.length - n);
+  }
+  private require(n: number, held: number, what: string): void {
+    if (held < n && !this.dead) {
+      throw new Error(`derive-types: ${what} consumes ${n} value(s) and the stack holds ${held}`);
     }
-    return got;
   }
   push(t: Type): void {
     if (t === Unreachable) {
@@ -118,10 +124,27 @@ class Stack {
 
 /** Derives every node's type in one function (or one constant expression). */
 class Deriver {
+  /** The branch targets in scope, innermost last: each label and how many values a branch to it carries. */
+  private readonly labels: { name: string; arity: number }[];
+
   constructor(
     private readonly m: Module,
     private readonly locals: readonly W.Local[],
-  ) {}
+    /** The function's results — what `return`, and a branch to the frame, carry. */
+    private readonly results: readonly ValueType[],
+    frameLabel: string,
+  ) {
+    this.labels = [{ name: frameLabel, arity: results.length }];
+  }
+
+  /** How many values a branch to `v` carries. */
+  private arity(v: W.Var): number {
+    const l = v.kind === 'index'
+      ? this.labels[this.labels.length - 1 - v.value]
+      : this.labels.findLast((x) => x.name === v.name);
+    if (l === undefined) throw new Error(`derive-types: no label ${JSON.stringify(v)}`);
+    return l.arity;
+  }
 
   /** A region's instructions, on a stack seeded with `seed`; the region's type by the factories' rule. */
   region(children: readonly Expression[], seed: readonly ValueType[]): Type {
@@ -136,21 +159,48 @@ class Deriver {
   }
 
   /**
-   * Emit `e` onto `stack`: its operands first, then it consumes one value per
-   * operand (typing each `pop` from the stack), then its result is pushed.
+   * Emit `e` onto `stack`: its operands first, then it consumes its values
+   * (typing each `pop` from the stack), then its result is pushed.
+   *
+   * The values its operands CLAIM: one per `pop`, one per operand that
+   * produces a value, none for one that produces nothing — the parser gives a
+   * `br` every instruction left on its stack, a void `call` included. The
+   * parser pads placeholders into the DEEPEST positions, so the `pop`s take the
+   * deepest of those values, in order. What the instruction REMOVES is its real
+   * arity: a branch's target's, `return`'s results; otherwise what its
+   * operands claim.
    */
   private emit(e: Expression, stack: Stack): void {
     if (e.kind === ExpressionKind.Pop) return; // written as nothing
     const operands = this.operandsOf(e);
     for (const o of operands) this.emit(o, stack);
+    const pops = operands.filter((o) => o.kind === ExpressionKind.Pop);
+    const claimed = operands.reduce(
+      (n, o) => n + (o.kind === ExpressionKind.Pop || slots(typeOf(o)).length > 0 ? 1 : 0),
+      0,
+    );
+    const what = `${e.kind}${e.loc === undefined ? '' : ` at line ${e.loc.line}`}`;
+    const values = stack.peek(claimed, what);
+    pops.forEach((o, i) => ((o as Mut<typeof o>).type = values[i]!));
+    stack.drop(this.consumes(e, claimed), what);
     const params = carrierParams(e);
-    const taken = stack.take(operands.length, e.kind);
-    operands.forEach((o, i) => {
-      if (o.kind === ExpressionKind.Pop) (o as Mut<typeof o>).type = taken[i]!;
-    });
     if (params !== undefined) this.carrierBody(e, params.types);
     (e as Mut<typeof e>).type = this.typeOfNode(e);
     stack.push(typeOf(e));
+  }
+
+  /** How many values `e` removes from the stack, given what its operands claim. */
+  private consumes(e: Expression, claimed: number): number {
+    switch (e.kind) {
+      case ExpressionKind.Break:
+        return this.arity(e.target) + (e.condition === undefined ? 0 : 1);
+      case ExpressionKind.Switch:
+        return this.arity(e.defaultTarget) + 1;
+      case ExpressionKind.Return:
+        return this.results.length;
+      default:
+        return claimed;
+    }
   }
 
   /** A node's operands: its direct children other than its regions (a carrier's entry values, an if's condition). */
@@ -173,8 +223,22 @@ class Deriver {
     }
   }
 
-  /** A carrier's regions, each on a stack seeded with the carrier's parameters. */
+  /** A carrier's regions, each on a stack seeded with the carrier's parameters, its label in scope. */
   private carrierBody(e: Expression, params: readonly ValueType[]): void {
+    // A branch to a loop carries its parameters; to any other carrier, its results.
+    const label = (e as { label: string }).label;
+    const arity = e.kind === ExpressionKind.Loop
+      ? params.length
+      : slots(typeOf(e as Expression)).length;
+    this.labels.push({ name: label, arity });
+    try {
+      this.carrierRegions(e, params);
+    } finally {
+      this.labels.pop();
+    }
+  }
+
+  private carrierRegions(e: Expression, params: readonly ValueType[]): void {
     switch (e.kind) {
       case ExpressionKind.Block:
         this.region(e.children, params);
@@ -474,7 +538,7 @@ export function deriveTypes(m: WasmModule): void {
   const mod = new Module(m);
   const constant = (r: W.RegionExpr | undefined) => {
     if (r !== undefined) {
-      (r as Mut<W.RegionExpr>).type = new Deriver(mod, []).region(r.children, []);
+      (r as Mut<W.RegionExpr>).type = new Deriver(mod, [], [], '').region(r.children, []);
     }
   };
   for (const g of m.globals) constant(g.init);
@@ -486,6 +550,9 @@ export function deriveTypes(m: WasmModule): void {
   }
   for (const f of m.functions) {
     const body = f.body as Mut<W.RegionExpr>;
-    body.type = new Deriver(mod, f.locals).region(f.body.children, []);
+    body.type = new Deriver(mod, f.locals, f.sig.results, f.bodyFrameLabel ?? '').region(
+      f.body.children,
+      [],
+    );
   }
 }
