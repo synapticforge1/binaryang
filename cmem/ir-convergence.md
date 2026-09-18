@@ -3562,7 +3562,7 @@ Neither name is ever made up, so neither needs a "which are real" entry. Decode 
 binaries, `main` against the branch: 0 changed. 4 mutants killed. Ratchet **20 / 2 / 19**.
 Types and fields stay in `explicitNames.types` / `.fields` for now: whether decision 4's "a name
 always" reaches TYPES (referenced by index in both IRs, `name: ''` in both since M5a) is part of
-M7c3b.
+M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
 
 **🚧 M7c3b — wabt-ts takes the practice. The plan (2026-09-18), not started.**
 1. **b1 — names everywhere in wabt-ts, and one record of which are real.** The binary reader and
@@ -3587,8 +3587,11 @@ M7c3b.
    (`makeModule` gives an EMPTY record, so text still gets upstream's section — the N1 rule);
    `localNamesListed` (by index) → `localsListed` (by name — possible once every function has one).
    Ratchet: the module's last one-sided name fields converge.
-3. **Open inside it:** types and fields (above); references stay the `Var`s they are — whether they
-   become names is M8's.
+0. **b0 — binaryen-ts's types and fields take the practice first** (owner, above): every `TypeDef`
+   and field carries a name (made up where none), and `explicitNames.types` / `.fields` record the
+   REAL ones by name — as every other entity's are — instead of holding the names themselves
+   keyed by the `TypeDef` object.
+3. **Open inside it:** references stay the `Var`s they are — whether they become names is M8's.
 
 ### S7 — the linear-form marker
 
