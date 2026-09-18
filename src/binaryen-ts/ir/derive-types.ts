@@ -1,0 +1,491 @@
+// Copyright (c) 2026 Jon Marcum
+// Licensed under the MIT License. See LICENSE-MIT in the repository root.
+
+/**
+ * @module binaryen-ts/ir/derive-types
+ *
+ * S6 step 5 item 6 (M8d): every expression node's `type`, derived over a whole
+ * module — what binaryen-ts's passes dispatch on, and what a tree read by
+ * wabt-ts does not carry. The bridge derived it by REBUILDING every node through
+ * the factories; this sets it in place, by the factories' own rules:
+ *
+ * - where a factory derives the type from the node itself (an opcode, its
+ *   children), the factory is CALLED and its `type` taken, so the rule lives in
+ *   one place;
+ * - where a factory takes the type from its caller (a local's, a global's, a
+ *   callee's results, a GC type's), it comes from the module, as binaryen-ts's
+ *   decoder supplies it — the decoder, not the bridge, where they differ: the
+ *   bridge coarsened a typed-reference local to its abstract type, typed every
+ *   `pop` `i32` and `ref.i31` nullable.
+ *
+ * A block-type carrier's `type` is DECLARED and required on the node, so it is
+ * read, not derived.
+ *
+ * **`pop`.** wabt-ts's `pop` stands for an operand its parser found no
+ * instruction for: an extra result of a multi-value call, a value an earlier
+ * instruction left, a carrier's parameter, a caught exception's values. The
+ * encoder writes it as nothing, so the value in its slot is exactly what the
+ * wasm stack holds when its parent is emitted — and that is how it is typed
+ * here: each region's value stack is simulated in emission order. Where the
+ * stack is empty and the code is reachable there is no such value, and the
+ * module is refused rather than a type guessed; in unreachable code the stack
+ * is polymorphic and the `pop` is `unreachable`.
+ */
+
+import type * as W from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { anyOpcodeName } from '../../wabt-ts/core/opcode.ts';
+import {
+  type Expression,
+  ExpressionKind,
+  makeAtomicCmpxchg,
+  makeAtomicLoad,
+  makeAtomicRmw,
+  makeBinary,
+  makeBreak,
+  makeExternConvert,
+  makeLoad,
+  makeSelect,
+  makeSIMDExtract,
+  makeSIMDLoadStoreLane,
+  makeUnary,
+  refNullType,
+  typeOf,
+} from './expressions.ts';
+import { AbstractHeapType, isRefType, Packed, type ValueType } from './gc-types.ts';
+import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
+import { None, type Type, Unreachable, ValType } from './types.ts';
+import { visitChildren } from './walk.ts';
+import type { WasmModule } from './module.ts';
+
+type Mut<T> = { -readonly [K in keyof T]: T[K] };
+
+/** The types a result denotes, one per stack slot. */
+function slots(t: Type): ValueType[] {
+  if (t === None || t === Unreachable) return [];
+  return Array.isArray(t) ? [...t] : [t];
+}
+
+/** A result list as one `Type`: none, the one value, or the tuple. */
+function resultOf(results: readonly ValueType[]): Type {
+  if (results.length === 0) return None;
+  return results.length === 1 ? results[0]! : [...results];
+}
+
+/** An entity looked up by a reference, by index or by name. */
+class Space<T extends { name: string }> {
+  private readonly byName = new Map<string, T>();
+  constructor(private readonly items: readonly T[], private readonly what: string) {
+    for (const it of items) {
+      if (it.name !== '' && !this.byName.has(it.name)) this.byName.set(it.name, it);
+    }
+  }
+  get(v: W.Var): T {
+    const it = v.kind === 'index' ? this.items[v.value] : this.byName.get(v.name);
+    if (it === undefined) throw new Error(`derive-types: no ${this.what} ${JSON.stringify(v)}`);
+    return it;
+  }
+}
+
+/** One region's value stack, in emission order. */
+class Stack {
+  private readonly values: ValueType[];
+  /** After an `unreachable`-typed instruction the stack is polymorphic. */
+  private dead = false;
+  constructor(seed: readonly ValueType[]) {
+    this.values = [...seed];
+  }
+  /** The top `n` values, deepest first — `unreachable` for each one a dead stack lacks. */
+  take(n: number, what: string): Type[] {
+    const got: Type[] = this.values.splice(Math.max(0, this.values.length - n));
+    if (got.length < n) {
+      if (!this.dead) {
+        throw new Error(
+          `derive-types: ${what} consumes ${n} value(s) and the stack holds ${got.length}`,
+        );
+      }
+      got.unshift(...new Array<Type>(n - got.length).fill(Unreachable));
+    }
+    return got;
+  }
+  push(t: Type): void {
+    if (t === Unreachable) {
+      this.values.length = 0;
+      this.dead = true;
+    } else this.values.push(...slots(t));
+  }
+}
+
+/** Derives every node's type in one function (or one constant expression). */
+class Deriver {
+  constructor(
+    private readonly m: Module,
+    private readonly locals: readonly W.Local[],
+  ) {}
+
+  /** A region's instructions, on a stack seeded with `seed`; the region's type by the factories' rule. */
+  region(children: readonly Expression[], seed: readonly ValueType[]): Type {
+    const stack = new Stack(seed);
+    for (const c of children) this.emit(c, stack);
+    const last = children[children.length - 1];
+    return last === undefined ? None : typeOf(last);
+  }
+
+  private regionNode(r: W.RegionExpr, seed: readonly ValueType[]): void {
+    (r as Mut<W.RegionExpr>).type = this.region(r.children, seed);
+  }
+
+  /**
+   * Emit `e` onto `stack`: its operands first, then it consumes one value per
+   * operand (typing each `pop` from the stack), then its result is pushed.
+   */
+  private emit(e: Expression, stack: Stack): void {
+    if (e.kind === ExpressionKind.Pop) return; // written as nothing
+    const operands = this.operandsOf(e);
+    for (const o of operands) this.emit(o, stack);
+    const params = carrierParams(e);
+    const taken = stack.take(operands.length, e.kind);
+    operands.forEach((o, i) => {
+      if (o.kind === ExpressionKind.Pop) (o as Mut<typeof o>).type = taken[i]!;
+    });
+    if (params !== undefined) this.carrierBody(e, params.types);
+    (e as Mut<typeof e>).type = this.typeOfNode(e);
+    stack.push(typeOf(e));
+  }
+
+  /** A node's operands: its direct children other than its regions (a carrier's entry values, an if's condition). */
+  private operandsOf(e: Expression): Expression[] {
+    switch (e.kind) {
+      case ExpressionKind.Block:
+      case ExpressionKind.Loop:
+      case ExpressionKind.Try:
+      case ExpressionKind.TryTable:
+        return [...(e.params?.values ?? [])];
+      case ExpressionKind.If:
+        return [...(e.params?.values ?? []), e.condition];
+      case ExpressionKind.Region:
+        throw new Error('derive-types: a region reached an operand slot');
+      default: {
+        const out: Expression[] = [];
+        visitChildren(e, (c) => out.push(c));
+        return out;
+      }
+    }
+  }
+
+  /** A carrier's regions, each on a stack seeded with the carrier's parameters. */
+  private carrierBody(e: Expression, params: readonly ValueType[]): void {
+    switch (e.kind) {
+      case ExpressionKind.Block:
+        this.region(e.children, params);
+        return;
+      case ExpressionKind.Loop:
+        this.regionNode(e.body, params);
+        return;
+      case ExpressionKind.If:
+        this.regionNode(e.ifTrue, params);
+        if (e.ifFalse !== null) this.regionNode(e.ifFalse, params);
+        return;
+      case ExpressionKind.TryTable:
+        this.regionNode(e.body, params);
+        return;
+      case ExpressionKind.Try:
+        this.regionNode(e.body, params);
+        // A handler starts with what was thrown: the tag's values, then the
+        // exnref for a `_ref` clause.
+        for (const c of e.catches) {
+          const thrown = c.tag === undefined ? [] : [...this.m.tags.get(c.tag).sig.params];
+          this.regionNode(c.body, c.isRef ? [...thrown, ValType.ExnRef] : thrown);
+        }
+        return;
+    }
+  }
+
+  private local(v: W.Var): ValueType {
+    const l = v.kind === 'index'
+      ? this.locals[v.value]
+      : this.locals.find((x) => x.name === v.name);
+    if (l === undefined) throw new Error(`derive-types: no local ${JSON.stringify(v)}`);
+    return l.type;
+  }
+
+  private typeEntry(v: W.Var): W.TypeEntry {
+    return this.m.types.get(v);
+  }
+
+  /** A GC type's new instance: `(ref $T)`, as the decoder types it. */
+  private gcRef(v: W.Var): ValueType {
+    return { heapType: v.kind === 'index' ? v : W_index(this.m.typeIndex(v)), nullable: false };
+  }
+
+  /** A field's value on the stack: a packed field is `i32`. */
+  private fieldValue(f: W.Field | undefined): ValueType {
+    if (f === undefined) return ValType.I32;
+    const t = f.type;
+    return t === Packed.I8 || t === Packed.I16 ? ValType.I32 : t as ValueType;
+  }
+
+  private typeOfNode(e: Expression): Type {
+    switch (e.kind) {
+      // Carriers declare theirs.
+      case ExpressionKind.Block:
+      case ExpressionKind.Loop:
+      case ExpressionKind.If:
+      case ExpressionKind.Try:
+      case ExpressionKind.TryTable:
+        return e.type!;
+
+      case ExpressionKind.Const:
+        return e.value.type as ValueType;
+      case ExpressionKind.Nop:
+      case ExpressionKind.Drop:
+      case ExpressionKind.LocalSet:
+      case ExpressionKind.GlobalSet:
+      case ExpressionKind.Store:
+      case ExpressionKind.MemoryCopy:
+      case ExpressionKind.MemoryFill:
+      case ExpressionKind.MemoryInit:
+      case ExpressionKind.DataDrop:
+      case ExpressionKind.TableSet:
+      case ExpressionKind.TableFill:
+      case ExpressionKind.TableCopy:
+      case ExpressionKind.TableInit:
+      case ExpressionKind.ElemDrop:
+      case ExpressionKind.AtomicStore:
+      case ExpressionKind.AtomicFence:
+      case ExpressionKind.StructSet:
+      case ExpressionKind.ArraySet:
+      case ExpressionKind.ArrayFill:
+      case ExpressionKind.ArrayCopy:
+      case ExpressionKind.ArrayInitData:
+      case ExpressionKind.ArrayInitElem:
+      case ExpressionKind.CodeMetadata:
+        return None;
+      case ExpressionKind.Unreachable:
+      case ExpressionKind.Return:
+      case ExpressionKind.Switch:
+      case ExpressionKind.Throw:
+      case ExpressionKind.ThrowRef:
+      case ExpressionKind.Rethrow:
+        return Unreachable;
+      case ExpressionKind.Break:
+        return typeOf(makeBreak('', e.condition, e.values));
+
+      case ExpressionKind.LocalGet:
+      case ExpressionKind.LocalTee:
+        return this.local(e.var);
+      case ExpressionKind.GlobalGet:
+        return this.m.globals.get(e.var).type;
+
+      case ExpressionKind.Unary:
+        return typeOf(makeUnary(e.opcode, e.value));
+      case ExpressionKind.Binary:
+        return typeOf(makeBinary(e.opcode, e.left, e.right));
+      case ExpressionKind.Select:
+        return typeOf(makeSelect(e.val1, e.val2, e.condition, e.resultType));
+      case ExpressionKind.Quaternary:
+        return [ValType.I64, ValType.I64];
+
+      case ExpressionKind.Load:
+        // A SIMD load written in text arrives as a plain `load` (the bridge
+        // routed it to makeSIMDLoad, whose type is v128).
+        return anyOpcodeName(e.opcode).startsWith('v128.')
+          ? ValType.V128
+          : typeOf(makeLoad(e.opcode, e.offset, e.align, e.address));
+      case ExpressionKind.SIMDLoad:
+        return ValType.V128;
+      case ExpressionKind.SIMDLoadStoreLane:
+        return typeOf(makeSIMDLoadStoreLane(e.opcode, e.address, e.vec, e.offset, e.align, e.lane));
+      case ExpressionKind.SIMDExtract:
+        return typeOf(makeSIMDExtract(e.opcode, e.vec, e.lane));
+      case ExpressionKind.SIMDReplace:
+      case ExpressionKind.SIMDShuffle:
+      case ExpressionKind.SIMDTernary:
+        return ValType.V128;
+      // The factories' rule: `i32` whatever the memory's index type.
+      case ExpressionKind.MemorySize:
+      case ExpressionKind.MemoryGrow:
+        return ValType.I32;
+      case ExpressionKind.AtomicLoad:
+        return typeOf(makeAtomicLoad(e.opcode, e.offset, e.align, e.address));
+      case ExpressionKind.AtomicRMW:
+        return typeOf(makeAtomicRmw(e.opcode, e.offset, e.align, e.address, e.value));
+      case ExpressionKind.AtomicCmpxchg:
+        return typeOf(
+          makeAtomicCmpxchg(e.opcode, e.offset, e.align, e.address, e.expected, e.replacement),
+        );
+      case ExpressionKind.AtomicWait:
+      case ExpressionKind.AtomicNotify:
+        return ValType.I32;
+
+      case ExpressionKind.Call:
+        return resultOf(this.m.funcs.get(e.func).sig.results);
+      // As `call`'s: every result. (The factory keeps only the first, which
+      // mistypes a multi-value `call_indirect`.)
+      case ExpressionKind.CallIndirect:
+        return resultOf(e.sig.results);
+      case ExpressionKind.CallRef: {
+        const t = this.typeEntry(e.sigType);
+        if (t.kind !== 'func') throw new Error('derive-types: call_ref names a non-function type');
+        return resultOf(t.sig.results);
+      }
+
+      case ExpressionKind.TableGet:
+        return this.m.tables.get(e.table).elemType;
+      case ExpressionKind.TableSize:
+      case ExpressionKind.TableGrow:
+        return ValType.I32;
+
+      case ExpressionKind.RefNull:
+        return refNullType(e.refType);
+      case ExpressionKind.RefFunc:
+        return ValType.FuncRef;
+      case ExpressionKind.RefIsNull:
+      case ExpressionKind.RefEq:
+      case ExpressionKind.RefTest:
+      case ExpressionKind.I31Get:
+      case ExpressionKind.ArrayLen:
+        return ValType.I32;
+      case ExpressionKind.RefAs: {
+        // The operand's type made non-nullable, as the decoder types it.
+        const t = typeOf(e.value);
+        return isRefType(t) ? { ...t, nullable: false } : t;
+      }
+      case ExpressionKind.RefI31:
+        return { heapType: heapAbstract(AbstractHeapType.I31), nullable: false };
+      case ExpressionKind.AnyConvertExtern:
+      case ExpressionKind.ExternConvertAny:
+        return typeOf(makeExternConvert(e.kind, e.value));
+      case ExpressionKind.RefCast:
+        return { heapType: e.heapType, nullable: e.nullable } as ValueType;
+      case ExpressionKind.BrOn:
+        // The operand's type, as the decoder and the bridge both give it.
+        return typeOf(e.ref);
+
+      case ExpressionKind.StructNew:
+      case ExpressionKind.ArrayNew:
+      case ExpressionKind.ArrayNewFixed:
+      case ExpressionKind.ArrayNewData:
+      case ExpressionKind.ArrayNewElem:
+        return this.gcRef(e.typeVar);
+      case ExpressionKind.StructGet: {
+        if (e.signed !== undefined) return ValType.I32;
+        const t = this.typeEntry(e.typeVar);
+        if (t.kind !== 'struct') {
+          throw new Error('derive-types: struct.get names a non-struct type');
+        }
+        return this.fieldValue(fieldAt(t.fields, e.fieldVar));
+      }
+      case ExpressionKind.ArrayGet: {
+        if (e.signed !== undefined) return ValType.I32;
+        const t = this.typeEntry(e.typeVar);
+        if (t.kind !== 'array') throw new Error('derive-types: array.get names a non-array type');
+        return this.fieldValue(t.field);
+      }
+
+      case ExpressionKind.Pop:
+      case ExpressionKind.Region:
+        throw new Error(`derive-types: ${e.kind} is typed by its context`);
+    }
+  }
+}
+
+/** A struct's field, by index or by name. */
+function fieldAt(fields: readonly W.Field[], v: W.Var): W.Field | undefined {
+  return v.kind === 'index' ? fields[v.value] : fields.find((f) => f.name === v.name);
+}
+
+function W_index(i: number): W.Var {
+  return { kind: 'index', value: i };
+}
+
+/** A carrier's parameters, or `undefined` for a node that is not a carrier. */
+function carrierParams(e: Expression): { types: readonly ValueType[] } | undefined {
+  switch (e.kind) {
+    case ExpressionKind.Block:
+    case ExpressionKind.Loop:
+    case ExpressionKind.If:
+    case ExpressionKind.Try:
+    case ExpressionKind.TryTable:
+      return { types: e.params?.types ?? [] };
+    default:
+      return undefined;
+  }
+}
+
+/** The module context every function's derivation reads. */
+class Module {
+  readonly funcs: Space<{ name: string; sig: W.FuncSignature }>;
+  readonly globals: Space<{ name: string; type: ValueType }>;
+  readonly tables: Space<{ name: string; elemType: ValueType }>;
+  readonly tags: Space<{ name: string; sig: W.FuncSignature }>;
+  readonly types: Space<W.TypeEntry>;
+  private readonly typeNames: readonly string[];
+
+  constructor(m: WasmModule) {
+    const imported = <K extends ExternalKind, T>(kind: K, pick: (i: W.Import) => T): T[] =>
+      m.imports.filter((i) => i.kind === kind).map(pick);
+    this.funcs = new Space([
+      ...imported(
+        ExternalKind.Func,
+        (i) => (i as Extract<W.Import, { kind: ExternalKind.Func }>).func,
+      ),
+      ...m.functions,
+    ], 'function');
+    this.globals = new Space([
+      ...imported(
+        ExternalKind.Global,
+        (i) => (i as Extract<W.Import, { kind: ExternalKind.Global }>).global,
+      ),
+      ...m.globals,
+    ], 'global');
+    this.tables = new Space([
+      ...imported(
+        ExternalKind.Table,
+        (i) => (i as Extract<W.Import, { kind: ExternalKind.Table }>).table,
+      ),
+      ...m.tables,
+    ], 'table');
+    this.tags = new Space([
+      ...imported(
+        ExternalKind.Tag,
+        (i) => (i as Extract<W.Import, { kind: ExternalKind.Tag }>).tag,
+      ),
+      ...m.tags,
+    ], 'tag');
+    this.types = new Space(m.types, 'type');
+    this.typeNames = m.types.map((t) => t.name);
+  }
+
+  typeIndex(v: W.Var): number {
+    if (v.kind === 'index') return v.value;
+    const i = this.typeNames.indexOf(v.name);
+    if (i < 0) throw new Error(`derive-types: no type ${v.name}`);
+    return i;
+  }
+}
+
+/**
+ * Set every expression node's `type` in `m` — every function body and every
+ * constant expression — as binaryen-ts's factories and decoder type them. In
+ * place. See the module doc.
+ */
+export function deriveTypes(m: WasmModule): void {
+  const mod = new Module(m);
+  const constant = (r: W.RegionExpr | undefined) => {
+    if (r !== undefined) {
+      (r as Mut<W.RegionExpr>).type = new Deriver(mod, []).region(r.children, []);
+    }
+  };
+  for (const g of m.globals) constant(g.init);
+  for (const t of m.tables) constant(t.init);
+  for (const d of m.dataSegments) constant(d.offset);
+  for (const s of m.elements) {
+    constant(s.offset);
+    for (const entry of s.elemExprs) constant(entry);
+  }
+  for (const f of m.functions) {
+    const body = f.body as Mut<W.RegionExpr>;
+    body.type = new Deriver(mod, f.locals).region(f.body.children, []);
+  }
+}
