@@ -136,6 +136,22 @@ describe('M8c — nameReferences: entities', () => {
     assertEquals(name(all(t.functions[1]!.body, 'call')[0].func), '$func0');
   });
 
+  it('imports come first in every space; constant expressions are named too', () => {
+    const t = load(`(module
+      (import "m" "g" (global i32))
+      (import "m" "mem" (memory 1))
+      (memory 1)
+      (func $f)
+      (global i32 (global.get 0))
+      (table 1 funcref (ref.func $f))
+      (data (global.get 0) "")
+      (export "m" (memory 1)))`);
+    assertEquals(name(t.exports[0]!.var), 'mem1', 'the defined memory follows the imported one');
+    assertEquals(name(all(t.globals[0]!.init, 'global.get')[0].var), '$global0');
+    assertEquals(name(all(t.tables[0]!.init, 'ref.func')[0].func), '$f');
+    assertEquals(name(all(t.dataSegments[0]!.offset, 'global.get')[0].var), '$global0');
+  });
+
   it('an index out of range is refused, never guessed', () => {
     const t = load('(module (func))', false);
     t.functions[0]!.body.children.push({ kind: 'call', func: varIndex(9), operands: [] } as never);
@@ -175,6 +191,11 @@ describe('M8c — nameReferences: labels', () => {
     const f = load('(module (func block $l0_frame br 1 br 0 end))').functions[0]!;
     assertEquals(f.bodyFrameLabel, '$l0_frame.1');
     assertEquals(all(f.body, 'br').map((b) => name(b.target)), ['$l0_frame.1', '$l0_frame']);
+  });
+
+  it('the frame label is numbered by the function index space, imports first', () => {
+    const m = load('(module (import "m" "f" (func)) (func br 0))');
+    assertEquals(m.functions[0]!.bodyFrameLabel, '$l1_frame');
   });
 
   it('br_table names every target and the default', () => {
