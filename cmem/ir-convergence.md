@@ -3721,6 +3721,21 @@ every API- or pass-built record. With `loc` optional a leaf record IS its partne
 `customSections` (required in wabt-ts, optional in binaryen-ts — M8b5). wabt-ts outputs 0 of 2,888
 and objdump 0 of 602 changed. The module's own `loc` waits for M8b5.
 
+**✅ M8b4 — the function record is one type (2026-09-18, `b80ce1042` + `ed6a54128`).** `typeVar` —
+which of several IDENTICAL types a function uses (T1) — is optional in both, as `call_indirect`'s is.
+binaryen-ts's decoder now KEEPS the written index and the encoder writes it while it still names a
+function type with the function's signature (else derives — absent, or stale after a pass changed
+the signature): it always re-derived, picking the FIRST identical type — **51 spec binaries DIFF →
+byte-identical, 0 worse**. wabt-ts's writers refuse a function without one, its validator reports
+it. binaryen-ts's records gain optional `loc` (all) and `nodeId` / `typeUse` (function); wabt-ts's
+function gains `bodyFrameLabel`. 🔍 **The ratchet had a blind spot**: its field-level check reads
+`A[K]`, the same `T | undefined` for `f?: T` and `f?: T | undefined`, so it could not see optional
+EXACTNESS (`exactOptionalPropertyTypes`) — `bodyFrameLabel` differed that way under all-green field
+pins; only the collection-level check caught it. Every converged pair is now pinned WHOLE-RECORD, as
+the ratchet's header always said to. A mutant writing index 0 for a missing `typeVar` survived until
+a test pinned the refusal. Ratchet **4 / 0 / 1** — only the module's as-written metadata and
+`customSections`' optionality remain (M8b5).
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop

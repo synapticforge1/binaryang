@@ -220,6 +220,11 @@ their own bump — and nothing breaks by their standing still.
   `string | null`; absent when there is none. `ModuleBuilder.setStart(name | null)` is unchanged.
 - ⚠️ **BREAKING: a packed field type is `Type.I8` / `Type.I16`** (M8b2), was the string `'i8'` /
   `'i16'`; `Packed.I8` / `Packed.I16` are exported from `gc-types` for convenience.
+- **A function keeps the type index its binary wrote** (M8b4): `WasmFunction.typeVar?` (also
+  `loc?`, `nodeId?`, `typeUse?`, and `loc?` on every other record). With two identical types, decode
+  → encode re-derived the FIRST; 51 spec binaries now round-trip byte-identically. On wabt-ts,
+  ⚠️ **BREAKING (types)** `Func.typeVar` is optional (absent before `synthesizeTypes`), and a record's
+  `loc` is optional (M8b3) — read it with `locOf`.
 - ⚠️ **BREAKING (types): a call's `isReturn` is `true` or absent** (S6 step 5 item 6 (M8a2)) —
   `isReturn?: true` on Call / CallIndirect / CallRef; a plain call omits it (binaryen-ts wrote
   `false`). The factories' `isReturn = false` parameter is unchanged.
