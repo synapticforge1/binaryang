@@ -1898,7 +1898,7 @@ export function valueTypeName(vt: ValueType | Type): string {
 /** Shared shape for every {@link TypeEntry} variant. */
 export interface TypeEntryBase {
   name: string;
-  loc: Location;
+  loc?: Location;
   /**
    * An explicit `(sub final? $super*)` declaration.
    *
@@ -2030,7 +2030,7 @@ export type TypeUse = Var | 'resolved' | 'inline';
  */
 export interface Func {
   name: string;
-  loc: Location;
+  loc?: Location;
   /** Handle into {@link Module.fidelity}; see `fidelity.ts`. */
   nodeId?: NodeId;
   /** Type-section reference (index or name). Filled during decode. */
@@ -2064,7 +2064,7 @@ export interface Func {
 /** A global variable. */
 export interface Global {
   name: string;
-  loc: Location;
+  loc?: Location;
   type: ValueType;
   mutable: boolean;
   /**
@@ -2080,7 +2080,7 @@ export interface Global {
 /** A table. */
 export interface Table {
   name: string;
-  loc: Location;
+  loc?: Location;
   elemType: ValueType;
   limits: Limits;
   /**
@@ -2100,14 +2100,14 @@ export interface Table {
 /** A linear memory. */
 export interface Memory {
   name: string;
-  loc: Location;
+  loc?: Location;
   limits: Limits;
 }
 
 /** An exception tag. */
 export interface Tag {
   name: string;
-  loc: Location;
+  loc?: Location;
   sig: FuncSignature;
 }
 
@@ -2122,7 +2122,7 @@ export type SegmentKind = 'active' | 'passive' | 'declared';
  */
 export interface ElemSegment {
   name: string;
-  loc: Location;
+  loc?: Location;
   kind: SegmentKind;
   tableVar: Var; // only for active
   /**
@@ -2140,7 +2140,7 @@ export interface ElemSegment {
 /** A data segment (active or passive). */
 export interface DataSegment {
   name: string;
-  loc: Location;
+  loc?: Location;
   kind: SegmentKind;
   memoryVar: Var; // only for active
   /**
@@ -2179,7 +2179,7 @@ export interface Custom {
    * the name section moved last when the reader dropped it on applying it.
    */
   data: Uint8Array | null;
-  loc: Location;
+  loc?: Location;
   /**
    * The known section this custom section FOLLOWED in the source binary:
    * `null` if it came before any of them, `undefined` if the position is not

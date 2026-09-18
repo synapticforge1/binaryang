@@ -261,7 +261,7 @@ class ResolveContext {
         // hid it — but resolveNames' own invariant is that no name-var
         // survives, and a caller that skips synthesizeTypes would emit 0.
         imp.func.typeVar = this.resolveTypeVar(imp.func.typeVar, imp.func.loc);
-        this.resolveTypeUse(imp.func, imp.func.loc);
+        this.resolveTypeUse(imp.func, locOf(imp.func));
       } else if (imp.kind === ExternalKind.Global) imp.global.type = vt(imp.global.type);
       else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
       else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
@@ -273,7 +273,7 @@ class ResolveContext {
       // afterwards; once that overwrite was correctly suppressed for an
       // explicit type-use, the name-var reached the binary writer.
       f.typeVar = this.resolveTypeVar(f.typeVar, f.loc);
-      this.resolveTypeUse(f, f.loc);
+      this.resolveTypeUse(f, locOf(f));
       for (const l of f.locals) l.type = vt(l.type);
     }
     for (const t of this.module.tags) sig(t.sig);

@@ -53,18 +53,10 @@ const PINNED = {
       'fidelity',
     ],
     onlyB: [],
-    differ: [
-      'imports',
-      'tables',
-      'memories',
-      'globals',
-      'tags',
-      'dataSegments',
-      'types',
-      'functions',
-      'elements',
-      'customSections',
-    ],
+    // Since M8b3 a leaf record's only extra field is wabt-ts's OPTIONAL `loc`,
+    // so its collection is one type; what still differs holds a function — and
+    // `customSections`, required in wabt-ts and optional in binaryen-ts.
+    differ: ['imports', 'functions', 'customSections'],
   },
   func: {
     onlyW: ['loc', 'nodeId', 'typeVar', 'typeUse'],
@@ -84,10 +76,10 @@ const PINNED = {
   // entity itself, so what differs is the EMBEDDED record — `loc` on four of
   // them, and the function record until M6.
   importFunc: { onlyW: [], onlyB: [], differ: ['func'] },
-  importTable: { onlyW: [], onlyB: [], differ: ['table'] },
-  importMemory: { onlyW: [], onlyB: [], differ: ['memory'] },
-  importGlobal: { onlyW: [], onlyB: [], differ: ['global'] },
-  importTag: { onlyW: [], onlyB: [], differ: ['tag'] },
+  importTable: { onlyW: [], onlyB: [], differ: [] },
+  importMemory: { onlyW: [], onlyB: [], differ: [] },
+  importGlobal: { onlyW: [], onlyB: [], differ: [] },
+  importTag: { onlyW: [], onlyB: [], differ: [] },
   // A type entry, by shape (M5). `loc` is wabt-ts's, as on every other record.
   typeFunc: { onlyW: ['loc'], onlyB: [], differ: [] },
   // A field's `type` was each side's own `StorageType` — the packed codes were
@@ -187,6 +179,6 @@ describe('S6 step 5 item 6 — Module / WasmModule convergence ratchet', () => {
     const count = (s: 'onlyW' | 'onlyB' | 'differ') =>
       Object.values(PINNED).reduce((n, e) => n + e[s].length, 0);
     // The type check above is the assertion; this keeps the numbers readable.
-    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [18, 1, 15]);
+    assertEquals([count('onlyW'), count('onlyB'), count('differ')], [18, 1, 4]);
   });
 });

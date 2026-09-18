@@ -28,7 +28,7 @@
  * ```
  */
 
-import { indexOf, valueTypeName } from '../ir/ir.ts';
+import { indexOf, locOf, valueTypeName } from '../ir/ir.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { Result } from '../core/result.ts';
@@ -213,7 +213,7 @@ function sectionLabel(meta: SectionMeta, m: Module): string {
     // Match by byte offset — custom sections that were parsed (e.g. name
     // section with readDebugNames:true) won't be in m.customSections; fall back.
     const custom = m.customSections.find((c) =>
-      c.loc.offset >= meta.offset && c.loc.offset < meta.offset + meta.size
+      locOf(c).offset >= meta.offset && locOf(c).offset < meta.offset + meta.size
     );
     return custom ? `"${custom.name}"` : 'custom';
   }

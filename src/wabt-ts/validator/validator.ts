@@ -305,11 +305,11 @@ class ModuleValidator implements ExprVisitorDelegate {
         .filter((n): n is number => n !== undefined);
       const c = canon[i] ?? '';
       if (te.kind === 'func') {
-        this.acc(this.sv.onFuncType(te.loc, te.sig.params, te.sig.results, i, supers, c));
+        this.acc(this.sv.onFuncType(locOf(te), te.sig.params, te.sig.results, i, supers, c));
       } else if (te.kind === 'struct') {
-        this.acc(this.sv.onStructType(te.loc, te.fields, supers, c));
+        this.acc(this.sv.onStructType(locOf(te), te.fields, supers, c));
       } else {
-        this.acc(this.sv.onArrayType(te.loc, te.field, supers, c));
+        this.acc(this.sv.onArrayType(locOf(te), te.field, supers, c));
       }
     }
 
@@ -337,17 +337,17 @@ class ModuleValidator implements ExprVisitorDelegate {
     for (const [i, te] of m.types.entries()) {
       const bound = scopeEnd[i] ?? seenTypes;
       if (te.kind === 'func') {
-        for (const p of te.sig.params) checkVt(p, `type ${i} param`, te.loc, bound);
-        for (const r of te.sig.results) checkVt(r, `type ${i} result`, te.loc, bound);
+        for (const p of te.sig.params) checkVt(p, `type ${i} param`, locOf(te), bound);
+        for (const r of te.sig.results) checkVt(r, `type ${i} result`, locOf(te), bound);
       } else if (te.kind === 'struct') {
-        for (const f of te.fields) checkVt(f.type, `type ${i} field`, te.loc, bound);
+        for (const f of te.fields) checkVt(f.type, `type ${i} field`, locOf(te), bound);
       } else if (te.field) {
-        checkVt(te.field.type, `type ${i} element`, te.loc, bound);
+        checkVt(te.field.type, `type ${i} element`, locOf(te), bound);
       }
       for (const sv of te.sub?.supertypes ?? []) {
         if (sv.kind !== 'index') continue;
         if (sv.value >= seenTypes) {
-          this.acc(this.sv.onUnknownType(te.loc, sv.value));
+          this.acc(this.sv.onUnknownType(locOf(te), sv.value));
           continue;
         }
         // A FINAL type cannot be extended. Absent `(sub …)` means implicitly
@@ -357,19 +357,19 @@ class ModuleValidator implements ExprVisitorDelegate {
         const superEntry = m.types[sv.value];
         if (superEntry === undefined) continue;
         if (superEntry.sub === undefined || superEntry.sub.final) {
-          this.acc(this.sv.onFinalSupertype(te.loc, i, sv.value));
+          this.acc(this.sv.onFinalSupertype(locOf(te), i, sv.value));
           continue;
         }
         this.checkSubtypeDecl(te, superEntry, i, sv.value);
       }
     }
-    for (const g of m.globals) checkVt(g.type, 'global', g.loc);
-    for (const t of m.tables) checkVt(t.elemType, 'table', t.loc);
-    for (const el of m.elements) checkVt(el.elemType, 'elem segment', el.loc);
+    for (const g of m.globals) checkVt(g.type, 'global', locOf(g));
+    for (const t of m.tables) checkVt(t.elemType, 'table', locOf(t));
+    for (const el of m.elements) checkVt(el.elemType, 'elem segment', locOf(el));
     for (const f of m.functions) {
-      for (const p of f.sig.params) checkVt(p, 'param', f.loc);
-      for (const r of f.sig.results) checkVt(r, 'result', f.loc);
-      for (const l of f.locals.slice(f.sig.params.length)) checkVt(l.type, 'local', f.loc);
+      for (const p of f.sig.params) checkVt(p, 'param', locOf(f));
+      for (const r of f.sig.results) checkVt(r, 'result', locOf(f));
+      for (const l of f.locals.slice(f.sig.params.length)) checkVt(l.type, 'local', locOf(f));
       // ⚠️ And the BLOCK TYPES inside the body, which this loop used to miss.
       //
       // A `(block (result (ref 1)))` in a module whose type section has one
@@ -383,7 +383,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       // mode nothing else here could see: ACCEPTING something invalid. Every
       // other invariant in this project asks only whether valid input survives.
       for (const bt of blockTypesIn(f.body.children)) {
-        if (bt.kind === 'value') checkVt(bt.type, 'block result', f.loc);
+        if (bt.kind === 'value') checkVt(bt.type, 'block result', locOf(f));
       }
     }
 
@@ -393,18 +393,18 @@ class ModuleValidator implements ExprVisitorDelegate {
       switch (imp.kind) {
         case ExternalKind.Func: {
           const sigIdx = varIdx(imp.func.typeVar);
-          this.acc(this.sv.onFunction(imp.func.loc, sigIdx));
+          this.acc(this.sv.onFunction(locOf(imp.func), sigIdx));
           funcImportIdx++;
           break;
         }
         case ExternalKind.Table:
-          this.acc(this.sv.onTable(imp.table.loc, imp.table.elemType, imp.table.limits));
+          this.acc(this.sv.onTable(locOf(imp.table), imp.table.elemType, imp.table.limits));
           break;
         case ExternalKind.Memory:
-          this.acc(this.sv.onMemory(imp.memory.loc, imp.memory.limits));
+          this.acc(this.sv.onMemory(locOf(imp.memory), imp.memory.limits));
           break;
         case ExternalKind.Global:
-          this.acc(this.sv.onGlobalImport(imp.global.loc, imp.global.type, imp.global.mutable));
+          this.acc(this.sv.onGlobalImport(locOf(imp.global), imp.global.type, imp.global.mutable));
           break;
         case ExternalKind.Tag:
           // A tag's type is the func type with the same params and no results.
@@ -412,7 +412,7 @@ class ModuleValidator implements ExprVisitorDelegate {
           // index 0 (which silently mis-typed any non-first tag signature).
           this.acc(
             this.sv.onTag(
-              imp.tag.loc,
+              locOf(imp.tag),
               this.resolveTagSig(imp.tag.sig.params, imp.tag.sig.results),
             ),
           );
@@ -422,24 +422,26 @@ class ModuleValidator implements ExprVisitorDelegate {
 
     // Defined functions (type registration only; bodies come later)
     for (const func of m.functions) {
-      this.acc(this.sv.onFunction(func.loc, varIdx(func.typeVar)));
+      this.acc(this.sv.onFunction(locOf(func), varIdx(func.typeVar)));
     }
 
     // Tables
     for (const table of m.tables) {
       // PRESENT, not non-empty: an empty initializer is one — and invalid, so the
       // validator must see it rather than a table without one (M2).
-      this.acc(this.sv.onTable(table.loc, table.elemType, table.limits, table.init !== undefined));
+      this.acc(
+        this.sv.onTable(locOf(table), table.elemType, table.limits, table.init !== undefined),
+      );
       if (table.init !== undefined) {
-        this.acc(this.sv.beginInitExpr(table.loc, table.elemType));
-        this.visitConstExpr(table.init.children, table.loc);
+        this.acc(this.sv.beginInitExpr(locOf(table), table.elemType));
+        this.visitConstExpr(table.init.children, locOf(table));
         this.acc(this.sv.endInitExpr());
       }
     }
 
     // Memories
     for (const mem of m.memories) {
-      this.acc(this.sv.onMemory(mem.loc, mem.limits));
+      this.acc(this.sv.onMemory(locOf(mem), mem.limits));
     }
 
     // Globals. `onGlobal` registers it first, so the in-scope count for its
@@ -447,17 +449,17 @@ class ModuleValidator implements ExprVisitorDelegate {
     // itself.
     let globalIdx = countImports(m, ExternalKind.Global);
     for (const global of m.globals) {
-      this.acc(this.sv.onGlobal(global.loc, global.type, global.mutable));
-      this.acc(this.sv.beginGlobalInitExpr(global.loc, global.type, globalIdx++));
+      this.acc(this.sv.onGlobal(locOf(global), global.type, global.mutable));
+      this.acc(this.sv.beginGlobalInitExpr(locOf(global), global.type, globalIdx++));
       // A defined global with no initializer is checked as an empty one: invalid.
-      this.visitConstExpr(global.init?.children ?? [], global.loc);
+      this.visitConstExpr(global.init?.children ?? [], locOf(global));
       this.acc(this.sv.endInitExpr());
     }
 
     // Tags
     for (const tag of m.tags) {
       const sigIdx = this.resolveTagSig(tag.sig.params, tag.sig.results);
-      this.acc(this.sv.onTag(tag.loc, sigIdx));
+      this.acc(this.sv.onTag(locOf(tag), sigIdx));
     }
 
     // Exports
@@ -472,20 +474,20 @@ class ModuleValidator implements ExprVisitorDelegate {
 
     // Elem segments
     for (const elem of m.elements) {
-      this.acc(this.sv.onElemSegment(elem.loc, varIdx(elem.tableVar), elem.kind));
-      this.acc(this.sv.onElemSegmentElemType(elem.loc, elem.elemType));
+      this.acc(this.sv.onElemSegment(locOf(elem), varIdx(elem.tableVar), elem.kind));
+      this.acc(this.sv.onElemSegmentElemType(locOf(elem), elem.elemType));
       if (elem.kind === 'active') {
         // An active segment's offset is indexed in the TABLE's index type —
         // i64 for a table64 table. Hard-coding i32 rejected every 64-bit
         // active segment with "type mismatch in function".
         const offsetType = this.sv.tableIndexType(varIdx(elem.tableVar));
-        this.acc(this.sv.beginInitExpr(elem.loc, offsetType));
-        this.visitConstExpr(elem.offset?.children ?? [], elem.loc);
+        this.acc(this.sv.beginInitExpr(locOf(elem), offsetType));
+        this.visitConstExpr(elem.offset?.children ?? [], locOf(elem));
         this.acc(this.sv.endInitExpr());
       }
       for (const elemExpr of elem.elemExprs) {
-        this.acc(this.sv.beginInitExpr(elem.loc, elem.elemType));
-        this.visitConstExpr(elemExpr.children, elem.loc);
+        this.acc(this.sv.beginInitExpr(locOf(elem), elem.elemType));
+        this.visitConstExpr(elemExpr.children, locOf(elem));
         this.acc(this.sv.endInitExpr());
       }
     }
@@ -497,23 +499,23 @@ class ModuleValidator implements ExprVisitorDelegate {
     const visitor = new ExprVisitor(this);
     let globalFuncIdx = countImports(m, ExternalKind.Func);
     for (const func of m.functions) {
-      this.acc(this.sv.beginFunctionBody(func.loc, globalFuncIdx++));
+      this.acc(this.sv.beginFunctionBody(locOf(func), globalFuncIdx++));
       // One declaration per slot: the shared validator counts locals, and the
       // grouping the binary used is the writer's business (M6c).
       for (const local of func.locals.slice(func.sig.params.length)) {
-        this.acc(this.sv.onLocalDecl(func.loc, 1, local.type));
+        this.acc(this.sv.onLocalDecl(locOf(func), 1, local.type));
       }
       this.acc(visitor.visitExprList(func.body.children));
-      this.acc(this.sv.endFunctionBody(func.loc));
+      this.acc(this.sv.endFunctionBody(locOf(func)));
     }
 
     // Data segments (init offsets)
     for (const seg of m.dataSegments) {
-      this.acc(this.sv.onDataSegment(seg.loc, varIdx(seg.memoryVar), seg.kind));
+      this.acc(this.sv.onDataSegment(locOf(seg), varIdx(seg.memoryVar), seg.kind));
       if (seg.kind === 'active') {
         // Same for data: the offset is in the MEMORY's index type.
-        this.acc(this.sv.beginInitExpr(seg.loc, this.sv.memoryIndexType(varIdx(seg.memoryVar))));
-        this.visitConstExpr(seg.offset?.children ?? [], seg.loc);
+        this.acc(this.sv.beginInitExpr(locOf(seg), this.sv.memoryIndexType(varIdx(seg.memoryVar))));
+        this.visitConstExpr(seg.offset?.children ?? [], locOf(seg));
         this.acc(this.sv.endInitExpr());
       }
     }
@@ -589,7 +591,7 @@ class ModuleValidator implements ExprVisitorDelegate {
    *   array   the element behaves like a single struct field
    */
   private checkSubtypeDecl(sub: TypeEntry, superT: TypeEntry, i: number, j: number): void {
-    const bad = (why: string) => this.acc(this.sv.onBadSubtype(sub.loc, i, j, why));
+    const bad = (why: string) => this.acc(this.sv.onBadSubtype(locOf(sub), i, j, why));
     if (sub.kind !== superT.kind) {
       bad(`${sub.kind} cannot extend ${superT.kind}`);
       return;

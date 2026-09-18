@@ -2114,30 +2114,30 @@ export class WastParser {
     for (const imp of module.imports) {
       switch (imp.kind) {
         case ExternalKind.Func:
-          bind('func', imp.func.name, imp.func.loc);
+          bind('func', imp.func.name, locOf(imp.func));
           break;
         case ExternalKind.Table:
-          bind('table', imp.table.name, imp.table.loc);
+          bind('table', imp.table.name, locOf(imp.table));
           break;
         case ExternalKind.Memory:
-          bind('memory', imp.memory.name, imp.memory.loc);
+          bind('memory', imp.memory.name, locOf(imp.memory));
           break;
         case ExternalKind.Global:
-          bind('global', imp.global.name, imp.global.loc);
+          bind('global', imp.global.name, locOf(imp.global));
           break;
         case ExternalKind.Tag:
-          bind('tag', imp.tag.name, imp.tag.loc);
+          bind('tag', imp.tag.name, locOf(imp.tag));
           break;
       }
     }
-    for (const f of module.functions) bind('func', f.name, f.loc);
-    for (const t of module.tables) bind('table', t.name, t.loc);
-    for (const mem of module.memories) bind('memory', mem.name, mem.loc);
-    for (const g of module.globals) bind('global', g.name, g.loc);
-    for (const tag of module.tags) bind('tag', tag.name, tag.loc);
-    for (const t of module.types) bind('type', t.name, t.loc);
-    for (const e of module.elements) bind('elem', e.name, e.loc);
-    for (const d of module.dataSegments) bind('data', d.name, d.loc);
+    for (const f of module.functions) bind('func', f.name, locOf(f));
+    for (const t of module.tables) bind('table', t.name, locOf(t));
+    for (const mem of module.memories) bind('memory', mem.name, locOf(mem));
+    for (const g of module.globals) bind('global', g.name, locOf(g));
+    for (const tag of module.tags) bind('tag', tag.name, locOf(tag));
+    for (const t of module.types) bind('type', t.name, locOf(t));
+    for (const e of module.elements) bind('elem', e.name, locOf(e));
+    for (const d of module.dataSegments) bind('data', d.name, locOf(d));
 
     // Struct field names are scoped to their own type, not to the module.
     for (const t of module.types) {
@@ -2145,7 +2145,7 @@ export class WastParser {
       const seen = new Set<string>();
       for (const f of t.fields) {
         if (f.name === '') continue;
-        if (seen.has(f.name)) this.error(t.loc, `duplicate field ${f.name}`);
+        if (seen.has(f.name)) this.error(locOf(t), `duplicate field ${f.name}`);
         else seen.add(f.name);
       }
     }
@@ -5350,8 +5350,8 @@ export class WastParser {
     // Functions and tags interleave in the text; their source offsets say how.
     // (`sort` is stable, so items without a location keep their array order.)
     const defs: ({ offset: number; func: Func } | { offset: number; sig: FuncSignature })[] = [
-      ...module.functions.map((func) => ({ offset: func.loc.offset, func })),
-      ...module.tags.map((tag) => ({ offset: tag.loc.offset, sig: tag.sig })),
+      ...module.functions.map((func) => ({ offset: locOf(func).offset, func })),
+      ...module.tags.map((tag) => ({ offset: locOf(tag).offset, sig: tag.sig })),
     ].sort((a, b) => a.offset - b.offset);
     for (const d of defs) {
       if ('func' in d) {
