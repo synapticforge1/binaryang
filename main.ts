@@ -72,7 +72,6 @@
  * │   ├── ir/ core/               IR and core vocabulary        (@jrmarcum/binaryang/ir/wabt-ts, /core/wabt-ts)
  * │   ├── api/                    compat facade                 (@jrmarcum/binaryang/compat/wabt)
  * │   └── tools/                  wat2wasm, wasm2wat, wasm-validate, wasm-objdump, wasm-strip, wasm2ts
- * ├── src/bridge/                 wabt-ts IR -> binaryen-ts IR (internal; S6 deletes it)
  * └── src/cli/                    shared cross-runtime CLI helpers
  *
  * Upstream C++ is cited by its upstream path (`WebAssembly/binaryen/src/…`, `WebAssembly/wabt`);

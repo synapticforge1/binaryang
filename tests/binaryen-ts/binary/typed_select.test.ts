@@ -33,7 +33,8 @@ import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
+import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 
 /** Every select in the module, in walk order. */
 function selects(mod: WasmModule): SelectExpr[] {
@@ -46,14 +47,15 @@ function selects(mod: WasmModule): SelectExpr[] {
   return out;
 }
 
-/** wabt-ts's tree for `wat`, across the bridge. */
-function bridged(wat: string): WasmModule {
+/** wabt-ts's tree for `wat`, made ready for binaryen-ts (the direct path; the bridge until M8e). */
+function prepared(wat: string): WasmModule {
   const { module, errors } = parseWatModule(new LexerSource(wat, '<typed-select>'));
   if (hasErrors(errors)) throw new Error('parse failed');
   const re = makeErrorList();
   resolveNames(module, re);
   if (hasErrors(re)) throw new Error('resolveNames failed');
-  return bridgeToBinaryen(module);
+  synthesizeTypes(module);
+  return prepareForPasses(module);
 }
 
 const hex = (s: string) => new Uint8Array(s.trim().split(/\s+/).map((b) => parseInt(b, 16)));
@@ -118,13 +120,13 @@ describe('typed select', () => {
     assertEquals(selects(parseWasm(UNTYPED_BYTES))[0]!.resultType, []);
   });
 
-  it('the bridge keeps the declared type (it fell back to the ifTrue arm)', () => {
+  it('the direct path keeps the declared type (the bridge fell back to the ifTrue arm)', () => {
     // Both arms are `(ref func)` — non-null — while the select declares the
     // nullable `funcref`. Dropping the declaration typed it by its arm.
     const wat =
       '(module (func $f) (elem declare func $f) (func (export "go") (param i32) (result i32) ' +
       '(ref.is_null (select (result funcref) (ref.func $f) (ref.func $f) (local.get 0)))))';
-    const sel = selects(bridged(wat))[0]!;
+    const sel = selects(prepared(wat))[0]!;
     assertEquals(sel.resultType, [ValType.FuncRef]);
     assertEquals(sel.type, ValType.FuncRef);
   });

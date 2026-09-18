@@ -23,7 +23,8 @@ import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/cor
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { bridgeToBinaryen } from '../../../src/bridge/bridge.ts';
+import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
 import { WasmBinaryError } from '../../../src/binaryen-ts/binary/reader.ts';
@@ -159,14 +160,15 @@ describe('M2g — serializeToWat writes the memory it holds', () => {
   });
 });
 
-describe('M2g — the bridge carries the record', () => {
-  function bridged(wat: string): Uint8Array {
+describe('M2g — the direct path (the bridge until M8e) carries the record', () => {
+  function prepared(wat: string): Uint8Array {
     const { module, errors } = parseWatModule(new LexerSource(wat, '<m2g>'));
     assert(!hasErrors(errors), formatErrors(errors));
     const errs = makeErrorList();
     resolveNames(module, errs);
     assert(!hasErrors(errs), formatErrors(errs));
-    return encodeWasm(bridgeToBinaryen(module));
+    synthesizeTypes(module);
+    return encodeWasm(prepareForPasses(module));
   }
 
   for (
@@ -178,7 +180,7 @@ describe('M2g — the bridge carries the record', () => {
   ) {
     it(wat, () => {
       const id = wat.includes('memory') ? 5 : 4;
-      assertEquals(section(bridged(wat), id), section(assemble(wat), id));
+      assertEquals(section(prepared(wat), id), section(assemble(wat), id));
     });
   }
 });

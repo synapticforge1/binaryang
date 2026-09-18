@@ -6,8 +6,9 @@
  *
  * ## Why this exists
  *
- * `deno task baseline` pins what wabt-ts writes and `deno task bridge` what the
- * bridge round-trips; neither ever optimizes. Corpus checks of the optimizer were
+ * `deno task baseline` pins what wabt-ts writes and `deno task direct` what a
+ * text-read tree encodes to (it optimizes too, but a TEXT-read tree; this gate
+ * optimizes the decoder's). Before them neither ever optimized. Corpus checks of the optimizer were
  * one-off hashes of its output — which say whether the output CHANGED, not
  * whether it is a module an engine will load. On 2026-09-14 that let two
  * defects sit unseen: -O3 could not encode three recursive modules at all, and

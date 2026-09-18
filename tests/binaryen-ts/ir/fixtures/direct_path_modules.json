@@ -1,0 +1,494 @@
+[
+  {
+    "from": "branch_values.test.ts",
+    "wat": "(module (func (export \"run\") (result i32)\n       (block $a (result i32)\n         (br_table $a (i32.const 7) (i32.const 0)))))"
+  },
+  {
+    "from": "branch_values.test.ts",
+    "wat": "(module (func (export \"run\") (result i32)\n       (block $a (result i32)\n         (i32.add\n           (block $b (result i32)\n             (br_table $b $a (i32.const 7) (i32.const 1)))\n           (i32.const 100)))))"
+  },
+  {
+    "from": "branch_values.test.ts",
+    "wat": "(module (func (export \"run\") (result i32)\n       (block $a (result i32)\n         (i32.add\n           (block $b (result i32)\n             (br_table $b $a (i32.const 7) (i32.const 0)))\n           (i32.const 100)))))"
+  },
+  {
+    "from": "call_indirect_type_ref.test.ts",
+    "wat": "(module\n  (type $unary (func (param i32) (result i32)))\n  (table 2 funcref)\n  (func $double (type $unary) (i32.mul (local.get 0) (i32.const 2)))\n  (func $negate (type $unary) (i32.sub (i32.const 0) (local.get 0)))\n  (elem (i32.const 0) $double $negate)\n  (func (export \"f\") (param i32) (result i32)\n    (call_indirect (type $unary) (i32.const 21) (local.get 0))))"
+  },
+  {
+    "from": "call_indirect_type_ref.test.ts",
+    "wat": "(module\n        (table 1 funcref)\n        (func $half (param i32) (result i32) (i32.div_s (local.get 0) (i32.const 2)))\n        (func (export \"f\") (param i32) (result i32)\n          (call_indirect (param i32) (result i32) (local.get 0) (i32.const 0))))"
+  },
+  {
+    "from": "call_indirect_type_ref.test.ts",
+    "wat": "(module\n        (type $void (func))\n        (table 1 funcref)\n        (func $bump (type $void) (nop))\n        (func (export \"f\") (param i32) (result i32)\n          (call_indirect (type $void) (local.get 0))\n          (i32.const 7)))"
+  },
+  {
+    "from": "dry_run.test.ts",
+    "wat": "(module\n        (import \"env\" \"log\" (func $log (param i32)))\n        (global $g (mut i32) (i32.const 0))\n        (memory 1)\n        (func $add (param i32 i32) (result i32)\n          local.get 0\n          local.get 1\n          i32.add)\n        (export \"add\" (func $add)))"
+  },
+  {
+    "from": "gc_decoarsening.test.ts",
+    "wat": "(module\n        (type $T (struct (field i32)))\n        (import \"m\" \"f\" (func $imp (param (ref $T))))\n        (func (export \"g\") (param (ref $T))\n          (call $imp (local.get 0))))"
+  },
+  {
+    "from": "gc_decoarsening.test.ts",
+    "wat": "(module\n        (type $T (struct (field i32)))\n        (tag $e (param i64 f32))\n        (func (export \"g\") (param (ref $T))\n          (throw $e (i64.const 1) (f32.const 2))))"
+  },
+  {
+    "from": "gc_decoarsening.test.ts",
+    "wat": "(module\n        (type $T (struct (field i32)))\n        (tag $e (param (ref $T) i32))\n        (func (export \"g\") (param (ref $T))\n          (throw $e (local.get 0) (i32.const 1))))"
+  },
+  {
+    "from": "gc_decoarsening.test.ts",
+    "wat": "(module\n        (type $T (struct (field i32)))\n        (import \"m\" \"g\" (global $ig (ref null $T)))\n        (func (export \"f\") (result (ref null $T)) (global.get $ig)))"
+  },
+  {
+    "from": "gc_decoarsening.test.ts",
+    "wat": "(module\n        (type $T (struct (field i32)))\n        (func (export \"f\") (param (ref $T)) (result i32)\n          (local $l (ref null $T))\n          (local.set $l (local.get 0))\n          (struct.get $T 0 (local.get $l))))"
+  },
+  {
+    "from": "gc_decoarsening.test.ts",
+    "wat": "(module\n        (type $T (struct (field i32)))\n        (func (export \"g\") (param (ref $T)) (result i32)\n          (struct.get $T 0 (local.get 0))))"
+  },
+  {
+    "from": "gc_decoarsening.test.ts",
+    "wat": "(module\n        (type $T (struct (field i32)))\n        (global $g (ref null $T) (ref.null $T))\n        (func (export \"g\") (result (ref null $T))\n          (global.get $g)))"
+  },
+  {
+    "from": "gc_tier1.test.ts",
+    "wat": "(module\n      (func $f (param i32) (result i32)\n        (i31.get_s (ref.i31 (local.get 0))))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "gc_tier1.test.ts",
+    "wat": "(module\n      (func $f (param i32) (result i32)\n        (i31.get_u (ref.i31 (local.get 0))))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "gc_tier1.test.ts",
+    "wat": "(module\n      (func $box (param i32) (result i31ref)\n        (ref.i31 (local.get 0)))\n      (export \"box\" (func $box)))"
+  },
+  {
+    "from": "gc_tier1.test.ts",
+    "wat": "(module\n      (func $eq (param i31ref i31ref) (result i32)\n        (ref.eq (local.get 0) (local.get 1)))\n      (export \"eq\" (func $eq)))"
+  },
+  {
+    "from": "gc_tier1.test.ts",
+    "wat": "(module\n      (func $eq (param eqref eqref) (result i32)\n        (ref.eq (local.get 0) (local.get 1)))\n      (export \"eq\" (func $eq)))"
+  },
+  {
+    "from": "gc_tier1.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (param eqref) (param i31ref)\n                (param structref) (param arrayref) (param nullref)\n                (result i32)\n        (i32.const 0))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $Point (struct (field $x i32) (field $y i32))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $Cell (struct (field $v (mut i32)))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $a i8) (field $b i16) (field $c i32))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $v i32)))\n      (func $f (param (ref $T)))\n      (func $g (param (ref null $T))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $a i32)))\n      (func $make (param i32) (result (ref $T))\n        (struct.new $T (local.get 0))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $v (mut i32))))\n      (func $f (result (ref $T))\n        (struct.new_default $T)))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $v i32)))\n      (func $f (param (ref $T)) (result i32)\n        (struct.get $T $v (local.get 0))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $b i8)))\n      (func $f (param (ref $T)) (result i32)\n        (struct.get_s $T $b (local.get 0))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $b i8)))\n      (func $f (param (ref $T)) (result i32)\n        (struct.get_u $T $b (local.get 0))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $v (mut i32))))\n      (func $f (param (ref $T)) (param i32)\n        (struct.set $T $v (local.get 0) (local.get 1))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $a i32) (field $b i32) (field $c i32)))\n      (func $f (param (ref $T)) (result i32)\n        (struct.get $T $b (local.get 0))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $T (struct (field $a i32) (field $b i32) (field $c i32)))\n      (func $f (param (ref $T)) (result i32)\n        (struct.get $T $c (local.get 0))))"
+  },
+  {
+    "from": "gc_tier2.test.ts",
+    "wat": "(module\n      (type $A (struct (field $x i32)))\n      (type $B (struct (field $y i64)))\n      (func $newA (param i32) (result (ref $A))\n        (struct.new $A (local.get 0)))\n      (func $newB (param i64) (result (ref $B))\n        (struct.new $B (local.get 0))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $Ints (array (mut i32))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $Bytes (array i8)))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $Pt (struct (field i32) (field i32)))\n      (type $Arr (array (mut i32))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array (mut i32)))\n      (func $f (param i32 i32) (result (ref $A))\n        (array.new $A (local.get 0) (local.get 1))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array (mut i32)))\n      (func $f (param i32) (result (ref $A))\n        (array.new_default $A (local.get 0))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array (mut i32)))\n      (func $f (result (ref $A))\n        (array.new_fixed $A 3 (i32.const 1) (i32.const 2) (i32.const 3))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (memory 1)\n      (data $D \"\\\\01\\\\02\\\\03\\\\04\")\n      (type $A (array (mut i32)))\n      (func $f (param i32 i32) (result (ref $A))\n        (array.new_data $A $D (local.get 0) (local.get 1))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array (mut i32)))\n      (func $f (param (ref $A) i32) (result i32)\n        (array.get $A (local.get 0) (local.get 1))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array i8))\n      (func $f (param (ref $A) i32) (result i32)\n        (array.get_s $A (local.get 0) (local.get 1))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array (mut i32)))\n      (func $f (param (ref $A) i32 i32)\n        (array.set $A (local.get 0) (local.get 1) (local.get 2))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array (mut i32)))\n      (func $f (param (ref $A)) (result i32)\n        (array.len (local.get 0))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (memory 1)\n      (data $D0 \"\\\\aa\")\n      (data $D1 \"\\\\bb\\\\cc\")\n      (type $A (array (mut i32)))\n      (func $f (param i32 i32) (result (ref $A))\n        (array.new_data $A $D1 (local.get 0) (local.get 1))))"
+  },
+  {
+    "from": "gc_tier3.test.ts",
+    "wat": "(module\n      (type $A (array i8))\n      (func $f (param (ref $A) i32) (result i32)\n        (array.get_u $A (local.get 0) (local.get 1))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result i32)\n        (ref.test (ref any) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result i32)\n        (ref.test (ref null any) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result i32)\n        (ref.test (ref i31) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result i32)\n        (ref.test (ref struct) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result i32)\n        (ref.test (ref array) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (type $T (struct (field $v i32)))\n      (func $f (param anyref) (result i32)\n        (ref.test (ref $T) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (type $T (struct (field $v i32)))\n      (func $f (param anyref) (result i32)\n        (ref.test (ref null $T) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result anyref)\n        (ref.cast (ref any) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result anyref)\n        (ref.cast (ref null any) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (type $T (struct (field $v i32)))\n      (func $f (param anyref) (result (ref $T))\n        (ref.cast (ref $T) (local.get 0))))"
+  },
+  {
+    "from": "gc_tier4.test.ts",
+    "wat": "(module\n      (func $f (param anyref) (result i32)\n        (ref.test (ref none) (local.get 0))))"
+  },
+  {
+    "from": "label_frames.test.ts",
+    "wat": "(module (func (export \"run\") (result i32)\n      (if (result i32) (i32.const 1) (then (i32.const 7)) (else (i32.const 9)))))"
+  },
+  {
+    "from": "label_frames.test.ts",
+    "wat": "(module (func (export \"run\") (result i32)\n      (block $a (result i32)\n        (drop (if (result i32) (i32.const 1)\n          (then (block $b (result i32) (br 2 (i32.const 55))))\n          (else (i32.const 0))))\n        (i32.const 66))))"
+  },
+  {
+    "from": "module_surface.test.ts",
+    "wat": "(module\n      (type $unary (func (param i32) (result i32)))\n      (table 2 funcref)\n      (func $double (type $unary) (i32.mul (local.get 0) (i32.const 2)))\n      (func $negate (type $unary) (i32.sub (i32.const 0) (local.get 0)))\n      (elem (i32.const 0) $double $negate)\n      (func (export \"f\") (param i32) (result i32)\n        (call_indirect (type $unary) (i32.const 21) (local.get 0))))"
+  },
+  {
+    "from": "module_surface.test.ts",
+    "wat": "(module\n      (type $u (func (result i32)))\n      (table 4 funcref)\n      (func $seven (type $u) (i32.const 7))\n      (elem (i32.const 3) $seven)\n      (func (export \"f\") (param i32) (result i32) (call_indirect (type $u) (local.get 0))))"
+  },
+  {
+    "from": "module_surface.test.ts",
+    "wat": "(module\n      (global $g (mut i32) (i32.const 0))\n      (func $init (global.set $g (i32.const 99)))\n      (start $init)\n      (func (export \"f\") (result i32) (global.get $g)))"
+  },
+  {
+    "from": "module_surface.test.ts",
+    "wat": "(module\n      (type $u (func (result i32)))\n      (table 2 funcref)\n      (func $five (type $u) (i32.const 5))\n      (elem $late func $five)\n      (func (export \"f\") (param i32) (result i32) (call_indirect (type $u) (local.get 0))))"
+  },
+  {
+    "from": "module_surface.test.ts",
+    "wat": "(module\n        (table 2 funcref)\n        (func $f0)\n        (elem (i32.const 0) funcref (item (ref.null func)) (item (ref.func $f0))))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $f (param i32) (result i32)\n          (local i32)\n          local.get 0\n          local.set 1\n          local.get 1\n          local.get 1\n          i32.add\n          local.tee 1)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (global $g (mut i32) (i32.const 0))\n        (func $bump (param i32) (result i32)\n          local.get 0\n          global.get $g\n          i32.add\n          global.set $g\n          global.get $g)\n        (export \"bump\" (func $bump)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $f (param i32) (result i64)\n          local.get 0\n          i32.clz                    ;; unary\n          drop\n          local.get 0\n          i32.eqz                    ;; \"compare-ish\" (unary i32 → i32 in WAT)\n          drop\n          local.get 0\n          local.get 0\n          i32.lt_s                   ;; compare\n          drop\n          local.get 0\n          i64.extend_i32_s)          ;; convert (returns the function result)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $f (result i32)\n          (block $b (result i32)\n            i32.const 42\n            br $b))\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $countdown (param i32) (result i32)\n          (loop $L\n            local.get 0\n            i32.const 1\n            i32.sub\n            local.set 0\n            local.get 0\n            br_if $L)\n          local.get 0)\n        (export \"countdown\" (func $countdown)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $abs (param i32) (result i32)\n          local.get 0\n          i32.const 0\n          i32.lt_s\n          (if (result i32)\n            (then\n              i32.const 0\n              local.get 0\n              i32.sub)\n            (else\n              local.get 0)))\n        (export \"abs\" (func $abs)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $sel (param i32) (result i32)\n          (block $default\n            (block $b1\n              (block $b0\n                local.get 0\n                br_table $b0 $b1 $default)\n              i32.const 10\n              return)\n            i32.const 20\n            return)\n          i32.const 30)\n        (export \"sel\" (func $sel)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $f\n          (block\n            return)\n          unreachable)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_a.test.ts",
+    "wat": "(module\n        (func $f (param i32)\n          nop\n          local.get 0\n          drop)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_b.test.ts",
+    "wat": "(module\n        (import \"env\" \"log\" (func $log (param i32)))\n        (func $f (param i32)\n          local.get 0\n          call $log)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_b.test.ts",
+    "wat": "(module\n        (func $sq (param i32) (result i32)\n          local.get 0\n          local.get 0\n          i32.mul)\n        (func $f (param i32) (result i32)\n          local.get 0\n          call $sq)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_b.test.ts",
+    "wat": "(module\n        (func $f (param i32 i32 i32) (result i32)\n          local.get 0\n          local.get 1\n          local.get 2\n          select)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_b.test.ts",
+    "wat": "(module\n        (memory 1)\n        (func $f (param i32 i32) (result i32)\n          local.get 0\n          local.get 1\n          i32.store\n          local.get 0\n          i32.load)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_b.test.ts",
+    "wat": "(module\n        (memory 1)\n        (func $f (param i32 i32)\n          local.get 0\n          local.get 1\n          i32.store8\n          local.get 0\n          i32.load8_u\n          drop)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_b.test.ts",
+    "wat": "(module\n        (memory 1)\n        (func $f (param i32) (result i64)\n          local.get 0\n          i64.load offset=8 align=4)\n        (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_b.test.ts",
+    "wat": "(module\n        (memory 1)\n        (func $size (result i32) memory.size)\n        (func $grow (param i32) (result i32) local.get 0 memory.grow)\n        (export \"size\" (func $size))\n        (export \"grow\" (func $grow)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $f (result i32) (ref.is_null (ref.null func)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $f (result i32) (ref.is_null (ref.null extern)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $target (result i32) (i32.const 42))\n      (func $get_ref (result funcref) (ref.func $target))\n      (export \"target\" (func $target))\n      (export \"get_ref\" (func $get_ref)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $is_null (param funcref) (result i32)\n        (ref.is_null (local.get 0)))\n      (export \"is_null\" (func $is_null)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $broadcast (param i32) (result v128) (i8x16.splat (local.get 0)))\n      (export \"broadcast\" (func $broadcast)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $add (param v128 v128) (result v128)\n        (i8x16.add (local.get 0) (local.get 1)))\n      (export \"add\" (func $add)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $get_lane (param v128) (result i32)\n        (i32x4.extract_lane 2 (local.get 0)))\n      (export \"get_lane\" (func $get_lane)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $byte_at (param v128) (result i32)\n        (i8x16.extract_lane_u 7 (local.get 0)))\n      (export \"byte_at\" (func $byte_at)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $reverse (param v128 v128) (result v128)\n        (i8x16.shuffle 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0\n          (local.get 0) (local.get 1)))\n      (export \"reverse\" (func $reverse)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $set_lane (param v128 i32) (result v128)\n        (i32x4.replace_lane 2 (local.get 0) (local.get 1)))\n      (export \"set_lane\" (func $set_lane)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $set_byte (param v128 i32) (result v128)\n        (i8x16.replace_lane 7 (local.get 0) (local.get 1)))\n      (export \"set_byte\" (func $set_byte)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $set_lane (param v128 f64) (result v128)\n        (f64x2.replace_lane 1 (local.get 0) (local.get 1)))\n      (export \"set_lane\" (func $set_lane)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (func $f (result v128)\n        (v128.const i32x4 1 2 3 4))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (memory 1)\n      (func $f (param i32) (result v128) (v128.load8_splat (local.get 0)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (memory 1)\n      (func $f (param i32) (result v128) (v128.load32_splat (local.get 0)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (memory 1)\n      (func $f (param i32) (result v128) (v128.load32_zero (local.get 0)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (memory 1)\n      (func $f (param i32) (result v128) (v128.load64_zero (local.get 0)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (memory 1)\n      (func $f (param i32) (result v128) (v128.load8x8_s (local.get 0)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (memory 1)\n      (func $f (param i32 v128) (result v128)\n        (v128.load8_lane 3 (local.get 0) (local.get 1)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (memory 1)\n      (func $f (param i32 v128)\n        (v128.store8_lane 3 (local.get 0) (local.get 1)))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (tag $oops)\n      (func $f (throw $oops))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (tag $err (param i32))\n      (func $boom (throw $err (i32.const 42)))\n      (export \"boom\" (func $boom)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (tag $err (param i32 i64))\n      (func $boom (throw $err (i32.const 1) (i64.const 2)))\n      (export \"boom\" (func $boom)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (tag $err (param i32))\n      (func $f (result i32)\n        (block $out (result i32)\n          (try_table (result i32) (catch $err $out)\n            (throw $err (i32.const 99)))))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_c.test.ts",
+    "wat": "(module\n      (tag $err)\n      (func $f\n        (block $out\n          (try_table (catch_all $out)\n            (throw $err))))\n      (export \"f\" (func $f)))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (memory $mem 1 4)\n        (export \"memory\" (memory $mem)))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (memory 1)\n        (export \"mem\" (memory 0)))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (table $t 4 funcref)\n        (export \"t\" (table $t)))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (table 2 funcref)\n        (export \"t\" (table 0)))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (memory $m 1)\n        (table $t 1 funcref)\n        (export \"mem\" (memory $m))\n        (export \"tbl\" (table $t)))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (memory 1)\n        (data (i32.const 0) \"\\\\01\\\\02\\\\03\\\\04\"))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (memory 1)\n        (data \"hello\"))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (memory 1)\n        (data (i32.const 0) \"\\\\aa\\\\bb\")\n        (data (i32.const 16) \"\\\\cc\\\\dd\"))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (import \"env\" \"base\" (global $base i32))\n        (memory 1)\n        (data (offset (global.get $base)) \"\\\\01\\\\02\"))"
+  },
+  {
+    "from": "tier_d.test.ts",
+    "wat": "(module\n        (memory $m 1)\n        (export \"mem\" (memory $m))\n        (data (i32.const 0) \"\\\\2a\\\\00\\\\00\\\\00\")\n        (func (export \"read\") (result i32)\n          i32.const 0\n          i32.load))"
+  },
+  {
+    "from": "try_table_catch_scope.test.ts",
+    "wat": "(module (tag $e (param i32))\n      (func (export \"f\") (result i32)\n        (block (result i32)\n          (try_table (result i32) (catch $e 0) (i32.const 1)))))"
+  },
+  {
+    "from": "try_table_catch_scope.test.ts",
+    "wat": "(module (tag $e (param i32))\n      (func (export \"f\") (result i32)\n        (block (result i32)\n          (block (result i32)\n            (try_table (result i32) (catch $e 1) (i32.const 1))))))"
+  },
+  {
+    "from": "try_table_catch_scope.test.ts",
+    "wat": "(module (tag $e (param i32))\n      (func (export \"f\") (result i32)\n        (block $o (result i32)\n          (try_table (result i32) (catch $e $o) (i32.const 1)))))"
+  },
+  {
+    "from": "br_on_cast.test.ts",
+    "wat": "(module (type $T (struct (field i32))) (func (export \"f\") (result i32)\n  (block $l (result (ref $T))\n    (br_on_cast $l anyref (ref $T) (struct.new $T (i32.const 9)))\n    (return (i32.const 0)))\n  (struct.get $T 0)))"
+  },
+  {
+    "from": "br_on_cast.test.ts",
+    "wat": "(module (type $T (struct (field i32))) (func (export \"f\") (result i32)\n  (block $l (result anyref)\n    (br_on_cast_fail $l anyref (ref $T) (struct.new $T (i32.const 5)))\n    (return (struct.get $T 0)))\n  (drop) (i32.const 0)))"
+  },
+  {
+    "from": "br_on_cast.test.ts",
+    "wat": "(module (type $T (struct (field i32))) (func (export \"f\") (result i32)\n  (block $l\n    (br_on_null $l (ref.null $T))\n    (return (i32.const 1)))\n  (i32.const 7)))"
+  },
+  {
+    "from": "br_on_cast.test.ts",
+    "wat": "(module (type $T (struct (field i32))) (func (export \"f\") (result i32)\n  (block $l (result (ref $T))\n    (br_on_non_null $l (struct.new $T (i32.const 3)))\n    (return (i32.const 0)))\n  (struct.get $T 0)))"
+  },
+  {
+    "from": "label_frames.test.ts (a br whose target IS the if: the bridge refused it)",
+    "wat": "(module (func (export \"f\") (param i32) (result i32)\n  (if (result i32) (local.get 0)\n    (then (br 0 (i32.const 11)))\n    (else (i32.const 22)))))"
+  }
+]
