@@ -3,8 +3,9 @@
 //
 // Found by M8d (2026-09-18): binaryen-ts typed every `table.get` `funcref`,
 // whatever the table held. The decoder never passed the element type to
-// `makeTableGet`, whose default was `funcref`, and `wasm-opt`'s own WAT reader
-// wrote `funcref` outright. Over the 2,490 valid spec binaries that was 235
+// `makeTableGet`, whose default was `funcref` — and `wasm-opt` reads text
+// through that decoder (`readWat`: `wat2wasm`, then `parseWasm`). binaryen-ts's
+// own WAT parser, which tests build modules with, wrote `funcref` outright. Over the 2,490 valid spec binaries that was 235
 // `table.get`s mistyped, and 99 more nodes typed from them. A type reaches no
 // byte by itself, so no byte gate saw it; a pass dispatching on it would have.
 
@@ -13,6 +14,7 @@ import { assertEquals, assertThrows } from '@std/assert';
 
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
+import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
@@ -54,14 +56,19 @@ describe("table.get is typed by its table's element type", () => {
     assertEquals(tableGetTypes(parseWasm(wat2wasm(WAT).binary)), EXPECTED);
   });
 
-  it("wasm-opt's WAT reader: the same four", () => {
+  it("wasm-opt's text route (readWat -> the decoder): the same four", () => {
     assertEquals(tableGetTypes(readWat(WAT)), EXPECTED);
   });
 
-  it('the WAT reader refuses a table it does not know, rather than typing it funcref', () => {
+  it("binaryen-ts's own WAT parser: the same four", () => {
+    assertEquals(tableGetTypes(parseWat(WAT)), EXPECTED);
+  });
+
+  it("binaryen-ts's WAT parser: an out-of-range table index is refused, not typed funcref", () => {
     assertThrows(
-      () =>
-        readWat('(module (table $t 1 externref) (func (drop (table.get $nope (i32.const 0)))))'),
+      () => parseWat('(module (func (drop (table.get 3 (i32.const 0)))))'),
+      Error,
+      'table.get: unknown table',
     );
   });
 });
