@@ -123,6 +123,20 @@ function summary(mod: WasmModule): Record<string, number> {
   };
 }
 
+/**
+ * Binaries on which the ENGINE is not a usable oracle. For these the round trip
+ * must be BYTE-IDENTICAL instead — a stronger claim than "still validates", and
+ * one no engine is needed to judge.
+ *
+ * `lit/control-flow-input.wast.wasm` mixes legacy and new exception handling.
+ * V8 (Deno 2.9.7) gives it NO stable verdict: 40 back-to-back
+ * `WebAssembly.compile` calls rejected it 39 times and accepted it once, and
+ * `WebAssembly.validate` split the same way; two of three probe runs then
+ * crashed Deno outright ("Check failed: !job->compile_imports_.empty()").
+ * This test failed on it twice with input and output byte-identical (2026-09-18).
+ */
+const ENGINE_UNSTABLE = new Set(['lit/control-flow-input.wast.wasm']);
+
 async function validates(bytes: Uint8Array): Promise<boolean> {
   try {
     const buf = new ArrayBuffer(bytes.byteLength);
@@ -179,8 +193,12 @@ Deno.test({
         continue;
       }
 
-      // Only hold the output to the standard the INPUT already met.
-      if (await validates(buf) && !await validates(bytes2)) {
+      // Only hold the output to the standard the INPUT already met — or, where
+      // the engine cannot judge, to byte identity.
+      if (ENGINE_UNSTABLE.has(rel(file))) {
+        const same = bytes2.length === buf.length && bytes2.every((b, i) => b === buf[i]);
+        if (!same) validateFail.push(`${rel(file)} (engine-unstable: not byte-identical)`);
+      } else if (await validates(buf) && !await validates(bytes2)) {
         validateFail.push(rel(file));
       }
 
