@@ -207,6 +207,9 @@ their own bump — and nothing breaks by their standing still.
   `ModuleBuilder.addType` names an unnamed one likewise. `ExplicitNames.types` is a
   `ReadonlySet<string>` of the real type names (was `Map<TypeDef, string>`); `.fields` maps a type's
   name to its real field names (was `Map<TypeDef, Map<number, string>>`).
+- ⚠️ **BREAKING: `WasmModule.hasNameSection: boolean`** (required) says whether a name section is
+  written; `explicitNames` says only which names are real, and a decoded module always has it
+  (S6 step 5 item 6 (M7c3b b1a)). Test `hasNameSection`, not `explicitNames !== undefined`.
 - **`WasmModule.explicitNames`**: a module decoded from a binary WITH a name section carries its
   names and re-encodes them; `ModuleBuilder.addFunction` takes optional `paramNames`.
 - **`WasmModule.customSections`**: every custom section is kept, each with the known section it

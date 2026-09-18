@@ -3565,7 +3565,17 @@ always" reaches TYPES (referenced by index in both IRs, `name: ''` in both since
 M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
 
 **🚧 M7c3b — wabt-ts takes the practice. The plan (2026-09-18), not started.**
-1. **b1 — names everywhere in wabt-ts, and one record of which are real.** The binary reader and
+   **✅ b1a — the name section is its own fact (2026-09-18, `5e4a1cbdd` + `9a9c17ade`).** Found
+   designing b1: binaryen-ts's `explicitNames` held TWO facts — its presence meant "write a section",
+   its content "which names are real". binaryen-ts now has wabt-ts's `hasNameSection: boolean`
+   (decoder: had one; `build()`: false; `PassRunner` clears it after an optimizing run without
+   `debugInfo` — it deleted the record), and `explicitNames` means only the second: set by every
+   producer that MAKES UP names (the decoder always, section or not); ABSENT = nothing made up, so
+   every non-empty name is real — the state a wabt-ts `makeModule` module reaches the encoder in at
+   M8. Decode → encode 0 of 1,023 changed, optimizer + `wat2wasm` 0 of 2,526. 6 mutants — the label
+   case survived until a test named a label. Ratchet **19 / 2 / 19**. ⚠️ `addType`'s made-up type
+   names are unrecorded, so they would be written if someone sets `hasNameSection` on a built module.
+1. **b1b — names everywhere in wabt-ts, and one record of which are real.** The binary reader and
    the text parser give every unnamed function / table / memory / global / element / data segment /
    tag a made-up name by binaryen-ts's scheme (`binary/names.ts`: `$func3`, a section name wins,
    `.N` on collision — shared, not copied), and labels theirs; they record the real ones in
@@ -3583,10 +3593,9 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    writers' switch to the record must land TOGETHER, and those 36 are the acceptance set. Acceptance:
    baseline IDENTICAL, `wasm2wat` text unchanged over the corpus, spec unchanged, round trips
    unchanged.
-2. **b2 — presence and the local listing.** `hasNameSection` → `explicitNames` present
-   (`makeModule` gives an EMPTY record, so text still gets upstream's section — the N1 rule);
-   `localNamesListed` (by index) → `localsListed` (by name — possible once every function has one).
-   Ratchet: the module's last one-sided name fields converge.
+2. **b2 — the local listing.** `localNamesListed` (by index) → `explicitNames.localsListed` (by
+   name — possible once every function has one). The presence half of the old b2 is b1a, done the
+   other way round: both sides keep `hasNameSection`; `explicitNames` is only the record.
 0. **✅ b0 — binaryen-ts's types and fields take the practice (2026-09-18, `66ccfe236`).** Every
    `TypeDef` and field carries a name — the section's, or `$typeN` / `$fieldN`, clear of every
    section name — and `explicitNames.types` is a set of the real type names, `.fields` a map from a
