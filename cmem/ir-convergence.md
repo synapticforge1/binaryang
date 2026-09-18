@@ -3553,6 +3553,37 @@ asked, not chosen.
 name; `explicitNames` records which are real; only real names are written. Recorded as decision 4 in
 [names.md](names.md).
 
+**✅ M7c3a — an import's param names and the module's name live on their records (2026-09-18).**
+Group 1, minus types / fields (below). `ExplicitNames.importParams` → the imported function's
+`locals`, which are now its params (`addFunctionImport` built `locals: []`, breaking
+`WasmFunction`'s own invariant; it takes `paramNames` now, as `addFunction` does);
+`ExplicitNames.module` → `WasmModule.name` (`''` = none, wabt-ts's and upstream binaryen's form).
+Neither name is ever made up, so neither needs a "which are real" entry. Decode → encode over 932
+binaries, `main` against the branch: 0 changed. 4 mutants killed. Ratchet **20 / 2 / 19**.
+Types and fields stay in `explicitNames.types` / `.fields` for now: whether decision 4's "a name
+always" reaches TYPES (referenced by index in both IRs, `name: ''` in both since M5a) is part of
+M7c3b.
+
+**🚧 M7c3b — wabt-ts takes the practice. The plan (2026-09-18), not started.**
+1. **b1 — names everywhere in wabt-ts, and one record of which are real.** The binary reader and
+   the text parser give every unnamed function / table / memory / global / element / data segment /
+   tag a made-up name by binaryen-ts's scheme (`binary/names.ts`: `$func3`, a section name wins,
+   `.N` on collision — shared, not copied), and labels theirs; they record the real ones in
+   `explicitNames` (moved to wabt-ts's IR, as `Limits` and `Var` were). Every writer that asked
+   `name !== ''` asks the record: the binary writer's name section, the WAT writer
+   (`writeNameOrIndex`, 11 call sites — an unnamed entity still prints `(;N;)`), `wasm-objdump`,
+   `generateNames` (upstream's `$f0` scheme stays; it marks what it names REAL). A regex over
+   `name === ''`-style tests finds 23 sites in 6 files; it cannot see `writeNameOrIndex`-style
+   helpers, so the measure is a TRIAL: name everything, then count what moves. Acceptance:
+   baseline IDENTICAL, `wasm2wat` text unchanged over the corpus, spec unchanged, round trips
+   unchanged.
+2. **b2 — presence and the local listing.** `hasNameSection` → `explicitNames` present
+   (`makeModule` gives an EMPTY record, so text still gets upstream's section — the N1 rule);
+   `localNamesListed` (by index) → `localsListed` (by name — possible once every function has one).
+   Ratchet: the module's last one-sided name fields converge.
+3. **Open inside it:** types and fields (above); references stay the `Var`s they are — whether they
+   become names is M8's.
+
 ### S7 — the linear-form marker
 
 A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was
