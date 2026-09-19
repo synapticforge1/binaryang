@@ -23,15 +23,15 @@ that history now lives in its topic files — nothing was dropped:
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
 **State, 2026-09-19:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
-ahead, unpushed and unbumped, at 1265 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
+ahead, unpushed and unbumped, at 1269 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 `direct` 544/544 and `direct-behaviour` 1953 calls agreeing (the bridge and its gates were deleted
 2026-09-18), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b, W11 and the scheduled cleanup ALL DONE; next: the owner's call)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b, W11, the cleanup and S7 ALL DONE; next: the owner's call)
 
-**Where the work stopped.** `main` is at the merge of the scheduled cleanup (code last changed at
-`95be871f7`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `95be871f7` (as on every stage before it) and every step exited 0: fmt, lint, **1265 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of S7 (code last changed at `899263b7b`, re-baseline
+`337c884a3`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `337c884a3` (as on every stage before it) and every step exited 0: fmt, lint, **1269 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -122,6 +122,7 @@ entity collections stay there until the records themselves are one type (M8).
 | W10b                        | `cd37142a6` | a transfer is the next instruction's operand, as upstream folds it; fixed with it: `deriveTypes` typed a branch's condition before its values and accepted the invalid `br.6` |
 | W11                         | `f2baf2ada` | folded `wasm2wat` folds EVERY instruction kind: 3,174 linear lines in folded output → 0, as upstream   |
 | the scheduled cleanup       | `95be871f7` | RemoveUnusedModuleElements's no-op `importedFuncs` set deleted; 0 optimizer outputs moved              |
+| S7 (owner: fidelity first)  | `899263b7b` | `wat2wasm` → `wasm2wat` keeps each function's written form: the `binaryang.text-form` section; the optimizer strips it |
 
 Records: [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes", § "W10b", § "W11"; each merge
 message carries its measurements. Lessons: [best-practices.md](best-practices.md) § "Lessons from
@@ -129,8 +130,8 @@ the post-M8 run". **`prepareForPasses` stays internal (owner, 2026-09-18)**, as 
 
 ### Next, in order
 
-**The owner's call.** S6 step 5 is closed and every ordered item is done; S7 is independent and
-ready. Everything else open is listed below, by kind.
+**The owner's call.** S6 step 5 is closed, S7 is done, and every ordered item is done. Everything
+else open is listed below, by kind.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
 - binaryen-ts's decoder reads a `ref.null` / typed element segment but **refuses an element type other
@@ -190,8 +191,9 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 - ✅ **S6 step 5 — the bridge is deleted** (M8e, 2026-09-18): `prepareForPasses` (names M8c, types
   M8d) replaced it, and `deno task direct` / `direct-behaviour` its gates —
   [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
-- ⬚ **S7 — the linear-form marker.** Independent of the rest. ⚠️ Changed by C3: binaryen-ts now
-  keeps custom sections, so S7 must strip its own marker deliberately when optimization runs.
+- ✅ **S7 — the text-form marker** (`899263b7b`, 2026-09-19): per function, on by default, stripped
+  by the optimizer — [ir-convergence.md](ir-convergence.md) § "S7". Left open: a finer grain than
+  a whole function (a new section version when wanted).
 - ✅ **K1 — atomics and `call_ref` in binaryen-ts** — ported 2026-09-16 (S6 step 5 item 5 (5)).
   Left from it: Asyncify refuses `call_ref` (upstream instruments it as an indirect call).
 - ⬚ **W8 — wabt-ts drops `(@metadata.code.*)` text annotations** (DEFECT, silent). The `code_metadata`
