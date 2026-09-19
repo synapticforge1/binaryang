@@ -96,6 +96,7 @@ import {
   type HeapTypeRef,
   type I31GetExpr,
   type Import,
+  isSimdLoadOpcode,
   type Limits,
   type LocalGetExpr,
   makeModule,
@@ -2555,11 +2556,14 @@ export class BinaryReader {
     const opcode = (PREFIX_SIMD << 16) | op;
 
     // v128.load + extending loads (0x00-0x06): memarg, 1 pop (address),
-    // 1 push (v128).
+    // 1 push (v128). `v128.load` is a `load`; the extending loads are
+    // `simd.load` — the one rule every front end asks (`SIMD_LOAD_OPCODES`).
+    // 🔧 They were `load` here and `simd.load` in binaryen-ts's decoder.
     if (op >= 0x00 && op <= 0x06) {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'load', opcode: opcode as Opcode, align, offset, memidx, address, loc });
+      const kind = isSimdLoadOpcode(opcode) ? 'simd.load' : 'load';
+      stack.push({ kind, opcode: opcode as Opcode, align, offset, memidx, address, loc });
       return;
     }
 

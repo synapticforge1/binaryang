@@ -143,8 +143,10 @@ with a five-stage plan for the owner to confirm. Found by that measurement, and 
   stage 0 of the confirmed plan): 0xFC 0x00–0x07 decoded as the TRAPPING truncations, so `wasm-opt`
   on any binary using them turned a saturated result into a trap (4 of 4 corpus modules; now 0).
   It shipped in 1.5.4 — see unreleased.md.
-- **Next: stage 1 of the plan** (settle the tree — one node kind per instruction): ir-convergence.md
-  § "One front end". The plan and the three refinements are confirmed (owner, 2026-09-19).
+- 🚧 **Stage 1 of the plan** (settle the tree — one node kind per instruction): SIMD loads DONE
+  (`f60e4e575`, owner: both readers build `simd.load`); left: `struct.new`'s `defaultInit`, the
+  types in unreachable code — ir-convergence.md § "One front end". The plan and the three
+  refinements are confirmed (owner, 2026-09-19).
 - **route A's `wasm-opt` emits INVALID output for 7 valid spec modules** at -O2 (`br.0`,
   `return.0`, `unreachable.0`, `names.2`, `fac.0`, `if.0`, `unreached-valid.0`) — `optimize-corpus`
   covers only the 421 wasmtk modules.

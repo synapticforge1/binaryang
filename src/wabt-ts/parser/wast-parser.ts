@@ -82,8 +82,10 @@ import {
   type I31GetExpr,
   type IfExpr,
   type Import,
+  isSimdLoadOpcode,
   type Limits,
   type LoadExpr,
+  type LoadSplatExpr,
   type LocalGetExpr,
   type LocalSetExpr,
   type LocalTeeExpr,
@@ -4544,6 +4546,19 @@ export class WastParser {
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
+        // The extending, splat and zero SIMD loads are `simd.load` — the one
+        // rule every front end asks (`SIMD_LOAD_OPCODES`).
+        if (isSimdLoadOpcode(op)) {
+          return {
+            kind: 'simd.load',
+            opcode: op as unknown as Opcode,
+            memidx,
+            offset,
+            align,
+            address: op0(),
+            loc,
+          } as LoadSplatExpr;
+        }
         return {
           kind: 'load',
           opcode: op as unknown as Opcode,
