@@ -26,16 +26,17 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 4 of 8 done; resume at fix 5)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 5 of 8 done; resume at fix 6)
 
-**Where the work stopped.** `main` is at the merge of post-M8 fix 4 (code last changed at
-`b2547af78`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `b2547af78` (as on every stage before it) and every step exited 0: fmt, lint, **1258 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of post-M8 fix 5 (code last changed at
+`89b6a1805`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `89b6a1805` (as on every stage before it) and every step exited 0: fmt, lint, **1259 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **421/421 byte-identical to wat2wasm, valid at every level**, `direct-behaviour` **1806 calls / 602 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
 stage of item 6; `wat2wasm` output 0 of 421. Fix 4 moved folded `wasm2wat` TEXT for 2 of 421
-(re-baselined in its own commit, `abd8b7e5d`); bytes and linear text unchanged.
+(re-baselined in its own commit, `abd8b7e5d`); bytes and linear text unchanged. Fix 5 changed
+parse TREES only: 0 of 2,286 WAT files and 0 of 5,794 round-trip texts moved a byte.
 
 ✅ **The naming step is clean again (fixed 2026-09-18, owner-approved).** From `138148881`
 (2026-09-11) `check-naming.sh` printed `tests/binaryen-ts/wabt_reference.ts`, a bare `wabt`
@@ -111,13 +112,12 @@ entity collections stay there until the records themselves are one type (M8).
    - ✅ 64-bit index types for `memory.size` / `memory.grow` and `table.size` / `table.grow`;
    - ✅ wabt-ts's binary reader makes a one-value `br_if` an operand (folded `wasm2wat` nests it as
      upstream does: 533 → 646 of 648 `br_if` parents agree);
-   - ⏭️ **NEXT — fix 5:** the WAT parser does not know a branch target's arity (a `br` drains every value on the
-     stack, a void `call` included; a `br_if` value that comes from outside the region drops out). It
-     changes TREES, not bytes; `deriveTypes`' stack rule already tolerates the shapes. ⚠️ Two M8d
-     tests in `derive_types.test.ts` take their sibling-shape tree from this defect (linear text,
-     since fix 4); when it is fixed, build those trees by hand so the stack rule stays covered;
-   - fix 6: `br_table`'s stale `'nop'` filter (it never meets a placeholder; remove or make it `'pop'`,
-     with the reason);
+   - ✅ the WAT parser knows a branch target's arity (a label stack; a void `call` is a statement);
+     trees only, bytes unchanged — and the optimizer's text route now REFUSES 109 V8-invalid modules
+     it typed silently. The M8d stack-rule tests build their sibling trees by hand (`lift`);
+   - ⏭️ **NEXT — fix 6:** `br_table`'s stale `'nop'` filter in the WAT parser (it never meets a
+     placeholder — still true after fix 5, which left `br_table` taking its index only; remove or make
+     it `'pop'`, with the reason). ⚠️ Giving `br_table` its carried values is W9's half, not this;
    - fix 7: the dropped-start mutant only `prepare.test.ts` caught. Make `deno task direct` (and
      ideally `direct-behaviour`) also run the fixture's modules, so a gate sees start sections;
    - fix 8 (added by the owner, 2026-09-18): the decoder reads `memory.size` / `memory.grow`'s
@@ -140,8 +140,8 @@ entity collections stay there until the records themselves are one type (M8).
 - found by M8d (its record), being fixed now (item 1 above): ~~the decoder types every `table.get` `funcref`~~ (fixed
   `ddd5f6163`); ~~`makeCallIndirect` types a multi-value call by its
   first result~~ (fixed `4b2488540`); ~~`makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64~~ (fixed `565e7b2c2`);
-  ~~wabt-ts's binary reader does not treat a `br_if` as producing a value~~ (fixed `a82dadf90`). Also:
-  the WAT parser does not know a branch target's arity. Tree-shape imprecision, bytes right.
+  ~~wabt-ts's binary reader does not treat a `br_if` as producing a value~~ (fixed `a82dadf90`);
+  ~~the WAT parser does not know a branch target's arity~~ (fixed `89b6a1805`).
 - 🗓️ **found by fix 4, NOT on the list — owner's call whether they join it** (fix 4's record; divergence **W9**):
   wabt-ts's binary reader (a) never gives `br_table` its carried values (it leaves them as preceding
   statements, `binary-reader.ts` `Opcode.BrTable`), and (b) types the FUNCTION label's frame void, so

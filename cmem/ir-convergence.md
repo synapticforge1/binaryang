@@ -3874,7 +3874,7 @@ wires in at M8e, after `nameReferences`.
 - **Left as found, for later:**
   - `br_table`'s filter has the same stale `'nop'` check but never meets a placeholder;
   - the parser does not know a branch target's arity, so a `br_if` value that really comes from
-    outside the region drops out, as it did before S5;
+    outside the region drops out, as it did before S5 — ✅ fixed by post-M8 fix 5 (`89b6a1805`);
   - wabt-ts's BINARY reader does not treat a `br_if` as producing a value (the pass follows wasm's
     rule regardless) — ✅ fixed by post-M8 fix 4 (`a82dadf90`);
   - `makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64;
@@ -3987,6 +3987,35 @@ Each item is its own branch, measured, tested, mutated and gated.
      their `i32.add` was added.
    - Gate on `b2547af78`: exit 0, 1258 tests; baseline re-baselined (folded column of
      `1_fib-rs-opt` / `1_fib-zig-opt` only).
+5. ✅ **The WAT parser knows a branch target's arity** (`89b6a1805`, 2026-09-19).
+   - The defect: no label context. In linear text `br` / `return` drained the whole stack (earlier
+     instructions' values, and a void `call`, since every call was pushed as a value); `br_if` /
+     `br_on_*` popped a fixed two and filtered the padding, so a value-less `br_if` took a stray
+     value, a block-param value dropped out, and a one-value `br_if` was a statement (fix 4's defect,
+     parser side).
+   - The fix: a label stack while a body parses — the function frame (its results) at the bottom,
+     each block / if / try / try_table pushing its results and each loop its params, in both forms.
+     `br`, `br_if`, `br_on_*` and `return` take exactly the target's values; one the region does
+     not hold is a `pop` (`carried`). A one-value `br_if` and a void-target `br_on_null` are
+     operands. A call whose callee is known void is a statement: the parser records result counts
+     beside param counts, and both now read a callee typed by a LATER `(type $t)` from that type
+     (its param count had been 0). The old filter stays only for an unresolvable label. `br_table`
+     is untouched (W9; fix 6).
+   - Measured (scratch `parser_measure.ts` / `prepare_measure.ts`, main against the branch):
+     wat2wasm bytes 0 of 2,286 WAT files differ; 5,794 binaries round-tripped through our
+     `wasm2wat` and back, 0 differ in either form (5,641 identical on both sides, name section
+     aside). Trees: 156 linear texts and 6 WAT files; 164 + 48 `br_if`s now operands, 174 branches
+     holding a `pop`. **The optimizer's text route (`prepareForPasses`) newly refuses 109 modules** —
+     "br consumes 1 value(s) and the stack holds 0" — and V8 rejects all 109: main typed invalid
+     code silently. None newly refused that V8 accepts; wherever both accept, encoded bytes agree.
+   - Probed first: with arity alone, the void `call` became the `br`'s value, and the next
+     `br_if` took a `pop` because the first was still a statement — both had to go with it.
+   - The three M8d stack-rule tests (two of them fix 4's) now build their sibling trees by hand
+     (`lift` in `derive_types.test.ts`); the rule's two mutants still fail them.
+   - Mutants 21 / 21 killed, each by its own step of `branch_arity.test.ts` (24 steps). Three
+     SURVIVED first — padding matters only in the FOLDED form (linear `popN` pads already), and
+     `br_on_non_null` had no test — and two first died in TYPE-CHECKING, not the test; all rewritten.
+   - Gate on `89b6a1805`: exit 0, 1259 tests; baseline IDENTICAL.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
